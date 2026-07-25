@@ -21,7 +21,7 @@ import {
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import { AsanPayLogo } from "@/components/brand/Logo";
 import api from "@/lib/api";
-import { B, ROLES, type Role } from "@/lib/brand";
+import { B, ROLES, brand, type Role } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { extractApiError, nextOnboardingPath } from "@/lib/onboarding";
 import { authenticateBiometric, getBiometricStore, saveBiometricStore } from "@/lib/webauthn";
@@ -307,9 +307,7 @@ export default function LoginPage() {
             <span className="text-xs font-semibold text-white">{role.label} Portal</span>
           </div>
           <h1 className="mb-4 font-bold text-white" style={{ fontSize: "2.2rem", lineHeight: 1.18 }}>
-            Har Kadam
-            <br />
-            Tarakki Ki Or
+            {brand.tagline}
           </h1>
           <p className="mb-8 text-sm leading-relaxed text-white/70">
             Easy login: mobile OTP verify karein, phir apna 4-digit PIN. Password optional hai.
