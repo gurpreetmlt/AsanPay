@@ -39,6 +39,23 @@ function webhookFor(severity: AlertSeverity): string | undefined {
     : env.SLACK_WEBHOOK_GENERAL ?? env.ALERT_WEBHOOK_URL;
 }
 
+// Points a human straight at the relevant file before they even open an editor — pure text,
+// nothing executable, no secrets. Matched by substring against the alert type.
+const DEBUG_HINTS: Array<[RegExp, string]> = [
+  [/transaction failure|stuck past threshold/i, "txn.service.ts → finalizeTxn / reconcileStaleTransactions; check provider_logs for this txnRef"],
+  [/wallet balance mismatch/i, "txn.service.ts → runDailyReconciliation; compare wallets vs wallet_ledger_entries for this txnRef"],
+  [/suspicious activity/i, "txn.service.ts → checkFraudPatterns; review this retailer's recent transactions table"],
+  [/kyc/i, "kyc.service.ts / admin.service.ts → decideKyc; check users.kyc_status for this retailer"],
+  [/daily transaction limit/i, "txn.service.ts → checkDailyLimit; users.daily_limit_amount for this retailer"],
+  [/commission distribution/i, "commission.service.ts → distributeCommissionForTxn for this transactionId"],
+  [/reconciliation.*error|reconcile.*error/i, "txn.service.ts → reconcileStaleTransactions / runDailyReconciliation"],
+];
+
+function debugHintFor(alertType: string): string | null {
+  const match = DEBUG_HINTS.find(([re]) => re.test(alertType));
+  return match?.[1] ?? null;
+}
+
 function formatSlackMessage(alertType: string, severity: AlertSeverity, details: AlertDetails): string {
   const lines = [
     `${SEVERITY_EMOJI[severity]} *${alertType}* (${severity.toUpperCase()})`,
@@ -54,6 +71,10 @@ function formatSlackMessage(alertType: string, severity: AlertSeverity, details:
     Object.entries(details).filter(([k]) => !["retailerId", "retailerName", "amount", "errorCode", "message"].includes(k)),
   );
   if (Object.keys(rest).length > 0) lines.push(`Details: \`\`\`${JSON.stringify(rest, null, 2)}\`\`\``);
+
+  const hint = debugHintFor(alertType);
+  if (hint) lines.push(`🔍 Debug: ${hint}${details.txnRef ? ` (txnRef: ${details.txnRef})` : ""}`);
+
   return lines.join("\n");
 }
 
