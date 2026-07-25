@@ -36,6 +36,7 @@ export interface World {
   addService: (code: string, opts?: { maxAmount?: string }) => Promise<string>;
   setBalance: (walletId: string, amount: string) => Promise<void>;
   getBalance: (walletId: string) => Promise<string>;
+  getHoldBalance: (walletId: string) => Promise<string>;
   runDmt: (amount: string, idempotencyKey: string) => Promise<TxnOutcome>;
   runAeps: (amount: string, idempotencyKey: string) => Promise<TxnOutcome>;
   destroy: () => Promise<void>;
@@ -99,6 +100,10 @@ export async function createWorld(suffix: string): Promise<World> {
   async function getBalance(walletId: string): Promise<string> {
     const [w] = await db.select().from(wallets).where(eq(wallets.id, walletId));
     return w!.balance;
+  }
+  async function getHoldBalance(walletId: string): Promise<string> {
+    const [w] = await db.select().from(wallets).where(eq(wallets.id, walletId));
+    return w!.holdBalance;
   }
 
   async function runDmt(amount: string, idempotencyKey: string): Promise<TxnOutcome> {
@@ -182,6 +187,7 @@ export async function createWorld(suffix: string): Promise<World> {
     addService,
     setBalance,
     getBalance,
+    getHoldBalance,
     runDmt,
     runAeps,
     destroy,
