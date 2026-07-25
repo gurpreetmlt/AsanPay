@@ -24,7 +24,7 @@ import api from "@/lib/api";
 import { B, ROLES, type Role } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { extractApiError, nextOnboardingPath } from "@/lib/onboarding";
-import { authenticateBiometric, getBiometricStore } from "@/lib/webauthn";
+import { authenticateBiometric, getBiometricStore, saveBiometricStore } from "@/lib/webauthn";
 import { getDeviceId, getDeviceLabel } from "@/lib/deviceId";
 import { clearRememberedLogin, getRememberedLogin, setRememberedLogin, type RememberedLogin } from "@/lib/rememberedLogin";
 
@@ -257,6 +257,10 @@ export default function LoginPage() {
         refreshToken: bio.refreshToken,
       });
       if (!data.success) throw new Error(data.message);
+      // The server rotates refresh tokens on every /auth/refresh call — the old one bio holds
+      // is now revoked. Without this, the NEXT biometric attempt would present a dead token and
+      // fail (or trip reuse-detection and revoke every session). Persist the new one immediately.
+      saveBiometricStore({ ...bio, refreshToken: data.data.refreshToken });
       const me = await api.get<ApiResponse<{ user: AuthUser }>>("/auth/me", {
         headers: { Authorization: `Bearer ${data.data.accessToken}` },
       });
@@ -345,9 +349,23 @@ export default function LoginPage() {
                 placeholder="••••"
               />
               <SubmitBtn loading={loading} label="Unlock with MPIN" color={role.color} gradient={role.gradient} />
+              {getBiometricStore() && (
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={handleBiometric}
+                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border-2 bg-white py-3 disabled:opacity-60"
+                  style={{ borderColor: B.border }}
+                >
+                  <Fingerprint size={18} style={{ color: role.color }} />
+                  <span className="text-sm font-semibold" style={{ color: B.blue }}>
+                    Use Fingerprint / Face instead
+                  </span>
+                </button>
+              )}
               <button
                 type="button"
-                className="mt-4 w-full text-sm font-medium"
+                className="mt-4 w-full text-xs font-medium"
                 style={{ color: B.muted }}
                 onClick={() => {
                   setMobile(remembered.mobile);
@@ -359,8 +377,8 @@ export default function LoginPage() {
               </button>
               <button
                 type="button"
-                className="mt-2 w-full text-sm font-semibold"
-                style={{ color: role.color }}
+                className="mt-2 w-full text-xs font-medium"
+                style={{ color: B.muted }}
                 onClick={switchToFullLogin}
               >
                 Not you? Use a different number

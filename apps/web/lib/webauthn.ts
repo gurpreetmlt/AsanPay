@@ -2,10 +2,13 @@ import { brand } from "./brand";
 
 const STORAGE_KEY = "asanpay-web-biometric";
 
-function getBrowserSessionStorage(): Storage | null {
+// localStorage (not sessionStorage) so biometric login survives an app/process restart —
+// see the matching note in lib/store.ts. Required for the mobile WebView, which the OS kills
+// and restarts far more often than a desktop browser tab closes.
+function getBiometricStorage(): Storage | null {
   if (typeof window === "undefined") return null;
   try {
-    return window.sessionStorage;
+    return window.localStorage;
   } catch {
     return null;
   }
@@ -37,7 +40,7 @@ export function isWebAuthnAvailable(): boolean {
 
 export function getBiometricStore(): BiometricStore | null {
   try {
-    const storage = getBrowserSessionStorage();
+    const storage = getBiometricStorage();
     if (!storage) return null;
     const raw = storage.getItem(STORAGE_KEY);
     return raw ? (JSON.parse(raw) as BiometricStore) : null;
@@ -47,12 +50,12 @@ export function getBiometricStore(): BiometricStore | null {
 }
 
 export function clearBiometricStore(): void {
-  const storage = getBrowserSessionStorage();
+  const storage = getBiometricStorage();
   storage?.removeItem(STORAGE_KEY);
 }
 
 export function saveBiometricStore(data: BiometricStore): void {
-  const storage = getBrowserSessionStorage();
+  const storage = getBiometricStorage();
   storage?.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 

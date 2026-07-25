@@ -65,10 +65,10 @@ const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // keep in sync with JWT_
 // Rolling trust window: MPIN-only login is allowed as long as this device authenticated
 // (via OTP or MPIN) within the last N hours. Deliberately NOT a calendar-day/midnight cutoff —
 // a login at 11:58pm followed by one at 12:02am is 4 minutes apart, not "a new day" — so this
-// rolls forward from the device's own last activity instead of the clock. 24h comfortably covers
-// a retailer's full working day + break; money movement is separately gated by the txn PIN /
-// biometric on every transaction, so this only controls convenience of app access, not funds.
-const DEVICE_TRUST_WINDOW_MS = 24 * 60 * 60 * 1000;
+// rolls forward from the device's own last activity instead of the clock. 12h covers a
+// retailer's working shift; money movement is separately gated by the txn PIN / biometric on
+// every transaction, so this only controls convenience of app access, not funds.
+const DEVICE_TRUST_WINDOW_MS = 12 * 60 * 60 * 1000;
 
 function otpHashesEqual(storedHash: string, candidateOtp: string): boolean {
   const a = Buffer.from(storedHash, "hex");
@@ -710,7 +710,7 @@ export async function refreshSession(
 
 /** Revoke every refresh token for the user (logout).
  * Device trust is intentionally kept — Welcome-back MPIN should still work within the
- * rolling 24h window after logout. Devices are revoked only via Account → Trusted devices,
+ * rolling trust window (DEVICE_TRUST_WINDOW_MS) after logout. Devices are revoked only via Account → Trusted devices,
  * MPIN change, failed-MPIN lockout, or refresh-token reuse. */
 export async function revokeAllSessionsForUser(userId: string): Promise<void> {
   await db

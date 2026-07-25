@@ -35,7 +35,11 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: "asanpay-web-auth-state",
-      storage: createJSONStorage(() => sessionStorage),
+      // localStorage (not sessionStorage) so the session survives an app/process restart —
+      // required for the 12h device-trust window (see DEVICE_TRUST_WINDOW_MS in the backend)
+      // to actually work on the mobile WebView, which gets killed/restarted by the OS far more
+      // often than a desktop browser tab closes.
+      storage: createJSONStorage(() => localStorage),
     },
   ),
 );
