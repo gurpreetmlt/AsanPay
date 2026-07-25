@@ -44,6 +44,30 @@ async function applyLockedEntry(
   });
 }
 
+/**
+ * Move `amount` between a wallet's available `balance` and its `holdBalance` bookkeeping field.
+ * direction "hold" reserves amount (balance already moved out via a real transfer; this just
+ * mirrors it for reporting), "release" clears it back to 0 once the txn resolves (success/failed).
+ * Does not itself move money — call alongside transferBetweenWallets, in the same tx.
+ */
+export async function adjustWalletHold(
+  tx: Tx,
+  walletId: string,
+  amount: string,
+  direction: "hold" | "release",
+): Promise<void> {
+  const wallet = await lockWallet(tx, walletId);
+  const currentPaise = toPaise(wallet.holdBalance);
+  const deltaPaise = toPaise(amount);
+  const nextPaise = direction === "hold" ? currentPaise + deltaPaise : currentPaise - deltaPaise;
+  const clamped = Math.max(0, nextPaise);
+
+  await tx
+    .update(wallets)
+    .set({ holdBalance: fromPaise(clamped), updatedAt: new Date() })
+    .where(eq(wallets.id, walletId));
+}
+
 interface TransferParams {
   fromWalletId: string;
   toWalletId: string;

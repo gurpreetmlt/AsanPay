@@ -23,9 +23,14 @@ export const wallets = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     walletType: walletTypeEnum("wallet_type").notNull().default("main"),
-    // cached balance for fast reads — source of truth is the sum of wallet_ledger_entries,
-    // updated inside the same DB transaction under SELECT FOR UPDATE (see wallet service)
+    // Available (spendable) balance — cached, source of truth is the sum of wallet_ledger_entries,
+    // updated inside the same DB transaction under SELECT FOR UPDATE (see wallet service).
     balance: numeric("balance", { precision: 14, scale: 2 }).notNull().default("0"),
+    // Amount currently reserved against an in-flight debit-direction transaction (service_txn
+    // already moved out of `balance` into the system wallet, but the provider hasn't confirmed
+    // success/failure yet). Released back to 0 when the transaction resolves. Purely a bookkeeping
+    // mirror for retailer-facing "Locked vs Available" reporting — does not itself hold money.
+    holdBalance: numeric("hold_balance", { precision: 14, scale: 2 }).notNull().default("0"),
     // optimistic-lock guard used alongside row locking to detect lost updates
     version: integer("version").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -34,6 +39,7 @@ export const wallets = pgTable(
   (table) => [
     uniqueIndex("wallets_user_id_wallet_type_key").on(table.userId, table.walletType),
     check("wallets_balance_nonnegative", sql`${table.balance} >= 0`),
+    check("wallets_hold_balance_nonnegative", sql`${table.holdBalance} >= 0`),
   ],
 );
 

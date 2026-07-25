@@ -1,7 +1,7 @@
 import { and, eq, isNull, desc, sql, lt, or } from "drizzle-orm";
 import { db } from "../../db/postgres";
 import { services, transactions, users, wallets } from "../../db/postgres/schema";
-import { transferBetweenWallets } from "../wallet/wallet.ledger";
+import { transferBetweenWallets, adjustWalletHold } from "../wallet/wallet.ledger";
 import { toPaise, fromPaise } from "../wallet/decimal";
 import { resolveProvidersForService, callProvider, type RoutedProvider } from "../providers/provider.router";
 import type { ProviderOperation, ProviderResult } from "../providers/types";
@@ -170,6 +170,9 @@ export async function executeServiceTxn(input: ExecuteTxnInput): Promise<TxnOutc
           },
           tx,
         );
+        // Mirror the reservation on the retailer's own wallet row so "Locked vs Available"
+        // reporting doesn't need to re-derive it from open transactions.
+        await adjustWalletHold(tx, userWallet!.walletId, amount!, "hold");
       }
 
       return { row, replay: false as const };
@@ -268,6 +271,10 @@ async function finalizeTxn(txn: TxnRow, result: ProviderResult, ctx: FinalizeCon
           tx,
         );
       }
+      if (needsMoney && ctx.direction === "debit") {
+        const userWallet = await getUserWallet(txn.userId, ctx.walletType);
+        await adjustWalletHold(tx, userWallet.walletId, locked.amount, "release");
+      }
       const [updated] = await tx
         .update(transactions)
         .set({
@@ -299,6 +306,7 @@ async function finalizeTxn(txn: TxnRow, result: ProviderResult, ctx: FinalizeCon
           },
           tx,
         );
+        await adjustWalletHold(tx, userWallet.walletId, locked.amount, "release");
       }
       const [updated] = await tx
         .update(transactions)

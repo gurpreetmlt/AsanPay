@@ -104,6 +104,10 @@ export async function getWalletBalances(userId: string) {
 
   return rows.map((w) => ({
     ...w,
+    availableBalance: w.balance,
+    holdBalance: w.holdBalance,
+    // Legacy field, derived from open transactions — kept for existing callers. Should always
+    // match holdBalance; if it doesn't, that's a reconciliation bug worth alerting on.
     pendingBalance: pendingByType.get(w.walletType) ?? "0.00",
   }));
 }
