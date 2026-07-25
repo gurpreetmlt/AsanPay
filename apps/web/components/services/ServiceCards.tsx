@@ -76,11 +76,11 @@ function ServiceIconCard({
           <img
             src={assetSrc!}
             alt=""
-            className="h-8 w-8 object-contain"
+            className="h-11 w-11 object-contain"
             onError={() => setAssetFailed(true)}
           />
         ) : (
-          <div className="h-8 w-8 rounded-lg" style={{ background: tile.bg }} />
+          <div className="h-11 w-11 rounded-lg" style={{ background: tile.bg }} />
         )}
         <div className="text-xs font-semibold leading-tight" style={{ color: B.blue }}>
           {svc.name}
