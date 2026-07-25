@@ -108,7 +108,7 @@ export function RetailerDashboard() {
             <div>
               <div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-white/70">
                 <Wallet size={14} />
-                {primary ? walletDisplayName(primary.walletType) : "Wallet 1"}
+                {primary ? walletDisplayName(primary.walletType) : "Main Wallet"}
               </div>
               <div className="mb-1 text-3xl font-bold leading-none">
                 {loading ? "…" : formatInr(primary?.balance ?? "0")}

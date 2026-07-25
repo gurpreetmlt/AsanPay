@@ -59,7 +59,7 @@ function ServiceIconCard({
   const starColor = favorite ? B.green : B.muted;
 
   return (
-    <div className="group relative flex flex-col items-center gap-1.5 rounded-xl p-2 text-center transition hover:bg-gray-50">
+    <div className="group relative flex flex-col items-center gap-1.5 rounded-xl p-2 text-center transition duration-150 hover:-translate-y-0.5 hover:bg-gray-50 hover:shadow-sm">
       <button
         type="button"
         aria-label={favorite ? "Remove favourite" : "Add favourite"}
@@ -81,11 +81,14 @@ function ServiceIconCard({
           <img
             src={assetSrc!}
             alt=""
-            className="h-9 w-9 object-contain"
+            className="h-9 w-9 object-contain transition duration-150 group-hover:scale-110"
             onError={() => setAssetFailed(true)}
           />
         ) : (
-          <div className="h-9 w-9 rounded-lg" style={{ background: tile.bg }} />
+          <div
+            className="h-9 w-9 rounded-lg transition duration-150 group-hover:scale-110"
+            style={{ background: tile.bg }}
+          />
         )}
         <div className="text-xs font-semibold leading-tight" style={{ color: B.blue }}>
           {svc.name}

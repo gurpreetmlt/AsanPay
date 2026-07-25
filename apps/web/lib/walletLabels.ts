@@ -1,9 +1,9 @@
 import type { WalletType } from "@asanpay/shared-types";
 
-/** Product-facing names: main = Wallet 1, aeps = Wallet 2 */
+/** Product-facing names: main = Main Wallet, aeps = AEPS Wallet */
 export function walletDisplayName(walletType: WalletType | string): string {
-  if (walletType === "main") return "Wallet 1";
-  if (walletType === "aeps") return "Wallet 2";
+  if (walletType === "main") return "Main Wallet";
+  if (walletType === "aeps") return "AEPS Wallet";
   return `${walletType} wallet`;
 }
 
