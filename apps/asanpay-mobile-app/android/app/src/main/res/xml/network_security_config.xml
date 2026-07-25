@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Cleartext HTTP to 127.0.0.1 only — required for local L1 RD Service (Mantra, Morpho, …).
-     Remote API calls still use HTTPS (api.asanpay.com). -->
+     Remote API calls still use HTTPS (api.asanpay.in). -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
@@ -19,7 +19,7 @@
       normal CA trust for this domain (fails open, not closed).
     -->
     <domain-config>
-        <domain includeSubdomains="false">api.asanpay.com</domain>
+        <domain includeSubdomains="false">api.asanpay.in</domain>
         <pin-set expiration="2027-07-17">
             <pin digest="SHA-256">nWN7PSep5XDQdge5zK24CnCRXHr3KvzhKEGxsdqCX9E=</pin>
             <pin digest="SHA-256">fk6IOKit1ild5647BH06ujSIq5XbCgqlbYl6ANhhi88=</pin>

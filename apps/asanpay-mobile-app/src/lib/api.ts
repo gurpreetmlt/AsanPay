@@ -8,7 +8,7 @@ const devHost = resolveDevApiHost();
 
 export const API_BASE = __DEV__
   ? `http://${devHost}:4000/api`
-  : "https://api.asanpay.com/api";
+  : "https://api.asanpay.in/api";
 
 if (__DEV__) {
   console.log(`[${BRAND.appName}] API → ${API_BASE}`);
