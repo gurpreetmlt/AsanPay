@@ -54,10 +54,7 @@ function ServiceIconCard({
   const starColor = favorite ? B.green : B.muted;
 
   return (
-    <div
-      className="group relative flex flex-col items-start gap-3 rounded-2xl border p-4 text-left transition hover:shadow-md"
-      style={{ borderColor: B.border, background: `${tile.fg}0A` }}
-    >
+    <div className="group relative flex flex-col items-center gap-1.5 rounded-xl p-2 text-center transition hover:bg-gray-50">
       <button
         type="button"
         aria-label={favorite ? "Remove favourite" : "Add favourite"}
@@ -65,43 +62,34 @@ function ServiceIconCard({
           e.stopPropagation();
           onToggleFav();
         }}
-        className="absolute right-2.5 top-2.5 rounded-lg p-1 transition hover:bg-white/80"
+        className="absolute right-0.5 top-0.5 rounded-lg p-1 opacity-0 transition group-hover:opacity-100"
       >
-        <Star size={15} strokeWidth={2.2} color={starColor} fill={favorite ? starColor : "none"} />
+        <Star size={12} strokeWidth={2.2} color={starColor} fill={favorite ? starColor : "none"} />
       </button>
       <button
         type="button"
-        className="flex w-full flex-col items-start gap-3 text-left"
+        className="flex w-full flex-col items-center gap-1.5 text-center"
         onClick={() => onOpen ? onOpen() : toast(`${svc.name} — coming soon on web`)}
       >
-        <div
-          className="flex h-11 w-11 items-center justify-center rounded-xl"
-          style={{ background: showAsset ? "transparent" : tile.bg }}
-        >
-          {showAsset ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={assetSrc!}
-              alt=""
-              className="h-9 w-9 object-contain"
-              onError={() => setAssetFailed(true)}
-            />
-          ) : null}
+        {showAsset ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={assetSrc!}
+            alt=""
+            className="h-8 w-8 object-contain"
+            onError={() => setAssetFailed(true)}
+          />
+        ) : (
+          <div className="h-8 w-8 rounded-lg" style={{ background: tile.bg }} />
+        )}
+        <div className="text-xs font-semibold leading-tight" style={{ color: B.blue }}>
+          {svc.name}
         </div>
-        <div className="pr-5">
-          <div className="text-sm font-semibold leading-snug" style={{ color: B.blue }}>
-            {svc.name}
+        {svc.badge ? (
+          <div className="text-[9px] font-bold uppercase" style={{ color: tile.fg }}>
+            {svc.badge}
           </div>
-          {svc.badge ? (
-            <div className="mt-1 text-[10px] font-bold uppercase" style={{ color: tile.fg }}>
-              {svc.badge}
-            </div>
-          ) : (
-            <div className="mt-1 text-[10px] uppercase tracking-wide" style={{ color: B.muted }}>
-              {svc.code.replace(/_/g, " ")}
-            </div>
-          )}
-        </div>
+        ) : null}
       </button>
     </div>
   );
@@ -189,7 +177,7 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
               {favorites.length}
             </span>
           </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+          <div className="grid grid-cols-4 gap-2 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8">
             {favorites.map((svc, i) => (
               <ServiceIconCard
                 key={svc.id}
@@ -212,7 +200,7 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
           <div className="mb-4 text-sm font-bold uppercase tracking-wider" style={{ color: B.muted }}>
             {cat.name}
           </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+          <div className="grid grid-cols-4 gap-2 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8">
             {cat.services.map((svc, i) => (
               <ServiceIconCard
                 key={svc.id}
