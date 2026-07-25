@@ -39,7 +39,7 @@ export default function Home() {
 
   const phrases = [
     "Banking, har dukaan tak.",
-    "Tarakki, har Adhikari tak.",
+    "Tarakki, har retailer tak.",
     "Services, har gaon tak.",
     "Aamdani, har mahine tak."
   ];
@@ -217,7 +217,7 @@ export default function Home() {
                 <div className="flex items-center justify-between pb-4 border-b border-neutral-200/80 dark:border-white/10 mb-5">
                   <div className="flex items-center gap-2">
                     <Logo size={28} />
-                    <span className="font-sora font-extrabold text-sm dark:text-white">Adhikari Portal</span>
+                    <span className="font-sora font-extrabold text-sm dark:text-white">AsanPay Portal</span>
                   </div>
                   <div className="px-2 py-0.5 rounded-full bg-brand-green-dark/10 text-brand-green-dark dark:text-brand-green-light font-poppins font-bold text-[9px] uppercase tracking-wider">
                     Online
@@ -227,7 +227,7 @@ export default function Home() {
                 {/* Profile detail */}
                 <div className="flex items-center justify-between mb-5">
                   <div>
-                    <p className="font-poppins text-[10px] text-neutral-400 dark:text-neutral-500">Retailer Agent / Adhikari</p>
+                    <p className="font-poppins text-[10px] text-neutral-400 dark:text-neutral-500">Retailer Agent</p>
                     <p className="font-sora font-extrabold text-sm text-neutral-800 dark:text-neutral-200">Ramesh Kumar</p>
                   </div>
                   <p className="font-mono text-[9px] text-neutral-400 dark:text-neutral-500 border border-neutral-200 dark:border-white/5 px-2 py-1 rounded bg-neutral-100/50 dark:bg-slate-900/50">
@@ -375,7 +375,7 @@ export default function Home() {
               {/* Stat 1 */}
               <div>
                 <p className="font-sora font-extrabold text-3xl sm:text-4xl text-brand-blue-dark dark:text-brand-blue-light">10 Lakh+</p>
-                <p className="font-poppins font-semibold text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 mt-2">Active Adhikaris (Retailers)</p>
+                <p className="font-poppins font-semibold text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 mt-2">Active Retailers</p>
               </div>
 
               {/* Stat 2 */}

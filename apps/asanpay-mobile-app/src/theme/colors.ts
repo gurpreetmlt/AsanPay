@@ -3,7 +3,7 @@ export const brand = {
   blue: { light: "#2A5CDD", dark: "#0B2A9A", flat: "#123A9E" },
   green: { light: "#24CC82", dark: "#11A362", flat: "#12B76A", payEnd: "#0F9E5C" },
   white: "#FFFFFF",
-  wordmarkAdhikari: "#0B2A9A",
+  wordmarkColor: "#0B2A9A",
   tagline: "#5A6DA8",
 } as const;
 
@@ -30,7 +30,7 @@ export const colors = {
   gradientSoft: ["#e8eef9", "#ecfdf3"] as const,
 
   white: brand.white,
-  wordmarkAdhikari: brand.wordmarkAdhikari,
+  wordmarkColor: brand.wordmarkColor,
   tagline: brand.tagline,
   taglineOnGradient: "rgba(255,255,255,0.82)",
 

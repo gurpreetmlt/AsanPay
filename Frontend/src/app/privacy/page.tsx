@@ -60,7 +60,7 @@ export default function PrivacyPolicyPage() {
             </h2>
             <div className="font-poppins text-sm md:text-base text-neutral-600 dark:text-neutral-300 space-y-3 leading-relaxed">
               <p>
-                To onboard you as an Adhikari (retailer banking agent) and provide financial services, we collect:
+                To onboard you as a retailer banking agent and provide financial services, we collect:
               </p>
               <ul className="list-disc pl-5 space-y-2">
                 <li><strong>Identity Information:</strong> Name, mobile number, email address, physical shop address, PAN, and Aadhaar number.</li>
