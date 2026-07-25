@@ -8,6 +8,8 @@ import type { ProviderOperation, ProviderResult } from "../providers/types";
 import { HttpError } from "../../utils/httpError";
 import { generateTxnRef } from "../../utils/uid";
 import { logger } from "../../utils/logger";
+import { sendOpsAlert } from "../../utils/alert";
+import { env } from "../../config/env";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import type { UserRole, WalletType } from "@asanpay/shared-types";
 
@@ -406,6 +408,7 @@ export async function reconcileStaleTransactions(limit = 40): Promise<{ checked:
   const now = Date.now();
   const initiatedCutoff = new Date(now - INITIATED_RECHECK_GRACE_MS);
   const pendingCutoff = new Date(now - PENDING_RECONCILE_MIN_AGE_MS);
+  const stuckCutoff = new Date(now - env.TXN_STUCK_ALERT_MS);
 
   const candidates = await db
     .select()
@@ -428,8 +431,21 @@ export async function reconcileStaleTransactions(limit = 40): Promise<{ checked:
         txn.txnRef,
       );
       if (outcome.txn.status !== before) changed += 1;
+
+      if (outcome.txn.status === before && txn.createdAt < stuckCutoff) {
+        void sendOpsAlert("Transaction stuck past reconcile threshold", {
+          txnRef: txn.txnRef,
+          status: outcome.txn.status,
+          createdAt: txn.createdAt,
+          ageMs: now - txn.createdAt.getTime(),
+        });
+      }
     } catch (err) {
       logger.error({ err, txnRef: txn.txnRef }, "txn reconcile failed");
+      void sendOpsAlert("Transaction reconcile threw an error", {
+        txnRef: txn.txnRef,
+        err: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 
@@ -498,5 +514,12 @@ export async function getReceipt(actor: Actor, txnRef: string) {
 function distributeCommissionSafe(txn: TxnRow): void {
   import("../commission/commission.service")
     .then((mod) => mod.distributeCommissionForTxn(txn.id))
-    .catch((err: unknown) => logger.error({ err, txnId: txn.id }, "commission distribution failed"));
+    .catch((err: unknown) => {
+      logger.error({ err, txnId: txn.id }, "commission distribution failed");
+      void sendOpsAlert("Commission distribution failed", {
+        txnId: txn.id,
+        txnRef: txn.txnRef,
+        err: err instanceof Error ? err.message : String(err),
+      });
+    });
 }

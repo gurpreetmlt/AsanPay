@@ -58,6 +58,10 @@ const envSchema = z.object({
    * Set 0 to disable the worker. Default 5 minutes.
    */
   TXN_RECONCILE_INTERVAL_MS: z.coerce.number().int().min(0).default(5 * 60 * 1000),
+  /** Optional Slack/Teams-compatible incoming webhook URL for ops alerts (recon failures, stuck txns). */
+  ALERT_WEBHOOK_URL: z.string().url().optional(),
+  /** A pending/initiated txn older than this (ms) is flagged as stuck in an ops alert. Default 30 min. */
+  TXN_STUCK_ALERT_MS: z.coerce.number().int().min(0).default(30 * 60 * 1000),
   /**
    * AEPS rail mode. Same UI/API; only the provider behind the adapter changes.
    * - dummy: MockAdapter (eko) — real RD PID + KYC still required; no InstantPay HTTP
