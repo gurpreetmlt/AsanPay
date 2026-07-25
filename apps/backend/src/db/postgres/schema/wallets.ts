@@ -12,7 +12,7 @@ import {
   primaryKey,
   check,
 } from "drizzle-orm/pg-core";
-import { walletTypeEnum, ledgerEntryTypeEnum } from "./enums";
+import { walletTypeEnum, walletKindEnum, ledgerEntryTypeEnum } from "./enums";
 import { users } from "./users";
 
 export const wallets = pgTable(
@@ -23,6 +23,10 @@ export const wallets = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     walletType: walletTypeEnum("wallet_type").notNull().default("main"),
+    // Structurally marks the single real-money aggregator wallet apart from ordinary ledger
+    // wallets — see walletKindEnum. Exactly one "aggregator" row should exist (root admin's main
+    // wallet); everything else is "ledger" (internal book balance only).
+    walletKind: walletKindEnum("wallet_kind").notNull().default("ledger"),
     // Available (spendable) balance — cached, source of truth is the sum of wallet_ledger_entries,
     // updated inside the same DB transaction under SELECT FOR UPDATE (see wallet service).
     balance: numeric("balance", { precision: 14, scale: 2 }).notNull().default("0"),

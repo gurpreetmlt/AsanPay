@@ -284,7 +284,7 @@ async function ensureDevAdminCredentials(
       .returning();
     if (!admin) throw new Error("Failed to create admin");
     await tx.insert(userHierarchy).values({ ancestorId: admin.id, descendantId: admin.id, depth: 0 });
-    await provisionWalletsForUser(tx, admin.id, admin.role);
+    await provisionWalletsForUser(tx, admin.id, admin.role, { isRootAdmin: true });
     return admin;
   });
 

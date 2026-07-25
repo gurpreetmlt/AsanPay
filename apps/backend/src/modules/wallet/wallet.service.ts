@@ -67,8 +67,19 @@ type Tx = PgTransaction<any, any, any>;
 
 // Zero-balance wallet provisioning at onboarding time. Money movement (credit/debit/transfer
 // with row-locking) lives in wallet.ledger.ts — this only creates the accounts.
-export async function provisionWalletsForUser(tx: Tx, userId: string, role: UserRole): Promise<void> {
-  await tx.insert(wallets).values({ userId, walletType: "main" });
+export async function provisionWalletsForUser(
+  tx: Tx,
+  userId: string,
+  role: UserRole,
+  opts?: { isRootAdmin?: boolean },
+): Promise<void> {
+  // The root admin's main wallet is the platform's single real-money aggregator counterparty —
+  // structurally marked apart from every other (ledger-only) wallet. See walletKindEnum.
+  await tx.insert(wallets).values({
+    userId,
+    walletType: "main",
+    walletKind: opts?.isRootAdmin ? "aggregator" : "ledger",
+  });
 
   if (role === "retailer") {
     await tx.insert(wallets).values({ userId, walletType: "aeps" });

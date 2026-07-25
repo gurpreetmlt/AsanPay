@@ -37,20 +37,15 @@ export async function distributeCommissionForTxn(transactionId: string): Promise
     .where(eq(userHierarchy.descendantId, txn.userId))
     .orderBy(userHierarchy.depth);
 
-  const [systemAdmin] = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(and(eq(users.role, "admin"), isNull(users.parentId)))
-    .limit(1);
-  if (!systemAdmin) {
-    logger.error({ transactionId }, "commission skipped: no root admin/system wallet");
-    return;
-  }
   const [systemWallet] = await db
     .select({ id: wallets.id })
     .from(wallets)
-    .where(and(eq(wallets.userId, systemAdmin.id), eq(wallets.walletType, "main")));
-  if (!systemWallet) return;
+    .where(and(eq(wallets.walletKind, "aggregator"), eq(wallets.walletType, "main")))
+    .limit(1);
+  if (!systemWallet) {
+    logger.error({ transactionId }, "commission skipped: no aggregator wallet configured");
+    return;
+  }
 
   const now = new Date();
   const amountPaise = toPaise(txn.amount);
@@ -59,7 +54,7 @@ export async function distributeCommissionForTxn(transactionId: string): Promise
     // Admin is the residual earner (whatever margin remains) — no explicit payout row.
     if (member.role === "admin" || !member.active) continue;
 
-    const rule = await findActiveRule(txn.serviceId, member.userId, member.role, txn.amount, now);
+    const rule = await findActiveRule(txn.serviceId, txn.providerId, member.userId, member.role, txn.amount, now);
     if (!rule) continue;
 
     // percentage value is 0-100 with up to 4 decimals; compute in integer space
@@ -111,6 +106,7 @@ export async function distributeCommissionForTxn(transactionId: string): Promise
 
 async function findActiveRule(
   serviceId: string,
+  providerId: string | null,
   userId: string,
   role: UserRole,
   amount: string,
@@ -133,10 +129,14 @@ async function findActiveRule(
   if (override) return override;
 
   const amountNum = amount;
-  const [rule] = await db
+  // A provider-specific slab (commission_rules.providerId = this txn's provider) wins over the
+  // generic null-provider default for the same service+role — ORDER BY puts provider-specific
+  // rows first (NULLS LAST on the boolean match), then most-recently-effective.
+  const rules = await db
     .select({
       ruleType: commissionRules.ruleType,
       value: commissionRules.value,
+      providerId: commissionRules.providerId,
     })
     .from(commissionRules)
     .where(
@@ -148,11 +148,15 @@ async function findActiveRule(
         or(isNull(commissionRules.effectiveTo), gt(commissionRules.effectiveTo, at)),
         or(isNull(commissionRules.minAmount), lte(commissionRules.minAmount, amountNum)),
         or(isNull(commissionRules.maxAmount), sql`${commissionRules.maxAmount} >= ${amountNum}`),
+        providerId
+          ? or(isNull(commissionRules.providerId), eq(commissionRules.providerId, providerId))
+          : isNull(commissionRules.providerId),
       ),
     )
-    .orderBy(desc(commissionRules.effectiveFrom))
-    .limit(1);
-  return rule ?? null;
+    .orderBy(desc(commissionRules.effectiveFrom));
+
+  const providerSpecific = providerId ? rules.find((r) => r.providerId === providerId) : undefined;
+  return providerSpecific ?? rules.find((r) => r.providerId === null) ?? null;
 }
 
 // ── Earnings reads (retailer/distributor dashboards) ────────────────────────

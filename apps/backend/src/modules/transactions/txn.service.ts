@@ -1,4 +1,4 @@
-import { and, eq, isNull, desc, sql, lt, or } from "drizzle-orm";
+import { and, eq, desc, sql, lt, or } from "drizzle-orm";
 import { db } from "../../db/postgres";
 import { services, transactions, users, wallets } from "../../db/postgres/schema";
 import { transferBetweenWallets, adjustWalletHold } from "../wallet/wallet.ledger";
@@ -41,20 +41,16 @@ export interface TxnOutcome {
   provider: ProviderResult | null;
 }
 
-// The platform's own settlement counterparty: the root admin's main wallet.
-// Every service txn nets against it, so float usage is always visible in one place.
+// The platform's single real-money settlement counterparty at the aggregator/provider —
+// structurally marked walletKind = "aggregator" (see wallets schema), not just "whichever
+// wallet the root admin happens to have". Every service txn nets against it, so float usage
+// is always visible in one place.
 async function getSystemWallet(): Promise<{ walletId: string }> {
-  const [rootAdmin] = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(and(eq(users.role, "admin"), isNull(users.parentId)))
-    .limit(1);
-  if (!rootAdmin) throw new HttpError(500, "System wallet not configured", "SYSTEM_WALLET_MISSING");
-
   const [wallet] = await db
     .select({ id: wallets.id })
     .from(wallets)
-    .where(and(eq(wallets.userId, rootAdmin.id), eq(wallets.walletType, "main")));
+    .where(and(eq(wallets.walletKind, "aggregator"), eq(wallets.walletType, "main")))
+    .limit(1);
   if (!wallet) throw new HttpError(500, "System wallet not configured", "SYSTEM_WALLET_MISSING");
   return { walletId: wallet.id };
 }

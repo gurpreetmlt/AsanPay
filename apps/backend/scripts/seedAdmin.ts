@@ -62,7 +62,7 @@ async function main() {
     if (!admin) throw new Error("Failed to create admin");
 
     await tx.insert(userHierarchy).values({ ancestorId: admin.id, descendantId: admin.id, depth: 0 });
-    await provisionWalletsForUser(tx, admin.id, admin.role);
+    await provisionWalletsForUser(tx, admin.id, admin.role, { isRootAdmin: true });
   });
 
   console.log(`Root admin created — login username: ${ADMIN_LOGIN_USER} (password from env; not printed)`);

@@ -8,12 +8,15 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { userRoleEnum, commissionRuleTypeEnum } from "./enums";
-import { services } from "./catalog";
+import { services, providers } from "./catalog";
 import { users } from "./users";
 import { transactions } from "./transactions";
 import { walletLedgerGroups } from "./wallets";
 
-// Config: "for service X, role Y earns flat/percentage Z". Evaluated top-down by effectiveFrom.
+// Config: "for service X (optionally, only via provider P), role Y earns flat/percentage Z".
+// providerId is nullable: a null-provider rule is the default for that service+role; a
+// provider-specific row (e.g. a PaySprint-only slab) is preferred when one matches — see
+// findActiveRule's ordering in commission.service.ts. Evaluated top-down by effectiveFrom.
 export const commissionRules = pgTable(
   "commission_rules",
   {
@@ -21,6 +24,7 @@ export const commissionRules = pgTable(
     serviceId: uuid("service_id")
       .notNull()
       .references(() => services.id, { onDelete: "cascade" }),
+    providerId: uuid("provider_id").references(() => providers.id, { onDelete: "cascade" }),
     role: userRoleEnum("role").notNull(),
     ruleType: commissionRuleTypeEnum("rule_type").notNull(),
     // percentage stored as 0-100 (e.g. 1.5 = 1.5%), flat stored as rupees
@@ -31,7 +35,10 @@ export const commissionRules = pgTable(
     effectiveTo: timestamp("effective_to", { withTimezone: true }),
     isActive: boolean("is_active").notNull().default(true),
   },
-  (table) => [index("commission_rules_service_role_idx").on(table.serviceId, table.role)],
+  (table) => [
+    index("commission_rules_service_role_idx").on(table.serviceId, table.role),
+    index("commission_rules_service_provider_role_idx").on(table.serviceId, table.providerId, table.role),
+  ],
 );
 
 /** Per-agent override — wins over role-based `commission_rules` when active. */
