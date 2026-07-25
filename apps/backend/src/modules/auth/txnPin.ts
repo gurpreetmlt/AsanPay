@@ -40,11 +40,15 @@ export async function setTxnPin(
     );
   }
 
+  // One PIN, two uses: the same 4-digit code doubles as the Welcome-back Login MPIN (skip-OTP
+  // quick unlock) so a retailer never has to remember or set up a second PIN. There is no
+  // separate "set Login MPIN" screen anywhere in the app — this is the only place either gets set.
   const txnPinHash = await hashPassword(pin);
   await db
     .update(users)
     .set({
       txnPinHash,
+      loginMpinHash: txnPinHash,
       txnPinFailedAttempts: 0,
       txnPinLockedUntil: null,
       updatedAt: new Date(),

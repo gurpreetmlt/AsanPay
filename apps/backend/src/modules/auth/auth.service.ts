@@ -622,9 +622,10 @@ export async function setLoginMpin(
 
   const isChange = Boolean(row.loginMpinHash);
   const loginMpinHash = await hashPassword(input.mpin);
+  // Kept in sync with txnPinHash — same single PIN serves both purposes (see txnPin.ts setTxnPin).
   await db
     .update(users)
-    .set({ loginMpinHash, updatedAt: new Date() })
+    .set({ loginMpinHash, txnPinHash: loginMpinHash, updatedAt: new Date() })
     .where(eq(users.id, userId));
 
   // Step-up: changing an existing MPIN revokes every trusted device, this one included — the

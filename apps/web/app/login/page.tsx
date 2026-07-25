@@ -496,7 +496,7 @@ export default function LoginPage() {
                 <KeyRound size={18} style={{ color: B.green, marginTop: 2 }} />
                 <div>
                   <div className="text-sm font-bold" style={{ color: B.blue }}>
-                    Enter transaction PIN
+                    Enter your PIN
                   </div>
                   <div className="text-xs" style={{ color: B.muted }}>
                     OTP verified for {pending.user.mobile}. PIN unlocks your session.
