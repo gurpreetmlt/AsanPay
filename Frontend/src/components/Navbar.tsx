@@ -23,10 +23,10 @@ export default function Navbar({ onOpenWaitlist }: NavbarProps) {
             <Logo size={42} className="transition-transform duration-500 group-hover:scale-105 group-hover:rotate-[8deg]" />
             <div className="flex flex-col">
               <span className="font-sora font-extrabold text-xl md:text-2xl leading-none text-brand-blue-dark dark:text-neutral-100 transition-colors duration-300">
-                Adhikari <span className="text-brand-green-dark dark:text-brand-green-light">Pay</span>
+                Asan<span className="text-brand-green-dark dark:text-brand-green-light">Pay</span>
               </span>
               <span className="font-poppins font-semibold text-[8px] md:text-[9px] tracking-[0.2em] uppercase text-neutral-500 dark:text-neutral-400 mt-1">
-                Har Kadam Tarakki Ki Or
+                Payment Made Easy
               </span>
             </div>
           </Link>
@@ -70,7 +70,7 @@ export default function Navbar({ onOpenWaitlist }: NavbarProps) {
               href={AGENT_SIGNUP_URL}
               className="font-sora font-bold text-sm text-white px-5 py-2.5 rounded-xl bg-linear-to-r from-brand-blue-dark to-brand-blue-light hover:from-brand-blue-light hover:to-brand-blue-dark shadow-md shadow-brand-blue-dark/15 transition-all cursor-pointer hover:scale-105 active:scale-95 focus:outline-hidden focus:ring-2 focus:ring-brand-blue-light focus:ring-offset-2 dark:focus:ring-offset-slate-900"
             >
-              Sign up
+              Get Started
             </a>
           </div>
 
@@ -148,7 +148,7 @@ export default function Navbar({ onOpenWaitlist }: NavbarProps) {
               onClick={() => setMobileMenuOpen(false)}
               className="w-full text-center font-sora font-bold text-sm text-white py-3 rounded-xl bg-linear-to-r from-brand-blue-dark to-brand-blue-light dark:from-brand-blue-light dark:to-brand-blue-dark cursor-pointer"
             >
-              Sign up
+              Get Started
             </a>
             <button
               type="button"

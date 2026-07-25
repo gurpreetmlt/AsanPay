@@ -175,7 +175,7 @@ export default function Home() {
 
               {/* Tagline */}
               <p className="font-sora font-extrabold text-lg sm:text-xl md:text-2xl mt-4 text-brand-blue-dark dark:text-neutral-200">
-                Har Kadam <span className="bg-linear-to-r from-brand-green-dark to-brand-green-light bg-clip-text text-transparent">Tarakki Ki Or</span>
+                Payment <span className="bg-linear-to-r from-brand-green-dark to-brand-green-light bg-clip-text text-transparent">Made Easy</span>
               </p>
 
               {/* Hinglish Description */}
@@ -717,7 +717,7 @@ export default function Home() {
               <div className="flex items-center gap-3">
                 <Logo size={36} />
                 <span className="font-sora font-extrabold text-lg md:text-xl text-brand-blue-dark dark:text-white transition-colors">
-                  Adhikari <span className="text-brand-green-dark dark:text-brand-green-light">Pay</span>
+                  Asan<span className="text-brand-green-dark dark:text-brand-green-light">Pay</span>
                 </span>
               </div>
               <p className="font-poppins text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed max-w-xs">
