@@ -10,13 +10,13 @@ Jab bhi agent koi code change kare, reply ke END mein ye 3 steps IS ORDER mein d
 ## 1. Code push (hamesha)
 
 ```bash
-cd "/Users/gurpreetchauhan/Desktop/Adhikari Pay"
+cd "/Users/gurpreetchauhan/Desktop/AsanPay"
 git add -A
 git commit -m "<short message>"
 git push
 ```
 
-- Commit message: human-style, no AI attribution (see adhikaripay-core rule).
+- Commit message: human-style, no AI attribution (see asanpay-core rule).
 - User Mac Terminal mein khud chalayega — agent shell mein mat chalao (jab tak user na bole).
 
 ## 2. Deploy + env (agar backend/web change hua)
@@ -31,7 +31,7 @@ Build aur install — DONO commands hamesha saath do:
 
 ```bash
 # Build release APK
-cd "/Users/gurpreetchauhan/Desktop/Adhikari Pay/apps/adhikaripay-mobile-app/android"
+cd "/Users/gurpreetchauhan/Desktop/AsanPay/apps/asanpay-mobile-app/android"
 ./gradlew assembleRelease
 
 # Install on phone (USB on)

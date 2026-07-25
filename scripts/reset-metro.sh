@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Kill stale Metro and start fresh from Adhikari Pay
+# Kill stale Metro and start fresh from AsanPay
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-MOBILE="$ROOT/apps/adhikaripay-mobile-app"
+MOBILE="$ROOT/apps/asanpay-mobile-app"
 
 echo "==> Project: $ROOT"
 echo "==> Stopping ALL Metro / packager on 8081–8083..."

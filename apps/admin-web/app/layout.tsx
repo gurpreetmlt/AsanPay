@@ -12,8 +12,8 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: "Adhikari Pay Admin",
-  description: "Adhikari Pay admin — users, KYC, transactions & site control",
+  title: "AsanPay Admin",
+  description: "AsanPay admin — users, KYC, transactions & site control",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

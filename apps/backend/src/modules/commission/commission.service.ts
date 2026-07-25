@@ -12,7 +12,7 @@ import {
 import { transferBetweenWallets } from "../wallet/wallet.ledger";
 import { toPaise, fromPaise } from "../wallet/decimal";
 import { logger } from "../../utils/logger";
-import type { UserRole } from "@adhikaripay/shared-types";
+import type { UserRole } from "@asanpay/shared-types";
 
 // Runs after a service transaction succeeds: pays every ancestor in the chain
 // (retailer -> distributor -> master_distributor) their configured cut, each

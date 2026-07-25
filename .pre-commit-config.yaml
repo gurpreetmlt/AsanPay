@@ -1,4 +1,4 @@
-# Pre-commit hooks for Adhikari Pay
+# Pre-commit hooks for AsanPay
 # Blocks secrets before commit; also basic hygiene checks.
 # Install: pre-commit install
 # Run all: pre-commit run --all-files

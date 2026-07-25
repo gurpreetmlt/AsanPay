@@ -2,7 +2,7 @@
 
 import { useRef, useState, type FormEvent } from "react";
 import { toast } from "react-hot-toast";
-import type { ApiResponse } from "@adhikaripay/shared-types";
+import type { ApiResponse } from "@asanpay/shared-types";
 import api from "@/lib/api";
 import { Modal } from "@/components/ui/Modal";
 import { extractApiError } from "@/lib/onboarding";

@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 import { randomUUID } from "node:crypto";
 import { env } from "../config/env";
-import type { JwtAccessPayload, JwtRefreshPayload, UserRole } from "@adhikaripay/shared-types";
+import type { JwtAccessPayload, JwtRefreshPayload, UserRole } from "@asanpay/shared-types";
 
 const HS256 = { algorithms: ["HS256"] as jwt.Algorithm[] };
 

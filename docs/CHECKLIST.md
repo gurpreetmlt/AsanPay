@@ -79,7 +79,7 @@
 2026-07-18 — AEPS dummy/sandbox/live provider mode + InstantPay adapter + compliance gates
 2026-07-17 — Security hardening: Critical+High remediations (auth, wallet, mobile, web storage, release signing, Dependabot)
 2026-07-14 — Wallet pending balance: `GET /api/wallet/me` adds `pendingBalance` per wallet (sum of pending/initiated txns); agent web Wallet + mobile Wallet show Pending
-2026-07-14 — Branding: product = Adhikari Pay; npm scopes `@adhikaripay/*`; folder renamed to `apps/mobile`
+2026-07-14 — Branding: product = AsanPay; npm scopes `@asanpay/*`; folder renamed to `apps/mobile`
 2026-07-18 — Pending service icons applied: Cash Deposit, NPS, Education Fees, Municipal Services, Housing Society, Subscription, Landline, Broadband (from Latest-Icons → web public → mobile sync)
 2026-07-14 — Empty Retailer txns: migrate 0005 blocked by non-idempotent 0004; seed now funds Wallet 1/2 + logs userId
 2026-07-14 — `seed:txns` dummy retailer txns (Wallet 1/2) for agent Transactions page
@@ -87,4 +87,4 @@
 2026-07-14 — Login MPIN: journaled `0004_login_mpin` so migrate adds `login_mpin_hash` (OTP/MPIN 500s)
 2026-07-14 — Per-agent service commission on agent detail + `user_commission_rates`
 2026-07-14 — Admin web feature pages (stats, users, KYC, txns, site-control, wallet, passbook)
-2026-07-14 — Admin Adhikari Pay-style shell (blue+green); fixed user `admin` / no OTP
+2026-07-14 — Admin AsanPay-style shell (blue+green); fixed user `admin` / no OTP

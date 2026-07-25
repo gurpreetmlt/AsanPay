@@ -4,7 +4,7 @@
 ## Depends: 22 (PaySprint adapter, so there are 2+ providers to actually list)
 ## Branch: `api-providers`
 ## Full spec: pasted by user in session 2026-07-21 — condensed here, ask user to
-## re-paste the full "AdhikariPay — Admin Panel: Providers & Transactions" spec
+## re-paste the full "AsanPay — Admin Panel: Providers & Transactions" spec
 ## if sub-details are needed (attempt-history UI, reconciliation copy, etc.)
 
 ## Goal (1 line)
@@ -47,7 +47,7 @@ history, wallet ledger, reconciliation).
 - ⬜ **Not done**: commission_rate/min-max-limit/onboarding_stage/health_percent/last_changed_by columns (no migration written — current page only exposes isActive + priority, the columns that already exist on `provider_services`)
 - ⬜ **Not done**: AEPS/DMT service codes are invisible to this panel — they still route via `AEPS_PROVIDER_MODE` (see `aepsMode.ts`), not `provider_services`. This panel only affects other services (BBPS/recharge today). Migrating AEPS/DMT onto this panel is a separate decision — it changes how live InstantPay AEPS traffic routes today, don't do it casually.
 - ⬜ **Not tested against a running server/DB** — no `npm run dev:backend` / `npm run db:migrate` was run this session (Terminal-only per CLAUDE.md); verify manually before trusting this in production.
-- ✅ [seedProviders.ts](../../apps/backend/scripts/seedProviders.ts) (`npm run seed:providers -w @adhikaripay/backend`) — seeds `providers` rows (eko/instantpay/paysprint) + `provider_services` rows for every BBPS category service (mapped to `eko`, since InstantPay/PaySprint BBPS is unimplemented). This also fixes a real gap: BBPS/recharge txns were resolving 0 providers (503 NO_PROVIDER_AVAILABLE) before this ran, since no `provider_services` rows existed at all — not just a panel-display issue.
+- ✅ [seedProviders.ts](../../apps/backend/scripts/seedProviders.ts) (`npm run seed:providers -w @asanpay/backend`) — seeds `providers` rows (eko/instantpay/paysprint) + `provider_services` rows for every BBPS category service (mapped to `eko`, since InstantPay/PaySprint BBPS is unimplemented). This also fixes a real gap: BBPS/recharge txns were resolving 0 providers (503 NO_PROVIDER_AVAILABLE) before this ran, since no `provider_services` rows existed at all — not just a panel-display issue.
 - Removed the duplicate sidebar Logout button in `AdminShell.tsx` (already in the `AdminHeader` user-menu dropdown).
 - **Redesigned to category-level grouping** (2026-07-21, user feedback: 30 individual BBPS tiles was noise since they all share one real provider). `listProvidersAdmin` now returns one row per `service_categories` row (DMT, AEPS, BBPS, ...) with one sub-row per distinct provider underneath — not per catalog tile. New endpoints: `PATCH /admin/providers/categories/:categoryId/provider/:providerId`, `POST /admin/providers/categories/:categoryId/disable-all` (both act on every `provider_services` row in that category at once). Old per-service endpoints removed.
 - `GET /admin/providers` now also returns `railInfo` (`getAepsDmtRailInfo()`) — read-only `{ mode, activeProviderCode, note }` sourced from `AEPS_PROVIDER_MODE`, shown as an info banner above the category list so AEPS/DMT aren't invisible, without pretending they're toggleable through this table.

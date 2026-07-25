@@ -9,7 +9,7 @@ import { HttpError } from "../../utils/httpError";
 import { generateTxnRef } from "../../utils/uid";
 import { logger } from "../../utils/logger";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
-import type { UserRole, WalletType } from "@adhikaripay/shared-types";
+import type { UserRole, WalletType } from "@asanpay/shared-types";
 
 type Actor = { id: string; role: UserRole };
 type TxnRow = typeof transactions.$inferSelect;

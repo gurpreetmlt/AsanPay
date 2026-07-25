@@ -20,7 +20,7 @@ export function Sidebar() {
     <aside className="flex w-56 shrink-0 flex-col border-r border-border-subtle bg-card px-3 py-6">
       <div className="mb-8 px-3">
         <h1 className="bg-gradient-to-r from-brand-600 to-accent-600 bg-clip-text text-xl font-bold text-transparent">
-          Adhikari Pay
+          AsanPay
         </h1>
         <p className="text-xs font-medium text-gray-500">वो Business बढ़े</p>
       </div>
@@ -79,7 +79,7 @@ export function Sidebar() {
           </span>
         </a>
         <p className="px-1 text-[10px] leading-tight text-gray-400">
-          © Copyright 2026 Adhikari Pay Limited. All rights reserved.
+          © Copyright 2026 AsanPay Limited. All rights reserved.
         </p>
       </div>
     </aside>

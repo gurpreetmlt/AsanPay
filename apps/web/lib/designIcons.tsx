@@ -151,7 +151,7 @@ interface Props {
   strokeWidth?: number;
 }
 
-/** Adhikari Pay stroke icons — same as mobile `DesignIcon`, solid color, no Lucide. */
+/** AsanPay stroke icons — same as mobile `DesignIcon`, solid color, no Lucide. */
 export function DesignIcon({ name, size = 26, color = "#2A5CDD", strokeWidth = 2.35 }: Props) {
   const common = {
     width: size,

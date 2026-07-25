@@ -1,6 +1,6 @@
 # PaySprint Integration Docs
 
-Adhikari Pay ke PaySprint integrations ka single source of truth. Kisi bhi agent/chat me PaySprint pe kaam shuru karne se pehle relevant doc padho.
+AsanPay ke PaySprint integrations ka single source of truth. Kisi bhi agent/chat me PaySprint pe kaam shuru karne se pehle relevant doc padho.
 
 ## Folder layout
 

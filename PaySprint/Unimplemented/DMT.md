@@ -3,7 +3,7 @@
 > Raw PaySprint docs (`PaySprint/Unimplemented/`). **Implement cheat-sheet:** [`DMT_DETAILS.md`](DMT_DETAILS.md). Jab implement ho → root `PaySprint/DMT.md`.
 
 **Provider:** PaySprint (DMT (CASA))
-**Status:** 📄 Docs only — not implemented in Adhikari Pay yet
+**Status:** 📄 Docs only — not implemented in AsanPay yet
 **Last updated:** 2026-07-20
 **Source PDF:** `PaySprint Doc. 1.pdf` (pages ~34–217)
 

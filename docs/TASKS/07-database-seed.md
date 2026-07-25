@@ -3,10 +3,10 @@
 ## Postgres (Drizzle)
 | Command | Purpose |
 |---------|---------|
-| `npm run db:migrate -w @adhikaripay/backend` | Apply migrations |
-| `npm run db:generate -w @adhikaripay/backend` | New migration |
-| `npm run seed:admin -w @adhikaripay/backend` | Root admin |
-| `npm run seed:catalog -w @adhikaripay/backend` | Service catalog |
+| `npm run db:migrate -w @asanpay/backend` | Apply migrations |
+| `npm run db:generate -w @asanpay/backend` | New migration |
+| `npm run seed:admin -w @asanpay/backend` | Root admin |
+| `npm run seed:catalog -w @asanpay/backend` | Service catalog |
 
 ## Schema location
 `apps/backend/src/db/postgres/schema/`

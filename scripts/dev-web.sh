@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Adhikari Pay — ONE command: Backend + Admin + Agent Web + Frontend
+# AsanPay — ONE command: Backend + Admin + Agent Web + Frontend
 # Usage:  bash scripts/dev-web.sh
 set -euo pipefail
 
@@ -25,7 +25,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  Adhikari Pay — Web Dev (single command)"
+echo "  AsanPay — Web Dev (single command)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 echo "==> Freeing ports: ${PORTS[*]}"
@@ -43,10 +43,10 @@ start_one() {
   PIDS+=($!)
 }
 
-start_one "backend"    "npm run dev -w @adhikaripay/backend"
-start_one "admin-web"  "npm run dev -w @adhikaripay/admin-web"
-start_one "agent-web"  "npm run dev -w @adhikaripay/web"
-start_one "frontend"   "npm run dev -w @adhikaripay/frontend"
+start_one "backend"    "npm run dev -w @asanpay/backend"
+start_one "admin-web"  "npm run dev -w @asanpay/admin-web"
+start_one "agent-web"  "npm run dev -w @asanpay/web"
+start_one "frontend"   "npm run dev -w @asanpay/frontend"
 
 echo ""
 echo "==> Waiting for services to start..."

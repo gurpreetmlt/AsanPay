@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Adhikari Pay — ONE command: Backend + Metro + ADB reverse + Android install
+# AsanPay — ONE command: Backend + Metro + ADB reverse + Android install
 # Usage:  bash scripts/dev-mobile.sh
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-MOBILE="$ROOT/apps/adhikaripay-mobile-app"
+MOBILE="$ROOT/apps/asanpay-mobile-app"
 LOG_DIR="$ROOT/.dev-logs"
 mkdir -p "$LOG_DIR"
 cd "$ROOT"
@@ -24,7 +24,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  Adhikari Pay — Mobile Dev (single command)"
+echo "  AsanPay — Mobile Dev (single command)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # ── 1. Kill stale processes ──────────────────────
@@ -55,7 +55,7 @@ echo "    ✓ 8081 (Metro) + 4000 (Backend) reversed"
 
 # ── 5. Start Backend ────────────────────────────
 echo "==> Starting Backend :4000..."
-nohup bash -lc "cd '$ROOT' && npm run dev -w @adhikaripay/backend" >"$LOG_DIR/backend.log" 2>&1 &
+nohup bash -lc "cd '$ROOT' && npm run dev -w @asanpay/backend" >"$LOG_DIR/backend.log" 2>&1 &
 PIDS+=($!)
 
 # Wait for backend

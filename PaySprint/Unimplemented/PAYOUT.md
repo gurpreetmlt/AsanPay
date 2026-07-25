@@ -3,7 +3,7 @@
 > Raw PaySprint docs. **Cheat-sheet:** [`PAYOUT_DETAILS.md`](PAYOUT_DETAILS.md).
 
 **Provider:** PaySprint (Payout)
-**Status:** 📄 Docs only — not implemented in Adhikari Pay yet
+**Status:** 📄 Docs only — not implemented in AsanPay yet
 **Last updated:** 2026-07-20
 **Source PDF:** `PaySprint Doc 2.pdf` (pages ~75–118)
 

@@ -25,7 +25,7 @@ type Stage = "input" | "qr";
 
 function generateMockUpiId(): string {
   const num = Math.floor(10000 + Math.random() * 90000);
-  return `adhikaripay.ucp${num}@yesbankltd`;
+  return `asanpay.ucp${num}@yesbankltd`;
 }
 
 function QrPlaceholder({ amount }: { amount: number }) {
@@ -184,7 +184,7 @@ export default function UpiCashPointPage() {
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20">
                   <span className="text-sm font-black text-white">AP</span>
                 </div>
-                <span className="text-sm font-bold text-white/90">Adhikari Pay</span>
+                <span className="text-sm font-bold text-white/90">AsanPay</span>
               </div>
               <div className="h-5 w-px bg-white/30" />
               <div className="flex items-center gap-2">
@@ -296,7 +296,7 @@ export default function UpiCashPointPage() {
                 <div className="flex h-7 w-7 items-center justify-center rounded bg-white/20">
                   <span className="text-xs font-black text-white">AP</span>
                 </div>
-                <span className="text-xs font-bold text-white/90">Adhikari Pay</span>
+                <span className="text-xs font-bold text-white/90">AsanPay</span>
               </div>
               <div className="h-4 w-px bg-white/30" />
               <div className="flex items-center gap-1.5">

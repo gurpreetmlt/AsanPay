@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Adhikari Pay — Android install (run in Mac Terminal, not Cursor)
+# AsanPay — Android install (run in Mac Terminal, not Cursor)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-MOBILE="$ROOT/apps/adhikaripay-mobile-app"
+MOBILE="$ROOT/apps/asanpay-mobile-app"
 
 echo "==> Project: $ROOT"
 cd "$ROOT"
 
 echo "==> Link mobile native deps..."
-npm run postinstall -w @adhikaripay/mobile --if-present 2>/dev/null || \
+npm run postinstall -w @asanpay/mobile --if-present 2>/dev/null || \
   bash "$MOBILE/scripts/link-navigation.sh"
 
 echo "==> Regenerate launcher icons (no white border)..."
@@ -56,4 +56,4 @@ done
 node_modules/.bin/react-native run-android --no-packager --active-arch-only
 
 echo ""
-echo "Done. Adhikari Pay should be on your phone."
+echo "Done. AsanPay should be on your phone."

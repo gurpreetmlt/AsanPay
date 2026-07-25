@@ -3,7 +3,7 @@
 > **Cheat-sheet:** [`CALLBACKS_DETAILS.md`](CALLBACKS_DETAILS.md).
 
 **Provider:** PaySprint (Callbacks)
-**Status:** 📄 Docs only — not implemented in Adhikari Pay yet
+**Status:** 📄 Docs only — not implemented in AsanPay yet
 **Last updated:** 2026-07-20
 **Source PDF:** `PaySprint Doc 2.pdf` (pages ~51–74)
 

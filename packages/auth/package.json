@@ -1,5 +1,5 @@
 {
-  "name": "@adhikaripay/auth",
+  "name": "@asanpay/auth",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -17,7 +17,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@adhikaripay/shared-types": "*"
+    "@asanpay/shared-types": "*"
   },
   "devDependencies": {
     "typescript": "^5.8.3"

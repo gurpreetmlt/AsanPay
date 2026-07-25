@@ -4,7 +4,7 @@ import { verifyAccessToken } from "../utils/jwt";
 import { HttpError } from "../utils/httpError";
 import { db } from "../db/postgres";
 import { users } from "../db/postgres/schema";
-import type { JwtAccessPayload } from "@adhikaripay/shared-types";
+import type { JwtAccessPayload } from "@asanpay/shared-types";
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace

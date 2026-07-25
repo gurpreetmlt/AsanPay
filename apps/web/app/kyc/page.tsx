@@ -21,7 +21,7 @@ import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 import api from "@/lib/api";
 import { formatAadhaar, stripAadhaar } from "@/lib/aadhaar";
-import type { ApiResponse, AuthUser } from "@adhikaripay/shared-types";
+import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 
 const STEPS = [
   { id: "agreement", label: "Agreement", icon: FileText },
@@ -214,13 +214,13 @@ export default function KycPage() {
                 style={{ background: B.bg, color: B.muted }}
               >
                 <p>
-                  By continuing, you agree to Adhikari Pay&apos;s agent terms: you will comply with applicable RBI
+                  By continuing, you agree to AsanPay&apos;s agent terms: you will comply with applicable RBI
                   guidelines, maintain accurate KYC records for customers, and not misuse the platform for fraudulent
                   transactions.
                 </p>
                 <p>
                   Commission rates, settlement timelines, and service availability are subject to network and partner
-                  bank rules. Adhikari Pay may suspend access for compliance violations.
+                  bank rules. AsanPay may suspend access for compliance violations.
                 </p>
                 <p>Your personal and business data will be processed as described in our privacy policy.</p>
               </div>

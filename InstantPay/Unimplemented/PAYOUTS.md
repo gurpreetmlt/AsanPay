@@ -3,7 +3,7 @@
 > Raw InstantPay Payouts docs (`InstantPay/Unimplemented/`). **Implement cheat-sheet:** [`PAYOUTS_DETAILS.md`](PAYOUTS_DETAILS.md). Jab implement ho → root `InstantPay/PAYOUTS.md` (AEPS-style) banega.
 
 **Provider:** InstantPay (Payouts)
-**Status:** 📄 Docs only — not implemented in Adhikari Pay yet
+**Status:** 📄 Docs only — not implemented in AsanPay yet
 **Last updated:** 2026-07-20
 
 ### Shared headers (when APIs paste)
@@ -107,7 +107,7 @@
 ### Gotchas
 
 - Product marketing page — rails (IMPS/NEFT/RTGS/UPI/wallet) named but paths/fees unknown until API pastes.
-- Distinct from AePS / DMT / Nepal remittance already in Adhikari Pay — confirm overlap vs new InstantPay Payout rail before wiring.
+- Distinct from AePS / DMT / Nepal remittance already in AsanPay — confirm overlap vs new InstantPay Payout rail before wiring.
 - “Beyond Payouts” points at Mandates + Collections — separate product areas.
 
 ### Related

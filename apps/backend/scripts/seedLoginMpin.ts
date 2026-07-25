@@ -10,7 +10,7 @@ const SEED_MOBILES = ["9111111111", "9222222222", "9333333333"] as const;
 
 /**
  * Sets login MPIN for seed agents only. Requires SEED_LOGIN_MPIN (strong 4-digit).
- * Run: SEED_LOGIN_MPIN=.... npm run seed:mpin -w @adhikaripay/backend
+ * Run: SEED_LOGIN_MPIN=.... npm run seed:mpin -w @asanpay/backend
  */
 async function main() {
   const mpin = process.env.SEED_LOGIN_MPIN;

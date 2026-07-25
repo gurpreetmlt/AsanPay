@@ -21,7 +21,7 @@ import {
   Star,
   RefreshCw,
 } from "lucide-react";
-import { AdhikariPayLogo, AdhikariIcon } from "@/components/brand/Logo";
+import { AsanPayLogo, AdhikariIcon } from "@/components/brand/Logo";
 import { fetchApi } from "@/lib/api";
 import { B, initials, roleFromUserRole } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
@@ -115,7 +115,7 @@ function SidebarContent({
         style={{ minHeight: 68 }}
       >
         <Link href="/dashboard" className="flex items-center">
-          {open ? <AdhikariPayLogo width={152} variant="light" /> : <AdhikariIcon size={36} />}
+          {open ? <AsanPayLogo width={152} variant="light" /> : <AdhikariIcon size={36} />}
         </Link>
         {onClose ? (
           <button

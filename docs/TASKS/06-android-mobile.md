@@ -1,7 +1,7 @@
 # Task 06 — Android Mobile
 
 ## App
-`apps/mobile` — Adhikari Pay RN CLI 0.76, Android only — npm `@adhikaripay/mobile`
+`apps/mobile` — AsanPay RN CLI 0.76, Android only — npm `@asanpay/mobile`
 
 ## Key files
 | Path | Purpose |

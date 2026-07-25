@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { AuthUser } from "@adhikaripay/shared-types";
+import type { AuthUser } from "@asanpay/shared-types";
 
 interface AuthState {
   accessToken: string | null;
@@ -21,6 +21,6 @@ export const useAuthStore = create<AuthState>()(
       setTokens: (accessToken, refreshToken) => set({ accessToken, refreshToken }),
       logout: () => set({ accessToken: null, refreshToken: null, user: null }),
     }),
-    { name: "adhikaripay-partner-auth" },
+    { name: "asanpay-partner-auth" },
   ),
 );

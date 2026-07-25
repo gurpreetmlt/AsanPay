@@ -1,13 +1,13 @@
 # InstantPay — Business Verification — Implementation Details
 
-> Compact cheat-sheet for Adhikari Pay implementers. Full samples/OpenAPI: [`BUSINESS_VERIFICATION.md`](BUSINESS_VERIFICATION.md). Auth: [`OVERVIEW.md`](OVERVIEW.md) · [`OVERVIEW_DETAILS.md`](OVERVIEW_DETAILS.md).
+> Compact cheat-sheet for AsanPay implementers. Full samples/OpenAPI: [`BUSINESS_VERIFICATION.md`](BUSINESS_VERIFICATION.md). Auth: [`OVERVIEW.md`](OVERVIEW.md) · [`OVERVIEW_DETAILS.md`](OVERVIEW_DETAILS.md).
 
 > **Location:** `InstantPay/Unimplemented/` — implement hone pe root me AEPS-style doc banao; is DETAILS ko source maano.
 > **Workflow:** har nayi Business Verification page → full + ye DETAILS dono update.
 
 **Base URL:** `https://api.instantpay.in`
 **Protocol:** REST + JSON (LEI = **GET** + query)
-**Status:** Docs captured — not wired in Adhikari Pay yet
+**Status:** Docs captured — not wired in AsanPay yet
 **Last updated:** 2026-07-20
 
 ---

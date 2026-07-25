@@ -1,4 +1,4 @@
-import type { UserRole, KycStatus, WalletType } from "@adhikaripay/shared-types";
+import type { UserRole, KycStatus, WalletType } from "@asanpay/shared-types";
 
 export interface WalletBalance {
   id: string;

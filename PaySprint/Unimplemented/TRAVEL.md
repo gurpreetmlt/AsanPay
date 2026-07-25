@@ -3,7 +3,7 @@
 > Raw PaySprint docs. **Cheat-sheet:** [`TRAVEL_DETAILS.md`](TRAVEL_DETAILS.md).
 
 **Provider:** PaySprint (Travel (Train + Flight))
-**Status:** 📄 Docs only — not implemented in Adhikari Pay yet
+**Status:** 📄 Docs only — not implemented in AsanPay yet
 **Last updated:** 2026-07-20
 **Source PDF:** `PaySprint Doc 2.pdf` (pages ~314–365)
 

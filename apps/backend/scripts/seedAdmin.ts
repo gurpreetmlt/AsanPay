@@ -9,7 +9,7 @@ import { generateUid } from "../src/utils/uid";
 /** Fixed admin portal credentials — username `admin` (not mobile). OTP disabled for admin. */
 const ADMIN_LOGIN_USER = "admin";
 
-// Creates or resets the single root admin. Run: npm run seed:admin -w @adhikaripay/backend
+// Creates or resets the single root admin. Run: npm run seed:admin -w @asanpay/backend
 // Requires SEED_ADMIN_PASSWORD (min 12 chars). No hardcoded password in source.
 async function main() {
   const mobile = process.env.SEED_ADMIN_MOBILE ?? "9999999999";
@@ -30,7 +30,7 @@ async function main() {
       .update(users)
       .set({
         passwordHash,
-        name: "Adhikari Pay Admin",
+        name: "AsanPay Admin",
         isActive: true,
         kycStatus: "verified",
       })
@@ -52,7 +52,7 @@ async function main() {
         uid,
         parentId: null,
         role: "admin",
-        name: "Adhikari Pay Admin",
+        name: "AsanPay Admin",
         mobile,
         passwordHash,
         kycStatus: "verified",

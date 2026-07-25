@@ -30,8 +30,8 @@ import {
   trustDevice,
   type DeviceRow,
 } from "../../db/postgres/repositories/device";
-import type { AuthPortal, AuthUser, UserRole } from "@adhikaripay/shared-types";
-import { isAdminRole, isAgentPortalRole } from "@adhikaripay/shared-types";
+import type { AuthPortal, AuthUser, UserRole } from "@asanpay/shared-types";
+import { isAdminRole, isAgentPortalRole } from "@asanpay/shared-types";
 import type {
   RegisterInput,
   LoginInput,
@@ -185,7 +185,7 @@ function assertPortalAccess(role: UserRole, portal: AuthPortal): void {
     if (!isAdminRole(role)) {
       throw new HttpError(
         403,
-        "This account cannot access the admin portal. Use the Adhikari Pay agent app or web.",
+        "This account cannot access the admin portal. Use the AsanPay agent app or web.",
         "WRONG_PORTAL",
       );
     }
@@ -259,13 +259,13 @@ async function ensureDevAdminCredentials(
       .update(users)
       .set({
         passwordHash,
-        name: "Adhikari Pay Admin",
+        name: "AsanPay Admin",
         isActive: true,
         kycStatus: "verified",
       })
       .where(eq(users.id, row.id));
     logger.info({ userId: row.id }, "[DEV] Admin password synced from SEED_ADMIN_PASSWORD");
-    return { ...row, passwordHash, name: "Adhikari Pay Admin", isActive: true, kycStatus: "verified" };
+    return { ...row, passwordHash, name: "AsanPay Admin", isActive: true, kycStatus: "verified" };
   }
 
   const uid = generateUid("admin");
@@ -276,7 +276,7 @@ async function ensureDevAdminCredentials(
         uid,
         parentId: null,
         role: "admin",
-        name: "Adhikari Pay Admin",
+        name: "AsanPay Admin",
         mobile: seedMobile,
         passwordHash,
         kycStatus: "verified",

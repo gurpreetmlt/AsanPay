@@ -3,7 +3,7 @@
 ## Size: L (split — schema first, then logic, then reconciliation job)
 ## Depends: 22 (PaySprint adapter — this is what makes multi-provider failover real)
 ## Branch: `api-providers`
-## Full spec: see Part C of "AdhikariPay — Admin Panel" spec (user pasted 2026-07-21)
+## Full spec: see Part C of "AsanPay — Admin Panel" spec (user pasted 2026-07-21)
 
 ## Goal (1 line)
 One shared module every provider adapter money-call goes through — so PaySprint

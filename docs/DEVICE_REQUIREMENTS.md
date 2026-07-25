@@ -1,6 +1,6 @@
-# Adhikari Pay — Biometric Device Requirements
+# AsanPay — Biometric Device Requirements
 
-**Product:** Adhikari Pay (AePS)
+**Product:** AsanPay (AePS)
 **Audience:** Device OEM / RD Service vendor / integration partner
 **Scope:** Android mobile app + Agent Web (Windows browser)
 **Auth modes:** Fingerprint (primary) · Iris (planned)
@@ -20,7 +20,7 @@
 
 ## 2. Supported capture modes
 
-| Mode | Status in Adhikari Pay | UIDAI Intent / API |
+| Mode | Status in AsanPay | UIDAI Intent / API |
 |------|------------------------|--------------------|
 | **Fingerprint** | Live (mobile + web) | `in.gov.uidai.rdservice.fp.INFO` / `fp.CAPTURE` |
 | **Iris** | UI ready — needs vendor RD + integration | `in.gov.uidai.rdservice.iris.INFO` / `iris.CAPTURE` |
@@ -40,7 +40,7 @@
 
 ### 3.2 Integration method (required)
 
-Adhikari Pay Android app uses **UIDAI Intent API** (not a hard-coded port):
+AsanPay Android app uses **UIDAI Intent API** (not a hard-coded port):
 
 1. Discover RD package that handles `in.gov.uidai.rdservice.fp.CAPTURE` (fingerprint) or `iris.CAPTURE` (iris).
 2. `startActivityForResult` with extra **`PID_OPTIONS`** (PidOptions XML).
@@ -69,7 +69,7 @@ Other L1 vendors (Morpho, Startek, Evolute, VisionTek, Precision, etc.) are acce
 | PidOptions | Iris: `iCount` / `iType` per UIDAI (typically `iCount="1"`, `iType="0"`) |
 | Result | `PID_DATA` with iris biometric block |
 
-Vendor must provide: sample app, package name, PidOptions sample, and test device for Adhikari Pay QA.
+Vendor must provide: sample app, package name, PidOptions sample, and test device for AsanPay QA.
 
 ---
 
@@ -130,7 +130,7 @@ Prefer also providing a Windows Web RD test URL (e.g. Mantra `https://rdtest.aad
 
 ---
 
-## 5. PidOptions (fingerprint — current Adhikari Pay)
+## 5. PidOptions (fingerprint — current AsanPay)
 
 Example used for fingerprint capture:
 
@@ -160,7 +160,7 @@ Example used for fingerprint capture:
 
 ---
 
-## 6. What Adhikari Pay needs from the company
+## 6. What AsanPay needs from the company
 
 Please provide for **each** device model (fingerprint and iris):
 
@@ -181,7 +181,7 @@ Please provide for **each** device model (fingerprint and iris):
 
 ### Mobile (Android)
 
-- [ ] Install Adhikari Pay app
+- [ ] Install AsanPay app
 - [ ] Install vendor **L1 RD Service** from Play Store
 - [ ] Open RD Service → plug device → status **Connected**
 - [ ] Grant USB permission when prompted
@@ -201,12 +201,12 @@ Please provide for **each** device model (fingerprint and iris):
 
 - Non-UIDAI / uncertified biometric devices
 - Apps that only work inside OEM demo app and do **not** expose Intent (Android) or localhost CAPTURE (Windows)
-- Sending raw biometric templates to Adhikari Pay servers without RD encryption
+- Sending raw biometric templates to AsanPay servers without RD encryption
 - Iris on web/mobile without certified L1 iris RD Service
 
 ---
 
-## 9. Contact (Adhikari Pay)
+## 9. Contact (AsanPay)
 
 Integration questions / package confirmation:
 **[Add your company email / phone]**

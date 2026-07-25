@@ -1,6 +1,6 @@
 # InstantPay Integration Docs
 
-Adhikari Pay ke InstantPay (Financial Inclusion) integrations ka single source of truth. Kisi bhi agent/chat me InstantPay pe kaam shuru karne se pehle relevant doc padho.
+AsanPay ke InstantPay (Financial Inclusion) integrations ka single source of truth. Kisi bhi agent/chat me InstantPay pe kaam shuru karne se pehle relevant doc padho.
 
 ## Folder layout
 

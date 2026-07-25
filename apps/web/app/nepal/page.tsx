@@ -22,7 +22,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { B } from "@/lib/brand";
 import api from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
-import type { ApiResponse } from "@adhikaripay/shared-types";
+import type { ApiResponse } from "@asanpay/shared-types";
 import { extractApiError } from "@/lib/onboarding";
 import { createAttemptKeyHolder } from "@/lib/idempotencyKey";
 import {

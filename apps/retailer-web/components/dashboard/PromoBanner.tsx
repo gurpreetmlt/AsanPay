@@ -27,7 +27,7 @@ const SLIDES = [
     eyebrow: "ZET Credit Card",
     headline: "Apna Business Credit Card",
     detail: "Instant approval, no paperwork",
-    footnote: "Powered by Adhikari Pay Financial Services",
+    footnote: "Powered by AsanPay Financial Services",
     cta: "Apply Credit Card Now",
   },
 ];

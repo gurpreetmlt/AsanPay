@@ -1,8 +1,8 @@
-import type { UserRole } from "@adhikaripay/shared-types";
+import type { UserRole } from "@asanpay/shared-types";
 
-/** Adhikari Pay brand — from Figma Make "B2B Fintech App Design" */
+/** AsanPay brand — from Figma Make "B2B Fintech App Design" */
 export const brand = {
-  name: "Adhikari Pay",
+  name: "AsanPay",
   tagline: "HAR KADAM TARAKKI KI OR",
   loginSubtitle: "Agent Login — Super Distributor, Distributor & Retailer",
 } as const;

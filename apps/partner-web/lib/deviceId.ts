@@ -7,7 +7,7 @@
  * makes the trust revoke-on-reset behaviour work without any extra code.
  */
 
-const DEVICE_ID_KEY = "adhikaripay.deviceId.v1";
+const DEVICE_ID_KEY = "asanpay.deviceId.v1";
 
 function randomId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {

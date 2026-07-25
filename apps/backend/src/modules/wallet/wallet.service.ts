@@ -24,7 +24,7 @@ import {
   insertOtpRequest,
   markOtpConsumed,
 } from "../../db/postgres/repositories/otpRequest";
-import type { UserRole, WalletType } from "@adhikaripay/shared-types";
+import type { UserRole, WalletType } from "@asanpay/shared-types";
 
 const PULL_OTP_TTL_MS = 5 * 60 * 1000;
 

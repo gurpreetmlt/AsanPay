@@ -1,6 +1,6 @@
 "use client";
 
-export function AdhikariPayLogo({
+export function AsanPayLogo({
   width = 180,
   variant = "dark",
   className = "",
@@ -21,7 +21,7 @@ export function AdhikariPayLogo({
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
-      aria-label="Adhikari Pay"
+      aria-label="AsanPay"
     >
       <defs>
         <linearGradient id={`lbadge-${uid}`} x1="60" y1="50" x2="280" y2="282" gradientUnits="userSpaceOnUse">

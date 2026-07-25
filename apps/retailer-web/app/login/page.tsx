@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import axios from "axios";
 import clsx from "clsx";
-import type { ApiResponse, AuthUser } from "@adhikaripay/shared-types";
+import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import api from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 import { getDeviceId, getDeviceLabel } from "@/lib/deviceId";
@@ -118,7 +118,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm rounded-2xl border border-border-subtle bg-card p-8 shadow-sm">
         <div className="mb-6 text-center">
           <h1 className="bg-gradient-to-r from-brand-600 to-accent-600 bg-clip-text text-2xl font-bold text-transparent">
-            Adhikari Pay
+            AsanPay
           </h1>
           <p className="mt-1 text-sm text-gray-500">Retailer Login</p>
         </div>

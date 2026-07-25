@@ -19,7 +19,7 @@ async function loadEnvModule(overrides: Record<string, string | undefined>) {
     if (overrides[k] === undefined) delete process.env[k];
     else process.env[k] = overrides[k];
   }
-  process.env.DATABASE_URL ??= "postgres://adhikaripay:adhikaripay@localhost:5432/adhikaripay";
+  process.env.DATABASE_URL ??= "postgres://asanpay:asanpay@localhost:5432/asanpay";
   process.env.JWT_ACCESS_SECRET ??= "dev-access-secret-please-change-me-32chars";
   process.env.JWT_REFRESH_SECRET ??= "dev-refresh-secret-please-change-me-32chars";
   process.env.AES_ENCRYPTION_KEY ??= "eBgFLCCqFzEWCfr2wN8XAoLWn38m2DlgHAJQU9kiZcI=";

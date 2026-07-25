@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Adhikari Pay — start ALL local web apps + API (Mac Terminal)
+# AsanPay — start ALL local web apps + API (Mac Terminal)
 # Usage:
 #   bash scripts/dev-all-web.sh
 #   npm run dev:webs
@@ -76,7 +76,7 @@ wait_http "http://localhost:3002"        "Frontend  :3002"
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  Adhikari Pay — all webs running"
+echo "  AsanPay — all webs running"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  Frontend (marketing)  http://localhost:3002"
 echo "  Admin login           http://localhost:3000/login"

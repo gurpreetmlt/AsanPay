@@ -7,7 +7,7 @@
 
 **Base URL:** `https://api.instantpay.in`
 **Protocol:** REST + JSON
-**Status:** Docs captured (full GEO suite) — not wired in Adhikari Pay yet
+**Status:** Docs captured (full GEO suite) — not wired in AsanPay yet
 **Last updated:** 2026-07-20
 
 ---
@@ -144,7 +144,7 @@ LOCATION_SERVICES_PROVIDER_MODE=dummy|instantpay_sandbox|instantpay_live
 - [x] Reverse Geocoding (Endpoint-Ip Y; fee ~1.18)
 - [ ] Confirm live pool / fee vs sandbox
 - [ ] IP allowlist
-- [ ] Wire Adhikari Pay (backend + web + mobile per PARITY)
+- [ ] Wire AsanPay (backend + web + mobile per PARITY)
 
 ---
 

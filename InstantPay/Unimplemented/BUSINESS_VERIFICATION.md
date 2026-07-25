@@ -3,7 +3,7 @@
 > Raw InstantPay Business Verification API reference (`InstantPay/Unimplemented/`). Overview: [`OVERVIEW.md`](OVERVIEW.md). **Implement cheat-sheet:** [`BUSINESS_VERIFICATION_DETAILS.md`](BUSINESS_VERIFICATION_DETAILS.md). Jab implement ho → root `InstantPay/BUSINESS_VERIFICATION.md` (AEPS-style) banega.
 
 **Provider:** InstantPay (Identity / Business Verification)
-**Status:** 📄 Docs only — not implemented in Adhikari Pay yet
+**Status:** 📄 Docs only — not implemented in AsanPay yet
 **Last updated:** 2026-07-20
 
 ### Shared headers (sab Business Verification APIs)

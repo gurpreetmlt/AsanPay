@@ -1,18 +1,18 @@
-# Frontend — Adhikari Pay public site
+# Frontend — AsanPay public site
 
-Marketing / waitlist Next.js app (`@adhikaripay/frontend`).
+Marketing / waitlist Next.js app (`@asanpay/frontend`).
 
 | | |
 |--|--|
 | Port | **3002** |
-| Package | `@adhikaripay/frontend` |
+| Package | `@asanpay/frontend` |
 | Agent Log in | `NEXT_PUBLIC_AGENT_WEB_URL` → `/login` (`apps/web` :3001) |
 | Agent Sign up | same → `/signup` |
 
 ## Dev (Mac Terminal)
 
 ```bash
-cd "/Users/gurpreetchauhan/Desktop/Adhikari Pay"
+cd "/Users/gurpreetchauhan/Desktop/AsanPay"
 npm install
 npm run dev:frontend
 # → http://localhost:3002

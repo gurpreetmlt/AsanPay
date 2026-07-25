@@ -3,7 +3,7 @@
 > Raw InstantPay Identity / Asset Verification API reference (`InstantPay/Unimplemented/`). Overview: [`OVERVIEW.md`](OVERVIEW.md). **Implement cheat-sheet:** [`ASSET_VERIFICATION_DETAILS.md`](ASSET_VERIFICATION_DETAILS.md). Jab implement ho → root `InstantPay/ASSET_VERIFICATION.md` (AEPS-style) banega.
 
 **Provider:** InstantPay (Identity — Asset Verification)
-**Status:** 📄 Docs only — not implemented in Adhikari Pay yet
+**Status:** 📄 Docs only — not implemented in AsanPay yet
 **Last updated:** 2026-07-20
 
 ### Shared headers (sab Asset Verification APIs)

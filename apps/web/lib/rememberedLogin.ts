@@ -7,7 +7,7 @@
  * Cleared when the user picks "use a different number".
  */
 
-const KEY = "adhikaripay.lastLogin.v1";
+const KEY = "asanpay.lastLogin.v1";
 
 export interface RememberedLogin {
   mobile: string;

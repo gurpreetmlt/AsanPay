@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Adhikari Pay Backend — Deploy Script
+# AsanPay Backend — Deploy Script
 # Usage: ./scripts/deploy-backend.sh "commit message"
 #
 # Credentials come from .env.deploy.local (gitignored — never commit real tokens).
@@ -31,7 +31,7 @@ NC='\033[0m'
 MSG=${1:-"update backend"}
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BLUE}  Adhikari Pay Backend Deploy${NC}"
+echo -e "${BLUE}  AsanPay Backend Deploy${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
 # Step 1: Git push — scoped to apps/backend only, NOT the whole monorepo.

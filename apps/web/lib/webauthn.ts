@@ -1,4 +1,4 @@
-const STORAGE_KEY = "adhikaripay-web-biometric";
+const STORAGE_KEY = "asanpay-web-biometric";
 
 function getBrowserSessionStorage(): Storage | null {
   if (typeof window === "undefined") return null;
@@ -69,7 +69,7 @@ export async function enableBiometricLogin(opts: {
   const cred = (await navigator.credentials.create({
     publicKey: {
       challenge,
-      rp: { name: "Adhikari Pay", id: window.location.hostname },
+      rp: { name: "AsanPay", id: window.location.hostname },
       user: {
         id: userId,
         name: opts.userName,

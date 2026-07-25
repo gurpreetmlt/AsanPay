@@ -1,6 +1,6 @@
-# Gitleaks config for Adhikari Pay monorepo
+# Gitleaks config for AsanPay monorepo
 # Extends default rules; allowlists only safe examples / false positives.
-title = "Adhikari Pay gitleaks"
+title = "AsanPay gitleaks"
 
 [extend]
 useDefault = true

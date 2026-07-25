@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { HttpError } from "../utils/httpError";
-import type { UserRole } from "@adhikaripay/shared-types";
+import type { UserRole } from "@asanpay/shared-types";
 
 export function requireRole(...roles: UserRole[]) {
   return (req: Request, _res: Response, next: NextFunction): void => {

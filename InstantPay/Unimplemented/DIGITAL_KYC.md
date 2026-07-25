@@ -3,7 +3,7 @@
 > Raw InstantPay Digital KYC docs (`InstantPay/Unimplemented/`). **Implement cheat-sheet:** [`DIGITAL_KYC_DETAILS.md`](DIGITAL_KYC_DETAILS.md). Jab implement ho → root `InstantPay/DIGITAL_KYC.md` (AEPS-style) banega.
 
 **Provider:** InstantPay (Digital KYC / Identity)
-**Status:** 📄 Docs only — not implemented in Adhikari Pay yet
+**Status:** 📄 Docs only — not implemented in AsanPay yet
 **Last updated:** 2026-07-20
 
 ### Shared headers (Digital KYC APIs)

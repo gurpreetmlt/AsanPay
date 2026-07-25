@@ -28,7 +28,7 @@ import { extractApiError } from "@/lib/onboarding";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 import { formatInr } from "@/lib/walletLabels";
 import type { DownlineUser, LedgerEntry } from "@/lib/types";
-import type { UserRole } from "@adhikaripay/shared-types";
+import type { UserRole } from "@asanpay/shared-types";
 
 interface DownlineItem {
   id: string;

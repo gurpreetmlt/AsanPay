@@ -3,7 +3,7 @@
 > Raw PaySprint docs. **Cheat-sheet:** [`MATM_DETAILS.md`](MATM_DETAILS.md).
 
 **Provider:** PaySprint (MATM (Fino))
-**Status:** 📄 Docs only — not implemented in Adhikari Pay yet
+**Status:** 📄 Docs only — not implemented in AsanPay yet
 **Last updated:** 2026-07-20
 **Source PDF:** `PaySprint Doc 2.pdf` (pages ~19–50)
 

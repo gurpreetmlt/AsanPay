@@ -11,7 +11,7 @@ COPY apps/admin-web ./apps/admin-web
 WORKDIR /app/apps/admin-web
 
 # Resolve local workspace package without full monorepo install
-RUN npm pkg set dependencies.@adhikaripay/shared-types="file:../../packages/shared-types" \
+RUN npm pkg set dependencies.@asanpay/shared-types="file:../../packages/shared-types" \
   && npm install --include=dev
 
 RUN npm run build

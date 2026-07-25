@@ -7,7 +7,7 @@ import { fetchApi } from "@/lib/api";
 import { B, initials } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { extractApiError } from "@/lib/onboarding";
-import type { UserRole } from "@adhikaripay/shared-types";
+import type { UserRole } from "@asanpay/shared-types";
 
 interface DownlineItem {
   id: string;

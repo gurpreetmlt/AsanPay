@@ -7,7 +7,7 @@ import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 import { nextOnboardingPath } from "@/lib/onboarding";
 import api from "@/lib/api";
-import type { ApiResponse, AuthUser } from "@adhikaripay/shared-types";
+import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 
 const SKIP = new Set(["/login", "/signup"]);
 

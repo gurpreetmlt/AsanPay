@@ -1,5 +1,5 @@
 {
-  "name": "@adhikaripay/web",
+  "name": "@asanpay/web",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,8 +9,8 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@adhikaripay/shared-types": "*",
-    "@adhikaripay/auth": "*",
+    "@asanpay/shared-types": "*",
+    "@asanpay/auth": "*",
     "axios": "^1.18.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.23.0",

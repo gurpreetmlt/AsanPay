@@ -1,4 +1,4 @@
-# Adhikari Pay — Agent Efficiency Plan
+# AsanPay — Agent Efficiency Plan
 
 > **Global:** Cursor `~/.cursor/rules/token-efficiency.mdc` · Claude `~/.claude/CLAUDE.md`
 > **Kit:** `~/Documents/AI-Agent-Plan/` (copy to any new project)
@@ -6,7 +6,7 @@
 ## Project extras
 | Rule | Detail |
 |------|--------|
-| Brand | Adhikari Pay · `@adhikaripay/*` |
+| Brand | AsanPay · `@asanpay/*` |
 | DB | Postgres only · Redis cache optional |
 | Ignore | `partner-web`, `retailer-web` |
 | Creds | `LOGIN.md` |
@@ -35,7 +35,7 @@ Agents: never put those strings in `-m` / HEREDOC commit messages either.
 
 ## Terminal (Mac)
 ```bash
-cd "/Users/gurpreetchauhan/Desktop/Adhikari Pay"
+cd "/Users/gurpreetchauhan/Desktop/AsanPay"
 npm run dev:backend
 npm run db:migrate
 bash scripts/install-android.sh

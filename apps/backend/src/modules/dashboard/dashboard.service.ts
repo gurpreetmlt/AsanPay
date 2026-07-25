@@ -2,7 +2,7 @@ import { and, count, eq, gte, inArray, sql } from "drizzle-orm";
 import { db } from "../../db/postgres";
 import { users, transactions, commissionLedger, userHierarchy, wallets } from "../../db/postgres/schema";
 import { HttpError } from "../../utils/httpError";
-import type { UserRole } from "@adhikaripay/shared-types";
+import type { UserRole } from "@asanpay/shared-types";
 
 const todayStart = () => {
   const d = new Date();

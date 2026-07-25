@@ -18,8 +18,8 @@ import {
   Check,
   KeyRound,
 } from "lucide-react";
-import type { ApiResponse, AuthUser } from "@adhikaripay/shared-types";
-import { AdhikariPayLogo } from "@/components/brand/Logo";
+import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
+import { AsanPayLogo } from "@/components/brand/Logo";
 import api from "@/lib/api";
 import { B, ROLES, type Role } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
@@ -292,7 +292,7 @@ export default function LoginPage() {
         <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-white opacity-10" />
         <div className="absolute -left-20 top-1/2 h-56 w-56 rounded-full bg-white opacity-10" />
         <div className="relative z-10">
-          <AdhikariPayLogo width={230} variant="light" />
+          <AsanPayLogo width={230} variant="light" />
         </div>
         <div className="relative z-10">
           <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5">
@@ -320,7 +320,7 @@ export default function LoginPage() {
       <div className="flex flex-1 items-center justify-center p-8 lg:p-12" style={{ background: B.bg }}>
         <div className="w-full max-w-md">
           <div className="mb-8 lg:hidden">
-            <AdhikariPayLogo width={190} />
+            <AsanPayLogo width={190} />
           </div>
 
           {unlockMode && remembered ? (

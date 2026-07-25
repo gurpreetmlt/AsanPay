@@ -145,7 +145,7 @@ export default function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
                 id="modal-description"
                 className="font-poppins font-normal text-sm md:text-base text-neutral-600 dark:text-neutral-400 max-w-sm mb-6 leading-relaxed"
               >
-                Ye feature abhi launch nahi hua hai. Adhikari Pay waitlist join kariye aur aane wale exclusive offers aur features ki sabse pehle updates payiye!
+                Ye feature abhi launch nahi hua hai. AsanPay waitlist join kariye aur aane wale exclusive offers aur features ki sabse pehle updates payiye!
               </p>
 
               {!success ? (

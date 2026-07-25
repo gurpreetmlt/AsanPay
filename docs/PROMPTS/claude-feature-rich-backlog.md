@@ -15,7 +15,7 @@
 @docs/TASKS/24-financial-safety-layer.md
 
 GOAL (docs only — no app code, no explore beyond listed paths):
-Convert the Feature-Rich Depth brief below into a concrete Adhikari Pay product backlog.
+Convert the Feature-Rich Depth brief below into a concrete AsanPay product backlog.
 
 OUTPUT — create these files (English product copy; Hindi OK only in agent notes):
 1. docs/PRODUCT/feature-rich-backlog.md

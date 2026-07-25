@@ -1,5 +1,5 @@
-import type { AuthPortal, AuthUser, UserRole } from "@adhikaripay/shared-types";
-import { AGENT_PORTAL_ROLES, isAdminRole, isAgentPortalRole, ROLE_LABELS } from "@adhikaripay/shared-types";
+import type { AuthPortal, AuthUser, UserRole } from "@asanpay/shared-types";
+import { AGENT_PORTAL_ROLES, isAdminRole, isAgentPortalRole, ROLE_LABELS } from "@asanpay/shared-types";
 
 export { AGENT_PORTAL_ROLES, isAdminRole, isAgentPortalRole, ROLE_LABELS };
 

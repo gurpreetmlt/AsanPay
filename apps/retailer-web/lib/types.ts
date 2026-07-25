@@ -1,4 +1,4 @@
-import type { WalletType } from "@adhikaripay/shared-types";
+import type { WalletType } from "@asanpay/shared-types";
 
 export interface CatalogCategoryView {
   id: string;

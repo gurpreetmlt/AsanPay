@@ -1,5 +1,5 @@
 {
-  "name": "adhikari-pay",
+  "name": "asan-pay",
   "version": "0.1.0",
   "private": true,
   "packageManager": "npm@10.8.2",
@@ -7,28 +7,28 @@
     "node": ">=20.0.0",
     "npm": ">=10.8.0"
   },
-  "description": "Adhikari Pay — B2B agent fintech (AEPS, DMT, BBPS, recharge). Workspace packages: @adhikaripay/*.",
+  "description": "AsanPay — B2B agent fintech (AEPS, DMT, BBPS, recharge). Workspace packages: @asanpay/*.",
   "workspaces": [
     "apps/*",
     "packages/*",
     "Frontend"
   ],
   "scripts": {
-    "dev": "turbo run dev --filter=@adhikaripay/backend --filter=@adhikaripay/admin-web --filter=@adhikaripay/web --filter=@adhikaripay/frontend",
+    "dev": "turbo run dev --filter=@asanpay/backend --filter=@asanpay/admin-web --filter=@asanpay/web --filter=@asanpay/frontend",
     "dev:all": "turbo run dev",
-    "dev:backend": "npm run dev -w @adhikaripay/backend",
-    "dev:admin": "npm run dev -w @adhikaripay/admin-web",
-    "dev:web": "npm run dev -w @adhikaripay/web",
-    "dev:frontend": "npm run dev -w @adhikaripay/frontend",
+    "dev:backend": "npm run dev -w @asanpay/backend",
+    "dev:admin": "npm run dev -w @asanpay/admin-web",
+    "dev:web": "npm run dev -w @asanpay/web",
+    "dev:frontend": "npm run dev -w @asanpay/frontend",
     "dev:webs": "bash scripts/dev-all-web.sh",
     "start:web": "bash scripts/dev-web.sh",
     "start:mobile": "bash scripts/dev-mobile.sh",
-    "dev:mobile": "cd apps/adhikaripay-mobile-app && react-native start",
-    "android": "npm run android -w @adhikaripay/mobile",
+    "dev:mobile": "cd apps/asanpay-mobile-app && react-native start",
+    "android": "npm run android -w @asanpay/mobile",
     "build": "turbo run build",
     "lint": "turbo run lint",
-    "db:migrate": "npm run db:migrate -w @adhikaripay/backend",
-    "db:seed": "npm run seed:admin -w @adhikaripay/backend",
+    "db:migrate": "npm run db:migrate -w @asanpay/backend",
+    "db:seed": "npm run seed:admin -w @asanpay/backend",
     "sync:icons": "bash scripts/sync-icons.sh"
   },
   "devDependencies": {

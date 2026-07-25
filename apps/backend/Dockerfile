@@ -1,4 +1,4 @@
-# Adhikari Pay API — only backend + shared-types (no web/admin/mobile)
+# AsanPay API — only backend + shared-types (no web/admin/mobile)
 # Coolify: Build Pack = Dockerfile | Dockerfile = /apps/backend/Dockerfile | Context = /
 
 FROM node:22-bookworm-slim
@@ -12,7 +12,7 @@ COPY apps/backend ./apps/backend
 WORKDIR /app/apps/backend
 
 # Resolve local workspace package without full monorepo install
-RUN npm pkg set dependencies.@adhikaripay/shared-types="file:../../packages/shared-types" \
+RUN npm pkg set dependencies.@asanpay/shared-types="file:../../packages/shared-types" \
   && npm install --include=dev --omit=optional
 
 ENV NODE_ENV=production

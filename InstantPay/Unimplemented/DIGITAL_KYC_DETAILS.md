@@ -7,7 +7,7 @@
 
 **Base URL:** `https://api.instantpay.in`
 **Protocol:** REST + JSON
-**Status:** Docs captured — not wired in Adhikari Pay yet
+**Status:** Docs captured — not wired in AsanPay yet
 **Last updated:** 2026-07-20
 
 ---

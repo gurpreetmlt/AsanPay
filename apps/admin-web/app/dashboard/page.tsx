@@ -121,7 +121,7 @@ export default function DashboardPage() {
               Admin Dashboard
             </h1>
             <p className="mt-1 text-sm" style={{ color: B.muted }}>
-              Adhikari Pay · Platform Control Panel
+              AsanPay · Platform Control Panel
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

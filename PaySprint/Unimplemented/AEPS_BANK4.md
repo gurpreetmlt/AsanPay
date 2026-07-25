@@ -3,7 +3,7 @@
 > Raw PaySprint docs (`PaySprint/Unimplemented/`). **Implement cheat-sheet:** [`AEPS_BANK4_DETAILS.md`](AEPS_BANK4_DETAILS.md). Jab implement ho → root `PaySprint/AEPS_BANK4.md`.
 
 **Provider:** PaySprint (AEPS Bank4)
-**Status:** 📄 Docs only — not implemented in Adhikari Pay yet
+**Status:** 📄 Docs only — not implemented in AsanPay yet
 **Last updated:** 2026-07-20
 **Source PDF:** `PaySprint Doc. 1.pdf` (pages ~447–539)
 

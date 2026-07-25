@@ -7,7 +7,7 @@ import { Star } from "lucide-react";
 import { fetchApi } from "@/lib/api";
 import type { CatalogCategoryView } from "@/lib/types";
 import { B } from "@/lib/brand";
-import { serviceIconPath } from "@adhikaripay/shared-types";
+import { serviceIconPath } from "@asanpay/shared-types";
 import { designTileColors } from "@/lib/designIcons";
 import { flattenCatalogServices } from "@/lib/catalog";
 import { extractApiError } from "@/lib/onboarding";

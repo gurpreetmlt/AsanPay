@@ -1,5 +1,5 @@
 import { eq, asc } from "drizzle-orm";
-import type { CatalogCategory } from "@adhikaripay/shared-types";
+import type { CatalogCategory } from "@asanpay/shared-types";
 import { db } from "../../db/postgres";
 import { serviceCategories, services } from "../../db/postgres/schema";
 

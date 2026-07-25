@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { AuthUser } from "@adhikaripay/shared-types";
+import type { AuthUser } from "@asanpay/shared-types";
 
 interface AuthState {
   /** Session flag only — the real tokens live in httpOnly cookies set by the BFF routes under
@@ -19,6 +19,6 @@ export const useAuthStore = create<AuthState>()(
       setAuth: (user) => set({ user, isAuthenticated: true }),
       logout: () => set({ isAuthenticated: false, user: null }),
     }),
-    { name: "adhikaripay-retailer-auth" },
+    { name: "asanpay-retailer-auth" },
   ),
 );

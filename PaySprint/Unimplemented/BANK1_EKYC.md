@@ -3,7 +3,7 @@
 > Raw PaySprint docs (`PaySprint/Unimplemented/`). **Implement cheat-sheet:** [`BANK1_EKYC_DETAILS.md`](BANK1_EKYC_DETAILS.md). Jab implement ho → root `PaySprint/BANK1_EKYC.md`.
 
 **Provider:** PaySprint (Bank1 Merchant eKYC + AePS)
-**Status:** 📄 Docs only — not implemented in Adhikari Pay yet
+**Status:** 📄 Docs only — not implemented in AsanPay yet
 **Last updated:** 2026-07-20
 **Source PDF:** `PaySprint Doc. 1.pdf` (pages ~540–600)
 

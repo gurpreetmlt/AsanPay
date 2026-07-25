@@ -4,7 +4,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDown, Crown, Network, Store, Tags, Percent, Plug, ScrollText, Scale, ShieldAlert, Wrench, LifeBuoy } from "lucide-react";
-import { AdhikariPayLogo } from "@/components/brand/Logo";
+import { AsanPayLogo } from "@/components/brand/Logo";
 import { AnimatedNavIcon } from "@/components/ui/AnimatedNavIcon";
 import type { NavIconDef } from "@/lib/iconTypes";
 import { B } from "@/lib/brand";
@@ -257,7 +257,7 @@ function SidebarPanel({
         className="flex items-center gap-2 overflow-hidden border-b px-4 py-4"
         style={{ minHeight: 68, borderColor: "var(--admin-sidebar-border)" }}
       >
-        <AdhikariPayLogo width={152} variant="light" />
+        <AsanPayLogo width={152} variant="light" />
       </div>
       {userCard}
       <SidebarNav openGroups={openGroups} onToggleGroup={onToggleGroup} onNavigate={onNavigate} />

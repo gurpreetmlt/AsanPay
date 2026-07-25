@@ -3,7 +3,7 @@
 > Raw PaySprint docs (`PaySprint/Unimplemented/`). **Implement cheat-sheet:** [`OVERVIEW_DETAILS.md`](OVERVIEW_DETAILS.md).
 
 **Provider:** PaySprint (Unified Open API Platform)
-**Status:** 📄 Docs only — not implemented in Adhikari Pay yet
+**Status:** 📄 Docs only — not implemented in AsanPay yet
 **Last updated:** 2026-07-20
 **Source PDF:** `PaySprint Doc. 1.pdf` (pages 1–3) + product catalog across Doc 1 + Doc 2
 

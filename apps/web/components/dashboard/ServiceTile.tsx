@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import clsx from "clsx";
 import { Minus, Star } from "lucide-react";
-import { serviceIconPath } from "@adhikaripay/shared-types";
+import { serviceIconPath } from "@asanpay/shared-types";
 import { designTileColors } from "@/lib/designIcons";
 import { useLongPress } from "@/lib/useLongPress";
 

@@ -6,11 +6,11 @@
 
 ## Commands
 ```bash
-cd "/Users/gurpreetchauhan/Desktop/Adhikari Pay"
+cd "/Users/gurpreetchauhan/Desktop/AsanPay"
 npm install
-npm run db:migrate -w @adhikaripay/backend
-npm run seed:admin -w @adhikaripay/backend
-npm run seed:catalog -w @adhikaripay/backend
+npm run db:migrate -w @asanpay/backend
+npm run seed:admin -w @asanpay/backend
+npm run seed:catalog -w @asanpay/backend
 npm run dev
 ```
 

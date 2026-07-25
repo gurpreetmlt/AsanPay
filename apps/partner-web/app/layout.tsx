@@ -3,8 +3,8 @@ import { Toaster } from "react-hot-toast";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Adhikari Pay Partner",
-  description: "Adhikari Pay partner dashboard — manage your downline and wallet",
+  title: "AsanPay Partner",
+  description: "AsanPay partner dashboard — manage your downline and wallet",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -6,7 +6,7 @@ export default defineConfig({
   out: "./src/db/postgres/migrations",
   dialect: "postgresql",
   dbCredentials: {
-    url: process.env.DATABASE_URL ?? "postgres://adhikaripay:adhikaripay@localhost:5432/adhikaripay",
+    url: process.env.DATABASE_URL ?? "postgres://asanpay:asanpay@localhost:5432/asanpay",
   },
   strict: true,
   verbose: true,

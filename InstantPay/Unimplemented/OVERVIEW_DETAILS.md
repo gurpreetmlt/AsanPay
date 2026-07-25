@@ -16,7 +16,7 @@
 | Payouts | Single, Bulk, Payout Links | [Payouts API](https://developers.instantpay.in/reference/payouts-api) |
 | Identity | Financial / Individual / Business Verification, GEO, AI/ML | [Identity overview](https://developers.instantpay.in/reference/identity-verification-overview) |
 
-Adhikari Pay Identity work (Asset Verification / OKYC): see [`ASSET_VERIFICATION_DETAILS.md`](ASSET_VERIFICATION_DETAILS.md).
+AsanPay Identity work (Asset Verification / OKYC): see [`ASSET_VERIFICATION_DETAILS.md`](ASSET_VERIFICATION_DETAILS.md).
 
 ---
 

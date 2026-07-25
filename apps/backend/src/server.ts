@@ -17,7 +17,7 @@ async function main() {
 
   const app = createApp();
   const server = app.listen(env.PORT, () => {
-    logger.info(`Adhikari Pay backend listening on port ${env.PORT} [${env.NODE_ENV}]`);
+    logger.info(`AsanPay backend listening on port ${env.PORT} [${env.NODE_ENV}]`);
   });
 
   // No native TTL in Postgres like Mongo had — periodically sweep expired OTP rows.

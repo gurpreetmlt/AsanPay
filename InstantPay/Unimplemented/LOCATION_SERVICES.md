@@ -3,7 +3,7 @@
 > Raw InstantPay Location Services docs (`InstantPay/Unimplemented/`). **Implement cheat-sheet:** [`LOCATION_SERVICES_DETAILS.md`](LOCATION_SERVICES_DETAILS.md). Jab implement ho → root `InstantPay/LOCATION_SERVICES.md` (AEPS-style) banega.
 
 **Provider:** InstantPay (Location Services / GEO Intelligence)
-**Status:** 📄 Docs only — not implemented in Adhikari Pay yet
+**Status:** 📄 Docs only — not implemented in AsanPay yet
 **Last updated:** 2026-07-20
 
 ### Shared headers (when APIs paste)

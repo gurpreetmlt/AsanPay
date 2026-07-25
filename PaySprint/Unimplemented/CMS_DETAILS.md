@@ -22,7 +22,7 @@ JWT `Token` + UAT `Authorisedkey`. Env: `PAYSPRINT_*` (see AUTHENTICATION_DETAIL
 
 ## 4. Implement fields
 
-Prefer generate-url + callback + status/enquiry. Confirm which bank pipe Adhikari Pay will use.
+Prefer generate-url + callback + status/enquiry. Confirm which bank pipe AsanPay will use.
 
 ## 5. Flows
 

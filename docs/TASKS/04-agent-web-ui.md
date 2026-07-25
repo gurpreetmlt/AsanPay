@@ -1,7 +1,7 @@
 # Task 04 — Agent Web UI
 
 ## App
-`apps/web` — port 3001 — `@adhikaripay/web`
+`apps/web` — port 3001 — `@asanpay/web`
 
 ## Role-based UI
 | Role | Dashboard |

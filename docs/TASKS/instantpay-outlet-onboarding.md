@@ -19,7 +19,7 @@ Next chat: Bio-KYC UI + `wadh`.
 - `apps/web/lib/onboarding.ts`
 - `apps/backend/src/modules/onboarding/*`
 - `packages/shared-types/index.ts`
-- `apps/adhikaripay-mobile-app/src/screens/signup/SignupScreen.tsx`
+- `apps/asanpay-mobile-app/src/screens/signup/SignupScreen.tsx`
 
 ## Still pending
 - Bio-KYC screens + `wadh` RD capture

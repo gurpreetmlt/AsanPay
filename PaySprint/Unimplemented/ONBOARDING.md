@@ -3,7 +3,7 @@
 > Raw PaySprint docs (`PaySprint/Unimplemented/`). **Implement cheat-sheet:** [`ONBOARDING_DETAILS.md`](ONBOARDING_DETAILS.md). Jab implement ho → root `PaySprint/ONBOARDING.md`.
 
 **Provider:** PaySprint (Onboarding)
-**Status:** 📄 Docs only — not implemented in Adhikari Pay yet
+**Status:** 📄 Docs only — not implemented in AsanPay yet
 **Last updated:** 2026-07-20
 **Source PDF:** `PaySprint Doc. 1.pdf` (pages ~218–298)
 

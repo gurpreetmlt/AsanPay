@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import type { AuthUser } from "@adhikaripay/shared-types";
+import type { AuthUser } from "@asanpay/shared-types";
 
 interface AuthState {
   accessToken: string | null;
@@ -22,7 +22,7 @@ export const useAuthStore = create<AuthState>()(
       logout: () => set({ accessToken: null, refreshToken: null, user: null }),
     }),
     {
-      name: "adhikaripay-admin-auth-state",
+      name: "asanpay-admin-auth-state",
       storage: createJSONStorage(() => sessionStorage),
     },
   ),

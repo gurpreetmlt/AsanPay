@@ -1,9 +1,9 @@
-# Adhikari Pay — Claude Code
+# AsanPay — Claude Code
 
 Global rules: `~/.claude/CLAUDE.md` (always).
 
 ## This project
-- Brand: **Adhikari Pay** · `@adhikaripay/*` · `apps/mobile`
+- Brand: **AsanPay** · `@asanpay/*` · `apps/mobile`
 - DB: **PostgreSQL only** · Redis = optional cache · **No Mongo**
 - Map: `AGENTS.md` · Plan: `docs/AGENT_PLAN.md` · Tasks: `docs/TASKS/INDEX.md`
 - Creds: `LOGIN.md` (never commit secrets)

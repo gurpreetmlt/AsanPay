@@ -112,7 +112,7 @@ PAYSPRINT_MODE=dummy|paysprint_uat|paysprint_live
 - [ ] Confirm txntype enum
 - [ ] Seed banks table on implement
 - [ ] Refund eligibility rules
-- [ ] Wire Adhikari Pay (PARITY later)
+- [ ] Wire AsanPay (PARITY later)
 
 ---
 

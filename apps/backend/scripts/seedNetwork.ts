@@ -5,13 +5,13 @@ import { users, userHierarchy, wallets } from "../src/db/postgres/schema";
 import { provisionWalletsForUser } from "../src/modules/wallet/wallet.service";
 import { hashPassword } from "../src/utils/password";
 import { generateUid } from "../src/utils/uid";
-import type { UserRole } from "@adhikaripay/shared-types";
+import type { UserRole } from "@asanpay/shared-types";
 
 /**
  * Seeds the demo agent hierarchy. Passwords come from SEED_NETWORK_PASSWORD (required).
  * No hardcoded credentials in source.
  *
- * Run: SEED_NETWORK_PASSWORD='...' npm run seed:network -w @adhikaripay/backend
+ * Run: SEED_NETWORK_PASSWORD='...' npm run seed:network -w @asanpay/backend
  */
 
 interface AgentSeed {
@@ -173,7 +173,7 @@ async function main() {
     .limit(1);
 
   if (!admin) {
-    console.error("No root admin found. Run: npm run seed:admin -w @adhikaripay/backend first.");
+    console.error("No root admin found. Run: npm run seed:admin -w @asanpay/backend first.");
     process.exit(1);
   }
 

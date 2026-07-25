@@ -4,7 +4,7 @@ import { db, pgPool } from "../src/db/postgres";
 import { services, transactions, users, wallets } from "../src/db/postgres/schema";
 import { fundWallet } from "../src/modules/wallet/wallet.ledger";
 import { generateTxnRef } from "../src/utils/uid";
-import type { WalletType } from "@adhikaripay/shared-types";
+import type { WalletType } from "@asanpay/shared-types";
 
 /** LOGIN.md retailer — agent web :3001 */
 const RETAILER_MOBILE = "9333333333";
@@ -146,7 +146,7 @@ async function assertTxnWalletTypeColumn(): Promise<void> {
   `);
   if (rows.rows.length === 0) {
     throw new Error(
-      "transactions.wallet_type column missing. Run: npm run db:migrate -w @adhikaripay/backend",
+      "transactions.wallet_type column missing. Run: npm run db:migrate -w @asanpay/backend",
     );
   }
 }
@@ -210,7 +210,7 @@ async function main() {
   const missing = codes.filter((c) => !byCode.has(c));
   if (missing.length > 0) {
     throw new Error(
-      `Missing catalog services: ${missing.join(", ")}. Run: npm run seed:catalog -w @adhikaripay/backend`,
+      `Missing catalog services: ${missing.join(", ")}. Run: npm run seed:catalog -w @asanpay/backend`,
     );
   }
 

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { WALLET_TYPES } from "@adhikaripay/shared-types";
+import { WALLET_TYPES } from "@asanpay/shared-types";
 
 const amountSchema = z
   .string()

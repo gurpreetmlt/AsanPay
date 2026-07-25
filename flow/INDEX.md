@@ -1,8 +1,8 @@
-# Adhikari Pay — Flow Index (for AI agents)
+# AsanPay — Flow Index (for AI agents)
 
 > **Read this first**, then open **one** flow file. Do not explore the whole repo.
 
-Product: **Adhikari Pay** · Roles: `admin` → `master_distributor` (Super Dist) → `distributor` → `retailer`
+Product: **AsanPay** · Roles: `admin` → `master_distributor` (Super Dist) → `distributor` → `retailer`
 
 ## Hierarchy (money)
 

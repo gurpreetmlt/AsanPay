@@ -359,7 +359,7 @@ Reference: `INSTANTPAY_CLIENT_ID/SECRET/AES_KEY/AUTH_CODE`, `AEPS_PROVIDER_MODE`
 - [x] Service gate skipped + `AEPS_PROVIDER_MODE` routing
 - [x] Limit enforcement (txn amount ₹50k) — validator; day/month/year counts pending
 - [x] Agent Web portal (`apps/web/app/nepal/page.tsx` — Outlet / Transfer / Status tabs, daily 2FA)
-- [x] Mobile Nepal remittance screen (`apps/adhikaripay-mobile-app/src/screens/retailer/NepalScreen.tsx` — Outlet / Transfer / Status, OTP, quote, txn status)
+- [x] Mobile Nepal remittance screen (`apps/asanpay-mobile-app/src/screens/retailer/NepalScreen.tsx` — Outlet / Transfer / Status, OTP, quote, txn status)
 - [x] Dashboard card `NEPAL_REMITTANCE` (Nepal Transfer) + AppShell sidebar link
 - [ ] Coolify redeploy (backend/web) — no new env unless confirmed; run `seed:catalog` after deploy
 

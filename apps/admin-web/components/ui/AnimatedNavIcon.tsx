@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import type { NavIconDef } from "@/lib/iconTypes";
 import { AppIcon } from "./AppIcon";
 
-/** Adhikari Pay-style nav icon (CSS hover — no framer-motion required). */
+/** AsanPay-style nav icon (CSS hover — no framer-motion required). */
 export function AnimatedNavIcon({
   def,
   active,

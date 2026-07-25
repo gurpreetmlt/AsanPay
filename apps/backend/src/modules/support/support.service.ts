@@ -2,7 +2,7 @@ import { desc, eq } from "drizzle-orm";
 import { db } from "../../db/postgres";
 import { supportTickets, users } from "../../db/postgres/schema";
 import { HttpError } from "../../utils/httpError";
-import type { UserRole } from "@adhikaripay/shared-types";
+import type { UserRole } from "@asanpay/shared-types";
 
 export async function createTicket(userId: string, subject: string, description: string, transactionId?: string) {
   const [row] = await db

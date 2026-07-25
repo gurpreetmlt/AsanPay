@@ -1,7 +1,7 @@
 # Task 08 — VPS Deploy (Backend API)
 
 ## Target
-Express API on Ubuntu VPS — `api.adhikaripay.in` (example)
+Express API on Ubuntu VPS — `api.asanpay.in` (example)
 
 ## Requirements on VPS
 - Node 20+
@@ -17,9 +17,9 @@ Copy from `apps/backend/.env.example`:
 ## Build & run
 ```bash
 npm ci
-npm run build -w @adhikaripay/backend
-npm run db:migrate -w @adhikaripay/backend
-npm run seed:admin -w @adhikaripay/backend
+npm run build -w @asanpay/backend
+npm run db:migrate -w @asanpay/backend
+npm run seed:admin -w @asanpay/backend
 node apps/backend/dist/server.js  # or pm2
 ```
 
@@ -27,7 +27,7 @@ node apps/backend/dist/server.js  # or pm2
 Proxy `443` → `localhost:4000`
 
 ## Client updates
-- Web: `NEXT_PUBLIC_API_URL=https://api.adhikaripay.in/api`
+- Web: `NEXT_PUBLIC_API_URL=https://api.asanpay.in/api`
 - Mobile: `src/lib/api.ts` production URL
 
 ## Health check

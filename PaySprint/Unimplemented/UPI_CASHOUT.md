@@ -3,7 +3,7 @@
 > Raw PaySprint docs. **Cheat-sheet:** [`UPI_CASHOUT_DETAILS.md`](UPI_CASHOUT_DETAILS.md).
 
 **Provider:** PaySprint (UPI Cashout)
-**Status:** 📄 Docs only — not implemented in Adhikari Pay yet
+**Status:** 📄 Docs only — not implemented in AsanPay yet
 **Last updated:** 2026-07-20
 **Source PDF:** `PaySprint Doc 2.pdf` (pages ~366–388)
 

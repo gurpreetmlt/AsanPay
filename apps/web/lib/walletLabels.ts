@@ -1,4 +1,4 @@
-import type { WalletType } from "@adhikaripay/shared-types";
+import type { WalletType } from "@asanpay/shared-types";
 
 /** Product-facing names: main = Wallet 1, aeps = Wallet 2 */
 export function walletDisplayName(walletType: WalletType | string): string {

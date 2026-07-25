@@ -21,7 +21,7 @@ import { HttpError } from "../../utils/httpError";
 import { decryptPII } from "../../utils/aes";
 import { env } from "../../config/env";
 import { findLatestAuditLog, insertAuditLog } from "../../db/postgres/repositories/auditLog";
-import type { UserRole, KycStatus, TransactionStatus } from "@adhikaripay/shared-types";
+import type { UserRole, KycStatus, TransactionStatus } from "@asanpay/shared-types";
 
 /** Parent role required for each child role when admin moves someone in the tree. */
 const REQUIRED_PARENT_ROLE: Record<UserRole, UserRole | null> = {
@@ -73,7 +73,7 @@ function docSvgDataUrl(opts: {
   <rect x="16" y="16" width="608" height="368" rx="22" fill="url(#g)" opacity="0.22"/>
   <rect x="16" y="16" width="608" height="368" rx="22" fill="none" stroke="#ffffff33" stroke-width="2"/>
   <text x="48" y="72" fill="#ffffff" font-family="Poppins,Arial,sans-serif" font-size="28" font-weight="700">${title}</text>
-  <text x="48" y="118" fill="#a8b8e0" font-family="Poppins,Arial,sans-serif" font-size="16">Adhikari Pay · KYC Document</text>
+  <text x="48" y="118" fill="#a8b8e0" font-family="Poppins,Arial,sans-serif" font-size="16">AsanPay · KYC Document</text>
   <rect x="48" y="160" width="120" height="140" rx="16" fill="#ffffff22"/>
   <circle cx="108" cy="210" r="28" fill="#ffffff44"/>
   <rect x="72" y="255" width="72" height="18" rx="9" fill="#ffffff33"/>

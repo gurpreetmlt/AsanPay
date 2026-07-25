@@ -3,7 +3,7 @@
 > Raw InstantPay Financial Verifications docs (`InstantPay/Unimplemented/`). **Implement cheat-sheet:** [`FINANCIAL_VERIFICATION_DETAILS.md`](FINANCIAL_VERIFICATION_DETAILS.md). Jab implement ho → root `InstantPay/FINANCIAL_VERIFICATION.md` (AEPS-style) banega.
 
 **Provider:** InstantPay (Financial Verifications)
-**Status:** 📄 Docs only — not implemented in Adhikari Pay yet
+**Status:** 📄 Docs only — not implemented in AsanPay yet
 **Last updated:** 2026-07-20
 
 ### Shared headers (when APIs paste)

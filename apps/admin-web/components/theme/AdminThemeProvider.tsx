@@ -10,7 +10,7 @@ interface AdminThemeContextValue {
   setTheme: (t: AdminTheme, animate?: boolean) => void;
 }
 
-const STORAGE_KEY = "adhikaripay-admin-theme";
+const STORAGE_KEY = "asanpay-admin-theme";
 const AdminThemeContext = createContext<AdminThemeContextValue | null>(null);
 
 function isNightHours(date = new Date()) {

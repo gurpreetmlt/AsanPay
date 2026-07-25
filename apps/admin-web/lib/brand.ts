@@ -1,5 +1,5 @@
 /**
- * Adhikari Pay Admin brand.
+ * AsanPay Admin brand.
  * Themeable tokens follow `html.dark` CSS vars — dark mode works automatically.
  * Keep badgeGrad / solid accents for CTAs.
  */

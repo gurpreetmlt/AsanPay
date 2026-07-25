@@ -101,7 +101,7 @@ MOBILE_BASED_VERIFICATION_PROVIDER_MODE=dummy|instantpay_sandbox|instantpay_live
 - [ ] Confirm live fees
 - [ ] Remaining sidebar pages (if any)
 - [ ] IP allowlist
-- [ ] Wire Adhikari Pay (PARITY)
+- [ ] Wire AsanPay (PARITY)
 
 ---
 

@@ -12,8 +12,8 @@ COPY apps/web ./apps/web
 WORKDIR /app/apps/web
 
 # Resolve local workspace packages without full monorepo install
-RUN npm pkg set dependencies.@adhikaripay/shared-types="file:../../packages/shared-types" \
-  && npm pkg set dependencies.@adhikaripay/auth="file:../../packages/auth" \
+RUN npm pkg set dependencies.@asanpay/shared-types="file:../../packages/shared-types" \
+  && npm pkg set dependencies.@asanpay/auth="file:../../packages/auth" \
   && npm install --include=dev
 
 RUN npm run build

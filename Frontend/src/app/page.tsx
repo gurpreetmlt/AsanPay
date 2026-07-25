@@ -180,7 +180,7 @@ export default function Home() {
 
               {/* Hinglish Description */}
               <p className="font-poppins font-normal text-sm sm:text-base text-neutral-600 dark:text-neutral-400 mt-6 max-w-xl leading-relaxed">
-                Adhikari Pay ke sath apni dukaan ko digital bank banayein. Apne aaspas ke customers ko <strong>Aadhaar cash withdrawal (AePS), money transfer (DMT), and bill payments (BBPS)</strong> ki service dein, aur har service par payiye behtareen commission.
+                AsanPay ke sath apni dukaan ko digital bank banayein. Apne aaspas ke customers ko <strong>Aadhaar cash withdrawal (AePS), money transfer (DMT), and bill payments (BBPS)</strong> ki service dein, aur har service par payiye behtareen commission.
               </p>
 
               {/* Live Countdown Clock */}
@@ -408,7 +408,7 @@ export default function Home() {
               Humari Core Services
             </h2>
             <p className="font-poppins text-neutral-600 dark:text-neutral-400 text-sm sm:text-base leading-relaxed">
-              Adhikari Pay super-app ke zariye aap apni hi dukaan par banking services shuru kar sakte hain aur har transaction par regular commission kama sakte hain.
+              AsanPay super-app ke zariye aap apni hi dukaan par banking services shuru kar sakte hain aur har transaction par regular commission kama sakte hain.
             </p>
           </motion.div>
 
@@ -506,10 +506,10 @@ export default function Home() {
             <div className="lg:col-span-5">
               <span className="font-sora font-extrabold text-xs uppercase tracking-widest text-brand-blue-light dark:text-brand-green-light">Retailer Benefits</span>
               <h2 className="font-sora font-extrabold text-3xl sm:text-4xl text-neutral-900 dark:text-white mt-3 mb-6 transition-colors">
-                Adhikari Pay Join Karne Ke Fayde
+                AsanPay Join Karne Ke Fayde
               </h2>
               <p className="font-poppins text-neutral-600 dark:text-neutral-400 text-sm sm:text-base leading-relaxed mb-6">
-                Humare digital network se judkar aap apni shop ki income ko double kar sakte hain. Adhikari Pay se judna behad aasan aur surakshit hai.
+                Humare digital network se judkar aap apni shop ki income ko double kar sakte hain. AsanPay se judna behad aasan aur surakshit hai.
               </p>
 
               {/* Check features */}
@@ -543,7 +543,7 @@ export default function Home() {
                   <div>
                     <h3 className="font-sora font-bold text-base md:text-lg text-neutral-900 dark:text-white">Quick Registration / App Download</h3>
                     <p className="font-poppins text-xs md:text-sm text-neutral-500 dark:text-neutral-400 mt-1 leading-relaxed">
-                      Adhikari Pay app download karein aur details register karein. Waitlist register karke direct updates payiye.
+                      AsanPay app download karein aur details register karein. Waitlist register karke direct updates payiye.
                     </p>
                   </div>
                 </div>
@@ -783,7 +783,7 @@ export default function Home() {
                 </li>
                 <li className="flex items-center justify-center md:justify-start gap-2">
                   <Mail className="w-3.5 h-3.5 text-neutral-400 dark:text-neutral-500" />
-                  support@adhikaripay.in
+                  support@asanpay.in
                 </li>
               </ul>
             </div>
@@ -796,7 +796,7 @@ export default function Home() {
               HAR KADAM TARAKKI KI OR
             </span>
             <p className="font-poppins text-xs text-neutral-500 dark:text-neutral-600">
-              © {new Date().getFullYear()} Adhikari Pay. All Rights Reserved.
+              © {new Date().getFullYear()} AsanPay. All Rights Reserved.
             </p>
           </div>
         </div>

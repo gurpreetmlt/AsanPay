@@ -17,10 +17,10 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: 'Adhikari Pay — B2B Agent-Banking Super App',
+  title: 'AsanPay — B2B Agent-Banking Super App',
   description: 'Har Kadam Tarakki Ki Or. Aadhaar Cash Withdrawal (AEPS), Domestic Money Transfer (DMT), BBPS Bill Payments & Instant Settlements for retailers in India.',
-  keywords: 'Adhikari Pay, AEPS, DMT, BBPS, Agent Banking, Fintech India, rural banking, money transfer',
-  authors: [{ name: 'Adhikari Pay team' }],
+  keywords: 'AsanPay, AEPS, DMT, BBPS, Agent Banking, Fintech India, rural banking, money transfer',
+  authors: [{ name: 'AsanPay team' }],
 };
 
 export default function RootLayout({

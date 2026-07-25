@@ -3,7 +3,7 @@ import { db } from "../../db/postgres";
 import { users, wallets } from "../../db/postgres/schema";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import { HttpError } from "../../utils/httpError";
-import type { UserRole } from "@adhikaripay/shared-types";
+import type { UserRole } from "@asanpay/shared-types";
 
 /** SD / Distributor may activate or deactivate only their direct children. */
 const CAN_TOGGLE_CHILD: ReadonlySet<UserRole> = new Set(["master_distributor", "distributor"]);

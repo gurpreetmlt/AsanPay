@@ -428,7 +428,7 @@ See full doc. Wallet funding: `bankProfileId=0`. Axis: **Add (#14)** · **Fetch 
 - [ ] Confirm fee schedules
 - [ ] Encryption key in env (never commit)
 - [ ] IP allowlist
-- [ ] Wire Adhikari Pay (PARITY)
+- [ ] Wire AsanPay (PARITY)
 
 ---
 

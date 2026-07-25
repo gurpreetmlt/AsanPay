@@ -3,7 +3,7 @@
 > Raw PaySprint docs. **Cheat-sheet:** [`CMS_DETAILS.md`](CMS_DETAILS.md).
 
 **Provider:** PaySprint (CMS (Bank1 Airtel + Bank2))
-**Status:** 📄 Docs only — not implemented in Adhikari Pay yet
+**Status:** 📄 Docs only — not implemented in AsanPay yet
 **Last updated:** 2026-07-20
 **Source PDF:** `PaySprint Doc 2.pdf` (pages ~119–164)
 

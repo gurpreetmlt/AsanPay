@@ -1,4 +1,4 @@
-# Adhikari Pay — Agent Guide (read this first)
+# AsanPay — Agent Guide (read this first)
 
 AI editor token bachane ke liye **poori repo mat padho**. Sirf is file + relevant task file.
 
@@ -16,8 +16,8 @@ AI editor token bachane ke liye **poori repo mat padho**. Sirf is file + relevan
 
 ## Branding
 
-- **Product name:** Adhikari Pay (use this exact name in UI and agent docs)
-- **npm workspaces:** `@adhikaripay/*` (e.g. `@adhikaripay/backend`, `@adhikaripay/mobile`)
+- **Product name:** AsanPay (use this exact name in UI and agent docs)
+- **npm workspaces:** `@asanpay/*` (e.g. `@asanpay/backend`, `@asanpay/mobile`)
 - **Folder path:** `apps/mobile`
 - **UI language:** English only in all product frontends (web / admin / mobile). Owner may command in Hinglish; never ship Hinglish UI copy. Rule: [`.cursor/rules/ui-english-only.mdc`](.cursor/rules/ui-english-only.mdc)
 - **App flows (AI):** [`flow/INDEX.md`](flow/INDEX.md)
@@ -30,7 +30,7 @@ apps/
   admin-web/         Admin panel (:3000) — admin role only
   web/               Agent portal (:3001) — super dist, dist, retailer
   backend/           Express API (:4000) — Postgres only (Neon in prod)
-  mobile/            Adhikari Pay Android app (pkg @adhikaripay/mobile)
+  mobile/            AsanPay Android app (pkg @asanpay/mobile)
   partner-web/       LEGACY — use apps/web
   retailer-web/      LEGACY — use apps/web
 packages/
@@ -82,7 +82,7 @@ Build / install / migrate / dev / seed **Mac Terminal** mein chalao — agent sh
 
 ```bash
 # Android install (phone USB on)
-cd "/Users/gurpreetchauhan/Desktop/Adhikari Pay"
+cd "/Users/gurpreetchauhan/Desktop/AsanPay"
 bash scripts/install-android.sh
 
 # Web + API dev
@@ -90,6 +90,6 @@ npm run dev
 npm run dev:backend
 npm run dev:mobile    # Metro — alag Terminal window
 npm run db:migrate
-npm run seed:admin -w @adhikaripay/backend
-npm run seed:mpin -w @adhikaripay/backend
+npm run seed:admin -w @asanpay/backend
+npm run seed:mpin -w @asanpay/backend
 ```

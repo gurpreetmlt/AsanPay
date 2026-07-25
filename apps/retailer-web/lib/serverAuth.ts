@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 /**
  * Server-only BFF auth cookies. Named per-app (`ap_rw_*`) even though cookies are already
  * origin-scoped (no explicit `domain` set) — keeps them unambiguous in devtools when multiple
- * Adhikari Pay portals are open in the same browser during testing.
+ * AsanPay portals are open in the same browser during testing.
  */
 export const ACCESS_COOKIE = "ap_rw_at";
 export const REFRESH_COOKIE = "ap_rw_rt";

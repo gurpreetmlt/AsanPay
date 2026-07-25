@@ -1,4 +1,4 @@
-# Adhikari Pay
+# AsanPay
 
 B2B agent fintech platform — AEPS, DMT, BBPS, recharge.
 
@@ -8,7 +8,7 @@ B2B agent fintech platform — AEPS, DMT, BBPS, recharge.
 Admin (separate URL)     →  apps/admin-web       :3000
 Agent portal (single login) → apps/web           :3001
                               Super Distributor, Distributor, Retailer
-Mobile (Android, Adhikari Pay) → apps/mobile (@adhikaripay/mobile)
+Mobile (Android, AsanPay) → apps/mobile (@asanpay/mobile)
 Backend API                →  apps/backend        :4000
 ```
 

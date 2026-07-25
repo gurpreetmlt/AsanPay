@@ -40,7 +40,7 @@ export default function CommissionsPage() {
 
         <div className="rounded-2xl border bg-white p-6" style={{ borderColor: B.border }}>
           <p className="text-sm leading-relaxed" style={{ color: B.muted }}>
-            Adhikari Pay commission matrix yahan aayega: service-wise %, slab, and who gets share.
+            AsanPay commission matrix yahan aayega: service-wise %, slab, and who gets share.
             Abhi live tile badges Site Control se set karo.
           </p>
           <Link

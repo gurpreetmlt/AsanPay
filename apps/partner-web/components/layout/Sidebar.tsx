@@ -17,7 +17,7 @@ export function Sidebar() {
     <aside className="flex w-56 shrink-0 flex-col border-r border-border-subtle bg-card px-3 py-6">
       <div className="mb-8 px-3">
         <h1 className="bg-gradient-to-r from-[#c8102e] to-brand-600 bg-clip-text text-xl font-bold text-transparent">
-          Adhikari Pay
+          AsanPay
         </h1>
         <p className="text-xs text-gray-500">Partner Portal</p>
       </div>

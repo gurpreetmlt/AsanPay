@@ -3,7 +3,7 @@
 > Raw PaySprint docs. **Cheat-sheet:** [`LEAD_CREDIT_CARD_DETAILS.md`](LEAD_CREDIT_CARD_DETAILS.md).
 
 **Provider:** PaySprint (Lead Generation + Credit Card)
-**Status:** 📄 Docs only — not implemented in Adhikari Pay yet
+**Status:** 📄 Docs only — not implemented in AsanPay yet
 **Last updated:** 2026-07-20
 **Source PDF:** `PaySprint Doc 2.pdf` (pages ~284–313)
 

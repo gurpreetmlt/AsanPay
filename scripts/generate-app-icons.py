@@ -5,7 +5,7 @@ from pathlib import Path
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "Final-Logo" / "adhikari-pay-appicon.png"
+SRC = ROOT / "Final-Logo" / "asan-pay-appicon.png"
 RES = ROOT / "apps" / "mobile" / "android" / "app" / "src" / "main" / "res"
 BG = (11, 42, 154, 255)  # #0B2A9A
 
@@ -36,7 +36,7 @@ def flatten(src: Image.Image) -> Image.Image:
 def main() -> None:
     fg = Image.open(SRC)
     flat = flatten(fg)
-    flat_path = ROOT / "Final-Logo" / "adhikari-pay-appicon-flat.png"
+    flat_path = ROOT / "Final-Logo" / "asan-pay-appicon-flat.png"
     flat.save(flat_path)
     flat.save(SRC)
 

@@ -1,4 +1,4 @@
-import type { AuthUser } from "@adhikaripay/shared-types";
+import type { AuthUser } from "@asanpay/shared-types";
 
 /**
  * Post-auth funnel (retailer):

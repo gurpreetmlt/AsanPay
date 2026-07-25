@@ -4,7 +4,7 @@ import path from "path";
 const monorepoRoot = path.resolve(__dirname, "../..");
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@adhikaripay/shared-types"],
+  transpilePackages: ["@asanpay/shared-types"],
   turbopack: {
     root: monorepoRoot,
   },

@@ -3,7 +3,7 @@
  * Fast path: cached port → one CAPTURE. Slow full scan only on cache miss.
  */
 
-const CACHE_KEY = "adhikaripay_rd_endpoint_v5";
+const CACHE_KEY = "asanpay_rd_endpoint_v5";
 const PORT_START = 11100;
 const PORT_END = 11120;
 const PRIORITY_PORTS = [11100, 11101, 11102, 11120, 11103];
@@ -95,10 +95,10 @@ function clearCache() {
   sessionEp = null;
   try {
     localStorage.removeItem(CACHE_KEY);
-    localStorage.removeItem("adhikaripay_rd_endpoint_v4");
-    localStorage.removeItem("adhikaripay_rd_endpoint_v3");
-    localStorage.removeItem("adhikaripay_rd_endpoint_v2");
-    localStorage.removeItem("adhikaripay_rd_endpoint");
+    localStorage.removeItem("asanpay_rd_endpoint_v4");
+    localStorage.removeItem("asanpay_rd_endpoint_v3");
+    localStorage.removeItem("asanpay_rd_endpoint_v2");
+    localStorage.removeItem("asanpay_rd_endpoint");
   } catch {
     /* ignore */
   }

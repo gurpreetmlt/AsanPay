@@ -4,8 +4,8 @@ import { GradientDefs } from "@/components/GradientDefs";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Adhikari Pay Retailer",
-  description: "Adhikari Pay retailer dashboard — AEPS, recharge, bill payments and more",
+  title: "AsanPay Retailer",
+  description: "AsanPay retailer dashboard — AEPS, recharge, bill payments and more",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -1,13 +1,13 @@
 # InstantPay — Asset Verification — Implementation Details
 
-> Compact cheat-sheet for Adhikari Pay implementers. Full samples/OpenAPI: [`ASSET_VERIFICATION.md`](ASSET_VERIFICATION.md). Auth: [`OVERVIEW.md`](OVERVIEW.md) · [`OVERVIEW_DETAILS.md`](OVERVIEW_DETAILS.md).
+> Compact cheat-sheet for AsanPay implementers. Full samples/OpenAPI: [`ASSET_VERIFICATION.md`](ASSET_VERIFICATION.md). Auth: [`OVERVIEW.md`](OVERVIEW.md) · [`OVERVIEW_DETAILS.md`](OVERVIEW_DETAILS.md).
 
 > **Location:** `InstantPay/Unimplemented/` — implement hone pe root me AEPS-style doc banao; is DETAILS ko source maano.
 > **Workflow:** har nayi Asset Verification page → full + ye DETAILS dono update.
 
 **Base URL:** `https://api.instantpay.in`
 **Protocol:** REST + JSON
-**Status:** Docs captured — not wired in Adhikari Pay yet
+**Status:** Docs captured — not wired in AsanPay yet
 **Last updated:** 2026-07-20
 
 ---
@@ -54,7 +54,7 @@ Success often `statuscode: "TXN"`. Pool debit fields vary by API (see §3).
 
 ---
 
-## 2. Env / config (Adhikari Pay side — proposed)
+## 2. Env / config (AsanPay side — proposed)
 
 Reuse existing InstantPay creds pattern jahan possible:
 
@@ -192,7 +192,7 @@ UI: collect id + required fields (dob where needed) + consent (if any) + geo + e
 
 ---
 
-## 7. Suggested Adhikari Pay backend shape (when implementing)
+## 7. Suggested AsanPay backend shape (when implementing)
 
 Not built yet — proposal only:
 

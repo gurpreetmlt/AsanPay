@@ -162,7 +162,7 @@ async function main() {
     .from(serviceCategories)
     .where(eq(serviceCategories.code, "BILL_PAYMENT_BBPS"));
   if (!bbpsCategory) {
-    throw new Error('BILL_PAYMENT_BBPS category not found — run "npm run seed:catalog -w @adhikaripay/backend" first');
+    throw new Error('BILL_PAYMENT_BBPS category not found — run "npm run seed:catalog -w @asanpay/backend" first');
   }
   const bbpsServices = await db.select().from(services).where(eq(services.categoryId, bbpsCategory.id));
   let bbpsCreated = 0;

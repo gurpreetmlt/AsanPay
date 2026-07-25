@@ -12,7 +12,7 @@ const btnStyle = {
   background: "var(--admin-card)",
 } as const;
 
-/** Adhikari Pay-style table action icon buttons (blue accent). */
+/** AsanPay-style table action icon buttons (blue accent). */
 export function TableActionButtons({
   viewHref,
   onEdit,

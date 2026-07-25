@@ -42,7 +42,7 @@ export default function DashboardPage() {
               {greeting}, {user?.name?.split(" ")[0] ?? "Partner"}
             </h1>
             <p className="mt-0.5 text-xs" style={{ color: B.muted }}>
-              Adhikari Pay · {roleDisplayName(user?.role)} Dashboard
+              AsanPay · {roleDisplayName(user?.role)} Dashboard
             </p>
           </div>
         </div>

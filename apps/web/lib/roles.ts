@@ -1,5 +1,5 @@
-import type { UserRole } from "@adhikaripay/shared-types";
-import { ROLE_LABELS } from "@adhikaripay/shared-types";
+import type { UserRole } from "@asanpay/shared-types";
+import { ROLE_LABELS } from "@asanpay/shared-types";
 
 export const CHILD_ROLE: Record<UserRole, UserRole | null> = {
   admin: "master_distributor",

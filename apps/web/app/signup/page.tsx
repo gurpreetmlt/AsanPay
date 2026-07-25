@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { Phone, Lock, ArrowRight, UserPlus, CheckCircle2, AlertCircle } from "lucide-react";
-import type { ApiResponse, AuthUser } from "@adhikaripay/shared-types";
-import { AdhikariPayLogo } from "@/components/brand/Logo";
+import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
+import { AsanPayLogo } from "@/components/brand/Logo";
 import api from "@/lib/api";
 import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
@@ -182,7 +182,7 @@ export default function SignupPage() {
   return (
     <div className="flex min-h-screen items-center justify-center p-6" style={{ background: B.bg }}>
       <div className="w-full max-w-md rounded-3xl border bg-white p-8 shadow-xl" style={{ borderColor: B.border }}>
-        <AdhikariPayLogo width={200} />
+        <AsanPayLogo width={200} />
         <h1 className="mt-6 text-2xl font-bold" style={{ color: B.blue }}>
           Create agent account
         </h1>

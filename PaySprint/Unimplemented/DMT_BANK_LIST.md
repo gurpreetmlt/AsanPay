@@ -3,7 +3,7 @@
 > Raw PaySprint DMT bank master (`PaySprint/Unimplemented/`). **Implement cheat-sheet:** [`DMT_BANK_LIST_DETAILS.md`](DMT_BANK_LIST_DETAILS.md). Parent suite: [`DMT.md`](DMT.md).
 
 **Provider:** PaySprint (DMT CASA)
-**Status:** 📄 Docs only — not implemented in Adhikari Pay yet
+**Status:** 📄 Docs only — not implemented in AsanPay yet
 **Last updated:** 2026-07-21
 **Source:** `DMT-BANK-LIST.xlsx` (sheet: `DMT bank list updated`)
 

@@ -1,15 +1,15 @@
 # Project Map (1-page)
 
-> Product: **Adhikari Pay**. Packages: `@adhikaripay/*`.
+> Product: **AsanPay**. Packages: `@asanpay/*`.
 
 ## Apps & ports
 
 | App | Package | Port | Users |
 |-----|---------|------|-------|
-| admin-web | `@adhikaripay/admin-web` | 3000 | admin |
-| web | `@adhikaripay/web` | 3001 | super dist, distributor, retailer |
-| backend | `@adhikaripay/backend` | 4000 | API |
-| mobile (`apps/mobile`) | `@adhikaripay/mobile` | Metro 8081 | same as web (agent) |
+| admin-web | `@asanpay/admin-web` | 3000 | admin |
+| web | `@asanpay/web` | 3001 | super dist, distributor, retailer |
+| backend | `@asanpay/backend` | 4000 | API |
+| mobile (`apps/mobile`) | `@asanpay/mobile` | Metro 8081 | same as web (agent) |
 
 ## Data stores
 
@@ -51,5 +51,5 @@ Onboard: `POST /api/auth/register` (authenticated parent only)
 
 | Package | Purpose |
 |---------|---------|
-| `@adhikaripay/shared-types` | Types, roles, portal enums |
-| `@adhikaripay/auth` | Portal access checks, role labels |
+| `@asanpay/shared-types` | Types, roles, portal enums |
+| `@asanpay/auth` | Portal access checks, role labels |

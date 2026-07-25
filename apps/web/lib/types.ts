@@ -1,4 +1,4 @@
-import type { UserRole, KycStatus, WalletType, CatalogCategory } from "@adhikaripay/shared-types";
+import type { UserRole, KycStatus, WalletType, CatalogCategory } from "@asanpay/shared-types";
 
 export type CatalogCategoryView = CatalogCategory;
 

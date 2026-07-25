@@ -1,4 +1,4 @@
-import type { CatalogService, CatalogCategory } from "@adhikaripay/shared-types";
+import type { CatalogService, CatalogCategory } from "@asanpay/shared-types";
 
 export type { CatalogService };
 

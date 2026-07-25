@@ -480,7 +480,7 @@ export default function ProvidersPage() {
           {!loading && categories.length === 0 && (
             <div className="rounded-xl border px-4 py-8 text-center text-sm" style={{ borderColor: B.border, color: B.muted }}>
               No provider-service mappings yet. Run{" "}
-              <code>npm run seed:providers -w @adhikaripay/backend</code> to see them here.
+              <code>npm run seed:providers -w @asanpay/backend</code> to see them here.
             </div>
           )}
         </div>

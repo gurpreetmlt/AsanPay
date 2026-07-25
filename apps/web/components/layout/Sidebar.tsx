@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { LayoutDashboard, LayoutGrid, History, UserCircle, LogOut, Fingerprint, Banknote, ListChecks, Network, ShieldCheck, PiggyBank, LifeBuoy } from "lucide-react";
 import clsx from "clsx";
-import { ROLE_LABELS } from "@adhikaripay/shared-types";
+import { ROLE_LABELS } from "@asanpay/shared-types";
 import { useAuthStore } from "@/lib/store";
 import { brand } from "@/lib/brand";
 import { isRetailerRole } from "@/lib/roles";

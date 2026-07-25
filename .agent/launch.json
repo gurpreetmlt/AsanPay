@@ -4,28 +4,28 @@
     {
       "name": "backend",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "-w", "@adhikaripay/backend"],
+      "runtimeArgs": ["run", "dev", "-w", "@asanpay/backend"],
       "port": 4000,
       "autoPort": false
     },
     {
       "name": "retailer-web",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "-w", "@adhikaripay/retailer-web"],
+      "runtimeArgs": ["run", "dev", "-w", "@asanpay/retailer-web"],
       "port": 3000,
       "autoPort": true
     },
     {
       "name": "partner-web",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "-w", "@adhikaripay/partner-web"],
+      "runtimeArgs": ["run", "dev", "-w", "@asanpay/partner-web"],
       "port": 3001,
       "autoPort": true
     },
     {
       "name": "admin-web",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "-w", "@adhikaripay/admin-web"],
+      "runtimeArgs": ["run", "dev", "-w", "@asanpay/admin-web"],
       "port": 3002,
       "autoPort": true
     }

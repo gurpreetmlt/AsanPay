@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AUTH_PORTALS, USER_ROLES } from "@adhikaripay/shared-types";
+import { AUTH_PORTALS, USER_ROLES } from "@asanpay/shared-types";
 
 const mobileSchema = z
   .string()

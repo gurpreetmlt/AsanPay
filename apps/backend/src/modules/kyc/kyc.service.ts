@@ -4,7 +4,7 @@ import { users } from "../../db/postgres/schema";
 import { encryptPII } from "../../utils/aes";
 import { HttpError } from "../../utils/httpError";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
-import type { AuthUser } from "@adhikaripay/shared-types";
+import type { AuthUser } from "@asanpay/shared-types";
 import type { KycSubmitInput } from "../auth/auth.validators";
 
 function toAuthUser(row: typeof users.$inferSelect): AuthUser {

@@ -46,7 +46,7 @@ export default function PrivacyPolicyPage() {
             </div>
           </div>
           <p className="font-poppins text-sm md:text-base text-neutral-600 dark:text-neutral-300 leading-relaxed mt-4">
-            Adhikari Pay is committed to protecting your privacy. This Privacy Policy describes how we collect, use, and protect your personal information when you use our website, mobile application, and agent banking services (AEPS, DMT, BBPS, and Settlement).
+            AsanPay is committed to protecting your privacy. This Privacy Policy describes how we collect, use, and protect your personal information when you use our website, mobile application, and agent banking services (AEPS, DMT, BBPS, and Settlement).
           </p>
         </div>
 
@@ -98,7 +98,7 @@ export default function PrivacyPolicyPage() {
             </h2>
             <div className="font-poppins text-sm md:text-base text-neutral-600 dark:text-neutral-300 space-y-3 leading-relaxed">
               <p>
-                Adhikari Pay takes security very seriously. We align with industry standards including:
+                AsanPay takes security very seriously. We align with industry standards including:
               </p>
               <ul className="list-disc pl-5 space-y-2">
                 <li><strong>Biometric Data:</strong> Fingerprints scanned for AePS are encrypted instantly and transmitted directly to UIDAI/NPCI servers. We do NOT store biometric credentials on our local servers.</li>
@@ -128,9 +128,9 @@ export default function PrivacyPolicyPage() {
               If you have any questions about this Privacy Policy or data handling, you can contact our grievance officer at:
               <br />
               <strong className="block mt-2 text-brand-blue-light dark:text-brand-green-light">
-                Email: support@adhikaripay.in
+                Email: support@asanpay.in
               </strong>
-              <span>Corporate Address: Adhikari Pay Fintech Private Limited, Level 4, fintech hub, Sector 62, Noida, Uttar Pradesh, India.</span>
+              <span>Corporate Address: AsanPay Fintech Private Limited, Level 4, fintech hub, Sector 62, Noida, Uttar Pradesh, India.</span>
             </p>
           </div>
         </div>
@@ -154,7 +154,7 @@ export default function PrivacyPolicyPage() {
             HAR KADAM TARAKKI KI OR
           </p>
           <p className="font-poppins text-xs text-neutral-500 dark:text-neutral-600 mt-2">
-            © {new Date().getFullYear()} Adhikari Pay. All Rights Reserved.
+            © {new Date().getFullYear()} AsanPay. All Rights Reserved.
           </p>
         </div>
       </footer>

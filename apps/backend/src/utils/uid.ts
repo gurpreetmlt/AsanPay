@@ -1,5 +1,5 @@
 import { randomBytes, createHash } from "node:crypto";
-import type { UserRole } from "@adhikaripay/shared-types";
+import type { UserRole } from "@asanpay/shared-types";
 
 const ROLE_PREFIX: Record<UserRole, string> = {
   admin: "AD",

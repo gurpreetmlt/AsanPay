@@ -3,7 +3,7 @@
 > Raw PaySprint docs. **Cheat-sheet:** [`NSDL_CASH_DEPOSIT_DETAILS.md`](NSDL_CASH_DEPOSIT_DETAILS.md).
 
 **Provider:** PaySprint (NSDL Cash Deposit)
-**Status:** 📄 Docs only — not implemented in Adhikari Pay yet
+**Status:** 📄 Docs only — not implemented in AsanPay yet
 **Last updated:** 2026-07-20
 **Source PDF:** `PaySprint Doc 2.pdf` (pages ~1–18)
 

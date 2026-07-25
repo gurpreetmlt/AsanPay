@@ -3,7 +3,7 @@
 > Raw InstantPay Mobile Based Verifications docs (`InstantPay/Unimplemented/`). **Implement cheat-sheet:** [`MOBILE_BASED_VERIFICATIONS_DETAILS.md`](MOBILE_BASED_VERIFICATIONS_DETAILS.md). Jab implement ho → root `InstantPay/MOBILE_BASED_VERIFICATIONS.md` (AEPS-style) banega.
 
 **Provider:** InstantPay (Mobile Based Verifications)
-**Status:** 📄 Docs only — not implemented in Adhikari Pay yet
+**Status:** 📄 Docs only — not implemented in AsanPay yet
 **Last updated:** 2026-07-20
 
 ### Shared headers (when APIs paste)

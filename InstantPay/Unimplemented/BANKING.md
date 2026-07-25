@@ -3,7 +3,7 @@
 > Raw InstantPay Banking docs (`InstantPay/Unimplemented/`). **Implement cheat-sheet:** [`BANKING_DETAILS.md`](BANKING_DETAILS.md). Jab implement ho → root `InstantPay/BANKING.md` (AEPS-style) banega.
 
 **Provider:** InstantPay (Connected Banking)
-**Status:** 📄 Docs only — not implemented in Adhikari Pay yet
+**Status:** 📄 Docs only — not implemented in AsanPay yet
 **Last updated:** 2026-07-20
 
 ---

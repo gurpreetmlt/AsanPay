@@ -3,7 +3,7 @@
 > Raw InstantPay Collect docs (`InstantPay/Unimplemented/`). **Implement cheat-sheet:** [`COLLECT_DETAILS.md`](COLLECT_DETAILS.md). Jab implement ho → root `InstantPay/COLLECT.md` (AEPS-style) banega.
 
 **Provider:** InstantPay (Collect)
-**Status:** 📄 Docs only — not implemented in Adhikari Pay yet
+**Status:** 📄 Docs only — not implemented in AsanPay yet
 **Last updated:** 2026-07-20
 
 ---

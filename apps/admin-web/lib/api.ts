@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { ApiResponse } from "@adhikaripay/shared-types";
+import type { ApiResponse } from "@asanpay/shared-types";
 import { useAuthStore } from "./store";
 
 const API_BASE = "/api/proxy";

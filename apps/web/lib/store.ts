@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import type { AuthUser } from "@adhikaripay/shared-types";
+import type { AuthUser } from "@asanpay/shared-types";
 
 interface AuthState {
   accessToken: string | null;
@@ -24,8 +24,8 @@ export const useAuthStore = create<AuthState>()(
       logout: () => {
         try {
           if (typeof window !== "undefined") {
-            window.localStorage.removeItem("adhikaripay-web-biometric");
-            window.sessionStorage.removeItem("adhikaripay-web-biometric");
+            window.localStorage.removeItem("asanpay-web-biometric");
+            window.sessionStorage.removeItem("asanpay-web-biometric");
           }
         } catch {
           /* ignore */
@@ -34,7 +34,7 @@ export const useAuthStore = create<AuthState>()(
       },
     }),
     {
-      name: "adhikaripay-web-auth-state",
+      name: "asanpay-web-auth-state",
       storage: createJSONStorage(() => sessionStorage),
     },
   ),

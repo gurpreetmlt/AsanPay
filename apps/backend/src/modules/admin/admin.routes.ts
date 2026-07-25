@@ -4,7 +4,7 @@ import { requireAuth } from "../../middleware/auth.middleware";
 import { requireRole } from "../../middleware/rbac.middleware";
 import { sendSuccess } from "../../utils/apiResponse";
 import { HttpError } from "../../utils/httpError";
-import { KYC_STATUSES, TRANSACTION_STATUSES, USER_ROLES } from "@adhikaripay/shared-types";
+import { KYC_STATUSES, TRANSACTION_STATUSES, USER_ROLES } from "@asanpay/shared-types";
 import {
   getAdminStats,
   listAdminUsers,
