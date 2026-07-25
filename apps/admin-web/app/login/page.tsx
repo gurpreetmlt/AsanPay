@@ -6,7 +6,7 @@ import { toast } from "react-hot-toast";
 import { Eye, EyeOff, Shield } from "lucide-react";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import api from "@/lib/api";
-import { B } from "@/lib/brand";
+import { B, brand } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { ThemeTabs } from "@/components/theme/ThemeTabs";
 
@@ -97,7 +97,7 @@ export default function AdminLoginPage() {
             <Shield size={26} />
           </div>
           <h1 className="text-2xl font-bold" style={{ color: "var(--admin-text)" }}>
-            AsanPay Admin
+            {brand.name} Admin
           </h1>
           <p className="mt-1 text-sm" style={{ color: "var(--admin-muted)" }}>
             Platform control only · Not for Super Dist / Dist / Retailer

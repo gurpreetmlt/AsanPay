@@ -11,9 +11,11 @@ const poppins = Poppins({
   display: "swap",
 });
 
+const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || "AsanPay";
+
 export const metadata: Metadata = {
-  title: "AsanPay Admin",
-  description: "AsanPay admin — users, KYC, transactions & site control",
+  title: `${BRAND_NAME} Admin`,
+  description: `${BRAND_NAME} admin — users, KYC, transactions & site control`,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

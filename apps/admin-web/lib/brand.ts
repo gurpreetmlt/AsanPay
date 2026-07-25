@@ -1,5 +1,14 @@
 /**
- * AsanPay Admin brand.
+ * White-label brand config. Override per deployment via env vars (set in
+ * Coolify's Environment Variables for that app) — no code change needed to
+ * launch a new brand on the same codebase/backend.
+ */
+export const brand = {
+  name: process.env.NEXT_PUBLIC_BRAND_NAME || "AsanPay",
+  tagline: process.env.NEXT_PUBLIC_BRAND_TAGLINE || "HAR KADAM TARAKKI KI OR",
+} as const;
+
+/**
  * Themeable tokens follow `html.dark` CSS vars — dark mode works automatically.
  * Keep badgeGrad / solid accents for CTAs.
  */

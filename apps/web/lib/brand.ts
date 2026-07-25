@@ -1,9 +1,13 @@
 import type { UserRole } from "@asanpay/shared-types";
 
-/** AsanPay brand — from Figma Make "B2B Fintech App Design" */
+/**
+ * White-label brand config. Override per deployment via env vars (set in
+ * Coolify's Environment Variables for that app) — no code change needed to
+ * launch a new brand on the same codebase/backend.
+ */
 export const brand = {
-  name: "AsanPay",
-  tagline: "HAR KADAM TARAKKI KI OR",
+  name: process.env.NEXT_PUBLIC_BRAND_NAME || "AsanPay",
+  tagline: process.env.NEXT_PUBLIC_BRAND_TAGLINE || "HAR KADAM TARAKKI KI OR",
   loginSubtitle: "Agent Login — Super Distributor, Distributor & Retailer",
 } as const;
 

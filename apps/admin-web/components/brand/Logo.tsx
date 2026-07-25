@@ -53,8 +53,8 @@ export function AsanPayLogo({
       <rect x="196" y="168" width="42" height="40" rx="14" fill={variant === "light" ? "rgba(255,255,255,0.25)" : "#0B2A9A"} />
       <circle cx="209" cy="188" r="7" fill="#ffffff" />
       <text x="332" y="180" fontSize="90" fontWeight="700" letterSpacing="-1.5" fill={wordmark} fontFamily="Poppins, sans-serif">
-        Adhikari
-        <tspan fill={`url(#lpay-${uid})`}> Pay</tspan>
+        Asan
+        <tspan fill={`url(#lpay-${uid})`}>Pay</tspan>
       </text>
       <text x="336" y="231" fontSize="26.5" fontWeight="500" letterSpacing="5.8" fill={tagline} fontFamily="Poppins, sans-serif">
         HAR KADAM TARAKKI KI OR
@@ -63,7 +63,7 @@ export function AsanPayLogo({
   );
 }
 
-export function AdhikariIcon({ size = 36 }: { size?: number }) {
+export function AsanIcon({ size = 36 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="52 52 228 228" fill="none" aria-hidden>
       <defs>
