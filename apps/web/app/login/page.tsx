@@ -123,8 +123,8 @@ export default function LoginPage() {
       if (needsOtp) {
         toast.error(
           code === "MPIN_NOT_SET" || /not set/i.test(message)
-            ? "MPIN set nahi hai — pehle OTP ya password se login karein"
-            : "Is browser pe OTP ya password se verify karein — phir MPIN chalega",
+            ? "MPIN not set — please login with OTP or password first"
+            : "Verify with OTP or password on this browser — then MPIN will work",
         );
         leaveWelcomeBackForOtp(remembered.mobile);
         return;
@@ -133,8 +133,8 @@ export default function LoginPage() {
       if (status === 500 || code === "DB_SCHEMA_OUTDATED" || /internal server error|out of date/i.test(message)) {
         toast.error(
           code === "DB_SCHEMA_OUTDATED" || /out of date/i.test(message)
-            ? "Server DB update pending — OTP se login karein"
-            : "Server error on MPIN — OTP ya password se login karein",
+            ? "Server DB update pending — please login with OTP"
+            : "Server error on MPIN — please login with OTP or password",
         );
         leaveWelcomeBackForOtp(remembered.mobile);
         return;
@@ -143,11 +143,11 @@ export default function LoginPage() {
       setMpinFails(nextFails);
       setMpin("");
       if (nextFails >= 2) {
-        toast.error("MPIN match nahi hua — OTP se login karein");
+        toast.error("MPIN didn't match — please login with OTP");
         leaveWelcomeBackForOtp(remembered.mobile);
         return;
       }
-      toast.error(`${extractApiError(err, "Incorrect MPIN")} — bhool gaye ho to Use OTP instead`);
+      toast.error(`${extractApiError(err, "Incorrect MPIN")} — forgot it? Use OTP instead`);
     } finally {
       setLoading(false);
     }
@@ -310,7 +310,7 @@ export default function LoginPage() {
             {brand.tagline}
           </h1>
           <p className="mb-8 text-sm leading-relaxed text-white/70">
-            Easy login: mobile OTP verify karein, phir apna 4-digit PIN. Password optional hai.
+            Easy login: verify your mobile OTP, then your 4-digit PIN. Password is optional.
           </p>
         </div>
         <div className="relative z-10 flex items-center gap-2">
@@ -483,7 +483,7 @@ export default function LoginPage() {
                 </div>
               </div>
               <p className="text-xs" style={{ color: B.muted }}>
-                Tip: OTP + PIN easier hai — password bhool gaye ho to wahan se login karo.
+                Tip: OTP + PIN is easier — if you forgot your password, use that instead.
               </p>
               <SubmitBtn loading={loading} label={`Login as ${role.label}`} color={role.color} gradient={role.gradient} />
             </form>
