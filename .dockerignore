@@ -12,7 +12,6 @@
 **/*.log
 **/.DS_Store
 Edu
-Frontend
 apps/mobile
 apps/partner-web
 apps/retailer-web
