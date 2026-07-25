@@ -1,13 +1,14 @@
-import type { UserRole } from "@asanpay/shared-types";
+import { BRAND_DEFAULTS, type UserRole } from "@asanpay/shared-types";
 
 /**
- * White-label brand config. Override per deployment via env vars (set in
+ * White-label brand config. Defaults come from the single shared source
+ * (@asanpay/shared-types BRAND_DEFAULTS) — override per deployment via env vars (set in
  * Coolify's Environment Variables for that app) — no code change needed to
  * launch a new brand on the same codebase/backend.
  */
 export const brand = {
-  name: process.env.NEXT_PUBLIC_BRAND_NAME || "AsanPay",
-  tagline: process.env.NEXT_PUBLIC_BRAND_TAGLINE || "Payment Made Easy",
+  name: process.env.NEXT_PUBLIC_BRAND_NAME || BRAND_DEFAULTS.name,
+  tagline: process.env.NEXT_PUBLIC_BRAND_TAGLINE || BRAND_DEFAULTS.tagline,
   loginSubtitle: "Agent Login — Super Distributor, Distributor & Retailer",
 } as const;
 

@@ -135,3 +135,15 @@ export function serviceIconPath(icon: string | null | undefined): string | null 
   if (!icon) return null;
   return `/service-icons/${icon}`;
 }
+
+/**
+ * Single source of truth for the white-label brand name/tagline — both apps/web/lib/brand.ts
+ * and apps/asanpay-mobile-app/src/theme/brand.ts read these defaults from here so a rename
+ * only has to happen in one place. Web can still override at runtime via
+ * NEXT_PUBLIC_BRAND_NAME/NEXT_PUBLIC_BRAND_TAGLINE; the mobile app is compiled, so a brand
+ * change there always needs a fresh release build regardless of where the constant lives.
+ */
+export const BRAND_DEFAULTS = {
+  name: "AsanPay",
+  tagline: "Payment Made Easy",
+} as const;
