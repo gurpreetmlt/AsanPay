@@ -30,8 +30,6 @@ export function AppLockScreen({ onUnlock }: Props) {
   const [loading, setLoading] = useState(false);
   const [bioReady, setBioReady] = useState(false);
   const [bioTried, setBioTried] = useState(false);
-  const [bioFailCount, setBioFailCount] = useState(0);
-  const MAX_BIO_ATTEMPTS = 2;
 
   useEffect(() => {
     void getBioUnlock().then((rec) => {
@@ -43,7 +41,7 @@ export function AppLockScreen({ onUnlock }: Props) {
   }, []);
 
   async function tryBiometric() {
-    if (loading || bioFailCount >= MAX_BIO_ATTEMPTS) return;
+    if (loading) return;
     setBioTried(true);
     const record = await getBioUnlock();
     if (!record?.enabled || record.mobile !== user?.mobile) return;
@@ -51,10 +49,7 @@ export function AppLockScreen({ onUnlock }: Props) {
     setLoading(true);
     try {
       const result = await promptDeviceBiometric("Unlock AsanPay");
-      if (result !== "success") {
-        setBioFailCount((n) => n + 1);
-        return;
-      }
+      if (result !== "success") return;
 
       const { data } = await api.post<ApiResponse<{ accessToken: string; refreshToken: string }>>(
         "/auth/refresh",
@@ -112,12 +107,7 @@ export function AppLockScreen({ onUnlock }: Props) {
           {user?.name ? `Welcome back, ${user.name.split(" ")[0]}` : "Unlock to continue"}
         </Text>
 
-        <PinInput
-          length={4}
-          value={pin}
-          onChange={setPin}
-          autoFocus={!bioReady || bioTried || bioFailCount >= MAX_BIO_ATTEMPTS}
-        />
+        <PinInput length={4} value={pin} onChange={setPin} autoFocus={!bioReady || bioTried} />
 
         {loading ? (
           <ActivityIndicator style={styles.spinner} color={colors.blue} />
@@ -131,7 +121,7 @@ export function AppLockScreen({ onUnlock }: Props) {
           </Pressable>
         )}
 
-        {bioReady && bioFailCount < MAX_BIO_ATTEMPTS && (
+        {bioReady && (
           <Pressable style={styles.bioBtn} onPress={() => void tryBiometric()} disabled={loading}>
             <Fingerprint size={20} color={colors.blue} />
             <Text style={styles.bioBtnText}>Use Fingerprint</Text>
