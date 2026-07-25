@@ -63,6 +63,15 @@ const envSchema = z.object({
   /** A pending/initiated txn older than this (ms) is flagged as stuck in an ops alert. Default 30 min. */
   TXN_STUCK_ALERT_MS: z.coerce.number().int().min(0).default(30 * 60 * 1000),
   /**
+   * Comma-separated allowlist of STQC-certified RD-service device-provider ids (PidData
+   * DeviceInfo@dpId) accepted for AePS biometric capture — e.g. Mantra, Morpho/IDEMIA, Precision.
+   * Case-insensitive prefix match. Empty means allow-all (dummy/dev only — see isAepsDeviceAllowlistEnforced).
+   */
+  AEPS_CERTIFIED_DEVICE_PROVIDERS: z
+    .string()
+    .default("MANTRA,MORPHO,IDEMIA,PRECISION,STARTEK,SECUGEN,COGENT,EVOLUTE,M2SYS")
+    .transform((v) => v.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean)),
+  /**
    * AEPS rail mode. Same UI/API; only the provider behind the adapter changes.
    * - dummy: MockAdapter (eko) — real RD PID + KYC still required; no InstantPay HTTP
    * - instantpay_sandbox / instantpay_live: real InstantPay adapter (fail-closed if creds missing)

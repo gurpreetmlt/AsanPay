@@ -6,7 +6,9 @@ import { assertFreshBiometric } from "./biometricReplay";
 import { resolveProvidersForService, callProvider } from "../providers/provider.router";
 import {
   assertAepsCompliance,
+  assertWithinOutletGeofence,
   clearBiometricMismatch,
+  getOutletGeo,
   recordBiometricMismatch,
   recordCashReceipt,
   touchLastAepsTxn,
@@ -365,6 +367,16 @@ export async function dmtTransfer(req: Request, res: Response): Promise<void> {
   const body = req.body as z.infer<typeof dmtTransferSchema>;
   await assertAgentAuthFresh(actor(req).id);
   await assertTxnAuthorization(actor(req).id, { txnPin: body.txnPin, txnAuth: body.txnAuth });
+
+  if (body.latitude && body.longitude) {
+    const outletGeo = await getOutletGeo(actor(req).id);
+    if (outletGeo) {
+      assertWithinOutletGeofence(outletGeo.latitude, outletGeo.longitude, {
+        latitude: body.latitude,
+        longitude: body.longitude,
+      });
+    }
+  }
 
   const outcome = await executeServiceTxn({
     actor: actor(req),

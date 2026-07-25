@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../../../db/postgres";
 import { users } from "../../../db/postgres/schema";
 import { HttpError } from "../../../utils/httpError";
+import { assertCertifiedBiometricDevice } from "../../aeps/compliance";
 import { encryptInstantPayAadhaar } from "../instantpay/crypto";
 import { instantPayGet, instantPayPost, mapInstantPayStatus, type InstantPayApiResponse } from "../instantpay/client";
 import { parsePidDataXml } from "../instantpay/pidXml";
@@ -156,7 +157,9 @@ export class InstantPayAdapter implements ProviderAdapter {
 
   private buildBiometric(aadhaarNumber: string, biometricPayload: string) {
     const encryptedAadhaar = encryptInstantPayAadhaar(aadhaarNumber);
-    return parsePidDataXml(biometricPayload, encryptedAadhaar);
+    const bio = parsePidDataXml(biometricPayload, encryptedAadhaar);
+    assertCertifiedBiometricDevice(bio.dpId);
+    return bio;
   }
 
   async agentAuth(params: AgentAuthParams): Promise<ProviderResult> {

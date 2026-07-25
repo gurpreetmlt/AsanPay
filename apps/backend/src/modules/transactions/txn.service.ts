@@ -452,6 +452,48 @@ export async function reconcileStaleTransactions(limit = 40): Promise<{ checked:
   return { checked: candidates.length, changed };
 }
 
+/**
+ * Daily full-sweep reconciliation: cross-checks every non-terminal transaction from the last
+ * `lookbackDays` against the provider's live status API (adapters expose no batch recon-file
+ * endpoint today, so per-txn checkStatus is the closest equivalent) and alerts on any mismatch
+ * between what our DB says and what the provider reports.
+ */
+export async function runDailyReconciliation(
+  lookbackDays = 7,
+): Promise<{ checked: number; mismatched: number }> {
+  const since = new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000);
+
+  const candidates = await db
+    .select()
+    .from(transactions)
+    .where(and(or(eq(transactions.status, "pending"), eq(transactions.status, "initiated")), sql`${transactions.createdAt} >= ${since}`))
+    .orderBy(transactions.updatedAt);
+
+  let mismatched = 0;
+  for (const txn of candidates) {
+    try {
+      const before = txn.status;
+      const outcome = await recheckTxnStatus({ id: txn.userId, role: "admin" }, txn.txnRef);
+      if (outcome.txn.status !== before) {
+        mismatched += 1;
+        void sendOpsAlert("Daily reconciliation found a status mismatch", {
+          txnRef: txn.txnRef,
+          dbStatusBefore: before,
+          providerStatusNow: outcome.txn.status,
+        });
+      }
+    } catch (err) {
+      logger.error({ err, txnRef: txn.txnRef }, "daily reconciliation check failed");
+      void sendOpsAlert("Daily reconciliation check threw an error", {
+        txnRef: txn.txnRef,
+        err: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  return { checked: candidates.length, mismatched };
+}
+
 export function inferDirectionFromServiceCode(code: string): MoneyDirection {
   if (code === "aeps_balance_enquiry" || code === "aeps_mini_statement") return "none";
   // Deposit is the odd AEPS one out: retailer wallet funds the customer's bank credit (debit).

@@ -86,22 +86,45 @@ export async function assertAepsCompliance(
   }
 
   if (geo && user.outletLatitude && user.outletLongitude) {
-    const oLat = Number(user.outletLatitude);
-    const oLng = Number(user.outletLongitude);
-    const tLat = Number(geo.latitude);
-    const tLng = Number(geo.longitude);
-    if (![oLat, oLng, tLat, tLng].every((n) => Number.isFinite(n))) {
-      throw new HttpError(422, "Invalid geo coordinates", "AEPS_GEO_INVALID");
-    }
-    const km = haversineKm(oLat, oLng, tLat, tLng);
-    if (km > env.AEPS_GEOFENCE_KM) {
-      throw new HttpError(
-        403,
-        `Transaction location is ${km.toFixed(2)} km from outlet (max ${env.AEPS_GEOFENCE_KM} km)`,
-        "AEPS_GEOFENCE_VIOLATION",
-      );
-    }
+    assertWithinOutletGeofence(user.outletLatitude, user.outletLongitude, geo);
   }
+}
+
+/**
+ * Shared geofence gate: rejects a transaction whose reported geo is further than
+ * AEPS_GEOFENCE_KM from the user's registered outlet. Used by AePS (via assertAepsCompliance)
+ * and directly by DMT, since cash-handling fraud risk applies to both rails.
+ */
+export function assertWithinOutletGeofence(
+  outletLatitude: string,
+  outletLongitude: string,
+  geo: AepsGeoInput,
+): void {
+  const oLat = Number(outletLatitude);
+  const oLng = Number(outletLongitude);
+  const tLat = Number(geo.latitude);
+  const tLng = Number(geo.longitude);
+  if (![oLat, oLng, tLat, tLng].every((n) => Number.isFinite(n))) {
+    throw new HttpError(422, "Invalid geo coordinates", "GEO_INVALID");
+  }
+  const km = haversineKm(oLat, oLng, tLat, tLng);
+  if (km > env.AEPS_GEOFENCE_KM) {
+    throw new HttpError(
+      403,
+      `Transaction location is ${km.toFixed(2)} km from outlet (max ${env.AEPS_GEOFENCE_KM} km)`,
+      "GEOFENCE_VIOLATION",
+    );
+  }
+}
+
+/** Look up a user's registered outlet coordinates, if any. */
+export async function getOutletGeo(userId: string): Promise<{ latitude: string; longitude: string } | null> {
+  const [user] = await db
+    .select({ outletLatitude: users.outletLatitude, outletLongitude: users.outletLongitude })
+    .from(users)
+    .where(eq(users.id, userId));
+  if (!user?.outletLatitude || !user?.outletLongitude) return null;
+  return { latitude: user.outletLatitude, longitude: user.outletLongitude };
 }
 
 /** Record a biometric mismatch; block + EDD after AEPS_BIO_MISMATCH_LIMIT consecutive fails. */
@@ -178,6 +201,28 @@ export async function recordCashReceipt(input: {
     latitude: input.latitude ?? null,
     longitude: input.longitude ?? null,
   });
+}
+
+/**
+ * Reject biometric captures from RD-service devices whose declared device-provider id (dpId)
+ * isn't on our STQC-certified allowlist (Mantra, Morpho/IDEMIA, Precision, etc.). Dummy AePS
+ * mode is exempt since it never talks to a real device. Configurable via
+ * AEPS_CERTIFIED_DEVICE_PROVIDERS so ops can add a newly certified vendor without a code change.
+ */
+export function assertCertifiedBiometricDevice(dpId: string): void {
+  if (!isInstantPayAepsMode()) return;
+  const allowlist = env.AEPS_CERTIFIED_DEVICE_PROVIDERS;
+  if (allowlist.length === 0) return;
+
+  const normalized = (dpId || "").trim().toUpperCase();
+  const isCertified = normalized.length > 0 && allowlist.some((prefix) => normalized.startsWith(prefix));
+  if (!isCertified) {
+    throw new HttpError(
+      403,
+      `Biometric device provider "${dpId || "unknown"}" is not an STQC-certified RD service`,
+      "AEPS_DEVICE_NOT_CERTIFIED",
+    );
+  }
 }
 
 /** Pure helper for unit tests — geofence decision without DB. */

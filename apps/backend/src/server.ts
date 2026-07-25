@@ -2,10 +2,11 @@ import { createApp } from "./app";
 import { assertAepsProviderConfig, assertPaySprintProviderConfig, env } from "./config/env";
 import { pgPool } from "./db/postgres";
 import { deleteExpiredOtpRequests } from "./db/postgres/repositories/otpRequest";
-import { reconcileStaleTransactions } from "./modules/transactions/txn.service";
+import { reconcileStaleTransactions, runDailyReconciliation } from "./modules/transactions/txn.service";
 import { logger } from "./utils/logger";
 
 const OTP_SWEEP_INTERVAL_MS = 30 * 60 * 1000;
+const DAILY_RECONCILE_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 async function main() {
   assertAepsProviderConfig();
@@ -39,9 +40,17 @@ async function main() {
     }, env.TXN_RECONCILE_INTERVAL_MS);
   }
 
+  // Once-daily full-sweep reconciliation against the provider's live status API.
+  const dailyReconcileTimer = setInterval(() => {
+    runDailyReconciliation()
+      .then((r) => logger.info(r, "daily reconciliation sweep"))
+      .catch((err: unknown) => logger.error({ err }, "daily reconciliation sweep failed"));
+  }, DAILY_RECONCILE_INTERVAL_MS);
+
   const shutdown = async (signal: string) => {
     logger.info(`${signal} received, shutting down gracefully`);
     clearInterval(otpSweepTimer);
+    clearInterval(dailyReconcileTimer);
     if (reconcileTimer) clearInterval(reconcileTimer);
     server.close(async () => {
       await pgPool.end();
