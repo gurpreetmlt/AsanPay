@@ -59,7 +59,10 @@ function ServiceIconCard({
   const starColor = favorite ? B.green : B.muted;
 
   return (
-    <div className="group relative flex flex-col items-center gap-1.5 rounded-xl p-2 text-center transition duration-150">
+    <div
+      className="group relative flex flex-col items-center gap-1.5 rounded-xl p-2 text-center transition duration-150"
+      style={{ "--tile-accent": tile.fg } as React.CSSProperties}
+    >
       <button
         type="button"
         aria-label={favorite ? "Remove favourite" : "Add favourite"}
@@ -91,7 +94,7 @@ function ServiceIconCard({
           />
         )}
         <div
-          className="text-xs font-semibold leading-tight transition-colors duration-150"
+          className="text-xs font-semibold leading-tight transition-colors duration-150 group-hover:text-[var(--tile-accent)]"
           style={{ color: B.blue }}
         >
           {svc.name}
