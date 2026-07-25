@@ -1,13 +1,20 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { AppState, type AppStateStatus } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { isPartnerRole, isRetailerRole } from "../lib/roles";
 import { useAuthStore } from "../store/auth";
 import { useTheme } from "../theme/ThemeContext";
 import { colors } from "../theme/colors";
 import { SetLoginMpinGate } from "../screens/SetLoginMpinGate";
+import { AppLockScreen } from "../screens/AppLockScreen";
 import { AuthFlow } from "./AuthFlow";
 import { PartnerTabs } from "./PartnerTabs";
 import { RetailerTabs } from "./RetailerTabs";
+
+// Bank-app-style resume lock: background the app for this long or more, and coming back to the
+// foreground requires PIN/fingerprint again — closes the "left it on the table, someone else
+// picked it up" window. A quick app-switch (notification check, etc.) doesn't trigger it.
+const APP_LOCK_IDLE_MS = 30_000;
 
 export function RootNavigator() {
   const user = useAuthStore((s) => s.user);
@@ -15,8 +22,31 @@ export function RootNavigator() {
   const mpinSetupSkipped = useAuthStore((s) => s.mpinSetupSkipped);
   const { tokens, scheme } = useTheme();
 
+  const backgroundedAtRef = useRef<number | null>(null);
+  const [locked, setLocked] = useState(false);
+
+  useEffect(() => {
+    function handleChange(next: AppStateStatus) {
+      if (next === "background" || next === "inactive") {
+        backgroundedAtRef.current = Date.now();
+        return;
+      }
+      if (next === "active" && backgroundedAtRef.current != null) {
+        const elapsed = Date.now() - backgroundedAtRef.current;
+        backgroundedAtRef.current = null;
+        if (elapsed >= APP_LOCK_IDLE_MS) setLocked(true);
+      }
+    }
+    const sub = AppState.addEventListener("change", handleChange);
+    return () => sub.remove();
+  }, []);
+
   if (!user || !accessToken) {
     return <AuthFlow />;
+  }
+
+  if (locked) {
+    return <AppLockScreen onUnlock={() => setLocked(false)} />;
   }
 
   if (!user.hasLoginMpin && !mpinSetupSkipped) {
