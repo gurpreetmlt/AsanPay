@@ -156,7 +156,10 @@ export async function promptDeviceBiometric(
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const mod = require("react-native-biometrics") as { default?: BiometricsCtor } & BiometricsCtor;
     const ReactNativeBiometrics = (mod.default ?? mod) as BiometricsCtor;
-    const rnBiometrics = new ReactNativeBiometrics({ allowDeviceCredentials: true });
+    // false: on fingerprint failure/cancel, fall through to our own PIN screen instead of
+    // Android's native device-credential (phone lock PIN/pattern) prompt, which is a different,
+    // confusing "password" screen unrelated to the AsanPay PIN.
+    const rnBiometrics = new ReactNativeBiometrics({ allowDeviceCredentials: false });
     const { available } = await rnBiometrics.isSensorAvailable();
     if (!available) return softDevPrompt(promptMessage);
     const { success } = await rnBiometrics.simplePrompt({ promptMessage });
