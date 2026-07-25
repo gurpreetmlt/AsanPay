@@ -4,6 +4,7 @@ import {
   varchar,
   text,
   integer,
+  boolean,
   timestamp,
   jsonb,
   index,
@@ -29,6 +30,27 @@ export const auditLogs = pgTable(
     index("audit_logs_user_id_idx").on(table.userId),
     index("audit_logs_action_idx").on(table.action),
     index("audit_logs_created_at_idx").on(table.createdAt),
+  ],
+);
+
+// Audit trail for every ops/retailer alert actually sent to Slack (debounced/suppressed
+// alerts are not written here — see src/utils/alert.ts). Independent of Slack delivery
+// success so a webhook outage never loses the record of what was detected.
+export const alertLogs = pgTable(
+  "alert_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    alertType: varchar("alert_type", { length: 60 }).notNull(),
+    severity: varchar("severity", { length: 20 }).notNull(), // "critical" | "general"
+    retailerId: uuid("retailer_id"),
+    details: jsonb("details").$type<Record<string, unknown>>().notNull().default({}),
+    deliveredToSlack: boolean("delivered_to_slack").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("alert_logs_type_idx").on(table.alertType),
+    index("alert_logs_retailer_idx").on(table.retailerId),
+    index("alert_logs_created_at_idx").on(table.createdAt),
   ],
 );
 

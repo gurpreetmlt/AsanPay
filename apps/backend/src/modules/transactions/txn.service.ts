@@ -8,7 +8,7 @@ import type { ProviderOperation, ProviderResult } from "../providers/types";
 import { HttpError } from "../../utils/httpError";
 import { generateTxnRef } from "../../utils/uid";
 import { logger } from "../../utils/logger";
-import { sendOpsAlert } from "../../utils/alert";
+import { sendSlackAlert, sendOpsAlert } from "../../utils/alert";
 import { env } from "../../config/env";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import type { UserRole, WalletType } from "@asanpay/shared-types";
@@ -68,7 +68,83 @@ async function assertCanTransact(actor: Actor): Promise<void> {
   const [user] = await db.select().from(users).where(eq(users.id, actor.id));
   if (!user || !user.isActive) throw new HttpError(403, "Account is not active", "ACCOUNT_INACTIVE");
   if (user.kycStatus !== "verified") {
+    void sendSlackAlert("KYC issue blocked a live transaction", "critical", {
+      retailerId: user.id,
+      retailerName: user.name,
+      kycStatus: user.kycStatus,
+    });
     throw new HttpError(403, "Complete KYC verification to transact", "KYC_NOT_VERIFIED");
+  }
+}
+
+/**
+ * Rule-based fraud heuristics — alert-only (never blocks the transaction). Two checks:
+ * rapid repeated transactions in a short window, and an amount far above the retailer's
+ * recent average for this service. Either firing is informational for ops, not a hard gate.
+ */
+async function checkFraudPatterns(actor: Actor, serviceId: string, amount: string | null): Promise<void> {
+  const rapidWindowStart = new Date(Date.now() - env.FRAUD_RAPID_TXN_WINDOW_MS);
+  const [rapidCount] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(transactions)
+    .where(and(eq(transactions.userId, actor.id), sql`${transactions.createdAt} >= ${rapidWindowStart}`));
+  if ((rapidCount?.count ?? 0) >= env.FRAUD_RAPID_TXN_COUNT) {
+    const [user] = await db.select({ name: users.name }).from(users).where(eq(users.id, actor.id));
+    void sendSlackAlert("Suspicious activity: rapid repeated transactions", "critical", {
+      retailerId: actor.id,
+      retailerName: user?.name,
+      txnCountInWindow: rapidCount?.count,
+      windowMs: env.FRAUD_RAPID_TXN_WINDOW_MS,
+    });
+  }
+
+  if (amount == null) return;
+  const [avgRow] = await db
+    .select({ avgAmount: sql<string>`coalesce(avg(${transactions.amount}), '0')`, sampleSize: sql<number>`count(*)::int` })
+    .from(transactions)
+    .where(and(eq(transactions.userId, actor.id), eq(transactions.serviceId, serviceId), eq(transactions.status, "success")));
+  const avg = Number(avgRow?.avgAmount ?? 0);
+  const sampleSize = avgRow?.sampleSize ?? 0;
+  if (sampleSize >= 3 && avg > 0 && Number(amount) > avg * env.FRAUD_AMOUNT_SPIKE_MULTIPLIER) {
+    const [user] = await db.select({ name: users.name }).from(users).where(eq(users.id, actor.id));
+    void sendSlackAlert("Suspicious activity: amount far above usual pattern", "critical", {
+      retailerId: actor.id,
+      retailerName: user?.name,
+      amount,
+      recentAverage: avg.toFixed(2),
+    });
+  }
+}
+
+/** Alerts (never blocks) when a retailer's successful transactions today cross their configured daily limit. */
+async function checkDailyLimit(actor: Actor, amount: string | null): Promise<void> {
+  if (amount == null) return;
+  const [user] = await db
+    .select({ name: users.name, dailyLimitAmount: users.dailyLimitAmount })
+    .from(users)
+    .where(eq(users.id, actor.id));
+  if (!user?.dailyLimitAmount) return;
+
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+  const [row] = await db
+    .select({ total: sql<string>`coalesce(sum(${transactions.amount}), '0')` })
+    .from(transactions)
+    .where(
+      and(
+        eq(transactions.userId, actor.id),
+        eq(transactions.status, "success"),
+        sql`${transactions.createdAt} >= ${startOfDay}`,
+      ),
+    );
+  const todayTotal = Number(row?.total ?? 0) + Number(amount);
+  if (todayTotal > Number(user.dailyLimitAmount)) {
+    void sendSlackAlert("Daily transaction limit exceeded", "general", {
+      retailerId: actor.id,
+      retailerName: user.name,
+      todayTotal: todayTotal.toFixed(2),
+      dailyLimit: user.dailyLimitAmount,
+    });
   }
 }
 
@@ -114,6 +190,8 @@ export async function executeServiceTxn(input: ExecuteTxnInput): Promise<TxnOutc
   await assertCanTransact(actor);
   const service = await getServiceOrThrow(serviceCode);
   assertAmountWithinLimits(amount, service);
+  void checkFraudPatterns(actor, service.id, amount);
+  void checkDailyLimit(actor, amount);
 
   const routedProviders = await resolveProvidersForService(serviceCode);
   const routed = routedProviders[0]!; // fail-over between providers is a later enhancement
@@ -331,6 +409,15 @@ async function finalizeTxn(txn: TxnRow, result: ProviderResult, ctx: FinalizeCon
   // after that commit — never for a concurrent no-op finalize. Fire-and-forget: a payout failure
   // must not fail the customer's transaction.
   if (didSettleSuccess) distributeCommissionSafe(settled);
+  if (settled.status === "failed") {
+    void sendSlackAlert("Transaction failure", "critical", {
+      retailerId: settled.userId,
+      txnRef: settled.txnRef,
+      amount: settled.amount,
+      errorCode: "TXN_FAILED",
+      message: settled.failureReason ?? undefined,
+    });
+  }
   return settled;
 }
 
@@ -403,6 +490,9 @@ export async function recheckTxnStatus(actor: Actor, txnRef: string): Promise<Tx
 /** Pending older than this may be auto-reconciled (provider already acknowledged). */
 export const PENDING_RECONCILE_MIN_AGE_MS = 120_000;
 
+/** A txn stuck non-terminal past this age fires the critical "transaction failure" Slack alert. */
+const TXN_CRITICAL_STUCK_MS = 5 * 60 * 1000;
+
 /**
  * Background sweep: settle pending / crash-stale initiated txns so held wallet money is not
  * stuck forever when nobody taps /recheck. Skips initiated rows still inside the submit window.
@@ -426,6 +516,8 @@ export async function reconcileStaleTransactions(limit = 40): Promise<{ checked:
     .orderBy(transactions.updatedAt)
     .limit(limit);
 
+  const criticalStuckCutoff = new Date(now - TXN_CRITICAL_STUCK_MS);
+
   let changed = 0;
   for (const txn of candidates) {
     try {
@@ -435,6 +527,22 @@ export async function reconcileStaleTransactions(limit = 40): Promise<{ checked:
         txn.txnRef,
       );
       if (outcome.txn.status !== before) changed += 1;
+
+      if (outcome.txn.status === "success" && (before === "pending" || before === "initiated")) {
+        void sendSlackAlert("Retry succeeded after initial delay", "general", {
+          retailerId: txn.userId,
+          txnRef: txn.txnRef,
+          amount: txn.amount,
+        });
+      } else if (outcome.txn.status === before && txn.createdAt < criticalStuckCutoff) {
+        void sendSlackAlert("Transaction failure: stuck past threshold", "critical", {
+          retailerId: txn.userId,
+          txnRef: txn.txnRef,
+          status: outcome.txn.status,
+          amount: txn.amount,
+          ageMs: now - txn.createdAt.getTime(),
+        });
+      }
 
       if (outcome.txn.status === before && txn.createdAt < stuckCutoff) {
         void sendOpsAlert("Transaction stuck past reconcile threshold", {
@@ -480,10 +588,12 @@ export async function runDailyReconciliation(
       const outcome = await recheckTxnStatus({ id: txn.userId, role: "admin" }, txn.txnRef);
       if (outcome.txn.status !== before) {
         mismatched += 1;
-        void sendOpsAlert("Daily reconciliation found a status mismatch", {
+        void sendSlackAlert("Wallet balance mismatch found in daily reconciliation", "critical", {
+          retailerId: txn.userId,
           txnRef: txn.txnRef,
           dbStatusBefore: before,
           providerStatusNow: outcome.txn.status,
+          amount: txn.amount,
         });
       }
     } catch (err) {

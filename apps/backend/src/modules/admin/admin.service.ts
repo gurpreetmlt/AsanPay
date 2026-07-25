@@ -20,6 +20,7 @@ import { getAdminFullNetworkTree, getUserAncestors } from "../users/users.servic
 import { HttpError } from "../../utils/httpError";
 import { decryptPII } from "../../utils/aes";
 import { env } from "../../config/env";
+import { sendSlackAlert } from "../../utils/alert";
 import { findLatestAuditLog, insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import type { UserRole, KycStatus, TransactionStatus } from "@asanpay/shared-types";
 
@@ -513,6 +514,13 @@ export async function decideKyc(adminId: string, userId: string, decision: "veri
     entityType: "user",
     entityId: userId,
     metadata: { previous: user.kycStatus },
+  });
+
+  void sendSlackAlert("KYC status changed", "general", {
+    retailerId: user.id,
+    retailerName: user.name,
+    previousStatus: user.kycStatus,
+    newStatus: decision,
   });
 
   return {

@@ -6,6 +6,7 @@ import {
   boolean,
   timestamp,
   integer,
+  numeric,
   index,
   primaryKey,
   type AnyPgColumn,
@@ -50,6 +51,8 @@ export const users = pgTable(
     aepsEddRequired: boolean("aeps_edd_required").notNull().default(false),
     /** Soft-block reason for AEPS (e.g. bio_mismatch). Null = not blocked. */
     aepsBlockReason: varchar("aeps_block_reason", { length: 120 }),
+    /** Optional per-retailer daily transaction ceiling for alerting. Null = no limit configured. */
+    dailyLimitAmount: numeric("daily_limit_amount", { precision: 14, scale: 2 }),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

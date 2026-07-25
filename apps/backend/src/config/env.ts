@@ -60,6 +60,17 @@ const envSchema = z.object({
   TXN_RECONCILE_INTERVAL_MS: z.coerce.number().int().min(0).default(5 * 60 * 1000),
   /** Optional Slack/Teams-compatible incoming webhook URL for ops alerts (recon failures, stuck txns). */
   ALERT_WEBHOOK_URL: z.string().url().optional(),
+  /** Retailer alert system — critical channel (txn failure, wallet mismatch, fraud, KYC block). */
+  SLACK_WEBHOOK_CRITICAL: z.string().url().optional(),
+  /** Retailer alert system — general/informational channel (daily limit, retry-recovered, minor KYC). */
+  SLACK_WEBHOOK_GENERAL: z.string().url().optional(),
+  /** Suppress duplicate alerts for the same (alertType, retailerId) within this window (ms). */
+  ALERT_DEBOUNCE_MS: z.coerce.number().int().min(0).default(60 * 1000),
+  /** Fraud heuristic: N+ transactions by the same retailer within the rapid-fire window trigger an alert. */
+  FRAUD_RAPID_TXN_COUNT: z.coerce.number().int().min(1).default(5),
+  FRAUD_RAPID_TXN_WINDOW_MS: z.coerce.number().int().min(1000).default(2 * 60 * 1000),
+  /** Fraud heuristic: amount this many times the retailer's recent average triggers an alert. */
+  FRAUD_AMOUNT_SPIKE_MULTIPLIER: z.coerce.number().min(1).default(3),
   /** A pending/initiated txn older than this (ms) is flagged as stuck in an ops alert. Default 30 min. */
   TXN_STUCK_ALERT_MS: z.coerce.number().int().min(0).default(30 * 60 * 1000),
   /**
