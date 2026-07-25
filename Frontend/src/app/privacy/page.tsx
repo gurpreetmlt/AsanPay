@@ -151,7 +151,7 @@ export default function PrivacyPolicyPage() {
       <footer className="border-t border-neutral-200 dark:border-white/10 bg-white/40 dark:bg-slate-950/40 py-8 relative z-10 mt-auto">
         <div className="mx-auto max-w-7xl px-4 text-center">
           <p className="font-sora font-semibold text-xs tracking-wider text-neutral-400 dark:text-neutral-500 uppercase">
-            HAR KADAM TARAKKI KI OR
+            Payment Made Easy
           </p>
           <p className="font-poppins text-xs text-neutral-500 dark:text-neutral-600 mt-2">
             © {new Date().getFullYear()} AsanPay. All Rights Reserved.

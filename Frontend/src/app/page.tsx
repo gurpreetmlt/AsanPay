@@ -793,7 +793,7 @@ export default function Home() {
           {/* Bottom Divider */}
           <div className="border-t border-neutral-200 dark:border-white/10 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
             <span className="font-sora font-semibold text-xs tracking-wider text-neutral-400 dark:text-neutral-500 uppercase">
-              HAR KADAM TARAKKI KI OR
+              Payment Made Easy
             </span>
             <p className="font-poppins text-xs text-neutral-500 dark:text-neutral-600">
               © {new Date().getFullYear()} AsanPay. All Rights Reserved.

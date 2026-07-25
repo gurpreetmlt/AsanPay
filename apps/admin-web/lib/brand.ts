@@ -5,7 +5,7 @@
  */
 export const brand = {
   name: process.env.NEXT_PUBLIC_BRAND_NAME || "AsanPay",
-  tagline: process.env.NEXT_PUBLIC_BRAND_TAGLINE || "HAR KADAM TARAKKI KI OR",
+  tagline: process.env.NEXT_PUBLIC_BRAND_TAGLINE || "Payment Made Easy",
 } as const;
 
 /**

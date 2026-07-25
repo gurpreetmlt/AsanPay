@@ -1,3 +1,5 @@
+import { brand } from "./brand";
+
 const STORAGE_KEY = "asanpay-web-biometric";
 
 function getBrowserSessionStorage(): Storage | null {
@@ -69,7 +71,7 @@ export async function enableBiometricLogin(opts: {
   const cred = (await navigator.credentials.create({
     publicKey: {
       challenge,
-      rp: { name: "AsanPay", id: window.location.hostname },
+      rp: { name: brand.name, id: window.location.hostname },
       user: {
         id: userId,
         name: opts.userName,

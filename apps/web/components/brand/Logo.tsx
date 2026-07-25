@@ -57,7 +57,7 @@ export function AsanPayLogo({
         <tspan fill={`url(#lpay-${uid})`}>Pay</tspan>
       </text>
       <text x="336" y="231" fontSize="26.5" fontWeight="500" letterSpacing="5.8" fill={tagline} fontFamily="Poppins, sans-serif">
-        HAR KADAM TARAKKI KI OR
+        Payment Made Easy
       </text>
     </svg>
   );

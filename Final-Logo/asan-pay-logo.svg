@@ -18,5 +18,5 @@
   <circle cx="209" cy="188" r="7" fill="#ffffff"/>
   <g transform="translate(112,231) scale(0.072,-0.072)" fill="#FFFFFF"><path d="M489 1004Q470 1065 420.5 1100.5Q371 1136 288 1136H122V1328H917V1145H648Q686 1116 707.0 1081.0Q728 1046 737 1004H917V820H736Q717 742 666.0 678.5Q615 615 534 577Q566 563 594.0 541.0Q622 519 645 484L902 0H665Q631 0 607.5 13.5Q584 27 569 52L364 467Q351 490 334.5 500.5Q318 511 286 511H122V688H287Q369 688 416.5 724.0Q464 760 484 820H121V1004Z"/></g>
   <text x="332" y="180" font-size="90" font-weight="700" letter-spacing="-1.5" fill="#0B2A9A">Adhikari<tspan fill="url(#pay)"> Pay</tspan></text>
-  <text x="336" y="231" font-size="26.5" font-weight="500" letter-spacing="5.8" fill="#5A6DA8">HAR KADAM TARAKKI KI OR</text>
+  <text x="336" y="231" font-size="26.5" font-weight="500" letter-spacing="5.8" fill="#5A6DA8">Payment Made Easy</text>
 </svg>
