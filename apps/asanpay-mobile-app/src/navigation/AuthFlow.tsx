@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { LoginScreen, type LoginRoleChip } from "../screens/LoginScreen";
 import { WelcomeBackScreen } from "../screens/WelcomeBackScreen";
+import { TrustedUnlockScreen } from "../screens/TrustedUnlockScreen";
 import { SignupScreen } from "../screens/signup/SignupScreen";
 import { getRememberedLogin } from "../lib/rememberedLogin";
 
-type AuthStep = "login" | "welcome" | "signup";
+type AuthStep = "login" | "welcome" | "signup" | "trustedUnlock";
 
 export function AuthFlow() {
   const [step, setStep] = useState<AuthStep>("login");
@@ -23,8 +24,7 @@ export function AuthFlow() {
       if (alive && remembered) {
         setMobile(remembered.mobile);
         setRole(remembered.role);
-        setPreferMpin(true);
-        setStep("welcome");
+        setStep("trustedUnlock");
       }
       if (alive) setCheckedRemembered(true);
     })();
@@ -34,6 +34,19 @@ export function AuthFlow() {
   }, []);
 
   if (!checkedRemembered) return null;
+
+  if (step === "trustedUnlock") {
+    return (
+      <TrustedUnlockScreen
+        mobile={mobile}
+        role={role}
+        onFallbackToOtp={() => {
+          setStep("login");
+          setPreferMpin(false);
+        }}
+      />
+    );
+  }
 
   if (step === "welcome") {
     return (
