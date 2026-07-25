@@ -57,6 +57,9 @@ export default function LoginPage() {
   const [remembered, setRemembered] = useState<RememberedLogin | null>(null);
   // Show the fast MPIN "welcome back" unlock when this browser has a remembered agent.
   const [unlockMode, setUnlockMode] = useState(false);
+  // Gate first paint until the localStorage check below runs, so the page never flashes the
+  // full OTP form for a moment before flipping to Welcome-back (or vice versa) right after logout.
+  const [checkedRemembered, setCheckedRemembered] = useState(false);
 
   useEffect(() => {
     const saved = getRememberedLogin();
@@ -64,6 +67,7 @@ export default function LoginPage() {
       setRemembered(saved);
       setUnlockMode(true);
     }
+    setCheckedRemembered(true);
   }, []);
 
   function finishLogin(data: LoginResponseData) {
@@ -286,6 +290,8 @@ export default function LoginPage() {
     setPin("");
     setDevOtp(null);
   }
+
+  if (!checkedRemembered) return null;
 
   return (
     <div className="flex min-h-screen w-full font-sans">
