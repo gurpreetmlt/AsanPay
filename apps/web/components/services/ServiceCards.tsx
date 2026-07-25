@@ -94,13 +94,13 @@ function ServiceIconCard({
           />
         )}
         <div
-          className="text-xs font-semibold leading-tight transition-colors duration-150 group-hover:text-[var(--tile-accent)]"
+          className="w-full text-center text-xs font-semibold leading-tight transition-colors duration-150 group-hover:text-[var(--tile-accent)]"
           style={{ color: B.blue }}
         >
           {svc.name}
         </div>
         {svc.badge ? (
-          <div className="text-[9px] font-bold uppercase" style={{ color: tile.fg }}>
+          <div className="w-full text-center text-[9px] font-bold uppercase" style={{ color: tile.fg }}>
             {svc.badge}
           </div>
         ) : null}
