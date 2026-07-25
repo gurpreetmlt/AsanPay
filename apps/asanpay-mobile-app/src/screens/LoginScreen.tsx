@@ -8,8 +8,15 @@ import { api, API_BASE } from "../lib/api";
 import { apiError } from "../utils/apiError";
 import { BrandMark } from "../components/BrandMark";
 import { colors } from "../theme/colors";
+import { BRAND } from "../theme/brand";
 import { showAlert } from "../components/AppAlert";
 import { getRememberedLogin } from "../lib/rememberedLogin";
+
+// Single source of truth for the wordmark: BRAND.appName (theme/brand.ts). Splits off a
+// trailing "Pay" so it renders in the accent green, same as web's Logo.tsx — falls back to
+// plain text if a future brand name doesn't end in "Pay".
+const brandPrefix = BRAND.appName.endsWith("Pay") ? BRAND.appName.slice(0, -3) : BRAND.appName;
+const brandSuffix = BRAND.appName.endsWith("Pay") ? "Pay" : "";
 
 export type LoginRoleChip = "retailer" | "distributor" | "master_distributor";
 
@@ -100,7 +107,8 @@ export function LoginScreen({ onOtpSent, onSignup }: LoginScreenProps) {
           <View style={styles.brandRow}>
             <BrandMark size={44} />
             <Text style={styles.brandText}>
-              Adhikari<Text style={styles.brandTextGreen}>Pay</Text>
+              {brandPrefix}
+              {brandSuffix ? <Text style={styles.brandTextGreen}>{brandSuffix}</Text> : null}
             </Text>
           </View>
           <View style={styles.secureChip}>

@@ -2,7 +2,7 @@ import { brand } from "./colors";
 
 export const BRAND = {
   appName: "AsanPay",
-  tagline: "Har Kadam Tarakki Ki Or",
+  tagline: "Payment Made Easy",
   loginSubtitle: "Super Distributor · Distributor · Retailer",
   colors: brand,
 } as const;
