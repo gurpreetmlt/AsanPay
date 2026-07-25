@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { Star } from "lucide-react";
+import { ChevronDown, Star } from "lucide-react";
 import { fetchApi } from "@/lib/api";
 import type { CatalogCategoryView } from "@/lib/types";
 import { B } from "@/lib/brand";
@@ -15,6 +15,11 @@ import { MAX_FAVORITES, selectFavoriteCodes, useFavoritesStore } from "@/lib/fav
 import { useAuthStore } from "@/lib/store";
 
 type Svc = { id: string; code: string; name: string; badge: string | null; icon: string | null };
+
+/** Display-only overrides for category names — doesn't touch the catalog data in the DB. */
+const CATEGORY_NAME_OVERRIDES: Record<string, string> = {
+  BILL_PAYMENT_BBPS: "Recharge & Bill Payments (BBPS)",
+};
 
 const AEPS_TAB_MAP: Record<string, string> = {
   CASH_WITHDRAW: "Withdraw",
@@ -76,11 +81,11 @@ function ServiceIconCard({
           <img
             src={assetSrc!}
             alt=""
-            className="h-11 w-11 object-contain"
+            className="h-9 w-9 object-contain"
             onError={() => setAssetFailed(true)}
           />
         ) : (
-          <div className="h-11 w-11 rounded-lg" style={{ background: tile.bg }} />
+          <div className="h-9 w-9 rounded-lg" style={{ background: tile.bg }} />
         )}
         <div className="text-xs font-semibold leading-tight" style={{ color: B.blue }}>
           {svc.name}
@@ -105,6 +110,16 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
   const remove = useFavoritesStore((s) => s.remove);
 
   const [categories, setCategories] = useState<CatalogCategoryView[]>([]);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+
+  function toggleCollapsed(id: string) {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -195,25 +210,40 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
       <h2 className="text-lg font-bold" style={{ color: B.blue }}>
         {title}
       </h2>
-      {categories.map((cat) => (
-        <div key={cat.id} className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
-          <div className="mb-4 text-sm font-bold uppercase tracking-wider" style={{ color: B.muted }}>
-            {cat.name}
-          </div>
-          <div className="grid grid-cols-4 gap-2 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8">
-            {cat.services.map((svc, i) => (
-              <ServiceIconCard
-                key={svc.id}
-                svc={svc}
-                index={i}
-                favorite={codes.includes(svc.code)}
-                onToggleFav={() => handleToggle(svc.code)}
-                onOpen={resolveServiceRoute(svc.code) ? () => router.push(resolveServiceRoute(svc.code)!) : undefined}
+      {categories.map((cat) => {
+        const isCollapsed = collapsed.has(cat.id);
+        return (
+          <div key={cat.id} className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
+            <button
+              type="button"
+              onClick={() => toggleCollapsed(cat.id)}
+              className="mb-4 flex w-full items-center justify-between text-left"
+            >
+              <span className="text-sm font-bold uppercase tracking-wider" style={{ color: B.muted }}>
+                {CATEGORY_NAME_OVERRIDES[cat.code] ?? cat.name}
+              </span>
+              <ChevronDown
+                size={16}
+                style={{ color: B.muted, transform: isCollapsed ? "rotate(-90deg)" : "none", transition: "transform 150ms" }}
               />
-            ))}
+            </button>
+            {!isCollapsed && (
+              <div className="grid grid-cols-4 gap-2 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8">
+                {cat.services.map((svc, i) => (
+                  <ServiceIconCard
+                    key={svc.id}
+                    svc={svc}
+                    index={i}
+                    favorite={codes.includes(svc.code)}
+                    onToggleFav={() => handleToggle(svc.code)}
+                    onOpen={resolveServiceRoute(svc.code) ? () => router.push(resolveServiceRoute(svc.code)!) : undefined}
+                  />
+                ))}
+              </div>
+            )}
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
