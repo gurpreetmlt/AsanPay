@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { Fingerprint, Lock, Shield } from "lucide-react";
+import { Eye, EyeOff, Fingerprint, Lock, Shield } from "lucide-react";
 import type { ApiResponse, AuthUser } from "@adhikaripay/shared-types";
 import { AppShell } from "@/components/layout/AppShell";
 import api from "@/lib/api";
@@ -25,6 +25,7 @@ export default function SetPinPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [offerBio, setOfferBio] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const firstSet = user?.hasTxnPin !== true;
 
   useEffect(() => {
@@ -105,7 +106,7 @@ export default function SetPinPage() {
               <div className="flex items-center gap-2 rounded-xl border px-3 py-3" style={{ borderColor: B.border }}>
                 <Lock size={15} style={{ color: B.muted }} />
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   required
                   autoComplete="current-password"
                   value={password}
@@ -113,6 +114,18 @@ export default function SetPinPage() {
                   placeholder="Account login password"
                   className="w-full text-sm outline-none"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  className="shrink-0"
+                >
+                  {showPassword ? (
+                    <EyeOff size={15} style={{ color: B.muted }} />
+                  ) : (
+                    <Eye size={15} style={{ color: B.muted }} />
+                  )}
+                </button>
               </div>
             </div>
             <div>
