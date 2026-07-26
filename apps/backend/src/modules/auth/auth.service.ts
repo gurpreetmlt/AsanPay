@@ -659,21 +659,19 @@ export async function refreshSession(
   }
 
   const tokenHash = hashToken(refreshToken);
-  let reuseDetected = false;
-  let reuseDebug: Record<string, unknown> = {};
 
   // Two browser requests can each read the SAME (still-valid-at-dispatch) refresh cookie and
   // both hit this endpoint moments apart — e.g. a dashboard firing several API calls in
-  // parallel. The first rotates + revokes the token; the second arrives a beat later already
-  // carrying the now-revoked value. Without tolerance for this, that's indistinguishable from a
-  // real stolen-token replay and we'd nuke every device on a false positive. Anthos/Auth0/Supabase
-  // handle this the same way: a short grace window after rotation where the just-revoked token
-  // is still honored (minted a fresh access token, no further rotation) instead of triggering the
-  // reuse-detected nuclear response. Past this window, reuse is treated as a real attack.
+  // parallel, or a backgrounded/throttled tab finally sending a long-queued request against an
+  // already-rotated cookie. Auth0/Supabase-style "reuse detected → revoke every device" is far
+  // too destructive here: it turns one stale request into a full account-wide logout. Instead:
+  // a short grace window after rotation silently re-issues an access token (no error at all —
+  // covers the millisecond race); past that window, we DENY just this one request (its own
+  // token stays revoked) without touching any other session. A genuinely stolen token still
+  // can't get anywhere — it just doesn't get to nuke every trusted device along the way.
   const REUSE_GRACE_MS = 10_000;
 
-  try {
-    return await db.transaction(async (tx) => {
+  return await db.transaction(async (tx) => {
       const [stored] = await tx
         .select()
         .from(refreshTokens)
@@ -706,19 +704,25 @@ export async function refreshSession(
           return { accessToken: newAccessToken, refreshToken };
         }
 
-        reuseDetected = true;
-        reuseDebug = {
-          storedCreatedAt: stored.createdAt,
-          storedRevokedAt: stored.revokedAt,
-          storedExpiresAt: stored.expiresAt,
-          msSinceRevoked,
-          deviceInfo: stored.deviceInfo,
-        };
-        await tx
-          .update(refreshTokens)
-          .set({ revokedAt: new Date() })
-          .where(and(eq(refreshTokens.userId, payload.sub), isNull(refreshTokens.revokedAt)));
-        throw new HttpError(401, "Refresh token reuse detected — all sessions revoked", "TOKEN_REUSE");
+        // Past the grace window — deny only this request. Do NOT revoke other devices/sessions;
+        // this token is already revoked and stays that way, so replaying it again later hits
+        // the same denial. See comment above for why we stopped nuking every device here.
+        await insertAuditLog({
+          userId: payload.sub,
+          action: "auth.stale_refresh_token_denied",
+          entityType: "user",
+          entityId: payload.sub,
+          ipAddress: null,
+          userAgent: null,
+          metadata: {
+            tokenHash,
+            msSinceRevoked,
+            storedCreatedAt: stored.createdAt,
+            storedRevokedAt: stored.revokedAt,
+            deviceInfo: stored.deviceInfo,
+          },
+        });
+        throw new HttpError(401, "Invalid or expired refresh token", "INVALID_REFRESH_TOKEN");
       }
 
       if (stored.expiresAt.getTime() <= Date.now()) {
@@ -744,22 +748,7 @@ export async function refreshSession(
       });
 
       return { accessToken: newAccessToken, refreshToken: newRefreshToken };
-    });
-  } catch (err) {
-    if (reuseDetected || (err instanceof HttpError && err.code === "TOKEN_REUSE")) {
-      await revokeAllDevicesForUser(payload.sub);
-      await insertAuditLog({
-        userId: payload.sub,
-        action: "auth.refresh_token_reuse_detected",
-        entityType: "user",
-        entityId: payload.sub,
-        ipAddress: null,
-        userAgent: null,
-        metadata: { tokenHash, ...reuseDebug },
-      });
-    }
-    throw err;
-  }
+  });
 }
 
 /** Revoke every refresh token for the user (logout).
