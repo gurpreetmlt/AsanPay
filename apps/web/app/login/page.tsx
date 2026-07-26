@@ -254,7 +254,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       if (!getBiometricStore()) {
-        toast.error("OTP + PIN se pehle login karke Settings → Enable biometric");
+        toast.error("OTP se pehle login karke Settings → Enable biometric");
         return;
       }
       const bio = await authenticateBiometric();
@@ -395,7 +395,7 @@ export default function LoginPage() {
             Sign in to your account
           </h2>
           <p className="mb-7 text-sm" style={{ color: B.muted }}>
-            Preferred: <strong style={{ color: B.blue }}>OTP + PIN</strong> — fast & secure
+            Preferred: <strong style={{ color: B.blue }}>OTP</strong> — fast & secure
           </p>
 
           <div className="mb-6 grid grid-cols-3 gap-2">
@@ -447,7 +447,7 @@ export default function LoginPage() {
           <div className="mb-4 grid grid-cols-2 gap-1 rounded-2xl p-1" style={{ background: B.secondary }}>
             {(
               [
-                { id: "otp" as const, label: "OTP + PIN" },
+                { id: "otp" as const, label: "OTP" },
                 { id: "password" as const, label: "Password" },
               ] as const
             ).map((m) => (
@@ -494,7 +494,7 @@ export default function LoginPage() {
                 style={{ background: `${B.green}12`, color: B.greenDark }}
               >
                 <Sparkles size={14} />
-                Forgot your password? OTP + PIN is the faster way in.
+                Forgot your password? OTP is the faster way in.
               </div>
               <SubmitBtn loading={loading} label={`Login as ${role.label}`} color={role.color} gradient={role.gradient} />
             </form>

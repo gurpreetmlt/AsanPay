@@ -11,7 +11,7 @@ import { PinInput } from "../components/PinInput";
 import { colors } from "../theme/colors";
 import { BRAND } from "../theme/brand";
 import { showAlert } from "../components/AppAlert";
-import { getRememberedLogin, setRememberedLogin } from "../lib/rememberedLogin";
+import { setRememberedLogin } from "../lib/rememberedLogin";
 import { getDeviceId, getDeviceLabel } from "../lib/deviceId";
 import { useAuthStore } from "../store/auth";
 
@@ -51,7 +51,6 @@ const TRUST_BADGES = [
 ] as const;
 
 interface LoginScreenProps {
-  onOtpSent: (mobile: string, role: LoginRoleChip, devOtp?: string, preferMpin?: boolean) => void;
   onSignup: () => void;
 }
 
@@ -61,7 +60,7 @@ interface PendingSession {
   refreshToken: string;
 }
 
-export function LoginScreen({ onOtpSent, onSignup }: LoginScreenProps) {
+export function LoginScreen({ onSignup }: LoginScreenProps) {
   const setAuth = useAuthStore((s) => s.setAuth);
   const [mobile, setMobile] = useState("");
   const [role, setRole] = useState<LoginRoleChip>("retailer");
@@ -71,11 +70,72 @@ export function LoginScreen({ onOtpSent, onSignup }: LoginScreenProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [pendingSession, setPendingSession] = useState<PendingSession | null>(null);
   const [pin, setPin] = useState("");
+  const [otpStep, setOtpStep] = useState<"mobile" | "otp">("mobile");
+  const [otp, setOtp] = useState("");
+  const [devOtp, setDevOtp] = useState<string | null>(null);
 
   function finishLogin(session: PendingSession) {
     setAuthHeader(session.accessToken);
     void setRememberedLogin({ mobile: session.user.mobile, role: role });
     setAuth(session.user, { accessToken: session.accessToken, refreshToken: session.refreshToken });
+  }
+
+  async function requestOtp() {
+    if (mobile.length !== 10) {
+      showAlert("Invalid mobile", "Enter a valid 10-digit mobile number");
+      return;
+    }
+    setLoading(true);
+    try {
+      const { data } = await api.post<ApiResponse<{ message: string; otp?: string }>>(
+        "/auth/otp/request",
+        { mobile, portal: "agent", role },
+      );
+      if (!data.success) throw new Error(data.message);
+      setDevOtp(data.data.otp ?? null);
+      setOtp(data.data.otp ?? "");
+      setOtpStep("otp");
+    } catch (err) {
+      const msg = apiError(err, "Could not send OTP");
+      const suggested = roleFromMismatchMessage(msg);
+      if (suggested && suggested !== role) {
+        setRole(suggested);
+        showAlert("Wrong role selected", `${msg}\n\nCorrect role auto-selected: ${ROLE_CHIPS.find((r) => r.key === suggested)?.short}. Tap Continue again.`, [
+          { text: "OK", style: "primary" },
+        ]);
+      } else {
+        showAlert("OTP failed", msg);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function verifyOtp() {
+    if (otp.length !== 6) return;
+    setLoading(true);
+    try {
+      const { data } = await api.post<ApiResponse<PendingSession>>("/auth/otp/verify", {
+        mobile,
+        otp,
+        portal: "agent",
+        role,
+        deviceId: await getDeviceId(),
+        deviceLabel: getDeviceLabel(),
+      });
+      if (!data.success) throw new Error(data.message);
+
+      if (data.data.user.hasTxnPin) {
+        setPendingSession(data.data);
+      } else {
+        finishLogin(data.data);
+      }
+    } catch (err) {
+      showAlert("Verification failed", apiError(err, "Invalid OTP"));
+      setOtp("");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function loginWithPassword() {
@@ -125,42 +185,6 @@ export function LoginScreen({ onOtpSent, onSignup }: LoginScreenProps) {
     }
   }
 
-  async function sendOtp() {
-    if (mobile.length !== 10) {
-      showAlert("Invalid mobile", "Enter a valid 10-digit mobile number");
-      return;
-    }
-    setLoading(true);
-    try {
-      // Trusted-device shortcut: if this is the number that last logged in on this phone, go
-      // straight to the MPIN "welcome back" unlock WITHOUT sending an OTP. The server still
-      // enforces the trust window — if it's lapsed, WelcomeBack falls back and requests an OTP.
-      const remembered = await getRememberedLogin();
-      if (remembered && remembered.mobile === mobile) {
-        onOtpSent(mobile, remembered.role, undefined, true);
-        return;
-      }
-      const { data } = await api.post<ApiResponse<{ message: string; otp?: string }>>(
-        "/auth/otp/request",
-        { mobile, portal: "agent", role },
-      );
-      if (!data.success) throw new Error(data.message);
-      onOtpSent(mobile, role, data.data.otp, false);
-    } catch (err) {
-      const msg = apiError(err, "Could not send OTP");
-      const suggested = roleFromMismatchMessage(msg);
-      if (suggested && suggested !== role) {
-        setRole(suggested);
-        showAlert("Wrong role selected", `${msg}\n\nCorrect role auto-selected: ${ROLE_CHIPS.find((r) => r.key === suggested)?.short}. Tap Continue again.`, [
-          { text: "OK", style: "primary" },
-        ]);
-      } else {
-        showAlert("OTP failed", msg);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }
 
   const canSubmit = mobile.length === 10 && !loading;
   const selected = ROLE_CHIPS.find((r) => r.key === role)!;
@@ -210,7 +234,7 @@ export function LoginScreen({ onOtpSent, onSignup }: LoginScreenProps) {
               <>
                 <Text style={styles.label}>ENTER YOUR PIN</Text>
                 <Text style={styles.roleHint}>
-                  Password verified for {pendingSession.user.name}. PIN unlocks your session.
+                  Welcome, {pendingSession.user.name}. Enter your PIN to unlock your session.
                 </Text>
                 <View style={styles.pinWrap}>
                   <PinInput length={4} value={pin} onChange={setPin} />
@@ -235,11 +259,16 @@ export function LoginScreen({ onOtpSent, onSignup }: LoginScreenProps) {
                     return (
                       <Pressable
                         key={m}
-                        onPress={() => setMethod(m)}
+                        onPress={() => {
+                          setMethod(m);
+                          setOtpStep("mobile");
+                          setOtp("");
+                          setDevOtp(null);
+                        }}
                         style={[styles.methodPill, active && styles.methodPillActive]}
                       >
                         <Text style={[styles.methodPillText, active && styles.methodPillTextActive]}>
-                          {m === "otp" ? "OTP + PIN" : "Password"}
+                          {m === "otp" ? "OTP" : "Password"}
                         </Text>
                       </Pressable>
                     );
@@ -254,6 +283,7 @@ export function LoginScreen({ onOtpSent, onSignup }: LoginScreenProps) {
                     style={styles.input}
                     keyboardType="number-pad"
                     maxLength={10}
+                    editable={otpStep === "mobile"}
                     value={mobile}
                     onChangeText={(t) => setMobile(t.replace(/\D/g, ""))}
                     placeholder="98765 43210"
@@ -261,7 +291,50 @@ export function LoginScreen({ onOtpSent, onSignup }: LoginScreenProps) {
                   />
                 </View>
 
-                {method === "password" ? (
+                {method === "otp" && otpStep === "otp" ? (
+                  <>
+                    {devOtp && (
+                      <View style={styles.devOtpBanner}>
+                        <Text style={styles.devOtpText}>Dev OTP: {devOtp}</Text>
+                      </View>
+                    )}
+                    <Text style={[styles.label, styles.labelSpaced]}>6-DIGIT OTP</Text>
+                    <View style={styles.inputRow}>
+                      <TextInput
+                        style={styles.input}
+                        keyboardType="number-pad"
+                        maxLength={6}
+                        value={otp}
+                        onChangeText={(t) => setOtp(t.replace(/\D/g, ""))}
+                        placeholder="••••••"
+                        placeholderTextColor="rgba(255,255,255,0.4)"
+                      />
+                    </View>
+
+                    <Pressable
+                      onPress={() => void verifyOtp()}
+                      disabled={otp.length !== 6 || loading}
+                      style={styles.buttonPress}
+                    >
+                      <LinearGradient
+                        colors={[...colors.gradientButton]}
+                        style={[styles.button, (otp.length !== 6 || loading) && styles.buttonDisabled]}
+                      >
+                        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Verify OTP  →</Text>}
+                      </LinearGradient>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => {
+                        setOtpStep("mobile");
+                        setOtp("");
+                        setDevOtp(null);
+                      }}
+                      style={styles.signupRow}
+                    >
+                      <Text style={styles.signupText}>Change mobile</Text>
+                    </Pressable>
+                  </>
+                ) : method === "password" ? (
                   <>
                     <Text style={[styles.label, styles.labelSpaced]}>PASSWORD</Text>
                     <View style={styles.inputRow}>
@@ -314,7 +387,7 @@ export function LoginScreen({ onOtpSent, onSignup }: LoginScreenProps) {
                             onPress={() => {
                               // Switching role manually starts a fresh login — clear the number so the
                               // previous role's mobile isn't accidentally submitted under the new role.
-                              // (The auto-correction path in sendOtp deliberately keeps the number.)
+                              // (The auto-correction path in requestOtp deliberately keeps the number.)
                               if (r.key !== role) setMobile("");
                               setRole(r.key);
                             }}
@@ -342,7 +415,7 @@ export function LoginScreen({ onOtpSent, onSignup }: LoginScreenProps) {
                       </Text>
                     </View>
 
-                    <Pressable onPress={sendOtp} disabled={!canSubmit} style={styles.buttonPress}>
+                    <Pressable onPress={() => void requestOtp()} disabled={!canSubmit} style={styles.buttonPress}>
                       <LinearGradient
                         colors={[...colors.gradientButton]}
                         style={[styles.button, !canSubmit && styles.buttonDisabled]}
@@ -472,6 +545,14 @@ const styles = StyleSheet.create({
   methodPillText: { fontSize: 12.5, fontWeight: "700", color: "rgba(255,255,255,.65)" },
   methodPillTextActive: { color: "#fff" },
   pinWrap: { marginTop: 10, marginBottom: 4, alignItems: "center" },
+  devOtpBanner: {
+    marginTop: 10,
+    backgroundColor: "rgba(59,227,154,.15)",
+    borderRadius: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  devOtpText: { fontSize: 12, fontWeight: "700", color: "#3BE39A" },
   label: { fontSize: 11.5, fontWeight: "700", color: "#B9C6F2", letterSpacing: 0.3 },
   labelSpaced: { marginTop: 18, marginBottom: 6 },
   roleHint: {
