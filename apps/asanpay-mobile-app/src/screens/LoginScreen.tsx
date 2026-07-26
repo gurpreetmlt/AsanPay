@@ -392,6 +392,12 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
                         );
                       })}
                     </View>
+                    <Text style={styles.selectedRoleText}>
+                      Signing in as{" "}
+                      <Text style={styles.selectedRoleBold}>
+                        {ROLE_CHIPS.find((r) => r.key === role)?.short}
+                      </Text>
+                    </Text>
 
                     <Pressable onPress={() => void requestOtp()} disabled={!canSubmit} style={styles.buttonPress}>
                       <LinearGradient
@@ -435,7 +441,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.4,
   },
   brandTextGreen: { color: "#3BE39A" },
-  flex: { flex: 1, marginTop: 30 },
+  flex: { flex: 1, justifyContent: "center", paddingBottom: 40 },
   heroTitleMinimal: {
     marginTop: 8,
     fontFamily: "System",
@@ -537,6 +543,14 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   chipTitleActive: { color: "#fff" },
+  selectedRoleText: {
+    marginTop: 10,
+    fontSize: 12,
+    color: "rgba(255,255,255,0.65)",
+    fontWeight: "500",
+    textAlign: "center",
+  },
+  selectedRoleBold: { color: "#3BE39A", fontWeight: "800" },
   buttonPress: { marginTop: 14, borderRadius: 15 },
   button: { borderRadius: 15, paddingVertical: 16, alignItems: "center" },
   buttonDisabled: { opacity: 0.55 },
