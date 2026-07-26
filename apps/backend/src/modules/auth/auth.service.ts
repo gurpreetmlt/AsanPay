@@ -704,6 +704,15 @@ export async function refreshSession(
   } catch (err) {
     if (reuseDetected || (err instanceof HttpError && err.code === "TOKEN_REUSE")) {
       await revokeAllDevicesForUser(payload.sub);
+      await insertAuditLog({
+        userId: payload.sub,
+        action: "auth.refresh_token_reuse_detected",
+        entityType: "user",
+        entityId: payload.sub,
+        ipAddress: null,
+        userAgent: null,
+        metadata: { tokenHash },
+      });
     }
     throw err;
   }
