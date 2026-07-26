@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Eye, EyeOff, Lock, Network, ShieldCheck, Store, Users } from "lucide-react-native";
+import { Eye, EyeOff, Lock, Network, Store, Users } from "lucide-react-native";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import { api, API_BASE, setAuthHeader } from "../lib/api";
 import { apiError } from "../utils/apiError";
@@ -182,7 +182,6 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
 
 
   const canSubmit = mobile.length === 10 && !loading;
-  const selected = ROLE_CHIPS.find((r) => r.key === role)!;
 
   if (pendingSession) {
     return (
@@ -228,21 +227,12 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
       <LinearGradient colors={["#3564E6", "#0B2A9A", "#06175A"]} style={styles.bg}>
-        <View style={styles.orbTop} pointerEvents="none" />
-        <View style={styles.orbBottom} pointerEvents="none" />
-
-        <View style={styles.topRow}>
-          <View style={styles.brandRow}>
-            <BrandMark size={44} />
-            <Text style={styles.brandText}>
-              {brandPrefix}
-              {brandSuffix ? <Text style={styles.brandTextGreen}>{brandSuffix}</Text> : null}
-            </Text>
-          </View>
-          <View style={styles.secureChip}>
-            <ShieldCheck size={13} color="#3BE39A" strokeWidth={2.3} />
-            <Text style={styles.secureText}>Secure</Text>
-          </View>
+        <View style={styles.brandRow}>
+          <BrandMark size={40} />
+          <Text style={styles.brandText}>
+            {brandPrefix}
+            {brandSuffix ? <Text style={styles.brandTextGreen}>{brandSuffix}</Text> : null}
+          </Text>
         </View>
 
         <KeyboardAvoidingView
@@ -250,7 +240,6 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
           <Text style={styles.heroTitleMinimal}>Sign in to your account</Text>
-          <Text style={styles.heroSubMinimal}>AEPS, money transfer, bills &amp; recharge — one login.</Text>
 
           <View style={styles.panel}>
             <>
@@ -375,9 +364,6 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
                 ) : (
                   <>
                     <Text style={[styles.label, styles.labelSpaced]}>CONTINUE AS</Text>
-                    <Text style={styles.roleHint}>
-                      Select your registered role — wrong role will be rejected for this number.
-                    </Text>
                     <View style={styles.chipRow}>
                       {ROLE_CHIPS.map((r) => {
                         const active = role === r.key;
@@ -396,24 +382,15 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
                             accessibilityRole="button"
                             accessibilityState={{ selected: active }}
                           >
-                            <View style={[styles.chipIconWrap, active && styles.chipIconWrapActive]}>
-                              <Icon
-                                size={16}
-                                color={active ? "#3BE39A" : "rgba(255,255,255,0.75)"}
-                                strokeWidth={2.2}
-                              />
-                            </View>
+                            <Icon
+                              size={16}
+                              color={active ? "#3BE39A" : "rgba(255,255,255,0.75)"}
+                              strokeWidth={2.2}
+                            />
                             <Text style={[styles.chipTitle, active && styles.chipTitleActive]}>{r.short}</Text>
-                            <Text style={[styles.chipDesc, active && styles.chipDescActive]}>{r.desc}</Text>
                           </Pressable>
                         );
                       })}
-                    </View>
-
-                    <View style={styles.selectedBanner}>
-                      <Text style={styles.selectedBannerText}>
-                        Signing in as <Text style={styles.selectedBannerBold}>{selected.short}</Text>
-                      </Text>
                     </View>
 
                     <Pressable onPress={() => void requestOtp()} disabled={!canSubmit} style={styles.buttonPress}>
@@ -449,25 +426,6 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#06175A" },
   bg: { flex: 1, paddingHorizontal: 22, paddingTop: 8 },
-  orbTop: {
-    position: "absolute",
-    top: -90,
-    right: -70,
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    backgroundColor: "rgba(36,204,130,.25)",
-  },
-  orbBottom: {
-    position: "absolute",
-    bottom: 40,
-    left: -90,
-    width: 240,
-    height: 240,
-    borderRadius: 120,
-    backgroundColor: "rgba(90,140,255,.22)",
-  },
-  topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   brandRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   brandText: {
     fontFamily: "System",
@@ -477,18 +435,6 @@ const styles = StyleSheet.create({
     letterSpacing: -0.4,
   },
   brandTextGreen: { color: "#3BE39A" },
-  secureChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: "rgba(255,255,255,.12)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,.18)",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 18,
-  },
-  secureText: { fontSize: 11, color: "#DCE6FF", fontWeight: "700" },
   flex: { flex: 1, marginTop: 30 },
   heroTitleMinimal: {
     marginTop: 8,
@@ -498,7 +444,6 @@ const styles = StyleSheet.create({
     color: "#fff",
     letterSpacing: -0.4,
   },
-  heroSubMinimal: { marginTop: 6, fontSize: 13, color: "#AEC0F0", fontWeight: "500" },
   panel: {
     marginTop: 22,
     backgroundColor: "rgba(255,255,255,.09)",
@@ -546,13 +491,6 @@ const styles = StyleSheet.create({
   devOtpText: { fontSize: 12, fontWeight: "700", color: "#3BE39A" },
   label: { fontSize: 11.5, fontWeight: "700", color: "#B9C6F2", letterSpacing: 0.3 },
   labelSpaced: { marginTop: 18, marginBottom: 6 },
-  roleHint: {
-    fontSize: 11,
-    color: "rgba(185,198,242,0.85)",
-    fontWeight: "500",
-    marginBottom: 10,
-    lineHeight: 15,
-  },
   inputRow: {
     marginTop: 8,
     flexDirection: "row",
@@ -585,21 +523,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 6,
     alignItems: "center",
+    gap: 6,
   },
   chipActive: {
     borderColor: "#3BE39A",
     backgroundColor: "rgba(36,204,130,.18)",
   },
-  chipIconWrap: {
-    width: 30,
-    height: 30,
-    borderRadius: 10,
-    backgroundColor: "rgba(255,255,255,.08)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 6,
-  },
-  chipIconWrapActive: { backgroundColor: "rgba(59,227,154,.18)" },
   chipTitle: {
     fontFamily: "System",
     fontWeight: "700",
@@ -608,30 +537,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   chipTitleActive: { color: "#fff" },
-  chipDesc: {
-    fontSize: 9.5,
-    fontWeight: "600",
-    color: "rgba(255,255,255,.65)",
-    marginTop: 2,
-    textAlign: "center",
-  },
-  chipDescActive: { color: "rgba(191,243,217,.9)" },
-  selectedBanner: {
-    marginTop: 12,
-    borderRadius: 12,
-    backgroundColor: "rgba(59,227,154,.12)",
-    borderWidth: 1,
-    borderColor: "rgba(59,227,154,.28)",
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-  },
-  selectedBannerText: {
-    fontSize: 12,
-    color: "#BFF3D9",
-    fontWeight: "600",
-    textAlign: "center",
-  },
-  selectedBannerBold: { color: "#3BE39A", fontWeight: "800" },
   buttonPress: { marginTop: 14, borderRadius: 15 },
   button: { borderRadius: 15, paddingVertical: 16, alignItems: "center" },
   buttonDisabled: { opacity: 0.55 },
