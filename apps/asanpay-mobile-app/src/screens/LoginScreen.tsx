@@ -1,8 +1,8 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Eye, EyeOff, Lock, Network, ShieldCheck, Star, Store, Users } from "lucide-react-native";
+import { Eye, EyeOff, Fingerprint, Lock, Network, ShieldCheck, Star, Store, Users } from "lucide-react-native";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import { api, API_BASE, setAuthHeader } from "../lib/api";
 import { apiError } from "../utils/apiError";
@@ -12,7 +12,7 @@ import { colors } from "../theme/colors";
 import { BRAND } from "../theme/brand";
 import { showAlert } from "../components/AppAlert";
 import { setRememberedLogin } from "../lib/rememberedLogin";
-import { enableBioUnlock, getBioUnlock } from "../lib/bioUnlock";
+import { enableBioUnlock, getBioUnlock, promptDeviceBiometric } from "../lib/bioUnlock";
 import { getDeviceId, getDeviceLabel } from "../lib/deviceId";
 import { useAuthStore } from "../store/auth";
 
@@ -65,6 +65,31 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [pendingSession, setPendingSession] = useState<PendingSession | null>(null);
+  const [pendingBioReady, setPendingBioReady] = useState(false);
+
+  useEffect(() => {
+    if (!pendingSession) {
+      setPendingBioReady(false);
+      return;
+    }
+    void getBioUnlock().then((rec) => {
+      setPendingBioReady(Boolean(rec?.enabled && rec.mobile === pendingSession.user.mobile));
+    });
+  }, [pendingSession]);
+
+  // Already have a valid session (from OTP/password) — fingerprint here is just an alternate
+  // way past the PIN checkpoint, so success goes straight to finishLogin (no /auth/refresh
+  // needed, unlike AppLockScreen which has no fresh tokens of its own).
+  async function tryPendingBiometric() {
+    if (!pendingSession || loading) return;
+    setLoading(true);
+    try {
+      const result = await promptDeviceBiometric("Unlock AsanPay");
+      if (result === "success") void finishLogin(pendingSession);
+    } finally {
+      setLoading(false);
+    }
+  }
   const [pin, setPin] = useState("");
   const [otpStep, setOtpStep] = useState<"mobile" | "otp">("mobile");
   const [otp, setOtp] = useState("");
@@ -229,6 +254,13 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
               onPress={() => void verifyPinAndFinish()}
             >
               <Text style={styles.lockUnlockBtnText}>Unlock</Text>
+            </Pressable>
+          )}
+
+          {pendingBioReady && (
+            <Pressable style={styles.bioBtn} onPress={() => void tryPendingBiometric()} disabled={loading}>
+              <Fingerprint size={20} color={colors.blue} />
+              <Text style={styles.bioBtnText}>Use Fingerprint</Text>
             </Pressable>
           )}
 
@@ -553,6 +585,8 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   lockUnlockBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  bioBtn: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 18 },
+  bioBtnText: { color: colors.blue, fontWeight: "600", fontSize: 14 },
   lockBackBtn: { marginTop: 18 },
   lockBackText: { color: colors.textMuted, fontSize: 13, fontWeight: "600" },
   methodRow: {
