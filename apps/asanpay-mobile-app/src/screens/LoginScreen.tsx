@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Award, Eye, EyeOff, Lock, Network, ShieldCheck, Star, Store, Users } from "lucide-react-native";
+import { Eye, EyeOff, Lock, Network, ShieldCheck, Store, Users } from "lucide-react-native";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import { api, API_BASE, setAuthHeader } from "../lib/api";
 import { apiError } from "../utils/apiError";
@@ -44,11 +44,6 @@ function roleFromMismatchMessage(msg: string): LoginRoleChip | null {
   if (label.includes("retailer")) return "retailer";
   return null;
 }
-const TRUST_BADGES = [
-  { icon: ShieldCheck, label: "RBI Compliant" },
-  { icon: Lock, label: "256-bit Encrypted" },
-  { icon: Award, label: "ISO Certified" },
-] as const;
 
 interface LoginScreenProps {
   onSignup: () => void;
@@ -189,6 +184,47 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
   const canSubmit = mobile.length === 10 && !loading;
   const selected = ROLE_CHIPS.find((r) => r.key === role)!;
 
+  if (pendingSession) {
+    return (
+      <SafeAreaView style={styles.lockSafe}>
+        <View style={styles.lockContent}>
+          <BrandMark size={48} />
+          <View style={styles.lockRow}>
+            <Lock size={16} color={colors.textMuted} />
+            <Text style={styles.lockTitle}>Enter your PIN</Text>
+          </View>
+          <Text style={styles.lockSubtitle}>Welcome, {pendingSession.user.name}</Text>
+
+          <View style={styles.pinWrap}>
+            <PinInput length={4} value={pin} onChange={setPin} />
+          </View>
+
+          {loading ? (
+            <ActivityIndicator style={styles.lockSpinner} color={colors.blue} />
+          ) : (
+            <Pressable
+              style={styles.lockUnlockBtn}
+              disabled={pin.length !== 4}
+              onPress={() => void verifyPinAndFinish()}
+            >
+              <Text style={styles.lockUnlockBtnText}>Unlock</Text>
+            </Pressable>
+          )}
+
+          <Pressable
+            onPress={() => {
+              setPendingSession(null);
+              setPin("");
+            }}
+            style={styles.lockBackBtn}
+          >
+            <Text style={styles.lockBackText}>Back</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
       <LinearGradient colors={["#3564E6", "#0B2A9A", "#06175A"]} style={styles.bg}>
@@ -213,46 +249,11 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
           style={styles.flex}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-          <View style={styles.trustChip}>
-            <Star size={12} color="#FFD84D" fill="#FFD84D" />
-            <Text style={styles.trustText}>
-              <Text style={styles.trustBold}>4.8</Text> · trusted by{" "}
-              <Text style={styles.trustBold}>2 Lakh+</Text> outlets
-            </Text>
-          </View>
-
-          <Text style={styles.heroTitle}>
-            Your business,{"\n"}banked <Text style={styles.heroGreen}>everywhere.</Text>
-          </Text>
-          <Text style={styles.heroSub}>
-            AEPS, money transfer, bills &amp; recharge — one login for retailers, distributors
-            &amp; super distributors.
-          </Text>
+          <Text style={styles.heroTitleMinimal}>Sign in to your account</Text>
+          <Text style={styles.heroSubMinimal}>AEPS, money transfer, bills &amp; recharge — one login.</Text>
 
           <View style={styles.panel}>
-            {pendingSession ? (
-              <>
-                <Text style={styles.label}>ENTER YOUR PIN</Text>
-                <Text style={styles.roleHint}>
-                  Welcome, {pendingSession.user.name}. Enter your PIN to unlock your session.
-                </Text>
-                <View style={styles.pinWrap}>
-                  <PinInput length={4} value={pin} onChange={setPin} />
-                </View>
-                <Pressable onPress={() => void verifyPinAndFinish()} disabled={pin.length !== 4 || loading} style={styles.buttonPress}>
-                  <LinearGradient
-                    colors={[...colors.gradientButton]}
-                    style={[styles.button, (pin.length !== 4 || loading) && styles.buttonDisabled]}
-                  >
-                    {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Unlock  →</Text>}
-                  </LinearGradient>
-                </Pressable>
-                <Pressable onPress={() => { setPendingSession(null); setPin(""); }} style={styles.signupRow}>
-                  <Text style={styles.signupText}>Back</Text>
-                </Pressable>
-              </>
-            ) : (
-              <>
+            <>
                 <View style={styles.methodRow}>
                   {(["otp", "password"] as const).map((m) => {
                     const active = method === m;
@@ -430,7 +431,6 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
                   </>
                 )}
               </>
-            )}
           </View>
 
           <Pressable onPress={onSignup} style={styles.signupRow}>
@@ -438,15 +438,6 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
               New agent? <Text style={styles.signupLink}>Register your outlet</Text>
             </Text>
           </Pressable>
-
-          <View style={styles.trustRow}>
-            {TRUST_BADGES.map((tb) => (
-              <View key={tb.label} style={styles.trustBadge}>
-                <tb.icon size={13} color="#8FA2E0" strokeWidth={2.2} />
-                <Text style={styles.trustBadgeText}>{tb.label}</Text>
-              </View>
-            ))}
-          </View>
 
           {__DEV__ ? <Text style={styles.devHint}>Dev API: {API_BASE}</Text> : null}
         </KeyboardAvoidingView>
@@ -499,31 +490,15 @@ const styles = StyleSheet.create({
   },
   secureText: { fontSize: 11, color: "#DCE6FF", fontWeight: "700" },
   flex: { flex: 1, marginTop: 30 },
-  trustChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-    alignSelf: "flex-start",
-    backgroundColor: "rgba(255,255,255,.1)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,.16)",
-    paddingHorizontal: 11,
-    paddingVertical: 6,
-    borderRadius: 18,
-  },
-  trustText: { fontSize: 11.5, color: "#DCE6FF", fontWeight: "600" },
-  trustBold: { color: "#fff", fontWeight: "800" },
-  heroTitle: {
-    marginTop: 16,
+  heroTitleMinimal: {
+    marginTop: 8,
     fontFamily: "System",
     fontWeight: "800",
-    fontSize: 29,
+    fontSize: 24,
     color: "#fff",
-    lineHeight: 34,
-    letterSpacing: -0.5,
+    letterSpacing: -0.4,
   },
-  heroGreen: { color: "#3BE39A" },
-  heroSub: { marginTop: 9, fontSize: 13.5, color: "#AEC0F0", fontWeight: "500", lineHeight: 19 },
+  heroSubMinimal: { marginTop: 6, fontSize: 13, color: "#AEC0F0", fontWeight: "500" },
   panel: {
     marginTop: 22,
     backgroundColor: "rgba(255,255,255,.09)",
@@ -532,6 +507,22 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     padding: 18,
   },
+  lockSafe: { flex: 1, backgroundColor: colors.card },
+  lockContent: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 14 },
+  lockRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
+  lockTitle: { fontSize: 18, fontWeight: "700", color: colors.blue },
+  lockSubtitle: { fontSize: 13, color: colors.textMuted, marginBottom: 10 },
+  lockSpinner: { marginTop: 16 },
+  lockUnlockBtn: {
+    marginTop: 16,
+    backgroundColor: colors.blue,
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 14,
+  },
+  lockUnlockBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  lockBackBtn: { marginTop: 18 },
+  lockBackText: { color: colors.textMuted, fontSize: 13, fontWeight: "600" },
   methodRow: {
     flexDirection: "row",
     gap: 6,
@@ -648,14 +639,5 @@ const styles = StyleSheet.create({
   signupRow: { marginTop: 16, alignItems: "center" },
   signupText: { fontSize: 13, color: "#8FA2E0", fontWeight: "500" },
   signupLink: { color: "#3BE39A", fontWeight: "700" },
-  trustRow: {
-    marginTop: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 16,
-  },
-  trustBadge: { flexDirection: "row", alignItems: "center", gap: 6 },
-  trustBadgeText: { fontSize: 10.5, fontWeight: "700", letterSpacing: 0.2, color: "#8FA2E0" },
   devHint: { marginTop: 14, fontSize: 10, color: "rgba(255,255,255,0.4)", textAlign: "center" },
 });

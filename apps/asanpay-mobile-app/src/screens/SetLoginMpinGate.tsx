@@ -33,11 +33,11 @@ export function SetLoginMpinGate() {
 
   async function save() {
     if (mpin.length !== 4) {
-      showAlert("Invalid MPIN", "Enter a 4-digit MPIN.");
+      showAlert("Invalid PIN", "Enter a 4-digit PIN.");
       return;
     }
     if (mpin !== confirm) {
-      showAlert("Mismatch", "MPIN and confirm do not match.");
+      showAlert("Mismatch", "PIN and confirm do not match.");
       return;
     }
     setLoading(true);
@@ -45,9 +45,9 @@ export function SetLoginMpinGate() {
       const { data } = await api.post<ApiResponse<{ user: AuthUser }>>("/auth/mpin/set", { mpin });
       if (!data.success) throw new Error(data.message);
       setAuth(data.data.user, { accessToken, refreshToken });
-      showAlert("Success", "Login MPIN set. Next time use Welcome back → MPIN.");
+      showAlert("Success", "PIN set. You can use it to unlock the app next time.");
     } catch (err) {
-      showAlert("Failed", apiError(err, "Could not set MPIN"));
+      showAlert("Failed", apiError(err, "Could not set PIN"));
     } finally {
       setLoading(false);
     }
@@ -69,14 +69,14 @@ export function SetLoginMpinGate() {
           bounces={false}
         >
           <BrandMark size={72} variant="mark" />
-          <Text style={styles.title}>Set your login MPIN</Text>
+          <Text style={styles.title}>Set your PIN</Text>
           <Text style={styles.sub}>
-            4-digit MPIN se next time OTP ke bina Welcome back pe unlock kar sakte ho.
+            Your 4-digit PIN lets you unlock the app next time without an OTP.
           </Text>
 
-          <Text style={styles.label}>New MPIN</Text>
+          <Text style={styles.label}>New PIN</Text>
           <PinInput value={mpin} onChange={setMpin} length={4} />
-          <Text style={[styles.label, styles.labelSpaced]}>Confirm MPIN</Text>
+          <Text style={[styles.label, styles.labelSpaced]}>Confirm PIN</Text>
           <PinInput value={confirm} onChange={setConfirm} length={4} autoFocus={false} />
 
           <Pressable
@@ -94,7 +94,7 @@ export function SetLoginMpinGate() {
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.btnText}>Save MPIN</Text>
+                <Text style={styles.btnText}>Save PIN</Text>
               )}
             </LinearGradient>
           </Pressable>
