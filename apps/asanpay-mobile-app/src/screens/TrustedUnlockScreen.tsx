@@ -12,6 +12,7 @@ import { PinInput } from "../components/PinInput";
 import { BrandMark } from "../components/BrandMark";
 import { colors } from "../theme/colors";
 import { showAlert } from "../components/AppAlert";
+import { touchRememberedLoginAuth } from "../lib/rememberedLogin";
 import type { LoginRoleChip } from "./LoginScreen";
 
 interface Props {
@@ -70,6 +71,7 @@ export function TrustedUnlockScreen({ mobile, role, onFallbackToOtp }: Props) {
         refreshToken: data.data.refreshToken,
       });
       await updateBioRefreshToken(data.data.refreshToken);
+      await touchRememberedLoginAuth();
     } catch {
       // Silent — session may have expired since last use. PIN (or "Use OTP instead") still works.
     } finally {
@@ -88,6 +90,7 @@ export function TrustedUnlockScreen({ mobile, role, onFallbackToOtp }: Props) {
       if (!data.success) throw new Error(data.message);
       setAuthHeader(data.data.accessToken);
       setAuth(data.data.user, { accessToken: data.data.accessToken, refreshToken: data.data.refreshToken });
+      await touchRememberedLoginAuth();
     } catch (err) {
       const code = (err as { response?: { data?: { code?: string } } })?.response?.data?.code;
       if (code === "DEVICE_NOT_TRUSTED" || code === "MPIN_NOT_SET") {

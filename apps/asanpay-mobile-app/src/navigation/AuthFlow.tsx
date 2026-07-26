@@ -3,7 +3,7 @@ import { LoginScreen, type LoginRoleChip } from "../screens/LoginScreen";
 import { WelcomeBackScreen } from "../screens/WelcomeBackScreen";
 import { TrustedUnlockScreen } from "../screens/TrustedUnlockScreen";
 import { SignupScreen } from "../screens/signup/SignupScreen";
-import { getRememberedLogin } from "../lib/rememberedLogin";
+import { getRememberedLogin, isTrustWindowExpired } from "../lib/rememberedLogin";
 
 type AuthStep = "login" | "welcome" | "signup" | "trustedUnlock";
 
@@ -21,7 +21,9 @@ export function AuthFlow() {
     let alive = true;
     (async () => {
       const remembered = await getRememberedLogin();
-      if (alive && remembered) {
+      // If the 12h trust window has already lapsed, don't show PIN just to bounce off a
+      // DEVICE_NOT_TRUSTED response — go straight to full login (mobile number entry).
+      if (alive && remembered && !isTrustWindowExpired(remembered)) {
         setMobile(remembered.mobile);
         setRole(remembered.role);
         setStep("trustedUnlock");

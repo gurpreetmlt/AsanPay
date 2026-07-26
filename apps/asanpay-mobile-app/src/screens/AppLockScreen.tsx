@@ -12,6 +12,7 @@ import { PinInput } from "../components/PinInput";
 import { BrandMark } from "../components/BrandMark";
 import { colors } from "../theme/colors";
 import { showAlert } from "../components/AppAlert";
+import { touchRememberedLoginAuth } from "../lib/rememberedLogin";
 
 interface Props {
   onUnlock: () => void;
@@ -66,6 +67,7 @@ export function AppLockScreen({ onUnlock }: Props) {
         refreshToken: data.data.refreshToken,
       });
       await updateBioRefreshToken(data.data.refreshToken);
+      await touchRememberedLoginAuth();
       onUnlock();
     } catch {
       // Silent — user can still fall back to PIN below. A stale/revoked token here shouldn't
@@ -86,6 +88,7 @@ export function AppLockScreen({ onUnlock }: Props) {
       if (!data.success) throw new Error(data.message);
       setAuthHeader(data.data.accessToken);
       setAuth(user, { accessToken: data.data.accessToken, refreshToken: data.data.refreshToken });
+      await touchRememberedLoginAuth();
       onUnlock();
     } catch (err) {
       showAlert("Incorrect PIN", apiError(err, "Please try again"));
