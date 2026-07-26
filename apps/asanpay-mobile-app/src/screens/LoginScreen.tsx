@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Eye, EyeOff, Lock, Network, Store, Users } from "lucide-react-native";
+import { Eye, EyeOff, Lock, Network, ShieldCheck, Store, Users } from "lucide-react-native";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import { api, API_BASE, setAuthHeader } from "../lib/api";
 import { apiError } from "../utils/apiError";
@@ -227,12 +227,18 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
       <LinearGradient colors={["#3564E6", "#0B2A9A", "#06175A"]} style={styles.bg}>
-        <View style={styles.brandRow}>
-          <BrandMark size={40} />
-          <Text style={styles.brandText}>
-            {brandPrefix}
-            {brandSuffix ? <Text style={styles.brandTextGreen}>{brandSuffix}</Text> : null}
-          </Text>
+        <View style={styles.topRow}>
+          <View style={styles.brandRow}>
+            <BrandMark size={40} />
+            <Text style={styles.brandText}>
+              {brandPrefix}
+              {brandSuffix ? <Text style={styles.brandTextGreen}>{brandSuffix}</Text> : null}
+            </Text>
+          </View>
+          <View style={styles.secureChip}>
+            <ShieldCheck size={13} color="#3BE39A" strokeWidth={2.3} />
+            <Text style={styles.secureText}>Secure</Text>
+          </View>
         </View>
 
         <KeyboardAvoidingView
@@ -392,12 +398,14 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
                         );
                       })}
                     </View>
-                    <Text style={styles.selectedRoleText}>
-                      Signing in as{" "}
-                      <Text style={styles.selectedRoleBold}>
-                        {ROLE_CHIPS.find((r) => r.key === role)?.short}
+                    <View style={styles.selectedBanner}>
+                      <Text style={styles.selectedBannerText}>
+                        Signing in as{" "}
+                        <Text style={styles.selectedBannerBold}>
+                          {ROLE_CHIPS.find((r) => r.key === role)?.short}
+                        </Text>
                       </Text>
-                    </Text>
+                    </View>
 
                     <Pressable onPress={() => void requestOtp()} disabled={!canSubmit} style={styles.buttonPress}>
                       <LinearGradient
@@ -432,7 +440,20 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#06175A" },
   bg: { flex: 1, paddingHorizontal: 22, paddingTop: 8 },
+  topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   brandRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  secureChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "rgba(255,255,255,.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,.18)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 18,
+  },
+  secureText: { fontSize: 11, color: "#DCE6FF", fontWeight: "700" },
   brandText: {
     fontFamily: "System",
     fontWeight: "800",
@@ -543,14 +564,22 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   chipTitleActive: { color: "#fff" },
-  selectedRoleText: {
-    marginTop: 10,
+  selectedBanner: {
+    marginTop: 12,
+    borderRadius: 12,
+    backgroundColor: "rgba(59,227,154,.12)",
+    borderWidth: 1,
+    borderColor: "rgba(59,227,154,.28)",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  selectedBannerText: {
     fontSize: 12,
-    color: "rgba(255,255,255,0.65)",
-    fontWeight: "500",
+    color: "#BFF3D9",
+    fontWeight: "600",
     textAlign: "center",
   },
-  selectedRoleBold: { color: "#3BE39A", fontWeight: "800" },
+  selectedBannerBold: { color: "#3BE39A", fontWeight: "800" },
   buttonPress: { marginTop: 14, borderRadius: 15 },
   button: { borderRadius: 15, paddingVertical: 16, alignItems: "center" },
   buttonDisabled: { opacity: 0.55 },
