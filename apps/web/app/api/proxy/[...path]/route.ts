@@ -1,6 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
 import { BACKEND_URL, clearAuthCookies, getAuthCookies, setAuthCookies } from "@/lib/serverAuth";
 
+// The dashboard (and other pages) fire several API calls in parallel. If the access-token cookie
+// is expired, each of those requests independently hits this 401 branch — without de-duping,
+// they'd each call /auth/refresh with the SAME (not-yet-rotated) refresh token. The backend
+// rotates + revokes the old refresh token on first use, so the 2nd/3rd concurrent calls look
+// like refresh-token reuse (a replay attack) and the backend responds by revoking every device
+// for the user — silently logging them out and breaking Welcome-back MPIN. This process is a
+// single long-running Node server (not multi-instance serverless), so an in-memory map safely
+// coalesces concurrent refreshes for the same token into one upstream call.
+const inFlightRefreshes = new Map<string, Promise<{ accessToken: string; refreshToken: string } | null>>();
+
+async function refreshOnce(refreshToken: string): Promise<{ accessToken: string; refreshToken: string } | null> {
+  const existing = inFlightRefreshes.get(refreshToken);
+  if (existing) return existing;
+
+  const promise = (async () => {
+    try {
+      const refreshRes = await fetch(`${BACKEND_URL}/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+        cache: "no-store",
+      });
+      const refreshJson = await refreshRes.json().catch(() => null);
+      if (refreshRes.ok && refreshJson?.success) {
+        return { accessToken: refreshJson.data.accessToken as string, refreshToken: refreshJson.data.refreshToken as string };
+      }
+      return null;
+    } finally {
+      inFlightRefreshes.delete(refreshToken);
+    }
+  })();
+
+  inFlightRefreshes.set(refreshToken, promise);
+  return promise;
+}
+
 async function forward(req: NextRequest, path: string[], accessToken: string | null): Promise<Response> {
   const url = `${BACKEND_URL}/${path.join("/")}${req.nextUrl.search}`;
   const body = req.method === "GET" || req.method === "HEAD" ? undefined : await req.text();
@@ -32,17 +68,11 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
   let upstream = await forward(req, path, accessToken);
 
   if (!isAuth && upstream.status === 401 && refreshToken) {
-    const refreshRes = await fetch(`${BACKEND_URL}/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken }),
-      cache: "no-store",
-    });
-    const refreshJson = await refreshRes.json().catch(() => null);
+    const refreshed = await refreshOnce(refreshToken);
 
-    if (refreshRes.ok && refreshJson?.success) {
-      await setAuthCookies(refreshJson.data.accessToken, refreshJson.data.refreshToken);
-      upstream = await forward(req, path, refreshJson.data.accessToken);
+    if (refreshed) {
+      await setAuthCookies(refreshed.accessToken, refreshed.refreshToken);
+      upstream = await forward(req, path, refreshed.accessToken);
     } else {
       await clearAuthCookies();
     }
