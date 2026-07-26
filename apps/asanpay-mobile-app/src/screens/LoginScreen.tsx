@@ -12,6 +12,7 @@ import { colors } from "../theme/colors";
 import { BRAND } from "../theme/brand";
 import { showAlert } from "../components/AppAlert";
 import { setRememberedLogin } from "../lib/rememberedLogin";
+import { enableBioUnlock, getBioUnlock } from "../lib/bioUnlock";
 import { getDeviceId, getDeviceLabel } from "../lib/deviceId";
 import { useAuthStore } from "../store/auth";
 
@@ -69,10 +70,31 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
   const [otp, setOtp] = useState("");
   const [devOtp, setDevOtp] = useState<string | null>(null);
 
-  function finishLogin(session: PendingSession) {
+  function commitLogin(session: PendingSession) {
     setAuthHeader(session.accessToken);
     void setRememberedLogin({ mobile: session.user.mobile, role: role });
     setAuth(session.user, { accessToken: session.accessToken, refreshToken: session.refreshToken });
+  }
+
+  async function finishLogin(session: PendingSession) {
+    const existing = await getBioUnlock();
+    if (existing?.enabled && existing.mobile === session.user.mobile) {
+      commitLogin(session);
+      return;
+    }
+    // Ask before committing so this screen stays mounted long enough to call enableBioUnlock.
+    showAlert("Enable fingerprint?", "Unlock faster next time with your fingerprint.", [
+      { text: "Not now", style: "cancel", onPress: () => commitLogin(session) },
+      {
+        text: "Enable",
+        style: "primary",
+        onPress: () => {
+          void enableBioUnlock({ mobile: session.user.mobile, role, refreshToken: session.refreshToken }).then(
+            () => commitLogin(session),
+          );
+        },
+      },
+    ]);
   }
 
   async function requestOtp() {
