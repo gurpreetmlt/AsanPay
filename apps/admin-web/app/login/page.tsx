@@ -99,12 +99,13 @@ export default function AdminLoginPage() {
           <h1 className="text-2xl font-bold" style={{ color: "var(--admin-text)" }}>
             {brand.name} Admin
           </h1>
-          <p className="mt-1 text-sm" style={{ color: "var(--admin-muted)" }}>
-            Platform control only · Not for Super Dist / Dist / Retailer
-          </p>
-          <p className="mt-1 text-xs" style={{ color: "var(--admin-muted)" }}>
-            Use provisioned admin credentials. No default password is displayed in UI.
-          </p>
+          <div
+            className="mx-auto mt-3 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold"
+            style={{ borderColor: "var(--admin-border)", color: "var(--admin-muted)" }}
+          >
+            <Shield size={12} />
+            Restricted to platform administrators
+          </div>
         </div>
 
         <form onSubmit={onSubmit} className="space-y-4">

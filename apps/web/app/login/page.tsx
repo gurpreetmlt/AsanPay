@@ -17,6 +17,7 @@ import {
   Shield,
   Check,
   KeyRound,
+  Sparkles,
 } from "lucide-react";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import { AsanPayLogo } from "@/components/brand/Logo";
@@ -488,9 +489,13 @@ export default function LoginPage() {
                   </button>
                 </div>
               </div>
-              <p className="text-xs" style={{ color: B.muted }}>
-                Tip: OTP + PIN is easier — if you forgot your password, use that instead.
-              </p>
+              <div
+                className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium"
+                style={{ background: `${B.green}12`, color: B.greenDark }}
+              >
+                <Sparkles size={14} />
+                Forgot your password? OTP + PIN is the faster way in.
+              </div>
               <SubmitBtn loading={loading} label={`Login as ${role.label}`} color={role.color} gradient={role.gradient} />
             </form>
           ) : otpStep === "pin" && pending ? (
