@@ -1,8 +1,8 @@
 import React, { useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Eye, EyeOff, Lock, Network, ShieldCheck, Store, Users } from "lucide-react-native";
+import { Eye, EyeOff, Lock, Network, ShieldCheck, Star, Store, Users } from "lucide-react-native";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import { api, API_BASE, setAuthHeader } from "../lib/api";
 import { apiError } from "../utils/apiError";
@@ -245,7 +245,26 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
           style={styles.flex}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-          <Text style={styles.heroTitleMinimal}>Sign in to your account</Text>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.trustChip}>
+            <Star size={12} color="#FFD84D" fill="#FFD84D" />
+            <Text style={styles.trustText}>
+              <Text style={styles.trustBold}>4.8</Text> · trusted by{" "}
+              <Text style={styles.trustBold}>2 Lakh+</Text> outlets
+            </Text>
+          </View>
+
+          <Text style={styles.heroTitle}>
+            Your business,{"\n"}banked <Text style={styles.heroGreen}>everywhere.</Text>
+          </Text>
+          <Text style={styles.heroSub}>
+            AEPS, money transfer, bills &amp; recharge — one login for retailers, distributors
+            &amp; super distributors.
+          </Text>
 
           <View style={styles.panel}>
             <>
@@ -431,6 +450,7 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
           </Pressable>
 
           {__DEV__ ? <Text style={styles.devHint}>Dev API: {API_BASE}</Text> : null}
+        </ScrollView>
         </KeyboardAvoidingView>
       </LinearGradient>
     </SafeAreaView>
@@ -462,15 +482,33 @@ const styles = StyleSheet.create({
     letterSpacing: -0.4,
   },
   brandTextGreen: { color: "#3BE39A" },
-  flex: { flex: 1, justifyContent: "center", paddingBottom: 40 },
-  heroTitleMinimal: {
-    marginTop: 8,
+  flex: { flex: 1 },
+  scrollContent: { flexGrow: 1, justifyContent: "center", paddingTop: 30, paddingBottom: 40 },
+  trustChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(255,255,255,.1)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,.16)",
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 18,
+  },
+  trustText: { fontSize: 11.5, color: "#DCE6FF", fontWeight: "600" },
+  trustBold: { color: "#fff", fontWeight: "800" },
+  heroTitle: {
+    marginTop: 16,
     fontFamily: "System",
     fontWeight: "800",
-    fontSize: 24,
+    fontSize: 28,
     color: "#fff",
-    letterSpacing: -0.4,
+    lineHeight: 33,
+    letterSpacing: -0.5,
   },
+  heroGreen: { color: "#3BE39A" },
+  heroSub: { marginTop: 9, fontSize: 13.5, color: "#AEC0F0", fontWeight: "500", lineHeight: 19 },
   panel: {
     marginTop: 22,
     backgroundColor: "rgba(255,255,255,.09)",
