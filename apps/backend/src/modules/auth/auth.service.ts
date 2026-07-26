@@ -660,6 +660,17 @@ export async function refreshSession(
 
   const tokenHash = hashToken(refreshToken);
   let reuseDetected = false;
+  let reuseDebug: Record<string, unknown> = {};
+
+  // Two browser requests can each read the SAME (still-valid-at-dispatch) refresh cookie and
+  // both hit this endpoint moments apart — e.g. a dashboard firing several API calls in
+  // parallel. The first rotates + revokes the token; the second arrives a beat later already
+  // carrying the now-revoked value. Without tolerance for this, that's indistinguishable from a
+  // real stolen-token replay and we'd nuke every device on a false positive. Anthos/Auth0/Supabase
+  // handle this the same way: a short grace window after rotation where the just-revoked token
+  // is still honored (minted a fresh access token, no further rotation) instead of triggering the
+  // reuse-detected nuclear response. Past this window, reuse is treated as a real attack.
+  const REUSE_GRACE_MS = 10_000;
 
   try {
     return await db.transaction(async (tx) => {
@@ -673,13 +684,46 @@ export async function refreshSession(
         throw new HttpError(401, "Invalid or expired refresh token", "INVALID_REFRESH_TOKEN");
       }
 
-      if (stored.revokedAt || stored.expiresAt.getTime() <= Date.now()) {
+      if (stored.revokedAt) {
+        const msSinceRevoked = Date.now() - stored.revokedAt.getTime();
+        if (msSinceRevoked < REUSE_GRACE_MS) {
+          const [user] = await tx.select().from(users).where(eq(users.id, payload.sub));
+          if (!user || !user.isActive) {
+            throw new HttpError(401, "Account is inactive", "ACCOUNT_INACTIVE");
+          }
+          await insertAuditLog({
+            userId: payload.sub,
+            action: "auth.refresh_grace_period_replay",
+            entityType: "user",
+            entityId: payload.sub,
+            ipAddress: null,
+            userAgent: null,
+            metadata: { tokenHash, msSinceRevoked, deviceInfo: stored.deviceInfo },
+          });
+          // Don't rotate again — the token stays revoked exactly as it already was. Just hand
+          // this request a fresh access token so it doesn't fail outright.
+          const newAccessToken = signAccessToken({ id: user.id, uid: user.uid, role: user.role });
+          return { accessToken: newAccessToken, refreshToken };
+        }
+
         reuseDetected = true;
+        reuseDebug = {
+          storedCreatedAt: stored.createdAt,
+          storedRevokedAt: stored.revokedAt,
+          storedExpiresAt: stored.expiresAt,
+          msSinceRevoked,
+          deviceInfo: stored.deviceInfo,
+        };
         await tx
           .update(refreshTokens)
           .set({ revokedAt: new Date() })
           .where(and(eq(refreshTokens.userId, payload.sub), isNull(refreshTokens.revokedAt)));
         throw new HttpError(401, "Refresh token reuse detected — all sessions revoked", "TOKEN_REUSE");
+      }
+
+      if (stored.expiresAt.getTime() <= Date.now()) {
+        // Naturally expired (30d TTL) — not suspicious, just stale. No device-wide revoke.
+        throw new HttpError(401, "Invalid or expired refresh token", "INVALID_REFRESH_TOKEN");
       }
 
       const [user] = await tx.select().from(users).where(eq(users.id, payload.sub));
@@ -711,7 +755,7 @@ export async function refreshSession(
         entityId: payload.sub,
         ipAddress: null,
         userAgent: null,
-        metadata: { tokenHash },
+        metadata: { tokenHash, ...reuseDebug },
       });
     }
     throw err;
