@@ -2,15 +2,18 @@ import React, { useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Award, Lock, Network, ShieldCheck, Star, Store, Users } from "lucide-react-native";
-import type { ApiResponse } from "@asanpay/shared-types";
-import { api, API_BASE } from "../lib/api";
+import { Award, Eye, EyeOff, Lock, Network, ShieldCheck, Star, Store, Users } from "lucide-react-native";
+import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
+import { api, API_BASE, setAuthHeader } from "../lib/api";
 import { apiError } from "../utils/apiError";
 import { BrandMark } from "../components/BrandMark";
+import { PinInput } from "../components/PinInput";
 import { colors } from "../theme/colors";
 import { BRAND } from "../theme/brand";
 import { showAlert } from "../components/AppAlert";
-import { getRememberedLogin } from "../lib/rememberedLogin";
+import { getRememberedLogin, setRememberedLogin } from "../lib/rememberedLogin";
+import { getDeviceId, getDeviceLabel } from "../lib/deviceId";
+import { useAuthStore } from "../store/auth";
 
 // Single source of truth for the wordmark: BRAND.appName (theme/brand.ts). Splits off a
 // trailing "Pay" so it renders in the accent green, same as web's Logo.tsx — falls back to
@@ -52,10 +55,75 @@ interface LoginScreenProps {
   onSignup: () => void;
 }
 
+interface PendingSession {
+  user: AuthUser;
+  accessToken: string;
+  refreshToken: string;
+}
+
 export function LoginScreen({ onOtpSent, onSignup }: LoginScreenProps) {
+  const setAuth = useAuthStore((s) => s.setAuth);
   const [mobile, setMobile] = useState("");
   const [role, setRole] = useState<LoginRoleChip>("retailer");
   const [loading, setLoading] = useState(false);
+  const [method, setMethod] = useState<"otp" | "password">("otp");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [pendingSession, setPendingSession] = useState<PendingSession | null>(null);
+  const [pin, setPin] = useState("");
+
+  function finishLogin(session: PendingSession) {
+    setAuthHeader(session.accessToken);
+    void setRememberedLogin({ mobile: session.user.mobile, role: role });
+    setAuth(session.user, { accessToken: session.accessToken, refreshToken: session.refreshToken });
+  }
+
+  async function loginWithPassword() {
+    if (mobile.length !== 10 || !password) {
+      showAlert("Missing details", "Enter your mobile number and password");
+      return;
+    }
+    setLoading(true);
+    try {
+      const { data } = await api.post<ApiResponse<PendingSession>>("/auth/login", {
+        mobile,
+        password,
+        portal: "agent",
+        deviceId: await getDeviceId(),
+        deviceLabel: getDeviceLabel(),
+      });
+      if (!data.success) throw new Error(data.message);
+
+      if (data.data.user.hasTxnPin) {
+        // Extra checkpoint before granting access — same as the OTP flow's post-verify PIN step.
+        setPendingSession(data.data);
+      } else {
+        finishLogin(data.data);
+      }
+    } catch (err) {
+      showAlert("Login failed", apiError(err, "Incorrect mobile number or password"));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function verifyPinAndFinish() {
+    if (!pendingSession || pin.length !== 4) return;
+    setLoading(true);
+    try {
+      await api.post(
+        "/auth/txn-pin/verify",
+        { pin },
+        { headers: { Authorization: `Bearer ${pendingSession.accessToken}` } },
+      );
+      finishLogin(pendingSession);
+    } catch (err) {
+      showAlert("Incorrect PIN", apiError(err, "Please try again"));
+      setPin("");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function sendOtp() {
     if (mobile.length !== 10) {
@@ -138,75 +206,158 @@ export function LoginScreen({ onOtpSent, onSignup }: LoginScreenProps) {
           </Text>
 
           <View style={styles.panel}>
-            <Text style={styles.label}>MOBILE NUMBER</Text>
-            <View style={styles.inputRow}>
-              <Text style={styles.prefix}>+91</Text>
-              <View style={styles.divider} />
-              <TextInput
-                style={styles.input}
-                keyboardType="number-pad"
-                maxLength={10}
-                value={mobile}
-                onChangeText={(t) => setMobile(t.replace(/\D/g, ""))}
-                placeholder="98765 43210"
-                placeholderTextColor="rgba(255,255,255,0.4)"
-              />
-            </View>
-
-            <Text style={[styles.label, styles.labelSpaced]}>CONTINUE AS</Text>
-            <Text style={styles.roleHint}>
-              Select your registered role — wrong role will be rejected for this number.
-            </Text>
-            <View style={styles.chipRow}>
-              {ROLE_CHIPS.map((r) => {
-                const active = role === r.key;
-                const Icon = r.Icon;
-                return (
-                  <Pressable
-                    key={r.key}
-                    onPress={() => {
-                      // Switching role manually starts a fresh login — clear the number so the
-                      // previous role's mobile isn't accidentally submitted under the new role.
-                      // (The auto-correction path in sendOtp deliberately keeps the number.)
-                      if (r.key !== role) setMobile("");
-                      setRole(r.key);
-                    }}
-                    style={[styles.chip, active && styles.chipActive]}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: active }}
+            {pendingSession ? (
+              <>
+                <Text style={styles.label}>ENTER YOUR PIN</Text>
+                <Text style={styles.roleHint}>
+                  Password verified for {pendingSession.user.name}. PIN unlocks your session.
+                </Text>
+                <View style={styles.pinWrap}>
+                  <PinInput length={4} value={pin} onChange={setPin} />
+                </View>
+                <Pressable onPress={() => void verifyPinAndFinish()} disabled={pin.length !== 4 || loading} style={styles.buttonPress}>
+                  <LinearGradient
+                    colors={[...colors.gradientButton]}
+                    style={[styles.button, (pin.length !== 4 || loading) && styles.buttonDisabled]}
                   >
-                    <View style={[styles.chipIconWrap, active && styles.chipIconWrapActive]}>
-                      <Icon
-                        size={16}
-                        color={active ? "#3BE39A" : "rgba(255,255,255,0.75)"}
-                        strokeWidth={2.2}
+                    {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Unlock  →</Text>}
+                  </LinearGradient>
+                </Pressable>
+                <Pressable onPress={() => { setPendingSession(null); setPin(""); }} style={styles.signupRow}>
+                  <Text style={styles.signupText}>Back</Text>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <View style={styles.methodRow}>
+                  {(["otp", "password"] as const).map((m) => {
+                    const active = method === m;
+                    return (
+                      <Pressable
+                        key={m}
+                        onPress={() => setMethod(m)}
+                        style={[styles.methodPill, active && styles.methodPillActive]}
+                      >
+                        <Text style={[styles.methodPillText, active && styles.methodPillTextActive]}>
+                          {m === "otp" ? "OTP + PIN" : "Password"}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                <Text style={styles.label}>MOBILE NUMBER</Text>
+                <View style={styles.inputRow}>
+                  <Text style={styles.prefix}>+91</Text>
+                  <View style={styles.divider} />
+                  <TextInput
+                    style={styles.input}
+                    keyboardType="number-pad"
+                    maxLength={10}
+                    value={mobile}
+                    onChangeText={(t) => setMobile(t.replace(/\D/g, ""))}
+                    placeholder="98765 43210"
+                    placeholderTextColor="rgba(255,255,255,0.4)"
+                  />
+                </View>
+
+                {method === "password" ? (
+                  <>
+                    <Text style={[styles.label, styles.labelSpaced]}>PASSWORD</Text>
+                    <View style={styles.inputRow}>
+                      <TextInput
+                        style={styles.input}
+                        secureTextEntry={!showPassword}
+                        value={password}
+                        onChangeText={setPassword}
+                        placeholder="Enter password"
+                        placeholderTextColor="rgba(255,255,255,0.4)"
                       />
+                      <Pressable onPress={() => setShowPassword((v) => !v)}>
+                        {showPassword ? (
+                          <EyeOff size={17} color="rgba(255,255,255,0.6)" />
+                        ) : (
+                          <Eye size={17} color="rgba(255,255,255,0.6)" />
+                        )}
+                      </Pressable>
                     </View>
-                    <Text style={[styles.chipTitle, active && styles.chipTitleActive]}>{r.short}</Text>
-                    <Text style={[styles.chipDesc, active && styles.chipDescActive]}>{r.desc}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
 
-            <View style={styles.selectedBanner}>
-              <Text style={styles.selectedBannerText}>
-                Signing in as <Text style={styles.selectedBannerBold}>{selected.short}</Text>
-              </Text>
-            </View>
-
-            <Pressable onPress={sendOtp} disabled={!canSubmit} style={styles.buttonPress}>
-              <LinearGradient
-                colors={[...colors.gradientButton]}
-                style={[styles.button, !canSubmit && styles.buttonDisabled]}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#fff" />
+                    <Pressable
+                      onPress={() => void loginWithPassword()}
+                      disabled={mobile.length !== 10 || !password || loading}
+                      style={styles.buttonPress}
+                    >
+                      <LinearGradient
+                        colors={[...colors.gradientButton]}
+                        style={[
+                          styles.button,
+                          (mobile.length !== 10 || !password || loading) && styles.buttonDisabled,
+                        ]}
+                      >
+                        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Login  →</Text>}
+                      </LinearGradient>
+                    </Pressable>
+                  </>
                 ) : (
-                  <Text style={styles.buttonText}>Continue  →</Text>
+                  <>
+                    <Text style={[styles.label, styles.labelSpaced]}>CONTINUE AS</Text>
+                    <Text style={styles.roleHint}>
+                      Select your registered role — wrong role will be rejected for this number.
+                    </Text>
+                    <View style={styles.chipRow}>
+                      {ROLE_CHIPS.map((r) => {
+                        const active = role === r.key;
+                        const Icon = r.Icon;
+                        return (
+                          <Pressable
+                            key={r.key}
+                            onPress={() => {
+                              // Switching role manually starts a fresh login — clear the number so the
+                              // previous role's mobile isn't accidentally submitted under the new role.
+                              // (The auto-correction path in sendOtp deliberately keeps the number.)
+                              if (r.key !== role) setMobile("");
+                              setRole(r.key);
+                            }}
+                            style={[styles.chip, active && styles.chipActive]}
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: active }}
+                          >
+                            <View style={[styles.chipIconWrap, active && styles.chipIconWrapActive]}>
+                              <Icon
+                                size={16}
+                                color={active ? "#3BE39A" : "rgba(255,255,255,0.75)"}
+                                strokeWidth={2.2}
+                              />
+                            </View>
+                            <Text style={[styles.chipTitle, active && styles.chipTitleActive]}>{r.short}</Text>
+                            <Text style={[styles.chipDesc, active && styles.chipDescActive]}>{r.desc}</Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+
+                    <View style={styles.selectedBanner}>
+                      <Text style={styles.selectedBannerText}>
+                        Signing in as <Text style={styles.selectedBannerBold}>{selected.short}</Text>
+                      </Text>
+                    </View>
+
+                    <Pressable onPress={sendOtp} disabled={!canSubmit} style={styles.buttonPress}>
+                      <LinearGradient
+                        colors={[...colors.gradientButton]}
+                        style={[styles.button, !canSubmit && styles.buttonDisabled]}
+                      >
+                        {loading ? (
+                          <ActivityIndicator color="#fff" />
+                        ) : (
+                          <Text style={styles.buttonText}>Continue  →</Text>
+                        )}
+                      </LinearGradient>
+                    </Pressable>
+                  </>
                 )}
-              </LinearGradient>
-            </Pressable>
+              </>
+            )}
           </View>
 
           <Pressable onPress={onSignup} style={styles.signupRow}>
@@ -308,6 +459,19 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     padding: 18,
   },
+  methodRow: {
+    flexDirection: "row",
+    gap: 6,
+    backgroundColor: "rgba(255,255,255,.08)",
+    borderRadius: 14,
+    padding: 4,
+    marginBottom: 16,
+  },
+  methodPill: { flex: 1, borderRadius: 11, paddingVertical: 9, alignItems: "center" },
+  methodPillActive: { backgroundColor: "rgba(255,255,255,.16)" },
+  methodPillText: { fontSize: 12.5, fontWeight: "700", color: "rgba(255,255,255,.65)" },
+  methodPillTextActive: { color: "#fff" },
+  pinWrap: { marginTop: 10, marginBottom: 4, alignItems: "center" },
   label: { fontSize: 11.5, fontWeight: "700", color: "#B9C6F2", letterSpacing: 0.3 },
   labelSpaced: { marginTop: 18, marginBottom: 6 },
   roleHint: {
