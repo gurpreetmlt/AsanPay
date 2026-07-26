@@ -25,6 +25,34 @@ function isAuthEndpoint(url: string | undefined): boolean {
   return /\/auth\/(login|refresh|logout|otp|mpin|signup)/.test(url);
 }
 
+// Screens fire several requests in parallel (Promise.all). If the access token has expired,
+// each one independently hits the 401 branch below — without de-duping, they'd each call
+// /auth/refresh with the SAME (not-yet-rotated) refresh token. The backend rotates + revokes
+// the old refresh token on first use, so concurrent calls look like a replay attack and it
+// responds by revoking every trusted device for the user. This coalesces concurrent refreshes
+// for the same token into a single in-flight request.
+let inFlightRefresh: Promise<{ accessToken: string; refreshToken: string } | null> | null = null;
+
+async function refreshOnce(refreshToken: string): Promise<{ accessToken: string; refreshToken: string } | null> {
+  if (inFlightRefresh) return inFlightRefresh;
+
+  inFlightRefresh = (async () => {
+    try {
+      const { data } = await axios.post<ApiResponse<{ accessToken: string; refreshToken: string }>>(
+        `${API_BASE}/auth/refresh`,
+        { refreshToken },
+      );
+      return data.success ? data.data : null;
+    } catch {
+      return null;
+    } finally {
+      inFlightRefresh = null;
+    }
+  })();
+
+  return inFlightRefresh;
+}
+
 api.interceptors.request.use((config) => {
   const token = useAuthStore.getState().accessToken;
   if (token) config.headers.Authorization = `Bearer ${token}`;
@@ -44,19 +72,13 @@ api.interceptors.response.use(
       original._retry = true;
       const refreshToken = useAuthStore.getState().refreshToken;
       if (refreshToken) {
-        try {
-          const { data } = await axios.post<ApiResponse<{ accessToken: string; refreshToken: string }>>(
-            `${API_BASE}/auth/refresh`,
-            { refreshToken },
-          );
-          if (data.success) {
-            useAuthStore.getState().setTokens(data.data.accessToken, data.data.refreshToken);
-            original.headers.Authorization = `Bearer ${data.data.accessToken}`;
-            return api(original);
-          }
-        } catch {
-          useAuthStore.getState().logout();
+        const refreshed = await refreshOnce(refreshToken);
+        if (refreshed) {
+          useAuthStore.getState().setTokens(refreshed.accessToken, refreshed.refreshToken);
+          original.headers.Authorization = `Bearer ${refreshed.accessToken}`;
+          return api(original);
         }
+        useAuthStore.getState().logout();
       } else {
         useAuthStore.getState().logout();
       }
