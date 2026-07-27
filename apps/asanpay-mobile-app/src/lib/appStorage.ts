@@ -17,6 +17,27 @@ function loadAsyncStorage(): AsyncStorageModule | null {
   }
 }
 
+// On a cold start the native AsyncStorage bridge can briefly throw before it's ready. Treating
+// that the same as "no value" makes getDeviceId()/getRememberedLogin() think a trusted device's
+// stored id is missing and regenerate it — silently untrusting a device the backend still
+// considers fresh. Retry briefly before falling back to the (empty, this-session-only) memory map.
+async function getItemWithRetry(
+  asyncStorage: AsyncStorageModule,
+  key: string,
+  attempts = 3,
+  delayMs = 150,
+): Promise<string | null> {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await asyncStorage.getItem(key);
+    } catch (err) {
+      if (i === attempts - 1) throw err;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  return null;
+}
+
 /** Persists when AsyncStorage native module is linked; otherwise in-memory for this session. */
 export function createAppStorage(): StateStorage {
   const asyncStorage = loadAsyncStorage();
@@ -25,9 +46,9 @@ export function createAppStorage(): StateStorage {
     getItem: async (name) => {
       if (asyncStorage) {
         try {
-          return await asyncStorage.getItem(name);
+          return await getItemWithRetry(asyncStorage, name);
         } catch {
-          /* native module not ready */
+          /* still not ready after retries */
         }
       }
       return memory.get(name) ?? null;

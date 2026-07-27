@@ -537,6 +537,23 @@ export async function loginWithMpin(
     Number.isFinite(lastAuthMs) &&
     Date.now() - lastAuthMs < DEVICE_TRUST_WINDOW_MS;
   if (!device || !isFresh) {
+    // Logged unconditionally (even "no device row at all") so a client sending an unexpected
+    // deviceId — e.g. a mobile storage race regenerating it after a genuinely-trusted login —
+    // is visible in the audit trail instead of showing up as an unexplained gap between logins.
+    await insertAuditLog({
+      userId: row.id,
+      action: "auth.device_not_trusted",
+      entityType: "user",
+      entityId: row.id,
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent,
+      metadata: {
+        deviceId: input.deviceId,
+        knownDevice: Boolean(device),
+        revoked: device ? Boolean(device.revokedAt) : null,
+        msSinceLastAuth: device ? Date.now() - lastAuthMs : null,
+      },
+    });
     throw new HttpError(
       401,
       "Session expired. Login again with OTP or password, then MPIN will work on this device.",
