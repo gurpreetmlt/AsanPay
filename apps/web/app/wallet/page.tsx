@@ -89,117 +89,113 @@ export default function WalletPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {/* Main Wallet */}
-              <div
-                className="relative overflow-hidden rounded-2xl p-5 text-white"
-                style={{ background: role.gradient, boxShadow: `0 8px 32px ${role.color}40` }}
-              >
-                <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white opacity-10" />
-                <div className="relative z-10">
-                  <div className="mb-1 text-xs font-medium uppercase tracking-wider text-white/70">
-                    {walletDisplayName("main")}
-                  </div>
-                  <div className="mb-3 text-3xl font-bold leading-none">
-                    {loading && !main ? "…" : formatInr(main?.balance ?? "0")}
-                  </div>
-                  <div className="mb-4 flex items-center gap-1.5 border-t border-white/15 pt-3 text-xs text-white/80">
-                    {parseFloat(main?.pendingBalance ?? "0") > 0
-                      ? `Pending: ${formatInr(main?.pendingBalance ?? "0")}`
-                      : "No pending balance"}
-                  </div>
-                  <div className="grid grid-cols-4 gap-2">
-                    {[
-                      { icon: PlusCircle, label: "Add Money", action: () => toast("Coming soon") },
-                      {
-                        icon: SendHorizonal,
-                        label: "Transfer",
-                        action: () =>
-                          canFund ? toast("Select a downline partner below to fund") : toast("Coming soon"),
-                      },
-                      { icon: RefreshCcw, label: "Refresh", action: () => void load() },
-                      { icon: Download, label: "Statement", action: () => router.push("/statements") },
-                    ].map(({ icon: Icon, label, action }) => (
-                      <button
-                        key={label}
-                        type="button"
-                        onClick={action}
-                        className="flex flex-col items-center gap-1.5 rounded-xl border border-white/20 bg-white/15 px-2 py-2.5 text-white transition-all hover:bg-white/25"
-                      >
-                        <Icon size={18} />
-                        <span className="text-[11px] font-semibold">{label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {/* Main Wallet */}
+          <div
+            className="relative overflow-hidden rounded-2xl p-4 text-white"
+            style={{ background: role.gradient, boxShadow: `0 8px 32px ${role.color}40` }}
+          >
+            <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white opacity-10" />
+            <div className="relative z-10">
+              <div className="mb-1 text-xs font-medium uppercase tracking-wider text-white/70">
+                {walletDisplayName("main")}
               </div>
-
-              {/* AEPS Wallet */}
-              {aeps && (
-                <div
-                  className="relative overflow-hidden rounded-2xl p-5 text-white"
-                  style={{ background: B.green, boxShadow: `0 8px 32px ${B.green}40` }}
-                >
-                  <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white opacity-10" />
-                  <div className="relative z-10">
-                    <div className="mb-1 text-xs font-medium uppercase tracking-wider text-white/70">
-                      {walletDisplayName("aeps")}
-                    </div>
-                    <div className="mb-3 text-3xl font-bold leading-none">{formatInr(aeps.balance)}</div>
-                    <div className="mb-4 flex items-center gap-1.5 border-t border-white/15 pt-3 text-xs text-white/80">
-                      {parseFloat(aeps.pendingBalance ?? "0") > 0
-                        ? `Pending: ${formatInr(aeps.pendingBalance ?? "0")}`
-                        : "No pending balance"}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => void load()}
-                      className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/15 px-3 py-2.5 text-white transition-all hover:bg-white/25"
-                    >
-                      <RefreshCcw size={16} />
-                      <span className="text-xs font-semibold">Refresh</span>
-                    </button>
-                  </div>
-                </div>
-              )}
+              <div className="mb-2 text-2xl font-bold leading-none">
+                {loading && !main ? "…" : formatInr(main?.balance ?? "0")}
+              </div>
+              <div className="mb-3 flex items-center gap-1.5 border-t border-white/15 pt-2 text-xs text-white/80">
+                {parseFloat(main?.pendingBalance ?? "0") > 0
+                  ? `Pending: ${formatInr(main?.pendingBalance ?? "0")}`
+                  : "No pending balance"}
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                {[
+                  { icon: PlusCircle, label: "Add Money", action: () => toast("Coming soon") },
+                  {
+                    icon: SendHorizonal,
+                    label: "Transfer",
+                    action: () =>
+                      canFund ? toast("Select a downline partner below to fund") : toast("Coming soon"),
+                  },
+                  { icon: RefreshCcw, label: "Refresh", action: () => void load() },
+                  { icon: Download, label: "Statement", action: () => router.push("/statements") },
+                ].map(({ icon: Icon, label, action }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={action}
+                    className="flex flex-col items-center gap-1 rounded-xl border border-white/20 bg-white/15 px-2 py-2 text-white transition-all hover:bg-white/25"
+                  >
+                    <Icon size={16} />
+                    <span className="text-[10px] font-semibold">{label}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
-          <div className="flex flex-col gap-4">
-            {[
-              { label: "Credits (ledger)", value: formatInr(credits), icon: ArrowDownLeft, col: B.blue },
-              { label: "Debits (ledger)", value: formatInr(debits), icon: ArrowUpRight, col: "#DC2626" },
-              {
-                label: "Pending balance",
-                value: formatInr(pendingTotal),
-                icon: Clock,
-                col: "#D97706",
-              },
-            ].map((s) => (
-              <div
-                key={s.label}
-                className="flex items-center gap-3 rounded-2xl border bg-white p-4"
-                style={{ borderColor: B.border }}
-              >
-                <div
-                  className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl"
-                  style={{ background: `${s.col}15` }}
-                >
-                  <s.icon size={18} style={{ color: s.col }} />
+          {/* AEPS Wallet */}
+          {aeps && (
+            <div
+              className="relative overflow-hidden rounded-2xl p-4 text-white"
+              style={{ background: B.green, boxShadow: `0 8px 32px ${B.green}40` }}
+            >
+              <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white opacity-10" />
+              <div className="relative z-10">
+                <div className="mb-1 text-xs font-medium uppercase tracking-wider text-white/70">
+                  {walletDisplayName("aeps")}
                 </div>
-                <div>
-                  <div className="text-xs" style={{ color: B.muted }}>
-                    {s.label}
-                  </div>
-                  <div className="text-lg font-bold" style={{ color: s.col }}>
-                    {s.value}
-                  </div>
+                <div className="mb-2 text-2xl font-bold leading-none">{formatInr(aeps.balance)}</div>
+                <div className="mb-3 flex items-center gap-1.5 border-t border-white/15 pt-2 text-xs text-white/80">
+                  {parseFloat(aeps.pendingBalance ?? "0") > 0
+                    ? `Pending: ${formatInr(aeps.pendingBalance ?? "0")}`
+                    : "No pending balance"}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void load()}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/15 px-3 py-2 text-white transition-all hover:bg-white/25"
+                >
+                  <RefreshCcw size={15} />
+                  <span className="text-xs font-semibold">Refresh</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          {[
+            { label: "Credits (ledger)", value: formatInr(credits), icon: ArrowDownLeft, col: B.blue },
+            { label: "Debits (ledger)", value: formatInr(debits), icon: ArrowUpRight, col: "#DC2626" },
+            {
+              label: "Pending balance",
+              value: formatInr(pendingTotal),
+              icon: Clock,
+              col: "#D97706",
+            },
+          ].map((s) => (
+            <div
+              key={s.label}
+              className="flex items-center gap-3 rounded-2xl border bg-white p-4"
+              style={{ borderColor: B.border }}
+            >
+              <div
+                className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl"
+                style={{ background: `${s.col}15` }}
+              >
+                <s.icon size={18} style={{ color: s.col }} />
+              </div>
+              <div>
+                <div className="text-xs" style={{ color: B.muted }}>
+                  {s.label}
+                </div>
+                <div className="text-lg font-bold" style={{ color: s.col }}>
+                  {s.value}
                 </div>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
 
         {canFund && (
