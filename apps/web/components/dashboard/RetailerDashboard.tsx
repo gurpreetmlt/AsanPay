@@ -97,43 +97,47 @@ export function RetailerDashboard() {
     <div className="space-y-5">
       {/* Wallet Summary */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {/* Primary Wallet */}
+        {/* Main Wallet */}
         <div
-          className="relative overflow-hidden rounded-2xl p-5 text-white col-span-1 md:col-span-2"
+          className="relative overflow-hidden rounded-2xl p-5 text-white"
           style={{ background: role.gradient, boxShadow: `0 8px 32px ${role.color}40` }}
         >
           <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white opacity-10" />
-          <div className="absolute bottom-3 right-4 h-16 w-16 rounded-full opacity-15" style={{ background: B.green }} />
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-white/70">
-                <Wallet size={14} />
-                {primary ? walletDisplayName(primary.walletType) : "Main Wallet"}
-              </div>
-              <div className="mb-1 text-3xl font-bold leading-none">
-                {loading ? "…" : formatInr(primary?.balance ?? "0")}
-              </div>
-            </div>
-            {secondary && (
-              <div className="text-right">
-                <div className="text-xs text-white/60">{walletDisplayName(secondary.walletType)}</div>
-                <div className="text-lg font-bold">{formatInr(secondary.balance)}</div>
-              </div>
-            )}
+          <div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-white/70">
+            <Wallet size={14} />
+            {primary ? walletDisplayName(primary.walletType) : "Main Wallet"}
           </div>
-          <div className="mt-3 flex items-center gap-4 border-t border-white/15 pt-3">
-            <div className="flex items-center gap-1.5">
-              <Activity size={12} className="text-white/60" />
-              <span className="text-xs text-white/80">Pending: {formatInr(totalPending)}</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <TrendingUp size={12} style={{ color: B.greenLight }} />
-              <span className="text-xs font-semibold" style={{ color: B.greenLight }}>
-                Today: {formatInr(stats?.today.commissionEarned ?? "0")} earned
-              </span>
-            </div>
+          <div className="mb-3 text-3xl font-bold leading-none">
+            {loading ? "…" : formatInr(primary?.balance ?? "0")}
+          </div>
+          <div className="flex items-center gap-1.5 border-t border-white/15 pt-3">
+            <TrendingUp size={12} style={{ color: B.greenLight }} />
+            <span className="text-xs font-semibold" style={{ color: B.greenLight }}>
+              Today: {formatInr(stats?.today.commissionEarned ?? "0")} earned
+            </span>
           </div>
         </div>
+
+        {/* AEPS Wallet */}
+        {secondary && (
+          <div
+            className="relative overflow-hidden rounded-2xl p-5 text-white"
+            style={{ background: B.green, boxShadow: `0 8px 32px ${B.green}40` }}
+          >
+            <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white opacity-10" />
+            <div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-white/70">
+              <Wallet size={14} />
+              {walletDisplayName(secondary.walletType)}
+            </div>
+            <div className="mb-3 text-3xl font-bold leading-none">
+              {loading ? "…" : formatInr(secondary.balance)}
+            </div>
+            <div className="flex items-center gap-1.5 border-t border-white/15 pt-3">
+              <Activity size={12} className="text-white/80" />
+              <span className="text-xs text-white/90">Pending: {formatInr(totalPending)}</span>
+            </div>
+          </div>
+        )}
 
         {/* Today's Stats Cards */}
         <StatCard
