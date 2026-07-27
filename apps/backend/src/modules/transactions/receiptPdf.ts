@@ -1,6 +1,4 @@
 import type { Response } from "express";
-import path from "node:path";
-import fs from "node:fs";
 import PDFDocument from "pdfkit";
 import { eq } from "drizzle-orm";
 import { db } from "../../db/postgres";
@@ -66,8 +64,6 @@ const STATUS_STYLE: Record<string, { fg: string; bg: string; label: string }> = 
   refunded: { fg: PALETTE.pending, bg: PALETTE.pendingBg, label: "REFUNDED" },
 };
 
-const LOGO_PATH = path.join(process.cwd(), "assets", "brand-logo.png");
-
 function metadataCustomerLine(metadata: unknown): string | null {
   if (!metadata || typeof metadata !== "object") return null;
   const m = metadata as Record<string, unknown>;
@@ -92,16 +88,7 @@ export async function streamTxnReceiptPdf(actor: Actor, txnRef: string, res: Res
 
   // ── Header band ─────────────────────────────────────────────────────────
   doc.rect(0, 0, pageW, 92).fill(PALETTE.navy);
-  const hasLogo = fs.existsSync(LOGO_PATH);
-  if (hasLogo) {
-    try {
-      doc.image(LOGO_PATH, marginX, 24, { height: 26, fit: [140, 26] });
-    } catch {
-      doc.fontSize(19).fillColor("#FFFFFF").font("Helvetica-Bold").text(brandName, marginX, 30);
-    }
-  } else {
-    doc.fontSize(19).fillColor("#FFFFFF").font("Helvetica-Bold").text(brandName, marginX, 30);
-  }
+  doc.fontSize(20).fillColor("#FFFFFF").font("Helvetica-Bold").text(brandName, marginX, 26);
   doc
     .fontSize(9)
     .fillColor("#C9D6F5")
@@ -128,12 +115,9 @@ export async function streamTxnReceiptPdf(actor: Actor, txnRef: string, res: Res
     .font("Helvetica-Bold")
     .fontSize(28)
     .text(`Rs. ${row.amount}`, marginX, y);
-  y += 40;
+  y += 44;
 
-  doc.moveTo(marginX, y).lineTo(pageW - marginX, y).strokeColor(PALETTE.border).lineWidth(1).stroke();
-  y += 18;
-
-  // ── Detail rows ─────────────────────────────────────────────────────────
+  // ── Detail table ────────────────────────────────────────────────────────
   const rows: [string, string][] = [
     ["Reference No.", row.txnRef],
     ["Service", row.serviceName],
@@ -147,21 +131,48 @@ export async function streamTxnReceiptPdf(actor: Actor, txnRef: string, res: Res
   rows.push(["Retailer", `${row.retailerName} (${row.retailerMobile})`]);
   if (row.status === "failed" && row.failureReason) rows.push(["Reason", row.failureReason]);
 
-  const labelW = 150;
-  const rowH = 26;
-  doc.fontSize(10.5);
-  for (const [label, value] of rows) {
-    doc.fillColor(PALETTE.muted).font("Helvetica").text(label, marginX, y, { width: labelW });
+  const tableX = marginX;
+  const tableW = pageW - marginX * 2;
+  const labelColW = 150;
+  const rowH = 28;
+  const tableTop = y;
+  const tableBottom = tableTop + rowH * rows.length;
+
+  // Outer border + label-column shading
+  doc.rect(tableX, tableTop, labelColW, tableBottom - tableTop).fill(PALETTE.panel);
+  doc
+    .rect(tableX, tableTop, tableW, tableBottom - tableTop)
+    .strokeColor(PALETTE.border)
+    .lineWidth(1)
+    .stroke();
+  // Vertical divider between label and value columns
+  doc
+    .moveTo(tableX + labelColW, tableTop)
+    .lineTo(tableX + labelColW, tableBottom)
+    .strokeColor(PALETTE.border)
+    .stroke();
+
+  doc.fontSize(10);
+  rows.forEach(([label, value], i) => {
+    const rowY = tableTop + i * rowH;
+    if (i > 0) {
+      doc
+        .moveTo(tableX, rowY)
+        .lineTo(tableX + tableW, rowY)
+        .strokeColor(PALETTE.border)
+        .stroke();
+    }
+    doc
+      .fillColor(PALETTE.muted)
+      .font("Helvetica")
+      .text(label, tableX + 10, rowY + 9, { width: labelColW - 18 });
     doc
       .fillColor(PALETTE.ink)
       .font("Helvetica-Bold")
-      .text(value, marginX + labelW, y, { width: pageW - marginX * 2 - labelW });
-    y += rowH;
-  }
+      .text(value, tableX + labelColW + 10, rowY + 9, { width: tableW - labelColW - 18 });
+  });
 
-  y += 6;
-  doc.moveTo(marginX, y).lineTo(pageW - marginX, y).strokeColor(PALETTE.border).lineWidth(1).stroke();
-  y += 20;
+  y = tableBottom + 22;
 
   // ── Footer ──────────────────────────────────────────────────────────────
   const footerY = Math.max(y, pageH - 70);
