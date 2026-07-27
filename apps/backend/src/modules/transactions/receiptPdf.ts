@@ -87,13 +87,30 @@ export async function streamTxnReceiptPdf(actor: Actor, txnRef: string, res: Res
   const style = STATUS_STYLE[row.status] ?? { fg: PALETTE.ink, bg: PALETTE.panel, label: row.status.toUpperCase() };
 
   // ── Header band ─────────────────────────────────────────────────────────
-  doc.rect(0, 0, pageW, 92).fill(PALETTE.navy);
-  doc.fontSize(20).fillColor("#FFFFFF").font("Helvetica-Bold").text(brandName, marginX, 26);
+  doc.rect(0, 0, pageW, 100).fill(PALETTE.navy);
+  // Faint decorative circle for a bit of visual polish, clipped by the header band.
+  doc.save();
+  doc.rect(0, 0, pageW, 100).clip();
+  doc.circle(pageW - 20, 100, 70).fillOpacity(0.06).fill("#FFFFFF");
+  doc.restore();
+
+  // Logo mark: white rounded badge with a navy rupee glyph, next to the wordmark.
+  const logoSize = 34;
+  const logoX = marginX;
+  const logoY = 24;
+  doc.roundedRect(logoX, logoY, logoSize, logoSize, 9).fill("#FFFFFF");
+  doc
+    .fillColor(PALETTE.navy)
+    .font("Helvetica-Bold")
+    .fontSize(19)
+    .text("Rs", logoX, logoY + 8, { width: logoSize, align: "center" });
+
+  doc.fontSize(20).fillColor("#FFFFFF").font("Helvetica-Bold").text(brandName, logoX + logoSize + 12, 28);
   doc
     .fontSize(9)
     .fillColor("#C9D6F5")
     .font("Helvetica")
-    .text("TRANSACTION RECEIPT", marginX, 60, { characterSpacing: 1.2 });
+    .text("TRANSACTION RECEIPT", logoX + logoSize + 12, 60, { characterSpacing: 1.2 });
 
   // Status pill, top-right of header
   const pillLabel = style.label;
@@ -101,21 +118,23 @@ export async function streamTxnReceiptPdf(actor: Actor, txnRef: string, res: Res
   const pillTextW = doc.widthOfString(pillLabel);
   const pillW = pillTextW + 24;
   const pillX = pageW - marginX - pillW;
-  const pillY = 30;
+  const pillY = 33;
   doc.roundedRect(pillX, pillY, pillW, 24, 12).fill("#FFFFFF");
   doc.fillColor(style.fg).text(pillLabel, pillX + 12, pillY + 7);
 
-  let y = 118;
+  let y = 126;
 
-  // ── Amount block ────────────────────────────────────────────────────────
-  doc.fillColor(PALETTE.muted).font("Helvetica").fontSize(9).text("AMOUNT", marginX, y);
-  y += 14;
+  // ── Amount card ─────────────────────────────────────────────────────────
+  const amountCardH = 66;
+  doc.roundedRect(marginX, y, pageW - marginX * 2, amountCardH, 10).fill(PALETTE.panel);
+  doc.rect(marginX, y, 4, amountCardH).fill(style.fg);
+  doc.fillColor(PALETTE.muted).font("Helvetica").fontSize(9).text("AMOUNT", marginX + 20, y + 14);
   doc
     .fillColor(PALETTE.ink)
     .font("Helvetica-Bold")
-    .fontSize(28)
-    .text(`Rs. ${row.amount}`, marginX, y);
-  y += 44;
+    .fontSize(26)
+    .text(`Rs. ${row.amount}`, marginX + 20, y + 28);
+  y += amountCardH + 22;
 
   // ── Detail table ────────────────────────────────────────────────────────
   const rows: [string, string][] = [
@@ -138,10 +157,13 @@ export async function streamTxnReceiptPdf(actor: Actor, txnRef: string, res: Res
   const tableTop = y;
   const tableBottom = tableTop + rowH * rows.length;
 
-  // Outer border + label-column shading
+  // Outer border + label-column shading (clip so the shaded column respects rounded corners)
+  doc.save();
+  doc.roundedRect(tableX, tableTop, tableW, tableBottom - tableTop, 8).clip();
   doc.rect(tableX, tableTop, labelColW, tableBottom - tableTop).fill(PALETTE.panel);
+  doc.restore();
   doc
-    .rect(tableX, tableTop, tableW, tableBottom - tableTop)
+    .roundedRect(tableX, tableTop, tableW, tableBottom - tableTop, 8)
     .strokeColor(PALETTE.border)
     .lineWidth(1)
     .stroke();
@@ -176,6 +198,13 @@ export async function streamTxnReceiptPdf(actor: Actor, txnRef: string, res: Res
 
   // ── Footer ──────────────────────────────────────────────────────────────
   const footerY = Math.max(y, pageH - 70);
+  const dividerW = 40;
+  doc
+    .moveTo(pageW / 2 - dividerW / 2, footerY - 14)
+    .lineTo(pageW / 2 + dividerW / 2, footerY - 14)
+    .strokeColor(PALETTE.navy)
+    .lineWidth(2)
+    .stroke();
   doc
     .fontSize(8)
     .fillColor(PALETTE.faint)
