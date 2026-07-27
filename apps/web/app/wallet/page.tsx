@@ -90,74 +90,79 @@ export default function WalletPage() {
         </div>
 
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-          <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2 lg:col-span-2">
-            {/* Main Wallet */}
-            <div
-              className="relative overflow-hidden rounded-2xl p-5 text-white"
-              style={{ background: role.gradient, boxShadow: `0 8px 32px ${role.color}40` }}
-            >
-              <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white opacity-10" />
-              <div className="relative z-10">
-                <div className="mb-1 text-xs font-medium uppercase tracking-wider text-white/70">
-                  {walletDisplayName("main")}
-                </div>
-                <div className="mb-3 text-3xl font-bold leading-none">
-                  {loading && !main ? "…" : formatInr(main?.balance ?? "0")}
-                </div>
-                <div className="mb-4 flex items-center gap-1.5 border-t border-white/15 pt-3 text-xs text-white/80">
-                  {parseFloat(main?.pendingBalance ?? "0") > 0
-                    ? `Pending: ${formatInr(main?.pendingBalance ?? "0")}`
-                    : "No pending balance"}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    { icon: PlusCircle, label: "Add Money", href: undefined },
-                    { icon: SendHorizonal, label: "Transfer", href: canFund ? undefined : undefined },
-                    { icon: RefreshCcw, label: "Refresh", action: () => void load() },
-                    { icon: Download, label: "Statement", href: "/statements" },
-                  ].map(({ icon: Icon, label, href, action }) => (
-                    <button
-                      key={label}
-                      type="button"
-                      className="flex flex-col items-center gap-1.5 rounded-xl border border-white/20 bg-white/15 px-3 py-2 text-white transition-all hover:bg-white/25"
-                      onClick={() => {
-                        if (action) action();
-                        else if (href) router.push(href);
-                        else if (label === "Transfer" && canFund) {
-                          toast("Select a downline partner below to fund");
-                        } else {
-                          toast("Coming soon");
-                        }
-                      }}
-                    >
-                      <Icon size={16} />
-                      <span className="text-[11px] font-semibold">{label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* AEPS Wallet */}
-            {aeps && (
+          <div className="lg:col-span-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {/* Main Wallet */}
               <div
                 className="relative overflow-hidden rounded-2xl p-5 text-white"
-                style={{ background: B.green, boxShadow: `0 8px 32px ${B.green}40` }}
+                style={{ background: role.gradient, boxShadow: `0 8px 32px ${role.color}40` }}
               >
                 <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white opacity-10" />
                 <div className="relative z-10">
                   <div className="mb-1 text-xs font-medium uppercase tracking-wider text-white/70">
-                    {walletDisplayName("aeps")}
+                    {walletDisplayName("main")}
                   </div>
-                  <div className="mb-3 text-3xl font-bold leading-none">{formatInr(aeps.balance)}</div>
+                  <div className="mb-3 text-3xl font-bold leading-none">
+                    {loading && !main ? "…" : formatInr(main?.balance ?? "0")}
+                  </div>
                   <div className="flex items-center gap-1.5 border-t border-white/15 pt-3 text-xs text-white/80">
-                    {parseFloat(aeps.pendingBalance ?? "0") > 0
-                      ? `Pending: ${formatInr(aeps.pendingBalance ?? "0")}`
+                    {parseFloat(main?.pendingBalance ?? "0") > 0
+                      ? `Pending: ${formatInr(main?.pendingBalance ?? "0")}`
                       : "No pending balance"}
                   </div>
                 </div>
               </div>
-            )}
+
+              {/* AEPS Wallet */}
+              {aeps && (
+                <div
+                  className="relative overflow-hidden rounded-2xl p-5 text-white"
+                  style={{ background: B.green, boxShadow: `0 8px 32px ${B.green}40` }}
+                >
+                  <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white opacity-10" />
+                  <div className="relative z-10">
+                    <div className="mb-1 text-xs font-medium uppercase tracking-wider text-white/70">
+                      {walletDisplayName("aeps")}
+                    </div>
+                    <div className="mb-3 text-3xl font-bold leading-none">{formatInr(aeps.balance)}</div>
+                    <div className="flex items-center gap-1.5 border-t border-white/15 pt-3 text-xs text-white/80">
+                      {parseFloat(aeps.pendingBalance ?? "0") > 0
+                        ? `Pending: ${formatInr(aeps.pendingBalance ?? "0")}`
+                        : "No pending balance"}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Wallet actions */}
+            <div className="mt-4 flex flex-wrap gap-3 rounded-2xl border bg-white p-4" style={{ borderColor: B.border }}>
+              {[
+                { icon: PlusCircle, label: "Add Money", href: undefined },
+                { icon: SendHorizonal, label: "Transfer", href: canFund ? undefined : undefined },
+                { icon: RefreshCcw, label: "Refresh", action: () => void load() },
+                { icon: Download, label: "Statement", href: "/statements" },
+              ].map(({ icon: Icon, label, href, action }) => (
+                <button
+                  key={label}
+                  type="button"
+                  className="flex flex-1 flex-col items-center gap-1.5 rounded-xl border px-3 py-3 transition-colors hover:bg-secondary"
+                  style={{ borderColor: B.border, color: B.blue, minWidth: 90 }}
+                  onClick={() => {
+                    if (action) action();
+                    else if (href) router.push(href);
+                    else if (label === "Transfer" && canFund) {
+                      toast("Select a downline partner below to fund");
+                    } else {
+                      toast("Coming soon");
+                    }
+                  }}
+                >
+                  <Icon size={18} />
+                  <span className="text-xs font-semibold">{label}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="flex flex-col gap-4">
