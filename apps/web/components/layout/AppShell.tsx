@@ -23,6 +23,7 @@ import {
   PlusCircle,
   SendHorizonal,
   Download,
+  ChevronDown,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { AsanPayLogo, AsanIcon } from "@/components/brand/Logo";
@@ -204,6 +205,7 @@ function WalletPill({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const isMain = wallet.walletType === "main";
 
@@ -215,6 +217,14 @@ function WalletPill({
     document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, [open]);
+
+  function openNow() {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    setOpen(true);
+  }
+  function closeSoon() {
+    closeTimer.current = setTimeout(() => setOpen(false), 150);
+  }
 
   const actions = isMain
     ? [
@@ -229,11 +239,16 @@ function WalletPill({
       ];
 
   return (
-    <div className="relative hidden sm:block" ref={ref}>
+    <div
+      className="relative hidden sm:block"
+      ref={ref}
+      onMouseEnter={openNow}
+      onMouseLeave={closeSoon}
+    >
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 rounded-xl border px-3 py-1.5 transition-colors hover:bg-secondary"
+        className="flex items-center gap-1.5 rounded-xl border px-3 py-1.5 transition-colors hover:bg-secondary"
         style={{ borderColor: B.border, background: B.bg }}
         title={`${walletDisplayName(wallet.walletType)} balance`}
       >
@@ -243,6 +258,7 @@ function WalletPill({
         <span className="text-sm font-bold tabular-nums" style={{ color: B.blue }}>
           {formatInr(wallet.balance)}
         </span>
+        <ChevronDown size={13} style={{ color: B.muted }} className={open ? "rotate-180 transition-transform" : "transition-transform"} />
       </button>
       {open && (
         <div

@@ -99,41 +99,39 @@ export default function WalletPage() {
               >
                 <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white opacity-10" />
                 <div className="relative z-10">
-                  <div className="mb-1 flex items-center justify-between">
-                    <span className="text-xs font-medium uppercase tracking-wider text-white/70">
-                      {walletDisplayName("main")}
-                    </span>
-                    <div className="flex gap-1">
-                      {[
-                        { icon: PlusCircle, label: "Add Money", action: () => toast("Coming soon") },
-                        {
-                          icon: SendHorizonal,
-                          label: "Transfer",
-                          action: () =>
-                            canFund ? toast("Select a downline partner below to fund") : toast("Coming soon"),
-                        },
-                        { icon: RefreshCcw, label: "Refresh", action: () => void load() },
-                        { icon: Download, label: "Statement", action: () => router.push("/statements") },
-                      ].map(({ icon: Icon, label, action }) => (
-                        <button
-                          key={label}
-                          type="button"
-                          title={label}
-                          onClick={action}
-                          className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/15 text-white transition-colors hover:bg-white/25"
-                        >
-                          <Icon size={13} />
-                        </button>
-                      ))}
-                    </div>
+                  <div className="mb-1 text-xs font-medium uppercase tracking-wider text-white/70">
+                    {walletDisplayName("main")}
                   </div>
                   <div className="mb-3 text-3xl font-bold leading-none">
                     {loading && !main ? "…" : formatInr(main?.balance ?? "0")}
                   </div>
-                  <div className="flex items-center gap-1.5 border-t border-white/15 pt-3 text-xs text-white/80">
+                  <div className="mb-4 flex items-center gap-1.5 border-t border-white/15 pt-3 text-xs text-white/80">
                     {parseFloat(main?.pendingBalance ?? "0") > 0
                       ? `Pending: ${formatInr(main?.pendingBalance ?? "0")}`
                       : "No pending balance"}
+                  </div>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[
+                      { icon: PlusCircle, label: "Add Money", action: () => toast("Coming soon") },
+                      {
+                        icon: SendHorizonal,
+                        label: "Transfer",
+                        action: () =>
+                          canFund ? toast("Select a downline partner below to fund") : toast("Coming soon"),
+                      },
+                      { icon: RefreshCcw, label: "Refresh", action: () => void load() },
+                      { icon: Download, label: "Statement", action: () => router.push("/statements") },
+                    ].map(({ icon: Icon, label, action }) => (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={action}
+                        className="flex flex-col items-center gap-1.5 rounded-xl border border-white/20 bg-white/15 px-2 py-2.5 text-white transition-all hover:bg-white/25"
+                      >
+                        <Icon size={18} />
+                        <span className="text-[11px] font-semibold">{label}</span>
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -146,25 +144,23 @@ export default function WalletPage() {
                 >
                   <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white opacity-10" />
                   <div className="relative z-10">
-                    <div className="mb-1 flex items-center justify-between">
-                      <span className="text-xs font-medium uppercase tracking-wider text-white/70">
-                        {walletDisplayName("aeps")}
-                      </span>
-                      <button
-                        type="button"
-                        title="Refresh"
-                        onClick={() => void load()}
-                        className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/15 text-white transition-colors hover:bg-white/25"
-                      >
-                        <RefreshCcw size={13} />
-                      </button>
+                    <div className="mb-1 text-xs font-medium uppercase tracking-wider text-white/70">
+                      {walletDisplayName("aeps")}
                     </div>
                     <div className="mb-3 text-3xl font-bold leading-none">{formatInr(aeps.balance)}</div>
-                    <div className="flex items-center gap-1.5 border-t border-white/15 pt-3 text-xs text-white/80">
+                    <div className="mb-4 flex items-center gap-1.5 border-t border-white/15 pt-3 text-xs text-white/80">
                       {parseFloat(aeps.pendingBalance ?? "0") > 0
                         ? `Pending: ${formatInr(aeps.pendingBalance ?? "0")}`
                         : "No pending balance"}
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => void load()}
+                      className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/15 px-3 py-2.5 text-white transition-all hover:bg-white/25"
+                    >
+                      <RefreshCcw size={16} />
+                      <span className="text-xs font-semibold">Refresh</span>
+                    </button>
                   </div>
                 </div>
               )}
