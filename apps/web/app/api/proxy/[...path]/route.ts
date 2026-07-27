@@ -105,11 +105,14 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
     return NextResponse.json(json ?? { success: false, message: "Request failed" }, { status: upstream.status });
   }
 
-  const data = await upstream.text();
-  return new NextResponse(data, {
-    status: upstream.status,
-    headers: { "Content-Type": upstream.headers.get("content-type") || "application/json" },
-  });
+  // Use arrayBuffer (not text) so binary responses like PDF receipts pass through unmangled.
+  const data = await upstream.arrayBuffer();
+  const headers: Record<string, string> = {
+    "Content-Type": upstream.headers.get("content-type") || "application/json",
+  };
+  const disposition = upstream.headers.get("content-disposition");
+  if (disposition) headers["Content-Disposition"] = disposition;
+  return new NextResponse(data, { status: upstream.status, headers });
 }
 
 export { handle as GET, handle as POST, handle as PUT, handle as PATCH, handle as DELETE };

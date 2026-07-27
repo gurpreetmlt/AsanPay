@@ -168,7 +168,7 @@ export default function TransactionsPage() {
             <table className="w-full text-sm">
               <thead style={{ background: B.secondary }}>
                 <tr>
-                  {["Txn ID", "Service", "Wallet", "Amount", "Status", "Time"].map((h) => (
+                  {["Txn ID", "Service", "Wallet", "Amount", "Status", "Time", "Receipt"].map((h) => (
                     <th
                       key={h}
                       className={`px-4 py-3 text-xs font-semibold uppercase tracking-wider ${
@@ -226,6 +226,17 @@ export default function TransactionsPage() {
                         hour: "2-digit",
                         minute: "2-digit",
                       })}
+                    </td>
+                    <td className="px-4 py-3">
+                      <a
+                        href={`/api/proxy/txn/${t.txnRef}/receipt.pdf`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs font-semibold hover:underline"
+                        style={{ color: B.blue }}
+                      >
+                        <Download size={12} /> PDF
+                      </a>
                     </td>
                   </tr>
                 ))}

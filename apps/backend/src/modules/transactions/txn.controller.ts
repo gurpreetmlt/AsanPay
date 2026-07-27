@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { executeServiceTxn, recheckTxnStatus, listMyTransactions, getReceipt } from "./txn.service";
+import { streamTxnReceiptPdf } from "./receiptPdf";
 import { assertTxnAuthorization } from "../auth/txnPin";
 import { assertAgentAuthFresh } from "../auth/agentAuth";
 import { assertFreshBiometric } from "./biometricReplay";
@@ -1114,6 +1115,10 @@ export async function history(req: Request, res: Response): Promise<void> {
 
 export async function receipt(req: Request, res: Response): Promise<void> {
   sendSuccess(res, await getReceipt(actor(req), req.params.txnRef as string));
+}
+
+export async function receiptPdf(req: Request, res: Response): Promise<void> {
+  await streamTxnReceiptPdf(actor(req), req.params.txnRef as string, res);
 }
 
 export async function recheck(req: Request, res: Response): Promise<void> {
