@@ -99,8 +99,33 @@ export default function WalletPage() {
               >
                 <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white opacity-10" />
                 <div className="relative z-10">
-                  <div className="mb-1 text-xs font-medium uppercase tracking-wider text-white/70">
-                    {walletDisplayName("main")}
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="text-xs font-medium uppercase tracking-wider text-white/70">
+                      {walletDisplayName("main")}
+                    </span>
+                    <div className="flex gap-1">
+                      {[
+                        { icon: PlusCircle, label: "Add Money", action: () => toast("Coming soon") },
+                        {
+                          icon: SendHorizonal,
+                          label: "Transfer",
+                          action: () =>
+                            canFund ? toast("Select a downline partner below to fund") : toast("Coming soon"),
+                        },
+                        { icon: RefreshCcw, label: "Refresh", action: () => void load() },
+                        { icon: Download, label: "Statement", action: () => router.push("/statements") },
+                      ].map(({ icon: Icon, label, action }) => (
+                        <button
+                          key={label}
+                          type="button"
+                          title={label}
+                          onClick={action}
+                          className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/15 text-white transition-colors hover:bg-white/25"
+                        >
+                          <Icon size={13} />
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   <div className="mb-3 text-3xl font-bold leading-none">
                     {loading && !main ? "…" : formatInr(main?.balance ?? "0")}
@@ -121,8 +146,18 @@ export default function WalletPage() {
                 >
                   <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white opacity-10" />
                   <div className="relative z-10">
-                    <div className="mb-1 text-xs font-medium uppercase tracking-wider text-white/70">
-                      {walletDisplayName("aeps")}
+                    <div className="mb-1 flex items-center justify-between">
+                      <span className="text-xs font-medium uppercase tracking-wider text-white/70">
+                        {walletDisplayName("aeps")}
+                      </span>
+                      <button
+                        type="button"
+                        title="Refresh"
+                        onClick={() => void load()}
+                        className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/15 text-white transition-colors hover:bg-white/25"
+                      >
+                        <RefreshCcw size={13} />
+                      </button>
                     </div>
                     <div className="mb-3 text-3xl font-bold leading-none">{formatInr(aeps.balance)}</div>
                     <div className="flex items-center gap-1.5 border-t border-white/15 pt-3 text-xs text-white/80">
@@ -133,35 +168,6 @@ export default function WalletPage() {
                   </div>
                 </div>
               )}
-            </div>
-
-            {/* Wallet actions */}
-            <div className="mt-4 flex flex-wrap gap-3 rounded-2xl border bg-white p-4" style={{ borderColor: B.border }}>
-              {[
-                { icon: PlusCircle, label: "Add Money", href: undefined },
-                { icon: SendHorizonal, label: "Transfer", href: canFund ? undefined : undefined },
-                { icon: RefreshCcw, label: "Refresh", action: () => void load() },
-                { icon: Download, label: "Statement", href: "/statements" },
-              ].map(({ icon: Icon, label, href, action }) => (
-                <button
-                  key={label}
-                  type="button"
-                  className="flex flex-1 flex-col items-center gap-1.5 rounded-xl border px-3 py-3 transition-colors hover:bg-secondary"
-                  style={{ borderColor: B.border, color: B.blue, minWidth: 90 }}
-                  onClick={() => {
-                    if (action) action();
-                    else if (href) router.push(href);
-                    else if (label === "Transfer" && canFund) {
-                      toast("Select a downline partner below to fund");
-                    } else {
-                      toast("Coming soon");
-                    }
-                  }}
-                >
-                  <Icon size={18} />
-                  <span className="text-xs font-semibold">{label}</span>
-                </button>
-              ))}
             </div>
           </div>
 

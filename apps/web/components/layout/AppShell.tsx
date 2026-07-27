@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   ArrowLeftRight,
@@ -20,7 +20,11 @@ import {
   Search,
   Star,
   RefreshCw,
+  PlusCircle,
+  SendHorizonal,
+  Download,
 } from "lucide-react";
+import { toast } from "react-hot-toast";
 import { AsanPayLogo, AsanIcon } from "@/components/brand/Logo";
 import { fetchApi } from "@/lib/api";
 import { B, initials, roleFromUserRole } from "@/lib/brand";
@@ -189,6 +193,84 @@ function SidebarContent({
   );
 }
 
+function WalletPill({
+  wallet,
+  onRefresh,
+  loading,
+}: {
+  wallet: WalletBalance;
+  onRefresh: () => void;
+  loading: boolean;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const isMain = wallet.walletType === "main";
+
+  useEffect(() => {
+    if (!open) return;
+    function onClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [open]);
+
+  const actions = isMain
+    ? [
+        { icon: PlusCircle, label: "Add Money", action: () => toast("Coming soon") },
+        { icon: SendHorizonal, label: "Transfer", action: () => router.push("/wallet") },
+        { icon: RefreshCw, label: "Refresh", action: onRefresh },
+        { icon: Download, label: "Statement", action: () => router.push("/statements") },
+      ]
+    : [
+        { icon: RefreshCw, label: "Refresh", action: onRefresh },
+        { icon: ArrowLeftRight, label: "View Ledger", action: () => router.push("/wallet") },
+      ];
+
+  return (
+    <div className="relative hidden sm:block" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-2 rounded-xl border px-3 py-1.5 transition-colors hover:bg-secondary"
+        style={{ borderColor: B.border, background: B.bg }}
+        title={`${walletDisplayName(wallet.walletType)} balance`}
+      >
+        <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+          {walletDisplayName(wallet.walletType)}
+        </span>
+        <span className="text-sm font-bold tabular-nums" style={{ color: B.blue }}>
+          {formatInr(wallet.balance)}
+        </span>
+      </button>
+      {open && (
+        <div
+          className="absolute right-0 top-full z-20 mt-1 w-44 rounded-xl border bg-white p-1.5 shadow-lg"
+          style={{ borderColor: B.border }}
+        >
+          {actions.map(({ icon: Icon, label, action }) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => {
+                action();
+                setOpen(false);
+              }}
+              disabled={label === "Refresh" && loading}
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-semibold transition-colors hover:bg-secondary disabled:opacity-50"
+              style={{ color: B.blue }}
+            >
+              <Icon size={14} className={label === "Refresh" && loading ? "animate-spin" : ""} />
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function HeaderWalletBalances({
   wallets,
   loading,
@@ -216,22 +298,7 @@ function HeaderWalletBalances({
           …
         </div>
       ) : (
-        ordered.map((w) => (
-          <Link
-            key={w.id}
-            href="/wallet"
-            className="hidden items-center gap-2 rounded-xl border px-3 py-1.5 transition-colors hover:bg-secondary sm:flex"
-            style={{ borderColor: B.border, background: B.bg }}
-            title={`${walletDisplayName(w.walletType)} balance`}
-          >
-            <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
-              {walletDisplayName(w.walletType)}
-            </span>
-            <span className="text-sm font-bold tabular-nums" style={{ color: B.blue }}>
-              {formatInr(w.balance)}
-            </span>
-          </Link>
-        ))
+        ordered.map((w) => <WalletPill key={w.id} wallet={w} onRefresh={onRefresh} loading={loading} />)
       )}
       <button
         type="button"
