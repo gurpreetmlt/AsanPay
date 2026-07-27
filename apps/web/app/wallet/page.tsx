@@ -90,31 +90,26 @@ export default function WalletPage() {
         </div>
 
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:col-span-2">
+          <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2 lg:col-span-2">
             {/* Main Wallet */}
             <div
-              className="relative overflow-hidden rounded-2xl p-6 text-white"
-              style={{ background: role.gradient, boxShadow: `0 12px 40px ${role.color}40` }}
+              className="relative overflow-hidden rounded-2xl p-5 text-white"
+              style={{ background: role.gradient, boxShadow: `0 8px 32px ${role.color}40` }}
             >
-              <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-white opacity-10" />
+              <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white opacity-10" />
               <div className="relative z-10">
-                <div className="mb-1 text-sm font-medium text-white/60">
-                  Available Balance ({walletDisplayName("main")})
+                <div className="mb-1 text-xs font-medium uppercase tracking-wider text-white/70">
+                  {walletDisplayName("main")}
                 </div>
-                <div className="mb-1 text-4xl font-bold">
+                <div className="mb-3 text-3xl font-bold leading-none">
                   {loading && !main ? "…" : formatInr(main?.balance ?? "0")}
                 </div>
-                <div className="mb-1 text-sm text-white/50">
-                  Agent ID: {user?.uid ?? "—"} · {user?.name ?? "Agent"}
+                <div className="mb-4 flex items-center gap-1.5 border-t border-white/15 pt-3 text-xs text-white/80">
+                  {parseFloat(main?.pendingBalance ?? "0") > 0
+                    ? `Pending: ${formatInr(main?.pendingBalance ?? "0")}`
+                    : "No pending balance"}
                 </div>
-                <div className="mb-6 text-sm font-medium text-amber-200/90">
-                  {parseFloat(main?.pendingBalance ?? "0") > 0 ? (
-                    `Pending · ${formatInr(main?.pendingBalance ?? "0")}`
-                  ) : (
-                    <span className="text-white/40">No pending balance</span>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-3">
+                <div className="flex flex-wrap gap-2">
                   {[
                     { icon: PlusCircle, label: "Add Money", href: undefined },
                     { icon: SendHorizonal, label: "Transfer", href: canFund ? undefined : undefined },
@@ -124,7 +119,7 @@ export default function WalletPage() {
                     <button
                       key={label}
                       type="button"
-                      className="flex flex-col items-center gap-2 rounded-xl border border-white/20 bg-white/15 px-4 py-3 text-white transition-all hover:bg-white/25"
+                      className="flex flex-col items-center gap-1.5 rounded-xl border border-white/20 bg-white/15 px-3 py-2 text-white transition-all hover:bg-white/25"
                       onClick={() => {
                         if (action) action();
                         else if (href) router.push(href);
@@ -135,8 +130,8 @@ export default function WalletPage() {
                         }
                       }}
                     >
-                      <Icon size={18} />
-                      <span className="text-xs font-semibold">{label}</span>
+                      <Icon size={16} />
+                      <span className="text-[11px] font-semibold">{label}</span>
                     </button>
                   ))}
                 </div>
@@ -146,24 +141,19 @@ export default function WalletPage() {
             {/* AEPS Wallet */}
             {aeps && (
               <div
-                className="relative overflow-hidden rounded-2xl p-6 text-white"
-                style={{ background: role.gradient, boxShadow: `0 12px 40px ${role.color}40` }}
+                className="relative overflow-hidden rounded-2xl p-5 text-white"
+                style={{ background: B.green, boxShadow: `0 8px 32px ${B.green}40` }}
               >
-                <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-white opacity-10" />
+                <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white opacity-10" />
                 <div className="relative z-10">
-                  <div className="mb-1 text-sm font-medium text-white/60">
-                    Available Balance ({walletDisplayName("aeps")})
+                  <div className="mb-1 text-xs font-medium uppercase tracking-wider text-white/70">
+                    {walletDisplayName("aeps")}
                   </div>
-                  <div className="mb-1 text-4xl font-bold">{formatInr(aeps.balance)}</div>
-                  <div className="mb-1 text-sm text-white/50">
-                    Agent ID: {user?.uid ?? "—"} · {user?.name ?? "Agent"}
-                  </div>
-                  <div className="mb-6 text-sm font-medium text-amber-200/90">
-                    {parseFloat(aeps.pendingBalance ?? "0") > 0 ? (
-                      `Pending · ${formatInr(aeps.pendingBalance ?? "0")}`
-                    ) : (
-                      <span className="text-white/40">No pending balance</span>
-                    )}
+                  <div className="mb-3 text-3xl font-bold leading-none">{formatInr(aeps.balance)}</div>
+                  <div className="flex items-center gap-1.5 border-t border-white/15 pt-3 text-xs text-white/80">
+                    {parseFloat(aeps.pendingBalance ?? "0") > 0
+                      ? `Pending: ${formatInr(aeps.pendingBalance ?? "0")}`
+                      : "No pending balance"}
                   </div>
                 </div>
               </div>
