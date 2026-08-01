@@ -598,7 +598,10 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
           {phase === "otp" ? (
             <View style={[styles.card, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
               <Text style={[styles.hint, { color: tokens.mute }]}>
-                Enter OTP sent to +91 {draft.mobile.replace(/\D/g, "").slice(0, 10)}
+                Enter the 6-digit OTP sent to +91 {draft.mobile.replace(/\D/g, "").slice(0, 10)}
+              </Text>
+              <Text style={[styles.hint, { color: tokens.mute }]}>
+                If fixed signup OTP is enabled on the server, use that code (e.g. 242424).
               </Text>
               {devOtp ? <Text style={styles.devOtp}>Dev OTP: {devOtp}</Text> : null}
               <TextInput
@@ -769,7 +772,7 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
                       value={draft.password}
                       onChangeText={(t) => patch({ password: t })}
                       secureTextEntry={!showPassword}
-                      placeholder="Min 8 characters, include a letter"
+                      placeholder="e.g. Test1234"
                       placeholderTextColor={tokens.mute}
                       style={[inputStyle, { paddingRight: 44 }]}
                       autoCapitalize="none"
@@ -784,6 +787,9 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
                       {showPassword ? <EyeOff size={18} color={tokens.mute} /> : <Eye size={18} color={tokens.mute} />}
                     </Pressable>
                   </View>
+                  <Text style={[styles.hint, { color: tokens.mute }]}>
+                    Min 8 characters · include a letter and a number (e.g. Test1234)
+                  </Text>
                 </>
               )}
 

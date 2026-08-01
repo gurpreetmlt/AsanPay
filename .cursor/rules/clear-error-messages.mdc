@@ -1,0 +1,46 @@
+---
+description: User-facing errors must name the exact field/rule — never vague copy
+alwaysApply: true
+---
+
+# Clear error messages (product UI + API)
+
+Users must instantly know **what failed** and **how to fix it**. Never ship vague copy.
+
+## Forbidden (examples)
+- "Unable to complete signup request"
+- "Something went wrong"
+- "Invalid request"
+- "Error" / "Failed" with no field name
+- "Incomplete" without saying which field
+
+## Required style
+- **Name the field** + **state the rule** (+ short fix when useful).
+- English only in product UI (see `ui-english-only`).
+- Prefer specific HTTP `code` + clear `message` from API; clients show `message` as-is.
+
+## Common rules — use this exact wording (or tighter)
+
+| Check | Message |
+|-------|---------|
+| Password length | `Password must be at least 8 characters` |
+| Password letter | `Password must contain a letter` |
+| Password digit | `Password must contain a number` |
+| Password hint (UI helper) | `Min 8 characters · include a letter and a number (e.g. Test1234)` |
+| Mobile | `Enter a valid 10-digit mobile` |
+| Upline missing | `Enter a valid 10-digit upline mobile` |
+| Upline not found | `Distributor / Super Distributor not found for this mobile. Use an active upline number.` |
+| Mobile already registered | `This mobile number is already registered. Please log in instead.` |
+| Location | `Allow location access before continuing` |
+| OTP wrong | `Incorrect OTP` |
+| OTP expired | `OTP has expired or was not requested. Please request a new OTP.` |
+| Signup OTP (test env) | If `TEST_SIGNUP_OTP_OVERRIDES` is set, UI/dev copy may say fixed OTP e.g. `242424` — never guess; read env/docs |
+
+## Where to apply
+- Backend `HttpError` messages + Zod `.message` / refine paths
+- Web toasts / field errors
+- Mobile `showAlert` / inline validation (`validateStep`)
+- Forms: show **helper text under the field** for rules (password, OTP, Aadhaar) before submit — don't wait for a vague modal
+
+## When fixing bugs
+If a user hits a vague error, replace it with a field-specific message in the same change — don't only document it.

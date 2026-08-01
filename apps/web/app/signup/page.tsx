@@ -413,7 +413,9 @@ export default function SignupPage() {
     if (stepIndex === 1) {
       if (draft.name.trim().length < 2) return "Full name is required";
       if (!draft.password || draft.password.length < 8) return "Password must be at least 8 characters";
-      if (needsUpline && !sponsor) return "Enter a valid upline mobile number";
+      if (!/[A-Za-z]/.test(draft.password)) return "Password must contain a letter";
+      if (!/\d/.test(draft.password)) return "Password must contain a number";
+      if (needsUpline && !sponsor) return "Distributor / Super Distributor not found for this mobile. Use an active upline number.";
     }
     if (stepIndex === 2) {
       if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(draft.pan)) return "Enter a valid PAN";
@@ -653,6 +655,9 @@ export default function SignupPage() {
             <p className="text-sm" style={{ color: B.muted }}>
               Enter the 6-digit OTP sent to +91 {draft.mobile.replace(/\D/g, "").slice(0, 10)}
             </p>
+            <p className="text-xs" style={{ color: B.muted }}>
+              If fixed signup OTP is enabled on the server, use that code (e.g. 242424).
+            </p>
             {devOtp ? (
               <p className="rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: `${B.blue}12`, color: B.blue }}>
                 Dev OTP: {devOtp}
@@ -821,7 +826,7 @@ export default function SignupPage() {
                       onChange={(e) => patch({ password: e.target.value })}
                       className={`${inputCls} pr-12`}
                       style={inputStyle}
-                      placeholder="Min 8 characters, include a letter"
+                      placeholder="e.g. Test1234"
                       autoComplete="new-password"
                     />
                     <button
@@ -834,6 +839,9 @@ export default function SignupPage() {
                       {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
                   </div>
+                  <p className="mt-1 text-xs" style={{ color: B.muted }}>
+                    Min 8 characters · include a letter and a number (e.g. Test1234)
+                  </p>
                 </Field>
               </>
             )}
