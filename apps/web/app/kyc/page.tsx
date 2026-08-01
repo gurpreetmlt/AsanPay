@@ -22,6 +22,7 @@ import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 import api from "@/lib/api";
 import { formatAadhaar, stripAadhaar } from "@/lib/aadhaar";
+import { lookupIndianIfsc } from "@/lib/ifsc";
 import { lookupIndianPincode } from "@/lib/pincode";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 
@@ -94,8 +95,10 @@ export default function KycPage() {
     accountNumber: "",
     ifsc: "",
     bankName: "",
+    bankBranch: "",
   });
   const [pinLookupBusy, setPinLookupBusy] = useState(false);
+  const [ifscLookupBusy, setIfscLookupBusy] = useState(false);
 
   useEffect(() => {
     if (hydrated && !accessToken) router.replace("/login");
@@ -143,6 +146,38 @@ export default function KycPage() {
       cancelled = true;
     };
   }, [form.pincode]);
+
+  // Free Razorpay IFSC API — autofill bank name + branch when IFSC is complete.
+  useEffect(() => {
+    const ifsc = form.ifsc;
+    if (ifsc.length !== 11) return;
+
+    let cancelled = false;
+    setIfscLookupBusy(true);
+    void lookupIndianIfsc(ifsc)
+      .then((place) => {
+        if (cancelled) return;
+        if (!place) {
+          toast.error("Invalid IFSC — check and try again");
+          return;
+        }
+        setForm((f) => ({
+          ...f,
+          bankName: place.bank || f.bankName,
+          bankBranch: place.branch || f.bankBranch,
+        }));
+      })
+      .catch(() => {
+        if (!cancelled) toast.error("Could not look up IFSC");
+      })
+      .finally(() => {
+        if (!cancelled) setIfscLookupBusy(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [form.ifsc]);
 
   if (!hydrated || !accessToken) return null;
 
@@ -381,9 +416,32 @@ export default function KycPage() {
               </h2>
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Account Holder" placeholder="Name on passbook" value={form.accountName} onChange={(v) => set("accountName", v)} />
-                <Field label="Bank Name" placeholder="Bank name" value={form.bankName} onChange={(v) => set("bankName", v)} />
                 <Field label="Account Number" placeholder="Account number" value={form.accountNumber} onChange={(v) => set("accountNumber", v.replace(/\D/g, ""))} />
-                <Field label="IFSC" placeholder="IFSC code" value={form.ifsc} onChange={(v) => set("ifsc", v.toUpperCase().slice(0, 11))} />
+                <Field
+                  label="IFSC"
+                  placeholder="e.g. HDFC0001048"
+                  value={form.ifsc}
+                  onChange={(v) => set("ifsc", v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11))}
+                />
+                <Field
+                  label="Bank Name"
+                  placeholder={ifscLookupBusy ? "Looking up…" : "Bank name"}
+                  value={form.bankName}
+                  onChange={(v) => set("bankName", v)}
+                />
+                <div className="col-span-2">
+                  <Field
+                    label="Branch"
+                    placeholder={ifscLookupBusy ? "Looking up…" : "Branch"}
+                    value={form.bankBranch}
+                    onChange={(v) => set("bankBranch", v)}
+                  />
+                </div>
+                {ifscLookupBusy ? (
+                  <p className="col-span-2 text-xs" style={{ color: B.muted }}>
+                    Fetching bank and branch from IFSC…
+                  </p>
+                ) : null}
               </div>
             </div>
           )}
@@ -400,6 +458,8 @@ export default function KycPage() {
                   { label: "Aadhaar", value: form.aadhaar ? `XXXX XXXX ${form.aadhaar.slice(-4)}` : "—" },
                   { label: "PAN", value: form.pan || "—" },
                   { label: "Bank", value: form.bankName || "—" },
+                  { label: "Branch", value: form.bankBranch || "—" },
+                  { label: "IFSC", value: form.ifsc || "—" },
                   { label: "Account", value: form.accountNumber ? `****${form.accountNumber.slice(-4)}` : "—" },
                 ].map((r) => (
                   <div key={r.label}>
