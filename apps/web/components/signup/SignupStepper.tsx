@@ -26,7 +26,7 @@ export const SIGNUP_STEPS = [
 
 export type SignupStepId = (typeof SIGNUP_STEPS)[number]["id"];
 
-/** Show only a 3-step window + progress bar (avoids cramped 9-icon line). */
+/** Web: show all 9 steps. Mobile keeps its own 3-step window component. */
 export function SignupStepper({
   currentIndex,
 }: {
@@ -35,14 +35,6 @@ export function SignupStepper({
   const total = SIGNUP_STEPS.length;
   const idx = Math.max(0, Math.min(currentIndex, total - 1));
   const progress = ((idx + 1) / total) * 100;
-
-  let start = Math.max(0, idx - 1);
-  let end = Math.min(total - 1, start + 2);
-  start = Math.max(0, end - 2);
-  const visible = SIGNUP_STEPS.slice(start, end + 1).map((step, offset) => ({
-    ...step,
-    index: start + offset,
-  }));
 
   return (
     <div className="mb-6">
@@ -57,23 +49,23 @@ export function SignupStepper({
       <div className="mb-3 h-1.5 overflow-hidden rounded-full" style={{ background: B.border }}>
         <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: B.green }} />
       </div>
-      <div className="flex items-start justify-between gap-2">
-        {visible.map((step, i) => {
+      <div className="flex items-start justify-between gap-0.5 overflow-x-auto pb-1">
+        {SIGNUP_STEPS.map((step, stepIndex) => {
           const Icon = step.icon as LucideIcon;
-          const done = step.index < idx;
-          const active = step.index === idx;
+          const done = stepIndex < idx;
+          const active = stepIndex === idx;
           const bg = done ? B.green : active ? B.blue : "#EEF2FF";
           return (
             <div key={step.id} className="flex min-w-0 flex-1 items-center">
-              {i > 0 ? (
+              {stepIndex > 0 ? (
                 <div
-                  className="mx-1 mt-4 h-0.5 flex-1 rounded"
-                  style={{ background: step.index <= idx ? B.green : B.border }}
+                  className="mx-0.5 mt-3.5 h-0.5 min-w-[4px] flex-1 rounded"
+                  style={{ background: stepIndex <= idx ? B.green : B.border }}
                 />
               ) : null}
-              <div className="flex w-[4.5rem] shrink-0 flex-col items-center">
+              <div className="flex w-11 shrink-0 flex-col items-center sm:w-12">
                 <div
-                  className="flex h-9 w-9 items-center justify-center rounded-full border-2"
+                  className="flex h-8 w-8 items-center justify-center rounded-full border-2 sm:h-9 sm:w-9"
                   style={{
                     background: bg,
                     borderColor: active ? B.blue : done ? B.green : B.border,
@@ -82,10 +74,10 @@ export function SignupStepper({
                   }}
                   title={step.label}
                 >
-                  <Icon size={16} strokeWidth={2.2} />
+                  <Icon size={14} strokeWidth={2.2} />
                 </div>
                 <span
-                  className="mt-1.5 max-w-full truncate text-center text-[11px] font-bold"
+                  className="mt-1 max-w-full truncate text-center text-[9px] font-bold leading-tight sm:text-[10px]"
                   style={{ color: active ? B.blue : done ? B.greenDark : B.muted }}
                 >
                   {step.short}
