@@ -10,6 +10,7 @@ import { AppLockScreen } from "../screens/AppLockScreen";
 import { AuthFlow } from "./AuthFlow";
 import { PartnerTabs } from "./PartnerTabs";
 import { RetailerTabs } from "./RetailerTabs";
+import { SignupScreen } from "../screens/signup/SignupScreen";
 
 // Bank-app-style resume lock: background the app for this long or more, and coming back to the
 // foreground requires PIN/fingerprint again — closes the "left it on the table, someone else
@@ -20,6 +21,8 @@ export function RootNavigator() {
   const user = useAuthStore((s) => s.user);
   const accessToken = useAuthStore((s) => s.accessToken);
   const mpinSetupSkipped = useAuthStore((s) => s.mpinSetupSkipped);
+  const signupContinue = useAuthStore((s) => s.signupContinue);
+  const setSignupContinue = useAuthStore((s) => s.setSignupContinue);
   const { tokens, scheme } = useTheme();
 
   const backgroundedAtRef = useRef<number | null>(null);
@@ -43,6 +46,10 @@ export function RootNavigator() {
 
   if (!user || !accessToken) {
     return <AuthFlow />;
+  }
+
+  if (signupContinue && !user.hasKycDocs) {
+    return <SignupScreen onBack={() => setSignupContinue(false)} />;
   }
 
   if (locked) {

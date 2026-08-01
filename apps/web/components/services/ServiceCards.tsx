@@ -10,7 +10,7 @@ import { B } from "@/lib/brand";
 import { serviceIconPath } from "@asanpay/shared-types";
 import { designTileColors } from "@/lib/designIcons";
 import { flattenCatalogServices } from "@/lib/catalog";
-import { extractApiError } from "@/lib/onboarding";
+import { extractApiError, isKycServicesUnlocked } from "@/lib/onboarding";
 import { MAX_FAVORITES, selectFavoriteCodes, useFavoritesStore } from "@/lib/favorites";
 import { useAuthStore } from "@/lib/store";
 
@@ -76,8 +76,8 @@ function ServiceIconCard({
       </button>
       <button
         type="button"
-        className="flex w-full flex-col items-center gap-1.5 text-center"
-        onClick={() => onOpen ? onOpen() : toast(`${svc.name} — coming soon on web`)}
+        className="flex w-full flex-col items-center gap-1.5 text-center disabled:opacity-45"
+        onClick={() => (onOpen ? onOpen() : toast(`${svc.name} — coming soon on web`))}
       >
         {showAsset ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -112,7 +112,9 @@ function ServiceIconCard({
 /** Figma dashboard service cards + Favourites strip (same icon style). */
 export function ServiceCards({ title = "All Services" }: { title?: string }) {
   const router = useRouter();
-  const userId = useAuthStore((s) => s.user?.id);
+  const user = useAuthStore((s) => s.user);
+  const userId = user?.id;
+  const servicesUnlocked = isKycServicesUnlocked(user);
   const hydrate = useFavoritesStore((s) => s.hydrate);
   const codes = useFavoritesStore((s) => (userId ? selectFavoriteCodes(s, userId) : []));
   const toggle = useFavoritesStore((s) => s.toggle);
@@ -158,6 +160,20 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
       .map((code) => all.find((s) => s.code === code))
       .filter((s): s is NonNullable<typeof s> => !!s);
   }, [categories, codes]);
+
+  function openService(code: string) {
+    if (!servicesUnlocked) {
+      toast.error(
+        user?.hasKycDocs
+          ? "KYC under review — services unlock after admin approval"
+          : "First complete your KYC",
+      );
+      return;
+    }
+    const route = resolveServiceRoute(code);
+    if (route) router.push(route);
+    else toast(`${code} — coming soon on web`);
+  }
 
   function handleToggle(code: string) {
     if (!userId) return;
@@ -209,7 +225,7 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
                 index={i}
                 favorite
                 onToggleFav={() => handleToggle(svc.code)}
-                onOpen={resolveServiceRoute(svc.code) ? () => router.push(resolveServiceRoute(svc.code)!) : undefined}
+                onOpen={() => openService(svc.code)}
               />
             ))}
           </div>
@@ -245,7 +261,7 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
                     index={i}
                     favorite={codes.includes(svc.code)}
                     onToggleFav={() => handleToggle(svc.code)}
-                    onOpen={resolveServiceRoute(svc.code) ? () => router.push(resolveServiceRoute(svc.code)!) : undefined}
+                    onOpen={() => openService(svc.code)}
                   />
                 ))}
               </div>

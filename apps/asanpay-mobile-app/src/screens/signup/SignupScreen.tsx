@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  PermissionsAndroid,
   Platform,
   Pressable,
   ScrollView,
@@ -11,25 +10,38 @@ import {
   TextInput,
   View,
 } from "react-native";
-import LinearGradient from "react-native-linear-gradient";
-import Geolocation from "@react-native-community/geolocation";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { CheckCircle2, FileText, Fingerprint, MapPin, Phone, ScanFace } from "lucide-react-native";
+import { ArrowLeft, CheckCircle2 } from "lucide-react-native";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
-import { api, setAuthHeader } from "../../lib/api";
+import { api } from "../../lib/api";
 import { apiError } from "../../utils/apiError";
 import { useAuthStore } from "../../store/auth";
-import { CodeGrid } from "../../components/CodeGrid";
-import { NumericKeypad } from "../../components/NumericKeypad";
 import { useTheme } from "../../theme/ThemeContext";
-import { colors, gradientDirection } from "../../theme/colors";
+import { colors } from "../../theme/colors";
 import { showAlert } from "../../components/AppAlert";
+import { MobileSignupStepper, MOBILE_SIGNUP_STEPS } from "../../components/MobileSignupStepper";
+import {
+  clearMobileSignupDraft,
+  EMPTY_MOBILE_SIGNUP_DRAFT,
+  loadMobileSignupDraft,
+  saveMobileSignupDraft,
+  type MobileSignupDraft,
+  type SignupRole,
+} from "../../lib/signupDraft";
 
-type SignupRole = "master_distributor" | "distributor" | "retailer";
 type SponsorRole = "admin" | "master_distributor" | "distributor";
-type Gender = "M" | "F" | "T";
 
-const SIGNUP_ROLES: { value: SignupRole; label: string }[] = [
+interface SignupScreenProps {
+  onBack: () => void;
+}
+
+interface LoginResponse {
+  user: AuthUser;
+  accessToken: string;
+  refreshToken: string;
+}
+
+const ROLE_OPTIONS: { value: SignupRole; label: string }[] = [
   { value: "retailer", label: "Retailer" },
   { value: "distributor", label: "Distributor" },
   { value: "master_distributor", label: "Super Distributor" },
@@ -42,1275 +54,1019 @@ const SPONSOR_ROLE: Record<SignupRole, SponsorRole> = {
 };
 
 const UPLINE_LABEL: Record<Exclude<SignupRole, "master_distributor">, string> = {
-  distributor: "SUPER DISTRIBUTOR MOBILE NO.",
-  retailer: "DISTRIBUTOR MOBILE NO.",
+  distributor: "Super Distributor mobile",
+  retailer: "Distributor mobile",
 };
 
-const UPLINE_ROLE_LABEL: Record<SponsorRole, string> = {
-  admin: "Admin",
-  master_distributor: "Super Distributor",
-  distributor: "Distributor",
-};
-
-const STEP_TITLES = ["Your Details", "KYC Documents", "Live Photo", "Outlet Details", "Review & Submit"];
-
-interface SignupScreenProps {
-  onBack: () => void;
-}
-
-interface LoginResponse {
-  user: AuthUser;
-  accessToken: string;
-  refreshToken: string;
-}
-
-type UploadKey = "aadhaarFront" | "aadhaarBack" | "panCard";
+const BUSINESS_TYPES = ["Sole Proprietorship", "Partnership", "Private Limited", "Other"];
+const BUSINESS_CATEGORIES = ["Mobile Handsets", "Kirana", "Electronics", "Pharmacy", "Other"];
+const TURNOVERS = ["Below 1L", "1L-5L", "5L-10L", "10L+"];
+const BUSINESS_PROOFS = ["Shop License", "GST Certificate", "Udyam", "Rent Agreement", "Other"];
 
 export function SignupScreen({ onBack }: SignupScreenProps) {
   const { tokens } = useTheme();
   const setAuth = useAuthStore((s) => s.setAuth);
+  const updateUser = useAuthStore((s) => s.updateUser);
+  const setSignupContinue = useAuthStore((s) => s.setSignupContinue);
+  const authUser = useAuthStore((s) => s.user);
 
-  const [step, setStep] = useState(0);
-  const [done, setDone] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [sessionResult, setSessionResult] = useState<LoginResponse | null>(null);
-  const [pendingApproval, setPendingApproval] = useState(false);
-
-  // Step 0 — the backend's signup/request already requires name + sponsorUid alongside
-  // mobile, so those are collected up front (design mockup only asks for mobile here).
-  const [name, setName] = useState("");
-  const [signupRole, setSignupRole] = useState<SignupRole>("retailer");
-  const [sponsorMobile, setSponsorMobile] = useState("");
-  const [sponsorList, setSponsorList] = useState<Array<{ uid: string; name: string; mobile: string; role?: string }>>([]);
-  const [sponsorUid, setSponsorUid] = useState("");
-  const [sponsorName, setSponsorName] = useState<string | null>(null);
-  const [sponsorRoleLabel, setSponsorRoleLabel] = useState<string>("Distributor");
-  const [sponsorOk, setSponsorOk] = useState(false);
-  const [sponsorSearching, setSponsorSearching] = useState(false);
-  const [mobile, setMobile] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpLoading, setOtpLoading] = useState(false);
+  const [draft, setDraft] = useState<MobileSignupDraft>(EMPTY_MOBILE_SIGNUP_DRAFT);
+  const [phase, setPhase] = useState<"steps" | "otp" | "emailOtp">("steps");
   const [otp, setOtp] = useState("");
+  const [emailOtp, setEmailOtp] = useState("");
   const [devOtp, setDevOtp] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [draftReady, setDraftReady] = useState(false);
+  const [sponsorOk, setSponsorOk] = useState(false);
 
-  const sponsorRole = SPONSOR_ROLE[signupRole];
-  const needsUpline = signupRole !== "master_distributor";
+  const stepIndex = draft.stepIndex;
+  const needsUpline = draft.role !== "master_distributor";
+  const sponsorRole = SPONSOR_ROLE[draft.role];
+  const storageKey = draft.accountCreated && authUser?.id ? authUser.id : draft.mobile || "anon";
+
+  function patch(p: Partial<MobileSignupDraft>) {
+    setDraft((d) => ({ ...d, ...p }));
+  }
 
   useEffect(() => {
-    setSponsorUid("");
-    setSponsorName(null);
-    setSponsorOk(false);
-    setSponsorList([]);
-    setSponsorMobile("");
-    setOtpSent(false);
-    setPendingApproval(false);
-  }, [signupRole]);
+    let alive = true;
+    (async () => {
+      const fromUser = authUser?.id ? await loadMobileSignupDraft(authUser.id) : null;
+      const fromMobile = draft.mobile ? await loadMobileSignupDraft(draft.mobile) : null;
+      const existing = fromUser || fromMobile;
+      if (alive && existing) {
+        setDraft(existing);
+        if (existing.accountCreated && existing.stepIndex < 2) {
+          setDraft({ ...existing, stepIndex: 2 });
+        }
+      } else if (alive && authUser?.id && !authUser.hasKycDocs) {
+        setDraft((d) => ({
+          ...d,
+          accountCreated: true,
+          stepIndex: Math.max(d.stepIndex, 2),
+          name: d.name || authUser.name,
+          mobile: d.mobile || authUser.mobile || "",
+          role: (authUser.role as SignupRole) || d.role,
+        }));
+      }
+      if (alive) setDraftReady(true);
+    })();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authUser?.id]);
 
   useEffect(() => {
-    if (!needsUpline) return;
-    const phone = sponsorMobile.replace(/\D/g, "").slice(0, 10);
-    setSponsorUid("");
-    setSponsorName(null);
-    setSponsorOk(false);
-    setSponsorList([]);
+    if (!draftReady) return;
+    void saveMobileSignupDraft(storageKey, draft);
+  }, [draft, draftReady, storageKey]);
+
+  useEffect(() => {
+    if (!needsUpline) {
+      setSponsorOk(false);
+      return;
+    }
+    const phone = draft.sponsorMobile.replace(/\D/g, "").slice(0, 10);
     if (phone.length !== 10) {
-      setSponsorSearching(false);
+      setSponsorOk(false);
       return;
     }
     let cancelled = false;
-    setSponsorSearching(true);
-    const timer = setTimeout(async () => {
+    const t = setTimeout(async () => {
       try {
         const { data } = await api.get<
-          ApiResponse<{ items: Array<{ uid: string; name: string; mobile: string; role: SponsorRole }> }>
-        >("/auth/sponsor/search", {
-          params: { mobile: phone, role: sponsorRole },
-        });
+          ApiResponse<{ items: Array<{ uid: string; name: string; mobile: string }> }>
+        >("/auth/sponsor/search", { params: { mobile: phone, role: sponsorRole } });
         if (cancelled) return;
-        if (!data.success) throw new Error("not found");
-        const items = data.data.items ?? [];
-        const match = items.find((i) => i.mobile === phone) ?? items[0];
+        const match = (data.data.items ?? []).find((i) => i.mobile === phone) ?? data.data.items?.[0];
         if (match) {
-          setSponsorList([match]);
-          setSponsorUid(match.uid);
-          setSponsorName(match.name);
-          setSponsorRoleLabel(UPLINE_ROLE_LABEL[match.role] ?? UPLINE_ROLE_LABEL[sponsorRole]);
+          patch({ sponsorUid: match.uid, sponsorName: match.name });
           setSponsorOk(true);
+        } else {
+          setSponsorOk(false);
         }
       } catch {
-        if (cancelled) return;
-        setSponsorList([]);
-      } finally {
-        if (!cancelled) setSponsorSearching(false);
+        if (!cancelled) setSponsorOk(false);
       }
     }, 250);
     return () => {
       cancelled = true;
-      clearTimeout(timer);
+      clearTimeout(t);
     };
-  }, [sponsorMobile, sponsorRole, needsUpline]);
+  }, [draft.sponsorMobile, draft.role, needsUpline, sponsorRole]);
 
-  function selectSponsor(item: { uid: string; name: string; mobile: string; role?: string }) {
-    setSponsorUid(item.uid);
-    setSponsorName(item.name);
-    if (item.role && item.role in UPLINE_ROLE_LABEL) {
-      setSponsorRoleLabel(UPLINE_ROLE_LABEL[item.role as SponsorRole]);
+  useEffect(() => {
+    if (draft.pincode.length !== 6) return;
+    let cancelled = false;
+    void fetch(`https://api.postalpincode.in/pincode/${draft.pincode}`)
+      .then((r) => r.json())
+      .then((raw) => {
+        if (cancelled) return;
+        const block = Array.isArray(raw) ? raw[0] : raw;
+        const po = block?.PostOffice?.[0];
+        if (!po) return;
+        patch({ district: po.District || draft.district, state: po.State || draft.state });
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.pincode]);
+
+  useEffect(() => {
+    if (draft.businessPincode.length !== 6) return;
+    let cancelled = false;
+    void fetch(`https://api.postalpincode.in/pincode/${draft.businessPincode}`)
+      .then((r) => r.json())
+      .then((raw) => {
+        if (cancelled) return;
+        const block = Array.isArray(raw) ? raw[0] : raw;
+        const po = block?.PostOffice?.[0];
+        if (!po) return;
+        patch({
+          businessDistrict: po.District || draft.businessDistrict,
+          businessState: po.State || draft.businessState,
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.businessPincode]);
+
+  useEffect(() => {
+    if (draft.ifsc.length !== 11 || !draft.accountCreated) return;
+    let cancelled = false;
+    void api
+      .get<ApiResponse<{ bank: string; branch: string }>>(`/kyc/ifsc/${draft.ifsc}`)
+      .then(({ data }) => {
+        if (cancelled || !data.success) return;
+        patch({ bankName: data.data.bank || draft.bankName, bankBranch: data.data.branch || draft.bankBranch });
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.ifsc, draft.accountCreated]);
+
+  function markUpload(key: keyof MobileSignupDraft, label: string) {
+    patch({ [key]: { name: `${label}.jpg` } } as Partial<MobileSignupDraft>);
+  }
+
+  function validateStep(): string | null {
+    if (stepIndex === 0) {
+      if (draft.mobile.replace(/\D/g, "").length !== 10) return "Enter a valid 10-digit mobile";
+      if (!draft.termsAccepted) return "Please accept Terms and Conditions";
     }
-    setSponsorOk(true);
-  }
-
-  // Step 1
-  const [pan, setPan] = useState("");
-  const [aadhaar, setAadhaar] = useState("");
-  const [uploads, setUploads] = useState<Record<UploadKey, boolean>>({
-    aadhaarFront: false,
-    aadhaarBack: false,
-    panCard: false,
-  });
-
-  // Step 2
-  const [selfieDone, setSelfieDone] = useState(false);
-
-  // Step 3 — InstantPay Min-KYC outlet (retailers)
-  const [gender, setGender] = useState<Gender>("M");
-  const [email, setEmail] = useState("");
-  const [addressFull, setAddressFull] = useState("");
-  const [city, setCity] = useState("");
-  const [pincode, setPincode] = useState("");
-  const [dateOfBirth, setDateOfBirth] = useState("");
-  const [latitude, setLatitude] = useState("");
-  const [longitude, setLongitude] = useState("");
-  const [geoBusy, setGeoBusy] = useState(false);
-
-  function toggleUpload(key: UploadKey) {
-    setUploads((prev) => ({ ...prev, [key]: !prev[key] }));
-  }
-
-  function outletReady(): boolean {
-    if (signupRole !== "retailer") return true;
-    const lat = Number(latitude);
-    const lng = Number(longitude);
-    return (
-      mobile.length === 10 &&
-      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) &&
-      addressFull.trim().length >= 5 &&
-      city.trim().length >= 2 &&
-      /^\d{6}$/.test(pincode) &&
-      /^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth) &&
-      Number.isFinite(lat) &&
-      Number.isFinite(lng)
-    );
-  }
-
-  async function captureLocation() {
-    setGeoBusy(true);
-    try {
-      if (Platform.OS === "android") {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-          {
-            title: "Outlet location",
-            message: "AsanPay needs your current location to register the outlet on InstantPay.",
-            buttonPositive: "Allow",
-            buttonNegative: "Deny",
-          },
-        );
-        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-          showAlert("Location denied", "Allow location permission, then tap Use current location again.");
-          return;
-        }
+    if (stepIndex === 1) {
+      if (draft.name.trim().length < 2) return "Full name is required";
+      if (!draft.password || draft.password.length < 8) return "Password must be at least 8 characters";
+      if (needsUpline && !sponsorOk) return "Enter a valid upline mobile";
+    }
+    if (stepIndex === 2) {
+      if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(draft.pan)) return "Enter a valid PAN";
+      if (!draft.gender) return "Select gender";
+      if (!draft.dob) return "DOB required (YYYY-MM-DD)";
+      if (!draft.fatherName.trim()) return "Father name is required";
+      if (!draft.panImage) return "Upload PAN card";
+    }
+    if (stepIndex === 3) {
+      if (draft.aadhaar.replace(/\D/g, "").length !== 12) return "Enter valid 12-digit Aadhaar";
+      if (!draft.aadhaarFront || !draft.aadhaarBack) return "Upload Aadhaar front and back";
+    }
+    if (stepIndex === 4) {
+      if (!draft.email.trim()) return "Email is required";
+      if (!draft.emailVerified) return "Verify your email";
+      if (!draft.address.trim()) return "Address is required";
+      if (draft.pincode.length !== 6) return "Valid pincode required";
+      if (!draft.district.trim() || !draft.state.trim()) return "District and state required";
+    }
+    if (stepIndex === 5) {
+      if (!draft.businessName.trim()) return "Business name required";
+      if (!draft.businessType || !draft.businessCategory || !draft.monthlyTurnover || !draft.businessProof) {
+        return "Fill all business fields";
       }
-      await new Promise<void>((resolve, reject) => {
-        Geolocation.getCurrentPosition(
-          (pos) => {
-            setLatitude(pos.coords.latitude.toFixed(4));
-            setLongitude(pos.coords.longitude.toFixed(4));
-            resolve();
-          },
-          (err) => reject(err),
-          { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
-        );
-      });
-    } catch {
-      showAlert("Location failed", "Could not get GPS. Turn on location and try again.");
-    } finally {
-      setGeoBusy(false);
+      if (!draft.businessAddress.trim() || draft.businessPincode.length !== 6) return "Business address/pincode required";
     }
+    if (stepIndex === 6) {
+      if (draft.ifsc.length !== 11 || !draft.bankName.trim()) return "IFSC and bank name required";
+      if (!draft.accountNumber || draft.accountNumber !== draft.accountNumberConfirm) {
+        return "Account numbers must match";
+      }
+      if (!draft.accountName.trim() || !draft.cancelledCheque) return "Account name and cheque required";
+    }
+    if (stepIndex === 7 && !draft.shopPhoto) return "Upload shop photo";
+    if (stepIndex === 8 && !draft.agreementAccepted) return "Accept the agreement";
+    return null;
   }
 
   async function requestOtp() {
-    if (name.trim().length < 2) {
-      showAlert("Name required", "Enter your full name.");
-      return;
-    }
-    if (needsUpline && (!sponsorOk || !sponsorUid)) {
-      showAlert("Upline required", "Enter your upline's 10-digit mobile number.");
-      return;
-    }
-    if (mobile.length !== 10) {
-      showAlert("Invalid mobile", "Enter a valid 10-digit mobile number.");
-      return;
-    }
-    setOtpLoading(true);
+    setLoading(true);
     try {
-      const { data } = await api.post<ApiResponse<{ message: string; otp?: string }>>(
-        "/auth/signup/request",
-        {
-          name: name.trim(),
-          mobile,
-          role: signupRole,
-          portal: "agent",
-          ...(needsUpline && sponsorUid ? { sponsorUid: sponsorUid.trim() } : {}),
-        },
-      );
+      const { data } = await api.post<ApiResponse<{ otp?: string }>>("/auth/signup/request", {
+        name: draft.name.trim(),
+        mobile: draft.mobile.replace(/\D/g, "").slice(0, 10),
+        role: draft.role,
+        portal: "agent",
+        ...(needsUpline ? { sponsorUid: draft.sponsorUid } : {}),
+      });
       if (!data.success) throw new Error(data.message);
-      setOtpSent(true);
       if (__DEV__ && data.data.otp) {
         setDevOtp(data.data.otp);
         setOtp(data.data.otp);
       }
+      setPhase("otp");
     } catch (err) {
       showAlert("OTP failed", apiError(err, "Could not send OTP"));
     } finally {
-      setOtpLoading(false);
+      setLoading(false);
     }
   }
 
-  function canAdvance(): boolean {
-    if (step === 0) return otpSent && otp.length === 6;
-    if (step === 1) return /^[A-Z]{5}\d{4}[A-Z]$/.test(pan) && /^\d{12}$/.test(aadhaar);
-    if (step === 2) return selfieDone;
-    if (step === 3) return outletReady();
-    return true;
-  }
-
-  async function verifySignupOtp(): Promise<"session" | "pending"> {
-    const { data } = await api.post<
-      ApiResponse<
-        | LoginResponse
-        | { pendingApproval: true; user: AuthUser; message: string }
-      >
-    >("/auth/signup/verify", {
-      name: name.trim(),
-      mobile,
-      otp,
-      role: signupRole,
-      portal: "agent",
-      ...(needsUpline && sponsorUid ? { sponsorUid: sponsorUid.trim() } : {}),
-    });
-    if (!data.success) throw new Error(data.message);
-    if ("pendingApproval" in data.data && data.data.pendingApproval) {
-      setPendingApproval(true);
-      return "pending";
-    }
-    const session = data.data as LoginResponse;
-    // Hold session locally — setAuth() would unmount this screen before KYC/success.
-    setAuthHeader(session.accessToken);
-    setSessionResult(session);
-    return "session";
-  }
-
-  async function handleNext() {
-    if (!canAdvance()) {
-      showAlert("Incomplete", "Please fill in all required fields to continue.");
-      return;
-    }
-    // Verify OTP right after step 0 — KYC steps often exceed OTP TTL.
-    if (step === 0) {
-      if (sessionResult || pendingApproval) {
-        if (pendingApproval) {
-          setDone(true);
-          return;
-        }
-        setStep(1);
+  async function verifyOtp() {
+    if (otp.length !== 6) return;
+    setLoading(true);
+    try {
+      const { data } = await api.post<
+        ApiResponse<LoginResponse | { pendingApproval: true; user: AuthUser; message: string }>
+      >("/auth/signup/verify", {
+        name: draft.name.trim(),
+        mobile: draft.mobile.replace(/\D/g, "").slice(0, 10),
+        otp,
+        role: draft.role,
+        portal: "agent",
+        password: draft.password,
+        ...(needsUpline ? { sponsorUid: draft.sponsorUid } : {}),
+      });
+      if (!data.success) throw new Error(data.message);
+      if ("pendingApproval" in data.data && data.data.pendingApproval) {
+        showAlert("Pending approval", data.data.message);
+        await clearMobileSignupDraft(storageKey);
+        onBack();
         return;
       }
-      setSubmitting(true);
-      try {
-        const result = await verifySignupOtp();
-        if (result === "pending") {
-          setDone(true);
-          return;
-        }
-        setStep(1);
-      } catch (err) {
-        showAlert("OTP failed", apiError(err, "Invalid or expired OTP. Request a new one."));
-      } finally {
-        setSubmitting(false);
-      }
-      return;
+      const session = data.data as LoginResponse;
+      const nextDraft = { ...draft, accountCreated: true, stepIndex: 2 };
+      setDraft(nextDraft);
+      await saveMobileSignupDraft(session.user.id, nextDraft);
+      setAuth(session.user, {
+        accessToken: session.accessToken,
+        refreshToken: session.refreshToken,
+      });
+      setSignupContinue(true);
+      setPhase("steps");
+      setOtp("");
+    } catch (err) {
+      showAlert("OTP failed", apiError(err, "Invalid or expired OTP"));
+    } finally {
+      setLoading(false);
     }
-    if (step < 4) {
-      setStep((s) => s + 1);
-      return;
-    }
-    await submit();
   }
 
-  async function submit() {
-    setSubmitting(true);
+  async function requestEmailOtp() {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim())) {
+      showAlert("Invalid email", "Enter a valid email address");
+      return;
+    }
+    setLoading(true);
     try {
-      if (!sessionResult) {
-        const result = await verifySignupOtp();
-        if (result === "pending") {
-          setDone(true);
-          return;
-        }
-      }
+      await api.post("/auth/email/otp/request", { email: draft.email.trim().toLowerCase() });
+      setPhase("emailOtp");
+      showAlert("Code sent", "Check your email for the verification code");
+    } catch (err) {
+      showAlert("Email OTP failed", apiError(err, "Could not send email code"));
+    } finally {
+      setLoading(false);
+    }
+  }
 
-      try {
-        await api.post("/kyc/submit", { panNumber: pan, aadhaarNumber: aadhaar });
-      } catch {
-        /* account is already created; KYC can be retried later from Profile */
-      }
-
-      if (signupRole === "retailer") {
-        await api.post("/onboarding/instantpay", {
-          mobile,
-          name: name.trim(),
-          gender,
-          pan,
-          email: email.trim(),
-          address: {
-            full: addressFull.trim(),
-            city: city.trim(),
-            pincode,
-          },
-          aadhaarNumber: aadhaar,
-          dateOfBirth,
-          latitude: Number(latitude),
-          longitude: Number(longitude),
+  async function verifyEmailOtp() {
+    if (emailOtp.length !== 6) return;
+    setLoading(true);
+    try {
+      const { data } = await api.post<ApiResponse<{ email: string; emailVerifiedAt: string }>>(
+        "/auth/email/otp/verify",
+        { otp: emailOtp },
+      );
+      if (!data.success) throw new Error(data.message);
+      patch({ emailVerified: true, email: data.data.email });
+      if (authUser) {
+        updateUser({
+          ...authUser,
+          email: data.data.email,
+          emailVerifiedAt: data.data.emailVerifiedAt,
         });
       }
-
-      setDone(true);
+      setPhase("steps");
+      setEmailOtp("");
+      showAlert("Verified", "Email verified successfully");
     } catch (err) {
-      showAlert("Signup failed", apiError(err, "Could not complete registration"));
+      showAlert("Verify failed", apiError(err, "Incorrect code"));
     } finally {
-      setSubmitting(false);
+      setLoading(false);
     }
   }
 
-  function continueToApp() {
-    if (!sessionResult) return;
-    setAuth(sessionResult.user, {
-      accessToken: sessionResult.accessToken,
-      refreshToken: sessionResult.refreshToken,
-    });
+  async function finalSubmit() {
+    setLoading(true);
+    try {
+      const { data } = await api.post<ApiResponse<{ user: AuthUser }>>("/kyc/submit", {
+        fullName: draft.name.trim(),
+        panNumber: draft.pan.toUpperCase(),
+        aadhaarNumber: draft.aadhaar.replace(/\D/g, ""),
+        email: draft.email.trim().toLowerCase(),
+        address: draft.address.trim(),
+        city: draft.district.trim(),
+        pincode: draft.pincode,
+        bankAccountName: draft.accountName.trim(),
+        bankAccountNumber: draft.accountNumber,
+        bankIfsc: draft.ifsc.toUpperCase(),
+        bankName: draft.bankName.trim(),
+        cancelledChequeFileName: draft.cancelledCheque?.name,
+        gender: draft.gender,
+        fatherName: draft.fatherName.trim(),
+        dob: draft.dob,
+        district: draft.district.trim(),
+        state: draft.state.trim(),
+        businessName: draft.businessName.trim(),
+        businessType: draft.businessType,
+        businessCategory: draft.businessCategory,
+        monthlyTurnover: draft.monthlyTurnover,
+        businessProof: draft.businessProof,
+        businessAddress: draft.businessAddress.trim(),
+        businessPincode: draft.businessPincode,
+        businessDistrict: draft.businessDistrict.trim(),
+        businessState: draft.businessState.trim(),
+        bankBranch: draft.bankBranch.trim() || undefined,
+        panImageFileName: draft.panImage?.name,
+        aadhaarFrontFileName: draft.aadhaarFront?.name,
+        aadhaarBackFileName: draft.aadhaarBack?.name,
+        shopPhotoFileName: draft.shopPhoto?.name,
+      });
+      if (!data.success) throw new Error(data.message);
+      updateUser(data.data.user);
+      await clearMobileSignupDraft(authUser?.id || storageKey);
+      setSignupContinue(false);
+      showAlert("Submitted", "Onboarding submitted — awaiting approval");
+    } catch (err) {
+      showAlert("Submit failed", apiError(err, "Could not submit KYC"));
+    } finally {
+      setLoading(false);
+    }
   }
 
-  if (done) {
+  function next() {
+    const err = validateStep();
+    if (err) {
+      showAlert("Incomplete", err);
+      return;
+    }
+    if (stepIndex === 1) {
+      void requestOtp();
+      return;
+    }
+    if (stepIndex === 8) {
+      void finalSubmit();
+      return;
+    }
+    patch({ stepIndex: Math.min(stepIndex + 1, 8) });
+  }
+
+  function back() {
+    if (phase === "otp" || phase === "emailOtp") {
+      setPhase("steps");
+      return;
+    }
+    if (stepIndex === 0 || (stepIndex === 2 && draft.accountCreated)) {
+      if (draft.accountCreated) {
+        setSignupContinue(false);
+        return;
+      }
+      onBack();
+      return;
+    }
+    patch({ stepIndex: Math.max(stepIndex - 1, 0) });
+  }
+
+  if (!draftReady) {
     return (
       <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bg }]}>
-        <View style={styles.successWrap}>
-          <LinearGradient colors={[...colors.gradientButton]} style={styles.successIcon}>
-            <CheckCircle2 size={44} color="#fff" strokeWidth={2.3} />
-          </LinearGradient>
-          <Text style={[styles.successTitle, { color: tokens.txt }]}>
-            {pendingApproval ? "Submitted for Approval" : "Application Submitted!"}
-          </Text>
-          <Text style={[styles.successSub, { color: tokens.sub }]}>
-            {pendingApproval ? (
-              <>
-                Your Super Distributor account is registered. An admin will review and activate it. You can log in after approval.
-              </>
-            ) : (
-              <>
-                Your KYC is under verification. You'll be activated within{" "}
-                <Text style={{ color: colors.greenDark, fontWeight: "800" }}>24 hours</Text> via SMS.
-              </>
-            )}
-          </Text>
-          {pendingApproval ? (
-            <Pressable onPress={onBack} style={styles.footerBtnPress}>
-              <LinearGradient colors={[...colors.gradient]} style={[styles.footerBtn, { marginTop: 26, width: 220 }]}>
-                <Text style={styles.footerBtnText}>Back to Login</Text>
-              </LinearGradient>
-            </Pressable>
-          ) : (
-            <Pressable onPress={continueToApp} style={styles.footerBtnPress}>
-              <LinearGradient colors={[...colors.gradient]} style={[styles.footerBtn, { marginTop: 26, width: 220 }]}>
-                <Text style={styles.footerBtnText}>Go to Dashboard</Text>
-              </LinearGradient>
-            </Pressable>
-          )}
-        </View>
+        <ActivityIndicator color={colors.blueFlat} style={{ marginTop: 40 }} />
       </SafeAreaView>
     );
   }
 
+  const subtitle =
+    phase === "otp" ? "Mobile OTP" : phase === "emailOtp" ? "Email OTP" : MOBILE_SIGNUP_STEPS[stepIndex]?.label;
+
+  const inputStyle = [
+    styles.input,
+    { backgroundColor: tokens.inputBg, borderColor: tokens.inputBorder, color: tokens.txt2 },
+  ];
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bg }]} edges={["top", "bottom"]}>
-      <LinearGradient
-        colors={[colors.blueLight, colors.blue]}
-        start={gradientDirection.diagonal.start}
-        end={gradientDirection.diagonal.end}
-        style={styles.header}
-      >
-        <View style={styles.headerRow}>
-          <Pressable
-            onPress={() => (step === 0 ? onBack() : setStep((s) => s - 1))}
-            style={styles.backBtn}
-          >
-            <Text style={styles.backBtnText}>←</Text>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <View style={styles.header}>
+          <Pressable onPress={back} style={[styles.backBtn, { borderColor: tokens.cardBorder }]}>
+            <ArrowLeft size={18} color={colors.blueFlat} />
           </Pressable>
-          <View>
-            <Text style={styles.headerTitle}>{STEP_TITLES[step]}</Text>
-            <Text style={styles.headerSub}>Step {step + 1} of 5 · Agent Registration</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.title, { color: tokens.txt }]}>Sign Up</Text>
+            <Text style={[styles.sub, { color: tokens.sub }]}>{subtitle}</Text>
           </View>
         </View>
-        <View style={styles.progressRow}>
-          {STEP_TITLES.map((_, i) => (
-            <View
-              key={i}
-              style={[styles.progressBar, i <= step ? styles.progressBarActive : styles.progressBarIdle]}
-            />
-          ))}
-        </View>
-      </LinearGradient>
 
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
+        <MobileSignupStepper currentIndex={phase === "otp" ? 1 : phase === "emailOtp" ? 4 : stepIndex} />
+
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          {step === 0 ? (
-            <StepDetails
-              signupRole={signupRole}
-              setSignupRole={setSignupRole}
-              name={name}
-              setName={setName}
-              sponsorMobile={sponsorMobile}
-              setSponsorMobile={setSponsorMobile}
-              sponsorList={sponsorList}
-              sponsorUid={sponsorUid}
-              sponsorName={sponsorName}
-              sponsorRoleLabel={sponsorRoleLabel}
-              sponsorOk={sponsorOk}
-              sponsorSearching={sponsorSearching}
-              onSelectSponsor={selectSponsor}
-              mobile={mobile}
-              setMobile={setMobile}
-              otpSent={otpSent}
-              otpLoading={otpLoading}
-              onRequestOtp={requestOtp}
-              otp={otp}
-              setOtp={setOtp}
-              devOtp={devOtp}
-            />
+          {phase === "otp" ? (
+            <View style={styles.block}>
+              <Text style={[styles.hint, { color: tokens.mute }]}>
+                Enter OTP sent to +91 {draft.mobile.replace(/\D/g, "").slice(0, 10)}
+              </Text>
+              {devOtp ? <Text style={styles.devOtp}>Dev OTP: {devOtp}</Text> : null}
+              <TextInput
+                value={otp}
+                onChangeText={(t) => setOtp(t.replace(/\D/g, "").slice(0, 6))}
+                keyboardType="number-pad"
+                placeholder="6-digit OTP"
+                placeholderTextColor={tokens.mute}
+                style={inputStyle}
+              />
+              <Pressable
+                onPress={() => void verifyOtp()}
+                disabled={loading || otp.length !== 6}
+                style={[styles.cta, { opacity: loading || otp.length !== 6 ? 0.5 : 1 }]}
+              >
+                <Text style={styles.ctaText}>{loading ? "Verifying…" : "Verify & Continue"}</Text>
+              </Pressable>
+            </View>
           ) : null}
-          {step === 1 ? (
-            <StepKyc
-              pan={pan}
-              setPan={setPan}
-              aadhaar={aadhaar}
-              setAadhaar={setAadhaar}
-              uploads={uploads}
-              toggleUpload={toggleUpload}
-            />
+
+          {phase === "emailOtp" ? (
+            <View style={styles.block}>
+              <Text style={[styles.hint, { color: tokens.mute }]}>Code sent to {draft.email}</Text>
+              <TextInput
+                value={emailOtp}
+                onChangeText={(t) => setEmailOtp(t.replace(/\D/g, "").slice(0, 6))}
+                keyboardType="number-pad"
+                placeholder="6-digit code"
+                placeholderTextColor={tokens.mute}
+                style={inputStyle}
+              />
+              <Pressable
+                onPress={() => void verifyEmailOtp()}
+                disabled={loading || emailOtp.length !== 6}
+                style={[styles.cta, { opacity: loading || emailOtp.length !== 6 ? 0.5 : 1 }]}
+              >
+                <Text style={styles.ctaText}>{loading ? "Verifying…" : "Confirm email"}</Text>
+              </Pressable>
+            </View>
           ) : null}
-          {step === 2 ? <StepSelfie done={selfieDone} onToggle={() => setSelfieDone((v) => !v)} /> : null}
-          {step === 3 ? (
-            <StepOutlet
-              isRetailer={signupRole === "retailer"}
-              mobile={mobile}
-              setMobile={setMobile}
-              gender={gender}
-              setGender={setGender}
-              email={email}
-              setEmail={setEmail}
-              addressFull={addressFull}
-              setAddressFull={setAddressFull}
-              city={city}
-              setCity={setCity}
-              pincode={pincode}
-              setPincode={setPincode}
-              dateOfBirth={dateOfBirth}
-              setDateOfBirth={setDateOfBirth}
-              latitude={latitude}
-              longitude={longitude}
-              geoBusy={geoBusy}
-              onCaptureLocation={captureLocation}
-            />
-          ) : null}
-          {step === 4 ? (
-            <StepReview
-              name={name}
-              mobile={mobile}
-              signupRole={signupRole}
-              sponsorUid={sponsorUid}
-              sponsorName={sponsorName}
-              pan={pan}
-              aadhaar={aadhaar}
-              email={email}
-              addressFull={addressFull}
-              city={city}
-              pincode={pincode}
-              dateOfBirth={dateOfBirth}
-              latitude={latitude}
-              longitude={longitude}
-            />
+
+          {phase === "steps" ? (
+            <View style={styles.block}>
+              {stepIndex === 0 && (
+                <>
+                  <FieldLabel text="Mobile Number *" color={tokens.mute} />
+                  <TextInput
+                    value={draft.mobile}
+                    onChangeText={(t) => patch({ mobile: t.replace(/\D/g, "").slice(0, 10) })}
+                    keyboardType="number-pad"
+                    placeholder="10-digit mobile"
+                    placeholderTextColor={tokens.mute}
+                    style={inputStyle}
+                  />
+                  <Text style={[styles.hint, { color: tokens.mute }]}>
+                    *Enter number which is linked to your Aadhaar.
+                  </Text>
+                  <Pressable
+                    onPress={() => patch({ termsAccepted: !draft.termsAccepted })}
+                    style={styles.checkRow}
+                  >
+                    <View style={[styles.check, draft.termsAccepted && styles.checkOn]}>
+                      {draft.termsAccepted ? <CheckCircle2 size={14} color="#fff" /> : null}
+                    </View>
+                    <Text style={{ color: tokens.txt2, flex: 1 }}>I agree to the Terms and Conditions</Text>
+                  </Pressable>
+                  <View style={[styles.prep, { backgroundColor: `${colors.green}18` }]}>
+                    <Text style={[styles.prepTitle, { color: colors.greenDark }]}>Before you begin, keep these ready:</Text>
+                    <Text style={[styles.prepItem, { color: colors.greenDark }]}>• Business Document (any one)</Text>
+                    <Text style={[styles.prepItem, { color: colors.greenDark }]}>• Aadhaar Card (soft copy)</Text>
+                    <Text style={[styles.prepItem, { color: colors.greenDark }]}>• PAN Card (soft copy)</Text>
+                    <Text style={[styles.prepItem, { color: colors.greenDark }]}>• Photo of your Shop</Text>
+                  </View>
+                </>
+              )}
+
+              {stepIndex === 1 && (
+                <>
+                  <FieldLabel text="Role *" color={tokens.mute} />
+                  <View style={styles.roleRow}>
+                    {ROLE_OPTIONS.map((r) => (
+                      <Pressable
+                        key={r.value}
+                        onPress={() =>
+                          patch({ role: r.value, sponsorMobile: "", sponsorUid: "", sponsorName: "" })
+                        }
+                        style={[
+                          styles.roleChip,
+                          {
+                            borderColor: draft.role === r.value ? colors.blue : tokens.cardBorder,
+                            backgroundColor: draft.role === r.value ? `${colors.blue}14` : tokens.card,
+                          },
+                        ]}
+                      >
+                        <Text style={{ color: tokens.txt2, fontWeight: "700", fontSize: 12 }}>{r.label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <FieldLabel text="Full Name *" color={tokens.mute} />
+                  <TextInput
+                    value={draft.name}
+                    onChangeText={(t) => patch({ name: t })}
+                    placeholder="As per PAN"
+                    placeholderTextColor={tokens.mute}
+                    style={inputStyle}
+                  />
+                  {needsUpline ? (
+                    <>
+                      <FieldLabel text={`${UPLINE_LABEL[draft.role as "retailer" | "distributor"]} *`} color={tokens.mute} />
+                      <TextInput
+                        value={draft.sponsorMobile}
+                        onChangeText={(t) => patch({ sponsorMobile: t.replace(/\D/g, "").slice(0, 10) })}
+                        keyboardType="number-pad"
+                        placeholderTextColor={tokens.mute}
+                        style={inputStyle}
+                      />
+                      {sponsorOk ? (
+                        <Text style={{ color: colors.greenDark, fontSize: 12, fontWeight: "700" }}>
+                          ✓ {draft.sponsorName}
+                        </Text>
+                      ) : null}
+                    </>
+                  ) : null}
+                  <FieldLabel text="Password *" color={tokens.mute} />
+                  <TextInput
+                    value={draft.password}
+                    onChangeText={(t) => patch({ password: t })}
+                    secureTextEntry
+                    placeholder="Min 8 characters"
+                    placeholderTextColor={tokens.mute}
+                    style={inputStyle}
+                  />
+                </>
+              )}
+
+              {stepIndex === 2 && (
+                <>
+                  <FieldLabel text="PAN Number *" color={tokens.mute} />
+                  <TextInput
+                    value={draft.pan}
+                    onChangeText={(t) => patch({ pan: t.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10) })}
+                    autoCapitalize="characters"
+                    placeholder="ABCDE1234F"
+                    placeholderTextColor={tokens.mute}
+                    style={inputStyle}
+                  />
+                  <FieldLabel text="Gender *" color={tokens.mute} />
+                  <View style={styles.roleRow}>
+                    {["Male", "Female", "Other"].map((g) => (
+                      <Pressable
+                        key={g}
+                        onPress={() => patch({ gender: g })}
+                        style={[
+                          styles.roleChip,
+                          {
+                            borderColor: draft.gender === g ? colors.blue : tokens.cardBorder,
+                            backgroundColor: draft.gender === g ? `${colors.blue}14` : tokens.card,
+                          },
+                        ]}
+                      >
+                        <Text style={{ color: tokens.txt2, fontWeight: "700", fontSize: 12 }}>{g}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <FieldLabel text="Date of Birth * (YYYY-MM-DD)" color={tokens.mute} />
+                  <TextInput
+                    value={draft.dob}
+                    onChangeText={(t) => patch({ dob: t })}
+                    placeholder="1981-02-12"
+                    placeholderTextColor={tokens.mute}
+                    style={inputStyle}
+                  />
+                  <FieldLabel text="Father Name *" color={tokens.mute} />
+                  <TextInput
+                    value={draft.fatherName}
+                    onChangeText={(t) => patch({ fatherName: t })}
+                    placeholderTextColor={tokens.mute}
+                    style={inputStyle}
+                  />
+                  <UploadRow
+                    label="PAN Card Image *"
+                    done={Boolean(draft.panImage)}
+                    name={draft.panImage?.name}
+                    onPress={() => markUpload("panImage", "pan")}
+                    tokens={tokens}
+                  />
+                </>
+              )}
+
+              {stepIndex === 3 && (
+                <>
+                  <FieldLabel text="Aadhaar Number *" color={tokens.mute} />
+                  <TextInput
+                    value={draft.aadhaar}
+                    onChangeText={(t) => patch({ aadhaar: t.replace(/\D/g, "").slice(0, 12) })}
+                    keyboardType="number-pad"
+                    placeholder="12 digits"
+                    placeholderTextColor={tokens.mute}
+                    style={inputStyle}
+                  />
+                  <UploadRow
+                    label="Aadhaar Front *"
+                    done={Boolean(draft.aadhaarFront)}
+                    name={draft.aadhaarFront?.name}
+                    onPress={() => markUpload("aadhaarFront", "aadhaar-front")}
+                    tokens={tokens}
+                  />
+                  <UploadRow
+                    label="Aadhaar Back *"
+                    done={Boolean(draft.aadhaarBack)}
+                    name={draft.aadhaarBack?.name}
+                    onPress={() => markUpload("aadhaarBack", "aadhaar-back")}
+                    tokens={tokens}
+                  />
+                </>
+              )}
+
+              {stepIndex === 4 && (
+                <>
+                  <FieldLabel text="Email *" color={tokens.mute} />
+                  <View style={styles.emailRow}>
+                    <TextInput
+                      value={draft.email}
+                      onChangeText={(t) => patch({ email: t, emailVerified: false })}
+                      autoCapitalize="none"
+                      keyboardType="email-address"
+                      placeholder="email@example.com"
+                      placeholderTextColor={tokens.mute}
+                      style={[inputStyle, { flex: 1 }]}
+                    />
+                    <Pressable
+                      onPress={() => void requestEmailOtp()}
+                      disabled={loading || draft.emailVerified}
+                      style={[styles.verifyBtn, draft.emailVerified && { backgroundColor: colors.green }]}
+                    >
+                      <Text style={styles.verifyBtnText}>{draft.emailVerified ? "Verified" : "Verify"}</Text>
+                    </Pressable>
+                  </View>
+                  <FieldLabel text="Address *" color={tokens.mute} />
+                  <TextInput
+                    value={draft.address}
+                    onChangeText={(t) => patch({ address: t })}
+                    placeholderTextColor={tokens.mute}
+                    style={inputStyle}
+                  />
+                  <FieldLabel text="Pincode *" color={tokens.mute} />
+                  <TextInput
+                    value={draft.pincode}
+                    onChangeText={(t) => patch({ pincode: t.replace(/\D/g, "").slice(0, 6) })}
+                    keyboardType="number-pad"
+                    placeholderTextColor={tokens.mute}
+                    style={inputStyle}
+                  />
+                  <FieldLabel text="District *" color={tokens.mute} />
+                  <TextInput
+                    value={draft.district}
+                    onChangeText={(t) => patch({ district: t })}
+                    placeholderTextColor={tokens.mute}
+                    style={inputStyle}
+                  />
+                  <FieldLabel text="State *" color={tokens.mute} />
+                  <TextInput
+                    value={draft.state}
+                    onChangeText={(t) => patch({ state: t })}
+                    placeholderTextColor={tokens.mute}
+                    style={inputStyle}
+                  />
+                </>
+              )}
+
+              {stepIndex === 5 && (
+                <>
+                  <FieldLabel text="Business Name *" color={tokens.mute} />
+                  <TextInput
+                    value={draft.businessName}
+                    onChangeText={(t) => patch({ businessName: t })}
+                    placeholderTextColor={tokens.mute}
+                    style={inputStyle}
+                  />
+                  <SelectRow
+                    label="Business Type *"
+                    value={draft.businessType}
+                    options={BUSINESS_TYPES}
+                    onChange={(v) => patch({ businessType: v })}
+                    tokens={tokens}
+                  />
+                  <SelectRow
+                    label="Business Category *"
+                    value={draft.businessCategory}
+                    options={BUSINESS_CATEGORIES}
+                    onChange={(v) => patch({ businessCategory: v })}
+                    tokens={tokens}
+                  />
+                  <SelectRow
+                    label="Monthly Turnover *"
+                    value={draft.monthlyTurnover}
+                    options={TURNOVERS}
+                    onChange={(v) => patch({ monthlyTurnover: v })}
+                    tokens={tokens}
+                  />
+                  <SelectRow
+                    label="Business Proof *"
+                    value={draft.businessProof}
+                    options={BUSINESS_PROOFS}
+                    onChange={(v) => patch({ businessProof: v })}
+                    tokens={tokens}
+                  />
+                  <FieldLabel text="Business Address *" color={tokens.mute} />
+                  <TextInput
+                    value={draft.businessAddress}
+                    onChangeText={(t) => patch({ businessAddress: t })}
+                    placeholderTextColor={tokens.mute}
+                    style={inputStyle}
+                  />
+                  <FieldLabel text="Pincode *" color={tokens.mute} />
+                  <TextInput
+                    value={draft.businessPincode}
+                    onChangeText={(t) => patch({ businessPincode: t.replace(/\D/g, "").slice(0, 6) })}
+                    keyboardType="number-pad"
+                    placeholderTextColor={tokens.mute}
+                    style={inputStyle}
+                  />
+                  <FieldLabel text="District *" color={tokens.mute} />
+                  <TextInput
+                    value={draft.businessDistrict}
+                    onChangeText={(t) => patch({ businessDistrict: t })}
+                    placeholderTextColor={tokens.mute}
+                    style={inputStyle}
+                  />
+                  <FieldLabel text="State *" color={tokens.mute} />
+                  <TextInput
+                    value={draft.businessState}
+                    onChangeText={(t) => patch({ businessState: t })}
+                    placeholderTextColor={tokens.mute}
+                    style={inputStyle}
+                  />
+                </>
+              )}
+
+              {stepIndex === 6 && (
+                <>
+                  <FieldLabel text="IFSC *" color={tokens.mute} />
+                  <TextInput
+                    value={draft.ifsc}
+                    onChangeText={(t) =>
+                      patch({ ifsc: t.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11) })
+                    }
+                    autoCapitalize="characters"
+                    placeholder="HDFC0001209"
+                    placeholderTextColor={tokens.mute}
+                    style={inputStyle}
+                  />
+                  <FieldLabel text="Bank Name *" color={tokens.mute} />
+                  <TextInput
+                    value={draft.bankName}
+                    onChangeText={(t) => patch({ bankName: t })}
+                    placeholderTextColor={tokens.mute}
+                    style={inputStyle}
+                  />
+                  <FieldLabel text="Branch" color={tokens.mute} />
+                  <TextInput
+                    value={draft.bankBranch}
+                    onChangeText={(t) => patch({ bankBranch: t })}
+                    placeholderTextColor={tokens.mute}
+                    style={inputStyle}
+                  />
+                  <FieldLabel text="Account Number *" color={tokens.mute} />
+                  <TextInput
+                    value={draft.accountNumber}
+                    onChangeText={(t) => patch({ accountNumber: t.replace(/\D/g, "").slice(0, 30) })}
+                    keyboardType="number-pad"
+                    placeholderTextColor={tokens.mute}
+                    style={inputStyle}
+                  />
+                  <FieldLabel text="Confirm Account Number *" color={tokens.mute} />
+                  <TextInput
+                    value={draft.accountNumberConfirm}
+                    onChangeText={(t) => patch({ accountNumberConfirm: t.replace(/\D/g, "").slice(0, 30) })}
+                    keyboardType="number-pad"
+                    placeholderTextColor={tokens.mute}
+                    style={inputStyle}
+                  />
+                  <FieldLabel text="Account Holder Name *" color={tokens.mute} />
+                  <TextInput
+                    value={draft.accountName}
+                    onChangeText={(t) => patch({ accountName: t })}
+                    placeholderTextColor={tokens.mute}
+                    style={inputStyle}
+                  />
+                  <UploadRow
+                    label="Cancelled Cheque *"
+                    done={Boolean(draft.cancelledCheque)}
+                    name={draft.cancelledCheque?.name}
+                    onPress={() => markUpload("cancelledCheque", "cheque")}
+                    tokens={tokens}
+                  />
+                </>
+              )}
+
+              {stepIndex === 7 && (
+                <UploadRow
+                  label="Shop Photo *"
+                  done={Boolean(draft.shopPhoto)}
+                  name={draft.shopPhoto?.name}
+                  onPress={() => markUpload("shopPhoto", "shop")}
+                  tokens={tokens}
+                />
+              )}
+
+              {stepIndex === 8 && (
+                <>
+                  <View style={[styles.agreeBox, { borderColor: tokens.cardBorder }]}>
+                    <Text style={[styles.agreeTitle, { color: tokens.txt }]}>Agent Agreement & Pricing</Text>
+                    <Text style={{ color: tokens.mute, fontSize: 12, lineHeight: 18 }}>
+                      By continuing you agree to AsanPay agent terms, privacy policy, and the applicable
+                      commission / pricing schedule for your role.
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() => patch({ agreementAccepted: !draft.agreementAccepted })}
+                    style={styles.checkRow}
+                  >
+                    <View style={[styles.check, draft.agreementAccepted && styles.checkOn]}>
+                      {draft.agreementAccepted ? <CheckCircle2 size={14} color="#fff" /> : null}
+                    </View>
+                    <Text style={{ color: tokens.txt2, flex: 1 }}>
+                      I accept Terms, Privacy, Agent Agreement, and pricing.
+                    </Text>
+                  </Pressable>
+                </>
+              )}
+
+              <Pressable onPress={next} disabled={loading} style={[styles.cta, { opacity: loading ? 0.6 : 1 }]}>
+                <Text style={styles.ctaText}>
+                  {loading ? "Please wait…" : stepIndex === 8 ? "Submit" : stepIndex === 1 ? "Send OTP" : "Submit"}
+                </Text>
+              </Pressable>
+            </View>
           ) : null}
         </ScrollView>
-
-        <View style={[styles.footer, { backgroundColor: tokens.bg }]}>
-          <Pressable onPress={handleNext} disabled={submitting} style={styles.footerBtnPress}>
-            <LinearGradient colors={[...colors.gradient]} style={styles.footerBtn}>
-              {submitting ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.footerBtnText}>{step === 4 ? "Submit Application" : "Continue"}</Text>
-              )}
-            </LinearGradient>
-          </Pressable>
-        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-function StepDetails(props: {
-  signupRole: SignupRole;
-  setSignupRole: (v: SignupRole) => void;
-  name: string;
-  setName: (v: string) => void;
-  sponsorMobile: string;
-  setSponsorMobile: (v: string) => void;
-  sponsorList: Array<{ uid: string; name: string; mobile: string; role?: string }>;
-  sponsorUid: string;
-  sponsorName: string | null;
-  sponsorRoleLabel: string;
-  sponsorOk: boolean;
-  sponsorSearching: boolean;
-  onSelectSponsor: (item: { uid: string; name: string; mobile: string; role?: string }) => void;
-  mobile: string;
-  setMobile: (v: string) => void;
-  otpSent: boolean;
-  otpLoading: boolean;
-  onRequestOtp: () => void;
-  otp: string;
-  setOtp: React.Dispatch<React.SetStateAction<string>>;
-  devOtp: string;
-}) {
-  const { tokens } = useTheme();
-  const needsUpline = props.signupRole !== "master_distributor";
-  return (
-    <View>
-      <View style={styles.iconBadgeWrap}>
-        <View style={[styles.iconBadge, { backgroundColor: tokens.softBlue }]}>
-          <Phone size={26} color={colors.blueFlat} strokeWidth={2} />
-        </View>
-        <Text style={[styles.stepTitle, { color: tokens.txt }]}>Let's get started</Text>
-        <Text style={[styles.stepSub, { color: tokens.sub }]}>
-          {needsUpline
-            ? "Select your role, then map under your upline"
-            : "Select Super Distributor to register directly for admin approval"}
-        </Text>
-      </View>
-
-      <View
-        style={[
-          styles.rolePanel,
-          {
-            backgroundColor: tokens.softBlue,
-            borderColor: `${colors.blueFlat}40`,
-          },
-        ]}
-      >
-        <Text style={[styles.rolePanelEyebrow, { color: colors.blueFlat }]}>STEP 1 · CHOOSE ROLE</Text>
-        <Text style={[styles.rolePanelTitle, { color: tokens.txt }]}>Register as</Text>
-        <Text style={[styles.rolePanelHint, { color: tokens.sub }]}>
-          {needsUpline
-            ? "Tap one option below — this decides your upline"
-            : "No upline mobile — admin will activate your account"}
-        </Text>
-        <View style={styles.roleGrid}>
-          {SIGNUP_ROLES.map((opt) => {
-            const active = props.signupRole === opt.value;
-            return (
-              <Pressable
-                key={opt.value}
-                onPress={() => props.setSignupRole(opt.value)}
-                style={[
-                  styles.roleOption,
-                  {
-                    borderColor: active ? colors.blueFlat : tokens.cardBorder,
-                    backgroundColor: active ? colors.blueFlat : tokens.card,
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.roleOptionText,
-                    { color: active ? "#fff" : tokens.txt2 },
-                  ]}
-                  numberOfLines={2}
-                >
-                  {opt.label}
-                </Text>
-                {active ? (
-                  <Text style={styles.roleOptionCheck}>Selected</Text>
-                ) : null}
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
-
-      <Field label="FULL NAME" tokens={tokens}>
-        <TextInput
-          value={props.name}
-          onChangeText={props.setName}
-          placeholder="Your name"
-          placeholderTextColor={tokens.mute}
-          style={[fieldStyles.input, { color: tokens.txt2, backgroundColor: tokens.inputBg, borderColor: tokens.inputBorder }]}
-        />
-      </Field>
-
-      <Field label="YOUR MOBILE" tokens={tokens}>
-        <View style={[fieldStyles.row, { backgroundColor: tokens.inputBg, borderColor: tokens.inputBorder }]}>
-          <Text style={[fieldStyles.prefix, { color: tokens.txt2 }]}>+91</Text>
-          <View style={[fieldStyles.divider, { backgroundColor: tokens.inputBorder }]} />
-          <TextInput
-            value={props.mobile}
-            onChangeText={(t) => props.setMobile(t.replace(/\D/g, "").slice(0, 10))}
-            keyboardType="number-pad"
-            maxLength={10}
-            editable={!props.otpSent}
-            placeholder="10-digit mobile"
-            placeholderTextColor={tokens.mute}
-            style={[fieldStyles.rowInput, { color: tokens.txt2 }]}
-          />
-        </View>
-      </Field>
-
-      {needsUpline ? (
-        <>
-          <Field label={UPLINE_LABEL[props.signupRole as Exclude<SignupRole, "master_distributor">]} tokens={tokens}>
-            <View style={[fieldStyles.row, { backgroundColor: tokens.inputBg, borderColor: tokens.inputBorder }]}>
-              <Text style={[fieldStyles.prefix, { color: tokens.txt2 }]}>+91</Text>
-              <View style={[fieldStyles.divider, { backgroundColor: tokens.inputBorder }]} />
-              <TextInput
-                value={props.sponsorMobile}
-                onChangeText={(t) => props.setSponsorMobile(t.replace(/\D/g, "").slice(0, 10))}
-                placeholder="10-digit upline mobile"
-                keyboardType="number-pad"
-                maxLength={10}
-                placeholderTextColor={tokens.mute}
-                style={[fieldStyles.rowInput, { color: tokens.txt2 }]}
-              />
-            </View>
-          </Field>
-          {props.sponsorSearching ? (
-            <Text style={{ fontSize: 12, color: tokens.mute, marginBottom: 8 }}>Checking upline…</Text>
-          ) : null}
-          {props.sponsorOk && props.sponsorName ? (
-            <View style={[styles.sponsorOk, { backgroundColor: `${colors.green}22`, marginBottom: 8 }]}>
-              <CheckCircle2 size={16} color={colors.green} strokeWidth={2.5} />
-              <Text style={[styles.sponsorOkText, { color: colors.green, fontSize: 14 }]}>
-                {props.sponsorName} · {props.sponsorRoleLabel}
-              </Text>
-            </View>
-          ) : null}
-          {props.sponsorMobile.length === 10 && !props.sponsorSearching && !props.sponsorOk ? (
-            <Text style={styles.sponsorErr}>
-              No active {UPLINE_ROLE_LABEL[SPONSOR_ROLE[props.signupRole]].toLowerCase()} found for this number
-            </Text>
-          ) : null}
-        </>
-      ) : (
-        <View style={[styles.sponsorOk, { backgroundColor: tokens.softBlue, marginBottom: 10 }]}>
-          <Text style={[styles.sponsorOkText, { color: colors.blueFlat, fontSize: 13 }]}>
-            No upline mobile needed. After OTP, admin will activate your account.
-          </Text>
-        </View>
-      )}
-
-      {!props.otpSent ? (
-        <Pressable
-          onPress={props.onRequestOtp}
-          disabled={props.otpLoading || (needsUpline && !props.sponsorOk)}
-          style={styles.sendOtpBtnPress}
-        >
-          <LinearGradient colors={[...colors.gradientButton]} style={styles.sendOtpBtn}>
-            {props.otpLoading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.sendOtpBtnText}>Send OTP</Text>
-            )}
-          </LinearGradient>
-        </Pressable>
-      ) : (
-        <View style={styles.otpBlock}>
-          {__DEV__ && props.devOtp ? (
-            <View style={[styles.devOtpBox, { borderColor: colors.green, backgroundColor: colors.greenBg }]}>
-              <Text style={[styles.devOtpText, { color: colors.greenDark }]}>Dev OTP: {props.devOtp}</Text>
-            </View>
-          ) : null}
-          <Text style={[styles.label, { color: tokens.sub, marginBottom: 10 }]}>ENTER OTP</Text>
-          <CodeGrid length={6} value={props.otp} />
-          <View style={{ marginTop: 16 }}>
-            <NumericKeypad
-              onDigit={(d) => props.setOtp((prev) => (prev.length >= 6 ? prev : prev + d))}
-              onBackspace={() => props.setOtp((prev) => prev.slice(0, -1))}
-            />
-          </View>
-        </View>
-      )}
-    </View>
-  );
+function FieldLabel({ text, color }: { text: string; color: string }) {
+  return <Text style={[styles.label, { color }]}>{text}</Text>;
 }
 
-function StepKyc(props: {
-  pan: string;
-  setPan: (v: string) => void;
-  aadhaar: string;
-  setAadhaar: (v: string) => void;
-  uploads: Record<UploadKey, boolean>;
-  toggleUpload: (key: UploadKey) => void;
-}) {
-  const { tokens } = useTheme();
-  const rows: { key: UploadKey; label: string }[] = [
-    { key: "aadhaarFront", label: "Aadhaar Card — Front" },
-    { key: "aadhaarBack", label: "Aadhaar Card — Back" },
-    { key: "panCard", label: "PAN Card" },
-  ];
-
-  return (
-    <View>
-      <Text style={[styles.stepTitle, { color: tokens.txt }]}>KYC Documents</Text>
-      <Text style={[styles.stepSub, { color: tokens.sub, marginBottom: 6 }]}>
-        As per RBI norms, verify your identity
-      </Text>
-
-      <Field label="PAN NUMBER" tokens={tokens}>
-        <TextInput
-          value={props.pan}
-          onChangeText={(t) => props.setPan(t.toUpperCase().slice(0, 10))}
-          placeholder="ABCDE1234F"
-          autoCapitalize="characters"
-          placeholderTextColor={tokens.mute}
-          style={[fieldStyles.input, { color: tokens.txt2, backgroundColor: tokens.inputBg, borderColor: tokens.inputBorder, letterSpacing: 1.5 }]}
-        />
-      </Field>
-
-      <Field label="AADHAAR NUMBER" tokens={tokens}>
-        <TextInput
-          value={props.aadhaar}
-          onChangeText={(t) => props.setAadhaar(t.replace(/\D/g, "").slice(0, 12))}
-          placeholder="123456789012"
-          keyboardType="number-pad"
-          placeholderTextColor={tokens.mute}
-          style={[fieldStyles.input, { color: tokens.txt2, backgroundColor: tokens.inputBg, borderColor: tokens.inputBorder, letterSpacing: 2 }]}
-        />
-      </Field>
-
-      <Text style={[styles.label, { color: tokens.sub, marginTop: 6, marginBottom: 10 }]}>
-        UPLOAD DOCUMENTS
-      </Text>
-      {rows.map((r) => {
-        const on = props.uploads[r.key];
-        return (
-          <Pressable
-            key={r.key}
-            onPress={() => props.toggleUpload(r.key)}
-            style={[styles.uploadRow, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
-          >
-            <View style={[styles.uploadIcon, { backgroundColor: on ? colors.greenBg : tokens.softBlue }]}>
-              <FileText size={18} color={on ? colors.greenDark : colors.blueFlat} strokeWidth={2} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.uploadLabel, { color: tokens.txt2 }]}>{r.label}</Text>
-              <Text style={[styles.uploadHint, { color: on ? colors.greenDark : tokens.mute }]}>
-                {on ? "Uploaded" : "Tap to upload"}
-              </Text>
-            </View>
-            <Text style={{ color: on ? colors.greenDark : tokens.mute, fontWeight: "800" }}>
-              {on ? "✓" : "+"}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
-function StepSelfie({ done, onToggle }: { done: boolean; onToggle: () => void }) {
-  const { tokens } = useTheme();
-  return (
-    <View style={{ alignItems: "center" }}>
-      <Text style={[styles.stepTitle, { color: tokens.txt }]}>Live Photo</Text>
-      <Text style={[styles.stepSub, { color: tokens.sub, textAlign: "center" }]}>
-        Take a clear selfie for face verification
-      </Text>
-      <Pressable
-        onPress={onToggle}
-        style={[
-          styles.selfieCircle,
-          { backgroundColor: tokens.softBlue, borderColor: done ? colors.green : "#B9C6F2" },
-        ]}
-      >
-        {done ? (
-          <CheckCircle2 size={40} color={colors.greenDark} strokeWidth={2} />
-        ) : (
-          <ScanFace size={40} color={colors.blueFlat} strokeWidth={1.8} />
-        )}
-        <Text style={[styles.selfieText, { color: done ? colors.greenDark : colors.blueFlat }]}>
-          {done ? "Captured" : "Tap to capture"}
-        </Text>
-      </Pressable>
-      <View style={styles.tipsWrap}>
-        {["Good lighting, plain background", "Remove glasses/mask", "Face fully visible in frame"].map(
-          (t) => (
-            <View key={t} style={styles.tipRow}>
-              <CheckCircle2 size={14} color={colors.greenDark} strokeWidth={2.4} />
-              <Text style={[styles.tipText, { color: tokens.sub }]}>{t}</Text>
-            </View>
-          ),
-        )}
-      </View>
-    </View>
-  );
-}
-
-function StepOutlet(props: {
-  isRetailer: boolean;
-  mobile: string;
-  setMobile: (v: string) => void;
-  gender: Gender;
-  setGender: (v: Gender) => void;
-  email: string;
-  setEmail: (v: string) => void;
-  addressFull: string;
-  setAddressFull: (v: string) => void;
-  city: string;
-  setCity: (v: string) => void;
-  pincode: string;
-  setPincode: (v: string) => void;
-  dateOfBirth: string;
-  setDateOfBirth: (v: string) => void;
-  latitude: string;
-  longitude: string;
-  geoBusy: boolean;
-  onCaptureLocation: () => void;
-}) {
-  const { tokens } = useTheme();
-
-  if (!props.isRetailer) {
-    return (
-      <View>
-        <Text style={[styles.stepTitle, { color: tokens.txt }]}>Outlet Details</Text>
-        <Text style={[styles.stepSub, { color: tokens.sub, marginBottom: 12 }]}>
-          InstantPay outlet registration is only required for retailers. Continue to review.
-        </Text>
-        <View style={[styles.infoBox, { backgroundColor: tokens.softBlue }]}>
-          <MapPin size={16} color={colors.blueFlat} />
-          <Text style={[styles.infoText, { color: tokens.txt2 }]}>
-            Your account does not need an InstantPay outlet. Tap Continue.
-          </Text>
-        </View>
-      </View>
-    );
-  }
-
-  return (
-    <View>
-      <Text style={[styles.stepTitle, { color: tokens.txt }]}>Outlet Details</Text>
-      <Text style={[styles.stepSub, { color: tokens.sub, marginBottom: 6 }]}>
-        InstantPay onboarding — address must match Aadhaar; name &amp; DOB must match PAN
-      </Text>
-
-      <Field label="MOBILE (AADHAAR-LINKED)" tokens={tokens}>
-        <View style={[fieldStyles.row, { backgroundColor: tokens.inputBg, borderColor: tokens.inputBorder }]}>
-          <Text style={[fieldStyles.prefix, { color: tokens.txt2 }]}>+91</Text>
-          <View style={[fieldStyles.divider, { backgroundColor: tokens.inputBorder }]} />
-          <TextInput
-            value={props.mobile}
-            onChangeText={(t) => props.setMobile(t.replace(/\D/g, "").slice(0, 10))}
-            keyboardType="number-pad"
-            maxLength={10}
-            placeholder="10-digit mobile"
-            placeholderTextColor={tokens.mute}
-            style={[fieldStyles.rowInput, { color: tokens.txt2 }]}
-          />
-        </View>
-      </Field>
-
-      <Field label="GENDER" tokens={tokens}>
-        <View style={styles.chipRow}>
-          {(
-            [
-              { value: "M" as const, label: "Male" },
-              { value: "F" as const, label: "Female" },
-              { value: "T" as const, label: "Other" },
-            ] as const
-          ).map((opt) => {
-            const active = props.gender === opt.value;
-            return (
-              <Pressable
-                key={opt.value}
-                onPress={() => props.setGender(opt.value)}
-                style={[
-                  styles.genderChip,
-                  {
-                    borderColor: active ? colors.blueFlat : tokens.inputBorder,
-                    backgroundColor: active ? colors.blueFlat : tokens.inputBg,
-                  },
-                ]}
-              >
-                <Text style={{ color: active ? "#fff" : tokens.txt2, fontWeight: "700", fontSize: 13 }}>
-                  {opt.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </Field>
-
-      <Field label="DATE OF BIRTH (YYYY-MM-DD)" tokens={tokens}>
-        <TextInput
-          value={props.dateOfBirth}
-          onChangeText={(t) => props.setDateOfBirth(t.replace(/[^\d-]/g, "").slice(0, 10))}
-          placeholder="1990-01-15"
-          placeholderTextColor={tokens.mute}
-          keyboardType="numbers-and-punctuation"
-          style={[fieldStyles.input, { color: tokens.txt2, backgroundColor: tokens.inputBg, borderColor: tokens.inputBorder }]}
-        />
-      </Field>
-
-      <Field label="EMAIL" tokens={tokens}>
-        <TextInput
-          value={props.email}
-          onChangeText={props.setEmail}
-          placeholder="you@example.com"
-          keyboardType="email-address"
-          autoCapitalize="none"
-          placeholderTextColor={tokens.mute}
-          style={[fieldStyles.input, { color: tokens.txt2, backgroundColor: tokens.inputBg, borderColor: tokens.inputBorder }]}
-        />
-      </Field>
-
-      <Field label="OUTLET ADDRESS (AS ON AADHAAR)" tokens={tokens}>
-        <TextInput
-          value={props.addressFull}
-          onChangeText={props.setAddressFull}
-          placeholder="Full address"
-          multiline
-          placeholderTextColor={tokens.mute}
-          style={[
-            fieldStyles.input,
-            {
-              color: tokens.txt2,
-              backgroundColor: tokens.inputBg,
-              borderColor: tokens.inputBorder,
-              minHeight: 72,
-              textAlignVertical: "top",
-            },
-          ]}
-        />
-      </Field>
-
-      <Field label="CITY" tokens={tokens}>
-        <TextInput
-          value={props.city}
-          onChangeText={props.setCity}
-          placeholder="City"
-          placeholderTextColor={tokens.mute}
-          style={[fieldStyles.input, { color: tokens.txt2, backgroundColor: tokens.inputBg, borderColor: tokens.inputBorder }]}
-        />
-      </Field>
-
-      <Field label="PINCODE" tokens={tokens}>
-        <TextInput
-          value={props.pincode}
-          onChangeText={(t) => props.setPincode(t.replace(/\D/g, "").slice(0, 6))}
-          placeholder="6-digit pincode"
-          keyboardType="number-pad"
-          placeholderTextColor={tokens.mute}
-          style={[fieldStyles.input, { color: tokens.txt2, backgroundColor: tokens.inputBg, borderColor: tokens.inputBorder, letterSpacing: 1 }]}
-        />
-      </Field>
-
-      <Pressable
-        onPress={props.onCaptureLocation}
-        disabled={props.geoBusy}
-        style={[
-          styles.geoBtn,
-          {
-            borderColor: props.latitude && props.longitude ? colors.green : colors.blueFlat,
-            backgroundColor: props.latitude && props.longitude ? colors.greenBg : tokens.softBlue,
-          },
-        ]}
-      >
-        {props.geoBusy ? (
-          <ActivityIndicator color={colors.blueFlat} />
-        ) : (
-          <>
-            <MapPin
-              size={16}
-              color={props.latitude && props.longitude ? colors.green : colors.blueFlat}
-              strokeWidth={2.5}
-            />
-            <Text
-              style={[
-                styles.geoBtnText,
-                { color: props.latitude && props.longitude ? colors.greenDark : colors.blueFlat },
-              ]}
-            >
-              {props.latitude && props.longitude
-                ? "Location set — tap to refresh"
-                : "Use current location"}
-            </Text>
-          </>
-        )}
-      </Pressable>
-      <Text style={{ fontSize: 11, color: tokens.mute, marginBottom: 8, marginTop: -2 }}>
-        Lat/long stay hidden and are sent to InstantPay when you register.
-      </Text>
-    </View>
-  );
-}
-
-function StepReview(props: {
-  name: string;
-  mobile: string;
-  signupRole: SignupRole;
-  sponsorUid: string;
-  sponsorName: string | null;
-  pan: string;
-  aadhaar: string;
-  email: string;
-  addressFull: string;
-  city: string;
-  pincode: string;
-  dateOfBirth: string;
-  latitude: string;
-  longitude: string;
-}) {
-  const { tokens } = useTheme();
-  const roleLabel = SIGNUP_ROLES.find((r) => r.value === props.signupRole)?.label ?? props.signupRole;
-  const isRetailer = props.signupRole === "retailer";
-  const rows = [
-    { k: "Full Name", v: props.name },
-    { k: "Mobile", v: `+91 ${props.mobile}` },
-    {
-      k: "Role",
-      v: roleLabel,
-    },
-    ...(props.sponsorUid
-      ? [
-          {
-            k: "Upline",
-            v: props.sponsorName ? `${props.sponsorName} (${props.sponsorUid})` : props.sponsorUid,
-          },
-        ]
-      : []),
-    { k: "PAN", v: props.pan },
-    { k: "Aadhaar", v: `XXXX XXXX ${props.aadhaar.slice(-4)}` },
-    ...(isRetailer
-      ? [
-          { k: "Email", v: props.email },
-          { k: "DOB", v: props.dateOfBirth },
-          { k: "Address", v: props.addressFull },
-          { k: "City", v: props.city },
-          { k: "Pincode", v: props.pincode },
-          {
-            k: "Location",
-            v: props.latitude && props.longitude ? "Current location set" : "Not set",
-          },
-        ]
-      : []),
-  ];
-  return (
-    <View>
-      <Text style={[styles.stepTitle, { color: tokens.txt }]}>Review &amp; Submit</Text>
-      <Text style={[styles.stepSub, { color: tokens.sub, marginBottom: 12 }]}>
-        Confirm your details before submitting
-      </Text>
-      <View style={[styles.reviewCard, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
-        {rows.map((r, i) => (
-          <View key={r.k} style={[styles.reviewRow, i < rows.length - 1 && { borderBottomColor: tokens.cardBorder, borderBottomWidth: 1 }]}>
-            <Text style={[styles.reviewK, { color: tokens.sub }]}>{r.k}</Text>
-            <Text style={[styles.reviewV, { color: tokens.txt2 }]}>{r.v}</Text>
-          </View>
-        ))}
-      </View>
-      <View style={[styles.infoBox, { backgroundColor: tokens.softBlue }]}>
-        <Fingerprint size={16} color={colors.blueFlat} />
-        <Text style={[styles.infoText, { color: tokens.txt2 }]}>
-          {isRetailer
-            ? "Submitting registers your InstantPay outlet with the details above."
-            : "By submitting, you agree to AsanPay Agent Terms."}
-        </Text>
-      </View>
-    </View>
-  );
-}
-
-function Field({
+function UploadRow({
   label,
+  done,
+  name,
+  onPress,
   tokens,
-  children,
 }: {
   label: string;
-  tokens: { sub: string };
-  children: React.ReactNode;
+  done: boolean;
+  name?: string;
+  onPress: () => void;
+  tokens: { mute: string; card: string; cardBorder: string; txt2: string };
 }) {
   return (
-    <View style={{ marginBottom: 16 }}>
-      <Text style={[styles.label, { color: tokens.sub, marginBottom: 8 }]}>{label}</Text>
-      {children}
+    <View style={{ marginBottom: 10 }}>
+      <FieldLabel text={label} color={tokens.mute} />
+      <Pressable
+        onPress={onPress}
+        style={[
+          styles.upload,
+          {
+            backgroundColor: tokens.card,
+            borderColor: done ? colors.green : tokens.cardBorder,
+          },
+        ]}
+      >
+        <Text style={{ color: tokens.txt2, fontWeight: "700" }}>{done ? name || "Uploaded" : "Tap to upload"}</Text>
+        <Text style={{ color: done ? colors.greenDark : tokens.mute, fontWeight: "800" }}>{done ? "✓" : "+"}</Text>
+      </Pressable>
     </View>
   );
 }
 
-const fieldStyles = StyleSheet.create({
-  input: { height: 52, borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 15, fontSize: 15, fontWeight: "600" },
-  row: { flexDirection: "row", alignItems: "center", gap: 10, height: 54, borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 15 },
-  prefix: { fontWeight: "700", fontSize: 16 },
-  divider: { width: 1, height: 22 },
-  rowInput: { flex: 1, fontWeight: "600", fontSize: 17, letterSpacing: 0.5 },
-});
+function SelectRow({
+  label,
+  value,
+  options,
+  onChange,
+  tokens,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (v: string) => void;
+  tokens: { mute: string; card: string; cardBorder: string; txt2: string };
+}) {
+  return (
+    <View style={{ marginBottom: 8 }}>
+      <FieldLabel text={label} color={tokens.mute} />
+      <View style={styles.roleRow}>
+        {options.map((o) => (
+          <Pressable
+            key={o}
+            onPress={() => onChange(o)}
+            style={[
+              styles.roleChip,
+              {
+                borderColor: value === o ? colors.blue : tokens.cardBorder,
+                backgroundColor: value === o ? `${colors.blue}14` : tokens.card,
+              },
+            ]}
+          >
+            <Text style={{ color: tokens.txt2, fontWeight: "700", fontSize: 11 }}>{o}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  flex: { flex: 1 },
-  header: { paddingTop: 58, paddingHorizontal: 20, paddingBottom: 22, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
-  headerRow: { flexDirection: "row", alignItems: "center", gap: 14 },
-  backBtn: { width: 38, height: 38, borderRadius: 11, backgroundColor: "rgba(255,255,255,.16)", alignItems: "center", justifyContent: "center" },
-  backBtnText: { color: "#fff", fontSize: 17, fontWeight: "700" },
-  headerTitle: { fontFamily: "System", fontWeight: "700", fontSize: 18, color: "#fff" },
-  headerSub: { fontSize: 12, color: "#B9C6F2", fontWeight: "500", marginTop: 1 },
-  progressRow: { marginTop: 18, flexDirection: "row", gap: 6 },
-  progressBar: { flex: 1, height: 4, borderRadius: 2 },
-  progressBarActive: { backgroundColor: "#3BE39A" },
-  progressBarIdle: { backgroundColor: "rgba(255,255,255,.2)" },
-  content: { padding: 20, paddingBottom: 24 },
-  iconBadgeWrap: { alignItems: "center", marginBottom: 22 },
-  iconBadge: { width: 60, height: 60, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  stepTitle: { fontFamily: "System", fontWeight: "800", fontSize: 19, marginTop: 12 },
-  stepSub: { fontSize: 13, fontWeight: "500", marginTop: 4 },
-  label: { fontSize: 11.5, fontWeight: "700", letterSpacing: 0.3 },
-  rolePanel: {
-    borderWidth: 1.5,
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 18,
-  },
-  rolePanelEyebrow: {
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 0.8,
-    marginBottom: 4,
-  },
-  rolePanelTitle: {
-    fontFamily: "System",
-    fontWeight: "800",
-    fontSize: 16,
-  },
-  rolePanelHint: {
-    fontSize: 12,
-    fontWeight: "500",
-    marginTop: 2,
-    marginBottom: 12,
-    lineHeight: 16,
-  },
-  roleGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  roleOption: {
-    flexGrow: 1,
-    flexBasis: "30%",
-    minWidth: "30%",
-    borderWidth: 1.5,
+  header: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingTop: 8 },
+  backBtn: {
+    width: 40,
+    height: 40,
     borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 52,
   },
-  roleOptionText: {
-    textAlign: "center",
-    fontSize: 12,
-    fontWeight: "800",
-    lineHeight: 15,
-  },
-  roleOptionCheck: {
-    marginTop: 4,
-    fontSize: 9.5,
-    fontWeight: "700",
-    color: "rgba(255,255,255,0.85)",
-    letterSpacing: 0.2,
-  },
-  sendOtpBtnPress: { marginTop: 6, borderRadius: 14 },
-  sponsorOk: {
-    marginTop: 8,
-    marginBottom: 4,
-    flexDirection: "row",
+  title: { fontSize: 22, fontWeight: "800" },
+  sub: { fontSize: 13, marginTop: 2 },
+  content: { padding: 16, paddingBottom: 40 },
+  block: { gap: 8 },
+  label: { fontSize: 11, fontWeight: "700", letterSpacing: 0.4, marginTop: 6, marginBottom: 4 },
+  input: { borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14 },
+  hint: { fontSize: 12, marginBottom: 6 },
+  checkRow: { flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 8 },
+  check: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: colors.blue,
     alignItems: "center",
-    gap: 8,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    justifyContent: "center",
   },
-  sponsorOkText: { fontSize: 13, fontWeight: "600", flexShrink: 1 },
-  sponsorErr: { marginTop: 6, marginBottom: 4, fontSize: 12, fontWeight: "500", color: "#B91C1C" },
-  sendOtpBtn: { borderRadius: 14, paddingVertical: 15, alignItems: "center" },
-  sendOtpBtnText: { color: "#fff", fontSize: 15, fontWeight: "800" },
-  otpBlock: { marginTop: 4 },
-  devOtpBox: { alignItems: "center", borderWidth: 1.5, borderRadius: 12, padding: 10, marginBottom: 14 },
-  devOtpText: { fontWeight: "800", fontSize: 13, letterSpacing: 1 },
-  uploadRow: { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderRadius: 15, padding: 12, marginBottom: 10 },
-  uploadIcon: { width: 38, height: 38, borderRadius: 11, alignItems: "center", justifyContent: "center" },
-  uploadLabel: { fontFamily: "System", fontWeight: "700", fontSize: 13.5 },
-  uploadHint: { fontSize: 11, fontWeight: "600", marginTop: 1 },
-  selfieCircle: { marginTop: 22, width: 190, height: 190, borderRadius: 95, borderWidth: 2.5, borderStyle: "dashed", alignItems: "center", justifyContent: "center", gap: 10 },
-  selfieText: { fontSize: 12.5, fontWeight: "700" },
-  tipsWrap: { marginTop: 22, width: "100%", gap: 9 },
-  tipRow: { flexDirection: "row", alignItems: "center", gap: 9 },
-  tipText: { fontSize: 12.5, fontWeight: "500" },
-  chipRow: { flexDirection: "row", gap: 8 },
-  genderChip: {
-    flex: 1,
+  checkOn: { backgroundColor: colors.blue, borderColor: colors.blue },
+  prep: { borderRadius: 14, padding: 14, marginTop: 8 },
+  prepTitle: { fontWeight: "800", marginBottom: 6 },
+  prepItem: { fontSize: 12, marginTop: 2 },
+  roleRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 6 },
+  roleChip: { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 },
+  emailRow: { flexDirection: "row", gap: 8, alignItems: "center" },
+  verifyBtn: {
+    backgroundColor: colors.blue,
     borderRadius: 12,
-    borderWidth: 1.5,
+    paddingHorizontal: 14,
     paddingVertical: 12,
-    alignItems: "center",
   },
-  geoBtn: {
-    marginTop: 4,
-    marginBottom: 8,
+  verifyBtnText: { color: "#fff", fontWeight: "800", fontSize: 12 },
+  upload: {
     borderWidth: 1.5,
     borderRadius: 14,
-    paddingVertical: 14,
+    borderStyle: "dashed",
+    padding: 14,
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
   },
-  geoBtnText: { fontSize: 14, fontWeight: "800" },
-  roleChip: { flex: 1, borderRadius: 13, borderWidth: 1, paddingVertical: 10, paddingHorizontal: 8 },
-  roleChipActive: { backgroundColor: colors.blue, borderColor: colors.blue },
-  roleChipDisabled: { opacity: 0.6 },
-  roleChipTitle: { fontFamily: "System", fontWeight: "700", fontSize: 12.5 },
-  roleChipTitleActive: { color: "#fff" },
-  roleChipDesc: { fontSize: 9.5, fontWeight: "600", marginTop: 2 },
-  roleChipDescActive: { color: "rgba(255,255,255,.75)" },
-  reviewCard: { borderWidth: 1, borderRadius: 18, paddingHorizontal: 16 },
-  reviewRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 12 },
-  reviewK: { fontSize: 13, fontWeight: "500" },
-  reviewV: { fontSize: 13, fontWeight: "700", textAlign: "right", maxWidth: "60%" },
-  infoBox: { marginTop: 14, flexDirection: "row", gap: 10, borderRadius: 14, padding: 13, alignItems: "flex-start" },
-  infoText: { flex: 1, fontSize: 12, fontWeight: "500", lineHeight: 17 },
-  footer: { padding: 18 },
-  footerBtnPress: { borderRadius: 15 },
-  footerBtn: { borderRadius: 15, paddingVertical: 16, alignItems: "center" },
-  footerBtnText: { color: "#fff", fontSize: 15.5, fontWeight: "800" },
-  successWrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: 30 },
-  successIcon: { width: 92, height: 92, borderRadius: 46, alignItems: "center", justifyContent: "center" },
-  successTitle: { marginTop: 22, fontFamily: "System", fontWeight: "800", fontSize: 22 },
-  successSub: { marginTop: 8, fontSize: 14, fontWeight: "500", textAlign: "center", lineHeight: 20 },
+  agreeBox: { borderWidth: 1, borderRadius: 14, padding: 14, marginBottom: 8 },
+  agreeTitle: { fontWeight: "800", marginBottom: 6 },
+  cta: {
+    marginTop: 16,
+    backgroundColor: colors.blue,
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  ctaText: { color: "#fff", fontWeight: "800", fontSize: 15 },
+  devOtp: { color: colors.blueFlat, fontWeight: "700", marginBottom: 8 },
 });

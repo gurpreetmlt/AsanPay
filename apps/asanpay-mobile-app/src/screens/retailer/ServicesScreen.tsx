@@ -22,6 +22,16 @@ import { NepalScreen } from "./NepalScreen";
 import { UpiCashPointScreen } from "./UpiCashPointScreen";
 import { showAlert } from "../../components/AppAlert";
 
+function isKycServicesUnlocked(user: { kycStatus: string }) {
+  return user.kycStatus === "verified";
+}
+
+function needsSignupKycCompletion(user: { kycStatus: string; hasKycDocs: boolean }) {
+  if (user.kycStatus === "verified") return false;
+  if (user.kycStatus === "rejected") return true;
+  return !user.hasKycDocs;
+}
+
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
@@ -42,7 +52,9 @@ function greetingName(name: string): string {
 
 export function ServicesScreen() {
   const user = useAuthStore((s) => s.user)!;
+  const setSignupContinue = useAuthStore((s) => s.setSignupContinue);
   const { tokens } = useTheme();
+  const servicesUnlocked = isKycServicesUnlocked(user);
   const [categories, setCategories] = useState<CatalogCategoryView[]>([]);
   const [wallets, setWallets] = useState<WalletBalance[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,6 +101,15 @@ export function ServicesScreen() {
   }, []);
 
   function handleOpenService(code: string) {
+    if (!servicesUnlocked) {
+      showAlert(
+        "KYC required",
+        user.hasKycDocs
+          ? "KYC under review — services unlock after admin approval"
+          : "First complete your KYC",
+      );
+      return;
+    }
     if (AEPS_CODES.has(code)) {
       setAepsServiceCode(code);
       setActiveScreen("aeps");
@@ -142,6 +163,41 @@ export function ServicesScreen() {
       >
         <WalletBar wallets={wallets} />
       </ScreenHeader>
+
+      {user.kycStatus !== "verified" ? (
+        <Pressable
+          onPress={() => {
+            if (needsSignupKycCompletion(user) || user.kycStatus === "rejected") {
+              setSignupContinue(true);
+            }
+          }}
+          style={[
+            styles.kycBanner,
+            {
+              backgroundColor: user.kycStatus === "rejected" ? "#FEF3C7" : `${colors.blue}14`,
+              borderColor: user.kycStatus === "rejected" ? "#F59E0B66" : `${colors.blue}33`,
+            },
+          ]}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.kycBannerTitle, { color: colors.blueFlat }]}>
+              {user.kycStatus === "rejected"
+                ? "KYC rejected — resubmit"
+                : user.hasKycDocs
+                  ? "KYC under review"
+                  : "Complete your KYC for Onboarding"}
+            </Text>
+            <Text style={[styles.kycBannerBody, { color: tokens.mute }]}>
+              {user.hasKycDocs && user.kycStatus !== "rejected"
+                ? "Services stay locked until admin approval."
+                : "Tap to continue signup KYC where you left off."}
+            </Text>
+          </View>
+          {needsSignupKycCompletion(user) || user.kycStatus === "rejected" ? (
+            <Text style={{ color: colors.blueFlat, fontWeight: "800", fontSize: 12 }}>Continue</Text>
+          ) : null}
+        </Pressable>
+      ) : null}
 
       <HomeEditModeBar active={homeEditMode} onDone={exitHomeEditMode} />
 
@@ -250,6 +306,20 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { padding: 16, paddingBottom: 32 },
   loader: { marginTop: 40 },
+  kycBanner: {
+    marginHorizontal: 16,
+    marginTop: 10,
+    marginBottom: 4,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  kycBannerTitle: { fontSize: 13, fontWeight: "800" },
+  kycBannerBody: { fontSize: 11, marginTop: 2, lineHeight: 15 },
   headerIconRow: { flexDirection: "row", gap: 9, marginTop: 2 },
   headerIconBtn: {
     width: 38,

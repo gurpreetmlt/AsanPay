@@ -2,17 +2,15 @@
 
 import { useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { toast } from "react-hot-toast";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
-import { nextOnboardingPath } from "@/lib/onboarding";
 import api from "@/lib/api";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 
 const SKIP = new Set(["/login", "/signup"]);
 
 /**
- * Refresh /auth/me and send retailers through InstantPay Register Outlet → PIN.
+ * Refresh /auth/me. Dashboard is allowed without outlet/PIN; KYC lock is UI-level.
  */
 export function useOnboardingGate() {
   const router = useRouter();
@@ -38,23 +36,8 @@ export function useOnboardingGate() {
         const { data } = await api.get<ApiResponse<{ user: AuthUser }>>("/auth/me");
         if (cancelled || !data.success) return;
         setUser(data.data.user);
-        const next = nextOnboardingPath(data.data.user);
-        const onOutlet = pathname.startsWith("/onboarding/outlet");
-        const onPin = pathname.startsWith("/onboarding/pin");
-        if (next === "/onboarding/outlet" && !onOutlet) {
-          toast.dismiss();
-          router.replace(next);
-        } else if (next === "/onboarding/pin" && !onPin && !onOutlet) {
-          toast.dismiss();
-          router.replace(next);
-        }
       } catch {
-        const cached = useAuthStore.getState().user;
-        const next = nextOnboardingPath(cached);
-        if (next && !pathname.startsWith("/onboarding") && !pathname.startsWith("/kyc")) {
-          toast.dismiss();
-          router.replace(next);
-        }
+        // keep cached user
       } finally {
         fetching.current = false;
       }

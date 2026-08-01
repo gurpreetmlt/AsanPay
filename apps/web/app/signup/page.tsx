@@ -4,15 +4,28 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { Phone, Lock, ArrowRight, UserPlus, CheckCircle2, AlertCircle } from "lucide-react";
+import { ArrowLeft, CheckCircle2 } from "lucide-react";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import { AsanPayLogo } from "@/components/brand/Logo";
+import { EmailVerifyField } from "@/components/EmailVerifyField";
+import { SignupStepper, SIGNUP_STEPS } from "@/components/signup/SignupStepper";
 import api from "@/lib/api";
+import { formatAadhaar, stripAadhaar } from "@/lib/aadhaar";
 import { B } from "@/lib/brand";
+import { lookupIndianIfsc } from "@/lib/ifsc";
+import { extractApiError } from "@/lib/onboarding";
+import { lookupIndianPincode } from "@/lib/pincode";
+import {
+  clearSignupDraft,
+  EMPTY_SIGNUP_DRAFT,
+  loadSignupDraft,
+  saveSignupDraft,
+  type SignupDraft,
+  type SignupFileMeta,
+  type SignupRole,
+} from "@/lib/signupDraft";
 import { useAuthStore } from "@/lib/store";
-import { extractApiError, nextOnboardingPath } from "@/lib/onboarding";
 
-type SignupRole = "master_distributor" | "distributor" | "retailer";
 type SponsorRole = "admin" | "master_distributor" | "distributor";
 
 interface SessionData {
@@ -45,45 +58,168 @@ const UPLINE_LABEL: Record<Exclude<SignupRole, "master_distributor">, string> = 
   retailer: "Distributor mobile no.",
 };
 
-const UPLINE_ROLE_LABEL: Record<SponsorRole, string> = {
-  admin: "Admin",
-  master_distributor: "Super Distributor",
-  distributor: "Distributor",
-};
+const BUSINESS_TYPES = ["Sole Proprietorship", "Partnership", "Private Limited", "Other"];
+const BUSINESS_CATEGORIES = ["Mobile Handsets", "Kirana", "Electronics", "Pharmacy", "Other"];
+const TURNOVERS = ["Below 1L", "1L-5L", "5L-10L", "10L+"];
+const BUSINESS_PROOFS = ["Shop License", "GST Certificate", "Udyam", "Rent Agreement", "Other"];
+
+function Label({ children }: { children: ReactNode }) {
+  return (
+    <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider" style={{ color: B.muted }}>
+      {children}
+    </div>
+  );
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div>
+      <Label>{label}</Label>
+      {children}
+    </div>
+  );
+}
+
+const inputCls =
+  "w-full rounded-2xl border-2 bg-white px-4 py-3 text-sm outline-none";
+const inputStyle = { borderColor: B.border, color: B.blue } as const;
+
+function fileMeta(file: File): SignupFileMeta {
+  return { name: file.name, mime: file.type, size: file.size };
+}
+
+function FileUpload({
+  label,
+  meta,
+  previewUrl,
+  accept = "image/jpeg,image/png,image/webp,application/pdf",
+  onPick,
+  onClear,
+}: {
+  label: string;
+  meta: SignupFileMeta | null;
+  previewUrl?: string | null;
+  accept?: string;
+  onPick: (file: File) => void;
+  onClear: () => void;
+}) {
+  return (
+    <div>
+      <Label>{label}</Label>
+      <label
+        className="flex cursor-pointer flex-col gap-2 rounded-2xl border-2 border-dashed px-4 py-4"
+        style={{ borderColor: B.border, background: B.bg }}
+      >
+        <input
+          type="file"
+          accept={accept}
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) onPick(f);
+          }}
+        />
+        {previewUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={previewUrl} alt="" className="max-h-28 rounded-xl object-contain" />
+        ) : null}
+        <span className="text-sm font-semibold" style={{ color: B.blue }}>
+          {meta ? meta.name : "Tap to upload"}
+        </span>
+        <span className="text-xs" style={{ color: B.muted }}>
+          JPG, PNG, WEBP or PDF · max 2 MB
+        </span>
+      </label>
+      {meta ? (
+        <button type="button" className="mt-1 text-xs font-semibold underline" style={{ color: B.muted }} onClick={onClear}>
+          Remove
+        </button>
+      ) : null}
+    </div>
+  );
+}
 
 export default function SignupPage() {
   const router = useRouter();
   const setAuth = useAuthStore((s) => s.setAuth);
-  const [step, setStep] = useState<"form" | "otp">("form");
-  const [signupRole, setSignupRole] = useState<SignupRole>("retailer");
-  const [name, setName] = useState("");
-  const [mobile, setMobile] = useState("");
-  const [sponsorMobile, setSponsorMobile] = useState("");
-  const [sponsor, setSponsor] = useState<SponsorInfo | null>(null);
-  const [sponsorStatus, setSponsorStatus] = useState<"idle" | "loading" | "ok" | "empty" | "error">("idle");
-  const [password, setPassword] = useState("");
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const user = useAuthStore((s) => s.user);
+
+  const [draft, setDraft] = useState<SignupDraft>(EMPTY_SIGNUP_DRAFT);
+  const [phase, setPhase] = useState<"steps" | "otp">("steps");
   const [otp, setOtp] = useState("");
   const [devOtp, setDevOtp] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [sponsor, setSponsor] = useState<SponsorInfo | null>(null);
+  const [sponsorStatus, setSponsorStatus] = useState<"idle" | "loading" | "ok" | "empty" | "error">("idle");
+  const [draftReady, setDraftReady] = useState(false);
+  const [previews, setPreviews] = useState<Record<string, string>>({});
+  const [ifscBusy, setIfscBusy] = useState(false);
+  const [pinBusy, setPinBusy] = useState(false);
+  const [bizPinBusy, setBizPinBusy] = useState(false);
 
-  const sponsorRole = SPONSOR_ROLE[signupRole];
-  const needsUpline = signupRole !== "master_distributor";
+  const stepIndex = draft.stepIndex;
+  const needsUpline = draft.role !== "master_distributor";
+  const sponsorRole = SPONSOR_ROLE[draft.role];
+  const storageKey = draft.accountCreated && user?.id ? user.id : draft.mobile.replace(/\D/g, "") || "anon";
+
+  function patch(p: Partial<SignupDraft>) {
+    setDraft((d) => ({ ...d, ...p }));
+  }
 
   useEffect(() => {
-    setSponsor(null);
-    setSponsorMobile("");
-    setSponsorStatus("idle");
-  }, [signupRole]);
+    const key = user?.id || "";
+    const existing =
+      (key && loadSignupDraft(key)) ||
+      (typeof window !== "undefined"
+        ? (() => {
+            for (let i = 0; i < localStorage.length; i++) {
+              const k = localStorage.key(i);
+              if (k?.startsWith("asanpay:signup-draft:") && k !== "asanpay:signup-draft:anon") {
+                try {
+                  return JSON.parse(localStorage.getItem(k) || "") as SignupDraft;
+                } catch {
+                  return null;
+                }
+              }
+            }
+            return null;
+          })()
+        : null);
+    if (existing) {
+      setDraft(existing);
+      if (existing.accountCreated && existing.stepIndex < 2) patch({ stepIndex: 2 });
+    } else if (user?.id && user.hasKycDocs) {
+      router.replace("/dashboard");
+      return;
+    }
+    setDraftReady(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   useEffect(() => {
-    if (!needsUpline) return;
-    const phone = sponsorMobile.replace(/\D/g, "").slice(0, 10);
+    if (!draftReady) return;
+    saveSignupDraft(storageKey, draft);
+  }, [draft, draftReady, storageKey]);
+
+  useEffect(() => {
+    if (!needsUpline) {
+      setSponsor(null);
+      setSponsorStatus("idle");
+      return;
+    }
+    const phone = draft.sponsorMobile.replace(/\D/g, "").slice(0, 10);
     setSponsor(null);
     if (phone.length !== 10) {
       setSponsorStatus("idle");
       return;
     }
-
     let cancelled = false;
     setSponsorStatus("loading");
     const timer = setTimeout(async () => {
@@ -99,38 +235,190 @@ export default function SignupPage() {
           return;
         }
         setSponsor(match);
+        patch({ sponsorUid: match.uid, sponsorName: match.name });
         setSponsorStatus("ok");
       } catch {
-        if (cancelled) return;
-        setSponsorStatus("error");
+        if (!cancelled) setSponsorStatus("error");
       }
     }, 250);
-
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [sponsorMobile, sponsorRole, needsUpline]);
+  }, [draft.sponsorMobile, draft.role, needsUpline, sponsorRole]);
 
-  async function requestOtp(e?: FormEvent) {
-    e?.preventDefault();
-    if (!name || !mobile) return;
-    if (needsUpline && !sponsor) {
-      toast.error(`Enter a valid 10-digit ${UPLINE_ROLE_LABEL[sponsorRole].toLowerCase()} mobile`);
+  useEffect(() => {
+    const pin = draft.pincode;
+    if (pin.length !== 6) return;
+    let cancelled = false;
+    setPinBusy(true);
+    void lookupIndianPincode(pin)
+      .then((place) => {
+        if (cancelled || !place) return;
+        patch({ district: place.city || draft.district, state: place.state || draft.state });
+      })
+      .finally(() => {
+        if (!cancelled) setPinBusy(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.pincode]);
+
+  useEffect(() => {
+    const pin = draft.businessPincode;
+    if (pin.length !== 6) return;
+    let cancelled = false;
+    setBizPinBusy(true);
+    void lookupIndianPincode(pin)
+      .then((place) => {
+        if (cancelled || !place) return;
+        patch({
+          businessDistrict: place.city || draft.businessDistrict,
+          businessState: place.state || draft.businessState,
+        });
+      })
+      .finally(() => {
+        if (!cancelled) setBizPinBusy(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.businessPincode]);
+
+  useEffect(() => {
+    const ifsc = draft.ifsc;
+    if (ifsc.length !== 11 || !draft.accountCreated) return;
+    let cancelled = false;
+    setIfscBusy(true);
+    void lookupIndianIfsc(ifsc)
+      .then((place) => {
+        if (cancelled || !place) return;
+        patch({ bankName: place.bank || draft.bankName, bankBranch: place.branch || draft.bankBranch });
+      })
+      .finally(() => {
+        if (!cancelled) setIfscBusy(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.ifsc, draft.accountCreated]);
+
+  function pickFile(
+    key: keyof Pick<
+      SignupDraft,
+      "panImage" | "aadhaarFront" | "aadhaarBack" | "cancelledCheque" | "shopPhoto"
+    >,
+    file: File,
+  ) {
+    const ok = /^(image\/(jpeg|jpg|png|webp)|application\/pdf)$/i.test(file.type);
+    if (!ok) {
+      toast.error("Upload JPG, PNG, WEBP, or PDF only");
       return;
     }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("File must be under 2 MB");
+      return;
+    }
+    patch({ [key]: fileMeta(file) });
+    if (file.type.startsWith("image/")) {
+      const url = URL.createObjectURL(file);
+      setPreviews((p) => {
+        if (p[key]) URL.revokeObjectURL(p[key]);
+        return { ...p, [key]: url };
+      });
+    }
+  }
+
+  function clearFile(
+    key: keyof Pick<
+      SignupDraft,
+      "panImage" | "aadhaarFront" | "aadhaarBack" | "cancelledCheque" | "shopPhoto"
+    >,
+  ) {
+    patch({ [key]: null });
+    setPreviews((p) => {
+      if (p[key]) URL.revokeObjectURL(p[key]);
+      const next = { ...p };
+      delete next[key];
+      return next;
+    });
+  }
+
+  function validateStep(): string | null {
+    if (stepIndex === 0) {
+      if (draft.mobile.replace(/\D/g, "").length !== 10) return "Enter a valid 10-digit mobile";
+      if (!draft.termsAccepted) return "Please accept Terms and Conditions";
+    }
+    if (stepIndex === 1) {
+      if (draft.name.trim().length < 2) return "Full name is required";
+      if (!draft.password || draft.password.length < 8) return "Password must be at least 8 characters";
+      if (needsUpline && !sponsor) return "Enter a valid upline mobile number";
+    }
+    if (stepIndex === 2) {
+      if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(draft.pan)) return "Enter a valid PAN";
+      if (!draft.gender) return "Select gender";
+      if (!draft.dob) return "Date of birth is required";
+      if (!draft.fatherName.trim()) return "Father name is required";
+      if (!draft.panImage) return "Upload PAN card image";
+    }
+    if (stepIndex === 3) {
+      if (draft.aadhaar.replace(/\D/g, "").length !== 12) return "Enter a valid 12-digit Aadhaar";
+      if (!draft.aadhaarFront) return "Upload Aadhaar front";
+      if (!draft.aadhaarBack) return "Upload Aadhaar back";
+    }
+    if (stepIndex === 4) {
+      if (!draft.email.trim()) return "Email is required";
+      if (!user?.emailVerifiedAt || (user.email ?? "").toLowerCase() !== draft.email.trim().toLowerCase()) {
+        return "Verify your email before continuing";
+      }
+      if (!draft.address.trim()) return "Address is required";
+      if (draft.pincode.length !== 6) return "Enter a valid pincode";
+      if (!draft.district.trim()) return "District is required";
+      if (!draft.state.trim()) return "State is required";
+    }
+    if (stepIndex === 5) {
+      if (!draft.businessName.trim()) return "Business name is required";
+      if (!draft.businessType) return "Business type is required";
+      if (!draft.businessCategory) return "Business category is required";
+      if (!draft.monthlyTurnover) return "Monthly turnover is required";
+      if (!draft.businessProof) return "Business proof is required";
+      if (!draft.businessAddress.trim()) return "Business address is required";
+      if (draft.businessPincode.length !== 6) return "Enter business pincode";
+    }
+    if (stepIndex === 6) {
+      if (draft.ifsc.length !== 11) return "Enter a valid IFSC";
+      if (!draft.bankName.trim()) return "Bank name is required";
+      if (!draft.accountNumber.trim()) return "Account number is required";
+      if (draft.accountNumber !== draft.accountNumberConfirm) return "Account numbers do not match";
+      if (!draft.accountName.trim()) return "Account holder name is required";
+      if (!draft.cancelledCheque) return "Upload cancelled cheque";
+    }
+    if (stepIndex === 7) {
+      if (!draft.shopPhoto) return "Upload shop photo";
+    }
+    if (stepIndex === 8) {
+      if (!draft.agreementAccepted) return "Please accept the agent agreement";
+    }
+    return null;
+  }
+
+  async function requestOtp() {
     setLoading(true);
     try {
       const { data } = await api.post<ApiResponse<{ otp?: string; message: string }>>("/auth/signup/request", {
-        name,
-        mobile,
-        role: signupRole,
+        name: draft.name.trim(),
+        mobile: draft.mobile.replace(/\D/g, "").slice(0, 10),
+        role: draft.role,
         portal: "agent",
         ...(sponsor ? { sponsorUid: sponsor.uid } : {}),
       });
       if (!data.success) throw new Error(data.message);
       setDevOtp(data.data.otp ?? null);
-      setStep("otp");
+      setPhase("otp");
       toast.success(data.data.otp ? `Dev OTP: ${data.data.otp}` : "OTP sent");
     } catch (err) {
       toast.error(extractApiError(err, "Signup OTP failed"));
@@ -139,29 +427,26 @@ export default function SignupPage() {
     }
   }
 
-  async function verify(e?: FormEvent) {
+  async function verifyOtp(e?: FormEvent) {
     e?.preventDefault();
     if (!otp) return;
-    if (needsUpline && !sponsor) return;
     setLoading(true);
     try {
       const { data } = await api.post<
-        ApiResponse<
-          | SessionData
-          | { pendingApproval: true; user: AuthUser; message: string }
-        >
+        ApiResponse<SessionData | { pendingApproval: true; user: AuthUser; message: string }>
       >("/auth/signup/verify", {
-        name,
-        mobile,
+        name: draft.name.trim(),
+        mobile: draft.mobile.replace(/\D/g, "").slice(0, 10),
         otp,
-        role: signupRole,
+        role: draft.role,
         portal: "agent",
         ...(sponsor ? { sponsorUid: sponsor.uid } : {}),
-        ...(password ? { password } : {}),
+        ...(draft.password ? { password: draft.password } : {}),
       });
       if (!data.success) throw new Error(data.message);
       if ("pendingApproval" in data.data && data.data.pendingApproval) {
         toast.success(data.data.message);
+        clearSignupDraft(storageKey);
         router.replace("/login");
         return;
       }
@@ -170,8 +455,13 @@ export default function SignupPage() {
         accessToken: session.accessToken,
         refreshToken: session.refreshToken,
       });
-      toast.success(sponsor ? `Account created under ${sponsor.name}` : "Account created");
-      router.replace(nextOnboardingPath(session.user) ?? "/dashboard");
+      const nextDraft = { ...draft, accountCreated: true, stepIndex: 2 };
+      setDraft(nextDraft);
+      saveSignupDraft(session.user.id, nextDraft);
+      clearSignupDraft(draft.mobile.replace(/\D/g, ""));
+      setPhase("steps");
+      setOtp("");
+      toast.success("Account created — continue onboarding");
     } catch (err) {
       toast.error(extractApiError(err, "Signup failed"));
     } finally {
@@ -179,224 +469,626 @@ export default function SignupPage() {
     }
   }
 
+  async function finalSubmit() {
+    setLoading(true);
+    try {
+      const { data } = await api.post<ApiResponse<{ user: AuthUser }>>("/kyc/submit", {
+        fullName: draft.name.trim(),
+        panNumber: draft.pan.toUpperCase(),
+        aadhaarNumber: draft.aadhaar.replace(/\D/g, ""),
+        email: draft.email.trim().toLowerCase(),
+        address: draft.address.trim(),
+        city: draft.district.trim(),
+        pincode: draft.pincode,
+        bankAccountName: draft.accountName.trim(),
+        bankAccountNumber: draft.accountNumber,
+        bankIfsc: draft.ifsc.toUpperCase(),
+        bankName: draft.bankName.trim(),
+        cancelledChequeFileName: draft.cancelledCheque?.name,
+        gender: draft.gender,
+        fatherName: draft.fatherName.trim(),
+        dob: draft.dob,
+        district: draft.district.trim(),
+        state: draft.state.trim(),
+        businessName: draft.businessName.trim(),
+        businessType: draft.businessType,
+        businessCategory: draft.businessCategory,
+        monthlyTurnover: draft.monthlyTurnover,
+        businessProof: draft.businessProof,
+        businessAddress: draft.businessAddress.trim(),
+        businessPincode: draft.businessPincode,
+        businessDistrict: draft.businessDistrict.trim(),
+        businessState: draft.businessState.trim(),
+        bankBranch: draft.bankBranch.trim() || undefined,
+        panImageFileName: draft.panImage?.name,
+        aadhaarFrontFileName: draft.aadhaarFront?.name,
+        aadhaarBackFileName: draft.aadhaarBack?.name,
+        shopPhotoFileName: draft.shopPhoto?.name,
+      });
+      if (!data.success) throw new Error(data.message);
+      useAuthStore.getState().setUser(data.data.user);
+      clearSignupDraft(user?.id || storageKey);
+      toast.success("Onboarding submitted — awaiting approval");
+      router.replace("/dashboard");
+    } catch (err) {
+      toast.error(extractApiError(err, "Submit failed"));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function next() {
+    const err = validateStep();
+    if (err) {
+      toast.error(err);
+      return;
+    }
+    if (stepIndex === 1) {
+      void requestOtp();
+      return;
+    }
+    if (stepIndex === 8) {
+      void finalSubmit();
+      return;
+    }
+    patch({ stepIndex: Math.min(stepIndex + 1, 8) });
+  }
+
+  function back() {
+    if (phase === "otp") {
+      setPhase("steps");
+      return;
+    }
+    if (stepIndex === 0) {
+      router.push("/login");
+      return;
+    }
+    if (stepIndex === 2 && draft.accountCreated) {
+      toast("Account already created — continue KYC steps");
+      return;
+    }
+    patch({ stepIndex: Math.max(stepIndex - 1, 0) });
+  }
+
+  if (!draftReady) return null;
+
+  const subtitle = phase === "otp" ? "Mobile OTP" : SIGNUP_STEPS[stepIndex]?.label ?? "Sign Up";
+
   return (
-    <div className="flex min-h-screen items-center justify-center p-6" style={{ background: B.bg }}>
-      <div className="w-full max-w-md rounded-3xl border bg-white p-8 shadow-xl" style={{ borderColor: B.border }}>
-        <AsanPayLogo width={200} />
-        <h1 className="mt-6 text-2xl font-bold" style={{ color: B.blue }}>
-          Create agent account
-        </h1>
-        <p className="mt-1 text-sm" style={{ color: B.muted }}>
-          Select your role. Retailer and Distributor map under an upline; Super Distributor registers directly for admin approval.
-        </p>
+    <div className="min-h-screen px-4 py-6" style={{ background: B.bg }}>
+      <div className="mx-auto w-full max-w-lg rounded-3xl border bg-white p-5 shadow-xl sm:p-8" style={{ borderColor: B.border }}>
+        <div className="mb-4 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={back}
+            className="flex h-10 w-10 items-center justify-center rounded-xl border"
+            style={{ borderColor: B.border, color: B.blue }}
+            aria-label="Back"
+          >
+            <ArrowLeft size={18} />
+          </button>
+          <div className="min-w-0 flex-1">
+            <AsanPayLogo width={140} />
+            <h1 className="mt-2 text-xl font-bold" style={{ color: B.blue }}>
+              Sign Up
+            </h1>
+            <p className="text-sm" style={{ color: B.muted }}>
+              {subtitle}
+            </p>
+          </div>
+        </div>
 
-        {step === "form" ? (
-          <form onSubmit={requestOtp} className="mt-6 space-y-4">
-            <div
-              className="rounded-2xl border-2 p-3.5"
-              style={{ borderColor: `${B.blue}40`, background: `${B.blue}0F` }}
-            >
-              <div className="text-[10px] font-extrabold uppercase tracking-wider" style={{ color: B.blue }}>
-                Step 1 · Choose role
-              </div>
-              <div className="mt-0.5 text-sm font-extrabold" style={{ color: B.blue }}>
-                Register as
-              </div>
-              <p className="mt-0.5 mb-3 text-xs font-medium" style={{ color: B.muted }}>
-                {needsUpline
-                  ? "Tap one option — this decides your upline"
-                  : "Super Distributor registers directly — admin will approve"}
-              </p>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                {ROLE_OPTIONS.map((opt) => {
-                  const active = signupRole === opt.value;
-                  return (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setSignupRole(opt.value)}
-                      className="rounded-xl border-2 px-2 py-3 text-center text-xs font-extrabold transition"
-                      style={{
-                        borderColor: active ? B.blue : B.border,
-                        background: active ? B.blue : "#fff",
-                        color: active ? "#fff" : B.muted,
-                      }}
-                    >
-                      {opt.label}
-                      {active ? (
-                        <span className="mt-1 block text-[9px] font-bold opacity-85">Selected</span>
-                      ) : null}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+        <SignupStepper currentIndex={phase === "otp" ? 1 : stepIndex} />
 
-            <Field label="Full name" icon={UserPlus}>
-              <input
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full bg-transparent text-sm outline-none"
-                placeholder="Your name"
-              />
-            </Field>
-            <Field label="Your mobile" icon={Phone}>
-              <input
-                required
-                inputMode="numeric"
-                maxLength={10}
-                value={mobile}
-                onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                className="w-full bg-transparent text-sm outline-none"
-                placeholder="10-digit mobile"
-              />
-            </Field>
-            {needsUpline ? (
-            <div>
-              <Field label={UPLINE_LABEL[signupRole as Exclude<SignupRole, "master_distributor">]} icon={Phone}>
-                <input
-                  required
-                  inputMode="numeric"
-                  maxLength={10}
-                  value={sponsorMobile}
-                  onChange={(e) => setSponsorMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                  className="w-full bg-transparent text-sm outline-none"
-                  placeholder="10-digit upline mobile"
-                  autoComplete="off"
-                />
-              </Field>
-              {sponsorStatus === "loading" ? (
-                <p className="mt-1.5 text-xs" style={{ color: B.muted }}>
-                  Checking upline…
-                </p>
-              ) : null}
-              {sponsorStatus === "ok" && sponsor ? (
-                <div
-                  className="mt-2 flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold"
-                  style={{ background: `${B.green}14`, color: B.greenDark ?? B.green }}
-                >
-                  <CheckCircle2 size={16} className="shrink-0" />
-                  <span>
-                    {sponsor.name}
-                    <span className="ml-1 font-normal opacity-80">· {UPLINE_ROLE_LABEL[sponsor.role]}</span>
-                  </span>
-                </div>
-              ) : null}
-              {sponsorStatus === "empty" ? (
-                <div
-                  className="mt-2 flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium"
-                  style={{ background: "#DC262614", color: "#B91C1C" }}
-                >
-                  <AlertCircle size={14} className="shrink-0" />
-                  No active {UPLINE_ROLE_LABEL[sponsorRole].toLowerCase()} found for this number
-                </div>
-              ) : null}
-              {sponsorStatus === "error" ? (
-                <div
-                  className="mt-2 flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium"
-                  style={{ background: "#DC262614", color: "#B91C1C" }}
-                >
-                  <AlertCircle size={14} className="shrink-0" />
-                  Lookup failed — try again
-                </div>
-              ) : null}
-            </div>
-            ) : (
-              <div
-                className="rounded-xl px-3 py-2.5 text-xs font-medium"
-                style={{ background: `${B.blue}12`, color: B.blue }}
-              >
-                No upline mobile needed. After OTP, your account waits for admin activation.
-              </div>
-            )}
-            <Field label="Login password (optional)" icon={Lock}>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-transparent text-sm outline-none"
-                placeholder="Min 8 chars, letter + number"
-              />
-            </Field>
-            <button
-              type="submit"
-              disabled={loading || (needsUpline && !sponsor)}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-bold text-white disabled:opacity-60"
-              style={{ background: B.badgeGrad }}
-            >
-              {loading ? "Sending…" : "Send OTP"} <ArrowRight size={16} />
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={verify} className="mt-6 space-y-4">
-            {sponsor ? (
-              <div
-                className="rounded-xl px-3 py-2 text-xs font-semibold"
-                style={{ background: `${B.green}14`, color: B.greenDark ?? B.green }}
-              >
-                Mapping under {sponsor.name} ({sponsor.mobile}) as{" "}
-                {ROLE_OPTIONS.find((r) => r.value === signupRole)?.label}
-              </div>
-            ) : null}
-            {devOtp && (
-              <div
-                className="rounded-xl px-3 py-2 text-xs font-semibold"
-                style={{ background: `${B.green}18`, color: B.greenDark }}
-              >
+        {phase === "otp" ? (
+          <form onSubmit={verifyOtp} className="space-y-4">
+            <p className="text-sm" style={{ color: B.muted }}>
+              Enter the 6-digit OTP sent to +91 {draft.mobile.replace(/\D/g, "").slice(0, 10)}
+            </p>
+            {devOtp ? (
+              <p className="rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: `${B.blue}12`, color: B.blue }}>
                 Dev OTP: {devOtp}
-              </div>
-            )}
-            <Field label="6-digit OTP" icon={Lock}>
+              </p>
+            ) : null}
+            <Field label="OTP *">
               <input
-                required
-                inputMode="numeric"
-                maxLength={6}
                 value={otp}
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                className="w-full bg-transparent text-sm outline-none tracking-widest"
+                className={`${inputCls} font-mono tracking-widest`}
+                style={inputStyle}
+                inputMode="numeric"
                 placeholder="••••••"
               />
             </Field>
             <button
               type="submit"
-              disabled={loading}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-bold text-white disabled:opacity-60"
-              style={{ background: B.walletGrad }}
+              disabled={loading || otp.length !== 6}
+              className="w-full rounded-2xl py-3.5 text-sm font-bold text-white disabled:opacity-50"
+              style={{ background: B.badgeGrad }}
             >
-              {loading ? "Creating…" : "Verify & continue"} <ArrowRight size={16} />
-            </button>
-            <button
-              type="button"
-              className="w-full text-sm font-medium"
-              style={{ color: B.muted }}
-              onClick={() => setStep("form")}
-            >
-              Edit details
+              {loading ? "Verifying…" : "Verify & Continue"}
             </button>
           </form>
+        ) : (
+          <div className="space-y-4">
+            {stepIndex === 0 && (
+              <>
+                <Field label="Mobile Number *">
+                  <input
+                    value={draft.mobile}
+                    onChange={(e) => patch({ mobile: e.target.value.replace(/\D/g, "").slice(0, 10) })}
+                    className={inputCls}
+                    style={inputStyle}
+                    inputMode="numeric"
+                    placeholder="10-digit mobile"
+                  />
+                </Field>
+                <p className="text-xs" style={{ color: B.muted }}>
+                  *Enter number which is linked to your Aadhaar.
+                </p>
+                <label className="flex items-start gap-2 text-sm" style={{ color: B.blue }}>
+                  <input
+                    type="checkbox"
+                    checked={draft.termsAccepted}
+                    onChange={(e) => patch({ termsAccepted: e.target.checked })}
+                    className="mt-1"
+                  />
+                  <span>
+                    I agree to the{" "}
+                    <Link href="/terms" className="font-semibold underline">
+                      Terms and Conditions
+                    </Link>
+                  </span>
+                </label>
+                <div className="rounded-2xl border p-4 text-sm" style={{ borderColor: `${B.green}40`, background: `${B.green}10`, color: B.greenDark }}>
+                  <p className="mb-2 font-bold">Before you begin, keep these ready:</p>
+                  <ul className="list-disc space-y-1 pl-5 text-xs">
+                    <li>Business Document (any one)</li>
+                    <li>Aadhaar Card (soft copy)</li>
+                    <li>PAN Card (soft copy)</li>
+                    <li>Photo of your Shop</li>
+                  </ul>
+                  <p className="mt-3 text-xs" style={{ color: B.muted }}>
+                    You can start now and resume later from where you left off.
+                  </p>
+                </div>
+              </>
+            )}
+
+            {stepIndex === 1 && (
+              <>
+                <Field label="Role *">
+                  <select
+                    value={draft.role}
+                    onChange={(e) =>
+                      patch({
+                        role: e.target.value as SignupRole,
+                        sponsorMobile: "",
+                        sponsorUid: "",
+                        sponsorName: "",
+                      })
+                    }
+                    className={inputCls}
+                    style={inputStyle}
+                  >
+                    {ROLE_OPTIONS.map((r) => (
+                      <option key={r.value} value={r.value}>
+                        {r.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Full Name *">
+                  <input
+                    value={draft.name}
+                    onChange={(e) => patch({ name: e.target.value })}
+                    className={inputCls}
+                    style={inputStyle}
+                    placeholder="As per PAN"
+                  />
+                </Field>
+                {needsUpline ? (
+                  <Field label={`${UPLINE_LABEL[draft.role as "retailer" | "distributor"]} *`}>
+                    <input
+                      value={draft.sponsorMobile}
+                      onChange={(e) => patch({ sponsorMobile: e.target.value.replace(/\D/g, "").slice(0, 10) })}
+                      className={inputCls}
+                      style={inputStyle}
+                      inputMode="numeric"
+                    />
+                    {sponsorStatus === "ok" && sponsor ? (
+                      <p className="mt-1 text-xs font-semibold" style={{ color: B.green }}>
+                        <CheckCircle2 size={12} className="mr-1 inline" />
+                        {sponsor.name}
+                      </p>
+                    ) : null}
+                    {sponsorStatus === "empty" || sponsorStatus === "error" ? (
+                      <p className="mt-1 text-xs" style={{ color: "#B45309" }}>
+                        Upline not found
+                      </p>
+                    ) : null}
+                  </Field>
+                ) : null}
+                <Field label="Password *">
+                  <input
+                    type="password"
+                    value={draft.password}
+                    onChange={(e) => patch({ password: e.target.value })}
+                    className={inputCls}
+                    style={inputStyle}
+                    placeholder="Min 8 characters"
+                  />
+                </Field>
+              </>
+            )}
+
+            {stepIndex === 2 && (
+              <>
+                <Field label="PAN Number *">
+                  <input
+                    value={draft.pan}
+                    onChange={(e) => patch({ pan: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10) })}
+                    className={`${inputCls} font-mono`}
+                    style={inputStyle}
+                    placeholder="ABCDE1234F"
+                  />
+                </Field>
+                <Field label="Gender *">
+                  <select
+                    value={draft.gender}
+                    onChange={(e) => patch({ gender: e.target.value })}
+                    className={inputCls}
+                    style={inputStyle}
+                  >
+                    <option value="">Select</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </Field>
+                <Field label="Date of Birth *">
+                  <input
+                    type="date"
+                    value={draft.dob}
+                    onChange={(e) => patch({ dob: e.target.value })}
+                    className={inputCls}
+                    style={inputStyle}
+                  />
+                </Field>
+                <Field label="Father Name *">
+                  <input
+                    value={draft.fatherName}
+                    onChange={(e) => patch({ fatherName: e.target.value })}
+                    className={inputCls}
+                    style={inputStyle}
+                  />
+                </Field>
+                <FileUpload
+                  label="PAN Card Image *"
+                  meta={draft.panImage}
+                  previewUrl={previews.panImage}
+                  onPick={(f) => pickFile("panImage", f)}
+                  onClear={() => clearFile("panImage")}
+                />
+              </>
+            )}
+
+            {stepIndex === 3 && (
+              <>
+                <Field label="Aadhaar Number *">
+                  <input
+                    value={formatAadhaar(draft.aadhaar)}
+                    onChange={(e) => patch({ aadhaar: stripAadhaar(e.target.value) })}
+                    className={`${inputCls} font-mono`}
+                    style={inputStyle}
+                    inputMode="numeric"
+                    placeholder="1234 1234 1234"
+                  />
+                </Field>
+                <FileUpload
+                  label="Aadhaar Front *"
+                  meta={draft.aadhaarFront}
+                  previewUrl={previews.aadhaarFront}
+                  onPick={(f) => pickFile("aadhaarFront", f)}
+                  onClear={() => clearFile("aadhaarFront")}
+                />
+                <FileUpload
+                  label="Aadhaar Back *"
+                  meta={draft.aadhaarBack}
+                  previewUrl={previews.aadhaarBack}
+                  onPick={(f) => pickFile("aadhaarBack", f)}
+                  onClear={() => clearFile("aadhaarBack")}
+                />
+              </>
+            )}
+
+            {stepIndex === 4 && (
+              <>
+                <EmailVerifyField
+                  required
+                  email={draft.email}
+                  onChange={(v) => patch({ email: v })}
+                  inputClassName={inputCls}
+                  inputStyle={inputStyle}
+                />
+                {!accessToken ? (
+                  <p className="text-xs" style={{ color: "#B45309" }}>
+                    Sign in required to verify email — complete OTP on Role step first.
+                  </p>
+                ) : null}
+                <Field label="Address *">
+                  <input
+                    value={draft.address}
+                    onChange={(e) => patch({ address: e.target.value })}
+                    className={inputCls}
+                    style={inputStyle}
+                  />
+                </Field>
+                <Field label="Pincode *">
+                  <input
+                    value={draft.pincode}
+                    onChange={(e) => patch({ pincode: e.target.value.replace(/\D/g, "").slice(0, 6) })}
+                    className={inputCls}
+                    style={inputStyle}
+                    inputMode="numeric"
+                    placeholder={pinBusy ? "Looking up…" : "6-digit"}
+                  />
+                </Field>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="District *">
+                    <input
+                      value={draft.district}
+                      onChange={(e) => patch({ district: e.target.value })}
+                      className={inputCls}
+                      style={inputStyle}
+                    />
+                  </Field>
+                  <Field label="State *">
+                    <input
+                      value={draft.state}
+                      onChange={(e) => patch({ state: e.target.value })}
+                      className={inputCls}
+                      style={inputStyle}
+                    />
+                  </Field>
+                </div>
+              </>
+            )}
+
+            {stepIndex === 5 && (
+              <>
+                <Field label="Business Name *">
+                  <input
+                    value={draft.businessName}
+                    onChange={(e) => patch({ businessName: e.target.value })}
+                    className={inputCls}
+                    style={inputStyle}
+                  />
+                </Field>
+                <Field label="Business Type *">
+                  <select
+                    value={draft.businessType}
+                    onChange={(e) => patch({ businessType: e.target.value })}
+                    className={inputCls}
+                    style={inputStyle}
+                  >
+                    <option value="">Select</option>
+                    {BUSINESS_TYPES.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Business Category *">
+                  <select
+                    value={draft.businessCategory}
+                    onChange={(e) => patch({ businessCategory: e.target.value })}
+                    className={inputCls}
+                    style={inputStyle}
+                  >
+                    <option value="">Select</option>
+                    {BUSINESS_CATEGORIES.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Monthly Turnover *">
+                  <select
+                    value={draft.monthlyTurnover}
+                    onChange={(e) => patch({ monthlyTurnover: e.target.value })}
+                    className={inputCls}
+                    style={inputStyle}
+                  >
+                    <option value="">Select</option>
+                    {TURNOVERS.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Business Proof *">
+                  <select
+                    value={draft.businessProof}
+                    onChange={(e) => patch({ businessProof: e.target.value })}
+                    className={inputCls}
+                    style={inputStyle}
+                  >
+                    <option value="">Select</option>
+                    {BUSINESS_PROOFS.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Business Address *">
+                  <input
+                    value={draft.businessAddress}
+                    onChange={(e) => patch({ businessAddress: e.target.value })}
+                    className={inputCls}
+                    style={inputStyle}
+                  />
+                </Field>
+                <Field label="Pincode *">
+                  <input
+                    value={draft.businessPincode}
+                    onChange={(e) =>
+                      patch({ businessPincode: e.target.value.replace(/\D/g, "").slice(0, 6) })
+                    }
+                    className={inputCls}
+                    style={inputStyle}
+                    inputMode="numeric"
+                    placeholder={bizPinBusy ? "Looking up…" : "6-digit"}
+                  />
+                </Field>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="District *">
+                    <input
+                      value={draft.businessDistrict}
+                      onChange={(e) => patch({ businessDistrict: e.target.value })}
+                      className={inputCls}
+                      style={inputStyle}
+                    />
+                  </Field>
+                  <Field label="State *">
+                    <input
+                      value={draft.businessState}
+                      onChange={(e) => patch({ businessState: e.target.value })}
+                      className={inputCls}
+                      style={inputStyle}
+                    />
+                  </Field>
+                </div>
+              </>
+            )}
+
+            {stepIndex === 6 && (
+              <>
+                <Field label="IFSC *">
+                  <input
+                    value={draft.ifsc}
+                    onChange={(e) =>
+                      patch({ ifsc: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11) })
+                    }
+                    className={`${inputCls} font-mono`}
+                    style={inputStyle}
+                    placeholder="e.g. HDFC0001209"
+                  />
+                  <p className="mt-1 text-xs" style={{ color: B.muted }}>
+                    {draft.ifsc.length}/11 {ifscBusy ? "· Looking up…" : ""}
+                  </p>
+                </Field>
+                <Field label="Bank Name *">
+                  <input
+                    value={draft.bankName}
+                    onChange={(e) => patch({ bankName: e.target.value })}
+                    className={inputCls}
+                    style={inputStyle}
+                  />
+                </Field>
+                <Field label="Branch">
+                  <input
+                    value={draft.bankBranch}
+                    onChange={(e) => patch({ bankBranch: e.target.value })}
+                    className={inputCls}
+                    style={inputStyle}
+                  />
+                </Field>
+                <Field label="Account Number *">
+                  <input
+                    value={draft.accountNumber}
+                    onChange={(e) => patch({ accountNumber: e.target.value.replace(/\D/g, "").slice(0, 30) })}
+                    className={inputCls}
+                    style={inputStyle}
+                    inputMode="numeric"
+                  />
+                </Field>
+                <Field label="Confirm Account Number *">
+                  <input
+                    value={draft.accountNumberConfirm}
+                    onChange={(e) =>
+                      patch({ accountNumberConfirm: e.target.value.replace(/\D/g, "").slice(0, 30) })
+                    }
+                    className={inputCls}
+                    style={inputStyle}
+                    inputMode="numeric"
+                  />
+                </Field>
+                <Field label="Account Holder Name *">
+                  <input
+                    value={draft.accountName}
+                    onChange={(e) => patch({ accountName: e.target.value })}
+                    className={inputCls}
+                    style={inputStyle}
+                  />
+                </Field>
+                <FileUpload
+                  label="Cancelled Cheque *"
+                  meta={draft.cancelledCheque}
+                  previewUrl={previews.cancelledCheque}
+                  onPick={(f) => pickFile("cancelledCheque", f)}
+                  onClear={() => clearFile("cancelledCheque")}
+                />
+              </>
+            )}
+
+            {stepIndex === 7 && (
+              <FileUpload
+                label="Shop Photo *"
+                meta={draft.shopPhoto}
+                previewUrl={previews.shopPhoto}
+                accept="image/jpeg,image/png,image/webp"
+                onPick={(f) => pickFile("shopPhoto", f)}
+                onClear={() => clearFile("shopPhoto")}
+              />
+            )}
+
+            {stepIndex === 8 && (
+              <>
+                <div className="max-h-48 overflow-y-auto rounded-2xl border p-4 text-sm" style={{ borderColor: B.border, color: B.blue }}>
+                  <p className="mb-2 font-bold">Agent Agreement &amp; Pricing</p>
+                  <p className="text-xs leading-relaxed" style={{ color: B.muted }}>
+                    By continuing you agree to AsanPay agent terms, privacy policy, and the applicable
+                    commission / pricing schedule for your role. You confirm that KYC documents are true
+                    and you will comply with applicable regulations.
+                  </p>
+                </div>
+                <label className="flex items-start gap-2 text-sm" style={{ color: B.blue }}>
+                  <input
+                    type="checkbox"
+                    checked={draft.agreementAccepted}
+                    onChange={(e) => patch({ agreementAccepted: e.target.checked })}
+                    className="mt-1"
+                  />
+                  <span>I have read and accept the Terms, Privacy Policy, Agent Agreement, and pricing.</span>
+                </label>
+              </>
+            )}
+
+            <button
+              type="button"
+              onClick={next}
+              disabled={loading}
+              className="w-full rounded-2xl py-3.5 text-sm font-bold text-white disabled:opacity-50"
+              style={{ background: B.badgeGrad }}
+            >
+              {loading ? "Please wait…" : stepIndex === 8 ? "Submit" : stepIndex === 1 ? "Send OTP" : "Submit"}
+            </button>
+
+            {stepIndex === 0 ? (
+              <p className="text-center text-sm" style={{ color: B.muted }}>
+                Already have an account?{" "}
+                <Link href="/login" className="font-semibold" style={{ color: B.blue }}>
+                  Login
+                </Link>
+              </p>
+            ) : null}
+          </div>
         )}
-
-        <p className="mt-6 text-center text-sm" style={{ color: B.muted }}>
-          Already registered?{" "}
-          <Link href="/login" className="font-semibold" style={{ color: B.blue }}>
-            Login
-          </Link>
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function Field({ label, icon: Icon, children }: { label: string; icon: typeof Phone; children: ReactNode }) {
-  return (
-    <div>
-      <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider" style={{ color: B.muted }}>
-        {label}
-      </div>
-      <div className="flex items-center gap-3 rounded-2xl border-2 px-4 py-3" style={{ borderColor: B.border }}>
-        <Icon size={16} style={{ color: B.muted }} />
-        {children}
       </div>
     </div>
   );

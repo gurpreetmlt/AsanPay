@@ -499,7 +499,7 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
 
           <Pressable onPress={onSignup} style={styles.signupRow}>
             <Text style={styles.signupText}>
-              New agent? <Text style={styles.signupLink}>Register your outlet</Text>
+              New agent? <Text style={styles.signupLink}>Sign up</Text>
             </Text>
           </Pressable>
 

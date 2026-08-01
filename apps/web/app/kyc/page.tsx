@@ -48,9 +48,11 @@ type KycForm = {
   pan: string;
   accountName: string;
   accountNumber: string;
+  accountNumberConfirm: string;
   ifsc: string;
   bankName: string;
   bankBranch: string;
+  cancelledChequeName: string;
 };
 
 type KycDraft = {
@@ -122,12 +124,15 @@ export default function KycPage() {
     pan: "",
     accountName: "",
     accountNumber: "",
+    accountNumberConfirm: "",
     ifsc: "",
     bankName: "",
     bankBranch: "",
+    cancelledChequeName: "",
   });
   const [pinLookupBusy, setPinLookupBusy] = useState(false);
   const [ifscLookupBusy, setIfscLookupBusy] = useState(false);
+  const [chequePreview, setChequePreview] = useState<string | null>(null);
 
   useEffect(() => {
     if (hydrated && !accessToken) router.replace("/login");
@@ -246,6 +251,74 @@ export default function KycPage() {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
+  function validateBankStep(): string | null {
+    if (form.ifsc.length !== 11) return "Enter a valid 11-character IFSC";
+    if (!form.bankName.trim()) return "Bank name is required — enter IFSC and tap Fetch";
+    if (!form.accountNumber.trim()) return "Account number is required";
+    if (form.accountNumber !== form.accountNumberConfirm) {
+      return "Account number and confirm account number must match";
+    }
+    if (!form.accountName.trim()) return "Account holder name is required";
+    if (!form.cancelledChequeName.trim()) return "Upload a cancelled cheque image";
+    return null;
+  }
+
+  function onChequeSelected(file: File | null) {
+    if (!file) {
+      set("cancelledChequeName", "");
+      setChequePreview(null);
+      return;
+    }
+    const okType = /^(image\/(jpeg|jpg|png|webp)|application\/pdf)$/i.test(file.type);
+    if (!okType) {
+      toast.error("Upload JPG, PNG, WEBP, or PDF only");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Cancelled cheque must be under 2 MB");
+      return;
+    }
+    set("cancelledChequeName", file.name);
+    if (file.type.startsWith("image/")) {
+      const url = URL.createObjectURL(file);
+      setChequePreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return url;
+      });
+    } else {
+      setChequePreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+    }
+  }
+
+  async function fetchBankFromIfsc() {
+    const ifsc = form.ifsc;
+    if (ifsc.length !== 11) {
+      toast.error("Enter the full 11-character IFSC (e.g. HDFC0001209)");
+      return;
+    }
+    setIfscLookupBusy(true);
+    try {
+      const place = await lookupIndianIfsc(ifsc);
+      if (!place) {
+        toast.error("Invalid IFSC — check and try again");
+        return;
+      }
+      setForm((f) => ({
+        ...f,
+        bankName: place.bank || f.bankName,
+        bankBranch: place.branch || f.bankBranch,
+      }));
+      toast.success(`${place.bank} — ${place.branch}`);
+    } catch {
+      toast.error("Could not look up IFSC");
+    } finally {
+      setIfscLookupBusy(false);
+    }
+  }
+
   function next() {
     if (step === 0 && !agreed) {
       toast.error("Please accept the agreement");
@@ -261,6 +334,13 @@ export default function KycPage() {
         return;
       }
     }
+    if (step === 4) {
+      const bankErr = validateBankStep();
+      if (bankErr) {
+        toast.error(bankErr);
+        return;
+      }
+    }
     if (step < STEPS.length - 1) setStep((s) => s + 1);
   }
 
@@ -272,6 +352,12 @@ export default function KycPage() {
     if (!form.pan || !form.aadhaar) {
       toast.error("PAN and Aadhaar are required");
       setStep(3);
+      return;
+    }
+    const bankErr = validateBankStep();
+    if (bankErr) {
+      toast.error(bankErr);
+      setStep(4);
       return;
     }
     setSubmitting(true);
@@ -289,6 +375,7 @@ export default function KycPage() {
         bankAccountNumber: form.accountNumber || undefined,
         bankIfsc: form.ifsc ? form.ifsc.toUpperCase() : undefined,
         bankName: form.bankName || undefined,
+        cancelledChequeFileName: form.cancelledChequeName || undefined,
       });
       if (!data.success) throw new Error(data.message);
       if (user?.id) localStorage.removeItem(kycDraftKey(user.id));
@@ -472,33 +559,116 @@ export default function KycPage() {
                 Bank Details
               </h2>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Account Holder" placeholder="Name on passbook" value={form.accountName} onChange={(v) => set("accountName", v)} />
-                <Field label="Account Number" placeholder="Account number" value={form.accountNumber} onChange={(v) => set("accountNumber", v.replace(/\D/g, ""))} />
-                <Field
-                  label="IFSC"
-                  placeholder="e.g. HDFC0001048"
-                  value={form.ifsc}
-                  onChange={(v) => set("ifsc", v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11))}
-                />
+                <div className="col-span-2">
+                  <Label>IFSC</Label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="e.g. HDFC0001209"
+                      value={form.ifsc}
+                      onChange={(e) =>
+                        set("ifsc", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11))
+                      }
+                      className="min-w-0 flex-1 rounded-2xl border-2 bg-white px-4 py-3 font-mono text-sm outline-none"
+                      style={{ borderColor: B.border, color: B.blue }}
+                      maxLength={11}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void fetchBankFromIfsc()}
+                      disabled={ifscLookupBusy}
+                      className="shrink-0 rounded-2xl px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+                      style={{ background: B.badgeGrad }}
+                    >
+                      {ifscLookupBusy ? "…" : "Fetch"}
+                    </button>
+                  </div>
+                  <p className="mt-1.5 text-xs" style={{ color: form.ifsc.length === 11 ? B.green : B.muted }}>
+                    Enter IFSC first ({form.ifsc.length}/11) to autofill bank name and branch
+                  </p>
+                </div>
+
                 <Field
                   label="Bank Name"
-                  placeholder={ifscLookupBusy ? "Looking up…" : "Bank name"}
+                  placeholder={ifscLookupBusy ? "Looking up…" : "Auto-filled from IFSC"}
                   value={form.bankName}
                   onChange={(v) => set("bankName", v)}
                 />
-                <div className="col-span-2">
-                  <Field
-                    label="Branch"
-                    placeholder={ifscLookupBusy ? "Looking up…" : "Branch"}
-                    value={form.bankBranch}
-                    onChange={(v) => set("bankBranch", v)}
-                  />
-                </div>
-                {ifscLookupBusy ? (
-                  <p className="col-span-2 text-xs" style={{ color: B.muted }}>
-                    Fetching bank and branch from IFSC…
+                <Field
+                  label="Branch"
+                  placeholder={ifscLookupBusy ? "Looking up…" : "Auto-filled from IFSC"}
+                  value={form.bankBranch}
+                  onChange={(v) => set("bankBranch", v)}
+                />
+
+                <Field
+                  label="Account Number"
+                  placeholder="Account number"
+                  value={form.accountNumber}
+                  onChange={(v) => set("accountNumber", v.replace(/\D/g, "").slice(0, 30))}
+                />
+                <Field
+                  label="Confirm Account Number"
+                  placeholder="Re-enter account number"
+                  value={form.accountNumberConfirm}
+                  onChange={(v) => set("accountNumberConfirm", v.replace(/\D/g, "").slice(0, 30))}
+                />
+                {form.accountNumberConfirm.length > 0 &&
+                form.accountNumber !== form.accountNumberConfirm ? (
+                  <p className="col-span-2 text-xs" style={{ color: "#B45309" }}>
+                    Account numbers do not match
                   </p>
                 ) : null}
+
+                <div className="col-span-2">
+                  <Field
+                    label="Account Holder Name"
+                    placeholder="Name as on bank account / passbook"
+                    value={form.accountName}
+                    onChange={(v) => set("accountName", v)}
+                  />
+                </div>
+
+                <div className="col-span-2">
+                  <Label>Cancelled Cheque</Label>
+                  <label
+                    className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed px-4 py-6 text-center"
+                    style={{ borderColor: B.border, background: B.bg }}
+                  >
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,application/pdf"
+                      className="hidden"
+                      onChange={(e) => onChequeSelected(e.target.files?.[0] ?? null)}
+                    />
+                    {chequePreview ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={chequePreview}
+                        alt="Cancelled cheque preview"
+                        className="max-h-40 rounded-xl object-contain"
+                      />
+                    ) : null}
+                    <span className="text-sm font-semibold" style={{ color: B.blue }}>
+                      {form.cancelledChequeName
+                        ? form.cancelledChequeName
+                        : "Tap to upload cancelled cheque"}
+                    </span>
+                    <span className="text-xs" style={{ color: B.muted }}>
+                      JPG, PNG, WEBP or PDF · max 2 MB
+                    </span>
+                  </label>
+                  {form.cancelledChequeName ? (
+                    <button
+                      type="button"
+                      className="mt-2 text-xs font-semibold underline"
+                      style={{ color: B.muted }}
+                      onClick={() => onChequeSelected(null)}
+                    >
+                      Remove file
+                    </button>
+                  ) : null}
+                </div>
               </div>
             </div>
           )}
@@ -517,7 +687,9 @@ export default function KycPage() {
                   { label: "Bank", value: form.bankName || "—" },
                   { label: "Branch", value: form.bankBranch || "—" },
                   { label: "IFSC", value: form.ifsc || "—" },
+                  { label: "Account holder", value: form.accountName || "—" },
                   { label: "Account", value: form.accountNumber ? `****${form.accountNumber.slice(-4)}` : "—" },
+                  { label: "Cancelled cheque", value: form.cancelledChequeName || "—" },
                 ].map((r) => (
                   <div key={r.label}>
                     <div className="text-xs" style={{ color: B.muted }}>

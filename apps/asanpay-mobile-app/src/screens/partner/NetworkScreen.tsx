@@ -27,6 +27,7 @@ function greetingName(name: string): string {
 
 export function NetworkScreen() {
   const user = useAuthStore((s) => s.user)!;
+  const setSignupContinue = useAuthStore((s) => s.setSignupContinue);
   const [wallets, setWallets] = useState<WalletBalance[]>([]);
   const [downline, setDownline] = useState<DownlineUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,6 +37,8 @@ export function NetworkScreen() {
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const childRole = CHILD_ROLE[user.role];
+  const needsKyc =
+    user.kycStatus !== "verified" && (user.kycStatus === "rejected" || !user.hasKycDocs);
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -102,6 +105,36 @@ export function NetworkScreen() {
       >
         <WalletBar wallets={wallets} />
       </ScreenHeader>
+
+      {user.kycStatus !== "verified" ? (
+        <Pressable
+          onPress={() => {
+            if (needsKyc) setSignupContinue(true);
+          }}
+          style={{
+            marginHorizontal: 16,
+            marginTop: 10,
+            borderRadius: 14,
+            borderWidth: 1,
+            borderColor: `${colors.blue}33`,
+            backgroundColor: `${colors.blue}14`,
+            padding: 12,
+            flexDirection: "row",
+            alignItems: "center",
+          }}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: colors.blueFlat, fontWeight: "800", fontSize: 13 }}>
+              {user.hasKycDocs && user.kycStatus !== "rejected"
+                ? "KYC under review"
+                : "Complete your KYC for Onboarding"}
+            </Text>
+            <Text style={{ color: "#8FA2E0", fontSize: 11, marginTop: 2 }}>
+              {needsKyc ? "Tap to continue signup KYC." : "Awaiting admin approval."}
+            </Text>
+          </View>
+        </Pressable>
+      ) : null}
 
       <ScrollView
         contentContainerStyle={styles.content}

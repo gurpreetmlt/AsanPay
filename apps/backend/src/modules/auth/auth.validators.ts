@@ -211,5 +211,28 @@ export const kycSubmitSchema = z.object({
     .regex(/^[A-Z]{4}0[A-Z0-9]{6}$/)
     .optional(),
   bankName: z.string().trim().max(120).optional(),
+  cancelledChequeFileName: z.string().trim().max(200).optional(),
+  gender: z.string().trim().max(20).optional(),
+  fatherName: z.string().trim().max(120).optional(),
+  dob: z.string().trim().max(32).optional(),
+  district: z.string().trim().max(80).optional(),
+  state: z.string().trim().max(80).optional(),
+  businessName: z.string().trim().max(160).optional(),
+  businessType: z.string().trim().max(80).optional(),
+  businessCategory: z.string().trim().max(80).optional(),
+  monthlyTurnover: z.string().trim().max(40).optional(),
+  businessProof: z.string().trim().max(80).optional(),
+  businessAddress: z.string().trim().max(250).optional(),
+  businessPincode: z
+    .string()
+    .regex(/^\d{6}$/)
+    .optional(),
+  businessDistrict: z.string().trim().max(80).optional(),
+  businessState: z.string().trim().max(80).optional(),
+  bankBranch: z.string().trim().max(120).optional(),
+  panImageFileName: z.string().trim().max(200).optional(),
+  aadhaarFrontFileName: z.string().trim().max(200).optional(),
+  aadhaarBackFileName: z.string().trim().max(200).optional(),
+  shopPhotoFileName: z.string().trim().max(200).optional(),
 });
 export type KycSubmitInput = z.infer<typeof kycSubmitSchema>;

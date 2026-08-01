@@ -202,19 +202,27 @@ export function RetailerDashboard() {
               <AlertTriangle size={24} style={{ color: "#D97706" }} />
               <div>
                 <p className="text-sm font-semibold" style={{ color: "#92400E" }}>
-                  {user?.kycStatus === "pending" ? "Pending Verification" : "KYC Rejected"}
+                  {user?.hasKycDocs
+                    ? user?.kycStatus === "rejected"
+                      ? "KYC Rejected"
+                      : "Pending Verification"
+                    : "KYC Incomplete"}
                 </p>
                 <p className="text-xs" style={{ color: "#92400E" }}>
-                  Register your outlet to unlock all services.
+                  {user?.hasKycDocs
+                    ? "Services unlock after admin approval."
+                    : "Complete signup KYC to submit for approval."}
                 </p>
-                <button
-                  type="button"
-                  className="mt-2 text-xs font-semibold underline"
-                  style={{ color: B.blue }}
-                  onClick={() => router.push("/onboarding/outlet")}
-                >
-                  Register Now →
-                </button>
+                {!user?.hasKycDocs || user?.kycStatus === "rejected" ? (
+                  <button
+                    type="button"
+                    className="mt-2 text-xs font-semibold underline"
+                    style={{ color: B.blue }}
+                    onClick={() => router.push("/signup")}
+                  >
+                    Complete KYC →
+                  </button>
+                ) : null}
               </div>
             </div>
           )}
