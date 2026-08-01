@@ -131,6 +131,14 @@ export type SignupChildRole = (typeof SIGNUP_CHILD_ROLES)[number];
 export const SPONSOR_SEARCH_ROLES = ["admin", "master_distributor", "distributor"] as const;
 export type SponsorSearchRole = (typeof SPONSOR_SEARCH_ROLES)[number];
 
+/** Browser geolocation strings stored on user.outlet_* for AEPS geofence. */
+export const geoCoordSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(32)
+  .refine((v) => Number.isFinite(Number(v)), { message: "Invalid coordinate" });
+
 export const signupRequestSchema = z
   .object({
     name: z.string().trim().min(2).max(120),
@@ -139,6 +147,8 @@ export const signupRequestSchema = z
     sponsorUid: z.string().trim().min(6).max(20).optional(),
     role: z.enum(SIGNUP_CHILD_ROLES),
     portal: z.enum(AUTH_PORTALS).default("agent"),
+    latitude: geoCoordSchema,
+    longitude: geoCoordSchema,
   })
   .superRefine((data, ctx) => {
     if (data.role !== "master_distributor" && !data.sponsorUid) {
@@ -147,6 +157,14 @@ export const signupRequestSchema = z
         message: "Sponsor UID is required",
         path: ["sponsorUid"],
       });
+    }
+    const lat = Number(data.latitude);
+    const lng = Number(data.longitude);
+    if (lat < -90 || lat > 90) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid latitude", path: ["latitude"] });
+    }
+    if (lng < -180 || lng > 180) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid longitude", path: ["longitude"] });
     }
   });
 export type SignupRequestInput = z.infer<typeof signupRequestSchema>;
@@ -177,6 +195,8 @@ export const signupVerifySchema = z
     /** Optional login password; if omitted a strong random one is generated (OTP/PIN login). */
     password: passwordSchema.optional(),
     portal: z.enum(AUTH_PORTALS).default("agent"),
+    latitude: geoCoordSchema,
+    longitude: geoCoordSchema,
   })
   .superRefine((data, ctx) => {
     if (data.role !== "master_distributor" && !data.sponsorUid) {
@@ -185,6 +205,14 @@ export const signupVerifySchema = z
         message: "Sponsor UID is required",
         path: ["sponsorUid"],
       });
+    }
+    const lat = Number(data.latitude);
+    const lng = Number(data.longitude);
+    if (lat < -90 || lat > 90) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid latitude", path: ["latitude"] });
+    }
+    if (lng < -180 || lng > 180) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid longitude", path: ["longitude"] });
     }
   });
 export type SignupVerifyInput = z.infer<typeof signupVerifySchema>;
@@ -234,5 +262,8 @@ export const kycSubmitSchema = z.object({
   aadhaarFrontFileName: z.string().trim().max(200).optional(),
   aadhaarBackFileName: z.string().trim().max(200).optional(),
   shopPhotoFileName: z.string().trim().max(200).optional(),
+  /** Signup / shop geo — updates outlet_latitude / outlet_longitude when provided. */
+  latitude: geoCoordSchema.optional(),
+  longitude: geoCoordSchema.optional(),
 });
 export type KycSubmitInput = z.infer<typeof kycSubmitSchema>;

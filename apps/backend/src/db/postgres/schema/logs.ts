@@ -60,6 +60,9 @@ export interface OtpMeta {
   sponsorUid?: string;
   /** Child role being created via public signup */
   childRole?: "master_distributor" | "distributor" | "retailer";
+  /** Signup geolocation (browser) — stored on user.outlet_* at verify */
+  latitude?: string;
+  longitude?: string;
   /** Wallet pull OTP — parent collects from direct child */
   actorId?: string;
   targetUserId?: string;

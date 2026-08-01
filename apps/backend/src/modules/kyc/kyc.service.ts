@@ -38,6 +38,9 @@ export async function submitKyc(userId: string, input: KycSubmitInput): Promise<
     throw new HttpError(409, "KYC is already verified", "KYC_ALREADY_VERIFIED");
   }
 
+  const latitude = input.latitude?.trim() || user.outletLatitude || null;
+  const longitude = input.longitude?.trim() || user.outletLongitude || null;
+
   const [updated] = await db
     .update(users)
     .set({
@@ -46,6 +49,9 @@ export async function submitKyc(userId: string, input: KycSubmitInput): Promise<
       panNumberEncrypted: encryptPII(input.panNumber.toUpperCase()),
       aadhaarNumberEncrypted: encryptPII(input.aadhaarNumber),
       kycStatus: "pending",
+      ...(latitude && longitude
+        ? { outletLatitude: latitude, outletLongitude: longitude }
+        : {}),
       updatedAt: new Date(),
     })
     .where(eq(users.id, userId))
@@ -83,6 +89,8 @@ export async function submitKyc(userId: string, input: KycSubmitInput): Promise<
       aadhaarFrontFileName: input.aadhaarFrontFileName ?? null,
       aadhaarBackFileName: input.aadhaarBackFileName ?? null,
       shopPhotoFileName: input.shopPhotoFileName ?? null,
+      latitude,
+      longitude,
     },
   });
 

@@ -10,6 +10,8 @@ export type SignupDraft = {
   stepIndex: number;
   accountCreated: boolean;
   termsAccepted: boolean;
+  latitude: string;
+  longitude: string;
   mobile: string;
   role: SignupRole;
   name: string;
@@ -54,6 +56,8 @@ export const EMPTY_SIGNUP_DRAFT: SignupDraft = {
   stepIndex: 0,
   accountCreated: false,
   termsAccepted: false,
+  latitude: "",
+  longitude: "",
   mobile: "",
   role: "retailer",
   name: "",

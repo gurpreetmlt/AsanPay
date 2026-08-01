@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
+  Modal,
+  PermissionsAndroid,
   Platform,
   Pressable,
   ScrollView,
@@ -10,8 +12,9 @@ import {
   TextInput,
   View,
 } from "react-native";
+import Geolocation from "@react-native-community/geolocation";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ArrowLeft, CheckCircle2 } from "lucide-react-native";
+import { ArrowLeft, CheckCircle2, MapPin, X } from "lucide-react-native";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import { api } from "../../lib/api";
 import { apiError } from "../../utils/apiError";
@@ -78,14 +81,60 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
   const [loading, setLoading] = useState(false);
   const [draftReady, setDraftReady] = useState(false);
   const [sponsorOk, setSponsorOk] = useState(false);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [locationBusy, setLocationBusy] = useState(false);
 
   const stepIndex = draft.stepIndex;
   const needsUpline = draft.role !== "master_distributor";
   const sponsorRole = SPONSOR_ROLE[draft.role];
   const storageKey = draft.accountCreated && authUser?.id ? authUser.id : draft.mobile || "anon";
+  const hasLocation = Boolean(draft.latitude && draft.longitude);
 
   function patch(p: Partial<MobileSignupDraft>) {
     setDraft((d) => ({ ...d, ...p }));
+  }
+
+  async function ensureLocation(): Promise<boolean> {
+    setLocationBusy(true);
+    try {
+      if (Platform.OS === "android") {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          {
+            title: "Location Permission",
+            message: "AsanPay needs your location to complete registration.",
+            buttonPositive: "Allow",
+            buttonNegative: "Deny",
+          },
+        );
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          setShowLocationModal(true);
+          showAlert("Location required", "Allow location access to continue signup");
+          return false;
+        }
+      }
+      const coords = await new Promise<{ latitude: string; longitude: string }>((resolve, reject) => {
+        Geolocation.getCurrentPosition(
+          (pos) =>
+            resolve({
+              latitude: String(pos.coords.latitude),
+              longitude: String(pos.coords.longitude),
+            }),
+          (err) => reject(err),
+          { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 },
+        );
+      });
+      patch({ latitude: coords.latitude, longitude: coords.longitude });
+      setShowLocationModal(false);
+      return true;
+    } catch {
+      setShowLocationModal(true);
+      showAlert("Location required", "Allow location access to continue signup");
+      return false;
+    } finally {
+      setLocationBusy(false);
+    }
   }
 
   useEffect(() => {
@@ -121,6 +170,17 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
     if (!draftReady) return;
     void saveMobileSignupDraft(storageKey, draft);
   }, [draft, draftReady, storageKey]);
+
+  useEffect(() => {
+    if (!draftReady || stepIndex !== 0 || phase !== "steps") return;
+    if (draft.latitude && draft.longitude) {
+      setShowLocationModal(false);
+      return;
+    }
+    setShowLocationModal(true);
+    void ensureLocation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftReady, stepIndex, phase]);
 
   useEffect(() => {
     if (!needsUpline) {
@@ -219,6 +279,7 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
 
   function validateStep(): string | null {
     if (stepIndex === 0) {
+      if (!draft.latitude || !draft.longitude) return "Allow location access before continuing";
       if (draft.mobile.replace(/\D/g, "").length !== 10) return "Enter a valid 10-digit mobile";
       if (!draft.termsAccepted) return "Please accept Terms and Conditions";
     }
@@ -267,11 +328,18 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
   async function requestOtp() {
     setLoading(true);
     try {
+      if (!draft.latitude || !draft.longitude) {
+        showAlert("Location required", "Allow location access before continuing");
+        setShowLocationModal(true);
+        return;
+      }
       const { data } = await api.post<ApiResponse<{ otp?: string }>>("/auth/signup/request", {
         name: draft.name.trim(),
         mobile: draft.mobile.replace(/\D/g, "").slice(0, 10),
         role: draft.role,
         portal: "agent",
+        latitude: draft.latitude,
+        longitude: draft.longitude,
         ...(needsUpline ? { sponsorUid: draft.sponsorUid } : {}),
       });
       if (!data.success) throw new Error(data.message);
@@ -300,6 +368,8 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
         role: draft.role,
         portal: "agent",
         password: draft.password,
+        latitude: draft.latitude,
+        longitude: draft.longitude,
         ...(needsUpline ? { sponsorUid: draft.sponsorUid } : {}),
       });
       if (!data.success) throw new Error(data.message);
@@ -406,6 +476,8 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
         aadhaarFrontFileName: draft.aadhaarFront?.name,
         aadhaarBackFileName: draft.aadhaarBack?.name,
         shopPhotoFileName: draft.shopPhoto?.name,
+        latitude: draft.latitude || undefined,
+        longitude: draft.longitude || undefined,
       });
       if (!data.success) throw new Error(data.message);
       updateUser(data.data.user);
@@ -533,6 +605,16 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
             <View style={styles.block}>
               {stepIndex === 0 && (
                 <>
+                  {!hasLocation ? (
+                    <Text style={[styles.hint, { color: "#92400E", marginBottom: 8 }]}>
+                      Location must be allowed before you enter your mobile number.
+                    </Text>
+                  ) : (
+                    <Text style={[styles.hint, { color: colors.greenDark, marginBottom: 8 }]}>
+                      Location captured · Lat {Number(draft.latitude).toFixed(5)}, Lng{" "}
+                      {Number(draft.longitude).toFixed(5)}
+                    </Text>
+                  )}
                   <FieldLabel text="Mobile Number *" color={tokens.mute} />
                   <TextInput
                     value={draft.mobile}
@@ -540,13 +622,25 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
                     keyboardType="number-pad"
                     placeholder="10-digit mobile"
                     placeholderTextColor={tokens.mute}
-                    style={inputStyle}
+                    editable={hasLocation}
+                    style={[inputStyle, !hasLocation && { opacity: 0.55 }]}
                   />
                   <Text style={[styles.hint, { color: tokens.mute }]}>
                     *Enter number which is linked to your Aadhaar.
                   </Text>
                   <Pressable
-                    onPress={() => patch({ termsAccepted: !draft.termsAccepted })}
+                    onPress={() => {
+                      if (draft.termsAccepted) {
+                        patch({ termsAccepted: false });
+                        return;
+                      }
+                      if (!hasLocation) {
+                        setShowLocationModal(true);
+                        void ensureLocation();
+                        return;
+                      }
+                      setShowTermsModal(true);
+                    }}
                     style={styles.checkRow}
                   >
                     <View style={[styles.check, draft.termsAccepted && styles.checkOn]}>
@@ -929,6 +1023,75 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
           ) : null}
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <Modal visible={showLocationModal && !hasLocation} transparent animationType="fade">
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, { backgroundColor: tokens.card }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <MapPin size={20} color={colors.green} />
+              <Text style={[styles.modalTitle, { color: tokens.txt }]}>Location Permission Required</Text>
+            </View>
+            <Text style={{ color: tokens.mute, fontSize: 13, marginBottom: 12 }}>
+              Please allow location access to continue with registration.
+            </Text>
+            <Pressable
+              onPress={() => void ensureLocation()}
+              disabled={locationBusy}
+              style={[styles.cta, { opacity: locationBusy ? 0.6 : 1 }]}
+            >
+              <Text style={styles.ctaText}>{locationBusy ? "Requesting…" : "Allow"}</Text>
+            </Pressable>
+            <Pressable onPress={onBack} style={[styles.modalSecondary, { borderColor: colors.green }]}>
+              <Text style={{ color: colors.greenDark, fontWeight: "700" }}>Go back</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showTermsModal} transparent animationType="fade">
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, { backgroundColor: tokens.card, maxHeight: "85%" }]}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8 }}>
+              <Text style={[styles.modalTitle, { color: tokens.txt }]}>Terms & Conditions</Text>
+              <Pressable onPress={() => setShowTermsModal(false)}>
+                <X size={18} color={tokens.mute} />
+              </Pressable>
+            </View>
+            <ScrollView style={{ maxHeight: 280 }}>
+              <Text style={{ color: tokens.txt2, fontSize: 13, lineHeight: 20 }}>
+                By registering as an AsanPay agent you agree to provide accurate KYC information, use services
+                only for lawful retail transactions, keep credentials confidential, and comply with applicable
+                RBI / UIDAI / NPCI guidelines. Location captured at registration is used for outlet geofencing
+                and compliance. AsanPay may suspend access for fraud or policy violations.
+              </Text>
+            </ScrollView>
+            <Text style={{ color: tokens.mute, fontSize: 11, marginTop: 10 }}>
+              Latitude: {draft.latitude || "—"}
+            </Text>
+            <Text style={{ color: tokens.mute, fontSize: 11, marginBottom: 12 }}>
+              Longitude: {draft.longitude || "—"}
+            </Text>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <Pressable
+                onPress={() => setShowTermsModal(false)}
+                style={[styles.modalSecondary, { flex: 1, borderColor: colors.green }]}
+              >
+                <Text style={{ color: colors.greenDark, fontWeight: "700", textAlign: "center" }}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  patch({ termsAccepted: true });
+                  setShowTermsModal(false);
+                }}
+                disabled={!hasLocation}
+                style={[styles.cta, { flex: 1, opacity: hasLocation ? 1 : 0.5 }]}
+              >
+                <Text style={styles.ctaText}>Accept</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1069,4 +1232,19 @@ const styles = StyleSheet.create({
   },
   ctaText: { color: "#fff", fontWeight: "800", fontSize: 15 },
   devOtp: { color: colors.blueFlat, fontWeight: "700", marginBottom: 8 },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
+    padding: 20,
+  },
+  modalCard: { borderRadius: 18, padding: 18 },
+  modalTitle: { fontSize: 16, fontWeight: "800", flex: 1 },
+  modalSecondary: {
+    marginTop: 10,
+    borderWidth: 1.5,
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
 });

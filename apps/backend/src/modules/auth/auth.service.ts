@@ -968,6 +968,8 @@ export async function requestSignupOtp(
       name: input.name.trim(),
       sponsorUid,
       childRole: input.role,
+      latitude: input.latitude,
+      longitude: input.longitude,
     },
   });
 
@@ -978,7 +980,12 @@ export async function requestSignupOtp(
     entityId: sponsorId,
     ipAddress: context.ipAddress,
     userAgent: context.userAgent,
-    metadata: { mobile: input.mobile, childRole: input.role },
+    metadata: {
+      mobile: input.mobile,
+      childRole: input.role,
+      latitude: input.latitude,
+      longitude: input.longitude,
+    },
   });
 
   const exposeOtp = shouldExposeOtpInResponse();
@@ -1051,6 +1058,12 @@ export async function verifySignupOtp(
     input.password ??
     `Lp${randomBytes(9).toString("base64url")}9a`; // meets passwordSchema (letter + digit + len)
 
+  const latitude = input.latitude || String(record.meta?.latitude ?? "");
+  const longitude = input.longitude || String(record.meta?.longitude ?? "");
+  if (!latitude || !longitude) {
+    throw new HttpError(422, "Location is required for signup", "LOCATION_REQUIRED");
+  }
+
   const user = await registerUser(
     { id: sponsor.id, role: sponsor.role },
     {
@@ -1063,7 +1076,15 @@ export async function verifySignupOtp(
     isSuperDirect ? { isActive: false } : undefined,
   );
 
-  const [row] = await db.select().from(users).where(eq(users.id, user.id));
+  const [row] = await db
+    .update(users)
+    .set({
+      outletLatitude: latitude,
+      outletLongitude: longitude,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, user.id))
+    .returning();
   if (!row) throw new HttpError(500, "User created but not found");
 
   await insertAuditLog({
@@ -1078,6 +1099,8 @@ export async function verifySignupOtp(
       method: "otp",
       childRole,
       pendingApproval: isSuperDirect,
+      latitude,
+      longitude,
     },
   });
 

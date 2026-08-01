@@ -9,6 +9,11 @@ import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import { AsanPayLogo } from "@/components/brand/Logo";
 import { EmailVerifyField } from "@/components/EmailVerifyField";
 import { SignupStepper, SIGNUP_STEPS } from "@/components/signup/SignupStepper";
+import {
+  LocationPermissionModal,
+  TermsAcceptModal,
+  requestBrowserLocation,
+} from "@/components/signup/SignupLocationTerms";
 import api from "@/lib/api";
 import { formatAadhaar, stripAadhaar } from "@/lib/aadhaar";
 import { B } from "@/lib/brand";
@@ -163,14 +168,36 @@ export default function SignupPage() {
   const [ifscBusy, setIfscBusy] = useState(false);
   const [pinBusy, setPinBusy] = useState(false);
   const [bizPinBusy, setBizPinBusy] = useState(false);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [locationBusy, setLocationBusy] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [showTermsModal, setShowTermsModal] = useState(false);
 
   const stepIndex = draft.stepIndex;
   const needsUpline = draft.role !== "master_distributor";
   const sponsorRole = SPONSOR_ROLE[draft.role];
   const storageKey = draft.accountCreated && user?.id ? user.id : draft.mobile.replace(/\D/g, "") || "anon";
+  const hasLocation = Boolean(draft.latitude && draft.longitude);
 
   function patch(p: Partial<SignupDraft>) {
     setDraft((d) => ({ ...d, ...p }));
+  }
+
+  async function ensureLocation() {
+    setLocationBusy(true);
+    setLocationError(null);
+    try {
+      const coords = await requestBrowserLocation();
+      patch({ latitude: coords.latitude, longitude: coords.longitude });
+      setShowLocationModal(false);
+      return true;
+    } catch (err) {
+      setLocationError(err instanceof Error ? err.message : "Location access denied");
+      setShowLocationModal(true);
+      return false;
+    } finally {
+      setLocationBusy(false);
+    }
   }
 
   useEffect(() => {
@@ -207,6 +234,17 @@ export default function SignupPage() {
     if (!draftReady) return;
     saveSignupDraft(storageKey, draft);
   }, [draft, draftReady, storageKey]);
+
+  useEffect(() => {
+    if (!draftReady || stepIndex !== 0 || phase !== "steps") return;
+    if (draft.latitude && draft.longitude) {
+      setShowLocationModal(false);
+      return;
+    }
+    setShowLocationModal(true);
+    void ensureLocation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftReady, stepIndex, phase]);
 
   useEffect(() => {
     if (!needsUpline) {
@@ -350,6 +388,7 @@ export default function SignupPage() {
 
   function validateStep(): string | null {
     if (stepIndex === 0) {
+      if (!draft.latitude || !draft.longitude) return "Allow location access before continuing";
       if (draft.mobile.replace(/\D/g, "").length !== 10) return "Enter a valid 10-digit mobile";
       if (!draft.termsAccepted) return "Please accept Terms and Conditions";
     }
@@ -409,11 +448,18 @@ export default function SignupPage() {
   async function requestOtp() {
     setLoading(true);
     try {
+      if (!draft.latitude || !draft.longitude) {
+        toast.error("Allow location access before continuing");
+        setShowLocationModal(true);
+        return;
+      }
       const { data } = await api.post<ApiResponse<{ otp?: string; message: string }>>("/auth/signup/request", {
         name: draft.name.trim(),
         mobile: draft.mobile.replace(/\D/g, "").slice(0, 10),
         role: draft.role,
         portal: "agent",
+        latitude: draft.latitude,
+        longitude: draft.longitude,
         ...(sponsor ? { sponsorUid: sponsor.uid } : {}),
       });
       if (!data.success) throw new Error(data.message);
@@ -440,6 +486,8 @@ export default function SignupPage() {
         otp,
         role: draft.role,
         portal: "agent",
+        latitude: draft.latitude,
+        longitude: draft.longitude,
         ...(sponsor ? { sponsorUid: sponsor.uid } : {}),
         ...(draft.password ? { password: draft.password } : {}),
       });
@@ -504,6 +552,8 @@ export default function SignupPage() {
         aadhaarFrontFileName: draft.aadhaarFront?.name,
         aadhaarBackFileName: draft.aadhaarBack?.name,
         shopPhotoFileName: draft.shopPhoto?.name,
+        latitude: draft.latitude || undefined,
+        longitude: draft.longitude || undefined,
       });
       if (!data.success) throw new Error(data.message);
       useAuthStore.getState().setUser(data.data.user);
@@ -613,14 +663,27 @@ export default function SignupPage() {
           <div className="space-y-4">
             {stepIndex === 0 && (
               <>
+                {!hasLocation ? (
+                  <p className="rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: "#FEF3C7", color: "#92400E" }}>
+                    Location must be allowed before you enter your mobile number.
+                  </p>
+                ) : (
+                  <p className="rounded-xl px-3 py-2 text-xs" style={{ background: `${B.green}12`, color: B.greenDark }}>
+                    Location captured · Lat {Number(draft.latitude).toFixed(5)}, Lng {Number(draft.longitude).toFixed(5)}
+                  </p>
+                )}
                 <Field label="Mobile Number *">
                   <input
                     value={draft.mobile}
                     onChange={(e) => patch({ mobile: e.target.value.replace(/\D/g, "").slice(0, 10) })}
                     className={inputCls}
-                    style={inputStyle}
+                    style={{
+                      ...inputStyle,
+                      opacity: hasLocation ? 1 : 0.55,
+                    }}
                     inputMode="numeric"
                     placeholder="10-digit mobile"
+                    disabled={!hasLocation}
                   />
                 </Field>
                 <p className="text-xs" style={{ color: B.muted }}>
@@ -630,14 +693,37 @@ export default function SignupPage() {
                   <input
                     type="checkbox"
                     checked={draft.termsAccepted}
-                    onChange={(e) => patch({ termsAccepted: e.target.checked })}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        if (!hasLocation) {
+                          setShowLocationModal(true);
+                          void ensureLocation();
+                          return;
+                        }
+                        setShowTermsModal(true);
+                        return;
+                      }
+                      patch({ termsAccepted: false });
+                    }}
                     className="mt-1"
                   />
                   <span>
                     I agree to the{" "}
-                    <Link href="/terms" className="font-semibold underline">
+                    <button
+                      type="button"
+                      className="font-semibold underline"
+                      style={{ color: B.blue }}
+                      onClick={() => {
+                        if (!hasLocation) {
+                          setShowLocationModal(true);
+                          void ensureLocation();
+                          return;
+                        }
+                        setShowTermsModal(true);
+                      }}
+                    >
                       Terms and Conditions
-                    </Link>
+                    </button>
                   </span>
                 </label>
                 <div className="rounded-2xl border p-4 text-sm" style={{ borderColor: `${B.green}40`, background: `${B.green}10`, color: B.greenDark }}>
@@ -724,6 +810,9 @@ export default function SignupPage() {
 
             {stepIndex === 2 && (
               <>
+                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: B.muted }}>
+                  Step 3 of 9 · PAN Verification
+                </p>
                 <Field label="PAN Number *">
                   <input
                     value={draft.pan}
@@ -761,6 +850,7 @@ export default function SignupPage() {
                     onChange={(e) => patch({ fatherName: e.target.value })}
                     className={inputCls}
                     style={inputStyle}
+                    placeholder="As per PAN"
                   />
                 </Field>
                 <FileUpload
@@ -775,6 +865,9 @@ export default function SignupPage() {
 
             {stepIndex === 3 && (
               <>
+                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: B.muted }}>
+                  Step 4 of 9 · Aadhaar Verification
+                </p>
                 <Field label="Aadhaar Number *">
                   <input
                     value={formatAadhaar(draft.aadhaar)}
@@ -785,6 +878,9 @@ export default function SignupPage() {
                     placeholder="1234 1234 1234"
                   />
                 </Field>
+                <p className="text-xs" style={{ color: B.muted }}>
+                  Enter the Aadhaar linked to your mobile number. Upload clear front and back images.
+                </p>
                 <FileUpload
                   label="Aadhaar Front *"
                   meta={draft.aadhaarFront}
@@ -804,6 +900,9 @@ export default function SignupPage() {
 
             {stepIndex === 4 && (
               <>
+                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: B.muted }}>
+                  Step 5 of 9 · Basic Details &amp; Email Verification
+                </p>
                 <EmailVerifyField
                   required
                   email={draft.email}
@@ -822,6 +921,7 @@ export default function SignupPage() {
                     onChange={(e) => patch({ address: e.target.value })}
                     className={inputCls}
                     style={inputStyle}
+                    placeholder="Residential address"
                   />
                 </Field>
                 <Field label="Pincode *">
@@ -1090,6 +1190,27 @@ export default function SignupPage() {
           </div>
         )}
       </div>
+
+      {showLocationModal && !hasLocation ? (
+        <LocationPermissionModal
+          error={locationError}
+          busy={locationBusy}
+          onAllow={() => void ensureLocation()}
+          onHome={() => router.push("/")}
+        />
+      ) : null}
+
+      {showTermsModal ? (
+        <TermsAcceptModal
+          latitude={draft.latitude}
+          longitude={draft.longitude}
+          onAccept={() => {
+            patch({ termsAccepted: true });
+            setShowTermsModal(false);
+          }}
+          onCancel={() => setShowTermsModal(false)}
+        />
+      ) : null}
     </div>
   );
 }
