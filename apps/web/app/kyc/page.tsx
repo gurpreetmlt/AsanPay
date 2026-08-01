@@ -35,6 +35,34 @@ const STEPS = [
   { id: "review", label: "Review", icon: Eye },
 ] as const;
 
+type KycForm = {
+  fullName: string;
+  dob: string;
+  email: string;
+  address: string;
+  city: string;
+  state: string;
+  region: string;
+  pincode: string;
+  aadhaar: string;
+  pan: string;
+  accountName: string;
+  accountNumber: string;
+  ifsc: string;
+  bankName: string;
+  bankBranch: string;
+};
+
+type KycDraft = {
+  step: number;
+  agreed: boolean;
+  form: KycForm;
+};
+
+function kycDraftKey(userId: string) {
+  return `asanpay:kyc-draft:${userId}`;
+}
+
 function Label({ children }: { children: ReactNode }) {
   return (
     <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider" style={{ color: B.muted }}>
@@ -80,7 +108,8 @@ export default function KycPage() {
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [agreed, setAgreed] = useState(false);
-  const [form, setForm] = useState({
+  const [draftReady, setDraftReady] = useState(false);
+  const [form, setForm] = useState<KycForm>({
     fullName: "",
     dob: "",
     email: "",
@@ -103,6 +132,33 @@ export default function KycPage() {
   useEffect(() => {
     if (hydrated && !accessToken) router.replace("/login");
   }, [hydrated, accessToken, router]);
+
+  // Resume KYC from the last saved step for this user.
+  useEffect(() => {
+    if (!user?.id) return;
+    try {
+      const raw = localStorage.getItem(kycDraftKey(user.id));
+      if (raw) {
+        const draft = JSON.parse(raw) as Partial<KycDraft>;
+        if (typeof draft.step === "number" && draft.step >= 0 && draft.step < STEPS.length) {
+          setStep(draft.step);
+        }
+        if (draft.agreed) setAgreed(true);
+        if (draft.form && typeof draft.form === "object") {
+          setForm((f) => ({ ...f, ...draft.form }));
+        }
+      }
+    } catch {
+      // ignore corrupt draft
+    }
+    setDraftReady(true);
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id || !draftReady) return;
+    const draft: KycDraft = { step, agreed, form };
+    localStorage.setItem(kycDraftKey(user.id), JSON.stringify(draft));
+  }, [user?.id, draftReady, step, agreed, form]);
 
   useEffect(() => {
     if (!user) return;
@@ -235,6 +291,7 @@ export default function KycPage() {
         bankName: form.bankName || undefined,
       });
       if (!data.success) throw new Error(data.message);
+      if (user?.id) localStorage.removeItem(kycDraftKey(user.id));
       setUser(data.data.user);
       toast.success("KYC submitted — set your PIN next");
       router.replace("/onboarding/pin");
