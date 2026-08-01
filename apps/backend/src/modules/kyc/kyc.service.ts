@@ -4,6 +4,7 @@ import { users } from "../../db/postgres/schema";
 import { encryptPII } from "../../utils/aes";
 import { HttpError } from "../../utils/httpError";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
+import { kycSubmittedEmailTemplate, notifyUserEmail } from "../../utils/mailer";
 import type { AuthUser } from "@asanpay/shared-types";
 import type { KycSubmitInput } from "../auth/auth.validators";
 
@@ -63,6 +64,10 @@ export async function submitKyc(userId: string, input: KycSubmitInput): Promise<
       bankName: input.bankName ?? null,
     },
   });
+
+  if (updated.email && updated.emailVerifiedAt) {
+    notifyUserEmail(updated.email, () => kycSubmittedEmailTemplate({ name: updated.name }));
+  }
 
   return toAuthUser(updated);
 }

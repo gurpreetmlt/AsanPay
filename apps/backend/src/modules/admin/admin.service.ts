@@ -21,6 +21,7 @@ import { HttpError } from "../../utils/httpError";
 import { decryptPII } from "../../utils/aes";
 import { env } from "../../config/env";
 import { sendSlackAlert } from "../../utils/alert";
+import { kycDecisionEmailTemplate, notifyUserEmail } from "../../utils/mailer";
 import { findLatestAuditLog, insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import type { UserRole, KycStatus, TransactionStatus } from "@asanpay/shared-types";
 
@@ -522,6 +523,12 @@ export async function decideKyc(adminId: string, userId: string, decision: "veri
     previousStatus: user.kycStatus,
     newStatus: decision,
   });
+
+  if (user.email && user.emailVerifiedAt) {
+    notifyUserEmail(user.email, () =>
+      kycDecisionEmailTemplate({ name: user.name, decision }),
+    );
+  }
 
   return {
     id: updated!.id,

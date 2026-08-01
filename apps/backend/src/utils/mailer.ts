@@ -150,7 +150,6 @@ export function emailVerificationTemplate(otp: string, ttlMinutes: number): Send
   };
 }
 
-/** Call after signup / first activation — wire from auth signup in a follow-up task. */
 export function welcomeEmailTemplate(input: {
   name: string;
   roleLabel: string;
@@ -159,8 +158,8 @@ export function welcomeEmailTemplate(input: {
   const text = [
     `Welcome to AsanPay, ${name}!`,
     ``,
-    `Your ${input.roleLabel} account is ready. Log in to complete onboarding,`,
-    `verify your email, and start serving customers.`,
+    `Your ${input.roleLabel} account is ready. Log in to complete onboarding`,
+    `and start serving customers.`,
     ``,
     `— Team AsanPay`,
   ].join("\n");
@@ -171,8 +170,8 @@ export function welcomeEmailTemplate(input: {
       Hi ${escapeHtml(name)},
     </p>
     <p style="margin:0 0 20px;font-size:14px;line-height:1.55;color:${BRAND.muted}">
-      Your <strong style="color:${BRAND.blue}">${escapeHtml(input.roleLabel)}</strong> account is ready.
-      Complete onboarding, verify your email, and you are set to serve customers.
+      Your email is verified and your <strong style="color:${BRAND.blue}">${escapeHtml(input.roleLabel)}</strong> account is ready.
+      Complete onboarding and you are set to serve customers.
     </p>
     <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px">
       <tr>
@@ -182,7 +181,7 @@ export function welcomeEmailTemplate(input: {
       </tr>
     </table>
     <p style="margin:0;font-size:13px;line-height:1.55;color:${BRAND.muted}">
-      Need help? Reply to this email or contact your upline distributor.
+      Need help? Contact your upline distributor or AsanPay support.
     </p>
   `;
 
@@ -196,6 +195,119 @@ export function welcomeEmailTemplate(input: {
       bodyHtml,
     }),
   };
+}
+
+export function kycSubmittedEmailTemplate(input: { name: string }): SendMailInput {
+  const name = input.name.trim() || "there";
+  const text = [
+    `Hi ${name},`,
+    ``,
+    `We received your KYC documents. Our team will review them shortly.`,
+    `You will get another email when the status changes.`,
+    ``,
+    `— Team AsanPay`,
+  ].join("\n");
+
+  const bodyHtml = `
+    <h1 style="margin:0 0 8px;font-size:22px;font-weight:800;color:${BRAND.blue}">KYC submitted</h1>
+    <p style="margin:0 0 16px;font-size:15px;line-height:1.55;color:${BRAND.blue}">Hi ${escapeHtml(name)},</p>
+    <p style="margin:0 0 12px;font-size:14px;line-height:1.55;color:${BRAND.muted}">
+      We received your KYC documents. Our team will review them shortly.
+    </p>
+    <p style="margin:0;font-size:14px;line-height:1.55;color:${BRAND.muted}">
+      You will get another email when your KYC is approved or if we need changes.
+    </p>
+  `;
+
+  return {
+    to: "",
+    subject: "AsanPay KYC received",
+    text,
+    html: brandedEmailHtml({
+      preheader: "We received your KYC — review is in progress.",
+      title: "AsanPay KYC received",
+      bodyHtml,
+    }),
+  };
+}
+
+export function kycDecisionEmailTemplate(input: {
+  name: string;
+  decision: "verified" | "rejected";
+}): SendMailInput {
+  const name = input.name.trim() || "there";
+  const approved = input.decision === "verified";
+  const text = approved
+    ? [
+        `Hi ${name},`,
+        ``,
+        `Your KYC has been approved. You can now use full transaction limits on AsanPay.`,
+        ``,
+        `— Team AsanPay`,
+      ].join("\n")
+    : [
+        `Hi ${name},`,
+        ``,
+        `Your KYC could not be approved. Please review your documents and submit again from the AsanPay dashboard.`,
+        ``,
+        `— Team AsanPay`,
+      ].join("\n");
+
+  const bodyHtml = approved
+    ? `
+    <h1 style="margin:0 0 8px;font-size:22px;font-weight:800;color:${BRAND.blue}">KYC approved</h1>
+    <p style="margin:0 0 16px;font-size:15px;line-height:1.55;color:${BRAND.blue}">Hi ${escapeHtml(name)},</p>
+    <p style="margin:0 0 16px;font-size:14px;line-height:1.55;color:${BRAND.muted}">
+      Your KYC has been approved. Full transaction limits are now available on your account.
+    </p>
+    <table role="presentation" cellpadding="0" cellspacing="0">
+      <tr>
+        <td style="background:${BRAND.green};border-radius:10px;padding:12px 20px">
+          <span style="font-size:14px;font-weight:700;color:${BRAND.white}">Status: Verified</span>
+        </td>
+      </tr>
+    </table>
+  `
+    : `
+    <h1 style="margin:0 0 8px;font-size:22px;font-weight:800;color:${BRAND.blue}">KYC needs attention</h1>
+    <p style="margin:0 0 16px;font-size:15px;line-height:1.55;color:${BRAND.blue}">Hi ${escapeHtml(name)},</p>
+    <p style="margin:0;font-size:14px;line-height:1.55;color:${BRAND.muted}">
+      Your KYC could not be approved. Please review your documents and submit again from the AsanPay dashboard.
+    </p>
+  `;
+
+  return {
+    to: "",
+    subject: approved ? "AsanPay KYC approved" : "AsanPay KYC update",
+    text,
+    html: brandedEmailHtml({
+      preheader: approved ? "Your KYC is approved." : "Your KYC needs attention.",
+      title: approved ? "AsanPay KYC approved" : "AsanPay KYC update",
+      bodyHtml,
+    }),
+  };
+}
+
+/** Fire-and-forget notify — never throws; skips when SMTP or address missing. */
+export function notifyUserEmail(to: string | null | undefined, build: () => SendMailInput): void {
+  if (!to || !isMailerConfigured()) return;
+  const payload = build();
+  void sendMail({ ...payload, to }).then((ok) => {
+    if (!ok) logger.warn({ to, subject: payload.subject }, "User notification email failed");
+  });
+}
+
+export function agentRoleLabel(role: string): string {
+  switch (role) {
+    case "master_distributor":
+      return "Super Distributor";
+    case "distributor":
+      return "Distributor";
+    case "retailer":
+      return "Retailer";
+    default:
+      return "Agent";
+  }
 }
 
 function escapeHtml(value: string): string {

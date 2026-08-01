@@ -5,7 +5,14 @@ import { users } from "../../db/postgres/schema";
 import { hashToken } from "../../utils/uid";
 import { HttpError } from "../../utils/httpError";
 import { logger } from "../../utils/logger";
-import { emailVerificationTemplate, isMailerConfigured, sendMail } from "../../utils/mailer";
+import {
+  agentRoleLabel,
+  emailVerificationTemplate,
+  isMailerConfigured,
+  notifyUserEmail,
+  sendMail,
+  welcomeEmailTemplate,
+} from "../../utils/mailer";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import {
   MAX_OTP_ATTEMPTS,
@@ -104,11 +111,19 @@ export async function verifyEmailOtp(input: {
   otp: string;
 }): Promise<{ email: string; emailVerifiedAt: string }> {
   const [row] = await db
-    .select({ id: users.id, mobile: users.mobile })
+    .select({
+      id: users.id,
+      mobile: users.mobile,
+      name: users.name,
+      role: users.role,
+      emailVerifiedAt: users.emailVerifiedAt,
+    })
     .from(users)
     .where(eq(users.id, input.userId));
 
   if (!row) throw new HttpError(404, "User not found", "USER_NOT_FOUND");
+
+  const firstEmailVerify = !row.emailVerifiedAt;
 
   const record = await findLatestActiveOtp({ mobile: row.mobile, purpose: "email_verify" });
 
@@ -150,6 +165,13 @@ export async function verifyEmailOtp(input: {
     entityId: row.id,
     metadata: { email },
   });
+
+  // Signup has no email yet — welcome goes out once the inbox is confirmed.
+  if (firstEmailVerify) {
+    notifyUserEmail(email, () =>
+      welcomeEmailTemplate({ name: row.name, roleLabel: agentRoleLabel(row.role) }),
+    );
+  }
 
   return { email, emailVerifiedAt: verifiedAt.toISOString() };
 }
