@@ -11,6 +11,7 @@ import api from "@/lib/api";
 import { formatAadhaar, stripAadhaar } from "@/lib/aadhaar";
 import { B } from "@/lib/brand";
 import { extractApiError, nextOnboardingPath } from "@/lib/onboarding";
+import { lookupIndianPincode } from "@/lib/pincode";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 
@@ -25,6 +26,7 @@ export default function RegisterOutletPage() {
 
   const [loading, setLoading] = useState(false);
   const [geoBusy, setGeoBusy] = useState(false);
+  const [pinLookupBusy, setPinLookupBusy] = useState(false);
   const [resolvedAddress, setResolvedAddress] = useState("");
   const [form, setForm] = useState({
     name: "",
@@ -34,6 +36,8 @@ export default function RegisterOutletPage() {
     email: "",
     addressFull: "",
     city: "",
+    state: "",
+    region: "",
     pincode: "",
     aadhaarNumber: "",
     dateOfBirth: "",
@@ -67,7 +71,45 @@ export default function RegisterOutletPage() {
     }
   }, [hydrated, accessToken, user, router]);
 
+  // Free India Post API — autofill city / state / region when PIN is complete.
+  useEffect(() => {
+    const pin = form.pincode;
+    if (pin.length !== 6) return;
+
+    let cancelled = false;
+    setPinLookupBusy(true);
+    void lookupIndianPincode(pin)
+      .then((place) => {
+        if (cancelled) return;
+        if (!place) {
+          toast.error("Invalid pincode — check and try again");
+          return;
+        }
+        setForm((f) => ({
+          ...f,
+          city: place.city || f.city,
+          state: place.state || f.state,
+          region: place.region || f.region,
+        }));
+      })
+      .catch(() => {
+        if (!cancelled) toast.error("Could not look up pincode");
+      })
+      .finally(() => {
+        if (!cancelled) setPinLookupBusy(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [form.pincode]);
+
   if (!hydrated || !accessToken || !user) return null;
+
+  const emailVerified =
+    Boolean(user.emailVerifiedAt) &&
+    Boolean(form.email.trim()) &&
+    (user.email ?? "").toLowerCase() === form.email.trim().toLowerCase();
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -92,12 +134,16 @@ export default function RegisterOutletPage() {
       };
       const addr = data.address ?? {};
       const city = addr.city || addr.town || addr.village || addr.suburb || addr.county || "";
-      const pincode = addr.postcode || "";
+      const state = addr.state || "";
+      const region = addr.suburb || addr.neighbourhood || addr.county || "";
+      const pincode = (addr.postcode || "").replace(/\D/g, "").slice(0, 6);
       setResolvedAddress(data.display_name ?? "");
       setForm((f) => ({
         ...f,
         addressFull: f.addressFull || data.display_name || "",
         city: f.city || city,
+        state: f.state || state,
+        region: f.region || region,
         pincode: f.pincode || pincode,
       }));
     } catch {
@@ -137,6 +183,15 @@ export default function RegisterOutletPage() {
     e.preventDefault();
     if (loading) return;
 
+    if (!form.email.trim()) {
+      toast.error("Email is required");
+      return;
+    }
+    if (!emailVerified) {
+      toast.error("Verify your email before continuing");
+      return;
+    }
+
     const lat = Number(form.latitude);
     const lng = Number(form.longitude);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
@@ -146,6 +201,9 @@ export default function RegisterOutletPage() {
 
     setLoading(true);
     try {
+      const addressParts = [form.addressFull.trim(), form.region.trim(), form.state.trim()].filter(
+        Boolean,
+      );
       await api.post("/onboarding/instantpay", {
         mobile: form.mobile.replace(/\D/g, "").slice(0, 10),
         name: form.name.trim(),
@@ -153,7 +211,7 @@ export default function RegisterOutletPage() {
         pan: form.pan.toUpperCase(),
         email: form.email.trim(),
         address: {
-          full: form.addressFull.trim(),
+          full: addressParts.join(", "),
           city: form.city.trim(),
           pincode: form.pincode,
         },
@@ -302,16 +360,23 @@ export default function RegisterOutletPage() {
                 inputClassName={inputCls}
                 inputStyle={inputStyle}
               />
+              {!emailVerified && form.email.trim() ? (
+                <p className="mt-1.5 text-xs" style={{ color: "#B45309" }}>
+                  Verify your email before registering the outlet.
+                </p>
+              ) : null}
             </div>
 
-            <div className="sm:col-span-2">
+            <div>
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wider" style={{ color: B.muted }}>
-                Address (as on Aadhaar)
+                Pincode
               </label>
               <input
                 required
-                value={form.addressFull}
-                onChange={(e) => set("addressFull", e.target.value)}
+                inputMode="numeric"
+                value={form.pincode}
+                onChange={(e) => set("pincode", e.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder="6-digit"
                 className={inputCls}
                 style={inputStyle}
               />
@@ -325,6 +390,7 @@ export default function RegisterOutletPage() {
                 required
                 value={form.city}
                 onChange={(e) => set("city", e.target.value)}
+                placeholder={pinLookupBusy ? "Looking up…" : "City / district"}
                 className={inputCls}
                 style={inputStyle}
               />
@@ -332,17 +398,49 @@ export default function RegisterOutletPage() {
 
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wider" style={{ color: B.muted }}>
-                Pincode
+                State
               </label>
               <input
-                required
-                inputMode="numeric"
-                value={form.pincode}
-                onChange={(e) => set("pincode", e.target.value.replace(/\D/g, "").slice(0, 6))}
+                value={form.state}
+                onChange={(e) => set("state", e.target.value)}
+                placeholder="State"
                 className={inputCls}
                 style={inputStyle}
               />
             </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wider" style={{ color: B.muted }}>
+                Region
+              </label>
+              <input
+                value={form.region}
+                onChange={(e) => set("region", e.target.value)}
+                placeholder="Region / locality"
+                className={inputCls}
+                style={inputStyle}
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wider" style={{ color: B.muted }}>
+                Address (as on Aadhaar)
+              </label>
+              <input
+                required
+                value={form.addressFull}
+                onChange={(e) => set("addressFull", e.target.value)}
+                placeholder="House / street / landmark"
+                className={inputCls}
+                style={inputStyle}
+              />
+            </div>
+
+            {pinLookupBusy ? (
+              <p className="sm:col-span-2 text-xs" style={{ color: B.muted }}>
+                Fetching city, state, and region from India Post…
+              </p>
+            ) : null}
           </div>
 
           <button
@@ -371,13 +469,13 @@ export default function RegisterOutletPage() {
           )}
 
           <p className="text-xs" style={{ color: B.muted }}>
-            Address/city/pincode above auto-fill from your location — edit if not accurate. Must
-            match InstantPay outlet geo requirements.
+            Enter pincode to autofill city/state/region, or use current location. Edit if not
+            accurate — must match InstantPay outlet geo requirements.
           </p>
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !emailVerified}
             className="w-full rounded-xl py-3 text-sm font-bold text-white disabled:opacity-50"
             style={{ background: B.blue }}
           >
