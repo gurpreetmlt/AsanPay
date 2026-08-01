@@ -11,6 +11,7 @@ import {
   setMpin,
   requestEmailOtp,
   verifyEmailOtpHandler,
+  updateEmailPreferences,
   listDevices,
   revokeDevice,
   signupRequest,
@@ -42,6 +43,7 @@ authRouter.post("/mpin/set", requireAuth, setMpin);
 
 authRouter.post("/email/otp/request", requireAuth, otpRequestLimiter, requestEmailOtp);
 authRouter.post("/email/otp/verify", requireAuth, authLimiter, verifyEmailOtpHandler);
+authRouter.patch("/email/preferences", requireAuth, updateEmailPreferences);
 
 authRouter.get("/devices", requireAuth, listDevices);
 authRouter.post("/devices/:id/revoke", requireAuth, revokeDevice);

@@ -16,9 +16,11 @@ import {
   FileText,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import { AppShell } from "@/components/layout/AppShell";
 import { EmailVerifyField } from "@/components/EmailVerifyField";
 import { B, initials, roleFromUserRole } from "@/lib/brand";
+import api from "@/lib/api";
 import { extractApiError } from "@/lib/onboarding";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
@@ -55,14 +57,15 @@ export default function SettingsPage() {
   const accessToken = useAuthStore((s) => s.accessToken);
   const refreshToken = useAuthStore((s) => s.refreshToken);
   const user = useAuthStore((s) => s.user);
+  const setUser = useAuthStore((s) => s.setUser);
   const role = roleFromUserRole(user?.role);
   const [active, setActive] = useState("profile");
   const [showPin, setShowPin] = useState(false);
   const [bioLoading, setBioLoading] = useState(false);
+  const [marketingBusy, setMarketingBusy] = useState(false);
   const [email, setEmail] = useState("");
   const [notifs, setNotifs] = useState({
     sms: true,
-    email: true,
     push: true,
     txn: true,
     commission: false,
@@ -71,6 +74,24 @@ export default function SettingsPage() {
   useEffect(() => {
     setEmail(user?.email ?? "");
   }, [user?.email]);
+
+  async function toggleMarketingOptIn() {
+    if (!user || marketingBusy) return;
+    const next = !user.emailMarketingOptIn;
+    setMarketingBusy(true);
+    try {
+      const { data } = await api.patch<ApiResponse<{ user: AuthUser }>>("/auth/email/preferences", {
+        emailMarketingOptIn: next,
+      });
+      if (!data.success) throw new Error(data.message);
+      setUser(data.data.user);
+      toast.success(next ? "Product updates enabled" : "Product updates disabled");
+    } catch (err) {
+      toast.error(extractApiError(err, "Could not update email preference"));
+    } finally {
+      setMarketingBusy(false);
+    }
+  }
 
   async function handleEnableBiometric() {
     if (!user || !refreshToken || refreshToken === "cookie") {
@@ -326,9 +347,25 @@ export default function SettingsPage() {
                   Notification Preferences
                 </h2>
                 <div className="space-y-4">
+                  <div
+                    className="flex items-center justify-between rounded-xl border p-4"
+                    style={{ borderColor: B.border }}
+                  >
+                    <div>
+                      <div className="text-sm font-semibold" style={{ color: B.blue }}>
+                        Product updates
+                      </div>
+                      <div className="mt-0.5 text-xs" style={{ color: B.muted }}>
+                        Rare AsanPay announcements (opt-in). Statements and security alerts always send to a verified email.
+                      </div>
+                    </div>
+                    <Toggle
+                      on={Boolean(user?.emailMarketingOptIn)}
+                      onToggle={() => void toggleMarketingOptIn()}
+                    />
+                  </div>
                   {[
                     { key: "sms" as const, label: "SMS Alerts", sub: "Transaction confirmations via SMS" },
-                    { key: "email" as const, label: "Email Notifications", sub: "Daily summary and statements" },
                     { key: "push" as const, label: "Push Notifications", sub: "Instant alerts on mobile app" },
                     { key: "txn" as const, label: "Transaction Alerts", sub: "Notify on every debit/credit" },
                     {

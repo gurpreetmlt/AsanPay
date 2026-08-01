@@ -17,6 +17,7 @@ function toAuthUser(row: typeof users.$inferSelect): AuthUser {
     mobile: row.mobile,
     email: row.email ?? null,
     emailVerifiedAt: row.emailVerifiedAt ? row.emailVerifiedAt.toISOString() : null,
+    emailMarketingOptIn: Boolean(row.emailMarketingOptIn),
     parentId: row.parentId,
     kycStatus: row.kycStatus,
     isActive: row.isActive,

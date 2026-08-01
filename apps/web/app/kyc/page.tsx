@@ -22,6 +22,7 @@ import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 import api from "@/lib/api";
 import { formatAadhaar, stripAadhaar } from "@/lib/aadhaar";
+import { lookupIndianPincode } from "@/lib/pincode";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 
 const STEPS = [
@@ -84,6 +85,8 @@ export default function KycPage() {
     email: "",
     address: "",
     city: "",
+    state: "",
+    region: "",
     pincode: "",
     aadhaar: "",
     pan: "",
@@ -92,6 +95,7 @@ export default function KycPage() {
     ifsc: "",
     bankName: "",
   });
+  const [pinLookupBusy, setPinLookupBusy] = useState(false);
 
   useEffect(() => {
     if (hydrated && !accessToken) router.replace("/login");
@@ -107,7 +111,45 @@ export default function KycPage() {
     }));
   }, [user]);
 
+  // Free India Post API — autofill city / state / region when PIN is complete.
+  useEffect(() => {
+    const pin = form.pincode;
+    if (pin.length !== 6) return;
+
+    let cancelled = false;
+    setPinLookupBusy(true);
+    void lookupIndianPincode(pin)
+      .then((place) => {
+        if (cancelled) return;
+        if (!place) {
+          toast.error("Invalid pincode — check and try again");
+          return;
+        }
+        setForm((f) => ({
+          ...f,
+          city: place.city || f.city,
+          state: place.state || f.state,
+          region: place.region || f.region,
+        }));
+      })
+      .catch(() => {
+        if (!cancelled) toast.error("Could not look up pincode");
+      })
+      .finally(() => {
+        if (!cancelled) setPinLookupBusy(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [form.pincode]);
+
   if (!hydrated || !accessToken) return null;
+
+  const emailVerified =
+    Boolean(user?.emailVerifiedAt) &&
+    Boolean(form.email.trim()) &&
+    (user?.email ?? "").toLowerCase() === form.email.trim().toLowerCase();
 
   function set(key: keyof typeof form, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -117,6 +159,16 @@ export default function KycPage() {
     if (step === 0 && !agreed) {
       toast.error("Please accept the agreement");
       return;
+    }
+    if (step === 1) {
+      if (!form.email.trim()) {
+        toast.error("Email is required");
+        return;
+      }
+      if (!emailVerified) {
+        toast.error("Verify your email before continuing");
+        return;
+      }
     }
     if (step < STEPS.length - 1) setStep((s) => s + 1);
   }
@@ -138,7 +190,8 @@ export default function KycPage() {
         panNumber: form.pan.toUpperCase(),
         aadhaarNumber: form.aadhaar.replace(/\s/g, ""),
         email: form.email || undefined,
-        address: form.address || undefined,
+        address:
+          [form.address, form.region, form.state].filter(Boolean).join(", ") || undefined,
         city: form.city || undefined,
         pincode: form.pincode || undefined,
         bankAccountName: form.accountName || undefined,
@@ -252,13 +305,40 @@ export default function KycPage() {
                 <Field label="Full Name" placeholder="As per Aadhaar" value={form.fullName} onChange={(v) => set("fullName", v)} />
                 <Field label="Date of Birth" placeholder="DD/MM/YYYY" value={form.dob} onChange={(v) => set("dob", v)} type="date" />
                 <div className="col-span-2">
-                  <EmailVerifyField email={form.email} onChange={(v) => set("email", v)} />
+                  <EmailVerifyField required email={form.email} onChange={(v) => set("email", v)} />
+                  {!emailVerified && form.email.trim() ? (
+                    <p className="mt-1.5 text-xs" style={{ color: "#B45309" }}>
+                      Verify your email to continue to the next step.
+                    </p>
+                  ) : null}
                 </div>
-                <Field label="City" placeholder="City" value={form.city} onChange={(v) => set("city", v)} />
+                <Field
+                  label="Pincode"
+                  placeholder="6-digit"
+                  value={form.pincode}
+                  onChange={(v) => set("pincode", v.replace(/\D/g, "").slice(0, 6))}
+                />
+                <div>
+                  <Label>City</Label>
+                  <input
+                    type="text"
+                    placeholder={pinLookupBusy ? "Looking up…" : "City / district"}
+                    value={form.city}
+                    onChange={(e) => set("city", e.target.value)}
+                    className="w-full rounded-2xl border-2 bg-white px-4 py-3 text-sm outline-none"
+                    style={{ borderColor: B.border, color: B.blue }}
+                  />
+                </div>
+                <Field label="State" placeholder="State" value={form.state} onChange={(v) => set("state", v)} />
+                <Field label="Region" placeholder="Region / locality" value={form.region} onChange={(v) => set("region", v)} />
                 <div className="col-span-2">
-                  <Field label="Address" placeholder="Full address" value={form.address} onChange={(v) => set("address", v)} />
+                  <Field label="Address" placeholder="House / street / landmark" value={form.address} onChange={(v) => set("address", v)} />
                 </div>
-                <Field label="Pincode" placeholder="6-digit" value={form.pincode} onChange={(v) => set("pincode", v.replace(/\D/g, "").slice(0, 6))} />
+                {pinLookupBusy ? (
+                  <p className="col-span-2 text-xs" style={{ color: B.muted }}>
+                    Fetching city, state, and region from India Post…
+                  </p>
+                ) : null}
               </div>
             </div>
           )}
@@ -355,7 +435,8 @@ export default function KycPage() {
               <button
                 type="button"
                 onClick={next}
-                className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white"
+                disabled={step === 1 && !emailVerified}
+                className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
                 style={{ background: B.badgeGrad }}
               >
                 Next <ArrowRight size={14} />

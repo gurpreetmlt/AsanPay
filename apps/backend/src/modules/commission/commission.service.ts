@@ -12,6 +12,7 @@ import {
 import { transferBetweenWallets } from "../wallet/wallet.ledger";
 import { toPaise, fromPaise } from "../wallet/decimal";
 import { logger } from "../../utils/logger";
+import { notifyCommissionCredit } from "../notifications/userEmail.service";
 import type { UserRole } from "@asanpay/shared-types";
 
 // Runs after a service transaction succeeds: pays every ancestor in the chain
@@ -95,6 +96,11 @@ export async function distributeCommissionForTxn(transactionId: string): Promise
           amount: payout,
           ledgerGroupId: groupId,
         });
+      });
+      notifyCommissionCredit({
+        userId: member.userId,
+        amount: payout,
+        txnRef: txn.txnRef,
       });
     } catch (err) {
       // Either a genuine payout failure or a duplicate (already paid this beneficiary for this

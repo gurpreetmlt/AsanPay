@@ -222,3 +222,17 @@ adminRouter.patch("/providers/service/:providerServiceId", async (req, res) => {
   const updated = await updateProviderServiceRow(req.auth.sub, req.params.providerServiceId, body);
   sendSuccess(res, updated, "Provider updated");
 });
+
+adminRouter.post("/emails/product-update", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const body = z
+    .object({
+      subject: z.string().trim().min(3).max(160),
+      headline: z.string().trim().min(3).max(160),
+      body: z.string().trim().min(10).max(5000),
+    })
+    .parse(req.body);
+  const { broadcastProductUpdate } = await import("../notifications/userEmail.service");
+  const result = await broadcastProductUpdate(body);
+  sendSuccess(res, result, `Product update queued for ${result.sent} opted-in users`);
+});

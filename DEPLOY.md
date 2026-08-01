@@ -78,7 +78,7 @@ HOST=0.0.0.0
 | | |
 |---|---|
 | Dockerfile Location | `/apps/web/Dockerfile` |
-| Port | `3000` ← Dockerfile mein 3001 hai par deploy 3000 par hua hai, mat badalna |
+| Port | `3001` ← Dockerfile mein 3001 hai par deploy 3000 par hua hai, mat badalna |
 | Domain | `https://dev.asanpay.in` |
 | Watch Paths | `apps/web/**`<br>`packages/**` |
 

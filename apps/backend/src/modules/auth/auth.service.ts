@@ -30,6 +30,10 @@ import {
   trustDevice,
   type DeviceRow,
 } from "../../db/postgres/repositories/device";
+import {
+  notifyMpinChanged,
+  notifyNewDeviceLogin,
+} from "../notifications/userEmail.service";
 import type { AuthPortal, AuthUser, UserRole } from "@asanpay/shared-types";
 import { isAdminRole, isAgentPortalRole } from "@asanpay/shared-types";
 import type {
@@ -86,6 +90,7 @@ function toAuthUser(row: typeof users.$inferSelect): AuthUser {
     mobile: row.mobile,
     email: row.email ?? null,
     emailVerifiedAt: row.emailVerifiedAt ? row.emailVerifiedAt.toISOString() : null,
+    emailMarketingOptIn: Boolean(row.emailMarketingOptIn),
     parentId: row.parentId,
     kycStatus: row.kycStatus,
     isActive: row.isActive,
@@ -357,11 +362,20 @@ export async function loginUser(
   // Password login on a known browser should establish the same device trust as OTP,
   // otherwise Welcome-back MPIN always fails until the user does OTP once.
   if (input.deviceId && isAgentPortalRole(row.role)) {
+    const prior = await findDevice(row.id, input.deviceId);
+    const isNewDevice = !prior || Boolean(prior.revokedAt);
     await trustDevice({
       userId: row.id,
       deviceId: input.deviceId,
       label: input.deviceLabel,
     });
+    if (isNewDevice) {
+      notifyNewDeviceLogin({
+        userId: row.id,
+        deviceLabel: input.deviceLabel ?? "Web / app",
+        ipAddress: context.ipAddress,
+      });
+    }
   }
 
   return issueSession(row, context, "password");
@@ -483,6 +497,8 @@ export async function verifyLoginOtp(
   // deviceId is optional here (older/unwired clients still get a normal OTP login) — trust is
   // simply not established for those, so they'll be asked for OTP again next time too.
   if (input.deviceId) {
+    const prior = await findDevice(row.id, input.deviceId);
+    const isNewDevice = !prior || Boolean(prior.revokedAt);
     const device = await trustDevice({ userId: row.id, deviceId: input.deviceId, label: input.deviceLabel });
     await insertAuditLog({
       userId: row.id,
@@ -491,11 +507,18 @@ export async function verifyLoginOtp(
       entityId: device.id,
       ipAddress: context.ipAddress,
       userAgent: context.userAgent,
-      metadata: { deviceId: input.deviceId, label: input.deviceLabel ?? null },
+      metadata: { deviceId: input.deviceId, label: input.deviceLabel ?? null, isNewDevice },
     });
+    if (isNewDevice) {
+      notifyNewDeviceLogin({
+        userId: row.id,
+        deviceLabel: input.deviceLabel ?? "Web / app",
+        ipAddress: context.ipAddress,
+      });
+    }
     logger.info(
-      { userId: row.id, deviceId: input.deviceId, label: input.deviceLabel },
-      "[DEVICE TRUSTED] notify-other-devices not wired yet",
+      { userId: row.id, deviceId: input.deviceId, label: input.deviceLabel, isNewDevice },
+      "[DEVICE TRUSTED]",
     );
   }
 
@@ -664,6 +687,25 @@ export async function setLoginMpin(
     metadata: { firstSet: !isChange },
   });
 
+  if (isChange) {
+    notifyMpinChanged(userId);
+  }
+
+  return getAuthMe(userId);
+}
+
+export async function setEmailMarketingOptIn(
+  userId: string,
+  emailMarketingOptIn: boolean,
+): Promise<AuthUser> {
+  const [row] = await db.select().from(users).where(eq(users.id, userId));
+  if (!row || !row.isActive) {
+    throw new HttpError(403, "Account is not active", "ACCOUNT_INACTIVE");
+  }
+  await db
+    .update(users)
+    .set({ emailMarketingOptIn, updatedAt: new Date() })
+    .where(eq(users.id, userId));
   return getAuthMe(userId);
 }
 

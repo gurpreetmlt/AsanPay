@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type CSSProperties } from "react";
+import { flushSync } from "react-dom";
 import { toast } from "react-hot-toast";
 import { X } from "lucide-react";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
@@ -47,26 +48,34 @@ export function EmailVerifyField({
     (user?.email ?? "").toLowerCase() === normalized &&
     normalized.length > 0;
 
-  async function requestOtp() {
+  function requestOtp() {
     if (!isValidEmail(email)) {
       toast.error("Enter a valid email address");
       return;
     }
-    setSending(true);
-    try {
-      const { data } = await api.post<ApiResponse<{ message: string; expiresInSeconds: number }>>(
-        "/auth/email/otp/request",
-        { email: normalized },
-      );
-      if (!data.success) throw new Error(data.message);
+
+    // Paint modal + Sending state before the network call (don't wait on SMTP/API).
+    flushSync(() => {
       setOtp("");
       setModalOpen(true);
-      toast.success(data.message ?? "Verification code sent");
-    } catch (err) {
-      toast.error(extractApiError(err, "Could not send verification code"));
-    } finally {
-      setSending(false);
-    }
+      setSending(true);
+    });
+
+    void (async () => {
+      try {
+        const { data } = await api.post<ApiResponse<{ message: string; expiresInSeconds: number }>>(
+          "/auth/email/otp/request",
+          { email: normalized },
+        );
+        if (!data.success) throw new Error(data.message);
+        toast.success(data.message ?? "Verification code sent");
+      } catch (err) {
+        setModalOpen(false);
+        toast.error(extractApiError(err, "Could not send verification code"));
+      } finally {
+        setSending(false);
+      }
+    })();
   }
 
   async function confirmOtp() {
@@ -140,7 +149,7 @@ export function EmailVerifyField({
           <button
             type="button"
             disabled={sending || verified || !isValidEmail(email)}
-            onClick={() => void requestOtp()}
+            onClick={() => requestOtp()}
             className="flex-shrink-0 rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
             style={{ background: verified ? B.green : B.badgeGrad }}
           >
@@ -164,10 +173,21 @@ export function EmailVerifyField({
                   Verify email
                 </h3>
                 <p className="mt-1 text-sm" style={{ color: B.muted }}>
-                  Enter the 6-digit code sent to{" "}
-                  <span className="font-semibold" style={{ color: B.blue }}>
-                    {normalized}
-                  </span>
+                  {sending ? (
+                    <>Sending a 6-digit code to{" "}
+                      <span className="font-semibold" style={{ color: B.blue }}>
+                        {normalized}
+                      </span>
+                      …
+                    </>
+                  ) : (
+                    <>
+                      Enter the 6-digit code sent to{" "}
+                      <span className="font-semibold" style={{ color: B.blue }}>
+                        {normalized}
+                      </span>
+                    </>
+                  )}
                 </p>
               </div>
               <button
@@ -196,7 +216,7 @@ export function EmailVerifyField({
               <button
                 type="button"
                 disabled={sending}
-                onClick={() => void requestOtp()}
+                onClick={() => requestOtp()}
                 className="flex-1 rounded-xl border py-2.5 text-sm font-semibold disabled:opacity-50"
                 style={{ borderColor: B.border, color: B.blue }}
               >

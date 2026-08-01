@@ -15,6 +15,7 @@ import {
   setLoginMpinSchema,
   emailVerifyRequestSchema,
   emailVerifyConfirmSchema,
+  emailPreferencesSchema,
 } from "./auth.validators";
 import {
   registerUser,
@@ -25,6 +26,7 @@ import {
   verifyLoginOtp,
   loginWithMpin,
   setLoginMpin,
+  setEmailMarketingOptIn,
   requestSignupOtp,
   verifySignupOtp,
   lookupSponsorByUid,
@@ -140,6 +142,13 @@ export async function verifyEmailOtpHandler(req: Request, res: Response): Promis
   const input = emailVerifyConfirmSchema.parse(req.body);
   const result = await verifyEmailOtp({ userId: req.auth.sub, otp: input.otp });
   sendSuccess(res, result, "Email verified successfully");
+}
+
+export async function updateEmailPreferences(req: Request, res: Response): Promise<void> {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const input = emailPreferencesSchema.parse(req.body);
+  const user = await setEmailMarketingOptIn(req.auth.sub, input.emailMarketingOptIn);
+  sendSuccess(res, { user }, "Email preferences updated");
 }
 
 export async function listDevices(req: Request, res: Response): Promise<void> {

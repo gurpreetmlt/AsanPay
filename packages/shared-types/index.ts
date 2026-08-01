@@ -55,6 +55,8 @@ export interface AuthUser {
   email: string | null;
   /** ISO timestamp when email was confirmed via OTP; null if unverified. */
   emailVerifiedAt: string | null;
+  /** Opt-in for rare product update emails. */
+  emailMarketingOptIn: boolean;
   parentId: string | null;
   kycStatus: KycStatus;
   isActive: boolean;

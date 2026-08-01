@@ -82,12 +82,6 @@ export async function requestEmailVerifyOtp(input: {
     meta: { email },
   });
 
-  const template = emailVerificationTemplate(otp, EMAIL_OTP_TTL_MS / 60000);
-  const sent = await sendMail({ ...template, to: email });
-  if (!sent) {
-    throw new HttpError(502, "Could not send the verification email", "EMAIL_SEND_FAILED");
-  }
-
   await insertAuditLog({
     userId: row.id,
     action: "auth.email_verify_requested",
@@ -97,7 +91,16 @@ export async function requestEmailVerifyOtp(input: {
     metadata: { email },
   });
 
-  logger.info({ userId: row.id }, "Email verification OTP sent");
+  // Don't block the API on Gmail SMTP (TLS + send often takes 2–8s). OTP is already
+  // stored — client can show the modal immediately; Resend covers rare send failures.
+  const template = emailVerificationTemplate(otp, EMAIL_OTP_TTL_MS / 60000);
+  void sendMail({ ...template, to: email }).then((sent) => {
+    if (sent) {
+      logger.info({ userId: row.id }, "Email verification OTP sent");
+    } else {
+      logger.error({ userId: row.id, email }, "Email verification OTP send failed after accept");
+    }
+  });
 
   return {
     message: "Verification code sent",

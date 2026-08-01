@@ -17,6 +17,7 @@ import { env, shouldExposeOtpInResponse, getTestOtpOverride } from "../../config
 import { logger } from "../../utils/logger";
 import { hashToken } from "../../utils/uid";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
+import { notifyLargeWalletDebit } from "../notifications/userEmail.service";
 import {
   MAX_OTP_ATTEMPTS,
   findLatestActiveOtp,
@@ -180,7 +181,7 @@ export async function transferToChild(
   const toWallet = await getWalletOrThrow(targetUserId, walletType);
 
   if (!idempotencyKey) {
-    return transferBetweenWallets({
+    const result = await transferBetweenWallets({
       fromWalletId: fromWallet.id,
       toWalletId: toWallet.id,
       amount,
@@ -188,9 +189,15 @@ export async function transferToChild(
       referenceId: targetUserId,
       description,
     });
+    notifyLargeWalletDebit({
+      userId: actor.id,
+      amount,
+      targetName: target.name,
+    });
+    return result;
   }
 
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     await lockUserIdempotencyKey(tx, actor.id, idempotencyKey);
     const [prior] = await tx
       .select()
@@ -198,9 +205,9 @@ export async function transferToChild(
       .where(
         and(eq(walletIdempotency.userId, actor.id), eq(walletIdempotency.idempotencyKey, idempotencyKey)),
       );
-    if (prior) return { groupId: prior.ledgerGroupId };
+    if (prior) return { groupId: prior.ledgerGroupId, created: false as const };
 
-    const result = await transferBetweenWallets(
+    const moved = await transferBetweenWallets(
       {
         fromWalletId: fromWallet.id,
         toWalletId: toWallet.id,
@@ -214,10 +221,19 @@ export async function transferToChild(
     await tx.insert(walletIdempotency).values({
       userId: actor.id,
       idempotencyKey,
-      ledgerGroupId: result.groupId,
+      ledgerGroupId: moved.groupId,
     });
-    return result;
+    return { groupId: moved.groupId, created: true as const };
   });
+
+  if (result.created) {
+    notifyLargeWalletDebit({
+      userId: actor.id,
+      amount,
+      targetName: target.name,
+    });
+  }
+  return { groupId: result.groupId };
 }
 
 async function assertPullableChild(

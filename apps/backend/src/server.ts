@@ -3,6 +3,7 @@ import { assertAepsProviderConfig, assertPaySprintProviderConfig, env } from "./
 import { pgPool } from "./db/postgres";
 import { deleteExpiredOtpRequests } from "./db/postgres/repositories/otpRequest";
 import { reconcileStaleTransactions, runDailyReconciliation } from "./modules/transactions/txn.service";
+import { runStatementEmailJobs } from "./modules/notifications/userEmail.service";
 import { logger } from "./utils/logger";
 
 const OTP_SWEEP_INTERVAL_MS = 30 * 60 * 1000;
@@ -45,6 +46,9 @@ async function main() {
     runDailyReconciliation()
       .then((r) => logger.info(r, "daily reconciliation sweep"))
       .catch((err: unknown) => logger.error({ err }, "daily reconciliation sweep failed"));
+    runStatementEmailJobs()
+      .then((r) => logger.info(r, "statement email jobs"))
+      .catch((err: unknown) => logger.error({ err }, "statement email jobs failed"));
   }, DAILY_RECONCILE_INTERVAL_MS);
 
   const shutdown = async (signal: string) => {

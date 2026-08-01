@@ -71,6 +71,7 @@
 - [ ] History purge for any secrets ever pushed to remote
 
 ## Last updated
+2026-08-01 — Email notifications: statements job, commission credit, large debit, new device, MPIN change, product-update opt-in
 2026-08-01 — Branded emails: verify OTP, welcome (on first email verify), KYC submit/approve/reject
 2026-08-01 — Email verify: OTP endpoints + AuthUser email fields + web Verify UI (KYC / outlet / settings)
 2026-07-20 — Signup: role select + upline mobile (SD→Admin, Dist→SD, Retailer→Dist)

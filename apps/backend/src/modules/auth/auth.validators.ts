@@ -118,6 +118,11 @@ export const emailVerifyConfirmSchema = z.object({
 });
 export type EmailVerifyConfirmInput = z.infer<typeof emailVerifyConfirmSchema>;
 
+export const emailPreferencesSchema = z.object({
+  emailMarketingOptIn: z.boolean(),
+});
+export type EmailPreferencesInput = z.infer<typeof emailPreferencesSchema>;
+
 /** Public self-signup under an upline (sponsor UID). Role = account being created. */
 export const SIGNUP_CHILD_ROLES = ["master_distributor", "distributor", "retailer"] as const;
 export type SignupChildRole = (typeof SIGNUP_CHILD_ROLES)[number];
