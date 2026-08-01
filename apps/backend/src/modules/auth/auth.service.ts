@@ -45,6 +45,7 @@ import type {
   SetLoginMpinInput,
   SignupRequestInput,
   SignupVerifyInput,
+  SignupCompleteInput,
   SignupChildRole,
   SponsorSearchRole,
 } from "./auth.validators";
@@ -922,9 +923,7 @@ export async function searchSponsorsByMobile(
   }));
 }
 
-/** Self-signup: create child under upline identified by UID.
- *  Super Distributor (`master_distributor`) registers without upline mobile —
- *  parent is root admin; account stays inactive until admin activates. */
+/** Self-signup step 1: OTP on mobile only (before role / name / upline). */
 export async function requestSignupOtp(
   input: SignupRequestInput,
   context: AuthContext,
@@ -942,33 +941,6 @@ export async function requestSignupOtp(
     );
   }
 
-  let sponsorUid: string;
-  let sponsorId: string;
-
-  if (input.role === "master_distributor") {
-    const admin = await findRootAdmin();
-    if (!admin || !admin.isActive) {
-      throw new HttpError(503, "Signup temporarily unavailable", "ADMIN_UNAVAILABLE");
-    }
-    sponsorUid = admin.uid;
-    sponsorId = admin.id;
-  } else {
-    const expectedSponsorRole = SIGNUP_SPONSOR_ROLE[input.role];
-    const uid = (input.sponsorUid ?? "").trim().toUpperCase();
-    const [sponsor] = await db.select().from(users).where(eq(users.uid, uid));
-    if (!sponsor || !sponsor.isActive || sponsor.role !== expectedSponsorRole) {
-      const uplineLabel =
-        expectedSponsorRole === "master_distributor" ? "Super Distributor" : "Distributor";
-      throw new HttpError(
-        422,
-        `${uplineLabel} not found or inactive. Check the upline mobile and try again.`,
-        "INVALID_SPONSOR",
-      );
-    }
-    sponsorUid = sponsor.uid;
-    sponsorId = sponsor.id;
-  }
-
   const otp = getTestSignupOtpOverride(input.mobile) ?? randomInt(100000, 1000000).toString();
   await insertOtpRequest({
     mobile: input.mobile,
@@ -976,24 +948,20 @@ export async function requestSignupOtp(
     purpose: "signup",
     expiresAt: new Date(Date.now() + OTP_TTL_MS),
     meta: {
-      name: input.name.trim(),
-      sponsorUid,
-      childRole: input.role,
       latitude: input.latitude,
       longitude: input.longitude,
     },
   });
 
   await insertAuditLog({
-    userId: sponsorId,
+    userId: null,
     action: "auth.signup_otp_requested",
     entityType: "user",
-    entityId: sponsorId,
+    entityId: null,
     ipAddress: context.ipAddress,
     userAgent: context.userAgent,
     metadata: {
       mobile: input.mobile,
-      childRole: input.role,
       latitude: input.latitude,
       longitude: input.longitude,
     },
@@ -1011,13 +979,13 @@ export async function requestSignupOtp(
   };
 }
 
+const SIGNUP_PROOF_TTL_MS = 30 * 60 * 1000;
+
+/** Confirm mobile OTP — returns short-lived signupToken for /signup/complete. */
 export async function verifySignupOtp(
   input: SignupVerifyInput,
   context: AuthContext,
-): Promise<
-  | { user: AuthUser; accessToken: string; refreshToken: string; pendingApproval?: false }
-  | { pendingApproval: true; user: AuthUser; message: string }
-> {
+): Promise<{ signupToken: string; expiresInSeconds: number; message: string }> {
   if (input.portal !== "agent") {
     throw new HttpError(400, "Signup is only available on the agent portal", "WRONG_PORTAL");
   }
@@ -1031,6 +999,9 @@ export async function verifySignupOtp(
       "OTP_EXPIRED",
     );
   }
+  if (record.meta?.signupVerified) {
+    throw new HttpError(401, "OTP already verified — continue with role details", "OTP_ALREADY_USED");
+  }
   if (record.attempts >= MAX_OTP_ATTEMPTS) {
     throw new HttpError(401, "Too many incorrect attempts — request a new OTP", "OTP_LOCKED");
   }
@@ -1039,22 +1010,98 @@ export async function verifySignupOtp(
     throw new HttpError(401, "Incorrect OTP", "OTP_INCORRECT");
   }
 
-  const name = record.meta?.name ?? input.name.trim();
-  const childRole = (record.meta?.childRole ?? input.role) as SignupChildRole;
-  if (childRole !== input.role) {
-    throw new HttpError(422, "Role does not match OTP request", "ROLE_MISMATCH");
+  await markOtpConsumed(record.id);
+
+  const signupToken = randomBytes(32).toString("base64url");
+  await insertOtpRequest({
+    mobile: input.mobile,
+    otpHash: hashToken(signupToken),
+    purpose: "signup",
+    expiresAt: new Date(Date.now() + SIGNUP_PROOF_TTL_MS),
+    meta: {
+      signupVerified: true,
+      latitude: record.meta?.latitude,
+      longitude: record.meta?.longitude,
+    },
+  });
+
+  await insertAuditLog({
+    userId: null,
+    action: "auth.signup_otp_verified",
+    entityType: "user",
+    entityId: null,
+    ipAddress: context.ipAddress,
+    userAgent: context.userAgent,
+    metadata: { mobile: input.mobile },
+  });
+
+  return {
+    signupToken,
+    expiresInSeconds: SIGNUP_PROOF_TTL_MS / 1000,
+    message: "Mobile verified — continue signup",
+  };
+}
+
+/** After OTP: create account with role / name / password / upline. */
+export async function completeSignup(
+  input: SignupCompleteInput,
+  context: AuthContext,
+): Promise<
+  | { user: AuthUser; accessToken: string; refreshToken: string; pendingApproval?: false }
+  | { pendingApproval: true; user: AuthUser; message: string }
+> {
+  if (input.portal !== "agent") {
+    throw new HttpError(400, "Signup is only available on the agent portal", "WRONG_PORTAL");
   }
 
-  const isSuperDirect = childRole === "master_distributor";
-  const sponsorUid = (record.meta?.sponsorUid ?? input.sponsorUid ?? "").trim().toUpperCase();
+  const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.mobile, input.mobile));
+  if (existing) {
+    throw new HttpError(
+      422,
+      "This mobile number is already registered. Please log in instead.",
+      "MOBILE_TAKEN",
+    );
+  }
 
-  if (!isSuperDirect) {
-    if (!input.sponsorUid || sponsorUid !== input.sponsorUid.trim().toUpperCase()) {
-      throw new HttpError(422, "Sponsor UID does not match OTP request", "SPONSOR_MISMATCH");
+  const record = await findLatestActiveOtp({ mobile: input.mobile, purpose: "signup" });
+  if (!record || !record.meta?.signupVerified) {
+    throw new HttpError(
+      401,
+      "Mobile OTP not verified or expired. Please verify OTP again.",
+      "SIGNUP_TOKEN_EXPIRED",
+    );
+  }
+  if (!otpHashesEqual(record.otpHash, input.signupToken)) {
+    await incrementOtpAttempts(record.id);
+    throw new HttpError(401, "Signup session invalid — verify mobile OTP again", "SIGNUP_TOKEN_INVALID");
+  }
+  if (record.attempts >= MAX_OTP_ATTEMPTS) {
+    throw new HttpError(401, "Too many attempts — verify mobile OTP again", "OTP_LOCKED");
+  }
+
+  const childRole = input.role as SignupChildRole;
+  let sponsorUid: string;
+
+  if (childRole === "master_distributor") {
+    const admin = await findRootAdmin();
+    if (!admin || !admin.isActive) {
+      throw new HttpError(503, "Signup temporarily unavailable", "ADMIN_UNAVAILABLE");
     }
-  }
-  if (!sponsorUid) {
-    throw new HttpError(422, "Invalid sponsor UID", "INVALID_SPONSOR");
+    sponsorUid = admin.uid;
+  } else {
+    const expectedSponsorRole = SIGNUP_SPONSOR_ROLE[childRole];
+    const uid = (input.sponsorUid ?? "").trim().toUpperCase();
+    const [sponsorRow] = await db.select().from(users).where(eq(users.uid, uid));
+    if (!sponsorRow || !sponsorRow.isActive || sponsorRow.role !== expectedSponsorRole) {
+      const uplineLabel =
+        expectedSponsorRole === "master_distributor" ? "Super Distributor" : "Distributor";
+      throw new HttpError(
+        422,
+        `${uplineLabel} not found or inactive. Check the upline mobile and try again.`,
+        "INVALID_SPONSOR",
+      );
+    }
+    sponsorUid = sponsorRow.uid;
   }
 
   await markOtpConsumed(record.id);
@@ -1067,7 +1114,7 @@ export async function verifySignupOtp(
 
   const password =
     input.password ??
-    `Lp${randomBytes(9).toString("base64url")}9a`; // meets passwordSchema (letter + digit + len)
+    `Lp${randomBytes(9).toString("base64url")}9a`;
 
   const latitude = input.latitude || String(record.meta?.latitude ?? "");
   const longitude = input.longitude || String(record.meta?.longitude ?? "");
@@ -1075,15 +1122,15 @@ export async function verifySignupOtp(
     throw new HttpError(422, "Location is required for signup", "LOCATION_REQUIRED");
   }
 
+  const isSuperDirect = childRole === "master_distributor";
   const user = await registerUser(
     { id: sponsor.id, role: sponsor.role },
     {
-      name,
+      name: input.name.trim(),
       mobile: input.mobile,
       password,
       role: childRole,
     },
-    // Super Dist self-signup waits for admin Activate in admin panel.
     isSuperDirect ? { isActive: false } : undefined,
   );
 

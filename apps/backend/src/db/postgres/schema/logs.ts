@@ -60,6 +60,8 @@ export interface OtpMeta {
   sponsorUid?: string;
   /** Child role being created via public signup */
   childRole?: "master_distributor" | "distributor" | "retailer";
+  /** After mobile OTP verify — row holds signupToken hash until account complete */
+  signupVerified?: boolean;
   /** Signup geolocation (browser) — stored on user.outlet_* at verify */
   latitude?: string;
   longitude?: string;

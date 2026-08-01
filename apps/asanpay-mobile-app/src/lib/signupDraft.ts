@@ -11,6 +11,7 @@ export type MobileSignupDraft = {
   latitude: string;
   longitude: string;
   mobile: string;
+  signupToken: string;
   role: SignupRole;
   name: string;
   password: string;
@@ -58,6 +59,7 @@ export const EMPTY_MOBILE_SIGNUP_DRAFT: MobileSignupDraft = {
   latitude: "",
   longitude: "",
   mobile: "",
+  signupToken: "",
   role: "retailer",
   name: "",
   password: "",

@@ -139,25 +139,15 @@ export const geoCoordSchema = z
   .max(32)
   .refine((v) => Number.isFinite(Number(v)), { message: "Invalid coordinate" });
 
+/** Step 1 — mobile + location only (OTP before role / profile). */
 export const signupRequestSchema = z
   .object({
-    name: z.string().trim().min(2).max(120),
     mobile: mobileSchema,
-    /** Required for distributor / retailer. Super Distributor self-registers under admin (no upline mobile). */
-    sponsorUid: z.string().trim().min(6).max(20).optional(),
-    role: z.enum(SIGNUP_CHILD_ROLES),
     portal: z.enum(AUTH_PORTALS).default("agent"),
     latitude: geoCoordSchema,
     longitude: geoCoordSchema,
   })
   .superRefine((data, ctx) => {
-    if (data.role !== "master_distributor" && !data.sponsorUid) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Sponsor UID is required",
-        path: ["sponsorUid"],
-      });
-    }
     const lat = Number(data.latitude);
     const lng = Number(data.longitude);
     if (lat < -90 || lat > 90) {
@@ -185,14 +175,22 @@ export const sponsorMobileQuerySchema = z.object({
 });
 export type SponsorMobileQuery = z.infer<typeof sponsorMobileQuerySchema>;
 
-export const signupVerifySchema = z
+/** Confirm mobile OTP — returns signupToken; account created on /signup/complete. */
+export const signupVerifySchema = z.object({
+  mobile: mobileSchema,
+  otp: z.string().regex(/^\d{6}$/, "OTP must be 6 digits"),
+  portal: z.enum(AUTH_PORTALS).default("agent"),
+});
+export type SignupVerifyInput = z.infer<typeof signupVerifySchema>;
+
+/** After OTP — role, name, password, upline. */
+export const signupCompleteSchema = z
   .object({
+    signupToken: z.string().trim().min(20).max(200),
     name: z.string().trim().min(2).max(120),
     mobile: mobileSchema,
-    otp: z.string().regex(/^\d{6}$/, "OTP must be 6 digits"),
     sponsorUid: z.string().trim().min(6).max(20).optional(),
     role: z.enum(SIGNUP_CHILD_ROLES),
-    /** Optional login password; if omitted a strong random one is generated (OTP/PIN login). */
     password: passwordSchema.optional(),
     portal: z.enum(AUTH_PORTALS).default("agent"),
     latitude: geoCoordSchema,
@@ -215,7 +213,7 @@ export const signupVerifySchema = z
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid longitude", path: ["longitude"] });
     }
   });
-export type SignupVerifyInput = z.infer<typeof signupVerifySchema>;
+export type SignupCompleteInput = z.infer<typeof signupCompleteSchema>;
 
 export const kycSubmitSchema = z.object({
   fullName: z.string().trim().min(2).max(120).optional(),

@@ -16,6 +16,7 @@ import {
   revokeDevice,
   signupRequest,
   signupVerify,
+  signupComplete,
   lookupSponsor,
   searchSponsors,
   setTransactionPin,
@@ -52,6 +53,7 @@ authRouter.get("/sponsor/search", otpRequestLimiter, searchSponsors);
 authRouter.get("/sponsor/:uid", otpRequestLimiter, lookupSponsor);
 authRouter.post("/signup/request", otpRequestLimiter, signupRequest);
 authRouter.post("/signup/verify", authLimiter, signupVerify);
+authRouter.post("/signup/complete", authLimiter, signupComplete);
 
 authRouter.post("/txn-pin", requireAuth, setTransactionPin);
 authRouter.post("/txn-pin/verify", requireAuth, authLimiter, verifyTransactionPin);

@@ -168,7 +168,7 @@ export default function SignupPage() {
   const user = useAuthStore((s) => s.user);
 
   const [draft, setDraft] = useState<SignupDraft>(EMPTY_SIGNUP_DRAFT);
-  const [phase, setPhase] = useState<"steps" | "otp">("steps");
+  const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
   const [devOtp, setDevOtp] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -234,7 +234,11 @@ export default function SignupPage() {
         : null);
     if (existing) {
       setDraft(existing);
-      if (existing.accountCreated && existing.stepIndex < 2) patch({ stepIndex: 2 });
+      if (existing.accountCreated && existing.stepIndex < 2) {
+        setDraft({ ...existing, stepIndex: 2 });
+      } else if (existing.signupToken && existing.stepIndex < 1 && !existing.accountCreated) {
+        setDraft({ ...existing, stepIndex: 1 });
+      }
     } else if (user?.id && user.hasKycDocs) {
       router.replace("/dashboard");
       return;
@@ -249,7 +253,7 @@ export default function SignupPage() {
   }, [draft, draftReady, storageKey]);
 
   useEffect(() => {
-    if (!draftReady || stepIndex !== 0 || phase !== "steps") return;
+    if (!draftReady || stepIndex !== 0) return;
     if (draft.latitude && draft.longitude) {
       setShowLocationModal(false);
       return;
@@ -257,7 +261,7 @@ export default function SignupPage() {
     setShowLocationModal(true);
     void ensureLocation();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draftReady, stepIndex, phase]);
+  }, [draftReady, stepIndex]);
 
   useEffect(() => {
     if (!needsUpline) {
@@ -467,20 +471,19 @@ export default function SignupPage() {
         return;
       }
       const { data } = await api.post<ApiResponse<{ otp?: string; message: string }>>("/auth/signup/request", {
-        name: draft.name.trim(),
         mobile: draft.mobile.replace(/\D/g, "").slice(0, 10),
-        role: draft.role,
         portal: "agent",
         latitude: draft.latitude,
         longitude: draft.longitude,
-        ...(sponsor ? { sponsorUid: sponsor.uid } : {}),
       });
       if (!data.success) throw new Error(data.message);
       setDevOtp(data.data.otp ?? null);
-      setPhase("otp");
+      setOtpSent(true);
+      setOtp("");
+      patch({ signupToken: "" });
       toast.success(data.data.otp ? `Dev OTP: ${data.data.otp}` : "OTP sent");
     } catch (err) {
-      toast.error(extractApiError(err, "Signup OTP failed"));
+      toast.error(extractApiError(err, "Could not send OTP"));
     } finally {
       setLoading(false);
     }
@@ -488,15 +491,47 @@ export default function SignupPage() {
 
   async function verifyOtp(e?: FormEvent) {
     e?.preventDefault();
-    if (!otp) return;
+    if (otp.length !== 6) {
+      toast.error("Enter the 6-digit OTP");
+      return;
+    }
+    setLoading(true);
+    try {
+      const { data } = await api.post<ApiResponse<{ signupToken: string; message: string }>>(
+        "/auth/signup/verify",
+        {
+          mobile: draft.mobile.replace(/\D/g, "").slice(0, 10),
+          otp,
+          portal: "agent",
+        },
+      );
+      if (!data.success) throw new Error(data.message);
+      patch({ signupToken: data.data.signupToken, stepIndex: 1 });
+      setOtpSent(false);
+      setOtp("");
+      setDevOtp(null);
+      toast.success(data.data.message || "Mobile verified — continue");
+    } catch (err) {
+      toast.error(extractApiError(err, "Incorrect OTP"));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function completeAccount() {
+    if (!draft.signupToken) {
+      toast.error("Verify mobile OTP before continuing");
+      patch({ stepIndex: 0 });
+      return;
+    }
     setLoading(true);
     try {
       const { data } = await api.post<
         ApiResponse<SessionData | { pendingApproval: true; user: AuthUser; message: string }>
-      >("/auth/signup/verify", {
+      >("/auth/signup/complete", {
+        signupToken: draft.signupToken,
         name: draft.name.trim(),
         mobile: draft.mobile.replace(/\D/g, "").slice(0, 10),
-        otp,
         role: draft.role,
         portal: "agent",
         latitude: draft.latitude,
@@ -516,15 +551,13 @@ export default function SignupPage() {
         accessToken: session.accessToken,
         refreshToken: session.refreshToken,
       });
-      const nextDraft = { ...draft, accountCreated: true, stepIndex: 2 };
+      const nextDraft = { ...draft, accountCreated: true, signupToken: "", stepIndex: 2 };
       setDraft(nextDraft);
       saveSignupDraft(session.user.id, nextDraft);
       clearSignupDraft(draft.mobile.replace(/\D/g, ""));
-      setPhase("steps");
-      setOtp("");
       toast.success("Account created — continue onboarding");
     } catch (err) {
-      toast.error(extractApiError(err, "Signup failed"));
+      toast.error(extractApiError(err, "Could not create account"));
     } finally {
       setLoading(false);
     }
@@ -593,8 +626,16 @@ export default function SignupPage() {
       return;
     }
     setStepErrorKey(null);
+    if (stepIndex === 0) {
+      if (!otpSent) {
+        void requestOtp();
+        return;
+      }
+      void verifyOtp();
+      return;
+    }
     if (stepIndex === 1) {
-      void requestOtp();
+      void completeAccount();
       return;
     }
     if (stepIndex === 8) {
@@ -605,8 +646,10 @@ export default function SignupPage() {
   }
 
   function back() {
-    if (phase === "otp") {
-      setPhase("steps");
+    if (stepIndex === 0 && otpSent) {
+      setOtpSent(false);
+      setOtp("");
+      setDevOtp(null);
       return;
     }
     if (stepIndex === 0) {
@@ -617,12 +660,28 @@ export default function SignupPage() {
       toast("Account already created — continue KYC steps");
       return;
     }
+    if (stepIndex === 1 && draft.signupToken) {
+      toast("Mobile already verified — continue with role details");
+      return;
+    }
     patch({ stepIndex: Math.max(stepIndex - 1, 0) });
   }
 
   if (!draftReady) return null;
 
-  const subtitle = phase === "otp" ? "Mobile OTP" : SIGNUP_STEPS[stepIndex]?.label ?? "Sign Up";
+  const subtitle = SIGNUP_STEPS[stepIndex]?.label ?? "Sign Up";
+  const primaryLabel =
+    loading
+      ? "Please wait…"
+      : stepIndex === 0
+        ? otpSent
+          ? "Verify OTP"
+          : "Send OTP"
+        : stepIndex === 1
+          ? "Create account"
+          : stepIndex === 8
+            ? "Submit"
+            : "Continue";
 
   return (
     <div className="min-h-screen px-4 py-6" style={{ background: B.bg }}>
@@ -648,42 +707,9 @@ export default function SignupPage() {
           </div>
         </div>
 
-        <SignupStepper currentIndex={phase === "otp" ? 1 : stepIndex} />
+        <SignupStepper currentIndex={stepIndex} />
 
-        {phase === "otp" ? (
-          <form onSubmit={verifyOtp} className="space-y-4">
-            <p className="text-sm" style={{ color: B.muted }}>
-              Enter the 6-digit OTP sent to +91 {draft.mobile.replace(/\D/g, "").slice(0, 10)}
-            </p>
-            <p className="text-xs" style={{ color: B.muted }}>
-              If fixed signup OTP is enabled on the server, use that code (e.g. 242424).
-            </p>
-            {devOtp ? (
-              <p className="rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: `${B.blue}12`, color: B.blue }}>
-                Dev OTP: {devOtp}
-              </p>
-            ) : null}
-            <Field label="OTP *">
-              <input
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                className={`${inputCls} font-mono tracking-widest`}
-                style={inputStyle}
-                inputMode="numeric"
-                placeholder="••••••"
-              />
-            </Field>
-            <button
-              type="submit"
-              disabled={loading || otp.length !== 6}
-              className="w-full rounded-2xl py-3.5 text-sm font-bold text-white disabled:opacity-50"
-              style={{ background: B.badgeGrad }}
-            >
-              {loading ? "Verifying…" : "Verify & Continue"}
-            </button>
-          </form>
-        ) : (
-          <div className="space-y-4">
+        <div className="space-y-4">
             {stepIndex === 0 && (
               <>
                 {!hasLocation ? (
@@ -698,7 +724,12 @@ export default function SignupPage() {
                 <Field label="Mobile Number *">
                   <input
                     value={draft.mobile}
-                    onChange={(e) => patch({ mobile: e.target.value.replace(/\D/g, "").slice(0, 10) })}
+                    onChange={(e) => {
+                      patch({ mobile: e.target.value.replace(/\D/g, "").slice(0, 10), signupToken: "" });
+                      setOtpSent(false);
+                      setOtp("");
+                      setDevOtp(null);
+                    }}
                     className={inputCls}
                     style={{
                       ...inputStyle,
@@ -706,12 +737,44 @@ export default function SignupPage() {
                     }}
                     inputMode="numeric"
                     placeholder="10-digit mobile"
-                    disabled={!hasLocation}
+                    disabled={!hasLocation || otpSent}
                   />
                 </Field>
                 <p className="text-xs" style={{ color: B.muted }}>
                   *Enter number which is linked to your Aadhaar.
                 </p>
+                {otpSent ? (
+                  <>
+                    <p className="text-xs" style={{ color: B.muted }}>
+                      Enter the 6-digit OTP. If fixed signup OTP is enabled, use that code (e.g. 242424).
+                    </p>
+                    {devOtp ? (
+                      <p className="rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: `${B.blue}12`, color: B.blue }}>
+                        Dev OTP: {devOtp}
+                      </p>
+                    ) : null}
+                    <Field label="OTP *">
+                      <input
+                        value={otp}
+                        onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        className={`${inputCls} font-mono tracking-widest`}
+                        style={inputStyle}
+                        inputMode="numeric"
+                        placeholder="••••••"
+                        autoFocus
+                      />
+                    </Field>
+                    <button
+                      type="button"
+                      onClick={() => void requestOtp()}
+                      className="text-xs font-semibold underline"
+                      style={{ color: B.blue }}
+                      disabled={loading}
+                    >
+                      Resend OTP
+                    </button>
+                  </>
+                ) : null}
                 <label className="flex items-start gap-2 text-sm" style={{ color: B.blue }}>
                   <input
                     type="checkbox"
@@ -729,6 +792,7 @@ export default function SignupPage() {
                       patch({ termsAccepted: false });
                     }}
                     className="mt-1"
+                    disabled={otpSent}
                   />
                   <span>
                     I agree to the{" "}
@@ -749,18 +813,20 @@ export default function SignupPage() {
                     </button>
                   </span>
                 </label>
-                <div className="rounded-2xl border p-4 text-sm" style={{ borderColor: `${B.green}40`, background: `${B.green}10`, color: B.greenDark }}>
-                  <p className="mb-2 font-bold">Before you begin, keep these ready:</p>
-                  <ul className="list-disc space-y-1 pl-5 text-xs">
-                    <li>Business Document (any one)</li>
-                    <li>Aadhaar Card (soft copy)</li>
-                    <li>PAN Card (soft copy)</li>
-                    <li>Photo of your Shop</li>
-                  </ul>
-                  <p className="mt-3 text-xs" style={{ color: B.muted }}>
-                    You can start now and resume later from where you left off.
-                  </p>
-                </div>
+                {!otpSent ? (
+                  <div className="rounded-2xl border p-4 text-sm" style={{ borderColor: `${B.green}40`, background: `${B.green}10`, color: B.greenDark }}>
+                    <p className="mb-2 font-bold">Before you begin, keep these ready:</p>
+                    <ul className="list-disc space-y-1 pl-5 text-xs">
+                      <li>Business Document (any one)</li>
+                      <li>Aadhaar Card (soft copy)</li>
+                      <li>PAN Card (soft copy)</li>
+                      <li>Photo of your Shop</li>
+                    </ul>
+                    <p className="mt-3 text-xs" style={{ color: B.muted }}>
+                      You can start now and resume later from where you left off.
+                    </p>
+                  </div>
+                ) : null}
               </>
             )}
 
@@ -1215,11 +1281,11 @@ export default function SignupPage() {
             <button
               type="button"
               onClick={next}
-              disabled={loading}
+              disabled={loading || (stepIndex === 0 && otpSent && otp.length !== 6)}
               className="w-full rounded-2xl py-3.5 text-sm font-bold text-white disabled:opacity-50"
               style={{ background: B.badgeGrad }}
             >
-              {loading ? "Please wait…" : stepIndex === 8 ? "Submit" : stepIndex === 1 ? "Send OTP" : "Submit"}
+              {primaryLabel}
             </button>
 
             {stepIndex === 0 ? (
@@ -1231,7 +1297,6 @@ export default function SignupPage() {
               </p>
             ) : null}
           </div>
-        )}
       </div>
 
       {showLocationModal && !hasLocation ? (

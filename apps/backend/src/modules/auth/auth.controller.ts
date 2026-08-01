@@ -9,6 +9,7 @@ import {
   otpVerifySchema,
   signupRequestSchema,
   signupVerifySchema,
+  signupCompleteSchema,
   sponsorUidParamSchema,
   sponsorMobileQuerySchema,
   mpinLoginSchema,
@@ -29,6 +30,7 @@ import {
   setEmailMarketingOptIn,
   requestSignupOtp,
   verifySignupOtp,
+  completeSignup,
   lookupSponsorByUid,
   searchSponsorsByMobile,
   getAuthMe,
@@ -190,6 +192,15 @@ export async function signupRequest(req: Request, res: Response): Promise<void> 
 export async function signupVerify(req: Request, res: Response): Promise<void> {
   const input = signupVerifySchema.parse(req.body);
   const result = await verifySignupOtp(input, {
+    ipAddress: req.ip ?? null,
+    userAgent: req.headers["user-agent"] ?? null,
+  });
+  sendSuccess(res, result, result.message);
+}
+
+export async function signupComplete(req: Request, res: Response): Promise<void> {
+  const input = signupCompleteSchema.parse(req.body);
+  const result = await completeSignup(input, {
     ipAddress: req.ip ?? null,
     userAgent: req.headers["user-agent"] ?? null,
   });

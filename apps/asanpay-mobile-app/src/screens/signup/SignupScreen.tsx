@@ -75,7 +75,8 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
   const authUser = useAuthStore((s) => s.user);
 
   const [draft, setDraft] = useState<MobileSignupDraft>(EMPTY_MOBILE_SIGNUP_DRAFT);
-  const [phase, setPhase] = useState<"steps" | "otp" | "emailOtp">("steps");
+  const [phase, setPhase] = useState<"steps" | "emailOtp">("steps");
+  const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
   const [emailOtp, setEmailOtp] = useState("");
   const [devOtp, setDevOtp] = useState("");
@@ -171,6 +172,8 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
         setDraft(existing);
         if (existing.accountCreated && existing.stepIndex < 2) {
           setDraft({ ...existing, stepIndex: 2 });
+        } else if (existing.signupToken && existing.stepIndex < 1 && !existing.accountCreated) {
+          setDraft({ ...existing, stepIndex: 1 });
         }
       } else if (alive && authUser?.id && !authUser.hasKycDocs) {
         setDraft((d) => ({
@@ -362,28 +365,21 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
         setShowLocationModal(true);
         return;
       }
-      if (needsUpline && !draft.sponsorUid) {
-        showAlert(
-          "Upline required",
-          "Wait until the Distributor / Super Distributor name appears under the mobile field, then try again.",
-        );
-        return;
-      }
       const { data } = await api.post<ApiResponse<{ otp?: string }>>("/auth/signup/request", {
-        name: draft.name.trim(),
         mobile: draft.mobile.replace(/\D/g, "").slice(0, 10),
-        role: draft.role,
         portal: "agent",
         latitude: draft.latitude,
         longitude: draft.longitude,
-        ...(needsUpline ? { sponsorUid: draft.sponsorUid } : {}),
       });
       if (!data.success) throw new Error(data.message);
       if (__DEV__ && data.data.otp) {
         setDevOtp(data.data.otp);
         setOtp(data.data.otp);
+      } else if (data.data.otp) {
+        setDevOtp(data.data.otp);
       }
-      setPhase("otp");
+      setOtpSent(true);
+      patch({ signupToken: "" });
     } catch (err) {
       showAlert("OTP failed", apiError(err, "Could not send OTP"));
     } finally {
@@ -392,15 +388,54 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
   }
 
   async function verifyOtp() {
-    if (otp.length !== 6) return;
+    if (otp.length !== 6) {
+      showAlert("OTP required", "Enter the 6-digit OTP");
+      return;
+    }
+    setLoading(true);
+    try {
+      const { data } = await api.post<ApiResponse<{ signupToken: string; message?: string }>>(
+        "/auth/signup/verify",
+        {
+          mobile: draft.mobile.replace(/\D/g, "").slice(0, 10),
+          otp,
+          portal: "agent",
+        },
+      );
+      if (!data.success) throw new Error(data.message);
+      patch({ signupToken: data.data.signupToken, stepIndex: 1 });
+      setOtpSent(false);
+      setOtp("");
+      setDevOtp("");
+      showAlert("Verified", data.data.message || "Mobile verified — continue");
+    } catch (err) {
+      showAlert("OTP failed", apiError(err, "Incorrect OTP"));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function completeAccount() {
+    if (!draft.signupToken) {
+      showAlert("Verify mobile", "Verify mobile OTP before continuing");
+      patch({ stepIndex: 0 });
+      return;
+    }
+    if (needsUpline && !draft.sponsorUid) {
+      showAlert(
+        "Upline required",
+        "Wait until the Distributor / Super Distributor name appears under the mobile field, then try again.",
+      );
+      return;
+    }
     setLoading(true);
     try {
       const { data } = await api.post<
         ApiResponse<LoginResponse | { pendingApproval: true; user: AuthUser; message: string }>
-      >("/auth/signup/verify", {
+      >("/auth/signup/complete", {
+        signupToken: draft.signupToken,
         name: draft.name.trim(),
         mobile: draft.mobile.replace(/\D/g, "").slice(0, 10),
-        otp,
         role: draft.role,
         portal: "agent",
         password: draft.password,
@@ -416,7 +451,7 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
         return;
       }
       const session = data.data as LoginResponse;
-      const nextDraft = { ...draft, accountCreated: true, stepIndex: 2 };
+      const nextDraft = { ...draft, accountCreated: true, signupToken: "", stepIndex: 2 };
       setDraft(nextDraft);
       await saveMobileSignupDraft(session.user.id, nextDraft);
       setAuth(session.user, {
@@ -424,10 +459,8 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
         refreshToken: session.refreshToken,
       });
       setSignupContinue(true);
-      setPhase("steps");
-      setOtp("");
     } catch (err) {
-      showAlert("OTP failed", apiError(err, "Invalid or expired OTP"));
+      showAlert("Signup failed", apiError(err, "Could not create account"));
     } finally {
       setLoading(false);
     }
@@ -533,8 +566,16 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
       showAlert("Incomplete", err);
       return;
     }
+    if (stepIndex === 0) {
+      if (!otpSent) {
+        void requestOtp();
+        return;
+      }
+      void verifyOtp();
+      return;
+    }
     if (stepIndex === 1) {
-      void requestOtp();
+      void completeAccount();
       return;
     }
     if (stepIndex === 8) {
@@ -545,8 +586,14 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
   }
 
   function back() {
-    if (phase === "otp" || phase === "emailOtp") {
+    if (phase === "emailOtp") {
       setPhase("steps");
+      return;
+    }
+    if (stepIndex === 0 && otpSent) {
+      setOtpSent(false);
+      setOtp("");
+      setDevOtp("");
       return;
     }
     if (stepIndex === 0 || (stepIndex === 2 && draft.accountCreated)) {
@@ -555,6 +602,10 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
         return;
       }
       onBack();
+      return;
+    }
+    if (stepIndex === 1 && draft.signupToken) {
+      showAlert("Mobile verified", "Continue with role details");
       return;
     }
     patch({ stepIndex: Math.max(stepIndex - 1, 0) });
@@ -568,8 +619,19 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
     );
   }
 
-  const subtitle =
-    phase === "otp" ? "Mobile OTP" : phase === "emailOtp" ? "Email OTP" : MOBILE_SIGNUP_STEPS[stepIndex]?.label;
+  const subtitle = phase === "emailOtp" ? "Email OTP" : MOBILE_SIGNUP_STEPS[stepIndex]?.label;
+
+  const primaryLabel = loading
+    ? "Please wait…"
+    : stepIndex === 0
+      ? otpSent
+        ? "Verify OTP"
+        : "Send OTP"
+      : stepIndex === 1
+        ? "Create account"
+        : stepIndex === 8
+          ? "Submit application"
+          : "Continue";
 
   const inputStyle = [
     styles.input,
@@ -591,37 +653,10 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
         </View>
 
         <View style={{ paddingHorizontal: 16 }}>
-          <MobileSignupStepper currentIndex={phase === "otp" ? 1 : phase === "emailOtp" ? 4 : stepIndex} />
+          <MobileSignupStepper currentIndex={phase === "emailOtp" ? 4 : stepIndex} />
         </View>
 
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          {phase === "otp" ? (
-            <View style={[styles.card, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
-              <Text style={[styles.hint, { color: tokens.mute }]}>
-                Enter the 6-digit OTP sent to +91 {draft.mobile.replace(/\D/g, "").slice(0, 10)}
-              </Text>
-              <Text style={[styles.hint, { color: tokens.mute }]}>
-                If fixed signup OTP is enabled on the server, use that code (e.g. 242424).
-              </Text>
-              {devOtp ? <Text style={styles.devOtp}>Dev OTP: {devOtp}</Text> : null}
-              <TextInput
-                value={otp}
-                onChangeText={(t) => setOtp(t.replace(/\D/g, "").slice(0, 6))}
-                keyboardType="number-pad"
-                placeholder="6-digit OTP"
-                placeholderTextColor={tokens.mute}
-                style={inputStyle}
-              />
-              <Pressable
-                onPress={() => void verifyOtp()}
-                disabled={loading || otp.length !== 6}
-                style={[styles.cta, { opacity: loading || otp.length !== 6 ? 0.5 : 1 }]}
-              >
-                <Text style={styles.ctaText}>{loading ? "Verifying…" : "Verify & Continue"}</Text>
-              </Pressable>
-            </View>
-          ) : null}
-
           {phase === "emailOtp" ? (
             <View style={[styles.card, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
               <Text style={[styles.hint, { color: tokens.mute }]}>Code sent to {draft.email}</Text>
@@ -674,18 +709,47 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
                   <FieldLabel text="Mobile Number *" color={tokens.mute} />
                   <TextInput
                     value={draft.mobile}
-                    onChangeText={(t) => patch({ mobile: t.replace(/\D/g, "").slice(0, 10) })}
+                    onChangeText={(t) => {
+                      patch({ mobile: t.replace(/\D/g, "").slice(0, 10), signupToken: "" });
+                      setOtpSent(false);
+                      setOtp("");
+                      setDevOtp("");
+                    }}
                     keyboardType="number-pad"
                     placeholder="10-digit mobile"
                     placeholderTextColor={tokens.mute}
-                    editable={hasLocation}
-                    style={[inputStyle, !hasLocation && { opacity: 0.5 }]}
+                    editable={hasLocation && !otpSent}
+                    style={[inputStyle, (!hasLocation || otpSent) && { opacity: 0.5 }]}
                   />
                   <Text style={[styles.hint, { color: tokens.mute }]}>
                     Use the number linked to your Aadhaar.
                   </Text>
+                  {otpSent ? (
+                    <>
+                      <Text style={[styles.hint, { color: tokens.mute }]}>
+                        Enter the 6-digit OTP. Fixed signup OTP (if enabled): e.g. 242424.
+                      </Text>
+                      {devOtp ? <Text style={styles.devOtp}>Dev OTP: {devOtp}</Text> : null}
+                      <FieldLabel text="OTP *" color={tokens.mute} />
+                      <TextInput
+                        value={otp}
+                        onChangeText={(t) => setOtp(t.replace(/\D/g, "").slice(0, 6))}
+                        keyboardType="number-pad"
+                        placeholder="••••••"
+                        placeholderTextColor={tokens.mute}
+                        style={inputStyle}
+                        autoFocus
+                      />
+                      <Pressable onPress={() => void requestOtp()} disabled={loading} hitSlop={8}>
+                        <Text style={{ color: colors.blueFlat, fontWeight: "700", fontSize: 12, marginBottom: 8 }}>
+                          Resend OTP
+                        </Text>
+                      </Pressable>
+                    </>
+                  ) : null}
                   <Pressable
                     onPress={() => {
+                      if (otpSent) return;
                       if (draft.termsAccepted) {
                         patch({ termsAccepted: false });
                         return;
@@ -705,6 +769,7 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
                       I agree to the <Text style={{ color: colors.blueFlat, fontWeight: "800" }}>Terms & Privacy Policy</Text>
                     </Text>
                   </Pressable>
+                  {!otpSent ? (
                   <View style={[styles.prep, { backgroundColor: colors.greenBg }]}>
                     <Text style={[styles.prepTitle, { color: colors.greenDark }]}>Keep these ready</Text>
                     <Text style={[styles.prepItem, { color: colors.greenDark }]}>• Business document (any one)</Text>
@@ -713,6 +778,7 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
                     <Text style={[styles.prepItem, { color: colors.greenDark }]}>• Shop photo</Text>
                     <Text style={[styles.prepFoot, { color: tokens.mute }]}>You can resume later from where you left off.</Text>
                   </View>
+                  ) : null}
                 </>
               )}
 
@@ -1107,16 +1173,12 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
                 </>
               )}
 
-              <Pressable onPress={next} disabled={loading} style={[styles.cta, { opacity: loading ? 0.6 : 1 }]}>
-                <Text style={styles.ctaText}>
-                  {loading
-                    ? "Please wait…"
-                    : stepIndex === 8
-                      ? "Submit application"
-                      : stepIndex === 1
-                        ? "Send OTP"
-                        : "Continue"}
-                </Text>
+              <Pressable
+                onPress={next}
+                disabled={loading || (stepIndex === 0 && otpSent && otp.length !== 6)}
+                style={[styles.cta, { opacity: loading || (stepIndex === 0 && otpSent && otp.length !== 6) ? 0.6 : 1 }]}
+              >
+                <Text style={styles.ctaText}>{primaryLabel}</Text>
               </Pressable>
             </View>
           ) : null}

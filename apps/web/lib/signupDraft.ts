@@ -13,6 +13,8 @@ export type SignupDraft = {
   latitude: string;
   longitude: string;
   mobile: string;
+  /** Set after mobile OTP verify — required for /signup/complete */
+  signupToken: string;
   role: SignupRole;
   name: string;
   password: string;
@@ -59,6 +61,7 @@ export const EMPTY_SIGNUP_DRAFT: SignupDraft = {
   latitude: "",
   longitude: "",
   mobile: "",
+  signupToken: "",
   role: "retailer",
   name: "",
   password: "",
