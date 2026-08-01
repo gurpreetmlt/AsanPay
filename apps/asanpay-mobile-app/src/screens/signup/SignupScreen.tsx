@@ -719,6 +719,7 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
 
               {stepIndex === 2 && (
                 <>
+                  <Text style={[styles.hint, { color: tokens.mute, fontWeight: "700" }]}>Step 3 of 9 · PAN Verification</Text>
                   <FieldLabel text="PAN Number *" color={tokens.mute} />
                   <TextInput
                     value={draft.pan}
@@ -773,6 +774,9 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
 
               {stepIndex === 3 && (
                 <>
+                  <Text style={[styles.hint, { color: tokens.mute, fontWeight: "700" }]}>
+                    Step 4 of 9 · Aadhaar Verification
+                  </Text>
                   <FieldLabel text="Aadhaar Number *" color={tokens.mute} />
                   <TextInput
                     value={draft.aadhaar}
@@ -801,6 +805,9 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
 
               {stepIndex === 4 && (
                 <>
+                  <Text style={[styles.hint, { color: tokens.mute, fontWeight: "700" }]}>
+                    Step 5 of 9 · Basic Details & Email Verification
+                  </Text>
                   <FieldLabel text="Email *" color={tokens.mute} />
                   <View style={styles.emailRow}>
                     <TextInput

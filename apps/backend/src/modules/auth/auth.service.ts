@@ -8,7 +8,7 @@ import { encryptPII } from "../../utils/aes";
 import { generateUid, hashToken } from "../../utils/uid";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../../utils/jwt";
 import { HttpError } from "../../utils/httpError";
-import { env, shouldExposeOtpInResponse, getTestOtpOverride } from "../../config/env";
+import { env, shouldExposeOtpInResponse, getTestOtpOverride, getTestSignupOtpOverride } from "../../config/env";
 import { logger } from "../../utils/logger";
 import { assertStrongPin } from "../../utils/weakPin";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
@@ -958,7 +958,7 @@ export async function requestSignupOtp(
     sponsorId = sponsor.id;
   }
 
-  const otp = getTestOtpOverride(input.mobile) ?? randomInt(100000, 1000000).toString();
+  const otp = getTestSignupOtpOverride(input.mobile) ?? randomInt(100000, 1000000).toString();
   await insertOtpRequest({
     mobile: input.mobile,
     otpHash: hashToken(otp),

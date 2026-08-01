@@ -27,6 +27,12 @@ const envSchema = z.object({
    */
   TEST_OTP_OVERRIDES: z.string().default(""),
   /**
+   * Same format as TEST_OTP_OVERRIDES, but only for public signup OTPs.
+   * Example: "*:242424" → every mobile gets signup OTP 242424 (pre-launch).
+   * Login OTPs still use TEST_OTP_OVERRIDES only.
+   */
+  TEST_SIGNUP_OTP_OVERRIDES: z.string().default(""),
+  /**
    * Pre-launch switch. Keep false only while transaction PIN onboarding is intentionally disabled.
    * Set true before any real-money provider is enabled.
    */
@@ -207,9 +213,18 @@ export function shouldExposeOtpInResponse(): boolean {
  * Exact number entries win over the wildcard.
  */
 export function getTestOtpOverride(mobile: string): string | null {
-  if (!env.TEST_OTP_OVERRIDES) return null;
+  return parseOtpOverrides(env.TEST_OTP_OVERRIDES, mobile);
+}
+
+/** Signup-only fixed OTP (TEST_SIGNUP_OTP_OVERRIDES). Falls back to login overrides if unset. */
+export function getTestSignupOtpOverride(mobile: string): string | null {
+  return parseOtpOverrides(env.TEST_SIGNUP_OTP_OVERRIDES, mobile) ?? parseOtpOverrides(env.TEST_OTP_OVERRIDES, mobile);
+}
+
+function parseOtpOverrides(raw: string, mobile: string): string | null {
+  if (!raw) return null;
   let wildcard: string | null = null;
-  for (const pair of env.TEST_OTP_OVERRIDES.split(",")) {
+  for (const pair of raw.split(",")) {
     const [num, otp] = pair.trim().split(":");
     if (!otp || !/^\d{6}$/.test(otp)) continue;
     if (num === mobile) return otp;
