@@ -14,13 +14,14 @@ import {
 } from "react-native";
 import Geolocation from "@react-native-community/geolocation";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ArrowLeft, CheckCircle2, MapPin, X } from "lucide-react-native";
+import { ArrowLeft, CheckCircle2, Eye, EyeOff, MapPin, X } from "lucide-react-native";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import { api } from "../../lib/api";
 import { apiError } from "../../utils/apiError";
 import { useAuthStore } from "../../store/auth";
 import { useTheme } from "../../theme/ThemeContext";
 import { colors } from "../../theme/colors";
+import { BRAND } from "../../theme/brand";
 import { showAlert } from "../../components/AppAlert";
 import { MobileSignupStepper, MOBILE_SIGNUP_STEPS } from "../../components/MobileSignupStepper";
 import {
@@ -84,6 +85,8 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [locationBusy, setLocationBusy] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const stepIndex = draft.stepIndex;
   const needsUpline = draft.role !== "master_distributor";
@@ -95,8 +98,30 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
     setDraft((d) => ({ ...d, ...p }));
   }
 
+  function readPosition(highAccuracy: boolean, timeoutMs: number) {
+    return new Promise<{ latitude: string; longitude: string }>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("Location timed out")), timeoutMs + 500);
+      Geolocation.getCurrentPosition(
+        (pos) => {
+          clearTimeout(timer);
+          resolve({
+            latitude: String(pos.coords.latitude),
+            longitude: String(pos.coords.longitude),
+          });
+        },
+        (err) => {
+          clearTimeout(timer);
+          reject(err);
+        },
+        { enableHighAccuracy: highAccuracy, timeout: timeoutMs, maximumAge: 120_000 },
+      );
+    });
+  }
+
   async function ensureLocation(): Promise<boolean> {
+    if (locationBusy) return false;
     setLocationBusy(true);
+    setLocationError(null);
     try {
       if (Platform.OS === "android") {
         const granted = await PermissionsAndroid.request(
@@ -109,28 +134,27 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
           },
         );
         if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          setLocationError("Location permission denied. Enable it in Settings, then tap Allow again.");
           setShowLocationModal(true);
-          showAlert("Location required", "Allow location access to continue signup");
           return false;
         }
       }
-      const coords = await new Promise<{ latitude: string; longitude: string }>((resolve, reject) => {
-        Geolocation.getCurrentPosition(
-          (pos) =>
-            resolve({
-              latitude: String(pos.coords.latitude),
-              longitude: String(pos.coords.longitude),
-            }),
-          (err) => reject(err),
-          { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 },
-        );
-      });
+
+      // Prefer faster network location first; GPS high-accuracy often hangs on some phones.
+      let coords: { latitude: string; longitude: string };
+      try {
+        coords = await readPosition(false, 10_000);
+      } catch {
+        coords = await readPosition(true, 12_000);
+      }
+
       patch({ latitude: coords.latitude, longitude: coords.longitude });
+      setLocationError(null);
       setShowLocationModal(false);
       return true;
     } catch {
+      setLocationError("Could not get location. Turn on GPS / Location and try again.");
       setShowLocationModal(true);
-      showAlert("Location required", "Allow location access to continue signup");
       return false;
     } finally {
       setLocationBusy(false);
@@ -171,6 +195,7 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
     void saveMobileSignupDraft(storageKey, draft);
   }, [draft, draftReady, storageKey]);
 
+  // Show location modal on step 1 — do NOT auto-request (system dialog was hidden behind modal → stuck "Requesting…").
   useEffect(() => {
     if (!draftReady || stepIndex !== 0 || phase !== "steps") return;
     if (draft.latitude && draft.longitude) {
@@ -178,9 +203,7 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
       return;
     }
     setShowLocationModal(true);
-    void ensureLocation();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draftReady, stepIndex, phase]);
+  }, [draftReady, stepIndex, phase, draft.latitude, draft.longitude]);
 
   useEffect(() => {
     if (!needsUpline) {
@@ -544,20 +567,23 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
     <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bg }]} edges={["top", "bottom"]}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View style={styles.header}>
-          <Pressable onPress={back} style={[styles.backBtn, { borderColor: tokens.cardBorder }]}>
+          <Pressable onPress={back} style={[styles.backBtn, { borderColor: tokens.cardBorder, backgroundColor: tokens.card }]}>
             <ArrowLeft size={18} color={colors.blueFlat} />
           </Pressable>
           <View style={{ flex: 1 }}>
+            <Text style={[styles.brandMark, { color: colors.blue }]}>{BRAND.appName}</Text>
             <Text style={[styles.title, { color: tokens.txt }]}>Sign Up</Text>
             <Text style={[styles.sub, { color: tokens.sub }]}>{subtitle}</Text>
           </View>
         </View>
 
-        <MobileSignupStepper currentIndex={phase === "otp" ? 1 : phase === "emailOtp" ? 4 : stepIndex} />
+        <View style={{ paddingHorizontal: 16 }}>
+          <MobileSignupStepper currentIndex={phase === "otp" ? 1 : phase === "emailOtp" ? 4 : stepIndex} />
+        </View>
 
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           {phase === "otp" ? (
-            <View style={styles.block}>
+            <View style={[styles.card, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
               <Text style={[styles.hint, { color: tokens.mute }]}>
                 Enter OTP sent to +91 {draft.mobile.replace(/\D/g, "").slice(0, 10)}
               </Text>
@@ -581,7 +607,7 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
           ) : null}
 
           {phase === "emailOtp" ? (
-            <View style={styles.block}>
+            <View style={[styles.card, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
               <Text style={[styles.hint, { color: tokens.mute }]}>Code sent to {draft.email}</Text>
               <TextInput
                 value={emailOtp}
@@ -602,19 +628,33 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
           ) : null}
 
           {phase === "steps" ? (
-            <View style={styles.block}>
+            <View style={[styles.card, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
               {stepIndex === 0 && (
                 <>
-                  {!hasLocation ? (
-                    <Text style={[styles.hint, { color: "#92400E", marginBottom: 8 }]}>
-                      Location must be allowed before you enter your mobile number.
+                  <Text style={styles.sectionTitle}>Mobile Verification</Text>
+                  <Text style={[styles.hint, { color: tokens.mute }]}>Allow location, then enter your mobile number.</Text>
+                  <View
+                    style={[
+                      styles.locBanner,
+                      {
+                        backgroundColor: hasLocation ? colors.greenBg : "#FFF7ED",
+                        borderColor: hasLocation ? `${colors.green}55` : "#FDBA74",
+                      },
+                    ]}
+                  >
+                    <MapPin size={16} color={hasLocation ? colors.greenDark : "#C2410C"} />
+                    <Text style={{ flex: 1, color: hasLocation ? colors.greenDark : "#9A3412", fontSize: 12, fontWeight: "600" }}>
+                      {hasLocation
+                        ? `Location ready · ${Number(draft.latitude).toFixed(4)}, ${Number(draft.longitude).toFixed(4)}`
+                        : "Allow location to unlock mobile number"}
                     </Text>
-                  ) : (
-                    <Text style={[styles.hint, { color: colors.greenDark, marginBottom: 8 }]}>
-                      Location captured · Lat {Number(draft.latitude).toFixed(5)}, Lng{" "}
-                      {Number(draft.longitude).toFixed(5)}
-                    </Text>
-                  )}
+                    {!hasLocation ? (
+                      <Pressable onPress={() => setShowLocationModal(true)} hitSlop={8}>
+                        <Text style={{ color: colors.blueFlat, fontWeight: "800", fontSize: 12 }}>Enable</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+
                   <FieldLabel text="Mobile Number *" color={tokens.mute} />
                   <TextInput
                     value={draft.mobile}
@@ -623,10 +663,10 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
                     placeholder="10-digit mobile"
                     placeholderTextColor={tokens.mute}
                     editable={hasLocation}
-                    style={[inputStyle, !hasLocation && { opacity: 0.55 }]}
+                    style={[inputStyle, !hasLocation && { opacity: 0.5 }]}
                   />
                   <Text style={[styles.hint, { color: tokens.mute }]}>
-                    *Enter number which is linked to your Aadhaar.
+                    Use the number linked to your Aadhaar.
                   </Text>
                   <Pressable
                     onPress={() => {
@@ -636,7 +676,6 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
                       }
                       if (!hasLocation) {
                         setShowLocationModal(true);
-                        void ensureLocation();
                         return;
                       }
                       setShowTermsModal(true);
@@ -646,20 +685,25 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
                     <View style={[styles.check, draft.termsAccepted && styles.checkOn]}>
                       {draft.termsAccepted ? <CheckCircle2 size={14} color="#fff" /> : null}
                     </View>
-                    <Text style={{ color: tokens.txt2, flex: 1 }}>I agree to the Terms and Conditions</Text>
+                    <Text style={{ color: tokens.txt2, flex: 1, fontSize: 13, lineHeight: 18 }}>
+                      I agree to the <Text style={{ color: colors.blueFlat, fontWeight: "800" }}>Terms & Privacy Policy</Text>
+                    </Text>
                   </Pressable>
-                  <View style={[styles.prep, { backgroundColor: `${colors.green}18` }]}>
-                    <Text style={[styles.prepTitle, { color: colors.greenDark }]}>Before you begin, keep these ready:</Text>
-                    <Text style={[styles.prepItem, { color: colors.greenDark }]}>• Business Document (any one)</Text>
-                    <Text style={[styles.prepItem, { color: colors.greenDark }]}>• Aadhaar Card (soft copy)</Text>
-                    <Text style={[styles.prepItem, { color: colors.greenDark }]}>• PAN Card (soft copy)</Text>
-                    <Text style={[styles.prepItem, { color: colors.greenDark }]}>• Photo of your Shop</Text>
+                  <View style={[styles.prep, { backgroundColor: colors.greenBg }]}>
+                    <Text style={[styles.prepTitle, { color: colors.greenDark }]}>Keep these ready</Text>
+                    <Text style={[styles.prepItem, { color: colors.greenDark }]}>• Business document (any one)</Text>
+                    <Text style={[styles.prepItem, { color: colors.greenDark }]}>• Aadhaar card (soft copy)</Text>
+                    <Text style={[styles.prepItem, { color: colors.greenDark }]}>• PAN card (soft copy)</Text>
+                    <Text style={[styles.prepItem, { color: colors.greenDark }]}>• Shop photo</Text>
+                    <Text style={[styles.prepFoot, { color: tokens.mute }]}>You can resume later from where you left off.</Text>
                   </View>
                 </>
               )}
 
               {stepIndex === 1 && (
                 <>
+                  <Text style={styles.sectionTitle}>Role Identification</Text>
+                  <Text style={[styles.hint, { color: tokens.mute }]}>Choose your role and create login credentials.</Text>
                   <FieldLabel text="Role *" color={tokens.mute} />
                   <View style={styles.roleRow}>
                     {ROLE_OPTIONS.map((r) => (
@@ -695,31 +739,45 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
                         value={draft.sponsorMobile}
                         onChangeText={(t) => patch({ sponsorMobile: t.replace(/\D/g, "").slice(0, 10) })}
                         keyboardType="number-pad"
+                        placeholder="10-digit upline mobile"
                         placeholderTextColor={tokens.mute}
                         style={inputStyle}
                       />
                       {sponsorOk ? (
-                        <Text style={{ color: colors.greenDark, fontSize: 12, fontWeight: "700" }}>
+                        <Text style={{ color: colors.greenDark, fontSize: 12, fontWeight: "700", marginTop: 4 }}>
                           ✓ {draft.sponsorName}
                         </Text>
                       ) : null}
                     </>
                   ) : null}
                   <FieldLabel text="Password *" color={tokens.mute} />
-                  <TextInput
-                    value={draft.password}
-                    onChangeText={(t) => patch({ password: t })}
-                    secureTextEntry
-                    placeholder="Min 8 characters"
-                    placeholderTextColor={tokens.mute}
-                    style={inputStyle}
-                  />
+                  <View style={styles.passwordWrap}>
+                    <TextInput
+                      value={draft.password}
+                      onChangeText={(t) => patch({ password: t })}
+                      secureTextEntry={!showPassword}
+                      placeholder="Min 8 characters, include a letter"
+                      placeholderTextColor={tokens.mute}
+                      style={[inputStyle, { paddingRight: 44 }]}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                    <Pressable
+                      onPress={() => setShowPassword((v) => !v)}
+                      style={styles.eyeBtn}
+                      hitSlop={10}
+                      accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <EyeOff size={18} color={tokens.mute} /> : <Eye size={18} color={tokens.mute} />}
+                    </Pressable>
+                  </View>
                 </>
               )}
 
               {stepIndex === 2 && (
                 <>
-                  <Text style={[styles.hint, { color: tokens.mute, fontWeight: "700" }]}>Step 3 of 9 · PAN Verification</Text>
+                  <Text style={styles.sectionTitle}>PAN Verification</Text>
+                  <Text style={[styles.hint, { color: tokens.mute }]}>Enter PAN details exactly as on the card.</Text>
                   <FieldLabel text="PAN Number *" color={tokens.mute} />
                   <TextInput
                     value={draft.pan}
@@ -774,15 +832,16 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
 
               {stepIndex === 3 && (
                 <>
-                  <Text style={[styles.hint, { color: tokens.mute, fontWeight: "700" }]}>
-                    Step 4 of 9 · Aadhaar Verification
+                  <Text style={styles.sectionTitle}>Aadhaar Verification</Text>
+                  <Text style={[styles.hint, { color: tokens.mute }]}>
+                    Enter the Aadhaar linked to your mobile. Upload clear front and back images.
                   </Text>
                   <FieldLabel text="Aadhaar Number *" color={tokens.mute} />
                   <TextInput
-                    value={draft.aadhaar}
+                    value={draft.aadhaar.replace(/(\d{4})(?=\d)/g, "$1 ").trim()}
                     onChangeText={(t) => patch({ aadhaar: t.replace(/\D/g, "").slice(0, 12) })}
                     keyboardType="number-pad"
-                    placeholder="12 digits"
+                    placeholder="1234 1234 1234"
                     placeholderTextColor={tokens.mute}
                     style={inputStyle}
                   />
@@ -805,9 +864,8 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
 
               {stepIndex === 4 && (
                 <>
-                  <Text style={[styles.hint, { color: tokens.mute, fontWeight: "700" }]}>
-                    Step 5 of 9 · Basic Details & Email Verification
-                  </Text>
+                  <Text style={styles.sectionTitle}>Basic Details & Email</Text>
+                  <Text style={[styles.hint, { color: tokens.mute }]}>Verify email and enter residential address.</Text>
                   <FieldLabel text="Email *" color={tokens.mute} />
                   <View style={styles.emailRow}>
                     <TextInput
@@ -861,6 +919,8 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
 
               {stepIndex === 5 && (
                 <>
+                  <Text style={styles.sectionTitle}>Business Details</Text>
+                  <Text style={[styles.hint, { color: tokens.mute }]}>Tell us about your shop / business.</Text>
                   <FieldLabel text="Business Name *" color={tokens.mute} />
                   <TextInput
                     value={draft.businessName}
@@ -930,6 +990,8 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
 
               {stepIndex === 6 && (
                 <>
+                  <Text style={styles.sectionTitle}>Bank Details</Text>
+                  <Text style={[styles.hint, { color: tokens.mute }]}>Account for settlements and payouts.</Text>
                   <FieldLabel text="IFSC *" color={tokens.mute} />
                   <TextInput
                     value={draft.ifsc}
@@ -989,18 +1051,23 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
               )}
 
               {stepIndex === 7 && (
-                <UploadRow
-                  label="Shop Photo *"
-                  done={Boolean(draft.shopPhoto)}
-                  name={draft.shopPhoto?.name}
-                  onPress={() => markUpload("shopPhoto", "shop")}
-                  tokens={tokens}
-                />
+                <>
+                  <Text style={styles.sectionTitle}>Business Images</Text>
+                  <Text style={[styles.hint, { color: tokens.mute }]}>Upload a clear photo of your shop front.</Text>
+                  <UploadRow
+                    label="Shop Photo *"
+                    done={Boolean(draft.shopPhoto)}
+                    name={draft.shopPhoto?.name}
+                    onPress={() => markUpload("shopPhoto", "shop")}
+                    tokens={tokens}
+                  />
+                </>
               )}
 
               {stepIndex === 8 && (
                 <>
-                  <View style={[styles.agreeBox, { borderColor: tokens.cardBorder }]}>
+                  <Text style={styles.sectionTitle}>Agreement</Text>
+                  <View style={[styles.agreeBox, { borderColor: tokens.cardBorder, backgroundColor: `${colors.blue}08` }]}>
                     <Text style={[styles.agreeTitle, { color: tokens.txt }]}>Agent Agreement & Pricing</Text>
                     <Text style={{ color: tokens.mute, fontSize: 12, lineHeight: 18 }}>
                       By continuing you agree to AsanPay agent terms, privacy policy, and the applicable
@@ -1014,7 +1081,7 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
                     <View style={[styles.check, draft.agreementAccepted && styles.checkOn]}>
                       {draft.agreementAccepted ? <CheckCircle2 size={14} color="#fff" /> : null}
                     </View>
-                    <Text style={{ color: tokens.txt2, flex: 1 }}>
+                    <Text style={{ color: tokens.txt2, flex: 1, fontSize: 13, lineHeight: 18 }}>
                       I accept Terms, Privacy, Agent Agreement, and pricing.
                     </Text>
                   </Pressable>
@@ -1023,7 +1090,13 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
 
               <Pressable onPress={next} disabled={loading} style={[styles.cta, { opacity: loading ? 0.6 : 1 }]}>
                 <Text style={styles.ctaText}>
-                  {loading ? "Please wait…" : stepIndex === 8 ? "Submit" : stepIndex === 1 ? "Send OTP" : "Submit"}
+                  {loading
+                    ? "Please wait…"
+                    : stepIndex === 8
+                      ? "Submit application"
+                      : stepIndex === 1
+                        ? "Send OTP"
+                        : "Continue"}
                 </Text>
               </Pressable>
             </View>
@@ -1031,22 +1104,37 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      <Modal visible={showLocationModal && !hasLocation} transparent animationType="fade">
+      <Modal visible={showLocationModal && !hasLocation} transparent animationType="fade" onRequestClose={onBack}>
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalCard, { backgroundColor: tokens.card }]}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
-              <MapPin size={20} color={colors.green} />
+              <View style={styles.locIconWrap}>
+                <MapPin size={22} color={colors.green} />
+              </View>
               <Text style={[styles.modalTitle, { color: tokens.txt }]}>Location Permission Required</Text>
             </View>
-            <Text style={{ color: tokens.mute, fontSize: 13, marginBottom: 12 }}>
-              Please allow location access to continue with registration.
+            <Text style={{ color: tokens.mute, fontSize: 13, lineHeight: 19, marginBottom: 12 }}>
+              Please allow location access to continue with registration. Tap Allow, then approve the system
+              prompt.
             </Text>
+            {locationError ? (
+              <View style={styles.locErrorBox}>
+                <Text style={styles.locErrorText}>{locationError}</Text>
+              </View>
+            ) : null}
             <Pressable
               onPress={() => void ensureLocation()}
               disabled={locationBusy}
-              style={[styles.cta, { opacity: locationBusy ? 0.6 : 1 }]}
+              style={[styles.cta, styles.ctaGreen, { opacity: locationBusy ? 0.7 : 1, marginTop: 4 }]}
             >
-              <Text style={styles.ctaText}>{locationBusy ? "Requesting…" : "Allow"}</Text>
+              {locationBusy ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <ActivityIndicator color="#fff" />
+                  <Text style={styles.ctaText}>Getting location…</Text>
+                </View>
+              ) : (
+                <Text style={styles.ctaText}>{locationError ? "Try again" : "Allow"}</Text>
+              )}
             </Pressable>
             <Pressable onPress={onBack} style={[styles.modalSecondary, { borderColor: colors.green }]}>
               <Text style={{ color: colors.greenDark, fontWeight: "700" }}>Go back</Text>
@@ -1179,7 +1267,7 @@ function SelectRow({
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  header: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingTop: 8 },
+  header: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingTop: 8, marginBottom: 4 },
   backBtn: {
     width: 40,
     height: 40,
@@ -1188,14 +1276,47 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  title: { fontSize: 22, fontWeight: "800" },
+  brandMark: { fontSize: 13, fontWeight: "800", letterSpacing: 0.2 },
+  title: { fontSize: 22, fontWeight: "800", marginTop: 2 },
   sub: { fontSize: 13, marginTop: 2 },
   content: { padding: 16, paddingBottom: 40 },
+  card: {
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 16,
+    gap: 4,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: colors.blue,
+    marginBottom: 2,
+  },
+  passwordWrap: { position: "relative", justifyContent: "center" },
+  eyeBtn: {
+    position: "absolute",
+    right: 12,
+    top: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+    width: 36,
+  },
   block: { gap: 8 },
+  locBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 10,
+  },
   label: { fontSize: 11, fontWeight: "700", letterSpacing: 0.4, marginTop: 6, marginBottom: 4 },
   input: { borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14 },
   hint: { fontSize: 12, marginBottom: 6 },
-  checkRow: { flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 8 },
+  checkRow: { flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 10 },
   check: {
     width: 22,
     height: 22,
@@ -1206,9 +1327,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   checkOn: { backgroundColor: colors.blue, borderColor: colors.blue },
-  prep: { borderRadius: 14, padding: 14, marginTop: 8 },
+  prep: { borderRadius: 14, padding: 14, marginTop: 4 },
   prepTitle: { fontWeight: "800", marginBottom: 6 },
   prepItem: { fontSize: 12, marginTop: 2 },
+  prepFoot: { fontSize: 11, marginTop: 10 },
   roleRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 6 },
   roleChip: { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 },
   emailRow: { flexDirection: "row", gap: 8, alignItems: "center" },
@@ -1236,7 +1358,9 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     paddingVertical: 14,
     alignItems: "center",
+    justifyContent: "center",
   },
+  ctaGreen: { backgroundColor: colors.green },
   ctaText: { color: "#fff", fontWeight: "800", fontSize: 15 },
   devOtp: { color: colors.blueFlat, fontWeight: "700", marginBottom: 8 },
   modalBackdrop: {
@@ -1245,8 +1369,24 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: 20,
   },
-  modalCard: { borderRadius: 18, padding: 18 },
+  modalCard: { borderRadius: 20, padding: 18 },
   modalTitle: { fontSize: 16, fontWeight: "800", flex: 1 },
+  locIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: colors.greenBg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  locErrorBox: {
+    backgroundColor: "#FEE2E2",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 10,
+  },
+  locErrorText: { color: "#991B1B", fontSize: 12, fontWeight: "600", lineHeight: 17 },
   modalSecondary: {
     marginTop: 10,
     borderWidth: 1.5,
