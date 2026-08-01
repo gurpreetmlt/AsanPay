@@ -923,6 +923,21 @@ export async function searchSponsorsByMobile(
   }));
 }
 
+/** Live check while typing — is this mobile free for signup? */
+export async function checkSignupMobileAvailable(
+  mobile: string,
+): Promise<{ available: true } | { available: false; message: string; code: "MOBILE_TAKEN" }> {
+  const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.mobile, mobile));
+  if (existing) {
+    return {
+      available: false,
+      message: "This mobile number is already registered. Please log in instead.",
+      code: "MOBILE_TAKEN",
+    };
+  }
+  return { available: true };
+}
+
 /** Self-signup step 1: OTP on mobile only (before role / name / upline). */
 export async function requestSignupOtp(
   input: SignupRequestInput,

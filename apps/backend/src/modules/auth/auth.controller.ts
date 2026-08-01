@@ -10,6 +10,7 @@ import {
   signupRequestSchema,
   signupVerifySchema,
   signupCompleteSchema,
+  signupMobileCheckSchema,
   sponsorUidParamSchema,
   sponsorMobileQuerySchema,
   mpinLoginSchema,
@@ -31,6 +32,7 @@ import {
   requestSignupOtp,
   verifySignupOtp,
   completeSignup,
+  checkSignupMobileAvailable,
   lookupSponsorByUid,
   searchSponsorsByMobile,
   getAuthMe,
@@ -178,6 +180,12 @@ export async function searchSponsors(req: Request, res: Response): Promise<void>
   const { mobile, role } = sponsorMobileQuerySchema.parse(req.query);
   const items = await searchSponsorsByMobile(mobile, role);
   sendSuccess(res, { items });
+}
+
+export async function signupMobileCheck(req: Request, res: Response): Promise<void> {
+  const { mobile } = signupMobileCheckSchema.parse(req.query);
+  const result = await checkSignupMobileAvailable(mobile);
+  sendSuccess(res, result);
 }
 
 export async function signupRequest(req: Request, res: Response): Promise<void> {

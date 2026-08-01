@@ -265,6 +265,41 @@ export default function SignupPage() {
   }, [draftReady, stepIndex]);
 
   useEffect(() => {
+    if (!draftReady || stepIndex !== 0 || otpSent) return;
+    const phone = draft.mobile.replace(/\D/g, "").slice(0, 10);
+    if (phone.length !== 10) {
+      setMobileError(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const { data } = await api.get<
+          ApiResponse<{ available: boolean; message?: string; code?: string }>
+        >("/auth/signup/mobile-check", { params: { mobile: phone } });
+        if (cancelled) return;
+        if (!data.success) throw new Error(data.message);
+        if (data.data.available === false) {
+          setMobileError(
+            data.data.message || "This mobile number is already registered. Please log in instead.",
+          );
+        } else {
+          setMobileError(null);
+        }
+      } catch {
+        if (!cancelled) {
+          // Don't block typing on network blips — OTP request still re-checks.
+          setMobileError(null);
+        }
+      }
+    }, 350);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [draft.mobile, draftReady, stepIndex, otpSent]);
+
+  useEffect(() => {
     if (!needsUpline) {
       setSponsor(null);
       setSponsorStatus("idle");
@@ -631,6 +666,10 @@ export default function SignupPage() {
     }
     setStepErrorKey(null);
     if (stepIndex === 0) {
+      if (mobileError) {
+        toast.error(mobileError);
+        return;
+      }
       if (!otpSent) {
         void requestOtp();
         return;
@@ -689,7 +728,7 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-screen px-4 py-6" style={{ background: B.bg }}>
-      <div className="mx-auto w-full max-w-lg rounded-3xl border bg-white p-5 shadow-xl sm:p-8" style={{ borderColor: B.border }}>
+      <div className="mx-auto w-full max-w-3xl rounded-3xl border bg-white p-6 shadow-xl sm:p-10" style={{ borderColor: B.border }}>
         <div className="mb-4 flex items-center gap-3">
           <button
             type="button"
@@ -1292,7 +1331,7 @@ export default function SignupPage() {
             <button
               type="button"
               onClick={next}
-              disabled={loading || (stepIndex === 0 && otpSent && otp.length !== 6)}
+              disabled={loading || Boolean(mobileError) || (stepIndex === 0 && otpSent && otp.length !== 6)}
               className="w-full rounded-2xl py-3.5 text-sm font-bold text-white disabled:opacity-50"
               style={{ background: B.badgeGrad }}
             >

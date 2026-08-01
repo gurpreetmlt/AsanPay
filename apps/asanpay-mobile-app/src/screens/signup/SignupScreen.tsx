@@ -88,6 +88,7 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
   const [locationBusy, setLocationBusy] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [mobileError, setMobileError] = useState<string | null>(null);
 
   const stepIndex = draft.stepIndex;
   const needsUpline = draft.role !== "master_distributor";
@@ -207,6 +208,37 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
     }
     setShowLocationModal(true);
   }, [draftReady, stepIndex, phase, draft.latitude, draft.longitude]);
+
+  useEffect(() => {
+    if (!draftReady || stepIndex !== 0 || otpSent || phase !== "steps") return;
+    const phone = draft.mobile.replace(/\D/g, "").slice(0, 10);
+    if (phone.length !== 10) {
+      setMobileError(null);
+      return;
+    }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const { data } = await api.get<
+          ApiResponse<{ available: boolean; message?: string }>
+        >("/auth/signup/mobile-check", { params: { mobile: phone } });
+        if (cancelled) return;
+        if (data.data.available === false) {
+          setMobileError(
+            data.data.message || "This mobile number is already registered. Please log in instead.",
+          );
+        } else {
+          setMobileError(null);
+        }
+      } catch {
+        if (!cancelled) setMobileError(null);
+      }
+    }, 350);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [draft.mobile, draftReady, stepIndex, otpSent, phase]);
 
   useEffect(() => {
     if (!needsUpline) {
@@ -567,6 +599,10 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
       return;
     }
     if (stepIndex === 0) {
+      if (mobileError) {
+        showAlert("Mobile already registered", mobileError);
+        return;
+      }
       if (!otpSent) {
         void requestOtp();
         return;
@@ -714,13 +750,23 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
                       setOtpSent(false);
                       setOtp("");
                       setDevOtp("");
+                      setMobileError(null);
                     }}
                     keyboardType="number-pad"
                     placeholder="10-digit mobile"
                     placeholderTextColor={tokens.mute}
                     editable={hasLocation && !otpSent}
-                    style={[inputStyle, (!hasLocation || otpSent) && { opacity: 0.5 }]}
+                    style={[
+                      inputStyle,
+                      (!hasLocation || otpSent) && { opacity: 0.5 },
+                      mobileError ? { borderColor: "#DC2626" } : null,
+                    ]}
                   />
+                  {mobileError ? (
+                    <Text style={{ color: "#DC2626", fontSize: 12, fontWeight: "700", marginBottom: 6 }}>
+                      {mobileError}
+                    </Text>
+                  ) : null}
                   <Text style={[styles.hint, { color: tokens.mute }]}>
                     Use the number linked to your Aadhaar.
                   </Text>
@@ -1175,8 +1221,16 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
 
               <Pressable
                 onPress={next}
-                disabled={loading || (stepIndex === 0 && otpSent && otp.length !== 6)}
-                style={[styles.cta, { opacity: loading || (stepIndex === 0 && otpSent && otp.length !== 6) ? 0.6 : 1 }]}
+                disabled={loading || Boolean(mobileError) || (stepIndex === 0 && otpSent && otp.length !== 6)}
+                style={[
+                  styles.cta,
+                  {
+                    opacity:
+                      loading || Boolean(mobileError) || (stepIndex === 0 && otpSent && otp.length !== 6)
+                        ? 0.6
+                        : 1,
+                  },
+                ]}
               >
                 <Text style={styles.ctaText}>{primaryLabel}</Text>
               </Pressable>

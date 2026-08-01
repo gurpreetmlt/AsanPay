@@ -175,6 +175,12 @@ export const sponsorMobileQuerySchema = z.object({
 });
 export type SponsorMobileQuery = z.infer<typeof sponsorMobileQuerySchema>;
 
+/** Live check while typing signup mobile. */
+export const signupMobileCheckSchema = z.object({
+  mobile: mobileSchema,
+});
+export type SignupMobileCheckInput = z.infer<typeof signupMobileCheckSchema>;
+
 /** Confirm mobile OTP — returns signupToken; account created on /signup/complete. */
 export const signupVerifySchema = z.object({
   mobile: mobileSchema,
