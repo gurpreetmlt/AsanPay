@@ -185,6 +185,7 @@ export default function SignupPage() {
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [stepErrorKey, setStepErrorKey] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [mobileError, setMobileError] = useState<string | null>(null);
 
   const stepIndex = draft.stepIndex;
   const needsUpline = draft.role !== "master_distributor";
@@ -464,6 +465,7 @@ export default function SignupPage() {
 
   async function requestOtp() {
     setLoading(true);
+    setMobileError(null);
     try {
       if (!draft.latitude || !draft.longitude) {
         toast.error("Allow location access before continuing");
@@ -483,7 +485,9 @@ export default function SignupPage() {
       patch({ signupToken: "" });
       toast.success(data.data.otp ? `Dev OTP: ${data.data.otp}` : "OTP sent");
     } catch (err) {
-      toast.error(extractApiError(err, "Could not send OTP"));
+      const msg = extractApiError(err, "Could not send OTP");
+      setMobileError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -729,17 +733,24 @@ export default function SignupPage() {
                       setOtpSent(false);
                       setOtp("");
                       setDevOtp(null);
+                      setMobileError(null);
                     }}
                     className={inputCls}
                     style={{
                       ...inputStyle,
                       opacity: hasLocation ? 1 : 0.55,
+                      borderColor: mobileError ? "#DC2626" : undefined,
                     }}
                     inputMode="numeric"
                     placeholder="10-digit mobile"
                     disabled={!hasLocation || otpSent}
                   />
                 </Field>
+                {mobileError ? (
+                  <p className="text-xs font-semibold" style={{ color: "#DC2626" }}>
+                    {mobileError}
+                  </p>
+                ) : null}
                 <p className="text-xs" style={{ color: B.muted }}>
                   *Enter number which is linked to your Aadhaar.
                 </p>
