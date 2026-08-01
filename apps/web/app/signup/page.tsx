@@ -420,12 +420,9 @@ export default function SignupPage() {
       if (!draft.gender) return "Select gender";
       if (!draft.dob) return "Date of birth is required";
       if (!draft.fatherName.trim()) return "Father name is required";
-      if (!draft.panImage) return "Upload PAN card image";
     }
     if (stepIndex === 3) {
       if (draft.aadhaar.replace(/\D/g, "").length !== 12) return "Enter a valid 12-digit Aadhaar";
-      if (!draft.aadhaarFront) return "Upload Aadhaar front";
-      if (!draft.aadhaarBack) return "Upload Aadhaar back";
     }
     if (stepIndex === 4) {
       if (!draft.email.trim()) return "Email is required";
@@ -452,10 +449,6 @@ export default function SignupPage() {
       if (!draft.accountNumber.trim()) return "Account number is required";
       if (draft.accountNumber !== draft.accountNumberConfirm) return "Account numbers do not match";
       if (!draft.accountName.trim()) return "Account holder name is required";
-      if (!draft.cancelledCheque) return "Upload cancelled cheque";
-    }
-    if (stepIndex === 7) {
-      if (!draft.shopPhoto) return "Upload shop photo";
     }
     if (stepIndex === 8) {
       if (!draft.agreementAccepted) return "Please accept the agent agreement";
@@ -891,7 +884,7 @@ export default function SignupPage() {
                   />
                 </Field>
                 <FileUpload
-                  label="PAN Card Image *"
+                  label="PAN Card Image (optional)"
                   meta={draft.panImage}
                   previewUrl={previews.panImage}
                   onPick={(f) => pickFile("panImage", f)}
@@ -920,7 +913,7 @@ export default function SignupPage() {
                   Enter the Aadhaar linked to your mobile number. Upload clear front and back images.
                 </p>
                 <FileUpload
-                  label="Aadhaar Front *"
+                  label="Aadhaar Front (optional)"
                   meta={draft.aadhaarFront}
                   previewUrl={previews.aadhaarFront}
                   onPick={(f) => pickFile("aadhaarFront", f)}
@@ -928,7 +921,7 @@ export default function SignupPage() {
                   error={stepErrorKey === "aadhaarFront"}
                 />
                 <FileUpload
-                  label="Aadhaar Back *"
+                  label="Aadhaar Back (optional)"
                   meta={draft.aadhaarBack}
                   previewUrl={previews.aadhaarBack}
                   onPick={(f) => pickFile("aadhaarBack", f)}
@@ -1167,7 +1160,7 @@ export default function SignupPage() {
                   />
                 </Field>
                 <FileUpload
-                  label="Cancelled Cheque *"
+                  label="Cancelled Cheque (optional)"
                   meta={draft.cancelledCheque}
                   previewUrl={previews.cancelledCheque}
                   onPick={(f) => pickFile("cancelledCheque", f)}
@@ -1179,7 +1172,7 @@ export default function SignupPage() {
 
             {stepIndex === 7 && (
               <FileUpload
-                label="Shop Photo *"
+                label="Shop Photo (optional)"
                 meta={draft.shopPhoto}
                 previewUrl={previews.shopPhoto}
                 accept="image/jpeg,image/png,image/webp,image/heic,image/heif"

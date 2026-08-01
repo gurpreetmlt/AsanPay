@@ -309,18 +309,25 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
     if (stepIndex === 1) {
       if (draft.name.trim().length < 2) return "Full name is required";
       if (!draft.password || draft.password.length < 8) return "Password must be at least 8 characters";
-      if (needsUpline && !sponsorOk) return "Enter a valid upline mobile";
+      if (!/[A-Za-z]/.test(draft.password)) return "Password must contain a letter";
+      if (!/\d/.test(draft.password)) return "Password must contain a number";
+      if (needsUpline) {
+        const phone = draft.sponsorMobile.replace(/\D/g, "");
+        if (phone.length !== 10) return "Enter a valid 10-digit upline mobile";
+        if (!sponsorOk || !draft.sponsorUid) {
+          return "Distributor / Super Distributor not found for this mobile. Use an active upline number.";
+        }
+      }
     }
     if (stepIndex === 2) {
       if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(draft.pan)) return "Enter a valid PAN";
       if (!draft.gender) return "Select gender";
       if (!draft.dob) return "DOB required (YYYY-MM-DD)";
       if (!draft.fatherName.trim()) return "Father name is required";
-      if (!draft.panImage) return "Upload PAN card";
+      // Document uploads optional until S3 is wired — filename stubs only today.
     }
     if (stepIndex === 3) {
       if (draft.aadhaar.replace(/\D/g, "").length !== 12) return "Enter valid 12-digit Aadhaar";
-      if (!draft.aadhaarFront || !draft.aadhaarBack) return "Upload Aadhaar front and back";
     }
     if (stepIndex === 4) {
       if (!draft.email.trim()) return "Email is required";
@@ -341,9 +348,8 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
       if (!draft.accountNumber || draft.accountNumber !== draft.accountNumberConfirm) {
         return "Account numbers must match";
       }
-      if (!draft.accountName.trim() || !draft.cancelledCheque) return "Account name and cheque required";
+      if (!draft.accountName.trim()) return "Account holder name is required";
     }
-    if (stepIndex === 7 && !draft.shopPhoto) return "Upload shop photo";
     if (stepIndex === 8 && !draft.agreementAccepted) return "Accept the agreement";
     return null;
   }
@@ -354,6 +360,13 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
       if (!draft.latitude || !draft.longitude) {
         showAlert("Location required", "Allow location access before continuing");
         setShowLocationModal(true);
+        return;
+      }
+      if (needsUpline && !draft.sponsorUid) {
+        showAlert(
+          "Upline required",
+          "Wait until the Distributor / Super Distributor name appears under the mobile field, then try again.",
+        );
         return;
       }
       const { data } = await api.post<ApiResponse<{ otp?: string }>>("/auth/signup/request", {
@@ -821,7 +834,7 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
                     style={inputStyle}
                   />
                   <UploadRow
-                    label="PAN Card Image *"
+                    label="PAN Card Image (optional)"
                     done={Boolean(draft.panImage)}
                     name={draft.panImage?.name}
                     onPress={() => markUpload("panImage", "pan")}
@@ -846,14 +859,14 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
                     style={inputStyle}
                   />
                   <UploadRow
-                    label="Aadhaar Front *"
+                    label="Aadhaar Front (optional)"
                     done={Boolean(draft.aadhaarFront)}
                     name={draft.aadhaarFront?.name}
                     onPress={() => markUpload("aadhaarFront", "aadhaar-front")}
                     tokens={tokens}
                   />
                   <UploadRow
-                    label="Aadhaar Back *"
+                    label="Aadhaar Back (optional)"
                     done={Boolean(draft.aadhaarBack)}
                     name={draft.aadhaarBack?.name}
                     onPress={() => markUpload("aadhaarBack", "aadhaar-back")}
@@ -1041,7 +1054,7 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
                     style={inputStyle}
                   />
                   <UploadRow
-                    label="Cancelled Cheque *"
+                    label="Cancelled Cheque (optional)"
                     done={Boolean(draft.cancelledCheque)}
                     name={draft.cancelledCheque?.name}
                     onPress={() => markUpload("cancelledCheque", "cheque")}
@@ -1055,7 +1068,7 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
                   <Text style={styles.sectionTitle}>Business Images</Text>
                   <Text style={[styles.hint, { color: tokens.mute }]}>Upload a clear photo of your shop front.</Text>
                   <UploadRow
-                    label="Shop Photo *"
+                    label="Shop Photo (optional)"
                     done={Boolean(draft.shopPhoto)}
                     name={draft.shopPhoto?.name}
                     onPress={() => markUpload("shopPhoto", "shop")}

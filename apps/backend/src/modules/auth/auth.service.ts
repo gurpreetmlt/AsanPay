@@ -1,5 +1,5 @@
 import { randomBytes, randomInt, timingSafeEqual } from "node:crypto";
-import { eq, and, isNull, like } from "drizzle-orm";
+import { eq, and, isNull, like, sql } from "drizzle-orm";
 import { db } from "../../db/postgres";
 import { users, userHierarchy, refreshTokens } from "../../db/postgres/schema";
 import { provisionWalletsForUser } from "../wallet/wallet.service";
@@ -906,7 +906,8 @@ export async function searchSponsorsByMobile(
     .from(users)
     .where(
       and(
-        like(users.mobile, `${mobile}%`),
+        // Match last-10 digits even if stored with country code / spaces.
+        sql`regexp_replace(${users.mobile}, '[^0-9]', '', 'g') like ${"%" + mobile}`,
         eq(users.role, sponsorRole),
         eq(users.isActive, true),
       ),
@@ -916,7 +917,7 @@ export async function searchSponsorsByMobile(
   return rows.map((r) => ({
     uid: r.uid,
     name: r.name,
-    mobile: r.mobile,
+    mobile: r.mobile.replace(/\D/g, "").slice(-10),
     role: r.role as SponsorSearchRole,
   }));
 }
@@ -934,7 +935,11 @@ export async function requestSignupOtp(
 
   const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.mobile, input.mobile));
   if (existing) {
-    throw new HttpError(422, "Unable to complete signup request", "SIGNUP_REJECTED");
+    throw new HttpError(
+      422,
+      "This mobile number is already registered. Please log in instead.",
+      "MOBILE_TAKEN",
+    );
   }
 
   let sponsorUid: string;
@@ -952,7 +957,13 @@ export async function requestSignupOtp(
     const uid = (input.sponsorUid ?? "").trim().toUpperCase();
     const [sponsor] = await db.select().from(users).where(eq(users.uid, uid));
     if (!sponsor || !sponsor.isActive || sponsor.role !== expectedSponsorRole) {
-      throw new HttpError(422, "Unable to complete signup request", "SIGNUP_REJECTED");
+      const uplineLabel =
+        expectedSponsorRole === "master_distributor" ? "Super Distributor" : "Distributor";
+      throw new HttpError(
+        422,
+        `${uplineLabel} not found or inactive. Check the upline mobile and try again.`,
+        "INVALID_SPONSOR",
+      );
     }
     sponsorUid = sponsor.uid;
     sponsorId = sponsor.id;
