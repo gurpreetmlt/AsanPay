@@ -52,6 +52,9 @@ export interface AuthUser {
   role: UserRole;
   name: string;
   mobile: string;
+  email: string | null;
+  /** ISO timestamp when email was confirmed via OTP; null if unverified. */
+  emailVerifiedAt: string | null;
   parentId: string | null;
   kycStatus: KycStatus;
   isActive: boolean;

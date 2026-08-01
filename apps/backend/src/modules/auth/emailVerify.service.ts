@@ -1,0 +1,155 @@
+import { randomInt, timingSafeEqual } from "node:crypto";
+import { and, eq, ne } from "drizzle-orm";
+import { db } from "../../db/postgres";
+import { users } from "../../db/postgres/schema";
+import { hashToken } from "../../utils/uid";
+import { HttpError } from "../../utils/httpError";
+import { logger } from "../../utils/logger";
+import { emailVerificationTemplate, isMailerConfigured, sendMail } from "../../utils/mailer";
+import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
+import {
+  MAX_OTP_ATTEMPTS,
+  findLatestActiveOtp,
+  incrementOtpAttempts,
+  insertOtpRequest,
+  markOtpConsumed,
+} from "../../db/postgres/repositories/otpRequest";
+
+/** Shorter than the login/signup window — the user is already on the dashboard. */
+const EMAIL_OTP_TTL_MS = 10 * 60 * 1000;
+
+function otpHashesEqual(storedHash: string, candidateOtp: string): boolean {
+  const a = Buffer.from(storedHash, "hex");
+  const b = Buffer.from(hashToken(candidateOtp), "hex");
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
+/**
+ * Sends a 6-digit code to `email` for the signed-in user. The OTP row is keyed by
+ * the user's mobile (same as login/signup) with the target address in meta, so the
+ * address is only written to users after it has actually been confirmed.
+ */
+export async function requestEmailVerifyOtp(input: {
+  userId: string;
+  email: string;
+}): Promise<{ message: string; expiresInSeconds: number }> {
+  if (!isMailerConfigured()) {
+    throw new HttpError(503, "Email is not configured on this server", "EMAIL_NOT_CONFIGURED");
+  }
+
+  const email = input.email.trim().toLowerCase();
+
+  const [row] = await db
+    .select({
+      id: users.id,
+      mobile: users.mobile,
+      email: users.email,
+      emailVerifiedAt: users.emailVerifiedAt,
+    })
+    .from(users)
+    .where(eq(users.id, input.userId));
+
+  if (!row) throw new HttpError(404, "User not found", "USER_NOT_FOUND");
+
+  if (row.email === email && row.emailVerifiedAt) {
+    throw new HttpError(409, "This email is already verified", "EMAIL_ALREADY_VERIFIED");
+  }
+
+  // users.email is unique — reject early with a clear message instead of a DB error on verify.
+  const [taken] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.email, email), ne(users.id, input.userId)));
+  if (taken) {
+    throw new HttpError(409, "This email is already in use", "EMAIL_TAKEN");
+  }
+
+  const otp = randomInt(100000, 1000000).toString();
+
+  await insertOtpRequest({
+    mobile: row.mobile,
+    otpHash: hashToken(otp),
+    purpose: "email_verify",
+    expiresAt: new Date(Date.now() + EMAIL_OTP_TTL_MS),
+    meta: { email },
+  });
+
+  const template = emailVerificationTemplate(otp, EMAIL_OTP_TTL_MS / 60000);
+  const sent = await sendMail({ ...template, to: email });
+  if (!sent) {
+    throw new HttpError(502, "Could not send the verification email", "EMAIL_SEND_FAILED");
+  }
+
+  await insertAuditLog({
+    userId: row.id,
+    action: "auth.email_verify_requested",
+    entityType: "user",
+    entityId: row.id,
+    // The address is not a secret; the OTP never leaves this function.
+    metadata: { email },
+  });
+
+  logger.info({ userId: row.id }, "Email verification OTP sent");
+
+  return {
+    message: "Verification code sent",
+    expiresInSeconds: EMAIL_OTP_TTL_MS / 1000,
+  };
+}
+
+/** Confirms the code and writes the address + verified timestamp onto the user. */
+export async function verifyEmailOtp(input: {
+  userId: string;
+  otp: string;
+}): Promise<{ email: string; emailVerifiedAt: string }> {
+  const [row] = await db
+    .select({ id: users.id, mobile: users.mobile })
+    .from(users)
+    .where(eq(users.id, input.userId));
+
+  if (!row) throw new HttpError(404, "User not found", "USER_NOT_FOUND");
+
+  const record = await findLatestActiveOtp({ mobile: row.mobile, purpose: "email_verify" });
+
+  if (!record) {
+    throw new HttpError(
+      401,
+      "Code has expired or was not requested. Please request a new one.",
+      "OTP_EXPIRED",
+    );
+  }
+
+  if (record.attempts >= MAX_OTP_ATTEMPTS) {
+    throw new HttpError(401, "Too many incorrect attempts — request a new code", "OTP_LOCKED");
+  }
+
+  if (!otpHashesEqual(record.otpHash, input.otp)) {
+    await incrementOtpAttempts(record.id);
+    throw new HttpError(401, "Incorrect code", "OTP_INCORRECT");
+  }
+
+  const email = record.meta?.email;
+  if (!email) {
+    // Should not happen — a code issued without a target address cannot be applied.
+    throw new HttpError(500, "Verification record is incomplete", "OTP_META_MISSING");
+  }
+
+  await markOtpConsumed(record.id);
+
+  const verifiedAt = new Date();
+  await db
+    .update(users)
+    .set({ email, emailVerifiedAt: verifiedAt })
+    .where(eq(users.id, row.id));
+
+  await insertAuditLog({
+    userId: row.id,
+    action: "auth.email_verified",
+    entityType: "user",
+    entityId: row.id,
+    metadata: { email },
+  });
+
+  return { email, emailVerifiedAt: verifiedAt.toISOString() };
+}

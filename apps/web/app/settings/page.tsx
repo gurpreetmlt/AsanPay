@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { AppShell } from "@/components/layout/AppShell";
+import { EmailVerifyField } from "@/components/EmailVerifyField";
 import { B, initials, roleFromUserRole } from "@/lib/brand";
 import { extractApiError } from "@/lib/onboarding";
 import { useAuthStore } from "@/lib/store";
@@ -58,6 +59,7 @@ export default function SettingsPage() {
   const [active, setActive] = useState("profile");
   const [showPin, setShowPin] = useState(false);
   const [bioLoading, setBioLoading] = useState(false);
+  const [email, setEmail] = useState("");
   const [notifs, setNotifs] = useState({
     sms: true,
     email: true,
@@ -65,6 +67,10 @@ export default function SettingsPage() {
     txn: true,
     commission: false,
   });
+
+  useEffect(() => {
+    setEmail(user?.email ?? "");
+  }, [user?.email]);
 
   async function handleEnableBiometric() {
     if (!user || !refreshToken || refreshToken === "cookie") {
@@ -173,10 +179,14 @@ export default function SettingsPage() {
                   {[
                     { label: "Full Name", value: name, type: "text" },
                     { label: "Mobile", value: mobile, type: "tel" },
-                    { label: "Email", value: "", type: "email", placeholder: "email@example.com" },
-                    { label: "UID", value: uid, type: "text" },
-                    { label: "Role", value: role.label, type: "text" },
-                    { label: "Account Status", value: user?.isActive ? "Active" : "Inactive", type: "text" },
+                    { label: "UID", value: uid, type: "text", readOnly: true },
+                    { label: "Role", value: role.label, type: "text", readOnly: true },
+                    {
+                      label: "Account Status",
+                      value: user?.isActive ? "Active" : "Inactive",
+                      type: "text",
+                      readOnly: true,
+                    },
                   ].map((f) => (
                     <div key={f.label}>
                       <label
@@ -188,13 +198,20 @@ export default function SettingsPage() {
                       <input
                         type={f.type}
                         defaultValue={f.value}
-                        placeholder={"placeholder" in f ? f.placeholder : undefined}
-                        readOnly={f.label === "UID" || f.label === "Role"}
+                        readOnly={"readOnly" in f ? f.readOnly : false}
                         className="w-full rounded-xl border px-4 py-2.5 text-sm focus:outline-none"
                         style={{ borderColor: B.border, background: B.bg, color: B.blue }}
                       />
                     </div>
                   ))}
+                  <div className="col-span-2">
+                    <EmailVerifyField
+                      email={email}
+                      onChange={setEmail}
+                      inputClassName="w-full rounded-xl border px-4 py-2.5 text-sm focus:outline-none"
+                      inputStyle={{ borderColor: B.border, background: B.bg, color: B.blue }}
+                    />
+                  </div>
                 </div>
                 <button
                   type="button"

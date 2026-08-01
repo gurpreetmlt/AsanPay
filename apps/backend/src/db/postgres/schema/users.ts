@@ -24,6 +24,9 @@ export const users = pgTable(
     name: varchar("name", { length: 120 }).notNull(),
     mobile: varchar("mobile", { length: 15 }).notNull().unique(),
     email: varchar("email", { length: 150 }).unique(),
+    // Set when the address is confirmed via an email_verify OTP. Invoices and
+    // statements are only sent to a verified address.
+    emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
     passwordHash: text("password_hash").notNull(),
     // 4-6 digit transaction PIN (bcrypt) — required on every money-moving endpoint,
     // separate from the login password so a hijacked session alone can't move funds.

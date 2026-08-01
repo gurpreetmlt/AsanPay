@@ -35,6 +35,7 @@
 - [x] Wallet `pendingBalance` on `/wallet/me` (from pending/initiated txns)
 - [x] AEPS dummy↔live switch (`AEPS_PROVIDER_MODE`) + InstantPay adapter skeleton
 - [x] AEPS compliance gates (geofence, bio-mismatch/EDD, dormancy, cash receipt)
+- [x] Email verification OTP (`/auth/email/otp/*`) + web Verify UI (KYC, outlet, settings)
 - [ ] Fund request approve flow
 - [x] SD/D direct-child Active/Inactive (`PATCH /users/:id/active`)
 - [x] Admin network tree move (`POST /admin/users/:id/reassign`) + hierarchy rebuild
@@ -70,6 +71,7 @@
 - [ ] History purge for any secrets ever pushed to remote
 
 ## Last updated
+2026-08-01 — Email verify: OTP endpoints + AuthUser email fields + web Verify UI (KYC / outlet / settings)
 2026-07-20 — Signup: role select + upline mobile (SD→Admin, Dist→SD, Retailer→Dist)
 2026-07-20 — Distributor activity metric (success txns) + monthly history; Quick Actions up; Collect/Debit → Reverse
 2026-07-20 — Wallet pull (Wapas): child OTP + parent PIN; `flow/` agent docs; migration `0015_wallet_pull_otp`

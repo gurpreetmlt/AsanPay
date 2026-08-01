@@ -6,6 +6,7 @@ import { toast } from "react-hot-toast";
 import { MapPin, Store } from "lucide-react";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import { AppShell } from "@/components/layout/AppShell";
+import { EmailVerifyField } from "@/components/EmailVerifyField";
 import api from "@/lib/api";
 import { formatAadhaar, stripAadhaar } from "@/lib/aadhaar";
 import { B } from "@/lib/brand";
@@ -50,6 +51,7 @@ export default function RegisterOutletPage() {
       ...f,
       name: f.name || user.name,
       mobile: f.mobile || user.mobile || "",
+      email: f.email || user.email || "",
     }));
   }, [user]);
 
@@ -293,16 +295,12 @@ export default function RegisterOutletPage() {
             </div>
 
             <div className="sm:col-span-2">
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-wider" style={{ color: B.muted }}>
-                Email
-              </label>
-              <input
+              <EmailVerifyField
                 required
-                type="email"
-                value={form.email}
-                onChange={(e) => set("email", e.target.value)}
-                className={inputCls}
-                style={inputStyle}
+                email={form.email}
+                onChange={(v) => set("email", v)}
+                inputClassName={inputCls}
+                inputStyle={inputStyle}
               />
             </div>
 

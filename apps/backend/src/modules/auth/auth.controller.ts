@@ -11,6 +11,10 @@ import {
   signupVerifySchema,
   sponsorUidParamSchema,
   sponsorMobileQuerySchema,
+  mpinLoginSchema,
+  setLoginMpinSchema,
+  emailVerifyRequestSchema,
+  emailVerifyConfirmSchema,
 } from "./auth.validators";
 import {
   registerUser,
@@ -29,6 +33,10 @@ import {
   listUserDevices,
   revokeUserDevice,
 } from "./auth.service";
+import {
+  requestEmailVerifyOtp,
+  verifyEmailOtp,
+} from "./emailVerify.service";
 import { setTxnPin, verifyTxnPinAndIssueAuth } from "./txnPin";
 import { getAgentAuthStatus, verifyAndRecordAgentAuth } from "./agentAuth";
 import { db } from "../../db/postgres";
@@ -36,7 +44,6 @@ import { users } from "../../db/postgres/schema";
 import { comparePassword } from "../../utils/password";
 import { sendSuccess } from "../../utils/apiResponse";
 import { HttpError } from "../../utils/httpError";
-import { mpinLoginSchema, setLoginMpinSchema } from "./auth.validators";
 
 export async function register(req: Request, res: Response): Promise<void> {
   if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
@@ -119,6 +126,20 @@ export async function setMpin(req: Request, res: Response): Promise<void> {
   const input = setLoginMpinSchema.parse(req.body);
   const user = await setLoginMpin(req.auth.sub, input);
   sendSuccess(res, { user }, "Login MPIN set successfully");
+}
+
+export async function requestEmailOtp(req: Request, res: Response): Promise<void> {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const input = emailVerifyRequestSchema.parse(req.body);
+  const result = await requestEmailVerifyOtp({ userId: req.auth.sub, email: input.email });
+  sendSuccess(res, result, result.message);
+}
+
+export async function verifyEmailOtpHandler(req: Request, res: Response): Promise<void> {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const input = emailVerifyConfirmSchema.parse(req.body);
+  const result = await verifyEmailOtp({ userId: req.auth.sub, otp: input.otp });
+  sendSuccess(res, result, "Email verified successfully");
 }
 
 export async function listDevices(req: Request, res: Response): Promise<void> {

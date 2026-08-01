@@ -260,14 +260,14 @@ async function main() {
     inserted += 1;
   }
 
-  const [{ count }] = await db
+  const [txnCountRow] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(transactions)
     .where(eq(transactions.userId, retailer.id));
 
   console.log(`Txns inserted this run: ${inserted}`);
   console.log(`Txns skipped (already present): ${skipped}`);
-  console.log(`Txns total for this retailer: ${count}`);
+  console.log(`Txns total for this retailer: ${txnCountRow?.count ?? 0}`);
   console.log("Login agent web :3001 → Retailer One → Transactions (refresh). Restart backend if it was already running.");
   await pgPool.end();
 }

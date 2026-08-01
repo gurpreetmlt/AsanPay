@@ -84,6 +84,8 @@ function toAuthUser(row: typeof users.$inferSelect): AuthUser {
     role: row.role,
     name: row.name,
     mobile: row.mobile,
+    email: row.email ?? null,
+    emailVerifiedAt: row.emailVerifiedAt ? row.emailVerifiedAt.toISOString() : null,
     parentId: row.parentId,
     kycStatus: row.kycStatus,
     isActive: row.isActive,

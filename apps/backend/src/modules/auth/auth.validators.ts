@@ -108,6 +108,16 @@ export const setLoginMpinSchema = z.object({
 });
 export type SetLoginMpinInput = z.infer<typeof setLoginMpinSchema>;
 
+export const emailVerifyRequestSchema = z.object({
+  email: z.string().trim().toLowerCase().email(),
+});
+export type EmailVerifyRequestInput = z.infer<typeof emailVerifyRequestSchema>;
+
+export const emailVerifyConfirmSchema = z.object({
+  otp: z.string().regex(/^\d{6}$/, "OTP must be 6 digits"),
+});
+export type EmailVerifyConfirmInput = z.infer<typeof emailVerifyConfirmSchema>;
+
 /** Public self-signup under an upline (sponsor UID). Role = account being created. */
 export const SIGNUP_CHILD_ROLES = ["master_distributor", "distributor", "retailer"] as const;
 export type SignupChildRole = (typeof SIGNUP_CHILD_ROLES)[number];

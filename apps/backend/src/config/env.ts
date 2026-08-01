@@ -58,6 +58,18 @@ const envSchema = z.object({
    * Set 0 to disable the worker. Default 5 minutes.
    */
   TXN_RECONCILE_INTERVAL_MS: z.coerce.number().int().min(0).default(5 * 60 * 1000),
+  /**
+   * SMTP for outbound mail (email-verify OTPs, later invoices/statements).
+   * Currently Google Workspace: smtp.gmail.com:587 with an App Password for
+   * no-reply@asanpay.in. All four must be set for mail to send — if any is
+   * missing the mailer stays disabled and email verification is unavailable.
+   */
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().default(587),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  /** From header, e.g. "AsanPay <no-reply@asanpay.in>". Falls back to SMTP_USER. */
+  SMTP_FROM: z.string().optional(),
   /** Optional Slack/Teams-compatible incoming webhook URL for ops alerts (recon failures, stuck txns). */
   ALERT_WEBHOOK_URL: z.string().url().optional(),
   /** Retailer alert system — critical channel (txn failure, wallet mismatch, fraud, KYC block). */

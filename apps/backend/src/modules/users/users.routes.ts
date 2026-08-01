@@ -27,7 +27,12 @@ usersRouter.patch(
   async (req, res) => {
     if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
     const body = z.object({ isActive: z.boolean() }).parse(req.body);
-    const result = await setDirectChildActive(req.auth.sub, req.auth.role, req.params.id, body.isActive);
+    const result = await setDirectChildActive(
+      req.auth.sub,
+      req.auth.role,
+      req.params.id as string,
+      body.isActive,
+    );
     sendSuccess(res, result, body.isActive ? "User activated" : "User deactivated");
   },
 );

@@ -16,6 +16,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
+import { EmailVerifyField } from "@/components/EmailVerifyField";
 import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
@@ -97,10 +98,14 @@ export default function KycPage() {
   }, [hydrated, accessToken, router]);
 
   useEffect(() => {
-    if (user?.name) {
-      setForm((f) => ({ ...f, fullName: f.fullName || user.name, accountName: f.accountName || user.name }));
-    }
-  }, [user?.name]);
+    if (!user) return;
+    setForm((f) => ({
+      ...f,
+      fullName: f.fullName || user.name,
+      accountName: f.accountName || user.name,
+      email: f.email || user.email || "",
+    }));
+  }, [user]);
 
   if (!hydrated || !accessToken) return null;
 
@@ -246,7 +251,9 @@ export default function KycPage() {
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Full Name" placeholder="As per Aadhaar" value={form.fullName} onChange={(v) => set("fullName", v)} />
                 <Field label="Date of Birth" placeholder="DD/MM/YYYY" value={form.dob} onChange={(v) => set("dob", v)} type="date" />
-                <Field label="Email" placeholder="email@example.com" value={form.email} onChange={(v) => set("email", v)} type="email" />
+                <div className="col-span-2">
+                  <EmailVerifyField email={form.email} onChange={(v) => set("email", v)} />
+                </div>
                 <Field label="City" placeholder="City" value={form.city} onChange={(v) => set("city", v)} />
                 <div className="col-span-2">
                   <Field label="Address" placeholder="Full address" value={form.address} onChange={(v) => set("address", v)} />
