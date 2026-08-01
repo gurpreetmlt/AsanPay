@@ -13,6 +13,10 @@ vars), pointing at the same API.
 - `apps/admin-web/lib/brand.ts` — same pattern.
 - Both apps' `app/layout.tsx` (browser tab title) — same env vars.
 - Admin login screen heading (`{brand.name} Admin`) — reads from config.
+- Mobile release signing — `BRAND_NAME` (default AsanPay in
+  `apps/asanpay-mobile-app/android/gradle.properties`) maps to
+  `${BRAND_NAME}_UPLOAD_*` keys (e.g. `ASANPAY_UPLOAD_STORE_FILE`). Secrets live in
+  `~/.gradle/gradle.properties` or CI — never commit passwords.
 
 ## What's still hardcoded (by design, for now)
 
@@ -36,6 +40,9 @@ vars), pointing at the same API.
    API_URL=https://api.asanpay.in/api   # same shared backend
    ```
 3. Swap `Logo.tsx` for that deployment (until logo-upload exists).
-4. Deploy. No backend change, no database change — same tenant-less shared
+4. Mobile release APK (optional): set `BRAND_NAME=ClientBrand` and
+   `CLIENTBRAND_UPLOAD_STORE_FILE` / `_PASSWORD` / `_KEY_ALIAS` / `_KEY_PASSWORD`
+   in `~/.gradle/gradle.properties` (or CI), then `assembleRelease`.
+5. Deploy. No backend change, no database change — same tenant-less shared
    backend unless/until the business actually needs per-client data isolation
    (that's a separate, bigger decision — flag it before building it).

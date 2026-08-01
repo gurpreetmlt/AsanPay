@@ -32,6 +32,12 @@ def enableProguardInReleaseBuilds = false
  */
 def jscFlavor = 'org.webkit:android-jsc:+'
 
+/** White-label brand key: BRAND_NAME=AsanPay → ASANPAY (matches brand.name / BRAND_DEFAULTS.name). */
+def brandUploadKey = ((project.findProperty("BRAND_NAME") ?: "AsanPay") as String)
+    .toUpperCase()
+    .replaceAll(/[^A-Z0-9]+/, "_")
+    .replaceAll(/^_+|_+$/, "")
+
 android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
@@ -55,12 +61,17 @@ android {
             keyPassword 'android'
         }
         release {
-            // Production signing — set via gradle.properties / CI secrets. Never use debug keystore.
-            if (project.hasProperty('ADHIKARI_UPLOAD_STORE_FILE')) {
-                storeFile file(ADHIKARI_UPLOAD_STORE_FILE)
-                storePassword ADHIKARI_UPLOAD_STORE_PASSWORD
-                keyAlias ADHIKARI_UPLOAD_KEY_ALIAS
-                keyPassword ADHIKARI_UPLOAD_KEY_PASSWORD
+            // ${brandUploadKey}_UPLOAD_STORE_FILE etc. in ~/.gradle/gradle.properties (or CI).
+            def storeFileKey = "${brandUploadKey}_UPLOAD_STORE_FILE"
+            def storePassKey = "${brandUploadKey}_UPLOAD_STORE_PASSWORD"
+            def keyAliasKey = "${brandUploadKey}_UPLOAD_KEY_ALIAS"
+            def keyPassKey = "${brandUploadKey}_UPLOAD_KEY_PASSWORD"
+
+            if (project.hasProperty(storeFileKey)) {
+                storeFile file(project.property(storeFileKey) as String)
+                storePassword(project.property(storePassKey) as String)
+                keyAlias(project.property(keyAliasKey) as String)
+                keyPassword(project.property(keyPassKey) as String)
             }
         }
     }
@@ -69,8 +80,8 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
-            // Fail closed: unsigned if release keystore props missing (do not fall back to debug).
-            if (project.hasProperty('ADHIKARI_UPLOAD_STORE_FILE')) {
+            // Fail closed: unsigned if brand upload keystore props missing (do not fall back to debug).
+            if (project.hasProperty("${brandUploadKey}_UPLOAD_STORE_FILE")) {
                 signingConfig signingConfigs.release
             }
             minifyEnabled enableProguardInReleaseBuilds

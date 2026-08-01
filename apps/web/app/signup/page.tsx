@@ -103,9 +103,10 @@ function FileUpload({
   label,
   meta,
   previewUrl,
-  accept = "image/jpeg,image/png,image/webp,application/pdf",
+  accept = "image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf",
   onPick,
   onClear,
+  error,
 }: {
   label: string;
   meta: SignupFileMeta | null;
@@ -113,13 +114,17 @@ function FileUpload({
   accept?: string;
   onPick: (file: File) => void;
   onClear: () => void;
+  error?: boolean;
 }) {
   return (
     <div>
       <Label>{label}</Label>
       <label
-        className="flex cursor-pointer flex-col gap-2 rounded-2xl border-2 border-dashed px-4 py-4"
-        style={{ borderColor: B.border, background: B.bg }}
+        className="flex cursor-pointer flex-col gap-2 rounded-2xl border-2 border-dashed px-4 py-4 transition"
+        style={{
+          borderColor: error ? "#DC2626" : meta ? B.green : B.border,
+          background: error ? "#FEF2F2" : B.bg,
+        }}
       >
         <input
           type="file"
@@ -128,19 +133,25 @@ function FileUpload({
           onChange={(e) => {
             const f = e.target.files?.[0];
             if (f) onPick(f);
+            e.target.value = "";
           }}
         />
         {previewUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={previewUrl} alt="" className="max-h-28 rounded-xl object-contain" />
         ) : null}
-        <span className="text-sm font-semibold" style={{ color: B.blue }}>
-          {meta ? meta.name : "Tap to upload"}
+        <span className="text-sm font-semibold" style={{ color: error ? "#DC2626" : B.blue }}>
+          {meta ? meta.name : "Tap to upload PAN card"}
         </span>
         <span className="text-xs" style={{ color: B.muted }}>
-          JPG, PNG, WEBP or PDF · max 2 MB
+          JPG, PNG, WEBP, HEIC or PDF · max 2 MB
         </span>
       </label>
+      {error && !meta ? (
+        <p className="mt-1 text-xs font-semibold" style={{ color: "#DC2626" }}>
+          PAN card image is required
+        </p>
+      ) : null}
       {meta ? (
         <button type="button" className="mt-1 text-xs font-semibold underline" style={{ color: B.muted }} onClick={onClear}>
           Remove
@@ -172,6 +183,7 @@ export default function SignupPage() {
   const [locationBusy, setLocationBusy] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [showTermsModal, setShowTermsModal] = useState(false);
+  const [stepErrorKey, setStepErrorKey] = useState<string | null>(null);
 
   const stepIndex = draft.stepIndex;
   const needsUpline = draft.role !== "master_distributor";
@@ -352,9 +364,12 @@ export default function SignupPage() {
     >,
     file: File,
   ) {
-    const ok = /^(image\/(jpeg|jpg|png|webp)|application\/pdf)$/i.test(file.type);
-    if (!ok) {
-      toast.error("Upload JPG, PNG, WEBP, or PDF only");
+    const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+    const mimeOk = /^(image\/(jpeg|jpg|png|webp|heic|heif)|application\/pdf)$/i.test(file.type);
+    const extOk = ["jpg", "jpeg", "png", "webp", "heic", "heif", "pdf"].includes(ext);
+    // Some mobile browsers send an empty MIME type — fall back to extension.
+    if (!(mimeOk || (!file.type && extOk))) {
+      toast.error("Upload JPG, PNG, WEBP, HEIC, or PDF only");
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
@@ -362,13 +377,15 @@ export default function SignupPage() {
       return;
     }
     patch({ [key]: fileMeta(file) });
-    if (file.type.startsWith("image/")) {
+    setStepErrorKey(null);
+    if (file.type.startsWith("image/") || ["jpg", "jpeg", "png", "webp", "heic", "heif"].includes(ext)) {
       const url = URL.createObjectURL(file);
       setPreviews((p) => {
         if (p[key]) URL.revokeObjectURL(p[key]);
         return { ...p, [key]: url };
       });
     }
+    toast.success(`${file.name} selected`);
   }
 
   function clearFile(
@@ -571,8 +588,15 @@ export default function SignupPage() {
     const err = validateStep();
     if (err) {
       toast.error(err);
+      if (err.toLowerCase().includes("pan card image")) setStepErrorKey("panImage");
+      else if (err.toLowerCase().includes("aadhaar front")) setStepErrorKey("aadhaarFront");
+      else if (err.toLowerCase().includes("aadhaar back")) setStepErrorKey("aadhaarBack");
+      else if (err.toLowerCase().includes("cheque")) setStepErrorKey("cancelledCheque");
+      else if (err.toLowerCase().includes("shop photo")) setStepErrorKey("shopPhoto");
+      else setStepErrorKey(null);
       return;
     }
+    setStepErrorKey(null);
     if (stepIndex === 1) {
       void requestOtp();
       return;
@@ -859,6 +883,7 @@ export default function SignupPage() {
                   previewUrl={previews.panImage}
                   onPick={(f) => pickFile("panImage", f)}
                   onClear={() => clearFile("panImage")}
+                  error={stepErrorKey === "panImage"}
                 />
               </>
             )}
@@ -887,6 +912,7 @@ export default function SignupPage() {
                   previewUrl={previews.aadhaarFront}
                   onPick={(f) => pickFile("aadhaarFront", f)}
                   onClear={() => clearFile("aadhaarFront")}
+                  error={stepErrorKey === "aadhaarFront"}
                 />
                 <FileUpload
                   label="Aadhaar Back *"
@@ -894,6 +920,7 @@ export default function SignupPage() {
                   previewUrl={previews.aadhaarBack}
                   onPick={(f) => pickFile("aadhaarBack", f)}
                   onClear={() => clearFile("aadhaarBack")}
+                  error={stepErrorKey === "aadhaarBack"}
                 />
               </>
             )}
@@ -1132,6 +1159,7 @@ export default function SignupPage() {
                   previewUrl={previews.cancelledCheque}
                   onPick={(f) => pickFile("cancelledCheque", f)}
                   onClear={() => clearFile("cancelledCheque")}
+                  error={stepErrorKey === "cancelledCheque"}
                 />
               </>
             )}
@@ -1141,9 +1169,10 @@ export default function SignupPage() {
                 label="Shop Photo *"
                 meta={draft.shopPhoto}
                 previewUrl={previews.shopPhoto}
-                accept="image/jpeg,image/png,image/webp"
+                accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
                 onPick={(f) => pickFile("shopPhoto", f)}
                 onClear={() => clearFile("shopPhoto")}
+                error={stepErrorKey === "shopPhoto"}
               />
             )}
 

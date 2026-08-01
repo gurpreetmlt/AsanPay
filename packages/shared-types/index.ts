@@ -147,6 +147,8 @@ export function serviceIconPath(icon: string | null | undefined): string | null 
  * only has to happen in one place. Web can still override at runtime via
  * NEXT_PUBLIC_BRAND_NAME/NEXT_PUBLIC_BRAND_TAGLINE; the mobile app is compiled, so a brand
  * change there always needs a fresh release build regardless of where the constant lives.
+ * Android release signing uses the same brand string via Gradle `BRAND_NAME` →
+ * e.g. AsanPay → ASANPAY_UPLOAD_STORE_FILE (secrets in ~/.gradle/gradle.properties).
  */
 export const BRAND_DEFAULTS = {
   name: "AsanPay",
