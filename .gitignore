@@ -78,3 +78,9 @@ agent-transcripts/
 gitleaks-report*.json
 gitleaks-report*.sarif
 *.tsbuildinfo
+
+# Local secret backups (server se nikale gaye) — kabhi commit na hon
+app-env-backup.txt
+*-sydney.env
+*-mumbai.env
+coolify-*.env
