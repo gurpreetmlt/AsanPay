@@ -176,11 +176,31 @@ export function ServicesScreen() {
             user.kycStatus === "rejected"
               ? { backgroundColor: "#FEF2F2", borderColor: "#FECACA" }
               : user.hasKycDocs
-                ? { backgroundColor: "#FFF7ED", borderColor: "#FED7AA" }
-                : { backgroundColor: "#FFFBEB", borderColor: "#FDE68A" },
+                ? { backgroundColor: "#F0FDF4", borderColor: "#86EFAC" }
+                : { backgroundColor: "#FFF7ED", borderColor: "#FDBA74" },
           ]}
         >
           <View style={{ flex: 1 }}>
+            <Text
+              style={{
+                fontSize: 10,
+                fontWeight: "800",
+                letterSpacing: 0.4,
+                marginBottom: 4,
+                color:
+                  user.kycStatus === "rejected"
+                    ? "#991B1B"
+                    : user.hasKycDocs
+                      ? "#166534"
+                      : "#9A3412",
+              }}
+            >
+              {user.kycStatus === "rejected"
+                ? "REJECTED"
+                : user.hasKycDocs
+                  ? "UNDER REVIEW"
+                  : "ACTION NEEDED"}
+            </Text>
             <Text
               style={[
                 styles.kycBannerTitle,
@@ -189,8 +209,8 @@ export function ServicesScreen() {
                     user.kycStatus === "rejected"
                       ? "#991B1B"
                       : user.hasKycDocs
-                        ? "#9A3412"
-                        : "#92400E",
+                        ? "#14532D"
+                        : "#9A3412",
                 },
               ]}
             >
@@ -208,8 +228,8 @@ export function ServicesScreen() {
                     user.kycStatus === "rejected"
                       ? "#B91C1C"
                       : user.hasKycDocs
-                        ? "#C2410C"
-                        : "#B45309",
+                        ? "#15803D"
+                        : "#C2410C",
                 },
               ]}
             >
@@ -221,10 +241,7 @@ export function ServicesScreen() {
           {needsSignupKycCompletion(user) || user.kycStatus === "rejected" ? (
             <Text
               style={{
-                color:
-                  user.kycStatus === "rejected"
-                    ? "#DC2626"
-                    : "#D97706",
+                color: user.kycStatus === "rejected" ? "#DC2626" : "#EA580C",
                 fontWeight: "800",
                 fontSize: 12,
               }}

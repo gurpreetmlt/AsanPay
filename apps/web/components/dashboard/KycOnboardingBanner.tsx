@@ -5,7 +5,7 @@ import { AlertTriangle, Clock3, ShieldAlert } from "lucide-react";
 import { needsSignupKycCompletion } from "@/lib/onboarding";
 import { useAuthStore } from "@/lib/store";
 
-type BannerTone = "red" | "orange" | "yellow";
+type BannerTone = "red" | "orange" | "green";
 
 const TONE: Record<
   BannerTone,
@@ -16,8 +16,12 @@ const TONE: Record<
     body: string;
     icon: string;
     button: string;
+    badgeBg: string;
+    badgeText: string;
+    badge: string;
   }
 > = {
+  /** Rejected */
   red: {
     border: "#FECACA",
     background: "#FEF2F2",
@@ -25,22 +29,33 @@ const TONE: Record<
     body: "#B91C1C",
     icon: "#DC2626",
     button: "linear-gradient(135deg,#DC2626,#B91C1C)",
+    badgeBg: "#FEE2E2",
+    badgeText: "#991B1B",
+    badge: "REJECTED",
   },
+  /** Complete KYC — action needed */
   orange: {
-    border: "#FED7AA",
+    border: "#FDBA74",
     background: "#FFF7ED",
     title: "#9A3412",
     body: "#C2410C",
     icon: "#EA580C",
     button: "linear-gradient(135deg,#F97316,#EA580C)",
+    badgeBg: "#FFEDD5",
+    badgeText: "#9A3412",
+    badge: "ACTION NEEDED",
   },
-  yellow: {
-    border: "#FDE68A",
-    background: "#FFFBEB",
-    title: "#92400E",
-    body: "#B45309",
-    icon: "#D97706",
-    button: "linear-gradient(135deg,#F59E0B,#D97706)",
+  /** Under review — submitted, waiting for admin */
+  green: {
+    border: "#86EFAC",
+    background: "#F0FDF4",
+    title: "#14532D",
+    body: "#15803D",
+    icon: "#16A34A",
+    button: "linear-gradient(135deg,#22C55E,#16A34A)",
+    badgeBg: "#DCFCE7",
+    badgeText: "#166534",
+    badge: "UNDER REVIEW",
   },
 };
 
@@ -48,17 +63,18 @@ const TONE: Record<
 export function KycOnboardingBanner() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
+  // Verified → no banner (services unlocked)
   if (!user || user.kycStatus === "verified") return null;
 
   const needsComplete = needsSignupKycCompletion(user);
   const rejected = user.kycStatus === "rejected";
-  const pendingReview = user.kycStatus === "pending" && user.hasKycDocs;
+  const pendingReview = !rejected && user.hasKycDocs;
 
   let title = "Complete your KYC for Onboarding";
   let body = "Finish signup KYC to unlock wallet services after admin approval.";
   let cta = "Complete KYC";
   let href = "/signup";
-  let tone: BannerTone = "yellow";
+  let tone: BannerTone = "orange";
 
   if (rejected) {
     title = "KYC rejected — please resubmit";
@@ -70,11 +86,11 @@ export function KycOnboardingBanner() {
     body = "Onboarding in progress. Services stay locked until admin approval.";
     cta = "";
     href = "";
-    tone = "orange";
+    tone = "green";
   } else if (needsComplete) {
     title = "Complete your KYC for Onboarding";
     body = "Continue where you left off to submit documents for approval.";
-    tone = "yellow";
+    tone = "orange";
   }
 
   const colors = TONE[tone];
@@ -91,6 +107,12 @@ export function KycOnboardingBanner() {
       <div className="flex items-start gap-3">
         <Icon size={20} className="mt-0.5 shrink-0" style={{ color: colors.icon }} />
         <div>
+          <span
+            className="mb-1 inline-block rounded-md px-2 py-0.5 text-[10px] font-extrabold tracking-wide"
+            style={{ background: colors.badgeBg, color: colors.badgeText }}
+          >
+            {colors.badge}
+          </span>
           <p className="text-sm font-bold" style={{ color: colors.title }}>
             {title}
           </p>

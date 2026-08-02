@@ -322,33 +322,57 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
   useEffect(() => {
     let alive = true;
     (async () => {
+      const phone = (authUser?.mobile || "").replace(/\D/g, "").slice(0, 10);
       const fromUser = authUser?.id ? await loadMobileSignupDraft(authUser.id) : null;
-      const fromMobile = draft.mobile ? await loadMobileSignupDraft(draft.mobile) : null;
-      const existing = fromUser || fromMobile;
-      if (alive && existing) {
+      const fromMobile = phone ? await loadMobileSignupDraft(phone) : null;
+      let existing = fromUser || fromMobile;
+      if (existing && phone) {
+        const draftPhone = (existing.mobile || "").replace(/\D/g, "").slice(0, 10);
+        if (draftPhone && draftPhone.length === 10 && draftPhone !== phone && !fromUser) {
+          existing = null;
+        }
+      }
+
+      if (!alive) return;
+
+      if (authUser?.id) {
+        if (authUser.kycStatus === "verified") {
+          setDraftReady(true);
+          return;
+        }
+        if (authUser.hasKycDocs && authUser.kycStatus !== "rejected") {
+          setDraftReady(true);
+          return;
+        }
+        const base = existing ? { ...EMPTY_MOBILE_SIGNUP_DRAFT, ...existing } : { ...EMPTY_MOBILE_SIGNUP_DRAFT };
+        setDraft({
+          ...base,
+          mobile: phone || base.mobile.replace(/\D/g, "").slice(0, 10),
+          accountCreated: true,
+          signupToken: "",
+          name: base.name.trim() || authUser.name || "",
+          role: (authUser.role as SignupRole) || base.role,
+          stepIndex: Math.max(base.stepIndex, 2),
+        });
+        setDraftReady(true);
+        return;
+      }
+
+      if (existing) {
         setDraft(existing);
         if (existing.accountCreated && existing.stepIndex < 2) {
           setDraft({ ...existing, stepIndex: 2 });
         } else if (existing.signupToken && existing.stepIndex < 1 && !existing.accountCreated) {
           setDraft({ ...existing, stepIndex: 1 });
         }
-      } else if (alive && authUser?.id && !authUser.hasKycDocs) {
-        setDraft((d) => ({
-          ...d,
-          accountCreated: true,
-          stepIndex: Math.max(d.stepIndex, 2),
-          name: d.name || authUser.name,
-          mobile: d.mobile || authUser.mobile || "",
-          role: (authUser.role as SignupRole) || d.role,
-        }));
       }
-      if (alive) setDraftReady(true);
+      setDraftReady(true);
     })();
     return () => {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authUser?.id]);
+  }, [authUser?.id, authUser?.mobile]);
 
   useEffect(() => {
     if (!draftReady) return;

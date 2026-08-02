@@ -190,25 +190,61 @@ export function RetailerDashboard() {
             <h3 className="text-sm font-bold" style={{ color: B.blue }}>KYC Status</h3>
           </div>
           {kycDone ? (
-            <div className="flex items-center gap-3 rounded-xl p-4" style={{ background: `${B.green}10` }}>
-              <CheckCircle2 size={24} style={{ color: B.green }} />
+            <div className="flex items-center gap-3 rounded-xl p-4" style={{ background: `${B.blue}10` }}>
+              <CheckCircle2 size={24} style={{ color: B.blue }} />
               <div>
-                <p className="text-sm font-semibold" style={{ color: B.green }}>Verified</p>
+                <p className="text-sm font-semibold" style={{ color: B.blue }}>Verified</p>
                 <p className="text-xs" style={{ color: B.muted }}>Your KYC is complete. All services active.</p>
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-3 rounded-xl p-4" style={{ background: "#FEF3C7" }}>
-              <AlertTriangle size={24} style={{ color: "#D97706" }} />
+            <div
+              className="flex items-center gap-3 rounded-xl p-4"
+              style={{
+                background: user?.kycStatus === "rejected"
+                  ? "#FEF2F2"
+                  : user?.hasKycDocs
+                    ? "#F0FDF4"
+                    : "#FFF7ED",
+              }}
+            >
+              <AlertTriangle
+                size={24}
+                style={{
+                  color: user?.kycStatus === "rejected"
+                    ? "#DC2626"
+                    : user?.hasKycDocs
+                      ? "#16A34A"
+                      : "#EA580C",
+                }}
+              />
               <div>
-                <p className="text-sm font-semibold" style={{ color: "#92400E" }}>
+                <p
+                  className="text-sm font-semibold"
+                  style={{
+                    color: user?.kycStatus === "rejected"
+                      ? "#991B1B"
+                      : user?.hasKycDocs
+                        ? "#14532D"
+                        : "#9A3412",
+                  }}
+                >
                   {user?.hasKycDocs
                     ? user?.kycStatus === "rejected"
                       ? "KYC Rejected"
                       : "Pending Verification"
                     : "KYC Incomplete"}
                 </p>
-                <p className="text-xs" style={{ color: "#92400E" }}>
+                <p
+                  className="text-xs"
+                  style={{
+                    color: user?.kycStatus === "rejected"
+                      ? "#B91C1C"
+                      : user?.hasKycDocs
+                        ? "#15803D"
+                        : "#C2410C",
+                  }}
+                >
                   {user?.hasKycDocs
                     ? "Services unlock after admin approval."
                     : "Complete signup KYC to submit for approval."}

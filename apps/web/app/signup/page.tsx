@@ -288,8 +288,12 @@ export default function SignupPage() {
   const needsUpline = draft.role !== "master_distributor" && draft.role !== "direct_retailer";
   const sponsorRole =
     draft.role === "direct_retailer" ? "admin" : SPONSOR_ROLE[draft.role as Exclude<SignupRole, "direct_retailer">];
-  const storageKey = draft.accountCreated && user?.id ? user.id : draft.mobile.replace(/\D/g, "") || "anon";
+  const storageKey =
+    user?.id && (draft.accountCreated || Boolean(accessToken))
+      ? user.id
+      : draft.mobile.replace(/\D/g, "") || "anon";
   const hasLocation = Boolean(draft.latitude && draft.longitude);
+  const loggedInContinue = Boolean(user?.id && accessToken);
 
   function patch(p: Partial<SignupDraft>) {
     setDraft((d) => ({ ...d, ...p }));
@@ -315,24 +319,48 @@ export default function SignupPage() {
   }
 
   useEffect(() => {
-    const key = user?.id || "";
-    const existing =
-      (key && loadSignupDraft(key)) ||
-      (typeof window !== "undefined"
-        ? (() => {
-            for (let i = 0; i < localStorage.length; i++) {
-              const k = localStorage.key(i);
-              if (k?.startsWith("asanpay:signup-draft:") && k !== "asanpay:signup-draft:anon") {
-                try {
-                  return JSON.parse(localStorage.getItem(k) || "") as SignupDraft;
-                } catch {
-                  return null;
-                }
-              }
-            }
-            return null;
-          })()
-        : null);
+    const phone = (user?.mobile || "").replace(/\D/g, "").slice(0, 10);
+    const byUser = user?.id ? loadSignupDraft(user.id) : null;
+    const byPhone = phone ? loadSignupDraft(phone) : null;
+
+    // Never scan random localStorage drafts — that pulled half-typed numbers from other sessions.
+    let existing: SignupDraft | null = byUser || byPhone;
+    if (existing && phone) {
+      const draftPhone = existing.mobile.replace(/\D/g, "").slice(0, 10);
+      // Drop draft if it belongs to a different number than the logged-in account.
+      if (draftPhone && draftPhone.length === 10 && draftPhone !== phone && !byUser) {
+        existing = null;
+      }
+    }
+
+    if (user?.id) {
+      if (user.kycStatus === "verified") {
+        router.replace("/dashboard");
+        return;
+      }
+      // Under review — stay on dashboard (rejected may resubmit).
+      if (user.hasKycDocs && user.kycStatus !== "rejected") {
+        router.replace("/dashboard");
+        return;
+      }
+
+      const base = existing ? { ...EMPTY_SIGNUP_DRAFT, ...existing } : { ...EMPTY_SIGNUP_DRAFT };
+      const next: SignupDraft = {
+        ...base,
+        mobile: phone || base.mobile.replace(/\D/g, "").slice(0, 10),
+        accountCreated: true,
+        signupToken: "",
+        name: base.name.trim() || user.name || "",
+        role: (user.role as SignupRole) || base.role,
+        // Skip mobile OTP + account create — user is already logged in.
+        stepIndex: Math.max(base.stepIndex, 2),
+      };
+      setDraft(next);
+      if (phone) clearSignupDraft("anon");
+      setDraftReady(true);
+      return;
+    }
+
     if (existing) {
       setDraft(existing);
       if (existing.accountCreated && existing.stepIndex < 2) {
@@ -340,13 +368,10 @@ export default function SignupPage() {
       } else if (existing.signupToken && existing.stepIndex < 1 && !existing.accountCreated) {
         setDraft({ ...existing, stepIndex: 1 });
       }
-    } else if (user?.id && user.hasKycDocs) {
-      router.replace("/dashboard");
-      return;
     }
     setDraftReady(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user?.id, user?.mobile]);
 
   useEffect(() => {
     if (!draftReady) return;
@@ -1027,6 +1052,7 @@ export default function SignupPage() {
                   <input
                     value={draft.mobile}
                     onChange={(e) => {
+                      if (loggedInContinue) return;
                       patch({ mobile: e.target.value.replace(/\D/g, "").slice(0, 10), signupToken: "" });
                       setOtpSent(false);
                       setOtp("");
@@ -1036,14 +1062,20 @@ export default function SignupPage() {
                     className={inputCls}
                     style={{
                       ...inputStyle,
-                      opacity: hasLocation ? 1 : 0.55,
+                      opacity: hasLocation || loggedInContinue ? 1 : 0.55,
                       borderColor: mobileError ? "#DC2626" : undefined,
                     }}
                     inputMode="numeric"
                     placeholder="10-digit mobile"
-                    disabled={!hasLocation || otpSent}
+                    disabled={!hasLocation || otpSent || loggedInContinue}
+                    readOnly={loggedInContinue}
                   />
                 </Field>
+                {loggedInContinue ? (
+                  <p className="text-xs" style={{ color: B.muted }}>
+                    Signed-in mobile is locked. Continue KYC from where you left off.
+                  </p>
+                ) : null}
                 {mobileChecking && !mobileError ? (
                   <p className="text-xs" style={{ color: B.muted }}>
                     Checking if this mobile is available…
