@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { flushSync } from "react-dom";
 import { toast } from "react-hot-toast";
 import { X } from "lucide-react";
@@ -36,11 +36,14 @@ export function EmailVerifyField({
   inputStyle = { borderColor: B.border, color: B.blue },
 }: Props) {
   const user = useAuthStore((s) => s.user);
+  const accessToken = useAuthStore((s) => s.accessToken);
   const setUser = useAuthStore((s) => s.setUser);
   const [modalOpen, setModalOpen] = useState(false);
   const [otp, setOtp] = useState("");
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [emailChecking, setEmailChecking] = useState(false);
 
   const normalized = email.trim().toLowerCase();
   const verified =
@@ -48,13 +51,69 @@ export function EmailVerifyField({
     (user?.email ?? "").toLowerCase() === normalized &&
     normalized.length > 0;
 
+  useEffect(() => {
+    if (verified) {
+      setEmailError(null);
+      setEmailChecking(false);
+      return;
+    }
+    const value = email.trim();
+    if (!value) {
+      setEmailError(null);
+      setEmailChecking(false);
+      return;
+    }
+    if (!isValidEmail(value)) {
+      setEmailError("Enter a valid email address");
+      setEmailChecking(false);
+      return;
+    }
+    if (!accessToken) {
+      setEmailError(null);
+      return;
+    }
+    let cancelled = false;
+    setEmailChecking(true);
+    const timer = setTimeout(async () => {
+      try {
+        const { data } = await api.get<
+          ApiResponse<{ available: boolean; message?: string }>
+        >("/auth/email/check", { params: { email: value.toLowerCase() } });
+        if (cancelled) return;
+        if (!data.success) throw new Error(data.message);
+        if (data.data.available === false) {
+          setEmailError(
+            data.data.message || "This email is already registered. Use a different email.",
+          );
+        } else {
+          setEmailError(null);
+        }
+      } catch (err) {
+        if (cancelled) return;
+        const msg = extractApiError(err, "");
+        if (/already registered|already in use|EMAIL_TAKEN/i.test(msg)) {
+          setEmailError(msg);
+        }
+      } finally {
+        if (!cancelled) setEmailChecking(false);
+      }
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [email, accessToken, verified]);
+
   function requestOtp() {
     if (!isValidEmail(email)) {
       toast.error("Enter a valid email address");
       return;
     }
+    if (emailError) {
+      toast.error(emailError);
+      return;
+    }
 
-    // Paint modal + Sending state before the network call (don't wait on SMTP/API).
     flushSync(() => {
       setOtp("");
       setModalOpen(true);
@@ -119,6 +178,7 @@ export function EmailVerifyField({
         <div className="mb-1.5 flex items-center gap-2">
           <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: B.muted }}>
             {label}
+            {required ? " *" : ""}
           </span>
           {verified ? (
             <span
@@ -127,7 +187,7 @@ export function EmailVerifyField({
             >
               Verified
             </span>
-          ) : normalized && isValidEmail(email) ? (
+          ) : normalized && isValidEmail(email) && !emailError ? (
             <span
               className="rounded-full px-2 py-0.5 text-[10px] font-bold"
               style={{ background: "#FEF3C7", color: "#B45309" }}
@@ -144,11 +204,15 @@ export function EmailVerifyField({
             onChange={(e) => onChange(e.target.value)}
             placeholder="email@example.com"
             className={`min-w-0 flex-1 ${inputClassName}`}
-            style={inputStyle}
+            style={{
+              ...inputStyle,
+              borderColor: emailError ? "#DC2626" : inputStyle.borderColor,
+            }}
+            autoComplete="email"
           />
           <button
             type="button"
-            disabled={sending || verified || !isValidEmail(email)}
+            disabled={sending || verified || !isValidEmail(email) || Boolean(emailError) || emailChecking}
             onClick={() => requestOtp()}
             className="flex-shrink-0 rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
             style={{ background: verified ? B.green : B.badgeGrad }}
@@ -156,6 +220,16 @@ export function EmailVerifyField({
             {verified ? "Verified" : sending ? "Sending…" : "Verify"}
           </button>
         </div>
+        {emailChecking && !emailError ? (
+          <p className="mt-1 text-xs" style={{ color: B.muted }}>
+            Checking email…
+          </p>
+        ) : null}
+        {emailError ? (
+          <p className="mt-1 text-xs font-semibold" style={{ color: "#DC2626" }}>
+            {emailError}
+          </p>
+        ) : null}
       </div>
 
       {modalOpen ? (
@@ -174,7 +248,8 @@ export function EmailVerifyField({
                 </h3>
                 <p className="mt-1 text-sm" style={{ color: B.muted }}>
                   {sending ? (
-                    <>Sending a 6-digit code to{" "}
+                    <>
+                      Sending a 6-digit code to{" "}
                       <span className="font-semibold" style={{ color: B.blue }}>
                         {normalized}
                       </span>

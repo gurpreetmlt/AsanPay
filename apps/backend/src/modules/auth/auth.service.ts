@@ -51,18 +51,18 @@ import type {
 } from "./auth.validators";
 
 /** Public signup: child role → required sponsor (parent) role. */
-const SIGNUP_SPONSOR_ROLE: Record<SignupChildRole, SponsorSearchRole> = {
+const SIGNUP_SPONSOR_ROLE: Record<"master_distributor" | "distributor" | "retailer", SponsorSearchRole> = {
   master_distributor: "admin",
   distributor: "master_distributor",
   retailer: "distributor",
 };
 
 // Who is allowed to onboard whom — one level down the hierarchy at a time.
-const ALLOWED_CHILD_ROLE: Record<UserRole, UserRole | null> = {
-  admin: "master_distributor",
-  master_distributor: "distributor",
-  distributor: "retailer",
-  retailer: null,
+const ALLOWED_CHILD_ROLES: Record<UserRole, UserRole[]> = {
+  admin: ["master_distributor", "retailer"],
+  master_distributor: ["distributor"],
+  distributor: ["retailer"],
+  retailer: [],
 };
 
 const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // keep in sync with JWT_REFRESH_EXPIRES_IN
@@ -113,11 +113,11 @@ export async function registerUser(
   input: RegisterInput,
   opts?: { isActive?: boolean },
 ): Promise<AuthUser> {
-  const expectedChildRole = ALLOWED_CHILD_ROLE[actor.role];
-  if (!expectedChildRole || input.role !== expectedChildRole) {
+  const allowed = ALLOWED_CHILD_ROLES[actor.role] ?? [];
+  if (!allowed.includes(input.role)) {
     throw new HttpError(
       403,
-      `A ${actor.role.replace("_", " ")} can only onboard a ${expectedChildRole?.replace("_", " ") ?? "nobody"}`,
+      `A ${actor.role.replace(/_/g, " ")} cannot onboard a ${input.role.replace(/_/g, " ")}`,
       "INVALID_HIERARCHY",
     );
   }
@@ -938,6 +938,25 @@ export async function checkSignupMobileAvailable(
   return { available: true };
 }
 
+/** Live check — email free, or already owned by the current user. */
+export async function checkSignupEmailAvailable(
+  email: string,
+  currentUserId: string,
+): Promise<{ available: true } | { available: false; message: string; code: "EMAIL_TAKEN" }> {
+  const [existing] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, email));
+  if (existing && existing.id !== currentUserId) {
+    return {
+      available: false,
+      message: "This email is already registered. Use a different email.",
+      code: "EMAIL_TAKEN",
+    };
+  }
+  return { available: true };
+}
+
 /** Self-signup step 1: OTP on mobile only (before role / name / upline). */
 export async function requestSignupOtp(
   input: SignupRequestInput,
@@ -1094,10 +1113,14 @@ export async function completeSignup(
     throw new HttpError(401, "Too many attempts — verify mobile OTP again", "OTP_LOCKED");
   }
 
-  const childRole = input.role as SignupChildRole;
+  const isDirectRetailer = input.role === "direct_retailer";
+  const isSuperDirect = input.role === "master_distributor";
+  const childRole: "master_distributor" | "distributor" | "retailer" = isDirectRetailer
+    ? "retailer"
+    : (input.role as "master_distributor" | "distributor" | "retailer");
   let sponsorUid: string;
 
-  if (childRole === "master_distributor") {
+  if (isSuperDirect || isDirectRetailer) {
     const admin = await findRootAdmin();
     if (!admin || !admin.isActive) {
       throw new HttpError(503, "Signup temporarily unavailable", "ADMIN_UNAVAILABLE");
@@ -1121,7 +1144,8 @@ export async function completeSignup(
 
   await markOtpConsumed(record.id);
 
-  const expectedSponsorRole = SIGNUP_SPONSOR_ROLE[childRole];
+  const expectedSponsorRole: UserRole =
+    isSuperDirect || isDirectRetailer ? "admin" : SIGNUP_SPONSOR_ROLE[childRole];
   const [sponsor] = await db.select().from(users).where(eq(users.uid, sponsorUid));
   if (!sponsor || !sponsor.isActive || sponsor.role !== expectedSponsorRole) {
     throw new HttpError(422, "Invalid sponsor UID", "INVALID_SPONSOR");
@@ -1137,7 +1161,6 @@ export async function completeSignup(
     throw new HttpError(422, "Location is required for signup", "LOCATION_REQUIRED");
   }
 
-  const isSuperDirect = childRole === "master_distributor";
   const user = await registerUser(
     { id: sponsor.id, role: sponsor.role },
     {

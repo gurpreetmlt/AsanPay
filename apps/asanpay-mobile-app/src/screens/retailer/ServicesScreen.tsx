@@ -173,28 +173,64 @@ export function ServicesScreen() {
           }}
           style={[
             styles.kycBanner,
-            {
-              backgroundColor: user.kycStatus === "rejected" ? "#FEF3C7" : `${colors.blue}14`,
-              borderColor: user.kycStatus === "rejected" ? "#F59E0B66" : `${colors.blue}33`,
-            },
+            user.kycStatus === "rejected"
+              ? { backgroundColor: "#FEF2F2", borderColor: "#FECACA" }
+              : user.hasKycDocs
+                ? { backgroundColor: "#FFF7ED", borderColor: "#FED7AA" }
+                : { backgroundColor: "#FFFBEB", borderColor: "#FDE68A" },
           ]}
         >
           <View style={{ flex: 1 }}>
-            <Text style={[styles.kycBannerTitle, { color: colors.blueFlat }]}>
+            <Text
+              style={[
+                styles.kycBannerTitle,
+                {
+                  color:
+                    user.kycStatus === "rejected"
+                      ? "#991B1B"
+                      : user.hasKycDocs
+                        ? "#9A3412"
+                        : "#92400E",
+                },
+              ]}
+            >
               {user.kycStatus === "rejected"
                 ? "KYC rejected — resubmit"
                 : user.hasKycDocs
                   ? "KYC under review"
                   : "Complete your KYC for Onboarding"}
             </Text>
-            <Text style={[styles.kycBannerBody, { color: tokens.mute }]}>
+            <Text
+              style={[
+                styles.kycBannerBody,
+                {
+                  color:
+                    user.kycStatus === "rejected"
+                      ? "#B91C1C"
+                      : user.hasKycDocs
+                        ? "#C2410C"
+                        : "#B45309",
+                },
+              ]}
+            >
               {user.hasKycDocs && user.kycStatus !== "rejected"
                 ? "Services stay locked until admin approval."
                 : "Tap to continue signup KYC where you left off."}
             </Text>
           </View>
           {needsSignupKycCompletion(user) || user.kycStatus === "rejected" ? (
-            <Text style={{ color: colors.blueFlat, fontWeight: "800", fontSize: 12 }}>Continue</Text>
+            <Text
+              style={{
+                color:
+                  user.kycStatus === "rejected"
+                    ? "#DC2626"
+                    : "#D97706",
+                fontWeight: "800",
+                fontSize: 12,
+              }}
+            >
+              Continue
+            </Text>
           ) : null}
         </Pressable>
       ) : null}

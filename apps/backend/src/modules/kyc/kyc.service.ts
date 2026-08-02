@@ -38,8 +38,10 @@ export async function submitKyc(userId: string, input: KycSubmitInput): Promise<
     throw new HttpError(409, "KYC is already verified", "KYC_ALREADY_VERIFIED");
   }
 
-  const latitude = input.latitude?.trim() || user.outletLatitude || null;
-  const longitude = input.longitude?.trim() || user.outletLongitude || null;
+  const latitude =
+    input.shopPhotoLatitude?.trim() || input.latitude?.trim() || user.outletLatitude || null;
+  const longitude =
+    input.shopPhotoLongitude?.trim() || input.longitude?.trim() || user.outletLongitude || null;
 
   const [updated] = await db
     .update(users)
@@ -88,7 +90,12 @@ export async function submitKyc(userId: string, input: KycSubmitInput): Promise<
       panImageFileName: input.panImageFileName ?? null,
       aadhaarFrontFileName: input.aadhaarFrontFileName ?? null,
       aadhaarBackFileName: input.aadhaarBackFileName ?? null,
+      personalPhotoFileName: input.personalPhotoFileName ?? null,
       shopPhotoFileName: input.shopPhotoFileName ?? null,
+      personalPhotoLatitude: input.personalPhotoLatitude ?? null,
+      personalPhotoLongitude: input.personalPhotoLongitude ?? null,
+      shopPhotoLatitude: input.shopPhotoLatitude ?? null,
+      shopPhotoLongitude: input.shopPhotoLongitude ?? null,
       latitude,
       longitude,
     },

@@ -1,10 +1,15 @@
-export type SignupRole = "master_distributor" | "distributor" | "retailer";
+export type SignupRole = "master_distributor" | "distributor" | "retailer" | "direct_retailer";
 
 export type SignupFileMeta = {
   name: string;
   mime: string;
   size: number;
+  /** Set when photo is live-captured with GPS. */
+  latitude?: string;
+  longitude?: string;
+  capturedAt?: string;
 };
+
 
 export type SignupDraft = {
   stepIndex: number;
@@ -50,6 +55,7 @@ export type SignupDraft = {
   accountNumberConfirm: string;
   accountName: string;
   cancelledCheque: SignupFileMeta | null;
+  personalPhoto: SignupFileMeta | null;
   shopPhoto: SignupFileMeta | null;
   agreementAccepted: boolean;
 };
@@ -97,6 +103,7 @@ export const EMPTY_SIGNUP_DRAFT: SignupDraft = {
   accountNumberConfirm: "",
   accountName: "",
   cancelledCheque: null,
+  personalPhoto: null,
   shopPhoto: null,
   agreementAccepted: false,
 };

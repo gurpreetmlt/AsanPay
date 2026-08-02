@@ -17,7 +17,7 @@ import { colors } from "../theme/colors";
 export const MOBILE_SIGNUP_STEPS: { id: string; label: string; short: string; icon: LucideIcon }[] = [
   { id: "mobile", label: "Mobile Verification", short: "Mobile", icon: Phone },
   { id: "role", label: "Role Identification", short: "Role", icon: UserRound },
-  { id: "pan", label: "PAN Verification", short: "PAN", icon: CreditCard },
+  { id: "pan", label: "PAN Details", short: "PAN", icon: CreditCard },
   { id: "aadhaar", label: "Aadhaar Verification", short: "Aadhaar", icon: Fingerprint },
   { id: "basic", label: "Basic Details & Email", short: "Details", icon: Settings2 },
   { id: "business", label: "Business Details", short: "Business", icon: Store },

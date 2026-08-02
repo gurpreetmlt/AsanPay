@@ -58,8 +58,19 @@ We may update this Policy. Material changes will be communicated through the app
 7. Contact
 For privacy-related requests, contact AsanPay support through the channels published in the agent app or website.`;
 
-/** Reverse-geocode for display only — lat/lng still stored for compliance. */
-export async function reverseGeocodeAddress(lat: number, lng: number): Promise<string | null> {
+/** Reverse-geocode for display + address form autofill. Lat/lng still stored separately. */
+export type ReverseGeocodeResult = {
+  displayName: string;
+  addressLine: string;
+  pincode: string;
+  district: string;
+  state: string;
+};
+
+export async function reverseGeocodeDetails(
+  lat: number,
+  lng: number,
+): Promise<ReverseGeocodeResult | null> {
   try {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&addressdetails=1`,
@@ -72,13 +83,36 @@ export async function reverseGeocodeAddress(lat: number, lng: number): Promise<s
     );
     if (!res.ok) return null;
     const data = (await res.json()) as { display_name?: string; address?: Record<string, string> };
-    if (data.display_name?.trim()) return data.display_name.trim();
     const a = data.address ?? {};
-    const parts = [a.road || a.suburb, a.city || a.town || a.village, a.state, a.postcode].filter(Boolean);
-    return parts.length ? parts.join(", ") : null;
+    const lineParts = [
+      a.house_number,
+      a.road || a.pedestrian,
+      a.suburb || a.neighbourhood || a.village,
+    ].filter(Boolean);
+    const district = (a.city || a.town || a.county || a.state_district || a.suburb || "").trim();
+    const state = (a.state || "").trim();
+    const pincode = (a.postcode || "").replace(/\D/g, "").slice(0, 6);
+    const displayName = (data.display_name || "").trim();
+    const addressLine =
+      lineParts.join(", ") ||
+      displayName ||
+      [district, state, pincode].filter(Boolean).join(", ");
+    if (!addressLine && !pincode && !district && !state) return null;
+    return {
+      displayName: displayName || addressLine,
+      addressLine,
+      pincode,
+      district,
+      state,
+    };
   } catch {
     return null;
   }
+}
+
+export async function reverseGeocodeAddress(lat: number, lng: number): Promise<string | null> {
+  const details = await reverseGeocodeDetails(lat, lng);
+  return details?.displayName ?? null;
 }
 
 export function requestBrowserLocation(): Promise<GeoCoords> {

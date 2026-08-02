@@ -14,6 +14,7 @@ import {
   TermsAcceptModal,
   requestBrowserLocation,
   reverseGeocodeAddress,
+  reverseGeocodeDetails,
 } from "@/components/signup/SignupLocationTerms";
 import api from "@/lib/api";
 import { formatAadhaar, stripAadhaar } from "@/lib/aadhaar";
@@ -49,17 +50,18 @@ interface SponsorInfo {
 
 const ROLE_OPTIONS: { value: SignupRole; label: string }[] = [
   { value: "retailer", label: "Retailer" },
+  { value: "direct_retailer", label: "Direct Retailer" },
   { value: "distributor", label: "Distributor" },
   { value: "master_distributor", label: "Super Distributor" },
 ];
 
-const SPONSOR_ROLE: Record<SignupRole, SponsorRole> = {
+const SPONSOR_ROLE: Record<Exclude<SignupRole, "direct_retailer">, SponsorRole> = {
   master_distributor: "admin",
   distributor: "master_distributor",
   retailer: "distributor",
 };
 
-const UPLINE_LABEL: Record<Exclude<SignupRole, "master_distributor">, string> = {
+const UPLINE_LABEL: Record<"distributor" | "retailer", string> = {
   distributor: "Super Distributor mobile no.",
   retailer: "Distributor mobile no.",
 };
@@ -96,8 +98,19 @@ const inputCls =
   "w-full rounded-2xl border-2 bg-white px-4 py-3 text-sm outline-none";
 const inputStyle = { borderColor: B.border, color: B.blue } as const;
 
-function fileMeta(file: File): SignupFileMeta {
-  return { name: file.name, mime: file.type, size: file.size };
+function fileMeta(file: File, geo?: { latitude: string; longitude: string }): SignupFileMeta {
+  return {
+    name: file.name,
+    mime: file.type,
+    size: file.size,
+    ...(geo
+      ? {
+          latitude: geo.latitude,
+          longitude: geo.longitude,
+          capturedAt: new Date().toISOString(),
+        }
+      : {}),
+  };
 }
 
 function FileUpload({
@@ -105,6 +118,7 @@ function FileUpload({
   meta,
   previewUrl,
   accept = "image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf",
+  emptyHint = "Tap to upload",
   onPick,
   onClear,
   error,
@@ -113,6 +127,7 @@ function FileUpload({
   meta: SignupFileMeta | null;
   previewUrl?: string | null;
   accept?: string;
+  emptyHint?: string;
   onPick: (file: File) => void;
   onClear: () => void;
   error?: boolean;
@@ -142,7 +157,7 @@ function FileUpload({
           <img src={previewUrl} alt="" className="max-h-28 rounded-xl object-contain" />
         ) : null}
         <span className="text-sm font-semibold" style={{ color: error ? "#DC2626" : B.blue }}>
-          {meta ? meta.name : "Tap to upload PAN card"}
+          {meta ? meta.name : emptyHint}
         </span>
         <span className="text-xs" style={{ color: B.muted }}>
           JPG, PNG, WEBP, HEIC or PDF · max 2 MB
@@ -150,7 +165,84 @@ function FileUpload({
       </label>
       {error && !meta ? (
         <p className="mt-1 text-xs font-semibold" style={{ color: "#DC2626" }}>
-          PAN card image is required
+          {label.replace(/\s*\*.*$/, "")} is required
+        </p>
+      ) : null}
+      {meta ? (
+        <button type="button" className="mt-1 text-xs font-semibold underline" style={{ color: B.muted }} onClick={onClear}>
+          Remove
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function LivePhotoCapture({
+  label,
+  facing,
+  meta,
+  previewUrl,
+  busy,
+  onPick,
+  onClear,
+  error,
+}: {
+  label: string;
+  facing: "user" | "environment";
+  meta: SignupFileMeta | null;
+  previewUrl?: string | null;
+  busy?: boolean;
+  onPick: (file: File) => void;
+  onClear: () => void;
+  error?: boolean;
+}) {
+  const inputId = `live-photo-${facing}-${label.replace(/\W+/g, "-").toLowerCase()}`;
+  return (
+    <div>
+      <Label>{label}</Label>
+      <div
+        className="flex flex-col gap-2 rounded-2xl border-2 border-dashed px-4 py-4"
+        style={{
+          borderColor: error ? "#DC2626" : meta ? B.green : B.border,
+          background: error ? "#FEF2F2" : B.bg,
+        }}
+      >
+        {previewUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={previewUrl} alt="" className="max-h-36 rounded-xl object-contain" />
+        ) : null}
+        <input
+          id={inputId}
+          type="file"
+          accept="image/*"
+          capture={facing}
+          className="hidden"
+          disabled={busy}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) onPick(f);
+            e.target.value = "";
+          }}
+        />
+        <label
+          htmlFor={inputId}
+          className="cursor-pointer text-sm font-semibold"
+          style={{ color: error ? "#DC2626" : B.blue, opacity: busy ? 0.6 : 1 }}
+        >
+          {busy ? "Getting location…" : meta ? "Retake live photo" : "Open camera — live capture"}
+        </label>
+        <span className="text-xs" style={{ color: B.muted }}>
+          Camera only · geotagged with latitude &amp; longitude · max 2 MB
+        </span>
+        {meta?.latitude && meta?.longitude ? (
+          <span className="text-xs font-semibold" style={{ color: B.green }}>
+            Geo: {Number(meta.latitude).toFixed(5)}, {Number(meta.longitude).toFixed(5)}
+          </span>
+        ) : null}
+      </div>
+      {error && (!meta || !meta.latitude || !meta.longitude) ? (
+        <p className="mt-1 text-xs font-semibold" style={{ color: "#DC2626" }}>
+          Live capture with location is required
         </p>
       ) : null}
       {meta ? (
@@ -189,10 +281,13 @@ export default function SignupPage() {
   const [mobileError, setMobileError] = useState<string | null>(null);
   const [mobileChecking, setMobileChecking] = useState(false);
   const [locationLabel, setLocationLabel] = useState<string | null>(null);
+  const [addressFetchBusy, setAddressFetchBusy] = useState(false);
+  const [photoCaptureBusy, setPhotoCaptureBusy] = useState(false);
 
   const stepIndex = draft.stepIndex;
-  const needsUpline = draft.role !== "master_distributor";
-  const sponsorRole = SPONSOR_ROLE[draft.role];
+  const needsUpline = draft.role !== "master_distributor" && draft.role !== "direct_retailer";
+  const sponsorRole =
+    draft.role === "direct_retailer" ? "admin" : SPONSOR_ROLE[draft.role as Exclude<SignupRole, "direct_retailer">];
   const storageKey = draft.accountCreated && user?.id ? user.id : draft.mobile.replace(/\D/g, "") || "anon";
   const hasLocation = Boolean(draft.latitude && draft.longitude);
 
@@ -381,6 +476,21 @@ export default function SignupPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft.pincode]);
 
+  // Prefill business address from residential when opening Business step (if empty).
+  useEffect(() => {
+    if (stepIndex !== 5) return;
+    setDraft((d) => {
+      if (d.businessAddress.trim() || !d.address.trim()) return d;
+      return {
+        ...d,
+        businessAddress: d.address.trim(),
+        businessPincode: d.pincode || d.businessPincode,
+        businessDistrict: d.district.trim() || d.businessDistrict,
+        businessState: d.state.trim() || d.businessState,
+      };
+    });
+  }, [stepIndex]);
+
   useEffect(() => {
     const pin = draft.businessPincode;
     if (pin.length !== 6) return;
@@ -425,9 +535,10 @@ export default function SignupPage() {
   function pickFile(
     key: keyof Pick<
       SignupDraft,
-      "panImage" | "aadhaarFront" | "aadhaarBack" | "cancelledCheque" | "shopPhoto"
+      "panImage" | "aadhaarFront" | "aadhaarBack" | "cancelledCheque" | "shopPhoto" | "personalPhoto"
     >,
     file: File,
+    geo?: { latitude: string; longitude: string },
   ) {
     const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
     const mimeOk = /^(image\/(jpeg|jpg|png|webp|heic|heif)|application\/pdf)$/i.test(file.type);
@@ -441,7 +552,7 @@ export default function SignupPage() {
       toast.error("File must be under 2 MB");
       return;
     }
-    patch({ [key]: fileMeta(file) });
+    patch({ [key]: fileMeta(file, geo) });
     setStepErrorKey(null);
     if (file.type.startsWith("image/") || ["jpg", "jpeg", "png", "webp", "heic", "heif"].includes(ext)) {
       const url = URL.createObjectURL(file);
@@ -450,13 +561,52 @@ export default function SignupPage() {
         return { ...p, [key]: url };
       });
     }
-    toast.success(`${file.name} selected`);
+    toast.success(
+      geo
+        ? `${file.name} captured · ${Number(geo.latitude).toFixed(5)}, ${Number(geo.longitude).toFixed(5)}`
+        : `${file.name} selected`,
+    );
+  }
+
+  async function captureLivePhoto(
+    key: "personalPhoto" | "shopPhoto",
+    file: File,
+  ) {
+    setPhotoCaptureBusy(true);
+    try {
+      const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+      const mimeOk = /^image\/(jpeg|jpg|png|webp|heic|heif)$/i.test(file.type);
+      const extOk = ["jpg", "jpeg", "png", "webp", "heic", "heif"].includes(ext);
+      if (!(mimeOk || (!file.type && extOk))) {
+        toast.error("Live capture must be a photo (JPG, PNG, WEBP, or HEIC)");
+        return;
+      }
+      let geo = {
+        latitude: draft.latitude,
+        longitude: draft.longitude,
+      };
+      try {
+        const coords = await requestBrowserLocation();
+        geo = { latitude: coords.latitude, longitude: coords.longitude };
+        patch({ latitude: coords.latitude, longitude: coords.longitude });
+      } catch {
+        /* fall back to signup location if already set */
+      }
+      if (!geo.latitude || !geo.longitude) {
+        toast.error("Allow location access to geotag this photo");
+        setShowLocationModal(true);
+        return;
+      }
+      pickFile(key, file, geo);
+    } finally {
+      setPhotoCaptureBusy(false);
+    }
   }
 
   function clearFile(
     key: keyof Pick<
       SignupDraft,
-      "panImage" | "aadhaarFront" | "aadhaarBack" | "cancelledCheque" | "shopPhoto"
+      "panImage" | "aadhaarFront" | "aadhaarBack" | "cancelledCheque" | "shopPhoto" | "personalPhoto"
     >,
   ) {
     patch({ [key]: null });
@@ -492,6 +642,7 @@ export default function SignupPage() {
     }
     if (stepIndex === 4) {
       if (!draft.email.trim()) return "Email is required";
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim())) return "Enter a valid email address";
       if (!user?.emailVerifiedAt || (user.email ?? "").toLowerCase() !== draft.email.trim().toLowerCase()) {
         return "Verify your email before continuing";
       }
@@ -515,6 +666,16 @@ export default function SignupPage() {
       if (!draft.accountNumber.trim()) return "Account number is required";
       if (draft.accountNumber !== draft.accountNumberConfirm) return "Account numbers do not match";
       if (!draft.accountName.trim()) return "Account holder name is required";
+    }
+    if (stepIndex === 7) {
+      if (!draft.personalPhoto) return "Personal photo is required — use live camera capture";
+      if (!draft.personalPhoto.latitude || !draft.personalPhoto.longitude) {
+        return "Personal photo must include location. Retake with location allowed.";
+      }
+      if (!draft.shopPhoto) return "Shop photo is required — use live camera capture";
+      if (!draft.shopPhoto.latitude || !draft.shopPhoto.longitude) {
+        return "Shop photo must include location. Retake with location allowed.";
+      }
     }
     if (stepIndex === 8) {
       if (!draft.agreementAccepted) return "Please accept the agent agreement";
@@ -626,6 +787,69 @@ export default function SignupPage() {
     }
   }
 
+  async function fetchAddressFromLocation(target: "home" | "business" = "home") {
+    setAddressFetchBusy(true);
+    try {
+      let lat = draft.latitude;
+      let lng = draft.longitude;
+      if (!lat || !lng) {
+        const coords = await requestBrowserLocation();
+        lat = coords.latitude;
+        lng = coords.longitude;
+        patch({ latitude: lat, longitude: lng });
+      }
+      const details = await reverseGeocodeDetails(Number(lat), Number(lng));
+      if (!details) {
+        toast.error("Could not fetch address from location. Enter address manually.");
+        return;
+      }
+      setLocationLabel(details.displayName);
+      let district = details.district;
+      let state = details.state;
+      if (details.pincode.length === 6) {
+        const place = await lookupIndianPincode(details.pincode);
+        if (place) {
+          district = place.city || district;
+          state = place.state || state;
+        }
+      }
+      if (target === "business") {
+        patch({
+          businessAddress: details.addressLine || draft.businessAddress,
+          businessPincode: details.pincode || draft.businessPincode,
+          businessDistrict: district || draft.businessDistrict,
+          businessState: state || draft.businessState,
+        });
+      } else {
+        patch({
+          address: details.addressLine || draft.address,
+          pincode: details.pincode || draft.pincode,
+          district: district || draft.district,
+          state: state || draft.state,
+        });
+      }
+      toast.success("Address filled from location");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Allow location to fetch address");
+    } finally {
+      setAddressFetchBusy(false);
+    }
+  }
+
+  function useResidentialForBusiness() {
+    if (!draft.address.trim()) {
+      toast.error("No residential address yet. Fetch or enter it on the Details step first.");
+      return;
+    }
+    patch({
+      businessAddress: draft.address.trim(),
+      businessPincode: draft.pincode,
+      businessDistrict: draft.district.trim(),
+      businessState: draft.state.trim(),
+    });
+    toast.success("Business address copied from residential");
+  }
+
   async function finalSubmit() {
     setLoading(true);
     try {
@@ -660,9 +884,14 @@ export default function SignupPage() {
         panImageFileName: draft.panImage?.name,
         aadhaarFrontFileName: draft.aadhaarFront?.name,
         aadhaarBackFileName: draft.aadhaarBack?.name,
+        personalPhotoFileName: draft.personalPhoto?.name,
         shopPhotoFileName: draft.shopPhoto?.name,
-        latitude: draft.latitude || undefined,
-        longitude: draft.longitude || undefined,
+        personalPhotoLatitude: draft.personalPhoto?.latitude,
+        personalPhotoLongitude: draft.personalPhoto?.longitude,
+        shopPhotoLatitude: draft.shopPhoto?.latitude,
+        shopPhotoLongitude: draft.shopPhoto?.longitude,
+        latitude: draft.shopPhoto?.latitude || draft.latitude || undefined,
+        longitude: draft.shopPhoto?.longitude || draft.longitude || undefined,
       });
       if (!data.success) throw new Error(data.message);
       useAuthStore.getState().setUser(data.data.user);
@@ -684,6 +913,7 @@ export default function SignupPage() {
       else if (err.toLowerCase().includes("aadhaar front")) setStepErrorKey("aadhaarFront");
       else if (err.toLowerCase().includes("aadhaar back")) setStepErrorKey("aadhaarBack");
       else if (err.toLowerCase().includes("cheque")) setStepErrorKey("cancelledCheque");
+      else if (err.toLowerCase().includes("personal photo")) setStepErrorKey("personalPhoto");
       else if (err.toLowerCase().includes("shop photo")) setStepErrorKey("shopPhoto");
       else setStepErrorKey(null);
       return;
@@ -999,7 +1229,10 @@ export default function SignupPage() {
             {stepIndex === 2 && (
               <>
                 <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: B.muted }}>
-                  Step 3 of 9 · PAN Verification
+                  Step 3 of 9 · PAN Details
+                </p>
+                <p className="text-xs" style={{ color: B.muted }}>
+                  PAN number and personal details as on the PAN card.
                 </p>
                 <Field label="PAN Number *">
                   <input
@@ -1031,6 +1264,9 @@ export default function SignupPage() {
                     className={inputCls}
                     style={inputStyle}
                   />
+                  <p className="mt-1 text-xs" style={{ color: B.muted }}>
+                    As on PAN card (browser may show DD/MM/YYYY).
+                  </p>
                 </Field>
                 <Field label="Father Name *">
                   <input
@@ -1045,6 +1281,7 @@ export default function SignupPage() {
                   label="PAN Card Image (optional)"
                   meta={draft.panImage}
                   previewUrl={previews.panImage}
+                  emptyHint="Tap to upload PAN card"
                   onPick={(f) => pickFile("panImage", f)}
                   onClear={() => clearFile("panImage")}
                   error={stepErrorKey === "panImage"}
@@ -1074,6 +1311,7 @@ export default function SignupPage() {
                   label="Aadhaar Front (optional)"
                   meta={draft.aadhaarFront}
                   previewUrl={previews.aadhaarFront}
+                  emptyHint="Tap to upload Aadhaar front"
                   onPick={(f) => pickFile("aadhaarFront", f)}
                   onClear={() => clearFile("aadhaarFront")}
                   error={stepErrorKey === "aadhaarFront"}
@@ -1082,6 +1320,7 @@ export default function SignupPage() {
                   label="Aadhaar Back (optional)"
                   meta={draft.aadhaarBack}
                   previewUrl={previews.aadhaarBack}
+                  emptyHint="Tap to upload Aadhaar back"
                   onPick={(f) => pickFile("aadhaarBack", f)}
                   onClear={() => clearFile("aadhaarBack")}
                   error={stepErrorKey === "aadhaarBack"}
@@ -1107,13 +1346,27 @@ export default function SignupPage() {
                   </p>
                 ) : null}
                 <Field label="Address *">
-                  <input
-                    value={draft.address}
-                    onChange={(e) => patch({ address: e.target.value })}
-                    className={inputCls}
-                    style={inputStyle}
-                    placeholder="Residential address"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      value={draft.address}
+                      onChange={(e) => patch({ address: e.target.value })}
+                      className={`min-w-0 flex-1 ${inputCls}`}
+                      style={inputStyle}
+                      placeholder="Residential address"
+                    />
+                    <button
+                      type="button"
+                      disabled={addressFetchBusy}
+                      onClick={() => void fetchAddressFromLocation("home")}
+                      className="flex-shrink-0 rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                      style={{ background: B.badgeGrad }}
+                    >
+                      {addressFetchBusy ? "Fetching…" : "Fetch"}
+                    </button>
+                  </div>
+                  <p className="mt-1 text-xs" style={{ color: B.muted }}>
+                    Uses your location to fill address, pincode, district and state.
+                  </p>
                 </Field>
                 <Field label="Pincode *">
                   <input
@@ -1217,12 +1470,41 @@ export default function SignupPage() {
                   </select>
                 </Field>
                 <Field label="Business Address *">
-                  <input
-                    value={draft.businessAddress}
-                    onChange={(e) => patch({ businessAddress: e.target.value })}
-                    className={inputCls}
-                    style={inputStyle}
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      value={draft.businessAddress}
+                      onChange={(e) => patch({ businessAddress: e.target.value })}
+                      className={`min-w-0 flex-1 ${inputCls}`}
+                      style={inputStyle}
+                      placeholder="Shop / outlet address"
+                    />
+                    <button
+                      type="button"
+                      disabled={addressFetchBusy}
+                      onClick={() => void fetchAddressFromLocation("business")}
+                      className="flex-shrink-0 rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                      style={{ background: B.badgeGrad }}
+                    >
+                      {addressFetchBusy ? "Fetching…" : "Fetch"}
+                    </button>
+                  </div>
+                  {draft.address.trim() ? (
+                    <button
+                      type="button"
+                      onClick={useResidentialForBusiness}
+                      className="mt-2 text-left text-xs font-semibold underline"
+                      style={{ color: B.blue }}
+                    >
+                      Use residential address
+                      {draft.address.trim().length > 60
+                        ? `: ${draft.address.trim().slice(0, 60)}…`
+                        : `: ${draft.address.trim()}`}
+                    </button>
+                  ) : (
+                    <p className="mt-1 text-xs" style={{ color: B.muted }}>
+                      Fetch from location, or copy from residential on the Details step.
+                    </p>
+                  )}
                 </Field>
                 <Field label="Pincode *">
                   <input
@@ -1321,6 +1603,7 @@ export default function SignupPage() {
                   label="Cancelled Cheque (optional)"
                   meta={draft.cancelledCheque}
                   previewUrl={previews.cancelledCheque}
+                  emptyHint="Tap to upload cancelled cheque"
                   onPick={(f) => pickFile("cancelledCheque", f)}
                   onClear={() => clearFile("cancelledCheque")}
                   error={stepErrorKey === "cancelledCheque"}
@@ -1329,15 +1612,31 @@ export default function SignupPage() {
             )}
 
             {stepIndex === 7 && (
-              <FileUpload
-                label="Shop Photo (optional)"
-                meta={draft.shopPhoto}
-                previewUrl={previews.shopPhoto}
-                accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-                onPick={(f) => pickFile("shopPhoto", f)}
-                onClear={() => clearFile("shopPhoto")}
-                error={stepErrorKey === "shopPhoto"}
-              />
+              <div className="space-y-4">
+                <p className="text-xs" style={{ color: B.muted }}>
+                  Capture both photos live with the camera. Location (lat/lng) is saved with each photo.
+                </p>
+                <LivePhotoCapture
+                  label="Personal Photo *"
+                  facing="user"
+                  meta={draft.personalPhoto}
+                  previewUrl={previews.personalPhoto}
+                  busy={photoCaptureBusy}
+                  onPick={(f) => void captureLivePhoto("personalPhoto", f)}
+                  onClear={() => clearFile("personalPhoto")}
+                  error={stepErrorKey === "personalPhoto"}
+                />
+                <LivePhotoCapture
+                  label="Shop Photo *"
+                  facing="environment"
+                  meta={draft.shopPhoto}
+                  previewUrl={previews.shopPhoto}
+                  busy={photoCaptureBusy}
+                  onPick={(f) => void captureLivePhoto("shopPhoto", f)}
+                  onClear={() => clearFile("shopPhoto")}
+                  error={stepErrorKey === "shopPhoto"}
+                />
+              </div>
             )}
 
             {stepIndex === 8 && (

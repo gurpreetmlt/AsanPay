@@ -47,17 +47,18 @@ interface LoginResponse {
 
 const ROLE_OPTIONS: { value: SignupRole; label: string }[] = [
   { value: "retailer", label: "Retailer" },
+  { value: "direct_retailer", label: "Direct Retailer" },
   { value: "distributor", label: "Distributor" },
   { value: "master_distributor", label: "Super Distributor" },
 ];
 
-const SPONSOR_ROLE: Record<SignupRole, SponsorRole> = {
+const SPONSOR_ROLE: Record<Exclude<SignupRole, "direct_retailer">, SponsorRole> = {
   master_distributor: "admin",
   distributor: "master_distributor",
   retailer: "distributor",
 };
 
-const UPLINE_LABEL: Record<Exclude<SignupRole, "master_distributor">, string> = {
+const UPLINE_LABEL: Record<"distributor" | "retailer", string> = {
   distributor: "Super Distributor mobile",
   retailer: "Distributor mobile",
 };
@@ -66,6 +67,31 @@ const BUSINESS_TYPES = ["Sole Proprietorship", "Partnership", "Private Limited",
 const BUSINESS_CATEGORIES = ["Mobile Handsets", "Kirana", "Electronics", "Pharmacy", "Other"];
 const TURNOVERS = ["Below 1L", "1L-5L", "5L-10L", "10L+"];
 const BUSINESS_PROOFS = ["Shop License", "GST Certificate", "Udyam", "Rent Agreement", "Other"];
+
+/** Show YYYY-MM-DD as DD/MM/YYYY on mobile. */
+function isoToDisplayDob(iso: string): string {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    const [y, m, d] = iso.split("-");
+    return `${d}/${m}/${y}`;
+  }
+  return iso;
+}
+
+/** Type DD/MM/YYYY → store YYYY-MM-DD (partial while typing stays display-shaped in draft until complete). */
+function displayDobToIso(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 8);
+  let out = "";
+  if (digits.length <= 2) out = digits;
+  else if (digits.length <= 4) out = `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  else out = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+  if (digits.length === 8) {
+    const d = digits.slice(0, 2);
+    const m = digits.slice(2, 4);
+    const y = digits.slice(4, 8);
+    return `${y}-${m}-${d}`;
+  }
+  return out;
+}
 
 export function SignupScreen({ onBack }: SignupScreenProps) {
   const { tokens } = useTheme();
@@ -90,10 +116,16 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [mobileError, setMobileError] = useState<string | null>(null);
   const [locationLabel, setLocationLabel] = useState<string | null>(null);
+  const [addressFetchBusy, setAddressFetchBusy] = useState(false);
+  const [photoCaptureBusy, setPhotoCaptureBusy] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   const stepIndex = draft.stepIndex;
-  const needsUpline = draft.role !== "master_distributor";
-  const sponsorRole = SPONSOR_ROLE[draft.role];
+  const needsUpline = draft.role !== "master_distributor" && draft.role !== "direct_retailer";
+  const sponsorRole =
+    draft.role === "direct_retailer"
+      ? "admin"
+      : SPONSOR_ROLE[draft.role as Exclude<SignupRole, "direct_retailer">];
   const storageKey = draft.accountCreated && authUser?.id ? authUser.id : draft.mobile || "anon";
   const hasLocation = Boolean(draft.latitude && draft.longitude);
 
@@ -176,6 +208,117 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
     }
   }
 
+  async function fetchAddressFromLocation(target: "home" | "business" = "home") {
+    setAddressFetchBusy(true);
+    try {
+      let useLat = draft.latitude;
+      let useLng = draft.longitude;
+      if (!useLat || !useLng) {
+        if (Platform.OS === "android") {
+          const granted = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+            {
+              title: "Location Permission",
+              message: "AsanPay needs your location to fetch your address.",
+              buttonPositive: "Allow",
+              buttonNegative: "Deny",
+            },
+          );
+          if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+            showAlert("Location required", "Allow location access to fetch address");
+            return;
+          }
+        }
+        let coords: { latitude: string; longitude: string };
+        try {
+          coords = await readPosition(false, 10_000);
+        } catch {
+          coords = await readPosition(true, 12_000);
+        }
+        useLat = coords.latitude;
+        useLng = coords.longitude;
+        patch({ latitude: useLat, longitude: useLng });
+      }
+
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${useLat}&lon=${useLng}&addressdetails=1`,
+        { headers: { Accept: "application/json", "User-Agent": "AsanPayMobile/1.0" } },
+      );
+      if (!res.ok) {
+        showAlert("Fetch failed", "Could not fetch address from location. Enter address manually.");
+        return;
+      }
+      const data = (await res.json()) as { display_name?: string; address?: Record<string, string> };
+      const a = data.address ?? {};
+      const lineParts = [
+        a.house_number,
+        a.road || a.pedestrian,
+        a.suburb || a.neighbourhood || a.village,
+      ].filter(Boolean);
+      let district = (a.city || a.town || a.county || a.state_district || a.suburb || "").trim();
+      let state = (a.state || "").trim();
+      const pincode = (a.postcode || "").replace(/\D/g, "").slice(0, 6);
+      const displayName = (data.display_name || "").trim();
+      const addressLine =
+        lineParts.join(", ") ||
+        displayName ||
+        [district, state, pincode].filter(Boolean).join(", ");
+      if (!addressLine && !pincode && !district && !state) {
+        showAlert("Fetch failed", "Could not fetch address from location. Enter address manually.");
+        return;
+      }
+      if (displayName) setLocationLabel(displayName);
+      if (pincode.length === 6) {
+        try {
+          const pinRes = await fetch(`https://api.postalpincode.in/pincode/${pincode}`);
+          const raw = await pinRes.json();
+          const block = Array.isArray(raw) ? raw[0] : raw;
+          const po = block?.PostOffice?.[0];
+          if (po) {
+            district = po.District || district;
+            state = po.State || state;
+          }
+        } catch {
+          /* keep nominatim values */
+        }
+      }
+      if (target === "business") {
+        patch({
+          businessAddress: addressLine || draft.businessAddress,
+          businessPincode: pincode || draft.businessPincode,
+          businessDistrict: district || draft.businessDistrict,
+          businessState: state || draft.businessState,
+        });
+      } else {
+        patch({
+          address: addressLine || draft.address,
+          pincode: pincode || draft.pincode,
+          district: district || draft.district,
+          state: state || draft.state,
+        });
+      }
+      showAlert("Address fetched", "Address, pincode, district and state filled from location.");
+    } catch {
+      showAlert("Location required", "Allow location access to fetch address");
+    } finally {
+      setAddressFetchBusy(false);
+    }
+  }
+
+  function useResidentialForBusiness() {
+    if (!draft.address.trim()) {
+      showAlert("No address", "Enter or fetch residential address on the Details step first.");
+      return;
+    }
+    patch({
+      businessAddress: draft.address.trim(),
+      businessPincode: draft.pincode,
+      businessDistrict: draft.district.trim(),
+      businessState: draft.state.trim(),
+    });
+    showAlert("Copied", "Business address copied from residential.");
+  }
+
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -256,6 +399,46 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
   }, [draft.mobile, draftReady, stepIndex, otpSent, phase]);
 
   useEffect(() => {
+    if (!draftReady || stepIndex !== 4 || phase !== "steps" || draft.emailVerified) {
+      return;
+    }
+    const value = draft.email.trim();
+    if (!value) {
+      setEmailError(null);
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+      setEmailError("Enter a valid email address");
+      return;
+    }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const { data } = await api.get<ApiResponse<{ available: boolean; message?: string }>>(
+          "/auth/email/check",
+          { params: { email: value.toLowerCase() } },
+        );
+        if (cancelled) return;
+        if (data.data.available === false) {
+          setEmailError(
+            data.data.message || "This email is already registered. Use a different email.",
+          );
+        } else {
+          setEmailError(null);
+        }
+      } catch (err) {
+        if (cancelled) return;
+        const msg = apiError(err, "");
+        if (/already registered|already in use/i.test(msg)) setEmailError(msg);
+      }
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [draft.email, draft.emailVerified, draftReady, stepIndex, phase]);
+
+  useEffect(() => {
     if (!needsUpline) {
       setSponsorOk(false);
       return;
@@ -309,6 +492,20 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
   }, [draft.pincode]);
 
   useEffect(() => {
+    if (stepIndex !== 5) return;
+    setDraft((d) => {
+      if (d.businessAddress.trim() || !d.address.trim()) return d;
+      return {
+        ...d,
+        businessAddress: d.address.trim(),
+        businessPincode: d.pincode || d.businessPincode,
+        businessDistrict: d.district.trim() || d.businessDistrict,
+        businessState: d.state.trim() || d.businessState,
+      };
+    });
+  }, [stepIndex]);
+
+  useEffect(() => {
     if (draft.businessPincode.length !== 6) return;
     let cancelled = false;
     void fetch(`https://api.postalpincode.in/pincode/${draft.businessPincode}`)
@@ -350,6 +547,96 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
     patch({ [key]: { name: `${label}.jpg` } } as Partial<MobileSignupDraft>);
   }
 
+  async function captureLivePhoto(kind: "personalPhoto" | "shopPhoto") {
+    setPhotoCaptureBusy(true);
+    try {
+      if (Platform.OS === "android") {
+        const cam = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA, {
+          title: "Camera Permission",
+          message: "AsanPay needs the camera for live photo capture.",
+          buttonPositive: "Allow",
+          buttonNegative: "Deny",
+        });
+        if (cam !== PermissionsAndroid.RESULTS.GRANTED) {
+          showAlert("Camera required", "Allow camera access to capture a live photo");
+          return;
+        }
+      }
+
+      let useLat = draft.latitude;
+      let useLng = draft.longitude;
+      try {
+        let coords: { latitude: string; longitude: string };
+        try {
+          coords = await readPosition(false, 10_000);
+        } catch {
+          coords = await readPosition(true, 12_000);
+        }
+        useLat = coords.latitude;
+        useLng = coords.longitude;
+        patch({ latitude: useLat, longitude: useLng });
+      } catch {
+        /* keep existing signup location */
+      }
+      if (!useLat || !useLng) {
+        showAlert("Location required", "Allow location access to geotag this photo");
+        setShowLocationModal(true);
+        return;
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { launchCamera } = require("react-native-image-picker") as {
+        launchCamera: (opts: Record<string, unknown>) => Promise<{
+          didCancel?: boolean;
+          errorCode?: string;
+          errorMessage?: string;
+          assets?: Array<{ fileName?: string; uri?: string }>;
+        }>;
+      };
+      const result = await launchCamera({
+        mediaType: "photo",
+        cameraType: kind === "personalPhoto" ? "front" : "back",
+        saveToPhotos: false,
+        quality: 0.7,
+        maxWidth: 1600,
+        maxHeight: 1600,
+      });
+      if (result.didCancel) return;
+      if (result.errorCode) {
+        showAlert(
+          "Camera failed",
+          result.errorMessage || "Could not open camera. Rebuild the app after installing react-native-image-picker.",
+        );
+        return;
+      }
+      const asset = result.assets?.[0];
+      const name =
+        asset?.fileName ||
+        (kind === "personalPhoto" ? "personal-live.jpg" : "shop-live.jpg");
+      patch({
+        [kind]: {
+          name,
+          latitude: useLat,
+          longitude: useLng,
+          capturedAt: new Date().toISOString(),
+        },
+      } as Partial<MobileSignupDraft>);
+      showAlert(
+        "Photo captured",
+        `Saved with location ${Number(useLat).toFixed(5)}, ${Number(useLng).toFixed(5)}`,
+      );
+    } catch (err) {
+      showAlert(
+        "Camera unavailable",
+        err instanceof Error
+          ? err.message
+          : "Install react-native-image-picker and rebuild the APK for live capture.",
+      );
+    } finally {
+      setPhotoCaptureBusy(false);
+    }
+  }
+
   function validateStep(): string | null {
     if (stepIndex === 0) {
       if (!draft.latitude || !draft.longitude) return "Allow location access before continuing";
@@ -372,7 +659,9 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
     if (stepIndex === 2) {
       if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(draft.pan)) return "Enter a valid PAN";
       if (!draft.gender) return "Select gender";
-      if (!draft.dob) return "DOB required (YYYY-MM-DD)";
+      if (!draft.dob || !/^\d{4}-\d{2}-\d{2}$/.test(draft.dob)) {
+        return "Enter date of birth as DD/MM/YYYY";
+      }
       if (!draft.fatherName.trim()) return "Father name is required";
       // Document uploads optional until S3 is wired — filename stubs only today.
     }
@@ -381,6 +670,7 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
     }
     if (stepIndex === 4) {
       if (!draft.email.trim()) return "Email is required";
+      if (emailError) return emailError;
       if (!draft.emailVerified) return "Verify your email";
       if (!draft.address.trim()) return "Address is required";
       if (draft.pincode.length !== 6) return "Valid pincode required";
@@ -399,6 +689,16 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
         return "Account numbers must match";
       }
       if (!draft.accountName.trim()) return "Account holder name is required";
+    }
+    if (stepIndex === 7) {
+      if (!draft.personalPhoto) return "Personal photo is required — use live camera capture";
+      if (!draft.personalPhoto.latitude || !draft.personalPhoto.longitude) {
+        return "Personal photo must include location. Retake with location allowed.";
+      }
+      if (!draft.shopPhoto) return "Shop photo is required — use live camera capture";
+      if (!draft.shopPhoto.latitude || !draft.shopPhoto.longitude) {
+        return "Shop photo must include location. Retake with location allowed.";
+      }
     }
     if (stepIndex === 8 && !draft.agreementAccepted) return "Accept the agreement";
     return null;
@@ -518,6 +818,10 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
       showAlert("Invalid email", "Enter a valid email address");
       return;
     }
+    if (emailError) {
+      showAlert("Email not available", emailError);
+      return;
+    }
     setLoading(true);
     try {
       await api.post("/auth/email/otp/request", { email: draft.email.trim().toLowerCase() });
@@ -591,9 +895,14 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
         panImageFileName: draft.panImage?.name,
         aadhaarFrontFileName: draft.aadhaarFront?.name,
         aadhaarBackFileName: draft.aadhaarBack?.name,
+        personalPhotoFileName: draft.personalPhoto?.name,
         shopPhotoFileName: draft.shopPhoto?.name,
-        latitude: draft.latitude || undefined,
-        longitude: draft.longitude || undefined,
+        personalPhotoLatitude: draft.personalPhoto?.latitude,
+        personalPhotoLongitude: draft.personalPhoto?.longitude,
+        shopPhotoLatitude: draft.shopPhoto?.latitude,
+        shopPhotoLongitude: draft.shopPhoto?.longitude,
+        latitude: draft.shopPhoto?.latitude || draft.latitude || undefined,
+        longitude: draft.shopPhoto?.longitude || draft.longitude || undefined,
       });
       if (!data.success) throw new Error(data.message);
       updateUser(data.data.user);
@@ -924,8 +1233,10 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
 
               {stepIndex === 2 && (
                 <>
-                  <Text style={styles.sectionTitle}>PAN Verification</Text>
-                  <Text style={[styles.hint, { color: tokens.mute }]}>Enter PAN details exactly as on the card.</Text>
+                  <Text style={styles.sectionTitle}>PAN Details</Text>
+                  <Text style={[styles.hint, { color: tokens.mute }]}>
+                    PAN number and personal details as on the PAN card.
+                  </Text>
                   <FieldLabel text="PAN Number *" color={tokens.mute} />
                   <TextInput
                     value={draft.pan}
@@ -953,18 +1264,22 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
                       </Pressable>
                     ))}
                   </View>
-                  <FieldLabel text="Date of Birth * (YYYY-MM-DD)" color={tokens.mute} />
+                  <FieldLabel text="Date of Birth *" color={tokens.mute} />
                   <TextInput
-                    value={draft.dob}
-                    onChangeText={(t) => patch({ dob: t })}
-                    placeholder="1981-02-12"
+                    value={isoToDisplayDob(draft.dob)}
+                    onChangeText={(t) => patch({ dob: displayDobToIso(t) })}
+                    keyboardType="number-pad"
+                    placeholder="DD/MM/YYYY"
                     placeholderTextColor={tokens.mute}
+                    maxLength={10}
                     style={inputStyle}
                   />
+                  <Text style={[styles.hint, { color: tokens.mute }]}>Format: DD/MM/YYYY (same as PAN card)</Text>
                   <FieldLabel text="Father Name *" color={tokens.mute} />
                   <TextInput
                     value={draft.fatherName}
                     onChangeText={(t) => patch({ fatherName: t })}
+                    placeholder="As per PAN"
                     placeholderTextColor={tokens.mute}
                     style={inputStyle}
                   />
@@ -1018,28 +1333,53 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
                   <View style={styles.emailRow}>
                     <TextInput
                       value={draft.email}
-                      onChangeText={(t) => patch({ email: t, emailVerified: false })}
+                      onChangeText={(t) => {
+                        patch({ email: t, emailVerified: false });
+                        setEmailError(null);
+                      }}
                       autoCapitalize="none"
                       keyboardType="email-address"
                       placeholder="email@example.com"
                       placeholderTextColor={tokens.mute}
-                      style={[inputStyle, { flex: 1 }]}
+                      style={[
+                        inputStyle,
+                        { flex: 1 },
+                        emailError ? { borderColor: "#DC2626" } : null,
+                      ]}
                     />
                     <Pressable
                       onPress={() => void requestEmailOtp()}
-                      disabled={loading || draft.emailVerified}
+                      disabled={loading || draft.emailVerified || Boolean(emailError)}
                       style={[styles.verifyBtn, draft.emailVerified && { backgroundColor: colors.green }]}
                     >
                       <Text style={styles.verifyBtnText}>{draft.emailVerified ? "Verified" : "Verify"}</Text>
                     </Pressable>
                   </View>
+                  {emailError ? (
+                    <Text style={{ color: "#DC2626", fontSize: 12, fontWeight: "700", marginBottom: 8 }}>
+                      {emailError}
+                    </Text>
+                  ) : null}
                   <FieldLabel text="Address *" color={tokens.mute} />
-                  <TextInput
-                    value={draft.address}
-                    onChangeText={(t) => patch({ address: t })}
-                    placeholderTextColor={tokens.mute}
-                    style={inputStyle}
-                  />
+                  <View style={styles.emailRow}>
+                    <TextInput
+                      value={draft.address}
+                      onChangeText={(t) => patch({ address: t })}
+                      placeholder="Residential address"
+                      placeholderTextColor={tokens.mute}
+                      style={[inputStyle, { flex: 1 }]}
+                    />
+                    <Pressable
+                      onPress={() => void fetchAddressFromLocation("home")}
+                      disabled={addressFetchBusy}
+                      style={[styles.verifyBtn, addressFetchBusy && { opacity: 0.7 }]}
+                    >
+                      <Text style={styles.verifyBtnText}>{addressFetchBusy ? "…" : "Fetch"}</Text>
+                    </Pressable>
+                  </View>
+                  <Text style={[styles.hint, { color: tokens.mute, marginBottom: 8 }]}>
+                    Fills address, pincode, district and state from your location.
+                  </Text>
                   <FieldLabel text="Pincode *" color={tokens.mute} />
                   <TextInput
                     value={draft.pincode}
@@ -1105,12 +1445,36 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
                     tokens={tokens}
                   />
                   <FieldLabel text="Business Address *" color={tokens.mute} />
-                  <TextInput
-                    value={draft.businessAddress}
-                    onChangeText={(t) => patch({ businessAddress: t })}
-                    placeholderTextColor={tokens.mute}
-                    style={inputStyle}
-                  />
+                  <View style={styles.emailRow}>
+                    <TextInput
+                      value={draft.businessAddress}
+                      onChangeText={(t) => patch({ businessAddress: t })}
+                      placeholder="Shop / outlet address"
+                      placeholderTextColor={tokens.mute}
+                      style={[inputStyle, { flex: 1 }]}
+                    />
+                    <Pressable
+                      onPress={() => void fetchAddressFromLocation("business")}
+                      disabled={addressFetchBusy}
+                      style={[styles.verifyBtn, addressFetchBusy && { opacity: 0.7 }]}
+                    >
+                      <Text style={styles.verifyBtnText}>{addressFetchBusy ? "…" : "Fetch"}</Text>
+                    </Pressable>
+                  </View>
+                  {draft.address.trim() ? (
+                    <Pressable onPress={useResidentialForBusiness} style={{ marginBottom: 8 }}>
+                      <Text style={{ color: colors.blue, fontSize: 12, fontWeight: "700", textDecorationLine: "underline" }}>
+                        Use residential address
+                      </Text>
+                      <Text style={[styles.hint, { color: tokens.mute, marginTop: 2 }]} numberOfLines={2}>
+                        {draft.address.trim()}
+                      </Text>
+                    </Pressable>
+                  ) : (
+                    <Text style={[styles.hint, { color: tokens.mute, marginBottom: 8 }]}>
+                      Fetch from location, or copy residential from Details.
+                    </Text>
+                  )}
                   <FieldLabel text="Pincode *" color={tokens.mute} />
                   <TextInput
                     value={draft.businessPincode}
@@ -1201,13 +1565,36 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
               {stepIndex === 7 && (
                 <>
                   <Text style={styles.sectionTitle}>Business Images</Text>
-                  <Text style={[styles.hint, { color: tokens.mute }]}>Upload a clear photo of your shop front.</Text>
+                  <Text style={[styles.hint, { color: tokens.mute }]}>
+                    Live camera capture only. Latitude and longitude are saved with each photo.
+                  </Text>
                   <UploadRow
-                    label="Shop Photo (optional)"
-                    done={Boolean(draft.shopPhoto)}
-                    name={draft.shopPhoto?.name}
-                    onPress={() => markUpload("shopPhoto", "shop")}
+                    label="Personal Photo *"
+                    done={Boolean(draft.personalPhoto?.latitude && draft.personalPhoto?.longitude)}
+                    name={
+                      draft.personalPhoto
+                        ? `${draft.personalPhoto.name} · ${Number(draft.personalPhoto.latitude).toFixed(5)}, ${Number(draft.personalPhoto.longitude).toFixed(5)}`
+                        : undefined
+                    }
+                    onPress={() => {
+                      if (!photoCaptureBusy) void captureLivePhoto("personalPhoto");
+                    }}
                     tokens={tokens}
+                    actionLabel={photoCaptureBusy ? "Capturing…" : "Open camera"}
+                  />
+                  <UploadRow
+                    label="Shop Photo *"
+                    done={Boolean(draft.shopPhoto?.latitude && draft.shopPhoto?.longitude)}
+                    name={
+                      draft.shopPhoto
+                        ? `${draft.shopPhoto.name} · ${Number(draft.shopPhoto.latitude).toFixed(5)}, ${Number(draft.shopPhoto.longitude).toFixed(5)}`
+                        : undefined
+                    }
+                    onPress={() => {
+                      if (!photoCaptureBusy) void captureLivePhoto("shopPhoto");
+                    }}
+                    tokens={tokens}
+                    actionLabel={photoCaptureBusy ? "Capturing…" : "Open camera"}
                   />
                 </>
               )}
@@ -1353,12 +1740,14 @@ function UploadRow({
   name,
   onPress,
   tokens,
+  actionLabel,
 }: {
   label: string;
   done: boolean;
   name?: string;
   onPress: () => void;
   tokens: { mute: string; card: string; cardBorder: string; txt2: string };
+  actionLabel?: string;
 }) {
   return (
     <View style={{ marginBottom: 10 }}>
@@ -1373,7 +1762,9 @@ function UploadRow({
           },
         ]}
       >
-        <Text style={{ color: tokens.txt2, fontWeight: "700" }}>{done ? name || "Uploaded" : "Tap to upload"}</Text>
+        <Text style={{ color: tokens.txt2, fontWeight: "700", flex: 1, paddingRight: 8 }}>
+          {done ? name || "Uploaded" : actionLabel || "Tap to upload"}
+        </Text>
         <Text style={{ color: done ? colors.greenDark : tokens.mute, fontWeight: "800" }}>{done ? "✓" : "+"}</Text>
       </Pressable>
     </View>

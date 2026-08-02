@@ -1,8 +1,14 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-export type SignupRole = "master_distributor" | "distributor" | "retailer";
+export type SignupRole = "master_distributor" | "distributor" | "retailer" | "direct_retailer";
 
-export type SignupFileMeta = { name: string };
+export type SignupFileMeta = {
+  name: string;
+  latitude?: string;
+  longitude?: string;
+  capturedAt?: string;
+};
+
 
 export type MobileSignupDraft = {
   stepIndex: number;
@@ -48,6 +54,7 @@ export type MobileSignupDraft = {
   accountNumberConfirm: string;
   accountName: string;
   cancelledCheque: SignupFileMeta | null;
+  personalPhoto: SignupFileMeta | null;
   shopPhoto: SignupFileMeta | null;
   agreementAccepted: boolean;
 };
@@ -96,6 +103,7 @@ export const EMPTY_MOBILE_SIGNUP_DRAFT: MobileSignupDraft = {
   accountNumberConfirm: "",
   accountName: "",
   cancelledCheque: null,
+  personalPhoto: null,
   shopPhoto: null,
   agreementAccepted: false,
 };

@@ -11,6 +11,7 @@ import {
   signupVerifySchema,
   signupCompleteSchema,
   signupMobileCheckSchema,
+  signupEmailCheckSchema,
   sponsorUidParamSchema,
   sponsorMobileQuerySchema,
   mpinLoginSchema,
@@ -33,6 +34,7 @@ import {
   verifySignupOtp,
   completeSignup,
   checkSignupMobileAvailable,
+  checkSignupEmailAvailable,
   lookupSponsorByUid,
   searchSponsorsByMobile,
   getAuthMe,
@@ -185,6 +187,13 @@ export async function searchSponsors(req: Request, res: Response): Promise<void>
 export async function signupMobileCheck(req: Request, res: Response): Promise<void> {
   const { mobile } = signupMobileCheckSchema.parse(req.query);
   const result = await checkSignupMobileAvailable(mobile);
+  sendSuccess(res, result);
+}
+
+export async function signupEmailCheck(req: Request, res: Response): Promise<void> {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { email } = signupEmailCheckSchema.parse(req.query);
+  const result = await checkSignupEmailAvailable(email, req.auth.sub);
   sendSuccess(res, result);
 }
 

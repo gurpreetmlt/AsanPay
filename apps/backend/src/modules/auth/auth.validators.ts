@@ -124,12 +124,23 @@ export const emailPreferencesSchema = z.object({
 export type EmailPreferencesInput = z.infer<typeof emailPreferencesSchema>;
 
 /** Public self-signup under an upline (sponsor UID). Role = account being created. */
-export const SIGNUP_CHILD_ROLES = ["master_distributor", "distributor", "retailer"] as const;
+export const SIGNUP_CHILD_ROLES = [
+  "master_distributor",
+  "distributor",
+  "retailer",
+  /** Signup UI only — persists as `retailer` under root admin (no distributor). */
+  "direct_retailer",
+] as const;
 export type SignupChildRole = (typeof SIGNUP_CHILD_ROLES)[number];
 
 /** Sponsor roles that may appear in public signup search. */
 export const SPONSOR_SEARCH_ROLES = ["admin", "master_distributor", "distributor"] as const;
 export type SponsorSearchRole = (typeof SPONSOR_SEARCH_ROLES)[number];
+
+export function signupNeedsSponsorUid(role: SignupChildRole): boolean {
+  return role !== "master_distributor" && role !== "direct_retailer";
+}
+
 
 /** Browser geolocation strings stored on user.outlet_* for AEPS geofence. */
 export const geoCoordSchema = z
@@ -181,6 +192,16 @@ export const signupMobileCheckSchema = z.object({
 });
 export type SignupMobileCheckInput = z.infer<typeof signupMobileCheckSchema>;
 
+/** Live check while typing email (after account exists). */
+export const signupEmailCheckSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email("Enter a valid email address"),
+});
+export type SignupEmailCheckInput = z.infer<typeof signupEmailCheckSchema>;
+
 /** Confirm mobile OTP — returns signupToken; account created on /signup/complete. */
 export const signupVerifySchema = z.object({
   mobile: mobileSchema,
@@ -203,7 +224,7 @@ export const signupCompleteSchema = z
     longitude: geoCoordSchema,
   })
   .superRefine((data, ctx) => {
-    if (data.role !== "master_distributor" && !data.sponsorUid) {
+    if (signupNeedsSponsorUid(data.role) && !data.sponsorUid) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Sponsor UID is required",
@@ -265,7 +286,12 @@ export const kycSubmitSchema = z.object({
   panImageFileName: z.string().trim().max(200).optional(),
   aadhaarFrontFileName: z.string().trim().max(200).optional(),
   aadhaarBackFileName: z.string().trim().max(200).optional(),
+  personalPhotoFileName: z.string().trim().max(200).optional(),
   shopPhotoFileName: z.string().trim().max(200).optional(),
+  personalPhotoLatitude: geoCoordSchema.optional(),
+  personalPhotoLongitude: geoCoordSchema.optional(),
+  shopPhotoLatitude: geoCoordSchema.optional(),
+  shopPhotoLongitude: geoCoordSchema.optional(),
   /** Signup / shop geo — updates outlet_latitude / outlet_longitude when provided. */
   latitude: geoCoordSchema.optional(),
   longitude: geoCoordSchema.optional(),

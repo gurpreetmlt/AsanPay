@@ -18,6 +18,7 @@ import {
   signupVerify,
   signupComplete,
   signupMobileCheck,
+  signupEmailCheck,
   lookupSponsor,
   searchSponsors,
   setTransactionPin,
@@ -45,6 +46,7 @@ authRouter.post("/mpin/set", requireAuth, setMpin);
 
 authRouter.post("/email/otp/request", requireAuth, otpRequestLimiter, requestEmailOtp);
 authRouter.post("/email/otp/verify", requireAuth, authLimiter, verifyEmailOtpHandler);
+authRouter.get("/email/check", requireAuth, signupMobileCheckLimiter, signupEmailCheck);
 authRouter.patch("/email/preferences", requireAuth, updateEmailPreferences);
 
 authRouter.get("/devices", requireAuth, listDevices);
