@@ -13,8 +13,9 @@ import {
   View,
 } from "react-native";
 import Geolocation from "@react-native-community/geolocation";
+import DateTimePicker, { type DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ArrowLeft, CheckCircle2, Eye, EyeOff, MapPin, X } from "lucide-react-native";
+import { ArrowLeft, Calendar, CheckCircle2, Eye, EyeOff, MapPin, X } from "lucide-react-native";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import { api } from "../../lib/api";
 import { apiError } from "../../utils/apiError";
@@ -74,23 +75,22 @@ function isoToDisplayDob(iso: string): string {
     const [y, m, d] = iso.split("-");
     return `${d}/${m}/${y}`;
   }
-  return iso;
+  return "";
 }
 
-/** Type DD/MM/YYYY → store YYYY-MM-DD (partial while typing stays display-shaped in draft until complete). */
-function displayDobToIso(raw: string): string {
-  const digits = raw.replace(/\D/g, "").slice(0, 8);
-  let out = "";
-  if (digits.length <= 2) out = digits;
-  else if (digits.length <= 4) out = `${digits.slice(0, 2)}/${digits.slice(2)}`;
-  else out = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
-  if (digits.length === 8) {
-    const d = digits.slice(0, 2);
-    const m = digits.slice(2, 4);
-    const y = digits.slice(4, 8);
-    return `${y}-${m}-${d}`;
+function isoToDate(iso: string): Date {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    const [y, m, d] = iso.split("-").map(Number);
+    return new Date(y, m - 1, d);
   }
-  return out;
+  return new Date(1995, 0, 1);
+}
+
+function dateToIso(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
 export function SignupScreen({ onBack }: SignupScreenProps) {
@@ -118,6 +118,7 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
   const [locationLabel, setLocationLabel] = useState<string | null>(null);
   const [addressFetchBusy, setAddressFetchBusy] = useState(false);
   const [photoCaptureBusy, setPhotoCaptureBusy] = useState(false);
+  const [showDobPicker, setShowDobPicker] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
 
   const stepIndex = draft.stepIndex;
@@ -1096,6 +1097,7 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
                   <TextInput
                     value={draft.mobile}
                     onChangeText={(t) => {
+                      if (draft.accountCreated) return;
                       patch({ mobile: t.replace(/\D/g, "").slice(0, 10), signupToken: "" });
                       setOtpSent(false);
                       setOtp("");
@@ -1105,25 +1107,30 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
                     keyboardType="number-pad"
                     placeholder="10-digit mobile"
                     placeholderTextColor={tokens.mute}
-                    editable={hasLocation && !otpSent}
+                    editable={hasLocation && !otpSent && !draft.accountCreated}
                     style={[
                       inputStyle,
-                      (!hasLocation || otpSent) && { opacity: 0.5 },
+                      ((!hasLocation || otpSent) || draft.accountCreated) && { opacity: 0.5 },
                       mobileError ? { borderColor: "#DC2626" } : null,
                     ]}
                   />
+                  {draft.accountCreated ? (
+                    <Text style={[styles.hint, { color: tokens.mute }]}>
+                      Signed-in mobile is locked. Continue KYC from where you left off.
+                    </Text>
+                  ) : null}
                   {mobileError ? (
                     <Text style={{ color: "#DC2626", fontSize: 12, fontWeight: "700", marginBottom: 6 }}>
                       {mobileError}
                     </Text>
                   ) : null}
                   <Text style={[styles.hint, { color: tokens.mute }]}>
-                    Use the number linked to your Aadhaar.
+                    *Enter number which is linked to your Aadhaar.
                   </Text>
                   {otpSent ? (
                     <>
                       <Text style={[styles.hint, { color: tokens.mute }]}>
-                        Enter the 6-digit OTP. Fixed signup OTP (if enabled): e.g. 242424.
+                        Enter the 6-digit OTP. If fixed signup OTP is enabled, use that code (e.g. 242424).
                       </Text>
                       {devOtp ? <Text style={styles.devOtp}>Dev OTP: {devOtp}</Text> : null}
                       <FieldLabel text="OTP *" color={tokens.mute} />
@@ -1162,17 +1169,20 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
                       {draft.termsAccepted ? <CheckCircle2 size={14} color="#fff" /> : null}
                     </View>
                     <Text style={{ color: tokens.txt2, flex: 1, fontSize: 13, lineHeight: 18 }}>
-                      I agree to the <Text style={{ color: colors.blueFlat, fontWeight: "800" }}>Terms & Privacy Policy</Text>
+                      I agree to the{" "}
+                      <Text style={{ color: colors.blueFlat, fontWeight: "800" }}>Terms and Conditions</Text>
                     </Text>
                   </Pressable>
                   {!otpSent ? (
                   <View style={[styles.prep, { backgroundColor: colors.greenBg }]}>
-                    <Text style={[styles.prepTitle, { color: colors.greenDark }]}>Keep these ready</Text>
-                    <Text style={[styles.prepItem, { color: colors.greenDark }]}>• Business document (any one)</Text>
-                    <Text style={[styles.prepItem, { color: colors.greenDark }]}>• Aadhaar card (soft copy)</Text>
-                    <Text style={[styles.prepItem, { color: colors.greenDark }]}>• PAN card (soft copy)</Text>
-                    <Text style={[styles.prepItem, { color: colors.greenDark }]}>• Shop photo</Text>
-                    <Text style={[styles.prepFoot, { color: tokens.mute }]}>You can resume later from where you left off.</Text>
+                    <Text style={[styles.prepTitle, { color: colors.greenDark }]}>Before you begin, keep these ready:</Text>
+                    <Text style={[styles.prepItem, { color: colors.greenDark }]}>• Business Document (any one)</Text>
+                    <Text style={[styles.prepItem, { color: colors.greenDark }]}>• Aadhaar Card (soft copy)</Text>
+                    <Text style={[styles.prepItem, { color: colors.greenDark }]}>• PAN Card (soft copy)</Text>
+                    <Text style={[styles.prepItem, { color: colors.greenDark }]}>• Photo of your Shop</Text>
+                    <Text style={[styles.prepFoot, { color: tokens.mute }]}>
+                      You can start now and resume later from where you left off.
+                    </Text>
                   </View>
                   ) : null}
                 </>
@@ -1289,16 +1299,55 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
                     ))}
                   </View>
                   <FieldLabel text="Date of Birth *" color={tokens.mute} />
-                  <TextInput
-                    value={isoToDisplayDob(draft.dob)}
-                    onChangeText={(t) => patch({ dob: displayDobToIso(t) })}
-                    keyboardType="number-pad"
-                    placeholder="DD/MM/YYYY"
-                    placeholderTextColor={tokens.mute}
-                    maxLength={10}
-                    style={inputStyle}
-                  />
-                  <Text style={[styles.hint, { color: tokens.mute }]}>Format: DD/MM/YYYY (same as PAN card)</Text>
+                  <Pressable
+                    onPress={() => setShowDobPicker(true)}
+                    style={[
+                      inputStyle,
+                      {
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={{
+                        color: isoToDisplayDob(draft.dob) ? tokens.txt2 : tokens.mute,
+                        fontSize: 14,
+                        fontWeight: "600",
+                      }}
+                    >
+                      {isoToDisplayDob(draft.dob) || "DD/MM/YYYY"}
+                    </Text>
+                    <Calendar size={18} color={tokens.mute} />
+                  </Pressable>
+                  <Text style={[styles.hint, { color: tokens.mute }]}>
+                    As on PAN card. Tap to open calendar.
+                  </Text>
+                  {showDobPicker ? (
+                    <DateTimePicker
+                      value={isoToDate(draft.dob)}
+                      mode="date"
+                      display={Platform.OS === "ios" ? "spinner" : "default"}
+                      maximumDate={new Date()}
+                      minimumDate={new Date(1940, 0, 1)}
+                      onChange={(event: DateTimePickerEvent, date?: Date) => {
+                        if (Platform.OS === "android") {
+                          setShowDobPicker(false);
+                        }
+                        if (event.type === "dismissed") return;
+                        if (date) patch({ dob: dateToIso(date) });
+                        if (Platform.OS === "ios" && event.type === "set") {
+                          setShowDobPicker(false);
+                        }
+                      }}
+                    />
+                  ) : null}
+                  {Platform.OS === "ios" && showDobPicker ? (
+                    <Pressable onPress={() => setShowDobPicker(false)} style={{ marginBottom: 8 }}>
+                      <Text style={{ color: colors.blue, fontWeight: "800", fontSize: 13 }}>Done</Text>
+                    </Pressable>
+                  ) : null}
                   <FieldLabel text="Father Name *" color={tokens.mute} />
                   <TextInput
                     value={draft.fatherName}
