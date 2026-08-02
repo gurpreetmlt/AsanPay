@@ -13,6 +13,7 @@ import {
   LocationPermissionModal,
   TermsAcceptModal,
   requestBrowserLocation,
+  reverseGeocodeAddress,
 } from "@/components/signup/SignupLocationTerms";
 import api from "@/lib/api";
 import { formatAadhaar, stripAadhaar } from "@/lib/aadhaar";
@@ -186,6 +187,8 @@ export default function SignupPage() {
   const [stepErrorKey, setStepErrorKey] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [mobileError, setMobileError] = useState<string | null>(null);
+  const [mobileChecking, setMobileChecking] = useState(false);
+  const [locationLabel, setLocationLabel] = useState<string | null>(null);
 
   const stepIndex = draft.stepIndex;
   const needsUpline = draft.role !== "master_distributor";
@@ -203,6 +206,8 @@ export default function SignupPage() {
     try {
       const coords = await requestBrowserLocation();
       patch({ latitude: coords.latitude, longitude: coords.longitude });
+      const label = await reverseGeocodeAddress(Number(coords.latitude), Number(coords.longitude));
+      setLocationLabel(label);
       setShowLocationModal(false);
       return true;
     } catch (err) {
@@ -269,9 +274,11 @@ export default function SignupPage() {
     const phone = draft.mobile.replace(/\D/g, "").slice(0, 10);
     if (phone.length !== 10) {
       setMobileError(null);
+      setMobileChecking(false);
       return;
     }
     let cancelled = false;
+    setMobileChecking(true);
     const timer = setTimeout(async () => {
       try {
         const { data } = await api.get<
@@ -286,18 +293,35 @@ export default function SignupPage() {
         } else {
           setMobileError(null);
         }
-      } catch {
-        if (!cancelled) {
-          // Don't block typing on network blips — OTP request still re-checks.
-          setMobileError(null);
+      } catch (err) {
+        if (cancelled) return;
+        const msg = extractApiError(err, "");
+        if (/already registered/i.test(msg)) {
+          setMobileError(msg);
+        } else if (/too many requests/i.test(msg)) {
+          setMobileError("Too many checks — wait a moment, then continue typing");
         }
+        // Network / unknown: keep quiet; Send OTP still re-validates.
+      } finally {
+        if (!cancelled) setMobileChecking(false);
       }
-    }, 350);
+    }, 400);
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
   }, [draft.mobile, draftReady, stepIndex, otpSent]);
+
+  useEffect(() => {
+    if (!draft.latitude || !draft.longitude || locationLabel) return;
+    let cancelled = false;
+    void reverseGeocodeAddress(Number(draft.latitude), Number(draft.longitude)).then((label) => {
+      if (!cancelled && label) setLocationLabel(label);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [draft.latitude, draft.longitude, locationLabel]);
 
   useEffect(() => {
     if (!needsUpline) {
@@ -764,7 +788,9 @@ export default function SignupPage() {
                   </p>
                 ) : (
                   <p className="rounded-xl px-3 py-2 text-xs" style={{ background: `${B.green}12`, color: B.greenDark }}>
-                    Location captured · Lat {Number(draft.latitude).toFixed(5)}, Lng {Number(draft.longitude).toFixed(5)}
+                    {locationLabel
+                      ? `Location captured · ${locationLabel}`
+                      : "Location captured · resolving address…"}
                   </p>
                 )}
                 <Field label="Mobile Number *">
@@ -788,6 +814,11 @@ export default function SignupPage() {
                     disabled={!hasLocation || otpSent}
                   />
                 </Field>
+                {mobileChecking && !mobileError ? (
+                  <p className="text-xs" style={{ color: B.muted }}>
+                    Checking if this mobile is available…
+                  </p>
+                ) : null}
                 {mobileError ? (
                   <p className="text-xs font-semibold" style={{ color: "#DC2626" }}>
                     {mobileError}

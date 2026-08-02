@@ -27,7 +27,7 @@ import {
 } from "./auth.controller";
 import { requireAuth } from "../../middleware/auth.middleware";
 import { requireRole } from "../../middleware/rbac.middleware";
-import { authLimiter, otpRequestLimiter, walletTxnLimiter } from "../../middleware/rateLimiter";
+import { authLimiter, otpRequestLimiter, walletTxnLimiter, signupMobileCheckLimiter } from "../../middleware/rateLimiter";
 
 export const authRouter = Router();
 
@@ -52,7 +52,7 @@ authRouter.post("/devices/:id/revoke", requireAuth, revokeDevice);
 
 authRouter.get("/sponsor/search", otpRequestLimiter, searchSponsors);
 authRouter.get("/sponsor/:uid", otpRequestLimiter, lookupSponsor);
-authRouter.get("/signup/mobile-check", otpRequestLimiter, signupMobileCheck);
+authRouter.get("/signup/mobile-check", signupMobileCheckLimiter, signupMobileCheck);
 authRouter.post("/signup/request", otpRequestLimiter, signupRequest);
 authRouter.post("/signup/verify", authLimiter, signupVerify);
 authRouter.post("/signup/complete", authLimiter, signupComplete);

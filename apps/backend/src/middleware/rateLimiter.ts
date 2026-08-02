@@ -27,6 +27,12 @@ export const apiLimiter = rateLimit({
   validate: sharedValidate,
 });
 
+function requestMobile(req: Request): string {
+  const fromBody = typeof req.body?.mobile === "string" ? req.body.mobile.trim() : "";
+  const fromQuery = typeof req.query?.mobile === "string" ? req.query.mobile.trim() : "";
+  return fromBody || fromQuery;
+}
+
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: isDev ? 200 : 10,
@@ -34,7 +40,7 @@ export const authLimiter = rateLimit({
   legacyHeaders: false,
   skipSuccessfulRequests: true,
   keyGenerator: (req) => {
-    const mobile = typeof req.body?.mobile === "string" ? req.body.mobile.trim() : "";
+    const mobile = requestMobile(req);
     return mobile ? `auth:${mobile}` : `auth-ip:${clientIp(req)}`;
   },
   validate: sharedValidate,
@@ -46,9 +52,22 @@ export const otpRequestLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
-    const mobile = typeof req.body?.mobile === "string" ? req.body.mobile.trim() : "";
+    const mobile = requestMobile(req);
     // Prefer mobile so XFF rotation cannot flood one number; fall back to IP.
     return mobile ? `otp:${mobile}` : `otp-ip:${clientIp(req)}`;
+  },
+  validate: sharedValidate,
+});
+
+/** Live signup mobile availability — lighter than OTP send. */
+export const signupMobileCheckLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: isDev ? 120 : 40,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const mobile = requestMobile(req);
+    return mobile ? `signup-check:${mobile}` : `signup-check-ip:${clientIp(req)}`;
   },
   validate: sharedValidate,
 });

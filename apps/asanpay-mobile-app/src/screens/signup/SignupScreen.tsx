@@ -89,6 +89,7 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
   const [locationError, setLocationError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [mobileError, setMobileError] = useState<string | null>(null);
+  const [locationLabel, setLocationLabel] = useState<string | null>(null);
 
   const stepIndex = draft.stepIndex;
   const needsUpline = draft.role !== "master_distributor";
@@ -153,6 +154,18 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
       patch({ latitude: coords.latitude, longitude: coords.longitude });
       setLocationError(null);
       setShowLocationModal(false);
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${coords.latitude}&lon=${coords.longitude}&addressdetails=1`,
+          { headers: { Accept: "application/json", "User-Agent": "AsanPayMobile/1.0" } },
+        );
+        if (res.ok) {
+          const data = (await res.json()) as { display_name?: string };
+          if (data.display_name) setLocationLabel(data.display_name);
+        }
+      } catch {
+        /* display-only */
+      }
       return true;
     } catch {
       setLocationError("Could not get location. Turn on GPS / Location and try again.");
@@ -230,10 +243,12 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
         } else {
           setMobileError(null);
         }
-      } catch {
-        if (!cancelled) setMobileError(null);
+      } catch (err) {
+        if (cancelled) return;
+        const msg = apiError(err, "");
+        if (/already registered/i.test(msg)) setMobileError(msg);
       }
-    }, 350);
+    }, 400);
     return () => {
       cancelled = true;
       clearTimeout(t);
@@ -732,7 +747,9 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
                     <MapPin size={16} color={hasLocation ? colors.greenDark : "#C2410C"} />
                     <Text style={{ flex: 1, color: hasLocation ? colors.greenDark : "#9A3412", fontSize: 12, fontWeight: "600" }}>
                       {hasLocation
-                        ? `Location ready · ${Number(draft.latitude).toFixed(4)}, ${Number(draft.longitude).toFixed(4)}`
+                        ? locationLabel
+                          ? `Location ready · ${locationLabel}`
+                          : "Location ready · resolving address…"
                         : "Allow location to unlock mobile number"}
                     </Text>
                     {!hasLocation ? (
