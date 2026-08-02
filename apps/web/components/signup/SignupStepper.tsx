@@ -26,7 +26,7 @@ export const SIGNUP_STEPS = [
 
 export type SignupStepId = (typeof SIGNUP_STEPS)[number]["id"];
 
-/** Web: show all 9 steps with a continuous connector line. */
+/** Web only: all 9 steps — spaced icons with connectors between them. */
 export function SignupStepper({
   currentIndex,
 }: {
@@ -35,10 +35,9 @@ export function SignupStepper({
   const total = SIGNUP_STEPS.length;
   const idx = Math.max(0, Math.min(currentIndex, total - 1));
   const progress = ((idx + 1) / total) * 100;
-  const lineFillPct = total <= 1 ? 0 : (idx / (total - 1)) * 100;
 
   return (
-    <div className="mb-7">
+    <div className="mb-8">
       <div className="mb-2 flex items-center justify-between gap-3">
         <p className="text-xs font-bold" style={{ color: B.blue }}>
           Step {idx + 1} of {total}
@@ -47,53 +46,48 @@ export function SignupStepper({
           {SIGNUP_STEPS[idx]?.short}
         </p>
       </div>
-      <div className="mb-4 h-1.5 overflow-hidden rounded-full" style={{ background: B.border }}>
+      <div className="mb-5 h-1.5 overflow-hidden rounded-full" style={{ background: B.border }}>
         <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: B.green }} />
       </div>
 
-      <div className="relative">
-        {/* Connector through icon centers (first ↔ last column midpoints) */}
-        <div
-          className="pointer-events-none absolute top-[18px] h-[3px] overflow-hidden rounded-full"
-          style={{ left: "5.555%", right: "5.555%", background: B.border }}
-          aria-hidden
-        >
-          <div
-            className="h-full rounded-full transition-all duration-300"
-            style={{ width: `${lineFillPct}%`, background: B.green }}
-          />
-        </div>
-
-        <ol className="relative z-[1] grid grid-cols-9">
-          {SIGNUP_STEPS.map((step, stepIndex) => {
-            const Icon = step.icon as LucideIcon;
-            const done = stepIndex < idx;
-            const active = stepIndex === idx;
-            const bg = done ? B.green : active ? B.blue : "#fff";
-            return (
-              <li key={step.id} className="flex flex-col items-center text-center">
+      <div className="flex w-full items-start">
+        {SIGNUP_STEPS.map((step, stepIndex) => {
+          const Icon = step.icon as LucideIcon;
+          const done = stepIndex < idx;
+          const active = stepIndex === idx;
+          const bg = done ? B.green : active ? B.blue : "#F8FAFC";
+          return (
+            <div key={step.id} className="contents">
+              {stepIndex > 0 ? (
                 <div
-                  className="flex h-9 w-9 items-center justify-center rounded-full border-2 bg-white"
+                  className="mx-0.5 mt-5 h-[3px] min-w-[10px] flex-1 rounded-full sm:mx-1"
+                  style={{ background: stepIndex <= idx ? B.green : B.border }}
+                  aria-hidden
+                />
+              ) : null}
+              <div className="flex w-12 shrink-0 flex-col items-center sm:w-[3.75rem]">
+                <div
+                  className="flex h-9 w-9 items-center justify-center rounded-full border-2 sm:h-10 sm:w-10"
                   style={{
                     background: bg,
                     borderColor: active ? B.blue : done ? B.green : B.border,
                     color: done || active ? "#fff" : B.muted,
-                    boxShadow: active ? `0 0 0 3px ${B.blue}22` : "0 1px 2px rgba(15,23,42,0.06)",
+                    boxShadow: active ? `0 0 0 4px ${B.blue}18` : undefined,
                   }}
                   title={step.label}
                 >
-                  <Icon size={15} strokeWidth={2.25} />
+                  <Icon size={16} strokeWidth={2.25} />
                 </div>
                 <span
-                  className="mt-2 max-w-[4.75rem] text-[10px] font-bold leading-tight sm:text-[11px]"
+                  className="mt-2 w-full truncate text-center text-[10px] font-bold leading-tight sm:text-[11px]"
                   style={{ color: active ? B.blue : done ? B.greenDark : B.muted }}
                 >
                   {step.short}
                 </span>
-              </li>
-            );
-          })}
-        </ol>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
