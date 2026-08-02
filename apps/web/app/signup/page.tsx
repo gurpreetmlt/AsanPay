@@ -729,7 +729,7 @@ export default function SignupPage() {
   return (
     <div className="min-h-screen px-4 py-6 sm:px-6 sm:py-8" style={{ background: B.bg }}>
       <div
-        className="mx-auto w-full max-w-4xl rounded-3xl border bg-white p-6 shadow-xl sm:p-10 lg:max-w-5xl lg:p-12"
+        className="mx-auto w-full max-w-2xl rounded-3xl border bg-white p-6 shadow-xl sm:p-8"
         style={{ borderColor: B.border }}
       >
         <div className="mb-4 flex items-center gap-3">
