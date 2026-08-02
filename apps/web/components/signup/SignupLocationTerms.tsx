@@ -87,15 +87,26 @@ export async function reverseGeocodeDetails(
     const lineParts = [
       a.house_number,
       a.road || a.pedestrian,
-      a.suburb || a.neighbourhood || a.village,
+      a.suburb || a.neighbourhood || a.quarter,
+      a.village || a.hamlet || a.locality,
     ].filter(Boolean);
-    const district = (a.city || a.town || a.county || a.state_district || a.suburb || "").trim();
+    const district = (
+      a.city ||
+      a.town ||
+      a.municipality ||
+      a.state_district ||
+      a.county ||
+      a.suburb ||
+      ""
+    ).trim();
     const state = (a.state || "").trim();
     const pincode = (a.postcode || "").replace(/\D/g, "").slice(0, 6);
     const displayName = (data.display_name || "").trim();
+    // Prefer full Nominatim display_name for residential address (rural pins often lack road).
+    const shortLine = lineParts.join(", ");
     const addressLine =
-      lineParts.join(", ") ||
       displayName ||
+      shortLine ||
       [district, state, pincode].filter(Boolean).join(", ");
     if (!addressLine && !pincode && !district && !state) return null;
     return {

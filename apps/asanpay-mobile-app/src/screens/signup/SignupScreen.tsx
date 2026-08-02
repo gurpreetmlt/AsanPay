@@ -251,19 +251,24 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
       }
       const data = (await res.json()) as { display_name?: string; address?: Record<string, string> };
       const a = data.address ?? {};
-      const lineParts = [
-        a.house_number,
-        a.road || a.pedestrian,
-        a.suburb || a.neighbourhood || a.village,
-      ].filter(Boolean);
-      let district = (a.city || a.town || a.county || a.state_district || a.suburb || "").trim();
+      let district = (
+        a.city ||
+        a.town ||
+        a.municipality ||
+        a.state_district ||
+        a.county ||
+        a.suburb ||
+        ""
+      ).trim();
       let state = (a.state || "").trim();
       const pincode = (a.postcode || "").replace(/\D/g, "").slice(0, 6);
       const displayName = (data.display_name || "").trim();
+      // Full OSM display_name — rural areas often have no road name.
       const addressLine =
-        lineParts.join(", ") ||
         displayName ||
-        [district, state, pincode].filter(Boolean).join(", ");
+        [a.house_number, a.road || a.pedestrian, a.village || a.suburb, district, state, pincode]
+          .filter(Boolean)
+          .join(", ");
       if (!addressLine && !pincode && !district && !state) {
         showAlert("Fetch failed", "Could not fetch address from location. Enter address manually.");
         return;
