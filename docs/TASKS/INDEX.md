@@ -51,12 +51,21 @@
 | 15 | Biometric SDK | L ⚠️ split | [15-mobile-biometric.md](15-mobile-biometric.md) |
 | 16 | Txn PIN modal | S | [16-mobile-txn-pin.md](16-mobile-txn-pin.md) |
 
+## Wallet engine pending (ordered)
+Queue: [wallet-engine-queue.md](wallet-engine-queue.md)
+
+| # | Task | Size | File |
+|---|------|------|------|
+| 27A | Fund request + banking HTTP | M | [27A-fund-request-http.md](27A-fund-request-http.md) |
+| 27B | Ledger recon cron | M | [27B-ledger-recon-cron.md](27B-ledger-recon-cron.md) |
+| 27C | Settlements module | L | [27C-settlements.md](27C-settlements.md) |
+| 27D | VAN + webhook auto-credit | M | [27D-van-webhook.md](27D-van-webhook.md) |
+
 ## Recommended next (fast value)
 ```
-1. @docs/TASKS/11-mobile-bottom-tabs.md
-2. @docs/TASKS/16-mobile-txn-pin.md
-3. @docs/TASKS/12-wallet-ledger.md
-4. @docs/TASKS/08-vps-deploy.md
+1. @docs/TASKS/wallet-engine-queue.md  → then CURRENT task (start 27A)
+2. @docs/TASKS/11-mobile-bottom-tabs.md
+3. @docs/TASKS/16-mobile-txn-pin.md
 ```
 
 ## Prompt format

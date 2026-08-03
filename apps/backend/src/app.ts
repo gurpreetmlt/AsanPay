@@ -16,6 +16,8 @@ import { adminRouter } from "./modules/admin/admin.routes";
 import { dashboardRouter } from "./modules/dashboard/dashboard.routes";
 import { onboardingRouter } from "./modules/onboarding/onboarding.routes";
 import { supportRouter } from "./modules/support/support.routes";
+import { fundRequestRouter } from "./modules/fund-requests/fundRequest.routes";
+import { bankingRouter } from "./modules/banking/banking.routes";
 
 export function createApp(): Express {
   const app = express();
@@ -81,6 +83,8 @@ export function createApp(): Express {
   app.use("/api/dashboard", dashboardRouter);
   app.use("/api/onboarding", onboardingRouter);
   app.use("/api/support", supportRouter);
+  app.use("/api/fund-requests", fundRequestRouter);
+  app.use("/api/banking", bankingRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

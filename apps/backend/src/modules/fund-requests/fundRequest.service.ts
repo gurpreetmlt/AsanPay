@@ -7,13 +7,14 @@ import {
   fundRequests,
   fundRequestEvents,
   users,
+  walletIdempotency,
 } from "../../db/postgres/schema";
 import { postJournal, resolveAccount, type Tx } from "../../core/ledger";
 import { ensureHierarchyAccount } from "../wallet/ledgerAccounts";
 import { normaliseUtr } from "../banking/banking.service";
 import { matchFundRequest, claimStatementLine } from "./matching";
 import { HttpError } from "../../utils/httpError";
-import type { Paise } from "../../core/money";
+import { paiseToRupees, type Paise } from "../../core/money";
 
 const COMPANY = "COMPANY_001";
 
@@ -38,11 +39,27 @@ export interface SubmitFundRequestInput {
   receiptUrl: string;
   receiptSha256: string;
   remarks?: string | null;
+  /** Client Idempotency-Key — same key returns the original request, never a second credit. */
+  idempotencyKey?: string;
+}
+
+/** Pack a bigint fund-request id into the uuid-shaped wallet_idempotency.ledger_group_id column. */
+function encodeFrIdemUuid(requestId: bigint): string {
+  const hex = requestId.toString(16).padStart(32, "0");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+}
+
+function decodeFrIdemUuid(uuid: string): bigint {
+  return BigInt(`0x${uuid.replace(/-/g, "")}`);
+}
+
+function frIdempotencyKey(clientKey: string): string {
+  return `FR:${clientKey}`;
 }
 
 export async function submitFundRequest(
   input: SubmitFundRequestInput,
-): Promise<{ requestId: bigint; status: FundRequestStatus }> {
+): Promise<{ requestId: bigint; status: FundRequestStatus; replayed: boolean }> {
   const { tenantId, requesterUserId, amount, paymentMode, depositDatetime } = input;
 
   if (amount <= 0n) throw new HttpError(422, "Amount must be positive", "INVALID_AMOUNT");
@@ -70,6 +87,38 @@ export async function submitFundRequest(
   }
 
   return db.transaction(async (tx) => {
+    if (input.idempotencyKey) {
+      const storedKey = frIdempotencyKey(input.idempotencyKey);
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtext(${`${requesterUserId}:${storedKey}`}))`,
+      );
+      const [prior] = await tx
+        .select()
+        .from(walletIdempotency)
+        .where(
+          and(
+            eq(walletIdempotency.userId, requesterUserId),
+            eq(walletIdempotency.idempotencyKey, storedKey),
+          ),
+        );
+      if (prior) {
+        const requestId = decodeFrIdemUuid(prior.ledgerGroupId);
+        const [existing] = await tx
+          .select({ id: fundRequests.id, status: fundRequests.status })
+          .from(fundRequests)
+          .where(eq(fundRequests.id, requestId))
+          .limit(1);
+        if (existing) {
+          return { requestId: existing.id, status: existing.status, replayed: true };
+        }
+        throw new HttpError(
+          500,
+          "Idempotency key is already claimed but the fund request is missing",
+          "IDEM_ORPHAN",
+        );
+      }
+    }
+
     await assertWithinLimits(tx, tenantId, requesterUserId);
     await assertReceiptNotReused(tx, input.receiptSha256);
 
@@ -107,7 +156,16 @@ export async function submitFundRequest(
     // Match immediately — if the statement is already imported the retailer is credited in
     // seconds instead of waiting for the next batch.
     const next = await runMatch(tx, created);
-    return { requestId: created.id, status: next };
+
+    if (input.idempotencyKey) {
+      await tx.insert(walletIdempotency).values({
+        userId: requesterUserId,
+        idempotencyKey: frIdempotencyKey(input.idempotencyKey),
+        ledgerGroupId: encodeFrIdemUuid(created.id),
+      });
+    }
+
+    return { requestId: created.id, status: next, replayed: false };
   });
 }
 
@@ -500,4 +558,53 @@ async function statementAmount(tx: Tx, lineId: bigint): Promise<Paise> {
 
   if (!line) throw new HttpError(404, "Statement line not found", "LINE_NOT_FOUND");
   return line.amount;
+}
+
+/** Load one request for the authenticated actor (owner or admin). */
+export async function getFundRequest(params: {
+  tenantId: string;
+  requestId: bigint;
+  actorUserId: string;
+  actorRole: string;
+}): Promise<{
+  id: string;
+  amount: string;
+  paymentMode: string;
+  referenceNumber: string | null;
+  depositDatetime: string;
+  senderName: string | null;
+  status: string;
+  displayStatus: string;
+  creditedAmount: string | null;
+  rejectReasonCode: string | null;
+  rejectRemarks: string | null;
+  submittedAt: string;
+  creditedAt: string | null;
+}> {
+  const [row] = await db
+    .select()
+    .from(fundRequests)
+    .where(and(eq(fundRequests.id, params.requestId), eq(fundRequests.tenantId, params.tenantId)))
+    .limit(1);
+
+  if (!row) throw new HttpError(404, "Fund request not found", "NOT_FOUND");
+  if (params.actorRole !== "admin" && row.requesterUserId !== params.actorUserId) {
+    throw new HttpError(403, "Not your request", "FORBIDDEN");
+  }
+
+  return {
+    id: String(row.id),
+    amount: paiseToRupees(row.amount),
+    paymentMode: row.paymentMode,
+    referenceNumber: row.referenceNumber,
+    depositDatetime: row.depositDatetime.toISOString(),
+    senderName: row.senderName,
+    status: params.actorRole === "admin" ? row.status : retailerFacingStatus(row.status),
+    displayStatus: retailerFacingStatus(row.status),
+    creditedAmount: row.creditedAmount != null ? paiseToRupees(row.creditedAmount) : null,
+    rejectReasonCode: row.rejectReasonCode,
+    rejectRemarks: row.rejectRemarks,
+    submittedAt: row.submittedAt.toISOString(),
+    creditedAt: row.creditedAt?.toISOString() ?? null,
+  };
 }

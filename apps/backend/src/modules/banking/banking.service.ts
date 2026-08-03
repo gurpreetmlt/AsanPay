@@ -224,3 +224,46 @@ export async function unmatchedCreditCount(tenantId: string): Promise<number> {
 
   return Number(row?.n ?? 0);
 }
+
+/** Safe bank list for dropdowns — never returns the encrypted account number. */
+export async function listBankAccounts(
+  tenantId: string,
+  opts?: { purpose?: "collection" | "payout" | "ops"; activeOnly?: boolean },
+): Promise<
+  Array<{
+    id: string;
+    bankName: string;
+    accountNumberLast4: string;
+    ifsc: string;
+    purpose: "collection" | "payout" | "ops";
+    supportsVan: boolean;
+    isActive: boolean;
+  }>
+> {
+  const conditions = [eq(bankAccounts.tenantId, tenantId)];
+  if (opts?.purpose) conditions.push(eq(bankAccounts.purpose, opts.purpose));
+  if (opts?.activeOnly !== false) conditions.push(eq(bankAccounts.isActive, true));
+
+  const rows = await db
+    .select({
+      id: bankAccounts.id,
+      bankName: bankAccounts.bankName,
+      accountNumberLast4: bankAccounts.accountNumberLast4,
+      ifsc: bankAccounts.ifsc,
+      purpose: bankAccounts.purpose,
+      supportsVan: bankAccounts.supportsVan,
+      isActive: bankAccounts.isActive,
+    })
+    .from(bankAccounts)
+    .where(and(...conditions));
+
+  return rows.map((r) => ({
+    id: String(r.id),
+    bankName: r.bankName,
+    accountNumberLast4: r.accountNumberLast4,
+    ifsc: r.ifsc,
+    purpose: r.purpose,
+    supportsVan: r.supportsVan,
+    isActive: r.isActive,
+  }));
+}

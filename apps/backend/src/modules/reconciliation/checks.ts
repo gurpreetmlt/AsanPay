@@ -168,12 +168,115 @@ export async function checkNegativeAgentBalance(tenantId: string): Promise<Recon
   }));
 }
 
+/**
+ * Money parked in a transit account longer than 4 hours. Transit is temporary — a balance
+ * that does not clear means a float move or payout is stuck mid-flight.
+ */
+export async function checkStaleTransit(tenantId: string): Promise<ReconFinding[]> {
+  const rows = await db.execute<{
+    code: string;
+    balance: string;
+    updated_at: string;
+  }>(sql`
+    SELECT a.code, ab.balance::text, ab.updated_at::text
+    FROM accounts a
+    JOIN account_balances ab ON ab.account_id = a.id
+    WHERE a.tenant_id = ${tenantId}
+      AND a.account_type = 'transit'
+      AND ab.balance <> 0
+      AND ab.updated_at < NOW() - INTERVAL '4 hours'
+  `);
+
+  return rows.rows.map((r) => ({
+    checkName: "stale_transit",
+    severity: "warn" as const,
+    fingerprint: `stale_transit:${r.code}`,
+    details: {
+      code: r.code,
+      balancePaise: r.balance,
+      lastUpdatedAt: r.updated_at,
+      reason: "Transit balance has not cleared for more than 4 hours",
+    },
+  }));
+}
+
+/**
+ * Fund requests still open after 24 hours. Terminal states (credited / rejected / cancelled)
+ * are excluded — everything else needs an operator.
+ */
+export async function checkStaleFundRequest(tenantId: string): Promise<ReconFinding[]> {
+  const rows = await db.execute<{
+    id: string;
+    status: string;
+    amount: string;
+    submitted_at: string;
+  }>(sql`
+    SELECT fr.id::text, fr.status, fr.amount::text, fr.submitted_at::text
+    FROM fund_requests fr
+    WHERE fr.tenant_id = ${tenantId}
+      AND fr.status NOT IN ('credited', 'rejected', 'cancelled')
+      AND fr.submitted_at < NOW() - INTERVAL '24 hours'
+  `);
+
+  return rows.rows.map((r) => ({
+    checkName: "stale_fund_request",
+    severity: "warn" as const,
+    fingerprint: `stale_fund_request:${r.id}`,
+    details: {
+      fundRequestId: r.id,
+      status: r.status,
+      amountPaise: r.amount,
+      submittedAt: r.submitted_at,
+      reason: "Fund request unresolved for more than 24 hours",
+    },
+  }));
+}
+
+/**
+ * Bank statement CREDIT lines still unmatched after 48 hours — the strongest leakage / fraud
+ * signal on the platform. Detection only; parking to suspense is a separate human action.
+ */
+export async function checkUnmatchedBankCredits(tenantId: string): Promise<ReconFinding[]> {
+  const rows = await db.execute<{
+    id: string;
+    amount: string;
+    utr: string | null;
+    imported_at: string;
+  }>(sql`
+    SELECT bsl.id::text,
+           bsl.amount::text,
+           bsl.utr,
+           bsl.imported_at::text
+    FROM bank_statement_lines bsl
+    WHERE bsl.tenant_id = ${tenantId}
+      AND bsl.direction = 'CR'
+      AND bsl.match_status = 'unmatched'
+      AND COALESCE(bsl.value_datetime, bsl.imported_at) < NOW() - INTERVAL '48 hours'
+  `);
+
+  return rows.rows.map((r) => ({
+    checkName: "unmatched_bank_credit",
+    severity: "critical" as const,
+    fingerprint: `unmatched_bank_credit:${r.id}`,
+    details: {
+      statementLineId: r.id,
+      amountPaise: r.amount,
+      utr: r.utr,
+      importedAt: r.imported_at,
+      reason: "Bank credit unmatched for more than 48 hours",
+    },
+  }));
+}
+
 export const ALL_CHECKS = [
   checkLedgerVsBalance,
   checkTrialBalance,
   checkSolvency,
   checkSettleable,
   checkNegativeAgentBalance,
+  checkStaleTransit,
+  checkStaleFundRequest,
+  checkUnmatchedBankCredits,
 ];
 
 /**

@@ -65,6 +65,12 @@ const envSchema = z.object({
    */
   TXN_RECONCILE_INTERVAL_MS: z.coerce.number().int().min(0).default(5 * 60 * 1000),
   /**
+   * How often to run ledger reconciliation checks per active tenant (ms).
+   * Writes reconciliation_exceptions only — never auto-fixes balances.
+   * Set 0 to disable. Default 15 minutes.
+   */
+  LEDGER_RECON_INTERVAL_MS: z.coerce.number().int().min(0).default(15 * 60 * 1000),
+  /**
    * SMTP for outbound mail (email-verify OTPs, later invoices/statements).
    * Currently Google Workspace: smtp.gmail.com:587 with an App Password for
    * no-reply@asanpay.in. All four must be set for mail to send — if any is
