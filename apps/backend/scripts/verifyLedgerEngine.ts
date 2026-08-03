@@ -161,6 +161,10 @@ async function main() {
   });
 
   await check("posts a three-leg DMT with commission income (spec §4.5)", async () => {
+    // COMMISSION_INCOME is a shared system account that accumulates across runs, unlike the
+    // per-run RTL/DIST/FLOAT accounts. Assert the delta, never the absolute balance.
+    const commissionBefore = (await balanceOf("COMMISSION_INCOME")).balance;
+
     await db.transaction((tx) =>
       postJournal(tx, {
         tenantId,
@@ -177,7 +181,8 @@ async function main() {
     expectEq(paiseToRupees((await balanceOf(RTL)).balance), "44975.00", "retailer after DMT");
     // FLOAT is an asset and was credited, so it falls — money left us for the beneficiary.
     expectEq(paiseToRupees((await balanceOf(FLOAT)).balance), "-5010.00", "float after DMT");
-    expectEq(paiseToRupees((await balanceOf("COMMISSION_INCOME")).balance), "15.00", "commission");
+    const commissionAfter = (await balanceOf("COMMISSION_INCOME")).balance;
+    expectEq(commissionAfter - commissionBefore, rupeesToPaise("15"), "commission earned");
   });
 
   await check("an AePS credit raises balance AND settleable earning", async () => {
