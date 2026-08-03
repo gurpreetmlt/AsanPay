@@ -47,10 +47,10 @@ export default function PassbookPage() {
       <div className="mx-auto max-w-3xl space-y-5 p-6">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: B.blue }}>
-            Passbook
+            Wallet statement
           </h1>
           <p className="mt-1 text-sm" style={{ color: B.muted }}>
-            Your wallet ledger entries
+            Credits and debits on the company wallet
           </p>
         </div>
 

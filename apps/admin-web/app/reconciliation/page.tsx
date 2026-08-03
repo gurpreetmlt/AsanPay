@@ -67,12 +67,12 @@ export default function ReconciliationPage() {
         <div className="flex items-center gap-2">
           <ScaleIcon size={20} style={{ color: B.blueLight }} />
           <h1 className="text-xl font-bold" style={{ color: B.blue }}>
-            Reconciliation
+            Txn reconciliation
           </h1>
         </div>
         <p className="mt-1 text-sm" style={{ color: B.muted }}>
-          Internal transaction status vs the provider&apos;s own last logged response — flags
-          disagreements. Read-only: nothing here auto-resolves, review and act manually.
+          Compare our transaction status with the provider&apos;s last response. Read-only —
+          mismatches need manual review; nothing auto-resolves here.
         </p>
 
         <div className="mt-4 grid grid-cols-2 gap-3">

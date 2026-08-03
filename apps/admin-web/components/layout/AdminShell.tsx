@@ -35,8 +35,21 @@ const OPERATIONS: NavItem[] = [
   },
   { type: "link", href: "/kyc", label: "KYC Queue", icon: { lib: "md", name: "MdVerifiedUser" } },
   { type: "link", href: "/transactions", label: "All Transactions", icon: { lib: "fa", name: "FaExchangeAlt" } },
-  { type: "link", href: "/wallet", label: "Wallet & Fund", icon: { lib: "md", name: "MdAccountBalanceWallet" } },
-  { type: "link", href: "/passbook", label: "Passbook", icon: { lib: "fa", name: "FaHistory" } },
+];
+
+/** Company money: funding, statements, provider match — kept together so ops never hunt. */
+const TREASURY: NavItem[] = [
+  {
+    type: "group",
+    id: "treasury",
+    label: "Treasury & Wallet",
+    icon: { lib: "md", name: "MdAccountBalanceWallet" },
+    children: [
+      { href: "/wallet", label: "Company wallet", icon: { lib: "md", name: "MdAccountBalanceWallet" } },
+      { href: "/passbook", label: "Wallet statement", icon: { lib: "fa", name: "FaHistory" } },
+      { href: "/reconciliation", label: "Txn reconciliation", icon: { lib: "lucide", icon: Scale } },
+    ],
+  },
 ];
 
 const SITE_CONTROL: NavItem[] = [
@@ -48,7 +61,6 @@ const SITE_CONTROL: NavItem[] = [
     children: [
       { href: "/site-control", label: "Service Badges", icon: { lib: "lucide", icon: Tags } },
       { href: "/commissions", label: "Commissions", icon: { lib: "lucide", icon: Percent } },
-      { href: "/reconciliation", label: "Reconciliation", icon: { lib: "lucide", icon: Scale } },
       { href: "/risk-alerts", label: "Risk Alerts", icon: { lib: "lucide", icon: ShieldAlert } },
       { href: "/recovery-workbench", label: "Recovery Workbench", icon: { lib: "lucide", icon: Wrench } },
       { href: "/support-tickets", label: "Support Tickets", icon: { lib: "lucide", icon: LifeBuoy } },
@@ -202,6 +214,7 @@ function SidebarNav({
       {(
         [
           { title: "Full Control", items: OPERATIONS },
+          { title: "Treasury", items: TREASURY },
           { title: "Platform", items: SITE_CONTROL },
           { title: "Developer", items: DEVELOPER_OPTIONS },
         ] as const
@@ -267,7 +280,11 @@ function SidebarPanel({
 
 export function AdminShell({ children }: { children: ReactNode }) {
   const [drawer, setDrawer] = useState(false);
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ users: true, site: false });
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
+    users: true,
+    treasury: true,
+    site: false,
+  });
   const pathname = usePathname();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
@@ -278,7 +295,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const next: Record<string, boolean> = {};
-    for (const item of [...OPERATIONS, ...SITE_CONTROL, ...DEVELOPER_OPTIONS]) {
+    for (const item of [...OPERATIONS, ...TREASURY, ...SITE_CONTROL, ...DEVELOPER_OPTIONS]) {
       if (item.type === "group" && groupActive(pathname, item.children)) {
         next[item.id] = true;
       }

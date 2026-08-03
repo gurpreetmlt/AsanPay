@@ -82,10 +82,10 @@ export default function WalletPage() {
       <div className="mx-auto max-w-5xl space-y-5 p-6">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: B.blue }}>
-            Wallet & Fund
+            Company wallet
           </h1>
           <p className="mt-0.5 text-sm" style={{ color: B.muted }}>
-            Mint float to Super Distributors · manage platform balance
+            Add balance to the company wallet, then fund Super Distributors
           </p>
         </div>
 
@@ -155,7 +155,7 @@ export default function WalletPage() {
             style={{ background: B.badgeGrad }}
           >
             <ArrowDownToLine size={16} />
-            Fund my wallet
+            Top up company wallet
           </button>
           {childRole ? (
             <button

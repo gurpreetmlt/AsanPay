@@ -11,7 +11,7 @@ const tabs: { href: string; label: string; icon: NavIconDef }[] = [
   { href: "/users", label: "Network", icon: { lib: "fa", name: "FaUsers" } },
   { href: "/kyc", label: "KYC", icon: { lib: "md", name: "MdVerifiedUser" } },
   { href: "/transactions", label: "Txns", icon: { lib: "fa", name: "FaExchangeAlt" } },
-  { href: "/wallet", label: "Fund", icon: { lib: "md", name: "MdAccountBalanceWallet" } },
+  { href: "/wallet", label: "Wallet", icon: { lib: "md", name: "MdAccountBalanceWallet" } },
 ];
 
 export function MobileAdminNav() {

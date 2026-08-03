@@ -56,7 +56,7 @@ const QUICK = [
   { href: "/users", label: "Users", icon: Users },
   { href: "/kyc", label: "KYC Queue", icon: ShieldCheck },
   { href: "/transactions", label: "Transactions", icon: ArrowLeftRight },
-  { href: "/wallet", label: "Wallet & Fund", icon: Wallet },
+  { href: "/wallet", label: "Company wallet", icon: Wallet },
   { href: "/site-control", label: "Site Control", icon: Store },
 ];
 
@@ -132,7 +132,7 @@ export default function DashboardPage() {
               style={{ borderColor: "var(--brand-blue-mid)", color: "var(--brand-blue-mid)" }}
             >
               <Wallet size={16} />
-              Fund wallet
+              Top up company wallet
             </button>
             <button
               type="button"
