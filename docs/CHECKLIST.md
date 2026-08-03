@@ -38,6 +38,7 @@
 - [x] Email verification OTP (`/auth/email/otp/*`) + web Verify UI (KYC, outlet, settings)
 - [ ] Fund request approve flow
 - [x] Fund request + banking HTTP (`/api/fund-requests`, `/api/banking`, Idempotency-Key on money POSTs)
+- [x] Settlements module (`/api/settlements` — debit at request, payout/reversal journals, one active bank)
 - [x] SD/D direct-child Active/Inactive (`PATCH /users/:id/active`)
 - [x] Admin network tree move (`POST /admin/users/:id/reassign`) + hierarchy rebuild
 - [x] Admin removed from `POST /wallet/transfer` (fund mint only)
@@ -73,6 +74,7 @@
 - [ ] History purge for any secrets ever pushed to remote
 
 ## Last updated
+2026-08-03 — Settlements: `/api/settlements` request debit → SETTLE_PAYABLE, payout/fail reversal, one active bank (task 27C)
 2026-08-03 — Ledger recon cron: `LEDGER_RECON_INTERVAL_MS` + stale transit/fund-request/unmatched bank credit checks (task 27B)
 2026-08-03 — Fund request + banking HTTP: `/api/fund-requests`, `/api/banking`, Idempotency-Key on money POSTs (task 27A)
 2026-08-01 — Email notifications: statements job, commission credit, large debit, new device, MPIN change, product-update opt-in

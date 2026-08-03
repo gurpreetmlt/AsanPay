@@ -190,6 +190,13 @@
       "when": 1785757017142,
       "tag": "0026_fix_settleable_check",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1785760000000,
+      "tag": "0027_settlements",
+      "breakpoints": true
     }
   ]
 }

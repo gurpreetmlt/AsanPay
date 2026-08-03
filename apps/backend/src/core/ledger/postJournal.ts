@@ -190,6 +190,19 @@ export async function postJournal(tx: Tx, input: PostJournalInput): Promise<Post
   }
 
   // 6 ── Net effect per account -----------------------------------------------------------
+  // A REVERSAL must undo the settleable effect of the journal it mirrors. Without this a
+  // failed SETTLEMENT_DEBIT would restore balance but leave settleable permanently reduced,
+  // trapping the agent's earned money.
+  let originalTxnType: TxnType | null = null;
+  if (txnType === "REVERSAL" && input.reversesId) {
+    const [orig] = await tx
+      .select({ txnType: journals.txnType })
+      .from(journals)
+      .where(and(eq(journals.id, input.reversesId), eq(journals.tenantId, tenantId)))
+      .limit(1);
+    if (orig && isTxnType(orig.txnType)) originalTxnType = orig.txnType;
+  }
+
   const deltas = new Map<bigint, AccountDelta>();
   for (const e of entries) {
     const account = resolved.get(e.code) as ResolvedAccount;
@@ -208,6 +221,16 @@ export async function postJournal(tx: Tx, input: PostJournalInput): Promise<Post
     if (account.accountClass === "liability") {
       if (e.dir === "CR" && SETTLEABLE_CREDIT_TYPES.has(txnType)) d.settleableDelta += e.amount;
       if (e.dir === "DR" && SETTLEABLE_DEBIT_TYPES.has(txnType)) d.settleableDelta -= e.amount;
+      // Reversal legs are the mirror of the original: undoing a settleable debit credits the
+      // wallet (restore), undoing a settleable credit debits it (take back).
+      if (originalTxnType) {
+        if (e.dir === "CR" && SETTLEABLE_DEBIT_TYPES.has(originalTxnType)) {
+          d.settleableDelta += e.amount;
+        }
+        if (e.dir === "DR" && SETTLEABLE_CREDIT_TYPES.has(originalTxnType)) {
+          d.settleableDelta -= e.amount;
+        }
+      }
     }
   }
 
@@ -275,6 +298,40 @@ export async function postJournal(tx: Tx, input: PostJournalInput): Promise<Post
         `Insufficient usable balance in ${account.code}: ${paiseToRupees(before)} held, of which ` +
           `${paiseToRupees(settleable.settleable)} is the agent's earned balance and cannot be pulled`,
         "INSUFFICIENT_USABLE_BALANCE",
+      );
+    }
+
+    // Settlement may only withdraw earned money. Prepaid advance (balance - settleable) stays
+    // in the wallet for services. Only hierarchy wallets carry a settleable slice
+    // (requiresBalanceCheck); treasury liability accounts like SETTLE_PAYABLE do not.
+    if (
+      account.accountClass === "liability" &&
+      account.requiresBalanceCheck &&
+      SETTLEABLE_DEBIT_TYPES.has(txnType) &&
+      e.dir === "DR"
+    ) {
+      const settleable = locked.get(account.id)?.settleable ?? 0n;
+      if (e.amount > settleable) {
+        throw new HttpError(
+          422,
+          `Insufficient settleable balance in ${account.code}: have ${paiseToRupees(settleable)} ` +
+            `settleable of ${paiseToRupees(before)} total — prepaid advance cannot be withdrawn to bank`,
+          "INSUFFICIENT_SETTLEABLE",
+        );
+      }
+    }
+
+    if (
+      account.accountClass === "liability" &&
+      account.requiresBalanceCheck &&
+      account.blockSettlement &&
+      SETTLEABLE_DEBIT_TYPES.has(txnType) &&
+      e.dir === "DR"
+    ) {
+      throw new HttpError(
+        422,
+        `Settlement is blocked on account ${account.code}. Contact support if you need this lifted.`,
+        "SETTLEMENT_BLOCKED",
       );
     }
 

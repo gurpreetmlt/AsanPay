@@ -26,6 +26,6 @@ Agent can withdraw settleable earnings to their verified bank via `postJournal`.
 - Explore whole repo
 
 ## Done when
-- [ ] Cannot settle more than settleable
-- [ ] Advance (non-settleable) cannot leave to bank
-- [ ] Failed payout restores via reversal journal
+- [x] Cannot settle more than settleable
+- [x] Advance (non-settleable) cannot leave to bank
+- [x] Failed payout restores via reversal journal
