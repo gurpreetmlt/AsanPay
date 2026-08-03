@@ -1,5 +1,6 @@
 "use client";
 
+// Deploy marker: treasury + fund-requests nav (rebuild if sidebar still says Wallet & Fund)
 import { type ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
