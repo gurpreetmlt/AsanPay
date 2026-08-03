@@ -287,19 +287,26 @@ export function DistributorDashboard() {
         </div>
 
         <div className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
-          <div className="mb-4 flex items-center gap-2">
-            <ArrowRightLeft size={16} style={{ color: B.blue }} />
-            <h3 className="text-sm font-bold" style={{ color: B.blue }}>
-              Fund Requests
-            </h3>
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <ArrowRightLeft size={16} style={{ color: B.blue }} />
+              <h3 className="text-sm font-bold" style={{ color: B.blue }}>
+                Fund retailers
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => router.push("/wallet")}
+              className="text-xs font-semibold"
+              style={{ color: B.green }}
+            >
+              Open Wallet →
+            </button>
           </div>
           <div className="flex flex-col items-center py-8">
             <Clock size={28} className="mb-2 opacity-30" style={{ color: B.muted }} />
-            <p className="text-xs" style={{ color: B.muted }}>
-              No pending fund requests
-            </p>
-            <p className="mt-1 text-xs" style={{ color: B.muted }}>
-              Retailer requests will appear here
+            <p className="text-center text-xs" style={{ color: B.muted }}>
+              Bank deposit requests go to admin. You fund retailers from Wallet with your PIN.
             </p>
           </div>
         </div>

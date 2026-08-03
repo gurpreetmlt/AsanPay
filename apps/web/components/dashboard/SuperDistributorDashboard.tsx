@@ -225,7 +225,10 @@ export function SuperDistributorDashboard() {
                 text={`${inactiveRetailers} inactive retailer${inactiveRetailers > 1 ? "s" : ""}`}
               />
             )}
-            <AlertRow color="#D97706" text="Fund requests: coming soon" />
+            <AlertRow
+              color={B.blueMid}
+              text="Fund distributors from Wallet (PIN required)"
+            />
             <AlertRow color={B.muted} text="KYC pending alerts: coming soon" />
           </div>
         </div>
