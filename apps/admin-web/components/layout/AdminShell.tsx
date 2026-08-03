@@ -34,8 +34,10 @@ const OPERATIONS: NavItem[] = [
     ],
   },
   { type: "link", href: "/kyc", label: "KYC Queue", icon: { lib: "md", name: "MdVerifiedUser" } },
-  { type: "link", href: "/fund-requests", label: "Fund requests", icon: { lib: "lucide", icon: IndianRupee } },
   { type: "link", href: "/transactions", label: "All Transactions", icon: { lib: "fa", name: "FaExchangeAlt" } },
+  { type: "link", href: "/wallet", label: "Company wallet", icon: { lib: "md", name: "MdAccountBalanceWallet" } },
+  { type: "link", href: "/fund-requests", label: "Fund requests", icon: { lib: "lucide", icon: IndianRupee } },
+  { type: "link", href: "/passbook", label: "Passbook", icon: { lib: "fa", name: "FaHistory" } },
 ];
 
 /** Company money: funding, statements, provider match — kept together so ops never hunt. */
