@@ -14,6 +14,8 @@ import {
   requestSettlement,
   markPayoutSuccess,
   markPayoutFailed,
+  markPayoutReturned,
+  requestSettlementBankOtp,
   getSettlementRequest,
   listSettlementRequests,
   listOpenSettlements,
@@ -25,6 +27,7 @@ import {
   requestSettlementSchema,
   markPayoutSuccessSchema,
   markPayoutFailedSchema,
+  markPayoutReturnedSchema,
   parseSettlementId,
   parseBankRowId,
   parseRupeeAmount,
@@ -48,6 +51,17 @@ settlementRouter.get("/banks", requireRole(...AGENT_ROLES), async (req, res) => 
 });
 
 settlementRouter.post(
+  "/banks/otp",
+  requireRole(...AGENT_ROLES),
+  walletTxnLimiter,
+  async (req, res) => {
+    if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+    const result = await requestSettlementBankOtp({ userId: req.auth.sub });
+    sendSuccess(res, result, "OTP sent for settlement bank change");
+  },
+);
+
+settlementRouter.post(
   "/banks",
   requireRole(...AGENT_ROLES),
   validateBody(registerSettlementBankSchema),
@@ -61,6 +75,7 @@ settlementRouter.post(
       accountNumber: body.accountNumber,
       ifsc: body.ifsc,
       holderName: body.holderName,
+      otp: body.otp,
     });
     sendSuccess(
       res,
@@ -211,6 +226,33 @@ settlementRouter.post(
       res,
       { reversalJournalId: String(result.reversalJournalId) },
       "Settlement payout marked failed — wallet restored",
+    );
+  },
+);
+
+settlementRouter.post(
+  "/requests/:id/returned",
+  requireRole("admin"),
+  requireIdempotencyKey,
+  validateBody(markPayoutReturnedSchema),
+  async (req, res) => {
+    if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+    const body = req.body as ReturnType<typeof markPayoutReturnedSchema.parse>;
+    const tenantId = await resolveTenantId();
+    const result = await markPayoutReturned({
+      tenantId,
+      requestId: parseSettlementId(paramId(req.params.id)),
+      adminId: req.auth.sub,
+      reason: body.reason,
+      bankUtr: body.bankUtr,
+    });
+    sendSuccess(
+      res,
+      {
+        payoutReversalJournalId: String(result.payoutReversalJournalId),
+        debitReversalJournalId: String(result.debitReversalJournalId),
+      },
+      "Settlement marked returned — settleable restored",
     );
   },
 );

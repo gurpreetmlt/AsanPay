@@ -26,7 +26,10 @@ Wallet-engine MVP queue (27A–27D) is finished. New work → pick from `docs/TA
 - [x] Receipt PDF (existing) + ESC/POS (`GET /txn/:txnRef/receipt.escpos`)
 - [x] Light concurrent smoke script `scripts/load-test-wallet-me.mjs`
 
-### Still deferred (separate / ops)
+### Still deferred → pinned queue
+
+See **[wallet-engine-leftovers-queue.md](wallet-engine-leftovers-queue.md)** (CURRENT = dual-approve admin setting).
+
 - OTP on settlement bank change (cooling is in place; SMS OTP not wired)
 - Automated penny-drop (admin verify remains manual)
 - Settlement charges / fee schedule + full `returned` bank-return path
@@ -34,6 +37,7 @@ Wallet-engine MVP queue (27A–27D) is finished. New work → pick from `docs/TA
 - Full 500 concurrent money load test on EC2
 - Partitioned `logs` schema + non-owner DB role
 - Full multi-tenant retrofit on legacy tables
+- Admin UI for fund dual-approve limit (DB) — task 32
 
 ## After each task
 1. Set that row to `done`, next row to `CURRENT`.

@@ -11,6 +11,6 @@ alwaysApply: true
 - Before code: `AGENTS.md` + ONE `docs/TASKS/*.md`
 - Creds: `LOGIN.md` only
 - Heavy cmds: Mac Terminal (see global token-efficiency rule)
-- Host: **Coolify on EC2** (ship via Coolify redeploy — not separate VPS setup; see `coolify-ec2` rule)
+- Host: **Coolify on EC2** (apps → Coolify redeploy; **migrate/seed → EC2 SSH**; see `coolify-ec2`)
 - Done: `docs/CHECKLIST.md`; new chat only when required
 - **Git attribution:** never `Co-authored-by: Cursor|Claude|Anthropic` / `Made-with: Cursor` (see `docs/AGENT_PLAN.md`)

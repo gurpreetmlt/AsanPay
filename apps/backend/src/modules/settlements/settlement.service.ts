@@ -20,8 +20,28 @@ import { ensureHierarchyAccount } from "../wallet/ledgerAccounts";
 import { encryptPII } from "../../utils/aes";
 import { HttpError } from "../../utils/httpError";
 import { paiseToRupees, rupeesToPaise, type Paise } from "../../core/money";
+import { randomInt, timingSafeEqual } from "node:crypto";
+import { hashToken } from "../../utils/uid";
+import { shouldExposeOtpInResponse, getTestOtpOverride } from "../../config/env";
+import {
+  MAX_OTP_ATTEMPTS,
+  findLatestActiveOtp,
+  incrementOtpAttempts,
+  insertOtpRequest,
+  markOtpConsumed,
+} from "../../db/postgres/repositories/otpRequest";
+import { getTenantSettings } from "../tenants/tenantSettings.service";
 
 const SETTLE_PAYABLE = "TREASURY_SETTLE_PAYABLE";
+const FEE_INCOME = "COMMISSION_INCOME";
+const SETTLEMENT_BANK_OTP_TTL_MS = 5 * 60 * 1000;
+
+function otpHashesEqual(storedHash: string, candidateOtp: string): boolean {
+  const a = Buffer.from(storedHash, "hex");
+  const b = Buffer.from(hashToken(candidateOtp), "hex");
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
 
 type SettlementStatus = (typeof settlementRequests.$inferSelect)["status"];
 
@@ -89,10 +109,34 @@ export async function registerSettlementBank(params: {
   accountNumber: string;
   ifsc: string;
   holderName: string;
+  otp?: string;
 }): Promise<{ settlementAccountId: bigint; accountNumberLast4: string; isActive: boolean }> {
   const digits = params.accountNumber.replace(/\s/g, "");
   if (!/^\d{6,18}$/.test(digits)) {
     throw new HttpError(422, "Account number must be 6–18 digits", "INVALID_ACCOUNT_NUMBER");
+  }
+
+  const [active] = await db
+    .select({ id: agentSettlementAccounts.id })
+    .from(agentSettlementAccounts)
+    .where(
+      and(
+        eq(agentSettlementAccounts.userId, params.userId),
+        eq(agentSettlementAccounts.tenantId, params.tenantId),
+        eq(agentSettlementAccounts.isActive, true),
+      ),
+    )
+    .limit(1);
+
+  if (active) {
+    if (!params.otp) {
+      throw new HttpError(
+        422,
+        "OTP is required to change your settlement bank. Request an OTP first.",
+        "OTP_REQUIRED",
+      );
+    }
+    await consumeSettlementBankOtp(params.userId, params.otp);
   }
 
   const [row] = await db
@@ -122,6 +166,62 @@ export async function registerSettlementBank(params: {
     accountNumberLast4: row.accountNumberLast4,
     isActive: row.isActive,
   };
+}
+
+/** Send OTP before replacing an active settlement bank. */
+export async function requestSettlementBankOtp(params: {
+  userId: string;
+}): Promise<{ expiresInSec: number; otp?: string }> {
+  const [user] = await db
+    .select({ mobile: users.mobile, isActive: users.isActive })
+    .from(users)
+    .where(eq(users.id, params.userId))
+    .limit(1);
+  if (!user?.isActive) {
+    throw new HttpError(422, "Your account is inactive", "ACCOUNT_INACTIVE");
+  }
+
+  const override = getTestOtpOverride(user.mobile);
+  const otp = override ?? String(randomInt(100000, 999999));
+  const expiresAt = new Date(Date.now() + SETTLEMENT_BANK_OTP_TTL_MS);
+  await insertOtpRequest({
+    mobile: user.mobile,
+    otpHash: hashToken(otp),
+    purpose: "settlement_bank",
+    expiresAt,
+    meta: { userId: params.userId },
+  });
+
+  return {
+    expiresInSec: Math.floor(SETTLEMENT_BANK_OTP_TTL_MS / 1000),
+    ...(shouldExposeOtpInResponse() || override ? { otp } : {}),
+  };
+}
+
+async function consumeSettlementBankOtp(userId: string, otp: string): Promise<void> {
+  const [user] = await db
+    .select({ mobile: users.mobile })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  if (!user) throw new HttpError(404, "User not found", "USER_NOT_FOUND");
+
+  const activeOtp = await findLatestActiveOtp({ mobile: user.mobile, purpose: "settlement_bank" });
+  if (!activeOtp) {
+    throw new HttpError(
+      422,
+      "OTP has expired or was not requested. Please request a new OTP.",
+      "OTP_EXPIRED",
+    );
+  }
+  if (activeOtp.attempts >= MAX_OTP_ATTEMPTS) {
+    throw new HttpError(422, "Too many incorrect OTP attempts. Request a new OTP.", "OTP_LOCKED");
+  }
+  if (!otpHashesEqual(activeOtp.otpHash, otp)) {
+    await incrementOtpAttempts(activeOtp.id);
+    throw new HttpError(422, "Incorrect OTP", "OTP_INVALID");
+  }
+  await markOtpConsumed(activeOtp.id);
 }
 
 /**
@@ -163,6 +263,11 @@ export async function verifySettlementBank(params: {
 
     const activate = params.activate !== false;
     const verifiedAt = new Date();
+    // Automated penny-drop placeholder: when admin omits a ref we mint a stable stub so the
+    // row is auditable. Live bank penny-drop APIs plug in here later.
+    const verificationRef =
+      params.verificationRef?.trim() ||
+      `PENNYDROP-STUB-${row.id}-${verifiedAt.getTime()}`;
 
     let hadPriorActive = false;
     if (activate) {
@@ -197,7 +302,7 @@ export async function verifySettlementBank(params: {
       .update(agentSettlementAccounts)
       .set({
         verifiedAt,
-        verificationRef: params.verificationRef ?? row.verificationRef,
+        verificationRef,
         approvedBy: params.adminId,
         isActive: activate,
         effectiveFrom: activate ? verifiedAt : row.effectiveFrom,
@@ -419,7 +524,15 @@ export async function requestSettlement(params: {
       );
     }
 
-    const charges = 0n;
+    const chargesPaise = rupeesToPaise(String((await getTenantSettings(params.tenantId)).settlementChargeRupees));
+    const charges = chargesPaise;
+    if (charges >= params.amount) {
+      throw new HttpError(
+        422,
+        `Settlement amount must be greater than the platform charge of ${paiseToRupees(charges)}`,
+        "AMOUNT_TOO_LOW_FOR_CHARGE",
+      );
+    }
     const netAmount = params.amount - charges;
 
     const [created] = await tx
@@ -519,10 +632,17 @@ export async function markPayoutSuccess(params: {
       performedBy: params.adminId,
       referenceId: String(request.id),
       reason: `Settlement payout UTR ${utr}`,
-      entries: [
-        { code: SETTLE_PAYABLE, dir: "DR", amount: request.netAmount },
-        { code: payoutBank.code, dir: "CR", amount: request.netAmount },
-      ],
+      entries:
+        request.charges > 0n
+          ? [
+              { code: SETTLE_PAYABLE, dir: "DR", amount: request.amount as Paise },
+              { code: payoutBank.code, dir: "CR", amount: request.netAmount as Paise },
+              { code: FEE_INCOME, dir: "CR", amount: request.charges as Paise },
+            ]
+          : [
+              { code: SETTLE_PAYABLE, dir: "DR", amount: request.netAmount as Paise },
+              { code: payoutBank.code, dir: "CR", amount: request.netAmount as Paise },
+            ],
     });
 
     await tx
@@ -599,6 +719,88 @@ export async function markPayoutFailed(params: {
     await mirrorAgentWallets(tx, params.tenantId, request.userId);
 
     return { reversalJournalId: reversal.id };
+  });
+}
+
+/**
+ * Bank returned a successful payout. Reverse the payout journal, then reverse the original
+ * debit so settleable returns to the agent. Status becomes `returned`.
+ */
+export async function markPayoutReturned(params: {
+  tenantId: string;
+  requestId: bigint;
+  adminId: string;
+  reason: string;
+  bankUtr?: string;
+}): Promise<{ payoutReversalJournalId: bigint; debitReversalJournalId: bigint }> {
+  const reason = params.reason.trim();
+  if (!reason) {
+    throw new HttpError(422, "Return reason is required", "REASON_REQUIRED");
+  }
+
+  return db.transaction(async (tx) => {
+    const [request] = await tx
+      .select()
+      .from(settlementRequests)
+      .where(
+        and(eq(settlementRequests.id, params.requestId), eq(settlementRequests.tenantId, params.tenantId)),
+      )
+      .for("update");
+
+    if (!request) throw new HttpError(404, "Settlement request not found", "NOT_FOUND");
+    if (request.status === "returned") {
+      if (!request.reversalJournalId || !request.payoutJournalId) {
+        throw new HttpError(500, "Returned settlement is missing reversal journals", "MISSING_REVERSAL");
+      }
+      return {
+        payoutReversalJournalId: request.reversalJournalId,
+        debitReversalJournalId: request.reversalJournalId,
+      };
+    }
+    if (request.status !== "success") {
+      throw new HttpError(
+        422,
+        "Only a successful settlement can be marked returned by the bank",
+        "NOT_SUCCESS",
+      );
+    }
+    if (!request.payoutJournalId || !request.debitJournalId) {
+      throw new HttpError(500, "Settlement is missing payout or debit journal", "MISSING_JOURNAL");
+    }
+
+    const payoutReversal = await reverseJournal(tx, {
+      tenantId: params.tenantId,
+      journalId: request.payoutJournalId,
+      idemKey: `SETTLE:${request.id}:PAYOUT_RETURN`,
+      performedBy: params.adminId,
+      reason: `Settlement bank return: ${reason}`,
+    });
+
+    const debitReversal = await reverseJournal(tx, {
+      tenantId: params.tenantId,
+      journalId: request.debitJournalId,
+      idemKey: `SETTLE:${request.id}:DEBIT_RETURN`,
+      performedBy: params.adminId,
+      reason: `Settlement bank return restore settleable: ${reason}`,
+    });
+
+    await tx
+      .update(settlementRequests)
+      .set({
+        status: "returned",
+        failureReason: reason,
+        bankUtr: params.bankUtr?.trim() || request.bankUtr,
+        reversalJournalId: debitReversal.id,
+        completedAt: new Date(),
+      })
+      .where(eq(settlementRequests.id, request.id));
+
+    await mirrorAgentWallets(tx, params.tenantId, request.userId);
+
+    return {
+      payoutReversalJournalId: payoutReversal.id,
+      debitReversalJournalId: debitReversal.id,
+    };
   });
 }
 

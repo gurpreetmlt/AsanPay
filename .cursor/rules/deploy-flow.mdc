@@ -23,8 +23,8 @@ git push
 
 - Coolify env vars mein kya add/change karna hai — exact `KEY=value` list do.
 - Phir bolo: Coolify pe **backend** (ya web) redeploy karo.
-- Deploy ke baad agar seed/migrate chahiye to uski command bhi do.
-- **Hosting reminder:** Coolify already runs on EC2 — alag “VPS/EC2 setup” mat bolo (see `coolify-ec2` rule).
+- Agar migrate/seed chahiye: **EC2 SSH** pe command do (Mac pe prod migrate mat bolo). See `coolify-ec2` rule.
+- **Hosting:** Coolify already on EC2 — alag “VPS setup” mat bolo.
 
 ## 3. APK rebuild + install (sirf agar mobile app change hua)
 

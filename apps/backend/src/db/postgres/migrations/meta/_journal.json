@@ -204,6 +204,13 @@
       "when": 1785765000000,
       "tag": "0028_float_management",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1785770000000,
+      "tag": "0029_tenant_settings_leftovers",
+      "breakpoints": true
     }
   ]
 }

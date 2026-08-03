@@ -49,6 +49,9 @@ export default function SiteControlPage() {
   // live in executeServiceTxn; this is just the admin-editable surface for it. Independent of
   // the badge/isActive draft flow above so it can't accidentally interfere with that save path.
   const [limitDrafts, setLimitDrafts] = useState<Record<string, { min: string; max: string; saving: boolean }>>({});
+  const [dualLimit, setDualLimit] = useState("200000");
+  const [settleCharge, setSettleCharge] = useState("0");
+  const [settingsSaving, setSettingsSaving] = useState(false);
 
   function limitFor(s: CatalogService) {
     return limitDrafts[s.id] ?? { min: s.minAmount ?? "", max: s.maxAmount ?? "", saving: false };
@@ -82,8 +85,15 @@ export default function SiteControlPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fetchApi<CatalogCategory[]>("/admin/catalog");
+      const [data, settings] = await Promise.all([
+        fetchApi<CatalogCategory[]>("/admin/catalog"),
+        fetchApi<{ fundApproveDualRupees: number; settlementChargeRupees: number }>(
+          "/admin/tenant-settings",
+        ),
+      ]);
       setCategories(data);
+      setDualLimit(String(settings.fundApproveDualRupees));
+      setSettleCharge(String(settings.settlementChargeRupees));
       const next: Record<string, ServiceDraft> = {};
       for (const c of data) {
         for (const s of c.services) {
@@ -338,6 +348,76 @@ export default function SiteControlPage() {
             Toggle auto-saves. Badge text — edit then tap Save. Badge Off clears instantly.
           </p>
         </div>
+
+        <section
+          className="space-y-3 rounded-2xl border bg-white p-5"
+          style={{ borderColor: B.border }}
+        >
+          <h2 className="text-base font-bold" style={{ color: B.blue }}>
+            Treasury settings
+          </h2>
+          <p className="text-sm" style={{ color: B.muted }}>
+            Saved in the database — no Coolify redeploy needed to change these limits.
+          </p>
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium" style={{ color: B.muted }}>
+                Fund dual-approve limit (₹)
+              </span>
+              <input
+                className="w-full rounded-xl border px-3 py-2 text-sm"
+                style={{ borderColor: B.border }}
+                value={dualLimit}
+                onChange={(e) => setDualLimit(e.target.value)}
+                inputMode="numeric"
+              />
+              <span className="mt-1 block text-xs" style={{ color: B.muted }}>
+                Credits at/above this amount need two different admins. Use a very high value if you
+                only have one admin login.
+              </span>
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium" style={{ color: B.muted }}>
+                Settlement charge (₹ flat)
+              </span>
+              <input
+                className="w-full rounded-xl border px-3 py-2 text-sm"
+                style={{ borderColor: B.border }}
+                value={settleCharge}
+                onChange={(e) => setSettleCharge(e.target.value)}
+                inputMode="numeric"
+              />
+              <span className="mt-1 block text-xs" style={{ color: B.muted }}>
+                Deducted from each settlement withdrawal (0 = no fee).
+              </span>
+            </label>
+          </div>
+          <button
+            type="button"
+            disabled={settingsSaving}
+            onClick={async () => {
+              setSettingsSaving(true);
+              try {
+                await api.patch("/admin/tenant-settings", {
+                  fundApproveDualRupees: Number(dualLimit),
+                  settlementChargeRupees: Number(settleCharge),
+                });
+                toast.success("Treasury settings saved");
+              } catch (err) {
+                const message =
+                  (err as { response?: { data?: { message?: string } } }).response?.data?.message ??
+                  "Could not save settings";
+                toast.error(message);
+              } finally {
+                setSettingsSaving(false);
+              }
+            }}
+            className="rounded-xl px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+            style={{ background: B.badgeGrad }}
+          >
+            {settingsSaving ? "Saving…" : "Save treasury settings"}
+          </button>
+        </section>
 
         {loading && (
           <p className="text-sm" style={{ color: B.muted }}>

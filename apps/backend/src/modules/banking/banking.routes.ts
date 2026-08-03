@@ -30,86 +30,87 @@ import {
   vanWebhookSchema,
   assignVanSchema,
 } from "./banking.validators";
+import { normalizeVanWebhookPayload } from "./vanAdapters";
 
 export const bankingRouter = Router();
 
 /**
  * Bank webhook — no JWT. Auth is HMAC signature via VAN_WEBHOOK_SECRET.
  * Mounted before requireAuth so the bank can call it without an agent token.
+ * Optional header `X-Van-Bank`: generic | icici | hdfc — selects payload adapter.
  */
-bankingRouter.post(
-  "/van/webhook",
-  walletTxnLimiter,
-  validateBody(vanWebhookSchema),
-  async (req, res) => {
-    const body = req.body as ReturnType<typeof vanWebhookSchema.parse>;
-    assertVanWebhookSignature(
-      vanWebhookCanonical({
-        bankTxnId: body.bankTxnId,
-        vanNumber: body.vanNumber,
-        vpa: body.vpa,
-        amount: body.amount,
-      }),
-      typeof req.headers["x-van-signature"] === "string"
-        ? req.headers["x-van-signature"]
-        : undefined,
-    );
+bankingRouter.post("/van/webhook", walletTxnLimiter, async (req, res) => {
+  const bankHint =
+    typeof req.headers["x-van-bank"] === "string" ? req.headers["x-van-bank"] : undefined;
+  const normalized = normalizeVanWebhookPayload(req.body, bankHint);
+  const body = vanWebhookSchema.parse(normalized);
 
-    const tenantId = await resolveTenantId();
-    const result = await processVanWebhookCredit({
-      tenantId,
+  assertVanWebhookSignature(
+    vanWebhookCanonical({
       bankTxnId: body.bankTxnId,
-      amount: rupeesToPaise(body.amount),
-      amountRupees: body.amount,
       vanNumber: body.vanNumber,
       vpa: body.vpa,
-      utr: body.utr,
-      txnDate: body.txnDate,
-      narration: body.narration,
-      senderName: body.senderName,
-      collectionAccountLast4: body.collectionAccountLast4,
-    });
+      amount: body.amount,
+    }),
+    typeof req.headers["x-van-signature"] === "string"
+      ? req.headers["x-van-signature"]
+      : undefined,
+  );
 
-    // Notify outside the money transaction — failures must never roll back a credit.
-    if (!result.replayed) {
-      if (result.outcome === "credited" && result.ownerUserId) {
-        notifyVanDepositCredit({
-          userId: result.ownerUserId,
-          amount: result.amount,
-          bankTxnId: result.bankTxnId,
-        });
-      } else if (result.outcome === "suspense") {
-        void sendSlackAlert("Unidentified VAN credit", "critical", {
-          amount: result.amount,
-          message: `Bank txn ${result.bankTxnId} could not be matched to a virtual account`,
-          bankTxnId: result.bankTxnId,
-          suspenseJournalId: result.suspenseJournalId,
-        });
-      }
-    }
+  const tenantId = await resolveTenantId();
+  const result = await processVanWebhookCredit({
+    tenantId,
+    bankTxnId: body.bankTxnId,
+    amount: rupeesToPaise(body.amount),
+    amountRupees: body.amount,
+    vanNumber: body.vanNumber,
+    vpa: body.vpa,
+    utr: body.utr,
+    txnDate: body.txnDate,
+    narration: body.narration,
+    senderName: body.senderName,
+    collectionAccountLast4: body.collectionAccountLast4,
+  });
 
-    sendSuccess(
-      res,
-      {
-        outcome: result.outcome,
-        replayed: result.replayed,
-        bankTxnId: result.bankTxnId,
+  // Notify outside the money transaction — failures must never roll back a credit.
+  if (!result.replayed) {
+    if (result.outcome === "credited" && result.ownerUserId) {
+      notifyVanDepositCredit({
+        userId: result.ownerUserId,
         amount: result.amount,
-        receiveJournalId: result.receiveJournalId ?? null,
-        creditJournalId: result.creditJournalId ?? null,
-        suspenseJournalId: result.suspenseJournalId ?? null,
-        vanId: result.vanId ?? null,
-      },
-      result.outcome === "credited"
-        ? result.replayed
-          ? "VAN credit already applied"
-          : "VAN deposit credited"
-        : result.replayed
-          ? "Unidentified credit already parked"
-          : "Unidentified credit parked in suspense",
-    );
-  },
-);
+        bankTxnId: result.bankTxnId,
+      });
+    } else if (result.outcome === "suspense") {
+      void sendSlackAlert("Unidentified VAN credit", "critical", {
+        amount: result.amount,
+        message: `Bank txn ${result.bankTxnId} could not be matched to a virtual account`,
+        bankTxnId: result.bankTxnId,
+        suspenseJournalId: result.suspenseJournalId,
+      });
+    }
+  }
+
+  sendSuccess(
+    res,
+    {
+      outcome: result.outcome,
+      replayed: result.replayed,
+      bankTxnId: result.bankTxnId,
+      amount: result.amount,
+      receiveJournalId: result.receiveJournalId ?? null,
+      creditJournalId: result.creditJournalId ?? null,
+      suspenseJournalId: result.suspenseJournalId ?? null,
+      vanId: result.vanId ?? null,
+    },
+    result.outcome === "credited"
+      ? result.replayed
+        ? "VAN credit already applied"
+        : "VAN deposit credited"
+      : result.replayed
+        ? "Unidentified credit already parked"
+        : "Unidentified credit parked in suspense",
+  );
+});
 
 bankingRouter.use(requireAuth);
 

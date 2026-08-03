@@ -58,6 +58,9 @@
 - [x] Float management (`/float` + `/api/float`)
 - [x] VAN assign (admin Banking tab + `POST /banking/van/assign`)
 - [x] Ledger reports (`/ledger-reports`)
+- [x] Tenant settings: fund dual-approve + settlement charge (Site Control)
+- [x] Settlement bank OTP on change + penny-drop stub + charges + returned path
+- [x] VAN bank adapters (`X-Van-Bank`: generic|icici|hdfc)
 - [x] Mobile partner Reverse / pull-collect on Network
 - [ ] InstantPay DMT/BBPS rails + merchant outlet onboarding
 
@@ -82,6 +85,7 @@
 - [ ] History purge for any secrets ever pushed to remote
 
 ## Last updated
+2026-08-03 — Wallet leftovers: tenant settings UI, settlement OTP/charges/returned, VAN adapters, load-test 500, logs schema stub
 2026-08-03 — Wallet-engine finish: float mgmt, VAN assign, settlement cooling, FR dual-approve, ledger reports, ESC/POS receipt
 2026-08-03 — Admin Commission: Banking Services AEPS collapsed to 1 shared-rate row; save fans out to 4 services (task 25)
 2026-08-03 — Mobile partner Reverse (pull/collect): Network DownlineCard → OTP + txn PIN, parity with web

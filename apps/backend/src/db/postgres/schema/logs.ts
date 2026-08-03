@@ -72,6 +72,8 @@ export interface OtpMeta {
   walletType?: string;
   /** Email verification OTP — address being verified, keyed by the user's mobile */
   email?: string;
+  /** Settlement bank change OTP */
+  userId?: string;
 }
 
 // Login/signup OTPs. No native TTL in Postgres — rows are filtered by expiresAt on

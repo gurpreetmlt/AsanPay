@@ -1,5 +1,5 @@
 ---
-description: Production host = Coolify on EC2; do not treat VPS/EC2 as separate deploy work
+description: Production host = Coolify on EC2; migrate/seed via EC2 SSH; apps via Coolify
 alwaysApply: true
 ---
 
@@ -7,21 +7,31 @@ alwaysApply: true
 
 ## Fact
 
-- **Production deploy path:** Git push → **Coolify** redeploy (apps/services in Coolify UI).
-- Coolify **already runs on AWS EC2**. EC2 is the machine; Coolify is how we ship.
-- Env vars, rebuilds, and service restarts = **Coolify dashboard** (or Coolify-linked git auto-deploy), not SSH “manual VPS deploy” as a separate project task.
+- **App deploy:** Git push → **Coolify** redeploy (backend / admin-web / web).
+- Coolify **runs on AWS EC2**. EC2 = machine; Coolify = how apps ship.
+- **DB migrate / seed:** user runs on **EC2 over SSH** (not Mac local against prod, not “Coolify button” by default).
+- Env vars = **Coolify** dashboard for the service.
 
 ## Agent must
 
-1. After backend/web changes: say **Coolify pe redeploy** (+ exact env `KEY=value` if needed). See `deploy-flow` rule.
-2. **Never** invent a next step like “set up VPS”, “deploy to EC2”, “install Coolify”, or treat EC2 SSH as the normal ship path — unless the user explicitly asks for infra/SSH work.
-3. Migrate/seed commands: give Mac Terminal copy-paste against the **same prod DB** the Coolify backend uses (Neon/Postgres URL already in Coolify env) — do not imply a second “EC2 database setup”.
-4. Load tests / heavy runtime: may mention Coolify/EC2 capacity, but still ship code via Coolify; don’t open an “EC2 provisioning” task by default.
+1. After backend/web changes: **Coolify pe redeploy** (+ exact env `KEY=value` if needed). See `deploy-flow`.
+2. When a migration/seed is needed: say clearly **EC2 SSH pe chalao**, with the migrate/seed command. Do **not** tell the user to run prod migrate from Mac unless they ask.
+3. **Never** invent “set up VPS / install Coolify / EC2 provisioning” as next product work.
+4. **Never** treat SSH `git pull` as the normal app ship path — apps go through Coolify.
+5. SSH for migrate/seed is **expected ops** — not “infra debt”. Keep commands short.
+
+## Order (when schema changed)
+
+1. Mac: `git push`
+2. Coolify: backend redeploy (so new migration files are on the server)
+3. EC2 SSH: `npm run db:migrate` (or project’s usual path inside the backend app dir / container — match how this EC2 is set up)
+4. Seed only if the change needs it
 
 ## Do not confuse
 
 | Wrong | Right |
 |-------|--------|
 | “Ab VPS pe deploy karo” | Coolify pe backend/web redeploy |
-| “EC2 pe server setup pending” | Hosting already Coolify→EC2 |
-| Agent SSH into EC2 to `git pull` | User pushes git; Coolify builds/deploys |
+| “Mac pe prod migrate chalao” | EC2 SSH pe migrate |
+| Agent SSH / git pull for app release | User pushes git; Coolify builds/deploys |
+| “EC2 setup pending” | Hosting already Coolify→EC2; SSH = migrate/ops only |

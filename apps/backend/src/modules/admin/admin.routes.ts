@@ -345,3 +345,23 @@ adminRouter.get("/ledger/exceptions", async (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 100, 500);
   sendSuccess(res, await listOpenReconExceptions(tenantId, limit));
 });
+
+adminRouter.get("/tenant-settings", async (_req, res) => {
+  const { getTenantSettings } = await import("../tenants/tenantSettings.service");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const tenantId = await resolveTenantId();
+  sendSuccess(res, await getTenantSettings(tenantId));
+});
+
+adminRouter.patch("/tenant-settings", async (req, res) => {
+  const body = z
+    .object({
+      fundApproveDualRupees: z.coerce.number().int().positive().max(1_000_000_000).optional(),
+      settlementChargeRupees: z.coerce.number().int().min(0).max(10_000).optional(),
+    })
+    .parse(req.body);
+  const { patchTenantSettings } = await import("../tenants/tenantSettings.service");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const tenantId = await resolveTenantId();
+  sendSuccess(res, await patchTenantSettings(tenantId, body), "Settings saved");
+});

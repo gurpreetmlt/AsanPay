@@ -20,6 +20,11 @@ export const registerSettlementBankSchema = z.object({
     .regex(/^\d{6,18}$/, "Account number must be 6–18 digits"),
   ifsc: ifscSchema,
   holderName: z.string().trim().min(2, "Holder name is required").max(160),
+  /** Required when replacing an already-active settlement bank (24h cooling applies after verify). */
+  otp: z
+    .string()
+    .regex(/^\d{6}$/, "OTP must be a 6-digit code")
+    .optional(),
 });
 export type RegisterSettlementBankBody = z.infer<typeof registerSettlementBankSchema>;
 
@@ -45,6 +50,12 @@ export const markPayoutFailedSchema = z.object({
   failureReason: z.string().trim().min(1, "Failure reason is required").max(500),
 });
 export type MarkPayoutFailedBody = z.infer<typeof markPayoutFailedSchema>;
+
+export const markPayoutReturnedSchema = z.object({
+  reason: z.string().trim().min(1, "Return reason is required").max(500),
+  bankUtr: z.string().trim().max(60).optional(),
+});
+export type MarkPayoutReturnedBody = z.infer<typeof markPayoutReturnedSchema>;
 
 export function parseSettlementId(raw: string | undefined): bigint {
   if (!raw || !/^\d+$/.test(raw)) {

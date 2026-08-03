@@ -56,7 +56,9 @@
 | 16 | Txn PIN modal | S | [16-mobile-txn-pin.md](16-mobile-txn-pin.md) |
 
 ## Wallet engine pending (ordered)
-Queue: [wallet-engine-queue.md](wallet-engine-queue.md)
+Queue: [wallet-engine-queue.md](wallet-engine-queue.md) (MVP 27A–27D done)
+
+**Pinned leftovers:** [wallet-engine-leftovers-queue.md](wallet-engine-leftovers-queue.md)
 
 | # | Task | Size | File |
 |---|------|------|------|
@@ -64,6 +66,7 @@ Queue: [wallet-engine-queue.md](wallet-engine-queue.md)
 | 27B | Ledger recon cron | M | [27B-ledger-recon-cron.md](27B-ledger-recon-cron.md) |
 | 27C | Settlements module | L | [27C-settlements.md](27C-settlements.md) |
 | 27D | VAN + webhook auto-credit | M | [27D-van-webhook.md](27D-van-webhook.md) |
+| 32 | Fund dual-approve limit (admin DB) | S | [32-fund-dual-approve-setting.md](32-fund-dual-approve-setting.md) done |
 
 ## Recommended next (fast value)
 ```

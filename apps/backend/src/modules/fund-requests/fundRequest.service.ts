@@ -15,7 +15,6 @@ import { normaliseUtr } from "../banking/banking.service";
 import { matchFundRequest, claimStatementLine } from "./matching";
 import { HttpError } from "../../utils/httpError";
 import { paiseToRupees, type Paise } from "../../core/money";
-import { env } from "../../config/env";
 
 const COMPANY = "COMPANY_001";
 
@@ -277,7 +276,9 @@ export async function approveFundRequest(params: {
     }
 
     const amount = params.creditAmount ?? (await statementAmount(tx, request.matchedLineId));
-    const dualThreshold = BigInt(Math.round(env.FUND_APPROVE_DUAL_RUPEES * 100));
+    const { getTenantSettings } = await import("../tenants/tenantSettings.service");
+    const settings = await getTenantSettings(params.tenantId);
+    const dualThreshold = BigInt(Math.round(settings.fundApproveDualRupees * 100));
 
     if (amount >= dualThreshold) {
       if (!request.reviewedBy || request.status !== "under_review") {

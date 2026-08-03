@@ -134,6 +134,7 @@ const FLOW_RULES: readonly FlowRule[] = [
   // --- Settlement: money leaving the hierarchy, never entering it. ---
   { from: HIERARCHY_TYPES, to: ["settlement"], txnTypes: ["SETTLEMENT_DEBIT"] },
   { from: ["settlement"], to: ["bank"], txnTypes: ["SETTLEMENT_PAYOUT"] },
+  { from: ["settlement"], to: ["income"], txnTypes: ["SETTLEMENT_PAYOUT"] },
   { from: HIERARCHY_TYPES, to: ["bank"], txnTypes: ["SETTLEMENT_PAYOUT"] },
 
   // --- Costs. ---

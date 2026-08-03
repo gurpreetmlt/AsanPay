@@ -1,15 +1,19 @@
 ---
-description: Wallet engine pending queue — pick CURRENT task only
+description: Wallet engine pending/leftovers queue — pick CURRENT task only
 alwaysApply: true
 ---
 
 # Wallet engine queue
 
-If `docs/TASKS/wallet-engine-queue.md` has a row marked **CURRENT**, and the user asks to continue wallet/ledger/fund/settlement work (or says "next task" / "auto"):
+MVP queue `docs/TASKS/wallet-engine-queue.md` is complete. Active pin:
+
+**`docs/TASKS/wallet-engine-leftovers-queue.md`**
+
+If that file has a row marked **CURRENT**, and the user asks to continue wallet/ledger/fund/settlement work (or says "next task" / "auto"):
 
 1. Read **only** that CURRENT task file + `AGENTS.md`.
 2. Implement that one task. Do not start later queue items in the same chat.
-3. When done: mark it `done`, promote the next row to `CURRENT`, short summary + Mac Terminal deploy cmds.
-4. Next CURRENT task: same chat by default; suggest a new chat only if context is heavy / user asks.
+3. When done: mark it `done`, promote the next row to `CURRENT`, short summary + deploy cmds (Coolify; migrate on **EC2 SSH** if schema changed).
+4. Same chat by default; new chat only if context is heavy / user asks.
 
 Do not re-verify the whole wallet-engine spec unless the user asks.
