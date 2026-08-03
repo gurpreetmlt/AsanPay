@@ -52,7 +52,7 @@
 - [x] InstantPay Register Outlet = retailer web onboarding (`/onboarding/outlet`); `hasInstantpayOutlet` gate
 - [x] Agent flow docs folder [`flow/`](../flow/INDEX.md)
 - [ ] KYC CRUD routes
-- [ ] Commission payout report
+- [x] Commission payout report
 - [ ] InstantPay DMT/BBPS rails + merchant outlet onboarding
 
 ## Security (2026-07-17)
@@ -77,6 +77,7 @@
 
 ## Last updated
 2026-08-03 — Admin Commission: Banking Services AEPS collapsed to 1 shared-rate row; save fans out to 4 services (task 25)
+2026-08-03 — Commission payout report: `GET /admin/commission/payouts` + admin `/commission` Payout report tab
 2026-08-03 — Fund request UI: retailer Add Money → `POST /fund-requests`; admin `/fund-requests` approve/reject; `GET /fund-requests` list; proxy forwards Idempotency-Key (task 13)
 2026-08-03 — VAN webhook: `POST /api/banking/van/webhook` HMAC → DEPOSIT_RECEIVE+CREDIT or suspense (task 27D; wallet-engine queue complete)
 2026-08-03 — Settlements: `/api/settlements` request debit → SETTLE_PAYABLE, payout/fail reversal, one active bank (task 27C)

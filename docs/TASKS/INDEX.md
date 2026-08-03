@@ -31,6 +31,7 @@
 | 18 | KYC module | L | [18-kyc-module.md](18-kyc-module.md) |
 | 19 | Commission schemes | M | [19-commission-schemes.md](19-commission-schemes.md) |
 | 25 | Group AEPS rows on Commission page | M | [25-admin-service-grouping.md](25-admin-service-grouping.md) |
+| 28 | Commission payout report | M | [28-commission-payout-report.md](28-commission-payout-report.md) |
 
 ## Retailer services
 | # | Task | Size | File |
@@ -63,9 +64,8 @@ Queue: [wallet-engine-queue.md](wallet-engine-queue.md)
 
 ## Recommended next (fast value)
 ```
-1. @docs/TASKS/wallet-engine-queue.md  → then CURRENT task (start 27A)
-2. @docs/TASKS/11-mobile-bottom-tabs.md
-3. @docs/TASKS/16-mobile-txn-pin.md
+1. @docs/TASKS/18-kyc-module.md  (KYC CRUD leftovers)
+2. Service flows — AEPS / DMT / BBPS task files
 ```
 
 ## Prompt format

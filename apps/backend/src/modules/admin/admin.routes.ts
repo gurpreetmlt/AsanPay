@@ -301,3 +301,25 @@ adminRouter.post("/commission/preview", async (req, res) => {
     .parse(req.body);
   sendSuccess(res, await previewCommissionSplit(body));
 });
+
+adminRouter.get("/commission/payouts", async (req, res) => {
+  const { listAdminCommissionPayouts } = await import("../commission/commission.service");
+  const role =
+    typeof req.query.role === "string" && schemeRoleEnum.safeParse(req.query.role).success
+      ? (req.query.role as z.infer<typeof schemeRoleEnum>)
+      : undefined;
+  const q = typeof req.query.q === "string" ? req.query.q : undefined;
+  const sinceRaw = typeof req.query.since === "string" ? req.query.since : undefined;
+  const untilRaw = typeof req.query.until === "string" ? req.query.until : undefined;
+  const since = sinceRaw ? new Date(sinceRaw) : undefined;
+  const until = untilRaw ? new Date(untilRaw) : undefined;
+  if (since && Number.isNaN(since.getTime())) {
+    throw new HttpError(400, "since must be a valid date", "INVALID_DATE");
+  }
+  if (until && Number.isNaN(until.getTime())) {
+    throw new HttpError(400, "until must be a valid date", "INVALID_DATE");
+  }
+  const limit = Math.min(Number(req.query.limit) || 50, 200);
+  const offset = Number(req.query.offset) || 0;
+  sendSuccess(res, await listAdminCommissionPayouts({ role, since, until, q, limit, offset }));
+});

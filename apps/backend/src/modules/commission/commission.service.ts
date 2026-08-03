@@ -1,4 +1,4 @@
-import { and, eq, gt, lte, isNull, or, desc, sql, asc } from "drizzle-orm";
+import { and, eq, gt, lte, isNull, or, desc, sql, asc, ilike } from "drizzle-orm";
 import { db } from "../../db/postgres";
 import {
   commissionLedger,
@@ -258,6 +258,84 @@ export async function listEarnings(userId: string, limit = 50, offset = 0) {
     .limit(Math.min(limit, 100))
     .offset(offset);
 }
+
+/** Admin payout report — network-wide commission_ledger with optional role/date filters. */
+export async function listAdminCommissionPayouts(filters?: {
+  role?: SchemeRole;
+  since?: Date;
+  until?: Date;
+  q?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  const limit = Math.min(filters?.limit ?? 50, 200);
+  const offset = filters?.offset ?? 0;
+
+  const conditions = [
+    filters?.role ? eq(commissionLedger.role, filters.role) : undefined,
+    filters?.since ? sql`${commissionLedger.createdAt} >= ${filters.since}` : undefined,
+    filters?.until ? sql`${commissionLedger.createdAt} <= ${filters.until}` : undefined,
+    filters?.q?.trim()
+      ? or(
+          ilike(users.name, `%${filters.q.trim()}%`),
+          ilike(users.uid, `%${filters.q.trim()}%`),
+          ilike(users.mobile, `%${filters.q.trim()}%`),
+          ilike(transactions.txnRef, `%${filters.q.trim()}%`),
+        )
+      : undefined,
+  ].filter((c): c is NonNullable<typeof c> => Boolean(c));
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : sql`true`;
+
+  const [summary] = await db
+    .select({
+      total: sql<string>`coalesce(sum(${commissionLedger.amount}), '0')`,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(commissionLedger)
+    .innerJoin(users, eq(commissionLedger.beneficiaryUserId, users.id))
+    .innerJoin(transactions, eq(commissionLedger.transactionId, transactions.id))
+    .where(whereClause);
+
+  const rows = await db
+    .select({
+      id: commissionLedger.id,
+      amount: commissionLedger.amount,
+      role: commissionLedger.role,
+      createdAt: commissionLedger.createdAt,
+      transactionId: commissionLedger.transactionId,
+      txnRef: transactions.txnRef,
+      txnAmount: transactions.amount,
+      serviceId: transactions.serviceId,
+      serviceName: services.name,
+      serviceCode: services.code,
+      beneficiaryUserId: users.id,
+      beneficiaryName: users.name,
+      beneficiaryUid: users.uid,
+      beneficiaryMobile: users.mobile,
+    })
+    .from(commissionLedger)
+    .innerJoin(users, eq(commissionLedger.beneficiaryUserId, users.id))
+    .innerJoin(transactions, eq(commissionLedger.transactionId, transactions.id))
+    .innerJoin(services, eq(transactions.serviceId, services.id))
+    .where(whereClause)
+    .orderBy(desc(commissionLedger.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  return {
+    summary: {
+      total: String(summary?.total ?? "0"),
+      count: summary?.count ?? 0,
+    },
+    rows: rows.map((r) => ({
+      ...r,
+      amount: String(r.amount),
+      txnAmount: String(r.txnAmount),
+    })),
+  };
+}
+
 
 // ── Role-default scheme CRUD (commission_rules) ─────────────────────────────
 

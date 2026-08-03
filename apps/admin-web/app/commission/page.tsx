@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { Calculator, Percent, Plus, Trash2 } from "lucide-react";
+import { Calculator, Percent, Plus, ScrollText, Trash2 } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { B } from "@/lib/brand";
 import api, { fetchApi } from "@/lib/api";
@@ -12,6 +12,7 @@ import { useAuthHydrated } from "@/lib/useAuthHydrated";
 
 type SchemeRole = "retailer" | "distributor" | "master_distributor";
 type RuleType = "flat" | "percentage";
+type PageTab = "schemes" | "payouts";
 
 interface CatalogService {
   id: string;
@@ -61,6 +62,25 @@ interface PreviewResult {
   totalPayout: string;
 }
 
+interface PayoutRow {
+  id: string;
+  amount: string;
+  role: SchemeRole;
+  createdAt: string;
+  txnRef: string;
+  txnAmount: string;
+  serviceName: string;
+  serviceCode: string;
+  beneficiaryName: string;
+  beneficiaryUid: string;
+  beneficiaryMobile: string;
+}
+
+interface PayoutPayload {
+  summary: { total: string; count: number };
+  rows: PayoutRow[];
+}
+
 const ROLE_LABEL: Record<SchemeRole, string> = {
   retailer: "Retailer",
   distributor: "Distributor",
@@ -82,11 +102,26 @@ function errMessage(err: unknown, fallback: string) {
   return ax?.response?.data?.message || ax?.message || fallback;
 }
 
+function formatWhen(iso: string) {
+  try {
+    return new Date(iso).toLocaleString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return iso;
+  }
+}
+
 export default function CommissionSchemesPage() {
   const router = useRouter();
   const hydrated = useAuthHydrated();
   const accessToken = useAuthStore((s) => s.accessToken);
 
+  const [tab, setTab] = useState<PageTab>("schemes");
   const [rules, setRules] = useState<CommissionRule[]>([]);
   const [catalog, setCatalog] = useState<CatalogCategory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,6 +132,13 @@ export default function CommissionSchemesPage() {
   const [previewAmount, setPreviewAmount] = useState("1000");
   const [previewing, setPreviewing] = useState(false);
   const [preview, setPreview] = useState<PreviewResult | null>(null);
+
+  const [payouts, setPayouts] = useState<PayoutPayload | null>(null);
+  const [payoutsLoading, setPayoutsLoading] = useState(false);
+  const [payoutRole, setPayoutRole] = useState<"" | SchemeRole>("");
+  const [payoutQ, setPayoutQ] = useState("");
+  const [payoutSince, setPayoutSince] = useState("");
+  const [payoutUntil, setPayoutUntil] = useState("");
 
   useEffect(() => {
     if (hydrated && !accessToken) router.replace("/login");
@@ -133,10 +175,35 @@ export default function CommissionSchemesPage() {
     }
   }, []);
 
+  const loadPayouts = useCallback(async () => {
+    setPayoutsLoading(true);
+    try {
+      const params: Record<string, string> = { limit: "100" };
+      if (payoutRole) params.role = payoutRole;
+      if (payoutQ.trim()) params.q = payoutQ.trim();
+      if (payoutSince) params.since = new Date(payoutSince).toISOString();
+      if (payoutUntil) {
+        const end = new Date(payoutUntil);
+        end.setHours(23, 59, 59, 999);
+        params.until = end.toISOString();
+      }
+      setPayouts(await fetchApi<PayoutPayload>("/admin/commission/payouts", params));
+    } catch (err) {
+      toast.error(errMessage(err, "Failed to load commission payouts"));
+    } finally {
+      setPayoutsLoading(false);
+    }
+  }, [payoutRole, payoutQ, payoutSince, payoutUntil]);
+
   useEffect(() => {
     if (!hydrated || !accessToken) return;
     void load();
   }, [hydrated, accessToken, load]);
+
+  useEffect(() => {
+    if (!hydrated || !accessToken || tab !== "payouts") return;
+    void loadPayouts();
+  }, [hydrated, accessToken, tab, loadPayouts]);
 
   const filteredRules = useMemo(
     () => (roleFilter ? rules.filter((r) => r.role === roleFilter) : rules),
@@ -229,23 +296,196 @@ export default function CommissionSchemesPage() {
   return (
     <AdminShell>
       <div className="mx-auto max-w-6xl space-y-6 p-6">
-        <div className="flex items-center gap-3">
-          <div
-            className="flex h-12 w-12 items-center justify-center rounded-2xl text-white"
-            style={{ background: B.badgeGrad }}
-          >
-            <Percent size={22} />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div
+              className="flex h-12 w-12 items-center justify-center rounded-2xl text-white"
+              style={{ background: B.badgeGrad }}
+            >
+              <Percent size={22} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold" style={{ color: B.blue }}>
+                Commission Schemes
+              </h1>
+              <p className="text-sm" style={{ color: B.muted }}>
+                Role defaults and payout ledger. Per-agent overrides still live on the agent detail page.
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold" style={{ color: B.blue }}>
-              Commission Schemes
-            </h1>
-            <p className="text-sm" style={{ color: B.muted }}>
-              Role defaults (Super Dist → Dist → Retailer). Per-agent overrides still win on the agent detail page.
-            </p>
+          <div className="flex rounded-xl border p-1" style={{ borderColor: B.border }}>
+            {(
+              [
+                { id: "schemes" as const, label: "Schemes", icon: Percent },
+                { id: "payouts" as const, label: "Payout report", icon: ScrollText },
+              ] as const
+            ).map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTab(t.id)}
+                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold"
+                style={{
+                  background: tab === t.id ? B.badgeGrad : "transparent",
+                  color: tab === t.id ? "#fff" : B.muted,
+                }}
+              >
+                <t.icon size={14} />
+                {t.label}
+              </button>
+            ))}
           </div>
         </div>
 
+        {tab === "payouts" ? (
+          <div className="space-y-4 rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium" style={{ color: B.muted }}>
+                  Role
+                </span>
+                <select
+                  className="rounded-xl border px-3 py-2 text-sm"
+                  style={{ borderColor: B.border }}
+                  value={payoutRole}
+                  onChange={(e) => setPayoutRole(e.target.value as "" | SchemeRole)}
+                >
+                  <option value="">All roles</option>
+                  {(Object.keys(ROLE_LABEL) as SchemeRole[]).map((r) => (
+                    <option key={r} value={r}>
+                      {ROLE_LABEL[r]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium" style={{ color: B.muted }}>
+                  From
+                </span>
+                <input
+                  type="date"
+                  className="rounded-xl border px-3 py-2 text-sm"
+                  style={{ borderColor: B.border }}
+                  value={payoutSince}
+                  onChange={(e) => setPayoutSince(e.target.value)}
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium" style={{ color: B.muted }}>
+                  To
+                </span>
+                <input
+                  type="date"
+                  className="rounded-xl border px-3 py-2 text-sm"
+                  style={{ borderColor: B.border }}
+                  value={payoutUntil}
+                  onChange={(e) => setPayoutUntil(e.target.value)}
+                />
+              </label>
+              <label className="block min-w-[180px] flex-1 text-sm">
+                <span className="mb-1 block font-medium" style={{ color: B.muted }}>
+                  Search (name / UID / mobile / txn)
+                </span>
+                <input
+                  className="w-full rounded-xl border px-3 py-2 text-sm"
+                  style={{ borderColor: B.border }}
+                  value={payoutQ}
+                  onChange={(e) => setPayoutQ(e.target.value)}
+                  placeholder="Search…"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => void loadPayouts()}
+                className="rounded-xl px-4 py-2.5 text-sm font-bold text-white"
+                style={{ background: B.badgeGrad }}
+              >
+                Apply
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-4 text-sm">
+              <div className="rounded-xl border px-4 py-3" style={{ borderColor: B.border }}>
+                <div className="text-xs" style={{ color: B.muted }}>
+                  Matching payouts
+                </div>
+                <div className="text-lg font-bold" style={{ color: B.blue }}>
+                  {payouts?.summary.count ?? 0}
+                </div>
+              </div>
+              <div className="rounded-xl border px-4 py-3" style={{ borderColor: B.border }}>
+                <div className="text-xs" style={{ color: B.muted }}>
+                  Total paid
+                </div>
+                <div className="text-lg font-bold" style={{ color: B.blue }}>
+                  ₹{payouts?.summary.total ?? "0"}
+                </div>
+              </div>
+            </div>
+
+            {payoutsLoading ? (
+              <p className="text-sm" style={{ color: B.muted }}>
+                Loading…
+              </p>
+            ) : !payouts?.rows.length ? (
+              <p className="text-sm" style={{ color: B.muted }}>
+                No commission payouts match these filters.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[800px] text-left text-sm">
+                  <thead>
+                    <tr
+                      className="border-b text-xs uppercase tracking-wide"
+                      style={{ borderColor: B.border, color: B.muted }}
+                    >
+                      <th className="py-2 pr-3 font-semibold">When</th>
+                      <th className="py-2 pr-3 font-semibold">Beneficiary</th>
+                      <th className="py-2 pr-3 font-semibold">Role</th>
+                      <th className="py-2 pr-3 font-semibold">Service</th>
+                      <th className="py-2 pr-3 font-semibold">Txn</th>
+                      <th className="py-2 font-semibold text-right">Payout</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payouts.rows.map((row) => (
+                      <tr key={row.id} className="border-b last:border-0" style={{ borderColor: B.border }}>
+                        <td className="py-3 pr-3 whitespace-nowrap" style={{ color: B.muted }}>
+                          {formatWhen(row.createdAt)}
+                        </td>
+                        <td className="py-3 pr-3">
+                          <div className="font-medium" style={{ color: B.blue }}>
+                            {row.beneficiaryName}
+                          </div>
+                          <div className="text-xs" style={{ color: B.muted }}>
+                            {row.beneficiaryUid} · {row.beneficiaryMobile}
+                          </div>
+                        </td>
+                        <td className="py-3 pr-3">{ROLE_LABEL[row.role] ?? row.role}</td>
+                        <td className="py-3 pr-3">
+                          <div>{row.serviceName}</div>
+                          <div className="font-mono text-[10px]" style={{ color: B.muted }}>
+                            {row.serviceCode}
+                          </div>
+                        </td>
+                        <td className="py-3 pr-3">
+                          <div className="font-mono text-xs">{row.txnRef}</div>
+                          <div className="text-xs" style={{ color: B.muted }}>
+                            ₹{row.txnAmount}
+                          </div>
+                        </td>
+                        <td className="py-3 text-right font-semibold" style={{ color: B.blue }}>
+                          ₹{row.amount}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
         <div className="grid gap-6 lg:grid-cols-2">
           <form
             onSubmit={onCreate}
@@ -537,6 +777,8 @@ export default function CommissionSchemesPage() {
             </div>
           )}
         </div>
+          </>
+        )}
       </div>
     </AdminShell>
   );
