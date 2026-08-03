@@ -5,6 +5,8 @@ export interface WalletBalance {
   userId: string;
   walletType: WalletType;
   balance: string;
+  /** Sum of open (pending/initiated) txn amounts for this wallet */
+  pendingBalance?: string;
   version: number;
 }
 
