@@ -116,12 +116,26 @@ async function main() {
   console.log(`LEDGER ENGINE VERIFICATION — run ${RUN}`);
   console.log("=".repeat(72));
 
+  // is_active = false, always. The test tenant outlives the run, and anything that iterates
+  // active tenants — the boot-time ledger bootstrap, and any future per-tenant job — must not
+  // pick up a scratch tenant full of throwaway accounts. Existing rows are corrected in place
+  // so a database that was verified before this fix is repaired by the next run.
   const [existing] = await db.select().from(tenants).where(eq(tenants.code, "LEDGERTEST")).limit(1);
-  const tenant =
-    existing ??
-    (await db.insert(tenants).values({ code: "LEDGERTEST", name: "Ledger Engine Test" }).returning())[0];
 
-  tenantId = (tenant as { id: string }).id;
+  if (existing) {
+    if (existing.isActive) {
+      await db.update(tenants).set({ isActive: false }).where(eq(tenants.id, existing.id));
+      console.log("Marked the existing LEDGERTEST tenant inactive.");
+    }
+    tenantId = existing.id;
+  } else {
+    const [created] = await db
+      .insert(tenants)
+      .values({ code: "LEDGERTEST", name: "Ledger Engine Test", isActive: false })
+      .returning();
+    tenantId = (created as { id: string }).id;
+  }
+
   console.log(`Tenant: LEDGERTEST (${tenantId})\n`);
 
   await seedSystemAccounts(tenantId);

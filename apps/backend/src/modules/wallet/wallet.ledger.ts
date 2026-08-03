@@ -89,24 +89,37 @@ const BBPS_CATEGORY = "BILL_PAYMENT_BBPS";
 // Tenant + wallet resolution
 // ---------------------------------------------------------------------------------------
 
-// The legacy tables are still single-tenant (see schema/tenants.ts), so every legacy path posts
-// into the one active tenant. Cached because it is read on every money movement and a tenant is
-// never renamed. When the white-label retrofit lands, this is the seam that changes.
+/**
+ * The legacy tables (users, wallets, transactions) are not tenant-scoped yet, so every legacy
+ * path posts into AsanPay's own tenant. This is the ONE place that names a tenant code, and it
+ * exists only because the legacy rows carry no tenant of their own — the white-label retrofit
+ * replaces this lookup with the tenant on the row, and this function disappears with it.
+ *
+ * Deliberately NOT "the single active tenant": `npm run verify:ledger` leaves a LEDGERTEST
+ * tenant behind, so that rule would fail every money movement the first time anyone verifies
+ * the engine. Naming the tenant is the boring, correct answer until the rows carry their own.
+ */
+const LEGACY_TENANT_CODE = "ASANPAY";
+
 let cachedTenantId: string | null = null;
 
 async function currentTenantId(tx: Tx): Promise<string> {
   if (cachedTenantId) return cachedTenantId;
 
-  const rows = await tx.select({ id: tenants.id }).from(tenants).where(eq(tenants.isActive, true));
-  if (rows.length !== 1) {
-    throw new HttpError(
-      500,
-      `Legacy wallet paths need exactly one active tenant, found ${rows.length}`,
-      "TENANT_AMBIGUOUS",
-    );
+  const [row] = await tx
+    .select({ id: tenants.id, isActive: tenants.isActive })
+    .from(tenants)
+    .where(eq(tenants.code, LEGACY_TENANT_CODE))
+    .limit(1);
+
+  if (!row) {
+    throw new HttpError(500, `Tenant ${LEGACY_TENANT_CODE} does not exist`, "TENANT_NOT_FOUND");
+  }
+  if (!row.isActive) {
+    throw new HttpError(500, `Tenant ${LEGACY_TENANT_CODE} is inactive`, "TENANT_INACTIVE");
   }
 
-  cachedTenantId = rows[0]!.id;
+  cachedTenantId = row.id;
   return cachedTenantId;
 }
 
