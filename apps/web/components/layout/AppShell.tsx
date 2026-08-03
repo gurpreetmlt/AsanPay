@@ -367,7 +367,7 @@ function WalletPill({
     else toast("Ask your upline to fund your wallet, or use Collect on Wallet");
   };
 
-  // Same actions on Main and AEPS — fund request credits Main; keep entry points consistent.
+  // Same actions on Main and AEPS — Add Money (fund request) credits Main; keep entry points consistent.
   const actions = [
     { icon: PlusCircle, label: "Add Money", action: goAddMoney },
     { icon: SendHorizonal, label: "Transfer", action: () => router.push("/wallet") },

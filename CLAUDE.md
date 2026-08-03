@@ -15,4 +15,4 @@ Global rules: `~/.claude/CLAUDE.md` (always).
 [goal]. No explore. No MCP. Mac Terminal cmds in reply.
 ```
 
-1 task file only → read listed paths → implement → CHECKLIST → new session.
+1 task file only → read listed paths → implement → CHECKLIST. New session only when required.

@@ -10,6 +10,6 @@ If `docs/TASKS/wallet-engine-queue.md` has a row marked **CURRENT**, and the use
 1. Read **only** that CURRENT task file + `AGENTS.md`.
 2. Implement that one task. Do not start later queue items in the same chat.
 3. When done: mark it `done`, promote the next row to `CURRENT`, short summary + Mac Terminal deploy cmds.
-4. Suggest a **new chat** for the next CURRENT task.
+4. Next CURRENT task: same chat by default; suggest a new chat only if context is heavy / user asks.
 
 Do not re-verify the whole wallet-engine spec unless the user asks.

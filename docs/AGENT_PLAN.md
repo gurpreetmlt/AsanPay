@@ -11,7 +11,7 @@
 | Ignore | `partner-web`, `retailer-web` |
 | Creds | `LOGIN.md` |
 | Tasks | `docs/TASKS/INDEX.md` → one file |
-| Done | `docs/CHECKLIST.md` → new chat |
+| Done | `docs/CHECKLIST.md`; new chat only when required (see global rule) |
 | **Git attribution** | **Never** `Co-authored-by: Cursor/Claude/Anthropic` · no `Made-with: Cursor` · see below |
 
 ## Git — no AI co-authors (hard rule)

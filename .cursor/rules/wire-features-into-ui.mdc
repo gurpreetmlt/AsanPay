@@ -1,0 +1,26 @@
+---
+description: Wire every new feature into real UI entry points (nav, menus, dashboards) in the same change — never leave orphan screens.
+alwaysApply: true
+---
+
+# Wire features into UI (same change)
+
+Jab bhi naya feature / screen / API flow bane, **usi chat / PR mein** product UI entrypoint bhi wire karo. Backend-only stub + orphan route mat chhodo.
+
+## Required
+- Agent web (`apps/web`): sidebar / header menus / dashboard CTAs jahan user naturally dhundhega
+- Admin (`apps/admin-web`): matching nav or section if admins use it
+- Mobile (`apps/mobile`): tab / home tile / stack route if InstantPay parity applies (see `AGENTS.md`)
+
+## Placement examples
+- **Fund request / Add Money** → under **Wallet** (dropdown / wallet actions), not a lone top-level sidebar item
+- Wallet-related actions stay together: Overview · Add Money · Transfer · Statement (and Refresh where a balance pill exists)
+- New money flows → Wallet or the service category they belong to — not a random orphan menu row
+
+## Done check
+- [ ] User can reach the screen from nav or an obvious in-app CTA (not only by typing the URL)
+- [ ] Label is English product copy (`ui-english-only`)
+- [ ] Role gating matches API (e.g. retailer-only fund request)
+---
+name: wire-features-into-ui
+---

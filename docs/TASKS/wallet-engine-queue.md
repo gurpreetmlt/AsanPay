@@ -13,7 +13,7 @@
 
 ## Queue complete
 
-Wallet-engine MVP queue (27A–27D) is finished. New work → pick from `docs/TASKS/INDEX.md` or ROADMAP in a **new chat**.
+Wallet-engine MVP queue (27A–27D) is finished. New work → pick from `docs/TASKS/INDEX.md` or ROADMAP.
 
 ## Leftovers (out of MVP scope)
 
@@ -30,5 +30,5 @@ Wallet-engine MVP queue (27A–27D) is finished. New work → pick from `docs/TA
 
 ## After each task
 1. Set that row to `done`, next row to `CURRENT`.
-2. New chat with the next task file @-mentioned (do not continue XL work in the same chat).
+2. Next task file @-mentioned; same chat OK unless XL / heavy context (then new chat).
 3. Deploy steps only if backend changed (Coolify redeploy; APK not needed for API-only).
