@@ -37,8 +37,6 @@ import { formatInr, walletDisplayName } from "@/lib/walletLabels";
 const NAV_CORE = [
   { icon: LayoutDashboard, label: "Dashboard", to: "/dashboard" },
   { icon: ArrowLeftRight, label: "Transactions", to: "/transactions" },
-  { icon: Wallet, label: "Wallet", to: "/wallet" },
-  { icon: PlusCircle, label: "Fund request", to: "/fund-request" },
   { icon: Network, label: "Network", to: "/network" },
   { icon: BarChart3, label: "Reports", to: "/reports" },
   { icon: FileText, label: "Statements", to: "/statements" },
@@ -48,6 +46,22 @@ const NAV_CORE = [
 
 const NAV_CUSTOMERS = { icon: Users, label: "Customers", to: "/customers" } as const;
 
+/** Wallet group — Fund request / Add Money lives here (not a top-level sidebar item). */
+const WALLET_CHILDREN_RETAILER = [
+  { icon: Wallet, label: "Overview", to: "/wallet" },
+  { icon: PlusCircle, label: "Add Money", to: "/fund-request" },
+  { icon: SendHorizonal, label: "Transfer", to: "/wallet" },
+  { icon: Download, label: "Statement", to: "/statements" },
+] as const;
+
+const WALLET_CHILDREN_PARTNER = [
+  { icon: Wallet, label: "Overview", to: "/wallet" },
+  { icon: SendHorizonal, label: "Transfer", to: "/wallet" },
+  { icon: Download, label: "Statement", to: "/statements" },
+] as const;
+
+const WALLET_PATHS = ["/wallet", "/fund-request"] as const;
+
 const MOBILE_CORE = [
   { icon: LayoutDashboard, label: "Home", to: "/dashboard" },
   { icon: ArrowLeftRight, label: "Txns", to: "/transactions" },
@@ -56,32 +70,37 @@ const MOBILE_CORE = [
 ] as const;
 
 function sidebarNavForRole(role: string | undefined) {
-  // Customers = retailer only. Fund request = retailer only. Distributor / Super Dist use Network.
+  // Customers = retailer only. Distributor / Super Dist use Network.
+  // Fund request / Add Money is under the Wallet dropdown (retailer only).
   if (role === "retailer") {
     return [
       NAV_CORE[0], // Dashboard
       NAV_CORE[1], // Transactions
-      NAV_CORE[2], // Wallet
-      NAV_CORE[3], // Fund request
-      NAV_CORE[4], // Network
+      NAV_CORE[2], // Network
       NAV_CUSTOMERS,
-      NAV_CORE[5], // Reports
-      NAV_CORE[6], // Statements
-      NAV_CORE[7], // Settings
-      NAV_CORE[8], // KYC
+      NAV_CORE[3], // Reports
+      NAV_CORE[4], // Statements
+      NAV_CORE[5], // Settings
+      NAV_CORE[6], // KYC
     ];
   }
-  // SD / Dist — no fund-request (bank deposit FR is retailer → admin)
   return [
     NAV_CORE[0],
     NAV_CORE[1],
     NAV_CORE[2],
+    NAV_CORE[3],
     NAV_CORE[4],
     NAV_CORE[5],
     NAV_CORE[6],
-    NAV_CORE[7],
-    NAV_CORE[8],
   ];
+}
+
+function walletChildrenForRole(role: string | undefined) {
+  return role === "retailer" ? WALLET_CHILDREN_RETAILER : WALLET_CHILDREN_PARTNER;
+}
+
+function isWalletPath(pathname: string) {
+  return WALLET_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
 function mobileTabsForRole(role: string | undefined) {
@@ -124,6 +143,13 @@ function SidebarContent({
   const pathname = usePathname();
   const authRole = useAuthStore((s) => s.user?.role);
   const items = sidebarNavForRole(authRole);
+  const walletChildren = walletChildrenForRole(authRole);
+  const walletActive = isWalletPath(pathname);
+  const [walletOpen, setWalletOpen] = useState(walletActive);
+
+  useEffect(() => {
+    if (walletActive) setWalletOpen(true);
+  }, [walletActive]);
 
   return (
     <>
@@ -163,7 +189,105 @@ function SidebarContent({
       )}
 
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-3">
-        {items.map(({ icon: Icon, label, to }) => {
+        {/* Dashboard + Transactions first, then Wallet dropdown, then the rest */}
+        {items.slice(0, 2).map(({ icon: Icon, label, to }) => {
+          const isActive = pathname === to || pathname.startsWith(`${to}/`);
+          return (
+            <Link
+              key={to}
+              href={to}
+              onClick={onClose}
+              className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all ${
+                isActive ? "bg-white/15" : "hover:bg-white/8"
+              }`}
+              style={{ borderLeft: isActive ? `3px solid ${B.green}` : "3px solid transparent" }}
+            >
+              <Icon
+                size={18}
+                className={isActive ? "text-white" : "text-white/50 group-hover:text-white"}
+                strokeWidth={isActive ? 2.5 : 2}
+              />
+              {open && (
+                <span
+                  className={`text-sm font-medium ${isActive ? "text-white" : "text-white/60 group-hover:text-white"}`}
+                >
+                  {label}
+                </span>
+              )}
+            </Link>
+          );
+        })}
+
+        <div>
+          <button
+            type="button"
+            onClick={() => setWalletOpen((v) => !v)}
+            className={`group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 transition-all ${
+              walletActive ? "bg-white/15" : "hover:bg-white/8"
+            }`}
+            style={{ borderLeft: walletActive ? `3px solid ${B.green}` : "3px solid transparent" }}
+          >
+            <Wallet
+              size={18}
+              className={walletActive ? "text-white" : "text-white/50 group-hover:text-white"}
+              strokeWidth={walletActive ? 2.5 : 2}
+            />
+            {open && (
+              <>
+                <span
+                  className={`flex-1 text-left text-sm font-medium ${
+                    walletActive ? "text-white" : "text-white/60 group-hover:text-white"
+                  }`}
+                >
+                  Wallet
+                </span>
+                <ChevronDown
+                  size={14}
+                  className={`text-white/40 transition-transform ${walletOpen ? "rotate-180" : ""}`}
+                />
+              </>
+            )}
+          </button>
+          {open && walletOpen && (
+            <div className="ml-3 mt-0.5 space-y-0.5 border-l border-white/10 pl-2">
+              {walletChildren.map(({ icon: Icon, label, to }) => {
+                const isActive = pathname === to || pathname.startsWith(`${to}/`);
+                // Transfer shares /wallet with Overview — highlight only Overview on exact /wallet
+                const childActive =
+                  label === "Transfer"
+                    ? false
+                    : label === "Overview"
+                      ? pathname === "/wallet" || pathname.startsWith("/wallet/")
+                      : isActive;
+                return (
+                  <Link
+                    key={`${label}-${to}`}
+                    href={to}
+                    onClick={onClose}
+                    className={`group flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition-all ${
+                      childActive ? "bg-white/15" : "hover:bg-white/8"
+                    }`}
+                  >
+                    <Icon
+                      size={15}
+                      className={childActive ? "text-white" : "text-white/45 group-hover:text-white"}
+                      strokeWidth={childActive ? 2.5 : 2}
+                    />
+                    <span
+                      className={`text-[13px] font-medium ${
+                        childActive ? "text-white" : "text-white/55 group-hover:text-white"
+                      }`}
+                    >
+                      {label}
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {items.slice(2).map(({ icon: Icon, label, to }) => {
           const isActive = pathname === to || pathname.startsWith(`${to}/`);
           return (
             <Link

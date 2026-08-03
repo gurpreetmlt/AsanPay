@@ -8,7 +8,7 @@ import { fetchApi } from "@/lib/api";
 import type { CatalogCategoryView } from "@/lib/types";
 import { B } from "@/lib/brand";
 import { serviceIconPath } from "@asanpay/shared-types";
-import { designTileColors } from "@/lib/designIcons";
+import { DesignIcon, designTileColors, serviceCodeToDesignKey } from "@/lib/designIcons";
 import { flattenCatalogServices } from "@/lib/catalog";
 import { extractApiError, isKycServicesUnlocked } from "@/lib/onboarding";
 import { MAX_FAVORITES, selectFavoriteCodes, useFavoritesStore } from "@/lib/favorites";
@@ -57,6 +57,7 @@ function ServiceIconCard({
   const [assetFailed, setAssetFailed] = useState(false);
   const showAsset = Boolean(assetSrc) && !assetFailed;
   const starColor = favorite ? B.green : B.muted;
+  const designKey = serviceCodeToDesignKey(svc.code);
 
   return (
     <div
@@ -70,7 +71,7 @@ function ServiceIconCard({
           e.stopPropagation();
           onToggleFav();
         }}
-        className="absolute right-0.5 top-0.5 rounded-lg p-1 opacity-0 transition group-hover:opacity-100"
+        className="absolute right-0.5 top-0.5 z-10 rounded-lg p-1 opacity-0 transition group-hover:opacity-100"
       >
         <Star size={12} strokeWidth={2.2} color={starColor} fill={favorite ? starColor : "none"} />
       </button>
@@ -89,9 +90,11 @@ function ServiceIconCard({
           />
         ) : (
           <div
-            className="h-9 w-9 rounded-lg transition duration-150 ease-out group-hover:scale-110"
+            className="flex h-9 w-9 items-center justify-center rounded-lg transition duration-150 ease-out group-hover:scale-110"
             style={{ background: tile.bg }}
-          />
+          >
+            <DesignIcon name={designKey} size={22} color={tile.fg} />
+          </div>
         )}
         <div
           className="w-full text-center text-xs font-semibold leading-tight transition-colors duration-150 group-hover:text-[var(--tile-accent)]"
@@ -142,7 +145,7 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
     (async () => {
       try {
         const data = await fetchApi<CatalogCategoryView[]>("/catalog");
-        if (alive) setCategories(data);
+        if (alive) setCategories(Array.isArray(data) ? data : []);
       } catch (err) {
         if (alive) toast.error(extractApiError(err, "Could not load services"), { id: "catalog-load" });
       } finally {
@@ -154,12 +157,17 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
     };
   }, []);
 
+  const visibleCategories = useMemo(
+    () => categories.filter((c) => (c.services?.length ?? 0) > 0),
+    [categories],
+  );
+
   const favorites = useMemo(() => {
-    const all = flattenCatalogServices(categories);
+    const all = flattenCatalogServices(visibleCategories);
     return codes
       .map((code) => all.find((s) => s.code === code))
       .filter((s): s is NonNullable<typeof s> => !!s);
-  }, [categories, codes]);
+  }, [visibleCategories, codes]);
 
   function openService(code: string) {
     if (!servicesUnlocked) {
@@ -193,10 +201,10 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
     );
   }
 
-  if (!categories.length) {
+  if (!visibleCategories.length) {
     return (
       <div className="rounded-2xl border bg-white p-6 text-sm" style={{ borderColor: B.border, color: B.muted }}>
-        No services available. Run catalog seed on backend.
+        No active services. Ask admin to enable them under Site Control, or re-run catalog seed on the backend.
       </div>
     );
   }
@@ -235,7 +243,7 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
       <h2 className="text-lg font-bold" style={{ color: B.blue }}>
         {title}
       </h2>
-      {categories.map((cat) => {
+      {visibleCategories.map((cat) => {
         const isCollapsed = collapsed.has(cat.id);
         return (
           <div key={cat.id} className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
@@ -249,7 +257,11 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
               </span>
               <ChevronDown
                 size={16}
-                style={{ color: B.muted, transform: isCollapsed ? "rotate(-90deg)" : "none", transition: "transform 150ms" }}
+                style={{
+                  color: B.muted,
+                  transform: isCollapsed ? "rotate(-90deg)" : "none",
+                  transition: "transform 150ms",
+                }}
               />
             </button>
             {!isCollapsed && (
