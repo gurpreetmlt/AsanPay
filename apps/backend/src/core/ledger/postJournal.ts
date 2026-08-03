@@ -46,6 +46,9 @@ const SETTLEABLE_CREDIT_TYPES = new Set<TxnType>([
   "MICRO_ATM",
   "AADHAAR_PAY",
   "COMMISSION_PAYOUT",
+  // Migrated AePS earnings. Without this the backfill would silently convert money an agent
+  // had already earned into a non-withdrawable advance.
+  "OPENING_BALANCE_EARNED",
 ]);
 
 const SETTLEABLE_DEBIT_TYPES = new Set<TxnType>(["SETTLEMENT_DEBIT", "SETTLEMENT_PAYOUT"]);

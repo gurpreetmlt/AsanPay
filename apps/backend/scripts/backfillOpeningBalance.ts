@@ -34,6 +34,14 @@ interface Plan {
   role: string;
   /** Sum of the user's legacy wallets. See the note below on why these are merged. */
   totalPaise: Paise;
+  /**
+   * The slice that came from the legacy `aeps` wallet. That wallet holds AePS reimbursements —
+   * money the retailer earned by paying out cash from their own drawer — so it opens as
+   * SETTLEABLE (withdrawable to their bank), not as a prepaid advance.
+   */
+  earnedPaise: Paise;
+  /** Everything else: deposits and upline transfers. Spendable on services, never withdrawable. */
+  advancePaise: Paise;
   breakdown: { walletType: string; walletKind: string; rupees: string }[];
   targetCode: string | null;
 }
@@ -47,7 +55,7 @@ async function main() {
   const [already] = await db
     .select({ n: sql<string>`COUNT(*)` })
     .from(sql`journals`)
-    .where(sql`tenant_id = ${tenant.id} AND txn_type = 'OPENING_BALANCE'`);
+    .where(sql`tenant_id = ${tenant.id} AND txn_type LIKE 'OPENING_BALANCE%'`);
 
   if (Number(already?.n ?? 0) > 0) {
     console.log(
@@ -82,12 +90,16 @@ async function main() {
         name: row.name,
         role: row.role,
         totalPaise: 0n,
+        earnedPaise: 0n,
+        advancePaise: 0n,
         breakdown: [],
         targetCode: null,
       };
       byUser.set(row.userId, plan);
     }
     plan.totalPaise += paise;
+    if (row.walletType === "aeps") plan.earnedPaise += paise;
+    else plan.advancePaise += paise;
     plan.breakdown.push({
       walletType: row.walletType,
       walletKind: row.walletKind,
@@ -103,6 +115,10 @@ async function main() {
     const isAggregator = plan.breakdown.some((b) => b.walletKind === "aggregator");
     if (isAggregator || plan.role === "admin") {
       plan.targetCode = COMPANY;
+      // COMPANY_001 is the platform's own float, not an agent's earnings — "settleable" has no
+      // meaning there and the flow matrix does not permit an EARNED opening into it.
+      plan.advancePaise = plan.totalPaise;
+      plan.earnedPaise = 0n;
     } else if (["master_distributor", "distributor", "retailer"].includes(plan.role)) {
       plan.targetCode = null; // resolved per-user below, creates the account if missing
     } else {
@@ -125,15 +141,23 @@ async function main() {
   console.log(`Total to open     : ${formatINR(total)}`);
   console.log(`Skipped (no role) : ${skipped.length}`);
 
+  const totalEarned = actionable.reduce<Paise>((acc, p) => acc + p.earnedPaise, 0n);
+  console.log(`  of which earned : ${formatINR(totalEarned)} (settleable — agent may withdraw)`);
+  console.log(`  of which advance: ${formatINR(total - totalEarned)} (spendable, not withdrawable)`);
+
   if (merged.length > 0) {
     // The ledger holds ONE account per agent, while the legacy schema splits main and aeps.
-    // Merging is correct for the ledger model, but it is a real behaviour change: after this,
-    // the two balances are no longer separately visible on the wallet itself.
+    // Merging into one balance is correct for the ledger model, but the earned/advance split
+    // is preserved as `settleable` — otherwise migration would quietly convert an agent's own
+    // AePS earnings into money they can spend but never withdraw.
     console.log(`\n!! ${merged.length} user(s) have more than one legacy wallet.`);
-    console.log(`   Their balances MERGE into a single ledger account:`);
+    console.log(`   Balances merge into one ledger account; the aeps slice opens as settleable:`);
     for (const p of merged.slice(0, 10)) {
       const parts = p.breakdown.map((b) => `${b.walletType}=${b.rupees}`).join(" + ");
-      console.log(`   ${p.uid.padEnd(12)} ${parts}  ->  ${paiseToRupees(p.totalPaise)}`);
+      console.log(
+        `   ${p.uid.padEnd(16)} ${parts}  ->  ${paiseToRupees(p.totalPaise)} ` +
+          `(settleable ${paiseToRupees(p.earnedPaise)})`,
+      );
     }
     if (merged.length > 10) console.log(`   ... and ${merged.length - 10} more`);
   }
@@ -164,21 +188,40 @@ async function main() {
       const code =
         plan.targetCode ?? (await ensureHierarchyAccount(tx, tenant.id, plan.userId));
 
-      await postJournal(tx, {
-        tenantId: tenant.id,
-        txnType: "OPENING_BALANCE",
-        // Keyed on the user, so a re-run after a partial failure resumes rather than doubles.
-        idemKey: `OPENING:${plan.userId}`,
-        performedBy: null,
-        reason: `Opening balance migrated from legacy wallets (${plan.breakdown
-          .map((b) => `${b.walletType}=${b.rupees}`)
-          .join(", ")})`,
-        referenceId: plan.userId,
-        entries: [
-          { code: FLOAT_CONTROL, dir: "DR", amount: plan.totalPaise },
-          { code, dir: "CR", amount: plan.totalPaise },
-        ],
-      });
+      const legacy = plan.breakdown.map((b) => `${b.walletType}=${b.rupees}`).join(", ");
+
+      // Two journals where the agent has both kinds of money, so `settleable` lands correctly.
+      // Idempotency keys are per-user AND per-slice, so a re-run after a partial failure
+      // resumes rather than doubling anything.
+      if (plan.advancePaise > 0n) {
+        await postJournal(tx, {
+          tenantId: tenant.id,
+          txnType: "OPENING_BALANCE",
+          idemKey: `OPENING:${plan.userId}:ADVANCE`,
+          performedBy: null,
+          reason: `Opening advance migrated from legacy wallets (${legacy})`,
+          referenceId: plan.userId,
+          entries: [
+            { code: FLOAT_CONTROL, dir: "DR", amount: plan.advancePaise },
+            { code, dir: "CR", amount: plan.advancePaise },
+          ],
+        });
+      }
+
+      if (plan.earnedPaise > 0n) {
+        await postJournal(tx, {
+          tenantId: tenant.id,
+          txnType: "OPENING_BALANCE_EARNED",
+          idemKey: `OPENING:${plan.userId}:EARNED`,
+          performedBy: null,
+          reason: `Opening AePS earnings migrated from legacy aeps wallet (${legacy})`,
+          referenceId: plan.userId,
+          entries: [
+            { code: FLOAT_CONTROL, dir: "DR", amount: plan.earnedPaise },
+            { code, dir: "CR", amount: plan.earnedPaise },
+          ],
+        });
+      }
     });
     posted += 1;
     if (posted % 25 === 0) console.log(`  ... ${posted}/${actionable.length}`);
@@ -234,6 +277,26 @@ async function verify(tenantId: string, expectedTotal: Paise): Promise<void> {
     GROUP BY a.code, ab.balance
     HAVING ab.balance <> (SUM(w.balance) * 100)::bigint
   `);
+
+  const settle = await db.execute<{ code: string; settleable: string; legacy_aeps: string }>(sql`
+    SELECT a.code,
+           ab.settleable::text,
+           COALESCE((SELECT (w.balance * 100)::bigint FROM wallets w
+                     WHERE w.user_id = a.user_id AND w.wallet_type = 'aeps'), 0)::text AS legacy_aeps
+    FROM accounts a
+    JOIN account_balances ab ON ab.account_id = a.id
+    WHERE a.tenant_id = ${tenantId} AND a.user_id IS NOT NULL
+      AND ab.settleable <> COALESCE((SELECT (w.balance * 100)::bigint FROM wallets w
+                     WHERE w.user_id = a.user_id AND w.wallet_type = 'aeps'), 0)
+  `);
+
+  console.log(`Settleable split  : ${settle.rows.length} mismatch(es)`);
+  for (const row of settle.rows.slice(0, 10)) {
+    console.log(`  ${row.code}: settleable=${row.settleable} legacy aeps=${row.legacy_aeps}`);
+  }
+  console.log(
+    `  ${settle.rows.length === 0 ? "PASS — earned money stayed withdrawable" : "FAIL — an agent's earnings were mis-classified"}`,
+  );
 
   console.log(`Ledger vs legacy  : ${drift.rows.length} mismatch(es)`);
   for (const row of drift.rows.slice(0, 10)) {

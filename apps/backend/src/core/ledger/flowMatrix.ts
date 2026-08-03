@@ -6,6 +6,10 @@ export type AccountType = (typeof accountTypeEnum.enumValues)[number];
 // any txn_type it does not recognise, so this list is the boundary of what the engine can do.
 export const TXN_TYPES = [
   "OPENING_BALANCE",
+  // The earned slice of a migrated balance. Split out from OPENING_BALANCE because AePS
+  // credits are the agent's own money and must stay withdrawable after migration — opening
+  // them as a plain advance would trap earnings the agent had already made.
+  "OPENING_BALANCE_EARNED",
   "ALLOCATION",
   "DEPOSIT_RECEIVE",
   "DEPOSIT_CREDIT",
@@ -124,7 +128,11 @@ const FLOW_RULES: readonly FlowRule[] = [
 
   // --- One-time migration only. See FUNDING_EXCEPTIONS and spec "Applying this to the
   //     existing codebase" step 2: give every pre-ledger rupee an origin. ---
-  { from: ["control"], to: HIERARCHY_TYPES, txnTypes: ["OPENING_BALANCE"] },
+  {
+    from: ["control"],
+    to: HIERARCHY_TYPES,
+    txnTypes: ["OPENING_BALANCE", "OPENING_BALANCE_EARNED"],
+  },
   { from: ["control"], to: ["company"], txnTypes: ["OPENING_BALANCE"] },
 ];
 
@@ -140,6 +148,7 @@ export const FUNDING_EXCEPTIONS: readonly { from: AccountType; txnType: TxnType 
   { from: "float", txnType: "AADHAAR_PAY" },
   // One-time backfill of balances that predate the ledger.
   { from: "control", txnType: "OPENING_BALANCE" },
+  { from: "control", txnType: "OPENING_BALANCE_EARNED" },
 ];
 
 type FlowKey = `${AccountType}>${AccountType}`;
