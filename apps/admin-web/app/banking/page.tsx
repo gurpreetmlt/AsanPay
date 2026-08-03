@@ -11,7 +11,7 @@ import { createAttemptKeyHolder } from "@/lib/idempotencyKey";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 
-type Tab = "accounts" | "import" | "suspense";
+type Tab = "accounts" | "import" | "suspense" | "van";
 type Purpose = "collection" | "payout" | "ops";
 
 interface BankAccount {
@@ -89,6 +89,20 @@ export default function AdminBankingPage() {
   const [importBankId, setImportBankId] = useState("");
   const [csvText, setCsvText] = useState("");
   const [olderThanHours, setOlderThanHours] = useState("48");
+  const [vanUserId, setVanUserId] = useState("");
+  const [vanBankId, setVanBankId] = useState("");
+  const [vanNumber, setVanNumber] = useState("");
+  const [vpa, setVpa] = useState("");
+  const [vanRows, setVanRows] = useState<
+    Array<{
+      id: string;
+      vanNumber: string | null;
+      vpa: string | null;
+      status: string;
+      bankName: string;
+      ownerCode: string;
+    }>
+  >([]);
 
   const importKey = useRef(createAttemptKeyHolder("stmt-import"));
   const parkKey = useRef(createAttemptKeyHolder("park-suspense"));
@@ -96,19 +110,32 @@ export default function AdminBankingPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [rows, count] = await Promise.all([
+      const [rows, count, vans] = await Promise.all([
         fetchApi<BankAccount[]>("/banking/accounts", { purpose: "all" }),
         fetchApi<{ count: number }>("/banking/unmatched-count"),
+        fetchApi<
+          Array<{
+            id: string;
+            vanNumber: string | null;
+            vpa: string | null;
+            status: string;
+            bankName: string;
+            ownerCode: string;
+          }>
+        >("/banking/van"),
       ]);
       setAccounts(rows);
       setUnmatched(count.count);
+      setVanRows(vans);
       if (!importBankId && rows[0]) setImportBankId(rows[0].id);
+      const vanBank = rows.find((r) => r.supportsVan && r.isActive);
+      if (!vanBankId && vanBank) setVanBankId(vanBank.id);
     } catch (err) {
       toast.error(errMessage(err, "Failed to load banking data"));
     } finally {
       setLoading(false);
     }
-  }, [importBankId]);
+  }, [importBankId, vanBankId]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -206,6 +233,35 @@ export default function AdminBankingPage() {
     }
   }
 
+  async function assignVan(e: FormEvent) {
+    e.preventDefault();
+    if (!vanUserId.trim() || !vanBankId) {
+      toast.error("Enter agent user UUID and select a VAN-capable bank");
+      return;
+    }
+    if (!vanNumber.trim() && !vpa.trim()) {
+      toast.error("Provide vanNumber or vpa");
+      return;
+    }
+    setSaving(true);
+    try {
+      await api.post("/banking/van/assign", {
+        userId: vanUserId.trim(),
+        bankAccountId: vanBankId,
+        vanNumber: vanNumber.trim() || null,
+        vpa: vpa.trim() || null,
+      });
+      toast.success("Virtual account assigned");
+      setVanNumber("");
+      setVpa("");
+      await load();
+    } catch (err) {
+      toast.error(errMessage(err, "Could not assign VAN"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (!hydrated || !accessToken) return null;
 
   return (
@@ -242,6 +298,7 @@ export default function AdminBankingPage() {
               { key: "accounts" as const, label: "Bank accounts" },
               { key: "import" as const, label: "Import statement" },
               { key: "suspense" as const, label: "Park suspense" },
+              { key: "van" as const, label: "Assign VAN" },
             ] as const
           ).map((t) => (
             <button
@@ -411,7 +468,7 @@ export default function AdminBankingPage() {
               {saving ? "Importing…" : "Import lines"}
             </button>
           </form>
-        ) : (
+        ) : tab === "suspense" ? (
           <div className="space-y-4 rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
             <p className="text-sm" style={{ color: B.muted }}>
               Park unmatched statement credits older than the window into treasury suspense. Current unmatched:{" "}
@@ -440,6 +497,96 @@ export default function AdminBankingPage() {
             >
               {saving ? "Parking…" : "Park unmatched in suspense"}
             </button>
+          </div>
+        ) : (
+          <div className="space-y-5">
+            <form
+              onSubmit={assignVan}
+              className="grid gap-3 rounded-2xl border bg-white p-5 md:grid-cols-2"
+              style={{ borderColor: B.border }}
+            >
+              <h2 className="md:col-span-2 text-base font-bold" style={{ color: B.blue }}>
+                Assign virtual account
+              </h2>
+              <input
+                className="rounded-xl border px-3 py-2 text-sm md:col-span-2"
+                style={{ borderColor: B.border }}
+                placeholder="Agent user UUID"
+                value={vanUserId}
+                onChange={(e) => setVanUserId(e.target.value)}
+                required
+              />
+              <select
+                className="rounded-xl border px-3 py-2 text-sm"
+                style={{ borderColor: B.border }}
+                value={vanBankId}
+                onChange={(e) => setVanBankId(e.target.value)}
+                required
+              >
+                <option value="">Collection bank (supports VAN)</option>
+                {accounts
+                  .filter((a) => a.supportsVan && a.isActive)
+                  .map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.bankName} · ****{a.accountNumberLast4}
+                    </option>
+                  ))}
+              </select>
+              <input
+                className="rounded-xl border px-3 py-2 text-sm"
+                style={{ borderColor: B.border }}
+                placeholder="VAN number (optional if VPA set)"
+                value={vanNumber}
+                onChange={(e) => setVanNumber(e.target.value)}
+              />
+              <input
+                className="rounded-xl border px-3 py-2 text-sm md:col-span-2"
+                style={{ borderColor: B.border }}
+                placeholder="VPA e.g. agent@bank (optional if VAN set)"
+                value={vpa}
+                onChange={(e) => setVpa(e.target.value)}
+              />
+              <button
+                type="submit"
+                disabled={saving}
+                className="rounded-xl px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60 md:col-span-2"
+                style={{ background: B.badgeGrad }}
+              >
+                {saving ? "Assigning…" : "Assign VAN"}
+              </button>
+            </form>
+            <div className="overflow-x-auto rounded-2xl border bg-white" style={{ borderColor: B.border }}>
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr style={{ color: B.muted }}>
+                    <th className="px-3 py-2 text-left font-medium">Owner</th>
+                    <th className="px-3 py-2 text-left font-medium">VAN</th>
+                    <th className="px-3 py-2 text-left font-medium">VPA</th>
+                    <th className="px-3 py-2 text-left font-medium">Bank</th>
+                    <th className="px-3 py-2 text-left font-medium">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {vanRows.length === 0 ? (
+                    <tr>
+                      <td className="px-3 py-4" colSpan={5} style={{ color: B.muted }}>
+                        No virtual accounts yet
+                      </td>
+                    </tr>
+                  ) : (
+                    vanRows.map((v) => (
+                      <tr key={v.id} className="border-t" style={{ borderColor: B.border }}>
+                        <td className="px-3 py-2 font-mono text-xs">{v.ownerCode}</td>
+                        <td className="px-3 py-2">{v.vanNumber ?? "—"}</td>
+                        <td className="px-3 py-2">{v.vpa ?? "—"}</td>
+                        <td className="px-3 py-2">{v.bankName}</td>
+                        <td className="px-3 py-2">{v.status}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

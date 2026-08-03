@@ -58,6 +58,8 @@ export const agentSettlementAccounts = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
     approvedBy: uuid("approved_by").references(() => users.id, { onDelete: "set null" }),
+    /** After a bank change is activated, settlements are blocked until this time (24h cooling). */
+    coolingUntil: timestamp("cooling_until", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

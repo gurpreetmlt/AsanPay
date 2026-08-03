@@ -141,9 +141,22 @@ fundRequestRouter.post(
       creditAmount: body.creditAmount ? parseRupeeAmount(body.creditAmount) : undefined,
       note: body.note,
     });
+    if (result.pendingChecker) {
+      sendSuccess(
+        res,
+        {
+          pendingChecker: true,
+          status: result.status,
+          creditedAmount: paiseToRupees(result.creditedAmount),
+        },
+        "Pre-approved — a second admin must complete this credit",
+      );
+      return;
+    }
     sendSuccess(
       res,
       {
+        pendingChecker: false,
         journalId: String(result.journalId),
         creditedAmount: paiseToRupees(result.creditedAmount),
       },

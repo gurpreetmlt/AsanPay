@@ -134,7 +134,12 @@ export async function verifySettlementBank(params: {
   adminId: string;
   verificationRef?: string;
   activate?: boolean;
-}): Promise<{ settlementAccountId: bigint; isActive: boolean; verifiedAt: Date }> {
+}): Promise<{
+  settlementAccountId: bigint;
+  isActive: boolean;
+  verifiedAt: Date;
+  coolingUntil: Date | null;
+}> {
   return db.transaction(async (tx) => {
     const [row] = await tx
       .select()
@@ -159,7 +164,20 @@ export async function verifySettlementBank(params: {
     const activate = params.activate !== false;
     const verifiedAt = new Date();
 
+    let hadPriorActive = false;
     if (activate) {
+      const prior = await tx
+        .select({ id: agentSettlementAccounts.id })
+        .from(agentSettlementAccounts)
+        .where(
+          and(
+            eq(agentSettlementAccounts.userId, row.userId),
+            eq(agentSettlementAccounts.isActive, true),
+          ),
+        )
+        .limit(1);
+      hadPriorActive = prior.length > 0;
+
       await tx
         .update(agentSettlementAccounts)
         .set({ isActive: false })
@@ -171,6 +189,10 @@ export async function verifySettlementBank(params: {
         );
     }
 
+    // Spec: 24h cooling after a settlement bank change before withdrawals resume.
+    const coolingUntil =
+      activate && hadPriorActive ? new Date(verifiedAt.getTime() + 24 * 60 * 60 * 1000) : null;
+
     const [updated] = await tx
       .update(agentSettlementAccounts)
       .set({
@@ -179,12 +201,14 @@ export async function verifySettlementBank(params: {
         approvedBy: params.adminId,
         isActive: activate,
         effectiveFrom: activate ? verifiedAt : row.effectiveFrom,
+        coolingUntil: activate ? coolingUntil : row.coolingUntil,
       })
       .where(eq(agentSettlementAccounts.id, row.id))
       .returning({
         id: agentSettlementAccounts.id,
         isActive: agentSettlementAccounts.isActive,
         verifiedAt: agentSettlementAccounts.verifiedAt,
+        coolingUntil: agentSettlementAccounts.coolingUntil,
       });
 
     if (!updated?.verifiedAt) {
@@ -195,6 +219,7 @@ export async function verifySettlementBank(params: {
       settlementAccountId: updated.id,
       isActive: updated.isActive,
       verifiedAt: updated.verifiedAt,
+      coolingUntil: updated.coolingUntil,
     };
   });
 }
@@ -358,6 +383,13 @@ export async function requestSettlement(params: {
         422,
         "Your settlement bank account is not verified yet. Wait for verification before withdrawing.",
         "BANK_NOT_VERIFIED",
+      );
+    }
+    if (bank.coolingUntil && bank.coolingUntil.getTime() > Date.now()) {
+      throw new HttpError(
+        422,
+        `Settlement bank was recently changed. Withdrawals resume after ${bank.coolingUntil.toISOString()}`,
+        "BANK_COOLING",
       );
     }
 

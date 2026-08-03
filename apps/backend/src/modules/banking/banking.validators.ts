@@ -69,3 +69,16 @@ export const vanWebhookSchema = z
     path: ["vanNumber"],
   });
 export type VanWebhookBody = z.infer<typeof vanWebhookSchema>;
+
+export const assignVanSchema = z
+  .object({
+    userId: z.string().uuid("userId must be a UUID"),
+    bankAccountId: z.string().regex(/^\d+$/, "bankAccountId must be a numeric id"),
+    vanNumber: z.string().trim().min(4).max(40).optional().nullable(),
+    vpa: z.string().trim().min(3).max(100).optional().nullable(),
+  })
+  .refine((b) => Boolean(b.vanNumber?.trim()) || Boolean(b.vpa?.trim()), {
+    message: "Provide vanNumber or vpa",
+    path: ["vanNumber"],
+  });
+export type AssignVanBody = z.infer<typeof assignVanSchema>;

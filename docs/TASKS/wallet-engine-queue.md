@@ -17,16 +17,23 @@ Wallet-engine MVP queue (27A–27D) is finished. New work → pick from `docs/TA
 
 ## Leftovers (out of MVP scope)
 
-### 27C
-- OTP + 24h cooling period when changing settlement bank
-- Automated penny-drop (admin verify endpoint is manual)
-- Settlement charges / fee schedule
-- `returned` bank return path beyond fail+reversal
+### Done in wallet-engine finish pass
+- [x] Float management (`/api/float` + admin `/float`) — bank→transit→float maker-checker
+- [x] VAN assign API + Banking UI tab (`POST /banking/van/assign`)
+- [x] Settlement bank 24h cooling after bank change
+- [x] Fund-request dual admin above `FUND_APPROVE_DUAL_RUPEES` (default ₹2L)
+- [x] Ledger reports UI (`/ledger-reports` + `GET /admin/ledger/health`)
+- [x] Receipt PDF (existing) + ESC/POS (`GET /txn/:txnRef/receipt.escpos`)
+- [x] Light concurrent smoke script `scripts/load-test-wallet-me.mjs`
 
-### 27D
-- VAN provisioning / assign API for agents (table exists; webhook credits existing rows)
-- Bank-specific payload adapters (generic HMAC body only)
-- Admin UI for suspense resolution of unidentified VAN credits → see also admin `/banking` park-suspense for statement unmatched credits
+### Still deferred (separate / ops)
+- OTP on settlement bank change (cooling is in place; SMS OTP not wired)
+- Automated penny-drop (admin verify remains manual)
+- Settlement charges / fee schedule + full `returned` bank-return path
+- Bank-specific VAN webhook payload adapters
+- Full 500 concurrent money load test on EC2
+- Partitioned `logs` schema + non-owner DB role
+- Full multi-tenant retrofit on legacy tables
 
 ## After each task
 1. Set that row to `done`, next row to `CURRENT`.

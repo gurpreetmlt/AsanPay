@@ -1,10 +1,10 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
-import { and, eq, lt, or, sql } from "drizzle-orm";
+import { and, eq, lt, or, sql, desc } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "../../db/postgres";
 import { accounts, bankAccounts, bankStatementLines, virtualAccounts } from "../../db/postgres/schema";
 import { postJournal } from "../../core/ledger";
-import { ensureTreasuryAccount } from "../wallet/ledgerAccounts";
+import { ensureTreasuryAccount, ensureHierarchyAccount } from "../wallet/ledgerAccounts";
 import { encryptPII } from "../../utils/aes";
 import { HttpError } from "../../utils/httpError";
 import { env } from "../../config/env";
@@ -636,4 +636,134 @@ async function resolveBankForUnmatched(
     "Unknown VAN — provide collectionAccountLast4 so the credit can be parked in suspense",
     "COLLECTION_ACCOUNT_REQUIRED",
   );
+}
+
+/**
+ * Assign a VAN / VPA to an agent's hierarchy wallet so webhook credits land automatically.
+ */
+export async function assignVirtualAccount(params: {
+  tenantId: string;
+  userId: string;
+  bankAccountId: bigint;
+  vanNumber?: string | null;
+  vpa?: string | null;
+}): Promise<{ vanId: bigint; vanNumber: string | null; vpa: string | null }> {
+  const vanNumber = params.vanNumber?.trim() || null;
+  const vpa = params.vpa?.trim()?.toLowerCase() || null;
+  if (!vanNumber && !vpa) {
+    throw new HttpError(422, "Provide vanNumber or vpa", "VAN_IDENTIFIER_REQUIRED");
+  }
+
+  return db.transaction(async (tx) => {
+    const [bank] = await tx
+      .select({
+        id: bankAccounts.id,
+        supportsVan: bankAccounts.supportsVan,
+        isActive: bankAccounts.isActive,
+        purpose: bankAccounts.purpose,
+      })
+      .from(bankAccounts)
+      .where(and(eq(bankAccounts.id, params.bankAccountId), eq(bankAccounts.tenantId, params.tenantId)))
+      .for("update");
+
+    if (!bank) throw new HttpError(404, "Bank account not found", "BANK_NOT_FOUND");
+    if (!bank.isActive) {
+      throw new HttpError(422, "Bank account is inactive", "BANK_INACTIVE");
+    }
+    if (!bank.supportsVan) {
+      throw new HttpError(
+        422,
+        "This bank account does not support virtual accounts — enable supportsVan first",
+        "VAN_NOT_SUPPORTED",
+      );
+    }
+    if (bank.purpose !== "collection") {
+      throw new HttpError(422, "VANs can only be assigned on collection bank accounts", "WRONG_PURPOSE");
+    }
+
+    const ownerCode = await ensureHierarchyAccount(tx, params.tenantId, params.userId);
+    const [owner] = await tx
+      .select({ id: accounts.id })
+      .from(accounts)
+      .where(and(eq(accounts.tenantId, params.tenantId), eq(accounts.code, ownerCode)))
+      .limit(1);
+    if (!owner) throw new HttpError(500, "Owner ledger account missing", "ACCOUNT_NOT_FOUND");
+
+    if (vanNumber) {
+      const [dup] = await tx
+        .select({ id: virtualAccounts.id })
+        .from(virtualAccounts)
+        .where(eq(virtualAccounts.vanNumber, vanNumber))
+        .limit(1);
+      if (dup) {
+        throw new HttpError(422, "This VAN number is already assigned", "VAN_TAKEN");
+      }
+    }
+    if (vpa) {
+      const [dup] = await tx
+        .select({ id: virtualAccounts.id })
+        .from(virtualAccounts)
+        .where(eq(virtualAccounts.vpa, vpa))
+        .limit(1);
+      if (dup) {
+        throw new HttpError(422, "This VPA is already assigned", "VPA_TAKEN");
+      }
+    }
+
+    const [row] = await tx
+      .insert(virtualAccounts)
+      .values({
+        tenantId: params.tenantId,
+        bankAccountId: bank.id,
+        ownerAccountId: owner.id,
+        vanNumber,
+        vpa,
+        status: "active",
+      })
+      .returning({
+        id: virtualAccounts.id,
+        vanNumber: virtualAccounts.vanNumber,
+        vpa: virtualAccounts.vpa,
+      });
+
+    if (!row) throw new HttpError(500, "Could not assign virtual account", "VAN_ASSIGN_FAILED");
+    return { vanId: row.id, vanNumber: row.vanNumber, vpa: row.vpa };
+  });
+}
+
+export async function listVirtualAccounts(tenantId: string, userId?: string) {
+  const ownerFilter = userId
+    ? and(eq(virtualAccounts.tenantId, tenantId), eq(ownerAccounts.userId, userId))
+    : eq(virtualAccounts.tenantId, tenantId);
+
+  const rows = await db
+    .select({
+      id: virtualAccounts.id,
+      vanNumber: virtualAccounts.vanNumber,
+      vpa: virtualAccounts.vpa,
+      status: virtualAccounts.status,
+      bankAccountId: virtualAccounts.bankAccountId,
+      bankName: bankAccounts.bankName,
+      ownerUserId: ownerAccounts.userId,
+      ownerCode: ownerAccounts.code,
+      createdAt: virtualAccounts.createdAt,
+    })
+    .from(virtualAccounts)
+    .innerJoin(ownerAccounts, eq(ownerAccounts.id, virtualAccounts.ownerAccountId))
+    .innerJoin(bankAccounts, eq(bankAccounts.id, virtualAccounts.bankAccountId))
+    .where(ownerFilter)
+    .orderBy(desc(virtualAccounts.createdAt))
+    .limit(200);
+
+  return rows.map((r) => ({
+    id: String(r.id),
+    vanNumber: r.vanNumber,
+    vpa: r.vpa,
+    status: r.status,
+    bankAccountId: String(r.bankAccountId),
+    bankName: r.bankName,
+    ownerUserId: r.ownerUserId,
+    ownerCode: r.ownerCode,
+    createdAt: r.createdAt.toISOString(),
+  }));
 }

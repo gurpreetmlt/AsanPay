@@ -323,3 +323,25 @@ adminRouter.get("/commission/payouts", async (req, res) => {
   const offset = Number(req.query.offset) || 0;
   sendSuccess(res, await listAdminCommissionPayouts({ role, since, until, q, limit, offset }));
 });
+
+adminRouter.get("/ledger/health", async (_req, res) => {
+  const { getLedgerHealthReport } = await import("../reconciliation/reports");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const tenantId = await resolveTenantId();
+  sendSuccess(res, await getLedgerHealthReport(tenantId));
+});
+
+adminRouter.post("/ledger/recon/run", async (_req, res) => {
+  const { runAndPersistReconciliation } = await import("../reconciliation/reports");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const tenantId = await resolveTenantId();
+  sendSuccess(res, await runAndPersistReconciliation(tenantId), "Reconciliation checks completed");
+});
+
+adminRouter.get("/ledger/exceptions", async (req, res) => {
+  const { listOpenReconExceptions } = await import("../reconciliation/reports");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const tenantId = await resolveTenantId();
+  const limit = Math.min(Number(req.query.limit) || 100, 500);
+  sendSuccess(res, await listOpenReconExceptions(tenantId, limit));
+});

@@ -48,6 +48,7 @@ import {
   history,
   receipt,
   receiptPdf,
+  receiptEscPos,
   recheck,
 } from "./txn.controller";
 import {
@@ -218,6 +219,7 @@ txnRouter.post("/aeps/aadhaar-pay", retailerOnly, walletTxnLimiter, validateBody
 
 txnRouter.get("/", history);
 txnRouter.get("/:txnRef/receipt.pdf", receiptPdf);
+txnRouter.get("/:txnRef/receipt.escpos", receiptEscPos);
 txnRouter.get("/:txnRef", receipt);
 // Rate-limited: settlement is idempotent (see finalizeTxn) but recheck still calls the provider,
 // so throttle to blunt brute-force retry/race attempts against a single pending txn.

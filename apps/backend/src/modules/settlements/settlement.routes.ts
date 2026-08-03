@@ -96,6 +96,7 @@ settlementRouter.post(
         settlementAccountId: String(result.settlementAccountId),
         isActive: result.isActive,
         verifiedAt: result.verifiedAt.toISOString(),
+        coolingUntil: result.coolingUntil?.toISOString() ?? null,
       },
       "Settlement bank account verified",
     );

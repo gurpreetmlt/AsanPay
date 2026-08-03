@@ -197,6 +197,13 @@
       "when": 1785760000000,
       "tag": "0027_settlements",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1785765000000,
+      "tag": "0028_float_management",
+      "breakpoints": true
     }
   ]
 }

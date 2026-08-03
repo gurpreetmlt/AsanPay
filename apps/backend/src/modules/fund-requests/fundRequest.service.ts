@@ -15,6 +15,7 @@ import { normaliseUtr } from "../banking/banking.service";
 import { matchFundRequest, claimStatementLine } from "./matching";
 import { HttpError } from "../../utils/httpError";
 import { paiseToRupees, type Paise } from "../../core/money";
+import { env } from "../../config/env";
 
 const COMPANY = "COMPANY_001";
 
@@ -241,6 +242,9 @@ async function runMatch(tx: Tx, request: FundRequestRow): Promise<FundRequestSta
 /**
  * Admin approval. Credits the amount from the BANK STATEMENT, never the amount the retailer
  * typed — a partial approval is simply the statement amount being lower than the claim.
+ *
+ * Credits at/above FUND_APPROVE_DUAL_RUPEES need two different admins: the first sets
+ * under_review (maker), the second completes the credit (checker).
  */
 export async function approveFundRequest(params: {
   tenantId: string;
@@ -249,7 +253,10 @@ export async function approveFundRequest(params: {
   /** Only needed when linking a line manually or overriding a mismatch. */
   creditAmount?: Paise;
   note?: string;
-}): Promise<{ journalId: bigint; creditedAmount: Paise }> {
+}): Promise<
+  | { pendingChecker: true; status: "under_review"; creditedAmount: Paise }
+  | { pendingChecker: false; journalId: bigint; creditedAmount: Paise }
+> {
   return db.transaction(async (tx) => {
     const [request] = await tx
       .select()
@@ -270,8 +277,36 @@ export async function approveFundRequest(params: {
     }
 
     const amount = params.creditAmount ?? (await statementAmount(tx, request.matchedLineId));
+    const dualThreshold = BigInt(Math.round(env.FUND_APPROVE_DUAL_RUPEES * 100));
+
+    if (amount >= dualThreshold) {
+      if (!request.reviewedBy || request.status !== "under_review") {
+        await tx
+          .update(fundRequests)
+          .set({
+            status: "under_review",
+            reviewedBy: params.adminId,
+            reviewedAt: new Date(),
+          })
+          .where(eq(fundRequests.id, request.id));
+        await recordEvent(tx, request.id, request.status, "under_review", params.adminId, "admin", {
+          action: "pre_approved",
+          creditAmount: amount.toString(),
+          note: params.note ?? null,
+        });
+        return { pendingChecker: true as const, status: "under_review" as const, creditedAmount: amount };
+      }
+      if (request.reviewedBy === params.adminId) {
+        throw new HttpError(
+          422,
+          "A second admin must complete this large fund-request credit — you already pre-approved it",
+          "MAKER_CHECKER",
+        );
+      }
+    }
+
     const result = await creditRequest(tx, request.id, amount, params.adminId, params.note);
-    return { journalId: result.journalId, creditedAmount: amount };
+    return { pendingChecker: false as const, journalId: result.journalId, creditedAmount: amount };
   });
 }
 

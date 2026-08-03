@@ -20,12 +20,15 @@ import {
   assertVanWebhookSignature,
   vanWebhookCanonical,
   processVanWebhookCredit,
+  assignVirtualAccount,
+  listVirtualAccounts,
 } from "./banking.service";
 import {
   registerBankAccountSchema,
   importStatementSchema,
   parkSuspenseSchema,
   vanWebhookSchema,
+  assignVanSchema,
 } from "./banking.validators";
 
 export const bankingRouter = Router();
@@ -210,5 +213,38 @@ bankingRouter.post(
       olderThanHours: body.olderThanHours,
     });
     sendSuccess(res, result, "Unmatched credits parked in suspense");
+  },
+);
+
+bankingRouter.get("/van", requireRole("admin"), async (req, res) => {
+  const tenantId = await resolveTenantId();
+  const userId = typeof req.query.userId === "string" ? req.query.userId : undefined;
+  sendSuccess(res, await listVirtualAccounts(tenantId, userId));
+});
+
+bankingRouter.post(
+  "/van/assign",
+  requireRole("admin"),
+  validateBody(assignVanSchema),
+  async (req, res) => {
+    const body = req.body as ReturnType<typeof assignVanSchema.parse>;
+    const tenantId = await resolveTenantId();
+    const result = await assignVirtualAccount({
+      tenantId,
+      userId: body.userId,
+      bankAccountId: BigInt(body.bankAccountId),
+      vanNumber: body.vanNumber,
+      vpa: body.vpa,
+    });
+    sendSuccess(
+      res,
+      {
+        vanId: String(result.vanId),
+        vanNumber: result.vanNumber,
+        vpa: result.vpa,
+      },
+      "Virtual account assigned",
+      201,
+    );
   },
 );

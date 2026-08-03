@@ -57,6 +57,11 @@ const envSchema = z.object({
    * replace this ceiling before scale.
    */
   MAX_MANUAL_FUND_RUPEES: z.coerce.number().positive().default(500000),
+  /**
+   * Fund-request credit at/above this amount (rupees) needs two different admins:
+   * first sets under_review (maker), second completes the credit (checker).
+   */
+  FUND_APPROVE_DUAL_RUPEES: z.coerce.number().positive().default(200000),
   /** Hard ceiling (rupees) on flat commission overrides per transaction. */
   MAX_FLAT_COMMISSION_RUPEES: z.coerce.number().positive().default(500),
   /**
