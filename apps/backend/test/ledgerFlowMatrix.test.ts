@@ -85,6 +85,23 @@ describe("flow matrix — money entering the hierarchy has exactly one door", ()
     expect(isFlowAllowed("bank", "retailer", "DEPOSIT_CREDIT")).toBe(false);
   });
 
+  it("opens migrated AePS earnings as a hierarchy credit from float control", () => {
+    // The legacy `aeps` wallet holds money the retailer earned by paying out their own cash.
+    // Opening it as a plain advance would leave them unable to withdraw their own earnings
+    // the moment settlement ships.
+    expect(isFlowAllowed("control", "retailer", "OPENING_BALANCE_EARNED")).toBe(true);
+    expect(isFlowAllowed("control", "distributor", "OPENING_BALANCE_EARNED")).toBe(true);
+    // The company wallet is platform float, not anyone's earnings.
+    expect(isFlowAllowed("control", "company", "OPENING_BALANCE_EARNED")).toBe(false);
+  });
+
+  it("keeps the earned opening out of every non-migration path", () => {
+    // It must never become a general-purpose way to mint withdrawable money.
+    expect(isFlowAllowed("company", "retailer", "OPENING_BALANCE_EARNED")).toBe(false);
+    expect(isFlowAllowed("bank", "retailer", "OPENING_BALANCE_EARNED")).toBe(false);
+    expect(isFlowAllowed("distributor", "retailer", "OPENING_BALANCE_EARNED")).toBe(false);
+  });
+
   it("rejects unknown txn types", () => {
     expect(isTxnType("TOTALLY_MADE_UP")).toBe(false);
     expect(isFlowAllowed("company", "sd", "TOTALLY_MADE_UP" as never)).toBe(false);

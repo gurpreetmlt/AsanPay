@@ -123,9 +123,14 @@ export const accountBalances = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    // Settleable may never exceed the balance it is a slice OF — that is what stops an agent
+    // withdrawing earnings they have already spent. It deliberately says nothing about the
+    // sign of `balance`: only LIABILITY accounts are non-negative (trg_no_overdraft). Treasury
+    // and control accounts legitimately run negative — FLOAT_CONTROL sits at minus the total
+    // capacity it has issued — and those always carry settleable = 0.
     check(
       "account_balances_settleable_within_balance",
-      sql`${table.settleable} >= 0 AND ${table.settleable} <= ${table.balance}`,
+      sql`${table.settleable} >= 0 AND (${table.settleable} = 0 OR ${table.settleable} <= ${table.balance})`,
     ),
   ],
 );

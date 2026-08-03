@@ -183,6 +183,13 @@
       "when": 1785754658982,
       "tag": "0025_banking_fund_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1785757017142,
+      "tag": "0026_fix_settleable_check",
+      "breakpoints": true
     }
   ]
 }
