@@ -2,7 +2,7 @@
   "name": "@asanpay/backend",
   "version": "0.1.0",
   "private": true,
-  "description": "AsanPay API — wallet, ledger, commission engine, provider wrapper layer",
+  "description": "AsanPay API \u2014 wallet, ledger, commission engine, provider wrapper layer",
   "type": "module",
   "main": "src/server.ts",
   "engines": {
@@ -22,7 +22,8 @@
     "seed:providers": "tsx scripts/seedProviders.ts",
     "seed:mpin": "tsx scripts/seedLoginMpin.ts",
     "seed:txns": "tsx scripts/seedTxns.ts",
-    "seed:network": "tsx scripts/seedNetwork.ts"
+    "seed:network": "tsx scripts/seedNetwork.ts",
+    "backfill:opening": "tsx scripts/backfillOpeningBalance.ts"
   },
   "dependencies": {
     "@asanpay/shared-types": "*",
