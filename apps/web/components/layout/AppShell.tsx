@@ -216,10 +216,10 @@ function WalletPill({
   loading: boolean;
 }) {
   const router = useRouter();
+  const role = useAuthStore((s) => s.user?.role);
   const [open, setOpen] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ref = useRef<HTMLDivElement>(null);
-  const isMain = wallet.walletType === "main";
 
   useEffect(() => {
     if (!open) return;
@@ -238,17 +238,18 @@ function WalletPill({
     closeTimer.current = setTimeout(() => setOpen(false), 150);
   }
 
-  const actions = isMain
-    ? [
-        { icon: PlusCircle, label: "Add Money", action: () => toast("Coming soon") },
-        { icon: SendHorizonal, label: "Transfer", action: () => router.push("/wallet") },
-        { icon: RefreshCw, label: "Refresh", action: onRefresh },
-        { icon: Download, label: "Statement", action: () => router.push("/statements") },
-      ]
-    : [
-        { icon: RefreshCw, label: "Refresh", action: onRefresh },
-        { icon: ArrowLeftRight, label: "View Ledger", action: () => router.push("/wallet") },
-      ];
+  const goAddMoney = () => {
+    if (role === "retailer") router.push("/fund-request");
+    else toast("Ask your upline to fund your wallet, or use Collect on Wallet");
+  };
+
+  // Same actions on Main and AEPS — fund request credits Main; keep entry points consistent.
+  const actions = [
+    { icon: PlusCircle, label: "Add Money", action: goAddMoney },
+    { icon: SendHorizonal, label: "Transfer", action: () => router.push("/wallet") },
+    { icon: RefreshCw, label: "Refresh", action: onRefresh },
+    { icon: Download, label: "Statement", action: () => router.push("/statements") },
+  ];
 
   return (
     <div
@@ -274,7 +275,7 @@ function WalletPill({
       </button>
       {open && (
         <div
-          className="absolute right-0 top-full z-20 mt-1 w-44 rounded-xl border bg-white p-1.5 shadow-lg"
+          className="absolute right-0 top-full z-50 mt-1 min-w-[11rem] rounded-xl border bg-white p-1.5 shadow-lg"
           style={{ borderColor: B.border }}
         >
           {actions.map(({ icon: Icon, label, action }) => (

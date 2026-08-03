@@ -636,6 +636,86 @@ export async function updateServiceSiteControl(
   return updated;
 }
 
+/** Virtual commission row id — not a real `services.id`; upsert fans out to all member codes. */
+export const AEPS_COMMISSION_VIRTUAL_ID = "__AEPS_GROUP__";
+
+/** Banking Services AEPS sub-ops → one shared commission control (Task 25). */
+const AEPS_COMMISSION_GROUP_CODES = [
+  "CASH_WITHDRAW",
+  "MINI_STATEMENT",
+  "CASH_DEPOSIT",
+  "BALANCE_ENQUIRY",
+] as const;
+
+const AEPS_COMMISSION_GROUP_CODE_SET = new Set<string>(AEPS_COMMISSION_GROUP_CODES);
+
+type CommissionServiceRowOut = {
+  id: string;
+  code: string;
+  name: string;
+  isActive: boolean;
+  hasOverride: boolean;
+  ruleType: "flat" | "percentage";
+  value: string;
+  rateActive: boolean;
+};
+
+function mapCommissionServiceRow(
+  s: { id: string; code: string; name: string; isActive: boolean },
+  rate: { ruleType: "flat" | "percentage"; value: string; isActive: boolean } | undefined,
+): CommissionServiceRowOut {
+  return {
+    id: s.id,
+    code: s.code,
+    name: s.name,
+    isActive: s.isActive,
+    hasOverride: Boolean(rate),
+    ruleType: rate?.ruleType ?? "percentage",
+    value: rate ? String(rate.value) : "",
+    rateActive: rate?.isActive ?? true,
+  };
+}
+
+/** Collapse AEPS sub-services into one virtual row; leave other services as-is (BBPS untouched). */
+function foldAepsCommissionGroup(
+  categoryServices: Array<{ id: string; code: string; name: string; isActive: boolean }>,
+  rateByService: Map<string, { ruleType: "flat" | "percentage"; value: string; isActive: boolean }>,
+): CommissionServiceRowOut[] {
+  const aepsMembers = categoryServices.filter((s) => AEPS_COMMISSION_GROUP_CODE_SET.has(s.code));
+  if (aepsMembers.length === 0) {
+    return categoryServices.map((s) => mapCommissionServiceRow(s, rateByService.get(s.id)));
+  }
+
+  // Canonical display rate: CASH_WITHDRAW if present, else first member.
+  const canonical = aepsMembers.find((s) => s.code === "CASH_WITHDRAW") ?? aepsMembers[0]!;
+  const rate = rateByService.get(canonical.id);
+  const hasAnyOverride = aepsMembers.some((s) => rateByService.has(s.id));
+  const virtual: CommissionServiceRowOut = {
+    id: AEPS_COMMISSION_VIRTUAL_ID,
+    code: "AEPS",
+    name: "AEPS",
+    isActive: aepsMembers.some((s) => s.isActive),
+    hasOverride: hasAnyOverride,
+    ruleType: rate?.ruleType ?? "percentage",
+    value: rate ? String(rate.value) : "",
+    rateActive: rate?.isActive ?? true,
+  };
+
+  const out: CommissionServiceRowOut[] = [];
+  let inserted = false;
+  for (const s of categoryServices) {
+    if (AEPS_COMMISSION_GROUP_CODE_SET.has(s.code)) {
+      if (!inserted) {
+        out.push(virtual);
+        inserted = true;
+      }
+      continue;
+    }
+    out.push(mapCommissionServiceRow(s, rateByService.get(s.id)));
+  }
+  return out;
+}
+
 export async function getAdminUserCommissions(userId: string) {
   const [user] = await db
     .select({ id: users.id, role: users.role, name: users.name, uid: users.uid })
@@ -649,7 +729,7 @@ export async function getAdminUserCommissions(userId: string) {
   // provider per rail) are isActive:false specifically to stay out of anything customer/agent-
   // facing, including this commission editor: commission is set per catalog tile (e.g. "Money
   // Transfer", "Cash Withdraw" under Banking Services), not per internal operation code like
-  // dmt_remitter_profile.
+  // dmt_remitter_profile. AEPS catalog tiles are folded into one virtual "AEPS" row (Task 25).
   const categories = await db
     .select()
     .from(serviceCategories)
@@ -668,21 +748,10 @@ export async function getAdminUserCommissions(userId: string) {
       id: c.id,
       code: c.code,
       name: c.name,
-      services: allServices
-        .filter((s) => s.categoryId === c.id)
-        .map((s) => {
-          const rate = rateByService.get(s.id);
-          return {
-            id: s.id,
-            code: s.code,
-            name: s.name,
-            isActive: s.isActive,
-            hasOverride: Boolean(rate),
-            ruleType: rate?.ruleType ?? "percentage",
-            value: rate ? String(rate.value) : "",
-            rateActive: rate?.isActive ?? true,
-          };
-        }),
+      services: foldAepsCommissionGroup(
+        allServices.filter((s) => s.categoryId === c.id),
+        rateByService,
+      ),
     })),
   };
 }
@@ -702,7 +771,28 @@ export async function upsertAdminUserCommissions(
   if (!user) throw new HttpError(404, "User not found", "USER_NOT_FOUND");
   if (user.role === "admin") throw new HttpError(400, "Cannot set commission for admin", "INVALID_TARGET");
 
-  const serviceIds = rates.map((r) => r.serviceId);
+  // Expand virtual AEPS row → all 4 underlying service ids (same rate / clear).
+  const aepsRows = await db
+    .select({ id: services.id, code: services.code })
+    .from(services)
+    .where(inArray(services.code, [...AEPS_COMMISSION_GROUP_CODES]));
+  const aepsServiceIds = aepsRows.map((s) => s.id);
+
+  const expandedRates: typeof rates = [];
+  for (const rate of rates) {
+    if (rate.serviceId === AEPS_COMMISSION_VIRTUAL_ID) {
+      if (aepsServiceIds.length === 0) {
+        throw new HttpError(400, "AEPS services not found in catalog", "INVALID_SERVICE");
+      }
+      for (const id of aepsServiceIds) {
+        expandedRates.push({ ...rate, serviceId: id });
+      }
+      continue;
+    }
+    expandedRates.push(rate);
+  }
+
+  const serviceIds = expandedRates.map((r) => r.serviceId);
   if (serviceIds.length) {
     const found = await db.select({ id: services.id }).from(services);
     const valid = new Set(found.map((s) => s.id));
@@ -711,7 +801,7 @@ export async function upsertAdminUserCommissions(
     }
   }
 
-  for (const rate of rates) {
+  for (const rate of expandedRates) {
     if (rate.clear) {
       await db
         .delete(userCommissionRates)
@@ -770,7 +860,7 @@ export async function upsertAdminUserCommissions(
     action: "admin.user_commission_upsert",
     entityType: "user",
     entityId: userId,
-    metadata: { count: rates.length },
+    metadata: { count: expandedRates.length },
   });
 
   return getAdminUserCommissions(userId);

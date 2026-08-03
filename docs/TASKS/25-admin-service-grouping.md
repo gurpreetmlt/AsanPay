@@ -48,6 +48,11 @@ the user first.
 4. Frontend: render the virtual row instead of the 4 individual ones for Banking Services.
 
 ## Done when
-- [ ] Banking Services shows: AEPS (1 row) · Money Transfer · Nepal Transfer · UPI Cash Point — not 4+ separate AEPS lines
-- [ ] BBPS untouched (still per-biller)
-- [ ] Saving the AEPS row's rate correctly updates all 4 underlying services (verified in DB, not just UI)
+- [x] Banking Services shows: AEPS (1 row) · Money Transfer · Nepal Transfer · UPI Cash Point — not 4+ separate AEPS lines
+- [x] BBPS untouched (still per-biller)
+- [x] Saving the AEPS row's rate correctly updates all 4 underlying services (verified in DB, not just UI)
+
+## Shipped (2026-08-03)
+- Backend: `AEPS_COMMISSION_VIRTUAL_ID` + fold in `getAdminUserCommissions`; fan-out in `upsertAdminUserCommissions`
+- Frontend: `AgentCommissionPanel` renders the virtual AEPS row (no per-op expand)
+- Mechanic: one shared rate → writes to `CASH_WITHDRAW`, `MINI_STATEMENT`, `CASH_DEPOSIT`, `BALANCE_ENQUIRY`

@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   Bell,
   ShieldCheck,
+  PlusCircle,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { fetchApi } from "@/lib/api";
@@ -110,12 +111,20 @@ export function RetailerDashboard() {
           <div className="mb-3 text-3xl font-bold leading-none">
             {loading ? "…" : formatInr(primary?.balance ?? "0")}
           </div>
-          <div className="flex items-center gap-1.5 border-t border-white/15 pt-3">
+          <div className="mb-3 flex items-center gap-1.5 border-t border-white/15 pt-3">
             <TrendingUp size={12} style={{ color: B.greenLight }} />
             <span className="text-xs font-semibold" style={{ color: B.greenLight }}>
               Today: {formatInr(stats?.today.commissionEarned ?? "0")} earned
             </span>
           </div>
+          <button
+            type="button"
+            onClick={() => router.push("/fund-request")}
+            className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/20 bg-white/15 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/25"
+          >
+            <PlusCircle size={14} />
+            Add Money
+          </button>
         </div>
 
         {/* AEPS Wallet */}
@@ -132,10 +141,18 @@ export function RetailerDashboard() {
             <div className="mb-3 text-3xl font-bold leading-none">
               {loading ? "…" : formatInr(secondary.balance)}
             </div>
-            <div className="flex items-center gap-1.5 border-t border-white/15 pt-3">
+            <div className="mb-3 flex items-center gap-1.5 border-t border-white/15 pt-3">
               <Activity size={12} className="text-white/80" />
               <span className="text-xs text-white/90">Pending: {formatInr(totalPending)}</span>
             </div>
+            <button
+              type="button"
+              onClick={() => router.push("/fund-request")}
+              className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/20 bg-white/15 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/25"
+            >
+              <PlusCircle size={14} />
+              Add Money
+            </button>
           </div>
         )}
 

@@ -18,6 +18,7 @@
 - [x] KYC queue UI
 - [x] Commission scheme builder (role defaults)
 - [x] Per-agent service commission overrides (admin agent detail)
+- [x] Commission page: AEPS sub-services collapsed to one shared-rate row (Task 25)
 - [x] Wallet page shows Pending balance (Wallet 1 / Wallet 2)
 
 ## Mobile
@@ -75,6 +76,7 @@
 - [ ] History purge for any secrets ever pushed to remote
 
 ## Last updated
+2026-08-03 — Admin Commission: Banking Services AEPS collapsed to 1 shared-rate row; save fans out to 4 services (task 25)
 2026-08-03 — Fund request UI: retailer Add Money → `POST /fund-requests`; admin `/fund-requests` approve/reject; `GET /fund-requests` list; proxy forwards Idempotency-Key (task 13)
 2026-08-03 — VAN webhook: `POST /api/banking/van/webhook` HMAC → DEPOSIT_RECEIVE+CREDIT or suspense (task 27D; wallet-engine queue complete)
 2026-08-03 — Settlements: `/api/settlements` request debit → SETTLE_PAYABLE, payout/fail reversal, one active bank (task 27C)

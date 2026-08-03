@@ -156,21 +156,43 @@ export default function WalletPage() {
                   {walletDisplayName("aeps")}
                 </div>
                 <div className="mb-2 text-2xl font-bold leading-none">{formatInr(aeps.balance)}</div>
-                <div className="mb-3 flex items-center gap-1.5 border-t border-white/15 pt-2 text-xs text-white/80">
-                  {parseFloat(aeps.pendingBalance ?? "0") > 0
-                    ? `Pending: ${formatInr(aeps.pendingBalance ?? "0")}`
-                    : "No pending balance"}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => void load()}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/15 px-3 py-2 text-white transition-all hover:bg-white/25"
-                >
-                  <RefreshCcw size={15} />
-                  <span className="text-xs font-semibold">Refresh</span>
-                </button>
+              <div className="mb-3 flex items-center gap-1.5 border-t border-white/15 pt-2 text-xs text-white/80">
+                {parseFloat(aeps.pendingBalance ?? "0") > 0
+                  ? `Pending: ${formatInr(aeps.pendingBalance ?? "0")}`
+                  : "No pending balance"}
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                {[
+                  {
+                    icon: PlusCircle,
+                    label: "Add Money",
+                    action: () =>
+                      isRetailer
+                        ? setShowFundRequest(true)
+                        : toast("Ask your upline to fund your wallet, or use Collect"),
+                  },
+                  {
+                    icon: SendHorizonal,
+                    label: "Transfer",
+                    action: () =>
+                      canFund ? toast("Select a downline partner below to fund") : toast("Transfer is for Main wallet downline funding"),
+                  },
+                  { icon: RefreshCcw, label: "Refresh", action: () => void load() },
+                  { icon: Download, label: "Statement", action: () => router.push("/statements") },
+                ].map(({ icon: Icon, label, action }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={action}
+                    className="flex flex-col items-center gap-1 rounded-xl border border-white/20 bg-white/15 px-2 py-2 text-white transition-all hover:bg-white/25"
+                  >
+                    <Icon size={16} />
+                    <span className="text-[10px] font-semibold">{label}</span>
+                  </button>
+                ))}
               </div>
             </div>
+          </div>
           )}
         </div>
 
