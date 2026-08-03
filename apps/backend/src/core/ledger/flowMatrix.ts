@@ -14,6 +14,11 @@ export const TXN_TYPES = [
   "DEPOSIT_RECEIVE",
   "DEPOSIT_CREDIT",
   "WALLET_TRANSFER",
+  // The mirror of WALLET_TRANSFER: an upline reclaims unspent advance from its own downline
+  // (OTP-gated in the product). Deliberately NOT folded into WALLET_TRANSFER — spec §9.3 says
+  // money moves downward, so upward movement has to be separately named, separately audited,
+  // and blocked from touching the downline's earned balance. See USABLE_ONLY_DEBIT_TYPES.
+  "UPLINE_PULL",
   "FLOAT_TRANSFER_INIT",
   "FLOAT_TRANSFER_CONFIRM",
   "DMT",
@@ -94,6 +99,14 @@ const FLOW_RULES: readonly FlowRule[] = [
   { from: ["sd"], to: ["distributor"], txnTypes: ["WALLET_TRANSFER"] },
   { from: ["distributor"], to: ["retailer"], txnTypes: ["WALLET_TRANSFER"] },
 
+  // --- The exact reverse of the three rows above, and nothing wider. An upline may pull only
+  //     from its own direct downline; company may pull from any tier because company is the
+  //     only account that may credit any tier. Level-skipping stays rejected in both
+  //     directions — `sd -> retailer` is not a transfer, so `retailer -> sd` is not a pull.
+  { from: ["distributor"], to: ["sd"], txnTypes: ["UPLINE_PULL"] },
+  { from: ["retailer"], to: ["distributor"], txnTypes: ["UPLINE_PULL"] },
+  { from: HIERARCHY_TYPES, to: ["company"], txnTypes: ["UPLINE_PULL"] },
+
   // --- Services: retailer spends into our float, and pays our commission income. ---
   {
     from: ["retailer"],
@@ -150,6 +163,18 @@ export const FUNDING_EXCEPTIONS: readonly { from: AccountType; txnType: TxnType 
   { from: "control", txnType: "OPENING_BALANCE" },
   { from: "control", txnType: "OPENING_BALANCE_EARNED" },
 ];
+
+/**
+ * Flows where a hierarchy wallet credits another hierarchy wallet. This is NOT funding — the
+ * money is already inside the hierarchy and is only moving back up the chain it came down —
+ * but it is the one shape that would otherwise look identical to a peer transfer, so it gets
+ * the same explicit-list treatment as FUNDING_EXCEPTIONS and its own invariant test.
+ */
+export const UPWARD_EXCEPTIONS: readonly { from: AccountType; to: AccountType; txnType: TxnType }[] =
+  [
+    { from: "distributor", to: "sd", txnType: "UPLINE_PULL" },
+    { from: "retailer", to: "distributor", txnType: "UPLINE_PULL" },
+  ];
 
 type FlowKey = `${AccountType}>${AccountType}`;
 

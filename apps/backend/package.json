@@ -24,6 +24,7 @@
     "seed:txns": "tsx scripts/seedTxns.ts",
     "seed:network": "tsx scripts/seedNetwork.ts",
     "backfill:opening": "tsx scripts/backfillOpeningBalance.ts",
+    "provision:float": "tsx scripts/provisionProviderFloat.ts",
     "verify:ledger": "tsx scripts/verifyLedgerEngine.ts"
   },
   "dependencies": {

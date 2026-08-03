@@ -3,6 +3,7 @@ import {
   allAllowedFlows,
   isFlowAllowed,
   FUNDING_EXCEPTIONS,
+  UPWARD_EXCEPTIONS,
   HIERARCHY_TYPES,
   TREASURY_TYPES,
   isTxnType,
@@ -11,6 +12,7 @@ import {
 
 const HIERARCHY = new Set<AccountType>(HIERARCHY_TYPES);
 const TREASURY = new Set<AccountType>(TREASURY_TYPES);
+const DOWNWARD_PATH = new Set(["sd>distributor", "distributor>retailer"]);
 
 describe("flow matrix — money entering the hierarchy has exactly one door", () => {
   it("no treasury account credits a hierarchy wallet except through the documented exceptions", () => {
@@ -100,6 +102,44 @@ describe("flow matrix — money entering the hierarchy has exactly one door", ()
     expect(isFlowAllowed("company", "retailer", "OPENING_BALANCE_EARNED")).toBe(false);
     expect(isFlowAllowed("bank", "retailer", "OPENING_BALANCE_EARNED")).toBe(false);
     expect(isFlowAllowed("distributor", "retailer", "OPENING_BALANCE_EARNED")).toBe(false);
+  });
+
+  it("allows an upline pull only along the exact reverse of the transfer path", () => {
+    expect(isFlowAllowed("retailer", "distributor", "UPLINE_PULL")).toBe(true);
+    expect(isFlowAllowed("distributor", "sd", "UPLINE_PULL")).toBe(true);
+    expect(isFlowAllowed("sd", "company", "UPLINE_PULL")).toBe(true);
+    expect(isFlowAllowed("retailer", "company", "UPLINE_PULL")).toBe(true);
+    // Level-skipping is rejected upward exactly as it is downward.
+    expect(isFlowAllowed("retailer", "sd", "UPLINE_PULL")).toBe(false);
+    // A pull is not a transfer and cannot be used as one in either direction.
+    expect(isFlowAllowed("company", "retailer", "UPLINE_PULL")).toBe(false);
+    expect(isFlowAllowed("distributor", "retailer", "UPLINE_PULL")).toBe(false);
+    expect(isFlowAllowed("retailer", "distributor", "WALLET_TRANSFER")).toBe(false);
+    // And it must not become a back door out of the hierarchy into treasury.
+    expect(isFlowAllowed("retailer", "bank", "UPLINE_PULL")).toBe(false);
+    expect(isFlowAllowed("retailer", "settlement", "UPLINE_PULL")).toBe(false);
+  });
+
+  it("no hierarchy wallet credits another except through the documented upward exceptions", () => {
+    // The peer-transfer boundary, enforced across every txn type rather than WALLET_TRANSFER
+    // alone — otherwise a future txn type could reintroduce agent-to-agent movement.
+    const violations = allAllowedFlows().filter(({ from, to, txnType }) => {
+      if (!HIERARCHY.has(from) || !HIERARCHY.has(to)) return false;
+      if (DOWNWARD_PATH.has(`${from}>${to}`) && txnType === "WALLET_TRANSFER") return false;
+      return !UPWARD_EXCEPTIONS.some(
+        (e) => e.from === from && e.to === to && e.txnType === txnType,
+      );
+    });
+
+    expect(violations).toEqual([]);
+  });
+
+  it("every upward exception is actually present in the matrix", () => {
+    for (const e of UPWARD_EXCEPTIONS) {
+      expect(isFlowAllowed(e.from, e.to, e.txnType), `${e.from} -> ${e.to} as ${e.txnType}`).toBe(
+        true,
+      );
+    }
   });
 
   it("rejects unknown txn types", () => {

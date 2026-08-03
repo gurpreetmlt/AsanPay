@@ -53,6 +53,13 @@ const SETTLEABLE_CREDIT_TYPES = new Set<TxnType>([
 
 const SETTLEABLE_DEBIT_TYPES = new Set<TxnType>(["SETTLEMENT_DEBIT", "SETTLEMENT_PAYOUT"]);
 
+// Debits that may only consume the USABLE part of a liability wallet (balance - settleable),
+// not the whole balance. An upline reclaiming an advance must not be able to reach into money
+// the downline earned: that money is theirs to withdraw, and taking it would be the compliance
+// problem the UPLINE_PULL type exists to bound. Without this the DB's
+// `settleable <= balance` CHECK would still stop it, but as an opaque constraint error.
+const USABLE_ONLY_DEBIT_TYPES = new Set<TxnType>(["UPLINE_PULL"]);
+
 interface AccountDelta {
   account: ResolvedAccount;
   balanceDelta: bigint;
@@ -251,6 +258,23 @@ export async function postJournal(tx: Tx, input: PostJournalInput): Promise<Post
         422,
         `Insufficient balance in ${account.code}: have ${paiseToRupees(before)}, need ${paiseToRupees(e.amount)}`,
         "INSUFFICIENT_BALANCE",
+      );
+    }
+
+    // Floor the debit at the locked settleable amount rather than at zero. Read from `locked`,
+    // not from a running total: settleable is untouched by this journal (UPLINE_PULL is in
+    // neither settleable set), so the value at lock time is the value that will be written.
+    if (
+      account.accountClass === "liability" &&
+      USABLE_ONLY_DEBIT_TYPES.has(txnType) &&
+      after < (locked.get(account.id)?.settleable ?? 0n)
+    ) {
+      const settleable = locked.get(account.id) as { settleable: bigint };
+      throw new HttpError(
+        422,
+        `Insufficient usable balance in ${account.code}: ${paiseToRupees(before)} held, of which ` +
+          `${paiseToRupees(settleable.settleable)} is the agent's earned balance and cannot be pulled`,
+        "INSUFFICIENT_USABLE_BALANCE",
       );
     }
 
