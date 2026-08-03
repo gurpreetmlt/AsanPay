@@ -36,7 +36,7 @@
 - [x] AEPS dummy↔live switch (`AEPS_PROVIDER_MODE`) + InstantPay adapter skeleton
 - [x] AEPS compliance gates (geofence, bio-mismatch/EDD, dormancy, cash receipt)
 - [x] Email verification OTP (`/auth/email/otp/*`) + web Verify UI (KYC, outlet, settings)
-- [ ] Fund request approve flow
+- [x] Fund request approve flow (admin `/fund-requests` UI + `GET /api/fund-requests` list)
 - [x] Fund request + banking HTTP (`/api/fund-requests`, `/api/banking`, Idempotency-Key on money POSTs)
 - [x] Settlements module (`/api/settlements` — debit at request, payout/reversal journals, one active bank)
 - [x] VAN webhook auto-credit (`POST /api/banking/van/webhook` — DEPOSIT_RECEIVE+CREDIT / suspense)
@@ -75,6 +75,7 @@
 - [ ] History purge for any secrets ever pushed to remote
 
 ## Last updated
+2026-08-03 — Fund request UI: retailer Add Money → `POST /fund-requests`; admin `/fund-requests` approve/reject; `GET /fund-requests` list; proxy forwards Idempotency-Key (task 13)
 2026-08-03 — VAN webhook: `POST /api/banking/van/webhook` HMAC → DEPOSIT_RECEIVE+CREDIT or suspense (task 27D; wallet-engine queue complete)
 2026-08-03 — Settlements: `/api/settlements` request debit → SETTLE_PAYABLE, payout/fail reversal, one active bank (task 27C)
 2026-08-03 — Ledger recon cron: `LEDGER_RECON_INTERVAL_MS` + stale transit/fund-request/unmatched bank credit checks (task 27B)

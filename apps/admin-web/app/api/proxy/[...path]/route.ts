@@ -5,11 +5,13 @@ async function forward(req: NextRequest, path: string[], accessToken: string | n
   const url = `${BACKEND_URL}/${path.join("/")}${req.nextUrl.search}`;
   const body = req.method === "GET" || req.method === "HEAD" ? undefined : await req.text();
 
+  const idempotencyKey = req.headers.get("idempotency-key");
   return fetch(url, {
     method: req.method,
     headers: {
       "Content-Type": req.headers.get("content-type") || "application/json",
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
     },
     body,
     cache: "no-store",

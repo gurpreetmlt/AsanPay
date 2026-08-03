@@ -15,7 +15,9 @@ import {
   cancelFundRequest,
   rematchPending,
   getFundRequest,
+  listFundRequests,
   retailerFacingStatus,
+  type FundRequestListFilter,
 } from "./fundRequest.service";
 import {
   submitFundRequestSchema,
@@ -33,6 +35,26 @@ fundRequestRouter.post("/rematch", requireRole("admin"), async (_req, res) => {
   const tenantId = await resolveTenantId();
   const result = await rematchPending(tenantId);
   sendSuccess(res, result, "Pending fund requests rematched");
+});
+
+fundRequestRouter.get("/", requireRole("admin", "retailer"), async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const defaultFilter: FundRequestListFilter = req.auth.role === "admin" ? "open" : "all";
+  const raw = typeof req.query.status === "string" ? req.query.status : defaultFilter;
+  const allowed: FundRequestListFilter[] = ["open", "credited", "rejected", "cancelled", "all"];
+  const filter = (allowed.includes(raw as FundRequestListFilter) ? raw : defaultFilter) as FundRequestListFilter;
+  const limit = typeof req.query.limit === "string" ? Number(req.query.limit) : undefined;
+  const offset = typeof req.query.offset === "string" ? Number(req.query.offset) : undefined;
+  const tenantId = await resolveTenantId();
+  const rows = await listFundRequests({
+    tenantId,
+    actorUserId: req.auth.sub,
+    actorRole: req.auth.role,
+    filter,
+    limit: Number.isFinite(limit) ? limit : undefined,
+    offset: Number.isFinite(offset) ? offset : undefined,
+  });
+  sendSuccess(res, rows);
 });
 
 fundRequestRouter.post(

@@ -14,6 +14,7 @@ import {
 import { toast } from "react-hot-toast";
 import { AppShell } from "@/components/layout/AppShell";
 import { FundForm } from "@/components/dashboard/FundForm";
+import { FundRequestForm } from "@/components/dashboard/FundRequestForm";
 import { PullForm } from "@/components/dashboard/PullForm";
 import { fetchApi } from "@/lib/api";
 import { B, initials, roleFromUserRole } from "@/lib/brand";
@@ -30,12 +31,14 @@ export default function WalletPage() {
   const user = useAuthStore((s) => s.user);
   const role = roleFromUserRole(user?.role);
   const canFund = user?.role === "distributor" || user?.role === "master_distributor";
+  const isRetailer = user?.role === "retailer" || !user?.role;
 
   const [wallets, setWallets] = useState<WalletBalance[]>([]);
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
   const [downline, setDownline] = useState<DownlineUser[]>([]);
   const [fundTarget, setFundTarget] = useState<DownlineUser | null>(null);
   const [pullTarget, setPullTarget] = useState<DownlineUser | null>(null);
+  const [showFundRequest, setShowFundRequest] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -110,7 +113,14 @@ export default function WalletPage() {
               </div>
               <div className="grid grid-cols-4 gap-2">
                 {[
-                  { icon: PlusCircle, label: "Add Money", action: () => toast("Coming soon") },
+                  {
+                    icon: PlusCircle,
+                    label: "Add Money",
+                    action: () =>
+                      isRetailer
+                        ? setShowFundRequest(true)
+                        : toast("Ask your upline to fund your wallet, or use Collect"),
+                  },
                   {
                     icon: SendHorizonal,
                     label: "Transfer",
@@ -387,6 +397,9 @@ export default function WalletPage() {
           onClose={() => setPullTarget(null)}
           onSuccess={() => void load()}
         />
+      )}
+      {showFundRequest && (
+        <FundRequestForm onClose={() => setShowFundRequest(false)} onSuccess={() => void load()} />
       )}
     </AppShell>
   );

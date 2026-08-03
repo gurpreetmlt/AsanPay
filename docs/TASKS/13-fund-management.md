@@ -25,5 +25,7 @@ Admin load float; distributor fund request; admin approve.
 Admin funds MD → MD funds distributor → dist funds retailer
 
 ## Done when
-- [ ] Admin can load master float
-- [ ] Downline fund from web works with PIN
+- [x] Admin can load master float
+- [x] Downline fund from web works with PIN
+- [x] Retailer fund-request UI → `POST /api/fund-requests` (+ list)
+- [x] Admin fund-request queue → approve / reject `/api/fund-requests`

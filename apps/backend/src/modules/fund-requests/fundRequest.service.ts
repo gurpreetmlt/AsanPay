@@ -1,4 +1,4 @@
-import { and, eq, gte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { db } from "../../db/postgres";
 import {
   accounts,
@@ -560,27 +560,102 @@ async function statementAmount(tx: Tx, lineId: bigint): Promise<Paise> {
   return line.amount;
 }
 
+const OPEN_STATUSES: FundRequestStatus[] = [
+  "submitted",
+  "pending_match",
+  "auto_matched",
+  "amount_mismatch",
+  "suspect",
+  "under_review",
+];
+
+export type FundRequestListFilter = "open" | "credited" | "rejected" | "cancelled" | "all";
+
+function mapFundRequestRow(
+  row: FundRequestRow,
+  actorRole: string,
+  requester?: { id: string; name: string; mobile: string; uid: string },
+) {
+  return {
+    id: String(row.id),
+    amount: paiseToRupees(row.amount),
+    paymentMode: row.paymentMode,
+    referenceNumber: row.referenceNumber,
+    depositDatetime: row.depositDatetime.toISOString(),
+    senderName: row.senderName,
+    bankAccountId: String(row.bankAccountId),
+    receiptUrl: row.receiptUrl,
+    status: actorRole === "admin" ? row.status : retailerFacingStatus(row.status),
+    displayStatus: retailerFacingStatus(row.status),
+    creditedAmount: row.creditedAmount != null ? paiseToRupees(row.creditedAmount) : null,
+    rejectReasonCode: row.rejectReasonCode,
+    rejectRemarks: row.rejectRemarks,
+    submittedAt: row.submittedAt.toISOString(),
+    creditedAt: row.creditedAt?.toISOString() ?? null,
+    ...(requester ? { requester } : {}),
+  };
+}
+
+/** List fund requests for admin (tenant-wide) or retailer (own only). */
+export async function listFundRequests(params: {
+  tenantId: string;
+  actorUserId: string;
+  actorRole: string;
+  filter?: FundRequestListFilter;
+  limit?: number;
+  offset?: number;
+}): Promise<ReturnType<typeof mapFundRequestRow>[]> {
+  const limit = Math.min(Math.max(params.limit ?? 50, 1), 100);
+  const offset = Math.max(params.offset ?? 0, 0);
+  const filter = params.filter ?? (params.actorRole === "admin" ? "open" : "all");
+
+  const conditions = [eq(fundRequests.tenantId, params.tenantId)];
+  if (params.actorRole !== "admin") {
+    conditions.push(eq(fundRequests.requesterUserId, params.actorUserId));
+  }
+  if (filter === "open") conditions.push(inArray(fundRequests.status, OPEN_STATUSES));
+  else if (filter === "credited") conditions.push(eq(fundRequests.status, "credited"));
+  else if (filter === "rejected") conditions.push(eq(fundRequests.status, "rejected"));
+  else if (filter === "cancelled") conditions.push(eq(fundRequests.status, "cancelled"));
+
+  const rows = await db
+    .select({
+      request: fundRequests,
+      requesterId: users.id,
+      requesterName: users.name,
+      requesterMobile: users.mobile,
+      requesterUid: users.uid,
+    })
+    .from(fundRequests)
+    .innerJoin(users, eq(users.id, fundRequests.requesterUserId))
+    .where(and(...conditions))
+    .orderBy(desc(fundRequests.submittedAt))
+    .limit(limit)
+    .offset(offset);
+
+  return rows.map(({ request, requesterId, requesterName, requesterMobile, requesterUid }) =>
+    mapFundRequestRow(
+      request,
+      params.actorRole,
+      params.actorRole === "admin"
+        ? {
+            id: requesterId,
+            name: requesterName,
+            mobile: requesterMobile,
+            uid: requesterUid,
+          }
+        : undefined,
+    ),
+  );
+}
+
 /** Load one request for the authenticated actor (owner or admin). */
 export async function getFundRequest(params: {
   tenantId: string;
   requestId: bigint;
   actorUserId: string;
   actorRole: string;
-}): Promise<{
-  id: string;
-  amount: string;
-  paymentMode: string;
-  referenceNumber: string | null;
-  depositDatetime: string;
-  senderName: string | null;
-  status: string;
-  displayStatus: string;
-  creditedAmount: string | null;
-  rejectReasonCode: string | null;
-  rejectRemarks: string | null;
-  submittedAt: string;
-  creditedAt: string | null;
-}> {
+}): Promise<ReturnType<typeof mapFundRequestRow>> {
   const [row] = await db
     .select()
     .from(fundRequests)
@@ -592,19 +667,15 @@ export async function getFundRequest(params: {
     throw new HttpError(403, "Not your request", "FORBIDDEN");
   }
 
-  return {
-    id: String(row.id),
-    amount: paiseToRupees(row.amount),
-    paymentMode: row.paymentMode,
-    referenceNumber: row.referenceNumber,
-    depositDatetime: row.depositDatetime.toISOString(),
-    senderName: row.senderName,
-    status: params.actorRole === "admin" ? row.status : retailerFacingStatus(row.status),
-    displayStatus: retailerFacingStatus(row.status),
-    creditedAmount: row.creditedAmount != null ? paiseToRupees(row.creditedAmount) : null,
-    rejectReasonCode: row.rejectReasonCode,
-    rejectRemarks: row.rejectRemarks,
-    submittedAt: row.submittedAt.toISOString(),
-    creditedAt: row.creditedAt?.toISOString() ?? null,
-  };
+  let requester: { id: string; name: string; mobile: string; uid: string } | undefined;
+  if (params.actorRole === "admin") {
+    const [u] = await db
+      .select({ id: users.id, name: users.name, mobile: users.mobile, uid: users.uid })
+      .from(users)
+      .where(eq(users.id, row.requesterUserId))
+      .limit(1);
+    if (u) requester = u;
+  }
+
+  return mapFundRequestRow(row, params.actorRole, requester);
 }
