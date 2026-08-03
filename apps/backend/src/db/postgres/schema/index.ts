@@ -4,6 +4,8 @@ export * from "./users";
 export * from "./accounts";
 export * from "./ledger";
 export * from "./treasury";
+export * from "./banking";
+export * from "./fundRequests";
 export * from "./reconciliation";
 export * from "./devices";
 export * from "./biometricReplay";
