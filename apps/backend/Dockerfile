@@ -19,4 +19,10 @@ ENV NODE_ENV=production
 ENV PORT=4000
 EXPOSE 4000
 
-CMD ["npx", "tsx", "src/server.ts"]
+# Migrations run before the server, every start. The server's ledger bootstrap verifies the
+# system accounts and refuses to listen if they are wrong, so the schema must already be in
+# place — running these as two separate steps leaves a window where the container crash-loops
+# waiting for a migration nobody can exec into. If the migration fails the API stays down,
+# which is the correct outcome for a money system.
+# Assumes a single backend replica; two replicas starting at once would race the migrator.
+CMD ["sh", "-c", "npx tsx src/db/postgres/migrate.ts && npx tsx src/server.ts"]

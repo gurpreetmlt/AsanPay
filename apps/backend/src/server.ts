@@ -2,6 +2,7 @@ import { createApp } from "./app";
 import { assertAepsProviderConfig, assertPaySprintProviderConfig, env } from "./config/env";
 import { pgPool } from "./db/postgres";
 import { deleteExpiredOtpRequests } from "./db/postgres/repositories/otpRequest";
+import { bootstrapLedger } from "./modules/bootstrap/systemAccounts";
 import { reconcileStaleTransactions, runDailyReconciliation } from "./modules/transactions/txn.service";
 import { runStatementEmailJobs } from "./modules/notifications/userEmail.service";
 import { logger } from "./utils/logger";
@@ -16,6 +17,12 @@ async function main() {
 
   await pgPool.query("SELECT 1");
   logger.info("PostgreSQL connected");
+
+  // Fail fast. If a system account is missing or has the wrong flags, the ledger cannot post
+  // correctly — and a half-initialised financial system is worse than a stopped one. This
+  // must run before listen(), never from a route.
+  await bootstrapLedger();
+  logger.info("Ledger system accounts verified");
 
   const app = createApp();
   const server = app.listen(env.PORT, () => {

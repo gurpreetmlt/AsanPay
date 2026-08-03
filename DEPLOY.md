@@ -155,7 +155,12 @@ Backend container ka naam har deploy par badalta hai, isliye khud dhoondho:
 API=$(for c in $(sudo docker ps --format '{{.Names}}' | grep -v '^coolify'); do [ "$(sudo docker exec $c printenv PORT 2>/dev/null)" = "4000" ] && echo $c; done | head -1)
 ```
 
-Migration aur seed (tarteeb maayne rakhti hai):
+**Migration ab container start par khud chalti hai** (`apps/backend/Dockerfile` ka CMD). Neeche
+wali `db:migrate` line sirf manual re-run ke liye hai — idempotent hai, chalane se kuch nahi
+bigadta. Migration fail hui to API boot nahi hoga: ye jaan-boojh kar hai, aadhi-migrated schema
+par paisa chalane se behtar hai band rehna.
+
+Seed (tarteeb maayne rakhti hai):
 
 ```bash
 sudo docker exec $API npm run db:migrate
