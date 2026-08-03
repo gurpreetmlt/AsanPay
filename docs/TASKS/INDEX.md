@@ -34,6 +34,7 @@
 | 28 | Commission payout report | M | [28-commission-payout-report.md](28-commission-payout-report.md) |
 | 29 | Wire settlements + orphan UI | M | [29-wire-settlements-ui.md](29-wire-settlements-ui.md) |
 | 30 | Admin banking ops UI | M | [30-admin-banking-ui.md](30-admin-banking-ui.md) |
+| 31 | Mobile partner Reverse (pull) | S | [31-mobile-partner-pull.md](31-mobile-partner-pull.md) |
 
 ## Retailer services
 | # | Task | Size | File |

@@ -55,6 +55,7 @@
 - [x] Commission payout report
 - [x] Settlements UI wired (agent web + admin + mobile)
 - [x] Admin banking ops UI (`/banking` — accounts, statement import, suspense)
+- [x] Mobile partner Reverse / pull-collect on Network
 - [ ] InstantPay DMT/BBPS rails + merchant outlet onboarding
 
 ## Security (2026-07-17)
@@ -79,6 +80,7 @@
 
 ## Last updated
 2026-08-03 — Admin Commission: Banking Services AEPS collapsed to 1 shared-rate row; save fans out to 4 services (task 25)
+2026-08-03 — Mobile partner Reverse (pull/collect): Network DownlineCard → OTP + txn PIN, parity with web
 2026-08-03 — Admin banking UI: `/banking` register accounts, statement import, park unmatched suspense
 2026-08-03 — Wire settlements + orphan UI: agent/admin `/settlements`, mobile Add Money / Settlements / Support; AppShell Support + partner tools
 2026-08-03 — Commission payout report: `GET /admin/commission/payouts` + admin `/commission` Payout report tab

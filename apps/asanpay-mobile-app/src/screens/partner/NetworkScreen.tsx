@@ -11,6 +11,7 @@ import { WalletBar } from "../../components/WalletBar";
 import { api, fetchApi } from "../../lib/api";
 import { createAttemptKeyHolder } from "../../lib/idempotencyKey";
 import { CHILD_ROLE, ROLE_LABEL } from "../../lib/roles";
+import { formatINR } from "../../lib/format";
 import type { DownlineUser, WalletBalance } from "../../lib/types";
 import { useAuthStore } from "../../store/auth";
 import { useTxnPin } from "../../hooks/useTxnPin";
@@ -34,6 +35,7 @@ export function NetworkScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showOnboard, setShowOnboard] = useState(false);
   const [fundTarget, setFundTarget] = useState<DownlineUser | null>(null);
+  const [pullTarget, setPullTarget] = useState<DownlineUser | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const childRole = CHILD_ROLE[user.role];
@@ -169,6 +171,7 @@ export function NetworkScreen() {
               key={u.id}
               user={u}
               onFund={setFundTarget}
+              onReverse={setPullTarget}
               onToggleActive={(target) => void toggleActive(target)}
               toggling={togglingId === u.id}
             />
@@ -191,6 +194,15 @@ export function NetworkScreen() {
           visible={!!fundTarget}
           target={fundTarget}
           onClose={() => setFundTarget(null)}
+          onSuccess={() => void load(true)}
+        />
+      )}
+
+      {pullTarget && (
+        <PullModal
+          visible={!!pullTarget}
+          target={pullTarget}
+          onClose={() => setPullTarget(null)}
           onSuccess={() => void load(true)}
         />
       )}
@@ -319,6 +331,171 @@ function FundModal({
   );
 }
 
+function PullModal({
+  visible,
+  target,
+  onClose,
+  onSuccess,
+}: {
+  visible: boolean;
+  target: DownlineUser;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [step, setStep] = useState<"amount" | "otp">("amount");
+  const [amount, setAmount] = useState("");
+  const [note, setNote] = useState("");
+  const [otp, setOtp] = useState("");
+  const [txnPin, setTxnPin] = useState("");
+  const [devOtp, setDevOtp] = useState<string | null>(null);
+  const [maskedMobile, setMaskedMobile] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const attemptKey = useRef(createAttemptKeyHolder(`pull-${target.id}`));
+
+  async function requestOtp() {
+    if (loading) return;
+    if (!amount || parseFloat(amount) <= 0) {
+      showAlert("Invalid amount", "Enter a valid amount.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const { data } = await api.post<{
+        success: boolean;
+        message: string;
+        data: { message: string; otp?: string; maskedMobile?: string; expiresInSeconds: number };
+      }>("/wallet/pull/request", {
+        targetUserId: target.id,
+        walletType: "main",
+        amount,
+      });
+      if (!data.success) throw new Error(data.message);
+      setDevOtp(data.data.otp ?? null);
+      setMaskedMobile(data.data.maskedMobile ?? null);
+      setStep("otp");
+      showAlert(
+        "OTP sent",
+        data.data.otp ? `Dev OTP: ${data.data.otp}` : data.data.message || "OTP sent to partner phone",
+      );
+    } catch (err) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } }).response?.data?.message ??
+        "Could not send OTP";
+      showAlert("Error", msg);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function confirm() {
+    if (loading) return;
+    if (otp.length !== 6) {
+      showAlert("Invalid OTP", "Enter the 6-digit OTP from the partner phone");
+      return;
+    }
+    if (txnPin.length !== 4) {
+      showAlert("Invalid PIN", "Enter your 4-digit transaction PIN");
+      return;
+    }
+    setLoading(true);
+    try {
+      await api.post("/wallet/pull/confirm", {
+        targetUserId: target.id,
+        walletType: "main",
+        amount,
+        otp,
+        txnPin,
+        idempotencyKey: attemptKey.current.get(),
+        ...(note ? { description: note } : {}),
+      });
+      attemptKey.current.clear();
+      showAlert("Success", `₹${amount} reversed from ${target.name}`);
+      onSuccess();
+      onClose();
+      setStep("amount");
+      setAmount("");
+      setNote("");
+      setOtp("");
+      setTxnPin("");
+      setDevOtp(null);
+    } catch (err) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? "Reverse failed";
+      showAlert("Error", msg);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <ModalSheet visible={visible} title={`Reverse · ${target.name}`} onClose={onClose}>
+      {step === "amount" ? (
+        <>
+          <Text style={styles.help}>
+            OTP goes to {target.name}&apos;s phone ({target.mobile}). You enter that OTP + your txn PIN.
+          </Text>
+          <Text style={styles.help}>Available: {formatINR(target.mainBalance)}</Text>
+          <Field
+            label="Amount (₹)"
+            value={amount}
+            onChangeText={(t) => {
+              setAmount(t.replace(/[^\d.]/g, ""));
+              attemptKey.current.clear();
+            }}
+            keyboardType="decimal-pad"
+          />
+          <Field label="Note (optional)" value={note} onChangeText={setNote} />
+          <Pressable onPress={() => void requestOtp()} disabled={loading}>
+            <LinearGradient colors={[...colors.gradient]} style={styles.submit}>
+              <Text style={styles.submitText}>{loading ? "Sending OTP…" : "Send OTP to partner"}</Text>
+            </LinearGradient>
+          </Pressable>
+        </>
+      ) : (
+        <>
+          <Text style={styles.help}>
+            Reversing ₹{amount} from {target.name}
+            {maskedMobile ? ` · OTP sent to ${maskedMobile}` : ""}
+          </Text>
+          {devOtp ? <Text style={styles.devOtp}>Dev OTP: {devOtp}</Text> : null}
+          <Field
+            label="6-digit OTP"
+            value={otp}
+            onChangeText={(t) => setOtp(t.replace(/\D/g, "").slice(0, 6))}
+            keyboardType="phone-pad"
+            maxLength={6}
+          />
+          <Field
+            label="Your transaction PIN"
+            value={txnPin}
+            onChangeText={(t) => setTxnPin(t.replace(/\D/g, "").slice(0, 4))}
+            keyboardType="phone-pad"
+            maxLength={4}
+            secureTextEntry
+          />
+          <Pressable onPress={() => void confirm()} disabled={loading}>
+            <LinearGradient colors={[...colors.gradient]} style={styles.submit}>
+              <Text style={styles.submitText}>{loading ? "Reversing…" : "Confirm reverse"}</Text>
+            </LinearGradient>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              setStep("amount");
+              setOtp("");
+              setTxnPin("");
+              setDevOtp(null);
+              attemptKey.current.clear();
+            }}
+            style={styles.changeAmount}
+          >
+            <Text style={styles.changeAmountText}>Change amount</Text>
+          </Pressable>
+        </>
+      )}
+    </ModalSheet>
+  );
+}
+
 function Field({
   label,
   value,
@@ -392,4 +569,16 @@ const styles = StyleSheet.create({
   },
   submit: { borderRadius: 12, paddingVertical: 14, alignItems: "center", marginTop: 8 },
   submitText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  help: { fontSize: 12, color: colors.textMuted, marginBottom: 10, lineHeight: 17 },
+  devOtp: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: colors.green,
+    backgroundColor: colors.greenBg,
+    padding: 10,
+    borderRadius: 10,
+    marginBottom: 10,
+  },
+  changeAmount: { marginTop: 12, alignItems: "center" },
+  changeAmountText: { color: colors.textMuted, fontWeight: "600", fontSize: 13 },
 });

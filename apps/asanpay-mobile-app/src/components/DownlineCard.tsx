@@ -9,11 +9,12 @@ import { colors } from "../theme/colors";
 interface Props {
   user: DownlineUser;
   onFund: (user: DownlineUser) => void;
+  onReverse?: (user: DownlineUser) => void;
   onToggleActive?: (user: DownlineUser) => void;
   toggling?: boolean;
 }
 
-export function DownlineCard({ user, onFund, onToggleActive, toggling }: Props) {
+export function DownlineCard({ user, onFund, onReverse, onToggleActive, toggling }: Props) {
   return (
     <View style={styles.card}>
       <View style={styles.top}>
@@ -50,6 +51,11 @@ export function DownlineCard({ user, onFund, onToggleActive, toggling }: Props) 
               <Text style={[styles.toggleText, user.isActive ? styles.toggleOffText : styles.toggleOnText]}>
                 {toggling ? "…" : user.isActive ? "Deactivate" : "Activate"}
               </Text>
+            </Pressable>
+          ) : null}
+          {onReverse ? (
+            <Pressable onPress={() => onReverse(user)} style={styles.reverseBtn}>
+              <Text style={styles.reverseText}>Reverse</Text>
             </Pressable>
           ) : null}
           <Pressable onPress={() => onFund(user)}>
@@ -117,4 +123,13 @@ const styles = StyleSheet.create({
   toggleOffText: { color: "#b91c1c" },
   fundBtn: { borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10 },
   fundText: { color: "#fff", fontWeight: "700", fontSize: 13 },
+  reverseBtn: {
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: colors.blue,
+    backgroundColor: `${colors.blue}14`,
+  },
+  reverseText: { color: colors.blueFlat, fontWeight: "700", fontSize: 12 },
 });
