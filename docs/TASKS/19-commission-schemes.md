@@ -18,6 +18,6 @@ Admin web — new page `/commission` (don't rebuild whole admin)
 Create scheme → retailer txn → commission entries created
 
 ## Done when
-- [ ] Scheme CRUD API
-- [ ] Preview: amount in → split out
-- [ ] Applied on successful txn
+- [x] Scheme CRUD API
+- [x] Preview: amount in → split out
+- [x] Applied on successful txn

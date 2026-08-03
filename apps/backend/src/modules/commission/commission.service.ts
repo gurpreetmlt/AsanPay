@@ -1,4 +1,4 @@
-import { and, eq, gt, lte, isNull, or, desc, sql } from "drizzle-orm";
+import { and, eq, gt, lte, isNull, or, desc, sql, asc } from "drizzle-orm";
 import { db } from "../../db/postgres";
 import {
   commissionLedger,
@@ -8,12 +8,68 @@ import {
   userHierarchy,
   users,
   wallets,
+  services,
+  serviceCategories,
+  providers,
 } from "../../db/postgres/schema";
 import { transferBetweenWallets } from "../wallet/wallet.ledger";
 import { toPaise, fromPaise } from "../wallet/decimal";
 import { logger } from "../../utils/logger";
 import { notifyCommissionCredit } from "../notifications/userEmail.service";
+import { HttpError } from "../../utils/httpError";
+import { env } from "../../config/env";
+import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import type { UserRole } from "@asanpay/shared-types";
+
+const SCHEME_ROLES = ["retailer", "distributor", "master_distributor"] as const;
+type SchemeRole = (typeof SCHEME_ROLES)[number];
+
+type RuleType = "flat" | "percentage";
+
+type RuleRow = {
+  ruleType: RuleType;
+  value: string;
+};
+
+function isSchemeRole(role: string): role is SchemeRole {
+  return (SCHEME_ROLES as readonly string[]).includes(role);
+}
+
+/** Same integer-paise math as live payout — percentage is 0–100 with up to 4 decimals. */
+export function computePayoutPaise(rule: RuleRow, amountPaise: number): number {
+  if (rule.ruleType === "flat") return toPaise(rule.value);
+  return Math.floor((amountPaise * Math.round(parseFloat(rule.value) * 10000)) / 1_000_000);
+}
+
+function validateRuleValue(ruleType: RuleType, valueRaw: string): string {
+  const valueNum = Number(valueRaw);
+  if (!Number.isFinite(valueNum) || valueNum < 0) {
+    throw new HttpError(400, "Commission value must be a non-negative number", "INVALID_VALUE");
+  }
+  if (ruleType === "percentage" && valueNum > 100) {
+    throw new HttpError(400, "Percentage cannot exceed 100", "INVALID_VALUE");
+  }
+  const flatCap = env.MAX_FLAT_COMMISSION_RUPEES ?? 500;
+  if (ruleType === "flat" && valueNum > flatCap) {
+    throw new HttpError(400, `Flat commission cannot exceed ₹${flatCap}`, "INVALID_VALUE");
+  }
+  return valueNum.toFixed(4);
+}
+
+function normalizeAmountBound(raw: string | null | undefined, field: "minAmount" | "maxAmount"): string | null {
+  if (raw === undefined || raw === null || String(raw).trim() === "") return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) {
+    throw new HttpError(
+      400,
+      field === "minAmount"
+        ? "Min amount must be a non-negative number"
+        : "Max amount must be a non-negative number",
+      "INVALID_AMOUNT",
+    );
+  }
+  return n.toFixed(2);
+}
 
 // Runs after a service transaction succeeds: pays every ancestor in the chain
 // (retailer -> distributor -> master_distributor) their configured cut, each
@@ -58,12 +114,7 @@ export async function distributeCommissionForTxn(transactionId: string): Promise
     const rule = await findActiveRule(txn.serviceId, txn.providerId, member.userId, member.role, txn.amount, now);
     if (!rule) continue;
 
-    // percentage value is 0-100 with up to 4 decimals; compute in integer space
-    // (paise x basis-points) so no float error ever reaches a wallet.
-    const payoutPaise =
-      rule.ruleType === "flat"
-        ? toPaise(rule.value)
-        : Math.floor((amountPaise * Math.round(parseFloat(rule.value) * 10000)) / 1_000_000);
+    const payoutPaise = computePayoutPaise(rule, amountPaise);
     if (payoutPaise <= 0) continue;
     const payout = fromPaise(payoutPaise);
 
@@ -134,12 +185,24 @@ async function findActiveRule(
     .limit(1);
   if (override) return override;
 
+  return findRoleDefaultRule(serviceId, providerId, role, amount, at);
+}
+
+/** Role-default slab from `commission_rules` (no per-agent override). */
+async function findRoleDefaultRule(
+  serviceId: string,
+  providerId: string | null,
+  role: UserRole,
+  amount: string,
+  at: Date,
+) {
   const amountNum = amount;
   // A provider-specific slab (commission_rules.providerId = this txn's provider) wins over the
   // generic null-provider default for the same service+role — ORDER BY puts provider-specific
   // rows first (NULLS LAST on the boolean match), then most-recently-effective.
   const rules = await db
     .select({
+      id: commissionRules.id,
       ruleType: commissionRules.ruleType,
       value: commissionRules.value,
       providerId: commissionRules.providerId,
@@ -162,7 +225,9 @@ async function findActiveRule(
     .orderBy(desc(commissionRules.effectiveFrom));
 
   const providerSpecific = providerId ? rules.find((r) => r.providerId === providerId) : undefined;
-  return providerSpecific ?? rules.find((r) => r.providerId === null) ?? null;
+  const match = providerSpecific ?? rules.find((r) => r.providerId === null) ?? null;
+  if (!match) return null;
+  return { id: match.id, ruleType: match.ruleType, value: match.value };
 }
 
 // ── Earnings reads (retailer/distributor dashboards) ────────────────────────
@@ -192,4 +257,283 @@ export async function listEarnings(userId: string, limit = 50, offset = 0) {
     .orderBy(desc(commissionLedger.createdAt))
     .limit(Math.min(limit, 100))
     .offset(offset);
+}
+
+// ── Role-default scheme CRUD (commission_rules) ─────────────────────────────
+
+export type CommissionRuleInput = {
+  serviceId: string;
+  providerId?: string | null;
+  role: SchemeRole;
+  ruleType: RuleType;
+  value: string;
+  minAmount?: string | null;
+  maxAmount?: string | null;
+  effectiveFrom?: string | null;
+  effectiveTo?: string | null;
+  isActive?: boolean;
+};
+
+async function assertServiceExists(serviceId: string) {
+  const [row] = await db.select({ id: services.id }).from(services).where(eq(services.id, serviceId)).limit(1);
+  if (!row) throw new HttpError(400, "Unknown service", "INVALID_SERVICE");
+}
+
+async function assertProviderExists(providerId: string | null | undefined) {
+  if (!providerId) return;
+  const [row] = await db.select({ id: providers.id }).from(providers).where(eq(providers.id, providerId)).limit(1);
+  if (!row) throw new HttpError(400, "Unknown provider", "INVALID_PROVIDER");
+}
+
+function parseOptionalDate(raw: string | null | undefined, field: string): Date | null {
+  if (raw === undefined || raw === null || String(raw).trim() === "") return null;
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) {
+    throw new HttpError(400, `${field} must be a valid date`, "INVALID_DATE");
+  }
+  return d;
+}
+
+export async function listCommissionRules(filters?: {
+  serviceId?: string;
+  role?: SchemeRole;
+  activeOnly?: boolean;
+}) {
+  const conditions = [
+    filters?.serviceId ? eq(commissionRules.serviceId, filters.serviceId) : undefined,
+    filters?.role ? eq(commissionRules.role, filters.role) : undefined,
+    filters?.activeOnly ? eq(commissionRules.isActive, true) : undefined,
+  ].filter((c): c is NonNullable<typeof c> => Boolean(c));
+
+  const rows = await db
+    .select({
+      id: commissionRules.id,
+      serviceId: commissionRules.serviceId,
+      serviceCode: services.code,
+      serviceName: services.name,
+      categoryName: serviceCategories.name,
+      providerId: commissionRules.providerId,
+      providerName: providers.name,
+      role: commissionRules.role,
+      ruleType: commissionRules.ruleType,
+      value: commissionRules.value,
+      minAmount: commissionRules.minAmount,
+      maxAmount: commissionRules.maxAmount,
+      effectiveFrom: commissionRules.effectiveFrom,
+      effectiveTo: commissionRules.effectiveTo,
+      isActive: commissionRules.isActive,
+    })
+    .from(commissionRules)
+    .innerJoin(services, eq(commissionRules.serviceId, services.id))
+    .innerJoin(serviceCategories, eq(services.categoryId, serviceCategories.id))
+    .leftJoin(providers, eq(commissionRules.providerId, providers.id))
+    .where(conditions.length > 0 ? and(...conditions) : sql`true`)
+    .orderBy(
+      asc(serviceCategories.displayOrder),
+      asc(services.displayOrder),
+      asc(commissionRules.role),
+      desc(commissionRules.effectiveFrom),
+    );
+
+  return rows.map((r) => ({
+    ...r,
+    value: String(r.value),
+    minAmount: r.minAmount != null ? String(r.minAmount) : null,
+    maxAmount: r.maxAmount != null ? String(r.maxAmount) : null,
+  }));
+}
+
+export async function createCommissionRule(adminId: string, input: CommissionRuleInput) {
+  if (!isSchemeRole(input.role)) {
+    throw new HttpError(400, "Role must be retailer, distributor, or master_distributor", "INVALID_ROLE");
+  }
+  await assertServiceExists(input.serviceId);
+  await assertProviderExists(input.providerId);
+
+  const value = validateRuleValue(input.ruleType, input.value);
+  const minAmount = normalizeAmountBound(input.minAmount, "minAmount");
+  const maxAmount = normalizeAmountBound(input.maxAmount, "maxAmount");
+  if (minAmount != null && maxAmount != null && Number(minAmount) > Number(maxAmount)) {
+    throw new HttpError(400, "Min amount cannot be greater than max amount", "INVALID_AMOUNT");
+  }
+
+  const effectiveFrom = parseOptionalDate(input.effectiveFrom, "effectiveFrom") ?? new Date();
+  const effectiveTo = parseOptionalDate(input.effectiveTo, "effectiveTo");
+  if (effectiveTo && effectiveTo <= effectiveFrom) {
+    throw new HttpError(400, "Effective to must be after effective from", "INVALID_DATE");
+  }
+
+  const [created] = await db
+    .insert(commissionRules)
+    .values({
+      serviceId: input.serviceId,
+      providerId: input.providerId || null,
+      role: input.role,
+      ruleType: input.ruleType,
+      value,
+      minAmount,
+      maxAmount,
+      effectiveFrom,
+      effectiveTo,
+      isActive: input.isActive !== false,
+    })
+    .returning();
+
+  await insertAuditLog({
+    userId: adminId,
+    action: "admin.commission_rule_create",
+    entityType: "commission_rule",
+    entityId: created.id,
+    metadata: { serviceId: input.serviceId, role: input.role, ruleType: input.ruleType, value },
+  });
+
+  return created;
+}
+
+export async function updateCommissionRule(
+  adminId: string,
+  ruleId: string,
+  patch: Partial<CommissionRuleInput>,
+) {
+  const [existing] = await db.select().from(commissionRules).where(eq(commissionRules.id, ruleId)).limit(1);
+  if (!existing) throw new HttpError(404, "Commission rule not found", "RULE_NOT_FOUND");
+
+  if (patch.role !== undefined && !isSchemeRole(patch.role)) {
+    throw new HttpError(400, "Role must be retailer, distributor, or master_distributor", "INVALID_ROLE");
+  }
+  if (patch.serviceId) await assertServiceExists(patch.serviceId);
+  if (patch.providerId !== undefined) await assertProviderExists(patch.providerId);
+
+  const ruleType = patch.ruleType ?? existing.ruleType;
+  const value =
+    patch.value !== undefined ? validateRuleValue(ruleType, patch.value) : String(existing.value);
+  if (patch.ruleType && patch.value === undefined) {
+    validateRuleValue(ruleType, String(existing.value));
+  }
+
+  const minAmount =
+    patch.minAmount !== undefined
+      ? normalizeAmountBound(patch.minAmount, "minAmount")
+      : existing.minAmount != null
+        ? String(existing.minAmount)
+        : null;
+  const maxAmount =
+    patch.maxAmount !== undefined
+      ? normalizeAmountBound(patch.maxAmount, "maxAmount")
+      : existing.maxAmount != null
+        ? String(existing.maxAmount)
+        : null;
+  if (minAmount != null && maxAmount != null && Number(minAmount) > Number(maxAmount)) {
+    throw new HttpError(400, "Min amount cannot be greater than max amount", "INVALID_AMOUNT");
+  }
+
+  const effectiveFrom =
+    patch.effectiveFrom !== undefined
+      ? (parseOptionalDate(patch.effectiveFrom, "effectiveFrom") ?? existing.effectiveFrom)
+      : existing.effectiveFrom;
+  const effectiveTo =
+    patch.effectiveTo !== undefined
+      ? parseOptionalDate(patch.effectiveTo, "effectiveTo")
+      : existing.effectiveTo;
+  if (effectiveTo && effectiveTo <= effectiveFrom) {
+    throw new HttpError(400, "Effective to must be after effective from", "INVALID_DATE");
+  }
+
+  const [updated] = await db
+    .update(commissionRules)
+    .set({
+      serviceId: patch.serviceId ?? existing.serviceId,
+      providerId: patch.providerId !== undefined ? patch.providerId || null : existing.providerId,
+      role: patch.role ?? existing.role,
+      ruleType,
+      value,
+      minAmount,
+      maxAmount,
+      effectiveFrom,
+      effectiveTo,
+      isActive: patch.isActive ?? existing.isActive,
+    })
+    .where(eq(commissionRules.id, ruleId))
+    .returning();
+
+  await insertAuditLog({
+    userId: adminId,
+    action: "admin.commission_rule_update",
+    entityType: "commission_rule",
+    entityId: ruleId,
+    metadata: patch as Record<string, unknown>,
+  });
+
+  return updated;
+}
+
+export async function deleteCommissionRule(adminId: string, ruleId: string) {
+  const [existing] = await db.select({ id: commissionRules.id }).from(commissionRules).where(eq(commissionRules.id, ruleId)).limit(1);
+  if (!existing) throw new HttpError(404, "Commission rule not found", "RULE_NOT_FOUND");
+
+  await db.delete(commissionRules).where(eq(commissionRules.id, ruleId));
+
+  await insertAuditLog({
+    userId: adminId,
+    action: "admin.commission_rule_delete",
+    entityType: "commission_rule",
+    entityId: ruleId,
+    metadata: {},
+  });
+
+  return { id: ruleId, deleted: true };
+}
+
+/** Preview role-default payouts for an amount (ignores per-agent overrides). */
+export async function previewCommissionSplit(input: {
+  serviceId: string;
+  amount: string;
+  providerId?: string | null;
+}) {
+  await assertServiceExists(input.serviceId);
+  if (input.providerId) await assertProviderExists(input.providerId);
+
+  const amountNum = Number(input.amount);
+  if (!Number.isFinite(amountNum) || amountNum <= 0) {
+    throw new HttpError(400, "Amount must be a positive number", "INVALID_AMOUNT");
+  }
+  const amount = amountNum.toFixed(2);
+  const amountPaise = toPaise(amount);
+  const now = new Date();
+  const providerId = input.providerId || null;
+
+  const splits: Array<{
+    role: SchemeRole;
+    ruleId: string | null;
+    ruleType: RuleType | null;
+    value: string | null;
+    payout: string;
+    matched: boolean;
+  }> = [];
+
+  for (const role of SCHEME_ROLES) {
+    const rule = await findRoleDefaultRule(input.serviceId, providerId, role, amount, now);
+    if (!rule) {
+      splits.push({ role, ruleId: null, ruleType: null, value: null, payout: "0.00", matched: false });
+      continue;
+    }
+    const payoutPaise = computePayoutPaise(rule, amountPaise);
+    splits.push({
+      role,
+      ruleId: rule.id,
+      ruleType: rule.ruleType,
+      value: String(rule.value),
+      payout: fromPaise(Math.max(0, payoutPaise)),
+      matched: true,
+    });
+  }
+
+  const totalPaise = splits.reduce((sum, s) => sum + toPaise(s.payout), 0);
+  return {
+    serviceId: input.serviceId,
+    providerId,
+    amount,
+    splits,
+    totalPayout: fromPaise(totalPaise),
+  };
 }

@@ -16,7 +16,7 @@
 - [x] Agent single login + role dashboard
 - [x] Admin full stats dashboard
 - [x] KYC queue UI
-- [ ] Commission scheme builder (role defaults)
+- [x] Commission scheme builder (role defaults)
 - [x] Per-agent service commission overrides (admin agent detail)
 - [x] Wallet page shows Pending balance (Wallet 1 / Wallet 2)
 
@@ -87,6 +87,7 @@
 2026-07-20 — Distributor activity metric (success txns) + monthly history; Quick Actions up; Collect/Debit → Reverse
 2026-07-20 — Wallet pull (Wapas): child OTP + parent PIN; `flow/` agent docs; migration `0015_wallet_pull_otp`
 2026-07-20 — Signup: `GET /auth/sponsor/:uid` shows Distributor name; retailer maps under that Dist
+2026-08-03 — Commission scheme builder: role-default CRUD + preview at admin `/commission`; payout still via `distributeCommissionForTxn`
 2026-07-20 — Wallet hierarchy: transfer enforces SD→D / D→R + active target; task doc `wallet-hierarchy.md`
 2026-07-20 — Wallet hierarchy gaps: child active toggle (SD/D), admin reassign parent, admin no longer on /wallet/transfer
 2026-07-18 — AEPS dummy/sandbox/live provider mode + InstantPay adapter + compliance gates

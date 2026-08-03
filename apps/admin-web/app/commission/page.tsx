@@ -1,0 +1,543 @@
+"use client";
+
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "react-hot-toast";
+import { Calculator, Percent, Plus, Trash2 } from "lucide-react";
+import { AdminShell } from "@/components/layout/AdminShell";
+import { B } from "@/lib/brand";
+import api, { fetchApi } from "@/lib/api";
+import { useAuthStore } from "@/lib/store";
+import { useAuthHydrated } from "@/lib/useAuthHydrated";
+
+type SchemeRole = "retailer" | "distributor" | "master_distributor";
+type RuleType = "flat" | "percentage";
+
+interface CatalogService {
+  id: string;
+  code: string;
+  name: string;
+  isActive: boolean;
+}
+
+interface CatalogCategory {
+  id: string;
+  name: string;
+  isActive: boolean;
+  services: CatalogService[];
+}
+
+interface CommissionRule {
+  id: string;
+  serviceId: string;
+  serviceCode: string;
+  serviceName: string;
+  categoryName: string;
+  providerId: string | null;
+  providerName: string | null;
+  role: SchemeRole;
+  ruleType: RuleType;
+  value: string;
+  minAmount: string | null;
+  maxAmount: string | null;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  isActive: boolean;
+}
+
+interface PreviewSplit {
+  role: SchemeRole;
+  ruleId: string | null;
+  ruleType: RuleType | null;
+  value: string | null;
+  payout: string;
+  matched: boolean;
+}
+
+interface PreviewResult {
+  serviceId: string;
+  amount: string;
+  splits: PreviewSplit[];
+  totalPayout: string;
+}
+
+const ROLE_LABEL: Record<SchemeRole, string> = {
+  retailer: "Retailer",
+  distributor: "Distributor",
+  master_distributor: "Super Distributor",
+};
+
+const EMPTY_FORM = {
+  serviceId: "",
+  role: "retailer" as SchemeRole,
+  ruleType: "percentage" as RuleType,
+  value: "",
+  minAmount: "",
+  maxAmount: "",
+  isActive: true,
+};
+
+function errMessage(err: unknown, fallback: string) {
+  const ax = err as { response?: { data?: { message?: string } }; message?: string };
+  return ax?.response?.data?.message || ax?.message || fallback;
+}
+
+export default function CommissionSchemesPage() {
+  const router = useRouter();
+  const hydrated = useAuthHydrated();
+  const accessToken = useAuthStore((s) => s.accessToken);
+
+  const [rules, setRules] = useState<CommissionRule[]>([]);
+  const [catalog, setCatalog] = useState<CatalogCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [roleFilter, setRoleFilter] = useState<"" | SchemeRole>("");
+  const [previewServiceId, setPreviewServiceId] = useState("");
+  const [previewAmount, setPreviewAmount] = useState("1000");
+  const [previewing, setPreviewing] = useState(false);
+  const [preview, setPreview] = useState<PreviewResult | null>(null);
+
+  useEffect(() => {
+    if (hydrated && !accessToken) router.replace("/login");
+  }, [hydrated, accessToken, router]);
+
+  const serviceOptions = useMemo(() => {
+    const out: Array<{ id: string; label: string }> = [];
+    for (const cat of catalog) {
+      if (!cat.isActive) continue;
+      for (const s of cat.services) {
+        out.push({ id: s.id, label: `${cat.name} · ${s.name}` });
+      }
+    }
+    return out;
+  }, [catalog]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [ruleRows, cats] = await Promise.all([
+        fetchApi<CommissionRule[]>("/admin/commission/rules"),
+        fetchApi<CatalogCategory[]>("/admin/catalog"),
+      ]);
+      setRules(ruleRows);
+      setCatalog(cats);
+      setPreviewServiceId((prev) => prev || cats.find((c) => c.isActive)?.services[0]?.id || "");
+      setForm((f) =>
+        f.serviceId ? f : { ...f, serviceId: cats.find((c) => c.isActive)?.services[0]?.id || "" },
+      );
+    } catch (err) {
+      toast.error(errMessage(err, "Failed to load commission schemes"));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated || !accessToken) return;
+    void load();
+  }, [hydrated, accessToken, load]);
+
+  const filteredRules = useMemo(
+    () => (roleFilter ? rules.filter((r) => r.role === roleFilter) : rules),
+    [rules, roleFilter],
+  );
+
+  async function onCreate(e: FormEvent) {
+    e.preventDefault();
+    if (!form.serviceId) {
+      toast.error("Select a service");
+      return;
+    }
+    if (!form.value.trim()) {
+      toast.error("Enter a commission value");
+      return;
+    }
+    setSaving(true);
+    try {
+      await api.post("/admin/commission/rules", {
+        serviceId: form.serviceId,
+        role: form.role,
+        ruleType: form.ruleType,
+        value: form.value.trim(),
+        minAmount: form.minAmount.trim() || null,
+        maxAmount: form.maxAmount.trim() || null,
+        isActive: form.isActive,
+      });
+      toast.success("Commission rule created");
+      setForm((f) => ({ ...EMPTY_FORM, serviceId: f.serviceId }));
+      const ruleRows = await fetchApi<CommissionRule[]>("/admin/commission/rules");
+      setRules(ruleRows);
+    } catch (err) {
+      toast.error(errMessage(err, "Could not create commission rule"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function toggleActive(rule: CommissionRule) {
+    try {
+      await api.patch(`/admin/commission/rules/${rule.id}`, { isActive: !rule.isActive });
+      toast.success(rule.isActive ? "Rule deactivated" : "Rule activated");
+      setRules((prev) =>
+        prev.map((r) => (r.id === rule.id ? { ...r, isActive: !r.isActive } : r)),
+      );
+    } catch (err) {
+      toast.error(errMessage(err, "Could not update rule"));
+    }
+  }
+
+  async function removeRule(rule: CommissionRule) {
+    if (!window.confirm(`Delete ${ROLE_LABEL[rule.role]} rule for ${rule.serviceName}?`)) return;
+    try {
+      await api.delete(`/admin/commission/rules/${rule.id}`);
+      toast.success("Commission rule deleted");
+      setRules((prev) => prev.filter((r) => r.id !== rule.id));
+    } catch (err) {
+      toast.error(errMessage(err, "Could not delete rule"));
+    }
+  }
+
+  async function runPreview() {
+    if (!previewServiceId) {
+      toast.error("Select a service for preview");
+      return;
+    }
+    if (!previewAmount.trim() || Number(previewAmount) <= 0) {
+      toast.error("Enter a positive amount");
+      return;
+    }
+    setPreviewing(true);
+    try {
+      const result = await api.post("/admin/commission/preview", {
+        serviceId: previewServiceId,
+        amount: previewAmount.trim(),
+      }).then((r) => {
+        if (!r.data.success) throw new Error(r.data.message || "Preview failed");
+        return r.data.data as PreviewResult;
+      });
+      setPreview(result);
+    } catch (err) {
+      toast.error(errMessage(err, "Preview failed"));
+    } finally {
+      setPreviewing(false);
+    }
+  }
+
+  if (!hydrated || !accessToken) return null;
+
+  return (
+    <AdminShell>
+      <div className="mx-auto max-w-6xl space-y-6 p-6">
+        <div className="flex items-center gap-3">
+          <div
+            className="flex h-12 w-12 items-center justify-center rounded-2xl text-white"
+            style={{ background: B.badgeGrad }}
+          >
+            <Percent size={22} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold" style={{ color: B.blue }}>
+              Commission Schemes
+            </h1>
+            <p className="text-sm" style={{ color: B.muted }}>
+              Role defaults (Super Dist → Dist → Retailer). Per-agent overrides still win on the agent detail page.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <form
+            onSubmit={onCreate}
+            className="space-y-4 rounded-2xl border bg-white p-5"
+            style={{ borderColor: B.border }}
+          >
+            <div className="flex items-center gap-2">
+              <Plus size={18} style={{ color: B.blue }} />
+              <h2 className="text-base font-bold" style={{ color: B.blue }}>
+                Add role slab
+              </h2>
+            </div>
+
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium" style={{ color: B.muted }}>
+                Service
+              </span>
+              <select
+                className="w-full rounded-xl border px-3 py-2.5 text-sm"
+                style={{ borderColor: B.border }}
+                value={form.serviceId}
+                onChange={(e) => setForm((f) => ({ ...f, serviceId: e.target.value }))}
+              >
+                <option value="">Select service</option>
+                {serviceOptions.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium" style={{ color: B.muted }}>
+                  Role
+                </span>
+                <select
+                  className="w-full rounded-xl border px-3 py-2.5 text-sm"
+                  style={{ borderColor: B.border }}
+                  value={form.role}
+                  onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as SchemeRole }))}
+                >
+                  {(Object.keys(ROLE_LABEL) as SchemeRole[]).map((r) => (
+                    <option key={r} value={r}>
+                      {ROLE_LABEL[r]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium" style={{ color: B.muted }}>
+                  Type
+                </span>
+                <select
+                  className="w-full rounded-xl border px-3 py-2.5 text-sm"
+                  style={{ borderColor: B.border }}
+                  value={form.ruleType}
+                  onChange={(e) => setForm((f) => ({ ...f, ruleType: e.target.value as RuleType }))}
+                >
+                  <option value="percentage">Percentage</option>
+                  <option value="flat">Flat (₹)</option>
+                </select>
+              </label>
+            </div>
+
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium" style={{ color: B.muted }}>
+                Value {form.ruleType === "percentage" ? "(%)" : "(₹)"}
+              </span>
+              <input
+                className="w-full rounded-xl border px-3 py-2.5 text-sm"
+                style={{ borderColor: B.border }}
+                inputMode="decimal"
+                placeholder={form.ruleType === "percentage" ? "e.g. 0.5" : "e.g. 5"}
+                value={form.value}
+                onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
+              />
+            </label>
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium" style={{ color: B.muted }}>
+                  Min amount (optional)
+                </span>
+                <input
+                  className="w-full rounded-xl border px-3 py-2.5 text-sm"
+                  style={{ borderColor: B.border }}
+                  inputMode="decimal"
+                  placeholder="0"
+                  value={form.minAmount}
+                  onChange={(e) => setForm((f) => ({ ...f, minAmount: e.target.value }))}
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium" style={{ color: B.muted }}>
+                  Max amount (optional)
+                </span>
+                <input
+                  className="w-full rounded-xl border px-3 py-2.5 text-sm"
+                  style={{ borderColor: B.border }}
+                  inputMode="decimal"
+                  placeholder="No max"
+                  value={form.maxAmount}
+                  onChange={(e) => setForm((f) => ({ ...f, maxAmount: e.target.value }))}
+                />
+              </label>
+            </div>
+
+            <button
+              type="submit"
+              disabled={saving}
+              className="w-full rounded-xl px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60"
+              style={{ background: B.badgeGrad }}
+            >
+              {saving ? "Saving…" : "Create rule"}
+            </button>
+          </form>
+
+          <div className="space-y-4 rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
+            <div className="flex items-center gap-2">
+              <Calculator size={18} style={{ color: B.blue }} />
+              <h2 className="text-base font-bold" style={{ color: B.blue }}>
+                Preview calculator
+              </h2>
+            </div>
+            <p className="text-xs" style={{ color: B.muted }}>
+              Enter a txn amount to see role-default payouts (ignores per-agent overrides).
+            </p>
+
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium" style={{ color: B.muted }}>
+                Service
+              </span>
+              <select
+                className="w-full rounded-xl border px-3 py-2.5 text-sm"
+                style={{ borderColor: B.border }}
+                value={previewServiceId}
+                onChange={(e) => setPreviewServiceId(e.target.value)}
+              >
+                <option value="">Select service</option>
+                {serviceOptions.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium" style={{ color: B.muted }}>
+                Amount (₹)
+              </span>
+              <input
+                className="w-full rounded-xl border px-3 py-2.5 text-sm"
+                style={{ borderColor: B.border }}
+                inputMode="decimal"
+                value={previewAmount}
+                onChange={(e) => setPreviewAmount(e.target.value)}
+              />
+            </label>
+
+            <button
+              type="button"
+              onClick={() => void runPreview()}
+              disabled={previewing}
+              className="w-full rounded-xl border px-4 py-2.5 text-sm font-bold disabled:opacity-60"
+              style={{ borderColor: B.blue, color: B.blue }}
+            >
+              {previewing ? "Calculating…" : "Calculate split"}
+            </button>
+
+            {preview && (
+              <div className="space-y-2 rounded-xl border p-3" style={{ borderColor: B.border }}>
+                {preview.splits.map((s) => (
+                  <div key={s.role} className="flex items-center justify-between text-sm">
+                    <span style={{ color: B.muted }}>
+                      {ROLE_LABEL[s.role]}
+                      {s.matched
+                        ? ` · ${s.ruleType === "flat" ? `₹${s.value}` : `${s.value}%`}`
+                        : " · no rule"}
+                    </span>
+                    <span className="font-semibold" style={{ color: B.blue }}>
+                      ₹{s.payout}
+                    </span>
+                  </div>
+                ))}
+                <div
+                  className="mt-2 flex items-center justify-between border-t pt-2 text-sm font-bold"
+                  style={{ borderColor: B.border, color: B.blue }}
+                >
+                  <span>Total payout</span>
+                  <span>₹{preview.totalPayout}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-base font-bold" style={{ color: B.blue }}>
+              Active schemes
+            </h2>
+            <select
+              className="rounded-xl border px-3 py-2 text-sm"
+              style={{ borderColor: B.border }}
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value as "" | SchemeRole)}
+            >
+              <option value="">All roles</option>
+              {(Object.keys(ROLE_LABEL) as SchemeRole[]).map((r) => (
+                <option key={r} value={r}>
+                  {ROLE_LABEL[r]}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {loading ? (
+            <p className="text-sm" style={{ color: B.muted }}>
+              Loading…
+            </p>
+          ) : filteredRules.length === 0 ? (
+            <p className="text-sm" style={{ color: B.muted }}>
+              No role-default rules yet. Add a slab above — successful retailer transactions will credit matching ancestors.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] text-left text-sm">
+                <thead>
+                  <tr className="border-b text-xs uppercase tracking-wide" style={{ borderColor: B.border, color: B.muted }}>
+                    <th className="py-2 pr-3 font-semibold">Service</th>
+                    <th className="py-2 pr-3 font-semibold">Role</th>
+                    <th className="py-2 pr-3 font-semibold">Rate</th>
+                    <th className="py-2 pr-3 font-semibold">Slab</th>
+                    <th className="py-2 pr-3 font-semibold">Status</th>
+                    <th className="py-2 font-semibold">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRules.map((rule) => (
+                    <tr key={rule.id} className="border-b last:border-0" style={{ borderColor: B.border }}>
+                      <td className="py-3 pr-3">
+                        <div className="font-medium" style={{ color: B.blue }}>
+                          {rule.serviceName}
+                        </div>
+                        <div className="text-xs" style={{ color: B.muted }}>
+                          {rule.categoryName}
+                          {rule.providerName ? ` · ${rule.providerName}` : ""}
+                        </div>
+                      </td>
+                      <td className="py-3 pr-3">{ROLE_LABEL[rule.role]}</td>
+                      <td className="py-3 pr-3">
+                        {rule.ruleType === "flat" ? `₹${rule.value}` : `${rule.value}%`}
+                      </td>
+                      <td className="py-3 pr-3" style={{ color: B.muted }}>
+                        {rule.minAmount || rule.maxAmount
+                          ? `₹${rule.minAmount ?? "0"} – ${rule.maxAmount ? `₹${rule.maxAmount}` : "∞"}`
+                          : "Any amount"}
+                      </td>
+                      <td className="py-3 pr-3">
+                        <button
+                          type="button"
+                          onClick={() => void toggleActive(rule)}
+                          className="rounded-lg px-2.5 py-1 text-xs font-semibold"
+                          style={{
+                            background: rule.isActive ? "#ecfdf5" : "#f3f4f6",
+                            color: rule.isActive ? "#047857" : "#6b7280",
+                          }}
+                        >
+                          {rule.isActive ? "Active" : "Off"}
+                        </button>
+                      </td>
+                      <td className="py-3">
+                        <button
+                          type="button"
+                          onClick={() => void removeRule(rule)}
+                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-50"
+                        >
+                          <Trash2 size={14} />
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    </AdminShell>
+  );
+}

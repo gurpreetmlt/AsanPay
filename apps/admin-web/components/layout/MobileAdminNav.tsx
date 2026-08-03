@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { IndianRupee } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { NavIconDef } from "@/lib/iconTypes";
 import { AnimatedNavIcon } from "@/components/ui/AnimatedNavIcon";
@@ -9,7 +10,7 @@ import { AnimatedNavIcon } from "@/components/ui/AnimatedNavIcon";
 const tabs: { href: string; label: string; icon: NavIconDef }[] = [
   { href: "/dashboard", label: "Home", icon: { lib: "md", name: "MdDashboard" } },
   { href: "/users", label: "Network", icon: { lib: "fa", name: "FaUsers" } },
-  { href: "/kyc", label: "KYC", icon: { lib: "md", name: "MdVerifiedUser" } },
+  { href: "/fund-requests", label: "Funds", icon: { lib: "lucide", icon: IndianRupee } },
   { href: "/transactions", label: "Txns", icon: { lib: "fa", name: "FaExchangeAlt" } },
   { href: "/wallet", label: "Wallet", icon: { lib: "md", name: "MdAccountBalanceWallet" } },
 ];

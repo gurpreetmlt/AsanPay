@@ -26,13 +26,13 @@ const QUICK_ROUTES = [
   { q: "kyc", href: "/kyc", label: "KYC Queue" },
   { q: "transaction", href: "/transactions", label: "Transactions" },
   { q: "wallet", href: "/wallet", label: "Company wallet" },
-  { q: "fund", href: "/wallet", label: "Company wallet" },
+  { q: "fund", href: "/fund-requests", label: "Fund requests" },
   { q: "treasury", href: "/wallet", label: "Company wallet" },
   { q: "passbook", href: "/passbook", label: "Wallet statement" },
   { q: "statement", href: "/passbook", label: "Wallet statement" },
   { q: "reconcil", href: "/reconciliation", label: "Txn reconciliation" },
   { q: "badge", href: "/site-control", label: "Service Badges" },
-  { q: "commission", href: "/commissions", label: "Commissions" },
+  { q: "commission", href: "/commission", label: "Commissions" },
   { q: "site", href: "/site-control", label: "Site Control" },
 ];
 

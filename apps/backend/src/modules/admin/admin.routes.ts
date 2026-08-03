@@ -236,3 +236,68 @@ adminRouter.post("/emails/product-update", async (req, res) => {
   const result = await broadcastProductUpdate(body);
   sendSuccess(res, result, `Product update queued for ${result.sent} opted-in users`);
 });
+
+// ── Commission schemes (role-default slabs) ─────────────────────────────────
+const schemeRoleEnum = z.enum(["retailer", "distributor", "master_distributor"]);
+const ruleTypeEnum = z.enum(["flat", "percentage"]);
+
+const commissionRuleBody = z.object({
+  serviceId: z.string().uuid(),
+  providerId: z.string().uuid().nullable().optional(),
+  role: schemeRoleEnum,
+  ruleType: ruleTypeEnum,
+  value: z.string().min(1).max(20),
+  minAmount: z.string().max(20).nullable().optional(),
+  maxAmount: z.string().max(20).nullable().optional(),
+  effectiveFrom: z.string().max(40).nullable().optional(),
+  effectiveTo: z.string().max(40).nullable().optional(),
+  isActive: z.boolean().optional(),
+});
+
+adminRouter.get("/commission/rules", async (req, res) => {
+  const {
+    listCommissionRules,
+  } = await import("../commission/commission.service");
+  const serviceId = typeof req.query.serviceId === "string" ? req.query.serviceId : undefined;
+  const role =
+    typeof req.query.role === "string" && schemeRoleEnum.safeParse(req.query.role).success
+      ? (req.query.role as z.infer<typeof schemeRoleEnum>)
+      : undefined;
+  const activeOnly = req.query.activeOnly === "1" || req.query.activeOnly === "true";
+  sendSuccess(res, await listCommissionRules({ serviceId, role, activeOnly }));
+});
+
+adminRouter.post("/commission/rules", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { createCommissionRule } = await import("../commission/commission.service");
+  const body = commissionRuleBody.parse(req.body);
+  const created = await createCommissionRule(req.auth.sub, body);
+  sendSuccess(res, created, "Commission rule created");
+});
+
+adminRouter.patch("/commission/rules/:id", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { updateCommissionRule } = await import("../commission/commission.service");
+  const body = commissionRuleBody.partial().parse(req.body);
+  const updated = await updateCommissionRule(req.auth.sub, req.params.id, body);
+  sendSuccess(res, updated, "Commission rule updated");
+});
+
+adminRouter.delete("/commission/rules/:id", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { deleteCommissionRule } = await import("../commission/commission.service");
+  const result = await deleteCommissionRule(req.auth.sub, req.params.id);
+  sendSuccess(res, result, "Commission rule deleted");
+});
+
+adminRouter.post("/commission/preview", async (req, res) => {
+  const { previewCommissionSplit } = await import("../commission/commission.service");
+  const body = z
+    .object({
+      serviceId: z.string().uuid(),
+      amount: z.string().min(1).max(20),
+      providerId: z.string().uuid().nullable().optional(),
+    })
+    .parse(req.body);
+  sendSuccess(res, await previewCommissionSplit(body));
+});

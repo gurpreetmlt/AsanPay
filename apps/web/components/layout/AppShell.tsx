@@ -38,6 +38,7 @@ const NAV_CORE = [
   { icon: LayoutDashboard, label: "Dashboard", to: "/dashboard" },
   { icon: ArrowLeftRight, label: "Transactions", to: "/transactions" },
   { icon: Wallet, label: "Wallet", to: "/wallet" },
+  { icon: PlusCircle, label: "Fund request", to: "/fund-request" },
   { icon: Network, label: "Network", to: "/network" },
   { icon: BarChart3, label: "Reports", to: "/reports" },
   { icon: FileText, label: "Statements", to: "/statements" },
@@ -55,21 +56,32 @@ const MOBILE_CORE = [
 ] as const;
 
 function sidebarNavForRole(role: string | undefined) {
-  // Customers = retailer only. Distributor / Super Dist use Network.
+  // Customers = retailer only. Fund request = retailer only. Distributor / Super Dist use Network.
   if (role === "retailer") {
     return [
-      NAV_CORE[0],
-      NAV_CORE[1],
-      NAV_CORE[2],
-      NAV_CORE[3],
+      NAV_CORE[0], // Dashboard
+      NAV_CORE[1], // Transactions
+      NAV_CORE[2], // Wallet
+      NAV_CORE[3], // Fund request
+      NAV_CORE[4], // Network
       NAV_CUSTOMERS,
-      NAV_CORE[4],
-      NAV_CORE[5],
-      NAV_CORE[6],
-      NAV_CORE[7],
+      NAV_CORE[5], // Reports
+      NAV_CORE[6], // Statements
+      NAV_CORE[7], // Settings
+      NAV_CORE[8], // KYC
     ];
   }
-  return [...NAV_CORE];
+  // SD / Dist — no fund-request (bank deposit FR is retailer → admin)
+  return [
+    NAV_CORE[0],
+    NAV_CORE[1],
+    NAV_CORE[2],
+    NAV_CORE[4],
+    NAV_CORE[5],
+    NAV_CORE[6],
+    NAV_CORE[7],
+    NAV_CORE[8],
+  ];
 }
 
 function mobileTabsForRole(role: string | undefined) {

@@ -34,6 +34,7 @@ const OPERATIONS: NavItem[] = [
     ],
   },
   { type: "link", href: "/kyc", label: "KYC Queue", icon: { lib: "md", name: "MdVerifiedUser" } },
+  { type: "link", href: "/fund-requests", label: "Fund requests", icon: { lib: "lucide", icon: IndianRupee } },
   { type: "link", href: "/transactions", label: "All Transactions", icon: { lib: "fa", name: "FaExchangeAlt" } },
 ];
 
@@ -61,7 +62,7 @@ const SITE_CONTROL: NavItem[] = [
     icon: { lib: "fa", name: "FaGlobe" },
     children: [
       { href: "/site-control", label: "Service Badges", icon: { lib: "lucide", icon: Tags } },
-      { href: "/commissions", label: "Commissions", icon: { lib: "lucide", icon: Percent } },
+      { href: "/commission", label: "Commissions", icon: { lib: "lucide", icon: Percent } },
       { href: "/risk-alerts", label: "Risk Alerts", icon: { lib: "lucide", icon: ShieldAlert } },
       { href: "/recovery-workbench", label: "Recovery Workbench", icon: { lib: "lucide", icon: Wrench } },
       { href: "/support-tickets", label: "Support Tickets", icon: { lib: "lucide", icon: LifeBuoy } },
