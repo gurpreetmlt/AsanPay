@@ -65,7 +65,7 @@ const SITE_CONTROL: NavItem[] = [
     label: "Platform Control",
     icon: { lib: "fa", name: "FaGlobe" },
     children: [
-      { href: "/site-control", label: "Service Badges", icon: { lib: "lucide", icon: Tags } },
+      { href: "/site-control", label: "Platform settings", icon: { lib: "lucide", icon: Tags } },
       { href: "/commission", label: "Commissions", icon: { lib: "lucide", icon: Percent } },
       { href: "/risk-alerts", label: "Risk Alerts", icon: { lib: "lucide", icon: ShieldAlert } },
       { href: "/recovery-workbench", label: "Recovery Workbench", icon: { lib: "lucide", icon: Wrench } },

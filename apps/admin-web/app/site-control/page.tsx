@@ -342,10 +342,10 @@ export default function SiteControlPage() {
       <div className="mx-auto max-w-6xl space-y-6 p-4 md:p-6">
         <div>
           <h1 className="text-xl font-bold md:text-2xl" style={{ color: B.blue }}>
-            Site Control
+            Platform settings
           </h1>
           <p className="mt-1 text-sm" style={{ color: B.muted }}>
-            Toggle auto-saves. Badge text — edit then tap Save. Badge Off clears instantly.
+            Treasury limits, service badges, and on/off toggles. Badge text — edit then tap Save.
           </p>
         </div>
 

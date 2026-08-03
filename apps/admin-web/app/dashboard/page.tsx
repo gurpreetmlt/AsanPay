@@ -58,7 +58,7 @@ const QUICK = [
   { href: "/transactions", label: "Transactions", icon: ArrowLeftRight },
   { href: "/wallet", label: "Company wallet", icon: Wallet },
   { href: "/fund-requests", label: "Fund requests", icon: IndianRupee },
-  { href: "/site-control", label: "Site Control", icon: Store },
+  { href: "/site-control", label: "Platform settings", icon: Store },
 ];
 
 export default function DashboardPage() {

@@ -34,9 +34,10 @@ const QUICK_ROUTES = [
   { q: "passbook", href: "/passbook", label: "Wallet statement" },
   { q: "statement", href: "/passbook", label: "Wallet statement" },
   { q: "reconcil", href: "/reconciliation", label: "Txn reconciliation" },
-  { q: "badge", href: "/site-control", label: "Service Badges" },
+  { q: "badge", href: "/site-control", label: "Platform settings" },
   { q: "commission", href: "/commission", label: "Commissions" },
-  { q: "site", href: "/site-control", label: "Site Control" },
+  { q: "site", href: "/site-control", label: "Platform settings" },
+  { q: "treasury", href: "/site-control", label: "Platform settings" },
 ];
 
 function displayName(raw?: string | null) {
