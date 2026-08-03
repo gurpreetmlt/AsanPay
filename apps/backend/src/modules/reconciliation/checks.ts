@@ -107,20 +107,48 @@ export async function checkSolvency(tenantId: string): Promise<ReconFinding[]> {
  * what the journal history implies. A drift here lets an agent withdraw money they spent.
  */
 export async function checkSettleable(tenantId: string): Promise<ReconFinding[]> {
+  // Scoped to LIABILITY accounts on purpose. "Settleable" only means anything for an agent
+  // wallet; treasury and control accounts legitimately run negative (FLOAT_CONTROL sits at
+  // minus the capacity it has issued), so comparing settleable against their balance would
+  // flag every healthy treasury account as an exception.
   const rows = await db.execute<{ code: string; balance: string; settleable: string }>(sql`
     SELECT a.code, ab.balance::text, ab.settleable::text
     FROM accounts a
     JOIN account_balances ab ON ab.account_id = a.id
     WHERE a.tenant_id = ${tenantId}
+      AND a.account_class = 'liability'
       AND (ab.settleable < 0 OR ab.settleable > ab.balance)
   `);
 
-  return rows.rows.map((r) => ({
+  const findings: ReconFinding[] = rows.rows.map((r) => ({
     checkName: "settleable_integrity",
     severity: "critical" as const,
     fingerprint: `settleable_integrity:${r.code}`,
     details: { code: r.code, balancePaise: r.balance, settleablePaise: r.settleable },
   }));
+
+  // The other half of the rule: nothing outside an agent wallet may carry a settleable slice.
+  // A treasury account with settleable > 0 would mean the engine classified platform float as
+  // somebody's withdrawable earnings.
+  const misplaced = await db.execute<{ code: string; settleable: string }>(sql`
+    SELECT a.code, ab.settleable::text
+    FROM accounts a
+    JOIN account_balances ab ON ab.account_id = a.id
+    WHERE a.tenant_id = ${tenantId}
+      AND a.account_class <> 'liability'
+      AND ab.settleable <> 0
+  `);
+
+  for (const r of misplaced.rows) {
+    findings.push({
+      checkName: "settleable_integrity",
+      severity: "critical",
+      fingerprint: `settleable_misplaced:${r.code}`,
+      details: { code: r.code, settleablePaise: r.settleable, reason: "non-agent account carries settleable" },
+    });
+  }
+
+  return findings;
 }
 
 /** Any agent wallet below zero. Should be impossible — the trigger blocks it. */

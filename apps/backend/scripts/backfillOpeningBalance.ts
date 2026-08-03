@@ -175,7 +175,7 @@ async function main() {
 
   if (!APPLY) {
     console.log(`\nDRY RUN — nothing was written.`);
-    console.log(`Re-run with --apply to post ${actionable.length} OPENING_BALANCE journals.\n`);
+    console.log(`Re-run with --apply to open ${actionable.length} account(s).\n`);
     await pgPool.end();
     return;
   }
@@ -228,7 +228,12 @@ async function main() {
   }
 
   clearAccountCache();
-  console.log(`Posted ${posted} journals.`);
+  // A user with both an advance and an earned slice produces two journals, so the journal
+  // count is not the user count — say which one this is.
+  const journalCount =
+    actionable.filter((p) => p.advancePaise > 0n).length +
+    actionable.filter((p) => p.earnedPaise > 0n).length;
+  console.log(`Opened ${posted} account(s) across ${journalCount} journals.`);
 
   await verify(tenant.id, total);
   await pgPool.end();
