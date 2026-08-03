@@ -1,0 +1,27 @@
+---
+description: Production host = Coolify on EC2; do not treat VPS/EC2 as separate deploy work
+alwaysApply: true
+---
+
+# Hosting: Coolify on EC2
+
+## Fact
+
+- **Production deploy path:** Git push → **Coolify** redeploy (apps/services in Coolify UI).
+- Coolify **already runs on AWS EC2**. EC2 is the machine; Coolify is how we ship.
+- Env vars, rebuilds, and service restarts = **Coolify dashboard** (or Coolify-linked git auto-deploy), not SSH “manual VPS deploy” as a separate project task.
+
+## Agent must
+
+1. After backend/web changes: say **Coolify pe redeploy** (+ exact env `KEY=value` if needed). See `deploy-flow` rule.
+2. **Never** invent a next step like “set up VPS”, “deploy to EC2”, “install Coolify”, or treat EC2 SSH as the normal ship path — unless the user explicitly asks for infra/SSH work.
+3. Migrate/seed commands: give Mac Terminal copy-paste against the **same prod DB** the Coolify backend uses (Neon/Postgres URL already in Coolify env) — do not imply a second “EC2 database setup”.
+4. Load tests / heavy runtime: may mention Coolify/EC2 capacity, but still ship code via Coolify; don’t open an “EC2 provisioning” task by default.
+
+## Do not confuse
+
+| Wrong | Right |
+|-------|--------|
+| “Ab VPS pe deploy karo” | Coolify pe backend/web redeploy |
+| “EC2 pe server setup pending” | Hosting already Coolify→EC2 |
+| Agent SSH into EC2 to `git pull` | User pushes git; Coolify builds/deploys |
