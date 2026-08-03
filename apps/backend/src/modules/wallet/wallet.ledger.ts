@@ -45,7 +45,11 @@ import {
 } from "../../core/ledger";
 import { rupeesToPaise, paiseToRupees, type Paise } from "../../core/money";
 import { HttpError } from "../../utils/httpError";
-import { ensureHierarchyAccount, floatAccountCode } from "./ledgerAccounts";
+import {
+  ensureHierarchyAccount,
+  ensureTreasuryAccount,
+  floatAccountCode,
+} from "./ledgerAccounts";
 
 const COMPANY = "COMPANY_001";
 const FLOAT_CONTROL = "TREASURY_FLOAT_CONTROL";
@@ -156,6 +160,7 @@ async function agentAccountCode(tx: Tx, tenantId: string, side: WalletSide): Pro
  */
 async function serviceJournalContext(
   tx: Tx,
+  tenantId: string,
   transactionId: string,
 ): Promise<{ txnType: TxnType; floatCode: string }> {
   const [row] = await tx
@@ -163,6 +168,7 @@ async function serviceJournalContext(
       serviceCode: services.code,
       categoryCode: serviceCategories.code,
       providerCode: providers.code,
+      providerName: providers.name,
     })
     .from(transactions)
     .innerJoin(services, eq(services.id, transactions.serviceId))
@@ -193,7 +199,20 @@ async function serviceJournalContext(
     );
   }
 
-  return { txnType, floatCode: floatAccountCode(row.providerCode) };
+  // Provision the float account if it is missing rather than failing the money path. A provider
+  // row can appear at runtime — resolveAepsProvider() inserts one when the configured AePS
+  // adapter has no row yet — and that provider would otherwise have no credit side for its
+  // first journal. ensureTreasuryAccount is ON CONFLICT DO NOTHING and creates exactly what
+  // `npm run provision:float` creates, so the two paths cannot diverge.
+  const floatCode = floatAccountCode(row.providerCode);
+  await ensureTreasuryAccount(tx, {
+    tenantId,
+    code: floatCode,
+    name: `Float — ${row.providerName}`,
+    type: "float",
+  });
+
+  return { txnType, floatCode };
 }
 
 // ---------------------------------------------------------------------------------------
@@ -502,7 +521,7 @@ async function planTransfer(
       if (!referenceId) {
         throw new HttpError(500, "A service journal needs its transaction id", "REFERENCE_REQUIRED");
       }
-      const { txnType, floatCode } = await serviceJournalContext(tx, referenceId);
+      const { txnType, floatCode } = await serviceJournalContext(tx, tenantId, referenceId);
 
       // Debit: the retailer spends into our float. Dr RTL / Cr FLOAT.
       if (to.isAggregator) {
