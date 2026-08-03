@@ -26,7 +26,7 @@ Wallet-engine MVP queue (27A–27D) is finished. New work → pick from `docs/TA
 ### 27D
 - VAN provisioning / assign API for agents (table exists; webhook credits existing rows)
 - Bank-specific payload adapters (generic HMAC body only)
-- Admin UI for suspense resolution of unidentified VAN credits
+- Admin UI for suspense resolution of unidentified VAN credits → see also admin `/banking` park-suspense for statement unmatched credits
 
 ## After each task
 1. Set that row to `done`, next row to `CURRENT`.

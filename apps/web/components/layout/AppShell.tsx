@@ -24,6 +24,11 @@ import {
   SendHorizonal,
   Download,
   ChevronDown,
+  Landmark,
+  LifeBuoy,
+  PiggyBank,
+  ListTodo,
+  UserCheck,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { AsanPayLogo, AsanIcon } from "@/components/brand/Logo";
@@ -42,25 +47,34 @@ const NAV_CORE = [
   { icon: FileText, label: "Statements", to: "/statements" },
   { icon: Settings, label: "Settings", to: "/settings" },
   { icon: Shield, label: "KYC", to: "/kyc" },
+  { icon: LifeBuoy, label: "Support", to: "/support" },
 ] as const;
 
 const NAV_CUSTOMERS = { icon: Users, label: "Customers", to: "/customers" } as const;
+
+const NAV_PARTNER_TOOLS = [
+  { icon: PiggyBank, label: "Float & earnings", to: "/float-planner" },
+  { icon: ListTodo, label: "Action queue", to: "/action-queue" },
+  { icon: UserCheck, label: "KYC assistant", to: "/kyc-assistant" },
+] as const;
 
 /** Wallet group — Fund request / Add Money lives here (not a top-level sidebar item). */
 const WALLET_CHILDREN_RETAILER = [
   { icon: Wallet, label: "Overview", to: "/wallet" },
   { icon: PlusCircle, label: "Add Money", to: "/fund-request" },
+  { icon: Landmark, label: "Settlements", to: "/settlements" },
   { icon: SendHorizonal, label: "Transfer", to: "/wallet" },
   { icon: Download, label: "Statement", to: "/statements" },
 ] as const;
 
 const WALLET_CHILDREN_PARTNER = [
   { icon: Wallet, label: "Overview", to: "/wallet" },
+  { icon: Landmark, label: "Settlements", to: "/settlements" },
   { icon: SendHorizonal, label: "Transfer", to: "/wallet" },
   { icon: Download, label: "Statement", to: "/statements" },
 ] as const;
 
-const WALLET_PATHS = ["/wallet", "/fund-request"] as const;
+const WALLET_PATHS = ["/wallet", "/fund-request", "/settlements"] as const;
 
 const MOBILE_CORE = [
   { icon: LayoutDashboard, label: "Home", to: "/dashboard" },
@@ -82,16 +96,19 @@ function sidebarNavForRole(role: string | undefined) {
       NAV_CORE[4], // Statements
       NAV_CORE[5], // Settings
       NAV_CORE[6], // KYC
+      NAV_CORE[7], // Support
     ];
   }
   return [
     NAV_CORE[0],
     NAV_CORE[1],
     NAV_CORE[2],
+    ...NAV_PARTNER_TOOLS,
     NAV_CORE[3],
     NAV_CORE[4],
     NAV_CORE[5],
     NAV_CORE[6],
+    NAV_CORE[7],
   ];
 }
 

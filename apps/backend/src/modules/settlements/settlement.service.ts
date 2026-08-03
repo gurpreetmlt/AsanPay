@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "../../db/postgres";
 import {
   accounts,
@@ -725,6 +725,60 @@ export async function listSettlementRequests(params: {
   }));
 }
 
+/** Admin: banks awaiting verification (for settle bank approve queue). */
+export async function listPendingSettlementBanks(params: {
+  tenantId: string;
+  limit?: number;
+}): Promise<
+  {
+    id: string;
+    userId: string;
+    userName: string;
+    userUid: string;
+    userMobile: string;
+    accountNumberLast4: string;
+    ifsc: string;
+    holderName: string;
+    createdAt: string;
+  }[]
+> {
+  const limit = Math.min(params.limit ?? 50, 100);
+  const rows = await db
+    .select({
+      id: agentSettlementAccounts.id,
+      userId: agentSettlementAccounts.userId,
+      userName: users.name,
+      userUid: users.uid,
+      userMobile: users.mobile,
+      accountNumberLast4: agentSettlementAccounts.accountNumberLast4,
+      ifsc: agentSettlementAccounts.ifsc,
+      holderName: agentSettlementAccounts.holderName,
+      createdAt: agentSettlementAccounts.createdAt,
+    })
+    .from(agentSettlementAccounts)
+    .innerJoin(users, eq(users.id, agentSettlementAccounts.userId))
+    .where(
+      and(
+        eq(agentSettlementAccounts.tenantId, params.tenantId),
+        isNull(agentSettlementAccounts.verifiedAt),
+      ),
+    )
+    .orderBy(asc(agentSettlementAccounts.createdAt))
+    .limit(limit);
+
+  return rows.map((r) => ({
+    id: String(r.id),
+    userId: r.userId,
+    userName: r.userName,
+    userUid: r.userUid,
+    userMobile: r.userMobile,
+    accountNumberLast4: r.accountNumberLast4,
+    ifsc: r.ifsc,
+    holderName: r.holderName,
+    createdAt: r.createdAt.toISOString(),
+  }));
+}
+
 /** Admin list of open settlements awaiting payout confirmation. */
 export async function listOpenSettlements(params: {
   tenantId: string;
@@ -736,6 +790,9 @@ export async function listOpenSettlements(params: {
     .select({
       id: settlementRequests.id,
       userId: settlementRequests.userId,
+      userName: users.name,
+      userUid: users.uid,
+      userMobile: users.mobile,
       amount: settlementRequests.amount,
       netAmount: settlementRequests.netAmount,
       mode: settlementRequests.mode,
@@ -750,6 +807,7 @@ export async function listOpenSettlements(params: {
       agentSettlementAccounts,
       eq(agentSettlementAccounts.id, settlementRequests.settlementAccountId),
     )
+    .innerJoin(users, eq(users.id, settlementRequests.userId))
     .where(
       and(
         eq(settlementRequests.tenantId, params.tenantId),
@@ -762,6 +820,9 @@ export async function listOpenSettlements(params: {
   return rows.map((r) => ({
     requestId: String(r.id),
     userId: r.userId,
+    userName: r.userName,
+    userUid: r.userUid,
+    userMobile: r.userMobile,
     amount: paiseToRupees(r.amount),
     netAmount: paiseToRupees(r.netAmount),
     mode: r.mode,

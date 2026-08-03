@@ -111,13 +111,21 @@ bankingRouter.post(
 bankingRouter.use(requireAuth);
 
 bankingRouter.get("/accounts", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
   const tenantId = await resolveTenantId();
+  const purposeRaw = typeof req.query.purpose === "string" ? req.query.purpose : "collection";
+  if (purposeRaw === "all" && req.auth.role !== "admin") {
+    throw new HttpError(403, "Only admin can list all bank accounts", "FORBIDDEN");
+  }
   const purpose =
-    typeof req.query.purpose === "string" &&
-    ["collection", "payout", "ops"].includes(req.query.purpose)
-      ? (req.query.purpose as "collection" | "payout" | "ops")
-      : "collection";
-  const accounts = await listBankAccounts(tenantId, { purpose });
+    purposeRaw === "all"
+      ? undefined
+      : ["collection", "payout", "ops"].includes(purposeRaw)
+        ? (purposeRaw as "collection" | "payout" | "ops")
+        : "collection";
+  // Admin "all" view includes inactive rows so ops can see full bank inventory.
+  const activeOnly = purposeRaw === "all" ? false : true;
+  const accounts = await listBankAccounts(tenantId, { purpose, activeOnly });
   sendSuccess(res, accounts);
 });
 

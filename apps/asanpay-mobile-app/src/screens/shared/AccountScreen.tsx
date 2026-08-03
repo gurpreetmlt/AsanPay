@@ -20,6 +20,9 @@ import {
   getBioUnlock,
 } from "../../lib/bioUnlock";
 import type { LoginRoleChip } from "../LoginScreen";
+import { SupportModal } from "./SupportModal";
+import { SettlementsModal } from "./SettlementsModal";
+import { FundRequestModal } from "./FundRequestScreen";
 
 const THEME_OPTIONS: { key: ThemeMode; label: string; icon: typeof Sun }[] = [
   { key: "light", label: "Light", icon: Sun },
@@ -36,6 +39,9 @@ export function AccountScreen() {
   const [showSetMpin, setShowSetMpin] = useState(false);
   const [showDevices, setShowDevices] = useState(false);
   const [bioEnabled, setBioEnabled] = useState(false);
+  const [showSupport, setShowSupport] = useState(false);
+  const [showSettlements, setShowSettlements] = useState(false);
+  const [showFund, setShowFund] = useState(false);
 
   useEffect(() => {
     void getBioUnlock().then((rec) => {
@@ -174,7 +180,23 @@ export function AccountScreen() {
         </Pressable>
         <Pressable
           style={[styles.menuItem, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
-          onPress={() => showAlert("Coming soon", "Support tickets")}
+          onPress={() => setShowSettlements(true)}
+        >
+          <Text style={[styles.menuText, { color: tokens.txt }]}>Settlements</Text>
+          <ChevronRight size={18} color={tokens.mute} />
+        </Pressable>
+        {user.role === "retailer" ? (
+          <Pressable
+            style={[styles.menuItem, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
+            onPress={() => setShowFund(true)}
+          >
+            <Text style={[styles.menuText, { color: tokens.txt }]}>Add Money</Text>
+            <ChevronRight size={18} color={tokens.mute} />
+          </Pressable>
+        ) : null}
+        <Pressable
+          style={[styles.menuItem, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
+          onPress={() => setShowSupport(true)}
         >
           <Text style={[styles.menuText, { color: tokens.txt }]}>Help & support</Text>
           <ChevronRight size={18} color={tokens.mute} />
@@ -205,6 +227,9 @@ export function AccountScreen() {
       />
       <SetTxnPinModal visible={showSetPin} onClose={() => setShowSetPin(false)} />
       <TrustedDevicesModal visible={showDevices} onClose={() => setShowDevices(false)} />
+      <SupportModal visible={showSupport} onClose={() => setShowSupport(false)} />
+      <SettlementsModal visible={showSettlements} onClose={() => setShowSettlements(false)} />
+      <FundRequestModal visible={showFund} onClose={() => setShowFund(false)} />
     </SafeAreaView>
   );
 }

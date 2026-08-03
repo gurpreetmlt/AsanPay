@@ -4,7 +4,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Crown, Network, Store, Tags, Percent, Plug, ScrollText, Scale, ShieldAlert, Wrench, LifeBuoy, IndianRupee } from "lucide-react";
+import { ChevronDown, Crown, Network, Store, Tags, Percent, Plug, ScrollText, Scale, ShieldAlert, Wrench, LifeBuoy, IndianRupee, Landmark, Building2 } from "lucide-react";
 import { AsanPayLogo } from "@/components/brand/Logo";
 import { AnimatedNavIcon } from "@/components/ui/AnimatedNavIcon";
 import type { NavIconDef } from "@/lib/iconTypes";
@@ -48,6 +48,8 @@ const TREASURY: NavItem[] = [
     children: [
       { href: "/wallet", label: "Company wallet", icon: { lib: "md", name: "MdAccountBalanceWallet" } },
       { href: "/fund-requests", label: "Fund requests", icon: { lib: "lucide", icon: IndianRupee } },
+      { href: "/settlements", label: "Settlements", icon: { lib: "lucide", icon: Landmark } },
+      { href: "/banking", label: "Banking", icon: { lib: "lucide", icon: Building2 } },
       { href: "/passbook", label: "Wallet statement", icon: { lib: "fa", name: "FaHistory" } },
       { href: "/reconciliation", label: "Txn reconciliation", icon: { lib: "lucide", icon: Scale } },
     ],

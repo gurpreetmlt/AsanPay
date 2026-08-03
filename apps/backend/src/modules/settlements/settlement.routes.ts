@@ -17,6 +17,7 @@ import {
   getSettlementRequest,
   listSettlementRequests,
   listOpenSettlements,
+  listPendingSettlementBanks,
 } from "./settlement.service";
 import {
   registerSettlementBankSchema,
@@ -111,6 +112,12 @@ settlementRouter.get("/requests", requireRole(...AGENT_ROLES), async (req, res) 
 settlementRouter.get("/requests/open", requireRole("admin"), async (_req, res) => {
   const tenantId = await resolveTenantId();
   const data = await listOpenSettlements({ tenantId });
+  sendSuccess(res, data);
+});
+
+settlementRouter.get("/banks/pending", requireRole("admin"), async (_req, res) => {
+  const tenantId = await resolveTenantId();
+  const data = await listPendingSettlementBanks({ tenantId });
   sendSuccess(res, data);
 });
 

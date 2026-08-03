@@ -2,14 +2,15 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ArrowRightLeft, Landmark } from "lucide-react-native";
+import { Landmark } from "lucide-react-native";
 import { fetchApi } from "../../lib/api";
 import { formatDate, formatINR } from "../../lib/format";
 import type { LedgerEntry, WalletBalance } from "../../lib/types";
 import { useAuthStore } from "../../store/auth";
 import { useTheme } from "../../theme/ThemeContext";
 import { colors, gradientDirection } from "../../theme/colors";
-import { showAlert } from "../../components/AppAlert";
+import { FundRequestModal } from "./FundRequestScreen";
+import { SettlementsModal } from "./SettlementsModal";
 
 type WalletKind = "main" | "aeps";
 
@@ -21,6 +22,8 @@ export function WalletScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [active, setActive] = useState<WalletKind>("main");
+  const [showFund, setShowFund] = useState(false);
+  const [showSettle, setShowSettle] = useState(false);
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -124,26 +127,34 @@ export function WalletScreen() {
             {active === "main" ? "Available for services" : "AEPS settlements settle here"}
           </Text>
           <View style={styles.heroActions}>
-            <Pressable style={styles.heroBtn} onPress={() => showAlert("Coming soon", "Load wallet flow")}>
-              <Text style={styles.heroBtnText}>+ Add Money</Text>
-            </Pressable>
+            {user.role === "retailer" ? (
+              <Pressable style={styles.heroBtn} onPress={() => setShowFund(true)}>
+                <Text style={styles.heroBtnText}>+ Add Money</Text>
+              </Pressable>
+            ) : (
+              <Pressable style={styles.heroBtn} onPress={() => setShowSettle(true)}>
+                <Text style={styles.heroBtnText}>Settlements</Text>
+              </Pressable>
+            )}
             <Pressable style={[styles.heroBtn, styles.heroBtnOutline]} onPress={() => void load(true)}>
               <Text style={styles.heroBtnText}>Refresh</Text>
             </Pressable>
           </View>
         </LinearGradient>
 
-        {active === "aeps" ? (
+        {active === "aeps" || user.role === "retailer" ? (
           <Pressable
             style={[styles.settleBanner, { backgroundColor: tokens.card, borderColor: colors.greenLight }]}
-            onPress={() => showAlert("Coming soon", "Instant settlement to Main Wallet is coming soon.")}
+            onPress={() => setShowSettle(true)}
           >
             <View style={styles.settleIcon}>
-              <ArrowRightLeft size={18} color="#fff" strokeWidth={2} />
+              <Landmark size={18} color="#fff" strokeWidth={2} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.settleTitle, { color: tokens.txt }]}>Settle to Main Wallet</Text>
-              <Text style={[styles.settleSub, { color: tokens.sub }]}>Move AEPS earnings instantly, free</Text>
+              <Text style={[styles.settleTitle, { color: tokens.txt }]}>Withdraw to bank</Text>
+              <Text style={[styles.settleSub, { color: tokens.sub }]}>
+                Request settlement to your verified bank account
+              </Text>
             </View>
             <View style={styles.settleBtn}>
               <Text style={styles.settleBtnText}>Settle</Text>
@@ -195,6 +206,9 @@ export function WalletScreen() {
           </View>
         )}
       </ScrollView>
+
+      <FundRequestModal visible={showFund} onClose={() => setShowFund(false)} />
+      <SettlementsModal visible={showSettle} onClose={() => setShowSettle(false)} />
     </SafeAreaView>
   );
 }
