@@ -452,6 +452,45 @@ export function commissionCreditEmailTemplate(input: {
   };
 }
 
+export function vanDepositCreditEmailTemplate(input: {
+  name: string;
+  amount: string;
+  bankTxnId: string;
+}): SendMailInput {
+  const name = input.name.trim() || "there";
+  const text = [
+    `Hi ${name},`,
+    ``,
+    `₹${input.amount} was credited to your AsanPay wallet from a virtual account deposit.`,
+    `Bank reference: ${input.bankTxnId}`,
+    ``,
+    `— Team AsanPay`,
+  ].join("\n");
+
+  const bodyHtml = `
+    <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${BRAND.green}">Wallet</p>
+    <h1 style="margin:0 0 12px;font-size:26px;line-height:1.2;font-weight:800;letter-spacing:-0.03em;color:${BRAND.blueDeep}">Deposit credited</h1>
+    <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:${BRAND.muted}">Hi ${escapeHtml(name)},</p>
+    <div style="margin:0 0 16px;padding:20px;border-radius:14px;background:${BRAND.bg};border:1px solid ${BRAND.border};text-align:center">
+      <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND.muted}">Amount</div>
+      <div style="margin-top:6px;font-size:32px;font-weight:800;color:${BRAND.green}">₹${escapeHtml(input.amount)}</div>
+    </div>
+    <p style="margin:0;font-size:13px;color:${BRAND.muted}">Bank reference: <strong style="color:${BRAND.blue}">${escapeHtml(input.bankTxnId)}</strong></p>
+  `;
+
+  return {
+    to: "",
+    subject: "AsanPay deposit credited",
+    text,
+    html: brandedEmailHtml({
+      preheader: `₹${input.amount} deposited to your wallet.`,
+      title: "AsanPay deposit credited",
+      bodyHtml,
+      accent: "green",
+    }),
+  };
+}
+
 export function securityPinChangedEmailTemplate(input: {
   name: string;
   kind: "mpin" | "password";

@@ -1,14 +1,20 @@
-import { createHash } from "node:crypto";
-import { and, eq, lt, sql } from "drizzle-orm";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { and, eq, lt, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { db } from "../../db/postgres";
-import { accounts, bankAccounts, bankStatementLines } from "../../db/postgres/schema";
+import { accounts, bankAccounts, bankStatementLines, virtualAccounts } from "../../db/postgres/schema";
 import { postJournal } from "../../core/ledger";
 import { ensureTreasuryAccount } from "../wallet/ledgerAccounts";
 import { encryptPII } from "../../utils/aes";
 import { HttpError } from "../../utils/httpError";
+import { env } from "../../config/env";
 import type { Paise } from "../../core/money";
 
 const SUSPENSE = "TREASURY_SUSPENSE_UNIDENTIFIED";
+const COMPANY = "COMPANY_001";
+
+const ownerAccounts = alias(accounts, "van_owner_accounts");
+const bankLedgerAccounts = alias(accounts, "van_bank_ledger_accounts");
 
 /**
  * Banks write the same reference three different ways — "UTR 1234-5678", "utr1234 5678",
@@ -266,4 +272,368 @@ export async function listBankAccounts(
     supportsVan: r.supportsVan,
     isActive: r.isActive,
   }));
+}
+
+/** Canonical string signed by the bank: bankTxnId|vanNumber|vpa|amount */
+export function vanWebhookCanonical(input: {
+  bankTxnId: string;
+  vanNumber?: string | null;
+  vpa?: string | null;
+  amount: string;
+}): string {
+  return [input.bankTxnId, input.vanNumber ?? "", input.vpa ?? "", input.amount].join("|");
+}
+
+/**
+ * Verify X-Van-Signature (hex HMAC-SHA256, optional `sha256=` prefix) against VAN_WEBHOOK_SECRET.
+ * Fail-closed when the secret is unset — never accept unsigned credits in production by accident.
+ */
+export function assertVanWebhookSignature(canonical: string, headerValue: string | undefined): void {
+  const secret = env.VAN_WEBHOOK_SECRET;
+  if (!secret) {
+    throw new HttpError(
+      503,
+      "VAN webhook is not configured. Set VAN_WEBHOOK_SECRET on the server.",
+      "WEBHOOK_NOT_CONFIGURED",
+    );
+  }
+  if (!headerValue?.trim()) {
+    throw new HttpError(401, "Missing X-Van-Signature header", "SIGNATURE_MISSING");
+  }
+  const providedHex = headerValue.trim().toLowerCase().startsWith("sha256=")
+    ? headerValue.trim().slice(7)
+    : headerValue.trim();
+  const expectedHex = createHmac("sha256", secret).update(canonical, "utf8").digest("hex");
+  try {
+    const a = Buffer.from(providedHex, "hex");
+    const b = Buffer.from(expectedHex, "hex");
+    if (a.length !== b.length || !timingSafeEqual(a, b)) {
+      throw new HttpError(401, "Invalid X-Van-Signature", "SIGNATURE_INVALID");
+    }
+  } catch (err) {
+    if (err instanceof HttpError) throw err;
+    throw new HttpError(401, "Invalid X-Van-Signature", "SIGNATURE_INVALID");
+  }
+}
+
+export type VanWebhookResult = {
+  outcome: "credited" | "suspense";
+  replayed: boolean;
+  bankTxnId: string;
+  amount: string;
+  receiveJournalId?: string;
+  creditJournalId?: string;
+  suspenseJournalId?: string;
+  ownerUserId?: string | null;
+  vanId?: string;
+};
+
+/**
+ * Path A top-up: bank webhook on a virtual account.
+ *   Matched VAN  → DEPOSIT_RECEIVE + DEPOSIT_CREDIT (idem keys from bank txn id)
+ *   Unknown VAN  → UNIDENTIFIED_CREDIT to suspense (never guess a wallet)
+ */
+export async function processVanWebhookCredit(params: {
+  tenantId: string;
+  bankTxnId: string;
+  amount: Paise;
+  amountRupees: string;
+  vanNumber?: string | null;
+  vpa?: string | null;
+  utr?: string | null;
+  txnDate?: string;
+  narration?: string | null;
+  senderName?: string | null;
+  collectionAccountLast4?: string | null;
+}): Promise<VanWebhookResult> {
+  const { tenantId, bankTxnId, amount } = params;
+  if (amount <= 0n) throw new HttpError(422, "Amount must be greater than zero", "INVALID_AMOUNT");
+
+  const van = await findActiveVan(tenantId, params.vanNumber, params.vpa);
+
+  if (van) {
+    return creditMatchedVan({
+      tenantId,
+      bankTxnId,
+      amount,
+      amountRupees: params.amountRupees,
+      van,
+      utr: params.utr,
+      txnDate: params.txnDate,
+      narration: params.narration,
+      senderName: params.senderName,
+    });
+  }
+
+  return parkUnmatchedVanCredit({
+    tenantId,
+    bankTxnId,
+    amount,
+    amountRupees: params.amountRupees,
+    collectionAccountLast4: params.collectionAccountLast4,
+    utr: params.utr,
+    txnDate: params.txnDate,
+    narration: params.narration,
+    senderName: params.senderName,
+  });
+}
+
+async function findActiveVan(
+  tenantId: string,
+  vanNumber: string | null | undefined,
+  vpa: string | null | undefined,
+): Promise<{
+  id: bigint;
+  bankAccountId: bigint;
+  ownerAccountId: bigint;
+  ownerCode: string;
+  ownerUserId: string | null;
+  blockTopup: boolean;
+  bankCode: string;
+} | null> {
+  const vanCond =
+    vanNumber && vpa
+      ? or(eq(virtualAccounts.vanNumber, vanNumber), eq(virtualAccounts.vpa, vpa))
+      : vanNumber
+        ? eq(virtualAccounts.vanNumber, vanNumber)
+        : vpa
+          ? eq(virtualAccounts.vpa, vpa)
+          : null;
+  if (!vanCond) return null;
+
+  const [row] = await db
+    .select({
+      id: virtualAccounts.id,
+      bankAccountId: virtualAccounts.bankAccountId,
+      ownerAccountId: virtualAccounts.ownerAccountId,
+      ownerCode: ownerAccounts.code,
+      ownerUserId: ownerAccounts.userId,
+      blockTopup: ownerAccounts.blockTopup,
+      bankCode: bankLedgerAccounts.code,
+    })
+    .from(virtualAccounts)
+    .innerJoin(ownerAccounts, eq(ownerAccounts.id, virtualAccounts.ownerAccountId))
+    .innerJoin(bankAccounts, eq(bankAccounts.id, virtualAccounts.bankAccountId))
+    .innerJoin(bankLedgerAccounts, eq(bankLedgerAccounts.id, bankAccounts.ledgerAccountId))
+    .where(
+      and(
+        eq(virtualAccounts.tenantId, tenantId),
+        eq(virtualAccounts.status, "active"),
+        vanCond,
+      ),
+    )
+    .limit(1);
+
+  return row ?? null;
+}
+
+async function creditMatchedVan(params: {
+  tenantId: string;
+  bankTxnId: string;
+  amount: Paise;
+  amountRupees: string;
+  van: {
+    id: bigint;
+    bankAccountId: bigint;
+    ownerAccountId: bigint;
+    ownerCode: string;
+    ownerUserId: string | null;
+    blockTopup: boolean;
+    bankCode: string;
+  };
+  utr?: string | null;
+  txnDate?: string;
+  narration?: string | null;
+  senderName?: string | null;
+}): Promise<VanWebhookResult> {
+  const { tenantId, bankTxnId, amount, van } = params;
+
+  if (van.blockTopup) {
+    throw new HttpError(403, "Fund top-ups are blocked for this account", "TOPUP_BLOCKED");
+  }
+  if (!van.bankCode) {
+    throw new HttpError(500, "Bank account has no ledger account", "BANK_NOT_LINKED");
+  }
+
+  const txnDate = params.txnDate ?? new Date().toISOString().slice(0, 10);
+  const receiveKey = `VAN:${van.bankAccountId}:${bankTxnId}:RECEIVE`;
+  const creditKey = `VAN:${van.bankAccountId}:${bankTxnId}:CREDIT`;
+
+  return db.transaction(async (tx) => {
+    const receive = await postJournal(tx, {
+      tenantId,
+      txnType: "DEPOSIT_RECEIVE",
+      idemKey: receiveKey,
+      performedBy: null,
+      referenceId: bankTxnId,
+      reason: "VAN deposit received",
+      entries: [
+        { code: van.bankCode, dir: "DR", amount },
+        { code: COMPANY, dir: "CR", amount },
+      ],
+    });
+
+    const credit = await postJournal(tx, {
+      tenantId,
+      txnType: "DEPOSIT_CREDIT",
+      idemKey: creditKey,
+      performedBy: null,
+      referenceId: bankTxnId,
+      reason: "VAN deposit credited to wallet",
+      entries: [
+        { code: COMPANY, dir: "DR", amount },
+        { code: van.ownerCode, dir: "CR", amount },
+      ],
+    });
+
+    await tx
+      .insert(bankStatementLines)
+      .values({
+        tenantId,
+        bankAccountId: van.bankAccountId,
+        bankTxnId,
+        txnDate,
+        direction: "CR",
+        amount,
+        utr: params.utr ?? null,
+        utrNorm: normaliseUtr(params.utr),
+        narration: params.narration ?? null,
+        senderName: params.senderName ?? null,
+        matchStatus: "matched",
+        matchedToType: "van",
+        matchedToId: van.id,
+      })
+      .onConflictDoNothing({
+        target: [bankStatementLines.bankAccountId, bankStatementLines.bankTxnId],
+      });
+
+    return {
+      outcome: "credited" as const,
+      replayed: receive.replayed || credit.replayed,
+      bankTxnId,
+      amount: params.amountRupees,
+      receiveJournalId: String(receive.id),
+      creditJournalId: String(credit.id),
+      ownerUserId: van.ownerUserId,
+      vanId: String(van.id),
+    };
+  });
+}
+
+async function parkUnmatchedVanCredit(params: {
+  tenantId: string;
+  bankTxnId: string;
+  amount: Paise;
+  amountRupees: string;
+  collectionAccountLast4?: string | null;
+  utr?: string | null;
+  txnDate?: string;
+  narration?: string | null;
+  senderName?: string | null;
+}): Promise<VanWebhookResult> {
+  const bank = await resolveBankForUnmatched(params.tenantId, params.collectionAccountLast4);
+  const txnDate = params.txnDate ?? new Date().toISOString().slice(0, 10);
+  const suspenseKey = `VAN:${bank.bankAccountId}:${params.bankTxnId}:SUSPENSE`;
+
+  return db.transaction(async (tx) => {
+    const journal = await postJournal(tx, {
+      tenantId: params.tenantId,
+      txnType: "UNIDENTIFIED_CREDIT",
+      idemKey: suspenseKey,
+      performedBy: null,
+      referenceId: params.bankTxnId,
+      reason: "VAN webhook credit unmatched — parked in suspense",
+      entries: [
+        { code: bank.bankCode, dir: "DR", amount: params.amount },
+        { code: SUSPENSE, dir: "CR", amount: params.amount },
+      ],
+    });
+
+    await tx
+      .insert(bankStatementLines)
+      .values({
+        tenantId: params.tenantId,
+        bankAccountId: bank.bankAccountId,
+        bankTxnId: params.bankTxnId,
+        txnDate,
+        direction: "CR",
+        amount: params.amount,
+        utr: params.utr ?? null,
+        utrNorm: normaliseUtr(params.utr),
+        narration: params.narration ?? null,
+        senderName: params.senderName ?? null,
+        matchStatus: "suspense",
+        suspenseJournalId: journal.id,
+      })
+      .onConflictDoNothing({
+        target: [bankStatementLines.bankAccountId, bankStatementLines.bankTxnId],
+      });
+
+    return {
+      outcome: "suspense" as const,
+      replayed: journal.replayed,
+      bankTxnId: params.bankTxnId,
+      amount: params.amountRupees,
+      suspenseJournalId: String(journal.id),
+    };
+  });
+}
+
+/** Prefer last4 match; otherwise the single active VAN-capable collection bank. Never guess a wallet. */
+async function resolveBankForUnmatched(
+  tenantId: string,
+  last4: string | null | undefined,
+): Promise<{ bankAccountId: bigint; bankCode: string }> {
+  if (last4) {
+    const [row] = await db
+      .select({
+        bankAccountId: bankAccounts.id,
+        bankCode: accounts.code,
+      })
+      .from(bankAccounts)
+      .innerJoin(accounts, eq(accounts.id, bankAccounts.ledgerAccountId))
+      .where(
+        and(
+          eq(bankAccounts.tenantId, tenantId),
+          eq(bankAccounts.accountNumberLast4, last4),
+          eq(bankAccounts.purpose, "collection"),
+          eq(bankAccounts.isActive, true),
+        ),
+      )
+      .limit(1);
+
+    if (!row) {
+      throw new HttpError(
+        422,
+        `No active collection bank found for account ending in ${last4}`,
+        "BANK_NOT_FOUND",
+      );
+    }
+    return row;
+  }
+
+  const rows = await db
+    .select({
+      bankAccountId: bankAccounts.id,
+      bankCode: accounts.code,
+    })
+    .from(bankAccounts)
+    .innerJoin(accounts, eq(accounts.id, bankAccounts.ledgerAccountId))
+    .where(
+      and(
+        eq(bankAccounts.tenantId, tenantId),
+        eq(bankAccounts.purpose, "collection"),
+        eq(bankAccounts.supportsVan, true),
+        eq(bankAccounts.isActive, true),
+      ),
+    )
+    .limit(2);
+
+  if (rows.length === 1 && rows[0]) return rows[0];
+
+  throw new HttpError(
+    422,
+    "Unknown VAN — provide collectionAccountLast4 so the credit can be parked in suspense",
+    "COLLECTION_ACCOUNT_REQUIRED",
+  );
 }

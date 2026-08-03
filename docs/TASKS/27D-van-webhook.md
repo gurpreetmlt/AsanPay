@@ -26,5 +26,5 @@ Path A top-up: bank webhook on virtual account → DEPOSIT_RECEIVE + DEPOSIT_CRE
 - Explore outside Read ONLY
 
 ## Done when
-- [ ] Same webhook replay never double-credits
-- [ ] Unknown VAN money goes to suspense, not a guessed wallet
+- [x] Same webhook replay never double-credits
+- [x] Unknown VAN money goes to suspense, not a guessed wallet

@@ -42,3 +42,30 @@ export const parkSuspenseSchema = z.object({
   olderThanHours: z.coerce.number().int().min(1).max(720).optional(),
 });
 export type ParkSuspenseBody = z.infer<typeof parkSuspenseSchema>;
+
+/** Bank → AsanPay VAN credit webhook body. Signature covers bankTxnId|vanNumber|vpa|amount. */
+export const vanWebhookSchema = z
+  .object({
+    bankTxnId: z.string().trim().min(1, "bankTxnId is required").max(120),
+    amount: amountSchema,
+    vanNumber: z.string().trim().min(1).max(40).optional().nullable(),
+    vpa: z.string().trim().min(1).max(100).optional().nullable(),
+    utr: z.string().trim().max(60).optional().nullable(),
+    txnDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "txnDate must be YYYY-MM-DD")
+      .optional(),
+    narration: z.string().trim().max(500).optional().nullable(),
+    senderName: z.string().trim().max(160).optional().nullable(),
+    /** Last 4 of the company collection account — required when the VAN cannot be matched. */
+    collectionAccountLast4: z
+      .string()
+      .regex(/^\d{4}$/, "collectionAccountLast4 must be exactly 4 digits")
+      .optional()
+      .nullable(),
+  })
+  .refine((b) => Boolean(b.vanNumber?.trim()) || Boolean(b.vpa?.trim()), {
+    message: "Provide vanNumber or vpa so the credit can be matched",
+    path: ["vanNumber"],
+  });
+export type VanWebhookBody = z.infer<typeof vanWebhookSchema>;

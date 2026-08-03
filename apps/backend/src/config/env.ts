@@ -100,6 +100,11 @@ const envSchema = z.object({
   /** A pending/initiated txn older than this (ms) is flagged as stuck in an ops alert. Default 30 min. */
   TXN_STUCK_ALERT_MS: z.coerce.number().int().min(0).default(30 * 60 * 1000),
   /**
+   * Shared secret for bank → AsanPay VAN credit webhooks (HMAC-SHA256 of
+   * `bankTxnId|vanNumber|vpa|amount`). Optional — when unset the webhook returns 503.
+   */
+  VAN_WEBHOOK_SECRET: z.string().min(16).optional(),
+  /**
    * Comma-separated allowlist of STQC-certified RD-service device-provider ids (PidData
    * DeviceInfo@dpId) accepted for AePS biometric capture — e.g. Mantra, Morpho/IDEMIA, Precision.
    * Case-insensitive prefix match. Empty means allow-all (dummy/dev only — see isAepsDeviceAllowlistEnforced).

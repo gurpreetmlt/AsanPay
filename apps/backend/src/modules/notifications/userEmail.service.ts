@@ -9,6 +9,7 @@ import {
   productUpdateEmailTemplate,
   securityPinChangedEmailTemplate,
   statementEmailTemplate,
+  vanDepositCreditEmailTemplate,
   type SendMailInput,
 } from "../../utils/mailer";
 import { logger } from "../../utils/logger";
@@ -78,6 +79,21 @@ export function notifyCommissionCredit(input: {
       name,
       amount: input.amount,
       txnRef: input.txnRef,
+    }),
+  );
+}
+
+/** Best-effort VAN Path A credit notice — never throws into the money path. */
+export function notifyVanDepositCredit(input: {
+  userId: string;
+  amount: string;
+  bankTxnId: string;
+}): void {
+  void notifyVerifiedUser(input.userId, ({ name }) =>
+    vanDepositCreditEmailTemplate({
+      name,
+      amount: input.amount,
+      bankTxnId: input.bankTxnId,
     }),
   );
 }

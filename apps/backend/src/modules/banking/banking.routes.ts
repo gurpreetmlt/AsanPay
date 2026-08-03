@@ -7,22 +7,106 @@ import { walletTxnLimiter } from "../../middleware/rateLimiter";
 import { sendSuccess } from "../../utils/apiResponse";
 import { HttpError } from "../../utils/httpError";
 import { rupeesToPaise } from "../../core/money";
+import { sendSlackAlert } from "../../utils/alert";
 import { resolveTenantId } from "../fund-requests/tenant";
 import { rematchPending } from "../fund-requests/fundRequest.service";
+import { notifyVanDepositCredit } from "../notifications/userEmail.service";
 import {
   registerBankAccount,
   importStatementLines,
   parkUnmatchedCreditsInSuspense,
   unmatchedCreditCount,
   listBankAccounts,
+  assertVanWebhookSignature,
+  vanWebhookCanonical,
+  processVanWebhookCredit,
 } from "./banking.service";
 import {
   registerBankAccountSchema,
   importStatementSchema,
   parkSuspenseSchema,
+  vanWebhookSchema,
 } from "./banking.validators";
 
 export const bankingRouter = Router();
+
+/**
+ * Bank webhook — no JWT. Auth is HMAC signature via VAN_WEBHOOK_SECRET.
+ * Mounted before requireAuth so the bank can call it without an agent token.
+ */
+bankingRouter.post(
+  "/van/webhook",
+  walletTxnLimiter,
+  validateBody(vanWebhookSchema),
+  async (req, res) => {
+    const body = req.body as ReturnType<typeof vanWebhookSchema.parse>;
+    assertVanWebhookSignature(
+      vanWebhookCanonical({
+        bankTxnId: body.bankTxnId,
+        vanNumber: body.vanNumber,
+        vpa: body.vpa,
+        amount: body.amount,
+      }),
+      typeof req.headers["x-van-signature"] === "string"
+        ? req.headers["x-van-signature"]
+        : undefined,
+    );
+
+    const tenantId = await resolveTenantId();
+    const result = await processVanWebhookCredit({
+      tenantId,
+      bankTxnId: body.bankTxnId,
+      amount: rupeesToPaise(body.amount),
+      amountRupees: body.amount,
+      vanNumber: body.vanNumber,
+      vpa: body.vpa,
+      utr: body.utr,
+      txnDate: body.txnDate,
+      narration: body.narration,
+      senderName: body.senderName,
+      collectionAccountLast4: body.collectionAccountLast4,
+    });
+
+    // Notify outside the money transaction — failures must never roll back a credit.
+    if (!result.replayed) {
+      if (result.outcome === "credited" && result.ownerUserId) {
+        notifyVanDepositCredit({
+          userId: result.ownerUserId,
+          amount: result.amount,
+          bankTxnId: result.bankTxnId,
+        });
+      } else if (result.outcome === "suspense") {
+        void sendSlackAlert("Unidentified VAN credit", "critical", {
+          amount: result.amount,
+          message: `Bank txn ${result.bankTxnId} could not be matched to a virtual account`,
+          bankTxnId: result.bankTxnId,
+          suspenseJournalId: result.suspenseJournalId,
+        });
+      }
+    }
+
+    sendSuccess(
+      res,
+      {
+        outcome: result.outcome,
+        replayed: result.replayed,
+        bankTxnId: result.bankTxnId,
+        amount: result.amount,
+        receiveJournalId: result.receiveJournalId ?? null,
+        creditJournalId: result.creditJournalId ?? null,
+        suspenseJournalId: result.suspenseJournalId ?? null,
+        vanId: result.vanId ?? null,
+      },
+      result.outcome === "credited"
+        ? result.replayed
+          ? "VAN credit already applied"
+          : "VAN deposit credited"
+        : result.replayed
+          ? "Unidentified credit already parked"
+          : "Unidentified credit parked in suspense",
+    );
+  },
+);
 
 bankingRouter.use(requireAuth);
 
