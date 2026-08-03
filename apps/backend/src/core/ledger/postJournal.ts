@@ -399,6 +399,25 @@ export async function reverseJournal(
   });
 }
 
+/**
+ * Look up an already-posted journal by its idempotency key. Returns null when the key was
+ * never used. Callers that need to reverse a journal they posted earlier under a deterministic
+ * key use this instead of storing the journal id alongside their own rows.
+ */
+export async function findJournalByIdemKey(
+  tx: Tx,
+  tenantId: string,
+  idemKey: string,
+): Promise<{ id: bigint } | null> {
+  const [row] = await tx
+    .select({ id: journals.id })
+    .from(journals)
+    .where(and(eq(journals.tenantId, tenantId), eq(journals.idemKey, idemKey)))
+    .limit(1);
+
+  return row ?? null;
+}
+
 /** Ledger truth for one account, recomputed from entries. Used by reconciliation. */
 export async function deriveBalance(tx: Tx, accountId: bigint): Promise<bigint> {
   const [row] = await tx

@@ -102,6 +102,17 @@ export async function ensureHierarchyAccount(
 }
 
 /**
+ * Float account code for a provider — `TREASURY_FLOAT_EKO`. Provider codes are free-form
+ * varchar but an account code appears in journals forever and is matched by ops by eye, so
+ * normalise rather than trusting the input: upper-case, and anything outside A-Z/0-9 becomes
+ * an underscore. Provisioning and posting must derive the code the same way, which is why this
+ * lives here and not in the provisioning script.
+ */
+export function floatAccountCode(providerCode: string): string {
+  return `TREASURY_FLOAT_${providerCode.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}`;
+}
+
+/**
  * Register a treasury-side account (bank, transit, float) created by ops, so adding a bank or
  * an aggregator stays an INSERT. These are ASSET accounts and are never balance-checked —
  * a float account legitimately runs negative between a spend and the top-up that covers it.

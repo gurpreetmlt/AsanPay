@@ -20,18 +20,12 @@ import { eq } from "drizzle-orm";
 import { db, pgPool } from "../src/db/postgres";
 import { providers, tenants } from "../src/db/postgres/schema";
 import { clearAccountCache } from "../src/core/ledger";
-import { ensureTreasuryAccount } from "../src/modules/wallet/ledgerAccounts";
+import { ensureTreasuryAccount, floatAccountCode } from "../src/modules/wallet/ledgerAccounts";
 
 const APPLY = process.argv.includes("--apply");
 
-/**
- * Provider codes are free-form varchar. An account code is a stable identifier that appears in
- * journals forever and is matched by ops by eye, so normalise rather than trusting the input:
- * upper-case, and anything that is not A-Z/0-9 becomes an underscore.
- */
-function floatCodeFor(providerCode: string): string {
-  return `TREASURY_FLOAT_${providerCode.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}`;
-}
+// Shared with wallet.ledger.ts, which resolves the same code when it posts a service journal.
+const floatCodeFor = floatAccountCode;
 
 async function main() {
   const [tenant] = await db.select().from(tenants).where(eq(tenants.code, "ASANPAY")).limit(1);
