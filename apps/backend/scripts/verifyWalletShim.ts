@@ -33,6 +33,7 @@ import {
   serviceCategories,
   providers,
   transactions,
+  serviceCharges,
 } from "../src/db/postgres/schema";
 import { postJournal, clearAccountCache } from "../src/core/ledger";
 import { seedSystemAccounts } from "../src/modules/bootstrap/systemAccounts";
@@ -51,6 +52,7 @@ import {
   checkSettleable,
   checkNegativeAgentBalance,
 } from "../src/modules/reconciliation/checks";
+import { resolveCustomerFee } from "../src/modules/service-charges/serviceCharge.service";
 import { HttpError } from "../src/utils/httpError";
 
 const RUN = randomUUID().slice(0, 8);
@@ -786,6 +788,43 @@ async function main() {
     expectEq(incomeAfter - incomeBefore, rupeesToPaise(fee), "COMMISSION_INCOME +fee");
   });
 
+  await check("resolveCustomerFee reads service_charges (flat) under LEDGERTEST", async () => {
+    const [svc] = await db
+      .select({ id: services.id })
+      .from(services)
+      .where(eq(services.code, "MONEY_TRANSFER"))
+      .limit(1);
+    if (!svc) throw new Error("MONEY_TRANSFER missing");
+
+    // Clean prior shim fee rows for this service under LEDGERTEST.
+    await db
+      .delete(serviceCharges)
+      .where(and(eq(serviceCharges.tenantId, tenantId), eq(serviceCharges.serviceId, svc.id)));
+
+    await db.insert(serviceCharges).values({
+      tenantId,
+      serviceId: svc.id,
+      providerId: null,
+      role: "retailer",
+      ruleType: "flat",
+      value: "12.50",
+      minAmount: null,
+      maxAmount: null,
+      isActive: true,
+    });
+
+    const fee = await resolveCustomerFee(svc.id, providerId, "retailer", "1000.00", new Date());
+    expectEq(fee, "12.50", "flat service charge");
+
+    const none = await resolveCustomerFee(svc.id, providerId, "distributor", "1000.00", new Date());
+    // role-specific retailer rule should not apply to distributor when role is set
+    expectEq(none, "0.00", "no matching role → 0");
+
+    await db
+      .delete(serviceCharges)
+      .where(and(eq(serviceCharges.tenantId, tenantId), eq(serviceCharges.serviceId, svc.id)));
+  });
+
   await check("service_txn DEBIT with null provider → TXN_HAS_NO_PROVIDER", async () => {
     const [svc] = await db
       .select({ id: services.id })
@@ -1093,8 +1132,8 @@ async function main() {
   console.log("-".repeat(72));
   console.log(
     failed === 0
-      ? "\nSHIM VERIFIED — hierarchy, service_txn debit/credit (+ fee 3-leg), reversal, fundWallet,\n" +
-          `commission, mirror and passbook under ${TENANT_CODE} (ASANPAY untouched).\n`
+      ? "\nSHIM VERIFIED — hierarchy, service_txn debit/credit (+ fee 3-leg + service_charges),\n" +
+          `reversal, fundWallet, commission, mirror and passbook under ${TENANT_CODE} (ASANPAY untouched).\n`
       : "\nSHIM NOT VERIFIED — do not trust legacy money paths until these pass.\n",
   );
 

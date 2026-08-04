@@ -12,6 +12,7 @@ import { services, providers } from "./catalog";
 import { users } from "./users";
 import { transactions } from "./transactions";
 import { walletLedgerGroups } from "./wallets";
+import { tenants } from "./tenants";
 
 // Config: "for service X (optionally, only via provider P), role Y earns flat/percentage Z".
 // providerId is nullable: a null-provider rule is the default for that service+role; a
@@ -38,6 +39,42 @@ export const commissionRules = pgTable(
   (table) => [
     index("commission_rules_service_role_idx").on(table.serviceId, table.role),
     index("commission_rules_service_provider_role_idx").on(table.serviceId, table.providerId, table.role),
+  ],
+);
+
+/**
+ * Customer service fee charged on debit services (DMT / BBPS / recharge / AePS deposit).
+ * Same slab shape as commission_rules, plus tenant_id and nullable role (null = all roles).
+ * Resolved only server-side via resolveCustomerFee — never from the client request body.
+ */
+export const serviceCharges = pgTable(
+  "service_charges",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    serviceId: uuid("service_id")
+      .notNull()
+      .references(() => services.id, { onDelete: "cascade" }),
+    /** null = any provider for this service. */
+    providerId: uuid("provider_id").references(() => providers.id, { onDelete: "cascade" }),
+    /** null = any role (usually retailers pay; null keeps one default row). */
+    role: userRoleEnum("role"),
+    ruleType: commissionRuleTypeEnum("rule_type").notNull(),
+    // percentage: 0–100 (e.g. 1.5 = 1.5%); flat: rupees
+    value: numeric("value", { precision: 10, scale: 4 }).notNull(),
+    minAmount: numeric("min_amount", { precision: 14, scale: 2 }),
+    maxAmount: numeric("max_amount", { precision: 14, scale: 2 }),
+    effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull().defaultNow(),
+    effectiveTo: timestamp("effective_to", { withTimezone: true }),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("service_charges_tenant_service_idx").on(table.tenantId, table.serviceId),
+    index("service_charges_service_provider_idx").on(table.serviceId, table.providerId),
+    index("service_charges_active_idx").on(table.serviceId, table.isActive, table.effectiveFrom),
   ],
 );
 

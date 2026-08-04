@@ -120,12 +120,12 @@ A live ASANPAY money movement is now product QA, not ledger proof.
 
 ## Known gaps worth remembering
 
-* **`COMMISSION_INCOME` third leg is live in the shim.** Service debit books
+* **`COMMISSION_INCOME` + `service_charges`.** Service debit books
   `Dr agent (principal+fee) / Cr float (principal) / Cr COMMISSION_INCOME (fee)` when
-  `transactions.customer_fee > 0`. `executeServiceTxn({ customerFee })` debits and holds
-  principal+fee. Product HTTP bodies still default fee to `0` until DMT/BBPS/recharge fee
-  schedules are wired through controllers — until then income only moves on explicit fee paths
-  (shim / API callers that set `customerFee`).
+  `transactions.customer_fee > 0`. Fee is resolved **only server-side** via
+  `resolveCustomerFee` + table `service_charges` (migration `0030`) inside `executeServiceTxn`
+  for every debit — client cannot set fee. No matching rule → fee `0.00` (safe default).
+  Admin read: `GET /admin/service-charges`. Admin write/UI and seed fee rows (if any) still open.
 * **Behaviour change, deliberate:** an upline can no longer pull from a downline's `aeps`
   wallet (`INSUFFICIENT_USABLE_BALANCE`). Earned money is the downline's to withdraw — spec 9.3.
 * **Behaviour change, deliberate:** funding a child's `aeps` wallet now lands in their usable

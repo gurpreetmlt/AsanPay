@@ -211,6 +211,13 @@
       "when": 1785770000000,
       "tag": "0029_tenant_settings_leftovers",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1785835000000,
+      "tag": "0030_service_charges",
+      "breakpoints": true
     }
   ]
 }

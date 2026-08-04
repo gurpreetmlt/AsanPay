@@ -86,6 +86,7 @@ export async function recharge(req: Request, res: Response): Promise<void> {
   const body = req.body as z.infer<typeof rechargeSchema>;
   await assertTxnAuthorization(actor(req).id, { txnPin: body.txnPin, txnAuth: body.txnAuth });
 
+  // Customer fee: resolved server-side inside executeServiceTxn (service_charges) — never from body.
   const outcome = await executeServiceTxn({
     actor: actor(req),
     serviceCode: body.serviceCode,
@@ -125,6 +126,7 @@ export async function bbpsPayBill(req: Request, res: Response): Promise<void> {
   const body = req.body as z.infer<typeof bbpsPayBillSchema>;
   await assertTxnAuthorization(actor(req).id, { txnPin: body.txnPin, txnAuth: body.txnAuth });
 
+  // Customer fee: server-side resolve inside executeServiceTxn — not from body.
   const outcome = await executeServiceTxn({
     actor: actor(req),
     serviceCode: body.serviceCode,
@@ -380,6 +382,7 @@ export async function dmtTransfer(req: Request, res: Response): Promise<void> {
     }
   }
 
+  // Customer fee: server-side resolve inside executeServiceTxn — not from body.
   const outcome = await executeServiceTxn({
     actor: actor(req),
     serviceCode: "dmt",
@@ -814,6 +817,7 @@ export async function nepalFundTransfer(req: Request, res: Response): Promise<vo
   await assertAgentAuthFresh(actor(req).id);
   await assertTxnAuthorization(actor(req).id, { txnPin: body.txnPin, txnAuth: body.txnAuth });
 
+  // Customer fee: server-side resolve inside executeServiceTxn — not from body.
   const outcome = await executeServiceTxn({
     actor: actor(req),
     serviceCode: "MONEY_TRANSFER",
@@ -1021,6 +1025,7 @@ export async function aepsDeposit(req: Request, res: Response): Promise<void> {
   await assertFreshBiometric(body.biometricPayload);
   await assertTxnAuthorization(userId, { txnPin: body.txnPin, txnAuth: body.txnAuth });
 
+  // Customer fee: server-side resolve inside executeServiceTxn — not from body.
   const outcome = await executeServiceTxn({
     actor: actor(req),
     serviceCode: "aeps_cash_deposit",

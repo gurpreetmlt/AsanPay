@@ -267,6 +267,14 @@ adminRouter.get("/commission/rules", async (req, res) => {
   sendSuccess(res, await listCommissionRules({ serviceId, role, activeOnly }));
 });
 
+/** Customer fee schedule (service_charges). Read-only in this task — admin UI / write later. */
+adminRouter.get("/service-charges", async (req, res) => {
+  const { listServiceCharges } = await import("../service-charges/serviceCharge.service");
+  const serviceId = typeof req.query.serviceId === "string" ? req.query.serviceId : undefined;
+  const activeOnly = req.query.activeOnly === "1" || req.query.activeOnly === "true";
+  sendSuccess(res, await listServiceCharges({ serviceId, activeOnly }));
+});
+
 adminRouter.post("/commission/rules", async (req, res) => {
   if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
   const { createCommissionRule } = await import("../commission/commission.service");

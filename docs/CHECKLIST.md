@@ -88,7 +88,9 @@
       concurrent fundWallet + LEDGERTEST recon clean
 - [x] `COMMISSION_INCOME` service fee — service debit books `customer_fee` as Cr COMMISSION_INCOME
       (principal → float); `executeServiceTxn` accepts `customerFee` and debits principal+fee
-- [ ] Wire product call sites to pass non-zero `customerFee` (DMT/BBPS/recharge fee schedule)
+- [x] `service_charges` schedule + `resolveCustomerFee` + debit paths resolve fee server-side
+      (never from client); `GET /admin/service-charges` read API; migration `0030_service_charges`
+- [ ] Admin UI to edit service_charges (read API only)
 - [ ] Maker-checker beyond allocation (fund approval threshold, beneficiary, provider, RECON_ADJUSTMENT)
 - [ ] InstantPay DMT mobile full parity + BBPS / recharge rails (product)
 

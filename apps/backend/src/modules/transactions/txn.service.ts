@@ -12,6 +12,7 @@ import { sendSlackAlert, sendOpsAlert } from "../../utils/alert";
 import { env } from "../../config/env";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import type { UserRole, WalletType } from "@asanpay/shared-types";
+import { resolveCustomerFee } from "../service-charges/serviceCharge.service";
 
 type Actor = { id: string; role: UserRole };
 type TxnRow = typeof transactions.$inferSelect;
@@ -29,8 +30,8 @@ export interface ExecuteTxnInput {
   /** Principal the provider moves (DMT payout, recharge, bill). */
   amount: string | null;
   /**
-   * Platform charge booked as COMMISSION_INCOME on debit services (spec §4.5).
-   * Wallet is debited/held for principal + fee; provider calls still receive principal only.
+   * @deprecated Ignored for debit — fee is always resolved server-side from `service_charges`
+   * via resolveCustomerFee (never from the client body). Kept optional so call sites compile.
    */
   customerFee?: string | null;
   idempotencyKey: string;
@@ -214,23 +215,19 @@ export async function executeServiceTxn(input: ExecuteTxnInput): Promise<TxnOutc
   await assertCanTransact(actor);
   const service = await getServiceOrThrow(serviceCode);
   assertAmountWithinLimits(amount, service);
-  const feeNormalized =
-    direction === "debit" && amount != null ? (customerFee && customerFee !== "" ? customerFee : "0") : "0";
-  if (feeNormalized !== "0") {
-    try {
-      if (toPaise(feeNormalized) < 0) {
-        throw new HttpError(422, "Customer fee cannot be negative", "INVALID_CUSTOMER_FEE");
-      }
-    } catch (err) {
-      if (err instanceof HttpError) throw err;
-      throw new HttpError(422, "Enter a valid customer fee", "INVALID_CUSTOMER_FEE");
-    }
-  }
   void checkFraudPatterns(actor, service.id, amount);
   void checkDailyLimit(actor, amount);
 
   const routedProviders = await resolveProvidersForService(serviceCode);
   const routed = routedProviders[0]!; // fail-over between providers is a later enhancement
+
+  // All 7 txn.controller debit call sites share this path. Fee is never taken from the client
+  // body (input.customerFee is ignored) so a retailer cannot set fee=0. No schedule → "0.00".
+  void customerFee;
+  const feeNormalized =
+    direction === "debit" && amount != null
+      ? await resolveCustomerFee(service.id, routed.providerId, actor.role, amount, new Date())
+      : "0";
 
   const txnRef = generateTxnRef();
   const needsMoney = direction !== "none" && amount != null;
