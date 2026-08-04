@@ -73,11 +73,9 @@ Do these three together — fixing one without the others leaves the suite red.
 
 ### 2. Step 16 — load test
 
-`walletConcurrencyLoad.test.ts` already does 120 concurrent DMT debits through the real
-`executeServiceTxn` path, which is exactly the right shape — but its fixture is invalid per
-item 1, so it proves nothing until that is fixed. After fixing: raise to 500 concurrent
-transfers, add 200 concurrent fund approvals, then re-check every invariant (trial balance,
-ledger-vs-mirror, `settleable <= balance`, no negative agent balance).
+`npm run verify:load` (tsx, Coolify-safe): 500 concurrent DMT debits + 200 concurrent
+`fundWallet` on LEDGERTEST, then recon invariants. Vitest `walletConcurrencyLoad.test.ts`
+defaults to 500 (`LOAD_DEBIT_N`); production image still cannot run vitest.
 
 ### 3. `npm run build` is broken on main
 
@@ -99,9 +97,11 @@ been failing silently. Fix these, then consider making the build actually run in
 
 ### Shim verification — DONE (4 Aug 2026)
 
-`npm run verify:shim` (`scripts/verifyWalletShim.ts`) — **19/19 PASS** on the Coolify API
-container. Covers every legacy `referenceType` the shim maps: `downline_transfer`,
-`upline_pull`, `service_txn` debit (DMT / RECHARGE / BBPS-by-category / AEPS_DEPOSIT) and its
+`npm run verify:shim` (`scripts/verifyWalletShim.ts`) — **19/20 paths** historically greenned as 19/19
+on Coolify; after the fee three-leg check, re-run for **20/20**. Covers every legacy
+`referenceType` the shim maps: `downline_transfer`,
+`upline_pull`, `service_txn` debit (DMT / RECHARGE / BBPS-by-category / AEPS_DEPOSIT, plus
+optional customer_fee → COMMISSION_INCOME) and its
 `TXN_HAS_NO_PROVIDER` + `SERVICE_NOT_MAPPED` guards, `service_txn` credit, `reversal` (including
 `reverses_id` and the `LEGACY_REVERSAL_UNMAPPED` path), `fundWallet` (ALLOCATION then
 WALLET_TRANSFER) and `commission`. Every check re-asserts the mirror invariant and the passbook
@@ -115,11 +115,12 @@ A live ASANPAY money movement is now product QA, not ledger proof.
 
 ## Known gaps worth remembering
 
-* **`COMMISSION_INCOME` drifts negative.** The legacy service debit moves `transactions.amount`
-  only and never books `customer_fee`, so nothing credits income while payouts debit it. Every
-  journal still nets to zero and solvency is unaffected — it is an honest statement that
-  commission is being paid out of margin that was never booked. Fixing it needs a third leg on
-  the service journal, which needs the fee at the call site.
+* **`COMMISSION_INCOME` third leg is live in the shim.** Service debit books
+  `Dr agent (principal+fee) / Cr float (principal) / Cr COMMISSION_INCOME (fee)` when
+  `transactions.customer_fee > 0`. `executeServiceTxn({ customerFee })` debits and holds
+  principal+fee. Product HTTP bodies still default fee to `0` until DMT/BBPS/recharge fee
+  schedules are wired through controllers — until then income only moves on explicit fee paths
+  (shim / API callers that set `customerFee`).
 * **Behaviour change, deliberate:** an upline can no longer pull from a downline's `aeps`
   wallet (`INSUFFICIENT_USABLE_BALANCE`). Earned money is the downline's to withdraw — spec 9.3.
 * **Behaviour change, deliberate:** funding a child's `aeps` wallet now lands in their usable

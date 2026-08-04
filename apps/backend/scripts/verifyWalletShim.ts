@@ -444,6 +444,7 @@ async function insertTxn(params: {
   serviceId: string;
   providerId: string | null;
   amount: string;
+  customerFee?: string;
   tag: string;
 }): Promise<string> {
   const id = randomUUID();
@@ -455,6 +456,7 @@ async function insertTxn(params: {
     serviceId: params.serviceId,
     providerId: params.providerId,
     amount: params.amount,
+    customerFee: params.customerFee ?? "0",
     status: "success",
     walletType: "main",
   });
@@ -705,6 +707,84 @@ async function main() {
       },
     );
   }
+
+  await check("service_txn DEBIT with customer_fee → three legs (FLOAT + COMMISSION_INCOME)", async () => {
+    const [svc] = await db
+      .select({ id: services.id })
+      .from(services)
+      .where(eq(services.code, "MONEY_TRANSFER"))
+      .limit(1);
+    const principal = "100.00";
+    const fee = "15.00";
+    const total = paiseToRupees(rupeesToPaise(principal) + rupeesToPaise(fee));
+    const beforeMain = await walletBalance(retMainId);
+    const incomeBefore = (
+      await db
+        .select({ balance: accountBalances.balance })
+        .from(accounts)
+        .innerJoin(accountBalances, eq(accountBalances.accountId, accounts.id))
+        .where(and(eq(accounts.tenantId, tenantId), eq(accounts.code, COMMISSION_INCOME)))
+        .limit(1)
+    )[0]?.balance;
+    if (incomeBefore === undefined) throw new Error("COMMISSION_INCOME missing");
+
+    const txnId = await insertTxn({
+      serviceId: svc!.id,
+      providerId,
+      amount: principal,
+      customerFee: fee,
+      tag: "fee3",
+    });
+
+    const { groupId } = await transferBetweenWallets({
+      fromWalletId: retMainId,
+      toWalletId: aggregatorWalletId,
+      amount: total,
+      referenceType: "service_txn",
+      referenceId: txnId,
+      description: "verify:shim debit with fee",
+    });
+
+    const j = await journalByIdemKey(`TXN_DR:${txnId}`);
+    expectEq(j.txnType, "DMT", "txnType");
+    const legs = await db
+      .select({
+        code: accounts.code,
+        direction: ledgerEntries.direction,
+        amount: ledgerEntries.amount,
+      })
+      .from(ledgerEntries)
+      .innerJoin(accounts, eq(accounts.id, ledgerEntries.accountId))
+      .where(eq(ledgerEntries.journalId, j.id));
+
+    const floatLeg = legs.find((l) => l.code === floatCode && l.direction === "CR");
+    const incomeLeg = legs.find((l) => l.code === COMMISSION_INCOME && l.direction === "CR");
+    const agentDr = legs.find((l) => l.direction === "DR");
+    if (!floatLeg || !incomeLeg || !agentDr) {
+      throw new Error(`three-leg expected, got ${JSON.stringify(legs)}`);
+    }
+    expectEq(floatLeg.amount, rupeesToPaise(principal), "float CR = principal");
+    expectEq(incomeLeg.amount, rupeesToPaise(fee), "income CR = fee");
+    expectEq(agentDr.amount, rupeesToPaise(total), "agent DR = principal+fee");
+
+    await assertPassbook(groupId, 1);
+    await assertMirror(retId, "ret after fee debit");
+    expectEq(
+      await walletBalance(retMainId),
+      paiseToRupees(rupeesToPaise(beforeMain) - rupeesToPaise(total)),
+      "main -principal-fee",
+    );
+
+    const incomeAfter = (
+      await db
+        .select({ balance: accountBalances.balance })
+        .from(accounts)
+        .innerJoin(accountBalances, eq(accountBalances.accountId, accounts.id))
+        .where(and(eq(accounts.tenantId, tenantId), eq(accounts.code, COMMISSION_INCOME)))
+        .limit(1)
+    )[0]!.balance;
+    expectEq(incomeAfter - incomeBefore, rupeesToPaise(fee), "COMMISSION_INCOME +fee");
+  });
 
   await check("service_txn DEBIT with null provider → TXN_HAS_NO_PROVIDER", async () => {
     const [svc] = await db
@@ -1013,7 +1093,7 @@ async function main() {
   console.log("-".repeat(72));
   console.log(
     failed === 0
-      ? "\nSHIM VERIFIED — hierarchy, service_txn debit/credit, reversal, fundWallet,\n" +
+      ? "\nSHIM VERIFIED — hierarchy, service_txn debit/credit (+ fee 3-leg), reversal, fundWallet,\n" +
           `commission, mirror and passbook under ${TENANT_CODE} (ASANPAY untouched).\n`
       : "\nSHIM NOT VERIFIED — do not trust legacy money paths until these pass.\n",
   );

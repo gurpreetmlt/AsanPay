@@ -26,7 +26,13 @@ type MoneyDirection = "debit" | "credit" | "none";
 export interface ExecuteTxnInput {
   actor: Actor;
   serviceCode: string;
+  /** Principal the provider moves (DMT payout, recharge, bill). */
   amount: string | null;
+  /**
+   * Platform charge booked as COMMISSION_INCOME on debit services (spec §4.5).
+   * Wallet is debited/held for principal + fee; provider calls still receive principal only.
+   */
+  customerFee?: string | null;
   idempotencyKey: string;
   operation: ProviderOperation;
   direction: MoneyDirection;
@@ -34,6 +40,13 @@ export interface ExecuteTxnInput {
   walletType: WalletType;
   metadata: Record<string, unknown>;
   invoke: (routed: RoutedProvider, txnRef: string) => Promise<ProviderResult>;
+}
+
+/** Wallet charge for a debit: principal + customer fee (rupees). */
+export function serviceChargeTotal(principal: string, customerFee?: string | null): string {
+  const feePaise = customerFee ? toPaise(customerFee) : 0;
+  if (feePaise < 0) throw new HttpError(422, "Customer fee cannot be negative", "INVALID_CUSTOMER_FEE");
+  return fromPaise(toPaise(principal) + feePaise);
 }
 
 export interface TxnOutcome {
@@ -178,7 +191,18 @@ function assertAmountWithinLimits(
 // Sequence: idempotency-replay -> validations -> hold money (debit services)
 // -> provider call -> finalize (commit / reverse / stay pending).
 export async function executeServiceTxn(input: ExecuteTxnInput): Promise<TxnOutcome> {
-  const { actor, serviceCode, amount, idempotencyKey, operation, direction, walletType, metadata, invoke } = input;
+  const {
+    actor,
+    serviceCode,
+    amount,
+    customerFee,
+    idempotencyKey,
+    operation,
+    direction,
+    walletType,
+    metadata,
+    invoke,
+  } = input;
 
   // Fast path: already claimed / settled for this key — never re-run money or provider.
   const [existing] = await db
@@ -190,6 +214,18 @@ export async function executeServiceTxn(input: ExecuteTxnInput): Promise<TxnOutc
   await assertCanTransact(actor);
   const service = await getServiceOrThrow(serviceCode);
   assertAmountWithinLimits(amount, service);
+  const feeNormalized =
+    direction === "debit" && amount != null ? (customerFee && customerFee !== "" ? customerFee : "0") : "0";
+  if (feeNormalized !== "0") {
+    try {
+      if (toPaise(feeNormalized) < 0) {
+        throw new HttpError(422, "Customer fee cannot be negative", "INVALID_CUSTOMER_FEE");
+      }
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
+      throw new HttpError(422, "Enter a valid customer fee", "INVALID_CUSTOMER_FEE");
+    }
+  }
   void checkFraudPatterns(actor, service.id, amount);
   void checkDailyLimit(actor, amount);
 
@@ -198,6 +234,10 @@ export async function executeServiceTxn(input: ExecuteTxnInput): Promise<TxnOutc
 
   const txnRef = generateTxnRef();
   const needsMoney = direction !== "none" && amount != null;
+  const debitTotal =
+    needsMoney && direction === "debit" && amount != null
+      ? serviceChargeTotal(amount, feeNormalized)
+      : amount;
   const systemWallet = needsMoney ? await getSystemWallet() : null;
   const userWallet = needsMoney ? await getUserWallet(actor.id, walletType) : null;
 
@@ -224,6 +264,7 @@ export async function executeServiceTxn(input: ExecuteTxnInput): Promise<TxnOutc
           serviceId: service.id,
           providerId: routed.providerId,
           amount: amount ?? "0",
+          customerFee: feeNormalized,
           status: "initiated",
           walletType,
           metadata,
@@ -233,11 +274,12 @@ export async function executeServiceTxn(input: ExecuteTxnInput): Promise<TxnOutc
 
       if (needsMoney && direction === "debit") {
         // Same tx as insert: insufficient balance rolls back the claim row (no orphan initiated txn).
+        // Debit principal + fee so the journal can Cr FLOAT (principal) + Cr COMMISSION_INCOME (fee).
         await transferBetweenWallets(
           {
             fromWalletId: userWallet!.walletId,
             toWalletId: systemWallet!.walletId,
-            amount: amount!,
+            amount: debitTotal!,
             referenceType: "service_txn",
             referenceId: row.id,
             description: `${service.name} ${txnRef}`,
@@ -246,7 +288,7 @@ export async function executeServiceTxn(input: ExecuteTxnInput): Promise<TxnOutc
         );
         // Mirror the reservation on the retailer's own wallet row so "Locked vs Available"
         // reporting doesn't need to re-derive it from open transactions.
-        await adjustWalletHold(tx, userWallet!.walletId, amount!, "hold");
+        await adjustWalletHold(tx, userWallet!.walletId, debitTotal!, "hold");
       }
 
       return { row, replay: false as const };
@@ -322,6 +364,11 @@ async function finalizeTxn(txn: TxnRow, result: ProviderResult, ctx: FinalizeCon
       return { row: locked, didSettleSuccess: false };
     }
 
+    const lockedDebitHeld =
+      needsMoney && ctx.direction === "debit"
+        ? serviceChargeTotal(locked.amount, locked.customerFee)
+        : locked.amount;
+
     if (result.status === "success") {
       // Credit services reimburse the retailer only now, after provider confirmation — in the
       // same tx as the status flip, so it commits atomically with "this txn is now settled".
@@ -347,7 +394,7 @@ async function finalizeTxn(txn: TxnRow, result: ProviderResult, ctx: FinalizeCon
       }
       if (needsMoney && ctx.direction === "debit") {
         const userWallet = await getUserWallet(txn.userId, ctx.walletType);
-        await adjustWalletHold(tx, userWallet.walletId, locked.amount, "release");
+        await adjustWalletHold(tx, userWallet.walletId, lockedDebitHeld, "release");
       }
       const [updated] = await tx
         .update(transactions)
@@ -365,7 +412,7 @@ async function finalizeTxn(txn: TxnRow, result: ProviderResult, ctx: FinalizeCon
 
     if (result.status === "failed") {
       // Undo the up-front debit with an explicit balanced reversal group.
-      // Always reverse locked.amount (what left the retailer wallet) — not result.amount.
+      // Always reverse what left the retailer wallet (principal + fee) — not result.amount.
       if (needsMoney && ctx.direction === "debit") {
         const systemWallet = await getSystemWallet();
         const userWallet = await getUserWallet(txn.userId, ctx.walletType);
@@ -373,14 +420,14 @@ async function finalizeTxn(txn: TxnRow, result: ProviderResult, ctx: FinalizeCon
           {
             fromWalletId: systemWallet.walletId,
             toWalletId: userWallet.walletId,
-            amount: locked.amount,
+            amount: lockedDebitHeld,
             referenceType: "reversal",
             referenceId: locked.id,
             description: `Auto-reversal ${locked.txnRef}: ${result.message}`,
           },
           tx,
         );
-        await adjustWalletHold(tx, userWallet.walletId, locked.amount, "release");
+        await adjustWalletHold(tx, userWallet.walletId, lockedDebitHeld, "release");
       }
       const [updated] = await tx
         .update(transactions)

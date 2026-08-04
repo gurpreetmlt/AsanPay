@@ -193,13 +193,15 @@ async function serviceJournalContext(
   tx: Tx,
   tenantId: string,
   transactionId: string,
-): Promise<{ txnType: TxnType; floatCode: string }> {
+): Promise<{ txnType: TxnType; floatCode: string; principal: Paise; fee: Paise }> {
   const [row] = await tx
     .select({
       serviceCode: services.code,
       categoryCode: serviceCategories.code,
       providerCode: providers.code,
       providerName: providers.name,
+      amount: transactions.amount,
+      customerFee: transactions.customerFee,
     })
     .from(transactions)
     .innerJoin(services, eq(services.id, transactions.serviceId))
@@ -243,7 +245,16 @@ async function serviceJournalContext(
     type: "float",
   });
 
-  return { txnType, floatCode };
+  const principal = rupeesToPaise(row.amount);
+  const fee = rupeesToPaise(row.customerFee ?? "0");
+  if (principal <= 0n) {
+    throw new HttpError(422, "Transaction amount must be positive", "INVALID_AMOUNT");
+  }
+  if (fee < 0n) {
+    throw new HttpError(422, "Customer fee cannot be negative", "INVALID_CUSTOMER_FEE");
+  }
+
+  return { txnType, floatCode, principal, fee };
 }
 
 // ---------------------------------------------------------------------------------------
@@ -560,19 +571,37 @@ async function planTransfer(
       if (!referenceId) {
         throw new HttpError(500, "A service journal needs its transaction id", "REFERENCE_REQUIRED");
       }
-      const { txnType, floatCode } = await serviceJournalContext(tx, tenantId, referenceId);
+      const { txnType, floatCode, principal, fee } = await serviceJournalContext(
+        tx,
+        tenantId,
+        referenceId,
+      );
 
-      // Debit: the retailer spends into our float. Dr RTL / Cr FLOAT.
+      // Debit: retailer pays principal into float and (optionally) fee into income.
+      // Spec §4.5 — three legs when customer_fee > 0: Dr RTL, Cr FLOAT, Cr COMMISSION_INCOME.
+      // Call sites must debit/hold `principal + fee` so the transfer amount matches the journal.
       if (to.isAggregator) {
+        const expected = principal + fee;
+        if (amount !== expected) {
+          throw new HttpError(
+            500,
+            `Service debit amount ${paiseToRupees(amount)} must equal principal ${paiseToRupees(principal)} + fee ${paiseToRupees(fee)}`,
+            "SERVICE_DEBIT_MISMATCH",
+          );
+        }
         const agentCode = await agentAccountCode(tx, tenantId, from);
+        const entries: JournalEntryInput[] = [
+          { code: agentCode, dir: "DR", amount },
+          { code: floatCode, dir: "CR", amount: principal },
+        ];
+        if (fee > 0n) {
+          entries.push({ code: COMMISSION_INCOME, dir: "CR", amount: fee });
+        }
         return {
           kind: "post",
           txnType,
           idemKey: `TXN_DR:${referenceId}`,
-          entries: [
-            { code: agentCode, dir: "DR", amount },
-            { code: floatCode, dir: "CR", amount },
-          ],
+          entries,
           userIds: [from.userId],
           companyMoved: false,
         };
@@ -580,6 +609,14 @@ async function planTransfer(
 
       // Credit: AePS and friends. The customer's bank paid us and we now owe the retailer the
       // cash they handed over, so the money direction is the reverse of the journal direction.
+      // Credit path ignores customer_fee (income on cash-out is product work if ever needed).
+      if (amount !== principal) {
+        throw new HttpError(
+          500,
+          `Service credit amount ${paiseToRupees(amount)} must equal principal ${paiseToRupees(principal)}`,
+          "SERVICE_CREDIT_MISMATCH",
+        );
+      }
       const agentCode = await agentAccountCode(tx, tenantId, to);
       return {
         kind: "post",
@@ -621,14 +658,8 @@ async function planTransfer(
     }
 
     // Commission is paid out of income, never out of the company wallet. It is a settleable
-    // credit: the agent earned it and may withdraw it to their own bank.
-    //
-    // KNOWN GAP: the legacy service debit above moves only `transactions.amount` and never
-    // books `transactions.customer_fee`, so nothing credits COMMISSION_INCOME. Payouts will
-    // therefore drive it steadily negative. Every journal still nets to zero and solvency is
-    // unaffected — the negative balance is an honest statement that we are paying commission
-    // out of margin we have not booked yet. Booking the fee needs a third leg on the service
-    // journal, which needs the fee at the call site: separate work, tracked in the handoff.
+    // credit: the agent earned it and may withdraw it to their own bank. Service debits credit
+    // COMMISSION_INCOME when `transactions.customer_fee` is set (third leg on service_txn).
     case "commission": {
       const toCode = await agentAccountCode(tx, tenantId, to);
       return {

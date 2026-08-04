@@ -27,7 +27,8 @@
     "backfill:opening": "tsx scripts/backfillOpeningBalance.ts",
     "provision:float": "tsx scripts/provisionProviderFloat.ts",
     "verify:ledger": "tsx scripts/verifyLedgerEngine.ts",
-    "verify:shim": "tsx scripts/verifyWalletShim.ts"
+    "verify:shim": "tsx scripts/verifyWalletShim.ts",
+    "verify:load": "tsx scripts/verifyLedgerLoad.ts"
   },
   "dependencies": {
     "@asanpay/shared-types": "*",
