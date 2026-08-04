@@ -84,7 +84,8 @@
 - [x] Backend `tsc` build gate fixes (commission rule create; fund-request `paramId` for Express 5)
 - [x] Step 16 load harness — `npm run verify:load` (500 concurrent service_txn journals +
       200 fundWallet on LEDGERTEST; no stub/provider hop)
-- [ ] Step 16 load on EC2 green — after backend redeploy of rewritten `verify:load`
+- [x] Step 16 load on EC2 — **4/4 PASS** Coolify (2026-08-04): half/all concurrent debits +
+      concurrent fundWallet + LEDGERTEST recon clean
 - [x] `COMMISSION_INCOME` service fee — service debit books `customer_fee` as Cr COMMISSION_INCOME
       (principal → float); `executeServiceTxn` accepts `customerFee` and debits principal+fee
 - [ ] Wire product call sites to pass non-zero `customerFee` (DMT/BBPS/recharge fee schedule)
