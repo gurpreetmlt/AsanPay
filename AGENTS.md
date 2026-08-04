@@ -18,7 +18,8 @@ AI editor token bachane ke liye **poori repo mat padho**. Sirf is file + relevan
 
 - **Product name:** AsanPay (use this exact name in UI and agent docs)
 - **npm workspaces:** `@asanpay/*` (e.g. `@asanpay/backend`, `@asanpay/mobile`)
-- **Folder path:** `apps/mobile`
+- **Folder path:** `apps/asanpay-mobile-app` (npm name is `@asanpay/mobile` — the folder and the
+  package name deliberately differ; every script points at the folder)
 - **UI language:** English only in all product frontends (web / admin / mobile). Owner may command in Hinglish; never ship Hinglish UI copy. Rule: [`.cursor/rules/ui-english-only.mdc`](.cursor/rules/ui-english-only.mdc)
 - **App flows (AI):** [`flow/INDEX.md`](flow/INDEX.md)
 
@@ -30,7 +31,7 @@ apps/
   admin-web/         Admin panel (:3000) — admin role only
   web/               Agent portal (:3001) — super dist, dist, retailer
   backend/           Express API (:4000) — Postgres only (Neon in prod)
-  mobile/            AsanPay Android app (pkg @asanpay/mobile)
+  asanpay-mobile-app/ AsanPay Android app (pkg @asanpay/mobile)
 packages/
   shared-types/      Roles, API types (no runtime deps)
   auth/              Portal guards, role helpers
@@ -76,7 +77,7 @@ The tag is pushed to origin, so it survives regardless of branch state.
 | User schema | `apps/backend/src/db/postgres/schema/users.ts` |
 | Agent web login | `apps/web/app/login/page.tsx` |
 | Admin login | `apps/admin-web/app/login/page.tsx` |
-| Mobile login | `apps/mobile/src/screens/LoginScreen.tsx` |
+| Mobile login | `apps/asanpay-mobile-app/src/screens/LoginScreen.tsx` |
 | Shared types | `packages/shared-types/index.ts` |
 
 ## Agent rules (token saving)
@@ -90,7 +91,7 @@ The tag is pushed to origin, so it survives regardless of branch state.
 7. **Task done** → `docs/CHECKLIST.md` update karo; next task same chat OK — naya chat sirf jab required ho (L/XL split, bloated context)
 8. **MCP default off** — browser / Figma / Datadog / etc. sirf jab task ya user explicitly maange; exploratory MCP mat. Details: [`docs/AGENT_PLAN.md`](docs/AGENT_PLAN.md#mcp-rule-same-token-discipline-as-code-tools)
 9. **No AI git attribution** — kabhi mat likho `Co-authored-by: Cursor|Claude|Anthropic`, `cursoragent@cursor.com`, `Made-with: Cursor`. Details: [`docs/AGENT_PLAN.md`](docs/AGENT_PLAN.md)
-10. **InstantPay parity rule** — koi bhi InstantPay-backed service tab tak complete mat maano jab tak `apps/web` aur `apps/mobile` dono mein entrypoint + usable flow na ho, ya doc mein explicit platform exception likhi ho. Audit note: [`InstantPay/PARITY.md`](InstantPay/PARITY.md)
+10. **InstantPay parity rule** — koi bhi InstantPay-backed service tab tak complete mat maano jab tak `apps/web` aur `apps/asanpay-mobile-app` dono mein entrypoint + usable flow na ho, ya doc mein explicit platform exception likhi ho. Audit note: [`InstantPay/PARITY.md`](InstantPay/PARITY.md)
 
 ## Terminal (Mac only — agent shell mat)
 
