@@ -91,8 +91,9 @@
       (principal → float); `executeServiceTxn` accepts `customerFee` and debits principal+fee
 - [x] `service_charges` schedule + `resolveCustomerFee` + debit paths resolve fee server-side
       (never from client); `GET /admin/service-charges` read API; migration `0030_service_charges`
-- [ ] Admin UI to edit service_charges (read API only)
-- [ ] Maker-checker beyond allocation (fund approval threshold, beneficiary, provider, RECON_ADJUSTMENT)
+- [x] Admin UI to edit service_charges (CRUD + list/edit page)
+- [x] Maker-checker for RECON_ADJUSTMENT (request → different admin approve; migration `0031`)
+- [ ] Maker-checker remaining: beneficiary changes, provider activation
 - [ ] InstantPay DMT mobile full parity + BBPS / recharge rails (product)
 
 ## Security (2026-07-17)

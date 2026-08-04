@@ -218,6 +218,13 @@
       "when": 1785835000000,
       "tag": "0030_service_charges",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1785840000000,
+      "tag": "0031_recon_adjustments",
+      "breakpoints": true
     }
   ]
 }

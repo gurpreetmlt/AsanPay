@@ -391,6 +391,104 @@ adminRouter.get("/ledger/exceptions", async (req, res) => {
   sendSuccess(res, await listOpenReconExceptions(tenantId, limit));
 });
 
+// ── Spec §9.2: RECON_ADJUSTMENT maker-checker ────────────────────────────────
+const reconAdjustmentBody = z.object({
+  amount: z.string().min(1).max(20),
+  debitCode: z.string().trim().min(2).max(64),
+  creditCode: z.string().trim().min(2).max(64),
+  reason: z.string().trim().min(8).max(2000),
+});
+
+adminRouter.get("/recon-adjustments", async (req, res) => {
+  const { listReconAdjustments } = await import("../reconciliation/reconAdjustment.service");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const tenantId = await resolveTenantId();
+  const statusRaw = typeof req.query.status === "string" ? req.query.status : undefined;
+  const status =
+    statusRaw === "requested" || statusRaw === "approved" || statusRaw === "rejected"
+      ? statusRaw
+      : undefined;
+  const limit = Math.min(Number(req.query.limit) || 50, 200);
+  sendSuccess(res, await listReconAdjustments({ tenantId, status, limit }));
+});
+
+adminRouter.get("/recon-adjustments/account-codes", async (req, res) => {
+  const { listLedgerAccountCodes } = await import("../reconciliation/reconAdjustment.service");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const tenantId = await resolveTenantId();
+  const limit = Math.min(Number(req.query.limit) || 100, 300);
+  sendSuccess(res, await listLedgerAccountCodes(tenantId, limit));
+});
+
+adminRouter.post("/recon-adjustments", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const body = reconAdjustmentBody.parse(req.body);
+  const { requestReconAdjustment } = await import("../reconciliation/reconAdjustment.service");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const { rupeesToPaise } = await import("../../core/money");
+  let amountPaise: bigint;
+  try {
+    amountPaise = rupeesToPaise(body.amount);
+  } catch {
+    throw new HttpError(400, "Amount must be a valid positive rupee amount", "INVALID_AMOUNT");
+  }
+  if (amountPaise <= 0n) {
+    throw new HttpError(400, "Amount must be greater than zero", "INVALID_AMOUNT");
+  }
+  const tenantId = await resolveTenantId();
+  const created = await requestReconAdjustment({
+    tenantId,
+    amount: amountPaise,
+    debitCode: body.debitCode,
+    creditCode: body.creditCode,
+    reason: body.reason,
+    requestedBy: req.auth.sub,
+  });
+  sendSuccess(res, created, "Recon adjustment requested — awaiting checker approval", 201);
+});
+
+adminRouter.post("/recon-adjustments/:id/approve", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const note = typeof req.body?.note === "string" ? req.body.note : undefined;
+  const { approveReconAdjustment } = await import("../reconciliation/reconAdjustment.service");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const tenantId = await resolveTenantId();
+  let adjustmentId: bigint;
+  try {
+    adjustmentId = BigInt(req.params.id);
+  } catch {
+    throw new HttpError(400, "Invalid adjustment id", "INVALID_ID");
+  }
+  const result = await approveReconAdjustment({
+    tenantId,
+    adjustmentId,
+    approvedBy: req.auth.sub,
+    note,
+  });
+  sendSuccess(res, result, "Recon adjustment approved and posted");
+});
+
+adminRouter.post("/recon-adjustments/:id/reject", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const note = z.string().trim().min(3).max(2000).parse(req.body?.note);
+  const { rejectReconAdjustment } = await import("../reconciliation/reconAdjustment.service");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const tenantId = await resolveTenantId();
+  let adjustmentId: bigint;
+  try {
+    adjustmentId = BigInt(req.params.id);
+  } catch {
+    throw new HttpError(400, "Invalid adjustment id", "INVALID_ID");
+  }
+  await rejectReconAdjustment({
+    tenantId,
+    adjustmentId,
+    rejectedBy: req.auth.sub,
+    note,
+  });
+  sendSuccess(res, { id: req.params.id, rejected: true }, "Recon adjustment rejected");
+});
+
 adminRouter.get("/tenant-settings", async (_req, res) => {
   const { getTenantSettings } = await import("../tenants/tenantSettings.service");
   const { resolveTenantId } = await import("../fund-requests/tenant");

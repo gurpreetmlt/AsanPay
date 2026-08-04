@@ -34,6 +34,8 @@ const QUICK_ROUTES = [
   { q: "passbook", href: "/passbook", label: "Wallet statement" },
   { q: "statement", href: "/passbook", label: "Wallet statement" },
   { q: "reconcil", href: "/reconciliation", label: "Txn reconciliation" },
+  { q: "recon adjust", href: "/recon-adjustments", label: "Recon adjustments" },
+  { q: "adjustment", href: "/recon-adjustments", label: "Recon adjustments" },
   { q: "badge", href: "/site-control", label: "Service Badges" },
   { q: "commission", href: "/commission", label: "Commissions" },
   { q: "service charge", href: "/service-charges", label: "Service charges" },

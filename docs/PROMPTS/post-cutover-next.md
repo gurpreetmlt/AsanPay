@@ -125,13 +125,13 @@ A live ASANPAY money movement is now product QA, not ledger proof.
   `transactions.customer_fee > 0`. Fee is resolved **only server-side** via
   `resolveCustomerFee` + table `service_charges` (migration `0030`) inside `executeServiceTxn`
   for every debit — client cannot set fee. No matching rule → fee `0.00` (safe default).
-  Admin read: `GET /admin/service-charges`. Admin write/UI and seed fee rows (if any) still open.
+  Admin: `GET/POST/PATCH/DELETE /admin/service-charges` + admin-web **Service charges** page.
 * **Behaviour change, deliberate:** an upline can no longer pull from a downline's `aeps`
   wallet (`INSUFFICIENT_USABLE_BALANCE`). Earned money is the downline's to withdraw — spec 9.3.
 * **Behaviour change, deliberate:** funding a child's `aeps` wallet now lands in their usable
   balance. Money handed down the hierarchy is an advance; only AePS and commission are earned.
-* Maker-checker exists only on allocation. Spec 9.2 also wants it on fund approval above a
-  threshold, beneficiary changes, provider activation and any `RECON_ADJUSTMENT`.
+* Maker-checker: allocations + fund dual-approve + **RECON_ADJUSTMENT** (admin
+  `/recon-adjustments`). Still open for **beneficiary changes** and **provider activation**.
 * Grants cannot protect the ledger — the app connects as `asanpay`, which owns the tables, and
   Postgres `REVOKE` does not apply to an owner. Triggers are the real enforcement.
 * Legacy tables are still single-tenant. `wallet.ledger.ts` resolves tenant `ASANPAY` by name

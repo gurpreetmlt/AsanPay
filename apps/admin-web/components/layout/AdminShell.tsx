@@ -52,6 +52,7 @@ const TREASURY: NavItem[] = [
       { href: "/banking", label: "Banking", icon: { lib: "lucide", icon: Building2 } },
       { href: "/float", label: "Float", icon: { lib: "lucide", icon: ArrowLeftRight } },
       { href: "/ledger-reports", label: "Ledger reports", icon: { lib: "lucide", icon: Scale } },
+      { href: "/recon-adjustments", label: "Recon adjustments", icon: { lib: "lucide", icon: Scale } },
       { href: "/passbook", label: "Wallet statement", icon: { lib: "fa", name: "FaHistory" } },
       { href: "/reconciliation", label: "Txn reconciliation", icon: { lib: "lucide", icon: Scale } },
       { href: "/treasury-settings", label: "Treasury Settings", icon: { lib: "lucide", icon: Settings } },
