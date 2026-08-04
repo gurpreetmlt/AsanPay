@@ -68,6 +68,7 @@ const SITE_CONTROL: NavItem[] = [
     children: [
       { href: "/site-control", label: "Service Badges", icon: { lib: "lucide", icon: Tags } },
       { href: "/commission", label: "Commissions", icon: { lib: "lucide", icon: Percent } },
+      { href: "/service-charges", label: "Service charges", icon: { lib: "lucide", icon: IndianRupee } },
       { href: "/risk-alerts", label: "Risk Alerts", icon: { lib: "lucide", icon: ShieldAlert } },
       { href: "/recovery-workbench", label: "Recovery Workbench", icon: { lib: "lucide", icon: Wrench } },
       { href: "/support-tickets", label: "Support Tickets", icon: { lib: "lucide", icon: LifeBuoy } },

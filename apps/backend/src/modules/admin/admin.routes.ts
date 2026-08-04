@@ -267,12 +267,49 @@ adminRouter.get("/commission/rules", async (req, res) => {
   sendSuccess(res, await listCommissionRules({ serviceId, role, activeOnly }));
 });
 
-/** Customer fee schedule (service_charges). Read-only in this task — admin UI / write later. */
+// ── Customer fee schedule (service_charges) ─────────────────────────────────
+const serviceChargeBody = z.object({
+  serviceId: z.string().uuid(),
+  providerId: z.string().uuid().nullable().optional(),
+  /** null / omitted on create defaults to null = all roles; UI usually sends retailer */
+  role: schemeRoleEnum.nullable().optional(),
+  ruleType: ruleTypeEnum,
+  value: z.string().min(1).max(20),
+  minAmount: z.string().max(20).nullable().optional(),
+  maxAmount: z.string().max(20).nullable().optional(),
+  effectiveFrom: z.string().max(40).nullable().optional(),
+  effectiveTo: z.string().max(40).nullable().optional(),
+  isActive: z.boolean().optional(),
+});
+
 adminRouter.get("/service-charges", async (req, res) => {
   const { listServiceCharges } = await import("../service-charges/serviceCharge.service");
   const serviceId = typeof req.query.serviceId === "string" ? req.query.serviceId : undefined;
   const activeOnly = req.query.activeOnly === "1" || req.query.activeOnly === "true";
   sendSuccess(res, await listServiceCharges({ serviceId, activeOnly }));
+});
+
+adminRouter.post("/service-charges", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { createServiceCharge } = await import("../service-charges/serviceCharge.service");
+  const body = serviceChargeBody.parse(req.body);
+  const created = await createServiceCharge(req.auth.sub, body);
+  sendSuccess(res, created, "Service charge created");
+});
+
+adminRouter.patch("/service-charges/:id", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { updateServiceCharge } = await import("../service-charges/serviceCharge.service");
+  const body = serviceChargeBody.partial().parse(req.body);
+  const updated = await updateServiceCharge(req.auth.sub, req.params.id, body);
+  sendSuccess(res, updated, "Service charge updated");
+});
+
+adminRouter.delete("/service-charges/:id", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { deleteServiceCharge } = await import("../service-charges/serviceCharge.service");
+  const result = await deleteServiceCharge(req.auth.sub, req.params.id);
+  sendSuccess(res, result, "Service charge deleted");
 });
 
 adminRouter.post("/commission/rules", async (req, res) => {

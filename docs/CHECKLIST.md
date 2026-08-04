@@ -77,7 +77,8 @@
       (`main` = balance − settleable, `aeps` = settleable). Signatures unchanged, 15 call sites
 - [x] `verify:ledger` 10/10 — engine only, does NOT cover `wallet.ledger.ts`
 - [x] `verify:shim` full paths — hierarchy + service_txn debit/credit (+ customer_fee 3-leg) +
-      reversal + fundWallet + commission under LEDGERTEST — **20/20 PASS** on Coolify (2026-08-04)
+      `resolveCustomerFee` / `service_charges` + reversal + fundWallet + commission under LEDGERTEST —
+      **21/21 PASS** on Coolify (2026-08-04)
 - [ ] **Live proof of the shim** — optional ASANPAY production money movement still product QA
 - [x] **DB-backed test suite repaired for cut-over** — `setBalance` via journals + `mirrorBalances`;
   `destroy` soft-retires users (accounts.user_id RESTRICT); `LEDGER_TENANT_CODE` / LEDGERTEST isolation

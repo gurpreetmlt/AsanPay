@@ -36,6 +36,8 @@ const QUICK_ROUTES = [
   { q: "reconcil", href: "/reconciliation", label: "Txn reconciliation" },
   { q: "badge", href: "/site-control", label: "Service Badges" },
   { q: "commission", href: "/commission", label: "Commissions" },
+  { q: "service charge", href: "/service-charges", label: "Service charges" },
+  { q: "customer fee", href: "/service-charges", label: "Service charges" },
   { q: "site", href: "/site-control", label: "Service Badges" },
   { q: "platform", href: "/treasury-settings", label: "Treasury Settings" },
   { q: "treasury", href: "/treasury-settings", label: "Treasury Settings" },

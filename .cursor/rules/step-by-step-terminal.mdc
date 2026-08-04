@@ -1,0 +1,24 @@
+---
+description: One terminal command at a time; wait for user output; fix before next
+alwaysApply: true
+---
+
+# Step-by-step Terminal (SSH / Mac / Docker)
+
+When the work involves **commands the user must run** (EC2 SSH, Mac Terminal, Coolify, docker, psql, migrate, build):
+
+## Protocol
+1. Give **exactly one** command (or one tight copy-paste block that is a single logical step).
+2. Stop. Tell the user to run it and **paste the full output**.
+3. From the next message’s output:
+   - **OK** → give the next single command.
+   - **Error / unexpected** → fix first (explain briefly + one fix command), only then continue.
+4. **Never** dump a long multi-step script “run all of this” unless the user explicitly asks for the full list at once.
+5. **No placeholders** the user could type literally (`…`, `/path/to/…`, `<BACKEND>` without telling them how to fill). Prefer a self-contained command (`$(sudo docker ps -q --filter name=y11b5z)`) or ask them to paste a name from a prior step’s output.
+
+## Numbering in chat
+Label steps clearly: **Step 1 of N** (when total is known) or **Step 1** then later **Step 2**.
+
+## Exceptions
+- Agent may run **its own** local read-only tools / small checks without this protocol.
+- User said “saari commands ek saath” → may give a full numbered list once.

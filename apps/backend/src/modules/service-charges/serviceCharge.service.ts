@@ -3,6 +3,100 @@ import { db } from "../../db/postgres";
 import { serviceCharges, tenants, services, providers } from "../../db/postgres/schema";
 import { rupeesToPaise, paiseToRupees, type Paise } from "../../core/money";
 import type { UserRole } from "@asanpay/shared-types";
+import { HttpError } from "../../utils/httpError";
+import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
+import { env } from "../../config/env";
+
+const SCHEME_ROLES = ["retailer", "distributor", "master_distributor"] as const;
+type SchemeRole = (typeof SCHEME_ROLES)[number];
+type RuleType = "flat" | "percentage";
+
+export type ServiceChargeInput = {
+  serviceId: string;
+  providerId?: string | null;
+  /** null = all roles */
+  role?: SchemeRole | null;
+  ruleType: RuleType;
+  value: string;
+  minAmount?: string | null;
+  maxAmount?: string | null;
+  effectiveFrom?: string | null;
+  effectiveTo?: string | null;
+  isActive?: boolean;
+};
+
+function isSchemeRole(role: string): role is SchemeRole {
+  return (SCHEME_ROLES as readonly string[]).includes(role);
+}
+
+function validateChargeValue(ruleType: RuleType, valueRaw: string): string {
+  const valueNum = Number(valueRaw);
+  if (!Number.isFinite(valueNum) || valueNum < 0) {
+    throw new HttpError(400, "Service charge value must be a non-negative number", "INVALID_VALUE");
+  }
+  if (ruleType === "percentage" && valueNum > 100) {
+    throw new HttpError(400, "Percentage cannot exceed 100", "INVALID_VALUE");
+  }
+  const flatCap = env.MAX_FLAT_COMMISSION_RUPEES ?? 500;
+  if (ruleType === "flat" && valueNum > flatCap) {
+    throw new HttpError(400, `Flat service charge cannot exceed ₹${flatCap}`, "INVALID_VALUE");
+  }
+  return valueNum.toFixed(4);
+}
+
+function normalizeAmountBound(raw: string | null | undefined, field: "minAmount" | "maxAmount"): string | null {
+  if (raw === undefined || raw === null || String(raw).trim() === "") return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) {
+    throw new HttpError(
+      400,
+      field === "minAmount"
+        ? "Min amount must be a non-negative number"
+        : "Max amount must be a non-negative number",
+      "INVALID_AMOUNT",
+    );
+  }
+  return n.toFixed(2);
+}
+
+function parseOptionalDate(raw: string | null | undefined, field: string): Date | null {
+  if (raw === undefined || raw === null || String(raw).trim() === "") return null;
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) {
+    throw new HttpError(400, `${field} must be a valid date`, "INVALID_DATE");
+  }
+  return d;
+}
+
+async function assertServiceExists(serviceId: string) {
+  const [row] = await db.select({ id: services.id }).from(services).where(eq(services.id, serviceId)).limit(1);
+  if (!row) throw new HttpError(400, "Unknown service", "INVALID_SERVICE");
+}
+
+async function assertProviderExists(providerId: string | null | undefined) {
+  if (!providerId) return;
+  const [row] = await db.select({ id: providers.id }).from(providers).where(eq(providers.id, providerId)).limit(1);
+  if (!row) throw new HttpError(400, "Unknown provider", "INVALID_PROVIDER");
+}
+
+async function resolveTenantId(tenantCode?: string): Promise<string> {
+  const code = tenantCode?.trim() || process.env.LEDGER_TENANT_CODE?.trim() || "ASANPAY";
+  const [tenant] = await db.select({ id: tenants.id }).from(tenants).where(eq(tenants.code, code)).limit(1);
+  if (!tenant) throw new HttpError(500, `Tenant ${code} not found`, "TENANT_NOT_FOUND");
+  return tenant.id;
+}
+
+function normalizeRole(role: SchemeRole | null | undefined): SchemeRole | null {
+  if (role === undefined || role === null) return null;
+  if (!isSchemeRole(role)) {
+    throw new HttpError(
+      400,
+      "Role must be retailer, distributor, master_distributor, or empty for all roles",
+      "INVALID_ROLE",
+    );
+  }
+  return role;
+}
 
 /**
  * Parse a non-negative decimal (e.g. rule value "1.5000" percent or flat rupees) as
@@ -167,7 +261,7 @@ export async function listServiceCharges(filters?: {
   if (filters?.serviceId) conditions.push(eq(serviceCharges.serviceId, filters.serviceId));
   if (filters?.activeOnly) conditions.push(eq(serviceCharges.isActive, true));
 
-  return db
+  const rows = await db
     .select({
       id: serviceCharges.id,
       tenantId: serviceCharges.tenantId,
@@ -192,4 +286,185 @@ export async function listServiceCharges(filters?: {
     .leftJoin(providers, eq(providers.id, serviceCharges.providerId))
     .where(and(...conditions))
     .orderBy(desc(serviceCharges.effectiveFrom), services.code);
+
+  return rows.map((r) => ({
+    ...r,
+    value: String(r.value),
+    minAmount: r.minAmount != null ? String(r.minAmount) : null,
+    maxAmount: r.maxAmount != null ? String(r.maxAmount) : null,
+  }));
+}
+
+export async function createServiceCharge(adminId: string, input: ServiceChargeInput) {
+  await assertServiceExists(input.serviceId);
+  await assertProviderExists(input.providerId);
+  const role = normalizeRole(input.role);
+  const value = validateChargeValue(input.ruleType, input.value);
+  const minAmount = normalizeAmountBound(input.minAmount, "minAmount");
+  const maxAmount = normalizeAmountBound(input.maxAmount, "maxAmount");
+  if (minAmount != null && maxAmount != null && Number(minAmount) > Number(maxAmount)) {
+    throw new HttpError(400, "Min amount cannot be greater than max amount", "INVALID_AMOUNT");
+  }
+
+  const effectiveFrom = parseOptionalDate(input.effectiveFrom, "effectiveFrom") ?? new Date();
+  const effectiveTo = parseOptionalDate(input.effectiveTo, "effectiveTo");
+  if (effectiveTo && effectiveTo <= effectiveFrom) {
+    throw new HttpError(400, "Effective to must be after effective from", "INVALID_DATE");
+  }
+
+  const tenantId = await resolveTenantId();
+
+  const [created] = await db
+    .insert(serviceCharges)
+    .values({
+      tenantId,
+      serviceId: input.serviceId,
+      providerId: input.providerId || null,
+      role,
+      ruleType: input.ruleType,
+      value,
+      minAmount,
+      maxAmount,
+      effectiveFrom,
+      effectiveTo,
+      isActive: input.isActive !== false,
+    })
+    .returning();
+
+  if (!created) {
+    throw new HttpError(500, "Failed to create service charge", "CHARGE_CREATE_FAILED");
+  }
+
+  await insertAuditLog({
+    userId: adminId,
+    action: "admin.service_charge_create",
+    entityType: "service_charge",
+    entityId: created.id,
+    metadata: {
+      serviceId: input.serviceId,
+      role,
+      ruleType: input.ruleType,
+      value,
+    },
+  });
+
+  return {
+    ...created,
+    value: String(created.value),
+    minAmount: created.minAmount != null ? String(created.minAmount) : null,
+    maxAmount: created.maxAmount != null ? String(created.maxAmount) : null,
+  };
+}
+
+export async function updateServiceCharge(
+  adminId: string,
+  chargeId: string,
+  patch: Partial<ServiceChargeInput>,
+) {
+  const [existing] = await db
+    .select()
+    .from(serviceCharges)
+    .where(eq(serviceCharges.id, chargeId))
+    .limit(1);
+  if (!existing) throw new HttpError(404, "Service charge not found", "CHARGE_NOT_FOUND");
+
+  if (patch.serviceId) await assertServiceExists(patch.serviceId);
+  if (patch.providerId !== undefined) await assertProviderExists(patch.providerId);
+
+  let role = existing.role as SchemeRole | null;
+  if (patch.role !== undefined) {
+    role = normalizeRole(patch.role);
+  }
+
+  const ruleType = (patch.ruleType ?? existing.ruleType) as RuleType;
+  const value =
+    patch.value !== undefined
+      ? validateChargeValue(ruleType, patch.value)
+      : String(existing.value);
+  if (patch.ruleType && patch.value === undefined) {
+    validateChargeValue(ruleType, String(existing.value));
+  }
+
+  const minAmount =
+    patch.minAmount !== undefined
+      ? normalizeAmountBound(patch.minAmount, "minAmount")
+      : existing.minAmount != null
+        ? String(existing.minAmount)
+        : null;
+  const maxAmount =
+    patch.maxAmount !== undefined
+      ? normalizeAmountBound(patch.maxAmount, "maxAmount")
+      : existing.maxAmount != null
+        ? String(existing.maxAmount)
+        : null;
+  if (minAmount != null && maxAmount != null && Number(minAmount) > Number(maxAmount)) {
+    throw new HttpError(400, "Min amount cannot be greater than max amount", "INVALID_AMOUNT");
+  }
+
+  const effectiveFrom =
+    patch.effectiveFrom !== undefined
+      ? (parseOptionalDate(patch.effectiveFrom, "effectiveFrom") ?? existing.effectiveFrom)
+      : existing.effectiveFrom;
+  const effectiveTo =
+    patch.effectiveTo !== undefined
+      ? parseOptionalDate(patch.effectiveTo, "effectiveTo")
+      : existing.effectiveTo;
+  if (effectiveTo && effectiveTo <= effectiveFrom) {
+    throw new HttpError(400, "Effective to must be after effective from", "INVALID_DATE");
+  }
+
+  const [updated] = await db
+    .update(serviceCharges)
+    .set({
+      serviceId: patch.serviceId ?? existing.serviceId,
+      providerId: patch.providerId !== undefined ? patch.providerId || null : existing.providerId,
+      role,
+      ruleType,
+      value,
+      minAmount,
+      maxAmount,
+      effectiveFrom,
+      effectiveTo,
+      isActive: patch.isActive ?? existing.isActive,
+    })
+    .where(eq(serviceCharges.id, chargeId))
+    .returning();
+
+  await insertAuditLog({
+    userId: adminId,
+    action: "admin.service_charge_update",
+    entityType: "service_charge",
+    entityId: chargeId,
+    metadata: patch as Record<string, unknown>,
+  });
+
+  if (!updated) throw new HttpError(500, "Failed to update service charge", "CHARGE_UPDATE_FAILED");
+
+  return {
+    ...updated,
+    value: String(updated.value),
+    minAmount: updated.minAmount != null ? String(updated.minAmount) : null,
+    maxAmount: updated.maxAmount != null ? String(updated.maxAmount) : null,
+  };
+}
+
+export async function deleteServiceCharge(adminId: string, chargeId: string) {
+  const [existing] = await db
+    .select({ id: serviceCharges.id })
+    .from(serviceCharges)
+    .where(eq(serviceCharges.id, chargeId))
+    .limit(1);
+  if (!existing) throw new HttpError(404, "Service charge not found", "CHARGE_NOT_FOUND");
+
+  await db.delete(serviceCharges).where(eq(serviceCharges.id, chargeId));
+
+  await insertAuditLog({
+    userId: adminId,
+    action: "admin.service_charge_delete",
+    entityType: "service_charge",
+    entityId: chargeId,
+    metadata: {},
+  });
+
+  return { id: chargeId, deleted: true };
 }
