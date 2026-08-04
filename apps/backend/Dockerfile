@@ -11,9 +11,9 @@ COPY apps/backend ./apps/backend
 
 WORKDIR /app/apps/backend
 
-# Resolve local workspace package without full monorepo install
+# Coolify may inject NODE_ENV=production at build time, which skips devDeps (tsx, etc.).
 RUN npm pkg set dependencies.@asanpay/shared-types="file:../../packages/shared-types" \
-  && npm install --include=dev --omit=optional
+  && NODE_ENV=development npm install --include=dev --omit=optional
 
 ENV NODE_ENV=production
 ENV PORT=4000

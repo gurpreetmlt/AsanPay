@@ -10,9 +10,10 @@ COPY apps/admin-web ./apps/admin-web
 
 WORKDIR /app/apps/admin-web
 
-# Resolve local workspace package without full monorepo install
+# Coolify may inject NODE_ENV=production at build time, which skips devDeps.
+# Force install of build tools (typescript, etc.) regardless of Coolify env.
 RUN npm pkg set dependencies.@asanpay/shared-types="file:../../packages/shared-types" \
-  && npm install --include=dev
+  && NODE_ENV=development npm install --include=dev
 
 # TELEMETRY off; raise heap for "Collecting page data" on small Coolify hosts.
 ENV NEXT_TELEMETRY_DISABLED=1
