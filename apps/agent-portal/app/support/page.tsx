@@ -15,6 +15,7 @@ import {
   Plus,
   X,
   Zap,
+  Headphones,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { B, brand } from "@/lib/brand";
@@ -63,11 +64,11 @@ const EMPTY_CONTACTS: SupportContacts = {
   nodalAddress: "",
 };
 
-const HELP_VIDEOS = [
-  { title: "How to complete AePS cash withdrawal", tag: "AePS" },
-  { title: "DMT money transfer walkthrough", tag: "DMT" },
-  { title: "Add money & check Balance", tag: "Balance" },
-  { title: "Set transaction PIN safely", tag: "Security" },
+const HELP_GUIDES = [
+  { title: "AePS cash withdrawal", tag: "AePS" },
+  { title: "DMT money transfer", tag: "DMT" },
+  { title: "Add money & Balance", tag: "Balance" },
+  { title: "Transaction PIN safety", tag: "Security" },
 ] as const;
 
 function roleLabel(role: string) {
@@ -169,9 +170,8 @@ export default function SupportPage() {
 
   if (!hydrated || !accessToken) return null;
 
-  const distributorLabel = upline
-    ? `${roleLabel(upline.role)} (${upline.name})`
-    : "Your distributor / upline";
+  const distRole = upline ? roleLabel(upline.role) : "Distributor";
+  const distName = upline?.name ?? null;
   const distributorMobile = upline?.mobile?.trim() || null;
   const distributorEmail = upline?.email?.trim() || null;
   const carePhone = contacts.supportPhone.trim();
@@ -184,286 +184,212 @@ export default function SupportPage() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-6xl space-y-5 px-4 py-6 md:px-6">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-wider" style={{ color: B.muted }}>
-            Help & support
-          </p>
-          <h1 className="mt-1 text-2xl font-bold md:text-3xl" style={{ color: B.blue }}>
-            We are here to help
-          </h1>
-          <p className="mt-1 text-sm" style={{ color: B.muted }}>
-            Reach your upline or {brand.name} care — raise a ticket when you need a written trail.
-          </p>
+      <div className="mx-auto max-w-6xl space-y-3 px-3 py-4 md:px-5 md:py-5">
+        {/* Compact header */}
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h1 className="text-xl font-bold md:text-2xl" style={{ color: B.blue }}>
+              We are here to help
+            </h1>
+            <p className="mt-0.5 text-xs md:text-sm" style={{ color: B.muted }}>
+              Upline · {brand.name} care · tickets
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setShowForm(true);
+              setSubject((s) => s || "");
+            }}
+            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold text-white"
+            style={{ background: B.badgeGrad }}
+          >
+            <Plus size={14} />
+            Raise ticket
+          </button>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <div className="space-y-4 lg:col-span-2">
-            <div
-              className="overflow-hidden rounded-2xl border bg-white shadow-sm"
-              style={{ borderColor: B.border }}
-            >
-              <div
-                className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4"
-                style={{ borderColor: B.border }}
+        {/* Quick actions — 4 compact tiles fill width */}
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <QuickAction
+            icon={<MessageCircle size={18} style={{ color: B.green }} />}
+            iconBg="rgba(18,183,106,0.12)"
+            title="WhatsApp"
+            subtitle={careWa ? "Faster reply" : "Not configured"}
+            href={waLink}
+            accent={B.walletGrad}
+            disabled={!waLink}
+            badge={careWa ? "Fast" : undefined}
+          />
+          <QuickAction
+            icon={<Phone size={18} style={{ color: B.blueLight }} />}
+            iconBg={B.secondary}
+            title={distName ? distRole : "Upline"}
+            subtitle={distributorMobile ? formatPhone(distributorMobile) : "Not linked"}
+            href={distributorMobile ? telHref(distributorMobile) : undefined}
+            disabled={!distributorMobile}
+          />
+          <QuickAction
+            icon={<Headphones size={18} style={{ color: B.blueLight }} />}
+            iconBg={B.secondary}
+            title={brand.name}
+            subtitle={carePhone ? formatPhone(carePhone) : "Not set"}
+            href={carePhone ? telHref(carePhone) : undefined}
+            disabled={!carePhone}
+          />
+          <QuickAction
+            icon={<Mail size={18} style={{ color: B.blueLight }} />}
+            iconBg={B.secondary}
+            title="Email care"
+            subtitle={careEmail || "Not set"}
+            href={careEmail ? mailto(careEmail) : undefined}
+            disabled={!careEmail}
+          />
+        </div>
+
+        {/* Main: contacts + tickets side by side, equal height fill */}
+        <div className="grid grid-cols-1 gap-2 lg:grid-cols-5 lg:items-stretch">
+          {/* Contacts directory */}
+          <div
+            className="flex flex-col rounded-xl border bg-white p-3 lg:col-span-3"
+            style={{ borderColor: B.border }}
+          >
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-xs font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+                Contact directory
+              </h2>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowForm(true);
+                  setSubject((s) => s || "Request a callback");
+                }}
+                className="text-[11px] font-bold underline-offset-2 hover:underline"
+                style={{ color: B.blueLight }}
               >
-                <div className="flex items-center gap-3">
-                  <div
-                    className="flex h-11 w-11 items-center justify-center rounded-full"
-                    style={{ background: "rgba(18,183,106,0.12)" }}
-                  >
-                    <MessageCircle size={20} style={{ color: B.green }} />
-                  </div>
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-base font-bold" style={{ color: B.blue }}>
-                        WhatsApp support
-                      </h2>
-                      <span
-                        className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
-                        style={{ background: "rgba(18,183,106,0.15)", color: B.greenDark }}
-                      >
-                        <Zap size={10} /> Faster response
-                      </span>
-                    </div>
-                    <p className="text-xs" style={{ color: B.muted }}>
-                      Chat with {brand.name} care on WhatsApp
-                    </p>
-                  </div>
-                </div>
-                {waLink ? (
-                  <a
-                    href={waLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-95"
-                    style={{ background: B.walletGrad }}
-                  >
-                    <MessageCircle size={16} />
-                    WhatsApp us
-                  </a>
-                ) : (
-                  <span
-                    className="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold opacity-50"
-                    style={{ borderColor: B.border, color: B.muted }}
-                    title="Admin has not set WhatsApp number yet"
-                  >
-                    <MessageCircle size={16} />
-                    Not configured
-                  </span>
-                )}
-              </div>
-
-              <div
-                className="grid grid-cols-1 divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0"
-                style={{ borderColor: B.border }}
-              >
-                <div className="space-y-4 p-5">
-                  <div className="flex items-center gap-2">
-                    <Phone size={16} style={{ color: B.blueLight }} />
-                    <h3 className="text-sm font-bold" style={{ color: B.blue }}>
-                      Call support
-                    </h3>
-                  </div>
-
-                  <ContactRow
-                    title={distributorLabel}
-                    value={
-                      distributorMobile
-                        ? formatPhone(distributorMobile)
-                        : "No upline linked on this account"
-                    }
-                    actionLabel="Call"
-                    href={distributorMobile ? telHref(distributorMobile) : undefined}
-                    icon="phone"
-                    disabled={!distributorMobile}
-                  />
-                  <ContactRow
-                    title={brand.name}
-                    value={carePhone ? formatPhone(carePhone) : "Not set by admin yet"}
-                    actionLabel="Call"
-                    href={carePhone ? telHref(carePhone) : undefined}
-                    icon="phone"
-                    disabled={!carePhone}
-                  />
-
-                  <div
-                    className="rounded-xl border px-3 py-3"
-                    style={{ borderColor: B.border, background: B.bg }}
-                  >
-                    <p className="text-xs font-semibold" style={{ color: B.blue }}>
-                      Prefer a callback?
-                    </p>
-                    <p className="mt-0.5 text-[11px]" style={{ color: B.muted }}>
-                      Raise a ticket with your mobile number — care will call you back within working
-                      hours.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowForm(true);
-                        setSubject((s) => s || "Request a callback");
-                      }}
-                      className="mt-2 text-xs font-bold underline-offset-2 hover:underline"
-                      style={{ color: B.blueLight }}
-                    >
-                      Raise callback ticket →
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-4 p-5">
-                  <div className="flex items-center gap-2">
-                    <Mail size={16} style={{ color: B.blueLight }} />
-                    <h3 className="text-sm font-bold" style={{ color: B.blue }}>
-                      Email support
-                    </h3>
-                  </div>
-
-                  <ContactRow
-                    title={upline ? `${roleLabel(upline.role)} (${upline.name})` : "Your distributor"}
-                    value={
-                      distributorEmail
-                        ? distributorEmail
-                        : upline
-                          ? "Upline has no email on file"
-                          : "No upline linked on this account"
-                    }
-                    actionLabel="Email"
-                    href={distributorEmail ? mailto(distributorEmail) : undefined}
-                    icon="mail"
-                    disabled={!distributorEmail}
-                  />
-                  <ContactRow
-                    title={`${brand.name} care`}
-                    value={careEmail || "Not set by admin yet"}
-                    actionLabel="Email"
-                    href={careEmail ? mailto(careEmail) : undefined}
-                    icon="mail"
-                    disabled={!careEmail}
-                  />
-                </div>
-              </div>
+                Request callback
+              </button>
             </div>
 
-            <div
-              className="rounded-2xl border bg-white p-5 shadow-sm lg:hidden"
-              style={{ borderColor: B.border }}
-            >
-              <TicketsBlock
-                tickets={tickets}
-                loading={loading}
-                showForm={showForm}
-                setShowForm={setShowForm}
-                subject={subject}
-                setSubject={setSubject}
-                description={description}
-                setDescription={setDescription}
-                submitting={submitting}
-                onSubmit={() => void submit()}
+            <div className="grid flex-1 grid-cols-1 gap-1.5 sm:grid-cols-2">
+              <ContactLine
+                kind="phone"
+                label={distName ? `${distRole} · ${distName}` : "Your upline"}
+                value={distributorMobile ? formatPhone(distributorMobile) : "No upline on this account"}
+                href={distributorMobile ? telHref(distributorMobile) : undefined}
+              />
+              <ContactLine
+                kind="mail"
+                label={distName ? `${distRole} email` : "Upline email"}
+                value={distributorEmail ?? (upline ? "No email on file" : "—")}
+                href={distributorEmail ? mailto(distributorEmail) : undefined}
+              />
+              <ContactLine
+                kind="phone"
+                label={`${brand.name} care`}
+                value={carePhone ? formatPhone(carePhone) : "Set in Platform Settings"}
+                href={carePhone ? telHref(carePhone) : undefined}
+              />
+              <ContactLine
+                kind="mail"
+                label={`${brand.name} care email`}
+                value={careEmail || "Set in Platform Settings"}
+                href={careEmail ? mailto(careEmail) : undefined}
               />
             </div>
           </div>
 
-          <div className="space-y-4">
-            <div
-              className="rounded-2xl border bg-white p-4 shadow-sm"
-              style={{ borderColor: B.border }}
-            >
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-sm font-bold" style={{ color: B.blue }}>
-                  Featured guides
-                </h3>
-                <span className="text-[11px] font-semibold" style={{ color: B.muted }}>
-                  Self-help
-                </span>
-              </div>
-              <div className="space-y-2">
-                {HELP_VIDEOS.map((v) => (
-                  <button
-                    key={v.title}
-                    type="button"
-                    onClick={() =>
-                      toast("Video guides will open here soon — raise a ticket if you need help now")
-                    }
-                    className="flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition hover:bg-secondary/60"
-                    style={{ borderColor: B.border }}
+          {/* Tickets — fills right column */}
+          <div
+            className="flex flex-col rounded-xl border bg-white p-3 lg:col-span-2"
+            style={{ borderColor: B.border }}
+          >
+            <TicketsBlock
+              tickets={tickets}
+              loading={loading}
+              showForm={showForm}
+              setShowForm={setShowForm}
+              subject={subject}
+              setSubject={setSubject}
+              description={description}
+              setDescription={setDescription}
+              submitting={submitting}
+              onSubmit={() => void submit()}
+            />
+          </div>
+        </div>
+
+        {/* Bottom: guides + nodal — same row, compact */}
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+          <div className="rounded-xl border bg-white p-3" style={{ borderColor: B.border }}>
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-xs font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+                Self-help guides
+              </h3>
+              <span className="text-[10px] font-semibold" style={{ color: B.muted }}>
+                Coming soon
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {HELP_GUIDES.map((g) => (
+                <button
+                  key={g.title}
+                  type="button"
+                  onClick={() =>
+                    toast("Guide videos will open here soon — raise a ticket if you need help now")
+                  }
+                  className="flex items-center gap-2 rounded-lg border px-2 py-2 text-left transition hover:bg-secondary/50"
+                  style={{ borderColor: B.border }}
+                >
+                  <span
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md"
+                    style={{ background: B.secondary }}
                   >
-                    <div
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
-                      style={{ background: B.secondary }}
-                    >
-                      <PlayCircle size={18} style={{ color: B.blueLight }} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-semibold" style={{ color: B.blue }}>
-                        {v.title}
-                      </p>
-                      <p
-                        className="text-[10px] font-bold uppercase tracking-wide"
-                        style={{ color: B.muted }}
-                      >
-                        {v.tag}
-                      </p>
-                    </div>
-                    <ChevronRight size={14} style={{ color: B.muted }} />
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div
-              className="hidden rounded-2xl border bg-white p-4 shadow-sm lg:block"
-              style={{ borderColor: B.border }}
-            >
-              <TicketsBlock
-                tickets={tickets}
-                loading={loading}
-                showForm={showForm}
-                setShowForm={setShowForm}
-                subject={subject}
-                setSubject={setSubject}
-                description={description}
-                setDescription={setDescription}
-                submitting={submitting}
-                onSubmit={() => void submit()}
-                compact
-              />
-            </div>
-
-            <div
-              className="rounded-2xl border bg-white p-4 shadow-sm"
-              style={{ borderColor: B.border }}
-            >
-              <div className="mb-2 flex items-center gap-2">
-                <MapPin size={16} style={{ color: B.blueLight }} />
-                <h3 className="text-sm font-bold" style={{ color: B.blue }}>
-                  Nodal officer
-                </h3>
-              </div>
-              <p className="text-xs leading-relaxed" style={{ color: B.muted }}>
-                {nodalAddress || "Postal address not set by admin yet."}
-              </p>
-              <div className="mt-3 space-y-1.5 text-xs font-medium" style={{ color: B.blueMid }}>
-                {nodalEmail ? (
-                  <a href={mailto(nodalEmail)} className="flex items-center gap-2 hover:underline">
-                    <Mail size={13} /> {nodalEmail}
-                  </a>
-                ) : (
-                  <span className="flex items-center gap-2 opacity-60">
-                    <Mail size={13} /> Email not set
+                    <PlayCircle size={16} style={{ color: B.blueLight }} />
                   </span>
-                )}
-                {nodalPhone ? (
-                  <a href={telHref(nodalPhone)} className="flex items-center gap-2 hover:underline">
-                    <Phone size={13} /> {formatPhone(nodalPhone)}
-                  </a>
-                ) : (
-                  <span className="flex items-center gap-2 opacity-60">
-                    <Phone size={13} /> Phone not set
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[11px] font-semibold" style={{ color: B.blue }}>
+                      {g.title}
+                    </span>
+                    <span className="text-[9px] font-bold uppercase" style={{ color: B.muted }}>
+                      {g.tag}
+                    </span>
                   </span>
-                )}
-              </div>
+                  <ChevronRight size={12} className="shrink-0" style={{ color: B.muted }} />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-xl border bg-white p-3" style={{ borderColor: B.border }}>
+            <div className="mb-1.5 flex items-center gap-1.5">
+              <MapPin size={14} style={{ color: B.blueLight }} />
+              <h3 className="text-xs font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+                Nodal officer
+              </h3>
+            </div>
+            <p className="text-[11px] leading-snug" style={{ color: B.blueMid }}>
+              {nodalAddress || "Address not set yet (Admin → Platform Settings)."}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-medium" style={{ color: B.blueMid }}>
+              {nodalEmail ? (
+                <a href={mailto(nodalEmail)} className="inline-flex items-center gap-1 hover:underline">
+                  <Mail size={12} /> {nodalEmail}
+                </a>
+              ) : (
+                <span className="inline-flex items-center gap-1 opacity-50">
+                  <Mail size={12} /> Email not set
+                </span>
+              )}
+              {nodalPhone ? (
+                <a href={telHref(nodalPhone)} className="inline-flex items-center gap-1 hover:underline">
+                  <Phone size={12} /> {formatPhone(nodalPhone)}
+                </a>
+              ) : (
+                <span className="inline-flex items-center gap-1 opacity-50">
+                  <Phone size={12} /> Phone not set
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -472,52 +398,133 @@ export default function SupportPage() {
   );
 }
 
-function ContactRow({
-  title,
-  value,
-  actionLabel,
-  href,
+function QuickAction({
   icon,
+  iconBg,
+  title,
+  subtitle,
+  href,
   disabled,
+  badge,
+  accent,
 }: {
+  icon: React.ReactNode;
+  iconBg: string;
   title: string;
-  value: string;
-  actionLabel: string;
+  subtitle: string;
   href?: string;
-  icon: "phone" | "mail";
   disabled?: boolean;
+  badge?: string;
+  accent?: string;
 }) {
-  const Icon = icon === "phone" ? Phone : Mail;
-  const inner = (
-    <div className="flex items-center justify-between gap-2">
-      <div className="min-w-0">
-        <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+  const body = (
+    <>
+      <div className="flex items-start justify-between gap-1">
+        <span className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: iconBg }}>
+          {icon}
+        </span>
+        {badge ? (
+          <span
+            className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase"
+            style={{ background: "rgba(18,183,106,0.15)", color: B.greenDark }}
+          >
+            <Zap size={9} /> {badge}
+          </span>
+        ) : null}
+      </div>
+      <div className="mt-2 min-w-0">
+        <p className="truncate text-xs font-bold" style={{ color: B.blue }}>
           {title}
         </p>
-        <p className="truncate text-sm font-semibold" style={{ color: B.blue }}>
+        <p className="truncate text-[11px]" style={{ color: disabled ? B.muted : B.blueMid }}>
+          {subtitle}
+        </p>
+      </div>
+      {href && !disabled && accent ? (
+        <span
+          className="mt-2 inline-flex w-full items-center justify-center rounded-lg py-1.5 text-[11px] font-bold text-white"
+          style={{ background: accent }}
+        >
+          Open chat
+        </span>
+      ) : null}
+    </>
+  );
+
+  const cls =
+    "block rounded-xl border bg-white p-2.5 text-left transition " +
+    (disabled ? "opacity-70" : "hover:shadow-sm");
+
+  if (href && !disabled) {
+    return (
+      <a
+        href={href}
+        target={href.startsWith("http") ? "_blank" : undefined}
+        rel={href.startsWith("http") ? "noopener noreferrer" : undefined}
+        className={cls}
+        style={{ borderColor: B.border }}
+      >
+        {body}
+      </a>
+    );
+  }
+
+  return (
+    <div className={cls} style={{ borderColor: B.border }}>
+      {body}
+    </div>
+  );
+}
+
+function ContactLine({
+  kind,
+  label,
+  value,
+  href,
+}: {
+  kind: "phone" | "mail";
+  label: string;
+  value: string;
+  href?: string;
+}) {
+  const Icon = kind === "phone" ? Phone : Mail;
+  const active = Boolean(href);
+
+  const inner = (
+    <div className="flex items-center gap-2.5">
+      <span
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border"
+        style={{
+          borderColor: B.border,
+          background: active ? B.bg : "#f8fafc",
+          color: active ? B.blueLight : B.muted,
+        }}
+      >
+        <Icon size={14} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[10px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+          {label}
+        </p>
+        <p className="truncate text-xs font-semibold" style={{ color: active ? B.blue : B.muted }}>
           {value}
         </p>
       </div>
-      <span
-        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border ${
-          disabled ? "opacity-40" : ""
-        }`}
-        style={{ borderColor: B.border, background: B.bg, color: B.blueLight }}
-        title={actionLabel}
-      >
-        <Icon size={15} />
-      </span>
     </div>
   );
 
-  if (!href || disabled) {
-    return <div className="rounded-xl border px-3 py-2.5" style={{ borderColor: B.border }}>{inner}</div>;
+  if (!href) {
+    return (
+      <div className="rounded-lg border px-2.5 py-2" style={{ borderColor: B.border }}>
+        {inner}
+      </div>
+    );
   }
 
   return (
     <a
       href={href}
-      className="block rounded-xl border px-3 py-2.5 transition hover:bg-secondary/40"
+      className="rounded-lg border px-2.5 py-2 transition hover:bg-secondary/40"
       style={{ borderColor: B.border }}
     >
       {inner}
@@ -536,7 +543,6 @@ function TicketsBlock({
   setDescription,
   submitting,
   onSubmit,
-  compact,
 }: {
   tickets: TicketRow[];
   loading: boolean;
@@ -548,91 +554,85 @@ function TicketsBlock({
   setDescription: (v: string) => void;
   submitting: boolean;
   onSubmit: () => void;
-  compact?: boolean;
 }) {
   return (
-    <div>
-      <div className="mb-3 flex items-start justify-between gap-2">
-        <div className="flex items-start gap-2">
-          <div
-            className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-full"
-            style={{ background: B.secondary }}
-          >
-            <Ticket size={16} style={{ color: B.blueLight }} />
-          </div>
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Ticket size={14} style={{ color: B.blueLight }} />
           <div>
-            <h3 className="text-sm font-bold" style={{ color: B.blue }}>
-              Manage tickets
+            <h3 className="text-xs font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+              Tickets
             </h3>
-            <p className="text-[11px]" style={{ color: B.muted }}>
-              Raise / view status · Typical response within 5 hours (working days)
+            <p className="text-[10px]" style={{ color: B.muted }}>
+              Reply ~5 hrs (working days)
             </p>
           </div>
         </div>
         <button
           type="button"
           onClick={() => setShowForm((v) => !v)}
-          className="flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold text-white"
+          className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-bold text-white"
           style={{ background: B.badgeGrad }}
         >
           {showForm ? <X size={12} /> : <Plus size={12} />}
-          {showForm ? "Close" : "Raise"}
+          {showForm ? "Close" : "New"}
         </button>
       </div>
 
       {showForm && (
-        <div className="mb-3 space-y-2 rounded-xl border p-3" style={{ borderColor: B.border, background: B.bg }}>
+        <div className="mb-2 space-y-1.5 rounded-lg border p-2" style={{ borderColor: B.border, background: B.bg }}>
           <input
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
-            className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-2"
+            className="w-full rounded-md border bg-white px-2.5 py-1.5 text-xs outline-none focus:ring-2"
             style={{ borderColor: B.border }}
-            placeholder="Subject (e.g. AePS pending cash-out)"
+            placeholder="Subject"
           />
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            rows={compact ? 3 : 4}
-            className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-2"
+            rows={2}
+            className="w-full rounded-md border bg-white px-2.5 py-1.5 text-xs outline-none focus:ring-2"
             style={{ borderColor: B.border }}
-            placeholder="Describe the issue. Include txn ref / UTR if any."
+            placeholder="Details · txn ref / UTR if any"
           />
           <button
             type="button"
             disabled={submitting}
             onClick={onSubmit}
-            className="w-full rounded-xl py-2 text-sm font-semibold text-white disabled:opacity-50"
+            className="w-full rounded-md py-1.5 text-xs font-semibold text-white disabled:opacity-50"
             style={{ background: B.badgeGrad }}
           >
-            {submitting ? "Submitting…" : "Submit ticket"}
+            {submitting ? "Submitting…" : "Submit"}
           </button>
         </div>
       )}
 
-      <div className={`space-y-2 ${compact ? "max-h-56 overflow-y-auto" : ""}`}>
+      <div className="min-h-[8rem] flex-1 space-y-1.5 overflow-y-auto">
         {loading && (
-          <p className="py-4 text-center text-xs" style={{ color: B.muted }}>
-            Loading tickets…
+          <p className="py-6 text-center text-[11px]" style={{ color: B.muted }}>
+            Loading…
           </p>
         )}
         {!loading && tickets.length === 0 && (
           <div
-            className="flex flex-col items-center gap-2 rounded-xl border border-dashed px-3 py-6 text-center"
+            className="flex flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed px-3 py-8 text-center"
             style={{ borderColor: B.border, color: B.muted }}
           >
-            <LifeBuoy size={22} style={{ color: B.blueLight }} />
-            <p className="text-xs">No tickets yet. Raise one if chat and call did not resolve your issue.</p>
+            <LifeBuoy size={20} style={{ color: B.blueLight }} />
+            <p className="text-[11px]">No tickets yet</p>
           </div>
         )}
         {!loading &&
           tickets.map((t) => (
-            <div key={t.id} className="rounded-xl border px-3 py-2.5" style={{ borderColor: B.border }}>
+            <div key={t.id} className="rounded-lg border px-2.5 py-2" style={{ borderColor: B.border }}>
               <div className="flex items-center justify-between gap-2">
-                <span className="truncate text-xs font-bold" style={{ color: B.blue }}>
+                <span className="truncate text-[11px] font-bold" style={{ color: B.blue }}>
                   {t.subject}
                 </span>
                 <span
-                  className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold capitalize"
+                  className="shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold capitalize"
                   style={
                     t.status === "open"
                       ? { background: "#FEF3C7", color: "#92400E" }
@@ -642,17 +642,14 @@ function TicketsBlock({
                   {t.status}
                 </span>
               </div>
-              <p className="mt-1 line-clamp-2 text-[11px]" style={{ color: B.muted }}>
+              <p className="mt-0.5 line-clamp-1 text-[10px]" style={{ color: B.muted }}>
                 {t.description}
               </p>
               {t.resolutionNote && (
-                <p className="mt-1 text-[11px] font-medium" style={{ color: B.greenDark }}>
-                  Resolution: {t.resolutionNote}
+                <p className="mt-0.5 line-clamp-1 text-[10px] font-medium" style={{ color: B.greenDark }}>
+                  {t.resolutionNote}
                 </p>
               )}
-              <p className="mt-1 text-[10px]" style={{ color: B.muted }}>
-                {new Date(t.createdAt).toLocaleString("en-IN")}
-              </p>
             </div>
           ))}
       </div>
