@@ -6,7 +6,7 @@ Marketing / waitlist Next.js app (`@asanpay/frontend`).
 |--|--|
 | Port | **3002** |
 | Package | `@asanpay/frontend` |
-| Agent Log in | `NEXT_PUBLIC_AGENT_WEB_URL` → `/login` (`apps/web` :3001) |
+| Agent Log in | `NEXT_PUBLIC_AGENT_WEB_URL` → `/login` (`apps/agent-portal` :3001) |
 | Agent Sign up | same → `/signup` |
 
 ## Dev (Mac Terminal)

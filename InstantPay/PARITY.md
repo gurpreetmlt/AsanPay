@@ -1,13 +1,13 @@
 # InstantPay Cross-Platform Parity
 
-Source of truth for `apps/web` + `apps/mobile` parity on InstantPay-backed rails.
+Source of truth for `apps/agent-portal` + `apps/mobile` parity on InstantPay-backed rails.
 
 ## Rule
 
 Koi bhi InstantPay-backed service tab tak complete nahi hai jab tak:
 
 1. backend contract wired ho,
-2. `apps/web` mein visible entrypoint + usable flow ho,
+2. `apps/agent-portal` mein visible entrypoint + usable flow ho,
 3. `apps/mobile` mein visible entrypoint + usable flow ho,
 4. ya doc mein explicit platform exception likhi ho.
 

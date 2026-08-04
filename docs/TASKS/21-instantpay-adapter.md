@@ -38,7 +38,7 @@ Real InstantPay adapter behind the existing `ProviderAdapter` contract so AEPS /
 
 - InstantPay feature ko **done** tab hi mark karo jab:
   - backend contract wired ho,
-  - `apps/web` entrypoint + usable flow ho,
+  - `apps/agent-portal` entrypoint + usable flow ho,
   - `apps/mobile` entrypoint + usable flow ho,
   - ya missing platform doc mein explicit exception ke saath marked ho.
 - Audit source of truth: `InstantPay/PARITY.md`

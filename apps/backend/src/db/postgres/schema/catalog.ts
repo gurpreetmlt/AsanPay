@@ -31,7 +31,7 @@ export const services = pgTable(
       .references(() => serviceCategories.id, { onDelete: "restrict" }),
     code: varchar("code", { length: 60 }).notNull().unique(),
     name: varchar("name", { length: 120 }).notNull(),
-    // SVG filename under apps/web/public/service-icons/, e.g. "Cash-Withdraw.svg"
+    // SVG filename under apps/agent-portal/public/service-icons/, e.g. "Cash-Withdraw.svg"
     icon: varchar("icon", { length: 100 }),
     // Small display-only teaser shown on the tile itself, e.g. "Upto 2%", "Flat ₹1", "NEW".
     // Cosmetic — the real commission preview comes from commission_rules once that's wired up.

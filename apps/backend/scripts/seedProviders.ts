@@ -6,7 +6,7 @@ import { env } from "../src/config/env";
 import { aepsAdapterCode } from "../src/modules/providers/aepsMode";
 
 // Registers the provider rows the Developer Options → Providers admin panel reads
-// (apps/admin-web/app/developer-options/providers) and seeds provider_services rows so
+// (apps/admin-portal/app/developer-options/providers) and seeds provider_services rows so
 // transactions resolve a provider instead of 503 NO_PROVIDER_AVAILABLE.
 //
 // 2026-07-21: AEPS/DMT product operations were migrated OFF the single AEPS_PROVIDER_MODE env

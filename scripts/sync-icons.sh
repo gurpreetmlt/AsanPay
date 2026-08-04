@@ -3,14 +3,14 @@
 # Sync service icons: web public (canonical) → mobile assets + serviceIconXml.ts
 #
 # Canonical location (put new SVGs here):
-#   apps/web/public/service-icons/
+#   apps/agent-portal/public/service-icons/
 #
 # Run: bash scripts/sync-icons.sh
 #
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SOURCE="$ROOT/apps/web/public/service-icons"
+SOURCE="$ROOT/apps/agent-portal/public/service-icons"
 MOBILE_SVG="$ROOT/apps/asanpay-mobile-app/src/assets/service-icons"
 MOBILE_XML="$ROOT/apps/asanpay-mobile-app/src/assets/serviceIconXml.ts"
 
@@ -25,7 +25,7 @@ if [ "$COUNT" = "0" ]; then
   exit 1
 fi
 
-echo "Found $COUNT SVGs in apps/web/public/service-icons/ (canonical)"
+echo "Found $COUNT SVGs in apps/agent-portal/public/service-icons/ (canonical)"
 
 echo "→ Syncing to mobile assets/service-icons..."
 mkdir -p "$MOBILE_SVG"
@@ -49,7 +49,7 @@ const entries = files.map(f => {
   return '  ' + JSON.stringify(f) + ': ' + JSON.stringify(xml);
 });
 const content =
-  '/** Auto-generated from apps/web/public/service-icons — do not edit manually. Run: bash scripts/sync-icons.sh */\\n' +
+  '/** Auto-generated from apps/agent-portal/public/service-icons — do not edit manually. Run: bash scripts/sync-icons.sh */\\n' +
   'export const SERVICE_ICON_XML: Record<string, string> = {\\n' +
   entries.join(',\\n') +
   '\\n};\\n';

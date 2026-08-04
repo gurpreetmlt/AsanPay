@@ -9,8 +9,8 @@ Admin load float; distributor fund request; admin approve.
 | Path | Why |
 |------|-----|
 | `apps/backend/src/modules/wallet/wallet.routes.ts` | POST /fund |
-| `apps/admin-web/app/dashboard/page.tsx` | Admin fund UI |
-| `apps/web/app/dashboard/page.tsx` | Partner fund UI |
+| `apps/admin-portal/app/dashboard/page.tsx` | Admin fund UI |
+| `apps/agent-portal/app/dashboard/page.tsx` | Partner fund UI |
 
 ## Roles
 - Admin: `POST /wallet/fund` (self or `targetUserId` = direct Super Dist) — no `/wallet/transfer`

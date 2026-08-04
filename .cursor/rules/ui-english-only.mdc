@@ -6,7 +6,7 @@ alwaysApply: true
 # Frontend language: English only
 
 - **User → agent:** commands may be Hinglish / Hindi mixed — OK.
-- **Product UI copy:** English only — web (`apps/web`, `apps/admin-web`), mobile, emails, toasts, labels, placeholders, buttons, empty states, errors shown to users.
+- **Product UI copy:** English only — web (`apps/agent-portal`, `apps/admin-portal`), mobile, emails, toasts, labels, placeholders, buttons, empty states, errors shown to users.
 - Do **not** put Hinglish/Hindi phrases in frontend strings (e.g. avoid "dalо", "yahan", "dubara try", "Select karo" in UI).
 - Agent replies to the user may stay short Hinglish if that helps; code comments may stay English.
 - Docs for agents (`flow/`, `AGENTS.md`) may use Hindi labels for clarity; shipped product strings = English.

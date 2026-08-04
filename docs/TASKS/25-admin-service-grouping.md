@@ -30,16 +30,16 @@ the user first.
 
 ## Where this same "group by rail, not by internal service code" principle
 ## already applies (for consistency — apply the same idea anywhere else new)
-- Task 23 (Providers panel, `apps/admin-web/app/developer-options/providers/page.tsx`) — category-level rollup with a "view individual services" drill-down, already shipped.
+- Task 23 (Providers panel, `apps/admin-portal/app/developer-options/providers/page.tsx`) — category-level rollup with a "view individual services" drill-down, already shipped.
 - This task — same principle, applied to Commission page.
 - If a future admin page lists services again (reports, analytics, etc.), default to the same **grouped-by-rail-with-drill-down** pattern rather than listing raw internal operation codes.
 
 ## Read ONLY these files
 | Path | Why |
 |------|-----|
-| `apps/admin-web/components/users/AgentCommissionPanel.tsx` | Renders the per-category service commission table |
+| `apps/admin-portal/components/users/AgentCommissionPanel.tsx` | Renders the per-category service commission table |
 | `apps/backend/src/modules/admin/admin.service.ts` (`getAdminUserCommissions`, `upsertAdminUserCommissions`) | Data source + save logic — needs a grouping/fan-out concept |
-| `apps/admin-web/app/developer-options/providers/page.tsx` | Reference pattern already built for the same grouping idea (Task 23) |
+| `apps/admin-portal/app/developer-options/providers/page.tsx` | Reference pattern already built for the same grouping idea (Task 23) |
 
 ## Steps
 1. Confirm with user: single shared rate for all 4 AEPS sub-services, fanned out on save — or something else.

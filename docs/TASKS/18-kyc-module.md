@@ -6,7 +6,7 @@
 | Path | Why |
 |------|-----|
 | `apps/backend/src/db/postgres/schema/users.ts` | kycStatus field |
-| `apps/admin-web/app/dashboard/page.tsx` | Admin UI mount |
+| `apps/admin-portal/app/dashboard/page.tsx` | Admin UI mount |
 | `apps/mobile/src/screens/RoleHomeScreens.tsx` | Field agent |
 
 ## Goal

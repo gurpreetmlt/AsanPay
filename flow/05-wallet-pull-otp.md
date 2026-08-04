@@ -16,7 +16,7 @@ Parent collects money **from** direct child.
 - Dev may return OTP in response when expose-OTP env is on
 
 ## UI
-- [`apps/web/components/dashboard/PullForm.tsx`](../apps/web/components/dashboard/PullForm.tsx)
+- [`apps/agent-portal/components/dashboard/PullForm.tsx`](../apps/agent-portal/components/dashboard/PullForm.tsx)
 - Wallet list: Fund + Wapas buttons
 
 ## Mobile

@@ -2,7 +2,7 @@
 
 ## 1. Tenant resolution: full custom domain — frontend only, API stays shared
 
-Partners bring their own domain (e.g. `partner.com`) and point it at our **frontend** (`apps/web`) via CNAME/A record; we verify the record and issue a certificate (Let's Encrypt) for that domain.
+Partners bring their own domain (e.g. `partner.com`) and point it at our **frontend** (`apps/agent-portal`) via CNAME/A record; we verify the record and issue a certificate (Let's Encrypt) for that domain.
 
 The **backend API stays at the single shared `api.asanpay.in`** — no per-tenant API domain or per-tenant backend cert needed. This significantly shrinks the SSL-automation problem to just the frontend app in Coolify.
 

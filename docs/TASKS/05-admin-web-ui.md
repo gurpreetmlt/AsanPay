@@ -1,7 +1,7 @@
 # Task 05 — Admin Web UI
 
 ## App
-`apps/admin-web` — port 3000 — admin only
+`apps/admin-portal` — port 3000 — admin only
 
 ## Key files
 | Path | Purpose |

@@ -7,7 +7,7 @@
 |------|-----|
 | `apps/backend/.env.example` | All vars |
 | `apps/mobile/src/lib/api.ts` | Mobile API URL |
-| `apps/web/.env.local` | Web API URL |
+| `apps/agent-portal/.env.local` | Web API URL |
 | `docs/TASKS/08-vps-deploy.md` | Deploy steps |
 
 ## Checklist

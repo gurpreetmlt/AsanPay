@@ -5,7 +5,7 @@
 ## Read ONLY
 | Path | Why |
 |------|-----|
-| `apps/admin-web/app/dashboard/page.tsx` | Current UI |
+| `apps/admin-portal/app/dashboard/page.tsx` | Current UI |
 | `apps/backend/src/modules/wallet/wallet.service.ts` | Balances |
 | `apps/backend/src/modules/transactions/txn.service.ts` | GMV queries |
 

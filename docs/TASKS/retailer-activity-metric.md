@@ -7,9 +7,9 @@
 4. Move Quick Actions higher (below Main Balance / Retailer Overview).
 
 ## Read ONLY
-- `apps/web/components/dashboard/DistributorDashboard.tsx`
-- `apps/web/app/wallet/page.tsx`
-- `apps/web/components/dashboard/PullForm.tsx` (toast/modal labels if Collect/Debit)
+- `apps/agent-portal/components/dashboard/DistributorDashboard.tsx`
+- `apps/agent-portal/app/wallet/page.tsx`
+- `apps/agent-portal/components/dashboard/PullForm.tsx` (toast/modal labels if Collect/Debit)
 - `apps/backend/src/modules/dashboard/dashboard.service.ts`
 - `AGENTS.md`
 

@@ -7,7 +7,7 @@
 |------|-----|
 | `apps/backend/src/modules/transactions/txn.routes.ts` | BBPS/recharge |
 | `apps/backend/src/modules/providers/adapters/paysprint.adapter.ts` | Mock pay |
-| `apps/web/components/dashboard/CategorySection.tsx` | Service tiles |
+| `apps/agent-portal/components/dashboard/CategorySection.tsx` | Service tiles |
 
 ## Flow
 Fetch bill → confirm → pay → receipt (recharge: direct amount)

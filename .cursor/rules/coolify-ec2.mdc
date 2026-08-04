@@ -7,7 +7,7 @@ alwaysApply: true
 
 ## Fact
 
-- **App deploy:** Git push → **Coolify** redeploy (backend / admin-web / web).
+- **App deploy:** Git push → **Coolify** redeploy (backend / admin-portal / agent-portal).
 - Coolify **runs on AWS EC2**. EC2 = machine; Coolify = how apps ship.
 - **DB migrate / seed:** user runs on **EC2 over SSH** (not Mac local against prod, not “Coolify button” by default).
 - Env vars = **Coolify** dashboard for the service.

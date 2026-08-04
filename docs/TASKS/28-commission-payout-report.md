@@ -11,7 +11,7 @@ Admin report: commission ledger payouts (who earned what, from which txn).
 |------|-----|
 | `apps/backend/src/modules/commission/commission.service.ts` | ledger + earnings |
 | `apps/backend/src/modules/admin/admin.routes.ts` | mount admin APIs |
-| `apps/admin-web/app/commission/page.tsx` | schemes UI — add report |
+| `apps/admin-portal/app/commission/page.tsx` | schemes UI — add report |
 
 ## Steps
 1. Admin API: list + summary from `commission_ledger` (role / date filters)

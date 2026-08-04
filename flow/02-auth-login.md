@@ -15,6 +15,6 @@
 
 ## Key files
 - [`apps/backend/src/modules/auth/auth.service.ts`](../apps/backend/src/modules/auth/auth.service.ts)
-- [`apps/web/app/login/page.tsx`](../apps/web/app/login/page.tsx)
-- [`apps/admin-web/app/login/page.tsx`](../apps/admin-web/app/login/page.tsx)
+- [`apps/agent-portal/app/login/page.tsx`](../apps/agent-portal/app/login/page.tsx)
+- [`apps/admin-portal/app/login/page.tsx`](../apps/admin-portal/app/login/page.tsx)
 - Creds: [`LOGIN.md`](../LOGIN.md) only

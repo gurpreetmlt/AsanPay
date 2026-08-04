@@ -204,8 +204,8 @@ AEPS_BIO_MISMATCH_LIMIT=2
 | Migrations | `0013_aeps_compliance.sql`, `0014_aeps_cash_deposit.sql` |
 | Mobile AEPS screen | `apps/asanpay-mobile-app/src/screens/retailer/AepsScreen.tsx` |
 | Mobile RD capture | `apps/asanpay-mobile-app/src/lib/rdServiceFingerprint.ts` |
-| Web AEPS page | `apps/web/app/aeps/page.tsx` |
-| Web RD capture | `apps/web/lib/rdServiceFingerprint.ts` |
+| Web AEPS page | `apps/agent-portal/app/aeps/page.tsx` |
+| Web RD capture | `apps/agent-portal/lib/rdServiceFingerprint.ts` |
 | Task tracker | `docs/TASKS/21-instantpay-adapter.md` |
 
 ---

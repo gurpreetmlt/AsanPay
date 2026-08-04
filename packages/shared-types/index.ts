@@ -119,7 +119,7 @@ export interface CatalogService {
   code: string;
   name: string;
   badge: string | null;
-  /** SVG filename under apps/web/public/service-icons/, e.g. "Cash-Withdraw.svg". null = default icon. */
+  /** SVG filename under apps/agent-portal/public/service-icons/, e.g. "Cash-Withdraw.svg". null = default icon. */
   icon: string | null;
 }
 
@@ -142,7 +142,7 @@ export function serviceIconPath(icon: string | null | undefined): string | null 
 }
 
 /**
- * Single source of truth for the white-label brand name/tagline — both apps/web/lib/brand.ts
+ * Single source of truth for the white-label brand name/tagline — both apps/agent-portal/lib/brand.ts
  * and apps/asanpay-mobile-app/src/theme/brand.ts read these defaults from here so a rename
  * only has to happen in one place. Web can still override at runtime via
  * NEXT_PUBLIC_BRAND_NAME/NEXT_PUBLIC_BRAND_TAGLINE; the mobile app is compiled, so a brand

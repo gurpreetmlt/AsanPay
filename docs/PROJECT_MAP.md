@@ -6,10 +6,10 @@
 
 | App | Package | Port | Users |
 |-----|---------|------|-------|
-| admin-web | `@asanpay/admin-web` | 3000 | admin |
-| web | `@asanpay/web` | 3001 | super dist, distributor, retailer |
+| admin-portal | `@asanpay/admin-web` | 3000 | admin |
+| agent-portal | `@asanpay/web` | 3001 | super dist, distributor, retailer |
 | backend | `@asanpay/backend` | 4000 | API |
-| mobile (`apps/mobile`) | `@asanpay/mobile` | Metro 8081 | same as web (agent) |
+| mobile (`apps/asanpay-mobile-app`) | `@asanpay/mobile` | Metro 8081 | same as agent-portal (agent) |
 
 ## Data stores
 

@@ -7,9 +7,9 @@
 
 ```
 @AGENTS.md @docs/AGENT_PLAN.md @docs/ROADMAP.md @docs/TASKS/INDEX.md @docs/CHECKLIST.md
-@apps/web/components/dashboard/RetailerDashboard.tsx
-@apps/web/components/dashboard/DistributorDashboard.tsx
-@apps/web/components/dashboard/SuperDistributorDashboard.tsx
+@apps/agent-portal/components/dashboard/RetailerDashboard.tsx
+@apps/agent-portal/components/dashboard/DistributorDashboard.tsx
+@apps/agent-portal/components/dashboard/SuperDistributorDashboard.tsx
 @docs/TASKS/22-paysprint-adapter.md
 @docs/TASKS/23-provider-admin-panel.md
 @docs/TASKS/24-financial-safety-layer.md
@@ -20,7 +20,7 @@ Convert the Feature-Rich Depth brief below into a concrete AsanPay product backl
 OUTPUT — create these files (English product copy; Hindi OK only in agent notes):
 1. docs/PRODUCT/feature-rich-backlog.md
    - Role-wise user stories (Admin / Super Dist / Dist / Retailer / Cross-role)
-   - Per story: API scope, DB tables/columns (sketch), UI screens (apps/admin-web | apps/web | mobile)
+   - Per story: API scope, DB tables/columns (sketch), UI screens (apps/admin-portal | apps/agent-portal | mobile)
    - Effort points (1/2/3/5/8), Tier (1/2/3), KPI it moves
 2. docs/PRODUCT/feature-rich-90day.md
    - Month 1 / 2 / 3 sprint plan mapping stories → weeks

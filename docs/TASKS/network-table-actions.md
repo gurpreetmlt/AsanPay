@@ -19,9 +19,9 @@ English only (see `.cursor/rules/ui-english-only.mdc`).
 | History | icon → passbook / ledger for that user |
 
 ## Read ONLY
-- `apps/web/app/network/page.tsx`
-- `apps/web/components/dashboard/FundForm.tsx`
-- `apps/web/components/dashboard/PullForm.tsx`
+- `apps/agent-portal/app/network/page.tsx`
+- `apps/agent-portal/components/dashboard/FundForm.tsx`
+- `apps/agent-portal/components/dashboard/PullForm.tsx`
 - `apps/backend/src/modules/users/users.service.ts` (downline payload)
 - `AGENTS.md`
 

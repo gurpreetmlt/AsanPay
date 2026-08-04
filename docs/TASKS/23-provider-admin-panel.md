@@ -42,7 +42,7 @@ history, wallet ledger, reconciliation).
 
 ### 🟡 Part A — shipped (this chat), first cut only
 - ✅ Backend: `GET /admin/providers` (grouped by service), `PATCH /admin/providers/:providerServiceId` (isActive/priority), `POST /admin/providers/services/:serviceId/disable-all` — [admin.service.ts](../../apps/backend/src/modules/admin/admin.service.ts), [admin.routes.ts](../../apps/backend/src/modules/admin/admin.routes.ts)
-- ✅ Frontend: `apps/admin-web/app/developer-options/providers/page.tsx` + nav entry in `AdminShell.tsx` ("Developer Options → Providers")
+- ✅ Frontend: `apps/admin-portal/app/developer-options/providers/page.tsx` + nav entry in `AdminShell.tsx` ("Developer Options → Providers")
 - ✅ Type-checks clean (backend + admin-web)
 - ⬜ **Not done**: commission_rate/min-max-limit/onboarding_stage/health_percent/last_changed_by columns (no migration written — current page only exposes isActive + priority, the columns that already exist on `provider_services`)
 - ⬜ **Not done**: AEPS/DMT service codes are invisible to this panel — they still route via `AEPS_PROVIDER_MODE` (see `aepsMode.ts`), not `provider_services`. This panel only affects other services (BBPS/recharge today). Migrating AEPS/DMT onto this panel is a separate decision — it changes how live InstantPay AEPS traffic routes today, don't do it casually.
@@ -104,12 +104,12 @@ Task 24 builds) — order is 23A → 24 → 23B, not 23A → 23B → 24.
 |------|-----|
 | `apps/backend/src/modules/providers/provider.registry.ts` | Source of registered adapters |
 | `apps/backend/src/db/postgres/schema/catalog.ts` | Current `providers`/`provider_services` columns before writing migration |
-| `apps/admin-web/components/layout/AdminShell.tsx` | Admin nav — add "Developer Options → Providers" here, NOT in `apps/web` (that's the agent portal, wrong app) |
+| `apps/admin-portal/components/layout/AdminShell.tsx` | Admin nav — add "Developer Options → Providers" here, NOT in `apps/agent-portal` (that's the agent portal, wrong app) |
 | `docs/TASKS/17-admin-dashboard.md` | Existing admin panel conventions |
 
 ## Do NOT read
-- Mobile app files — this is web admin only (`apps/admin-web`)
-- `apps/web` — that's the agent portal (retailer/distributor), not admin
+- Mobile app files — this is web admin only (`apps/admin-portal`)
+- `apps/agent-portal` — that's the agent portal (retailer/distributor), not admin
 - InstantPay/PaySprint provider docs — not needed for this UI task
 
 ## Done when

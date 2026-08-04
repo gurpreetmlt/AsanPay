@@ -1,6 +1,6 @@
 # Admin Dashboard Structure
 
-Two logical dashboards, both served from the **existing `apps/admin-web` app**, role-gated — no separate/new frontend app needed.
+Two logical dashboards, both served from the **existing `apps/admin-portal` app**, role-gated — no separate/new frontend app needed.
 
 ## Super Admin (us)
 
@@ -19,7 +19,7 @@ Two logical dashboards, both served from the **existing `apps/admin-web` app**, 
 
 ## Transacting users (SD/Distributor/Retailer)
 
-Continue to use **`apps/web`** (the agent-facing portal) — also becomes tenant-scoped automatically via the same RLS + JWT mechanism, no separate app needed there either.
+Continue to use **`apps/agent-portal`** (the agent-facing portal) — also becomes tenant-scoped automatically via the same RLS + JWT mechanism, no separate app needed there either.
 
 ## Per-tenant hierarchy
 

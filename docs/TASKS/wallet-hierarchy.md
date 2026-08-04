@@ -12,8 +12,8 @@ Enforce Admin → Super Distributor → Distributor → Retailer for money + net
 | `apps/backend/src/modules/wallet/wallet.routes.ts` | Admin fund-only; SD/D transfer |
 | `apps/backend/src/modules/users/users.service.ts` | Network + child active |
 | `apps/backend/src/modules/admin/admin.service.ts` | Reassign parent |
-| `apps/web/app/network/page.tsx` | Network visibility + toggle |
-| `apps/admin-web/app/users/[id]/page.tsx` | Admin network-move UI |
+| `apps/agent-portal/app/network/page.tsx` | Network visibility + toggle |
+| `apps/admin-portal/app/users/[id]/page.tsx` | Admin network-move UI |
 
 ## Rules
 - Admin: `POST /wallet/fund` (self or direct Super Dist) — **no** `/wallet/transfer`

@@ -2,11 +2,11 @@
 
 | Area | Path |
 |------|------|
-| Dashboard / stats | `apps/admin-web/app/dashboard` |
-| Users + active | `apps/admin-web/app/users` |
-| Agent detail / reassign / KYC | `apps/admin-web/app/users/[id]` |
-| Wallet mint | `apps/admin-web/app/wallet` |
-| KYC queue | `apps/admin-web/app/kyc` |
-| Site control | `apps/admin-web/app/site-control` |
+| Dashboard / stats | `apps/admin-portal/app/dashboard` |
+| Users + active | `apps/admin-portal/app/users` |
+| Agent detail / reassign / KYC | `apps/admin-portal/app/users/[id]` |
+| Wallet mint | `apps/admin-portal/app/wallet` |
+| KYC queue | `apps/admin-portal/app/kyc` |
+| Site control | `apps/admin-portal/app/site-control` |
 
 API prefix: `/api/admin/*` (admin role only).

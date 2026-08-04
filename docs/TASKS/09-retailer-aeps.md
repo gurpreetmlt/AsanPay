@@ -5,7 +5,7 @@
 2. API wire + ServiceTxn write
 3. Receipt screen
 
-## Depends: 11-mobile-bottom-tabs (optional web: apps/web)
+## Depends: 11-mobile-bottom-tabs (optional web: apps/agent-portal)
 
 ## Read ONLY
 | Path | Why |
@@ -13,7 +13,7 @@
 | `apps/backend/src/modules/transactions/txn.routes.ts` | AEPS endpoints |
 | `apps/backend/src/modules/transactions/txn.service.ts` | Txn logic |
 | `apps/backend/src/modules/providers/adapters/eko.adapter.ts` | Mock aggregator |
-| `apps/web/app/dashboard/page.tsx` | Retailer dashboard |
+| `apps/agent-portal/app/dashboard/page.tsx` | Retailer dashboard |
 | `apps/mobile/src/screens/RoleHomeScreens.tsx` | Mobile entry |
 
 ## API

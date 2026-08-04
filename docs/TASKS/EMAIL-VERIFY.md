@@ -29,7 +29,7 @@ sab pehle se hai). Koi naya table nahi.
 
 ### ~~2. `AuthUser` mein email fields~~ ✅
 
-### ~~3. Frontend — `apps/web`~~ ✅
+### ~~3. Frontend — `apps/agent-portal`~~ ✅
 - Shared `EmailVerifyField` (Verify + OTP modal)
 - Wired in `kyc/page.tsx`, `onboarding/outlet/page.tsx`, `settings/page.tsx`
 

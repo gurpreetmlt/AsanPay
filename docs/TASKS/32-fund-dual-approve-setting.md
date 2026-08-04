@@ -15,7 +15,7 @@ Today `FUND_APPROVE_DUAL_RUPEES` is env-only. Single-admin shops need a high lim
 - `apps/backend/src/modules/fund-requests/fundRequest.service.ts` (dual threshold check)
 - `apps/backend/src/config/env.ts` (`FUND_APPROVE_DUAL_RUPEES` fallback)
 - Existing tenant/settings pattern if any (search `tenant_settings` / site-control) — reuse, don’t invent a second settings system
-- `apps/admin-web` Platform Control / site-control page for UI placement
+- `apps/admin-portal` Platform Control / site-control page for UI placement
 
 ## Do
 

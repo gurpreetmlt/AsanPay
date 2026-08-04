@@ -27,7 +27,7 @@ Lookup: `GET /api/auth/sponsor/search?mobile=XXXXXXXXXX&role=master_distributor|
 
 ## UI
 
-- Web: [`apps/web/app/signup/page.tsx`](../apps/web/app/signup/page.tsx)
+- Web: [`apps/agent-portal/app/signup/page.tsx`](../apps/agent-portal/app/signup/page.tsx)
 - Mobile: `apps/asanpay-mobile-app/src/screens/signup/SignupScreen.tsx`
 
 ## Backend

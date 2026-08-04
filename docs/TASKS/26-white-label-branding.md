@@ -8,9 +8,9 @@ vars), pointing at the same API.
 
 ## What's config-driven now
 
-- `apps/web/lib/brand.ts` — `brand.name`, `brand.tagline` read from
+- `apps/agent-portal/lib/brand.ts` — `brand.name`, `brand.tagline` read from
   `NEXT_PUBLIC_BRAND_NAME` / `NEXT_PUBLIC_BRAND_TAGLINE`, default to AsanPay.
-- `apps/admin-web/lib/brand.ts` — same pattern.
+- `apps/admin-portal/lib/brand.ts` — same pattern.
 - Both apps' `app/layout.tsx` (browser tab title) — same env vars.
 - Admin login screen heading (`{brand.name} Admin`) — reads from config.
 - Mobile release signing — `BRAND_NAME` (default AsanPay in
@@ -31,8 +31,8 @@ vars), pointing at the same API.
 
 ## Launching a new brand (once a real client exists)
 
-1. New Coolify application, same GitHub repo, same `apps/web` or
-   `apps/admin-web` Dockerfile — just a new domain.
+1. New Coolify application, same GitHub repo, same `apps/agent-portal` or
+   `apps/admin-portal` Dockerfile — just a new domain.
 2. Set env vars on that new app:
    ```
    NEXT_PUBLIC_BRAND_NAME=ClientBrand

@@ -27,7 +27,7 @@ interface SeedCategory {
  *   4) More Services — non-BBPS products (loans apply, collections, etc.)
  *   5) Govt. / SHG
  *
- * Icons: canonical `apps/web/public/service-icons/` (sync → mobile via `bash scripts/sync-icons.sh`).
+ * Icons: canonical `apps/agent-portal/public/service-icons/` (sync → mobile via `bash scripts/sync-icons.sh`).
  * Missing art → omit `icon` (null / design fallback). Drop new SVGs only in that public folder.
  */
 const CATALOG: SeedCategory[] = [

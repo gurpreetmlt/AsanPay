@@ -50,7 +50,7 @@ Koi Build Variable nahi — backend Next.js nahi hai.
 
 ---
 
-## 2. admin-web
+## 2. admin-portal
 
 | | |
 |---|---|
@@ -73,7 +73,7 @@ HOST=0.0.0.0
 
 ---
 
-## 3. web (retailer portal)
+## 3. agent-portal
 
 | | |
 |---|---|

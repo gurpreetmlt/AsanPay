@@ -8,8 +8,8 @@ alwaysApply: true
 Jab bhi naya feature / screen / API flow bane, **usi chat / PR mein** product UI entrypoint bhi wire karo. Backend-only stub + orphan route mat chhodo.
 
 ## Required
-- Agent web (`apps/web`): sidebar / header menus / dashboard CTAs jahan user naturally dhundhega
-- Admin (`apps/admin-web`): matching nav or section if admins use it
+- Agent web (`apps/agent-portal`): sidebar / header menus / dashboard CTAs jahan user naturally dhundhega
+- Admin (`apps/admin-portal`): matching nav or section if admins use it
 - Mobile (`apps/mobile`): tab / home tile / stack route if InstantPay parity applies (see `AGENTS.md`)
 
 ## Placement examples

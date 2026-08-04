@@ -12,8 +12,8 @@
 - Ledger `referenceType: downline_transfer`
 
 ## UI
-- Agent: [`apps/web/app/wallet/page.tsx`](../apps/web/app/wallet/page.tsx) + `FundForm`
-- Admin: [`apps/admin-web/app/wallet/page.tsx`](../apps/admin-web/app/wallet/page.tsx)
+- Agent: [`apps/agent-portal/app/wallet/page.tsx`](../apps/agent-portal/app/wallet/page.tsx) + `FundForm`
+- Admin: [`apps/admin-portal/app/wallet/page.tsx`](../apps/admin-portal/app/wallet/page.tsx)
 
 ## Code
 - [`wallet.service.ts`](../apps/backend/src/modules/wallet/wallet.service.ts) — `transferToChild`, `adminFundOwnWallet`
