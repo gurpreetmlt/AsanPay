@@ -24,8 +24,8 @@ interface SeedCategory {
  *   1) Banking Services — AEPS / DMT / UPI (not BBPS)
  *   2) Bill Payment (BBPS) — every NPCI BBPS-style biller we support
  *   3) Accept Payments — Aadhaar Pay
- *   4) More Services — non-BBPS products (loans apply, collections, etc.)
- *   5) Govt. / SHG
+ *   4) More Services — non-BBPS products (loans apply, cash collection, etc.)
+ *   5) Govt. Services
  *
  * Icons: canonical `apps/agent-portal/public/service-icons/` (sync → mobile via `bash scripts/sync-icons.sh`).
  * Missing art → omit `icon` (null / design fallback). Drop new SVGs only in that public folder.
@@ -94,8 +94,8 @@ const CATALOG: SeedCategory[] = [
     name: "More Services",
     icon: "grid",
     services: [
-      { code: "AGENT_COLLECTION", name: "Agent Collection", badge: "Flat 0.11%", icon: "Agent-Collection.svg" },
-      { code: "CASH_COLLECTION", name: "Cash Collection", icon: "Cash-Collection.svg" },
+      // Agent Collection merged into Cash Collection (same product)
+      { code: "CASH_COLLECTION", name: "Cash Collection", badge: "Flat 0.11%", icon: "Cash-Collection.svg" },
       { code: "LOANS", name: "Loans", icon: "Loan.svg" },
       { code: "INSURANCE", name: "Insurance", icon: "Insurance.svg" },
       { code: "CREDIT_CARDS", name: "Apply Credit Card", icon: "Apply-Credit-Card.svg" },
@@ -107,19 +107,18 @@ const CATALOG: SeedCategory[] = [
     icon: "building-2",
     services: [{ code: "APPLY_EPAN", name: "Apply ePAN", icon: "Pancard.svg" }],
   },
-  {
-    code: "SHG_SERVICES",
-    name: "SHG Services",
-    icon: "users",
-    services: [
-      { code: "SHG_WITHDRAW_CASH", name: "Withdraw Cash", icon: "Cash-Withdraw.svg" },
-      { code: "SHG_DEPOSIT_CASH", name: "Deposit Cash", icon: "Cash-Collection.svg" },
-    ],
-  },
 ];
 
 /** Duplicate / retired — hide from catalog, keep DB row. */
-const DEACTIVATE_SERVICE_CODES = ["LIC_SUVIDHA"] as const;
+const DEACTIVATE_SERVICE_CODES = [
+  "LIC_SUVIDHA",
+  "AGENT_COLLECTION",
+  "SHG_WITHDRAW_CASH",
+  "SHG_DEPOSIT_CASH",
+] as const;
+
+/** Categories retired from retailer dashboard — keep DB row, set inactive. */
+const DEACTIVATE_CATEGORY_CODES = ["SHG_SERVICES"] as const;
 
 /** Force-clear icon after upsert when art is intentionally removed (none currently). */
 const CLEAR_ICON_CODES: string[] = [];
@@ -220,6 +219,21 @@ async function main() {
     await db.update(services).set({ isActive: false }).where(eq(services.code, code));
   }
 
+  for (const code of DEACTIVATE_CATEGORY_CODES) {
+    await db
+      .update(serviceCategories)
+      .set({ isActive: false })
+      .where(eq(serviceCategories.code, code));
+  }
+
+  // Active catalog categories must stay active when re-seeded.
+  for (const category of CATALOG) {
+    await db
+      .update(serviceCategories)
+      .set({ isActive: true })
+      .where(eq(serviceCategories.code, category.code));
+  }
+
   if (CLEAR_ICON_CODES.length > 0) {
     await db
       .update(services)
@@ -238,7 +252,9 @@ async function main() {
 
   console.log(
     `Seeded ${CATALOG.length} categories and ${CATALOG.reduce((n, c) => n + c.services.length, 0)} services.` +
-      ` Deactivated: ${DEACTIVATE_SERVICE_CODES.join(", ") || "(none)"}. Cleared icons: ${CLEAR_ICON_CODES.join(", ") || "(none)"}.`,
+      ` Deactivated services: ${DEACTIVATE_SERVICE_CODES.join(", ") || "(none)"}.` +
+      ` Deactivated categories: ${DEACTIVATE_CATEGORY_CODES.join(", ") || "(none)"}.` +
+      ` Cleared icons: ${CLEAR_ICON_CODES.join(", ") || "(none)"}.`,
   );
   console.log("Verify:", JSON.stringify(check, null, 2));
   await pgPool.end();
