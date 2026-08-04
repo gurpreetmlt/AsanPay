@@ -34,10 +34,12 @@ const QUICK_ROUTES = [
   { q: "passbook", href: "/passbook", label: "Wallet statement" },
   { q: "statement", href: "/passbook", label: "Wallet statement" },
   { q: "reconcil", href: "/reconciliation", label: "Txn reconciliation" },
-  { q: "badge", href: "/site-control", label: "Platform settings" },
+  { q: "badge", href: "/site-control", label: "Service Badges" },
   { q: "commission", href: "/commission", label: "Commissions" },
-  { q: "site", href: "/site-control", label: "Platform settings" },
-  { q: "treasury", href: "/site-control", label: "Platform settings" },
+  { q: "site", href: "/site-control", label: "Service Badges" },
+  { q: "platform", href: "/treasury-settings", label: "Treasury Settings" },
+  { q: "treasury", href: "/treasury-settings", label: "Treasury Settings" },
+  { q: "dual", href: "/treasury-settings", label: "Treasury Settings" },
 ];
 
 function displayName(raw?: string | null) {
