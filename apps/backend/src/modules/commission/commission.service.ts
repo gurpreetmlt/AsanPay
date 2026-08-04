@@ -21,7 +21,7 @@ import { env } from "../../config/env";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import type { UserRole } from "@asanpay/shared-types";
 
-const SCHEME_ROLES = ["retailer", "distributor", "master_distributor"] as const;
+const SCHEME_ROLES = ["retailer", "distributor", "super_distributor"] as const;
 type SchemeRole = (typeof SCHEME_ROLES)[number];
 
 type RuleType = "flat" | "percentage";
@@ -72,7 +72,7 @@ function normalizeAmountBound(raw: string | null | undefined, field: "minAmount"
 }
 
 // Runs after a service transaction succeeds: pays every ancestor in the chain
-// (retailer -> distributor -> master_distributor) their configured cut, each
+// (retailer -> distributor -> super_distributor) their configured cut, each
 // payout backed by a system-wallet -> beneficiary-wallet ledger transfer.
 // Idempotent per transaction: existing commission_ledger rows short-circuit.
 export async function distributeCommissionForTxn(transactionId: string): Promise<void> {
@@ -423,7 +423,7 @@ export async function listCommissionRules(filters?: {
 
 export async function createCommissionRule(adminId: string, input: CommissionRuleInput) {
   if (!isSchemeRole(input.role)) {
-    throw new HttpError(400, "Role must be retailer, distributor, or master_distributor", "INVALID_ROLE");
+    throw new HttpError(400, "Role must be retailer, distributor, or super_distributor", "INVALID_ROLE");
   }
   await assertServiceExists(input.serviceId);
   await assertProviderExists(input.providerId);
@@ -481,7 +481,7 @@ export async function updateCommissionRule(
   if (!existing) throw new HttpError(404, "Commission rule not found", "RULE_NOT_FOUND");
 
   if (patch.role !== undefined && !isSchemeRole(patch.role)) {
-    throw new HttpError(400, "Role must be retailer, distributor, or master_distributor", "INVALID_ROLE");
+    throw new HttpError(400, "Role must be retailer, distributor, or super_distributor", "INVALID_ROLE");
   }
   if (patch.serviceId) await assertServiceExists(patch.serviceId);
   if (patch.providerId !== undefined) await assertProviderExists(patch.providerId);

@@ -62,20 +62,20 @@ interface NetworkData {
 }
 
 const ROLE_UI: Record<string, { downlineLabel: string; emptyMsg: string }> = {
-  master_distributor: { downlineLabel: "Distributors", emptyMsg: "No distributors in your network yet" },
+  super_distributor: { downlineLabel: "Distributors", emptyMsg: "No distributors in your network yet" },
   distributor: { downlineLabel: "Retailers", emptyMsg: "No retailers in your network yet" },
   retailer: { downlineLabel: "", emptyMsg: "" },
 };
 
 function roleLabel(role: string) {
-  if (role === "master_distributor") return "Super Distributor";
+  if (role === "super_distributor") return "Super Distributor";
   if (role === "distributor") return "Distributor";
   if (role === "retailer") return "Retailer";
   return role;
 }
 
 const ROLE_COLORS: Record<string, { bg: string; text: string; icon: typeof Crown }> = {
-  master_distributor: { bg: "#7c3aed", text: "#fff", icon: Crown },
+  super_distributor: { bg: "#7c3aed", text: "#fff", icon: Crown },
   distributor: { bg: B.blue, text: "#fff", icon: NetworkIcon },
   retailer: { bg: B.green, text: "#fff", icon: Store },
 };
@@ -216,10 +216,10 @@ export default function NetworkPage() {
   const [historyRows, setHistoryRows] = useState<LedgerEntry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
-  const canToggleChildren = user?.role === "master_distributor" || user?.role === "distributor";
+  const canToggleChildren = user?.role === "super_distributor" || user?.role === "distributor";
   const canMoneyActions = canToggleChildren;
   /** Tree view: Super Distributor only. Distributors always get flat table. */
-  const isSuperDist = user?.role === "master_distributor";
+  const isSuperDist = user?.role === "super_distributor";
   const effectiveView: "tree" | "table" = isSuperDist ? view : "table";
 
   useEffect(() => {

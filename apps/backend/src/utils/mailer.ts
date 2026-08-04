@@ -662,7 +662,7 @@ export function notifyUserEmail(to: string | null | undefined, build: () => Send
 
 export function agentRoleLabel(role: string): string {
   switch (role) {
-    case "master_distributor":
+    case "super_distributor":
       return "Super Distributor";
     case "distributor":
       return "Distributor";

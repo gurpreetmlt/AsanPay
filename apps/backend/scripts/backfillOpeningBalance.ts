@@ -119,7 +119,7 @@ async function main() {
       // meaning there and the flow matrix does not permit an EARNED opening into it.
       plan.advancePaise = plan.totalPaise;
       plan.earnedPaise = 0n;
-    } else if (["master_distributor", "distributor", "retailer"].includes(plan.role)) {
+    } else if (["super_distributor", "distributor", "retailer"].includes(plan.role)) {
       plan.targetCode = null; // resolved per-user below, creates the account if missing
     } else {
       plan.targetCode = "SKIP";

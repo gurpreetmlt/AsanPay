@@ -7,8 +7,8 @@ Public Register on agent portal / mobile.
 | Signup as | Upline mobile | Parent | Child created | After OTP |
 |-----------|---------------|--------|---------------|-----------|
 | Retailer | Distributor | `distributor` | `retailer` | Active session |
-| Distributor | Super Dist | `master_distributor` | `distributor` | Active session |
-| Super Distributor | *(none — direct)* | root `admin` (auto) | `master_distributor` | **Inactive** until admin Activates |
+| Distributor | Super Dist | `super_distributor` | `distributor` | Active session |
+| Super Distributor | *(none — direct)* | root `admin` (auto) | `super_distributor` | **Inactive** until admin Activates |
 
 Role chip order in UI: **Retailer → Distributor → Super Distributor**.
 
@@ -22,7 +22,7 @@ Role chip order in UI: **Retailer → Distributor → Super Distributor**.
    - Dist / Retailer → `registerUser(sponsor)` + session
    - Super Dist → `registerUser(admin, { isActive: false })` → `{ pendingApproval: true }` (no tokens)
 
-Lookup: `GET /api/auth/sponsor/search?mobile=XXXXXXXXXX&role=master_distributor|distributor`
+Lookup: `GET /api/auth/sponsor/search?mobile=XXXXXXXXXX&role=super_distributor|distributor`
 (Admin role search still exists for other flows; Super Dist signup does not use it.)
 
 ## UI
@@ -33,7 +33,7 @@ Lookup: `GET /api/auth/sponsor/search?mobile=XXXXXXXXXX&role=master_distributor|
 ## Backend
 
 - [`auth.service.ts`](../apps/backend/src/modules/auth/auth.service.ts) — `requestSignupOtp` / `verifySignupOtp`
-- Validators: `sponsorUid` optional when `role === master_distributor`
+- Validators: `sponsorUid` optional when `role === super_distributor`
 
 ## After signup
 

@@ -6,7 +6,7 @@ import { HttpError } from "../../utils/httpError";
 import type { UserRole } from "@asanpay/shared-types";
 
 /** SD / Distributor may activate or deactivate only their direct children. */
-const CAN_TOGGLE_CHILD: ReadonlySet<UserRole> = new Set(["master_distributor", "distributor"]);
+const CAN_TOGGLE_CHILD: ReadonlySet<UserRole> = new Set(["super_distributor", "distributor"]);
 
 export interface DownlineUserView {
   id: string;
@@ -128,7 +128,7 @@ export async function getAdminFullNetworkTree(): Promise<DownlineTreeNode[]> {
     })
     .from(users)
     .innerJoin(wallets, and(eq(wallets.userId, users.id), eq(wallets.walletType, "main")))
-    .where(eq(users.role, "master_distributor"));
+    .where(eq(users.role, "super_distributor"));
 
   const aepsRows = roots.length
     ? await db
@@ -231,7 +231,7 @@ export interface AncestorInfo {
 export async function getUserAncestors(userId: string): Promise<AncestorInfo[]> {
   const chain: AncestorInfo[] = [];
   let currentId: string | null = userId;
-  // Hierarchy is at most 3 deep (retailer -> distributor -> master_distributor) — cap iterations
+  // Hierarchy is at most 3 deep (retailer -> distributor -> super_distributor) — cap iterations
   // defensively so a bad parentId chain can't loop forever.
   for (let i = 0; i < 6 && currentId; i++) {
     const [row] = await db

@@ -7,7 +7,7 @@ import { HttpError } from "../../utils/httpError";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import { env } from "../../config/env";
 
-const SCHEME_ROLES = ["retailer", "distributor", "master_distributor"] as const;
+const SCHEME_ROLES = ["retailer", "distributor", "super_distributor"] as const;
 type SchemeRole = (typeof SCHEME_ROLES)[number];
 type RuleType = "flat" | "percentage";
 
@@ -91,7 +91,7 @@ function normalizeRole(role: SchemeRole | null | undefined): SchemeRole | null {
   if (!isSchemeRole(role)) {
     throw new HttpError(
       400,
-      "Role must be retailer, distributor, master_distributor, or empty for all roles",
+      "Role must be retailer, distributor, super_distributor, or empty for all roles",
       "INVALID_ROLE",
     );
   }

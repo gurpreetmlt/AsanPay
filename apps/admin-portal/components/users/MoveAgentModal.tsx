@@ -7,9 +7,9 @@ import { Modal } from "@/components/ui/Modal";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 
-const ROLE_ICON = { master_distributor: Crown, distributor: NetworkIcon, retailer: Store } as const;
-const ROLE_LABEL = { master_distributor: "Super Distributor", distributor: "Distributor", retailer: "Retailer" } as const;
-const REQUIRED_PARENT_ROLE = { retailer: "distributor", distributor: "master_distributor" } as const;
+const ROLE_ICON = { super_distributor: Crown, distributor: NetworkIcon, retailer: Store } as const;
+const ROLE_LABEL = { super_distributor: "Super Distributor", distributor: "Distributor", retailer: "Retailer" } as const;
+const REQUIRED_PARENT_ROLE = { retailer: "distributor", distributor: "super_distributor" } as const;
 
 interface ParentCandidate {
   id: string;

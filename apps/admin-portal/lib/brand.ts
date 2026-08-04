@@ -30,7 +30,7 @@ export const B = {
 } as const;
 
 export const ROLE_LABEL: Record<string, string> = {
-  master_distributor: "Super Distributor",
+  super_distributor: "Super Distributor",
   distributor: "Distributor",
   retailer: "Retailer",
   admin: "Admin",

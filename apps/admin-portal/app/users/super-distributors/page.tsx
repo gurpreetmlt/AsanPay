@@ -20,7 +20,7 @@ export default function SuperDistributorsPage() {
 
   return (
     <AdminShell>
-      <UsersPanel lockedRole="master_distributor" />
+      <UsersPanel lockedRole="super_distributor" />
     </AdminShell>
   );
 }

@@ -10,7 +10,7 @@ const colors: Record<string, string> = {
   inactive: "bg-gray-500/20 text-gray-600 dark:text-gray-400",
   success: "bg-green-500/20 text-green-700 dark:text-green-400",
   failed: "bg-red-500/20 text-red-700 dark:text-red-400",
-  master_distributor: "bg-blue-500/20 text-blue-700 dark:text-blue-300",
+  super_distributor: "bg-blue-500/20 text-blue-700 dark:text-blue-300",
   distributor: "bg-[#2A5CDD]/15 text-[#123A9E] dark:text-blue-300",
   retailer: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
   admin: "bg-[#0B2A9A]/15 text-[#0B2A9A] dark:text-blue-200",

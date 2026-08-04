@@ -29,7 +29,7 @@ POST /api/auth/register  (auth required, hierarchy)
 ```
 
 ## Roles
-`admin` | `master_distributor` (Super Distributor UI) | `distributor` | `retailer`
+`admin` | `super_distributor` (Super Distributor UI) | `distributor` | `retailer`
 
 ## Do NOT
 - Role dropdown on login UI

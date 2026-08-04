@@ -51,7 +51,7 @@ export default function DashboardPage() {
         <KycOnboardingBanner />
 
         {/* Role-specific Dashboard */}
-        {user?.role === "master_distributor" && <SuperDistributorDashboard />}
+        {user?.role === "super_distributor" && <SuperDistributorDashboard />}
         {user?.role === "distributor" && <DistributorDashboard />}
         {(user?.role === "retailer" || !user?.role) && <RetailerDashboard />}
       </div>
@@ -67,7 +67,7 @@ function getGreeting() {
 }
 
 function roleDisplayName(role: string | undefined | null) {
-  if (role === "master_distributor") return "Super Distributor";
+  if (role === "super_distributor") return "Super Distributor";
   if (role === "distributor") return "Distributor";
   return "Retailer";
 }

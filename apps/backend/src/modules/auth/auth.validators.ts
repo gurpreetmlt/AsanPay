@@ -69,7 +69,7 @@ export const refreshSchema = z.object({
 });
 export type RefreshInput = z.infer<typeof refreshSchema>;
 
-const AGENT_LOGIN_ROLES = ["retailer", "distributor", "master_distributor"] as const;
+const AGENT_LOGIN_ROLES = ["retailer", "distributor", "super_distributor"] as const;
 
 export const otpRequestSchema = z.object({
   mobile: mobileSchema,
@@ -125,7 +125,7 @@ export type EmailPreferencesInput = z.infer<typeof emailPreferencesSchema>;
 
 /** Public self-signup under an upline (sponsor UID). Role = account being created. */
 export const SIGNUP_CHILD_ROLES = [
-  "master_distributor",
+  "super_distributor",
   "distributor",
   "retailer",
   /** Signup UI only — persists as `retailer` under root admin (no distributor). */
@@ -134,11 +134,11 @@ export const SIGNUP_CHILD_ROLES = [
 export type SignupChildRole = (typeof SIGNUP_CHILD_ROLES)[number];
 
 /** Sponsor roles that may appear in public signup search. */
-export const SPONSOR_SEARCH_ROLES = ["admin", "master_distributor", "distributor"] as const;
+export const SPONSOR_SEARCH_ROLES = ["admin", "super_distributor", "distributor"] as const;
 export type SponsorSearchRole = (typeof SPONSOR_SEARCH_ROLES)[number];
 
 export function signupNeedsSponsorUid(role: SignupChildRole): boolean {
-  return role !== "master_distributor" && role !== "direct_retailer";
+  return role !== "super_distributor" && role !== "direct_retailer";
 }
 
 

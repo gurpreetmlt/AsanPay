@@ -22,7 +22,7 @@ export async function getDashboardStats(userId: string, role: UserRole) {
       return getRetailerStats(userId);
     case "distributor":
       return getDistributorStats(userId);
-    case "master_distributor":
+    case "super_distributor":
       return getSuperDistributorStats(userId);
     default:
       return {};
@@ -251,7 +251,6 @@ async function getSuperDistributorStats(userId: string) {
 
   let todayVolume = "0";
   let yesterdayVolume = "0";
-  let todayCommission = "0";
 
   if (descendantIds.length > 0) {
     const [tvol] = await db
@@ -277,7 +276,7 @@ async function getSuperDistributorStats(userId: string) {
     .select({ total: sql<string>`coalesce(sum(${commissionLedger.amount}), '0')` })
     .from(commissionLedger)
     .where(and(eq(commissionLedger.beneficiaryUserId, userId), gte(commissionLedger.createdAt, today)));
-  todayCommission = comm?.total ?? "0";
+  const todayCommission = comm?.total ?? "0";
 
   // Distributor performance (volume per distributor today)
   interface DistPerf { id: string; name: string; retailerCount: number; volume: string }
@@ -302,7 +301,7 @@ async function getSuperDistributorStats(userId: string) {
   }
 
   return {
-    role: "master_distributor" as const,
+    role: "super_distributor" as const,
     network: {
       distributors: distributors.length,
       retailers: retailerRows.length,
@@ -324,7 +323,7 @@ async function getSuperDistributorStats(userId: string) {
  * true P&L. Distributor/Super Distributor only (retailers have no downline to deploy float into).
  */
 export async function getFloatAndEarnings(userId: string, role: UserRole) {
-  if (role !== "distributor" && role !== "master_distributor") {
+  if (role !== "distributor" && role !== "super_distributor") {
     throw new HttpError(403, "Float planner is only available to distributors and Super Distributors", "FORBIDDEN");
   }
 

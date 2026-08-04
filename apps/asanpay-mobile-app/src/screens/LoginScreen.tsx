@@ -22,7 +22,7 @@ import { useAuthStore } from "../store/auth";
 const brandPrefix = BRAND.appName.endsWith("Pay") ? BRAND.appName.slice(0, -3) : BRAND.appName;
 const brandSuffix = BRAND.appName.endsWith("Pay") ? "Pay" : "";
 
-export type LoginRoleChip = "retailer" | "distributor" | "master_distributor";
+export type LoginRoleChip = "retailer" | "distributor" | "super_distributor";
 
 const ROLE_CHIPS: {
   key: LoginRoleChip;
@@ -32,7 +32,7 @@ const ROLE_CHIPS: {
 }[] = [
   { key: "retailer", short: "Retailer", desc: "Outlet agent", Icon: Store },
   { key: "distributor", short: "Distributor", desc: "Manage retailers", Icon: Users },
-  { key: "master_distributor", short: "Super Dist.", desc: "Manage network", Icon: Network },
+  { key: "super_distributor", short: "Super Dist.", desc: "Manage network", Icon: Network },
 ];
 
 /** Parse backend ROLE_MISMATCH copy → chip key */
@@ -40,7 +40,7 @@ function roleFromMismatchMessage(msg: string): LoginRoleChip | null {
   const m = msg.match(/registered as\s+([^./]+)/i);
   if (!m?.[1]) return null;
   const label = m[1].trim().toLowerCase();
-  if (label.includes("super") || label.includes("master")) return "master_distributor";
+  if (label.includes("super") || label.includes("master")) return "super_distributor";
   if (label.includes("distributor") && !label.includes("super")) return "distributor";
   if (label.includes("retailer")) return "retailer";
   return null;

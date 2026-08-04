@@ -51,7 +51,7 @@ beforeAll(async () => {
     .insert(users)
     .values({
       uid: `MD${SUFFIX}`,
-      role: "master_distributor",
+      role: "super_distributor",
       name: "Sec Test MasterDist",
       mobile: `5${SUFFIX.slice(-9).padStart(9, "0")}`,
       passwordHash: "x",
@@ -112,7 +112,7 @@ beforeAll(async () => {
   // Both levels get a commission rule on this service — the realistic fan-out case.
   await db.insert(commissionRules).values([
     { serviceId, role: "distributor", ruleType: "flat", value: "10.00" },
-    { serviceId, role: "master_distributor", ruleType: "flat", value: "5.00" },
+    { serviceId, role: "super_distributor", ruleType: "flat", value: "5.00" },
   ]);
 
   const [txn] = await db

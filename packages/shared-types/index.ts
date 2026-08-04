@@ -2,7 +2,7 @@
 
 export const USER_ROLES = [
   "admin",
-  "master_distributor",
+  "super_distributor",
   "distributor",
   "retailer",
 ] as const;
@@ -10,7 +10,7 @@ export type UserRole = (typeof USER_ROLES)[number];
 
 /** Roles that use the unified agent web/mobile app (not admin portal). */
 export const AGENT_PORTAL_ROLES = [
-  "master_distributor",
+  "super_distributor",
   "distributor",
   "retailer",
 ] as const;
@@ -22,7 +22,7 @@ export type AuthPortal = (typeof AUTH_PORTALS)[number];
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   admin: "Admin",
-  master_distributor: "Super Distributor",
+  super_distributor: "Super Distributor",
   distributor: "Distributor",
   retailer: "Retailer",
 };

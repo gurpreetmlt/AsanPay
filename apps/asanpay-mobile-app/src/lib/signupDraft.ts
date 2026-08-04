@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-export type SignupRole = "master_distributor" | "distributor" | "retailer" | "direct_retailer";
+export type SignupRole = "super_distributor" | "distributor" | "retailer" | "direct_retailer";
 
 export type SignupFileMeta = {
   name: string;

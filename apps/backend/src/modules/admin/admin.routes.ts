@@ -238,7 +238,7 @@ adminRouter.post("/emails/product-update", async (req, res) => {
 });
 
 // ── Commission schemes (role-default slabs) ─────────────────────────────────
-const schemeRoleEnum = z.enum(["retailer", "distributor", "master_distributor"]);
+const schemeRoleEnum = z.enum(["retailer", "distributor", "super_distributor"]);
 const ruleTypeEnum = z.enum(["flat", "percentage"]);
 
 const commissionRuleBody = z.object({

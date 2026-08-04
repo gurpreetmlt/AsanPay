@@ -11,7 +11,7 @@ import { TableActionButtons } from "@/components/ui/TableActionButtons";
 import { NetworkTreeView } from "@/components/users/NetworkTreeView";
 import { MoveAgentModal } from "@/components/users/MoveAgentModal";
 
-export type RoleFilter = "" | "master_distributor" | "distributor" | "retailer";
+export type RoleFilter = "" | "super_distributor" | "distributor" | "retailer";
 type KycFilter = "" | "pending" | "verified" | "rejected";
 
 interface AdminUser {
@@ -37,7 +37,7 @@ const TITLES: Record<string, { title: string; sub: string }> = {
     title: "All Agents",
     sub: "Admin controls the network — Super Dist, Distributor & Retailer (not admin accounts)",
   },
-  master_distributor: {
+  super_distributor: {
     title: "Super Distributors",
     sub: "Top of agent hierarchy — onboarded / funded by Admin",
   },
@@ -154,7 +154,7 @@ export function UsersPanel({ lockedRole = "" }: Props) {
             {(
               [
                 { key: "" as RoleFilter, label: "All" },
-                { key: "master_distributor", label: "Super Dist" },
+                { key: "super_distributor", label: "Super Dist" },
                 { key: "distributor", label: "Distributor" },
                 { key: "retailer", label: "Retailer" },
               ] as const

@@ -3,7 +3,7 @@ import type { UserRole } from "@asanpay/shared-types";
 
 const ROLE_PREFIX: Record<UserRole, string> = {
   admin: "AD",
-  master_distributor: "MD",
+  super_distributor: "MD",
   distributor: "DS",
   retailer: "RT",
 };

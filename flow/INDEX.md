@@ -2,7 +2,7 @@
 
 > **Read this first**, then open **one** flow file. Do not explore the whole repo.
 
-Product: **AsanPay** · Roles: `admin` → `master_distributor` (Super Dist) → `distributor` → `retailer`
+Product: **AsanPay** · Roles: `admin` → `super_distributor` (Super Dist) → `distributor` → `retailer`
 
 ## Hierarchy (money)
 

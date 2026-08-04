@@ -241,7 +241,7 @@ export async function executeServiceTxn(input: ExecuteTxnInput): Promise<TxnOutc
   // Claim + optional debit under one advisory lock so parallel same-key requests cannot
   // both insert+debit. Debit uses the same DB tx so a failed balance check rolls back the row.
   let txn: TxnRow;
-  let replayOnly = false;
+  let replayOnly: boolean;
   try {
     const claimed = await db.transaction(async (tx) => {
       await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`${actor.id}:${idempotencyKey}`}))`);

@@ -33,7 +33,7 @@ interface NetworkData {
 }
 
 const ROLE_UI: Record<string, { downlineTitle: string; emptyMsg: string }> = {
-  master_distributor: { downlineTitle: "Your Distributors", emptyMsg: "No distributors yet" },
+  super_distributor: { downlineTitle: "Your Distributors", emptyMsg: "No distributors yet" },
   distributor: { downlineTitle: "Your Retailers", emptyMsg: "No retailers yet" },
   retailer: { downlineTitle: "Your Network", emptyMsg: "" },
 };
@@ -43,7 +43,7 @@ function formatDate(iso: string) {
 }
 
 function roleLabel(role: string) {
-  if (role === "master_distributor") return "Super Distributor";
+  if (role === "super_distributor") return "Super Distributor";
   if (role === "distributor") return "Distributor";
   if (role === "retailer") return "Retailer";
   return role;
@@ -137,7 +137,7 @@ export function NetworkCard() {
             className="rounded-full px-2.5 py-0.5 text-xs font-bold text-white"
             style={{ background: B.green }}
           >
-            {count} {user.role === "master_distributor" ? "Distributor" : "Retailer"}{count > 1 ? "s" : ""}
+            {count} {user.role === "super_distributor" ? "Distributor" : "Retailer"}{count > 1 ? "s" : ""}
           </span>
         )}
       </div>

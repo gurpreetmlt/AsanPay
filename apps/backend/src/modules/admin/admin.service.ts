@@ -28,8 +28,8 @@ import type { UserRole, KycStatus, TransactionStatus } from "@asanpay/shared-typ
 /** Parent role required for each child role when admin moves someone in the tree. */
 const REQUIRED_PARENT_ROLE: Record<UserRole, UserRole | null> = {
   admin: null,
-  master_distributor: "admin",
-  distributor: "master_distributor",
+  super_distributor: "admin",
+  distributor: "super_distributor",
   retailer: "distributor",
 };
 
@@ -235,7 +235,7 @@ export async function getAdminStats() {
 
   return {
     users: {
-      master_distributor: roles.master_distributor ?? 0,
+      super_distributor: roles.super_distributor ?? 0,
       distributor: roles.distributor ?? 0,
       retailer: roles.retailer ?? 0,
       admin: roles.admin ?? 0,

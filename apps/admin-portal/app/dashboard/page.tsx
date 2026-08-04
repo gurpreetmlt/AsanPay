@@ -42,7 +42,7 @@ interface ActivityRow {
 
 interface AdminStats {
   users: {
-    master_distributor: number;
+    super_distributor: number;
     distributor: number;
     retailer: number;
     admin: number;
@@ -104,7 +104,7 @@ export default function DashboardPage() {
 
   if (!hydrated || !accessToken || !user) return null;
 
-  const totalAgents = (stats?.users.master_distributor ?? 0) +
+  const totalAgents = (stats?.users.super_distributor ?? 0) +
     (stats?.users.distributor ?? 0) +
     (stats?.users.retailer ?? 0);
   const txnTotal = stats?.transactions.total ?? 0;
@@ -142,7 +142,7 @@ export default function DashboardPage() {
               style={{ background: B.badgeGrad }}
             >
               <UserPlus size={16} />
-              Onboard {ROLE_LABEL.master_distributor}
+              Onboard {ROLE_LABEL.super_distributor}
             </button>
             <Link
               href="/wallet"
@@ -202,7 +202,7 @@ export default function DashboardPage() {
             <div className="space-y-3">
               <BreakdownRow
                 label="Super Distributors"
-                value={stats?.users.master_distributor ?? 0}
+                value={stats?.users.super_distributor ?? 0}
                 color={B.blueLight}
                 total={totalAgents}
                 loading={loading}
@@ -368,8 +368,8 @@ export default function DashboardPage() {
 
       {showOnboard && (
         <OnboardForm
-          childRole="master_distributor"
-          childRoleLabel={ROLE_LABEL.master_distributor}
+          childRole="super_distributor"
+          childRoleLabel={ROLE_LABEL.super_distributor}
           onClose={() => setShowOnboard(false)}
           onSuccess={() => void loadStats()}
         />

@@ -102,7 +102,7 @@ export const userCommissionRates = pgTable(
 );
 
 // Actual payout per transaction, one row per beneficiary in the hierarchy chain
-// (retailer -> distributor -> master_distributor -> admin). Written by the async
+// (retailer -> distributor -> super_distributor -> admin). Written by the async
 // commission-distribution job, each row backed by a matching credit in wallet_ledger_entries.
 export const commissionLedger = pgTable(
   "commission_ledger",

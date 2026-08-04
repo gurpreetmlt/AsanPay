@@ -43,7 +43,7 @@ interface TreeNode extends AgentSeed {
 
 const NETWORK_TREE: TreeNode[] = [
   {
-    mobile: "9111111111", name: "Rajiv Sharma", role: "master_distributor",
+    mobile: "9111111111", name: "Rajiv Sharma", role: "super_distributor",
     children: [
       {
         mobile: "9222222222", name: "Amit Verma", role: "distributor",
@@ -73,7 +73,7 @@ const NETWORK_TREE: TreeNode[] = [
     ],
   },
   {
-    mobile: "9111111112", name: "Sunita Agarwal", role: "master_distributor",
+    mobile: "9111111112", name: "Sunita Agarwal", role: "super_distributor",
     children: [
       {
         mobile: "9222222224", name: "Ravi Chauhan", role: "distributor",
@@ -95,7 +95,7 @@ const NETWORK_TREE: TreeNode[] = [
     ],
   },
   {
-    mobile: "9111111113", name: "Pankaj Mehta", role: "master_distributor",
+    mobile: "9111111113", name: "Pankaj Mehta", role: "super_distributor",
     children: [
       {
         mobile: "9222222227", name: "Dinesh Soni", role: "distributor",

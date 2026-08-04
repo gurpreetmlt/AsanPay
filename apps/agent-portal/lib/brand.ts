@@ -59,7 +59,7 @@ export const ROLES = [
 export type Role = (typeof ROLES)[number];
 
 export function roleFromUserRole(role: UserRole | null | undefined): Role {
-  if (role === "master_distributor") {
+  if (role === "super_distributor") {
     return ROLES.find((r) => r.id === "super") ?? ROLES[2];
   }
   if (role === "distributor") {

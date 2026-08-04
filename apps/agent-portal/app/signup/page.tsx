@@ -33,7 +33,7 @@ import {
 } from "@/lib/signupDraft";
 import { useAuthStore } from "@/lib/store";
 
-type SponsorRole = "admin" | "master_distributor" | "distributor";
+type SponsorRole = "admin" | "super_distributor" | "distributor";
 
 interface SessionData {
   user: AuthUser;
@@ -52,12 +52,12 @@ const ROLE_OPTIONS: { value: SignupRole; label: string }[] = [
   { value: "retailer", label: "Retailer" },
   { value: "direct_retailer", label: "Direct Retailer" },
   { value: "distributor", label: "Distributor" },
-  { value: "master_distributor", label: "Super Distributor" },
+  { value: "super_distributor", label: "Super Distributor" },
 ];
 
 const SPONSOR_ROLE: Record<Exclude<SignupRole, "direct_retailer">, SponsorRole> = {
-  master_distributor: "admin",
-  distributor: "master_distributor",
+  super_distributor: "admin",
+  distributor: "super_distributor",
   retailer: "distributor",
 };
 
@@ -285,7 +285,7 @@ export default function SignupPage() {
   const [photoCaptureBusy, setPhotoCaptureBusy] = useState(false);
 
   const stepIndex = draft.stepIndex;
-  const needsUpline = draft.role !== "master_distributor" && draft.role !== "direct_retailer";
+  const needsUpline = draft.role !== "super_distributor" && draft.role !== "direct_retailer";
   const sponsorRole =
     draft.role === "direct_retailer" ? "admin" : SPONSOR_ROLE[draft.role as Exclude<SignupRole, "direct_retailer">];
   const storageKey =

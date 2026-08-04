@@ -74,7 +74,7 @@ wallets {
 | `aggregator` | the platform's single real-money settlement counterparty at the provider; root admin's `main` wallet | Yes (same code path) |
 | `ledger` | every SD / Distributor / Retailer internal book balance | Yes |
 
-Hierarchy roles come from `users.role` (`admin`, `master_distributor`,
+Hierarchy roles come from `users.role` (`admin`, `super_distributor`,
 `distributor`, `retailer`) and `user_hierarchy` (closure table:
 `ancestor_id`, `descendant_id`, `depth`).
 
@@ -163,8 +163,8 @@ There is no flow-matrix table. Allowed movement is enforced by **route RBAC** in
 | Route | Role gate | Effect |
 |---|---|---|
 | `POST /wallet/fund` | `admin` | single-sided credit, `reference_type = 'external_funding'` |
-| `POST /wallet/transfer` | `master_distributor`, `distributor` | downline transfer, `reference_type = 'downline_transfer'` |
-| `POST /wallet/pull/request` → `/pull/confirm` | `master_distributor`, `distributor` | OTP-gated reverse transfer, `reference_type = 'upline_pull'` |
+| `POST /wallet/transfer` | `super_distributor`, `distributor` | downline transfer, `reference_type = 'downline_transfer'` |
+| `POST /wallet/pull/request` → `/pull/confirm` | `super_distributor`, `distributor` | OTP-gated reverse transfer, `reference_type = 'upline_pull'` |
 | `GET /wallet/me`, `GET /wallet/ledger` | any authenticated | read |
 
 Live `reference_type` values in the codebase:

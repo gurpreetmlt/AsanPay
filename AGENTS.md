@@ -60,13 +60,13 @@ The tag is pushed to origin, so it survives regardless of branch state.
 - **Web:** Next.js 16, React 19, Tailwind 4, Zustand
 - **Mobile:** RN CLI 0.76, Android only, TypeScript
 - **Backend:** Express 5, Drizzle + Postgres (single DB). Redis optional (cache only).
-- **Roles:** `admin` | `master_distributor` (UI: Super Distributor) | `distributor` | `retailer`
+- **Roles:** `admin` | `super_distributor` (UI: Super Distributor) | `distributor` | `retailer`
 
 ## Auth rule
 
 - Login API: `POST /api/auth/login` with `{ mobile, password, portal: "admin"|"agent" }`
 - Admin portal → only `admin`
-- Agent portal (web + mobile) → `master_distributor`, `distributor`, `retailer`
+- Agent portal (web + mobile) → `super_distributor`, `distributor`, `retailer`
 
 ## Key files (most tasks)
 

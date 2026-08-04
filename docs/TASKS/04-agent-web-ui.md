@@ -7,7 +7,7 @@
 | Role | Dashboard |
 |------|-----------|
 | retailer | Services grid (`CategorySection`) |
-| master_distributor / distributor | Downline + fund (`DownlineTable`) |
+| super_distributor / distributor | Downline + fund (`DownlineTable`) |
 
 ## Key files
 | Path | Purpose |

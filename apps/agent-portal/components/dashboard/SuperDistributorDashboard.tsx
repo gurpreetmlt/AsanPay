@@ -24,7 +24,7 @@ import { formatInr } from "@/lib/walletLabels";
 import type { WalletBalance } from "@/lib/types";
 
 interface SDStats {
-  role: "master_distributor";
+  role: "super_distributor";
   network: { distributors: number; retailers: number; activeRetailers: number };
   revenue: { todayVolume: string; yesterdayVolume: string; todayCommission: string };
   distributorPerformance: { id: string; name: string; retailerCount: number; volume: string }[];

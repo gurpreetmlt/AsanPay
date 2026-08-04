@@ -64,7 +64,7 @@ export function AccountScreen() {
       showAlert("Unavailable", "Session missing — logout and login again.");
       return;
     }
-    const agentRoles = ["retailer", "distributor", "master_distributor"] as const;
+    const agentRoles = ["retailer", "distributor", "super_distributor"] as const;
     const role = agentRoles.includes(user.role as (typeof agentRoles)[number])
       ? (user.role as LoginRoleChip)
       : null;

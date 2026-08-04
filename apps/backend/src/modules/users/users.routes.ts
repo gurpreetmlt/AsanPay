@@ -23,7 +23,7 @@ usersRouter.get("/network", requireAuth, async (req, res) => {
 usersRouter.patch(
   "/:id/active",
   requireAuth,
-  requireRole("master_distributor", "distributor"),
+  requireRole("super_distributor", "distributor"),
   async (req, res) => {
     if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
     const body = z.object({ isActive: z.boolean() }).parse(req.body);

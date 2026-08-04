@@ -30,7 +30,7 @@ export default function WalletPage() {
   const accessToken = useAuthStore((s) => s.accessToken);
   const user = useAuthStore((s) => s.user);
   const role = roleFromUserRole(user?.role);
-  const canFund = user?.role === "distributor" || user?.role === "master_distributor";
+  const canFund = user?.role === "distributor" || user?.role === "super_distributor";
   const isRetailer = user?.role === "retailer" || !user?.role;
 
   const [wallets, setWallets] = useState<WalletBalance[]>([]);

@@ -12,14 +12,14 @@ interface TreeNode {
   uid: string;
   name: string;
   mobile: string;
-  role: "master_distributor" | "distributor" | "retailer";
+  role: "super_distributor" | "distributor" | "retailer";
   isActive: boolean;
   mainBalance: string;
   children: TreeNode[];
 }
 
-const ROLE_ICON = { master_distributor: Crown, distributor: NetworkIcon, retailer: Store } as const;
-const ROLE_LABEL = { master_distributor: "Super Distributor", distributor: "Distributor", retailer: "Retailer" } as const;
+const ROLE_ICON = { super_distributor: Crown, distributor: NetworkIcon, retailer: Store } as const;
+const ROLE_LABEL = { super_distributor: "Super Distributor", distributor: "Distributor", retailer: "Retailer" } as const;
 /** Only these roles have a reassignable parent (Super Distributor's parent is Admin, not a user row). */
 const MOVABLE_ROLES = new Set(["distributor", "retailer"]);
 

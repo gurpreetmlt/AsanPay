@@ -42,7 +42,7 @@ Retailer txn → aggregator → commission up the chain
 ## Role hierarchy
 
 ```
-admin → master_distributor → distributor → retailer
+admin → super_distributor → distributor → retailer
 ```
 
 Onboard: `POST /api/auth/register` (authenticated parent only)

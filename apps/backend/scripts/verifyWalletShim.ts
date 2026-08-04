@@ -328,7 +328,7 @@ function asnUid(role: "S" | "D" | "R"): string {
 }
 
 async function createAgent(
-  role: "master_distributor" | "distributor" | "retailer",
+  role: "super_distributor" | "distributor" | "retailer",
   parentId: string | null,
   name: string,
   uidRole: "S" | "D" | "R",
@@ -592,7 +592,7 @@ async function main() {
 
   await seedServiceCatalog();
 
-  const md = await createAgent("master_distributor", null, "Shim MD", "S");
+  const md = await createAgent("super_distributor", null, "Shim MD", "S");
   mdId = md.userId;
   mdMainId = md.mainId;
   mdCode = md.code;

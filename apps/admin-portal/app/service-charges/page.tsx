@@ -10,7 +10,7 @@ import api, { fetchApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 
-type SchemeRole = "retailer" | "distributor" | "master_distributor";
+type SchemeRole = "retailer" | "distributor" | "super_distributor";
 type RuleType = "flat" | "percentage";
 
 interface CatalogService {
@@ -47,7 +47,7 @@ interface ServiceCharge {
 const ROLE_LABEL: Record<SchemeRole, string> = {
   retailer: "Retailer",
   distributor: "Distributor",
-  master_distributor: "Super Distributor",
+  super_distributor: "Super Distributor",
 };
 
 const EMPTY_FORM = {

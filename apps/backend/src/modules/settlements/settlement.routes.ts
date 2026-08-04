@@ -37,7 +37,7 @@ function paramId(raw: string | string[] | undefined): string | undefined {
   return Array.isArray(raw) ? raw[0] : raw;
 }
 
-const AGENT_ROLES = ["master_distributor", "distributor", "retailer"] as const;
+const AGENT_ROLES = ["super_distributor", "distributor", "retailer"] as const;
 
 export const settlementRouter = Router();
 

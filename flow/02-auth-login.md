@@ -2,7 +2,7 @@
 
 ## Portals
 - `portal: "admin"` → only `admin` role (Admin web)
-- `portal: "agent"` → `master_distributor` | `distributor` | `retailer` (Agent web + mobile)
+- `portal: "agent"` → `super_distributor` | `distributor` | `retailer` (Agent web + mobile)
 
 ## Paths
 | Action | API |

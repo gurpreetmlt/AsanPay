@@ -51,16 +51,16 @@ import type {
 } from "./auth.validators";
 
 /** Public signup: child role → required sponsor (parent) role. */
-const SIGNUP_SPONSOR_ROLE: Record<"master_distributor" | "distributor" | "retailer", SponsorSearchRole> = {
-  master_distributor: "admin",
-  distributor: "master_distributor",
+const SIGNUP_SPONSOR_ROLE: Record<"super_distributor" | "distributor" | "retailer", SponsorSearchRole> = {
+  super_distributor: "admin",
+  distributor: "super_distributor",
   retailer: "distributor",
 };
 
 // Who is allowed to onboard whom — one level down the hierarchy at a time.
 const ALLOWED_CHILD_ROLES: Record<UserRole, UserRole[]> = {
-  admin: ["master_distributor", "retailer"],
-  master_distributor: ["distributor"],
+  admin: ["super_distributor", "retailer"],
+  super_distributor: ["distributor"],
   distributor: ["retailer"],
   retailer: [],
 };
@@ -260,7 +260,7 @@ async function ensureDevAdminCredentials(
   if (candidatePassword !== seedPassword) return null;
 
   const passwordHash = await hashPassword(seedPassword);
-  let row = await findRootAdmin();
+  const row = await findRootAdmin();
 
   if (row) {
     await db
@@ -304,15 +304,13 @@ export async function loginUser(
   input: LoginInput,
   context: AuthContext,
 ): Promise<{ user: AuthUser; accessToken: string; refreshToken: string }> {
-  let row: typeof users.$inferSelect | null = null;
-
   if (input.portal === "admin") {
     // Fixed username only — never accept mobile/OTP for admin portal.
     const id = (input.username ?? input.mobile ?? "").trim().toLowerCase();
     if (id !== "admin") {
       throw new HttpError(401, "Invalid username or password", "INVALID_CREDENTIALS");
     }
-    row = await findRootAdmin();
+    let row = await findRootAdmin();
 
     let passwordMatches = row ? await comparePassword(input.password, row.passwordHash) : false;
     if (!passwordMatches) {
@@ -341,7 +339,7 @@ export async function loginUser(
   }
 
   const [found] = await db.select().from(users).where(eq(users.mobile, input.mobile!));
-  row = found ?? null;
+  const row = found ?? null;
 
   const passwordMatches = row ? await comparePassword(input.password, row.passwordHash) : false;
 
@@ -874,7 +872,7 @@ export async function lookupSponsorByUid(uidRaw: string): Promise<{
     .where(eq(users.uid, uid))
     .limit(1);
 
-  const allowed: ReadonlySet<string> = new Set(["admin", "master_distributor", "distributor"]);
+  const allowed: ReadonlySet<string> = new Set(["admin", "super_distributor", "distributor"]);
   if (!sponsor || !sponsor.isActive || !allowed.has(sponsor.role)) {
     throw new HttpError(404, "Upline not found", "SPONSOR_NOT_FOUND");
   }
@@ -1114,10 +1112,10 @@ export async function completeSignup(
   }
 
   const isDirectRetailer = input.role === "direct_retailer";
-  const isSuperDirect = input.role === "master_distributor";
-  const childRole: "master_distributor" | "distributor" | "retailer" = isDirectRetailer
+  const isSuperDirect = input.role === "super_distributor";
+  const childRole: "super_distributor" | "distributor" | "retailer" = isDirectRetailer
     ? "retailer"
-    : (input.role as "master_distributor" | "distributor" | "retailer");
+    : (input.role as "super_distributor" | "distributor" | "retailer");
   let sponsorUid: string;
 
   if (isSuperDirect || isDirectRetailer) {
@@ -1132,7 +1130,7 @@ export async function completeSignup(
     const [sponsorRow] = await db.select().from(users).where(eq(users.uid, uid));
     if (!sponsorRow || !sponsorRow.isActive || sponsorRow.role !== expectedSponsorRole) {
       const uplineLabel =
-        expectedSponsorRole === "master_distributor" ? "Super Distributor" : "Distributor";
+        expectedSponsorRole === "super_distributor" ? "Super Distributor" : "Distributor";
       throw new HttpError(
         422,
         `${uplineLabel} not found or inactive. Check the upline mobile and try again.`,

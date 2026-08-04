@@ -248,16 +248,13 @@ export async function setTransactionPin(req: Request, res: Response): Promise<vo
   if (!user) throw new HttpError(404, "User not found", "USER_NOT_FOUND");
 
   const isFirstSet = !user.txnPinHash;
-  let passwordOk = false;
-  if (isFirstSet) {
-    // OTP/session signup users often have no known login password — first PIN uses auth session.
-    passwordOk = true;
-  } else {
-    if (!input.password) {
-      throw new HttpError(422, "Password is required to change PIN", "PASSWORD_REQUIRED");
-    }
-    passwordOk = await comparePassword(input.password, user.passwordHash);
+  if (!isFirstSet && !input.password) {
+    throw new HttpError(422, "Password is required to change PIN", "PASSWORD_REQUIRED");
   }
+  // OTP/session signup users often have no known login password — first PIN uses auth session.
+  const passwordOk = isFirstSet
+    ? true
+    : await comparePassword(input.password!, user.passwordHash);
 
   await setTxnPin(req.auth.sub, input.pin, { passwordOk });
   const meUser = await getAuthMe(req.auth.sub);

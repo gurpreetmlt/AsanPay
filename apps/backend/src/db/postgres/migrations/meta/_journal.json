@@ -225,6 +225,13 @@
       "when": 1785840000000,
       "tag": "0031_recon_adjustments",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1785845000000,
+      "tag": "0032_user_role_super_distributor",
+      "breakpoints": true
     }
   ]
 }

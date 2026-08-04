@@ -140,7 +140,7 @@ async function lockUserIdempotencyKey(tx: Tx, userId: string, idempotencyKey: st
 
 /** One-level downline only: Super Dist → Distributor, Distributor → Retailer. */
 const TRANSFER_CHILD_ROLE: Partial<Record<UserRole, UserRole>> = {
-  master_distributor: "distributor",
+  super_distributor: "distributor",
   distributor: "retailer",
 };
 
@@ -428,7 +428,7 @@ export async function adminFundOwnWallet(
     if (target.parentId !== actor.id) {
       throw new HttpError(403, "You can only fund Super Distributors you onboarded", "NOT_YOUR_DOWNLINE");
     }
-    if (target.role !== "master_distributor") {
+    if (target.role !== "super_distributor") {
       throw new HttpError(422, "Admin float load only targets Super Distributors", "INVALID_TARGET");
     }
     if (!target.isActive) throw new HttpError(422, "Target account is inactive", "ACCOUNT_INACTIVE");

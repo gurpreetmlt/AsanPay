@@ -7,7 +7,7 @@ import { HttpError } from "../../utils/httpError";
 // A hierarchy wallet is a LIABILITY account: we owe the agent this money. That class is what
 // makes it hard balance-checked on every debit, with no overdraft path.
 const ROLE_TO_ACCOUNT: Record<string, { prefix: string; type: AccountType } | undefined> = {
-  master_distributor: { prefix: "SD", type: "sd" },
+  super_distributor: { prefix: "SD", type: "sd" },
   distributor: { prefix: "DIST", type: "distributor" },
   retailer: { prefix: "RTL", type: "retailer" },
 };
