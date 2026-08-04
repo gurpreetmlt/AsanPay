@@ -26,7 +26,8 @@
     "seed:settlements-dummy": "tsx scripts/seedSettlementsDummy.ts",
     "backfill:opening": "tsx scripts/backfillOpeningBalance.ts",
     "provision:float": "tsx scripts/provisionProviderFloat.ts",
-    "verify:ledger": "tsx scripts/verifyLedgerEngine.ts"
+    "verify:ledger": "tsx scripts/verifyLedgerEngine.ts",
+    "verify:shim": "tsx scripts/verifyWalletShim.ts"
   },
   "dependencies": {
     "@asanpay/shared-types": "*",

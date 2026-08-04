@@ -76,7 +76,9 @@
 - [x] **Cut-over**: `wallet.ledger.ts` posts journals; `wallets.balance` is a mirror
       (`main` = balance − settleable, `aeps` = settleable). Signatures unchanged, 15 call sites
 - [x] `verify:ledger` 10/10 — engine only, does NOT cover `wallet.ledger.ts`
-- [ ] **Live proof of the shim** — no money has moved through the new path in production yet
+- [x] `verify:shim` (`npm run verify:shim`) — end-to-end `wallet.ledger.ts` under LEDGERTEST
+      (mapping, mirror, passbook); ASANPAY untouched
+- [ ] **Live proof of the shim** — optional ASANPAY production money movement still product QA
 - [x] **DB-backed test suite repaired for cut-over** — `setBalance` via journals + `mirrorBalances`;
   `destroy` soft-retires users (accounts.user_id RESTRICT); `LEDGER_TENANT_CODE` / LEDGERTEST isolation
 - [x] Backend `tsc` build gate fixes (commission rule create; fund-request `paramId` for Express 5)
@@ -105,6 +107,7 @@
 - [ ] History purge for any secrets ever pushed to remote
 
 ## Last updated
+2026-08-04 — verify:shim script (wallet.ledger under LEDGERTEST: transfer/pull/fund + mirror + passbook)
 2026-08-04 — Post cut-over §1+§3: test world journals/LEDGERTEST + soft destroy; tsc (commission, fund-request paramId)
 2026-08-04 — Ledger section added; cut-over verified shipped. Found: DB-backed test suite is broken by the mirror (fixtures write `wallets.balance` directly) — see `docs/PROMPTS/post-cutover-next.md`
 2026-08-04 — InstantPay Bio-KYC web/mobile + RD `wadh`; mobile Register Outlet modal
