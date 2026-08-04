@@ -96,7 +96,7 @@ export default function PlatformSettingsPage() {
 
   return (
     <AdminShell>
-      <div className="mx-auto max-w-xl space-y-5 p-4 md:p-6">
+      <div className="mx-auto max-w-5xl space-y-5 p-4 md:p-6">
         <div>
           <h1 className="text-xl font-bold md:text-2xl" style={{ color: B.blue }}>
             Platform Settings
@@ -113,74 +113,76 @@ export default function PlatformSettingsPage() {
           </p>
         ) : (
           <>
-            <section
-              className="space-y-4 rounded-2xl border bg-white p-5"
-              style={{ borderColor: B.border }}
-            >
-              <div className="flex items-center gap-2">
-                <Headphones size={18} style={{ color: B.blueLight }} />
-                <h2 className="text-sm font-bold" style={{ color: B.blue }}>
-                  Care desk
-                </h2>
-              </div>
-              <Field
-                label="Support phone"
-                hint="Shown as company call number on Support"
-                value={form.supportPhone}
-                onChange={(v) => setField("supportPhone", v)}
-                placeholder="1800-xxx-xxxx or 10-digit mobile"
-              />
-              <Field
-                label="Support email"
-                value={form.supportEmail}
-                onChange={(v) => setField("supportEmail", v)}
-                placeholder="care@asanpay.in"
-              />
-              <Field
-                label="WhatsApp number"
-                hint="Digits only with country code (e.g. 9198xxxxxxxx) for WhatsApp Us"
-                value={form.supportWhatsapp}
-                onChange={(v) => setField("supportWhatsapp", v)}
-                placeholder="9198xxxxxxxx"
-              />
-            </section>
-
-            <section
-              className="space-y-4 rounded-2xl border bg-white p-5"
-              style={{ borderColor: B.border }}
-            >
-              <div className="flex items-center gap-2">
-                <MapPin size={18} style={{ color: B.blueLight }} />
-                <h2 className="text-sm font-bold" style={{ color: B.blue }}>
-                  Nodal officer
-                </h2>
-              </div>
-              <label className="block space-y-1">
-                <span className="text-xs font-semibold" style={{ color: B.muted }}>
-                  Postal address
-                </span>
-                <textarea
-                  value={form.nodalAddress}
-                  onChange={(e) => setField("nodalAddress", e.target.value)}
-                  rows={4}
-                  className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none focus:ring-2"
-                  style={{ borderColor: B.border }}
-                  placeholder="Full postal / registered address for grievance letters"
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
+              <section
+                className="space-y-4 rounded-2xl border bg-white p-5"
+                style={{ borderColor: B.border }}
+              >
+                <div className="flex items-center gap-2">
+                  <Headphones size={18} style={{ color: B.blueLight }} />
+                  <h2 className="text-sm font-bold" style={{ color: B.blue }}>
+                    Care desk
+                  </h2>
+                </div>
+                <Field
+                  label="Support phone"
+                  hint="Shown as company call number on Support"
+                  value={form.supportPhone}
+                  onChange={(v) => setField("supportPhone", v)}
+                  placeholder="1800-xxx-xxxx or 10-digit mobile"
                 />
-              </label>
-              <Field
-                label="Nodal email"
-                value={form.nodalEmail}
-                onChange={(v) => setField("nodalEmail", v)}
-                placeholder="grievance@asanpay.in"
-              />
-              <Field
-                label="Nodal phone"
-                value={form.nodalPhone}
-                onChange={(v) => setField("nodalPhone", v)}
-                placeholder="Same as care or a dedicated line"
-              />
-            </section>
+                <Field
+                  label="Support email"
+                  value={form.supportEmail}
+                  onChange={(v) => setField("supportEmail", v)}
+                  placeholder="care@asanpay.in"
+                />
+                <Field
+                  label="WhatsApp number"
+                  hint="Digits only with country code (e.g. 9198xxxxxxxx) for WhatsApp Us"
+                  value={form.supportWhatsapp}
+                  onChange={(v) => setField("supportWhatsapp", v)}
+                  placeholder="9198xxxxxxxx"
+                />
+              </section>
+
+              <section
+                className="space-y-4 rounded-2xl border bg-white p-5"
+                style={{ borderColor: B.border }}
+              >
+                <div className="flex items-center gap-2">
+                  <MapPin size={18} style={{ color: B.blueLight }} />
+                  <h2 className="text-sm font-bold" style={{ color: B.blue }}>
+                    Nodal officer
+                  </h2>
+                </div>
+                <label className="block space-y-1">
+                  <span className="text-xs font-semibold" style={{ color: B.muted }}>
+                    Postal address
+                  </span>
+                  <textarea
+                    value={form.nodalAddress}
+                    onChange={(e) => setField("nodalAddress", e.target.value)}
+                    rows={4}
+                    className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none focus:ring-2"
+                    style={{ borderColor: B.border }}
+                    placeholder="Full postal / registered address for grievance letters"
+                  />
+                </label>
+                <Field
+                  label="Nodal email"
+                  value={form.nodalEmail}
+                  onChange={(v) => setField("nodalEmail", v)}
+                  placeholder="grievance@asanpay.in"
+                />
+                <Field
+                  label="Nodal phone"
+                  value={form.nodalPhone}
+                  onChange={(v) => setField("nodalPhone", v)}
+                  placeholder="Same as care or a dedicated line"
+                />
+              </section>
+            </div>
 
             <p className="text-xs" style={{ color: B.muted }}>
               Distributor / upline phone and email come from each agent’s linked parent account — not
@@ -191,7 +193,7 @@ export default function PlatformSettingsPage() {
               type="button"
               disabled={saving}
               onClick={() => void save()}
-              className="w-full rounded-xl py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+              className="w-full rounded-xl py-2.5 text-sm font-semibold text-white disabled:opacity-50 lg:max-w-md"
               style={{ background: B.badgeGrad }}
             >
               {saving ? "Saving…" : "Save platform settings"}

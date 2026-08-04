@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { ChevronDown, Star } from "lucide-react";
@@ -18,8 +18,25 @@ type Svc = { id: string; code: string; name: string; badge: string | null; icon:
 
 /** Display-only overrides for category names — doesn't touch the catalog data in the DB. */
 const CATEGORY_NAME_OVERRIDES: Record<string, string> = {
-  BILL_PAYMENT_BBPS: "Recharge & Bill Payments (BBPS)",
+  BILL_PAYMENT_BBPS: "Recharges and Bills",
 };
+
+/** AePS core tiles — shown inside the bordered AePS group (Spice-style). */
+const AEPS_CODES = new Set([
+  "CASH_WITHDRAW",
+  "MINI_STATEMENT",
+  "CASH_DEPOSIT",
+  "BALANCE_ENQUIRY",
+]);
+
+/** Hidden tiles / categories (product decision — do not wait for re-seed). */
+const HIDDEN_SERVICE_CODES = new Set([
+  "AGENT_COLLECTION",
+  "SHG_WITHDRAW_CASH",
+  "SHG_DEPOSIT_CASH",
+]);
+
+const HIDDEN_CATEGORY_CODES = new Set(["SHG_SERVICES", "MORE_SERVICES"]);
 
 const AEPS_TAB_MAP: Record<string, string> = {
   CASH_WITHDRAW: "Withdraw",
@@ -29,10 +46,8 @@ const AEPS_TAB_MAP: Record<string, string> = {
   AADHAAR_PAY: "Withdraw",
 };
 
-/** How many tiles fit in one dense row on md+ before “View all” is needed. */
-const PREVIEW_COUNT = 8;
+const BBPS_PREVIEW = 12;
 
-/** Routes for services that have a dedicated page but aren't part of the AEPS tab set. */
 function resolveServiceRoute(code: string): string | null {
   const aepsTab = AEPS_TAB_MAP[code];
   if (aepsTab) return `/aeps?tab=${encodeURIComponent(aepsTab)}`;
@@ -64,7 +79,7 @@ function ServiceIconCard({
 
   return (
     <div
-      className="group relative flex w-[4.5rem] shrink-0 flex-col items-center sm:w-[5rem]"
+      className="group relative flex flex-col items-center gap-1.5 rounded-xl p-2 text-center transition duration-150"
       style={{ "--tile-accent": tile.fg } as React.CSSProperties}
     >
       <button
@@ -74,44 +89,44 @@ function ServiceIconCard({
           e.stopPropagation();
           onToggleFav();
         }}
-        className="absolute -right-0.5 top-0 z-10 rounded-md p-0.5 opacity-0 transition group-hover:opacity-100"
+        className="absolute right-0.5 top-0.5 z-10 rounded-lg p-1 opacity-0 transition group-hover:opacity-100"
       >
-        <Star size={11} strokeWidth={2.2} color={starColor} fill={favorite ? starColor : "none"} />
+        <Star size={12} strokeWidth={2.2} color={starColor} fill={favorite ? starColor : "none"} />
       </button>
       <button
         type="button"
-        className="flex w-full flex-col items-center gap-1 text-center disabled:opacity-45"
+        className="flex w-full flex-col items-center gap-1.5 text-center disabled:opacity-45"
         onClick={() => (onOpen ? onOpen() : toast(`${svc.name} — coming soon on web`))}
       >
         {svc.badge ? (
           <span
-            className="mb-0.5 max-w-full truncate rounded px-1 py-px text-[8px] font-bold uppercase leading-none"
+            className="max-w-full truncate rounded px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none"
             style={{ background: `${tile.fg}18`, color: tile.fg }}
             title={svc.badge}
           >
             {svc.badge}
           </span>
         ) : (
-          <span className="mb-0.5 h-3" aria-hidden />
+          <span className="h-[14px]" aria-hidden />
         )}
         {showAsset ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={assetSrc!}
             alt=""
-            className="h-8 w-8 object-contain transition duration-150 ease-out group-hover:scale-110 group-hover:drop-shadow-md sm:h-9 sm:w-9"
+            className="h-11 w-11 object-contain transition duration-150 ease-out group-hover:scale-110 group-hover:drop-shadow-md sm:h-12 sm:w-12"
             onError={() => setAssetFailed(true)}
           />
         ) : (
           <div
-            className="flex h-8 w-8 items-center justify-center rounded-lg transition duration-150 ease-out group-hover:scale-110 sm:h-9 sm:w-9"
+            className="flex h-11 w-11 items-center justify-center rounded-xl transition duration-150 ease-out group-hover:scale-110 sm:h-12 sm:w-12"
             style={{ background: tile.bg }}
           >
-            <DesignIcon name={designKey} size={20} color={tile.fg} />
+            <DesignIcon name={designKey} size={26} color={tile.fg} />
           </div>
         )}
         <div
-          className="line-clamp-2 min-h-[1.75rem] w-full text-center text-[10px] font-semibold leading-tight transition-colors duration-150 group-hover:text-[var(--tile-accent)] sm:text-[11px]"
+          className="line-clamp-2 min-h-[2rem] w-full text-center text-[11px] font-semibold leading-tight transition-colors duration-150 group-hover:text-[var(--tile-accent)] sm:text-xs"
           style={{ color: B.blue }}
         >
           {svc.name}
@@ -121,7 +136,7 @@ function ServiceIconCard({
   );
 }
 
-function ServiceRow({
+function ServiceGrid({
   services,
   codes,
   onToggle,
@@ -133,7 +148,7 @@ function ServiceRow({
   onOpen: (code: string) => void;
 }) {
   return (
-    <div className="flex flex-wrap content-start items-start gap-x-1 gap-y-2 sm:gap-x-2">
+    <div className="grid grid-cols-3 gap-1 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
       {services.map((svc, i) => (
         <ServiceIconCard
           key={svc.id}
@@ -148,7 +163,83 @@ function ServiceRow({
   );
 }
 
-/** Figma / Spice-style dense service rows (one line when few; View all only when many). */
+function CardShell({
+  title,
+  action,
+  children,
+  className = "",
+}: {
+  title: string;
+  action?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`rounded-2xl border bg-white p-4 shadow-sm sm:p-5 ${className}`}
+      style={{ borderColor: B.border }}
+    >
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h3 className="text-sm font-bold sm:text-base" style={{ color: B.blue }}>
+          {title}
+        </h3>
+        {action}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/** Spice-style banking card: AePS group with overlay label + rest of banking/more services. */
+function BankingCard({
+  aeps,
+  rest,
+  codes,
+  onToggle,
+  onOpen,
+}: {
+  aeps: Svc[];
+  rest: Svc[];
+  codes: string[];
+  onToggle: (code: string) => void;
+  onOpen: (code: string) => void;
+}) {
+  return (
+    <CardShell title="Banking Services">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-5">
+        {aeps.length > 0 ? (
+          <div className="relative shrink-0 rounded-xl border-2 px-2 pb-2 pt-4 sm:px-3 sm:pb-3 sm:pt-5" style={{ borderColor: "rgba(11,42,154,0.18)" }}>
+            <span
+              className="absolute left-1/2 top-0 z-10 -translate-x-1/2 -translate-y-1/2 rounded-md px-2.5 py-0.5 text-[11px] font-extrabold tracking-wide text-white shadow-sm"
+              style={{ background: B.badgeGrad }}
+            >
+              AePS
+            </span>
+            <div className="grid grid-cols-4 gap-0.5 sm:gap-1" style={{ minWidth: "min(100%, 280px)" }}>
+              {aeps.map((svc, i) => (
+                <ServiceIconCard
+                  key={svc.id}
+                  svc={svc}
+                  index={i}
+                  favorite={codes.includes(svc.code)}
+                  onToggleFav={() => onToggle(svc.code)}
+                  onOpen={() => onOpen(svc.code)}
+                />
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {rest.length > 0 ? (
+          <div className="min-w-0 flex-1">
+            <ServiceGrid services={rest} codes={codes} onToggle={onToggle} onOpen={onOpen} />
+          </div>
+        ) : null}
+      </div>
+    </CardShell>
+  );
+}
+
 export function ServiceCards({ title = "All Services" }: { title?: string }) {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
@@ -160,8 +251,7 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
   const remove = useFavoritesStore((s) => s.remove);
 
   const [categories, setCategories] = useState<CatalogCategoryView[]>([]);
-  /** Categories expanded past the first row (only needed when count > PREVIEW_COUNT). */
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [bbpsOpen, setBbpsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -185,17 +275,54 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
     };
   }, []);
 
-  const visibleCategories = useMemo(
-    () => categories.filter((c) => (c.services?.length ?? 0) > 0),
-    [categories],
-  );
+  const layout = useMemo(() => {
+    const byCode = new Map(categories.map((c) => [c.code, c]));
+
+    const filterSvc = (list: Svc[] | undefined) =>
+      (list ?? []).filter((s) => !HIDDEN_SERVICE_CODES.has(s.code));
+
+    const bankingRaw = filterSvc(byCode.get("BANKING_SERVICES")?.services);
+    const moreRaw = filterSvc(byCode.get("MORE_SERVICES")?.services);
+    /** More Services merged into Banking (Cash Collection, Loans, …). */
+    const bankingAll = [...bankingRaw, ...moreRaw];
+
+    const aepsOrder = ["CASH_WITHDRAW", "MINI_STATEMENT", "CASH_DEPOSIT", "BALANCE_ENQUIRY"];
+    const aeps = aepsOrder
+      .map((code) => bankingAll.find((s) => s.code === code))
+      .filter((s): s is Svc => Boolean(s));
+    const rest = bankingAll.filter((s) => !AEPS_CODES.has(s.code));
+
+    const bbps = filterSvc(byCode.get("BILL_PAYMENT_BBPS")?.services);
+    const accept = filterSvc(byCode.get("ACCEPT_PAYMENTS")?.services);
+    const govt = filterSvc(byCode.get("GOVT_SERVICES")?.services);
+
+    /** Any other active categories (not banking/bbps/accept/govt/more/shg). */
+    const others = categories.filter(
+      (c) =>
+        !HIDDEN_CATEGORY_CODES.has(c.code) &&
+        !["BANKING_SERVICES", "BILL_PAYMENT_BBPS", "ACCEPT_PAYMENTS", "GOVT_SERVICES"].includes(
+          c.code,
+        ) &&
+        filterSvc(c.services).length > 0,
+    );
+
+    return { aeps, rest, bbps, accept, govt, others };
+  }, [categories]);
 
   const favorites = useMemo(() => {
-    const all = flattenCatalogServices(visibleCategories);
+    const all = flattenCatalogServices(
+      categories
+        .filter((c) => !HIDDEN_CATEGORY_CODES.has(c.code) || c.code === "MORE_SERVICES")
+        .map((c) => ({
+          ...c,
+          services: (c.services ?? []).filter((s) => !HIDDEN_SERVICE_CODES.has(s.code)),
+        })),
+    );
+    // Also include more services for fav lookup
     return codes
       .map((code) => all.find((s) => s.code === code))
       .filter((s): s is NonNullable<typeof s> => !!s);
-  }, [visibleCategories, codes]);
+  }, [categories, codes]);
 
   function openService(code: string) {
     if (!servicesUnlocked) {
@@ -221,103 +348,144 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
     if (result.limitReached) toast.error(`Maximum ${MAX_FAVORITES} favourites`);
   }
 
-  function toggleExpanded(id: string) {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
   if (loading) {
     return (
-      <div className="rounded-2xl border bg-white p-4 text-sm" style={{ borderColor: B.border, color: B.muted }}>
+      <div className="rounded-2xl border bg-white p-6 text-sm" style={{ borderColor: B.border, color: B.muted }}>
         Loading services…
       </div>
     );
   }
 
-  if (!visibleCategories.length) {
+  const hasAny =
+    layout.aeps.length +
+      layout.rest.length +
+      layout.bbps.length +
+      layout.accept.length +
+      layout.govt.length +
+      layout.others.length >
+    0;
+
+  if (!hasAny) {
     return (
-      <div className="rounded-2xl border bg-white p-4 text-sm" style={{ borderColor: B.border, color: B.muted }}>
+      <div className="rounded-2xl border bg-white p-6 text-sm" style={{ borderColor: B.border, color: B.muted }}>
         No active services. Ask admin to enable them under Site Control, or re-run catalog seed on the backend.
       </div>
     );
   }
 
+  const bbpsShown = bbpsOpen || layout.bbps.length <= BBPS_PREVIEW
+    ? layout.bbps
+    : layout.bbps.slice(0, BBPS_PREVIEW);
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {favorites.length > 0 ? (
-        <div className="rounded-xl border bg-white px-3 py-2.5" style={{ borderColor: B.green }}>
-          <div className="mb-2 flex items-center gap-2">
-            <Star size={14} color={B.green} fill={B.green} />
-            <div className="text-xs font-bold uppercase tracking-wider" style={{ color: B.muted }}>
-              Favourites
-            </div>
+        <CardShell
+          title="Favourites"
+          action={
             <span
-              className="rounded-full px-2 py-0.5 text-[10px] font-bold"
+              className="rounded-full px-2 py-0.5 text-[11px] font-bold"
               style={{ background: `${B.green}18`, color: B.greenDark }}
             >
               {favorites.length}
             </span>
+          }
+        >
+          <div className="-mt-1 mb-1 flex items-center gap-1.5 text-xs font-semibold" style={{ color: B.green }}>
+            <Star size={14} fill={B.green} color={B.green} />
+            Your shortcuts
           </div>
-          <ServiceRow
+          <ServiceGrid
             services={favorites}
             codes={codes}
             onToggle={handleToggle}
             onOpen={openService}
           />
-        </div>
+        </CardShell>
       ) : null}
 
-      <h2 className="text-base font-bold md:text-lg" style={{ color: B.blue }}>
+      <h2 className="text-lg font-bold md:text-xl" style={{ color: B.blue }}>
         {title}
       </h2>
 
-      {visibleCategories.map((cat) => {
-        const services = cat.services;
-        const needsExpand = services.length > PREVIEW_COUNT;
-        const isOpen = expanded.has(cat.id);
-        const shown = !needsExpand || isOpen ? services : services.slice(0, PREVIEW_COUNT);
+      {(layout.aeps.length > 0 || layout.rest.length > 0) && (
+        <BankingCard
+          aeps={layout.aeps}
+          rest={layout.rest}
+          codes={codes}
+          onToggle={handleToggle}
+          onOpen={openService}
+        />
+      )}
 
-        return (
-          <div
-            key={cat.id}
-            className="rounded-xl border bg-white px-3 py-2.5"
-            style={{ borderColor: B.border }}
-          >
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider" style={{ color: B.muted }}>
-                {CATEGORY_NAME_OVERRIDES[cat.code] ?? cat.name}
-              </span>
-              {needsExpand ? (
-                <button
-                  type="button"
-                  onClick={() => toggleExpanded(cat.id)}
-                  className="inline-flex shrink-0 items-center gap-0.5 text-[11px] font-bold"
-                  style={{ color: B.blueLight }}
-                >
-                  {isOpen ? "Show less" : "View all"}
-                  <ChevronDown
-                    size={14}
-                    style={{
-                      transform: isOpen ? "rotate(180deg)" : "none",
-                      transition: "transform 150ms",
-                    }}
-                  />
-                </button>
-              ) : null}
-            </div>
-            <ServiceRow
-              services={shown}
-              codes={codes}
-              onToggle={handleToggle}
-              onOpen={openService}
-            />
-          </div>
-        );
-      })}
+      {layout.bbps.length > 0 && (
+        <CardShell
+          title={CATEGORY_NAME_OVERRIDES.BILL_PAYMENT_BBPS}
+          action={
+            layout.bbps.length > BBPS_PREVIEW ? (
+              <button
+                type="button"
+                onClick={() => setBbpsOpen((v) => !v)}
+                className="inline-flex items-center gap-0.5 text-xs font-bold"
+                style={{ color: B.blueLight }}
+              >
+                {bbpsOpen ? "Show less" : "View all"}
+                <ChevronDown
+                  size={14}
+                  style={{
+                    transform: bbpsOpen ? "rotate(180deg)" : "none",
+                    transition: "transform 150ms",
+                  }}
+                />
+              </button>
+            ) : null
+          }
+        >
+          <ServiceGrid
+            services={bbpsShown}
+            codes={codes}
+            onToggle={handleToggle}
+            onOpen={openService}
+          />
+        </CardShell>
+      )}
+
+      {/* Accept Payments + Govt. Services — one row (Spice-style) */}
+      {(layout.accept.length > 0 || layout.govt.length > 0) && (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {layout.accept.length > 0 && (
+            <CardShell title="Accept Payments">
+              <ServiceGrid
+                services={layout.accept}
+                codes={codes}
+                onToggle={handleToggle}
+                onOpen={openService}
+              />
+            </CardShell>
+          )}
+          {layout.govt.length > 0 && (
+            <CardShell title="Govt. Services">
+              <ServiceGrid
+                services={layout.govt}
+                codes={codes}
+                onToggle={handleToggle}
+                onOpen={openService}
+              />
+            </CardShell>
+          )}
+        </div>
+      )}
+
+      {layout.others.map((cat) => (
+        <CardShell key={cat.id} title={CATEGORY_NAME_OVERRIDES[cat.code] ?? cat.name}>
+          <ServiceGrid
+            services={(cat.services ?? []).filter((s) => !HIDDEN_SERVICE_CODES.has(s.code))}
+            codes={codes}
+            onToggle={handleToggle}
+            onOpen={openService}
+          />
+        </CardShell>
+      ))}
     </div>
   );
 }

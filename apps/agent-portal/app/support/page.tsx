@@ -184,14 +184,14 @@ export default function SupportPage() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-6xl space-y-3 px-3 py-4 md:px-5 md:py-5">
-        {/* Compact header */}
-        <div className="flex flex-wrap items-end justify-between gap-2">
+      <div className="mx-auto w-full max-w-[1600px] space-y-4 px-4 py-5 md:px-6 md:py-6 lg:px-8">
+        {/* Header */}
+        <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="text-xl font-bold md:text-2xl" style={{ color: B.blue }}>
+            <h1 className="text-2xl font-bold md:text-3xl" style={{ color: B.blue }}>
               We are here to help
             </h1>
-            <p className="mt-0.5 text-xs md:text-sm" style={{ color: B.muted }}>
+            <p className="mt-1 text-sm" style={{ color: B.muted }}>
               Upline · {brand.name} care · tickets
             </p>
           </div>
@@ -201,18 +201,18 @@ export default function SupportPage() {
               setShowForm(true);
               setSubject((s) => s || "");
             }}
-            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold text-white"
+            className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-bold text-white"
             style={{ background: B.badgeGrad }}
           >
-            <Plus size={14} />
+            <Plus size={16} />
             Raise ticket
           </button>
         </div>
 
-        {/* Quick actions — 4 compact tiles fill width */}
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {/* Quick actions — wider tiles */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <QuickAction
-            icon={<MessageCircle size={18} style={{ color: B.green }} />}
+            icon={<MessageCircle size={20} style={{ color: B.green }} />}
             iconBg="rgba(18,183,106,0.12)"
             title="WhatsApp"
             subtitle={careWa ? "Faster reply" : "Not configured"}
@@ -222,7 +222,7 @@ export default function SupportPage() {
             badge={careWa ? "Fast" : undefined}
           />
           <QuickAction
-            icon={<Phone size={18} style={{ color: B.blueLight }} />}
+            icon={<Phone size={20} style={{ color: B.blueLight }} />}
             iconBg={B.secondary}
             title={distName ? distRole : "Upline"}
             subtitle={distributorMobile ? formatPhone(distributorMobile) : "Not linked"}
@@ -230,7 +230,7 @@ export default function SupportPage() {
             disabled={!distributorMobile}
           />
           <QuickAction
-            icon={<Headphones size={18} style={{ color: B.blueLight }} />}
+            icon={<Headphones size={20} style={{ color: B.blueLight }} />}
             iconBg={B.secondary}
             title={brand.name}
             subtitle={carePhone ? formatPhone(carePhone) : "Not set"}
@@ -238,7 +238,7 @@ export default function SupportPage() {
             disabled={!carePhone}
           />
           <QuickAction
-            icon={<Mail size={18} style={{ color: B.blueLight }} />}
+            icon={<Mail size={20} style={{ color: B.blueLight }} />}
             iconBg={B.secondary}
             title="Email care"
             subtitle={careEmail || "Not set"}
@@ -247,15 +247,13 @@ export default function SupportPage() {
           />
         </div>
 
-        {/* Main: contacts + tickets side by side, equal height fill */}
-        <div className="grid grid-cols-1 gap-2 lg:grid-cols-5 lg:items-stretch">
-          {/* Contacts directory */}
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-5 lg:items-stretch">
           <div
-            className="flex flex-col rounded-xl border bg-white p-3 lg:col-span-3"
+            className="flex flex-col rounded-2xl border bg-white p-4 md:p-5 lg:col-span-3"
             style={{ borderColor: B.border }}
           >
-            <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-xs font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-bold uppercase tracking-wide" style={{ color: B.muted }}>
                 Contact directory
               </h2>
               <button
@@ -264,14 +262,14 @@ export default function SupportPage() {
                   setShowForm(true);
                   setSubject((s) => s || "Request a callback");
                 }}
-                className="text-[11px] font-bold underline-offset-2 hover:underline"
+                className="text-xs font-bold underline-offset-2 hover:underline"
                 style={{ color: B.blueLight }}
               >
                 Request callback
               </button>
             </div>
 
-            <div className="grid flex-1 grid-cols-1 gap-1.5 sm:grid-cols-2">
+            <div className="grid flex-1 grid-cols-1 gap-2 sm:grid-cols-2">
               <ContactLine
                 kind="phone"
                 label={distName ? `${distRole} · ${distName}` : "Your upline"}
@@ -299,9 +297,8 @@ export default function SupportPage() {
             </div>
           </div>
 
-          {/* Tickets — fills right column */}
           <div
-            className="flex flex-col rounded-xl border bg-white p-3 lg:col-span-2"
+            className="flex flex-col rounded-2xl border bg-white p-4 md:p-5 lg:col-span-2"
             style={{ borderColor: B.border }}
           >
             <TicketsBlock
@@ -319,18 +316,17 @@ export default function SupportPage() {
           </div>
         </div>
 
-        {/* Bottom: guides + nodal — same row, compact */}
-        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-          <div className="rounded-xl border bg-white p-3" style={{ borderColor: B.border }}>
-            <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-xs font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div className="rounded-2xl border bg-white p-4 md:p-5" style={{ borderColor: B.border }}>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-bold uppercase tracking-wide" style={{ color: B.muted }}>
                 Self-help guides
               </h3>
-              <span className="text-[10px] font-semibold" style={{ color: B.muted }}>
+              <span className="text-[11px] font-semibold" style={{ color: B.muted }}>
                 Coming soon
               </span>
             </div>
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {HELP_GUIDES.map((g) => (
                 <button
                   key={g.title}
@@ -338,56 +334,56 @@ export default function SupportPage() {
                   onClick={() =>
                     toast("Guide videos will open here soon — raise a ticket if you need help now")
                   }
-                  className="flex items-center gap-2 rounded-lg border px-2 py-2 text-left transition hover:bg-secondary/50"
+                  className="flex items-center gap-3 rounded-xl border px-3 py-3 text-left transition hover:bg-secondary/50"
                   style={{ borderColor: B.border }}
                 >
                   <span
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md"
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
                     style={{ background: B.secondary }}
                   >
-                    <PlayCircle size={16} style={{ color: B.blueLight }} />
+                    <PlayCircle size={18} style={{ color: B.blueLight }} />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[11px] font-semibold" style={{ color: B.blue }}>
+                    <span className="block truncate text-sm font-semibold" style={{ color: B.blue }}>
                       {g.title}
                     </span>
-                    <span className="text-[9px] font-bold uppercase" style={{ color: B.muted }}>
+                    <span className="text-[10px] font-bold uppercase" style={{ color: B.muted }}>
                       {g.tag}
                     </span>
                   </span>
-                  <ChevronRight size={12} className="shrink-0" style={{ color: B.muted }} />
+                  <ChevronRight size={14} className="shrink-0" style={{ color: B.muted }} />
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="rounded-xl border bg-white p-3" style={{ borderColor: B.border }}>
-            <div className="mb-1.5 flex items-center gap-1.5">
-              <MapPin size={14} style={{ color: B.blueLight }} />
-              <h3 className="text-xs font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+          <div className="rounded-2xl border bg-white p-4 md:p-5" style={{ borderColor: B.border }}>
+            <div className="mb-2 flex items-center gap-2">
+              <MapPin size={16} style={{ color: B.blueLight }} />
+              <h3 className="text-sm font-bold uppercase tracking-wide" style={{ color: B.muted }}>
                 Nodal officer
               </h3>
             </div>
-            <p className="text-[11px] leading-snug" style={{ color: B.blueMid }}>
+            <p className="text-sm leading-relaxed" style={{ color: B.blueMid }}>
               {nodalAddress || "Address not set yet (Admin → Platform Settings)."}
             </p>
-            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-medium" style={{ color: B.blueMid }}>
+            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-sm font-medium" style={{ color: B.blueMid }}>
               {nodalEmail ? (
-                <a href={mailto(nodalEmail)} className="inline-flex items-center gap-1 hover:underline">
-                  <Mail size={12} /> {nodalEmail}
+                <a href={mailto(nodalEmail)} className="inline-flex items-center gap-1.5 hover:underline">
+                  <Mail size={14} /> {nodalEmail}
                 </a>
               ) : (
-                <span className="inline-flex items-center gap-1 opacity-50">
-                  <Mail size={12} /> Email not set
+                <span className="inline-flex items-center gap-1.5 opacity-50">
+                  <Mail size={14} /> Email not set
                 </span>
               )}
               {nodalPhone ? (
-                <a href={telHref(nodalPhone)} className="inline-flex items-center gap-1 hover:underline">
-                  <Phone size={12} /> {formatPhone(nodalPhone)}
+                <a href={telHref(nodalPhone)} className="inline-flex items-center gap-1.5 hover:underline">
+                  <Phone size={14} /> {formatPhone(nodalPhone)}
                 </a>
               ) : (
-                <span className="inline-flex items-center gap-1 opacity-50">
-                  <Phone size={12} /> Phone not set
+                <span className="inline-flex items-center gap-1.5 opacity-50">
+                  <Phone size={14} /> Phone not set
                 </span>
               )}
             </div>
@@ -452,7 +448,7 @@ function QuickAction({
   );
 
   const cls =
-    "block rounded-xl border bg-white p-2.5 text-left transition " +
+    "block rounded-2xl border bg-white p-4 text-left transition " +
     (disabled ? "opacity-70" : "hover:shadow-sm");
 
   if (href && !disabled) {

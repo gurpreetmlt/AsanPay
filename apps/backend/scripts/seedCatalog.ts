@@ -21,11 +21,9 @@ interface SeedCategory {
 
 /**
  * Dashboard layout:
- *   1) Banking Services — AEPS / DMT / UPI (not BBPS)
- *   2) Bill Payment (BBPS) — every NPCI BBPS-style biller we support
- *   3) Accept Payments — Aadhaar Pay
- *   4) More Services — non-BBPS products (loans apply, cash collection, etc.)
- *   5) Govt. Services
+ *   1) Banking Services — AePS core + UPI/DMT/Nepal + former More Services (collections, loans…)
+ *   2) Bill Payment (BBPS)
+ *   3) Accept Payments + Govt. Services (side-by-side in UI)
  *
  * Icons: canonical `apps/agent-portal/public/service-icons/` (sync → mobile via `bash scripts/sync-icons.sh`).
  * Missing art → omit `icon` (null / design fallback). Drop new SVGs only in that public folder.
@@ -43,6 +41,11 @@ const CATALOG: SeedCategory[] = [
       { code: "UPI_CASH_POINT", name: "UPI Cash Point", badge: "NEW", icon: "UPI-Cash-Point.svg" },
       { code: "MONEY_TRANSFER", name: "Money Transfer", icon: "Money-Transfer.svg" },
       { code: "NEPAL_REMITTANCE", name: "Nepal Transfer", badge: "NEW", icon: "Money-Transfer.svg" },
+      // Former "More Services" — live under Banking
+      { code: "CASH_COLLECTION", name: "Cash Collection", badge: "Flat 0.11%", icon: "Cash-Collection.svg" },
+      { code: "LOANS", name: "Loans", icon: "Loan.svg" },
+      { code: "INSURANCE", name: "Insurance", icon: "Insurance.svg" },
+      { code: "CREDIT_CARDS", name: "Apply Credit Card", icon: "Apply-Credit-Card.svg" },
     ],
   },
   {
@@ -69,7 +72,6 @@ const CATALOG: SeedCategory[] = [
       { code: "CREDIT_CARD_BILL", name: "Credit Card Bill", badge: "Flat ₹0.5", icon: "Credit-Bill.svg" },
       { code: "LOAN_REPAYMENT", name: "Loan Repayment", badge: "Flat 0.15%", icon: "Loan-Repayment.svg" },
       { code: "INSURANCE_PREMIUM", name: "Insurance Premium", badge: "Upto ₹5", icon: "Insurance.svg" },
-      // Single LIC tile (LIC Suvidha deactivated below)
       { code: "LIC", name: "LIC", icon: "LIC.svg" },
       { code: "NPS", name: "NPS", badge: "NEW", icon: "NPS.svg" },
       { code: "EDUCATION_FEES", name: "Education Fees", badge: "Upto ₹4.75", icon: "Education-Fees.svg" },
@@ -90,18 +92,6 @@ const CATALOG: SeedCategory[] = [
     services: [{ code: "AADHAAR_PAY", name: "Aadhaar Pay", icon: "Aadhaar-Pay.svg" }],
   },
   {
-    code: "MORE_SERVICES",
-    name: "More Services",
-    icon: "grid",
-    services: [
-      // Agent Collection merged into Cash Collection (same product)
-      { code: "CASH_COLLECTION", name: "Cash Collection", badge: "Flat 0.11%", icon: "Cash-Collection.svg" },
-      { code: "LOANS", name: "Loans", icon: "Loan.svg" },
-      { code: "INSURANCE", name: "Insurance", icon: "Insurance.svg" },
-      { code: "CREDIT_CARDS", name: "Apply Credit Card", icon: "Apply-Credit-Card.svg" },
-    ],
-  },
-  {
     code: "GOVT_SERVICES",
     name: "Govt. Services",
     icon: "building-2",
@@ -118,7 +108,7 @@ const DEACTIVATE_SERVICE_CODES = [
 ] as const;
 
 /** Categories retired from retailer dashboard — keep DB row, set inactive. */
-const DEACTIVATE_CATEGORY_CODES = ["SHG_SERVICES"] as const;
+const DEACTIVATE_CATEGORY_CODES = ["SHG_SERVICES", "MORE_SERVICES"] as const;
 
 /** Force-clear icon after upsert when art is intentionally removed (none currently). */
 const CLEAR_ICON_CODES: string[] = [];
