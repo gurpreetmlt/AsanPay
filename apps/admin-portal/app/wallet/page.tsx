@@ -99,7 +99,7 @@ export default function WalletPage() {
             <div className="relative z-10">
               <div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-white/70">
                 <Wallet size={14} />
-                Service Balance
+                Main
               </div>
               <div className="mb-3 text-3xl font-bold leading-none tabular-nums">
                 {loading && !main ? "…" : formatInr(main?.balance ?? "0")}
@@ -190,7 +190,7 @@ export default function WalletPage() {
                 {childRole ? ` · ${ROLE_LABEL[childRole] ?? childRole}s` : ""}
               </h2>
               <p className="mt-0.5 text-xs" style={{ color: B.muted }}>
-                Fund Super Distributors from your Service Balance. Parent reassign is on agent detail.
+                Fund Super Distributors from your Main balance. Parent reassign is on agent detail.
               </p>
             </div>
           </div>

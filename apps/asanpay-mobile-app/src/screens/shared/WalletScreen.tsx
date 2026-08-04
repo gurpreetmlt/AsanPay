@@ -92,7 +92,7 @@ export function WalletScreen() {
               </View>
               <View>
                 <Text style={[styles.switchName, { color: isActive ? "#fff" : tokens.txt2 }]}>
-                  {k === "main" ? "Service" : "Earnings"}
+                  {k === "main" ? "Main" : "AEPS"}
                 </Text>
                 <Text style={[styles.switchAmount, { color: isActive ? "#fff" : tokens.txt2 }]}>
                   {formatINR(w?.balance ?? "0")}
@@ -114,7 +114,7 @@ export function WalletScreen() {
           style={styles.heroCard}
         >
           <View style={styles.heroTopRow}>
-            <Text style={styles.heroLabel}>{active === "main" ? "Service Balance" : "Earnings"}</Text>
+            <Text style={styles.heroLabel}>{active === "main" ? "Main" : "AEPS"}</Text>
             <View style={styles.heroBadge}>
               <Text style={styles.heroBadgeText}>{user.uid}</Text>
             </View>
@@ -124,7 +124,7 @@ export function WalletScreen() {
             Pending {formatINR(activeWallet?.pendingBalance ?? "0")}
           </Text>
           <Text style={styles.heroNote}>
-            {active === "main" ? "Available for services" : "AEPS settlements settle here"}
+            {active === "main" ? "Available for services" : "Cash from customer AEPS services only"}
           </Text>
           <View style={styles.heroActions}>
             {user.role === "retailer" ? (

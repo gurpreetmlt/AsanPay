@@ -30,7 +30,7 @@ export function WalletHeader({ wallets, onRefresh, refreshing }: WalletHeaderPro
     <header className="flex items-center justify-between border-b border-border-subtle bg-card px-6 py-4">
       <div className="flex items-center gap-3">
         <div>
-          <p className="text-xs text-gray-500">Service Balance</p>
+          <p className="text-xs text-gray-500">Main</p>
           <div className="flex items-center gap-2">
             <span className="text-xl font-bold text-gray-900">
               {visible ? `₹${mainWallet ? Number(mainWallet.balance).toLocaleString("en-IN") : "0"}` : "••••••"}
@@ -54,7 +54,7 @@ export function WalletHeader({ wallets, onRefresh, refreshing }: WalletHeaderPro
           .map((w) => (
             <div key={w.walletType} className="ml-6 border-l border-border-subtle pl-6">
               <p className="text-xs uppercase text-gray-500">
-                {w.walletType === "aeps" ? "Earnings" : w.walletType}
+                {w.walletType === "aeps" ? "AEPS" : w.walletType}
               </p>
               <span className="text-sm font-semibold text-gray-700">
                 {visible ? `₹${Number(w.balance).toLocaleString("en-IN")}` : "••••••"}

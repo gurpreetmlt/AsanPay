@@ -106,7 +106,7 @@ export function RetailerDashboard() {
           <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white opacity-10" />
           <div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-white/70">
             <Wallet size={14} />
-            {primary ? walletDisplayName(primary.walletType) : "Service Balance"}
+            {primary ? walletDisplayName(primary.walletType) : "Main"}
           </div>
           <div className="mb-3 text-3xl font-bold leading-none">
             {loading ? "…" : formatInr(primary?.balance ?? "0")}

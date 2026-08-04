@@ -20,7 +20,7 @@
 - [x] Per-agent service commission overrides (admin agent detail)
 - [x] Commission page: AEPS sub-services collapsed to one shared-rate row (Task 25)
 - [x] Wallet page shows Pending balance (Wallet 1 / Wallet 2)
-- [x] §9.3 compliance wording: product UI never says "Wallet" — Balance / Service Balance / Earnings (agent + admin + mobile; emails/receipts/errors)
+- [x] §9.3 compliance wording: product UI never says "Wallet" — Main / AEPS (agent + admin + mobile; emails/receipts/errors)
 
 ## Mobile
 - [x] RN Android shell + login (OTP flow)
@@ -124,7 +124,7 @@
 - [ ] History purge for any secrets ever pushed to remote
 
 ## Last updated
-2026-08-04 — §9.3 product copy: no user-facing "Wallet" — Balance / Service Balance / Earnings (agent, admin, mobile, emails, PDF, API errors)
+2026-08-04 — §9.3 product copy: no user-facing "Wallet" — Main / AEPS (agent, admin, mobile, emails, PDF, API errors)
 2026-08-04 — Drop partner-web/retailer-web; remove deriveBalance + serviceChargeTotal export
 2026-08-04 — cleanup:shim + fixed SHIM_BANK/OTH/UNMAPPED harness; no catalog row growth per run
 2026-08-04 — Step 16: verify:load (500 DMT + 200 fundWallet) + concurrency test default 500

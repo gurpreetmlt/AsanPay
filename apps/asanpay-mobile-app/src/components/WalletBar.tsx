@@ -35,7 +35,7 @@ export function WalletBar({ wallets, onWalletPress, onAddMoney, onReports }: Pro
             <View style={styles.walletCardIconLight}>
               <Wallet size={12} color={colors.blue} strokeWidth={2.4} />
             </View>
-            <Text style={styles.walletCardLabel}>Service Balance</Text>
+            <Text style={styles.walletCardLabel}>Main</Text>
           </View>
           <Text style={styles.walletCardAmount}>{formatINR(main?.balance ?? "0")}</Text>
           <Text style={styles.walletCardDelta}>▲ Today</Text>
@@ -50,7 +50,7 @@ export function WalletBar({ wallets, onWalletPress, onAddMoney, onReports }: Pro
               <View style={styles.walletCardIconGreen}>
                 <Fingerprint size={12} color="#fff" strokeWidth={2.4} />
               </View>
-              <Text style={styles.walletCardLabelGreen}>Earnings</Text>
+              <Text style={styles.walletCardLabelGreen}>AEPS</Text>
             </View>
             <Text style={styles.walletCardAmount}>{formatINR(aeps?.balance ?? "0")}</Text>
             <Text style={styles.walletCardNoteGreen}>Settlement pending</Text>

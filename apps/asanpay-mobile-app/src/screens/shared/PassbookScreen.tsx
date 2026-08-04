@@ -156,9 +156,9 @@ export function PassbookScreen() {
                     <Text style={[styles.date, { color: tokens.mute }]}>
                       {formatDate(item.createdAt)} ·{" "}
                       {item.walletType === "main"
-                        ? "Service Balance"
+                        ? "Main"
                         : item.walletType === "aeps"
-                          ? "Earnings"
+                          ? "AEPS"
                           : item.walletType}
                     </Text>
                   </View>

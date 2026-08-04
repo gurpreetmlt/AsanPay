@@ -129,7 +129,7 @@ async function getWalletOrThrow(userId: string, walletType: WalletType) {
     .select()
     .from(wallets)
     .where(and(eq(wallets.userId, userId), eq(wallets.walletType, walletType)));
-  if (!wallet) throw new HttpError(404, `${walletType === "main" ? "Service Balance" : walletType === "aeps" ? "Earnings" : walletType} not found for this user`, "WALLET_NOT_FOUND");
+  if (!wallet) throw new HttpError(404, `${walletType === "main" ? "Main" : walletType === "aeps" ? "AEPS" : walletType} balance not found for this user`, "WALLET_NOT_FOUND");
   return wallet;
 }
 

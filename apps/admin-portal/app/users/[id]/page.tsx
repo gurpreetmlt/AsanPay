@@ -255,9 +255,9 @@ export default function AgentDetailPage() {
                       >
                         <p className="text-xs font-medium uppercase tracking-wide" style={{ color: B.muted }}>
                           {w.walletType === "main"
-                            ? "Service Balance"
+                            ? "Main"
                             : w.walletType === "aeps"
-                              ? "Earnings"
+                              ? "AEPS"
                               : w.walletType}
                         </p>
                         <p className="mt-1 text-lg font-bold tabular-nums" style={{ color: B.blue }}>

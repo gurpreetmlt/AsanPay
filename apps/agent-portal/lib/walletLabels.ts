@@ -1,9 +1,14 @@
 import type { WalletType } from "@asanpay/shared-types";
 
-/** Product-facing names (§9.3): never "Wallet" — prepaid advance, not stored-value. */
+/**
+ * Product-facing names (§9.3): never "Wallet".
+ * main  = spendable advance (UI: Main)
+ * aeps  = cash from customer AEPS services only (UI: AEPS)
+ * DB still stores wallet_type main | aeps.
+ */
 export function walletDisplayName(walletType: WalletType | string): string {
-  if (walletType === "main") return "Service Balance";
-  if (walletType === "aeps") return "Earnings";
+  if (walletType === "main") return "Main";
+  if (walletType === "aeps") return "AEPS";
   return `${walletType} balance`;
 }
 

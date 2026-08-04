@@ -91,9 +91,9 @@ export default function PassbookPage() {
                     <p className="text-xs" style={{ color: B.muted }}>
                       {new Date(entry.createdAt).toLocaleString("en-IN")} ·{" "}
                       {entry.walletType === "main"
-                        ? "Service Balance"
+                        ? "Main"
                         : entry.walletType === "aeps"
-                          ? "Earnings"
+                          ? "AEPS"
                           : entry.walletType}
                     </p>
                   </div>

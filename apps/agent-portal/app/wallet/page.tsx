@@ -175,7 +175,7 @@ export default function WalletPage() {
                     icon: SendHorizonal,
                     label: "Transfer",
                     action: () =>
-                      canFund ? toast("Select a downline partner below to fund") : toast("Transfer is for Service Balance downline funding"),
+                      canFund ? toast("Select a downline partner below to fund") : toast("Transfer is for Main balance downline funding"),
                   },
                   { icon: RefreshCcw, label: "Refresh", action: () => void load() },
                   { icon: Download, label: "Statement", action: () => router.push("/statements") },

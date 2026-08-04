@@ -74,7 +74,7 @@ async function getUserWallet(userId: string, walletType: WalletType): Promise<{ 
     .select({ id: wallets.id })
     .from(wallets)
     .where(and(eq(wallets.userId, userId), eq(wallets.walletType, walletType)));
-  if (!wallet) throw new HttpError(404, `${walletType === "main" ? "Service Balance" : walletType === "aeps" ? "Earnings" : walletType} not found`, "WALLET_NOT_FOUND");
+  if (!wallet) throw new HttpError(404, `${walletType === "main" ? "Main" : walletType === "aeps" ? "AEPS" : walletType} balance not found`, "WALLET_NOT_FOUND");
   return { walletId: wallet.id };
 }
 
