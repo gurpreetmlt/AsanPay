@@ -97,12 +97,21 @@ been failing silently. Fix these, then consider making the build actually run in
 * `ledger-cutover-next.md` — SUPERSEDED banner pointing here.
 * `docs/CHECKLIST.md` — ledger section added.
 
-### Also unproven
+### Shim verification — DONE (4 Aug 2026)
 
-The shim has never been exercised end-to-end in production. `verify:ledger` passing is not
-evidence for it. The proof is one small live downline transfer with the invariant query above
-run on both sides of it, plus confirming a `wallet_ledger_entries` row appears with the correct
-`balance_after`.
+`npm run verify:shim` (`scripts/verifyWalletShim.ts`) — **19/19 PASS** on the Coolify API
+container. Covers every legacy `referenceType` the shim maps: `downline_transfer`,
+`upline_pull`, `service_txn` debit (DMT / RECHARGE / BBPS-by-category / AEPS_DEPOSIT) and its
+`TXN_HAS_NO_PROVIDER` + `SERVICE_NOT_MAPPED` guards, `service_txn` credit, `reversal` (including
+`reverses_id` and the `LEGACY_REVERSAL_UNMAPPED` path), `fundWallet` (ALLOCATION then
+WALLET_TRANSFER) and `commission`. Every check re-asserts the mirror invariant and the passbook
+`balance_after`, and the run ends with reconciliation clean.
+
+Runs under `LEDGERTEST` with `is_active = false`; ASANPAY is never touched. Safe to re-run on
+production at any time. Together with `verify:ledger` 10/10 (engine), cut-over verification is
+complete.
+
+A live ASANPAY money movement is now product QA, not ledger proof.
 
 ## Known gaps worth remembering
 
