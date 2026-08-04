@@ -9,6 +9,10 @@
  *
  *   sudo docker exec $API sh -c 'cd /app/apps/backend && npm run verify:load'
  *
+ * The npm script sets ALLOW_STUB_PROVIDERS=true **only for this process** so world.runDmt can
+ * route through the stub `eko` adapter. The API container's long-running server still has stubs
+ * blocked (prod default). Do not set ALLOW_STUB_PROVIDERS on Coolify for normal traffic.
+ *
  * Env:
  *   LOAD_DEBIT_N   — concurrent debits (default 500, max 500)
  *   LOAD_FUND_N    — concurrent fundWallet calls (default 200, max 200)
@@ -64,6 +68,12 @@ async function main() {
   console.log("=".repeat(72));
 
   process.env.LEDGER_TENANT_CODE = "LEDGERTEST";
+  if (process.env.ALLOW_STUB_PROVIDERS !== "true" && process.env.ALLOW_STUB_PROVIDERS !== "1") {
+    console.warn(
+      "WARN: ALLOW_STUB_PROVIDERS is not set. In production NODE_ENV the stub eko adapter is\n" +
+        "      blocked and debits will fail. Prefer: npm run verify:load (script enables it).\n",
+    );
+  }
   const suffix = `ld${Date.now().toString(36)}`;
   const w = await createWorld(suffix);
   await w.addService("dmt");
