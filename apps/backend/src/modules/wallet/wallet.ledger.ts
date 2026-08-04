@@ -310,7 +310,11 @@ export async function mirrorBalances(
     }
   }
 
-  if (companyMoved) {
+  // The `wallets` table is NOT tenant-scoped, so there is exactly one aggregator row for the
+  // whole database. Mirroring it from a non-default tenant's COMPANY_001 would overwrite the
+  // live aggregator balance with a scratch tenant's figure — which is why verify:shim could not
+  // exercise fundWallet(). Only the default tenant owns that row.
+  if (companyMoved && legacyTenantCode() === DEFAULT_TENANT_CODE) {
     // The aggregator wallet mirrors COMPANY_001: capacity that has been allocated but not yet
     // pushed down the hierarchy. It deliberately no longer tracks service flow — a service debit
     // credits TREASURY_FLOAT_<provider>, which is a treasury asset and not this wallet.
