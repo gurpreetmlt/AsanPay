@@ -12,6 +12,8 @@
  * Isolation: always `LEDGER_TENANT_CODE=LEDGERTEST` with `is_active = false`. Never ASANPAY.
  * Throwaway MD / Dist / Retailer users; soft-retired at end (accounts.user_id RESTRICT).
  *
+ * `wallet_ledger_groups.reference_id` is UUID — every transfer referenceId must be a real UUID.
+ *
  * Intentionally does NOT call `fundWallet()` here: that path sets companyMoved and rewrites the
  * single global aggregator wallet row from LEDGERTEST COMPANY_001 — unsafe on a shared prod DB.
  * External funding can be proven later in isolation once aggregator mirroring is tenant-scoped.
@@ -384,7 +386,7 @@ async function main() {
         toWalletId: distMainId,
         amount: "25000.00",
         referenceType: "downline_transfer",
-        referenceId: `shim-md-dist-${RUN}`,
+        referenceId: randomUUID(),
         description: "verify:shim MD to Dist",
       });
       const j = await journalByLegacyGroup(groupId);
@@ -405,7 +407,7 @@ async function main() {
         toWalletId: retMainId,
         amount: "10000.00",
         referenceType: "downline_transfer",
-        referenceId: `shim-dist-ret-${RUN}`,
+        referenceId: randomUUID(),
         description: "verify:shim Dist to Retailer",
       });
       const j = await journalByLegacyGroup(groupId);
@@ -430,7 +432,7 @@ async function main() {
       toWalletId: distMainId,
       amount: "2000.00",
       referenceType: "upline_pull",
-      referenceId: `shim-pull-${RUN}`,
+      referenceId: randomUUID(),
       description: "verify:shim upline pull",
     });
     const j = await journalByLegacyGroup(groupId);
@@ -450,7 +452,7 @@ async function main() {
       toWalletId: retAepsId,
       amount: "300.00",
       referenceType: "downline_transfer",
-      referenceId: `shim-aeps-fund-${RUN}`,
+      referenceId: randomUUID(),
       description: "verify:shim fund via aeps wallet row",
     });
     const j = await journalByLegacyGroup(groupId);
@@ -472,7 +474,7 @@ async function main() {
       toWalletId: retMainId,
       amount: "100.00",
       referenceType: "downline_transfer",
-      referenceId: `shim-align-${RUN}`,
+      referenceId: randomUUID(),
       description: "verify:shim small transfer passbook",
     });
     const j = await journalByLegacyGroup(groupId);
