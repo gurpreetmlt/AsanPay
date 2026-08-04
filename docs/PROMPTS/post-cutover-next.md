@@ -1,0 +1,132 @@
+# Ledger — Post Cut-over Handoff (4 Aug 2026)
+
+Supersedes [`ledger-cutover-next.md`](ledger-cutover-next.md), which is stale: it still lists
+`upline_pull` and the float accounts as "Blocked" and the cut-over as "Next". Both shipped.
+
+## Done and verified in production
+
+| Piece | Evidence |
+|---|---|
+| Chart of accounts, ledger, `postJournal()`, flow matrix, `reverseJournal()` | `verify:ledger` 10/10 |
+| DB guards — append-only triggers, no-overdraft, protected accounts | live |
+| `UPLINE_PULL` txn type + `USABLE_ONLY_DEBIT_TYPES` floor | `core/ledger/flowMatrix.ts` |
+| `TREASURY_FLOAT_<provider>` per active provider | 3 provisioned: INSTANTPAY, EKO, PAYSPRINT |
+| **Cut-over** — `wallet.ledger.ts` posts journals; `wallets.balance` is a mirror | `598dca9`, deployed |
+| HTTP routes | `fundRequest.routes.ts`, `banking.routes.ts`, `settlement.routes.ts` |
+| Reconciliation sweep wired into boot | `server.ts:17` `runLedgerReconciliationSweep()` |
+| Step 8 — VAN + bank webhook auto-credit | `7158dc4` |
+| Step 10 — settlements, payout requests, block flags | `883b2df`, `ed5030d` |
+| Step 11 — receipts (PDF + thermal) | `modules/transactions/receiptPdf.ts` |
+| Step 12 — float management | `69a01e7` |
+| Step 15 — reports (trial balance, ledger reports, commission payout) | `69a01e7`, `505bb77` |
+
+### The mirror contract (do not break)
+
+`wallets.balance` is no longer a source of truth. One writer only — `postJournal()`:
+
+* `wallet_type = 'main'` <- `balance - settleable` (usable)
+* `wallet_type = 'aeps'` <- `settleable` (earned, withdrawable)
+
+`wallet_ledger_groups` / `wallet_ledger_entries` are a projection of that mirror, kept so the
+passbook and the `ledger_group_id` FKs in `wallet_idempotency` / `commission_ledger` resolve.
+
+Invariant to check after any money movement:
+
+```sql
+select a.code, ab.balance, ab.settleable, w.wallet_type, w.balance as mirror
+from accounts a
+join account_balances ab on ab.account_id = a.id
+join wallets w on w.user_id = a.user_id
+where a.user_id is not null order by a.code, w.wallet_type;
+```
+
+`main` must equal `(balance - settleable)/100`; `aeps` must equal `settleable/100`.
+
+## Pending
+
+1. **Step 16 — load test.** Not started, no script exists. 500 concurrent transfers + 200
+   concurrent fund approvals, then re-check every invariant (trial balance, float coverage,
+   settleable <= balance, mirror-vs-ledger). This is the only item that needs a real session.
+2. **`apps/backend/scripts/verifyLedgerEngine.ts:375`** — still prints
+   `"ENGINE VERIFIED — safe to proceed with the cut-over."`. Stale by 22 commits, and
+   misleading for a second reason: that script exercises `postJournal()` directly under its own
+   `LEDGERTEST` tenant and never touches `wallet.ledger.ts`. Reword to say what it actually
+   proves — the engine, not the shim.
+3. **`docs/PROMPTS/ledger-cutover-next.md`** — delete or replace with a pointer to this file.
+4. **`docs/CHECKLIST.md`** — has no ledger section at all. Add one covering the engine, the
+   cut-over and steps 8/10/11/12/15, so the next agent does not re-derive it from git log.
+
+### Also unproven
+
+The shim has never been exercised end-to-end in production. `verify:ledger` passing is not
+evidence for it. The proof is one small live downline transfer with the invariant query above
+run on both sides of it, plus confirming a `wallet_ledger_entries` row appears with the correct
+`balance_after`.
+
+## Known gaps worth remembering
+
+* **`COMMISSION_INCOME` drifts negative.** The legacy service debit moves `transactions.amount`
+  only and never books `customer_fee`, so nothing credits income while payouts debit it. Every
+  journal still nets to zero and solvency is unaffected — it is an honest statement that
+  commission is being paid out of margin that was never booked. Fixing it needs a third leg on
+  the service journal, which needs the fee at the call site.
+* **Behaviour change, deliberate:** an upline can no longer pull from a downline's `aeps`
+  wallet (`INSUFFICIENT_USABLE_BALANCE`). Earned money is the downline's to withdraw — spec 9.3.
+* **Behaviour change, deliberate:** funding a child's `aeps` wallet now lands in their usable
+  balance. Money handed down the hierarchy is an advance; only AePS and commission are earned.
+* Maker-checker exists only on allocation. Spec 9.2 also wants it on fund approval above a
+  threshold, beneficiary changes, provider activation and any `RECON_ADJUSTMENT`.
+* Grants cannot protect the ledger — the app connects as `asanpay`, which owns the tables, and
+  Postgres `REVOKE` does not apply to an owner. Triggers are the real enforcement.
+* Legacy tables are still single-tenant. `wallet.ledger.ts` resolves tenant `ASANPAY` by name
+  (`LEGACY_TENANT_CODE`) — the one place in the codebase that names a tenant, and the seam the
+  white-label retrofit replaces. See `White Label Plan/`.
+* `verify:ledger` leaves a `LEDGERTEST` tenant behind. It is created `is_active = false` now;
+  anything that iterates active tenants must never pick it up.
+* `vitest` cannot run in the production image (`npm install --omit=optional` strips rolldown's
+  native binding). Integration checks are tsx scripts: `verify:ledger`, `backfill:opening`,
+  `provision:float`.
+
+## Environment
+
+No local dev. No Postgres, Docker or psql on the Mac; `DATABASE_URL` points at the Coolify
+container `t34dlg5h566yiw2wh1kpms1b`, which only resolves inside EC2.
+
+* Git commands run on the **Mac**; everything else in the **SSH** session.
+* `git push` triggers a Coolify deploy. Rebuilds take several minutes — poll for the change.
+* Migrations run automatically at container start (`apps/backend/Dockerfile` CMD).
+* Containers are named by Coolify app UUID and **change on every redeploy**. Find the backend:
+
+```bash
+sudo docker ps --format '{{.Names}}\t{{.Status}}' | grep -v coolify
+# then confirm which is which:
+sudo docker exec <name> sh -c 'ls /app/apps'
+```
+
+* Backend UUID prefix `y11b5zxgl0fdiho1krwkhbwu`, web `q11gx92qutmttgi02uztvwop`,
+  admin-web `kns2ygxxavs967fvgs15as6u`, Postgres `t34dlg5h566yiw2wh1kpms1b`.
+* Scripts run inside the backend container, which is a single-package install — **no `-w` flag**:
+
+```bash
+sudo docker exec -it <backend> sh -c 'cd /app/apps/backend && npm run verify:ledger'
+```
+
+* psql: `sudo docker exec -it t34dlg5h566yiw2wh1kpms1b psql -U asanpay -d asanpay -c "..."`
+  (role is `asanpay`, not `postgres`).
+
+## Loose end
+
+Two seeded transactions were left `pending` from 1 Aug — `LKP20260801EA5C7A47` (DTH, 450.00)
+and `LKP20260801F7A0A83F` (CASH_DEPOSIT, 3000.00). Both have `provider_id` NULL and **no**
+`wallet_ledger_groups` rows, so no money ever moved; they are seeder artefacts, not customer
+money. Closing them was proposed but never confirmed:
+
+```sql
+update transactions set status='failed',
+  failure_reason='Closed before ledger cut-over: seeded row, no wallet movement ever posted',
+  completed_at=now(), updated_at=now()
+where id in ('aa08c304-6a88-4f58-8cd5-288492ba8d07','b816f149-6c97-4ebc-aac9-820af12734d5')
+  and status='pending';
+```
+
+Check first — the reconciliation sweep now runs on a timer and may have already resolved them.

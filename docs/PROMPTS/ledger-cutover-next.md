@@ -1,5 +1,10 @@
 # Ledger Engine — Handoff (3 Aug 2026)
 
+> **SUPERSEDED — do not plan from this file.** The cut-over shipped, and so did everything in
+> its "Then, in order" queue except the load test. The "Blocked" section below is resolved.
+> Current state: [`post-cutover-next.md`](post-cutover-next.md).
+
+
 ## Done, deployed, verified in production
 
 | Piece | Evidence |
