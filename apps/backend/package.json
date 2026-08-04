@@ -28,7 +28,7 @@
     "provision:float": "tsx scripts/provisionProviderFloat.ts",
     "verify:ledger": "tsx scripts/verifyLedgerEngine.ts",
     "verify:shim": "tsx scripts/verifyWalletShim.ts",
-    "verify:load": "ALLOW_STUB_PROVIDERS=true tsx scripts/verifyLedgerLoad.ts"
+    "verify:load": "tsx scripts/verifyLedgerLoad.ts"
   },
   "dependencies": {
     "@asanpay/shared-types": "*",

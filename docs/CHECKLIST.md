@@ -77,19 +77,19 @@
       (`main` = balance − settleable, `aeps` = settleable). Signatures unchanged, 15 call sites
 - [x] `verify:ledger` 10/10 — engine only, does NOT cover `wallet.ledger.ts`
 - [x] `verify:shim` full paths — hierarchy + service_txn debit/credit (+ customer_fee 3-leg) +
-      reversal + fundWallet + commission under LEDGERTEST — re-run after deploy for 20/20
+      reversal + fundWallet + commission under LEDGERTEST — **20/20 PASS** on Coolify (2026-08-04)
 - [ ] **Live proof of the shim** — optional ASANPAY production money movement still product QA
 - [x] **DB-backed test suite repaired for cut-over** — `setBalance` via journals + `mirrorBalances`;
   `destroy` soft-retires users (accounts.user_id RESTRICT); `LEDGER_TENANT_CODE` / LEDGERTEST isolation
 - [x] Backend `tsc` build gate fixes (commission rule create; fund-request `paramId` for Express 5)
-- [x] Step 16 load harness — `npm run verify:load` (500 concurrent DMT + 200 fundWallet on LEDGERTEST);
-      vitest `walletConcurrencyLoad` default 500 (needs full deps / not prod image)
+- [x] Step 16 load harness — `npm run verify:load` (500 concurrent service_txn journals +
+      200 fundWallet on LEDGERTEST; no stub/provider hop)
+- [ ] Step 16 load on EC2 green — after backend redeploy of rewritten `verify:load`
 - [x] `COMMISSION_INCOME` service fee — service debit books `customer_fee` as Cr COMMISSION_INCOME
       (principal → float); `executeServiceTxn` accepts `customerFee` and debits principal+fee
 - [ ] Wire product call sites to pass non-zero `customerFee` (DMT/BBPS/recharge fee schedule)
 - [ ] Maker-checker beyond allocation (fund approval threshold, beneficiary, provider, RECON_ADJUSTMENT)
 - [ ] InstantPay DMT mobile full parity + BBPS / recharge rails (product)
-- [ ] Step 16 load on EC2 green — `npm run verify:load` after backend redeploy
 
 ## Security (2026-07-17)
 - [x] Default MPIN / OTP-in-prod / hardcoded admin seed removed

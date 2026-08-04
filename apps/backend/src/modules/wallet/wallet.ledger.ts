@@ -83,6 +83,29 @@ const SERVICE_TXN_TYPE: Readonly<Record<string, TxnType>> = {
   EV_RECHARGE: "RECHARGE",
 };
 
+/**
+ * DB-backed test world (and verify:load) namespace services as `dmt_<suffix>` etc. so they never
+ * collide with catalog codes. Map only those known prefixes — production catalog uses the table
+ * above or BBPS category fallback, never this prefix table.
+ */
+const WORLD_SERVICE_PREFIX_TXN: Readonly<Record<string, TxnType>> = {
+  dmt: "DMT",
+  aeps: "AEPS_WITHDRAWAL",
+  recharge: "RECHARGE",
+  bbps: "BBPS",
+  deposit: "AEPS_DEPOSIT",
+};
+
+function resolveServiceTxnType(serviceCode: string, categoryCode: string): TxnType | undefined {
+  const direct = SERVICE_TXN_TYPE[serviceCode];
+  if (direct) return direct;
+  const head = serviceCode.split("_")[0]?.toLowerCase() ?? "";
+  const fromWorld = WORLD_SERVICE_PREFIX_TXN[head];
+  if (fromWorld) return fromWorld;
+  if (categoryCode === BBPS_CATEGORY) return "BBPS";
+  return undefined;
+}
+
 const BBPS_CATEGORY = "BILL_PAYMENT_BBPS";
 
 // ---------------------------------------------------------------------------------------
@@ -221,8 +244,7 @@ async function serviceJournalContext(
     );
   }
 
-  const txnType =
-    SERVICE_TXN_TYPE[row.serviceCode] ?? (row.categoryCode === BBPS_CATEGORY ? "BBPS" : undefined);
+  const txnType = resolveServiceTxnType(row.serviceCode, row.categoryCode);
 
   if (!txnType) {
     throw new HttpError(
