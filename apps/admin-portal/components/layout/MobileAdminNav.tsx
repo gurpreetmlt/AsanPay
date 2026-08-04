@@ -12,7 +12,7 @@ const tabs: { href: string; label: string; icon: NavIconDef }[] = [
   { href: "/users", label: "Network", icon: { lib: "fa", name: "FaUsers" } },
   { href: "/fund-requests", label: "Funds", icon: { lib: "lucide", icon: IndianRupee } },
   { href: "/transactions", label: "Txns", icon: { lib: "fa", name: "FaExchangeAlt" } },
-  { href: "/wallet", label: "Wallet", icon: { lib: "md", name: "MdAccountBalanceWallet" } },
+  { href: "/wallet", label: "Balance", icon: { lib: "md", name: "MdAccountBalanceWallet" } },
 ];
 
 export function MobileAdminNav() {

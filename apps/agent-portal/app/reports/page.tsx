@@ -107,7 +107,7 @@ export default function ReportsPage() {
             Reports
           </h1>
           <p className="mt-0.5 text-sm" style={{ color: B.muted }}>
-            Aggregates from your transactions and wallet ledger
+            Aggregates from your transactions and balance ledger
           </p>
         </div>
 

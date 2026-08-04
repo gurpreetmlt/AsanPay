@@ -14,7 +14,7 @@ const Tab = createBottomTabNavigator();
 const TAB_ICONS = {
   Services: LayoutGrid,
   History: History,
-  Wallet: Wallet,
+  Balance: Wallet,
   Account: User,
 } as const;
 
@@ -34,7 +34,7 @@ export function RetailerTabs() {
     >
       <Tab.Screen name="Services" component={ServicesScreen} />
       <Tab.Screen name="History" component={PassbookScreen} />
-      <Tab.Screen name="Wallet" component={WalletScreen} />
+      <Tab.Screen name="Balance" component={WalletScreen} />
       <Tab.Screen name="Account" component={AccountScreen} />
     </Tab.Navigator>
   );

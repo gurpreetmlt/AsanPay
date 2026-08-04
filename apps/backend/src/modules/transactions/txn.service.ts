@@ -65,7 +65,7 @@ async function getSystemWallet(): Promise<{ walletId: string }> {
     .from(wallets)
     .where(and(eq(wallets.walletKind, "aggregator"), eq(wallets.walletType, "main")))
     .limit(1);
-  if (!wallet) throw new HttpError(500, "System wallet not configured", "SYSTEM_WALLET_MISSING");
+  if (!wallet) throw new HttpError(500, "System balance not configured", "SYSTEM_WALLET_MISSING");
   return { walletId: wallet.id };
 }
 
@@ -74,7 +74,7 @@ async function getUserWallet(userId: string, walletType: WalletType): Promise<{ 
     .select({ id: wallets.id })
     .from(wallets)
     .where(and(eq(wallets.userId, userId), eq(wallets.walletType, walletType)));
-  if (!wallet) throw new HttpError(404, `${walletType} wallet not found`, "WALLET_NOT_FOUND");
+  if (!wallet) throw new HttpError(404, `${walletType === "main" ? "Service Balance" : walletType === "aeps" ? "Earnings" : walletType} not found`, "WALLET_NOT_FOUND");
   return { walletId: wallet.id };
 }
 

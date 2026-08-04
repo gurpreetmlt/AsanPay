@@ -62,7 +62,7 @@ export default function WalletPage() {
         setDownline([]);
       }
     } catch (err) {
-      toast.error(extractApiError(err, "Failed to load wallet"));
+      toast.error(extractApiError(err, "Failed to load balance"));
     } finally {
       setLoading(false);
     }
@@ -85,7 +85,7 @@ export default function WalletPage() {
       <div className="space-y-5 p-6">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: B.blue }}>
-            Wallet
+            Balance
           </h1>
           <p className="mt-0.5 text-sm" style={{ color: B.muted }}>
             Manage your balance, loads, and transfers
@@ -119,7 +119,7 @@ export default function WalletPage() {
                     action: () =>
                       isRetailer
                         ? setShowFundRequest(true)
-                        : toast("Ask your upline to fund your wallet, or use Collect"),
+                        : toast("Ask your upline to fund your balance, or use Collect"),
                   },
                   {
                     icon: SendHorizonal,
@@ -144,7 +144,7 @@ export default function WalletPage() {
             </div>
           </div>
 
-          {/* AEPS Wallet */}
+          {/* Earnings (AEPS) */}
           {aeps && (
             <div
               className="relative overflow-hidden rounded-2xl p-4 text-white"
@@ -169,13 +169,13 @@ export default function WalletPage() {
                     action: () =>
                       isRetailer
                         ? setShowFundRequest(true)
-                        : toast("Ask your upline to fund your wallet, or use Collect"),
+                        : toast("Ask your upline to fund your balance, or use Collect"),
                   },
                   {
                     icon: SendHorizonal,
                     label: "Transfer",
                     action: () =>
-                      canFund ? toast("Select a downline partner below to fund") : toast("Transfer is for Main wallet downline funding"),
+                      canFund ? toast("Select a downline partner below to fund") : toast("Transfer is for Service Balance downline funding"),
                   },
                   { icon: RefreshCcw, label: "Refresh", action: () => void load() },
                   { icon: Download, label: "Statement", action: () => router.push("/statements") },
@@ -346,7 +346,7 @@ export default function WalletPage() {
             <table className="w-full text-sm">
               <thead style={{ background: B.secondary }}>
                 <tr>
-                  {["Date", "Description", "Wallet", "Type", "Amount", "Balance"].map((h) => (
+                  {["Date", "Description", "Account", "Type", "Amount", "Balance"].map((h) => (
                     <th
                       key={h}
                       className={`px-5 py-3 text-xs font-semibold uppercase tracking-wider ${

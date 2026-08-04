@@ -225,7 +225,7 @@ settlementRouter.post(
     sendSuccess(
       res,
       { reversalJournalId: String(result.reversalJournalId) },
-      "Settlement payout marked failed — wallet restored",
+      "Settlement payout marked failed — balance restored",
     );
   },
 );

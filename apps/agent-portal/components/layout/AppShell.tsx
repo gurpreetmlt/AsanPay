@@ -79,7 +79,7 @@ const WALLET_PATHS = ["/wallet", "/fund-request", "/settlements"] as const;
 const MOBILE_CORE = [
   { icon: LayoutDashboard, label: "Home", to: "/dashboard" },
   { icon: ArrowLeftRight, label: "Txns", to: "/transactions" },
-  { icon: Wallet, label: "Wallet", to: "/wallet" },
+  { icon: Wallet, label: "Balance", to: "/wallet" },
   { icon: Settings, label: "More", to: "/settings" },
 ] as const;
 
@@ -256,7 +256,7 @@ function SidebarContent({
                     walletActive ? "text-white" : "text-white/60 group-hover:text-white"
                   }`}
                 >
-                  Wallet
+                  Balance
                 </span>
                 <ChevronDown
                   size={14}
@@ -381,7 +381,7 @@ function WalletPill({
 
   const goAddMoney = () => {
     if (role === "retailer") router.push("/fund-request");
-    else toast("Ask your upline to fund your wallet, or use Collect on Wallet");
+    else toast("Ask your upline to fund your balance, or use Collect on Balance");
   };
 
   // Same actions on Main and AEPS — Add Money (fund request) credits Main; keep entry points consistent.
@@ -404,7 +404,7 @@ function WalletPill({
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-1.5 rounded-xl border px-3 py-1.5 transition-colors hover:bg-secondary"
         style={{ borderColor: B.border, background: B.bg }}
-        title={`${walletDisplayName(wallet.walletType)} balance`}
+        title={walletDisplayName(wallet.walletType)}
       >
         <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
           {walletDisplayName(wallet.walletType)}
@@ -476,7 +476,7 @@ function HeaderWalletBalances({
         disabled={loading}
         className="flex h-9 w-9 items-center justify-center rounded-xl disabled:opacity-50"
         style={{ background: B.bg, color: B.green }}
-        aria-label="Refresh wallet balances"
+        aria-label="Refresh balances"
       >
         <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
       </button>

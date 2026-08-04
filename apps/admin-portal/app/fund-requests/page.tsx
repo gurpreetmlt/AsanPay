@@ -164,7 +164,7 @@ export default function FundRequestsPage() {
               Fund requests
             </h1>
             <p className="mt-1 text-sm" style={{ color: B.muted }}>
-              Review retailer bank deposits and credit wallets
+              Review retailer bank deposits and credit balances
             </p>
           </div>
           <button
@@ -355,7 +355,7 @@ export default function FundRequestsPage() {
                 className="flex-1 rounded-lg py-2 text-sm font-semibold text-white"
                 style={{ background: B.green }}
               >
-                {acting ? "Crediting…" : "Credit wallet"}
+                {acting ? "Crediting…" : "Credit balance"}
               </button>
             </div>
           </div>

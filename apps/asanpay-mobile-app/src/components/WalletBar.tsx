@@ -24,7 +24,7 @@ export function WalletBar({ wallets, onWalletPress, onAddMoney, onReports }: Pro
       onWalletPress();
       return;
     }
-    showAlert("Wallet", "Open Wallet tab from bottom navigation.");
+    showAlert("Balance", "Open the Balance tab from bottom navigation.");
   }
 
   return (
@@ -35,7 +35,7 @@ export function WalletBar({ wallets, onWalletPress, onAddMoney, onReports }: Pro
             <View style={styles.walletCardIconLight}>
               <Wallet size={12} color={colors.blue} strokeWidth={2.4} />
             </View>
-            <Text style={styles.walletCardLabel}>Main Wallet</Text>
+            <Text style={styles.walletCardLabel}>Service Balance</Text>
           </View>
           <Text style={styles.walletCardAmount}>{formatINR(main?.balance ?? "0")}</Text>
           <Text style={styles.walletCardDelta}>▲ Today</Text>
@@ -50,7 +50,7 @@ export function WalletBar({ wallets, onWalletPress, onAddMoney, onReports }: Pro
               <View style={styles.walletCardIconGreen}>
                 <Fingerprint size={12} color="#fff" strokeWidth={2.4} />
               </View>
-              <Text style={styles.walletCardLabelGreen}>AEPS Wallet</Text>
+              <Text style={styles.walletCardLabelGreen}>Earnings</Text>
             </View>
             <Text style={styles.walletCardAmount}>{formatINR(aeps?.balance ?? "0")}</Text>
             <Text style={styles.walletCardNoteGreen}>Settlement pending</Text>
@@ -60,7 +60,7 @@ export function WalletBar({ wallets, onWalletPress, onAddMoney, onReports }: Pro
 
       <View style={styles.quickRow}>
         <Pressable
-          onPress={onAddMoney ?? (() => showAlert("Coming soon", "Add money / load wallet"))}
+          onPress={onAddMoney ?? (() => showAlert("Coming soon", "Add money / load balance"))}
           style={styles.quickBtnPress}
         >
           <LinearGradient colors={[...colors.gradientButton]} style={styles.quickBtnFill}>

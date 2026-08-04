@@ -145,7 +145,11 @@ export async function streamTxnReceiptPdf(actor: Actor, txnRef: string, res: Res
   const customerMobile = metadataCustomerLine(row.metadata);
   if (customerMobile) rows.push(["Customer Mobile", customerMobile]);
   if (row.providerTxnId) rows.push(["Provider Ref.", row.providerTxnId]);
-  if (row.walletType) rows.push(["Wallet", row.walletType.toUpperCase()]);
+  if (row.walletType) {
+    const balanceLabel =
+      row.walletType === "main" ? "Service Balance" : row.walletType === "aeps" ? "Earnings" : row.walletType;
+    rows.push(["Balance", balanceLabel]);
+  }
   rows.push(["Date & Time", new Date(row.completedAt ?? row.initiatedAt).toLocaleString("en-IN")]);
   rows.push(["Retailer", `${row.retailerName} (${row.retailerMobile})`]);
   if (row.status === "failed" && row.failureReason) rows.push(["Reason", row.failureReason]);

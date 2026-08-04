@@ -760,7 +760,7 @@ export default function DmtPage() {
         referenceKey: refundKey,
         otp: refundOtp,
       });
-      toast.success("Refund authorised — recheck txn for wallet credit");
+      toast.success("Refund authorised — recheck txn for balance credit");
       setRefundOtpSent(false);
       setRefundOtp("");
       setRefundKey("");
@@ -1413,9 +1413,9 @@ export default function DmtPage() {
             {tab === "Refund" && (
               <div className="space-y-4 rounded-2xl border bg-white p-4 shadow-sm">
                 <p className="text-sm text-gray-600">
-                  Sirf jab txn <strong>pending</strong> ho aur status-check mein{" "}
-                  <code className="rounded bg-gray-100 px-1 text-xs">ReversalAuthorisationRequired</code>{" "}
-                  aaye. Refund ke baad History se txn recheck karo — wallet auto-credit hoga.
+                  Only when the txn is <strong>pending</strong> and status-check returns{" "}
+                  <code className="rounded bg-gray-100 px-1 text-xs">ReversalAuthorisationRequired</code>.
+                  After refund, recheck the txn from History — balance is credited automatically.
                 </p>
                 <div>
                   <label className="text-xs font-bold text-gray-500">INSTANTPAY ORDER ID (ipayId)</label>

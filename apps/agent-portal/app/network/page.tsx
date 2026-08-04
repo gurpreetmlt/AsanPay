@@ -466,8 +466,8 @@ export default function NetworkPage() {
                     <tr className="border-b" style={{ borderColor: B.border, background: "#334155" }}>
                       {[
                         "Party",
-                        "Main Wallet",
-                        "Cash-IN Wallet",
+                        "Service Balance",
+                        "Earnings",
                         "Credit",
                         "Top-Up",
                         "Reverse",

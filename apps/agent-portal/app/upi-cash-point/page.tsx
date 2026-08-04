@@ -266,7 +266,7 @@ export default function UpiCashPointPage() {
                   "QR code is generated with payment details",
                   "Customer scans QR from any UPI app",
                   "Payment received — hand over cash to customer",
-                  "Commission credited to your wallet",
+                  "Commission credited to your balance",
                 ].map((step, i) => (
                   <li key={i} className="flex gap-2">
                     <span

@@ -54,7 +54,7 @@ export function FundForm({ target, onClose, onSuccess }: FundFormProps) {
     <Modal title={`Load float · ${target.name}`} onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-3">
         <p className="text-xs text-gray-500">
-          Mints float into this Super Distributor wallet (admin does not transfer from own balance).
+          Mints float into this Super Distributor balance (admin does not transfer from own balance).
         </p>
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">Amount (₹)</label>

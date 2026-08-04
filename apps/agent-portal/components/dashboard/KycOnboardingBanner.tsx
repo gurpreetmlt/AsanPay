@@ -71,7 +71,7 @@ export function KycOnboardingBanner() {
   const pendingReview = !rejected && user.hasKycDocs;
 
   let title = "Complete your KYC for Onboarding";
-  let body = "Finish signup KYC to unlock wallet services after admin approval.";
+  let body = "Finish signup KYC to unlock services after admin approval.";
   let cta = "Complete KYC";
   let href = "/signup";
   let tone: BannerTone = "orange";

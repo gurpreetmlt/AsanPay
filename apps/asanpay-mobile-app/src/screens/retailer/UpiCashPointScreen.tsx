@@ -288,7 +288,7 @@ export function UpiCashPointScreen({ onBack }: Props) {
                 "QR code is generated with payment details",
                 "Customer scans QR from any UPI app",
                 "Payment received — hand over cash",
-                "Commission credited to your wallet",
+                "Commission credited to your balance",
               ].map((step, i) => (
                 <View key={i} style={s.stepRow}>
                   <View style={[s.stepNum, { backgroundColor: i === 4 ? "#ECFDF5" : colors.bluePale }]}>

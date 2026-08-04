@@ -479,7 +479,7 @@ async function creditMatchedVan(params: {
       idemKey: creditKey,
       performedBy: null,
       referenceId: bankTxnId,
-      reason: "VAN deposit credited to wallet",
+      reason: "VAN deposit credited to balance",
       entries: [
         { code: COMPANY, dir: "DR", amount },
         { code: van.ownerCode, dir: "CR", amount },

@@ -142,7 +142,7 @@ export default function AdminSettlementsPage() {
         { failureReason: failReason.trim() },
         { headers: { "Idempotency-Key": failKey.current.get() } },
       );
-      toast.success("Payout failed — wallet restored");
+      toast.success("Payout failed — balance restored");
       failKey.current.clear();
       setFailFor(null);
       setFailReason("");
@@ -331,7 +331,7 @@ export default function AdminSettlementsPage() {
                 Mark payout failed
               </h3>
               <p className="mt-1 text-sm" style={{ color: B.muted }}>
-                Wallet will be restored for {failFor.userName}
+                Balance will be restored for {failFor.userName}
               </p>
               <textarea
                 className="mt-3 w-full rounded-xl border px-3 py-2 text-sm"

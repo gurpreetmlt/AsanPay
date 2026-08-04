@@ -295,7 +295,7 @@ export default function SettingsPage() {
                     <div className="mb-3 text-xs" style={{ color: B.muted }}>
                       {user?.hasTxnPin
                         ? "PIN is set — update or reset from onboarding"
-                        : "Set a PIN required for wallet transfers"}
+                        : "Set a PIN required for balance transfers"}
                     </div>
                     <button
                       type="button"

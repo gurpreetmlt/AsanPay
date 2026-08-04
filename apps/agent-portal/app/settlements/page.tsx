@@ -119,7 +119,7 @@ export default function SettlementsPage() {
         { amount: amount.trim(), mode },
         { headers: { "Idempotency-Key": settleKey.current.get() } },
       );
-      toast.success("Settlement requested — wallet debited pending payout");
+      toast.success("Settlement requested — balance debited pending payout");
       settleKey.current.clear();
       setShowSettleForm(false);
       setAmount("");

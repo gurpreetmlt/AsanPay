@@ -16,7 +16,7 @@ const ROLE_TO_ACCOUNT: Record<string, { prefix: string; type: AccountType } | un
 export function hierarchyAccountCode(role: string, uid: string): string {
   const mapping = ROLE_TO_ACCOUNT[role];
   if (!mapping) {
-    throw new HttpError(422, `Role ${role} has no hierarchy wallet`, "ROLE_HAS_NO_WALLET");
+    throw new HttpError(422, `Role ${role} has no hierarchy balance`, "ROLE_HAS_NO_WALLET");
   }
   return `${mapping.prefix}_${uid}`;
 }
@@ -45,7 +45,7 @@ export async function ensureHierarchyAccount(
   if (!mapping) {
     throw new HttpError(
       422,
-      `${user.role} does not hold a hierarchy wallet`,
+      `${user.role} does not hold a hierarchy balance`,
       "ROLE_HAS_NO_WALLET",
     );
   }

@@ -189,7 +189,7 @@ async function loadWallet(tx: Tx, walletId: string): Promise<WalletSide> {
     .where(eq(wallets.id, walletId))
     .limit(1);
 
-  if (!row) throw new HttpError(404, "Wallet not found", "WALLET_NOT_FOUND");
+  if (!row) throw new HttpError(404, "Balance not found", "WALLET_NOT_FOUND");
 
   return {
     walletId: row.walletId,
@@ -202,7 +202,7 @@ async function loadWallet(tx: Tx, walletId: string): Promise<WalletSide> {
 /** The agent's single ledger account. Created on first use, so no backfill of new agents. */
 async function agentAccountCode(tx: Tx, tenantId: string, side: WalletSide): Promise<string> {
   if (side.isAggregator) {
-    throw new HttpError(500, "The aggregator wallet has no hierarchy account", "NOT_AN_AGENT");
+    throw new HttpError(500, "The aggregator balance has no hierarchy account", "NOT_AN_AGENT");
   }
   return ensureHierarchyAccount(tx, tenantId, side.userId);
 }
@@ -449,7 +449,7 @@ export async function adjustWalletHold(
   direction: "hold" | "release",
 ): Promise<void> {
   const [wallet] = await tx.select().from(wallets).where(eq(wallets.id, walletId)).for("update");
-  if (!wallet) throw new HttpError(404, "Wallet not found", "WALLET_NOT_FOUND");
+  if (!wallet) throw new HttpError(404, "Balance not found", "WALLET_NOT_FOUND");
 
   const current = rupeesToPaise(wallet.holdBalance);
   const delta = rupeesToPaise(amount);
@@ -716,7 +716,7 @@ export async function transferBetweenWallets(
   existingTx?: Tx,
 ): Promise<{ groupId: string }> {
   if (params.fromWalletId === params.toWalletId) {
-    throw new HttpError(422, "Cannot transfer a wallet to itself", "INVALID_TRANSFER");
+    throw new HttpError(422, "Cannot transfer a balance to itself", "INVALID_TRANSFER");
   }
   if (existingTx) return doTransfer(existingTx, params);
   return db.transaction((tx) => doTransfer(tx, params));

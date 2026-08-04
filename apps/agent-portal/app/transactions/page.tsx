@@ -168,7 +168,7 @@ export default function TransactionsPage() {
             <table className="w-full text-sm">
               <thead style={{ background: B.secondary }}>
                 <tr>
-                  {["Txn ID", "Service", "Wallet", "Amount", "Status", "Time", "Receipt"].map((h) => (
+                  {["Txn ID", "Service", "Account", "Amount", "Status", "Time", "Receipt"].map((h) => (
                     <th
                       key={h}
                       className={`px-4 py-3 text-xs font-semibold uppercase tracking-wider ${

@@ -456,7 +456,7 @@ export async function requestSettlement(params: {
     if (agentAcc.blockSettlement) {
       throw new HttpError(
         422,
-        "Settlement is blocked on your wallet. Contact support if you need this lifted.",
+        "Settlement is blocked on your balance. Contact support if you need this lifted.",
         "SETTLEMENT_BLOCKED",
       );
     }
@@ -519,7 +519,7 @@ export async function requestSettlement(params: {
     if (params.amount > balance) {
       throw new HttpError(
         422,
-        `Insufficient wallet balance: have ${paiseToRupees(balance)}, need ${paiseToRupees(params.amount)}`,
+        `Insufficient balance: have ${paiseToRupees(balance)}, need ${paiseToRupees(params.amount)}`,
         "INSUFFICIENT_BALANCE",
       );
     }

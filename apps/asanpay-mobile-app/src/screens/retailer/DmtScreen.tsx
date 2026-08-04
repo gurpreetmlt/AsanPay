@@ -632,7 +632,7 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
         referenceKey: refundKey,
         otp: refundOtp,
       });
-      showAlert("Refund authorised", "Recheck the transaction for wallet credit.");
+      showAlert("Refund authorised", "Recheck the transaction for balance credit.");
       setRefundOtpSent(false);
       setRefundOtp("");
       setRefundKey("");

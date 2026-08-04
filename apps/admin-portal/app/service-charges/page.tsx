@@ -409,7 +409,7 @@ export default function ServiceChargesPage() {
               How fees apply
             </h2>
             <ul className="list-disc space-y-2 pl-5 text-sm" style={{ color: B.muted }}>
-              <li>Charged on debit wallet flows (money transfer, bills, recharge).</li>
+              <li>Charged on debit balance flows (money transfer, bills, recharge).</li>
               <li>
                 More specific rules win: provider + role → provider → role → all roles.
               </li>

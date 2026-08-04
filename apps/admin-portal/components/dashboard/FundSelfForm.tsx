@@ -36,7 +36,7 @@ export function FundSelfForm({ onClose, onSuccess }: FundSelfFormProps) {
         ...(description ? { description } : {}),
       });
       attemptKey.current.clear();
-      toast.success(`₹${amount} added to your wallet`);
+      toast.success(`₹${amount} added to your balance`);
       onSuccess();
       onClose();
     } catch (err) {
@@ -49,7 +49,7 @@ export function FundSelfForm({ onClose, onSuccess }: FundSelfFormProps) {
   }
 
   return (
-    <Modal title="Fund My Wallet" onClose={onClose}>
+    <Modal title="Fund My Balance" onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-3">
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">Amount (₹)</label>

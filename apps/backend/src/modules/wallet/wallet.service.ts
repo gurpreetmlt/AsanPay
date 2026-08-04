@@ -129,7 +129,7 @@ async function getWalletOrThrow(userId: string, walletType: WalletType) {
     .select()
     .from(wallets)
     .where(and(eq(wallets.userId, userId), eq(wallets.walletType, walletType)));
-  if (!wallet) throw new HttpError(404, `${walletType} wallet not found for this user`, "WALLET_NOT_FOUND");
+  if (!wallet) throw new HttpError(404, `${walletType === "main" ? "Service Balance" : walletType === "aeps" ? "Earnings" : walletType} not found for this user`, "WALLET_NOT_FOUND");
   return wallet;
 }
 
@@ -158,7 +158,7 @@ export async function transferToChild(
 
   const expectedChildRole = TRANSFER_CHILD_ROLE[actor.role];
   if (!expectedChildRole) {
-    throw new HttpError(403, "This role cannot transfer wallet funds", "FORBIDDEN");
+    throw new HttpError(403, "This role cannot transfer balance funds", "FORBIDDEN");
   }
 
   const [target] = await db.select().from(users).where(eq(users.id, targetUserId));
@@ -244,7 +244,7 @@ async function assertPullableChild(
 
   const expectedChildRole = TRANSFER_CHILD_ROLE[actor.role];
   if (!expectedChildRole) {
-    throw new HttpError(403, "This role cannot pull wallet funds", "FORBIDDEN");
+    throw new HttpError(403, "This role cannot pull balance funds", "FORBIDDEN");
   }
 
   const [target] = await db.select().from(users).where(eq(users.id, targetUserId));
@@ -281,7 +281,7 @@ export async function requestPullFromChild(
 
   const childWallet = await getWalletOrThrow(target.id, walletType);
   if (toPaise(String(childWallet.balance)) < paise) {
-    throw new HttpError(422, "Child wallet has insufficient balance", "INSUFFICIENT_BALANCE");
+    throw new HttpError(422, "Child balance has insufficient funds", "INSUFFICIENT_BALANCE");
   }
 
   const otp = getTestOtpOverride(target.mobile) ?? randomInt(100000, 1000000).toString();
@@ -355,7 +355,7 @@ export async function confirmPullFromChild(
     throw new HttpError(422, "OTP does not match this collect request", "OTP_MISMATCH");
   }
   if (meta.amount !== opts.amount || (meta.walletType ?? "main") !== walletType) {
-    throw new HttpError(422, "Amount or wallet does not match OTP request", "PULL_MISMATCH");
+    throw new HttpError(422, "Amount or balance type does not match OTP request", "PULL_MISMATCH");
   }
 
   await markOtpConsumed(record.id);

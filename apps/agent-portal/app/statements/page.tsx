@@ -11,6 +11,7 @@ import { extractApiError } from "@/lib/onboarding";
 import { useAuthStore } from "@/lib/store";
 import type { LedgerEntry } from "@/lib/types";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
+import { walletDisplayName } from "@/lib/walletLabels";
 
 function formatInr(value: string | number) {
   const n = typeof value === "string" ? parseFloat(value) : value;
@@ -63,7 +64,7 @@ export default function StatementsPage() {
               Statements
             </h1>
             <p className="mt-0.5 text-sm" style={{ color: B.muted }}>
-              Wallet ledger / passbook
+              Balance ledger / passbook
             </p>
           </div>
           <button
@@ -145,7 +146,7 @@ export default function StatementsPage() {
                     <td className="px-5 py-3 font-semibold" style={{ color: B.blue }}>
                       {e.description || e.referenceType}
                       <div className="text-xs font-normal uppercase" style={{ color: B.muted }}>
-                        {e.walletType}
+                        {walletDisplayName(e.walletType)}
                       </div>
                     </td>
                     <td className="px-5 py-3">

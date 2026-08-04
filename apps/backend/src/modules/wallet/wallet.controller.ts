@@ -40,7 +40,7 @@ export async function fund(req: Request, res: Response): Promise<void> {
     input.idempotencyKey,
     input.targetUserId,
   );
-  sendSuccess(res, result, "Wallet funded successfully");
+  sendSuccess(res, result, "Balance funded successfully");
 }
 
 export async function transfer(req: Request, res: Response): Promise<void> {

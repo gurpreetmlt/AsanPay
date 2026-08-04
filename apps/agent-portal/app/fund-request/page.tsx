@@ -75,7 +75,7 @@ export default function FundRequestPage() {
               Fund request
             </h1>
             <p className="mt-0.5 text-sm" style={{ color: B.muted }}>
-              Deposit to company bank, then submit UTR and receipt for wallet credit
+              Deposit to company bank, then submit UTR and receipt for balance credit
             </p>
           </div>
           <div className="flex gap-2">

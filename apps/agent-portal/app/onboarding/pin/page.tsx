@@ -93,7 +93,7 @@ export default function SetPinPage() {
             {firstSet ? "Set your PIN" : "Change PIN"}
           </h1>
           <p className="mt-1 text-sm" style={{ color: B.muted }}>
-            4-digit PIN for wallet transfers. Avoid 1234 / 0000 / repeats. Login password confirm karein.
+            4-digit PIN for balance transfers. Avoid 1234 / 0000 / repeats. Confirm with your login password.
           </p>
         </div>
 

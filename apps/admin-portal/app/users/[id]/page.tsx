@@ -240,10 +240,10 @@ export default function AgentDetailPage() {
                 </div>
               </DetailSection>
 
-              <DetailSection title="Wallets" icon={Wallet}>
+              <DetailSection title="Balances" icon={Wallet}>
                 {agent.wallets.length === 0 ? (
                   <p className="text-sm" style={{ color: B.muted }}>
-                    No wallets yet
+                    No balances yet
                   </p>
                 ) : (
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -254,7 +254,11 @@ export default function AgentDetailPage() {
                         style={{ borderColor: B.border, background: B.bg }}
                       >
                         <p className="text-xs font-medium uppercase tracking-wide" style={{ color: B.muted }}>
-                          {w.walletType}
+                          {w.walletType === "main"
+                            ? "Service Balance"
+                            : w.walletType === "aeps"
+                              ? "Earnings"
+                              : w.walletType}
                         </p>
                         <p className="mt-1 text-lg font-bold tabular-nums" style={{ color: B.blue }}>
                           ₹{Number(w.balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}

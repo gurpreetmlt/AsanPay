@@ -47,10 +47,10 @@ export default function PassbookPage() {
       <div className="mx-auto max-w-3xl space-y-5 p-6">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: B.blue }}>
-            Wallet statement
+            Balance statement
           </h1>
           <p className="mt-1 text-sm" style={{ color: B.muted }}>
-            Credits and debits on the company wallet
+            Credits and debits on the company balance
           </p>
         </div>
 
@@ -89,7 +89,12 @@ export default function PassbookPage() {
                       {entry.description || entry.referenceType.replace(/_/g, " ")}
                     </p>
                     <p className="text-xs" style={{ color: B.muted }}>
-                      {new Date(entry.createdAt).toLocaleString("en-IN")} · {entry.walletType} wallet
+                      {new Date(entry.createdAt).toLocaleString("en-IN")} ·{" "}
+                      {entry.walletType === "main"
+                        ? "Service Balance"
+                        : entry.walletType === "aeps"
+                          ? "Earnings"
+                          : entry.walletType}
                     </p>
                   </div>
                 </div>

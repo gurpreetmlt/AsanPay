@@ -95,7 +95,7 @@ export function DistributorDashboard() {
             <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white/10" />
             <div className="relative min-w-0">
               <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-white/70">
-                <Wallet size={12} /> Main Balance
+                <Wallet size={12} /> Service Balance
               </div>
               <div className="mt-0.5 text-2xl font-bold leading-none tracking-tight">
                 {loading ? "…" : formatInr(primary?.balance ?? "0")}
@@ -300,13 +300,13 @@ export function DistributorDashboard() {
               className="text-xs font-semibold"
               style={{ color: B.green }}
             >
-              Open Wallet →
+              Open Balance →
             </button>
           </div>
           <div className="flex flex-col items-center py-8">
             <Clock size={28} className="mb-2 opacity-30" style={{ color: B.muted }} />
             <p className="text-center text-xs" style={{ color: B.muted }}>
-              Bank deposit requests go to admin. You fund retailers from Wallet with your PIN.
+              Bank deposit requests go to admin. You fund retailers from Balance with your PIN.
             </p>
           </div>
         </div>

@@ -54,7 +54,7 @@ export default function WalletPage() {
       setWallets(walletData);
       setDownline(downlineData);
     } catch {
-      toast.error("Failed to load wallet data");
+      toast.error("Failed to load balance data");
     } finally {
       setLoading(false);
     }
@@ -82,10 +82,10 @@ export default function WalletPage() {
       <div className="mx-auto max-w-5xl space-y-5 p-6">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: B.blue }}>
-            Company wallet
+            Company balance
           </h1>
           <p className="mt-0.5 text-sm" style={{ color: B.muted }}>
-            Add balance to the company wallet, then fund Super Distributors
+            Add funds to the company balance, then fund Super Distributors
           </p>
         </div>
 
@@ -99,7 +99,7 @@ export default function WalletPage() {
             <div className="relative z-10">
               <div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-white/70">
                 <Wallet size={14} />
-                Main wallet
+                Service Balance
               </div>
               <div className="mb-3 text-3xl font-bold leading-none tabular-nums">
                 {loading && !main ? "…" : formatInr(main?.balance ?? "0")}
@@ -155,7 +155,7 @@ export default function WalletPage() {
             style={{ background: B.badgeGrad }}
           >
             <ArrowDownToLine size={16} />
-            Top up company wallet
+            Top up company balance
           </button>
           {childRole ? (
             <button
@@ -190,7 +190,7 @@ export default function WalletPage() {
                 {childRole ? ` · ${ROLE_LABEL[childRole] ?? childRole}s` : ""}
               </h2>
               <p className="mt-0.5 text-xs" style={{ color: B.muted }}>
-                Fund Super Distributors from your main wallet. Parent reassign is on agent detail.
+                Fund Super Distributors from your Service Balance. Parent reassign is on agent detail.
               </p>
             </div>
           </div>

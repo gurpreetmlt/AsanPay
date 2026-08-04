@@ -227,7 +227,7 @@ export function SuperDistributorDashboard() {
             )}
             <AlertRow
               color={B.blueMid}
-              text="Fund distributors from Wallet (PIN required)"
+              text="Fund distributors from Balance (PIN required)"
             />
             <AlertRow color={B.muted} text="KYC pending alerts: coming soon" />
           </div>

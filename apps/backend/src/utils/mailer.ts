@@ -461,14 +461,14 @@ export function vanDepositCreditEmailTemplate(input: {
   const text = [
     `Hi ${name},`,
     ``,
-    `₹${input.amount} was credited to your AsanPay wallet from a virtual account deposit.`,
+    `₹${input.amount} was credited to your AsanPay balance from a virtual account deposit.`,
     `Bank reference: ${input.bankTxnId}`,
     ``,
     `— Team AsanPay`,
   ].join("\n");
 
   const bodyHtml = `
-    <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${BRAND.green}">Wallet</p>
+    <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${BRAND.green}">Balance</p>
     <h1 style="margin:0 0 12px;font-size:26px;line-height:1.2;font-weight:800;letter-spacing:-0.03em;color:${BRAND.blueDeep}">Deposit credited</h1>
     <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:${BRAND.muted}">Hi ${escapeHtml(name)},</p>
     <div style="margin:0 0 16px;padding:20px;border-radius:14px;background:${BRAND.bg};border:1px solid ${BRAND.border};text-align:center">
@@ -483,7 +483,7 @@ export function vanDepositCreditEmailTemplate(input: {
     subject: "AsanPay deposit credited",
     text,
     html: brandedEmailHtml({
-      preheader: `₹${input.amount} deposited to your wallet.`,
+      preheader: `₹${input.amount} deposited to your balance.`,
       title: "AsanPay deposit credited",
       bodyHtml,
       accent: "green",
@@ -538,7 +538,7 @@ export function largeDebitAlertEmailTemplate(input: {
   const text = [
     `Hi ${name},`,
     ``,
-    `A wallet transfer of ₹${input.amount} to ${input.targetName} was completed`,
+    `A balance transfer of ₹${input.amount} to ${input.targetName} was completed`,
     `(alert threshold ₹${input.thresholdRs}).`,
     ``,
     `If this was not you, contact support immediately.`,
@@ -548,7 +548,7 @@ export function largeDebitAlertEmailTemplate(input: {
 
   const bodyHtml = `
     <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${BRAND.amber}">Fraud watch</p>
-    <h1 style="margin:0 0 12px;font-size:26px;line-height:1.2;font-weight:800;letter-spacing:-0.03em;color:${BRAND.blueDeep}">Large wallet debit</h1>
+    <h1 style="margin:0 0 12px;font-size:26px;line-height:1.2;font-weight:800;letter-spacing:-0.03em;color:${BRAND.blueDeep}">Large balance debit</h1>
     <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:${BRAND.muted}">Hi ${escapeHtml(name)},</p>
     <div style="margin:0 0 16px;padding:18px;border-radius:14px;background:${BRAND.bg};border:1px solid ${BRAND.border}">
       <p style="margin:0 0 8px;font-size:14px;color:${BRAND.muted}">Amount <strong style="color:${BRAND.blueDeep};font-size:20px">₹${escapeHtml(input.amount)}</strong></p>
@@ -561,11 +561,11 @@ export function largeDebitAlertEmailTemplate(input: {
 
   return {
     to: "",
-    subject: "AsanPay large wallet debit alert",
+    subject: "AsanPay large balance debit alert",
     text,
     html: brandedEmailHtml({
       preheader: `₹${input.amount} transferred to ${input.targetName}.`,
-      title: "AsanPay large wallet debit alert",
+      title: "AsanPay large balance debit alert",
       bodyHtml,
       accent: "amber",
     }),

@@ -74,7 +74,7 @@ export function WalletScreen() {
         end={gradientDirection.diagonal.end}
         style={styles.header}
       >
-        <Text style={styles.headerTitle}>My Wallet</Text>
+        <Text style={styles.headerTitle}>My Balance</Text>
       </LinearGradient>
 
       <View style={[styles.switcher, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
@@ -92,7 +92,7 @@ export function WalletScreen() {
               </View>
               <View>
                 <Text style={[styles.switchName, { color: isActive ? "#fff" : tokens.txt2 }]}>
-                  {k === "main" ? "Main" : "AEPS"}
+                  {k === "main" ? "Service" : "Earnings"}
                 </Text>
                 <Text style={[styles.switchAmount, { color: isActive ? "#fff" : tokens.txt2 }]}>
                   {formatINR(w?.balance ?? "0")}
@@ -114,7 +114,7 @@ export function WalletScreen() {
           style={styles.heroCard}
         >
           <View style={styles.heroTopRow}>
-            <Text style={styles.heroLabel}>{active === "main" ? "Main Wallet" : "AEPS Wallet"}</Text>
+            <Text style={styles.heroLabel}>{active === "main" ? "Service Balance" : "Earnings"}</Text>
             <View style={styles.heroBadge}>
               <Text style={styles.heroBadgeText}>{user.uid}</Text>
             </View>
@@ -177,7 +177,7 @@ export function WalletScreen() {
         {loading ? (
           <ActivityIndicator color={colors.blueFlat} style={styles.loader} />
         ) : activeEntries.length === 0 ? (
-          <Text style={[styles.empty, { color: tokens.sub }]}>No wallet activity yet.</Text>
+          <Text style={[styles.empty, { color: tokens.sub }]}>No balance activity yet.</Text>
         ) : (
           <View style={[styles.listCard, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
             {activeEntries.map((item, i) => {

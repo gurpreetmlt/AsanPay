@@ -14,7 +14,7 @@ const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || "AsanPay";
 
 export const metadata: Metadata = {
   title: `${BRAND_NAME} Agent Portal`,
-  description: `${BRAND_NAME} agent dashboard — services, wallet & network`,
+  description: `${BRAND_NAME} agent dashboard — services, balance & network`,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
