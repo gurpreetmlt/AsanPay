@@ -75,15 +75,19 @@ async function ensureLedgerTestTenant(): Promise<string> {
 
   const [existing] = await db.select().from(tenants).where(eq(tenants.code, TEST_LEDGER_TENANT)).limit(1);
   let tenantId: string;
+  // is_active = false, always — same rule as verifyLedgerEngine.ts. bootstrapLedger() and the
+  // reconciliation sweep in server.ts both iterate ACTIVE tenants, so an active LEDGERTEST
+  // would put throwaway test accounts into production's boot verification and recon logs.
+  // currentTenantId() deliberately does not require an env-overridden tenant to be active.
   if (existing) {
     tenantId = existing.id;
-    if (!existing.isActive) {
-      await db.update(tenants).set({ isActive: true }).where(eq(tenants.id, tenantId));
+    if (existing.isActive) {
+      await db.update(tenants).set({ isActive: false }).where(eq(tenants.id, tenantId));
     }
   } else {
     const [created] = await db
       .insert(tenants)
-      .values({ code: TEST_LEDGER_TENANT, name: "Ledger Engine Test", isActive: true })
+      .values({ code: TEST_LEDGER_TENANT, name: "Ledger Engine Test", isActive: false })
       .returning({ id: tenants.id });
     tenantId = created!.id;
   }

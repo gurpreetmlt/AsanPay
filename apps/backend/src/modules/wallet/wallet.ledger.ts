@@ -103,8 +103,10 @@ const BBPS_CATEGORY = "BILL_PAYMENT_BBPS";
  * `LEDGERTEST` so suite journals never land in production's tenant. Read on every resolve
  * (not a module-load const) so tests can set the env before posting.
  */
+const DEFAULT_TENANT_CODE = "ASANPAY";
+
 export function legacyTenantCode(): string {
-  return process.env.LEDGER_TENANT_CODE?.trim() || "ASANPAY";
+  return process.env.LEDGER_TENANT_CODE?.trim() || DEFAULT_TENANT_CODE;
 }
 
 let cachedTenantId: string | null = null;
@@ -123,7 +125,13 @@ async function currentTenantId(tx: Tx): Promise<string> {
   if (!row) {
     throw new HttpError(500, `Tenant ${code} does not exist`, "TENANT_NOT_FOUND");
   }
-  if (!row.isActive) {
+  // The is_active check guards against someone disabling the live tenant out from under the
+  // money paths. It deliberately does NOT apply to an env-overridden tenant: LEDGERTEST is a
+  // scratch tenant that must stay is_active = false, because bootstrapLedger() and the
+  // reconciliation sweep in server.ts both iterate active tenants and must never pick up
+  // throwaway test accounts. Requiring it to be active is what made the two verification
+  // entry points fight over the flag.
+  if (code === DEFAULT_TENANT_CODE && !row.isActive) {
     throw new HttpError(500, `Tenant ${code} is inactive`, "TENANT_INACTIVE");
   }
 
