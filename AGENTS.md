@@ -38,6 +38,24 @@ packages/
   auth/              Portal guards, role helpers
 ```
 
+### Portal decision (4 Aug 2026)
+
+**Two portals, permanently.** Admin stays its own app (`apps/admin-web`) — it holds fund
+approval, allocation, recon adjustment and agent-block controls, and those must never be
+reachable from an agent's browser. All three agent roles (SD / Distributor / Retailer) share
+**one** `apps/web`, rendered by role. They overlap ~80% (wallet, network, transactions,
+settlements, passbook, support); splitting them is what left `partner-web` and `retailer-web`
+as 54 MB of abandoned duplicates. Role separation is enforced server-side (`requireAuth`
+re-reads role + `isActive` from the DB on every request), not by shipping separate bundles.
+
+`apps/partner-web` and `apps/retailer-web` were deleted on 4 Aug 2026. To bring either back:
+
+```bash
+git checkout legacy-webapps-before-delete -- apps/partner-web apps/retailer-web
+```
+
+The tag is pushed to origin, so it survives regardless of branch state.
+
 ## Stack
 
 - **Web:** Next.js 16, React 19, Tailwind 4, Zustand
