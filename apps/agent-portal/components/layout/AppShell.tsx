@@ -135,6 +135,7 @@ function buildAgentNav(role: UserRole | undefined): NavItem[] {
       icon: Wallet,
       children: [
         { to: "/wallet", label: "Balance", icon: Wallet, exact: true },
+        { to: "/fund-request", label: "Add Money", icon: PlusCircle },
         { to: "/settlements", label: "Settlements", icon: Landmark },
         { to: "/float-planner", label: "Float & Earnings", icon: PiggyBank },
         { to: "/passbook", label: "History", icon: History },
