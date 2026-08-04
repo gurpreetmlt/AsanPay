@@ -23,6 +23,7 @@
     "seed:mpin": "tsx scripts/seedLoginMpin.ts",
     "seed:txns": "tsx scripts/seedTxns.ts",
     "seed:network": "tsx scripts/seedNetwork.ts",
+    "seed:settlements-dummy": "tsx scripts/seedSettlementsDummy.ts",
     "backfill:opening": "tsx scripts/backfillOpeningBalance.ts",
     "provision:float": "tsx scripts/provisionProviderFloat.ts",
     "verify:ledger": "tsx scripts/verifyLedgerEngine.ts"
