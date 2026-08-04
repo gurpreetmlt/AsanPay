@@ -1,7 +1,7 @@
 /**
  * End-to-end exercise of the wallet LEDGER SHIM (`modules/wallet/wallet.ledger.ts`) against
- * a real Postgres: hierarchy transfers through `transferBetweenWallets` / `fundWallet`, the
- * referenceType → txnType mapping, the `wallets.balance` mirror, and the legacy passbook
+ * a real Postgres: hierarchy transfers, service debit/credit, reversal, fundWallet, commission,
+ * the referenceType → txnType mapping, the `wallets.balance` mirror, and the legacy passbook
  * projection (`wallet_ledger_groups` / `wallet_ledger_entries`).
  *
  * SCOPE — this calls the real cut-over API. It does NOT replace `verify:ledger` (bare
@@ -13,10 +13,7 @@
  * Throwaway MD / Dist / Retailer users; soft-retired at end (accounts.user_id RESTRICT).
  *
  * `wallet_ledger_groups.reference_id` is UUID — every transfer referenceId must be a real UUID.
- *
- * Intentionally does NOT call `fundWallet()` here: that path sets companyMoved and rewrites the
- * single global aggregator wallet row from LEDGERTEST COMPANY_001 — unsafe on a shared prod DB.
- * External funding can be proven later in isolation once aggregator mirroring is tenant-scoped.
+ * `fundWallet` is safe under LEDGERTEST: aggregator mirror only runs for the default ASANPAY tenant.
  */
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
@@ -28,16 +25,22 @@ import {
   accounts,
   accountBalances,
   journals,
+  ledgerEntries,
   walletLedgerGroups,
   walletLedgerEntries,
   userHierarchy,
+  services,
+  serviceCategories,
+  providers,
+  transactions,
 } from "../src/db/postgres/schema";
 import { postJournal, clearAccountCache } from "../src/core/ledger";
 import { seedSystemAccounts } from "../src/modules/bootstrap/systemAccounts";
 import { rupeesToPaise, paiseToRupees } from "../src/core/money";
-import { ensureHierarchyAccount } from "../src/modules/wallet/ledgerAccounts";
+import { ensureHierarchyAccount, floatAccountCode } from "../src/modules/wallet/ledgerAccounts";
 import {
   clearTenantCache,
+  fundWallet,
   legacyTenantCode,
   mirrorBalances,
   transferBetweenWallets,
@@ -48,16 +51,21 @@ import {
   checkSettleable,
   checkNegativeAgentBalance,
 } from "../src/modules/reconciliation/checks";
+import { HttpError } from "../src/utils/httpError";
 
 const RUN = randomUUID().slice(0, 8);
 const TENANT_CODE = "LEDGERTEST";
 const FLOAT_CONTROL = "TREASURY_FLOAT_CONTROL";
+const BBPS_CATEGORY = "BILL_PAYMENT_BBPS";
+const COMMISSION_INCOME = "COMMISSION_INCOME";
+const COMPANY = "COMPANY_001";
 
 // Set before any money path resolves the tenant.
 process.env.LEDGER_TENANT_CODE = TENANT_CODE;
 
 let tenantId: string;
 let adminId: string;
+let aggregatorWalletId: string;
 
 let mdId: string;
 let distId: string;
@@ -71,6 +79,10 @@ let retAepsId: string;
 let mdCode: string;
 let distCode: string;
 let retCode: string;
+
+let providerId: string;
+let providerCode: string;
+let floatCode: string;
 
 let passed = 0;
 let failed = 0;
@@ -95,9 +107,20 @@ function expectEq(actual: unknown, expected: unknown, what: string): void {
   if (a !== e) throw new Error(`${what}: expected ${e}, got ${a}`);
 }
 
+async function expectHttpCode(fn: () => Promise<unknown>, code: string): Promise<void> {
+  try {
+    await fn();
+  } catch (err) {
+    if (err instanceof HttpError && err.code === code) return;
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes(code)) return;
+    throw new Error(`expected HttpError ${code}, got: ${msg}`, { cause: err });
+  }
+  throw new Error(`expected HttpError ${code}, but call succeeded`);
+}
+
 function nextMobile(): string {
   mobileSeq += 1;
-  // 10 digits, unique per process
   return `9${String(Date.now()).slice(-6)}${String(mobileSeq).padStart(3, "0")}`.slice(0, 10);
 }
 
@@ -153,6 +176,35 @@ async function journalByLegacyGroup(groupId: string): Promise<{ id: bigint; txnT
     .limit(1);
   if (!j) throw new Error(`No journal for LEGACY:${groupId}`);
   return j;
+}
+
+async function journalByIdemKey(
+  idemKey: string,
+): Promise<{ id: bigint; txnType: string; reversesId: bigint | null }> {
+  const [j] = await db
+    .select({ id: journals.id, txnType: journals.txnType, reversesId: journals.reversesId })
+    .from(journals)
+    .where(and(eq(journals.tenantId, tenantId), eq(journals.idemKey, idemKey)))
+    .limit(1);
+  if (!j) throw new Error(`No journal for idemKey ${idemKey}`);
+  return j;
+}
+
+async function journalHasFloatCredit(journalId: bigint, expectedFloatCode: string): Promise<void> {
+  const rows = await db
+    .select({
+      code: accounts.code,
+      direction: ledgerEntries.direction,
+    })
+    .from(ledgerEntries)
+    .innerJoin(accounts, eq(accounts.id, ledgerEntries.accountId))
+    .where(eq(ledgerEntries.journalId, journalId));
+  const floatLeg = rows.find((r) => r.code === expectedFloatCode && r.direction === "CR");
+  if (!floatLeg) {
+    throw new Error(
+      `journal ${journalId}: expected CR on ${expectedFloatCode}, legs=${JSON.stringify(rows)}`,
+    );
+  }
 }
 
 async function assertPassbook(groupId: string, minRows = 1): Promise<void> {
@@ -355,6 +407,82 @@ async function zeroAgent(userId: string): Promise<void> {
   });
 }
 
+async function ensureCategory(code: string, name: string): Promise<string> {
+  const [existing] = await db
+    .select({ id: serviceCategories.id })
+    .from(serviceCategories)
+    .where(eq(serviceCategories.code, code))
+    .limit(1);
+  if (existing) return existing.id;
+  const [created] = await db
+    .insert(serviceCategories)
+    .values({ code, name })
+    .returning({ id: serviceCategories.id });
+  return created!.id;
+}
+
+/** Prefer existing global catalogue rows; SERVICE_TXN_TYPE keys are exact service codes. */
+async function ensureService(
+  code: string,
+  name: string,
+  categoryId: string,
+): Promise<string> {
+  const [existing] = await db
+    .select({ id: services.id })
+    .from(services)
+    .where(eq(services.code, code))
+    .limit(1);
+  if (existing) return existing.id;
+  const [created] = await db
+    .insert(services)
+    .values({ categoryId, code, name, maxAmount: "10000000.00" })
+    .returning({ id: services.id });
+  return created!.id;
+}
+
+async function insertTxn(params: {
+  serviceId: string;
+  providerId: string | null;
+  amount: string;
+  tag: string;
+}): Promise<string> {
+  const id = randomUUID();
+  await db.insert(transactions).values({
+    id,
+    txnRef: `SHIM${RUN}${params.tag}`.slice(0, 40),
+    idempotencyKey: `shim-${RUN}-${params.tag}-${id.slice(0, 8)}`.slice(0, 100),
+    userId: retId,
+    serviceId: params.serviceId,
+    providerId: params.providerId,
+    amount: params.amount,
+    status: "success",
+    walletType: "main",
+  });
+  return id;
+}
+
+async function seedServiceCatalog(): Promise<void> {
+  providerCode = `SHIM${RUN}`.toUpperCase().replace(/[^A-Z0-9]+/g, "_").slice(0, 40);
+  floatCode = floatAccountCode(providerCode);
+
+  const [prov] = await db
+    .insert(providers)
+    .values({ code: providerCode, name: `Shim provider ${RUN}` })
+    .returning({ id: providers.id });
+  providerId = prov!.id;
+
+  const bankingCat = await ensureCategory(`SHIM_BANK_${RUN}`.slice(0, 40), "Shim banking");
+  const bbpsCat = await ensureCategory(BBPS_CATEGORY, "BBPS");
+  const otherCat = await ensureCategory(`SHIM_OTH_${RUN}`.slice(0, 40), "Shim other");
+
+  await ensureService("MONEY_TRANSFER", "Money Transfer", bankingCat);
+  await ensureService("DTH", "DTH", bankingCat);
+  await ensureService("CASH_DEPOSIT", "Cash Deposit", bankingCat);
+  await ensureService("CASH_WITHDRAW", "Cash Withdraw", bankingCat);
+  await ensureService("ELECTRICITY", "Electricity Bill", bbpsCat);
+  await ensureService(`SHIM_UNMAPPED_${RUN}`.slice(0, 60), "Unmapped", otherCat);
+}
+
 async function main() {
   console.log(`\n${"=".repeat(72)}`);
   console.log(`WALLET SHIM VERIFICATION — run ${RUN}`);
@@ -375,6 +503,16 @@ async function main() {
   if (!admin) throw new Error("No admin user for RECON performedBy");
   adminId = admin.id;
 
+  const [agg] = await db
+    .select({ id: wallets.id })
+    .from(wallets)
+    .where(and(eq(wallets.walletKind, "aggregator"), eq(wallets.walletType, "main")))
+    .limit(1);
+  if (!agg) throw new Error("No aggregator wallet — seed admin/system float first");
+  aggregatorWalletId = agg.id;
+
+  await seedServiceCatalog();
+
   const md = await createAgent("master_distributor", null, "Shim MD", "S");
   mdId = md.userId;
   mdMainId = md.mainId;
@@ -393,6 +531,8 @@ async function main() {
 
   await openUsable(mdId, mdCode, "100000.00", "md");
   await assertMirror(mdId, "md after open");
+
+  // ── Hierarchy / passbook (baseline) ──────────────────────────────────────
 
   await check(
     'transferBetweenWallets downline_transfer → WALLET_TRANSFER (MD→Dist)',
@@ -513,6 +653,337 @@ async function main() {
     );
   });
 
+  // ── service_txn DEBIT mapping (core) ─────────────────────────────────────
+
+  const debitCases: { serviceCode: string; expectedTxn: string; amount: string; tag: string }[] = [
+    { serviceCode: "MONEY_TRANSFER", expectedTxn: "DMT", amount: "50.00", tag: "dmt" },
+    { serviceCode: "DTH", expectedTxn: "RECHARGE", amount: "40.00", tag: "dth" },
+    { serviceCode: "ELECTRICITY", expectedTxn: "BBPS", amount: "30.00", tag: "elc" },
+    { serviceCode: "CASH_DEPOSIT", expectedTxn: "AEPS_DEPOSIT", amount: "20.00", tag: "dep" },
+  ];
+
+  for (const c of debitCases) {
+    await check(
+      `service_txn DEBIT ${c.serviceCode} → ${c.expectedTxn} + float ${floatCode}`,
+      async () => {
+        const [svc] = await db
+          .select({ id: services.id })
+          .from(services)
+          .where(eq(services.code, c.serviceCode))
+          .limit(1);
+        if (!svc) throw new Error(`service ${c.serviceCode} missing`);
+
+        const beforeMain = await walletBalance(retMainId);
+        const beforeSettle = (await ledgerOf(retId)).settleable;
+        const txnId = await insertTxn({
+          serviceId: svc.id,
+          providerId,
+          amount: c.amount,
+          tag: c.tag,
+        });
+
+        const { groupId } = await transferBetweenWallets({
+          fromWalletId: retMainId,
+          toWalletId: aggregatorWalletId,
+          amount: c.amount,
+          referenceType: "service_txn",
+          referenceId: txnId,
+          description: `verify:shim debit ${c.serviceCode}`,
+        });
+
+        const j = await journalByIdemKey(`TXN_DR:${txnId}`);
+        expectEq(j.txnType, c.expectedTxn, "txnType");
+        await journalHasFloatCredit(j.id, floatCode);
+        await assertPassbook(groupId, 1);
+        await assertMirror(retId, `ret after ${c.serviceCode} debit`);
+        expectEq(
+          await walletBalance(retMainId),
+          paiseToRupees(rupeesToPaise(beforeMain) - rupeesToPaise(c.amount)),
+          "main after debit",
+        );
+        expectEq((await ledgerOf(retId)).settleable, beforeSettle, "settleable unchanged on debit");
+      },
+    );
+  }
+
+  await check("service_txn DEBIT with null provider → TXN_HAS_NO_PROVIDER", async () => {
+    const [svc] = await db
+      .select({ id: services.id })
+      .from(services)
+      .where(eq(services.code, "MONEY_TRANSFER"))
+      .limit(1);
+    const txnId = await insertTxn({
+      serviceId: svc!.id,
+      providerId: null,
+      amount: "10.00",
+      tag: "noprov",
+    });
+    await expectHttpCode(
+      () =>
+        transferBetweenWallets({
+          fromWalletId: retMainId,
+          toWalletId: aggregatorWalletId,
+          amount: "10.00",
+          referenceType: "service_txn",
+          referenceId: txnId,
+        }),
+      "TXN_HAS_NO_PROVIDER",
+    );
+    await assertMirror(retId, "ret after null-provider refuse");
+  });
+
+  await check("service_txn DEBIT unmapped non-BBPS → SERVICE_NOT_MAPPED", async () => {
+    const unmappedCode = `SHIM_UNMAPPED_${RUN}`.slice(0, 60);
+    const [svc] = await db
+      .select({ id: services.id })
+      .from(services)
+      .where(eq(services.code, unmappedCode))
+      .limit(1);
+    const txnId = await insertTxn({
+      serviceId: svc!.id,
+      providerId,
+      amount: "10.00",
+      tag: "unmap",
+    });
+    await expectHttpCode(
+      () =>
+        transferBetweenWallets({
+          fromWalletId: retMainId,
+          toWalletId: aggregatorWalletId,
+          amount: "10.00",
+          referenceType: "service_txn",
+          referenceId: txnId,
+        }),
+      "SERVICE_NOT_MAPPED",
+    );
+    await assertMirror(retId, "ret after unmapped refuse");
+  });
+
+  // ── service_txn CREDIT (AePS) ────────────────────────────────────────────
+
+  await check("service_txn CREDIT CASH_WITHDRAW → AEPS_WITHDRAWAL raises settleable", async () => {
+    const [svc] = await db
+      .select({ id: services.id })
+      .from(services)
+      .where(eq(services.code, "CASH_WITHDRAW"))
+      .limit(1);
+    const beforeMain = await walletBalance(retMainId);
+    const beforeAeps = await walletBalance(retAepsId);
+    const beforeSettle = (await ledgerOf(retId)).settleable;
+    const amount = "75.00";
+    const txnId = await insertTxn({
+      serviceId: svc!.id,
+      providerId,
+      amount,
+      tag: "aeps",
+    });
+
+    const { groupId } = await transferBetweenWallets({
+      fromWalletId: aggregatorWalletId,
+      toWalletId: retMainId,
+      amount,
+      referenceType: "service_txn",
+      referenceId: txnId,
+      description: "verify:shim AePS credit",
+    });
+
+    const j = await journalByIdemKey(`TXN_CR:${txnId}`);
+    expectEq(j.txnType, "AEPS_WITHDRAWAL", "txnType");
+    await assertPassbook(groupId, 1);
+    await assertMirror(retId, "ret after AePS credit");
+    expectEq(await walletBalance(retMainId), beforeMain, "main unchanged");
+    expectEq(
+      await walletBalance(retAepsId),
+      paiseToRupees(rupeesToPaise(beforeAeps) + rupeesToPaise(amount)),
+      "aeps mirror +credit",
+    );
+    expectEq(
+      (await ledgerOf(retId)).settleable - beforeSettle,
+      rupeesToPaise(amount),
+      "settleable delta",
+    );
+  });
+
+  // ── reversal ─────────────────────────────────────────────────────────────
+
+  await check("reversal of service_txn debit restores retailer + reverses_id set", async () => {
+    const [svc] = await db
+      .select({ id: services.id })
+      .from(services)
+      .where(eq(services.code, "MONEY_TRANSFER"))
+      .limit(1);
+    const amount = "33.00";
+    const txnId = await insertTxn({
+      serviceId: svc!.id,
+      providerId,
+      amount,
+      tag: "revd",
+    });
+
+    await transferBetweenWallets({
+      fromWalletId: retMainId,
+      toWalletId: aggregatorWalletId,
+      amount,
+      referenceType: "service_txn",
+      referenceId: txnId,
+      description: "verify:shim debit to reverse",
+    });
+    const before = await ledgerOf(retId);
+    const beforeMain = await walletBalance(retMainId);
+    const original = await journalByIdemKey(`TXN_DR:${txnId}`);
+
+    const { groupId } = await transferBetweenWallets({
+      fromWalletId: aggregatorWalletId,
+      toWalletId: retMainId,
+      amount,
+      referenceType: "reversal",
+      referenceId: txnId,
+      description: "verify:shim reversal",
+    });
+
+    const rev = await journalByIdemKey(`TXN_RV:${txnId}`);
+    expectEq(rev.txnType, "REVERSAL", "reversal type");
+    expectEq(rev.reversesId, original.id, "reverses_id");
+    await assertPassbook(groupId, 1);
+    await assertMirror(retId, "ret after reversal");
+    expectEq(
+      await walletBalance(retMainId),
+      paiseToRupees(rupeesToPaise(beforeMain) + rupeesToPaise(amount)),
+      "main restored +amount",
+    );
+    expectEq((await ledgerOf(retId)).settleable, before.settleable, "settleable after reverse");
+  });
+
+  await check("reversal with no original journal → LEGACY_REVERSAL_UNMAPPED", async () => {
+    const fakeTxnId = randomUUID();
+    await expectHttpCode(
+      () =>
+        transferBetweenWallets({
+          fromWalletId: aggregatorWalletId,
+          toWalletId: retMainId,
+          amount: "1.00",
+          referenceType: "reversal",
+          referenceId: fakeTxnId,
+        }),
+      "LEGACY_REVERSAL_UNMAPPED",
+    );
+    await assertMirror(retId, "ret after unmapped reversal refuse");
+  });
+
+  // ── fundWallet ───────────────────────────────────────────────────────────
+
+  await check("fundWallet → ALLOCATION then WALLET_TRANSFER; agent mirror rises", async () => {
+    const before = await ledgerOf(distId);
+    const beforeMain = await walletBalance(distMainId);
+    const amount = "1000.00";
+    const { groupId } = await fundWallet({
+      walletId: distMainId,
+      amount,
+      referenceId: randomUUID(),
+      description: "verify:shim fundWallet",
+    });
+
+    const [alloc] = await db
+      .select({ txnType: journals.txnType })
+      .from(journals)
+      .where(and(eq(journals.tenantId, tenantId), eq(journals.idemKey, `LEGACY:${groupId}:ALLOC`)))
+      .limit(1);
+    const [fund] = await db
+      .select({ txnType: journals.txnType })
+      .from(journals)
+      .where(and(eq(journals.tenantId, tenantId), eq(journals.idemKey, `LEGACY:${groupId}:FUND`)))
+      .limit(1);
+    if (!alloc) throw new Error("ALLOC journal missing");
+    if (!fund) throw new Error("FUND journal missing");
+    expectEq(alloc.txnType, "ALLOCATION", "alloc type");
+    expectEq(fund.txnType, "WALLET_TRANSFER", "fund type");
+
+    // ALLOC legs float control → company
+    const allocJ = await journalByIdemKey(`LEGACY:${groupId}:ALLOC`);
+    const legs = await db
+      .select({ code: accounts.code, direction: ledgerEntries.direction })
+      .from(ledgerEntries)
+      .innerJoin(accounts, eq(accounts.id, ledgerEntries.accountId))
+      .where(eq(ledgerEntries.journalId, allocJ.id));
+    if (!legs.some((l) => l.code === FLOAT_CONTROL && l.direction === "DR")) {
+      throw new Error("ALLOC missing FLOAT_CONTROL DR");
+    }
+    if (!legs.some((l) => l.code === COMPANY && l.direction === "CR")) {
+      throw new Error("ALLOC missing COMPANY CR");
+    }
+
+    await assertPassbook(groupId, 1);
+    await assertMirror(distId, "dist after fundWallet");
+    expectEq(
+      (await ledgerOf(distId)).balance - before.balance,
+      rupeesToPaise(amount),
+      "dist balance +fund",
+    );
+    expectEq(
+      await walletBalance(distMainId),
+      paiseToRupees(rupeesToPaise(beforeMain) + rupeesToPaise(amount)),
+      "dist main +fund",
+    );
+  });
+
+  // ── commission ───────────────────────────────────────────────────────────
+
+  await check("commission → COMMISSION_PAYOUT raises settleable (earned)", async () => {
+    const beforeSettle = (await ledgerOf(retId)).settleable;
+    const beforeMain = await walletBalance(retMainId);
+    const beforeAeps = await walletBalance(retAepsId);
+    const amount = "15.00";
+    const ref = randomUUID();
+
+    const { groupId } = await transferBetweenWallets({
+      fromWalletId: aggregatorWalletId,
+      toWalletId: retMainId,
+      amount,
+      referenceType: "commission",
+      referenceId: ref,
+      description: "verify:shim commission",
+    });
+
+    const [j] = await db
+      .select({ id: journals.id, txnType: journals.txnType })
+      .from(journals)
+      .where(
+        and(
+          eq(journals.tenantId, tenantId),
+          eq(journals.txnType, "COMMISSION_PAYOUT"),
+          eq(journals.idemKey, `COMM:${ref}:${retCode}`),
+        ),
+      )
+      .limit(1);
+    if (!j) throw new Error("COMMISSION_PAYOUT journal missing");
+    expectEq(j.txnType, "COMMISSION_PAYOUT", "txnType");
+
+    const legs = await db
+      .select({ code: accounts.code, direction: ledgerEntries.direction })
+      .from(ledgerEntries)
+      .innerJoin(accounts, eq(accounts.id, ledgerEntries.accountId))
+      .where(eq(ledgerEntries.journalId, j.id));
+    if (!legs.some((l) => l.code === COMMISSION_INCOME && l.direction === "DR")) {
+      throw new Error("commission missing COMMISSION_INCOME DR");
+    }
+
+    await assertPassbook(groupId, 1);
+    await assertMirror(retId, "ret after commission");
+    expectEq(await walletBalance(retMainId), beforeMain, "main unchanged (earned)");
+    expectEq(
+      await walletBalance(retAepsId),
+      paiseToRupees(rupeesToPaise(beforeAeps) + rupeesToPaise(amount)),
+      "aeps +commission",
+    );
+    expectEq(
+      (await ledgerOf(retId)).settleable - beforeSettle,
+      rupeesToPaise(amount),
+      "settleable +commission",
+    );
+  });
+
+  // ── wrap-up ──────────────────────────────────────────────────────────────
+
   await check("leaves LEDGERTEST reconciliation clean", async () => {
     expectEq((await checkTrialBalance(tenantId)).length, 0, "trial balance");
     expectEq((await checkLedgerVsBalance(tenantId)).length, 0, "ledger vs balance");
@@ -542,8 +1013,8 @@ async function main() {
   console.log("-".repeat(72));
   console.log(
     failed === 0
-      ? "\nSHIM VERIFIED — wallet.ledger.ts mapping, mirror and passbook exercise cleanly\n" +
-          `under ${TENANT_CODE} (ASANPAY untouched).\n`
+      ? "\nSHIM VERIFIED — hierarchy, service_txn debit/credit, reversal, fundWallet,\n" +
+          `commission, mirror and passbook under ${TENANT_CODE} (ASANPAY untouched).\n`
       : "\nSHIM NOT VERIFIED — do not trust legacy money paths until these pass.\n",
   );
 

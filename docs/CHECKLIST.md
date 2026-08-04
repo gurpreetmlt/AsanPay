@@ -76,8 +76,8 @@
 - [x] **Cut-over**: `wallet.ledger.ts` posts journals; `wallets.balance` is a mirror
       (`main` = balance − settleable, `aeps` = settleable). Signatures unchanged, 15 call sites
 - [x] `verify:ledger` 10/10 — engine only, does NOT cover `wallet.ledger.ts`
-- [x] `verify:shim` (`npm run verify:shim`) — end-to-end `wallet.ledger.ts` under LEDGERTEST
-      (mapping, mirror, passbook); ASANPAY untouched
+- [x] `verify:shim` full paths — hierarchy + service_txn debit/credit + reversal + fundWallet +
+      commission under LEDGERTEST (run `npm run verify:shim` after deploy)
 - [ ] **Live proof of the shim** — optional ASANPAY production money movement still product QA
 - [x] **DB-backed test suite repaired for cut-over** — `setBalance` via journals + `mirrorBalances`;
   `destroy` soft-retires users (accounts.user_id RESTRICT); `LEDGER_TENANT_CODE` / LEDGERTEST isolation
@@ -107,6 +107,8 @@
 - [ ] History purge for any secrets ever pushed to remote
 
 ## Last updated
+2026-08-04 — verify:shim expanded: service_txn debit/credit, reversal, fundWallet, commission
+2026-08-04 — verify:shim 8/8 PASS on Coolify API (LEDGERTEST; UUID refs + ASN S/D/R UIDs)
 2026-08-04 — verify:shim script (wallet.ledger under LEDGERTEST: transfer/pull/fund + mirror + passbook)
 2026-08-04 — Post cut-over §1+§3: test world journals/LEDGERTEST + soft destroy; tsc (commission, fund-request paramId)
 2026-08-04 — Ledger section added; cut-over verified shipped. Found: DB-backed test suite is broken by the mirror (fixtures write `wallets.balance` directly) — see `docs/PROMPTS/post-cutover-next.md`
