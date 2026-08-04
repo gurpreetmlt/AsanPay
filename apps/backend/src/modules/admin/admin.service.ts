@@ -575,25 +575,45 @@ export async function listAdminTransactions(opts: {
 export async function listCatalogAdmin() {
   const categories = await db.select().from(serviceCategories).orderBy(serviceCategories.displayOrder);
   const allServices = await db.select().from(services).orderBy(services.displayOrder);
-  return categories.map((c) => ({
-    id: c.id,
-    code: c.code,
-    name: c.name,
-    icon: c.icon,
-    isActive: c.isActive,
-    services: allServices
-      .filter((s) => s.categoryId === c.id)
-      .map((s) => ({
-        id: s.id,
-        code: s.code,
-        name: s.name,
-        badge: s.badge,
-        isActive: s.isActive,
-        displayOrder: s.displayOrder,
-        minAmount: s.minAmount,
-        maxAmount: s.maxAmount,
-      })),
-  }));
+  return categories
+    .filter((c) => {
+      const code = c.code.toUpperCase();
+      return !(
+        code.startsWith("SHIM_") ||
+        code.startsWith("SHIM") ||
+        code.includes("SHIM_OTH") ||
+        /^SHIM_OTH/i.test(c.name) ||
+        /^shim other$/i.test(c.name.trim())
+      );
+    })
+    .map((c) => ({
+      id: c.id,
+      code: c.code,
+      name: c.name,
+      icon: c.icon,
+      isActive: c.isActive,
+      services: allServices
+        .filter((s) => {
+          if (s.categoryId !== c.id) return false;
+          const sc = s.code.toUpperCase();
+          if (sc.startsWith("SHIM_") || sc.includes("SHIM_UNMAPPED") || sc.startsWith("_LEDGER_")) {
+            return false;
+          }
+          if (s.name.trim().toLowerCase() === "unmapped") return false;
+          return true;
+        })
+        .map((s) => ({
+          id: s.id,
+          code: s.code,
+          name: s.name,
+          badge: s.badge,
+          isActive: s.isActive,
+          displayOrder: s.displayOrder,
+          minAmount: s.minAmount,
+          maxAmount: s.maxAmount,
+        })),
+    }))
+    .filter((c) => c.services.length > 0 || c.isActive);
 }
 
 export async function updateServiceSiteControl(

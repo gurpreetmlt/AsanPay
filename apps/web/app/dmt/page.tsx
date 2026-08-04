@@ -730,7 +730,7 @@ export default function DmtPage() {
 
   async function sendRefundOtp() {
     if (refundIpayId.trim().length < 6) {
-      toast.error("Enter InstantPay order id (ipayId)");
+      toast.error("Enter provider order id (ipayId or equivalent)");
       return;
     }
     setRefundBusy(true);

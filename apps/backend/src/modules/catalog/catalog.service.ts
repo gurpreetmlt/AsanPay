@@ -5,6 +5,23 @@ import { serviceCategories, services } from "../../db/postgres/schema";
 
 export type CatalogCategoryView = CatalogCategory;
 
+/**
+ * Test / ledger-harness artefacts must never appear to agents.
+ * Provider rail is chosen at runtime via adapters (AEPS_PROVIDER_MODE etc.) — not via
+ * catalog tiles named after a specific third party.
+ */
+function isHarnessCatalogCode(code: string): boolean {
+  const c = code.toUpperCase();
+  return (
+    c.startsWith("SHIM_") ||
+    c.startsWith("SHIM") ||
+    c.startsWith("_LEDGER_") ||
+    c === "UNMAPPED" ||
+    c.includes("SHIM_UNMAPPED") ||
+    c.includes("SHIM_OTH")
+  );
+}
+
 export async function getCatalog(): Promise<CatalogCategoryView[]> {
   const categories = await db
     .select()
@@ -25,13 +42,19 @@ export async function getCatalog(): Promise<CatalogCategoryView[]> {
     .where(eq(services.isActive, true))
     .orderBy(asc(services.displayOrder));
 
-  return categories.map((category) => ({
-    id: category.id,
-    code: category.code,
-    name: category.name,
-    icon: category.icon,
-    services: allServices
-      .filter((service) => service.categoryId === category.id)
-      .map(({ id, code, name, badge, icon }) => ({ id, code, name, badge, icon })),
-  }));
+  return categories
+    .filter((category) => !isHarnessCatalogCode(category.code))
+    .map((category) => ({
+      id: category.id,
+      code: category.code,
+      name: category.name,
+      icon: category.icon,
+      services: allServices
+        .filter(
+          (service) =>
+            service.categoryId === category.id && !isHarnessCatalogCode(service.code),
+        )
+        .map(({ id, code, name, badge, icon }) => ({ id, code, name, badge, icon })),
+    }))
+    .filter((category) => category.services.length > 0);
 }

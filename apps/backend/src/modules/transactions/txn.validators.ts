@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { env } from "../../config/env";
 
 const amount = z
   .string()
@@ -11,6 +12,7 @@ const txnAuthFields = {
 };
 
 const requireTxnProof = (data: { txnPin?: string; txnAuth?: string }, ctx: z.RefinementCtx) => {
+  if (!env.REQUIRE_TXN_PIN) return;
   if (!data.txnPin && !data.txnAuth) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,

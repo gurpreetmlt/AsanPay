@@ -409,7 +409,7 @@ async function zeroAgent(userId: string): Promise<void> {
   });
 }
 
-async function ensureCategory(code: string, name: string): Promise<string> {
+async function ensureCategory(code: string, name: string, isActive = true): Promise<string> {
   const [existing] = await db
     .select({ id: serviceCategories.id })
     .from(serviceCategories)
@@ -418,7 +418,7 @@ async function ensureCategory(code: string, name: string): Promise<string> {
   if (existing) return existing.id;
   const [created] = await db
     .insert(serviceCategories)
-    .values({ code, name })
+    .values({ code, name, isActive })
     .returning({ id: serviceCategories.id });
   return created!.id;
 }
@@ -428,6 +428,7 @@ async function ensureService(
   code: string,
   name: string,
   categoryId: string,
+  opts?: { isActive?: boolean },
 ): Promise<string> {
   const [existing] = await db
     .select({ id: services.id })
@@ -437,7 +438,13 @@ async function ensureService(
   if (existing) return existing.id;
   const [created] = await db
     .insert(services)
-    .values({ categoryId, code, name, maxAmount: "10000000.00" })
+    .values({
+      categoryId,
+      code,
+      name,
+      maxAmount: "10000000.00",
+      isActive: opts?.isActive ?? true,
+    })
     .returning({ id: services.id });
   return created!.id;
 }
@@ -475,16 +482,24 @@ async function seedServiceCatalog(): Promise<void> {
     .returning({ id: providers.id });
   providerId = prov!.id;
 
-  const bankingCat = await ensureCategory(`SHIM_BANK_${RUN}`.slice(0, 40), "Shim banking");
+  // isActive:false — never surface on agent/admin product catalog. Prefer real catalog
+  // codes (MONEY_TRANSFER, …) so SERVICE_TXN_TYPE maps without inventing product tiles.
+  const bankingCat = await ensureCategory(`SHIM_BANK_${RUN}`.slice(0, 40), "Shim banking", false);
   const bbpsCat = await ensureCategory(BBPS_CATEGORY, "BBPS");
-  const otherCat = await ensureCategory(`SHIM_OTH_${RUN}`.slice(0, 40), "Shim other");
 
   await ensureService("MONEY_TRANSFER", "Money Transfer", bankingCat);
   await ensureService("DTH", "DTH", bankingCat);
   await ensureService("CASH_DEPOSIT", "Cash Deposit", bankingCat);
   await ensureService("CASH_WITHDRAW", "Cash Withdraw", bankingCat);
   await ensureService("ELECTRICITY", "Electricity Bill", bbpsCat);
-  await ensureService(`SHIM_UNMAPPED_${RUN}`.slice(0, 60), "Unmapped", otherCat);
+
+  // Inactive stub used only for the SERVICE_NOT_MAPPED check — no UI name "Unmapped", no SHIM OTHER.
+  await ensureService(
+    `_LEDGER_NOT_MAPPED_${RUN}`.slice(0, 60),
+    "Ledger test (not mapped)",
+    bankingCat,
+    { isActive: false },
+  );
 }
 
 async function main() {
@@ -851,18 +866,19 @@ async function main() {
     await assertMirror(retId, "ret after null-provider refuse");
   });
 
-  await check("service_txn DEBIT unmapped non-BBPS → SERVICE_NOT_MAPPED", async () => {
-    const unmappedCode = `SHIM_UNMAPPED_${RUN}`.slice(0, 60);
+  await check("service_txn DEBIT unknown code → SERVICE_NOT_MAPPED", async () => {
+    const notMappedCode = `_LEDGER_NOT_MAPPED_${RUN}`.slice(0, 60);
     const [svc] = await db
       .select({ id: services.id })
       .from(services)
-      .where(eq(services.code, unmappedCode))
+      .where(eq(services.code, notMappedCode))
       .limit(1);
+    if (!svc) throw new Error(`${notMappedCode} missing (seed inactive stub)`);
     const txnId = await insertTxn({
-      serviceId: svc!.id,
+      serviceId: svc.id,
       providerId,
       amount: "10.00",
-      tag: "unmap",
+      tag: "nmap",
     });
     await expectHttpCode(
       () =>
@@ -875,7 +891,7 @@ async function main() {
         }),
       "SERVICE_NOT_MAPPED",
     );
-    await assertMirror(retId, "ret after unmapped refuse");
+    await assertMirror(retId, "ret after not-mapped refuse");
   });
 
   // ── service_txn CREDIT (AePS) ────────────────────────────────────────────
