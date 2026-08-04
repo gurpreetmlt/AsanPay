@@ -29,6 +29,11 @@ import {
 
 export const fundRequestRouter = Router();
 
+/** Express 5 params can be `string | string[]`; validators want a single string. */
+function paramId(raw: string | string[] | undefined): string | undefined {
+  return Array.isArray(raw) ? raw[0] : raw;
+}
+
 fundRequestRouter.use(requireAuth);
 
 fundRequestRouter.post("/rematch", requireRole("admin"), async (_req, res) => {
@@ -102,7 +107,7 @@ fundRequestRouter.get("/:id", async (req, res) => {
   const tenantId = await resolveTenantId();
   const data = await getFundRequest({
     tenantId,
-    requestId: parseRequestId(req.params.id),
+    requestId: parseRequestId(paramId(req.params.id)),
     actorUserId: req.auth.sub,
     actorRole: req.auth.role,
   });
@@ -117,7 +122,7 @@ fundRequestRouter.post(
     const tenantId = await resolveTenantId();
     await cancelFundRequest({
       tenantId,
-      requestId: parseRequestId(req.params.id),
+      requestId: parseRequestId(paramId(req.params.id)),
       requesterUserId: req.auth.sub,
     });
     sendSuccess(res, { status: "cancelled" }, "Fund request cancelled");
@@ -136,7 +141,7 @@ fundRequestRouter.post(
     const tenantId = await resolveTenantId();
     const result = await approveFundRequest({
       tenantId,
-      requestId: parseRequestId(req.params.id),
+      requestId: parseRequestId(paramId(req.params.id)),
       adminId: req.auth.sub,
       creditAmount: body.creditAmount ? parseRupeeAmount(body.creditAmount) : undefined,
       note: body.note,
@@ -175,7 +180,7 @@ fundRequestRouter.post(
     const tenantId = await resolveTenantId();
     await rejectFundRequest({
       tenantId,
-      requestId: parseRequestId(req.params.id),
+      requestId: parseRequestId(paramId(req.params.id)),
       adminId: req.auth.sub,
       reasonCode: body.reasonCode,
       remarks: body.remarks,

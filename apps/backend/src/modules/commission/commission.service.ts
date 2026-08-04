@@ -457,6 +457,10 @@ export async function createCommissionRule(adminId: string, input: CommissionRul
     })
     .returning();
 
+  if (!created) {
+    throw new HttpError(500, "Failed to create commission rule", "RULE_CREATE_FAILED");
+  }
+
   await insertAuditLog({
     userId: adminId,
     action: "admin.commission_rule_create",

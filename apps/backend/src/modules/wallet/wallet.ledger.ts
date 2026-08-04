@@ -98,34 +98,44 @@ const BBPS_CATEGORY = "BILL_PAYMENT_BBPS";
  * Deliberately NOT "the single active tenant": `npm run verify:ledger` leaves a LEDGERTEST
  * tenant behind, so that rule would fail every money movement the first time anyone verifies
  * the engine. Naming the tenant is the boring, correct answer until the rows carry their own.
+ *
+ * Env override: `LEDGER_TENANT_CODE` (default `ASANPAY`). DB-backed tests set this to
+ * `LEDGERTEST` so suite journals never land in production's tenant. Read on every resolve
+ * (not a module-load const) so tests can set the env before posting.
  */
-const LEGACY_TENANT_CODE = "ASANPAY";
+export function legacyTenantCode(): string {
+  return process.env.LEDGER_TENANT_CODE?.trim() || "ASANPAY";
+}
 
 let cachedTenantId: string | null = null;
+let cachedTenantCode: string | null = null;
 
 async function currentTenantId(tx: Tx): Promise<string> {
-  if (cachedTenantId) return cachedTenantId;
+  const code = legacyTenantCode();
+  if (cachedTenantId && cachedTenantCode === code) return cachedTenantId;
 
   const [row] = await tx
     .select({ id: tenants.id, isActive: tenants.isActive })
     .from(tenants)
-    .where(eq(tenants.code, LEGACY_TENANT_CODE))
+    .where(eq(tenants.code, code))
     .limit(1);
 
   if (!row) {
-    throw new HttpError(500, `Tenant ${LEGACY_TENANT_CODE} does not exist`, "TENANT_NOT_FOUND");
+    throw new HttpError(500, `Tenant ${code} does not exist`, "TENANT_NOT_FOUND");
   }
   if (!row.isActive) {
-    throw new HttpError(500, `Tenant ${LEGACY_TENANT_CODE} is inactive`, "TENANT_INACTIVE");
+    throw new HttpError(500, `Tenant ${code} is inactive`, "TENANT_INACTIVE");
   }
 
   cachedTenantId = row.id;
+  cachedTenantCode = code;
   return cachedTenantId;
 }
 
 /** Only for tests and scripts that create a tenant after this module has been imported. */
 export function clearTenantCache(): void {
   cachedTenantId = null;
+  cachedTenantCode = null;
 }
 
 interface WalletSide {
@@ -246,7 +256,11 @@ interface MirrorResult {
  * ascending account id order, so the global lock order across both tables is fixed and two
  * concurrent journals over the same pair of agents cannot deadlock.
  */
-async function mirrorBalances(
+/**
+ * Exported for the DB-backed test world: fixtures fund agents through journals then re-sync
+ * the `wallets.balance` mirror. Production money paths call this only from inside journal posts.
+ */
+export async function mirrorBalances(
   tx: Tx,
   tenantId: string,
   userIds: readonly string[],

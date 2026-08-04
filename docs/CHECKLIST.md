@@ -77,8 +77,10 @@
       (`main` = balance − settleable, `aeps` = settleable). Signatures unchanged, 15 call sites
 - [x] `verify:ledger` 10/10 — engine only, does NOT cover `wallet.ledger.ts`
 - [ ] **Live proof of the shim** — no money has moved through the new path in production yet
-- [ ] **DB-backed test suite broken by the cut-over** — see `docs/PROMPTS/post-cutover-next.md`
-- [ ] Step 16 load test re-run against the ledger (`walletConcurrencyLoad.test.ts` fixture is invalid)
+- [x] **DB-backed test suite repaired for cut-over** — `setBalance` via journals + `mirrorBalances`;
+  `destroy` soft-retires users (accounts.user_id RESTRICT); `LEDGER_TENANT_CODE` / LEDGERTEST isolation
+- [x] Backend `tsc` build gate fixes (commission rule create; fund-request `paramId` for Express 5)
+- [ ] Step 16 load test re-run against the ledger (`walletConcurrencyLoad.test.ts` — after suite runs on real Postgres)
 - [ ] `COMMISSION_INCOME` drifts negative — service journal never books `customer_fee`
 - [ ] Maker-checker beyond allocation (fund approval threshold, beneficiary, provider, RECON_ADJUSTMENT)
 
@@ -103,6 +105,7 @@
 - [ ] History purge for any secrets ever pushed to remote
 
 ## Last updated
+2026-08-04 — Post cut-over §1+§3: test world journals/LEDGERTEST + soft destroy; tsc (commission, fund-request paramId)
 2026-08-04 — Ledger section added; cut-over verified shipped. Found: DB-backed test suite is broken by the mirror (fixtures write `wallets.balance` directly) — see `docs/PROMPTS/post-cutover-next.md`
 2026-08-04 — InstantPay Bio-KYC web/mobile + RD `wadh`; mobile Register Outlet modal
 2026-08-03 — Wallet leftovers: tenant settings UI, settlement OTP/charges/returned, VAN adapters, load-test 500, logs schema stub
