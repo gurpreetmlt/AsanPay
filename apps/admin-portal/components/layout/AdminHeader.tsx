@@ -42,7 +42,10 @@ const QUICK_ROUTES = [
   { q: "service charge", href: "/service-charges", label: "Service charges" },
   { q: "customer fee", href: "/service-charges", label: "Service charges" },
   { q: "site", href: "/site-control", label: "Service Badges" },
-  { q: "platform", href: "/treasury-settings", label: "Treasury Settings" },
+  { q: "platform", href: "/platform-settings", label: "Platform Settings" },
+  { q: "care", href: "/platform-settings", label: "Platform Settings" },
+  { q: "nodal", href: "/platform-settings", label: "Platform Settings" },
+  { q: "whatsapp", href: "/platform-settings", label: "Platform Settings" },
   { q: "treasury", href: "/treasury-settings", label: "Treasury Settings" },
   { q: "dual", href: "/treasury-settings", label: "Treasury Settings" },
 ];

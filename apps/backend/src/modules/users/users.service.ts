@@ -31,6 +31,7 @@ export interface UplineView {
   id: string;
   name: string;
   mobile: string;
+  email: string | null;
   role: string;
 }
 
@@ -171,7 +172,13 @@ export async function getNetwork(actorId: string, actorRole: UserRole): Promise<
     const [actor] = await db.select({ parentId: users.parentId }).from(users).where(eq(users.id, actorId)).limit(1);
     if (actor?.parentId) {
       const [parent] = await db
-        .select({ id: users.id, name: users.name, mobile: users.mobile, role: users.role })
+        .select({
+          id: users.id,
+          name: users.name,
+          mobile: users.mobile,
+          email: users.email,
+          role: users.role,
+        })
         .from(users)
         .where(eq(users.id, actor.parentId))
         .limit(1);

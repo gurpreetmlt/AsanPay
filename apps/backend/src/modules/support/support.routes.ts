@@ -26,6 +26,14 @@ supportRouter.get("/mine", requireAuth, async (req, res) => {
   sendSuccess(res, await listMyTickets(req.auth.sub));
 });
 
+/** Platform care contacts (admin-managed) for agent Support page. */
+supportRouter.get("/contacts", requireAuth, async (_req, res) => {
+  const { getSupportContacts } = await import("../tenants/tenantSettings.service");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const tenantId = await resolveTenantId();
+  sendSuccess(res, await getSupportContacts(tenantId));
+});
+
 supportRouter.get("/", requireAuth, requireRole("admin"), async (req, res) => {
   const status = req.query.status as "open" | "resolved" | undefined;
   sendSuccess(res, await listAllTickets(status));

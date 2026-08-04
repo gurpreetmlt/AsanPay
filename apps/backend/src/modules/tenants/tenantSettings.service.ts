@@ -9,11 +9,33 @@ export interface TenantSettings {
   fundApproveDualRupees?: number;
   /** Flat settlement fee deducted from each withdrawal (rupees). */
   settlementChargeRupees?: number;
+  /** Platform care contacts — admin Platform Settings; shown on agent Support page. */
+  supportPhone?: string;
+  supportEmail?: string;
+  /** Digits for wa.me (e.g. 9198xxxxxxxx). */
+  supportWhatsapp?: string;
+  nodalEmail?: string;
+  nodalPhone?: string;
+  nodalAddress?: string;
 }
+
+export type SupportContacts = {
+  supportPhone: string;
+  supportEmail: string;
+  supportWhatsapp: string;
+  nodalEmail: string;
+  nodalPhone: string;
+  nodalAddress: string;
+};
 
 function asSettings(raw: unknown): TenantSettings {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
   return raw as TenantSettings;
+}
+
+function strField(v: unknown, max: number): string {
+  if (typeof v !== "string") return "";
+  return v.trim().slice(0, max);
 }
 
 function mergeWithDefaults(s: TenantSettings): Required<TenantSettings> {
@@ -26,6 +48,12 @@ function mergeWithDefaults(s: TenantSettings): Required<TenantSettings> {
       typeof s.settlementChargeRupees === "number" && s.settlementChargeRupees >= 0
         ? Math.floor(s.settlementChargeRupees)
         : 0,
+    supportPhone: strField(s.supportPhone, 40),
+    supportEmail: strField(s.supportEmail, 150),
+    supportWhatsapp: strField(s.supportWhatsapp, 20).replace(/\D/g, "").slice(0, 20),
+    nodalEmail: strField(s.nodalEmail, 150),
+    nodalPhone: strField(s.nodalPhone, 40),
+    nodalAddress: strField(s.nodalAddress, 500),
   };
 }
 
@@ -36,6 +64,19 @@ export async function getTenantSettings(tenantId: string): Promise<Required<Tena
     .where(eq(tenants.id, tenantId))
     .limit(1);
   return mergeWithDefaults(asSettings(row?.settings));
+}
+
+/** Care fields only — safe for any authenticated agent on Support page. */
+export async function getSupportContacts(tenantId: string): Promise<SupportContacts> {
+  const s = await getTenantSettings(tenantId);
+  return {
+    supportPhone: s.supportPhone,
+    supportEmail: s.supportEmail,
+    supportWhatsapp: s.supportWhatsapp,
+    nodalEmail: s.nodalEmail,
+    nodalPhone: s.nodalPhone,
+    nodalAddress: s.nodalAddress,
+  };
 }
 
 export async function patchTenantSettings(
@@ -62,6 +103,16 @@ export async function patchTenantSettings(
       );
     }
   }
+  if (patch.supportEmail !== undefined && patch.supportEmail.trim() !== "") {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(patch.supportEmail.trim())) {
+      throw new HttpError(422, "Enter a valid support email address", "INVALID_SUPPORT_EMAIL");
+    }
+  }
+  if (patch.nodalEmail !== undefined && patch.nodalEmail.trim() !== "") {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(patch.nodalEmail.trim())) {
+      throw new HttpError(422, "Enter a valid nodal officer email address", "INVALID_NODAL_EMAIL");
+    }
+  }
 
   return db.transaction(async (tx) => {
     const [row] = await tx
@@ -73,14 +124,23 @@ export async function patchTenantSettings(
 
     if (!row) throw new HttpError(404, "Tenant not found", "TENANT_NOT_FOUND");
 
+    const prev = asSettings(row.settings);
     const merged: TenantSettings = {
-      ...asSettings(row.settings),
+      ...prev,
       ...(patch.fundApproveDualRupees !== undefined
         ? { fundApproveDualRupees: Math.floor(Number(patch.fundApproveDualRupees)) }
         : {}),
       ...(patch.settlementChargeRupees !== undefined
         ? { settlementChargeRupees: Math.floor(Number(patch.settlementChargeRupees)) }
         : {}),
+      ...(patch.supportPhone !== undefined ? { supportPhone: strField(patch.supportPhone, 40) } : {}),
+      ...(patch.supportEmail !== undefined ? { supportEmail: strField(patch.supportEmail, 150) } : {}),
+      ...(patch.supportWhatsapp !== undefined
+        ? { supportWhatsapp: strField(patch.supportWhatsapp, 20).replace(/\D/g, "").slice(0, 20) }
+        : {}),
+      ...(patch.nodalEmail !== undefined ? { nodalEmail: strField(patch.nodalEmail, 150) } : {}),
+      ...(patch.nodalPhone !== undefined ? { nodalPhone: strField(patch.nodalPhone, 40) } : {}),
+      ...(patch.nodalAddress !== undefined ? { nodalAddress: strField(patch.nodalAddress, 500) } : {}),
     };
 
     await tx

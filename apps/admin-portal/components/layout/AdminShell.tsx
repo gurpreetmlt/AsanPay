@@ -73,6 +73,7 @@ const SITE_CONTROL: NavItem[] = [
     label: "Platform Control",
     icon: { lib: "fa", name: "FaGlobe" },
     children: [
+      { href: "/platform-settings", label: "Platform Settings", icon: { lib: "lucide", icon: Settings } },
       { href: "/site-control", label: "Service Badges", icon: { lib: "lucide", icon: Tags } },
       { href: "/commission", label: "Commissions", icon: { lib: "lucide", icon: Percent } },
       { href: "/service-charges", label: "Service charges", icon: { lib: "lucide", icon: IndianRupee } },

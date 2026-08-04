@@ -501,6 +501,12 @@ adminRouter.patch("/tenant-settings", async (req, res) => {
     .object({
       fundApproveDualRupees: z.coerce.number().int().positive().max(1_000_000_000).optional(),
       settlementChargeRupees: z.coerce.number().int().min(0).max(10_000).optional(),
+      supportPhone: z.string().max(40).optional(),
+      supportEmail: z.string().max(150).optional(),
+      supportWhatsapp: z.string().max(20).optional(),
+      nodalEmail: z.string().max(150).optional(),
+      nodalPhone: z.string().max(40).optional(),
+      nodalAddress: z.string().max(500).optional(),
     })
     .parse(req.body);
   const { patchTenantSettings } = await import("../tenants/tenantSettings.service");
