@@ -5,8 +5,8 @@ B2B agent fintech platform — AEPS, DMT, BBPS, recharge.
 ## Architecture
 
 ```
-Admin (separate URL)     →  apps/admin-web       :3000
-Agent portal (single login) → apps/web           :3001
+Admin (separate URL)     →  apps/admin-portal       :3000
+Agent portal (single login) → apps/agent-portal           :3001
                               Super Distributor, Distributor, Retailer
 Mobile (Android, AsanPay) → apps/mobile (@asanpay/mobile)
 Backend API                →  apps/backend        :4000

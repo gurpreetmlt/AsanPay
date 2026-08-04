@@ -54,10 +54,10 @@ Koi Build Variable nahi — backend Next.js nahi hai.
 
 | | |
 |---|---|
-| Dockerfile Location | `/apps/admin-web/Dockerfile` |
+| Dockerfile Location | `/apps/admin-portal/Dockerfile` |
 | Port | `3000` |
 | Domain | `https://admin.asanpay.in` |
-| Watch Paths | `apps/admin-web/**`<br>`packages/**` |
+| Watch Paths | `apps/admin-portal/**`<br>`packages/**` |
 
 ```
 NEXT_PUBLIC_API_URL=https://api.asanpay.in/api
@@ -77,10 +77,10 @@ HOST=0.0.0.0
 
 | | |
 |---|---|
-| Dockerfile Location | `/apps/web/Dockerfile` |
+| Dockerfile Location | `/apps/agent-portal/Dockerfile` |
 | Port | `3001` ← Dockerfile mein 3001 hai par deploy 3000 par hua hai, mat badalna |
 | Domain | `https://dev.asanpay.in` |
-| Watch Paths | `apps/web/**`<br>`packages/**` |
+| Watch Paths | `apps/agent-portal/**`<br>`packages/**` |
 
 ```
 NEXT_PUBLIC_API_URL=https://api.asanpay.in/api

@@ -28,8 +28,8 @@ AI editor token bachane ke liye **poori repo mat padho**. Sirf is file + relevan
 ```
 Frontend/            Public marketing site (:3002) — Log in / Sign up → Agent Web
 apps/
-  admin-web/         Admin panel (:3000) — admin role only
-  web/               Agent portal (:3001) — super dist, dist, retailer
+  admin-portal/         Admin panel (:3000) — admin role only
+  agent-portal/               Agent portal (:3001) — super dist, dist, retailer
   backend/           Express API (:4000) — Postgres only (Neon in prod)
   asanpay-mobile-app/ AsanPay Android app (pkg @asanpay/mobile)
 packages/
@@ -39,10 +39,10 @@ packages/
 
 ### Portal decision (4 Aug 2026)
 
-**Two portals, permanently.** Admin stays its own app (`apps/admin-web`) — it holds fund
+**Two portals, permanently.** Admin stays its own app (`apps/admin-portal`) — it holds fund
 approval, allocation, recon adjustment and agent-block controls, and those must never be
 reachable from an agent's browser. All three agent roles (SD / Distributor / Retailer) share
-**one** `apps/web`, rendered by role. They overlap ~80% (wallet, network, transactions,
+**one** `apps/agent-portal`, rendered by role. They overlap ~80% (wallet, network, transactions,
 settlements, passbook, support); splitting them is what left `partner-web` and `retailer-web`
 as 54 MB of abandoned duplicates. Role separation is enforced server-side (`requireAuth`
 re-reads role + `isActive` from the DB on every request), not by shipping separate bundles.
@@ -75,8 +75,8 @@ The tag is pushed to origin, so it survives regardless of branch state.
 | Auth service | `apps/backend/src/modules/auth/auth.service.ts` |
 | Auth routes | `apps/backend/src/modules/auth/auth.routes.ts` |
 | User schema | `apps/backend/src/db/postgres/schema/users.ts` |
-| Agent web login | `apps/web/app/login/page.tsx` |
-| Admin login | `apps/admin-web/app/login/page.tsx` |
+| Agent web login | `apps/agent-portal/app/login/page.tsx` |
+| Admin login | `apps/admin-portal/app/login/page.tsx` |
 | Mobile login | `apps/asanpay-mobile-app/src/screens/LoginScreen.tsx` |
 | Shared types | `packages/shared-types/index.ts` |
 
@@ -91,7 +91,7 @@ The tag is pushed to origin, so it survives regardless of branch state.
 7. **Task done** → `docs/CHECKLIST.md` update karo; next task same chat OK — naya chat sirf jab required ho (L/XL split, bloated context)
 8. **MCP default off** — browser / Figma / Datadog / etc. sirf jab task ya user explicitly maange; exploratory MCP mat. Details: [`docs/AGENT_PLAN.md`](docs/AGENT_PLAN.md#mcp-rule-same-token-discipline-as-code-tools)
 9. **No AI git attribution** — kabhi mat likho `Co-authored-by: Cursor|Claude|Anthropic`, `cursoragent@cursor.com`, `Made-with: Cursor`. Details: [`docs/AGENT_PLAN.md`](docs/AGENT_PLAN.md)
-10. **InstantPay parity rule** — koi bhi InstantPay-backed service tab tak complete mat maano jab tak `apps/web` aur `apps/asanpay-mobile-app` dono mein entrypoint + usable flow na ho, ya doc mein explicit platform exception likhi ho. Audit note: [`InstantPay/PARITY.md`](InstantPay/PARITY.md)
+10. **InstantPay parity rule** — koi bhi InstantPay-backed service tab tak complete mat maano jab tak `apps/agent-portal` aur `apps/asanpay-mobile-app` dono mein entrypoint + usable flow na ho, ya doc mein explicit platform exception likhi ho. Audit note: [`InstantPay/PARITY.md`](InstantPay/PARITY.md)
 
 ## Terminal (Mac only — agent shell mat)
 

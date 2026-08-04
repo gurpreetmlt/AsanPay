@@ -1,5 +1,5 @@
 # AsanPay Agent Portal (web) — Next.js
-# Coolify: Build Pack = Dockerfile | Dockerfile = /apps/web/Dockerfile | Context = /
+# Coolify: Build Pack = Dockerfile | Dockerfile = /apps/agent-portal/Dockerfile | Context = /
 
 FROM node:22-bookworm-slim
 
@@ -7,9 +7,9 @@ WORKDIR /app
 
 COPY packages/shared-types ./packages/shared-types
 COPY packages/auth ./packages/auth
-COPY apps/web ./apps/web
+COPY apps/agent-portal ./apps/agent-portal
 
-WORKDIR /app/apps/web
+WORKDIR /app/apps/agent-portal
 
 # Resolve local workspace packages without full monorepo install
 RUN npm pkg set dependencies.@asanpay/shared-types="file:../../packages/shared-types" \

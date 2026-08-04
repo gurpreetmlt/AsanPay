@@ -1,14 +1,14 @@
 # AsanPay Admin Panel — Next.js
-# Coolify: Build Pack = Dockerfile | Dockerfile = /apps/admin-web/Dockerfile | Context = /
+# Coolify: Build Pack = Dockerfile | Dockerfile = /apps/admin-portal/Dockerfile | Context = /
 
 FROM node:22-bookworm-slim
 
 WORKDIR /app
 
 COPY packages/shared-types ./packages/shared-types
-COPY apps/admin-web ./apps/admin-web
+COPY apps/admin-portal ./apps/admin-portal
 
-WORKDIR /app/apps/admin-web
+WORKDIR /app/apps/admin-portal
 
 # Coolify may inject NODE_ENV=production at build time, which skips devDeps.
 # Force install of build tools (typescript, etc.) regardless of Coolify env.
