@@ -44,7 +44,7 @@ export interface ExecuteTxnInput {
 }
 
 /** Wallet charge for a debit: principal + customer fee (rupees). */
-export function serviceChargeTotal(principal: string, customerFee?: string | null): string {
+function serviceChargeTotal(principal: string, customerFee?: string | null): string {
   const feePaise = customerFee ? toPaise(customerFee) : 0;
   if (feePaise < 0) throw new HttpError(422, "Customer fee cannot be negative", "INVALID_CUSTOMER_FEE");
   return fromPaise(toPaise(principal) + feePaise);

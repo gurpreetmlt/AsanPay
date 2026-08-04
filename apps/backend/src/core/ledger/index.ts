@@ -1,6 +1,6 @@
 // The ledger engine's public surface. Feature modules import from here and nowhere deeper —
 // in particular they must never import db/postgres/schema/ledger.ts directly.
-export { postJournal, reverseJournal, deriveBalance, findJournalByIdemKey } from "./postJournal";
+export { postJournal, reverseJournal, findJournalByIdemKey } from "./postJournal";
 export type { PostJournalInput, JournalEntryInput, PostedJournal } from "./postJournal";
 export {
   resolveAccount,

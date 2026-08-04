@@ -474,20 +474,3 @@ export async function findJournalByIdemKey(
 
   return row ?? null;
 }
-
-/** Ledger truth for one account, recomputed from entries. Used by reconciliation. */
-export async function deriveBalance(tx: Tx, accountId: bigint): Promise<bigint> {
-  const [row] = await tx
-    .select({
-      derived: sql<string>`COALESCE(SUM(
-        CASE WHEN ${accounts.accountClass} IN ('asset','expense')
-             THEN CASE WHEN ${ledgerEntries.direction} = 'DR' THEN ${ledgerEntries.amount} ELSE -${ledgerEntries.amount} END
-             ELSE CASE WHEN ${ledgerEntries.direction} = 'CR' THEN ${ledgerEntries.amount} ELSE -${ledgerEntries.amount} END
-        END), 0)`,
-    })
-    .from(ledgerEntries)
-    .innerJoin(accounts, eq(accounts.id, ledgerEntries.accountId))
-    .where(eq(ledgerEntries.accountId, accountId));
-
-  return BigInt(row?.derived ?? "0");
-}
