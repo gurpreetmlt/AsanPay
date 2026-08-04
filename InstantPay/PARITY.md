@@ -18,7 +18,7 @@ Koi bhi InstantPay-backed service tab tak complete nahi hai jab tak:
 | AePS | Yes | Partial | Strong | Web flow biometric capture-first hai; mobile deeper transactional path pe hai. |
 | DMT / Money Transfer | Yes | Strong | Partial | Mobile screen abhi simplified hai; remitter/profile/beneficiary parity pending. |
 | Nepal Remittance | Yes | Strong | Strong | Web + mobile dono mein outlet, remitter, beneficiary, quote, transfer, status available. |
-| InstantPay Merchant Onboarding | Yes | Missing dedicated UI | Missing dedicated UI | Backend APIs ready; client UX pending on both platforms. |
+| InstantPay Merchant Onboarding | Yes | Min-KYC + Bio-KYC | Min-KYC + Bio-KYC | Account / Settings entrypoints; RD `wadh` on capture |
 | UPI Cash Point | No confirmed InstantPay backend rail | Mock | Mock | Catalog/UI only; backend contract confirm hone tak InstantPay parity item na maano. |
 
 ## Audit checklist

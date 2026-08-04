@@ -23,6 +23,8 @@ import type { LoginRoleChip } from "../LoginScreen";
 import { SupportModal } from "./SupportModal";
 import { SettlementsModal } from "./SettlementsModal";
 import { FundRequestModal } from "./FundRequestScreen";
+import { RegisterOutletModal } from "./RegisterOutletModal";
+import { BioKycModal } from "./BioKycModal";
 
 const THEME_OPTIONS: { key: ThemeMode; label: string; icon: typeof Sun }[] = [
   { key: "light", label: "Light", icon: Sun },
@@ -42,6 +44,8 @@ export function AccountScreen() {
   const [showSupport, setShowSupport] = useState(false);
   const [showSettlements, setShowSettlements] = useState(false);
   const [showFund, setShowFund] = useState(false);
+  const [showRegisterOutlet, setShowRegisterOutlet] = useState(false);
+  const [showBioKyc, setShowBioKyc] = useState(false);
 
   useEffect(() => {
     void getBioUnlock().then((rec) => {
@@ -194,6 +198,24 @@ export function AccountScreen() {
             <ChevronRight size={18} color={tokens.mute} />
           </Pressable>
         ) : null}
+        {user.role === "retailer" && !user.hasInstantpayOutlet ? (
+          <Pressable
+            style={[styles.menuItem, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
+            onPress={() => setShowRegisterOutlet(true)}
+          >
+            <Text style={[styles.menuText, { color: tokens.txt }]}>Register InstantPay outlet</Text>
+            <ChevronRight size={18} color={tokens.mute} />
+          </Pressable>
+        ) : null}
+        {user.role === "retailer" && user.hasInstantpayOutlet ? (
+          <Pressable
+            style={[styles.menuItem, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
+            onPress={() => setShowBioKyc(true)}
+          >
+            <Text style={[styles.menuText, { color: tokens.txt }]}>Outlet biometric KYC</Text>
+            <ChevronRight size={18} color={tokens.mute} />
+          </Pressable>
+        ) : null}
         <Pressable
           style={[styles.menuItem, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
           onPress={() => setShowSupport(true)}
@@ -230,6 +252,8 @@ export function AccountScreen() {
       <SupportModal visible={showSupport} onClose={() => setShowSupport(false)} />
       <SettlementsModal visible={showSettlements} onClose={() => setShowSettlements(false)} />
       <FundRequestModal visible={showFund} onClose={() => setShowFund(false)} />
+      <RegisterOutletModal visible={showRegisterOutlet} onClose={() => setShowRegisterOutlet(false)} />
+      <BioKycModal visible={showBioKyc} onClose={() => setShowBioKyc(false)} />
     </SafeAreaView>
   );
 }

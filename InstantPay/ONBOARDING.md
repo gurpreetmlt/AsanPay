@@ -3,8 +3,8 @@
 > Ek jagah full picture: merchant (retailer outlet) InstantPay pe kaise onboard hota hai, kya done hai, kya pending hai, aur provider se kya-kya chahiye. Kisi bhi agent/chat me onboarding pe kaam shuru karne se pehle YE padho. AEPS rails ke liye alag doc: [`AEPS.md`](AEPS.md).
 
 **Provider:** InstantPay (Customer/Outlet Onboarding — eKYC)
-**Status:** Backend wired. **Product decision (2026-07-20):** retailer primary onboarding = InstantPay Register Outlet (not Adhikari `/kyc`). Web Min-KYC UI: `/onboarding/outlet`. Mobile Min-KYC: signup **Outlet Details** step → `POST /onboarding/instantpay`. Bio-KYC UI (`wadh`) still pending.
-**Last updated:** 2026-07-20
+**Status:** Backend wired. **Product decision (2026-07-20):** retailer primary onboarding = InstantPay Register Outlet (not Adhikari `/kyc`). Web Min-KYC UI: `/onboarding/outlet`. Web Bio-KYC: `/onboarding/bio-kyc` (RD capture with `wadh`). Mobile: Account → Register outlet + Biometric KYC modals.
+**Last updated:** 2026-08-04
 
 ---
 
@@ -43,7 +43,7 @@ Har row: humara backend endpoint → InstantPay endpoint. Sab `AEPS_PROVIDER_MOD
 | 1 | Signup Min-KYC | `POST /api/onboarding/instantpay` | `POST /user/outlet/signup/minKyc` | retailer | ✅ Done |
 | 2 | Onboarding status (local) | `GET /api/onboarding/instantpay/status` | — (local DB) | retailer | ✅ Done |
 | 3 | Biometric eKYC status | `POST /api/onboarding/instantpay/bio-kyc-status` | `POST /user/outlet/signup/biometricKycStatus` | retailer | ✅ Done |
-| 4 | Biometric KYC submit | `POST /api/onboarding/instantpay/bio-kyc` | `POST /user/outlet/signup/biometricKyc` | retailer | ✅ Backend done (client `wadh` capture baaki) |
+| 4 | Biometric KYC submit | `POST /api/onboarding/instantpay/bio-kyc` | `POST /user/outlet/signup/biometricKyc` | retailer | ✅ Web + mobile UI (RD `wadh`) |
 | 5 | Mobile change initiate | `POST /api/onboarding/instantpay/mobile-change` | `POST /user/outlet/v2/mobileUpdate` | retailer | ✅ Done |
 | 6 | Mobile change verify | `POST /api/onboarding/instantpay/mobile-change/verify` | `POST /user/outlet/v2/mobileUpdateVerify` | retailer | ✅ Done |
 | 7 | Merchant list | `POST /api/onboarding/instantpay/merchants` | `POST /user/outlet/list` | admin | ✅ Done |

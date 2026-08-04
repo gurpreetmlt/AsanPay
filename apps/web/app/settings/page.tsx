@@ -420,31 +420,79 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 </div>
+                {user?.role === "retailer" && user.hasInstantpayOutlet !== true ? (
+                  <button
+                    type="button"
+                    onClick={() => router.push("/onboarding/outlet")}
+                    className="flex w-full items-center justify-between rounded-2xl border-2 p-4 transition-all hover:shadow-md"
+                    style={{ borderColor: B.blueLight, background: `${B.blue}06` }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="flex h-10 w-10 items-center justify-center rounded-xl"
+                        style={{ background: B.badgeGrad }}
+                      >
+                        <FileText size={18} className="text-white" />
+                      </div>
+                      <div className="text-left">
+                        <div className="text-sm font-bold" style={{ color: B.blue }}>
+                          Register outlet
+                        </div>
+                        <div className="text-xs" style={{ color: B.muted }}>
+                          InstantPay Min-KYC — name, PAN, Aadhaar, shop geo
+                        </div>
+                      </div>
+                    </div>
+                    <ArrowRight size={16} style={{ color: B.blueLight }} />
+                  </button>
+                ) : null}
+
+                {user?.role === "retailer" && user.hasInstantpayOutlet === true ? (
+                  <button
+                    type="button"
+                    onClick={() => router.push("/onboarding/bio-kyc")}
+                    className="flex w-full items-center justify-between rounded-2xl border-2 p-4 transition-all hover:shadow-md"
+                    style={{ borderColor: B.blueLight, background: `${B.blue}06` }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="flex h-10 w-10 items-center justify-center rounded-xl"
+                        style={{ background: B.badgeGrad }}
+                      >
+                        <Shield size={18} className="text-white" />
+                      </div>
+                      <div className="text-left">
+                        <div className="text-sm font-bold" style={{ color: B.blue }}>
+                          Biometric KYC
+                        </div>
+                        <div className="text-xs" style={{ color: B.muted }}>
+                          Fingerprint eKYC for AePS / DMT rails
+                        </div>
+                      </div>
+                    </div>
+                    <ArrowRight size={16} style={{ color: B.blueLight }} />
+                  </button>
+                ) : null}
+
                 <button
                   type="button"
-                  onClick={() =>
-                    router.push(
-                      user?.role === "retailer" && user.hasInstantpayOutlet !== true
-                        ? "/onboarding/outlet"
-                        : "/kyc",
-                    )
-                  }
+                  onClick={() => router.push("/kyc")}
                   className="flex w-full items-center justify-between rounded-2xl border-2 p-4 transition-all hover:shadow-md"
-                  style={{ borderColor: B.blueLight, background: `${B.blue}06` }}
+                  style={{ borderColor: B.border, background: "#fff" }}
                 >
                   <div className="flex items-center gap-3">
                     <div
                       className="flex h-10 w-10 items-center justify-center rounded-xl"
-                      style={{ background: B.badgeGrad }}
+                      style={{ background: `${B.blue}12` }}
                     >
-                      <FileText size={18} className="text-white" />
+                      <FileText size={18} style={{ color: B.blue }} />
                     </div>
                     <div className="text-left">
                       <div className="text-sm font-bold" style={{ color: B.blue }}>
-                        Register Now
+                        Platform KYC docs
                       </div>
                       <div className="text-xs" style={{ color: B.muted }}>
-                        Go live in minutes — InstantPay outlet verification
+                        Upload / resubmit AsanPay KYC documents
                       </div>
                     </div>
                   </div>

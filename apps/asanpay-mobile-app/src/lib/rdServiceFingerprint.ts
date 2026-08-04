@@ -18,12 +18,29 @@ const RdService = NativeModules.RdService as RdServiceNative | undefined;
 
 let lastProbeLog: string[] = [];
 
+/** Transaction OTP and InstantPay bio-KYC `wadh` ride inside PidOptions Opts. */
+export type FingerprintCaptureOptions = {
+  otp?: string;
+  /** InstantPay bio-KYC status `pidOptionWadh` — required for merchant eKYC capture. */
+  wadh?: string;
+};
+
+export function normalizeFingerprintOpts(
+  arg?: string | FingerprintCaptureOptions,
+): FingerprintCaptureOptions {
+  if (typeof arg === "string") return { otp: arg };
+  return arg ?? {};
+}
+
 // L1 RD services (Morpho/IDEMIA, Mantra MFS110) need fType="2" and reject extra blocks
 // like <Demo> — strict parsers fail silently and capture never starts (no sensor light).
 // otp: Transaction OTP for ₹5,000+ AEPS withdrawals — RD embeds it in the PID block.
-function buildPidOptionsXml(timeoutMs: number, otp?: string): string {
-  const otpAttr = otp ? ` otp="${otp}"` : "";
-  return `<PidOptions ver="1.0"><Opts fCount="1" fType="2" iCount="0" iType="0" pCount="0" pType="0" format="0" pidVer="2.0" timeout="${timeoutMs}"${otpAttr} posh="UNKNOWN" env="P"/></PidOptions>`;
+// wadh: InstantPay merchant bio-KYC — must match status API pidOptionWadh.
+function buildPidOptionsXml(timeoutMs: number, opts: FingerprintCaptureOptions = {}): string {
+  const otp = opts.otp?.trim();
+  const wadh = opts.wadh?.trim().replace(/"/g, "");
+  const extra = `${otp ? ` otp="${otp}"` : ""}${wadh ? ` wadh="${wadh}"` : ""}`;
+  return `<PidOptions ver="1.0"><Opts fCount="1" fType="2" iCount="0" iType="0" pCount="0" pType="0" format="0" pidVer="2.0" timeout="${timeoutMs}"${extra} posh="UNKNOWN" env="P"/></PidOptions>`;
 }
 
 export function getRdServiceProbeLog(): string {
@@ -52,7 +69,10 @@ export async function listInstalledRdPackages(): Promise<string[]> {
   }
 }
 
-export async function captureFingerprint(rdPackage = DEFAULT_RD_PACKAGE, otp?: string): Promise<string> {
+export async function captureFingerprint(
+  rdPackage = DEFAULT_RD_PACKAGE,
+  otpOrOpts?: string | FingerprintCaptureOptions,
+): Promise<string> {
   if (Platform.OS !== "android") {
     throw new Error("Biometric capture is only supported on Android");
   }
@@ -61,6 +81,7 @@ export async function captureFingerprint(rdPackage = DEFAULT_RD_PACKAGE, otp?: s
   }
 
   lastProbeLog = [];
+  const captureOpts = normalizeFingerprintOpts(otpOrOpts);
 
   let installed: string[] = [];
   try {
@@ -82,8 +103,10 @@ export async function captureFingerprint(rdPackage = DEFAULT_RD_PACKAGE, otp?: s
     );
   }
 
-  const pidOptions = buildPidOptionsXml(CAPTURE_TIMEOUT_MS, otp);
-  lastProbeLog.push(`Capture intent preferred=${rdPackage}`);
+  const pidOptions = buildPidOptionsXml(CAPTURE_TIMEOUT_MS, captureOpts);
+  lastProbeLog.push(
+    `Capture intent preferred=${rdPackage}${captureOpts.wadh ? " wadh=yes" : ""}`,
+  );
 
   try {
     const pidData = await RdService.captureFingerprint(rdPackage, pidOptions);

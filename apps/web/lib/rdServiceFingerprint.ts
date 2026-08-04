@@ -296,19 +296,33 @@ async function discoverRdEndpoint(force = false): Promise<RdEndpoint | null> {
   return null;
 }
 
-// Transaction OTP (₹5,000+ withdrawals) rides inside the PID: RD service embeds it when
-// the Opts tag carries otp="......".
-function otpAttr(otp?: string): string {
-  return otp ? ` otp="${otp}"` : "";
+/** Transaction OTP and InstantPay bio-KYC `wadh` ride inside PidOptions Opts. */
+export type FingerprintCaptureOptions = {
+  otp?: string;
+  /** InstantPay bio-KYC status `pidOptionWadh` — required for merchant eKYC capture. */
+  wadh?: string;
+};
+
+export function normalizeFingerprintOpts(
+  arg?: string | FingerprintCaptureOptions,
+): FingerprintCaptureOptions {
+  if (typeof arg === "string") return { otp: arg };
+  return arg ?? {};
 }
 
-function pidOptions(timeoutMs: number, otp?: string): string {
+function optsAttrs(opts: FingerprintCaptureOptions): string {
+  const otp = opts.otp?.trim();
+  const wadh = opts.wadh?.trim().replace(/"/g, "");
+  return `${otp ? ` otp="${otp}"` : ""}${wadh ? ` wadh="${wadh}"` : ""}`;
+}
+
+function pidOptions(timeoutMs: number, opts: FingerprintCaptureOptions): string {
   // Single Mantra L1-friendly XML (avoid multi-variant loops before light-on)
-  return `<PidOptions ver="1.0"><Opts fCount="1" fType="2" iCount="0" pCount="0" format="0" pidVer="2.0" timeout="${timeoutMs}"${otpAttr(otp)} posh="UNKNOWN" env="P"/></PidOptions>`;
+  return `<PidOptions ver="1.0"><Opts fCount="1" fType="2" iCount="0" pCount="0" format="0" pidVer="2.0" timeout="${timeoutMs}"${optsAttrs(opts)} posh="UNKNOWN" env="P"/></PidOptions>`;
 }
 
-function pidOptionsAlt(timeoutMs: number, otp?: string): string {
-  return `<PidOptions ver="1.0"><Opts fCount="1" fType="0" iCount="0" pCount="0" format="0" pidVer="2.0" timeout="${timeoutMs}"${otpAttr(otp)} posh="UNKNOWN" env="P"/></PidOptions>`;
+function pidOptionsAlt(timeoutMs: number, opts: FingerprintCaptureOptions): string {
+  return `<PidOptions ver="1.0"><Opts fCount="1" fType="0" iCount="0" pCount="0" format="0" pidVer="2.0" timeout="${timeoutMs}"${optsAttrs(opts)} posh="UNKNOWN" env="P"/></PidOptions>`;
 }
 
 function extractErr(xml: string): string | null {
@@ -348,9 +362,9 @@ async function captureOnce(
   }
 }
 
-async function captureOn(ep: RdEndpoint, otp?: string): Promise<string> {
+async function captureOn(ep: RdEndpoint, captureOpts: FingerprintCaptureOptions = {}): Promise<string> {
   const base = `${ep.scheme}://127.0.0.1:${ep.port}`;
-  const opts = pidOptions(CAPTURE_MS, otp);
+  const opts = pidOptions(CAPTURE_MS, captureOpts);
 
   // 1) Best path first — full timeout (this is when red light should turn on)
   const primary = `${base}${ep.capturePath || "/rd/capture"}`;
@@ -391,7 +405,7 @@ async function captureOn(ep: RdEndpoint, otp?: string): Promise<string> {
   // 3) Alt PidOptions only if RD said invalid options
   const needAlt = lastLog.some((l) => /invalid|100/i.test(l));
   if (needAlt) {
-    const alt = pidOptionsAlt(CAPTURE_MS, otp);
+    const alt = pidOptionsAlt(CAPTURE_MS, captureOpts);
     r = await captureOnce(primary, alt, CAPTURE_MS + 3000);
     if (r.ok) return r.xml;
     if (r.detail) throw new Error(r.detail);
@@ -420,11 +434,14 @@ export function formatRdDeviceLabel(ep: RdEndpoint): string {
   return ep.deviceName?.trim() || "Biometric device connected";
 }
 
-export async function captureFingerprintWeb(otp?: string): Promise<string> {
+export async function captureFingerprintWeb(
+  otpOrOpts?: string | FingerprintCaptureOptions,
+): Promise<string> {
   if (typeof window === "undefined") {
     throw new Error("Fingerprint capture only works in the browser");
   }
 
+  const captureOpts = normalizeFingerprintOpts(otpOrOpts);
   const ep = await discoverRdEndpoint(false);
   if (!ep) {
     throw new Error(
@@ -433,12 +450,12 @@ export async function captureFingerprintWeb(otp?: string): Promise<string> {
   }
 
   try {
-    return await captureOn(ep, otp);
+    return await captureOn(ep, captureOpts);
   } catch (first) {
     // One rescan if cache was stale
     clearCache();
     const ep2 = await discoverRdEndpoint(true);
     if (!ep2) throw first;
-    return await captureOn(ep2, otp);
+    return await captureOn(ep2, captureOpts);
   }
 }

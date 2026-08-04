@@ -224,11 +224,8 @@ export default function RegisterOutletPage() {
       const { data } = await api.get<ApiResponse<{ user: AuthUser }>>("/auth/me");
       if (data.success) setUser(data.data.user);
 
-      toast.success("Outlet registered on InstantPay");
-      const nextUser = data.success
-        ? data.data.user
-        : ({ ...user, hasInstantpayOutlet: true } as AuthUser);
-      router.replace(nextOnboardingPath(nextUser) ?? "/dashboard");
+      toast.success("Outlet registered on InstantPay — complete biometric KYC next");
+      router.replace("/onboarding/bio-kyc");
     } catch (err) {
       toast.error(extractApiError(err, "Outlet registration failed"));
     } finally {

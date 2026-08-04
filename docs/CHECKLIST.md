@@ -62,7 +62,8 @@
 - [x] Settlement bank OTP on change + penny-drop stub + charges + returned path
 - [x] VAN bank adapters (`X-Van-Bank`: generic|icici|hdfc)
 - [x] Mobile partner Reverse / pull-collect on Network
-- [ ] InstantPay DMT/BBPS rails + merchant outlet onboarding
+- [x] InstantPay merchant outlet Min-KYC + Bio-KYC (web + mobile, RD `wadh`)
+- [ ] InstantPay DMT mobile full parity + BBPS / recharge rails
 
 ## Security (2026-07-17)
 - [x] Default MPIN / OTP-in-prod / hardcoded admin seed removed
@@ -85,6 +86,7 @@
 - [ ] History purge for any secrets ever pushed to remote
 
 ## Last updated
+2026-08-04 — InstantPay Bio-KYC web/mobile + RD `wadh`; mobile Register Outlet modal
 2026-08-03 — Wallet leftovers: tenant settings UI, settlement OTP/charges/returned, VAN adapters, load-test 500, logs schema stub
 2026-08-03 — Wallet-engine finish: float mgmt, VAN assign, settlement cooling, FR dual-approve, ledger reports, ESC/POS receipt
 2026-08-03 — Admin Commission: Banking Services AEPS collapsed to 1 shared-rate row; save fans out to 4 services (task 25)
