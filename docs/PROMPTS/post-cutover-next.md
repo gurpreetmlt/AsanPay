@@ -42,7 +42,7 @@ where a.user_id is not null order by a.code, w.wallet_type;
 
 `main` must equal `(balance - settleable)/100`; `aeps` must equal `settleable/100`.
 
-## Pending
+## Pending — all cleared as of 4 Aug 2026 (kept for the record)
 
 ### 1. The DB-backed test suite is broken by the cut-over — highest priority
 
@@ -71,22 +71,28 @@ real breakage completely. Three separate problems, all in `apps/backend/test/hel
 
 Do these three together — fixing one without the others leaves the suite red.
 
-### 2. Step 16 — load test
+### 2. Step 16 — load test — DONE (4 Aug 2026)
 
-`npm run verify:load` (tsx, Coolify-safe): 500 concurrent DMT debits + 200 concurrent
-`fundWallet` on LEDGERTEST, then recon invariants. Vitest `walletConcurrencyLoad.test.ts`
-defaults to 500 (`LOAD_DEBIT_N`); production image still cannot run vitest.
+`npm run verify:load` (`scripts/verifyLedgerLoad.ts`) — **4/4 PASS** on the Coolify API
+container: 500 concurrent `service_txn` debits funded for half (exactly half fulfil, balance
+never negative), 500 funded for all (all fulfil, balance ends at 0), 200 concurrent `fundWallet`
+to a distributor, then every recon invariant clean. Runs through `transferBetweenWallets`, so it
+exercises the real three-leg service journal — a harder path than plain transfers. LEDGERTEST
+only; ASANPAY untouched. Vitest `walletConcurrencyLoad.test.ts` defaults to 500
+(`LOAD_DEBIT_N`), but the production image still cannot run vitest — hence the tsx script.
 
-### 3. `npm run build` is broken on main
+### 3. `npm run build` — watch it, it breaks silently
 
-`npx tsc -p apps/backend/tsconfig.json --noEmit` fails with 4 errors, none of them ledger-related:
+`apps/backend/Dockerfile` runs `tsx`, never `tsc`, so a type error never blocks a deploy. It has
+broken twice already:
 
-* `modules/commission/commission.service.ts:464` — `'created' is possibly 'undefined'`
-* `modules/fund-requests/fundRequest.routes.ts:120,139,178` — `string | string[] | undefined`
-  passed where `string | undefined` is expected (an Express header read that can be an array)
+* Four errors in `commission.service.ts` / `fundRequest.routes.ts` (fixed in `6281ca7`).
+* `test/helpers/world.ts` passing stale `dmtTransfer` params (fixed in `5198ce7`). That one was
+  invisible until `scripts/verifyLedgerLoad.ts` imported the test world — `tsconfig.json` only
+  includes `src/**` and `scripts/**`, so `test/**` is typechecked only when something under
+  those roots imports it.
 
-Deploys survive because `apps/backend/Dockerfile` runs `tsx`, never `tsc` — so the type gate has
-been failing silently. Fix these, then consider making the build actually run in CI.
+Run `npx tsc -p apps/backend/tsconfig.json --noEmit` before every push, or wire it into CI.
 
 ### 4. Done in this pass
 
@@ -97,11 +103,10 @@ been failing silently. Fix these, then consider making the build actually run in
 
 ### Shim verification — DONE (4 Aug 2026)
 
-`npm run verify:shim` (`scripts/verifyWalletShim.ts`) — **19/20 paths** historically greenned as 19/19
-on Coolify; after the fee three-leg check, re-run for **20/20**. Covers every legacy
-`referenceType` the shim maps: `downline_transfer`,
-`upline_pull`, `service_txn` debit (DMT / RECHARGE / BBPS-by-category / AEPS_DEPOSIT, plus
-optional customer_fee → COMMISSION_INCOME) and its
+`npm run verify:shim` (`scripts/verifyWalletShim.ts`) — **20/20 PASS** on Coolify API (2026-08-04),
+including the customer_fee three-leg case. Covers every legacy `referenceType` the shim maps:
+`downline_transfer`, `upline_pull`, `service_txn` debit (DMT / RECHARGE / BBPS-by-category /
+AEPS_DEPOSIT, plus optional customer_fee → COMMISSION_INCOME) and its
 `TXN_HAS_NO_PROVIDER` + `SERVICE_NOT_MAPPED` guards, `service_txn` credit, `reversal` (including
 `reverses_id` and the `LEGACY_REVERSAL_UNMAPPED` path), `fundWallet` (ALLOCATION then
 WALLET_TRANSFER) and `commission`. Every check re-asserts the mirror invariant and the passbook
