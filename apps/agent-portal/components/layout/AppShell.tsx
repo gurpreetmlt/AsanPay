@@ -1,11 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type ComponentType } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
-  ArrowLeftRight,
   Wallet,
   Users,
   Network,
@@ -29,8 +28,14 @@ import {
   PiggyBank,
   ListTodo,
   UserCheck,
+  Fingerprint,
+  Banknote,
+  MapPin,
+  History,
+  UserCircle,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import type { UserRole } from "@asanpay/shared-types";
 import { AsanPayLogo, AsanIcon } from "@/components/brand/Logo";
 import { fetchApi } from "@/lib/api";
 import { B, initials, roleFromUserRole } from "@/lib/brand";
@@ -38,87 +43,117 @@ import { useAuthStore } from "@/lib/store";
 import type { WalletBalance } from "@/lib/types";
 import { useOnboardingGate } from "@/lib/useOnboardingGate";
 import { formatInr, walletDisplayName } from "@/lib/walletLabels";
+import { CHILD_ROLE, ROLE_LABEL, isRetailerRole } from "@/lib/roles";
 
-const NAV_CORE = [
-  { icon: LayoutDashboard, label: "Dashboard", to: "/dashboard" },
-  { icon: ArrowLeftRight, label: "Transactions", to: "/transactions" },
-  { icon: Network, label: "Network", to: "/network" },
-  { icon: BarChart3, label: "Reports", to: "/reports" },
-  { icon: FileText, label: "Statements", to: "/statements" },
-  { icon: Settings, label: "Settings", to: "/settings" },
-  { icon: Shield, label: "KYC", to: "/kyc" },
-  { icon: LifeBuoy, label: "Support", to: "/support" },
-] as const;
+type LucideIcon = ComponentType<{ size?: number; className?: string; strokeWidth?: number }>;
 
-const NAV_CUSTOMERS = { icon: Users, label: "Customers", to: "/customers" } as const;
+type NavChild = { to: string; label: string; icon: LucideIcon; exact?: boolean };
+type NavItem =
+  | { type: "link"; to: string; label: string; icon: LucideIcon }
+  | { type: "group"; id: string; label: string; icon: LucideIcon; children: NavChild[] }
+  | { type: "action"; id: string; label: string; icon: LucideIcon };
 
-const NAV_PARTNER_TOOLS = [
-  { icon: PiggyBank, label: "Float & earnings", to: "/float-planner" },
-  { icon: ListTodo, label: "Action queue", to: "/action-queue" },
-  { icon: UserCheck, label: "KYC assistant", to: "/kyc-assistant" },
-] as const;
+function pathActive(pathname: string, to: string, exact?: boolean) {
+  if (exact) return pathname === to || pathname === `${to}/`;
+  if (to === "/dashboard") return pathname === to || pathname === `${to}/`;
+  return pathname === to || pathname.startsWith(`${to}/`);
+}
 
-/** Wallet group — Fund request / Add Money lives here (not a top-level sidebar item). */
-const WALLET_CHILDREN_RETAILER = [
-  { icon: Wallet, label: "Overview", to: "/wallet" },
-  { icon: PlusCircle, label: "Add Money", to: "/fund-request" },
-  { icon: Landmark, label: "Settlements", to: "/settlements" },
-  { icon: SendHorizonal, label: "Transfer", to: "/wallet" },
-  { icon: Download, label: "Statement", to: "/statements" },
-] as const;
+function groupActive(pathname: string, children: NavChild[]) {
+  return children.some((c) => pathActive(pathname, c.to, c.exact));
+}
 
-const WALLET_CHILDREN_PARTNER = [
-  { icon: Wallet, label: "Overview", to: "/wallet" },
-  { icon: Landmark, label: "Settlements", to: "/settlements" },
-  { icon: SendHorizonal, label: "Transfer", to: "/wallet" },
-  { icon: Download, label: "Statement", to: "/statements" },
-] as const;
+function buildAgentNav(role: UserRole | undefined): NavItem[] {
+  if (!role) return [];
 
-const WALLET_PATHS = ["/wallet", "/fund-request", "/settlements"] as const;
-
-const MOBILE_CORE = [
-  { icon: LayoutDashboard, label: "Home", to: "/dashboard" },
-  { icon: ArrowLeftRight, label: "Txns", to: "/transactions" },
-  { icon: Wallet, label: "Balance", to: "/wallet" },
-  { icon: Settings, label: "More", to: "/settings" },
-] as const;
-
-function sidebarNavForRole(role: string | undefined) {
-  // Customers = retailer only. Distributor / Super Dist use Network.
-  // Fund request / Add Money is under the Wallet dropdown (retailer only).
-  if (role === "retailer") {
+  if (isRetailerRole(role)) {
     return [
-      NAV_CORE[0], // Dashboard
-      NAV_CORE[1], // Transactions
-      NAV_CORE[2], // Network
-      NAV_CUSTOMERS,
-      NAV_CORE[3], // Reports
-      NAV_CORE[4], // Statements
-      NAV_CORE[5], // Settings
-      NAV_CORE[6], // KYC
-      NAV_CORE[7], // Support
+      {
+        type: "group",
+        id: "services",
+        label: "Services",
+        icon: LayoutDashboard,
+        children: [
+          { to: "/dashboard", label: "Services", icon: LayoutDashboard, exact: true },
+          { to: "/aeps", label: "AePS", icon: Fingerprint },
+          { to: "/dmt", label: "DMT", icon: Banknote },
+          { to: "/upi-cash-point", label: "UPI Cash Point", icon: MapPin },
+          { to: "/nepal", label: "Nepal", icon: MapPin },
+        ],
+      },
+      {
+        type: "group",
+        id: "money",
+        label: "Money",
+        icon: Wallet,
+        children: [
+          { to: "/wallet", label: "Balance", icon: Wallet, exact: true },
+          { to: "/fund-request", label: "Add Money", icon: PlusCircle },
+          { to: "/settlements", label: "Earnings & Settlement", icon: Landmark },
+          { to: "/passbook", label: "History", icon: History },
+          { to: "/statements", label: "Statements", icon: FileText },
+        ],
+      },
+      {
+        type: "group",
+        id: "business",
+        label: "Business",
+        icon: Users,
+        children: [
+          { to: "/customers", label: "Customers", icon: Users },
+          { to: "/kyc", label: "KYC", icon: Shield },
+          { to: "/reports", label: "Reports", icon: BarChart3 },
+        ],
+      },
+      { type: "link", to: "/support", label: "Support", icon: LifeBuoy },
+      { type: "link", to: "/settings", label: "Settings", icon: Settings },
+      { type: "action", id: "account", label: "Account", icon: UserCircle },
     ];
   }
+
+  const childRole = CHILD_ROLE[role];
+  const childLabel = childRole ? ROLE_LABEL[childRole] : "Agent";
+
   return [
-    NAV_CORE[0],
-    NAV_CORE[1],
-    NAV_CORE[2],
-    ...NAV_PARTNER_TOOLS,
-    NAV_CORE[3],
-    NAV_CORE[4],
-    NAV_CORE[5],
-    NAV_CORE[6],
-    NAV_CORE[7],
+    { type: "link", to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    {
+      type: "group",
+      id: "network",
+      label: "Network",
+      icon: Network,
+      children: [
+        { to: "/network", label: `My ${childLabel}s`, icon: Network },
+        { to: "/onboarding/outlet", label: `Onboard ${childLabel}`, icon: UserCheck },
+        { to: "/action-queue", label: "Action Queue", icon: ListTodo },
+        { to: "/kyc-assistant", label: "KYC Assistant", icon: Shield },
+      ],
+    },
+    {
+      type: "group",
+      id: "money",
+      label: "Money",
+      icon: Wallet,
+      children: [
+        { to: "/wallet", label: "Balance", icon: Wallet, exact: true },
+        { to: "/settlements", label: "Settlements", icon: Landmark },
+        { to: "/float-planner", label: "Float & Earnings", icon: PiggyBank },
+        { to: "/passbook", label: "History", icon: History },
+        { to: "/statements", label: "Statements", icon: FileText },
+      ],
+    },
+    { type: "link", to: "/reports", label: "Reports", icon: BarChart3 },
+    { type: "link", to: "/support", label: "Support", icon: LifeBuoy },
+    { type: "link", to: "/settings", label: "Settings", icon: Settings },
+    { type: "action", id: "account", label: "Account", icon: UserCircle },
   ];
 }
 
-function walletChildrenForRole(role: string | undefined) {
-  return role === "retailer" ? WALLET_CHILDREN_RETAILER : WALLET_CHILDREN_PARTNER;
-}
-
-function isWalletPath(pathname: string) {
-  return WALLET_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
-}
+const MOBILE_CORE = [
+  { icon: LayoutDashboard, label: "Home", to: "/dashboard" },
+  { icon: Wallet, label: "Balance", to: "/wallet" },
+  { icon: History, label: "History", to: "/passbook" },
+  { icon: Settings, label: "More", to: "/settings" },
+] as const;
 
 function mobileTabsForRole(role: string | undefined) {
   if (role === "retailer") {
@@ -126,16 +161,15 @@ function mobileTabsForRole(role: string | undefined) {
       MOBILE_CORE[0],
       MOBILE_CORE[1],
       MOBILE_CORE[2],
-      NAV_CUSTOMERS,
+      { icon: Users, label: "Customers", to: "/customers" },
       MOBILE_CORE[3],
     ];
   }
-  // Distributor / Super Dist: Network instead of Customers
   return [
     MOBILE_CORE[0],
-    MOBILE_CORE[1],
-    MOBILE_CORE[2],
     { icon: Network, label: "Network", to: "/network" },
+    MOBILE_CORE[1],
+    { icon: BarChart3, label: "Reports", to: "/reports" },
     MOBILE_CORE[3],
   ];
 }
@@ -159,14 +193,23 @@ function SidebarContent({
 }) {
   const pathname = usePathname();
   const authRole = useAuthStore((s) => s.user?.role);
-  const items = sidebarNavForRole(authRole);
-  const walletChildren = walletChildrenForRole(authRole);
-  const walletActive = isWalletPath(pathname);
-  const [walletOpen, setWalletOpen] = useState(walletActive);
+  const nav = useMemo(() => buildAgentNav(authRole), [authRole]);
+
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    if (walletActive) setWalletOpen(true);
-  }, [walletActive]);
+    const next: Record<string, boolean> = {};
+    for (const item of nav) {
+      if (item.type === "group" && groupActive(pathname, item.children)) {
+        next[item.id] = true;
+      }
+    }
+    if (Object.keys(next).length) setOpenGroups((g) => ({ ...g, ...next }));
+  }, [pathname, nav]);
+
+  function toggleGroup(id: string) {
+    setOpenGroups((g) => ({ ...g, [id]: !g[id] }));
+  }
 
   return (
     <>
@@ -206,129 +249,120 @@ function SidebarContent({
       )}
 
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-3">
-        {/* Dashboard + Transactions first, then Wallet dropdown, then the rest */}
-        {items.slice(0, 2).map(({ icon: Icon, label, to }) => {
-          const isActive = pathname === to || pathname.startsWith(`${to}/`);
-          return (
-            <Link
-              key={to}
-              href={to}
-              onClick={onClose}
-              className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all ${
-                isActive ? "bg-white/15" : "hover:bg-white/8"
-              }`}
-              style={{ borderLeft: isActive ? `3px solid ${B.green}` : "3px solid transparent" }}
-            >
-              <Icon
-                size={18}
-                className={isActive ? "text-white" : "text-white/50 group-hover:text-white"}
-                strokeWidth={isActive ? 2.5 : 2}
-              />
-              {open && (
-                <span
-                  className={`text-sm font-medium ${isActive ? "text-white" : "text-white/60 group-hover:text-white"}`}
-                >
-                  {label}
-                </span>
-              )}
-            </Link>
-          );
-        })}
-
-        <div>
-          <button
-            type="button"
-            onClick={() => setWalletOpen((v) => !v)}
-            className={`group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 transition-all ${
-              walletActive ? "bg-white/15" : "hover:bg-white/8"
-            }`}
-            style={{ borderLeft: walletActive ? `3px solid ${B.green}` : "3px solid transparent" }}
-          >
-            <Wallet
-              size={18}
-              className={walletActive ? "text-white" : "text-white/50 group-hover:text-white"}
-              strokeWidth={walletActive ? 2.5 : 2}
-            />
-            {open && (
-              <>
-                <span
-                  className={`flex-1 text-left text-sm font-medium ${
-                    walletActive ? "text-white" : "text-white/60 group-hover:text-white"
-                  }`}
-                >
-                  Balance
-                </span>
-                <ChevronDown
-                  size={14}
-                  className={`text-white/40 transition-transform ${walletOpen ? "rotate-180" : ""}`}
+        {nav.map((item) => {
+          if (item.type === "link") {
+            const isActive = pathActive(pathname, item.to);
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.to}
+                href={item.to}
+                onClick={onClose}
+                className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all ${
+                  isActive ? "bg-white/15" : "hover:bg-white/8"
+                }`}
+                style={{ borderLeft: isActive ? `3px solid ${B.green}` : "3px solid transparent" }}
+              >
+                <Icon
+                  size={18}
+                  className={isActive ? "text-white" : "text-white/50 group-hover:text-white"}
+                  strokeWidth={isActive ? 2.5 : 2}
                 />
-              </>
-            )}
-          </button>
-          {open && walletOpen && (
-            <div className="ml-3 mt-0.5 space-y-0.5 border-l border-white/10 pl-2">
-              {walletChildren.map(({ icon: Icon, label, to }) => {
-                const isActive = pathname === to || pathname.startsWith(`${to}/`);
-                // Transfer shares /wallet with Overview — highlight only Overview on exact /wallet
-                const childActive =
-                  label === "Transfer"
-                    ? false
-                    : label === "Overview"
-                      ? pathname === "/wallet" || pathname.startsWith("/wallet/")
-                      : isActive;
-                return (
-                  <Link
-                    key={`${label}-${to}`}
-                    href={to}
-                    onClick={onClose}
-                    className={`group flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition-all ${
-                      childActive ? "bg-white/15" : "hover:bg-white/8"
-                    }`}
+                {open && (
+                  <span
+                    className={`text-sm font-medium ${isActive ? "text-white" : "text-white/60 group-hover:text-white"}`}
                   >
-                    <Icon
-                      size={15}
-                      className={childActive ? "text-white" : "text-white/45 group-hover:text-white"}
-                      strokeWidth={childActive ? 2.5 : 2}
-                    />
+                    {item.label}
+                  </span>
+                )}
+              </Link>
+            );
+          }
+
+          if (item.type === "action") {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => toast("Open Settings for account options")}
+                className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-all hover:bg-white/8"
+                style={{ borderLeft: "3px solid transparent" }}
+              >
+                <Icon size={18} className="text-white/50 group-hover:text-white" strokeWidth={2} />
+                {open && (
+                  <span className="text-sm font-medium text-white/60 group-hover:text-white">{item.label}</span>
+                )}
+              </button>
+            );
+          }
+
+          const gActive = groupActive(pathname, item.children);
+          const expanded = openGroups[item.id] ?? gActive;
+          const Icon = item.icon;
+          return (
+            <div key={item.id} className="space-y-0.5">
+              <button
+                type="button"
+                onClick={() => toggleGroup(item.id)}
+                className={`group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 transition-all ${
+                  gActive ? "bg-white/15" : "hover:bg-white/8"
+                }`}
+                style={{ borderLeft: gActive ? `3px solid ${B.green}` : "3px solid transparent" }}
+              >
+                <Icon
+                  size={18}
+                  className={gActive ? "text-white" : "text-white/50 group-hover:text-white"}
+                  strokeWidth={gActive ? 2.5 : 2}
+                />
+                {open && (
+                  <>
                     <span
-                      className={`text-[13px] font-medium ${
-                        childActive ? "text-white" : "text-white/55 group-hover:text-white"
+                      className={`flex-1 text-left text-sm font-medium ${
+                        gActive ? "text-white" : "text-white/60 group-hover:text-white"
                       }`}
                     >
-                      {label}
+                      {item.label}
                     </span>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {items.slice(2).map(({ icon: Icon, label, to }) => {
-          const isActive = pathname === to || pathname.startsWith(`${to}/`);
-          return (
-            <Link
-              key={to}
-              href={to}
-              onClick={onClose}
-              className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all ${
-                isActive ? "bg-white/15" : "hover:bg-white/8"
-              }`}
-              style={{ borderLeft: isActive ? `3px solid ${B.green}` : "3px solid transparent" }}
-            >
-              <Icon
-                size={18}
-                className={isActive ? "text-white" : "text-white/50 group-hover:text-white"}
-                strokeWidth={isActive ? 2.5 : 2}
-              />
-              {open && (
-                <span
-                  className={`text-sm font-medium ${isActive ? "text-white" : "text-white/60 group-hover:text-white"}`}
-                >
-                  {label}
-                </span>
+                    <ChevronDown
+                      size={14}
+                      className={`text-white/40 transition-transform ${expanded ? "rotate-180" : ""}`}
+                    />
+                  </>
+                )}
+              </button>
+              {open && expanded && (
+                <div className="ml-3 space-y-0.5 border-l border-white/10 pl-2">
+                  {item.children.map((child) => {
+                    const childActive = pathActive(pathname, child.to, child.exact);
+                    const CIcon = child.icon;
+                    return (
+                      <Link
+                        key={`${child.label}-${child.to}`}
+                        href={child.to}
+                        onClick={onClose}
+                        className={`group flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition-all ${
+                          childActive ? "bg-white/15" : "hover:bg-white/8"
+                        }`}
+                      >
+                        <CIcon
+                          size={15}
+                          className={childActive ? "text-white" : "text-white/45 group-hover:text-white"}
+                          strokeWidth={childActive ? 2.5 : 2}
+                        />
+                        <span
+                          className={`text-[13px] font-medium ${
+                            childActive ? "text-white" : "text-white/55 group-hover:text-white"
+                          }`}
+                        >
+                          {child.label}
+                        </span>
+                      </Link>
+                    );
+                  })}
+                </div>
               )}
-            </Link>
+            </div>
           );
         })}
       </nav>

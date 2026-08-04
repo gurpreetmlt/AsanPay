@@ -20,21 +20,27 @@ type NavItem =
   | { type: "link"; href: string; label: string; icon: NavIconDef }
   | { type: "group"; id: string; label: string; icon: NavIconDef; children: NavChild[] };
 
-const OPERATIONS: NavItem[] = [
+const TOP_LINKS: NavItem[] = [
   { type: "link", href: "/dashboard", label: "Dashboard", icon: { lib: "md", name: "MdDashboard" } },
+];
+
+const AGENTS: NavItem[] = [
   {
     type: "group",
-    id: "users",
-    label: "Network",
+    id: "agents",
+    label: "Agents",
     icon: { lib: "fa", name: "FaUsers" },
     children: [
       { href: "/users", label: "All Agents", icon: { lib: "fa", name: "FaUsers" } },
-      { href: "/users/super-distributors", label: "Super Distributor", icon: { lib: "lucide", icon: Crown } },
-      { href: "/users/distributors", label: "Distributor", icon: { lib: "lucide", icon: Network } },
-      { href: "/users/retailers", label: "Retailer", icon: { lib: "lucide", icon: Store } },
+      { href: "/users/super-distributors", label: "Super Distributors", icon: { lib: "lucide", icon: Crown } },
+      { href: "/users/distributors", label: "Distributors", icon: { lib: "lucide", icon: Network } },
+      { href: "/users/retailers", label: "Retailers", icon: { lib: "lucide", icon: Store } },
+      { href: "/kyc", label: "KYC Queue", icon: { lib: "md", name: "MdVerifiedUser" } },
     ],
   },
-  { type: "link", href: "/kyc", label: "KYC Queue", icon: { lib: "md", name: "MdVerifiedUser" } },
+];
+
+const TRANSACTIONS: NavItem[] = [
   { type: "link", href: "/transactions", label: "All Transactions", icon: { lib: "fa", name: "FaExchangeAlt" } },
 ];
 
@@ -222,7 +228,9 @@ function SidebarNav({
     <nav className="flex-1 space-y-4 overflow-y-auto px-2 py-3">
       {(
         [
-          { title: "Full Control", items: OPERATIONS },
+          { title: "Overview", items: TOP_LINKS },
+          { title: "Agents", items: AGENTS },
+          { title: "Transactions", items: TRANSACTIONS },
           { title: "Treasury", items: TREASURY },
           { title: "Platform", items: SITE_CONTROL },
           { title: "Developer", items: DEVELOPER_OPTIONS },
@@ -290,9 +298,10 @@ function SidebarPanel({
 export function AdminShell({ children }: { children: ReactNode }) {
   const [drawer, setDrawer] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
-    users: true,
+    agents: true,
     treasury: true,
     site: false,
+    developer: false,
   });
   const pathname = usePathname();
   const user = useAuthStore((s) => s.user);
@@ -302,15 +311,26 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const uid = user?.uid ?? "—";
   const av = initials(name);
 
+  const ALL_NAV: NavItem[] = [
+    ...TOP_LINKS,
+    ...AGENTS,
+    ...TRANSACTIONS,
+    ...TREASURY,
+    ...SITE_CONTROL,
+    ...DEVELOPER_OPTIONS,
+  ];
+
   useEffect(() => {
     const next: Record<string, boolean> = {};
-    for (const item of [...OPERATIONS, ...TREASURY, ...SITE_CONTROL, ...DEVELOPER_OPTIONS]) {
+    for (const item of ALL_NAV) {
       if (item.type === "group" && groupActive(pathname, item.children)) {
         next[item.id] = true;
       }
     }
     if (Object.keys(next).length) setOpenGroups((g) => ({ ...g, ...next }));
     setDrawer(false);
+    // ALL_NAV is module-level constant shape — only pathname drives reopen
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
   function toggleGroup(id: string) {

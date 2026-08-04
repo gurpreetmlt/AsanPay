@@ -1,39 +1,39 @@
 "use client";
 
+/**
+ * Legacy compact sidebar — production nav is AppShell SidebarContent only.
+ */
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { toast } from "react-hot-toast";
-import { LayoutDashboard, LayoutGrid, History, UserCircle, LogOut, Fingerprint, Banknote, ListChecks, Network, ShieldCheck, PiggyBank, LifeBuoy } from "lucide-react";
+import { LogOut } from "lucide-react";
 import clsx from "clsx";
 import { ROLE_LABELS } from "@asanpay/shared-types";
 import { useAuthStore } from "@/lib/store";
 import { brand } from "@/lib/brand";
-import { isRetailerRole } from "@/lib/roles";
+import { CHILD_ROLE, ROLE_LABEL, isRetailerRole } from "@/lib/roles";
 
 export function Sidebar() {
   const pathname = usePathname();
   const user = useAuthStore((s) => s.user);
-  const logout = useAuthStore((s) => s.logout);
 
   const retailer = user ? isRetailerRole(user.role) : false;
+  const childRole = user ? CHILD_ROLE[user.role] : null;
+  const childLabel = childRole ? ROLE_LABEL[childRole] : "Agent";
 
   const navItems = retailer
     ? [
-        { href: "/dashboard", label: "Services", icon: LayoutGrid },
-        { href: "/aeps", label: "AePS", icon: Fingerprint },
-        { href: "/dmt", label: "DMT", icon: Banknote },
-        { href: "/passbook", label: "History", icon: History },
-        { href: "/support", label: "Support", icon: LifeBuoy },
-        { href: null, label: "Account", icon: UserCircle },
+        { href: "/dashboard", label: "Services" },
+        { href: "/wallet", label: "Balance" },
+        { href: "/passbook", label: "History" },
+        { href: "/support", label: "Support" },
+        { href: "/settings", label: "Settings" },
       ]
     : [
-        { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-        { href: "/network", label: "Network", icon: Network },
-        { href: "/action-queue", label: "Action Queue", icon: ListChecks },
-        { href: "/kyc-assistant", label: "KYC Assistant", icon: ShieldCheck },
-        { href: "/float-planner", label: "Float & Earnings", icon: PiggyBank },
-        { href: "/passbook", label: "Passbook", icon: History },
-        { href: "/support", label: "Support", icon: LifeBuoy },
+        { href: "/dashboard", label: "Dashboard" },
+        { href: "/network", label: `My ${childLabel}s` },
+        { href: "/wallet", label: "Balance" },
+        { href: "/support", label: "Support" },
+        { href: "/settings", label: "Settings" },
       ];
 
   return (
@@ -49,23 +49,7 @@ export function Sidebar() {
 
       <nav className="flex flex-col gap-1">
         {navItems.map((item) => {
-          const active = item.href !== null && (pathname === item.href || pathname.startsWith(`${item.href}/`));
-          const Icon = item.icon;
-
-          if (item.href === null) {
-            return (
-              <button
-                key={item.label}
-                type="button"
-                onClick={() => toast(`${item.label} — coming soon`, { icon: "🚧" })}
-                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-gray-600 transition hover:bg-surface"
-              >
-                <Icon size={18} />
-                {item.label}
-              </button>
-            );
-          }
-
+          const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
             <Link
               key={item.href}
@@ -77,7 +61,6 @@ export function Sidebar() {
                   : "border-transparent text-gray-600 hover:bg-surface",
               )}
             >
-              <Icon size={18} />
               {item.label}
             </Link>
           );
