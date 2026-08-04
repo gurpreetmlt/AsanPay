@@ -95,6 +95,9 @@
 - [x] Maker-checker for RECON_ADJUSTMENT (request → different admin approve; migration `0031`)
 - [ ] Maker-checker remaining: beneficiary changes, provider activation
 - [x] InstantPay DMT mobile full parity (remitter, beneficiaries, transfer OTP, refund)
+- [x] `cleanup:shim` — remove SHIM% harness debris from global catalog (dry-run default, `--apply`);
+      `verify:shim` reuses fixed inactive `SHIM_BANK` / `SHIM_OTH` / `SHIM_UNMAPPED` and scrubs
+      run txns + wallet passbook (never journals); agent catalog filter exact codes only
 - [ ] InstantPay BBPS / recharge rails (product)
 
 ## Security (2026-07-17)
@@ -118,6 +121,7 @@
 - [ ] History purge for any secrets ever pushed to remote
 
 ## Last updated
+2026-08-04 — cleanup:shim + fixed SHIM_BANK/OTH/UNMAPPED harness; no catalog row growth per run
 2026-08-04 — Step 16: verify:load (500 DMT + 200 fundWallet) + concurrency test default 500
 2026-08-04 — verify:shim **19/19 PASS** on Coolify (service_txn, reversal, fundWallet, commission)
 2026-08-04 — verify:shim expanded: service_txn debit/credit, reversal, fundWallet, commission

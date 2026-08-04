@@ -26,6 +26,7 @@
     "seed:settlements-dummy": "tsx scripts/seedSettlementsDummy.ts",
     "backfill:opening": "tsx scripts/backfillOpeningBalance.ts",
     "provision:float": "tsx scripts/provisionProviderFloat.ts",
+    "cleanup:shim": "tsx scripts/cleanupShimCatalog.ts",
     "verify:ledger": "tsx scripts/verifyLedgerEngine.ts",
     "verify:shim": "tsx scripts/verifyWalletShim.ts",
     "verify:load": "tsx scripts/verifyLedgerLoad.ts"

@@ -34,6 +34,7 @@ import {
   providers,
   transactions,
   serviceCharges,
+  commissionLedger,
 } from "../src/db/postgres/schema";
 import { postJournal, clearAccountCache } from "../src/core/ledger";
 import { seedSystemAccounts } from "../src/modules/bootstrap/systemAccounts";
@@ -61,6 +62,10 @@ const FLOAT_CONTROL = "TREASURY_FLOAT_CONTROL";
 const BBPS_CATEGORY = "BILL_PAYMENT_BBPS";
 const COMMISSION_INCOME = "COMMISSION_INCOME";
 const COMPANY = "COMPANY_001";
+/** Fixed harness catalog codes — reused across runs; never active; never product tiles. */
+const SHIM_BANK = "SHIM_BANK";
+const SHIM_OTH = "SHIM_OTH";
+const SHIM_UNMAPPED = "SHIM_UNMAPPED";
 
 // Set before any money path resolves the tenant.
 process.env.LEDGER_TENANT_CODE = TENANT_CODE;
@@ -68,6 +73,8 @@ process.env.LEDGER_TENANT_CODE = TENANT_CODE;
 let tenantId: string;
 let adminId: string;
 let aggregatorWalletId: string;
+/** Transaction ids created this run — scrubbed at end (FK order 1–4). Catalog stays. */
+const runTxnIds: string[] = [];
 
 let mdId: string;
 let distId: string;
@@ -411,16 +418,27 @@ async function zeroAgent(userId: string): Promise<void> {
 
 async function ensureCategory(code: string, name: string, isActive = true): Promise<string> {
   const [existing] = await db
+    .select({ id: serviceCategories.id, isActive: serviceCategories.isActive })
+    .from(serviceCategories)
+    .where(eq(serviceCategories.code, code))
+    .limit(1);
+  if (existing) {
+    if (existing.isActive !== isActive) {
+      await db
+        .update(serviceCategories)
+        .set({ isActive })
+        .where(eq(serviceCategories.id, existing.id));
+    }
+    return existing.id;
+  }
+  await db.insert(serviceCategories).values({ code, name, isActive }).onConflictDoNothing();
+  const [row] = await db
     .select({ id: serviceCategories.id })
     .from(serviceCategories)
     .where(eq(serviceCategories.code, code))
     .limit(1);
-  if (existing) return existing.id;
-  const [created] = await db
-    .insert(serviceCategories)
-    .values({ code, name, isActive })
-    .returning({ id: serviceCategories.id });
-  return created!.id;
+  if (!row) throw new Error(`category ${code} missing after ensure`);
+  return row.id;
 }
 
 /** Prefer existing global catalogue rows; SERVICE_TXN_TYPE keys are exact service codes. */
@@ -430,23 +448,35 @@ async function ensureService(
   categoryId: string,
   opts?: { isActive?: boolean },
 ): Promise<string> {
+  const wantActive = opts?.isActive ?? true;
   const [existing] = await db
-    .select({ id: services.id })
+    .select({ id: services.id, isActive: services.isActive })
     .from(services)
     .where(eq(services.code, code))
     .limit(1);
-  if (existing) return existing.id;
-  const [created] = await db
+  if (existing) {
+    if (existing.isActive !== wantActive) {
+      await db.update(services).set({ isActive: wantActive }).where(eq(services.id, existing.id));
+    }
+    return existing.id;
+  }
+  await db
     .insert(services)
     .values({
       categoryId,
       code,
       name,
       maxAmount: "10000000.00",
-      isActive: opts?.isActive ?? true,
+      isActive: wantActive,
     })
-    .returning({ id: services.id });
-  return created!.id;
+    .onConflictDoNothing();
+  const [row] = await db
+    .select({ id: services.id })
+    .from(services)
+    .where(eq(services.code, code))
+    .limit(1);
+  if (!row) throw new Error(`service ${code} missing after ensure`);
+  return row.id;
 }
 
 async function insertTxn(params: {
@@ -469,7 +499,41 @@ async function insertTxn(params: {
     status: "success",
     walletType: "main",
   });
+  runTxnIds.push(id);
   return id;
+}
+
+/**
+ * Drop this run's service transactions + wallet passbook projection (FK order 1–4).
+ * Never touches journals / ledger_entries / accounts / fixed SHIM catalog rows.
+ */
+async function scrubRunTransactionsAndPassbook(): Promise<void> {
+  if (runTxnIds.length === 0) return;
+
+  await db.transaction(async (tx) => {
+    const groups = await tx
+      .select({ id: walletLedgerGroups.id })
+      .from(walletLedgerGroups)
+      .where(inArray(walletLedgerGroups.referenceId, runTxnIds));
+    const groupIds = groups.map((g) => g.id);
+
+    if (groupIds.length > 0) {
+      await tx
+        .delete(walletLedgerEntries)
+        .where(inArray(walletLedgerEntries.groupId, groupIds));
+      await tx.delete(walletLedgerGroups).where(inArray(walletLedgerGroups.id, groupIds));
+    }
+
+    await tx
+      .delete(commissionLedger)
+      .where(inArray(commissionLedger.transactionId, runTxnIds));
+    await tx.delete(transactions).where(inArray(transactions.id, runTxnIds));
+  });
+
+  console.log(
+    `Scrubbed ${runTxnIds.length} run transaction(s) + passbook projection (catalog kept).`,
+  );
+  runTxnIds.length = 0;
 }
 
 async function seedServiceCatalog(): Promise<void> {
@@ -482,24 +546,20 @@ async function seedServiceCatalog(): Promise<void> {
     .returning({ id: providers.id });
   providerId = prov!.id;
 
-  // isActive:false — never surface on agent/admin product catalog. Prefer real catalog
-  // codes (MONEY_TRANSFER, …) so SERVICE_TXN_TYPE maps without inventing product tiles.
-  const bankingCat = await ensureCategory(`SHIM_BANK_${RUN}`.slice(0, 40), "Shim banking", false);
+  // Fixed inactive harness categories (no RUN suffix — reuse every verify:shim).
+  const bankingCat = await ensureCategory(SHIM_BANK, "Shim banking", false);
+  await ensureCategory(SHIM_OTH, "Shim other", false);
   const bbpsCat = await ensureCategory(BBPS_CATEGORY, "BBPS");
 
+  // Product service codes when missing; attach only at create time. Existing rows untouched.
   await ensureService("MONEY_TRANSFER", "Money Transfer", bankingCat);
   await ensureService("DTH", "DTH", bankingCat);
   await ensureService("CASH_DEPOSIT", "Cash Deposit", bankingCat);
   await ensureService("CASH_WITHDRAW", "Cash Withdraw", bankingCat);
   await ensureService("ELECTRICITY", "Electricity Bill", bbpsCat);
 
-  // Inactive stub used only for the SERVICE_NOT_MAPPED check — no UI name "Unmapped", no SHIM OTHER.
-  await ensureService(
-    `_LEDGER_NOT_MAPPED_${RUN}`.slice(0, 60),
-    "Ledger test (not mapped)",
-    bankingCat,
-    { isActive: false },
-  );
+  // Fixed inactive stub for SERVICE_NOT_MAPPED (exact code; agent catalog filter).
+  await ensureService(SHIM_UNMAPPED, "Shim unmapped service", bankingCat, { isActive: false });
 }
 
 async function main() {
@@ -867,13 +927,12 @@ async function main() {
   });
 
   await check("service_txn DEBIT unknown code → SERVICE_NOT_MAPPED", async () => {
-    const notMappedCode = `_LEDGER_NOT_MAPPED_${RUN}`.slice(0, 60);
     const [svc] = await db
       .select({ id: services.id })
       .from(services)
-      .where(eq(services.code, notMappedCode))
+      .where(eq(services.code, SHIM_UNMAPPED))
       .limit(1);
-    if (!svc) throw new Error(`${notMappedCode} missing (seed inactive stub)`);
+    if (!svc) throw new Error(`${SHIM_UNMAPPED} missing (seed inactive stub)`);
     const txnId = await insertTxn({
       serviceId: svc.id,
       providerId,
@@ -1143,13 +1202,22 @@ async function main() {
   await softRetire(mdId, "M");
   await db.delete(userHierarchy).where(inArray(userHierarchy.descendantId, [retId, distId, mdId]));
 
+  try {
+    await scrubRunTransactionsAndPassbook();
+  } catch (err) {
+    console.log(
+      `  WARN  scrub run txns: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
   console.log(`\n${"-".repeat(72)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log("-".repeat(72));
   console.log(
     failed === 0
       ? "\nSHIM VERIFIED — hierarchy, service_txn debit/credit (+ fee 3-leg + service_charges),\n" +
-          `reversal, fundWallet, commission, mirror and passbook under ${TENANT_CODE} (ASANPAY untouched).\n`
+          `reversal, fundWallet, commission, mirror and passbook under ${TENANT_CODE} (ASANPAY untouched).\n` +
+          `Harness catalog codes (inactive, reused): ${SHIM_BANK}, ${SHIM_OTH}, ${SHIM_UNMAPPED}.\n`
       : "\nSHIM NOT VERIFIED — do not trust legacy money paths until these pass.\n",
   );
 

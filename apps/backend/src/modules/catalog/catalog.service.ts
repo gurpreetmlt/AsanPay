@@ -5,21 +5,16 @@ import { serviceCategories, services } from "../../db/postgres/schema";
 
 export type CatalogCategoryView = CatalogCategory;
 
+/** Fixed harness codes owned by verify:shim — not product rails. */
+const HARNESS_CODES = new Set(["SHIM_BANK", "SHIM_OTH", "SHIM_UNMAPPED"]);
+
 /**
  * Test / ledger-harness artefacts must never appear to agents.
  * Provider rail is chosen at runtime via adapters (AEPS_PROVIDER_MODE etc.) — not via
  * catalog tiles named after a specific third party.
  */
 function isHarnessCatalogCode(code: string): boolean {
-  const c = code.toUpperCase();
-  return (
-    c.startsWith("SHIM_") ||
-    c.startsWith("SHIM") ||
-    c.startsWith("_LEDGER_") ||
-    c === "UNMAPPED" ||
-    c.includes("SHIM_UNMAPPED") ||
-    c.includes("SHIM_OTH")
-  );
+  return HARNESS_CODES.has(code.toUpperCase());
 }
 
 export async function getCatalog(): Promise<CatalogCategoryView[]> {
