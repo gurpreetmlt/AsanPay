@@ -65,6 +65,23 @@
 - [x] InstantPay merchant outlet Min-KYC + Bio-KYC (web + mobile, RD `wadh`)
 - [ ] InstantPay DMT mobile full parity + BBPS / recharge rails
 
+## Ledger engine (double-entry)
+- [x] Chart of accounts (`tenants`, `accounts`, `account_balances`) + 9 system accounts
+- [x] `postJournal()` + flow matrix + `reverseJournal()` — the only writer of money
+- [x] DB guards: append-only triggers, no-overdraft, protected accounts
+- [x] Bootstrap seeder + fail-fast boot verifier (`Ledger system accounts verified`)
+- [x] `UPLINE_PULL` txn type; debit floored at the downline's settleable (spec §9.3)
+- [x] `TREASURY_FLOAT_<provider>` per active provider (`provision:float`, self-heals at post time)
+- [x] `OPENING_BALANCE` backfill (`backfill:opening`) — every pre-ledger rupee has an origin
+- [x] **Cut-over**: `wallet.ledger.ts` posts journals; `wallets.balance` is a mirror
+      (`main` = balance − settleable, `aeps` = settleable). Signatures unchanged, 15 call sites
+- [x] `verify:ledger` 10/10 — engine only, does NOT cover `wallet.ledger.ts`
+- [ ] **Live proof of the shim** — no money has moved through the new path in production yet
+- [ ] **DB-backed test suite broken by the cut-over** — see `docs/PROMPTS/post-cutover-next.md`
+- [ ] Step 16 load test re-run against the ledger (`walletConcurrencyLoad.test.ts` fixture is invalid)
+- [ ] `COMMISSION_INCOME` drifts negative — service journal never books `customer_fee`
+- [ ] Maker-checker beyond allocation (fund approval threshold, beneficiary, provider, RECON_ADJUSTMENT)
+
 ## Security (2026-07-17)
 - [x] Default MPIN / OTP-in-prod / hardcoded admin seed removed
 - [x] JWT `requireAuth` revalidates `isActive` + role from DB
@@ -86,6 +103,7 @@
 - [ ] History purge for any secrets ever pushed to remote
 
 ## Last updated
+2026-08-04 — Ledger section added; cut-over verified shipped. Found: DB-backed test suite is broken by the mirror (fixtures write `wallets.balance` directly) — see `docs/PROMPTS/post-cutover-next.md`
 2026-08-04 — InstantPay Bio-KYC web/mobile + RD `wadh`; mobile Register Outlet modal
 2026-08-03 — Wallet leftovers: tenant settings UI, settlement OTP/charges/returned, VAN adapters, load-test 500, logs schema stub
 2026-08-03 — Wallet-engine finish: float mgmt, VAN assign, settlement cooling, FR dual-approve, ledger reports, ESC/POS receipt

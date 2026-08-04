@@ -44,17 +44,58 @@ where a.user_id is not null order by a.code, w.wallet_type;
 
 ## Pending
 
-1. **Step 16 — load test.** Not started, no script exists. 500 concurrent transfers + 200
-   concurrent fund approvals, then re-check every invariant (trial balance, float coverage,
-   settleable <= balance, mirror-vs-ledger). This is the only item that needs a real session.
-2. **`apps/backend/scripts/verifyLedgerEngine.ts:375`** — still prints
-   `"ENGINE VERIFIED — safe to proceed with the cut-over."`. Stale by 22 commits, and
-   misleading for a second reason: that script exercises `postJournal()` directly under its own
-   `LEDGERTEST` tenant and never touches `wallet.ledger.ts`. Reword to say what it actually
-   proves — the engine, not the shim.
-3. **`docs/PROMPTS/ledger-cutover-next.md`** — delete or replace with a pointer to this file.
-4. **`docs/CHECKLIST.md`** — has no ledger section at all. Add one covering the engine, the
-   cut-over and steps 8/10/11/12/15, so the next agent does not re-derive it from git log.
+### 1. The DB-backed test suite is broken by the cut-over — highest priority
+
+This is not visible today: those tests need a real Postgres, there is none on the Mac, and
+`vitest` cannot run in the production image. They fail on connection errors, which masks the
+real breakage completely. Three separate problems, all in `apps/backend/test/helpers/world.ts`:
+
+* **`setBalance()` (world.ts:97) writes `wallets.balance` directly.** That column is now a
+  mirror with no ledger behind it, so the agent's ledger account is still at zero and every
+  `runDmt` / `runAeps` will fail `INSUFFICIENT_BALANCE`. Affects `walletConcurrencyLoad`,
+  `moneyCoreDebit`, `moneyCoreLedgerAccess`, `recheckDoubleCredit`, `commissionDoublePay`.
+  Fix: fund through journals. Suggested semantics — preserve the component you are not setting:
+  `desiredSettleable` = target for `aeps` else current; `desiredUsable` = target for `main`
+  else current. Then zero the account with a `RECON_ADJUSTMENT` (wildcard flow, needs `reason`
+  + `performedBy`) and credit back with `OPENING_BALANCE` (usable) and
+  `OPENING_BALANCE_EARNED` (settleable). Finally re-run the mirror — `mirrorBalances()` in
+  `wallet.ledger.ts` is currently private and needs exporting for this.
+* **`destroy()` (world.ts:~161) will fail.** `accounts.user_id` is `ON DELETE RESTRICT`
+  (`schema/accounts.ts:72`), so once a test user has a ledger account, deleting the user is
+  refused. The ledger is append-only, so the account cannot be deleted either.
+* **Tests would write real journals into the `ASANPAY` tenant.** `wallet.ledger.ts` resolves
+  `LEGACY_TENANT_CODE = "ASANPAY"` by name. Running the suite against the production database
+  pollutes production's ledger permanently. Fix: make that code env-overridable
+  (`LEDGER_TENANT_CODE`, default `ASANPAY`) and point the test world at `LEDGERTEST`, the same
+  isolation `verify:ledger` already uses.
+
+Do these three together — fixing one without the others leaves the suite red.
+
+### 2. Step 16 — load test
+
+`walletConcurrencyLoad.test.ts` already does 120 concurrent DMT debits through the real
+`executeServiceTxn` path, which is exactly the right shape — but its fixture is invalid per
+item 1, so it proves nothing until that is fixed. After fixing: raise to 500 concurrent
+transfers, add 200 concurrent fund approvals, then re-check every invariant (trial balance,
+ledger-vs-mirror, `settleable <= balance`, no negative agent balance).
+
+### 3. `npm run build` is broken on main
+
+`npx tsc -p apps/backend/tsconfig.json --noEmit` fails with 4 errors, none of them ledger-related:
+
+* `modules/commission/commission.service.ts:464` — `'created' is possibly 'undefined'`
+* `modules/fund-requests/fundRequest.routes.ts:120,139,178` — `string | string[] | undefined`
+  passed where `string | undefined` is expected (an Express header read that can be an array)
+
+Deploys survive because `apps/backend/Dockerfile` runs `tsx`, never `tsc` — so the type gate has
+been failing silently. Fix these, then consider making the build actually run in CI.
+
+### 4. Done in this pass
+
+* `verifyLedgerEngine.ts` — header and closing banner now state that it verifies the engine and
+  explicitly **not** `wallet.ledger.ts`.
+* `ledger-cutover-next.md` — SUPERSEDED banner pointing here.
+* `docs/CHECKLIST.md` — ledger section added.
 
 ### Also unproven
 

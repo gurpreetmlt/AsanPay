@@ -1,7 +1,12 @@
 /**
- * End-to-end exercise of the ledger engine against a real Postgres, covering the flows the
- * cut-over will switch: hierarchy transfer, a three-leg DMT, an AePS credit, idempotent
- * replay, the no-overdraft rule, flow-matrix rejection and reversal.
+ * End-to-end exercise of the ledger ENGINE against a real Postgres: hierarchy transfer, a
+ * three-leg DMT, an AePS credit, idempotent replay, the no-overdraft rule, flow-matrix
+ * rejection and reversal.
+ *
+ * SCOPE — this calls `postJournal()` directly. It does NOT touch `modules/wallet/wallet.ledger.ts`,
+ * so it says nothing about the legacy shim: the reference-type mapping, the `wallets.balance`
+ * mirror and the passbook projection are all unproven by a green run here. Proving those needs
+ * a live money movement through the real call sites — see `docs/PROMPTS/post-cutover-next.md`.
  *
  * Written as a tsx script rather than a vitest test on purpose: the production image is built
  * with `npm install --omit=optional`, which strips vitest's native rolldown binding. Changing
@@ -372,8 +377,10 @@ async function main() {
   console.log("-".repeat(72));
   console.log(
     failed === 0
-      ? "\nENGINE VERIFIED — safe to proceed with the cut-over.\n"
-      : "\nENGINE NOT VERIFIED — do not switch live money paths until these pass.\n",
+      ? "\nENGINE VERIFIED — postJournal() and the flow matrix behave.\n" +
+          "This does NOT verify wallet.ledger.ts: the shim's mapping, mirror and passbook\n" +
+          "projection are only proven by a live money movement through the real call sites.\n"
+      : "\nENGINE NOT VERIFIED — do not move money until these pass.\n",
   );
 
   await pgPool.end();
