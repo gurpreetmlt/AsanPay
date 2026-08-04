@@ -8,6 +8,9 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: monorepoRoot,
   },
+  async redirects() {
+    return [{ source: "/platform-settings", destination: "/treasury-settings", permanent: true }];
+  },
 };
 
 export default nextConfig;

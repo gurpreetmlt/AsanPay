@@ -14,6 +14,10 @@ WORKDIR /app/apps/admin-web
 RUN npm pkg set dependencies.@asanpay/shared-types="file:../../packages/shared-types" \
   && npm install --include=dev
 
+# TELEMETRY off; raise heap for "Collecting page data" on small Coolify hosts.
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_OPTIONS=--max-old-space-size=2048
+
 RUN npm run build
 
 ENV NODE_ENV=production
