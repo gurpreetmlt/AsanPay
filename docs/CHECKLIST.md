@@ -98,6 +98,8 @@
 - [x] `cleanup:shim` — remove SHIM% harness debris from global catalog (dry-run default, `--apply`);
       `verify:shim` reuses fixed inactive `SHIM_BANK` / `SHIM_OTH` / `SHIM_UNMAPPED` and scrubs
       run txns + wallet passbook (never journals); agent catalog filter exact codes only
+- [x] Legacy `partner-web` / `retailer-web` removed (restore: tag `legacy-webapps-before-delete`)
+- [x] Dead exports dropped: `deriveBalance`, unexported `serviceChargeTotal` (knip report only next)
 - [ ] InstantPay BBPS / recharge rails (product)
 
 ## Security (2026-07-17)
@@ -121,6 +123,7 @@
 - [ ] History purge for any secrets ever pushed to remote
 
 ## Last updated
+2026-08-04 — Drop partner-web/retailer-web; remove deriveBalance + serviceChargeTotal export
 2026-08-04 — cleanup:shim + fixed SHIM_BANK/OTH/UNMAPPED harness; no catalog row growth per run
 2026-08-04 — Step 16: verify:load (500 DMT + 200 fundWallet) + concurrency test default 500
 2026-08-04 — verify:shim **19/19 PASS** on Coolify (service_txn, reversal, fundWallet, commission)
