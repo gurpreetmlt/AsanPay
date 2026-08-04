@@ -310,9 +310,12 @@ export async function createWorld(suffix: string): Promise<World> {
         routed.adapter.dmtTransfer({
           retailerUserId: retailerId,
           customerMobile: "9999999999",
-          beneficiaryId: `BEN-${txnRef}`,
+          accountNumber: "000123456789",
+          ifsc: "HDFC0000001",
           amount,
           mode: "imps",
+          otp: "123456",
+          referenceKey: `REF-${txnRef}`,
         }),
     });
   }
