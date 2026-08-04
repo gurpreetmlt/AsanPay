@@ -31,8 +31,6 @@ apps/
   web/               Agent portal (:3001) — super dist, dist, retailer
   backend/           Express API (:4000) — Postgres only (Neon in prod)
   mobile/            AsanPay Android app (pkg @asanpay/mobile)
-  partner-web/       LEGACY — use apps/web
-  retailer-web/      LEGACY — use apps/web
 packages/
   shared-types/      Roles, API types (no runtime deps)
   auth/              Portal guards, role helpers
