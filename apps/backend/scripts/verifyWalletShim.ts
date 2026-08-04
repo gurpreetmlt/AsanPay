@@ -75,6 +75,7 @@ let retCode: string;
 let passed = 0;
 let failed = 0;
 let mobileSeq = 0;
+let uidSerialSeq = 0;
 
 async function check(name: string, fn: () => Promise<void>): Promise<void> {
   try {
@@ -250,14 +251,29 @@ async function ensureLedgerTestTenant(): Promise<string> {
   return id;
 }
 
+/**
+ * Product UID scheme:
+ *   ASNC###### → Company (system)
+ *   ASNS###### → Super Distributor
+ *   ASND###### → Distributor
+ *   ASNR###### → Retailer
+ * Throwaway verify runs use a high serial band derived from RUN so seed 000001-row users stay free.
+ */
+function asnUid(role: "S" | "D" | "R"): string {
+  uidSerialSeq += 1;
+  const base = Number.parseInt(RUN.replace(/\D/g, "").slice(0, 5) || "1", 10) % 9000;
+  const serial = 900000 + base * 10 + uidSerialSeq;
+  return `ASN${role}${String(serial).padStart(6, "0")}`.slice(0, 20);
+}
+
 async function createAgent(
   role: "master_distributor" | "distributor" | "retailer",
   parentId: string | null,
   name: string,
-  uidPrefix: string,
+  uidRole: "S" | "D" | "R",
   extraAncestors: string[] = [],
 ): Promise<{ userId: string; mainId: string; aepsId: string; code: string }> {
-  const uid = `${uidPrefix}${RUN}`.slice(0, 20);
+  const uid = asnUid(uidRole);
   const mobile = nextMobile();
 
   const [u] = await db
@@ -359,17 +375,17 @@ async function main() {
   if (!admin) throw new Error("No admin user for RECON performedBy");
   adminId = admin.id;
 
-  const md = await createAgent("master_distributor", null, "Shim MD", "MDSH");
+  const md = await createAgent("master_distributor", null, "Shim MD", "S");
   mdId = md.userId;
   mdMainId = md.mainId;
   mdCode = md.code;
 
-  const dist = await createAgent("distributor", mdId, "Shim Dist", "DSSH");
+  const dist = await createAgent("distributor", mdId, "Shim Dist", "D");
   distId = dist.userId;
   distMainId = dist.mainId;
   distCode = dist.code;
 
-  const ret = await createAgent("retailer", distId, "Shim Retailer", "RTSH", [mdId]);
+  const ret = await createAgent("retailer", distId, "Shim Retailer", "R", [mdId]);
   retId = ret.userId;
   retMainId = ret.mainId;
   retAepsId = ret.aepsId;
