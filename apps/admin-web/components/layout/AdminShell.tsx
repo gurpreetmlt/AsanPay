@@ -54,6 +54,7 @@ const TREASURY: NavItem[] = [
       { href: "/ledger-reports", label: "Ledger reports", icon: { lib: "lucide", icon: Scale } },
       { href: "/passbook", label: "Wallet statement", icon: { lib: "fa", name: "FaHistory" } },
       { href: "/reconciliation", label: "Txn reconciliation", icon: { lib: "lucide", icon: Scale } },
+      { href: "/treasury-settings", label: "Treasury Settings", icon: { lib: "lucide", icon: Settings } },
     ],
   },
 ];
@@ -65,7 +66,6 @@ const SITE_CONTROL: NavItem[] = [
     label: "Platform Control",
     icon: { lib: "fa", name: "FaGlobe" },
     children: [
-      { href: "/treasury-settings", label: "Treasury Settings", icon: { lib: "lucide", icon: Settings } },
       { href: "/site-control", label: "Service Badges", icon: { lib: "lucide", icon: Tags } },
       { href: "/commission", label: "Commissions", icon: { lib: "lucide", icon: Percent } },
       { href: "/risk-alerts", label: "Risk Alerts", icon: { lib: "lucide", icon: ShieldAlert } },
