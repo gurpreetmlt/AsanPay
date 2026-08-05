@@ -307,7 +307,9 @@ export function NepalScreen({ onBack }: NepalScreenProps) {
         if (data.success) {
           setAgentAuthReady(Boolean(data.data.verifiedToday));
           setAgentAuthKycReady(data.data.kycReady !== false);
-          const digits = (data.data.aadhaarNumber ?? "").replace(/\D/g, "").slice(0, 12);
+          const digits = String(data.data.aadhaarNumber ?? "")
+            .replace(/\D/g, "")
+            .slice(0, 12);
           if (digits.length === 12) setAgentAadhaar(digits);
         } else {
           setAgentAuthReady(false);

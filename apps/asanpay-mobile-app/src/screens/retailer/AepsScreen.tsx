@@ -476,6 +476,9 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
   const [agentAuthReady, setAgentAuthReady] = useState<boolean | null>(null);
   const [agentAuthKycReady, setAgentAuthKycReady] = useState(true);
   const [agentAadhaar, setAgentAadhaar] = useState("");
+  /** True when signup KYC Aadhaar is on file — field prefilled / scan without re-type. */
+  const [agentAadhaarFromKyc, setAgentAadhaarFromKyc] = useState(false);
+  const [agentAadhaarLastFour, setAgentAadhaarLastFour] = useState<string | null>(null);
   const [agentAadhaarVisible, setAgentAadhaarVisible] = useState(false);
   const [agentAuthConsent, setAgentAuthConsent] = useState(false);
   const [agentAuthScanning, setAgentAuthScanning] = useState(false);
@@ -508,15 +511,33 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
       if (mounted && device) setActiveDevice(device);
     });
     void api
-      .get<ApiResponse<{ verifiedToday: boolean; kycReady: boolean; aadhaarNumber?: string | null }>>(
-        "/auth/agent-auth/status",
-      )
+      .get<
+        ApiResponse<{
+          verifiedToday: boolean;
+          kycReady: boolean;
+          aadhaarNumber?: string | null;
+          outlet?: { aadhaarLastFour?: string | null } | null;
+        }>
+      >("/auth/agent-auth/status")
       .then(({ data }) => {
         if (!mounted || !data.success) return;
-        setAgentAuthReady(data.data.verifiedToday);
-        setAgentAuthKycReady(data.data.kycReady);
-        const digits = (data.data.aadhaarNumber ?? "").replace(/\D/g, "").slice(0, 12);
-        if (digits.length === 12) setAgentAadhaar(digits);
+        const payload = data.data;
+        setAgentAuthReady(payload.verifiedToday);
+        setAgentAuthKycReady(payload.kycReady !== false);
+        const digits = String(payload.aadhaarNumber ?? "")
+          .replace(/\D/g, "")
+          .slice(0, 12);
+        const last4 = String(payload.outlet?.aadhaarLastFour ?? "")
+          .replace(/\D/g, "")
+          .slice(-4);
+        if (digits.length === 12) {
+          setAgentAadhaar(digits);
+          setAgentAadhaarFromKyc(true);
+          setAgentAadhaarLastFour(digits.slice(-4));
+        } else if (payload.kycReady) {
+          setAgentAadhaarFromKyc(true);
+          if (last4.length === 4) setAgentAadhaarLastFour(last4);
+        }
       })
       .catch((err) => {
         if (!mounted) return;
@@ -600,21 +621,20 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
     !submitting;
 
   async function verifyDailyAgentAuth() {
-    if (!agentAuthConsent || agentAuthScanning || !agentAuthKycReady || agentAadhaar.length !== 12) return;
+    if (!agentAuthConsent || agentAuthScanning || !agentAuthKycReady) return;
+    const digits = agentAadhaar.replace(/\D/g, "");
+    if (!agentAadhaarFromKyc && digits.length !== 12) return;
     setAgentAuthScanning(true);
     try {
-      // Prefer whatever RD Service is currently installed / OTG-ready.
       const detected = await detectConnectedDevice();
       const device = detected ?? activeDevice;
       if (detected) setActiveDevice(detected);
 
       const biometricPayload = await captureFingerprint(device.rdPackage);
-      const { data } = await api.post<ApiResponse<{ verifiedAt: string }>>("/auth/agent-auth", {
-        aadhaarNumber: agentAadhaar,
-        biometricPayload,
-      });
+      const body: { biometricPayload: string; aadhaarNumber?: string } = { biometricPayload };
+      if (digits.length === 12) body.aadhaarNumber = digits;
+      const { data } = await api.post<ApiResponse<{ verifiedAt: string }>>("/auth/agent-auth", body);
       if (!data.success) throw new Error(data.message);
-      // Capture success → unlock AePS for the day (UIDAI provider verify later).
       setAgentAuthReady(true);
     } catch (err) {
       Alert.alert("Daily verification failed", apiError(err, "Fingerprint verification failed."));
@@ -808,31 +828,48 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
             <Text style={[s.fieldLabel, s.fieldLabelSpaced, { color: tokens.sub }]}>RETAILER AADHAAR NUMBER</Text>
             <View style={[s.inputRow, { borderColor: tokens.inputBorder, backgroundColor: tokens.inputBg }]}>
               <TextInput
-                value={formatAadhaar(agentAadhaar)}
-                onChangeText={(value) => setAgentAadhaar(value.replace(/\D/g, "").slice(0, 12))}
+                value={
+                  agentAadhaar.length === 12
+                    ? agentAadhaarVisible
+                      ? formatAadhaar(agentAadhaar)
+                      : maskAadhaarDisplay(agentAadhaar)
+                    : agentAadhaarFromKyc && agentAadhaarLastFour
+                      ? `XXXX XXXX ${agentAadhaarLastFour}`
+                      : formatAadhaar(agentAadhaar)
+                }
+                onChangeText={(value) => {
+                  if (agentAadhaarFromKyc) return;
+                  setAgentAadhaar(value.replace(/\D/g, "").slice(0, 12));
+                }}
                 placeholder={
-                  agentAuthKycReady
-                    ? agentAadhaar.length === 12
-                      ? "From signup KYC"
-                      : "Enter retailer's 12-digit Aadhaar"
-                    : "KYC Aadhaar not found"
+                  agentAadhaarFromKyc
+                    ? "Loaded from signup KYC"
+                    : agentAuthKycReady
+                      ? "Enter retailer's 12-digit Aadhaar"
+                      : "KYC Aadhaar not found"
                 }
                 placeholderTextColor={tokens.mute}
                 keyboardType="number-pad"
                 inputMode="numeric"
                 maxLength={14}
-                editable={agentAuthKycReady && !agentAuthScanning}
-                secureTextEntry={!agentAadhaarVisible}
+                editable={agentAuthKycReady && !agentAuthScanning && !agentAadhaarFromKyc}
                 style={[s.dailyAadhaar, { color: tokens.txt }]}
               />
-              <Pressable onPress={() => setAgentAadhaarVisible((visible) => !visible)} hitSlop={10}>
-                {agentAadhaarVisible ? (
-                  <EyeOff size={18} color={tokens.mute} />
-                ) : (
-                  <Eye size={18} color={tokens.mute} />
-                )}
-              </Pressable>
+              {agentAadhaar.length === 12 ? (
+                <Pressable onPress={() => setAgentAadhaarVisible((visible) => !visible)} hitSlop={10}>
+                  {agentAadhaarVisible ? (
+                    <EyeOff size={18} color={tokens.mute} />
+                  ) : (
+                    <Eye size={18} color={tokens.mute} />
+                  )}
+                </Pressable>
+              ) : null}
             </View>
+            {agentAadhaarFromKyc ? (
+              <Text style={{ marginTop: 6, fontSize: 11, color: tokens.mute }}>
+                Auto-filled from Aadhaar saved at retailer signup
+              </Text>
+            ) : null}
 
             <Pressable onPress={() => setAgentAuthConsent((v) => !v)} style={s.consentRow}>
               <View style={[s.checkbox, agentAuthConsent && s.checkboxChecked]}>
@@ -876,14 +913,14 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
               disabled={
                 !agentAuthConsent ||
                 !agentAuthKycReady ||
-                agentAadhaar.length !== 12 ||
+                (!agentAadhaarFromKyc && agentAadhaar.length !== 12) ||
                 agentAuthScanning
               }
               style={[
                 s.scanBtn,
                 (!agentAuthConsent ||
                   !agentAuthKycReady ||
-                  agentAadhaar.length !== 12 ||
+                  (!agentAadhaarFromKyc && agentAadhaar.length !== 12) ||
                   agentAuthScanning) &&
                   s.scanBtnDisabled,
               ]}
