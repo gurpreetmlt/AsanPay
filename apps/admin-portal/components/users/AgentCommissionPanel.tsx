@@ -168,10 +168,10 @@ export function AgentCommissionPanel({ userId }: { userId: string }) {
                   <h3 className="text-sm font-semibold" style={{ color: B.blue }}>
                     {cat.name}
                   </h3>
-                  <span className="font-mono text-[13px]" style={{ color: B.muted }}>
+                  <span className="font-mono text-[11px]" style={{ color: B.muted }}>
                     {cat.code}
                   </span>
-                  <span className="ml-auto text-[14px]" style={{ color: B.muted }}>
+                  <span className="ml-auto text-[12px]" style={{ color: B.muted }}>
                     {cat.services.length} services
                   </span>
                 </button>
@@ -215,7 +215,7 @@ export function AgentCommissionPanel({ userId }: { userId: string }) {
                                 <div className="font-medium" style={{ color: B.blue }}>
                                   {s.name}
                                 </div>
-                                <div className="font-mono text-[13px]" style={{ color: B.muted }}>
+                                <div className="font-mono text-[11px]" style={{ color: B.muted }}>
                                   {isAepsGroup
                                     ? "shared rate → withdraw · mini · deposit · balance"
                                     : s.code}

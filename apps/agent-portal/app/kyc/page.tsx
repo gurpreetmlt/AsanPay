@@ -426,7 +426,7 @@ export default function KycPage() {
                     {done ? <Check size={14} strokeWidth={3} /> : <Icon size={14} />}
                   </div>
                   <span
-                    className="truncate text-[13px] font-semibold"
+                    className="truncate text-[11px] font-semibold"
                     style={{ color: active ? B.blue : done ? B.green : B.muted }}
                   >
                     {s.label}

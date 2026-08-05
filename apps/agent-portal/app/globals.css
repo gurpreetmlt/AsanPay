@@ -25,14 +25,14 @@
 
   --font-sans: var(--font-poppins), "Poppins", ui-sans-serif, system-ui, sans-serif;
 
-  /* Larger type scale — clearer across SD / Distributor / Retailer */
-  --text-xs: 0.8125rem; /* ~13px @16 → ~14.6 @18 */
-  --text-sm: 0.9375rem; /* ~15px */
-  --text-base: 1.0625rem; /* ~17px */
-  --text-lg: 1.1875rem;
-  --text-xl: 1.375rem;
-  --text-2xl: 1.625rem;
-  --text-3xl: 2rem;
+  /* Slightly above default — readable but not oversized */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
 }
 
 * {
@@ -45,9 +45,9 @@ body {
   overflow-x: hidden;
 }
 
-/* Stronger root bump — Spice Money–like readability */
+/* Modest bump vs browser 16px — clearer than stock, smaller than 18px */
 html {
-  font-size: 112.5%; /* 18px when browser default is 16px */
+  font-size: 106.25%; /* 17px */
 }
 
 body {
@@ -57,7 +57,7 @@ body {
   font-family: var(--font-sans);
   font-size: 1rem;
   font-weight: 500;
-  line-height: 1.55;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;

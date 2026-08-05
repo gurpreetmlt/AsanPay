@@ -293,7 +293,7 @@ export default function SupportPage() {
             style={{ borderColor: B.border }}
           >
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-base font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+              <h2 className="text-sm font-bold uppercase tracking-wide" style={{ color: B.muted }}>
                 Contact directory
               </h2>
               <button
@@ -359,7 +359,7 @@ export default function SupportPage() {
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-5 lg:items-stretch">
           <div className="rounded-2xl border bg-white p-4 md:p-5 lg:col-span-3" style={{ borderColor: B.border }}>
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-base font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+              <h3 className="text-sm font-bold uppercase tracking-wide" style={{ color: B.muted }}>
                 Self-help guides
               </h3>
               <span className="text-sm font-semibold" style={{ color: B.muted }}>
@@ -384,10 +384,10 @@ export default function SupportPage() {
                     <PlayCircle size={18} style={{ color: B.blueLight }} />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[15px] font-semibold" style={{ color: B.blue }}>
+                    <span className="block truncate text-[14px] font-semibold" style={{ color: B.blue }}>
                       {g.title}
                     </span>
-                    <span className="text-[13px] font-bold uppercase" style={{ color: B.muted }}>
+                    <span className="text-[11px] font-bold uppercase" style={{ color: B.muted }}>
                       {g.tag}
                     </span>
                   </span>
@@ -403,12 +403,12 @@ export default function SupportPage() {
           >
             <div className="mb-3 flex items-center gap-2">
               <MapPin size={16} style={{ color: B.blueLight }} />
-              <h3 className="text-base font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+              <h3 className="text-sm font-bold uppercase tracking-wide" style={{ color: B.muted }}>
                 Nodal officer
               </h3>
             </div>
             <div
-              className="rounded-xl border px-3 py-3 text-[15px] leading-relaxed"
+              className="rounded-xl border px-3 py-3 text-[14px] leading-relaxed"
               style={{ borderColor: B.border, background: B.bg, color: B.blueMid }}
             >
               {nodalAddress || "Address not set yet (Admin → Platform Settings)."}
@@ -445,7 +445,7 @@ export default function SupportPage() {
                 <tip.icon size={17} style={{ color: B.blueLight }} />
               </span>
               <div className="min-w-0">
-                <p className="text-[15px] font-bold" style={{ color: B.blue }}>
+                <p className="text-[14px] font-bold" style={{ color: B.blue }}>
                   {tip.title}
                 </p>
                 <p className="mt-0.5 text-sm leading-relaxed" style={{ color: B.muted }}>
@@ -487,7 +487,7 @@ function QuickAction({
         </span>
         {badge ? (
           <span
-            className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[12px] font-bold uppercase"
+            className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase"
             style={{ background: "rgba(18,183,106,0.15)", color: B.greenDark }}
           >
             <Zap size={9} /> {badge}
@@ -498,13 +498,13 @@ function QuickAction({
         <p className="truncate text-sm font-bold" style={{ color: B.blue }}>
           {title}
         </p>
-        <p className="truncate text-[15px] font-semibold" style={{ color: disabled ? B.muted : B.blueMid }}>
+        <p className="truncate text-[14px] font-semibold" style={{ color: disabled ? B.muted : B.blueMid }}>
           {subtitle}
         </p>
       </div>
       {href && !disabled && accent ? (
         <span
-          className="mt-2 inline-flex w-full items-center justify-center rounded-lg py-1.5 text-[14px] font-bold text-white"
+          className="mt-2 inline-flex w-full items-center justify-center rounded-lg py-1.5 text-[12px] font-bold text-white"
           style={{ background: accent }}
         >
           Open chat
@@ -565,10 +565,10 @@ function ContactLine({
         <Icon size={14} />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[13px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+        <p className="truncate text-[11px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
           {label}
         </p>
-        <p className="truncate text-[15px] font-semibold" style={{ color: active ? B.blue : B.muted }}>
+        <p className="truncate text-[14px] font-semibold" style={{ color: active ? B.blue : B.muted }}>
           {value}
         </p>
       </div>
@@ -623,7 +623,7 @@ function TicketsBlock({
         <div className="flex items-center gap-2">
           <Ticket size={14} style={{ color: B.blueLight }} />
           <div>
-            <h3 className="text-base font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+            <h3 className="text-sm font-bold uppercase tracking-wide" style={{ color: B.muted }}>
               Tickets
             </h3>
             <p className="text-sm" style={{ color: B.muted }}>
@@ -634,7 +634,7 @@ function TicketsBlock({
         <button
           type="button"
           onClick={() => setShowForm((v) => !v)}
-          className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[14px] font-bold text-white"
+          className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[12px] font-bold text-white"
           style={{ background: B.badgeGrad }}
         >
           {showForm ? <X size={12} /> : <Plus size={12} />}
@@ -673,7 +673,7 @@ function TicketsBlock({
 
       <div className="min-h-[8rem] flex-1 space-y-1.5 overflow-y-auto">
         {loading && (
-          <p className="py-6 text-center text-[14px]" style={{ color: B.muted }}>
+          <p className="py-6 text-center text-[12px]" style={{ color: B.muted }}>
             Loading…
           </p>
         )}
@@ -683,18 +683,18 @@ function TicketsBlock({
             style={{ borderColor: B.border, color: B.muted }}
           >
             <LifeBuoy size={20} style={{ color: B.blueLight }} />
-            <p className="text-[14px]">No tickets yet</p>
+            <p className="text-[12px]">No tickets yet</p>
           </div>
         )}
         {!loading &&
           tickets.map((t) => (
             <div key={t.id} className="rounded-lg border px-2.5 py-2" style={{ borderColor: B.border }}>
               <div className="flex items-center justify-between gap-2">
-                <span className="truncate text-[14px] font-bold" style={{ color: B.blue }}>
+                <span className="truncate text-[12px] font-bold" style={{ color: B.blue }}>
                   {t.subject}
                 </span>
                 <span
-                  className="shrink-0 rounded-full px-1.5 py-0.5 text-[12px] font-bold capitalize"
+                  className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold capitalize"
                   style={
                     t.status === "open"
                       ? { background: "#FEF3C7", color: "#92400E" }
@@ -704,11 +704,11 @@ function TicketsBlock({
                   {t.status}
                 </span>
               </div>
-              <p className="mt-0.5 line-clamp-1 text-[13px]" style={{ color: B.muted }}>
+              <p className="mt-0.5 line-clamp-1 text-[11px]" style={{ color: B.muted }}>
                 {t.description}
               </p>
               {t.resolutionNote && (
-                <p className="mt-0.5 line-clamp-1 text-[13px] font-medium" style={{ color: B.greenDark }}>
+                <p className="mt-0.5 line-clamp-1 text-[11px] font-medium" style={{ color: B.greenDark }}>
                   {t.resolutionNote}
                 </p>
               )}

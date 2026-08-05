@@ -74,7 +74,7 @@ export default function FundRequestPage() {
             <h1 className="text-2xl font-bold" style={{ color: B.blue }}>
               Fund request
             </h1>
-            <p className="mt-0.5 text-[15px]" style={{ color: B.muted }}>
+            <p className="mt-0.5 text-[14px]" style={{ color: B.muted }}>
               Deposit to company bank, then submit UTR and receipt for balance credit
             </p>
           </div>
@@ -101,10 +101,10 @@ export default function FundRequestPage() {
         </div>
 
         <div className="overflow-hidden rounded-2xl border bg-white" style={{ borderColor: B.border }}>
-          <table className="w-full text-left text-[15px]">
+          <table className="w-full text-left text-[14px]">
             <thead>
               <tr
-                className="border-b text-[13px] font-semibold uppercase tracking-wider"
+                className="border-b text-[11px] font-semibold uppercase tracking-wider"
                 style={{ borderColor: B.border, background: B.secondary, color: B.muted }}
               >
                 <th className="px-4 py-3.5 font-semibold">Amount</th>
@@ -116,14 +116,14 @@ export default function FundRequestPage() {
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-[15px]" style={{ color: B.muted }}>
+                  <td colSpan={4} className="px-4 py-8 text-center text-[14px]" style={{ color: B.muted }}>
                     Loading…
                   </td>
                 </tr>
               )}
               {!loading && rows.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-[15px]" style={{ color: B.muted }}>
+                  <td colSpan={4} className="px-4 py-8 text-center text-[14px]" style={{ color: B.muted }}>
                     No fund requests yet — tap New request after you deposit
                   </td>
                 </tr>
@@ -143,7 +143,7 @@ export default function FundRequestPage() {
                       <div className="uppercase">{r.paymentMode.replace("_", " ")}</div>
                       <div className="font-mono">{r.referenceNumber || "—"}</div>
                     </td>
-                    <td className="px-4 py-3.5 text-[15px] font-medium" style={{ color: B.blueMid }}>
+                    <td className="px-4 py-3.5 text-[14px] font-medium" style={{ color: B.blueMid }}>
                       {r.displayStatus || r.status}
                     </td>
                     <td className="px-4 py-3.5 text-sm whitespace-nowrap" style={{ color: B.muted }}>

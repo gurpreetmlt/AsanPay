@@ -263,7 +263,7 @@ function DeviceSidebar({
                 </div>
                 <span className="flex-1 text-sm font-semibold text-gray-800">{device.name}</span>
                 {isActive && (
-                  <span className="rounded-full bg-green-100 px-3 py-1 text-[14px] font-bold text-green-700">
+                  <span className="rounded-full bg-green-100 px-3 py-1 text-[12px] font-bold text-green-700">
                     Active
                   </span>
                 )}
@@ -1157,7 +1157,7 @@ export default function NepalPage() {
                 <div className="flex flex-col items-center gap-2 rounded-xl border p-4 opacity-60">
                   <ScanEye size={32} className="text-gray-400" />
                   <span className="text-sm font-bold text-gray-500">Eye Scan</span>
-                  <span className="text-[13px] font-bold text-gray-400">Coming soon</span>
+                  <span className="text-[11px] font-bold text-gray-400">Coming soon</span>
                 </div>
               </div>
             </div>

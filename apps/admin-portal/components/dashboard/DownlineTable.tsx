@@ -39,7 +39,7 @@ export function DownlineTable({ users, onFund }: DownlineTableProps) {
               {["Name", "UID", "Role", "Balance", "Status", ""].map((h) => (
                 <th
                   key={h || "action"}
-                  className="px-4 py-3 text-left text-[14px] font-bold uppercase tracking-wider"
+                  className="px-4 py-3 text-left text-[12px] font-bold uppercase tracking-wider"
                   style={{ color: B.muted }}
                 >
                   {h}
@@ -83,7 +83,7 @@ export function DownlineTable({ users, onFund }: DownlineTableProps) {
                 </td>
                 <td className="px-4 py-3">
                   <span
-                    className="rounded-full px-2.5 py-0.5 text-[14px] font-bold"
+                    className="rounded-full px-2.5 py-0.5 text-[12px] font-bold"
                     style={
                       u.isActive
                         ? { background: `${B.green}18`, color: B.greenDark }

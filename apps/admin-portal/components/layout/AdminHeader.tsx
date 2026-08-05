@@ -172,7 +172,7 @@ export function AdminHeader({ onOpenMobileNav }: { onOpenMobileNav?: () => void 
             className="absolute left-0 right-0 top-full z-50 mt-1 max-h-[70vh] overflow-y-auto rounded-xl border shadow-lg"
             style={{ borderColor: border, background: headerBg }}
           >
-            <p className="px-4 pt-2.5 text-[13px] font-bold uppercase tracking-wider" style={{ color: textMuted }}>
+            <p className="px-4 pt-2.5 text-[11px] font-bold uppercase tracking-wider" style={{ color: textMuted }}>
               Pages
             </p>
             {matches.map((m) => (
@@ -216,7 +216,7 @@ export function AdminHeader({ onOpenMobileNav }: { onOpenMobileNav?: () => void 
           </button>
           {unhealthy.length > 0 ? (
             <span
-              className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full text-[13px] font-bold text-white"
+              className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full text-[11px] font-bold text-white"
               style={{ background: "#dc2626" }}
             >
               {unhealthy.length}
@@ -230,7 +230,7 @@ export function AdminHeader({ onOpenMobileNav }: { onOpenMobileNav?: () => void 
               className="absolute right-0 top-full z-50 mt-2 w-80 rounded-xl border shadow-lg"
               style={{ borderColor: border, background: headerBg }}
             >
-              <p className="border-b px-4 py-2.5 text-[13px] font-bold uppercase tracking-wider" style={{ borderColor: border, color: textMuted }}>
+              <p className="border-b px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider" style={{ borderColor: border, color: textMuted }}>
                 Provider Health Alerts
               </p>
               {unhealthy.length === 0 ? (
@@ -299,7 +299,7 @@ export function AdminHeader({ onOpenMobileNav }: { onOpenMobileNav?: () => void 
                   <ShieldCheck size={14} style={{ color: B.blueLight }} />
                   {name}
                 </p>
-                <p className="mt-0.5 truncate font-mono text-[13px]" style={{ color: textMuted }}>
+                <p className="mt-0.5 truncate font-mono text-[11px]" style={{ color: textMuted }}>
                   {user?.uid}
                 </p>
               </div>

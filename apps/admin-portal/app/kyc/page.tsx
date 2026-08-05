@@ -227,7 +227,7 @@ export default function KycPage() {
                     <p className="text-sm" style={{ color: B.muted }}>
                       {r.mobile} · {ROLE_LABEL[r.role] ?? r.role}
                     </p>
-                    <p className="mt-0.5 font-mono text-[13px]" style={{ color: B.muted }}>
+                    <p className="mt-0.5 font-mono text-[11px]" style={{ color: B.muted }}>
                       {r.uid}
                     </p>
                   </div>

@@ -232,7 +232,7 @@ export default function UpiCashPointPage() {
               >
                 <div className="flex items-start gap-2.5 bg-amber-50 px-5 py-3.5">
                   <Info size={16} className="mt-0.5 shrink-0 text-amber-600" />
-                  <p className="text-[13px] leading-relaxed text-amber-900">
+                  <p className="text-[11px] leading-relaxed text-amber-900">
                     QR expires in <span className="font-bold">30 seconds</span>. Customer can make
                     payment within <span className="font-bold">2 minutes</span>.
                   </p>
@@ -286,7 +286,7 @@ export default function UpiCashPointPage() {
                           setEarnDismissed(false);
                         }}
                         className={clsx(
-                          "min-w-[5.75rem] rounded-xl border px-3 py-3 text-[15px] font-semibold transition",
+                          "min-w-[5.75rem] rounded-xl border px-3 py-3 text-[14px] font-semibold transition",
                           amount === String(a)
                             ? "border-blue-500 bg-blue-50 text-blue-700 shadow-sm"
                             : "border-gray-200 bg-white text-gray-800 hover:border-gray-300 hover:bg-gray-50",
@@ -294,7 +294,7 @@ export default function UpiCashPointPage() {
                       >
                         ₹{a.toLocaleString("en-IN")}
                         {hint ? (
-                          <span className="mt-1 block text-[13px] font-medium leading-none text-gray-400">
+                          <span className="mt-1 block text-[11px] font-medium leading-none text-gray-400">
                             {hint}
                           </span>
                         ) : null}
@@ -343,7 +343,7 @@ export default function UpiCashPointPage() {
                     <div className="min-h-0 overflow-hidden">
                       <div className="flex items-center justify-between rounded-xl bg-slate-800 px-4 py-3 text-sm font-semibold text-white shadow-sm">
                         <span className="flex items-center gap-2.5">
-                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-[14px] font-black">
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-[12px] font-black">
                             ₹
                           </span>
                           You will earn ₹2 on this transaction
@@ -372,7 +372,7 @@ export default function UpiCashPointPage() {
                           className="flex items-center gap-1.5 rounded-full border border-gray-100 bg-gray-50 px-3 py-1.5"
                         >
                           <div
-                            className="flex h-5 w-5 items-center justify-center rounded-full text-[12px] font-black text-white"
+                            className="flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-black text-white"
                             style={{ backgroundColor: app.color }}
                           >
                             {app.short[0]}
@@ -395,7 +395,7 @@ export default function UpiCashPointPage() {
                 style={{ borderColor: B.border }}
               >
                 <h3 className="mb-3 text-sm font-bold text-gray-900">Notes:</h3>
-                <ul className="space-y-2.5 text-[12px] leading-relaxed text-gray-600">
+                <ul className="space-y-2.5 text-[10px] leading-relaxed text-gray-600">
                   <li className="flex gap-2">
                     <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-500" />
                     Daily withdrawal limit per customer is ₹10,000
@@ -419,7 +419,7 @@ export default function UpiCashPointPage() {
                 <div className="flex aspect-video items-center justify-center rounded-xl bg-slate-900">
                   <div className="text-center">
                     <p className="text-xs font-bold tracking-wide text-white/90">UPI CASH POINT</p>
-                    <p className="mt-1 text-[13px] text-white/45">Tutorial coming soon</p>
+                    <p className="mt-1 text-[11px] text-white/45">Tutorial coming soon</p>
                   </div>
                 </div>
               </div>
@@ -518,15 +518,15 @@ export default function UpiCashPointPage() {
                 {UPI_APPS.map((app) => (
                   <div key={app.name} className="flex items-center gap-1.5 rounded-full border border-gray-100 bg-gray-50 px-3 py-1.5">
                     <div
-                      className="flex h-5 w-5 items-center justify-center rounded-full text-[12px] font-black text-white"
+                      className="flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-black text-white"
                       style={{ backgroundColor: app.color }}
                     >
                       {app.short[0]}
                     </div>
-                    <span className="text-[14px] font-semibold text-gray-600">{app.short}</span>
+                    <span className="text-[12px] font-semibold text-gray-600">{app.short}</span>
                   </div>
                 ))}
-                <span className="rounded-full bg-gray-100 px-3 py-1.5 text-[14px] font-bold text-gray-500">
+                <span className="rounded-full bg-gray-100 px-3 py-1.5 text-[12px] font-bold text-gray-500">
                   +50 Others
                 </span>
               </div>

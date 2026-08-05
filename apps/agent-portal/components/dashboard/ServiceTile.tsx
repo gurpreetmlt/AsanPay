@@ -116,7 +116,7 @@ export function ServiceTile({
         {badge ? (
           <span
             className={clsx(
-              "absolute top-0 rounded px-1.5 py-0.5 text-[13px] font-semibold leading-none",
+              "absolute top-0 rounded px-1.5 py-0.5 text-[11px] font-semibold leading-none",
               isNew ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700",
             )}
           >

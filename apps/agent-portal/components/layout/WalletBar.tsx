@@ -27,7 +27,7 @@ export function WalletBar({ wallets, onRefresh, refreshing, subtitle }: Props) {
       <div className="w-1 bg-gradient-to-b from-green-500 to-green-700" />
       <div className="flex-1 px-3 py-2.5">
         <div className="flex items-center justify-between">
-          <p className="text-[13px] font-bold uppercase tracking-wide text-gray-500">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500">
             {primary ? walletDisplayName(primary.walletType) : "Available balance"}
           </p>
           <div className="flex items-center gap-1">
@@ -56,7 +56,7 @@ export function WalletBar({ wallets, onRefresh, refreshing, subtitle }: Props) {
           {visible ? formatInr(primary?.balance ?? "0") : "₹ ••••••"}
         </p>
         {subtitle ? (
-          <span className="mt-1 inline-block rounded-md bg-brand-50 px-2 py-0.5 text-[13px] font-bold text-brand-600">
+          <span className="mt-1 inline-block rounded-md bg-brand-50 px-2 py-0.5 text-[11px] font-bold text-brand-600">
             {subtitle}
           </span>
         ) : null}
@@ -64,7 +64,7 @@ export function WalletBar({ wallets, onRefresh, refreshing, subtitle }: Props) {
           <div className="mt-2 flex flex-wrap gap-4 border-t border-border-subtle pt-2">
             {secondary.map((w) => (
               <div key={w.walletType}>
-                <p className="text-[13px] font-bold uppercase tracking-wide text-gray-400">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400">
                   {walletDisplayName(w.walletType)}
                 </p>
                 <p className="text-sm font-bold text-gray-800">{visible ? formatInr(w.balance) : "••••"}</p>

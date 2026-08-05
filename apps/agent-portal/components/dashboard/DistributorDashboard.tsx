@@ -94,14 +94,14 @@ export function DistributorDashboard() {
           >
             <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white/10" />
             <div className="relative min-w-0">
-              <div className="flex items-center gap-1.5 text-[13px] font-semibold uppercase tracking-wider text-white/70">
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-white/70">
                 <Wallet size={12} /> Main
               </div>
               <div className="mt-0.5 text-2xl font-bold leading-none tracking-tight">
                 {loading ? "…" : formatInr(primary?.balance ?? "0")}
               </div>
             </div>
-            <div className="relative inline-flex items-center gap-1 rounded-md bg-white/15 px-2 py-1 text-[14px] text-white/90 lg:mt-2">
+            <div className="relative inline-flex items-center gap-1 rounded-md bg-white/15 px-2 py-1 text-[12px] text-white/90 lg:mt-2">
               <Clock size={10} /> Pending {formatInr(totalPending)}
             </div>
           </div>
@@ -115,7 +115,7 @@ export function DistributorDashboard() {
                 </span>
                 {selected ? (
                   <span
-                    className="rounded-md px-2 py-0.5 text-[14px] font-semibold"
+                    className="rounded-md px-2 py-0.5 text-[12px] font-semibold"
                     style={{ background: B.secondary, color: B.muted }}
                   >
                     {selected.monthLabel}
@@ -131,7 +131,7 @@ export function DistributorDashboard() {
                       key={m.month}
                       type="button"
                       onClick={() => setSelectedMonth(m.month)}
-                      className="rounded-md px-2 py-1 text-[14px] font-semibold"
+                      className="rounded-md px-2 py-1 text-[12px] font-semibold"
                       style={{
                         background: active ? B.blue : B.secondary,
                         color: active ? "#fff" : B.muted,
@@ -332,7 +332,7 @@ function StatChip({
   const fg = tone === "good" ? B.green : tone === "bad" ? "#DC2626" : B.blue;
   return (
     <div className={`rounded-xl px-3 py-2.5 ${className}`} style={{ background: bg }}>
-      <div className="flex items-center gap-1 text-[13px] font-semibold uppercase tracking-wide" style={{ color: B.muted }}>
+      <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide" style={{ color: B.muted }}>
         {icon}
         {label}
       </div>

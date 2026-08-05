@@ -161,7 +161,7 @@ function DeviceSidebar({
                   <span className="text-sm font-semibold text-gray-800">{device.name}</span>
                 </div>
                 {isActive && (
-                  <span className="rounded-full bg-green-100 px-3 py-1 text-[14px] font-bold text-green-700">
+                  <span className="rounded-full bg-green-100 px-3 py-1 text-[12px] font-bold text-green-700">
                     Currently Active
                   </span>
                 )}
@@ -294,7 +294,7 @@ function BankSidebar({
                     className="flex flex-col items-center gap-1.5 rounded-xl p-2 text-center hover:bg-gray-50"
                   >
                     <BankIcon bank={bank} size={44} />
-                    <span className="text-[13px] font-medium leading-tight text-gray-600 line-clamp-2">
+                    <span className="text-[11px] font-medium leading-tight text-gray-600 line-clamp-2">
                       {bank.name}
                     </span>
                   </button>
@@ -822,7 +822,7 @@ function AepsPageInner() {
                   <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed p-4 opacity-60">
                     <ScanEye size={28} className="text-gray-400" />
                     <span className="text-sm font-bold text-gray-500">Eye Scan</span>
-                    <span className="text-[13px] font-bold tracking-wide text-gray-400">COMING SOON</span>
+                    <span className="text-[11px] font-bold tracking-wide text-gray-400">COMING SOON</span>
                   </div>
                 </div>
               </div>
@@ -891,19 +891,19 @@ function AepsPageInner() {
               </h3>
               <ol className="space-y-2 text-xs leading-relaxed text-gray-600">
                 <li className="flex gap-2">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[13px] font-bold text-blue-700">1</span>
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[11px] font-bold text-blue-700">1</span>
                   Confirm your signup KYC Aadhaar (auto-filled)
                 </li>
                 <li className="flex gap-2">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[13px] font-bold text-blue-700">2</span>
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[11px] font-bold text-blue-700">2</span>
                   Accept Aadhaar consent for today&apos;s session
                 </li>
                 <li className="flex gap-2">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[13px] font-bold text-blue-700">3</span>
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[11px] font-bold text-blue-700">3</span>
                   Connect Morpho / Mantra L1 RD device
                 </li>
                 <li className="flex gap-2">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-green-50 text-[13px] font-bold text-green-700">✓</span>
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-green-50 text-[11px] font-bold text-green-700">✓</span>
                   Scan finger once — AePS unlocks for the day
                 </li>
               </ol>
@@ -1061,7 +1061,7 @@ function AepsPageInner() {
                         <BankIcon bank={bank} size={44} />
                         <span
                           className={clsx(
-                            "w-full truncate text-center text-[13px] leading-tight",
+                            "w-full truncate text-center text-[11px] leading-tight",
                             active ? "font-bold" : "font-medium text-gray-600",
                           )}
                           style={active ? { color: B.blue } : undefined}
@@ -1087,7 +1087,7 @@ function AepsPageInner() {
                     <p className="truncate text-sm font-bold" style={{ color: B.blue }}>
                       {selectedBank.name}
                     </p>
-                    <p className="text-[14px] text-gray-500">Selected bank for this transaction</p>
+                    <p className="text-[12px] text-gray-500">Selected bank for this transaction</p>
                   </div>
                   <button
                     type="button"
@@ -1364,23 +1364,23 @@ function AepsPageInner() {
               </h3>
               <ol className="space-y-2 text-xs text-gray-600 leading-relaxed">
                 <li className="flex gap-2">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[13px] font-bold text-blue-700">1</span>
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[11px] font-bold text-blue-700">1</span>
                   Select customer&apos;s bank
                 </li>
                 <li className="flex gap-2">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[13px] font-bold text-blue-700">2</span>
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[11px] font-bold text-blue-700">2</span>
                   Enter Aadhaar number &amp; mobile
                 </li>
                 <li className="flex gap-2">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[13px] font-bold text-blue-700">3</span>
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[11px] font-bold text-blue-700">3</span>
                   Enter amount (for withdraw/deposit)
                 </li>
                 <li className="flex gap-2">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[13px] font-bold text-blue-700">4</span>
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[11px] font-bold text-blue-700">4</span>
                   Scan customer fingerprint
                 </li>
                 <li className="flex gap-2">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-green-50 text-[13px] font-bold text-green-700">✓</span>
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-green-50 text-[11px] font-bold text-green-700">✓</span>
                   Transaction complete — receipt generated
                 </li>
               </ol>

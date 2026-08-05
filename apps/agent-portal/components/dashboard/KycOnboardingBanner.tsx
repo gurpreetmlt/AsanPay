@@ -108,7 +108,7 @@ export function KycOnboardingBanner() {
         <Icon size={20} className="mt-0.5 shrink-0" style={{ color: colors.icon }} />
         <div>
           <span
-            className="mb-1 inline-block rounded-md px-2 py-0.5 text-[13px] font-extrabold tracking-wide"
+            className="mb-1 inline-block rounded-md px-2 py-0.5 text-[11px] font-extrabold tracking-wide"
             style={{ background: colors.badgeBg, color: colors.badgeText }}
           >
             {colors.badge}

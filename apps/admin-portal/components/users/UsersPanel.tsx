@@ -407,7 +407,7 @@ export function UsersPanel({ lockedRole = "" }: Props) {
                   <p className="text-sm" style={{ color: B.muted }}>
                     {u.mobile}
                   </p>
-                  <p className="mt-0.5 font-mono text-[13px]" style={{ color: B.muted }}>
+                  <p className="mt-0.5 font-mono text-[11px]" style={{ color: B.muted }}>
                     {u.uid}
                   </p>
                 </div>

@@ -191,7 +191,7 @@ export default function AuditLogsPage() {
                             {r.entityType}
                           </div>
                           {r.entityId && (
-                            <div className="font-mono text-[14px]" style={{ color: B.muted }}>
+                            <div className="font-mono text-[12px]" style={{ color: B.muted }}>
                               {r.entityId}
                             </div>
                           )}
@@ -213,7 +213,7 @@ export default function AuditLogsPage() {
                           )}
                           {isOpen && (
                             <pre
-                              className="mt-1 max-w-xs overflow-x-auto rounded-lg p-2 text-[14px]"
+                              className="mt-1 max-w-xs overflow-x-auto rounded-lg p-2 text-[12px]"
                               style={{ background: B.secondary, color: B.blue }}
                             >
                               {JSON.stringify(r.metadata, null, 2)}

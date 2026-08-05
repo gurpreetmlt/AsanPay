@@ -198,7 +198,7 @@ function NavDropdown({
                 key={child.href}
                 href={child.href}
                 onClick={onNavigate}
-                className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition"
+                className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[11px] font-medium transition"
                 style={{
                   background: childActive ? "var(--admin-sidebar-active)" : "transparent",
                   color: childActive
@@ -240,7 +240,7 @@ function SidebarNav({
       ).map((section) => (
         <div key={section.title}>
           <p
-            className="mb-2 px-3 text-[13px] font-bold uppercase tracking-wider"
+            className="mb-2 px-3 text-[11px] font-bold uppercase tracking-wider"
             style={{ color: "var(--admin-sidebar-muted)" }}
           >
             {section.title}

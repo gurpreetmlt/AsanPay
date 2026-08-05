@@ -120,7 +120,7 @@ function ServiceIconCard({
           </div>
         )}
         <div
-          className="mx-auto w-full text-center text-[14px] font-semibold leading-snug transition-colors duration-150 group-hover:text-[var(--tile-accent)]"
+          className="mx-auto w-full text-center text-[12px] font-semibold leading-snug transition-colors duration-150 group-hover:text-[var(--tile-accent)]"
           style={{ color: B.blue }}
         >
           <span className="line-clamp-2 block min-h-[1.85rem]">{svc.name}</span>
@@ -497,7 +497,7 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
           titleIcon={<Star size={21} strokeWidth={2.2} color={B.green} aria-hidden />}
           action={
             <span
-              className="rounded-full px-2 py-0.5 text-[13px] font-bold"
+              className="rounded-full px-2 py-0.5 text-[11px] font-bold"
               style={{ background: `${B.green}18`, color: B.greenDark }}
             >
               {favorites.length}

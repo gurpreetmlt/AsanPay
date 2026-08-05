@@ -148,14 +148,14 @@ function TreeItem({
 
           <div className="flex shrink-0 items-center gap-2">
             <span
-              className="rounded-full px-2 py-0.5 text-[13px] font-semibold"
+              className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
               style={{ background: `${rc.bg}18`, color: rc.bg }}
             >
               {roleLabel(node.role)}
             </span>
             <Icon size={14} style={{ color: rc.bg }} className="hidden sm:block" />
             {hasChildren && (
-              <span className="rounded-full px-1.5 py-0.5 text-[13px] font-bold" style={{ background: B.secondary, color: B.muted }}>
+              <span className="rounded-full px-1.5 py-0.5 text-[11px] font-bold" style={{ background: B.secondary, color: B.muted }}>
                 {countAll(node.children)}
               </span>
             )}
@@ -167,7 +167,7 @@ function TreeItem({
             type="button"
             disabled={busy}
             onClick={() => onToggle(node.id, !node.isActive)}
-            className="shrink-0 rounded-lg border px-2.5 py-1 text-[14px] font-semibold disabled:opacity-50"
+            className="shrink-0 rounded-lg border px-2.5 py-1 text-[12px] font-semibold disabled:opacity-50"
             style={{
               borderColor: node.isActive ? "#fca5a5" : B.green,
               color: node.isActive ? "#b91c1c" : B.green,
@@ -476,7 +476,7 @@ export default function NetworkPage() {
                       ].map((h) => (
                         <th
                           key={h}
-                          className="whitespace-nowrap px-3 py-2.5 text-left text-[14px] font-semibold uppercase tracking-wider text-white"
+                          className="whitespace-nowrap px-3 py-2.5 text-left text-[12px] font-semibold uppercase tracking-wider text-white"
                         >
                           {h}
                         </th>
@@ -504,7 +504,7 @@ export default function NetworkPage() {
                             <p className="text-xs font-medium" style={{ color: B.muted }}>
                               {m.mobile}
                             </p>
-                            <p className="font-mono text-[14px]" style={{ color: B.muted }}>
+                            <p className="font-mono text-[12px]" style={{ color: B.muted }}>
                               {m.uid} · {roleLabel(m.role)}
                             </p>
                           </td>
@@ -553,7 +553,7 @@ export default function NetworkPage() {
                                 type="button"
                                 disabled={togglingId === m.id}
                                 onClick={() => void toggleChild(m.id, !m.isActive)}
-                                className="rounded-lg border px-2.5 py-1 text-[14px] font-semibold disabled:opacity-50"
+                                className="rounded-lg border px-2.5 py-1 text-[12px] font-semibold disabled:opacity-50"
                                 style={{
                                   borderColor: m.isActive ? "#fca5a5" : B.green,
                                   color: m.isActive ? "#b91c1c" : B.green,

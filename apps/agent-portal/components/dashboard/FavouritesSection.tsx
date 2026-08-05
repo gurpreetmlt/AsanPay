@@ -54,7 +54,7 @@ export function FavouritesSection({ userId, categories, homeEditMode, onEnterEdi
             Favourites
           </h2>
           <span
-            className="rounded-full bg-white px-2 py-0.5 text-[14px] font-bold"
+            className="rounded-full bg-white px-2 py-0.5 text-[12px] font-bold"
             style={{ color: B.greenDark }}
           >
             {services.length}
@@ -78,7 +78,7 @@ export function FavouritesSection({ userId, categories, homeEditMode, onEnterEdi
           ) : (
             <>
               {homeEditMode ? (
-                <p className="pb-1 text-center text-[14px] font-semibold" style={{ color: B.blue }}>
+                <p className="pb-1 text-center text-[12px] font-semibold" style={{ color: B.blue }}>
                   − dabayein favourite se hataane ke liye
                 </p>
               ) : null}

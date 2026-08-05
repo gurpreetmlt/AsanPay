@@ -13,9 +13,9 @@ export function ScreenHeader({ eyebrow, title, subtitle, children }: Props) {
       <div className="relative overflow-hidden">
         <div className="pointer-events-none absolute -right-8 -top-12 h-28 w-28 rounded-full bg-white/15" />
         <div className="pointer-events-none absolute left-0 top-2 h-8 w-1 rounded-r bg-green-500/90" />
-        {eyebrow ? <p className="text-[14px] font-semibold text-white/80">{eyebrow}</p> : null}
+        {eyebrow ? <p className="text-[12px] font-semibold text-white/80">{eyebrow}</p> : null}
         <h1 className="text-lg font-extrabold tracking-tight">{title}</h1>
-        {subtitle ? <p className="mt-0.5 text-[14px] text-white/75">{subtitle}</p> : null}
+        {subtitle ? <p className="mt-0.5 text-[12px] text-white/75">{subtitle}</p> : null}
       </div>
       {children}
     </header>

@@ -464,7 +464,7 @@ export default function CommissionSchemesPage() {
                         <td className="py-3 pr-3">{ROLE_LABEL[row.role] ?? row.role}</td>
                         <td className="py-3 pr-3">
                           <div>{row.serviceName}</div>
-                          <div className="font-mono text-[13px]" style={{ color: B.muted }}>
+                          <div className="font-mono text-[11px]" style={{ color: B.muted }}>
                             {row.serviceCode}
                           </div>
                         </td>
