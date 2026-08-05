@@ -298,6 +298,31 @@ export default function UpiCashPointPage() {
                     <span className="text-gray-300">·</span>
                     <span>UPI</span>
                   </div>
+
+                  <div className="mt-6 border-t border-gray-100 pt-5">
+                    <p className="mb-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-400">
+                      Supported UPI Apps
+                    </p>
+                    <div className="flex flex-wrap items-center justify-center gap-2.5">
+                      {UPI_APPS.slice(0, 6).map((app) => (
+                        <div
+                          key={app.name}
+                          className="flex items-center gap-1.5 rounded-full border border-gray-100 bg-gray-50 px-3 py-1.5"
+                        >
+                          <div
+                            className="flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-black text-white"
+                            style={{ backgroundColor: app.color }}
+                          >
+                            {app.short[0]}
+                          </div>
+                          <span className="text-xs font-semibold text-gray-700">{app.short}</span>
+                        </div>
+                      ))}
+                      <span className="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-500">
+                        +50 Others
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 {amountNum > 0 ? (
@@ -318,31 +343,6 @@ export default function UpiCashPointPage() {
                     </button>
                   </div>
                 ) : null}
-              </div>
-
-              <div className="mt-5">
-                <p className="mb-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-400">
-                  Supported UPI Apps
-                </p>
-                <div className="flex flex-wrap items-center justify-center gap-2.5">
-                  {UPI_APPS.slice(0, 6).map((app) => (
-                    <div
-                      key={app.name}
-                      className="flex items-center gap-1.5 rounded-full border border-gray-100 bg-white px-3 py-1.5 shadow-sm"
-                    >
-                      <div
-                        className="flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-black text-white"
-                        style={{ backgroundColor: app.color }}
-                      >
-                        {app.short[0]}
-                      </div>
-                      <span className="text-xs font-semibold text-gray-700">{app.short}</span>
-                    </div>
-                  ))}
-                  <span className="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-500">
-                    +50 Others
-                  </span>
-                </div>
               </div>
             </div>
 
