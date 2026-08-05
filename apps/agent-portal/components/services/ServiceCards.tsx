@@ -230,7 +230,7 @@ const BANKING_TOP_CODES = [
 /** Codes that sit on the second row under / aligned with AePS (Loans … Credit). */
 const BANKING_BOTTOM_CODES = ["LOANS", "INSURANCE", "CREDIT_CARDS"];
 
-/** Spice-style Banking: row1 = AePS box + UPI/MT/Nepal/Cash; row2 = Loans… */
+/** Spice-style Banking: top row = same even 8-col grid as Recharges; AePS frame on first 4. */
 function BankingCard({
   aeps,
   topRest,
@@ -246,7 +246,9 @@ function BankingCard({
   onToggle: (code: string) => void;
   onOpen: (code: string) => void;
 }) {
-  const gap = "gap-x-5 sm:gap-x-6";
+  const topRow = [...aeps, ...topRest];
+  /** Same track math as BBPS: 8 cols, gap-x-5 / sm:gap-x-6 → first-4 width = 50% − half gap */
+  const aepsFrameW = "w-[calc(50%-0.625rem)] sm:w-[calc(50%-0.75rem)]";
 
   return (
     <CardShell
@@ -255,66 +257,58 @@ function BankingCard({
       titleIcon={<Building2 size={21} strokeWidth={2.2} color="#2A5CDD" aria-hidden />}
     >
       <div className="flex w-full flex-col gap-5">
-        {/* Transparent border+padding on extras matches AePS box so icon tops align */}
-        <div className={`flex w-full flex-nowrap items-start justify-between ${gap}`}>
+        <div className="relative pt-1">
           {aeps.length > 0 ? (
-            <div
-              className="relative shrink-0 rounded-xl border-2 px-2.5 py-2.5 sm:px-3 sm:py-3"
-              style={{ borderColor: "rgba(11,42,154,0.22)" }}
-            >
-              <span
-                className="absolute right-2.5 top-0 z-10 flex h-[22px] w-[100px] -translate-y-1/2 items-center justify-center rounded-md border bg-white px-1.5 shadow-sm sm:right-3"
-                style={{ borderColor: B.border }}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="/assets/AEPS-Logo.png"
-                  alt="AePS — Aadhaar Enabled Payment System"
-                  className="h-5 w-[90px] object-contain"
-                />
-              </span>
-              <div className={`flex flex-nowrap items-start ${gap}`}>
-                {aeps.map((svc, i) => (
-                  <ServiceIconCard
-                    key={svc.id}
-                    svc={svc}
-                    index={i}
-                    favorite={codes.includes(svc.code)}
-                    onToggleFav={() => onToggle(svc.code)}
-                    onOpen={() => onOpen(svc.code)}
+            <>
+              <div
+                aria-hidden
+                className={`pointer-events-none absolute bottom-0 left-0 top-0 z-0 rounded-xl border-2 ${aepsFrameW}`}
+                style={{ borderColor: "rgba(11,42,154,0.22)" }}
+              />
+              <div className={`pointer-events-none absolute left-0 top-0 z-20 h-0 ${aepsFrameW}`}>
+                <span
+                  className="absolute right-2 top-0 flex h-6 w-[110px] -translate-y-1/2 items-center justify-center rounded-md border bg-white px-1.5 shadow-sm sm:right-2.5"
+                  style={{ borderColor: B.border }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/assets/AEPS-Logo.png"
+                    alt="AePS — Aadhaar Enabled Payment System"
+                    className="h-[22px] w-[100px] object-contain"
                   />
-                ))}
+                </span>
               </div>
-            </div>
+            </>
           ) : null}
 
-          <div
-            className={`flex flex-nowrap items-start border-2 border-transparent px-2.5 py-2.5 sm:px-3 sm:py-3 ${gap}`}
-          >
-            {topRest.map((svc, i) => (
-              <ServiceIconCard
-                key={svc.id}
-                svc={svc}
-                index={i + 4}
-                favorite={codes.includes(svc.code)}
-                onToggleFav={() => onToggle(svc.code)}
-                onOpen={() => onOpen(svc.code)}
-              />
+          {/* Identical 8-col grid to Recharges and Bills — equal space between all icons */}
+          <div className="relative z-10 grid grid-cols-4 content-start items-start gap-x-5 gap-y-5 sm:gap-x-6 md:grid-cols-8 md:gap-y-6">
+            {topRow.map((svc, i) => (
+              <div key={svc.id} className="flex justify-center">
+                <ServiceIconCard
+                  svc={svc}
+                  index={i}
+                  favorite={codes.includes(svc.code)}
+                  onToggleFav={() => onToggle(svc.code)}
+                  onOpen={() => onOpen(svc.code)}
+                />
+              </div>
             ))}
           </div>
         </div>
 
         {bottomRest.length > 0 ? (
-          <div className={`flex w-full flex-nowrap items-start justify-start ${gap}`}>
+          <div className="grid grid-cols-4 content-start items-start gap-x-5 gap-y-5 sm:gap-x-6 md:grid-cols-8 md:gap-y-6">
             {bottomRest.map((svc, i) => (
-              <ServiceIconCard
-                key={svc.id}
-                svc={svc}
-                index={i + 10}
-                favorite={codes.includes(svc.code)}
-                onToggleFav={() => onToggle(svc.code)}
-                onOpen={() => onOpen(svc.code)}
-              />
+              <div key={svc.id} className="flex justify-center">
+                <ServiceIconCard
+                  svc={svc}
+                  index={i + 10}
+                  favorite={codes.includes(svc.code)}
+                  onToggleFav={() => onToggle(svc.code)}
+                  onOpen={() => onOpen(svc.code)}
+                />
+              </div>
             ))}
           </div>
         ) : null}
