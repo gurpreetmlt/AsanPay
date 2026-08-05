@@ -244,14 +244,14 @@ function BankingCard({
               style={{ borderColor: "rgba(11,42,154,0.22)" }}
             >
               <span
-                className="absolute right-3 top-0 z-10 flex -translate-y-1/2 items-center rounded-md border bg-white px-2.5 py-1 shadow-sm sm:right-4"
+                className="absolute right-2.5 top-0 z-10 flex h-[18px] w-[78px] -translate-y-1/2 items-center justify-center rounded-[5px] border bg-white px-1.5 shadow-sm sm:right-3"
                 style={{ borderColor: B.border }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src="/assets/AEPS-Logo.png"
                   alt="AePS — Aadhaar Enabled Payment System"
-                  className="h-7 w-auto max-w-[140px] object-contain sm:h-8"
+                  className="h-[14px] w-[70px] object-contain"
                 />
               </span>
               <div className={`flex flex-nowrap items-start ${gap}`}>
