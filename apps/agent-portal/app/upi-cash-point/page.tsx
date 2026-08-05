@@ -476,7 +476,6 @@ export default function UpiCashPointPage() {
                 </ul>
               </div>
             </aside>
-            </div>
           </div>
         )}
       </div>

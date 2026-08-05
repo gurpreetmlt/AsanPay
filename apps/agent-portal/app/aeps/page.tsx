@@ -208,10 +208,10 @@ function BankSidebar({
 }) {
   const [search, setSearch] = useState("");
 
-  const favBanks = useMemo(
-    () => BANKS.filter((b) => favouriteIds.includes(b.id)),
-    [favouriteIds],
-  );
+  const favBanks = useMemo(() => {
+    const byId = new Map(BANKS.map((b) => [b.id, b]));
+    return favouriteIds.map((id) => byId.get(id)).filter((b): b is Bank => Boolean(b));
+  }, [favouriteIds]);
 
   const filtered = useMemo(
     () =>
@@ -268,7 +268,7 @@ function BankSidebar({
                 Recent/Favourite Banks
               </h3>
               <div className="grid grid-cols-4 gap-3">
-                {favBanks.slice(0, 8).map((bank) => (
+                {favBanks.map((bank) => (
                   <button
                     key={bank.id}
                     type="button"
@@ -568,9 +568,17 @@ function AepsPageInner() {
   }
 
   const visibleBanks = useMemo(() => {
-    const favs = BANKS.filter((b) => favBanks.includes(b.id));
-    return favs.length > 0 ? favs.slice(0, 6) : BANKS.slice(0, 6);
-  }, [favBanks]);
+    const byId = new Map(BANKS.map((b) => [b.id, b]));
+    const favs = favBanks
+      .map((id) => byId.get(id))
+      .filter((b): b is Bank => Boolean(b));
+    // Selected (View All) bank not in favs still appears in strip with highlight — no name bar below
+    if (selectedBank && !favs.some((b) => b.id === selectedBank.id)) {
+      return [selectedBank, ...favs];
+    }
+    if (favs.length > 0) return favs;
+    return BANKS.slice(0, 6);
+  }, [favBanks, selectedBank]);
 
   function formatAadhaar(v: string) {
     const digits = v.replace(/\D/g, "").slice(0, 12);
@@ -857,9 +865,20 @@ function AepsPageInner() {
               ))}
             </div>
 
-            {/* Bank selector strip */}
+            {/* Bank selector strip — favs scroll; View All in header; selected = icon highlight only */}
             <div className="rounded-2xl border bg-white p-4" style={{ borderColor: B.border }}>
-              <div className="flex items-center gap-4 overflow-x-auto pb-1">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Select bank</p>
+                <button
+                  type="button"
+                  onClick={() => setBankSidebarOpen(true)}
+                  className="inline-flex items-center gap-0.5 text-xs font-bold transition hover:opacity-80"
+                  style={{ color: B.blueLight }}
+                >
+                  View All <ChevronRight size={14} />
+                </button>
+              </div>
+              <div className="flex items-center gap-3 overflow-x-auto pb-1">
                 {visibleBanks.map((bank) => {
                   const active = selectedBank?.id === bank.id;
                   return (
@@ -868,7 +887,7 @@ function AepsPageInner() {
                       type="button"
                       onClick={() => setSelectedBank(bank)}
                       className={clsx(
-                        "relative flex flex-col items-center gap-1.5 rounded-xl border-2 p-2 transition min-w-[72px]",
+                        "relative flex min-w-[72px] flex-col items-center gap-1.5 rounded-xl border-2 p-2 transition",
                         active
                           ? "border-blue-500 bg-blue-50 shadow-md shadow-blue-100"
                           : "border-transparent hover:bg-gray-50",
@@ -885,7 +904,7 @@ function AepsPageInner() {
                       <BankIcon bank={bank} size={44} />
                       <span
                         className={clsx(
-                          "text-[10px] leading-tight text-center line-clamp-1 w-16",
+                          "w-16 line-clamp-1 text-center text-[10px] leading-tight",
                           active ? "font-bold" : "font-medium text-gray-600",
                         )}
                         style={active ? { color: B.blue } : undefined}
@@ -895,23 +914,7 @@ function AepsPageInner() {
                     </button>
                   );
                 })}
-                <button
-                  type="button"
-                  onClick={() => setBankSidebarOpen(true)}
-                  className="flex items-center gap-1 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-bold transition hover:bg-blue-50"
-                  style={{ color: B.blueLight }}
-                >
-                  View All <ChevronRight size={14} />
-                </button>
               </div>
-              {selectedBank && (
-                <div className="mt-3 flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2">
-                  <BankIcon bank={selectedBank} size={28} />
-                  <span className="text-sm font-semibold" style={{ color: B.blue }}>
-                    {selectedBank.name}
-                  </span>
-                </div>
-              )}
             </div>
 
             {/* Form fields */}

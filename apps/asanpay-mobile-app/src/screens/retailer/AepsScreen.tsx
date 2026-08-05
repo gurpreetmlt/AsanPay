@@ -307,10 +307,10 @@ function BankModal({
     }
   }, [visible, slideAnim]);
 
-  const favBanks = useMemo(
-    () => banks.filter((b) => favouriteIds.includes(b.id)),
-    [favouriteIds, banks],
-  );
+  const favBanks = useMemo(() => {
+    const byId = new Map(banks.map((b) => [b.id, b]));
+    return favouriteIds.map((id) => byId.get(id)).filter((b): b is Bank => Boolean(b));
+  }, [favouriteIds, banks]);
 
   const filtered = useMemo(
     () =>
@@ -369,7 +369,7 @@ function BankModal({
                 <View style={{ marginBottom: 18 }}>
                   <Text style={[ms.sectionTitle, { color: tokens.txt }]}>Recent / Favourite Banks</Text>
                   <View style={ms.favGrid}>
-                    {favBanks.slice(0, 8).map((bank) => (
+                    {favBanks.map((bank) => (
                       <Pressable
                         key={bank.id}
                         onPress={() => {
@@ -590,9 +590,17 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
   );
 
   const visibleBanks = useMemo(() => {
-    const favs = resolvedBanks.filter((b) => favBanks.includes(b.id));
-    return favs.length > 0 ? favs.slice(0, 5) : resolvedBanks.slice(0, 5);
-  }, [favBanks, resolvedBanks]);
+    const byId = new Map(resolvedBanks.map((b) => [b.id, b]));
+    const favs = favBanks
+      .map((id) => byId.get(id))
+      .filter((b): b is (typeof resolvedBanks)[number] => Boolean(b));
+    // Selected bank from View All (not a fav) still shows in the strip like a fav — no extra name row
+    if (selectedBank && !favs.some((b) => b.id === selectedBank.id)) {
+      return [selectedBank, ...favs];
+    }
+    if (favs.length > 0) return favs;
+    return resolvedBanks.slice(0, 5);
+  }, [favBanks, resolvedBanks, selectedBank]);
 
   function formatAadhaar(v: string) {
     const digits = v.replace(/\D/g, "").slice(0, 12);
@@ -1022,14 +1030,6 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
               );
             })}
           </ScrollView>
-          {selectedBank && (
-            <View style={[s.selectedBankRow, { backgroundColor: colors.bluePale }]}>
-              <BankIcon bank={selectedBank} size={26} />
-              <Text style={[s.selectedBankName, { color: colors.blue }]}>
-                {selectedBank.name}
-              </Text>
-            </View>
-          )}
         </View>
 
         {/* Form fields */}
@@ -1400,8 +1400,6 @@ const s = StyleSheet.create({
     flexShrink: 0,
   },
   viewAllText: { fontSize: 12, fontWeight: "800", color: colors.blueLight },
-  selectedBankRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
-  selectedBankName: { fontWeight: "700", fontSize: 13 },
 
   // Form fields
   fieldLabel: { fontSize: 11, fontWeight: "800", letterSpacing: 0.3 },
