@@ -17,19 +17,6 @@ if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental
 const AEPS_ORDER = ["CASH_WITHDRAW", "MINI_STATEMENT", "CASH_DEPOSIT", "BALANCE_ENQUIRY"] as const;
 const AEPS_CODES = new Set<string>(AEPS_ORDER);
 
-/** Non-AePS banking order — Cash Collection before Loans (not inside AePS). */
-const BANKING_OTHER_ORDER = [
-  "UPI_CASH_POINT",
-  "MONEY_TRANSFER",
-  "NEPAL_REMITTANCE",
-  "NEPAL",
-  "DMT",
-  "CASH_COLLECTION",
-  "LOANS",
-  "INSURANCE",
-  "CREDIT_CARDS",
-] as const;
-
 /** BBPS collapsed: 4 + 4 (two rows on 4-col grid); rest via View more. */
 const BBPS_PREVIEW = 8;
 
@@ -80,12 +67,8 @@ export function CategorySection({
     const aeps = AEPS_ORDER.map((code) => byCode.get(code)).filter(
       (s): s is (typeof category.services)[number] => Boolean(s),
     );
-    const orderedOther = BANKING_OTHER_ORDER.map((code) => byCode.get(code)).filter(
-      (s): s is (typeof category.services)[number] => Boolean(s),
-    );
-    const orderedCodes = new Set(orderedOther.map((s) => s.code));
-    const restOther = category.services.filter((s) => !AEPS_CODES.has(s.code) && !orderedCodes.has(s.code));
-    return { aepsServices: aeps, otherServices: [...orderedOther, ...restOther] };
+    const other = category.services.filter((s) => !AEPS_CODES.has(s.code));
+    return { aepsServices: aeps, otherServices: other };
   }, [category.services, isBanking]);
 
   const gridServices = isBanking ? otherServices : category.services;
