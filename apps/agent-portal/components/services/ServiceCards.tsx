@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { ChevronDown, Star, Megaphone } from "lucide-react";
+import { ChevronDown, Star, Megaphone, Building2 } from "lucide-react";
 import { fetchApi } from "@/lib/api";
 import type { CatalogCategoryView } from "@/lib/types";
 import { B, brand } from "@/lib/brand";
@@ -177,27 +177,42 @@ function ServiceRow({
 
 function CardShell({
   title,
+  titleIcon,
   action,
   children,
   className = "",
+  /** Mobile-style header: icon + bottom border under title row. */
+  headerBorder = false,
 }: {
   title: string;
+  titleIcon?: ReactNode;
   action?: ReactNode;
   children: ReactNode;
   className?: string;
+  headerBorder?: boolean;
 }) {
   return (
     <div
-      className={`rounded-2xl border bg-white p-4 shadow-sm sm:p-5 ${className}`}
+      className={`rounded-2xl border bg-white shadow-sm ${headerBorder ? "overflow-hidden" : "p-4 sm:p-5"} ${className}`}
       style={{ borderColor: B.border }}
     >
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h3 className="text-base font-bold" style={{ color: B.blue }}>
-          {title}
-        </h3>
+      <div
+        className={
+          headerBorder
+            ? "mb-0 flex items-center justify-between gap-2 border-b px-4 py-3.5 sm:px-5 sm:py-4"
+            : "mb-3 flex items-center justify-between gap-2"
+        }
+        style={headerBorder ? { borderColor: B.border } : undefined}
+      >
+        <div className="flex min-w-0 items-center gap-2.5">
+          {titleIcon}
+          <h3 className="truncate text-base font-bold" style={{ color: B.blue }}>
+            {title}
+          </h3>
+        </div>
         {action}
       </div>
-      {children}
+      <div className={headerBorder ? "p-4 sm:p-5" : undefined}>{children}</div>
     </div>
   );
 }
@@ -234,24 +249,28 @@ function BankingCard({
   const gap = "gap-x-5 sm:gap-x-6";
 
   return (
-    <CardShell title="Banking Services">
+    <CardShell
+      title="Banking Services"
+      headerBorder
+      titleIcon={<Building2 size={21} strokeWidth={2.2} color="#2A5CDD" aria-hidden />}
+    >
       <div className="flex w-full flex-col gap-5">
-        {/* Spread across full card width so right side is not empty */}
+        {/* Transparent border+padding on extras matches AePS box so icon tops align */}
         <div className={`flex w-full flex-nowrap items-start justify-between ${gap}`}>
           {aeps.length > 0 ? (
             <div
-              className="relative shrink-0 rounded-xl border-2 px-2.5 pb-2.5 pt-4 sm:px-3 sm:pb-3 sm:pt-5"
+              className="relative shrink-0 rounded-xl border-2 px-2.5 py-2.5 sm:px-3 sm:py-3"
               style={{ borderColor: "rgba(11,42,154,0.22)" }}
             >
               <span
-                className="absolute right-2.5 top-0 z-10 flex h-[18px] w-[78px] -translate-y-1/2 items-center justify-center rounded-[5px] border bg-white px-1.5 shadow-sm sm:right-3"
+                className="absolute right-2.5 top-0 z-10 flex h-[22px] w-[100px] -translate-y-1/2 items-center justify-center rounded-md border bg-white px-1.5 shadow-sm sm:right-3"
                 style={{ borderColor: B.border }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src="/assets/AEPS-Logo.png"
                   alt="AePS — Aadhaar Enabled Payment System"
-                  className="h-[14px] w-[70px] object-contain"
+                  className="h-5 w-[90px] object-contain"
                 />
               </span>
               <div className={`flex flex-nowrap items-start ${gap}`}>
@@ -269,16 +288,20 @@ function BankingCard({
             </div>
           ) : null}
 
-          {topRest.map((svc, i) => (
-            <ServiceIconCard
-              key={svc.id}
-              svc={svc}
-              index={i + 4}
-              favorite={codes.includes(svc.code)}
-              onToggleFav={() => onToggle(svc.code)}
-              onOpen={() => onOpen(svc.code)}
-            />
-          ))}
+          <div
+            className={`flex flex-nowrap items-start border-2 border-transparent px-2.5 py-2.5 sm:px-3 sm:py-3 ${gap}`}
+          >
+            {topRest.map((svc, i) => (
+              <ServiceIconCard
+                key={svc.id}
+                svc={svc}
+                index={i + 4}
+                favorite={codes.includes(svc.code)}
+                onToggleFav={() => onToggle(svc.code)}
+                onOpen={() => onOpen(svc.code)}
+              />
+            ))}
+          </div>
         </div>
 
         {bottomRest.length > 0 ? (
