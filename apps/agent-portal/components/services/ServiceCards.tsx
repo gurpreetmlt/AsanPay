@@ -192,10 +192,17 @@ function CardShell({
 }
 
 /** Codes that sit on the top row next to the AePS box (screenshot layout). */
-const BANKING_TOP_CODES = ["UPI_CASH_POINT", "MONEY_TRANSFER", "NEPAL_REMITTANCE", "NEPAL", "DMT"];
+const BANKING_TOP_CODES = [
+  "UPI_CASH_POINT",
+  "MONEY_TRANSFER",
+  "NEPAL_REMITTANCE",
+  "NEPAL",
+  "DMT",
+  "CASH_COLLECTION",
+];
 
-/** Codes that sit on the second row under / aligned with AePS (Cash Collection … Credit). */
-const BANKING_BOTTOM_CODES = ["CASH_COLLECTION", "LOANS", "INSURANCE", "CREDIT_CARDS"];
+/** Codes that sit on the second row under / aligned with AePS (Loans … Credit). */
+const BANKING_BOTTOM_CODES = ["LOANS", "INSURANCE", "CREDIT_CARDS"];
 
 /** Spice-style Banking card: AePS box + top extras, then bottom row of more services. */
 function BankingCard({
