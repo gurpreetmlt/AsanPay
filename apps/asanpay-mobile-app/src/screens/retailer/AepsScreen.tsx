@@ -472,7 +472,13 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
   const bankScrollRef = useRef<ScrollView>(null);
   const bankViewportW = useRef(280);
   const bankScrollX = useRef(0);
-  const BANK_ITEM_W = 72;
+  /** Per-bank x/width inside the horizontal strip (from onLayout). */
+  const bankLayouts = useRef<Record<string, { x: number; width: number }>>({});
+  /** Item width + gap must match styles.bankItemWrap / bankStrip.gap */
+  const BANK_ITEM_W = 66;
+  const BANK_GAP = 6;
+  const BANK_STRIDE = BANK_ITEM_W + BANK_GAP;
+  const BANK_EDGE_PAD = 6;
 
   // Live IIN overrides from GET /txn/aeps/banks (keyed by normalized bank name).
   const [liveIinByName, setLiveIinByName] = useState<Record<string, string>>({});
@@ -638,18 +644,31 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
       if (!selectedBank) return;
       const idx = stripBanks.findIndex((b) => b.id === selectedBank.id);
       if (idx < 0) return;
-      const itemLeft = idx * BANK_ITEM_W;
-      const itemRight = itemLeft + BANK_ITEM_W;
+
+      const measured = bankLayouts.current[selectedBank.id];
+      const itemLeft = measured?.x ?? idx * BANK_STRIDE;
+      const itemRight = measured
+        ? measured.x + measured.width
+        : itemLeft + BANK_ITEM_W;
+      const viewW = Math.max(bankViewportW.current, 1);
       const viewLeft = bankScrollX.current;
-      const viewRight = viewLeft + bankViewportW.current;
-      if (itemLeft >= viewLeft && itemRight <= viewRight) return;
+      const viewRight = viewLeft + viewW;
+
+      // Fully visible (with small edge pad) → no scroll
+      if (
+        itemLeft >= viewLeft + BANK_EDGE_PAD &&
+        itemRight <= viewRight - BANK_EDGE_PAD
+      ) {
+        return;
+      }
+
       let target = viewLeft;
-      if (itemLeft < viewLeft) {
-        // Keep selected near first visible slot
-        target = itemLeft;
+      if (itemLeft < viewLeft + BANK_EDGE_PAD) {
+        // Selected clipped on the left → bring to first slot
+        target = Math.max(0, itemLeft - BANK_EDGE_PAD);
       } else {
-        // Keep selected near last visible slot (~4th)
-        target = Math.max(0, itemRight - bankViewportW.current);
+        // Selected clipped on the right (typical 4th bank) → scroll so it sits fully in view
+        target = Math.max(0, itemRight - viewW + BANK_EDGE_PAD);
       }
       bankScrollRef.current?.scrollTo({ x: target, animated });
       bankScrollX.current = target;
@@ -658,9 +677,14 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
   );
 
   useEffect(() => {
-    // After select / list change — selected icon must stay among visible ~4
-    const t = setTimeout(() => scrollSelectedIntoView(true), 50);
-    return () => clearTimeout(t);
+    bankLayouts.current = {};
+    // After select / list change — selected icon must stay fully among visible ~4
+    const t1 = setTimeout(() => scrollSelectedIntoView(true), 40);
+    const t2 = setTimeout(() => scrollSelectedIntoView(true), 180);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
   }, [selectedBank?.id, stripBanks, scrollSelectedIntoView]);
 
   function formatAadhaar(v: string) {
@@ -1078,6 +1102,8 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
             contentContainerStyle={s.bankStrip}
             onLayout={(e) => {
               bankViewportW.current = e.nativeEvent.layout.width;
+              // Layout ready — ensure selected (esp. 4th) is fully visible
+              requestAnimationFrame(() => scrollSelectedIntoView(false));
             }}
             onScroll={(e) => {
               bankScrollX.current = e.nativeEvent.contentOffset.x;
@@ -1093,6 +1119,13 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
                   key={bank.id}
                   onPress={() => selectBank(bank, false)}
                   style={s.bankItemWrap}
+                  onLayout={(e) => {
+                    const { x, width } = e.nativeEvent.layout;
+                    bankLayouts.current[bank.id] = { x, width };
+                    if (active) {
+                      requestAnimationFrame(() => scrollSelectedIntoView(true));
+                    }
+                  }}
                 >
                   <View style={[s.bankItem, active && s.bankItemActive]}>
                     <View style={s.bankIconWrap}>
@@ -1501,15 +1534,15 @@ const s = StyleSheet.create({
     marginBottom: 10,
   },
 
-  // Bank strip — View All sits in the SELECT BANK header row
-  bankStrip: { gap: 8, alignItems: "flex-start", paddingBottom: 2 },
-  bankItemWrap: { alignItems: "center", width: 72 },
+  // Bank strip — ~4 icons fit fully; gap matches BANK_GAP in scroll math
+  bankStrip: { gap: 6, alignItems: "flex-start", paddingBottom: 2, paddingRight: 4 },
+  bankItemWrap: { alignItems: "center", width: 66 },
   bankItem: {
     alignItems: "center",
-    width: 64,
+    width: 60,
     paddingTop: 6,
     paddingBottom: 4,
-    paddingHorizontal: 4,
+    paddingHorizontal: 3,
     borderRadius: 14,
     borderWidth: 1.5,
     borderColor: "transparent",
