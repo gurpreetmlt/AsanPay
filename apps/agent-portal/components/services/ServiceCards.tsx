@@ -7,8 +7,7 @@ import { ChevronDown, Star, Megaphone } from "lucide-react";
 import { fetchApi } from "@/lib/api";
 import type { CatalogCategoryView } from "@/lib/types";
 import { B, brand } from "@/lib/brand";
-import { serviceIconPath } from "@asanpay/shared-types";
-import { DesignIcon, designTileColors, serviceCodeToDesignKey } from "@/lib/designIcons";
+import { DesignIcon, serviceCodeToDesignKey } from "@/lib/designIcons";
 import { flattenCatalogServices } from "@/lib/catalog";
 import { extractApiError, isKycServicesUnlocked } from "@/lib/onboarding";
 import { MAX_FAVORITES, selectFavoriteCodes, useFavoritesStore } from "@/lib/favorites";
@@ -55,10 +54,10 @@ function resolveServiceRoute(code: string): string | null {
   return null;
 }
 
-/** Clean, readable service tile (Spice-balanced — not tiny, not oversized). */
+/** Minimal tile: soft square + single-color stroke icon (no busy SVG art). */
 function ServiceIconCard({
   svc,
-  index,
+  index: _index,
   favorite,
   onToggleFav,
   onOpen,
@@ -69,18 +68,12 @@ function ServiceIconCard({
   onToggleFav: () => void;
   onOpen?: () => void;
 }) {
-  const tile = designTileColors(index, false);
-  const assetSrc = serviceIconPath(svc.icon);
-  const [assetFailed, setAssetFailed] = useState(false);
-  const showAsset = Boolean(assetSrc) && !assetFailed;
   const starColor = favorite ? B.green : B.muted;
   const designKey = serviceCodeToDesignKey(svc.code);
+  void _index;
 
   return (
-    <div
-      className="group relative flex w-[5.5rem] shrink-0 flex-col items-center sm:w-[6rem]"
-      style={{ "--tile-accent": tile.fg } as React.CSSProperties}
-    >
+    <div className="group relative flex w-[5.75rem] shrink-0 flex-col items-center sm:w-[6.25rem]">
       <button
         type="button"
         aria-label={favorite ? "Remove favourite" : "Add favourite"}
@@ -94,13 +87,13 @@ function ServiceIconCard({
       </button>
       <button
         type="button"
-        className="flex w-full flex-col items-center gap-1 text-center disabled:opacity-45"
+        className="flex w-full flex-col items-center gap-1.5 text-center disabled:opacity-45"
         onClick={() => (onOpen ? onOpen() : toast(`${svc.name} — coming soon on web`))}
       >
         {svc.badge ? (
           <span
-            className="max-w-full truncate rounded px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none"
-            style={{ background: `${tile.fg}18`, color: tile.fg }}
+            className="max-w-full truncate rounded-full px-1.5 py-0.5 text-[9px] font-medium leading-none"
+            style={{ background: B.secondary, color: B.muted }}
             title={svc.badge}
           >
             {svc.badge}
@@ -108,24 +101,14 @@ function ServiceIconCard({
         ) : (
           <span className="h-[15px]" aria-hidden />
         )}
-        {showAsset ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={assetSrc!}
-            alt=""
-            className="h-10 w-10 object-contain transition duration-150 ease-out group-hover:scale-110 group-hover:drop-shadow-md sm:h-11 sm:w-11"
-            onError={() => setAssetFailed(true)}
-          />
-        ) : (
-          <div
-            className="flex h-10 w-10 items-center justify-center rounded-xl transition duration-150 ease-out group-hover:scale-110 sm:h-11 sm:w-11"
-            style={{ background: tile.bg }}
-          >
-            <DesignIcon name={designKey} size={24} color={tile.fg} />
-          </div>
-        )}
         <div
-          className="line-clamp-2 min-h-[2rem] w-full text-center text-[11px] font-semibold leading-snug transition-colors duration-150 group-hover:text-[var(--tile-accent)] sm:text-xs"
+          className="flex h-11 w-11 items-center justify-center rounded-2xl transition duration-150 ease-out group-hover:scale-[1.04] sm:h-12 sm:w-12"
+          style={{ background: B.secondary }}
+        >
+          <DesignIcon name={designKey} size={22} color={B.blueMid} />
+        </div>
+        <div
+          className="line-clamp-2 min-h-[2rem] w-full text-center text-[11px] font-medium leading-snug sm:text-xs"
           style={{ color: B.blue }}
         >
           {svc.name}
