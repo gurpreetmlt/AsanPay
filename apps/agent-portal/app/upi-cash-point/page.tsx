@@ -7,7 +7,7 @@ import { ArrowLeft, Copy, Check, Info } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { B } from "@/lib/brand";
 
-const QUICK_AMOUNTS = [500, 1000, 2000, 5000];
+const QUICK_AMOUNTS = [200, 500, 1000, 2000, 3000, 4000, 5000];
 const QR_EXPIRY_SECONDS = 120;
 
 const UPI_APPS = [
@@ -173,9 +173,8 @@ export default function UpiCashPointPage() {
         </div>
 
         {stage === "input" ? (
-          /* ── Amount Input Stage ──────────────────────── */
+          /* ── Amount Input Stage — form left, notes right ── */
           <div className="space-y-5">
-            {/* Branding strip */}
             <div
               className="flex items-center justify-center gap-4 rounded-2xl p-4"
               style={{ background: `linear-gradient(135deg, ${B.blue} 0%, #1a3fb8 100%)` }}
@@ -194,100 +193,158 @@ export default function UpiCashPointPage() {
                 <span className="text-sm font-bold text-white/90">YES Bank</span>
               </div>
               <div className="h-5 w-px bg-white/30" />
-              <span className="rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold text-white/90 tracking-wide">
+              <span className="rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold tracking-wide text-white/90">
                 UPI CASH POINT
               </span>
             </div>
 
-            {/* Amount card */}
-            <div className="rounded-2xl border bg-white p-6" style={{ borderColor: B.border }}>
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                Withdrawal Amount
-              </label>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-black" style={{ color: B.blue }}>
-                  ₹
-                </span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))}
-                  placeholder="Enter amount"
-                  className="w-full rounded-xl border border-gray-200 bg-gray-50 py-4 pl-10 pr-4 text-2xl font-bold outline-none placeholder:text-gray-300 focus:border-blue-300 focus:ring-1 focus:ring-blue-200"
-                  style={{ color: B.blue }}
-                />
-              </div>
+            <div className="grid items-start gap-6 md:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_380px]">
+              <div className="min-w-0 rounded-2xl border bg-white p-6" style={{ borderColor: B.border }}>
+                <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5">
+                  <Info size={16} className="mt-0.5 shrink-0 text-amber-600" />
+                  <p className="text-xs font-medium leading-relaxed text-amber-800">
+                    QR expires in {QR_EXPIRY_SECONDS} seconds after generation. Customer should pay
+                    before it expires.
+                  </p>
+                </div>
 
-              <div className="mt-4 flex gap-2">
-                {QUICK_AMOUNTS.map((a) => (
-                  <button
-                    key={a}
-                    type="button"
-                    onClick={() => setAmount(String(a))}
-                    className={clsx(
-                      "flex-1 rounded-xl border py-2.5 text-sm font-bold transition",
-                      amount === String(a)
-                        ? "border-blue-400 bg-blue-50 text-blue-700"
-                        : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50",
-                    )}
+                <label className="mb-2 block text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Amount to Withdraw
+                </label>
+                <div className="relative">
+                  <span
+                    className="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-black"
+                    style={{ color: B.blue }}
                   >
-                    ₹{a.toLocaleString("en-IN")}
-                  </button>
-                ))}
+                    ₹
+                  </span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))}
+                    placeholder="0"
+                    className="w-full rounded-xl border border-gray-200 bg-gray-50 py-4 pl-10 pr-4 text-center text-2xl font-bold outline-none placeholder:text-gray-300 focus:border-blue-300 focus:ring-1 focus:ring-blue-200"
+                    style={{ color: B.blue }}
+                  />
+                </div>
+                <p className="mt-1.5 text-center text-[11px] text-gray-400">
+                  Enter amount in multiples of ₹100
+                </p>
+
+                <div className="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-5">
+                  {QUICK_AMOUNTS.map((a) => (
+                    <button
+                      key={a}
+                      type="button"
+                      onClick={() => setAmount(String(a))}
+                      className={clsx(
+                        "rounded-xl border py-2.5 text-sm font-bold transition",
+                        amount === String(a)
+                          ? "border-blue-400 bg-blue-50 text-blue-700"
+                          : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50",
+                      )}
+                    >
+                      ₹{a.toLocaleString("en-IN")}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleGenerate}
+                  disabled={amountNum < 1}
+                  className={clsx(
+                    "mt-6 w-full rounded-xl py-3.5 text-sm font-bold text-white shadow-lg transition",
+                    amountNum >= 1 ? "hover:opacity-90" : "cursor-not-allowed opacity-50",
+                  )}
+                  style={{
+                    background:
+                      amountNum >= 1
+                        ? `linear-gradient(135deg, ${B.green} 0%, ${B.greenDark} 100%)`
+                        : "#94a3b8",
+                  }}
+                >
+                  Generate QR Code
+                </button>
+
+                <div className="mt-5 border-t pt-4" style={{ borderColor: B.border }}>
+                  <p className="mb-2 text-center text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                    Supported UPI Apps
+                  </p>
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    {UPI_APPS.slice(0, 4).map((app) => (
+                      <div
+                        key={app.name}
+                        className="flex items-center gap-1.5 rounded-full border border-gray-100 bg-gray-50 px-2.5 py-1"
+                      >
+                        <div
+                          className="flex h-4 w-4 items-center justify-center rounded-full text-[8px] font-black text-white"
+                          style={{ backgroundColor: app.color }}
+                        >
+                          {app.short[0]}
+                        </div>
+                        <span className="text-[10px] font-semibold text-gray-600">{app.short}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
 
-              <button
-                type="button"
-                onClick={handleGenerate}
-                disabled={amountNum < 1}
-                className={clsx(
-                  "mt-6 w-full rounded-xl py-3.5 text-sm font-bold text-white shadow-lg transition",
-                  amountNum >= 1 ? "hover:opacity-90" : "cursor-not-allowed opacity-50",
-                )}
-                style={{
-                  background: amountNum >= 1
-                    ? `linear-gradient(135deg, ${B.green} 0%, ${B.greenDark} 100%)`
-                    : "#94a3b8",
-                }}
-              >
-                Generate QR Code
-              </button>
-            </div>
+              <aside className="min-w-0 space-y-4 md:sticky md:top-4">
+                <div className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
+                  <h3 className="mb-3 text-sm font-bold" style={{ color: B.blue }}>
+                    Notes:
+                  </h3>
+                  <ul className="space-y-2.5 text-xs leading-relaxed text-gray-600">
+                    <li className="flex gap-2">
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
+                      Daily withdrawal limit per customer is ₹10,000
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
+                      Minimum gap between 2 transactions of the same customer should be 30 minutes
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
+                      No commission for transactions made using your own UPI ID
+                    </li>
+                  </ul>
+                </div>
 
-            {/* Info */}
-            <div className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
-              <h3 className="mb-3 text-sm font-bold" style={{ color: B.blue }}>
-                How UPI Cash Point Works
-              </h3>
-              <ol className="space-y-2 text-xs text-gray-600 leading-relaxed">
-                {[
-                  "Enter withdrawal amount",
-                  "QR code is generated with payment details",
-                  "Customer scans QR from any UPI app",
-                  "Payment received — hand over cash to customer",
-                  "Commission credited to your balance",
-                ].map((step, i) => (
-                  <li key={i} className="flex gap-2">
-                    <span
-                      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
-                      style={{
-                        backgroundColor: i === 4 ? "#ECFDF5" : "#EEF3FF",
-                        color: i === 4 ? "#059669" : B.blueLight,
-                      }}
-                    >
-                      {i === 4 ? "✓" : i + 1}
-                    </span>
-                    {step}
-                  </li>
-                ))}
-              </ol>
+                <div className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
+                  <h3 className="mb-3 text-sm font-bold" style={{ color: B.blue }}>
+                    How UPI Cash Point Works
+                  </h3>
+                  <ol className="space-y-2 text-xs leading-relaxed text-gray-600">
+                    {[
+                      "Enter withdrawal amount",
+                      "QR code is generated with payment details",
+                      "Customer scans QR from any UPI app",
+                      "Payment received — hand over cash to customer",
+                      "Commission credited to your balance",
+                    ].map((step, i) => (
+                      <li key={step} className="flex gap-2">
+                        <span
+                          className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
+                          style={{
+                            backgroundColor: i === 4 ? "#ECFDF5" : "#EEF3FF",
+                            color: i === 4 ? "#059669" : B.blueLight,
+                          }}
+                        >
+                          {i === 4 ? "✓" : i + 1}
+                        </span>
+                        {step}
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              </aside>
             </div>
           </div>
         ) : (
           /* ── QR Display Stage ───────────────────────── */
           <div className="space-y-5">
-            {/* Branding strip */}
             <div
               className="flex items-center justify-center gap-3 rounded-2xl px-4 py-3"
               style={{ background: `linear-gradient(135deg, ${B.blue} 0%, #1a3fb8 100%)` }}
@@ -306,11 +363,13 @@ export default function UpiCashPointPage() {
                 <span className="text-xs font-bold text-white/90">YES Bank</span>
               </div>
               <div className="h-4 w-px bg-white/30" />
-              <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-bold text-white/90 tracking-wide">
+              <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-bold tracking-wide text-white/90">
                 UPI CASH POINT
               </span>
             </div>
 
+            <div className="grid items-start gap-6 md:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_380px]">
+            <div className="min-w-0 space-y-5">
             {/* QR Card */}
             <div className="rounded-2xl border bg-white p-6 text-center" style={{ borderColor: B.border }}>
               <p className="mb-1 text-sm font-semibold text-gray-500">
@@ -382,7 +441,7 @@ export default function UpiCashPointPage() {
             </div>
 
             {/* BHIM UPI branding */}
-            <div className="flex items-center justify-center gap-3 rounded-xl bg-white px-4 py-3 border" style={{ borderColor: B.border }}>
+            <div className="flex items-center justify-center gap-3 rounded-xl border bg-white px-4 py-3" style={{ borderColor: B.border }}>
               <span className="text-sm font-black tracking-wider" style={{ color: B.blue }}>
                 BHIM
               </span>
@@ -422,6 +481,30 @@ export default function UpiCashPointPage() {
             >
               New Transaction
             </button>
+            </div>
+
+            <aside className="min-w-0 space-y-4 md:sticky md:top-4">
+              <div className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
+                <h3 className="mb-3 text-sm font-bold" style={{ color: B.blue }}>
+                  Notes:
+                </h3>
+                <ul className="space-y-2.5 text-xs leading-relaxed text-gray-600">
+                  <li className="flex gap-2">
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
+                    Ask customer to pay within the QR timer
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
+                    Hand over cash only after payment success on customer app
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
+                    Do not refresh this page while QR is active
+                  </li>
+                </ul>
+              </div>
+            </aside>
+            </div>
           </div>
         )}
       </div>
