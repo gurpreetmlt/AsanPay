@@ -995,27 +995,34 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
         {/* Bank selector strip */}
         <View style={[s.card, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
           <Text style={[s.cardLabel, { color: tokens.sub }]}>SELECT BANK</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.bankStrip}>
-            {visibleBanks.map((bank) => {
-              const active = selectedBank?.id === bank.id;
-              return (
-                <Pressable
-                  key={bank.id}
-                  onPress={() => setSelectedBank(bank)}
-                  style={[s.bankItem, active && s.bankItemActive]}
-                >
-                  <BankIcon bank={bank} size={40} />
-                  <Text style={[s.bankShort, { color: tokens.txt2 }]} numberOfLines={1}>
-                    {bank.shortName}
-                  </Text>
-                </Pressable>
-              );
-            })}
+          <View style={s.bankStripRow}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={s.bankStrip}
+              style={s.bankStripScroll}
+            >
+              {visibleBanks.map((bank) => {
+                const active = selectedBank?.id === bank.id;
+                return (
+                  <Pressable
+                    key={bank.id}
+                    onPress={() => setSelectedBank(bank)}
+                    style={[s.bankItem, active && s.bankItemActive]}
+                  >
+                    <BankIcon bank={bank} size={40} />
+                    <Text style={[s.bankShort, { color: tokens.txt2 }]} numberOfLines={1}>
+                      {bank.shortName}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
             <Pressable onPress={() => setBankModalOpen(true)} style={s.viewAllBtn}>
               <Text style={s.viewAllText}>View All</Text>
               <ChevronRight size={14} color={colors.blueLight} />
             </Pressable>
-          </ScrollView>
+          </View>
           {selectedBank && (
             <View style={[s.selectedBankRow, { backgroundColor: colors.bluePale }]}>
               <BankIcon bank={selectedBank} size={26} />
@@ -1375,12 +1382,21 @@ const s = StyleSheet.create({
   card: { borderWidth: 1, borderRadius: 18, padding: 16, marginBottom: 14 },
   cardLabel: { fontSize: 11, fontWeight: "800", letterSpacing: 0.5, marginBottom: 10 },
 
-  // Bank strip
-  bankStrip: { gap: 10, alignItems: "center", paddingBottom: 4 },
+  // Bank strip — banks scroll; View All stays pinned on the right
+  bankStripRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  bankStripScroll: { flex: 1, minWidth: 0 },
+  bankStrip: { gap: 10, alignItems: "center", paddingBottom: 4, paddingRight: 4 },
   bankItem: { alignItems: "center", width: 58, paddingVertical: 4, borderRadius: 14 },
   bankItemActive: { backgroundColor: "#EFF6FF", borderWidth: 1.5, borderColor: colors.blueLight },
   bankShort: { fontSize: 9.5, fontWeight: "600", textAlign: "center", marginTop: 3 },
-  viewAllBtn: { flexDirection: "row", alignItems: "center", gap: 2, paddingHorizontal: 10 },
+  viewAllBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    paddingLeft: 8,
+    paddingVertical: 8,
+    flexShrink: 0,
+  },
   viewAllText: { fontSize: 12, fontWeight: "800", color: colors.blueLight },
   selectedBankRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
   selectedBankName: { fontWeight: "700", fontSize: 13 },
