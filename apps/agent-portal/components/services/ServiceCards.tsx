@@ -132,7 +132,7 @@ function ServiceIconCard({
 
 /** Shared responsive track — Banking + BBPS stay aligned on every breakpoint. */
 const SERVICE_GRID =
-  "grid grid-cols-4 content-start items-start gap-x-3 gap-y-5 sm:gap-x-4 sm:gap-y-5 lg:grid-cols-7 lg:gap-x-5 lg:gap-y-6";
+  "grid grid-cols-4 content-start items-start gap-x-2.5 gap-y-5 sm:gap-x-3.5 sm:gap-y-5 lg:grid-cols-7 lg:gap-x-4 lg:gap-y-6";
 
 function ServiceRow({
   services,
@@ -208,7 +208,7 @@ function CardShell({
         </div>
         {action}
       </div>
-      <div className="p-4 sm:p-5">{children}</div>
+      <div className="p-3.5 sm:p-5">{children}</div>
     </div>
   );
 }
@@ -268,15 +268,16 @@ function BankingCard({
       titleIcon={<Building2 size={21} strokeWidth={2.2} color="#2A5CDD" aria-hidden />}
     >
       <div className="flex w-full min-w-0 flex-col gap-5">
-        <div className="relative min-w-0 pt-3">
+        {/* Inset AePS border so icons don't kiss the frame on narrow widths */}
+        <div className="relative min-w-0 px-1 pt-3 sm:px-1.5">
           {aeps.length > 0 ? (
             <>
               <div
                 aria-hidden
-                className="pointer-events-none absolute left-0 top-3 z-0 rounded-xl border-2 max-lg:right-0 max-lg:bottom-[calc(50%+0.625rem)] lg:bottom-0 lg:w-[calc(57.14%-0.54rem)]"
+                className="pointer-events-none absolute inset-x-1 top-3 z-0 rounded-xl border-2 max-lg:bottom-[calc(50%+0.625rem)] sm:inset-x-1.5 lg:inset-x-auto lg:left-0 lg:bottom-0 lg:w-[calc(57.14%-0.85rem)]"
                 style={{ borderColor: "rgba(11,42,154,0.22)" }}
               />
-              <div className="pointer-events-none absolute left-0 top-3 z-20 h-0 max-lg:right-0 lg:w-[calc(57.14%-0.54rem)]">
+              <div className="pointer-events-none absolute inset-x-1 top-3 z-20 h-0 sm:inset-x-1.5 lg:inset-x-auto lg:left-0 lg:w-[calc(57.14%-0.85rem)]">
                 <span
                   className="absolute right-2 top-0 flex h-6 w-[110px] -translate-y-1/2 items-center justify-center rounded-md border bg-white px-1.5 shadow-sm sm:right-2.5"
                   style={{ borderColor: B.border }}
@@ -292,11 +293,15 @@ function BankingCard({
             </>
           ) : null}
 
-          <div className={`relative min-w-0 ${SERVICE_GRID}`}>{topRow.map((svc, i) => tile(svc, i))}</div>
+          <div className={`relative min-w-0 px-1.5 sm:px-2 ${SERVICE_GRID}`}>
+            {topRow.map((svc, i) => tile(svc, i))}
+          </div>
         </div>
 
         {bottomRest.length > 0 ? (
-          <div className={`min-w-0 ${SERVICE_GRID}`}>{bottomRest.map((svc, i) => tile(svc, i + 10))}</div>
+          <div className={`min-w-0 px-2.5 sm:px-3.5 ${SERVICE_GRID}`}>
+            {bottomRest.map((svc, i) => tile(svc, i + 10))}
+          </div>
         ) : null}
       </div>
     </CardShell>
