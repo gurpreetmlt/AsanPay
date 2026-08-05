@@ -36,7 +36,8 @@ export function PromoSlider({
   className = "",
   fill = false,
 }: Props) {
-  const [slides, setSlides] = useState<PromoSlideView[]>([]);
+  const [allSlides, setAllSlides] = useState<PromoSlideView[]>([]);
+  const [brokenIds, setBrokenIds] = useState<string[]>([]);
   const [index, setIndex] = useState(0);
   const [loaded, setLoaded] = useState(false);
 
@@ -45,9 +46,9 @@ export function PromoSlider({
     (async () => {
       try {
         const data = await fetchApi<PromoSlideView[]>("/promos", { placement });
-        if (alive) setSlides(Array.isArray(data) ? data : []);
+        if (alive) setAllSlides(Array.isArray(data) ? data : []);
       } catch {
-        if (alive) setSlides([]);
+        if (alive) setAllSlides([]);
       } finally {
         if (alive) setLoaded(true);
       }
@@ -56,6 +57,9 @@ export function PromoSlider({
       alive = false;
     };
   }, [placement]);
+
+  // A slide whose file is gone (e.g. uploaded before a redeploy) must not blank the panel.
+  const slides = allSlides.filter((s) => !brokenIds.includes(s.id));
 
   useEffect(() => {
     setIndex(0);
@@ -108,6 +112,7 @@ export function PromoSlider({
         src={resolvePromoImageSrc(slide.imageUrl)}
         alt={slide.title || "Promotion"}
         className="h-full w-full object-cover"
+        onError={() => setBrokenIds((prev) => (prev.includes(slide.id) ? prev : [...prev, slide.id]))}
       />
       {(slide.title || slides.length > 1) && (
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-4 pb-4 pt-10">
