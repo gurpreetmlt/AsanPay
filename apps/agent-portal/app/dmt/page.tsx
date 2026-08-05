@@ -261,12 +261,16 @@ export default function DmtPage() {
   useEffect(() => {
     let cancelled = false;
     void api
-      .get<ApiResponse<{ verifiedToday: boolean; kycReady: boolean }>>("/auth/agent-auth/status")
+      .get<ApiResponse<{ verifiedToday: boolean; kycReady: boolean; aadhaarNumber?: string | null }>>(
+        "/auth/agent-auth/status",
+      )
       .then(({ data }) => {
         if (cancelled) return;
         if (data.success) {
           setAgentAuthReady(Boolean(data.data.verifiedToday));
           setAgentAuthKycReady(data.data.kycReady !== false);
+          const digits = (data.data.aadhaarNumber ?? "").replace(/\D/g, "").slice(0, 12);
+          if (digits.length === 12) setAgentAadhaar(digits);
         } else {
           setAgentAuthReady(false);
         }
@@ -824,7 +828,13 @@ export default function DmtPage() {
                   value={agentAadhaarVisible ? formatAadhaar(agentAadhaar) : maskAadhaar(agentAadhaar)}
                   onChange={(e) => setAgentAadhaar(e.target.value.replace(/\D/g, "").slice(0, 12))}
                   onFocus={() => setAgentAadhaarVisible(true)}
-                  placeholder={agentAuthKycReady ? "Enter 12-digit Aadhaar" : "KYC Aadhaar not found"}
+                  placeholder={
+                    agentAuthKycReady
+                      ? agentAadhaar.length === 12
+                        ? "From signup KYC"
+                        : "Enter 12-digit Aadhaar"
+                      : "KYC Aadhaar not found"
+                  }
                   disabled={!agentAuthKycReady || agentAuthScanning}
                   inputMode="numeric"
                   className="flex-1 bg-transparent text-sm font-semibold outline-none disabled:text-gray-400"

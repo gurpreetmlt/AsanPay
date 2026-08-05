@@ -299,12 +299,16 @@ export function NepalScreen({ onBack }: NepalScreenProps) {
   useEffect(() => {
     let cancelled = false;
     void api
-      .get<ApiResponse<{ verifiedToday: boolean; kycReady: boolean }>>("/auth/agent-auth/status")
+      .get<ApiResponse<{ verifiedToday: boolean; kycReady: boolean; aadhaarNumber?: string | null }>>(
+        "/auth/agent-auth/status",
+      )
       .then(({ data }) => {
         if (cancelled) return;
         if (data.success) {
           setAgentAuthReady(Boolean(data.data.verifiedToday));
           setAgentAuthKycReady(data.data.kycReady !== false);
+          const digits = (data.data.aadhaarNumber ?? "").replace(/\D/g, "").slice(0, 12);
+          if (digits.length === 12) setAgentAadhaar(digits);
         } else {
           setAgentAuthReady(false);
         }
@@ -838,7 +842,13 @@ export function NepalScreen({ onBack }: NepalScreenProps) {
               label="RETAILER AADHAAR"
               value={agentAadhaar}
               onChangeText={(v) => setAgentAadhaar(v.replace(/\D/g, "").slice(0, 12))}
-              placeholder="12-digit Aadhaar"
+              placeholder={
+                agentAuthKycReady
+                  ? agentAadhaar.length === 12
+                    ? "From signup KYC"
+                    : "12-digit Aadhaar"
+                  : "KYC Aadhaar not found"
+              }
               keyboardType="number-pad"
             />
             <Pressable onPress={() => void verifyDailyAuth()} disabled={authBusy} style={styles.primaryBtn}>

@@ -25,6 +25,8 @@ export interface AgentAuthStatus {
   verifiedToday: boolean;
   lastVerifiedAt: Date | null;
   kycReady: boolean;
+  /** Retailer's own KYC Aadhaar (signup) — clients auto-fill daily 2FA from this. */
+  aadhaarNumber: string | null;
   providerMode: string;
   /** InstantPay outletLoginStatus extras (null in dummy mode / provider unreachable). */
   outlet?: {
@@ -50,10 +52,21 @@ export async function getAgentAuthStatus(
   const last = user?.lastAgentAuthAt ?? null;
   const localVerifiedToday = Boolean(last && indiaDayKey(last) === indiaDayKey(new Date()));
 
+  let aadhaarNumber: string | null = null;
+  if (user?.aadhaarNumberEncrypted) {
+    try {
+      const digits = decryptPII(user.aadhaarNumberEncrypted).replace(/\D/g, "");
+      aadhaarNumber = /^\d{12}$/.test(digits) ? digits : null;
+    } catch {
+      aadhaarNumber = null;
+    }
+  }
+
   const base: AgentAuthStatus = {
     verifiedToday: localVerifiedToday,
     lastVerifiedAt: last,
-    kycReady: Boolean(user?.aadhaarNumberEncrypted),
+    kycReady: Boolean(aadhaarNumber),
+    aadhaarNumber,
     providerMode: env.AEPS_PROVIDER_MODE,
     outlet: null,
   };
@@ -105,7 +118,8 @@ export async function assertAgentAuthFresh(userId: string): Promise<void> {
 }
 
 export interface AgentAuthInput {
-  aadhaarNumber: string;
+  /** When omitted, the retailer's signup KYC Aadhaar is used. */
+  aadhaarNumber?: string;
   biometricPayload: string;
   latitude?: string;
   longitude?: string;
@@ -128,8 +142,12 @@ export async function verifyAndRecordAgentAuth(
   if (!user.aadhaarNumberEncrypted) {
     throw new HttpError(422, "Complete KYC (Aadhaar) before agent authentication", "KYC_AADHAAR_REQUIRED");
   }
-  const aadhaarNumber = decryptPII(user.aadhaarNumberEncrypted);
-  if (input.aadhaarNumber !== aadhaarNumber) {
+  const kycAadhaar = decryptPII(user.aadhaarNumberEncrypted).replace(/\D/g, "");
+  if (!/^\d{12}$/.test(kycAadhaar)) {
+    throw new HttpError(422, "Complete KYC (Aadhaar) before agent authentication", "KYC_AADHAAR_REQUIRED");
+  }
+  const aadhaarNumber = (input.aadhaarNumber ?? kycAadhaar).replace(/\D/g, "");
+  if (aadhaarNumber !== kycAadhaar) {
     throw new HttpError(
       422,
       "Entered Aadhaar does not match the retailer's KYC Aadhaar",
@@ -145,7 +163,7 @@ export async function verifyAndRecordAgentAuth(
     "agent_auth",
     null,
     {
-      aadhaarNumber: input.aadhaarNumber,
+      aadhaarNumber,
       biometricPayload: input.biometricPayload,
       latitude: input.latitude,
       longitude: input.longitude,
@@ -153,7 +171,7 @@ export async function verifyAndRecordAgentAuth(
     (adapter) =>
       adapter.agentAuth({
         retailerUserId: actor.id,
-        aadhaarNumber: input.aadhaarNumber,
+        aadhaarNumber,
         biometricPayload: input.biometricPayload,
         latitude: input.latitude ?? user.outletLatitude ?? undefined,
         longitude: input.longitude ?? user.outletLongitude ?? undefined,

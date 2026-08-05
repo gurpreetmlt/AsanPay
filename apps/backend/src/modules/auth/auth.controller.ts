@@ -273,7 +273,11 @@ export async function verifyTransactionPin(req: Request, res: Response): Promise
 }
 
 const agentAuthSchema = z.object({
-  aadhaarNumber: z.string().regex(/^\d{12}$/, "Aadhaar number must be 12 digits"),
+  /** Optional — when omitted, backend uses the retailer's signup KYC Aadhaar. */
+  aadhaarNumber: z
+    .string()
+    .regex(/^\d{12}$/, "Aadhaar number must be 12 digits")
+    .optional(),
   biometricPayload: z.string().min(1),
   latitude: z.string().min(1).max(32).optional(),
   longitude: z.string().min(1).max(32).optional(),

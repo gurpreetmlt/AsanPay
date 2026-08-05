@@ -397,11 +397,15 @@ function AepsPageInner() {
   useEffect(() => {
     let cancelled = false;
     void api
-      .get<ApiResponse<{ verifiedToday: boolean; kycReady: boolean }>>("/auth/agent-auth/status")
+      .get<ApiResponse<{ verifiedToday: boolean; kycReady: boolean; aadhaarNumber?: string | null }>>(
+        "/auth/agent-auth/status",
+      )
       .then(({ data }) => {
         if (cancelled || !data.success) return;
         setAgentAuthReady(data.data.verifiedToday);
         setAgentAuthKycReady(data.data.kycReady);
+        const digits = (data.data.aadhaarNumber ?? "").replace(/\D/g, "").slice(0, 12);
+        if (digits.length === 12) setAgentAadhaar(digits);
       })
       .catch((err) => {
         if (cancelled) return;
@@ -649,7 +653,13 @@ function AepsPageInner() {
                     }
                     onChange={(e) => setAgentAadhaar(e.target.value.replace(/\D/g, "").slice(0, 12))}
                     onFocus={() => setAgentAadhaarVisible(true)}
-                    placeholder={agentAuthKycReady ? "Enter 12-digit Aadhaar" : "KYC Aadhaar not found"}
+                    placeholder={
+                      agentAuthKycReady
+                        ? agentAadhaar.length === 12
+                          ? "From signup KYC"
+                          : "Enter 12-digit Aadhaar"
+                        : "KYC Aadhaar not found"
+                    }
                     disabled={!agentAuthKycReady || agentAuthScanning}
                     inputMode="numeric"
                     className="flex-1 bg-transparent text-sm font-semibold tracking-wide outline-none disabled:text-gray-400"
