@@ -244,7 +244,7 @@ function BankingCard({
               style={{ borderColor: "rgba(11,42,154,0.22)" }}
             >
               <span
-                className="absolute left-1/2 top-0 z-10 flex -translate-x-1/2 -translate-y-1/2 items-center rounded-md border bg-white px-2.5 py-1 shadow-sm"
+                className="absolute right-3 top-0 z-10 flex -translate-y-1/2 items-center rounded-md border bg-white px-2.5 py-1 shadow-sm sm:right-4"
                 style={{ borderColor: B.border }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
