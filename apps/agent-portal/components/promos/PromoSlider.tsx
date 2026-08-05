@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, Megaphone } from "lucide-react";
 import { fetchApi } from "@/lib/api";
 import { B, brand } from "@/lib/brand";
@@ -65,15 +65,42 @@ export function PromoSlider({
     setIndex(0);
   }, [slides.length]);
 
+  const goTo = useCallback(
+    (next: number) => {
+      if (slides.length === 0) return;
+      setIndex(((next % slides.length) + slides.length) % slides.length);
+    },
+    [slides.length],
+  );
+
+  const goPrev = useCallback(
+    (e?: React.MouseEvent) => {
+      e?.preventDefault();
+      e?.stopPropagation();
+      goTo(index - 1);
+    },
+    [goTo, index],
+  );
+
+  const goNext = useCallback(
+    (e?: React.MouseEvent) => {
+      e?.preventDefault();
+      e?.stopPropagation();
+      goTo(index + 1);
+    },
+    [goTo, index],
+  );
+
   useEffect(() => {
     if (slides.length <= 1 || intervalMs <= 0) return;
     const t = window.setInterval(() => {
       setIndex((i) => (i + 1) % slides.length);
     }, intervalMs);
     return () => window.clearInterval(t);
-  }, [slides.length, intervalMs]);
+  }, [slides.length, intervalMs, index]);
 
   const slide = slides[index];
+  const shellClass = `relative overflow-hidden rounded-2xl shadow-md ${fill ? "h-full min-h-[320px]" : "aspect-[3/4] min-h-[280px]"} ${className}`;
 
   if (!loaded) {
     return (
@@ -105,77 +132,91 @@ export function PromoSlider({
     );
   }
 
-  const body = (
-    <>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={resolvePromoImageSrc(slide.imageUrl)}
-        alt={slide.title || "Promotion"}
-        className="h-full w-full object-cover"
-        onError={() => setBrokenIds((prev) => (prev.includes(slide.id) ? prev : [...prev, slide.id]))}
-      />
-      {(slide.title || slides.length > 1) && (
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-4 pb-4 pt-10">
-          {slide.title ? <p className="text-sm font-bold text-white">{slide.title}</p> : null}
-          {slides.length > 1 ? (
-            <div className="mt-2 flex items-center justify-between gap-2">
-              <div className="flex gap-1.5">
-                {slides.map((s, i) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    aria-label={`Go to slide ${i + 1}`}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setIndex(i);
-                    }}
-                    className={`h-1.5 rounded-full transition-all ${i === index ? "w-5 bg-white" : "w-1.5 bg-white/50"}`}
-                  />
-                ))}
-              </div>
-              <div className="flex gap-1">
-                <button
-                  type="button"
-                  aria-label="Previous slide"
-                  className="rounded-full bg-white/20 p-1 text-white backdrop-blur hover:bg-white/30"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setIndex((i) => (i - 1 + slides.length) % slides.length);
-                  }}
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <button
-                  type="button"
-                  aria-label="Next slide"
-                  className="rounded-full bg-white/20 p-1 text-white backdrop-blur hover:bg-white/30"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setIndex((i) => (i + 1) % slides.length);
-                  }}
-                >
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-            </div>
-          ) : null}
+  const controls =
+    slides.length > 1 ? (
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/70 to-transparent px-4 pb-4 pt-10">
+        {slide.title ? <p className="text-sm font-bold text-white">{slide.title}</p> : null}
+        <div className="pointer-events-auto mt-2 flex items-center justify-between gap-2">
+          <div className="flex gap-1.5">
+            {slides.map((s, i) => (
+              <button
+                key={s.id}
+                type="button"
+                aria-label={`Go to slide ${i + 1}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  goTo(i);
+                }}
+                className={`h-1.5 rounded-full transition-all duration-300 ${i === index ? "w-5 bg-white" : "w-1.5 bg-white/50"}`}
+              />
+            ))}
+          </div>
+          <div className="flex gap-1">
+            <button
+              type="button"
+              aria-label="Previous slide"
+              className="rounded-full bg-white/20 p-1 text-white backdrop-blur transition hover:bg-white/30"
+              onClick={goPrev}
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <button
+              type="button"
+              aria-label="Next slide"
+              className="rounded-full bg-white/20 p-1 text-white backdrop-blur transition hover:bg-white/30"
+              onClick={goNext}
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
         </div>
-      )}
+      </div>
+    ) : slide.title ? (
+      <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/70 to-transparent px-4 pb-4 pt-10">
+        <p className="text-sm font-bold text-white">{slide.title}</p>
+      </div>
+    ) : null;
+
+  const track = (
+    <>
+      <div
+        className="flex h-full w-full transition-transform duration-500 ease-in-out"
+        style={{ transform: `translateX(-${index * 100}%)` }}
+      >
+        {slides.map((s) => {
+          const img = (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={resolvePromoImageSrc(s.imageUrl)}
+              alt={s.title || "Promotion"}
+              className="h-full w-full object-cover"
+              draggable={false}
+              onError={() => setBrokenIds((prev) => (prev.includes(s.id) ? prev : [...prev, s.id]))}
+            />
+          );
+          return (
+            <div key={s.id} className="h-full w-full shrink-0 grow-0 basis-full">
+              {s.linkUrl ? (
+                <a
+                  href={s.linkUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block h-full w-full"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {img}
+                </a>
+              ) : (
+                img
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {controls}
     </>
   );
 
-  const shellClass = `relative overflow-hidden rounded-2xl shadow-md ${fill ? "h-full min-h-[320px]" : "aspect-[3/4] min-h-[280px]"} ${className}`;
-
-  if (slide.linkUrl) {
-    return (
-      <a href={slide.linkUrl} target="_blank" rel="noopener noreferrer" className={`block ${shellClass}`}>
-        {body}
-      </a>
-    );
-  }
-
-  return <div className={shellClass}>{body}</div>;
+  return <div className={shellClass}>{track}</div>;
 }
