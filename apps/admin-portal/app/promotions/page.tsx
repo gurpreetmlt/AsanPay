@@ -7,6 +7,7 @@ import { Megaphone, Plus, Trash2, Upload } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
+import { resolvePromoImageSrc } from "@/lib/promoImage";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 
@@ -257,7 +258,11 @@ export default function PromotionsPage() {
                   >
                     {slide.imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={slide.imageUrl} alt="" className="h-full w-full object-cover" />
+                      <img
+                        src={resolvePromoImageSrc(slide.imageUrl)}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
                     ) : (
                       <span className="px-2 text-center text-xs" style={{ color: B.muted }}>
                         No image

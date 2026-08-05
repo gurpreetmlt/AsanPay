@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, Megaphone } from "lucide-react";
 import { fetchApi } from "@/lib/api";
 import { B, brand } from "@/lib/brand";
+import { resolvePromoImageSrc } from "@/lib/promoImage";
 
 export type PromoPlacement = "dashboard" | "login";
 
@@ -103,7 +104,11 @@ export function PromoSlider({
   const body = (
     <>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={slide.imageUrl} alt={slide.title || "Promotion"} className="h-full w-full object-cover" />
+      <img
+        src={resolvePromoImageSrc(slide.imageUrl)}
+        alt={slide.title || "Promotion"}
+        className="h-full w-full object-cover"
+      />
       {(slide.title || slides.length > 1) && (
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-4 pb-4 pt-10">
           {slide.title ? <p className="text-sm font-bold text-white">{slide.title}</p> : null}
