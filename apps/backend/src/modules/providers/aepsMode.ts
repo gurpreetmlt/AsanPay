@@ -1,15 +1,15 @@
 import { env, isInstantPayAepsMode, isPaySprintAepsMode } from "../../config/env";
 
 /**
- * Service codes that STILL follow AEPS_PROVIDER_MODE (single env switch) — Nepal remittance
- * only. AEPS/DMT product operations (balance, withdraw, deposit, mini-statement, bank-list,
- * Aadhaar Pay, agent daily 2FA, DMT remitter/beneficiary/transfer/refund) were migrated to
- * `provider_services` (multi-provider, admin-toggleable — see Developer Options → Providers)
- * on 2026-07-21. Nepal remittance and merchant onboarding/eKYC (onboarding.service.ts) stay on
- * this env switch — they call InstantPay-specific endpoints directly, not through the generic
- * ProviderAdapter contract, so there's no PaySprint equivalent to route to yet.
+ * Service codes that STILL follow AEPS_PROVIDER_MODE (single env switch).
+ * - Nepal remittance (InstantPay-specific endpoints)
+ * - agent_auth (daily 2FA) — must not 503 when provider_services seed is incomplete;
+ *   same rail as AEPS_PROVIDER_MODE so finger capture → unlock works in prod
+ *
+ * Other AEPS/DMT product ops use `provider_services` (Developer Options → Providers).
  */
 export const AEPS_ROUTED_SERVICE_CODES = new Set([
+  "agent_auth",
   "nepal_static_data",
   "nepal_payment_locations",
   "nepal_state_district",
