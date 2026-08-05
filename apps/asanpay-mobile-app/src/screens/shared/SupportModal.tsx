@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
+  Building2,
   ChevronLeft,
   Globe,
   Mail,
@@ -19,7 +20,7 @@ import {
   MessageCircle,
   Phone,
   Ticket,
-  Zap,
+  UserRound,
 } from "lucide-react-native";
 import { api, fetchApi } from "../../lib/api";
 import { showAlert } from "../../components/AppAlert";
@@ -123,53 +124,83 @@ async function openWeb(url: string) {
   await Linking.openURL(href);
 }
 
-function ActionCircle({
+/** Web ContactLine — icon + PHONE/EMAIL/WEBSITE label + value */
+function ContactLine({
+  kind,
+  label,
+  value,
+  active,
   onPress,
-  children,
-  borderColor,
 }: {
-  onPress: () => void;
-  children: React.ReactNode;
-  borderColor: string;
+  kind: "phone" | "mail" | "web";
+  label: string;
+  value: string;
+  active: boolean;
+  onPress?: () => void;
 }) {
+  const { tokens } = useTheme();
+  const Icon = kind === "phone" ? Phone : kind === "mail" ? Mail : Globe;
+  const inner = (
+    <View style={styles.lineInner}>
+      <View
+        style={[
+          styles.lineIcon,
+          {
+            borderColor: tokens.cardBorder,
+            backgroundColor: active ? colors.bluePale : "#F8FAFC",
+          },
+        ]}
+      >
+        <Icon size={14} color={active ? colors.blueLight : tokens.mute} strokeWidth={2.2} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={[styles.lineLabel, { color: tokens.mute }]}>{label}</Text>
+        <Text
+          style={[styles.lineValue, { color: active ? colors.blue : tokens.mute }]}
+          numberOfLines={2}
+        >
+          {value}
+        </Text>
+      </View>
+    </View>
+  );
+
+  if (!onPress || !active) {
+    return (
+      <View style={[styles.lineCard, { borderColor: tokens.cardBorder }]}>{inner}</View>
+    );
+  }
+
   return (
     <Pressable
       onPress={onPress}
-      style={[styles.actionCircle, { borderColor, backgroundColor: "#fff" }]}
-      hitSlop={6}
+      style={[styles.lineCard, { borderColor: tokens.cardBorder }]}
     >
-      {children}
+      {inner}
     </Pressable>
   );
 }
 
-function ContactRow({
+function EntityCard({
+  icon,
   title,
-  value,
-  borderColor,
-  onAction,
-  actionIcon,
+  name,
+  children,
 }: {
+  icon: React.ReactNode;
   title: string;
-  value: string;
-  borderColor: string;
-  onAction: () => void;
-  actionIcon: React.ReactNode;
+  name: string;
+  children: React.ReactNode;
 }) {
   const { tokens } = useTheme();
   return (
-    <View style={styles.contactRow}>
-      <View style={{ flex: 1, minWidth: 0, paddingRight: 10 }}>
-        <Text style={[styles.contactTitle, { color: tokens.txt }]} numberOfLines={1}>
-          {title}
-        </Text>
-        <Text style={[styles.contactValue, { color: tokens.sub }]} numberOfLines={2}>
-          {value}
-        </Text>
+    <View style={[styles.card, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
+      <View style={styles.entityHead}>
+        {icon}
+        <Text style={[styles.entityLabel, { color: tokens.mute }]}>{title}</Text>
       </View>
-      <ActionCircle onPress={onAction} borderColor={borderColor}>
-        {actionIcon}
-      </ActionCircle>
+      <Text style={[styles.entityName, { color: colors.blue }]}>{name}</Text>
+      <View style={styles.linesStack}>{children}</View>
     </View>
   );
 }
@@ -242,7 +273,7 @@ export function SupportModal({ visible, onClose }: { visible: boolean; onClose: 
   }
 
   const distRole = upline ? roleLabel(upline.role) : "Distributor";
-  const distName = upline?.name?.trim() || null;
+  const distName = upline?.name?.trim() || "No upline linked";
   const distributorMobile = upline?.mobile?.trim() || "";
   const distributorEmail = upline?.email?.trim() || "";
   const carePhone = contacts.supportPhone.trim();
@@ -261,8 +292,23 @@ export function SupportModal({ visible, onClose }: { visible: boolean; onClose: 
           <Pressable onPress={onClose} style={styles.backBtn} hitSlop={8}>
             <ChevronLeft size={22} color={tokens.txt} strokeWidth={2.4} />
           </Pressable>
-          <Text style={[styles.pageTitle, { color: tokens.txt }]}>We are here to help</Text>
-          <View style={{ width: 36 }} />
+          <View style={styles.headerText}>
+            <Text style={[styles.pageTitle, { color: colors.blue }]}>Support</Text>
+            <Text style={[styles.pageSub, { color: tokens.mute }]} numberOfLines={2}>
+              Call your upline, contact {BRAND}, or raise a ticket below
+            </Text>
+          </View>
+          {careWa ? (
+            <Pressable
+              onPress={() => void openWa(careWa)}
+              style={styles.waBtn}
+              hitSlop={6}
+            >
+              <MessageCircle size={16} color="#fff" strokeWidth={2.2} />
+            </Pressable>
+          ) : (
+            <View style={{ width: 36 }} />
+          )}
         </View>
 
         {loading ? (
@@ -273,126 +319,105 @@ export function SupportModal({ visible, onClose }: { visible: boolean; onClose: 
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            {/* WhatsApp */}
-            <View style={[styles.card, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
-              <View style={styles.cardHeaderRow}>
-                <Text style={[styles.cardHeading, { color: tokens.txt }]}>WhatsApp Support</Text>
-                <View style={styles.fastBadge}>
-                  <Zap size={11} color="#15803D" fill="#15803D" />
-                  <Text style={styles.fastBadgeText}>Faster Response</Text>
-                </View>
-              </View>
-              <ContactRow
-                title={BRAND}
-                value={careWa ? formatPhone(careWa) : "Not set yet"}
-                borderColor={tokens.cardBorder}
-                onAction={() => void openWa(careWa)}
-                actionIcon={<MessageCircle size={18} color="#25D366" strokeWidth={2.2} />}
-              />
-            </View>
-
-            {/* Call */}
-            <View style={[styles.card, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
-              <Text style={[styles.cardHeading, { color: tokens.txt, marginBottom: 10 }]}>
-                Call Support
-              </Text>
-              <ContactRow
-                title={distName ? `${distRole} (${distName})` : `${distRole}`}
+            {/* Distributor — phone + email (same as web) */}
+            <EntityCard
+              icon={<UserRound size={15} color={colors.blueLight} strokeWidth={2.2} />}
+              title={distRole.toUpperCase()}
+              name={distName}
+            >
+              <ContactLine
+                kind="phone"
+                label="PHONE"
                 value={
                   distributorMobile
                     ? formatPhone(distributorMobile)
                     : upline
-                      ? "Phone not on file"
-                      : "No upline linked"
+                      ? "Not available"
+                      : "Not available"
                 }
-                borderColor={tokens.cardBorder}
-                onAction={() => void openTel(distributorMobile)}
-                actionIcon={<Phone size={17} color={colors.blueFlat} strokeWidth={2.2} />}
+                active={Boolean(distributorMobile)}
+                onPress={() => void openTel(distributorMobile)}
               />
-              <View style={[styles.rowDivider, { backgroundColor: tokens.cardBorder }]} />
-              <ContactRow
-                title={BRAND}
+              <ContactLine
+                kind="mail"
+                label="EMAIL"
+                value={distributorEmail || (upline ? "No email on file" : "—")}
+                active={Boolean(distributorEmail)}
+                onPress={() => void openMail(distributorEmail)}
+              />
+            </EntityCard>
+
+            {/* Company — phone + email + website (same as web) */}
+            <EntityCard
+              icon={<Building2 size={15} color={colors.blueLight} strokeWidth={2.2} />}
+              title="COMPANY"
+              name={BRAND}
+            >
+              <ContactLine
+                kind="phone"
+                label="PHONE"
                 value={carePhone ? formatPhone(carePhone) : "Not set yet"}
-                borderColor={tokens.cardBorder}
-                onAction={() => void openTel(carePhone)}
-                actionIcon={<Phone size={17} color={colors.blueFlat} strokeWidth={2.2} />}
+                active={Boolean(carePhone)}
+                onPress={() => void openTel(carePhone)}
               />
-            </View>
-
-            {/* Email */}
-            <View style={[styles.card, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
-              <Text style={[styles.cardHeading, { color: tokens.txt, marginBottom: 10 }]}>
-                Email Support
-              </Text>
-              <ContactRow
-                title={distName ? `${distRole} (${distName})` : distRole}
-                value={
-                  distributorEmail
-                    ? distributorEmail
-                    : upline
-                      ? "No email on file"
-                      : "No upline linked"
-                }
-                borderColor={tokens.cardBorder}
-                onAction={() => void openMail(distributorEmail)}
-                actionIcon={<Mail size={17} color={colors.blueFlat} strokeWidth={2.2} />}
-              />
-              <View style={[styles.rowDivider, { backgroundColor: tokens.cardBorder }]} />
-              <ContactRow
-                title={BRAND}
+              <ContactLine
+                kind="mail"
+                label="EMAIL"
                 value={careEmail || "Not set yet"}
-                borderColor={tokens.cardBorder}
-                onAction={() => void openMail(careEmail)}
-                actionIcon={<Mail size={17} color={colors.blueFlat} strokeWidth={2.2} />}
+                active={Boolean(careEmail)}
+                onPress={() => void openMail(careEmail)}
               />
-            </View>
-
-            {/* Website */}
-            <View style={[styles.card, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
-              <Text style={[styles.cardHeading, { color: tokens.txt, marginBottom: 10 }]}>Website</Text>
-              <ContactRow
-                title={BRAND}
+              <ContactLine
+                kind="web"
+                label="WEBSITE"
                 value={websiteLabel}
-                borderColor={tokens.cardBorder}
-                onAction={() => void openWeb(companyWebsite)}
-                actionIcon={<Globe size={17} color={colors.blueFlat} strokeWidth={2.2} />}
+                active
+                onPress={() => void openWeb(companyWebsite)}
               />
-            </View>
+            </EntityCard>
 
-            {/* Nodal */}
+            {/* Nodal officer */}
             <View style={[styles.card, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
-              <View style={styles.nodalHead}>
+              <View style={styles.entityHead}>
                 <MapPin size={15} color={colors.blueLight} strokeWidth={2.2} />
-                <Text style={[styles.cardHeading, { color: tokens.txt }]}>Nodal officer</Text>
+                <Text style={[styles.entityLabel, { color: tokens.mute }]}>NODAL OFFICER</Text>
               </View>
-              <View style={[styles.addressBox, { backgroundColor: tokens.bg, borderColor: tokens.cardBorder }]}>
-                <Text style={[styles.addressText, { color: tokens.sub }]}>
+              <View
+                style={[
+                  styles.addressBox,
+                  { backgroundColor: tokens.bg, borderColor: tokens.cardBorder },
+                ]}
+              >
+                <Text style={[styles.addressText, { color: colors.blueFlat }]}>
                   {nodalAddress || "Address not set yet (Admin → Platform Settings)."}
                 </Text>
               </View>
-              <ContactRow
-                title="Email"
-                value={nodalEmail || "Not set"}
-                borderColor={tokens.cardBorder}
-                onAction={() => void openMail(nodalEmail)}
-                actionIcon={<Mail size={17} color={colors.blueFlat} strokeWidth={2.2} />}
-              />
-              <View style={[styles.rowDivider, { backgroundColor: tokens.cardBorder }]} />
-              <ContactRow
-                title="Phone"
-                value={nodalPhone ? formatPhone(nodalPhone) : "Not set"}
-                borderColor={tokens.cardBorder}
-                onAction={() => void openTel(nodalPhone)}
-                actionIcon={<Phone size={17} color={colors.blueFlat} strokeWidth={2.2} />}
-              />
+              <View style={styles.linesStack}>
+                <ContactLine
+                  kind="mail"
+                  label="EMAIL"
+                  value={nodalEmail || "Not set"}
+                  active={Boolean(nodalEmail)}
+                  onPress={() => void openMail(nodalEmail)}
+                />
+                <ContactLine
+                  kind="phone"
+                  label="PHONE"
+                  value={nodalPhone ? formatPhone(nodalPhone) : "Not set"}
+                  active={Boolean(nodalPhone)}
+                  onPress={() => void openTel(nodalPhone)}
+                />
+              </View>
             </View>
 
             {/* Tickets */}
             <View style={[styles.card, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
-              <View style={styles.cardHeaderRow}>
+              <View style={styles.ticketHead}>
                 <View style={styles.ticketTitleRow}>
                   <Ticket size={16} color={colors.blueFlat} strokeWidth={2.2} />
-                  <Text style={[styles.cardHeading, { color: tokens.txt }]}>Manage Tickets</Text>
+                  <Text style={[styles.ticketHeading, { color: colors.blue }]}>
+                    Create a support ticket
+                  </Text>
                 </View>
                 <Pressable onPress={() => setShowForm((v) => !v)} hitSlop={8}>
                   <Text style={[styles.linkBtn, { color: colors.blueFlat }]}>
@@ -400,6 +425,9 @@ export function SupportModal({ visible, onClose }: { visible: boolean; onClose: 
                   </Text>
                 </Pressable>
               </View>
+              <Text style={[styles.ticketHint, { color: tokens.mute }]}>
+                Reply within ~5 hrs on working days. Add txn ref / UTR when you can.
+              </Text>
 
               {showForm ? (
                 <View style={styles.formBlock}>
@@ -445,6 +473,7 @@ export function SupportModal({ visible, onClose }: { visible: boolean; onClose: 
                 </View>
               ) : null}
 
+              <Text style={[styles.yourTickets, { color: tokens.mute }]}>YOUR TICKETS</Text>
               {tickets.length === 0 ? (
                 <Text style={[styles.emptyTickets, { color: tokens.mute }]}>
                   No support tickets yet.
@@ -453,10 +482,13 @@ export function SupportModal({ visible, onClose }: { visible: boolean; onClose: 
                 tickets.map((t) => (
                   <View
                     key={t.id}
-                    style={[styles.ticketRow, { borderColor: tokens.cardBorder, backgroundColor: tokens.bg }]}
+                    style={[
+                      styles.ticketRow,
+                      { borderColor: tokens.cardBorder, backgroundColor: tokens.bg },
+                    ]}
                   >
                     <View style={styles.ticketTop}>
-                      <Text style={[styles.ticketSubject, { color: tokens.txt }]} numberOfLines={1}>
+                      <Text style={[styles.ticketSubject, { color: colors.blue }]} numberOfLines={1}>
                         {t.subject}
                       </Text>
                       <View
@@ -501,23 +533,30 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   topBar: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    alignItems: "flex-start",
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingTop: 8,
+    paddingBottom: 10,
+    gap: 4,
   },
   backBtn: {
     width: 36,
     height: 36,
     alignItems: "center",
     justifyContent: "center",
+    marginTop: 2,
   },
-  pageTitle: {
-    flex: 1,
-    textAlign: "center",
-    fontSize: 18,
-    fontWeight: "800",
-    letterSpacing: -0.2,
+  headerText: { flex: 1, paddingTop: 4, paddingHorizontal: 4 },
+  pageTitle: { fontSize: 20, fontWeight: "800", letterSpacing: -0.3 },
+  pageSub: { fontSize: 12, marginTop: 2, lineHeight: 16 },
+  waBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: colors.green,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 2,
   },
   content: { paddingHorizontal: 16, paddingBottom: 40, gap: 12 },
   card: {
@@ -525,41 +564,37 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
   },
-  cardHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 10,
-    gap: 8,
+  entityHead: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
+  entityLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
   },
-  cardHeading: { fontSize: 16, fontWeight: "800" },
-  fastBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: "#DCFCE7",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 999,
+  entityName: { fontSize: 15, fontWeight: "800", marginBottom: 12 },
+  linesStack: { gap: 8 },
+  lineCard: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
   },
-  fastBadgeText: { fontSize: 11, fontWeight: "700", color: "#15803D" },
-  contactRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 6,
-  },
-  contactTitle: { fontSize: 14, fontWeight: "700" },
-  contactValue: { fontSize: 13, marginTop: 2 },
-  actionCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+  lineInner: { flexDirection: "row", alignItems: "center", gap: 10 },
+  lineIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
-  rowDivider: { height: StyleSheet.hairlineWidth, marginVertical: 6 },
-  nodalHead: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 },
+  lineLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  lineValue: { fontSize: 14, fontWeight: "700", marginTop: 1 },
   addressBox: {
     borderWidth: 1,
     borderRadius: 12,
@@ -567,10 +602,18 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     marginBottom: 10,
   },
-  addressText: { fontSize: 13, lineHeight: 18 },
-  ticketTitleRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  addressText: { fontSize: 13, lineHeight: 18, fontWeight: "600" },
+  ticketHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  ticketTitleRow: { flexDirection: "row", alignItems: "center", gap: 6, flex: 1 },
+  ticketHeading: { fontSize: 15, fontWeight: "800", flexShrink: 1 },
+  ticketHint: { fontSize: 12, marginTop: 4, marginBottom: 10, lineHeight: 16 },
   linkBtn: { fontSize: 13, fontWeight: "700" },
-  formBlock: { marginBottom: 12 },
+  formBlock: { marginBottom: 8 },
   fieldLabel: {
     fontSize: 11,
     fontWeight: "700",
@@ -595,6 +638,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   submitText: { color: "#fff", fontWeight: "800", fontSize: 15 },
+  yourTickets: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    marginTop: 8,
+    marginBottom: 4,
+  },
   emptyTickets: { fontSize: 13, marginTop: 4 },
   ticketRow: {
     borderWidth: 1,
