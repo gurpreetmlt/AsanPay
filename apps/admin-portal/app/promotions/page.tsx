@@ -104,13 +104,15 @@ export default function PromotionsPage() {
         reader.onerror = () => reject(new Error("read failed"));
         reader.readAsDataURL(file);
       });
-      const res = await api.post<{ success: boolean; data: { imageUrl: string; path: string } }>(
-        "/admin/promos/upload",
-        { dataUrl },
-      );
-      const stored = res.data.data.path || res.data.data.imageUrl;
-      updateSlide(index, { imageUrl: stored });
-      toast.success("Image uploaded");
+      // Store data URL in the slide — preview + Save work without Coolify disk/volume.
+      // Optional: also push a server file copy (best-effort).
+      updateSlide(index, { imageUrl: dataUrl });
+      try {
+        await api.post("/admin/promos/upload", { dataUrl });
+      } catch {
+        /* file copy optional */
+      }
+      toast.success("Image ready — click Save to keep it");
     } catch {
       toast.error("Image upload failed");
     } finally {
@@ -272,13 +274,18 @@ export default function PromotionsPage() {
 
                   <div className="space-y-3">
                     <label className="block text-xs font-semibold" style={{ color: B.muted }}>
-                      Image URL
+                      Image URL (optional if you uploaded a file)
                       <input
-                        value={slide.imageUrl}
-                        onChange={(e) => updateSlide(index, { imageUrl: e.target.value })}
-                        placeholder="https://… or /uploads/promos/…"
+                        value={slide.imageUrl.startsWith("data:") ? "(uploaded image)" : slide.imageUrl}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          if (v === "(uploaded image)") return;
+                          updateSlide(index, { imageUrl: v });
+                        }}
+                        placeholder="https://… or upload a file below"
                         className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
                         style={{ borderColor: B.border }}
+                        disabled={slide.imageUrl.startsWith("data:")}
                       />
                     </label>
 

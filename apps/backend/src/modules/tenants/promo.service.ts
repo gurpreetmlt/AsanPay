@@ -30,7 +30,8 @@ function normalizeSlide(raw: unknown, index: number): PromoSlide | null {
   const placement: PromoPlacement = o.placement === "login" ? "login" : "dashboard";
   return {
     id: typeof o.id === "string" && o.id.trim() ? o.id.trim() : randomUUID(),
-    imageUrl: imageUrl.slice(0, 2000),
+    // data: URLs can be large; cap stored length in replacePromoSlides
+    imageUrl: imageUrl.startsWith("data:") ? imageUrl.slice(0, 2_000_000) : imageUrl.slice(0, 2000),
     title: typeof o.title === "string" ? o.title.trim().slice(0, 120) : "",
     linkUrl: typeof o.linkUrl === "string" ? o.linkUrl.trim().slice(0, 2000) : "",
     placement,
@@ -88,15 +89,19 @@ export async function replacePromoSlides(
 
   for (const s of normalized) {
     const ok =
+      s.imageUrl.startsWith("data:image/") ||
       s.imageUrl.startsWith("http") ||
       s.imageUrl.startsWith("/uploads/") ||
       s.imageUrl.startsWith("/api/promos/file/");
     if (!ok) {
       throw new HttpError(
         422,
-        "Each slide needs a valid image URL (https://…, /uploads/promos/…, or /api/promos/file/…)",
+        "Each slide needs an image (upload a file, or use https://… / /api/promos/file/…)",
         "INVALID_PROMO_IMAGE",
       );
+    }
+    if (s.imageUrl.startsWith("data:image/") && s.imageUrl.length > 1_800_000) {
+      throw new HttpError(422, "Image must be under 1.5 MB", "IMAGE_TOO_LARGE");
     }
     if (s.linkUrl && !s.linkUrl.startsWith("http") && !s.linkUrl.startsWith("/")) {
       throw new HttpError(422, "Link URL must start with https:// or /", "INVALID_PROMO_LINK");
@@ -165,8 +170,9 @@ export function resolvePromoFilePath(nameOrUrl: string): string | null {
   return path.join(UPLOAD_DIR, name);
 }
 
-/** Normalize stored/legacy paths to /api/promos/file/… then absolute for clients. */
+/** Prefer data URLs as-is (stored in settings — works without disk / Coolify volume). */
 export function absolutePromoUrl(imageUrl: string, origin: string): string {
+  if (imageUrl.startsWith("data:")) return imageUrl;
   if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
     try {
       const u = new URL(imageUrl);

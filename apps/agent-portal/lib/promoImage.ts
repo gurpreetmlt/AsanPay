@@ -1,4 +1,4 @@
-/** Map stored promo paths to portal /api/proxy so images load through the backend API. */
+/** Preview helper — data URLs and /api/proxy file paths. */
 export function resolvePromoImageSrc(url: string): string {
   const u = url.trim();
   if (!u) return "";
