@@ -472,13 +472,12 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
   const bankScrollRef = useRef<ScrollView>(null);
   const bankViewportW = useRef(280);
   const bankScrollX = useRef(0);
-  /** Per-bank x/width inside the horizontal strip (from onLayout). */
-  const bankLayouts = useRef<Record<string, { x: number; width: number }>>({});
-  /** Item width + gap must match styles.bankItemWrap / bankStrip.gap */
+  /** Delay before scroll — longer after View All so modal close finishes first. */
+  const bankScrollDelayMs = useRef(32);
+  /** Must match styles.bankItemWrap width + bankStrip.gap */
   const BANK_ITEM_W = 66;
   const BANK_GAP = 6;
   const BANK_STRIDE = BANK_ITEM_W + BANK_GAP;
-  const BANK_EDGE_PAD = 6;
 
   // Live IIN overrides from GET /txn/aeps/banks (keyed by normalized bank name).
   const [liveIinByName, setLiveIinByName] = useState<Record<string, string>>({});
@@ -635,57 +634,40 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
         setSelectedInsertAt(insertSlot);
         setInsertSlot((s) => (s + 1) % 4);
       }
+      // One scroll after layout/modal — avoid stacked animated scrolls
+      bankScrollDelayMs.current = fromViewAll ? 320 : 40;
       setSelectedBank(bank);
     },
     [favBanks, resolvedBanks, insertSlot],
   );
-  const scrollSelectedIntoView = useCallback(
-    (animated = true) => {
-      if (!selectedBank) return;
-      const idx = stripBanks.findIndex((b) => b.id === selectedBank.id);
-      if (idx < 0) return;
-
-      const measured = bankLayouts.current[selectedBank.id];
-      const itemLeft = measured?.x ?? idx * BANK_STRIDE;
-      const itemRight = measured
-        ? measured.x + measured.width
-        : itemLeft + BANK_ITEM_W;
-      const viewW = Math.max(bankViewportW.current, 1);
-      const viewLeft = bankScrollX.current;
-      const viewRight = viewLeft + viewW;
-
-      // Fully visible (with small edge pad) → no scroll
-      if (
-        itemLeft >= viewLeft + BANK_EDGE_PAD &&
-        itemRight <= viewRight - BANK_EDGE_PAD
-      ) {
-        return;
-      }
-
-      let target = viewLeft;
-      if (itemLeft < viewLeft + BANK_EDGE_PAD) {
-        // Selected clipped on the left → bring to first slot
-        target = Math.max(0, itemLeft - BANK_EDGE_PAD);
-      } else {
-        // Selected clipped on the right (typical 4th bank) → scroll so it sits fully in view
-        target = Math.max(0, itemRight - viewW + BANK_EDGE_PAD);
-      }
-      bankScrollRef.current?.scrollTo({ x: target, animated });
-      bankScrollX.current = target;
-    },
-    [selectedBank, stripBanks],
-  );
 
   useEffect(() => {
-    bankLayouts.current = {};
-    // After select / list change — selected icon must stay fully among visible ~4
-    const t1 = setTimeout(() => scrollSelectedIntoView(true), 40);
-    const t2 = setTimeout(() => scrollSelectedIntoView(true), 180);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-    };
-  }, [selectedBank?.id, stripBanks, scrollSelectedIntoView]);
+    if (!selectedBank) return;
+    const idx = stripBanks.findIndex((b) => b.id === selectedBank.id);
+    if (idx < 0) return;
+
+    const itemLeft = idx * BANK_STRIDE;
+    const itemRight = itemLeft + BANK_ITEM_W;
+    const viewW = Math.max(bankViewportW.current, 1);
+    const viewLeft = bankScrollX.current;
+
+    let target: number | null = null;
+    if (itemLeft < viewLeft) {
+      target = Math.max(0, itemLeft);
+    } else if (itemRight > viewLeft + viewW) {
+      target = Math.max(0, itemRight - viewW);
+    }
+    if (target === null) return;
+    if (Math.abs(target - viewLeft) < 2) return;
+
+    const delay = bankScrollDelayMs.current;
+    bankScrollDelayMs.current = 40;
+    const t = setTimeout(() => {
+      bankScrollRef.current?.scrollTo({ x: target!, animated: true });
+      bankScrollX.current = target!;
+    }, delay);
+    return () => clearTimeout(t);
+  }, [selectedBank?.id, selectedInsertAt, stripBanks]);
 
   function formatAadhaar(v: string) {
     const digits = v.replace(/\D/g, "").slice(0, 12);
@@ -1102,15 +1084,11 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
             contentContainerStyle={s.bankStrip}
             onLayout={(e) => {
               bankViewportW.current = e.nativeEvent.layout.width;
-              // Layout ready — ensure selected (esp. 4th) is fully visible
-              requestAnimationFrame(() => scrollSelectedIntoView(false));
             }}
             onScroll={(e) => {
               bankScrollX.current = e.nativeEvent.contentOffset.x;
             }}
             scrollEventThrottle={16}
-            onScrollEndDrag={() => scrollSelectedIntoView(true)}
-            onMomentumScrollEnd={() => scrollSelectedIntoView(true)}
           >
             {stripBanks.map((bank) => {
               const active = selectedBank?.id === bank.id;
@@ -1119,13 +1097,6 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
                   key={bank.id}
                   onPress={() => selectBank(bank, false)}
                   style={s.bankItemWrap}
-                  onLayout={(e) => {
-                    const { x, width } = e.nativeEvent.layout;
-                    bankLayouts.current[bank.id] = { x, width };
-                    if (active) {
-                      requestAnimationFrame(() => scrollSelectedIntoView(true));
-                    }
-                  }}
                 >
                   <View style={[s.bankItem, active && s.bankItemActive]}>
                     <View style={s.bankIconWrap}>
