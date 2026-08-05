@@ -94,7 +94,7 @@ export default function AuditLogsPage() {
 
   return (
     <AdminShell>
-      <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
+      <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6">
         <h1 className="text-xl font-bold" style={{ color: B.blue }}>
           Audit Log
         </h1>

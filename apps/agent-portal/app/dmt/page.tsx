@@ -792,7 +792,7 @@ export default function DmtPage() {
     const retailerLabel = user?.name?.trim() || "Retailer";
     return (
       <AppShell>
-        <div className="mx-auto max-w-xl p-6">
+        <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6">
           <div className="mb-5 flex items-center gap-3">
             <button
               type="button"
@@ -811,7 +811,8 @@ export default function DmtPage() {
             </div>
           </div>
 
-          <div className="space-y-5 rounded-2xl border bg-white p-6 shadow-sm">
+          <div className="grid items-start gap-6 md:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="min-w-0 space-y-5 rounded-2xl border bg-white p-6 shadow-sm">
             <div>
               <h2 className="text-lg font-bold text-gray-900">Daily retailer verification</h2>
               <p className="mt-1 text-sm text-gray-500">
@@ -923,6 +924,17 @@ export default function DmtPage() {
               {agentAuthScanning ? "Place finger on scanner…" : "Scan Finger"}
             </button>
           </div>
+
+          <aside className="min-w-0 space-y-4 rounded-2xl border bg-white p-5 shadow-sm md:sticky md:top-4">
+            <h3 className="text-sm font-bold" style={{ color: B.blue }}>
+              How daily 2FA works
+            </h3>
+            <p className="text-xs leading-relaxed text-gray-600">
+              Confirm signup KYC Aadhaar, accept consent, then scan finger once. DMT unlocks for
+              the rest of the day — same flow as AePS.
+            </p>
+          </aside>
+          </div>
         </div>
         <DeviceSidebar
           open={deviceSidebarOpen}
@@ -938,7 +950,7 @@ export default function DmtPage() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-3xl p-4 sm:p-6">
+      <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6">
         <div className="mb-5 flex items-center gap-3">
           <button
             type="button"

@@ -82,7 +82,7 @@ export default function WalletPage() {
 
   return (
     <AppShell>
-      <div className="space-y-5 p-6">
+      <div className="mx-auto w-full max-w-[1600px] space-y-5 px-4 py-5 sm:px-6 lg:px-8">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: B.blue }}>
             Balance

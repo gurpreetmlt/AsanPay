@@ -234,7 +234,7 @@ export default function ServiceChargesPage() {
 
   return (
     <AdminShell>
-      <div className="mx-auto max-w-6xl space-y-6 p-6">
+      <div className="mx-auto w-full max-w-[1600px] space-y-6 p-6">
         <div className="flex flex-wrap items-center gap-3">
           <div
             className="flex h-12 w-12 items-center justify-center rounded-2xl text-white"

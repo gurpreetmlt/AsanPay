@@ -44,7 +44,7 @@ export default function PassbookPage() {
 
   return (
     <AdminShell>
-      <div className="mx-auto max-w-3xl space-y-5 p-6">
+      <div className="mx-auto w-full max-w-[1600px] space-y-5 p-6">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: B.blue }}>
             Balance statement

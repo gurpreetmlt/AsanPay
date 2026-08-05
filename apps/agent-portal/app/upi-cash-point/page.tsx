@@ -152,7 +152,7 @@ export default function UpiCashPointPage() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-2xl p-6">
+      <div className="mx-auto w-full max-w-[1600px] p-6">
         {/* Header */}
         <div className="mb-6 flex items-center gap-3">
           <button

@@ -35,7 +35,7 @@ export default function DashboardPage() {
 
   return (
     <AppShell>
-      <div className="space-y-5 p-6">
+      <div className="mx-auto w-full max-w-[1600px] space-y-5 px-4 py-5 sm:px-6 lg:px-8">
         {/* Greeting Header */}
         <div className="flex items-center justify-between">
           <div>

@@ -131,7 +131,7 @@ export default function SettingsPage() {
 
   return (
     <AppShell>
-      <div className="p-6">
+      <div className="mx-auto w-full max-w-[1600px] px-4 py-5 sm:px-6 lg:px-8">
         <div className="mb-5">
           <h1 className="text-2xl font-bold" style={{ color: B.blue }}>
             Settings

@@ -239,7 +239,7 @@ export default function RegisterOutletPage() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-2xl space-y-5 p-6">
+      <div className="mx-auto w-full max-w-[1600px] space-y-5 p-6">
         <div>
           <div className="mb-1 flex items-center gap-2">
             <Store size={20} style={{ color: B.blue }} />

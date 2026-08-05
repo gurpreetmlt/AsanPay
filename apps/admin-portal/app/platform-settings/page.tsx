@@ -96,7 +96,7 @@ export default function PlatformSettingsPage() {
 
   return (
     <AdminShell>
-      <div className="mx-auto max-w-5xl space-y-5 p-4 md:p-6">
+      <div className="mx-auto w-full max-w-[1600px] space-y-5 p-4 md:p-6">
         <div>
           <h1 className="text-xl font-bold md:text-2xl" style={{ color: B.blue }}>
             Platform Settings

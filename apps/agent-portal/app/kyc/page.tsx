@@ -393,7 +393,7 @@ export default function KycPage() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-3xl space-y-6 p-6">
+      <div className="mx-auto w-full max-w-[1600px] space-y-6 p-6">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: B.blue }}>
             KYC Onboarding

@@ -340,7 +340,7 @@ function BankSidebar({
 function AepsLoading() {
   return (
     <AppShell>
-      <div className="mx-auto max-w-6xl p-6">
+      <div className="mx-auto w-full max-w-[1600px] p-6">
         <p className="text-sm font-medium text-gray-500">Loading AePS…</p>
       </div>
     </AppShell>
@@ -601,7 +601,7 @@ function AepsPageInner() {
 
     return (
       <AppShell>
-        <div className="mx-auto max-w-xl p-6">
+        <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6">
           <div className="mb-6 flex items-center gap-3">
             <button
               type="button"
@@ -620,7 +620,8 @@ function AepsPageInner() {
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+          <div className="grid items-start gap-6 md:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
+          <div className="min-w-0 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
             <div
               className="flex items-center gap-3 px-6 py-5"
               style={{ background: `linear-gradient(135deg, ${B.blue}, ${B.blueMid})` }}
@@ -767,6 +768,39 @@ function AepsPageInner() {
             </div>
           </div>
 
+          <aside className="min-w-0 space-y-4 md:sticky md:top-4">
+            <div className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
+              <h3 className="mb-3 text-sm font-bold" style={{ color: B.blue }}>
+                How daily 2FA works
+              </h3>
+              <ol className="space-y-2 text-xs leading-relaxed text-gray-600">
+                <li className="flex gap-2">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[10px] font-bold text-blue-700">1</span>
+                  Confirm your signup KYC Aadhaar (auto-filled)
+                </li>
+                <li className="flex gap-2">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[10px] font-bold text-blue-700">2</span>
+                  Accept Aadhaar consent for today&apos;s session
+                </li>
+                <li className="flex gap-2">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[10px] font-bold text-blue-700">3</span>
+                  Connect Morpho / Mantra L1 RD device
+                </li>
+                <li className="flex gap-2">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-green-50 text-[10px] font-bold text-green-700">✓</span>
+                  Scan finger once — AePS unlocks for the day
+                </li>
+              </ol>
+            </div>
+            <div className="rounded-2xl border bg-amber-50 p-4" style={{ borderColor: "#FDE68A" }}>
+              <p className="text-xs font-semibold leading-relaxed text-amber-800">
+                Open the RD Service app on this PC before scanning. Same device must be used for
+                AePS transactions after unlock.
+              </p>
+            </div>
+          </aside>
+          </div>
+
           <DeviceSidebar
             open={deviceSidebarOpen}
             onClose={() => setDeviceSidebarOpen(false)}
@@ -780,7 +814,7 @@ function AepsPageInner() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-6xl p-6">
+      <div className="mx-auto w-full max-w-[1600px] p-6">
         {/* Back + Title */}
         <div className="mb-6 flex items-center gap-3">
           <button
@@ -800,9 +834,9 @@ function AepsPageInner() {
           </div>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
+        <div className="grid items-start gap-6 md:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_380px]">
           {/* ── Left: Form ─────────────────────────────────── */}
-          <div className="space-y-5">
+          <div className="min-w-0 space-y-5">
             {/* Tabs */}
             <div className="flex gap-2">
               {AEPS_TABS.map((t) => (
@@ -1128,8 +1162,8 @@ function AepsPageInner() {
             </div>
           </div>
 
-          {/* ── Right: Help / Info ──────────────────────────── */}
-          <div className="space-y-4">
+          {/* ── Right: Help / Info (parallel from md up) ───── */}
+          <aside className="min-w-0 space-y-4 md:sticky md:top-4">
             <div className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
               <h3 className="mb-3 text-sm font-bold" style={{ color: B.blue }}>
                 How AePS Works
@@ -1190,7 +1224,7 @@ function AepsPageInner() {
                 Scan pe red light aaye to finger immediately lagao.
               </p>
             </div>
-          </div>
+          </aside>
         </div>
       </div>
 
