@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
-import { ArrowLeft, Copy, Check, Info } from "lucide-react";
+import { ArrowLeft, Copy, Check, Info, QrCode, X } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { B } from "@/lib/brand";
 
@@ -208,131 +208,155 @@ export default function UpiCashPointPage() {
         </div>
 
         {stage === "input" ? (
-          /* Compact form (left) + Notes (right) — no blue brand strip */
-          <div className="grid items-start gap-6 md:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
-            <div className="min-w-0 rounded-2xl border bg-white p-5 shadow-sm" style={{ borderColor: B.border }}>
-              <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
-                <Info size={14} className="mt-0.5 shrink-0 text-amber-600" />
-                <p className="text-[11px] font-medium leading-relaxed text-amber-800">
-                  QR expires in <span className="font-bold">30 seconds</span>. Customer can make
-                  payment within <span className="font-bold">2 minutes</span>.
-                </p>
-              </div>
-
-              <p className="mb-2 text-center text-sm font-medium text-gray-600">Amount to Withdraw</p>
-
-              <div className="mx-auto w-full max-w-[220px]">
-                <div className="relative">
-                  <span
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-base font-bold text-gray-700"
-                  >
-                    ₹
-                  </span>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value.replace(/\D/g, "").slice(0, 5))}
-                    placeholder="0"
-                    className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-8 pr-3 text-center text-2xl font-bold tabular-nums outline-none placeholder:text-gray-300 focus:border-blue-400"
-                    style={{ color: B.blue }}
-                  />
-                </div>
-                {amountNum > 0 ? (
-                  <p className="mt-1 text-center text-[11px] text-gray-500">{amountInWords(amountNum)}</p>
-                ) : (
-                  <p className="mt-1 text-center text-[11px] text-gray-400">
-                    Enter amount in multiples of ₹100
+          /* Match Spice Money: compact amount + pills, no blue brand strip */
+          <div className="grid items-start gap-5 md:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_340px]">
+            <div className="min-w-0">
+              <div
+                className="overflow-hidden rounded-2xl border bg-white shadow-sm"
+                style={{ borderColor: B.border }}
+              >
+                <div className="flex items-start gap-2 border-b border-amber-100 bg-amber-50 px-4 py-2.5">
+                  <Info size={14} className="mt-0.5 shrink-0 text-amber-600" />
+                  <p className="text-[11px] leading-relaxed text-amber-900">
+                    QR expires in <span className="font-semibold">30 seconds</span>. Customer can
+                    make payment within <span className="font-semibold">2 minutes</span>.
                   </p>
-                )}
-              </div>
-
-              <div className="mx-auto mt-4 flex max-w-md flex-wrap justify-center gap-2">
-                {QUICK_AMOUNTS.map(({ amount: a, hint }) => (
-                  <button
-                    key={a}
-                    type="button"
-                    onClick={() => setAmount(String(a))}
-                    className={clsx(
-                      "relative min-w-[4.5rem] rounded-full border px-3 py-1.5 text-xs font-semibold transition",
-                      amount === String(a)
-                        ? "border-blue-500 bg-blue-50 text-blue-700"
-                        : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50",
-                    )}
-                  >
-                    ₹{a.toLocaleString("en-IN")}
-                    {hint ? (
-                      <span className="absolute -bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap text-[8px] font-medium text-gray-400">
-                        {hint}
-                      </span>
-                    ) : null}
-                  </button>
-                ))}
-              </div>
-
-              <div className="mx-auto mt-8 flex max-w-sm justify-center">
-                <button
-                  type="button"
-                  onClick={handleGenerate}
-                  disabled={amountNum < 1}
-                  className={clsx(
-                    "inline-flex items-center justify-center gap-2 rounded-full px-10 py-2.5 text-sm font-bold text-white shadow-md transition",
-                    amountNum >= 1 ? "hover:opacity-90" : "cursor-not-allowed opacity-50",
-                  )}
-                  style={{
-                    background:
-                      amountNum >= 1
-                        ? "linear-gradient(90deg, #7C3AED 0%, #EC4899 55%, #EF4444 100%)"
-                        : "#94a3b8",
-                  }}
-                >
-                  Generate QR
-                </button>
-              </div>
-
-              <div className="mt-5 flex items-center justify-center gap-4 text-[10px] font-semibold text-gray-400">
-                <span>AsanPay</span>
-                <span className="h-3 w-px bg-gray-200" />
-                <span>YES BANK</span>
-                <span className="h-3 w-px bg-gray-200" />
-                <span>UPI</span>
-              </div>
-
-              {amountNum > 0 ? (
-                <div
-                  className="mt-4 flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold text-white"
-                  style={{ background: B.blue }}
-                >
-                  <span>You will earn ₹2 on this transaction</span>
                 </div>
-              ) : null}
+
+                <div className="px-5 pb-5 pt-4">
+                  <p className="mb-3 text-center text-[13px] font-semibold text-gray-800">
+                    Amount to Withdraw
+                  </p>
+
+                  {/* Compact amount — not a full-width field */}
+                  <div className="mx-auto w-[148px]">
+                    <div className="flex items-baseline justify-center gap-1 border-b border-gray-200 pb-1">
+                      <span className="text-lg font-semibold text-gray-800">₹</span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={amount}
+                        onChange={(e) => setAmount(e.target.value.replace(/\D/g, "").slice(0, 5))}
+                        placeholder="0"
+                        className="w-full min-w-0 bg-transparent text-center text-[28px] font-bold leading-none tabular-nums text-gray-900 outline-none placeholder:text-gray-300"
+                      />
+                    </div>
+                    <p className="mt-1.5 text-center text-[11px] text-gray-400">
+                      {amountNum > 0 ? amountInWords(amountNum) : "Enter amount in multiples of ₹100"}
+                    </p>
+                  </div>
+
+                  <div className="mx-auto mt-5 grid max-w-[420px] grid-cols-5 gap-2">
+                    {QUICK_AMOUNTS.map(({ amount: a, hint }) => (
+                      <button
+                        key={a}
+                        type="button"
+                        onClick={() => setAmount(String(a))}
+                        className={clsx(
+                          "relative rounded-md border px-1 py-1.5 text-[11px] font-semibold transition",
+                          amount === String(a)
+                            ? "border-blue-500 bg-blue-50 text-blue-700"
+                            : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50",
+                        )}
+                      >
+                        ₹{a.toLocaleString("en-IN")}
+                        {hint ? (
+                          <span className="mt-0.5 block text-[8px] font-medium leading-none text-gray-400">
+                            {hint}
+                          </span>
+                        ) : null}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="mt-6 flex justify-center">
+                    <button
+                      type="button"
+                      onClick={handleGenerate}
+                      disabled={amountNum < 1}
+                      className={clsx(
+                        "inline-flex items-center gap-1.5 rounded-full px-8 py-2 text-[13px] font-bold text-white shadow transition",
+                        amountNum >= 1 ? "hover:opacity-90" : "cursor-not-allowed opacity-45",
+                      )}
+                      style={{
+                        background:
+                          amountNum >= 1
+                            ? "linear-gradient(90deg, #6D28D9 0%, #DB2777 50%, #EF4444 100%)"
+                            : "#94a3b8",
+                      }}
+                    >
+                      Generate QR
+                      <QrCode size={15} strokeWidth={2.4} />
+                    </button>
+                  </div>
+
+                  <div className="mt-4 flex items-center justify-center gap-3 text-[10px] font-semibold tracking-wide text-gray-400">
+                    <span>AsanPay</span>
+                    <span className="text-gray-300">·</span>
+                    <span>YES BANK</span>
+                    <span className="text-gray-300">·</span>
+                    <span>UPI</span>
+                  </div>
+                </div>
+
+                {amountNum > 0 ? (
+                  <div className="flex items-center justify-between bg-slate-800 px-4 py-2.5 text-[12px] font-semibold text-white">
+                    <span className="flex items-center gap-2">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-black">
+                        ₹
+                      </span>
+                      You will earn ₹2 on this transaction
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setAmount("")}
+                      className="rounded p-0.5 text-white/70 hover:text-white"
+                      aria-label="Dismiss"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+
+              <p className="mt-3 text-center text-[11px] font-medium text-gray-400">
+                Supported UPI Apps
+              </p>
             </div>
 
             <aside className="min-w-0 space-y-4 md:sticky md:top-4">
-              <div className="rounded-2xl border bg-white p-5 shadow-sm" style={{ borderColor: B.border }}>
-                <h3 className="mb-3 text-sm font-bold text-gray-900">Notes:</h3>
-                <ul className="space-y-2.5 text-xs leading-relaxed text-gray-600">
+              <div
+                className="rounded-2xl border bg-white p-4 shadow-sm"
+                style={{ borderColor: B.border }}
+              >
+                <h3 className="mb-2.5 text-sm font-bold text-gray-900">Notes:</h3>
+                <ul className="space-y-2 text-[11px] leading-relaxed text-gray-600">
                   <li className="flex gap-2">
-                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-400" />
+                    <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-gray-500" />
                     Daily withdrawal limit per customer is ₹10,000
                   </li>
                   <li className="flex gap-2">
-                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-400" />
+                    <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-gray-500" />
                     Minimum gap between 2 transactions of same customer should be 30 minutes
                   </li>
                   <li className="flex gap-2">
-                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-400" />
+                    <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-gray-500" />
                     No commission will be paid for transactions made using your own UPI ID
                   </li>
                 </ul>
               </div>
 
-              <div className="rounded-2xl border bg-white p-5 shadow-sm" style={{ borderColor: B.border }}>
-                <h3 className="mb-3 text-sm font-bold text-gray-900">Help Video</h3>
-                <div className="flex aspect-video items-center justify-center rounded-xl bg-slate-900 text-center">
-                  <div>
-                    <p className="text-xs font-bold tracking-wide text-white/90">UPI CASH POINT</p>
-                    <p className="mt-1 text-[10px] text-white/50">Tutorial video coming soon</p>
+              <div
+                className="rounded-2xl border bg-white p-4 shadow-sm"
+                style={{ borderColor: B.border }}
+              >
+                <h3 className="mb-2.5 text-sm font-bold text-gray-900">Help Video</h3>
+                <div className="flex aspect-video items-center justify-center rounded-lg bg-slate-900">
+                  <div className="text-center">
+                    <p className="text-[11px] font-bold tracking-wide text-white/90">
+                      UPI CASH POINT
+                    </p>
+                    <p className="mt-1 text-[10px] text-white/45">Tutorial coming soon</p>
                   </div>
                 </div>
               </div>
