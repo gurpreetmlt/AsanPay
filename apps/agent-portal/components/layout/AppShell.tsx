@@ -239,8 +239,8 @@ function SidebarContent({
               {av}
             </div>
             <div className="min-w-0">
-              <div className="truncate text-sm font-semibold text-white">{name}</div>
-              <div className="text-xs text-white/50">
+              <div className="truncate text-[15px] font-semibold text-white">{name}</div>
+              <div className="text-[13px] text-white/60">
                 {uid} · {roleLabel}
               </div>
             </div>
@@ -352,7 +352,7 @@ function SidebarContent({
                           strokeWidth={childActive ? 2.5 : 2}
                         />
                         <span
-                          className={`text-[13px] font-medium ${
+                          className={`text-sm font-medium ${
                             childActive ? "text-white" : "text-white/55 group-hover:text-white"
                           }`}
                         >
@@ -441,7 +441,7 @@ function WalletPill({
         style={{ borderColor: B.border, background: B.bg }}
         title={walletDisplayName(wallet.walletType)}
       >
-        <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+        <span className="text-[14px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
           {walletDisplayName(wallet.walletType)}
         </span>
         <span className="text-sm font-bold tabular-nums" style={{ color: B.blue }}>
@@ -655,10 +655,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                 {av}
               </div>
               <div className="hidden sm:block">
-                <div className="text-xs font-bold" style={{ color: B.blue }}>
+                <div className="text-sm font-bold" style={{ color: B.blue }}>
                   {name}
                 </div>
-                <div className="text-xs" style={{ color: B.muted }}>
+                <div className="text-[13px]" style={{ color: B.muted }}>
                   {role.label}
                 </div>
               </div>
@@ -690,7 +690,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     className="flex shrink-0 items-center gap-2 rounded-xl border px-3 py-1.5"
                     style={{ borderColor: B.border, background: B.bg }}
                   >
-                    <span className="text-[10px] font-bold uppercase" style={{ color: B.muted }}>
+                    <span className="text-[14px] font-bold uppercase" style={{ color: B.muted }}>
                       {walletDisplayName(w.walletType)}
                     </span>
                     <span className="text-sm font-bold tabular-nums" style={{ color: B.blue }}>
@@ -717,7 +717,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Link
                 key={to}
                 href={to}
-                className="flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-medium"
+                className="flex flex-1 flex-col items-center gap-0.5 py-2 text-[14px] font-medium"
                 style={{ color: active ? B.blueLight : B.muted }}
               >
                 <Icon size={20} strokeWidth={active ? 2.5 : 2} />

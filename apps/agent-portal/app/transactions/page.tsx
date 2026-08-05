@@ -200,7 +200,7 @@ export default function TransactionsPage() {
                     <td className="px-4 py-3">
                       {t.walletType ? (
                         <span
-                          className="inline-block rounded-lg px-2 py-0.5 text-[11px] font-bold"
+                          className="inline-block rounded-lg px-2 py-0.5 text-[14px] font-bold"
                           style={
                             t.walletType === "aeps"
                               ? { background: `${B.green}18`, color: B.green }

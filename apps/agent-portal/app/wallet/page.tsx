@@ -137,7 +137,7 @@ export default function WalletPage() {
                     className="flex flex-col items-center gap-1 rounded-xl border border-white/20 bg-white/15 px-2 py-2 text-white transition-all hover:bg-white/25"
                   >
                     <Icon size={16} />
-                    <span className="text-[10px] font-semibold">{label}</span>
+                    <span className="text-[13px] font-semibold">{label}</span>
                   </button>
                 ))}
               </div>
@@ -187,7 +187,7 @@ export default function WalletPage() {
                     className="flex flex-col items-center gap-1 rounded-xl border border-white/20 bg-white/15 px-2 py-2 text-white transition-all hover:bg-white/25"
                   >
                     <Icon size={16} />
-                    <span className="text-[10px] font-semibold">{label}</span>
+                    <span className="text-[13px] font-semibold">{label}</span>
                   </button>
                 ))}
               </div>

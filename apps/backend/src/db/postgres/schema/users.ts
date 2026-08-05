@@ -7,6 +7,7 @@ import {
   timestamp,
   integer,
   numeric,
+  jsonb,
   index,
   primaryKey,
   type AnyPgColumn,
@@ -56,6 +57,8 @@ export const users = pgTable(
     aepsEddRequired: boolean("aeps_edd_required").notNull().default(false),
     /** Soft-block reason for AEPS (e.g. bio_mismatch). Null = not blocked. */
     aepsBlockReason: varchar("aeps_block_reason", { length: 120 }),
+    /** Retailer-pinned AePS bank ids (shared web + mobile). Null = use client defaults. */
+    aepsFavouriteBankIds: jsonb("aeps_favourite_bank_ids").$type<string[] | null>(),
     /** Optional per-retailer daily transaction ceiling for alerting. Null = no limit configured. */
     dailyLimitAmount: numeric("daily_limit_amount", { precision: 14, scale: 2 }),
     isActive: boolean("is_active").notNull().default(true),

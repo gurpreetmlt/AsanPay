@@ -47,7 +47,7 @@ export function KycDocumentGrid({ documents }: { documents: Record<string, strin
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent opacity-90" />
               <div className="absolute bottom-0 left-0 right-0 p-3">
                 <p className="text-sm font-semibold text-white">{LABELS[key] || key}</p>
-                <p className="text-[11px] text-white/80">Visible · tap to zoom</p>
+                <p className="text-[14px] text-white/80">Visible · tap to zoom</p>
               </div>
             </div>
           </button>

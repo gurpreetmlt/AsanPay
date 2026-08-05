@@ -708,6 +708,51 @@ export async function setEmailMarketingOptIn(
   return getAuthMe(userId);
 }
 
+const AEPS_FAV_LEGACY: Record<string, string> = {
+  bob_vijaya: "bob",
+  pnb_obc: "pnb",
+};
+
+function normalizeAepsFavouriteBankIds(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  for (const item of raw) {
+    if (typeof item !== "string") continue;
+    const mapped = AEPS_FAV_LEGACY[item] ?? item.trim().toLowerCase();
+    if (!/^[a-z0-9_]+$/.test(mapped)) continue;
+    if (!out.includes(mapped)) out.push(mapped);
+    if (out.length >= 20) break;
+  }
+  return out;
+}
+
+export async function getAepsFavouriteBanks(userId: string): Promise<{ bankIds: string[] | null }> {
+  const [row] = await db
+    .select({ aepsFavouriteBankIds: users.aepsFavouriteBankIds })
+    .from(users)
+    .where(eq(users.id, userId));
+  if (!row || row.aepsFavouriteBankIds == null) {
+    return { bankIds: null };
+  }
+  return { bankIds: normalizeAepsFavouriteBankIds(row.aepsFavouriteBankIds) };
+}
+
+export async function setAepsFavouriteBanks(
+  userId: string,
+  bankIds: string[],
+): Promise<{ bankIds: string[] }> {
+  const [row] = await db.select({ id: users.id, isActive: users.isActive }).from(users).where(eq(users.id, userId));
+  if (!row || !row.isActive) {
+    throw new HttpError(403, "Account is not active", "ACCOUNT_INACTIVE");
+  }
+  const normalized = normalizeAepsFavouriteBankIds(bankIds);
+  await db
+    .update(users)
+    .set({ aepsFavouriteBankIds: normalized, updatedAt: new Date() })
+    .where(eq(users.id, userId));
+  return { bankIds: normalized };
+}
+
 export async function refreshSession(
   refreshToken: string,
 ): Promise<{ accessToken: string; refreshToken: string }> {

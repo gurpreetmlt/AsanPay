@@ -406,7 +406,7 @@ export default function ReconAdjustmentsPage() {
                             {row.status}
                           </span>
                           {row.journalId ? (
-                            <div className="mt-1 font-mono text-[10px]" style={{ color: B.muted }}>
+                            <div className="mt-1 font-mono text-[13px]" style={{ color: B.muted }}>
                               J#{row.journalId}
                             </div>
                           ) : null}

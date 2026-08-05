@@ -490,7 +490,7 @@ export default function ServiceChargesPage() {
                         <div className="font-medium" style={{ color: B.blue }}>
                           {row.serviceName}
                         </div>
-                        <div className="font-mono text-[10px]" style={{ color: B.muted }}>
+                        <div className="font-mono text-[13px]" style={{ color: B.muted }}>
                           {row.serviceCode}
                         </div>
                       </td>

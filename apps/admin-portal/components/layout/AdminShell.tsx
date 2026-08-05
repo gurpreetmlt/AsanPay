@@ -240,7 +240,7 @@ function SidebarNav({
       ).map((section) => (
         <div key={section.title}>
           <p
-            className="mb-2 px-3 text-[10px] font-bold uppercase tracking-wider"
+            className="mb-2 px-3 text-[13px] font-bold uppercase tracking-wider"
             style={{ color: "var(--admin-sidebar-muted)" }}
           >
             {section.title}

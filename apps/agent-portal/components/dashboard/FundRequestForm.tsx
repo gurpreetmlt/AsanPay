@@ -267,7 +267,7 @@ export function FundRequestForm({ onClose, onSuccess }: FundRequestFormProps) {
             }}
             className="w-full text-sm"
           />
-          <p className="mt-1 text-[11px]" style={{ color: B.muted }}>
+          <p className="mt-1 text-[14px]" style={{ color: B.muted }}>
             Used to block duplicate slips. Max 2 MB.
           </p>
         </div>

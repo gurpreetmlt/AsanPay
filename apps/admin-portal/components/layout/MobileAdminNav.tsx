@@ -34,7 +34,7 @@ export function MobileAdminNav() {
               key={href}
               href={href}
               className={cn(
-                "flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-medium",
+                "flex flex-1 flex-col items-center gap-0.5 py-2 text-[13px] font-medium",
               )}
               style={{ color: active ? "var(--brand-blue-mid)" : "var(--admin-muted)" }}
             >

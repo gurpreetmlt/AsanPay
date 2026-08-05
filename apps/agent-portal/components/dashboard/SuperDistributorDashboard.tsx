@@ -190,7 +190,7 @@ export function SuperDistributorDashboard() {
                       <td className="py-3">
                         <div className="flex items-center gap-2">
                           <span
-                            className="flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                            className="flex h-7 w-7 items-center justify-center rounded-full text-[13px] font-bold text-white"
                             style={{ background: B.blue }}
                           >
                             {initials(d.name)}

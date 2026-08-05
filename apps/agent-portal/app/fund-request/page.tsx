@@ -74,7 +74,7 @@ export default function FundRequestPage() {
             <h1 className="text-2xl font-bold" style={{ color: B.blue }}>
               Fund request
             </h1>
-            <p className="mt-0.5 text-sm" style={{ color: B.muted }}>
+            <p className="mt-0.5 text-[15px]" style={{ color: B.muted }}>
               Deposit to company bank, then submit UTR and receipt for balance credit
             </p>
           </div>
@@ -101,29 +101,29 @@ export default function FundRequestPage() {
         </div>
 
         <div className="overflow-hidden rounded-2xl border bg-white" style={{ borderColor: B.border }}>
-          <table className="w-full text-left text-sm">
+          <table className="w-full text-left text-[15px]">
             <thead>
               <tr
-                className="border-b text-xs uppercase tracking-wider"
+                className="border-b text-[13px] font-semibold uppercase tracking-wider"
                 style={{ borderColor: B.border, background: B.secondary, color: B.muted }}
               >
-                <th className="px-4 py-3 font-semibold">Amount</th>
-                <th className="px-4 py-3 font-semibold">Mode / UTR</th>
-                <th className="px-4 py-3 font-semibold">Status</th>
-                <th className="px-4 py-3 font-semibold">Submitted</th>
+                <th className="px-4 py-3.5 font-semibold">Amount</th>
+                <th className="px-4 py-3.5 font-semibold">Mode / UTR</th>
+                <th className="px-4 py-3.5 font-semibold">Status</th>
+                <th className="px-4 py-3.5 font-semibold">Submitted</th>
               </tr>
             </thead>
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-sm" style={{ color: B.muted }}>
+                  <td colSpan={4} className="px-4 py-8 text-center text-[15px]" style={{ color: B.muted }}>
                     Loading…
                   </td>
                 </tr>
               )}
               {!loading && rows.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-sm" style={{ color: B.muted }}>
+                  <td colSpan={4} className="px-4 py-8 text-center text-[15px]" style={{ color: B.muted }}>
                     No fund requests yet — tap New request after you deposit
                   </td>
                 </tr>
@@ -131,22 +131,22 @@ export default function FundRequestPage() {
               {!loading &&
                 rows.map((r) => (
                   <tr key={r.id} className="border-b last:border-0" style={{ borderColor: B.border }}>
-                    <td className="px-4 py-3 font-semibold tabular-nums" style={{ color: B.blue }}>
+                    <td className="px-4 py-3.5 font-semibold tabular-nums" style={{ color: B.blue }}>
                       {formatInr(r.amount)}
                       {r.creditedAmount && (
-                        <div className="text-xs font-normal" style={{ color: B.green }}>
+                        <div className="text-sm font-normal" style={{ color: B.green }}>
                           Credited {formatInr(r.creditedAmount)}
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-xs" style={{ color: B.muted }}>
+                    <td className="px-4 py-3.5 text-sm" style={{ color: B.muted }}>
                       <div className="uppercase">{r.paymentMode.replace("_", " ")}</div>
                       <div className="font-mono">{r.referenceNumber || "—"}</div>
                     </td>
-                    <td className="px-4 py-3 text-sm font-medium" style={{ color: B.blueMid }}>
+                    <td className="px-4 py-3.5 text-[15px] font-medium" style={{ color: B.blueMid }}>
                       {r.displayStatus || r.status}
                     </td>
-                    <td className="px-4 py-3 text-xs whitespace-nowrap" style={{ color: B.muted }}>
+                    <td className="px-4 py-3.5 text-sm whitespace-nowrap" style={{ color: B.muted }}>
                       {new Date(r.submittedAt).toLocaleString("en-IN")}
                     </td>
                   </tr>

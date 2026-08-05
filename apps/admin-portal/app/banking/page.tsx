@@ -405,7 +405,7 @@ export default function AdminBankingPage() {
                         <td className="px-4 py-3 font-medium" style={{ color: B.blue }}>
                           {a.bankName}
                           {a.supportsVan ? (
-                            <span className="ml-2 text-[10px] font-semibold text-emerald-700">VAN</span>
+                            <span className="ml-2 text-[13px] font-semibold text-emerald-700">VAN</span>
                           ) : null}
                         </td>
                         <td className="px-4 py-3">****{a.accountNumberLast4}</td>

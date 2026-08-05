@@ -123,6 +123,14 @@ export const emailPreferencesSchema = z.object({
 });
 export type EmailPreferencesInput = z.infer<typeof emailPreferencesSchema>;
 
+/** AePS favourite bank strip ids (web + mobile shared). */
+export const aepsFavouriteBanksSchema = z.object({
+  bankIds: z
+    .array(z.string().trim().min(1).max(40).regex(/^[a-z0-9_]+$/i, "Invalid bank id"))
+    .max(20),
+});
+export type AepsFavouriteBanksInput = z.infer<typeof aepsFavouriteBanksSchema>;
+
 /** Public self-signup under an upline (sponsor UID). Role = account being created. */
 export const SIGNUP_CHILD_ROLES = [
   "super_distributor",

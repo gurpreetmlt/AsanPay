@@ -294,7 +294,7 @@ export default function UpiCashPointPage() {
                       >
                         ₹{a.toLocaleString("en-IN")}
                         {hint ? (
-                          <span className="mt-1 block text-[10px] font-medium leading-none text-gray-400">
+                          <span className="mt-1 block text-[13px] font-medium leading-none text-gray-400">
                             {hint}
                           </span>
                         ) : null}
@@ -343,7 +343,7 @@ export default function UpiCashPointPage() {
                     <div className="min-h-0 overflow-hidden">
                       <div className="flex items-center justify-between rounded-xl bg-slate-800 px-4 py-3 text-sm font-semibold text-white shadow-sm">
                         <span className="flex items-center gap-2.5">
-                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-[11px] font-black">
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-[14px] font-black">
                             ₹
                           </span>
                           You will earn ₹2 on this transaction
@@ -372,7 +372,7 @@ export default function UpiCashPointPage() {
                           className="flex items-center gap-1.5 rounded-full border border-gray-100 bg-gray-50 px-3 py-1.5"
                         >
                           <div
-                            className="flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-black text-white"
+                            className="flex h-5 w-5 items-center justify-center rounded-full text-[12px] font-black text-white"
                             style={{ backgroundColor: app.color }}
                           >
                             {app.short[0]}
@@ -419,7 +419,7 @@ export default function UpiCashPointPage() {
                 <div className="flex aspect-video items-center justify-center rounded-xl bg-slate-900">
                   <div className="text-center">
                     <p className="text-xs font-bold tracking-wide text-white/90">UPI CASH POINT</p>
-                    <p className="mt-1 text-[10px] text-white/45">Tutorial coming soon</p>
+                    <p className="mt-1 text-[13px] text-white/45">Tutorial coming soon</p>
                   </div>
                 </div>
               </div>
@@ -518,15 +518,15 @@ export default function UpiCashPointPage() {
                 {UPI_APPS.map((app) => (
                   <div key={app.name} className="flex items-center gap-1.5 rounded-full border border-gray-100 bg-gray-50 px-3 py-1.5">
                     <div
-                      className="flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-black text-white"
+                      className="flex h-5 w-5 items-center justify-center rounded-full text-[12px] font-black text-white"
                       style={{ backgroundColor: app.color }}
                     >
                       {app.short[0]}
                     </div>
-                    <span className="text-[11px] font-semibold text-gray-600">{app.short}</span>
+                    <span className="text-[14px] font-semibold text-gray-600">{app.short}</span>
                   </div>
                 ))}
-                <span className="rounded-full bg-gray-100 px-3 py-1.5 text-[11px] font-bold text-gray-500">
+                <span className="rounded-full bg-gray-100 px-3 py-1.5 text-[14px] font-bold text-gray-500">
                   +50 Others
                 </span>
               </div>

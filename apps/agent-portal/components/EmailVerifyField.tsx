@@ -182,14 +182,14 @@ export function EmailVerifyField({
           </span>
           {verified ? (
             <span
-              className="rounded-full px-2 py-0.5 text-[10px] font-bold"
+              className="rounded-full px-2 py-0.5 text-[13px] font-bold"
               style={{ background: `${B.green}18`, color: B.green }}
             >
               Verified
             </span>
           ) : normalized && isValidEmail(email) && !emailError ? (
             <span
-              className="rounded-full px-2 py-0.5 text-[10px] font-bold"
+              className="rounded-full px-2 py-0.5 text-[13px] font-bold"
               style={{ background: "#FEF3C7", color: "#B45309" }}
             >
               Unverified

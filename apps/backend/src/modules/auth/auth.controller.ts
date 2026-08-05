@@ -19,6 +19,7 @@ import {
   emailVerifyRequestSchema,
   emailVerifyConfirmSchema,
   emailPreferencesSchema,
+  aepsFavouriteBanksSchema,
 } from "./auth.validators";
 import {
   registerUser,
@@ -30,6 +31,8 @@ import {
   loginWithMpin,
   setLoginMpin,
   setEmailMarketingOptIn,
+  getAepsFavouriteBanks,
+  setAepsFavouriteBanks,
   requestSignupOtp,
   verifySignupOtp,
   completeSignup,
@@ -155,6 +158,19 @@ export async function updateEmailPreferences(req: Request, res: Response): Promi
   const input = emailPreferencesSchema.parse(req.body);
   const user = await setEmailMarketingOptIn(req.auth.sub, input.emailMarketingOptIn);
   sendSuccess(res, { user }, "Email preferences updated");
+}
+
+export async function getAepsFavouriteBanksHandler(req: Request, res: Response): Promise<void> {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const result = await getAepsFavouriteBanks(req.auth.sub);
+  sendSuccess(res, result, "OK");
+}
+
+export async function putAepsFavouriteBanksHandler(req: Request, res: Response): Promise<void> {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const input = aepsFavouriteBanksSchema.parse(req.body);
+  const result = await setAepsFavouriteBanks(req.auth.sub, input.bankIds);
+  sendSuccess(res, result, "Favourite banks updated");
 }
 
 export async function listDevices(req: Request, res: Response): Promise<void> {

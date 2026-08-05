@@ -12,6 +12,8 @@ import {
   requestEmailOtp,
   verifyEmailOtpHandler,
   updateEmailPreferences,
+  getAepsFavouriteBanksHandler,
+  putAepsFavouriteBanksHandler,
   listDevices,
   revokeDevice,
   signupRequest,
@@ -48,6 +50,8 @@ authRouter.post("/email/otp/request", requireAuth, otpRequestLimiter, requestEma
 authRouter.post("/email/otp/verify", requireAuth, authLimiter, verifyEmailOtpHandler);
 authRouter.get("/email/check", requireAuth, signupMobileCheckLimiter, signupEmailCheck);
 authRouter.patch("/email/preferences", requireAuth, updateEmailPreferences);
+authRouter.get("/aeps-favourite-banks", requireAuth, getAepsFavouriteBanksHandler);
+authRouter.put("/aeps-favourite-banks", requireAuth, putAepsFavouriteBanksHandler);
 
 authRouter.get("/devices", requireAuth, listDevices);
 authRouter.post("/devices/:id/revoke", requireAuth, revokeDevice);

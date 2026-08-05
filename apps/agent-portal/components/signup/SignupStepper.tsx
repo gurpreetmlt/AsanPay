@@ -85,7 +85,7 @@ export function SignupStepper({
                   <Icon size={14} strokeWidth={2.25} className="hidden sm:block" />
                 </div>
                 <span
-                  className="mt-1.5 w-full truncate px-0.5 text-center text-[9px] font-bold leading-tight sm:text-[10px]"
+                  className="mt-1.5 w-full truncate px-0.5 text-center text-[12px] font-bold leading-tight sm:text-[13px]"
                   style={{ color: active ? B.blue : done ? B.greenDark : B.muted }}
                 >
                   {step.short}

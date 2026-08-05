@@ -69,6 +69,20 @@ const BANKS: Bank[] = [
   { id: "paytm", name: "Paytm Payments Bank", shortName: "Paytm Bank", color: "#00BCD4", letter: "P" },
 ];
 
+/** Shared with mobile — persisted via GET/PUT /auth/aeps-favourite-banks */
+const DEFAULT_AEPS_FAV_BANKS = ["bob", "pnb", "sbi", "hdfc", "airtel", "icici"] as const;
+const AEPS_FAV_LEGACY: Record<string, string> = { bob_vijaya: "bob", pnb_obc: "pnb" };
+
+function sanitizeAepsFavIds(ids: string[]): string[] {
+  const valid = new Set(BANKS.map((b) => b.id));
+  const out: string[] = [];
+  for (const raw of ids) {
+    const id = AEPS_FAV_LEGACY[raw] ?? raw;
+    if (valid.has(id) && !out.includes(id)) out.push(id);
+  }
+  return out;
+}
+
 const AEPS_TABS = ["Withdraw", "Mini Statement", "Deposit", "Balance Enquiry"] as const;
 type AepsTab = (typeof AEPS_TABS)[number];
 
@@ -147,7 +161,7 @@ function DeviceSidebar({
                   <span className="text-sm font-semibold text-gray-800">{device.name}</span>
                 </div>
                 {isActive && (
-                  <span className="rounded-full bg-green-100 px-3 py-1 text-[11px] font-bold text-green-700">
+                  <span className="rounded-full bg-green-100 px-3 py-1 text-[14px] font-bold text-green-700">
                     Currently Active
                   </span>
                 )}
@@ -280,7 +294,7 @@ function BankSidebar({
                     className="flex flex-col items-center gap-1.5 rounded-xl p-2 text-center hover:bg-gray-50"
                   >
                     <BankIcon bank={bank} size={44} />
-                    <span className="text-[10px] font-medium leading-tight text-gray-600 line-clamp-2">
+                    <span className="text-[13px] font-medium leading-tight text-gray-600 line-clamp-2">
                       {bank.name}
                     </span>
                   </button>
@@ -372,6 +386,16 @@ function AepsPageInner() {
   const [insertSlot, setInsertSlot] = useState(0);
   const [selectedInsertAt, setSelectedInsertAt] = useState(0);
   const bankStripRef = useRef<HTMLDivElement>(null);
+  const bankDragRef = useRef({
+    active: false,
+    startX: 0,
+    scrollLeft: 0,
+    moved: false,
+    pointerId: -1,
+  });
+  const favSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const favHydrated = useRef(false);
+  const favSkipNextSave = useRef(true);
   const [bankSidebarOpen, setBankSidebarOpen] = useState(false);
   const [aadhaar, setAadhaar] = useState("");
   const [mobile, setMobile] = useState("");
@@ -385,7 +409,7 @@ function AepsPageInner() {
   const [scanning, setScanning] = useState(false);
   const [rdStatus, setRdStatus] = useState<"looking" | "ready" | "missing">("looking");
   const [rdEndpoint, setRdEndpoint] = useState<RdEndpoint | null>(null);
-  const [favBanks, setFavBanks] = useState<string[]>(["bob_vijaya", "pnb_obc", "psb", "sbi", "hdfc", "airtel", "icici", "pgb"]);
+  const [favBanks, setFavBanks] = useState<string[]>([...DEFAULT_AEPS_FAV_BANKS]);
   const [agentAuthReady, setAgentAuthReady] = useState<boolean | null>(null);
   const [agentAuthKycReady, setAgentAuthKycReady] = useState(true);
   const [agentAadhaar, setAgentAadhaar] = useState("");
@@ -462,10 +486,54 @@ function AepsPageInner() {
   }, [authMode]);
 
   const toggleFavBank = useCallback((id: string) => {
-    setFavBanks((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
+    setFavBanks((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      return sanitizeAepsFavIds(next);
+    });
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void api
+      .get<ApiResponse<{ bankIds: string[] | null }>>("/auth/aeps-favourite-banks")
+      .then(({ data }) => {
+        if (cancelled || !data.success) {
+          favHydrated.current = true;
+          return;
+        }
+        const fromServer = data.data?.bankIds;
+        favSkipNextSave.current = true;
+        if (fromServer && fromServer.length > 0) {
+          setFavBanks(sanitizeAepsFavIds(fromServer));
+        }
+        favHydrated.current = true;
+      })
+      .catch(() => {
+        favHydrated.current = true;
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!favHydrated.current) return;
+    if (favSkipNextSave.current) {
+      favSkipNextSave.current = false;
+      return;
+    }
+    if (favSaveTimer.current) clearTimeout(favSaveTimer.current);
+    favSaveTimer.current = setTimeout(() => {
+      void api
+        .put("/auth/aeps-favourite-banks", { bankIds: favBanks })
+        .catch(() => {
+          /* non-fatal — local strip still works */
+        });
+    }, 400);
+    return () => {
+      if (favSaveTimer.current) clearTimeout(favSaveTimer.current);
+    };
+  }, [favBanks]);
 
   const showAmount = tab === "Withdraw" || tab === "Deposit";
 
@@ -754,7 +822,7 @@ function AepsPageInner() {
                   <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed p-4 opacity-60">
                     <ScanEye size={28} className="text-gray-400" />
                     <span className="text-sm font-bold text-gray-500">Eye Scan</span>
-                    <span className="text-[10px] font-bold tracking-wide text-gray-400">COMING SOON</span>
+                    <span className="text-[13px] font-bold tracking-wide text-gray-400">COMING SOON</span>
                   </div>
                 </div>
               </div>
@@ -823,19 +891,19 @@ function AepsPageInner() {
               </h3>
               <ol className="space-y-2 text-xs leading-relaxed text-gray-600">
                 <li className="flex gap-2">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[10px] font-bold text-blue-700">1</span>
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[13px] font-bold text-blue-700">1</span>
                   Confirm your signup KYC Aadhaar (auto-filled)
                 </li>
                 <li className="flex gap-2">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[10px] font-bold text-blue-700">2</span>
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[13px] font-bold text-blue-700">2</span>
                   Accept Aadhaar consent for today&apos;s session
                 </li>
                 <li className="flex gap-2">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[10px] font-bold text-blue-700">3</span>
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[13px] font-bold text-blue-700">3</span>
                   Connect Morpho / Mantra L1 RD device
                 </li>
                 <li className="flex gap-2">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-green-50 text-[10px] font-bold text-green-700">✓</span>
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-green-50 text-[13px] font-bold text-green-700">✓</span>
                   Scan finger once — AePS unlocks for the day
                 </li>
               </ol>
@@ -920,7 +988,42 @@ function AepsPageInner() {
               </div>
               <div
                 ref={bankStripRef}
-                className="flex items-start gap-2 overflow-x-auto pb-1"
+                className="scrollbar-none flex cursor-grab items-start gap-2 overflow-x-auto pb-1 active:cursor-grabbing"
+                style={{ touchAction: "pan-x" }}
+                onPointerDown={(e) => {
+                  const el = bankStripRef.current;
+                  if (!el || e.button !== 0) return;
+                  bankDragRef.current = {
+                    active: true,
+                    startX: e.clientX,
+                    scrollLeft: el.scrollLeft,
+                    moved: false,
+                    pointerId: e.pointerId,
+                  };
+                  el.setPointerCapture(e.pointerId);
+                }}
+                onPointerMove={(e) => {
+                  const drag = bankDragRef.current;
+                  if (!drag.active) return;
+                  const el = bankStripRef.current;
+                  if (!el) return;
+                  const dx = e.clientX - drag.startX;
+                  if (Math.abs(dx) > 5) drag.moved = true;
+                  el.scrollLeft = drag.scrollLeft - dx;
+                }}
+                onPointerUp={() => {
+                  bankDragRef.current.active = false;
+                }}
+                onPointerCancel={() => {
+                  bankDragRef.current.active = false;
+                }}
+                onClickCapture={(e) => {
+                  if (bankDragRef.current.moved) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    bankDragRef.current.moved = false;
+                  }
+                }}
                 onScroll={() => {
                   window.clearTimeout((bankStripRef.current as HTMLDivElement & { _t?: number })._t);
                   (bankStripRef.current as HTMLDivElement & { _t?: number })._t = window.setTimeout(
@@ -958,7 +1061,7 @@ function AepsPageInner() {
                         <BankIcon bank={bank} size={44} />
                         <span
                           className={clsx(
-                            "w-full truncate text-center text-[10px] leading-tight",
+                            "w-full truncate text-center text-[13px] leading-tight",
                             active ? "font-bold" : "font-medium text-gray-600",
                           )}
                           style={active ? { color: B.blue } : undefined}
@@ -984,7 +1087,7 @@ function AepsPageInner() {
                     <p className="truncate text-sm font-bold" style={{ color: B.blue }}>
                       {selectedBank.name}
                     </p>
-                    <p className="text-[11px] text-gray-500">Selected bank for this transaction</p>
+                    <p className="text-[14px] text-gray-500">Selected bank for this transaction</p>
                   </div>
                   <button
                     type="button"
@@ -1261,23 +1364,23 @@ function AepsPageInner() {
               </h3>
               <ol className="space-y-2 text-xs text-gray-600 leading-relaxed">
                 <li className="flex gap-2">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[10px] font-bold text-blue-700">1</span>
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[13px] font-bold text-blue-700">1</span>
                   Select customer&apos;s bank
                 </li>
                 <li className="flex gap-2">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[10px] font-bold text-blue-700">2</span>
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[13px] font-bold text-blue-700">2</span>
                   Enter Aadhaar number &amp; mobile
                 </li>
                 <li className="flex gap-2">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[10px] font-bold text-blue-700">3</span>
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[13px] font-bold text-blue-700">3</span>
                   Enter amount (for withdraw/deposit)
                 </li>
                 <li className="flex gap-2">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[10px] font-bold text-blue-700">4</span>
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[13px] font-bold text-blue-700">4</span>
                   Scan customer fingerprint
                 </li>
                 <li className="flex gap-2">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-green-50 text-[10px] font-bold text-green-700">✓</span>
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-green-50 text-[13px] font-bold text-green-700">✓</span>
                   Transaction complete — receipt generated
                 </li>
               </ol>

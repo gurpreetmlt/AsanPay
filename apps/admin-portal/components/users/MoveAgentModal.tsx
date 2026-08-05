@@ -142,7 +142,7 @@ export function MoveAgentModal({
 
         {!isBulk && !ancestorsLoading && ancestors.length > 0 && (
           <div className="mt-3 rounded-lg border px-3 py-3" style={{ borderColor: B.border, background: B.secondary }}>
-            <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider" style={{ color: B.muted }}>
+            <div className="mb-2 text-[13px] font-semibold uppercase tracking-wider" style={{ color: B.muted }}>
               Currently under
             </div>
             {[...ancestors].reverse().map((a, idx, arr) => {
@@ -162,7 +162,7 @@ export function MoveAgentModal({
                         {a.name}
                       </span>
                       <span
-                        className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+                        className="shrink-0 rounded-full px-1.5 py-0.5 text-[13px] font-medium"
                         style={{ background: `${B.blueLight}1a`, color: B.blueLight }}
                       >
                         {ROLE_LABEL[a.role as keyof typeof ROLE_LABEL]}

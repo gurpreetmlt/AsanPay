@@ -224,7 +224,7 @@ function Field({
         {label}
       </span>
       {hint && (
-        <span className="block text-[11px]" style={{ color: B.muted }}>
+        <span className="block text-[14px]" style={{ color: B.muted }}>
           {hint}
         </span>
       )}

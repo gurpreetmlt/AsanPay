@@ -80,6 +80,19 @@ const BANKS: Bank[] = [
   { id: "paytm", name: "Paytm Payments Bank", shortName: "Paytm", color: "#00BCD4", letter: "P", iin: "PAYTM0" },
 ];
 
+/** Shared with web — persisted via GET/PUT /auth/aeps-favourite-banks */
+const DEFAULT_AEPS_FAV_BANKS = ["bob", "pnb", "sbi", "hdfc", "airtel", "icici"] as const;
+const AEPS_FAV_LEGACY: Record<string, string> = { bob_vijaya: "bob", pnb_obc: "pnb" };
+
+function sanitizeAepsFavIds(ids: string[], validIds: Set<string>): string[] {
+  const out: string[] = [];
+  for (const raw of ids) {
+    const id = AEPS_FAV_LEGACY[raw] ?? raw;
+    if (validIds.has(id) && !out.includes(id)) out.push(id);
+  }
+  return out;
+}
+
 interface AepsBankRow {
   name: string;
   iin: string;
@@ -500,7 +513,10 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
   const [agentAadhaarVisible, setAgentAadhaarVisible] = useState(false);
   const [agentAuthConsent, setAgentAuthConsent] = useState(false);
   const [agentAuthScanning, setAgentAuthScanning] = useState(false);
-  const [favBanks, setFavBanks] = useState<string[]>(["bob", "pnb", "sbi", "hdfc", "airtel", "icici"]);
+  const [favBanks, setFavBanks] = useState<string[]>([...DEFAULT_AEPS_FAV_BANKS]);
+  const favHydrated = useRef(false);
+  const favSkipNextSave = useRef(true);
+  const favSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [scanning, setScanning] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -571,10 +587,50 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
   }, [deviceModalOpen]);
 
   const toggleFavBank = useCallback((id: string) => {
-    setFavBanks((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
+    setFavBanks((prev) => {
+      const valid = new Set(BANKS.map((b) => b.id));
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      return sanitizeAepsFavIds(next, valid);
+    });
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchApi<{ bankIds: string[] | null }>("/auth/aeps-favourite-banks")
+      .then((payload) => {
+        if (cancelled) return;
+        const fromServer = payload.bankIds;
+        favSkipNextSave.current = true;
+        if (fromServer && fromServer.length > 0) {
+          const valid = new Set(BANKS.map((b) => b.id));
+          setFavBanks(sanitizeAepsFavIds(fromServer, valid));
+        }
+        favHydrated.current = true;
+      })
+      .catch(() => {
+        favHydrated.current = true;
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!favHydrated.current) return;
+    if (favSkipNextSave.current) {
+      favSkipNextSave.current = false;
+      return;
+    }
+    if (favSaveTimer.current) clearTimeout(favSaveTimer.current);
+    favSaveTimer.current = setTimeout(() => {
+      void api.put("/auth/aeps-favourite-banks", { bankIds: favBanks }).catch(() => {
+        /* non-fatal */
+      });
+    }, 400);
+    return () => {
+      if (favSaveTimer.current) clearTimeout(favSaveTimer.current);
+    };
+  }, [favBanks]);
 
   const showAmount = tab === "Withdraw" || tab === "Deposit";
 

@@ -24,6 +24,15 @@
   --color-border-subtle: #e8e9f0;
 
   --font-sans: var(--font-poppins), "Poppins", ui-sans-serif, system-ui, sans-serif;
+
+  /* Larger type scale — clearer across SD / Distributor / Retailer */
+  --text-xs: 0.8125rem; /* ~13px @16 → ~14.6 @18 */
+  --text-sm: 0.9375rem; /* ~15px */
+  --text-base: 1.0625rem; /* ~17px */
+  --text-lg: 1.1875rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.625rem;
+  --text-3xl: 2rem;
 }
 
 * {
@@ -36,11 +45,22 @@ body {
   overflow-x: hidden;
 }
 
+/* Stronger root bump — Spice Money–like readability */
+html {
+  font-size: 112.5%; /* 18px when browser default is 16px */
+}
+
 body {
   background-color: var(--color-surface);
-  color: #1f2333;
+  color: #1a1f2e;
   margin: 0;
   font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 ::-webkit-scrollbar {
@@ -53,4 +73,15 @@ body {
 ::-webkit-scrollbar-thumb {
   background: #c7d2ee;
   border-radius: 99px;
+}
+
+/* Hide scrollbar but keep overflow scroll (AePS bank strip drag-scroll) */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
