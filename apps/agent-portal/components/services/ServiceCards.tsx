@@ -55,7 +55,7 @@ function resolveServiceRoute(code: string): string | null {
   return null;
 }
 
-/** Original colorful service art (SVG assets) — do not replace with stroke-only icons. */
+/** Original colorful service art — equal column + icon centered over label. */
 function ServiceIconCard({
   svc,
   index,
@@ -78,7 +78,7 @@ function ServiceIconCard({
 
   return (
     <div
-      className="group relative flex w-[5rem] shrink-0 flex-col items-center sm:w-[5.35rem]"
+      className="group relative flex w-[5.75rem] shrink-0 flex-col items-center sm:w-[6.25rem]"
       style={{ "--tile-accent": tile.fg } as React.CSSProperties}
     >
       <button
@@ -94,12 +94,12 @@ function ServiceIconCard({
       </button>
       <button
         type="button"
-        className="flex w-full flex-col items-center gap-0.5 text-center disabled:opacity-45"
+        className="flex w-full flex-col items-center justify-start gap-1 text-center disabled:opacity-45"
         onClick={() => (onOpen ? onOpen() : toast(`${svc.name} — coming soon on web`))}
       >
         {/* Fixed badge row so AePS (no badge) lines up with NEW / Flat badges outside */}
         <span
-          className="flex h-[14px] max-w-full items-center justify-center truncate rounded px-1 text-[8px] font-bold uppercase leading-none"
+          className="mx-auto flex h-[14px] w-full max-w-full items-center justify-center truncate rounded px-1 text-[8px] font-bold uppercase leading-none"
           style={
             svc.badge
               ? { background: `${tile.fg}18`, color: tile.fg }
@@ -114,22 +114,22 @@ function ServiceIconCard({
           <img
             src={assetSrc!}
             alt=""
-            className="h-9 w-9 object-contain transition duration-150 ease-out group-hover:scale-110 group-hover:drop-shadow-md sm:h-10 sm:w-10"
+            className="mx-auto block h-9 w-9 object-contain transition duration-150 ease-out group-hover:scale-110 group-hover:drop-shadow-md sm:h-10 sm:w-10"
             onError={() => setAssetFailed(true)}
           />
         ) : (
           <div
-            className="flex h-9 w-9 items-center justify-center rounded-xl transition duration-150 ease-out group-hover:scale-110 sm:h-10 sm:w-10"
+            className="mx-auto flex h-9 w-9 items-center justify-center rounded-xl transition duration-150 ease-out group-hover:scale-110 sm:h-10 sm:w-10"
             style={{ background: tile.bg }}
           >
             <DesignIcon name={designKey} size={20} color={tile.fg} />
           </div>
         )}
         <div
-          className="line-clamp-2 min-h-[1.85rem] w-full text-center text-[10px] font-semibold leading-snug transition-colors duration-150 group-hover:text-[var(--tile-accent)] sm:text-[11px]"
+          className="mx-auto w-full text-center text-[10px] font-semibold leading-snug transition-colors duration-150 group-hover:text-[var(--tile-accent)] sm:text-[11px]"
           style={{ color: B.blue }}
         >
-          {svc.name}
+          <span className="line-clamp-2 block min-h-[1.85rem]">{svc.name}</span>
         </div>
       </button>
     </div>
@@ -153,8 +153,8 @@ function ServiceRow({
     <div
       className={
         nowrap
-          ? "flex flex-nowrap items-start gap-2 overflow-x-auto pb-1 sm:gap-3"
-          : "flex flex-wrap content-start items-start gap-x-2 gap-y-3 sm:gap-x-3 sm:gap-y-4"
+          ? "flex flex-nowrap items-start justify-start gap-4 overflow-x-auto pb-1 sm:gap-5"
+          : "flex flex-wrap content-start items-start justify-start gap-x-4 gap-y-4 sm:gap-x-5 sm:gap-y-5"
       }
     >
       {services.map((svc, i) => (
@@ -232,7 +232,7 @@ function BankingCard({
                 className="h-4 w-auto object-contain sm:h-5"
               />
             </span>
-            <div className="flex flex-wrap items-start gap-1 sm:gap-1.5">
+            <div className="flex flex-wrap items-start justify-start gap-x-4 gap-y-3 sm:gap-x-5">
               {aeps.map((svc, i) => (
                 <ServiceIconCard
                   key={svc.id}
@@ -248,7 +248,7 @@ function BankingCard({
         ) : null}
 
         {rest.length > 0 ? (
-          <div className="flex min-w-0 flex-1 flex-wrap items-start gap-1 sm:gap-1.5">
+          <div className="flex min-w-0 flex-1 flex-wrap items-start justify-start gap-x-4 gap-y-3 sm:gap-x-5">
             {rest.map((svc, i) => (
               <ServiceIconCard
                 key={svc.id}
