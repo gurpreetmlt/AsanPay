@@ -71,7 +71,7 @@ function ServiceIconCard({
 
   return (
     <div
-      className="group relative flex w-[5.75rem] shrink-0 flex-col items-center sm:w-[6.25rem]"
+      className="group relative flex w-[6.25rem] shrink-0 flex-col items-center sm:w-[6.75rem]"
       style={{ "--tile-accent": tile.fg } as React.CSSProperties}
     >
       <button
@@ -87,7 +87,7 @@ function ServiceIconCard({
       </button>
       <button
         type="button"
-        className="flex w-full flex-col items-center justify-start gap-1 text-center disabled:opacity-45"
+        className="flex w-full flex-col items-center justify-start gap-1.5 text-center disabled:opacity-45"
         onClick={() => (onOpen ? onOpen() : toast(`${svc.name} — coming soon on web`))}
       >
         {/* Fixed badge row so AePS (no badge) lines up with NEW / Flat badges outside */}
@@ -107,15 +107,15 @@ function ServiceIconCard({
           <img
             src={assetSrc!}
             alt=""
-            className="mx-auto block h-9 w-9 object-contain transition duration-150 ease-out group-hover:scale-110 group-hover:drop-shadow-md sm:h-10 sm:w-10"
+            className="mx-auto block h-11 w-11 object-contain transition duration-150 ease-out group-hover:scale-110 group-hover:drop-shadow-md sm:h-12 sm:w-12"
             onError={() => setAssetFailed(true)}
           />
         ) : (
           <div
-            className="mx-auto flex h-9 w-9 items-center justify-center rounded-xl transition duration-150 ease-out group-hover:scale-110 sm:h-10 sm:w-10"
+            className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl transition duration-150 ease-out group-hover:scale-110 sm:h-12 sm:w-12"
             style={{ background: tile.bg }}
           >
-            <DesignIcon name={designKey} size={20} color={tile.fg} />
+            <DesignIcon name={designKey} size={24} color={tile.fg} />
           </div>
         )}
         <div
@@ -146,8 +146,8 @@ function ServiceRow({
     <div
       className={
         nowrap
-          ? "flex flex-nowrap items-start justify-start gap-4 overflow-x-auto pb-1 sm:gap-5"
-          : "flex flex-wrap content-start items-start justify-start gap-x-4 gap-y-4 sm:gap-x-5 sm:gap-y-5"
+          ? "flex flex-nowrap items-start justify-start gap-5 overflow-x-auto pb-1 sm:gap-6"
+          : "flex flex-wrap content-start items-start justify-start gap-x-5 gap-y-5 sm:gap-x-6 sm:gap-y-6"
       }
     >
       {services.map((svc, i) => (
@@ -217,10 +217,10 @@ function BankingCard({
     <CardShell title="Banking Services">
       <div className="flex flex-col gap-4 sm:gap-5">
         {/* Row 1: AePS box + UPI / Money Transfer / Nepal */}
-        <div className="flex flex-wrap items-center gap-4 sm:gap-5">
+        <div className="flex flex-wrap items-center gap-5 sm:gap-6">
           {aeps.length > 0 ? (
             <div
-              className="relative shrink-0 rounded-xl border-2 px-2 py-2 sm:px-3 sm:py-2.5"
+              className="relative shrink-0 rounded-xl border-2 px-2.5 py-2.5 sm:px-3 sm:py-3"
               style={{ borderColor: "rgba(11,42,154,0.18)" }}
             >
               <span
@@ -234,7 +234,7 @@ function BankingCard({
                   className="h-4 w-auto object-contain sm:h-5"
                 />
               </span>
-              <div className="flex flex-nowrap items-start justify-start gap-x-4 sm:gap-x-5">
+              <div className="flex flex-nowrap items-start justify-start gap-x-5 sm:gap-x-6">
                 {aeps.map((svc, i) => (
                   <ServiceIconCard
                     key={svc.id}
@@ -250,7 +250,7 @@ function BankingCard({
           ) : null}
 
           {topRest.length > 0 ? (
-            <div className="flex flex-wrap items-start justify-start gap-x-4 gap-y-3 sm:gap-x-5">
+            <div className="flex flex-wrap items-start justify-start gap-x-5 gap-y-4 sm:gap-x-6">
               {topRest.map((svc, i) => (
                 <ServiceIconCard
                   key={svc.id}
@@ -267,7 +267,7 @@ function BankingCard({
 
         {/* Row 2: Cash Collection, Loans, Insurance, Credit — left-aligned under AePS */}
         {bottomRest.length > 0 ? (
-          <div className="flex flex-wrap items-start justify-start gap-x-4 gap-y-3 sm:gap-x-5">
+          <div className="flex flex-wrap items-start justify-start gap-x-5 gap-y-4 sm:gap-x-6">
             {bottomRest.map((svc, i) => (
               <ServiceIconCard
                 key={svc.id}
