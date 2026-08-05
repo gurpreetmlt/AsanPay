@@ -993,6 +993,7 @@ function AepsPageInner() {
                 onPointerDown={(e) => {
                   const el = bankStripRef.current;
                   if (!el || e.button !== 0) return;
+                  // Track possible drag, but do NOT capture yet — otherwise bank button clicks never fire
                   bankDragRef.current = {
                     active: true,
                     startX: e.clientX,
@@ -1000,7 +1001,6 @@ function AepsPageInner() {
                     moved: false,
                     pointerId: e.pointerId,
                   };
-                  el.setPointerCapture(e.pointerId);
                 }}
                 onPointerMove={(e) => {
                   const drag = bankDragRef.current;
@@ -1008,20 +1008,55 @@ function AepsPageInner() {
                   const el = bankStripRef.current;
                   if (!el) return;
                   const dx = e.clientX - drag.startX;
-                  if (Math.abs(dx) > 5) drag.moved = true;
+                  if (!drag.moved && Math.abs(dx) > 8) {
+                    drag.moved = true;
+                    try {
+                      el.setPointerCapture(drag.pointerId);
+                    } catch {
+                      /* ignore */
+                    }
+                  }
+                  if (!drag.moved) return;
                   el.scrollLeft = drag.scrollLeft - dx;
                 }}
-                onPointerUp={() => {
-                  bankDragRef.current.active = false;
+                onPointerUp={(e) => {
+                  const drag = bankDragRef.current;
+                  if (drag.moved) {
+                    try {
+                      bankStripRef.current?.releasePointerCapture(drag.pointerId);
+                    } catch {
+                      /* ignore */
+                    }
+                  }
+                  // Keep moved=true until click capture runs (same event turn), then clear
+                  drag.active = false;
+                  if (!drag.moved) {
+                    drag.pointerId = -1;
+                  }
                 }}
                 onPointerCancel={() => {
-                  bankDragRef.current.active = false;
+                  const drag = bankDragRef.current;
+                  try {
+                    if (drag.pointerId >= 0) {
+                      bankStripRef.current?.releasePointerCapture(drag.pointerId);
+                    }
+                  } catch {
+                    /* ignore */
+                  }
+                  bankDragRef.current = {
+                    active: false,
+                    startX: 0,
+                    scrollLeft: 0,
+                    moved: false,
+                    pointerId: -1,
+                  };
                 }}
                 onClickCapture={(e) => {
                   if (bankDragRef.current.moved) {
                     e.preventDefault();
                     e.stopPropagation();
                     bankDragRef.current.moved = false;
+                    bankDragRef.current.pointerId = -1;
                   }
                 }}
                 onScroll={() => {
@@ -1164,7 +1199,7 @@ function AepsPageInner() {
                     inputMode="numeric"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))}
-                    placeholder="Amount to Withdraw"
+                    placeholder={tab === "Deposit" ? "Amount to Deposit" : "Amount to Withdraw"}
                     className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium outline-none placeholder:text-gray-400 focus:border-blue-300 focus:ring-1 focus:ring-blue-200"
                   />
                   <div className="mt-3 flex gap-2">

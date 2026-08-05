@@ -275,6 +275,35 @@ export default function SupportPage() {
                 href={companyWebsite}
               />
             </ContactCard>
+
+            <div className="rounded-2xl border bg-white p-4" style={{ borderColor: B.border }}>
+              <div className="mb-2 flex items-center gap-2">
+                <MapPin size={16} style={{ color: B.blueLight }} />
+                <h2 className="text-xs font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+                  Nodal officer
+                </h2>
+              </div>
+              <p
+                className="mb-3 rounded-xl border px-3 py-2.5 text-sm leading-relaxed"
+                style={{ borderColor: B.border, background: B.bg, color: B.blueMid }}
+              >
+                {nodalAddress || "Address not set yet (Admin → Platform Settings)."}
+              </p>
+              <div className="space-y-2">
+                <ContactLine
+                  kind="mail"
+                  label="Email"
+                  value={nodalEmail || "Not set"}
+                  href={nodalEmail ? mailto(nodalEmail) : undefined}
+                />
+                <ContactLine
+                  kind="phone"
+                  label="Phone"
+                  value={nodalPhone ? formatPhone(nodalPhone) : "Not set"}
+                  href={nodalPhone ? telHref(nodalPhone) : undefined}
+                />
+              </div>
+            </div>
           </div>
 
           <div
@@ -391,70 +420,39 @@ export default function SupportPage() {
           </div>
         </div>
 
-        {/* Secondary: guides + nodal */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <div className="rounded-2xl border bg-white p-4 md:p-5" style={{ borderColor: B.border }}>
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-bold" style={{ color: B.blue }}>
-                Self-help guides
-              </h3>
-              <span className="text-xs font-semibold" style={{ color: B.muted }}>
-                Coming soon
-              </span>
-            </div>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {HELP_GUIDES.map((g) => (
-                <button
-                  key={g.title}
-                  type="button"
-                  onClick={() =>
-                    toast("Guide videos will open here soon — raise a ticket if you need help now")
-                  }
-                  className="flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition hover:bg-secondary/50"
-                  style={{ borderColor: B.border }}
-                >
-                  <PlayCircle size={16} className="shrink-0" style={{ color: B.blueLight }} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold" style={{ color: B.blue }}>
-                      {g.title}
-                    </span>
-                    <span className="text-[10px] font-bold uppercase" style={{ color: B.muted }}>
-                      {g.tag}
-                    </span>
-                  </span>
-                  <ChevronRight size={14} className="shrink-0" style={{ color: B.muted }} />
-                </button>
-              ))}
-            </div>
+        {/* Self-help guides */}
+        <div className="rounded-2xl border bg-white p-4 md:p-5" style={{ borderColor: B.border }}>
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-sm font-bold" style={{ color: B.blue }}>
+              Self-help guides
+            </h3>
+            <span className="text-xs font-semibold" style={{ color: B.muted }}>
+              Coming soon
+            </span>
           </div>
-
-          <div className="rounded-2xl border bg-white p-4 md:p-5" style={{ borderColor: B.border }}>
-            <div className="mb-3 flex items-center gap-2">
-              <MapPin size={16} style={{ color: B.blueLight }} />
-              <h3 className="text-sm font-bold" style={{ color: B.blue }}>
-                Nodal officer
-              </h3>
-            </div>
-            <p
-              className="rounded-xl border px-3 py-2.5 text-sm leading-relaxed"
-              style={{ borderColor: B.border, background: B.bg, color: B.blueMid }}
-            >
-              {nodalAddress || "Address not set yet (Admin → Platform Settings)."}
-            </p>
-            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <ContactLine
-                kind="mail"
-                label="Email"
-                value={nodalEmail || "Not set"}
-                href={nodalEmail ? mailto(nodalEmail) : undefined}
-              />
-              <ContactLine
-                kind="phone"
-                label="Phone"
-                value={nodalPhone ? formatPhone(nodalPhone) : "Not set"}
-                href={nodalPhone ? telHref(nodalPhone) : undefined}
-              />
-            </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {HELP_GUIDES.map((g) => (
+              <button
+                key={g.title}
+                type="button"
+                onClick={() =>
+                  toast("Guide videos will open here soon — raise a ticket if you need help now")
+                }
+                className="flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition hover:bg-secondary/50"
+                style={{ borderColor: B.border }}
+              >
+                <PlayCircle size={16} className="shrink-0" style={{ color: B.blueLight }} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold" style={{ color: B.blue }}>
+                    {g.title}
+                  </span>
+                  <span className="text-[10px] font-bold uppercase" style={{ color: B.muted }}>
+                    {g.tag}
+                  </span>
+                </span>
+                <ChevronRight size={14} className="shrink-0" style={{ color: B.muted }} />
+              </button>
+            ))}
           </div>
         </div>
       </div>
