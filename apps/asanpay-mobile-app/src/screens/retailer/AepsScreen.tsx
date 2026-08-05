@@ -29,12 +29,13 @@ import {
   X,
 } from "lucide-react-native";
 import type { ApiResponse } from "@asanpay/shared-types";
-import { api } from "../../lib/api";
+import { api, fetchApi } from "../../lib/api";
 import { apiError } from "../../utils/apiError";
 import { formatINR } from "../../lib/format";
 import { createAttemptKeyHolder } from "../../lib/idempotencyKey";
 import { captureFingerprint, listInstalledRdPackages } from "../../lib/rdServiceFingerprint";
 import { useTxnPin } from "../../hooks/useTxnPin";
+import { useAuthStore } from "../../store/auth";
 import { useTheme } from "../../theme/ThemeContext";
 import { colors, gradientDirection } from "../../theme/colors";
 
@@ -452,6 +453,7 @@ interface AepsScreenProps {
 export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps) {
   const { tokens } = useTheme();
   const { promptPin, TxnPinPrompt } = useTxnPin();
+  const userName = useAuthStore((s) => s.user?.name?.trim() || "Retailer");
 
   const resolvedInitial = useMemo(() => {
     if (initialTab) return initialTab;
@@ -510,19 +512,15 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
     void detectConnectedDevice().then((device) => {
       if (mounted && device) setActiveDevice(device);
     });
-    void api
-      .get<
-        ApiResponse<{
-          verifiedToday: boolean;
-          kycReady: boolean;
-          aadhaarNumber?: string | null;
-          outlet?: { aadhaarLastFour?: string | null } | null;
-        }>
-      >("/auth/agent-auth/status")
-      .then(({ data }) => {
-        if (!mounted || !data.success) return;
-        const payload = data.data;
-        setAgentAuthReady(payload.verifiedToday);
+    void fetchApi<{
+      verifiedToday: boolean;
+      kycReady: boolean;
+      aadhaarNumber?: string | null;
+      outlet?: { aadhaarLastFour?: string | null } | null;
+    }>("/auth/agent-auth/status")
+      .then((payload) => {
+        if (!mounted) return;
+        setAgentAuthReady(Boolean(payload.verifiedToday));
         setAgentAuthKycReady(payload.kycReady !== false);
         const digits = String(payload.aadhaarNumber ?? "")
           .replace(/\D/g, "")
@@ -825,45 +823,45 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
               Your registered KYC Aadhaar will be matched through the selected UIDAI L1 RD service.
             </Text>
 
-            <Text style={[s.fieldLabel, s.fieldLabelSpaced, { color: tokens.sub }]}>RETAILER AADHAAR NUMBER</Text>
+            <Text style={[s.fieldLabel, s.fieldLabelSpaced, { color: tokens.sub }]}>
+              {`AADHAAR NUMBER OF ${userName.toUpperCase()}`}
+            </Text>
             <View style={[s.inputRow, { borderColor: tokens.inputBorder, backgroundColor: tokens.inputBg }]}>
-              <TextInput
-                value={
-                  agentAadhaar.length === 12
-                    ? agentAadhaarVisible
-                      ? formatAadhaar(agentAadhaar)
-                      : maskAadhaarDisplay(agentAadhaar)
-                    : agentAadhaarFromKyc && agentAadhaarLastFour
-                      ? `XXXX XXXX ${agentAadhaarLastFour}`
-                      : formatAadhaar(agentAadhaar)
-                }
-                onChangeText={(value) => {
-                  if (agentAadhaarFromKyc) return;
-                  setAgentAadhaar(value.replace(/\D/g, "").slice(0, 12));
-                }}
-                placeholder={
-                  agentAadhaarFromKyc
-                    ? "Loaded from signup KYC"
-                    : agentAuthKycReady
-                      ? "Enter retailer's 12-digit Aadhaar"
-                      : "KYC Aadhaar not found"
-                }
-                placeholderTextColor={tokens.mute}
-                keyboardType="number-pad"
-                inputMode="numeric"
-                maxLength={14}
-                editable={agentAuthKycReady && !agentAuthScanning && !agentAadhaarFromKyc}
-                style={[s.dailyAadhaar, { color: tokens.txt }]}
-              />
-              {agentAadhaar.length === 12 ? (
-                <Pressable onPress={() => setAgentAadhaarVisible((visible) => !visible)} hitSlop={10}>
-                  {agentAadhaarVisible ? (
-                    <EyeOff size={18} color={tokens.mute} />
-                  ) : (
-                    <Eye size={18} color={tokens.mute} />
-                  )}
-                </Pressable>
-              ) : null}
+              {agentAadhaar.length === 12 || (agentAadhaarFromKyc && agentAadhaarLastFour) ? (
+                <>
+                  {/* Text (not TextInput) — same as web mask; Android TextInput often blanked autofill */}
+                  <Text style={[s.dailyAadhaar, { color: tokens.txt, flex: 1 }]}>
+                    {agentAadhaar.length === 12
+                      ? agentAadhaarVisible
+                        ? formatAadhaar(agentAadhaar)
+                        : maskAadhaarDisplay(agentAadhaar)
+                      : `XXXX XXXX ${agentAadhaarLastFour}`}
+                  </Text>
+                  {agentAadhaar.length === 12 ? (
+                    <Pressable onPress={() => setAgentAadhaarVisible((v) => !v)} hitSlop={10}>
+                      {agentAadhaarVisible ? (
+                        <EyeOff size={18} color={tokens.mute} />
+                      ) : (
+                        <Eye size={18} color={tokens.mute} />
+                      )}
+                    </Pressable>
+                  ) : null}
+                </>
+              ) : (
+                <TextInput
+                  value={formatAadhaar(agentAadhaar)}
+                  onChangeText={(value) => setAgentAadhaar(value.replace(/\D/g, "").slice(0, 12))}
+                  placeholder={
+                    agentAuthKycReady ? "Enter 12-digit Aadhaar" : "KYC Aadhaar not found"
+                  }
+                  placeholderTextColor={tokens.mute}
+                  keyboardType="number-pad"
+                  inputMode="numeric"
+                  maxLength={14}
+                  editable={agentAuthKycReady && !agentAuthScanning}
+                  style={[s.dailyAadhaar, { color: tokens.txt, flex: 1 }]}
+                />
+              )}
             </View>
             {agentAadhaarFromKyc ? (
               <Text style={{ marginTop: 6, fontSize: 11, color: tokens.mute }}>
