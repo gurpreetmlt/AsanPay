@@ -71,7 +71,7 @@ function ServiceIconCard({
 
   return (
     <div
-      className="group relative flex w-[6.75rem] shrink-0 flex-col items-center"
+      className="group relative mx-auto flex w-full max-w-[6.75rem] flex-col items-center"
       style={{ "--tile-accent": tile.fg } as React.CSSProperties}
     >
       <button
@@ -129,6 +129,10 @@ function ServiceIconCard({
   );
 }
 
+/** Shared responsive track — Banking + BBPS stay aligned on every breakpoint. */
+const SERVICE_GRID =
+  "grid grid-cols-4 content-start items-start gap-x-3 gap-y-5 sm:gap-x-4 sm:gap-y-5 lg:grid-cols-8 lg:gap-x-5 lg:gap-y-6";
+
 function ServiceRow({
   services,
   codes,
@@ -146,10 +150,10 @@ function ServiceRow({
   columns?: 8;
 }) {
   const layoutClass = columns
-    ? "grid grid-cols-4 content-start items-start gap-x-5 gap-y-5 sm:grid-cols-4 md:grid-cols-8 md:gap-x-6 md:gap-y-6"
+    ? SERVICE_GRID
     : nowrap
-      ? "flex flex-nowrap items-start justify-start gap-x-5 overflow-x-auto pb-1 sm:gap-x-6"
-      : "flex flex-wrap content-start items-start justify-start gap-x-5 gap-y-5 sm:gap-x-6 sm:gap-y-6";
+      ? "flex flex-nowrap items-start justify-start gap-x-4 overflow-x-auto pb-1 sm:gap-x-5"
+      : "flex flex-wrap content-start items-start justify-start gap-x-4 gap-y-5 sm:gap-x-5 sm:gap-y-6";
 
   return (
     <div className={layoutClass}>
@@ -163,12 +167,10 @@ function ServiceRow({
             onOpen={() => onOpen(svc.code)}
           />
         );
-        return columns ? (
-          <div key={svc.id} className="flex justify-center">
+        return (
+          <div key={svc.id} className={nowrap && !columns ? "shrink-0" : "flex min-w-0 justify-center"}>
             {card}
           </div>
-        ) : (
-          <div key={svc.id}>{card}</div>
         );
       })}
     </div>
@@ -223,7 +225,7 @@ const BANKING_TOP_CODES = [
 /** Codes that sit on the second row under / aligned with AePS (Loans … Credit). */
 const BANKING_BOTTOM_CODES = ["LOANS", "INSURANCE", "CREDIT_CARDS"];
 
-/** Spice-style Banking: top row = same even 8-col grid as Recharges; AePS frame on first 4. */
+/** Banking: AePS + extras share one responsive grid so spacing matches Recharges on every width. */
 function BankingCard({
   aeps,
   topRest,
@@ -239,80 +241,64 @@ function BankingCard({
   onToggle: (code: string) => void;
   onOpen: (code: string) => void;
 }) {
-  const topRow = [...aeps, ...topRest];
-  /** Same track math as BBPS: 8 cols, gap-x-5 / sm:gap-x-6 → first-4 width = 50% − half gap */
-  const aepsFrameW = "w-[calc(50%-0.625rem)] sm:w-[calc(50%-0.75rem)]";
+  function tile(svc: Svc, index: number) {
+    return (
+      <div key={svc.id} className="flex min-w-0 justify-center">
+        <ServiceIconCard
+          svc={svc}
+          index={index}
+          favorite={codes.includes(svc.code)}
+          onToggleFav={() => onToggle(svc.code)}
+          onOpen={() => onOpen(svc.code)}
+        />
+      </div>
+    );
+  }
 
   return (
     <CardShell
       title="Banking Services"
       titleIcon={<Building2 size={21} strokeWidth={2.2} color="#2A5CDD" aria-hidden />}
     >
-      <div className="flex w-full flex-col gap-5">
-        <div className="relative pt-1">
+      <div className="flex w-full min-w-0 flex-col gap-5">
+        {/*
+          One 4→8 col grid (same as BBPS). AePS uses col-span-4 + subgrid on lg
+          so gaps stay equal; box-shadow border does not add layout width.
+        */}
+        <div className={`relative min-w-0 pt-3 ${SERVICE_GRID}`}>
           {aeps.length > 0 ? (
-            <>
-              <div
-                aria-hidden
-                className={`pointer-events-none absolute bottom-0 left-0 top-0 z-0 rounded-xl border-2 ${aepsFrameW}`}
-                style={{ borderColor: "rgba(11,42,154,0.22)" }}
-              />
-              <div className={`pointer-events-none absolute left-0 top-0 z-20 h-0 ${aepsFrameW}`}>
-                <span
-                  className="absolute right-2 top-0 flex h-6 w-[110px] -translate-y-1/2 items-center justify-center rounded-md border bg-white px-1.5 shadow-sm sm:right-2.5"
-                  style={{ borderColor: B.border }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src="/assets/AEPS-Logo.png"
-                    alt="AePS — Aadhaar Enabled Payment System"
-                    className="h-[22px] w-[100px] object-contain"
-                  />
-                </span>
-              </div>
-            </>
+            <div
+              className="relative col-span-4 grid grid-cols-4 gap-x-3 sm:gap-x-4 lg:col-span-4 lg:grid-cols-subgrid lg:gap-x-5 rounded-xl py-2.5"
+              style={{ boxShadow: "0 0 0 2px rgba(11,42,154,0.22)" }}
+            >
+              <span
+                className="absolute right-2 top-0 z-10 flex h-6 w-[110px] -translate-y-1/2 items-center justify-center rounded-md border bg-white px-1.5 shadow-sm sm:right-2.5"
+                style={{ borderColor: B.border }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/assets/AEPS-Logo.png"
+                  alt="AePS — Aadhaar Enabled Payment System"
+                  className="h-[22px] w-[100px] object-contain"
+                />
+              </span>
+              {aeps.map((svc, i) => tile(svc, i))}
+            </div>
           ) : null}
 
-          {/* Identical 8-col grid to Recharges and Bills — equal space between all icons */}
-          <div className="relative z-10 grid grid-cols-4 content-start items-start gap-x-5 gap-y-5 sm:gap-x-6 md:grid-cols-8 md:gap-y-6">
-            {topRow.map((svc, i) => (
-              <div key={svc.id} className="flex justify-center">
-                <ServiceIconCard
-                  svc={svc}
-                  index={i}
-                  favorite={codes.includes(svc.code)}
-                  onToggleFav={() => onToggle(svc.code)}
-                  onOpen={() => onOpen(svc.code)}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
+          {topRest.map((svc, i) => tile(svc, i + 4))}
 
-        {bottomRest.length > 0 ? (
-          <div className="grid grid-cols-4 content-start items-start gap-x-5 gap-y-5 sm:gap-x-6 md:grid-cols-8 md:gap-y-6">
-            {bottomRest.map((svc, i) => (
-              <div key={svc.id} className="flex justify-center">
-                <ServiceIconCard
-                  svc={svc}
-                  index={i + 10}
-                  favorite={codes.includes(svc.code)}
-                  onToggleFav={() => onToggle(svc.code)}
-                  onOpen={() => onOpen(svc.code)}
-                />
-              </div>
-            ))}
-          </div>
-        ) : null}
+          {bottomRest.map((svc, i) => tile(svc, i + 10))}
+        </div>
       </div>
     </CardShell>
   );
 }
 
-/** Side promo — ~380px so main services stay wider & readable. */
+/** Side promo — narrower so service grids keep 8 columns comfortably. */
 function DashboardAdBox() {
   return (
-    <aside className="w-full shrink-0 xl:sticky xl:top-4 xl:w-[380px]" aria-label="Promotions">
+    <aside className="w-full shrink-0 xl:sticky xl:top-4 xl:w-[300px] 2xl:w-[340px]" aria-label="Promotions">
       <div
         className="relative flex min-h-[400px] flex-col overflow-hidden rounded-2xl p-5 text-white shadow-md"
         style={{ background: B.badgeGrad }}
@@ -497,7 +483,7 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
       : layout.bbps.slice(0, BBPS_PREVIEW);
 
   return (
-    <div className="flex flex-col items-stretch gap-4 xl:flex-row xl:items-start">
+    <div className="flex min-w-0 flex-col items-stretch gap-4 xl:flex-row xl:items-start">
       <div className="min-w-0 flex-1 space-y-3">
         {favorites.length > 0 ? (
           <CardShell

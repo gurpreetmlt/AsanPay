@@ -17,6 +17,9 @@ if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental
 const AEPS_ORDER = ["CASH_WITHDRAW", "MINI_STATEMENT", "CASH_DEPOSIT", "BALANCE_ENQUIRY"] as const;
 const AEPS_CODES = new Set<string>(AEPS_ORDER);
 
+/** BBPS collapsed: 4 + 4 (two rows on 4-col grid); rest via View more. */
+const BBPS_PREVIEW = 8;
+
 interface Props {
   category: CatalogCategoryView;
   userId: string;
@@ -35,6 +38,7 @@ export function CategorySection({
   onOpenService,
 }: Props) {
   const [open, setOpen] = useState(defaultOpen);
+  const [bbpsExpanded, setBbpsExpanded] = useState(false);
   const favoriteCodes = useFavoritesStore((s) => selectFavoriteCodes(s, userId));
   const toggle = useFavoritesStore((s) => s.toggle);
   const { tokens } = useTheme();
@@ -44,6 +48,7 @@ export function CategorySection({
   }, [homeEditMode]);
 
   const isBanking = category.code === "BANKING_SERVICES";
+  const isBbps = category.code === "BILL_PAYMENT_BBPS";
   const headerIcon = categoryIconToDesignKey(category.icon);
   const headerAccent =
     category.code === "BANKING_SERVICES"
@@ -66,10 +71,20 @@ export function CategorySection({
     return { aepsServices: aeps, otherServices: other };
   }, [category.services, isBanking]);
 
+  const gridServices = isBanking ? otherServices : category.services;
+  const canBbpsExpand = isBbps && gridServices.length > BBPS_PREVIEW;
+  const shownServices =
+    canBbpsExpand && !bbpsExpanded ? gridServices.slice(0, BBPS_PREVIEW) : gridServices;
+
   function toggleSection() {
     if (homeEditMode) return;
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setOpen((v) => !v);
+  }
+
+  function toggleBbpsExpand() {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setBbpsExpanded((v) => !v);
   }
 
   function handleAddFavorite(code: string) {
@@ -120,10 +135,29 @@ export function CategorySection({
           <Text style={[styles.title, { color: tokens.txt }]}>{category.name}</Text>
         </View>
         <View style={styles.headerRight}>
+          {!homeEditMode && open && canBbpsExpand ? (
+            <Pressable
+              onPress={toggleBbpsExpand}
+              hitSlop={8}
+              style={styles.viewMoreBtn}
+              accessibilityRole="button"
+              accessibilityLabel={bbpsExpanded ? "View less" : "View more"}
+            >
+              <Text style={[styles.viewMoreText, { color: colors.blueLight }]}>
+                {bbpsExpanded ? "View less" : "View more"}
+              </Text>
+              <ChevronDown
+                size={14}
+                color={colors.blueLight}
+                strokeWidth={2.4}
+                style={{ transform: [{ rotate: bbpsExpanded ? "180deg" : "0deg" }] }}
+              />
+            </Pressable>
+          ) : null}
           {!homeEditMode && !open ? (
             <Text style={[styles.count, { color: tokens.sub }]}>{category.services.length} services</Text>
           ) : null}
-          {!homeEditMode ? (
+          {!homeEditMode && !(open && canBbpsExpand) ? (
             open ? (
               <ChevronUp size={20} color={tokens.sub} strokeWidth={2.2} />
             ) : (
@@ -151,9 +185,7 @@ export function CategorySection({
             </View>
           ) : null}
           <View style={styles.grid}>
-            {(isBanking ? otherServices : category.services).map((s, i) =>
-              renderTile(s, i + aepsServices.length),
-            )}
+            {shownServices.map((s, i) => renderTile(s, i + aepsServices.length))}
           </View>
         </View>
       ) : null}
@@ -184,6 +216,8 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: "row", alignItems: "center", gap: 11, flex: 1 },
   title: { fontSize: 16, fontWeight: "700", color: colors.text, flexShrink: 1 },
   headerRight: { flexDirection: "row", alignItems: "center", gap: 6, marginLeft: 8 },
+  viewMoreBtn: { flexDirection: "row", alignItems: "center", gap: 2 },
+  viewMoreText: { fontSize: 12, fontWeight: "700" },
   count: { fontSize: 11, color: colors.textMuted, fontWeight: "600" },
   body: { paddingTop: 6, paddingBottom: 18 },
   aepsBox: {

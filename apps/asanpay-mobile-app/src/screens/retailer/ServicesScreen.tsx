@@ -281,12 +281,12 @@ export function ServicesScreen() {
               onEnterEditMode={enterHomeEditMode}
               onOpenService={handleOpenService}
             />
-            {categories.map((c, i) => (
+            {categories.map((c) => (
               <CategorySection
                 key={c.id}
                 category={c}
                 userId={user.id}
-                defaultOpen={i === 0}
+                defaultOpen
                 homeEditMode={homeEditMode}
                 onEnterEditMode={enterHomeEditMode}
                 onOpenService={handleOpenService}
