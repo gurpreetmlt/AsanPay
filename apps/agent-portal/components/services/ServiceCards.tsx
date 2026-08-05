@@ -192,7 +192,7 @@ function CardShell({
 }) {
   return (
     <div
-      className={`overflow-hidden rounded-2xl border bg-white shadow-sm ${className}`}
+      className={`rounded-2xl border bg-white shadow-sm ${className}`}
       style={{ borderColor: B.border }}
     >
       <div
@@ -299,17 +299,20 @@ function BankingCard({
   );
 }
 
-/** Side promo — narrower so service grids keep 8 columns comfortably. */
+/** Side promo — stretches to match services column height. */
 function DashboardAdBox() {
   return (
-    <aside className="w-full shrink-0 xl:sticky xl:top-4 xl:w-[300px] 2xl:w-[340px]" aria-label="Promotions">
+    <aside
+      className="flex w-full shrink-0 flex-col xl:w-[300px] 2xl:w-[340px]"
+      aria-label="Promotions"
+    >
       <div
-        className="relative flex min-h-[400px] flex-col overflow-hidden rounded-2xl p-5 text-white shadow-md"
+        className="relative flex h-full min-h-[320px] flex-1 flex-col overflow-hidden rounded-2xl p-5 text-white shadow-md"
         style={{ background: B.badgeGrad }}
       >
         <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10" />
         <div className="absolute -bottom-8 -left-8 h-32 w-32 rounded-full bg-white/10" />
-        <div className="relative z-10 flex flex-1 flex-col">
+        <div className="relative z-10 flex min-h-0 flex-1 flex-col">
           <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-white/80">
             <Megaphone size={14} />
             Promotions
@@ -318,14 +321,14 @@ function DashboardAdBox() {
           <p className="mt-2 text-sm leading-relaxed text-white/85">
             Promo panel for campaigns. Creative artwork can go here later.
           </p>
-          <div className="mt-6 flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-white/35 bg-white/10 px-4 py-10 text-center">
+          <div className="mt-6 flex min-h-[140px] flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-white/35 bg-white/10 px-4 py-10 text-center">
             <p className="text-sm font-semibold text-white/90">Ad slot</p>
             <p className="mt-1 text-xs text-white/70">Reserved · content later</p>
           </div>
           <button
             type="button"
             disabled
-            className="mt-5 w-full rounded-xl bg-white py-3 text-sm font-bold opacity-90"
+            className="mt-5 w-full shrink-0 rounded-xl bg-white py-3 text-sm font-bold opacity-90"
             style={{ color: B.blue }}
           >
             Coming soon
@@ -487,130 +490,133 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
       : layout.bbps.slice(0, BBPS_PREVIEW);
 
   return (
-    <div className="flex min-w-0 flex-col items-stretch gap-4 xl:flex-row xl:items-start">
-      <div className="min-w-0 flex-1 space-y-3">
-        {favorites.length > 0 ? (
-          <CardShell
-            title="Favourites"
-            titleIcon={<Star size={21} strokeWidth={2.2} color={B.green} aria-hidden />}
-            action={
-              <span
-                className="rounded-full px-2 py-0.5 text-[10px] font-bold"
-                style={{ background: `${B.green}18`, color: B.greenDark }}
-              >
-                {favorites.length}
-              </span>
-            }
-          >
-            <ServiceRow
-              services={favorites}
-              codes={codes}
-              onToggle={handleToggle}
-              onOpen={openService}
-              nowrap
-            />
-          </CardShell>
-        ) : null}
-
-        <h2 className="text-base font-bold md:text-lg" style={{ color: B.blue }}>
-          {title}
-        </h2>
-
-        {(layout.aeps.length > 0 || layout.topRest.length > 0 || layout.bottomRest.length > 0) && (
-          <BankingCard
-            aeps={layout.aeps}
-            topRest={layout.topRest}
-            bottomRest={layout.bottomRest}
+    <div className="min-w-0 space-y-3">
+      {favorites.length > 0 ? (
+        <CardShell
+          title="Favourites"
+          titleIcon={<Star size={21} strokeWidth={2.2} color={B.green} aria-hidden />}
+          action={
+            <span
+              className="rounded-full px-2 py-0.5 text-[10px] font-bold"
+              style={{ background: `${B.green}18`, color: B.greenDark }}
+            >
+              {favorites.length}
+            </span>
+          }
+        >
+          <ServiceRow
+            services={favorites}
             codes={codes}
             onToggle={handleToggle}
             onOpen={openService}
+            nowrap
           />
-        )}
+        </CardShell>
+      ) : null}
 
-        {layout.bbps.length > 0 && (
-          <CardShell
-            title={CATEGORY_NAME_OVERRIDES.BILL_PAYMENT_BBPS}
-            titleIcon={<Receipt size={21} strokeWidth={2.2} color="#7A56D6" aria-hidden />}
-            action={
-              layout.bbps.length > BBPS_PREVIEW ? (
-                <button
-                  type="button"
-                  onClick={() => setBbpsOpen((v) => !v)}
-                  className="inline-flex items-center gap-0.5 text-xs font-bold"
-                  style={{ color: B.blueLight }}
+      <h2 className="text-base font-bold md:text-lg" style={{ color: B.blue }}>
+        {title}
+      </h2>
+
+      {/* Banking + Ad share the same top edge; ad stretches to bottom of this column */}
+      <div className="flex flex-col items-stretch gap-4 xl:flex-row">
+        <div className="min-w-0 flex-1 space-y-3">
+          {(layout.aeps.length > 0 || layout.topRest.length > 0 || layout.bottomRest.length > 0) && (
+            <BankingCard
+              aeps={layout.aeps}
+              topRest={layout.topRest}
+              bottomRest={layout.bottomRest}
+              codes={codes}
+              onToggle={handleToggle}
+              onOpen={openService}
+            />
+          )}
+
+          {layout.bbps.length > 0 && (
+            <CardShell
+              title={CATEGORY_NAME_OVERRIDES.BILL_PAYMENT_BBPS}
+              titleIcon={<Receipt size={21} strokeWidth={2.2} color="#7A56D6" aria-hidden />}
+              action={
+                layout.bbps.length > BBPS_PREVIEW ? (
+                  <button
+                    type="button"
+                    onClick={() => setBbpsOpen((v) => !v)}
+                    className="inline-flex items-center gap-0.5 text-xs font-bold"
+                    style={{ color: B.blueLight }}
+                  >
+                    {bbpsOpen ? "Show less" : "View all"}
+                    <ChevronDown
+                      size={14}
+                      style={{
+                        transform: bbpsOpen ? "rotate(180deg)" : "none",
+                        transition: "transform 150ms",
+                      }}
+                    />
+                  </button>
+                ) : null
+              }
+            >
+              <ServiceRow
+                services={bbpsShown}
+                codes={codes}
+                onToggle={handleToggle}
+                onOpen={openService}
+                columns={8}
+              />
+            </CardShell>
+          )}
+
+          {(layout.accept.length > 0 || layout.govt.length > 0) && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {layout.accept.length > 0 && (
+                <CardShell
+                  title="Accept Payments"
+                  titleIcon={<Wallet size={21} strokeWidth={2.2} color="#E8843C" aria-hidden />}
                 >
-                  {bbpsOpen ? "Show less" : "View all"}
-                  <ChevronDown
-                    size={14}
-                    style={{
-                      transform: bbpsOpen ? "rotate(180deg)" : "none",
-                      transition: "transform 150ms",
-                    }}
+                  <ServiceRow
+                    services={layout.accept}
+                    codes={codes}
+                    onToggle={handleToggle}
+                    onOpen={openService}
+                    nowrap
                   />
-                </button>
-              ) : null
-            }
-          >
-            <ServiceRow
-              services={bbpsShown}
-              codes={codes}
-              onToggle={handleToggle}
-              onOpen={openService}
-              columns={8}
-            />
-          </CardShell>
-        )}
+                </CardShell>
+              )}
+              {layout.govt.length > 0 && (
+                <CardShell
+                  title="Govt. Services"
+                  titleIcon={<Landmark size={21} strokeWidth={2.2} color="#E8843C" aria-hidden />}
+                >
+                  <ServiceRow
+                    services={layout.govt}
+                    codes={codes}
+                    onToggle={handleToggle}
+                    onOpen={openService}
+                    nowrap
+                  />
+                </CardShell>
+              )}
+            </div>
+          )}
 
-        {(layout.accept.length > 0 || layout.govt.length > 0) && (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {layout.accept.length > 0 && (
-              <CardShell
-                title="Accept Payments"
-                titleIcon={<Wallet size={21} strokeWidth={2.2} color="#E8843C" aria-hidden />}
-              >
-                <ServiceRow
-                  services={layout.accept}
-                  codes={codes}
-                  onToggle={handleToggle}
-                  onOpen={openService}
-                  nowrap
-                />
-              </CardShell>
-            )}
-            {layout.govt.length > 0 && (
-              <CardShell
-                title="Govt. Services"
-                titleIcon={<Landmark size={21} strokeWidth={2.2} color="#E8843C" aria-hidden />}
-              >
-                <ServiceRow
-                  services={layout.govt}
-                  codes={codes}
-                  onToggle={handleToggle}
-                  onOpen={openService}
-                  nowrap
-                />
-              </CardShell>
-            )}
-          </div>
-        )}
+          {layout.others.map((cat) => (
+            <CardShell
+              key={cat.id}
+              title={CATEGORY_NAME_OVERRIDES[cat.code] ?? cat.name}
+              titleIcon={<LayoutGrid size={21} strokeWidth={2.2} color="#2A5CDD" aria-hidden />}
+            >
+              <ServiceRow
+                services={(cat.services ?? []).filter((s) => !HIDDEN_SERVICE_CODES.has(s.code))}
+                codes={codes}
+                onToggle={handleToggle}
+                onOpen={openService}
+              />
+            </CardShell>
+          ))}
+        </div>
 
-        {layout.others.map((cat) => (
-          <CardShell
-            key={cat.id}
-            title={CATEGORY_NAME_OVERRIDES[cat.code] ?? cat.name}
-            titleIcon={<LayoutGrid size={21} strokeWidth={2.2} color="#2A5CDD" aria-hidden />}
-          >
-            <ServiceRow
-              services={(cat.services ?? []).filter((s) => !HIDDEN_SERVICE_CODES.has(s.code))}
-              codes={codes}
-              onToggle={handleToggle}
-              onOpen={openService}
-            />
-          </CardShell>
-        ))}
+        <DashboardAdBox />
       </div>
-
-      <DashboardAdBox />
     </div>
   );
 }
