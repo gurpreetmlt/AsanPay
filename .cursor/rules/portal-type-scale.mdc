@@ -1,0 +1,52 @@
+---
+description: Keep admin + agent portal typography/style aligned (shared global scale)
+globs: apps/admin-portal/**/*.{tsx,css},apps/agent-portal/**/*.{tsx,css}
+alwaysApply: false
+---
+
+# Portal type scale (admin ↔ agent)
+
+Admin portal and agent/retailer portal must stay **visually matched** for base type size and sidebar density.
+
+## Shared baseline (do not drift)
+
+Both portals’ `app/globals.css`:
+
+- `html { font-size: 106.25%; }` (~17px)
+- Standard Tailwind tokens only:
+  - `--text-xs: 0.75rem`
+  - `--text-sm: 0.875rem`
+  - `--text-base: 1rem`
+  - `--text-lg: 1.125rem`
+  - `--text-xl: 1.25rem`
+  - `--text-2xl: 1.5rem`
+  - `--text-3xl: 1.875rem`
+
+Do **not** bump only admin (or only agent) root `%` or override `--text-*` larger/smaller without updating the other portal the same way.
+
+## Sidebar / shell labels
+
+Match retailer `AppShell` density:
+
+- Top-level nav labels: `text-sm font-medium`
+- Submenu / nested links: `text-sm`
+- Section labels: ~`text-[11px]` uppercase tracking
+- User card name / meta: ~`text-[14px]` / `text-[11px]`
+
+Do not use oversized sidebar text (`text-base` / `text-[15px]+` on every nav row) in one portal only.
+
+## When changing size
+
+1. Edit **both** `apps/admin-portal/app/globals.css` and `apps/agent-portal/app/globals.css` together, **or**
+2. Change a shared pattern in both shells (`AdminShell` ↔ agent `AppShell`).
+
+One-off page micro-copy may use `text-[11px]` / `text-xs` where needed — do not “fix readability” by raising global root on a single portal.
+
+## Daily 2FA card (agent portal)
+
+AePS 2FA card is the **source of truth** (`apps/agent-portal/app/aeps/page.tsx` — blue gradient header banner, bordered consent, auth mode tiles, RD device row, green→blue Scan Finger button, numbered aside).
+
+DMT / Nepal / any new service 2FA gate must **match that card layout exactly** (only title/consent/unlock copy may differ). Do not ship the older plain white card without the blue banner.
+---
+name: portal-type-scale
+---

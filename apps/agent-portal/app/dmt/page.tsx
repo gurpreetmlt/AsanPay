@@ -790,14 +790,17 @@ export default function DmtPage() {
 
   if (!agentAuthReady) {
     const retailerLabel = user?.name?.trim() || "Retailer";
+    const aadhaarDigits = agentAadhaar.replace(/\D/g, "").length;
+    const canScan = agentAuthKycReady && agentAuthConsent && aadhaarDigits === 12 && !agentAuthScanning;
+
     return (
       <AppShell>
         <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6">
-          <div className="mb-5 flex items-center gap-3">
+          <div className="mb-6 flex items-center gap-3">
             <button
               type="button"
               onClick={() => router.push("/dashboard")}
-              className="flex h-9 w-9 items-center justify-center rounded-lg border hover:bg-gray-50"
+              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border bg-white transition hover:bg-gray-50"
             >
               <ArrowLeft size={18} />
             </button>
@@ -811,128 +814,184 @@ export default function DmtPage() {
             </div>
           </div>
 
-          <div className="grid items-start gap-6 md:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="min-w-0 space-y-5 rounded-2xl border bg-white p-6 shadow-sm">
-            <div>
-              <h2 className="text-lg font-bold text-gray-900">Daily retailer verification</h2>
-              <p className="mt-1 text-sm text-gray-500">
-                Enter your KYC Aadhaar, then scan fingerprint on the connected RD device.
-              </p>
-            </div>
-
-            <div>
-              <label className="text-xs font-bold tracking-wide text-gray-500">
-                AADHAAR NUMBER OF {retailerLabel.toUpperCase()}
-              </label>
-              <div className="mt-2 flex items-center gap-2 rounded-xl border px-3 py-2.5">
-                <input
-                  value={agentAadhaarVisible ? formatAadhaar(agentAadhaar) : maskAadhaar(agentAadhaar)}
-                  onChange={(e) => setAgentAadhaar(e.target.value.replace(/\D/g, "").slice(0, 12))}
-                  onFocus={() => setAgentAadhaarVisible(true)}
-                  placeholder={
-                    agentAuthKycReady
-                      ? agentAadhaar.length === 12
-                        ? "From signup KYC"
-                        : "Enter 12-digit Aadhaar"
-                      : "KYC Aadhaar not found"
-                  }
-                  disabled={!agentAuthKycReady || agentAuthScanning}
-                  inputMode="numeric"
-                  className="flex-1 bg-transparent text-sm font-semibold outline-none disabled:text-gray-400"
-                />
-                <button type="button" onClick={() => setAgentAadhaarVisible((v) => !v)} className="text-gray-400">
-                  {agentAadhaarVisible ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
+          <div className="grid items-start gap-6 md:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
+          <div className="min-w-0 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+            <div
+              className="flex items-center gap-3 px-6 py-5"
+              style={{ background: `linear-gradient(135deg, ${B.blue}, ${B.blueMid})` }}
+            >
+              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-white/15">
+                <Fingerprint size={22} className="text-white" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-white">Daily retailer verification</h2>
+                <p className="mt-0.5 text-xs text-white/70">
+                  Enter your KYC Aadhaar, then scan fingerprint on the connected RD device.
+                </p>
               </div>
             </div>
 
-            <label className="flex cursor-pointer items-start gap-3 text-sm text-gray-700">
-              <input
-                type="checkbox"
-                checked={agentAuthConsent}
-                onChange={(e) => setAgentAuthConsent(e.target.checked)}
-                className="mt-1"
-              />
-              <span>I accept Aadhaar Consent for today&apos;s DMT access.</span>
-            </label>
-
-            <div className="rounded-xl border p-4">
-              <p className="mb-3 text-xs font-bold tracking-wide text-gray-500">AUTHENTICATION MODE</p>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setAuthMode("fingerprint")}
-                  className={clsx(
-                    "flex flex-col items-center gap-2 rounded-xl border-2 p-4",
-                    authMode === "fingerprint" ? "border-blue-500 bg-blue-50" : "border-gray-200",
-                  )}
+            <div className="space-y-6 p-6">
+              <div>
+                <label className="text-xs font-bold tracking-wide text-gray-500">
+                  AADHAAR NUMBER OF {retailerLabel.toUpperCase()}
+                </label>
+                <div
+                  className="mt-2 flex items-center gap-2 rounded-xl border-2 px-3.5 py-3 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-50"
+                  style={{ borderColor: B.border }}
                 >
-                  <Fingerprint size={32} className="text-blue-600" />
-                  <span className="text-sm font-bold text-blue-700">Fingerprint</span>
-                  <CircleDot size={14} className="text-green-600" />
-                </button>
-                <div className="flex flex-col items-center gap-2 rounded-xl border p-4 opacity-60">
-                  <ScanEye size={32} className="text-gray-400" />
-                  <span className="text-sm font-bold text-gray-500">Eye Scan</span>
-                  <span className="text-[11px] font-bold text-gray-400">Coming soon</span>
+                  <input
+                    value={
+                      agentAadhaarVisible
+                        ? formatAadhaar(agentAadhaar)
+                        : maskAadhaar(agentAadhaar)
+                    }
+                    onChange={(e) => setAgentAadhaar(e.target.value.replace(/\D/g, "").slice(0, 12))}
+                    onFocus={() => setAgentAadhaarVisible(true)}
+                    placeholder={
+                      agentAuthKycReady
+                        ? agentAadhaar.length === 12
+                          ? "From signup KYC"
+                          : "Enter 12-digit Aadhaar"
+                        : "KYC Aadhaar not found"
+                    }
+                    disabled={!agentAuthKycReady || agentAuthScanning}
+                    inputMode="numeric"
+                    className="flex-1 bg-transparent text-sm font-semibold tracking-wide outline-none disabled:text-gray-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setAgentAadhaarVisible((v) => !v)}
+                    className="text-gray-400 transition hover:text-gray-600"
+                  >
+                    {agentAadhaarVisible ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
                 </div>
               </div>
-            </div>
 
-            <div className="flex items-center gap-3 rounded-xl border p-3">
-              <div
-                className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold text-white"
-                style={{ backgroundColor: activeDevice.color }}
+              <label
+                className="flex cursor-pointer items-start gap-3 rounded-xl border p-3.5 text-sm text-gray-700 transition hover:bg-gray-50"
+                style={{ borderColor: B.border }}
               >
-                {activeDevice.letter}
+                <input
+                  type="checkbox"
+                  checked={agentAuthConsent}
+                  onChange={(e) => setAgentAuthConsent(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 accent-blue-600"
+                />
+                <span>I accept Aadhaar Consent for today&apos;s DMT access.</span>
+              </label>
+
+              <div>
+                <p className="mb-3 text-xs font-bold tracking-wide text-gray-500">AUTHENTICATION MODE</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div
+                    className="relative flex flex-col items-center gap-2 rounded-xl border-2 p-4 shadow-sm"
+                    style={{ borderColor: B.blue, background: `${B.blue}0A` }}
+                  >
+                    <div className="absolute right-2.5 top-2.5">
+                      <CircleDot size={14} className="text-green-600" />
+                    </div>
+                    <Fingerprint size={28} style={{ color: B.blue }} />
+                    <span className="text-sm font-bold" style={{ color: B.blue }}>
+                      Fingerprint
+                    </span>
+                  </div>
+                  <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed p-4 opacity-60">
+                    <ScanEye size={28} className="text-gray-400" />
+                    <span className="text-sm font-bold text-gray-500">Eye Scan</span>
+                    <span className="text-[11px] font-bold tracking-wide text-gray-400">COMING SOON</span>
+                  </div>
+                </div>
               </div>
-              <div className="flex-1">
-                <p className="text-sm font-bold text-gray-900">
-                  {rdEndpoint ? formatRdDeviceLabel(rdEndpoint) : activeDevice.name}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {rdStatus === "ready"
-                    ? "Device ready"
-                    : rdStatus === "looking"
-                      ? "Looking for RD Service…"
-                      : "RD Service not found"}
-                </p>
+
+              <div className="flex items-center gap-3 rounded-xl border p-3.5" style={{ borderColor: B.border }}>
+                <div
+                  className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold text-white shadow-sm"
+                  style={{ backgroundColor: activeDevice.color }}
+                >
+                  {activeDevice.letter}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold text-gray-900">
+                    {rdEndpoint ? formatRdDeviceLabel(rdEndpoint) : activeDevice.name}
+                  </p>
+                  <p className="flex items-center gap-1.5 text-xs text-gray-500">
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        rdStatus === "ready" ? "bg-green-500" : rdStatus === "looking" ? "bg-amber-400" : "bg-red-400"
+                      }`}
+                    />
+                    {rdStatus === "ready"
+                      ? "Device ready"
+                      : rdStatus === "looking"
+                        ? "Looking for RD Service…"
+                        : "RD Service not found"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void retryRdWarm()}
+                  className="flex-shrink-0 text-xs font-bold text-blue-600 hover:underline"
+                >
+                  Retry
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeviceSidebarOpen(true)}
+                  className="flex-shrink-0 text-xs font-bold text-blue-600 hover:underline"
+                >
+                  Change Device
+                </button>
               </div>
-              <button type="button" onClick={() => void retryRdWarm()} className="text-xs font-bold text-blue-600">
-                Retry
-              </button>
+
               <button
                 type="button"
-                onClick={() => setDeviceSidebarOpen(true)}
-                className="text-xs font-bold text-blue-600"
+                onClick={() => void verifyDailyAgentAuth()}
+                disabled={!canScan}
+                className="flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-sm font-bold text-white shadow-md transition disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+                style={{ background: `linear-gradient(135deg, ${B.green}, ${B.blue})` }}
               >
-                Change
+                {agentAuthScanning ? (
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                ) : (
+                  <Fingerprint size={18} />
+                )}
+                {agentAuthScanning ? "Place finger on scanner…" : "Scan Finger"}
               </button>
             </div>
-
-            <button
-              type="button"
-              onClick={() => void verifyDailyAgentAuth()}
-              disabled={
-                agentAuthScanning ||
-                !agentAuthKycReady ||
-                !agentAuthConsent ||
-                agentAadhaar.replace(/\D/g, "").length !== 12
-              }
-              className="w-full rounded-xl bg-blue-600 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
-            >
-              {agentAuthScanning ? "Place finger on scanner…" : "Scan Finger"}
-            </button>
           </div>
 
-          <aside className="min-w-0 space-y-4 rounded-2xl border bg-white p-5 shadow-sm md:sticky md:top-4">
-            <h3 className="text-sm font-bold" style={{ color: B.blue }}>
-              How daily 2FA works
-            </h3>
-            <p className="text-xs leading-relaxed text-gray-600">
-              Confirm signup KYC Aadhaar, accept consent, then scan finger once. DMT unlocks for
-              the rest of the day — same flow as AePS.
-            </p>
+          <aside className="min-w-0 space-y-4 md:sticky md:top-4">
+            <div className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
+              <h3 className="mb-3 text-sm font-bold" style={{ color: B.blue }}>
+                How daily 2FA works
+              </h3>
+              <ol className="space-y-2 text-xs leading-relaxed text-gray-600">
+                <li className="flex gap-2">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[11px] font-bold text-blue-700">1</span>
+                  Confirm your signup KYC Aadhaar (auto-filled)
+                </li>
+                <li className="flex gap-2">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[11px] font-bold text-blue-700">2</span>
+                  Accept Aadhaar consent for today&apos;s session
+                </li>
+                <li className="flex gap-2">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[11px] font-bold text-blue-700">3</span>
+                  Connect Morpho / Mantra L1 RD device
+                </li>
+                <li className="flex gap-2">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-green-50 text-[11px] font-bold text-green-700">✓</span>
+                  Scan finger once — DMT unlocks for the day
+                </li>
+              </ol>
+            </div>
+            <div className="rounded-2xl border bg-amber-50 p-4" style={{ borderColor: "#FDE68A" }}>
+              <p className="text-xs font-semibold leading-relaxed text-amber-800">
+                Open the RD Service app on this PC before scanning. Same device must be used for
+                DMT after unlock.
+              </p>
+            </div>
           </aside>
           </div>
         </div>
