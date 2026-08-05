@@ -17,6 +17,8 @@ const QUICK_AMOUNTS = [
   { amount: 4000, hint: null },
   { amount: 5000, hint: "max limit" },
 ] as const;
+const MIN_AMOUNT = 200;
+const MAX_AMOUNT = 5000;
 const QR_EXPIRY_SECONDS = 120;
 
 const UPI_APPS = [
@@ -130,6 +132,15 @@ function amountInWords(n: number): string {
   return `${underThousand(n)} only`;
 }
 
+/** Empty amount → no error yet. Otherwise min / max / ₹100 multiple. */
+function amountErrorMessage(n: number): string | null {
+  if (!n) return null;
+  if (n < MIN_AMOUNT) return `Amount can't be less than ${MIN_AMOUNT}`;
+  if (n > MAX_AMOUNT) return `Amount can't be more than ${MAX_AMOUNT}`;
+  if (n % 100 !== 0) return "Enter amount in multiples of ₹100";
+  return null;
+}
+
 export default function UpiCashPointPage() {
   const router = useRouter();
   const [stage, setStage] = useState<Stage>("input");
@@ -162,7 +173,7 @@ export default function UpiCashPointPage() {
 
   function handleGenerate() {
     const amt = parseInt(amount, 10);
-    if (!amt || amt < 1) return;
+    if (!amt || amountErrorMessage(amt)) return;
     setUpiId(generateMockUpiId());
     setStage("qr");
     startTimer();
@@ -185,7 +196,9 @@ export default function UpiCashPointPage() {
   const timerStr = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
   const amountNum = parseInt(amount, 10) || 0;
   const isExpired = timer === 0;
-  const showEarnStrip = amountNum > 0 && !earnDismissed;
+  const amountError = amountErrorMessage(amountNum);
+  const amountValid = amountNum > 0 && !amountError;
+  const showEarnStrip = amountValid && !earnDismissed;
 
   return (
     <AppShell>
@@ -231,7 +244,12 @@ export default function UpiCashPointPage() {
                   </p>
 
                   <div className="mx-auto w-full max-w-[280px]">
-                    <div className="flex items-center justify-center gap-2 border-b border-gray-200 pb-2">
+                    <div
+                      className={clsx(
+                        "flex items-center justify-center gap-2 border-b pb-2",
+                        amountError ? "border-red-400" : "border-gray-200",
+                      )}
+                    >
                       <span className="text-3xl font-semibold text-gray-500">₹</span>
                       <input
                         type="text"
@@ -243,9 +261,15 @@ export default function UpiCashPointPage() {
                         }}
                         placeholder="0"
                         className="w-full min-w-0 bg-transparent text-center text-5xl font-bold leading-none tracking-tight tabular-nums text-gray-900 outline-none placeholder:font-semibold placeholder:text-gray-300"
+                        aria-invalid={Boolean(amountError)}
                       />
                     </div>
-                    <p className="mt-3 text-center text-sm text-gray-500">
+                    {amountError ? (
+                      <p className="mt-2 text-center text-sm font-semibold text-red-600">
+                        {amountError}
+                      </p>
+                    ) : null}
+                    <p className="mt-2 text-center text-sm text-gray-500">
                       {amountNum > 0
                         ? amountInWords(amountNum)
                         : "Enter amount in multiples of ₹100"}
@@ -282,16 +306,15 @@ export default function UpiCashPointPage() {
                     <button
                       type="button"
                       onClick={handleGenerate}
-                      disabled={amountNum < 1}
+                      disabled={!amountValid}
                       className={clsx(
                         "inline-flex min-w-[240px] items-center justify-center gap-2.5 rounded-full px-12 py-3.5 text-base font-bold text-white shadow-lg transition",
-                        amountNum >= 1 ? "hover:opacity-90" : "cursor-not-allowed opacity-45",
+                        amountValid ? "hover:opacity-90" : "cursor-not-allowed opacity-45",
                       )}
                       style={{
-                        background:
-                          amountNum >= 1
-                            ? `linear-gradient(135deg, ${B.blueLight} 0%, ${B.blue} 100%)`
-                            : "#94a3b8",
+                        background: amountValid
+                          ? `linear-gradient(135deg, ${B.blueLight} 0%, ${B.blue} 100%)`
+                          : "#94a3b8",
                       }}
                     >
                       Generate QR
