@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { ChevronDown, Star, Megaphone, Building2 } from "lucide-react";
+import { ChevronDown, Star, Megaphone, Building2, Receipt, Wallet, Landmark, LayoutGrid } from "lucide-react";
 import { fetchApi } from "@/lib/api";
 import type { CatalogCategoryView } from "@/lib/types";
 import { B, brand } from "@/lib/brand";
@@ -181,28 +181,21 @@ function CardShell({
   action,
   children,
   className = "",
-  /** Mobile-style header: icon + bottom border under title row. */
-  headerBorder = false,
 }: {
   title: string;
   titleIcon?: ReactNode;
   action?: ReactNode;
   children: ReactNode;
   className?: string;
-  headerBorder?: boolean;
 }) {
   return (
     <div
-      className={`rounded-2xl border bg-white shadow-sm ${headerBorder ? "overflow-hidden" : "p-4 sm:p-5"} ${className}`}
+      className={`overflow-hidden rounded-2xl border bg-white shadow-sm ${className}`}
       style={{ borderColor: B.border }}
     >
       <div
-        className={
-          headerBorder
-            ? "mb-0 flex items-center justify-between gap-2 border-b px-4 py-3.5 sm:px-5 sm:py-4"
-            : "mb-3 flex items-center justify-between gap-2"
-        }
-        style={headerBorder ? { borderColor: B.border } : undefined}
+        className="flex items-center justify-between gap-2 border-b px-4 py-3.5 sm:px-5 sm:py-4"
+        style={{ borderColor: B.border }}
       >
         <div className="flex min-w-0 items-center gap-2.5">
           {titleIcon}
@@ -212,7 +205,7 @@ function CardShell({
         </div>
         {action}
       </div>
-      <div className={headerBorder ? "p-4 sm:p-5" : undefined}>{children}</div>
+      <div className="p-4 sm:p-5">{children}</div>
     </div>
   );
 }
@@ -253,7 +246,6 @@ function BankingCard({
   return (
     <CardShell
       title="Banking Services"
-      headerBorder
       titleIcon={<Building2 size={21} strokeWidth={2.2} color="#2A5CDD" aria-hidden />}
     >
       <div className="flex w-full flex-col gap-5">
@@ -510,6 +502,7 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
         {favorites.length > 0 ? (
           <CardShell
             title="Favourites"
+            titleIcon={<Star size={21} strokeWidth={2.2} color={B.green} aria-hidden />}
             action={
               <span
                 className="rounded-full px-2 py-0.5 text-[10px] font-bold"
@@ -547,6 +540,7 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
         {layout.bbps.length > 0 && (
           <CardShell
             title={CATEGORY_NAME_OVERRIDES.BILL_PAYMENT_BBPS}
+            titleIcon={<Receipt size={21} strokeWidth={2.2} color="#7A56D6" aria-hidden />}
             action={
               layout.bbps.length > BBPS_PREVIEW ? (
                 <button
@@ -580,7 +574,10 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
         {(layout.accept.length > 0 || layout.govt.length > 0) && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {layout.accept.length > 0 && (
-              <CardShell title="Accept Payments">
+              <CardShell
+                title="Accept Payments"
+                titleIcon={<Wallet size={21} strokeWidth={2.2} color="#E8843C" aria-hidden />}
+              >
                 <ServiceRow
                   services={layout.accept}
                   codes={codes}
@@ -591,7 +588,10 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
               </CardShell>
             )}
             {layout.govt.length > 0 && (
-              <CardShell title="Govt. Services">
+              <CardShell
+                title="Govt. Services"
+                titleIcon={<Landmark size={21} strokeWidth={2.2} color="#E8843C" aria-hidden />}
+              >
                 <ServiceRow
                   services={layout.govt}
                   codes={codes}
@@ -605,7 +605,11 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
         )}
 
         {layout.others.map((cat) => (
-          <CardShell key={cat.id} title={CATEGORY_NAME_OVERRIDES[cat.code] ?? cat.name}>
+          <CardShell
+            key={cat.id}
+            title={CATEGORY_NAME_OVERRIDES[cat.code] ?? cat.name}
+            titleIcon={<LayoutGrid size={21} strokeWidth={2.2} color="#2A5CDD" aria-hidden />}
+          >
             <ServiceRow
               services={(cat.services ?? []).filter((s) => !HIDDEN_SERVICE_CODES.has(s.code))}
               codes={codes}
