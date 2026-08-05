@@ -465,6 +465,15 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
 
   const [tab, setTab] = useState<AepsTab>(resolvedInitial);
   const [selectedBank, setSelectedBank] = useState<Bank | null>(null);
+  /** Next View-All insert index (0–3); advances each new pick. */
+  const [insertSlot, setInsertSlot] = useState(0);
+  /** Slot used for the current non-fav selected bank. */
+  const [selectedInsertAt, setSelectedInsertAt] = useState(0);
+  const bankScrollRef = useRef<ScrollView>(null);
+  const bankViewportW = useRef(280);
+  const bankScrollX = useRef(0);
+  const BANK_ITEM_W = 72;
+
   // Live IIN overrides from GET /txn/aeps/banks (keyed by normalized bank name).
   const [liveIinByName, setLiveIinByName] = useState<Record<string, string>>({});
   const [bankModalOpen, setBankModalOpen] = useState(false);
@@ -591,21 +600,68 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
     [liveIinByName],
   );
 
-  const visibleBanks = useMemo(() => {
+  const stripBanks = useMemo(() => {
     const byId = new Map(resolvedBanks.map((b) => [b.id, b]));
     const favs = favBanks
       .map((id) => byId.get(id))
       .filter((b): b is (typeof resolvedBanks)[number] => Boolean(b));
-    const base = favs.length > 0 ? favs : resolvedBanks.slice(0, 5);
+    const base =
+      favs.length > 0
+        ? favs
+        : resolvedBanks.slice(0, Math.max(8, resolvedBanks.length));
 
-    // View All / any pick: keep selected bank on the strip (center), same look as tap-select
-    if (selectedBank) {
-      const others = base.filter((b) => b.id !== selectedBank.id).slice(0, 4);
-      const mid = Math.floor(others.length / 2);
-      return [...others.slice(0, mid), selectedBank, ...others.slice(mid)];
-    }
-    return base.slice(0, 5);
-  }, [favBanks, resolvedBanks, selectedBank]);
+    if (!selectedBank) return base;
+    if (base.some((b) => b.id === selectedBank.id)) return base;
+
+    const slot = Math.min(selectedInsertAt % 4, base.length);
+    return [...base.slice(0, slot), selectedBank, ...base.slice(slot)];
+  }, [favBanks, resolvedBanks, selectedBank, selectedInsertAt]);
+
+  const selectBank = useCallback(
+    (bank: Bank, fromViewAll: boolean) => {
+      const byId = new Map(resolvedBanks.map((b) => [b.id, b]));
+      const favs = favBanks
+        .map((id) => byId.get(id))
+        .filter((b): b is (typeof resolvedBanks)[number] => Boolean(b));
+      const base = favs.length > 0 ? favs : resolvedBanks;
+      const already = base.some((b) => b.id === bank.id);
+      if (fromViewAll && !already) {
+        setSelectedInsertAt(insertSlot);
+        setInsertSlot((s) => (s + 1) % 4);
+      }
+      setSelectedBank(bank);
+    },
+    [favBanks, resolvedBanks, insertSlot],
+  );
+  const scrollSelectedIntoView = useCallback(
+    (animated = true) => {
+      if (!selectedBank) return;
+      const idx = stripBanks.findIndex((b) => b.id === selectedBank.id);
+      if (idx < 0) return;
+      const itemLeft = idx * BANK_ITEM_W;
+      const itemRight = itemLeft + BANK_ITEM_W;
+      const viewLeft = bankScrollX.current;
+      const viewRight = viewLeft + bankViewportW.current;
+      if (itemLeft >= viewLeft && itemRight <= viewRight) return;
+      let target = viewLeft;
+      if (itemLeft < viewLeft) {
+        // Keep selected near first visible slot
+        target = itemLeft;
+      } else {
+        // Keep selected near last visible slot (~4th)
+        target = Math.max(0, itemRight - bankViewportW.current);
+      }
+      bankScrollRef.current?.scrollTo({ x: target, animated });
+      bankScrollX.current = target;
+    },
+    [selectedBank, stripBanks],
+  );
+
+  useEffect(() => {
+    // After select / list change — selected icon must stay among visible ~4
+    const t = setTimeout(() => scrollSelectedIntoView(true), 50);
+    return () => clearTimeout(t);
+  }, [selectedBank?.id, stripBanks, scrollSelectedIntoView]);
 
   function formatAadhaar(v: string) {
     const digits = v.replace(/\D/g, "").slice(0, 12);
@@ -1016,16 +1072,26 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
           </View>
 
           <ScrollView
+            ref={bankScrollRef}
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={s.bankStrip}
+            onLayout={(e) => {
+              bankViewportW.current = e.nativeEvent.layout.width;
+            }}
+            onScroll={(e) => {
+              bankScrollX.current = e.nativeEvent.contentOffset.x;
+            }}
+            scrollEventThrottle={16}
+            onScrollEndDrag={() => scrollSelectedIntoView(true)}
+            onMomentumScrollEnd={() => scrollSelectedIntoView(true)}
           >
-            {visibleBanks.map((bank) => {
+            {stripBanks.map((bank) => {
               const active = selectedBank?.id === bank.id;
               return (
                 <Pressable
                   key={bank.id}
-                  onPress={() => setSelectedBank(bank)}
+                  onPress={() => selectBank(bank, false)}
                   style={s.bankItemWrap}
                 >
                   <View style={[s.bankItem, active && s.bankItemActive]}>
@@ -1048,7 +1114,6 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
                       {bank.shortName}
                     </Text>
                   </View>
-                  {/* Arrow under selected icon → points to strip below */}
                   <View style={s.bankCaretSlot}>
                     {active ? (
                       <ChevronDown size={16} color={colors.blueLight} strokeWidth={2.6} />
@@ -1362,7 +1427,7 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
       <BankModal
         visible={bankModalOpen}
         onClose={() => setBankModalOpen(false)}
-        onSelect={setSelectedBank}
+        onSelect={(bank) => selectBank(bank, true)}
         favouriteIds={favBanks}
         onToggleFav={toggleFavBank}
         banks={resolvedBanks}
@@ -1438,7 +1503,7 @@ const s = StyleSheet.create({
 
   // Bank strip — View All sits in the SELECT BANK header row
   bankStrip: { gap: 8, alignItems: "flex-start", paddingBottom: 2 },
-  bankItemWrap: { alignItems: "center", width: 64 },
+  bankItemWrap: { alignItems: "center", width: 72 },
   bankItem: {
     alignItems: "center",
     width: 64,

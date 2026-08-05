@@ -1,12 +1,13 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import clsx from "clsx";
 import { toast } from "react-hot-toast";
 import {
   ArrowLeft,
   Check,
+  ChevronDown,
   ChevronRight,
   CircleDot,
   Eye,
@@ -368,6 +369,9 @@ function AepsPageInner() {
 
   const [tab, setTab] = useState<AepsTab>(initialTab);
   const [selectedBank, setSelectedBank] = useState<Bank | null>(null);
+  const [insertSlot, setInsertSlot] = useState(0);
+  const [selectedInsertAt, setSelectedInsertAt] = useState(0);
+  const bankStripRef = useRef<HTMLDivElement>(null);
   const [bankSidebarOpen, setBankSidebarOpen] = useState(false);
   const [aadhaar, setAadhaar] = useState("");
   const [mobile, setMobile] = useState("");
@@ -567,18 +571,54 @@ function AepsPageInner() {
     }
   }
 
-  const visibleBanks = useMemo(() => {
+  const stripBanks = useMemo(() => {
     const byId = new Map(BANKS.map((b) => [b.id, b]));
     const favs = favBanks
       .map((id) => byId.get(id))
       .filter((b): b is Bank => Boolean(b));
-    // Selected (View All) bank not in favs still appears in strip with highlight — no name bar below
-    if (selectedBank && !favs.some((b) => b.id === selectedBank.id)) {
-      return [selectedBank, ...favs];
+    const base = favs.length > 0 ? favs : BANKS.slice(0, 12);
+    if (!selectedBank) return base;
+    if (base.some((b) => b.id === selectedBank.id)) return base;
+    const slot = Math.min(selectedInsertAt % 4, base.length);
+    return [...base.slice(0, slot), selectedBank, ...base.slice(slot)];
+  }, [favBanks, selectedBank, selectedInsertAt]);
+
+  const selectBank = useCallback(
+    (bank: Bank, fromViewAll: boolean) => {
+      const byId = new Map(BANKS.map((b) => [b.id, b]));
+      const favs = favBanks
+        .map((id) => byId.get(id))
+        .filter((b): b is Bank => Boolean(b));
+      const base = favs.length > 0 ? favs : BANKS;
+      const already = base.some((b) => b.id === bank.id);
+      if (fromViewAll && !already) {
+        setSelectedInsertAt(insertSlot);
+        setInsertSlot((s) => (s + 1) % 4);
+      }
+      setSelectedBank(bank);
+    },
+    [favBanks, insertSlot],
+  );
+
+  const scrollSelectedIntoView = useCallback(() => {
+    const root = bankStripRef.current;
+    if (!root || !selectedBank) return;
+    const el = root.querySelector(`[data-bank-id="${selectedBank.id}"]`) as HTMLElement | null;
+    if (!el) return;
+    const rootRect = root.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    if (elRect.left >= rootRect.left && elRect.right <= rootRect.right) return;
+    if (elRect.left < rootRect.left) {
+      root.scrollBy({ left: elRect.left - rootRect.left - 8, behavior: "smooth" });
+    } else {
+      root.scrollBy({ left: elRect.right - rootRect.right + 8, behavior: "smooth" });
     }
-    if (favs.length > 0) return favs;
-    return BANKS.slice(0, 6);
-  }, [favBanks, selectedBank]);
+  }, [selectedBank]);
+
+  useEffect(() => {
+    const t = window.setTimeout(scrollSelectedIntoView, 40);
+    return () => window.clearTimeout(t);
+  }, [selectedBank?.id, stripBanks, scrollSelectedIntoView]);
 
   function formatAadhaar(v: string) {
     const digits = v.replace(/\D/g, "").slice(0, 12);
@@ -865,7 +905,7 @@ function AepsPageInner() {
               ))}
             </div>
 
-            {/* Bank selector strip — favs scroll; View All in header; selected = icon highlight only */}
+            {/* Bank selector — scrollable; selected icon always kept visible (slot 1–4 floats) */}
             <div className="rounded-2xl border bg-white p-4" style={{ borderColor: B.border }}>
               <div className="mb-3 flex items-center justify-between gap-2">
                 <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Select bank</p>
@@ -878,43 +918,91 @@ function AepsPageInner() {
                   View All <ChevronRight size={14} />
                 </button>
               </div>
-              <div className="flex items-center gap-3 overflow-x-auto pb-1">
-                {visibleBanks.map((bank) => {
+              <div
+                ref={bankStripRef}
+                className="flex items-start gap-2 overflow-x-auto pb-1"
+                onScroll={() => {
+                  window.clearTimeout((bankStripRef.current as HTMLDivElement & { _t?: number })._t);
+                  (bankStripRef.current as HTMLDivElement & { _t?: number })._t = window.setTimeout(
+                    scrollSelectedIntoView,
+                    120,
+                  );
+                }}
+              >
+                {stripBanks.map((bank) => {
                   const active = selectedBank?.id === bank.id;
                   return (
                     <button
                       key={bank.id}
                       type="button"
-                      onClick={() => setSelectedBank(bank)}
-                      className={clsx(
-                        "relative flex min-w-[72px] flex-col items-center gap-1.5 rounded-xl border-2 p-2 transition",
-                        active
-                          ? "border-blue-500 bg-blue-50 shadow-md shadow-blue-100"
-                          : "border-transparent hover:bg-gray-50",
-                      )}
+                      data-bank-id={bank.id}
+                      onClick={() => selectBank(bank, false)}
+                      className="flex w-[72px] shrink-0 flex-col items-center"
                     >
-                      {active && (
-                        <span
-                          className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full"
-                          style={{ background: B.blue }}
-                        >
-                          <Check size={10} className="text-white" strokeWidth={3} />
-                        </span>
-                      )}
-                      <BankIcon bank={bank} size={44} />
                       <span
                         className={clsx(
-                          "w-16 line-clamp-1 text-center text-[10px] leading-tight",
-                          active ? "font-bold" : "font-medium text-gray-600",
+                          "relative flex w-full flex-col items-center gap-1.5 rounded-xl border-2 p-2 transition",
+                          active
+                            ? "border-blue-500 bg-blue-50 shadow-md shadow-blue-100"
+                            : "border-transparent hover:bg-gray-50",
                         )}
-                        style={active ? { color: B.blue } : undefined}
                       >
-                        {bank.shortName}
+                        {active ? (
+                          <span
+                            className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full"
+                            style={{ background: B.blue }}
+                          >
+                            <Check size={10} className="text-white" strokeWidth={3} />
+                          </span>
+                        ) : null}
+                        <BankIcon bank={bank} size={44} />
+                        <span
+                          className={clsx(
+                            "w-full truncate text-center text-[10px] leading-tight",
+                            active ? "font-bold" : "font-medium text-gray-600",
+                          )}
+                          style={active ? { color: B.blue } : undefined}
+                        >
+                          {bank.shortName}
+                        </span>
+                      </span>
+                      <span className="flex h-4 items-center justify-center">
+                        {active ? <ChevronDown size={16} style={{ color: B.blueLight }} strokeWidth={2.6} /> : null}
                       </span>
                     </button>
                   );
                 })}
               </div>
+
+              {selectedBank ? (
+                <div
+                  className="mt-1 flex items-center gap-3 rounded-xl border px-3 py-2.5"
+                  style={{ borderColor: `${B.blueLight}55`, background: `${B.blue}0A` }}
+                >
+                  <BankIcon bank={selectedBank} size={28} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold" style={{ color: B.blue }}>
+                      {selectedBank.name}
+                    </p>
+                    <p className="text-[11px] text-gray-500">Selected bank for this transaction</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setBankSidebarOpen(true)}
+                    className="text-xs font-bold"
+                    style={{ color: B.blueLight }}
+                  >
+                    Change
+                  </button>
+                </div>
+              ) : (
+                <div
+                  className="mt-1 rounded-xl border border-dashed px-3 py-3 text-center text-xs font-medium text-gray-400"
+                  style={{ borderColor: B.border }}
+                >
+                  Tap a bank above to select
+                </div>
+              )}
             </div>
 
             {/* Form fields */}
@@ -1235,7 +1323,7 @@ function AepsPageInner() {
       <BankSidebar
         open={bankSidebarOpen}
         onClose={() => setBankSidebarOpen(false)}
-        onSelect={setSelectedBank}
+        onSelect={(bank) => selectBank(bank, true)}
         favouriteIds={favBanks}
         onToggleFav={toggleFavBank}
       />
