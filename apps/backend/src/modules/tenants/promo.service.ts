@@ -87,10 +87,14 @@ export async function replacePromoSlides(
     .map((s, i) => ({ ...s, placement, sortOrder: i }));
 
   for (const s of normalized) {
-    if (!s.imageUrl.startsWith("http") && !s.imageUrl.startsWith("/uploads/")) {
+    const ok =
+      s.imageUrl.startsWith("http") ||
+      s.imageUrl.startsWith("/uploads/") ||
+      s.imageUrl.startsWith("/api/promos/file/");
+    if (!ok) {
       throw new HttpError(
         422,
-        "Each slide needs a valid image URL (https://… or /uploads/promos/…)",
+        "Each slide needs a valid image URL (https://…, /uploads/promos/…, or /api/promos/file/…)",
         "INVALID_PROMO_IMAGE",
       );
     }
@@ -145,12 +149,42 @@ export async function savePromoUpload(dataUrl: string): Promise<{ imageUrl: stri
   await mkdir(UPLOAD_DIR, { recursive: true });
   const filename = `${Date.now()}-${randomUUID().slice(0, 8)}.${ext}`;
   await writeFile(path.join(UPLOAD_DIR, filename), buf);
-  return { imageUrl: `/uploads/promos/${filename}` };
+  // Served via GET /api/promos/file/:name (works through Coolify /api + portal proxy)
+  return { imageUrl: `/api/promos/file/${filename}` };
 }
 
-/** Turn relative /uploads paths into absolute URLs for browsers. */
+/** Safe path inside uploads/promos, or null. */
+export function resolvePromoFilePath(nameOrUrl: string): string | null {
+  const base = nameOrUrl.trim().split("?")[0] ?? "";
+  const m =
+    base.match(/\/(?:api\/)?promos\/file\/([^/]+)$/) ||
+    base.match(/\/uploads\/promos\/([^/]+)$/) ||
+    (/^[\w.-]+$/.test(base) ? [null, base] : null);
+  const name = m?.[1];
+  if (!name || name.includes("..") || name.includes("/") || name.includes("\\")) return null;
+  return path.join(UPLOAD_DIR, name);
+}
+
+/** Normalize stored/legacy paths to /api/promos/file/… then absolute for clients. */
 export function absolutePromoUrl(imageUrl: string, origin: string): string {
-  if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) return imageUrl;
+  if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
+    try {
+      const u = new URL(imageUrl);
+      const file = resolvePromoFilePath(u.pathname);
+      if (file) {
+        const name = path.basename(file);
+        return `${origin.replace(/\/$/, "")}/api/promos/file/${name}`;
+      }
+    } catch {
+      /* keep */
+    }
+    return imageUrl;
+  }
+  const file = resolvePromoFilePath(imageUrl);
+  if (file) {
+    const name = path.basename(file);
+    return `${origin.replace(/\/$/, "")}/api/promos/file/${name}`;
+  }
   const base = origin.replace(/\/$/, "");
   return `${base}${imageUrl.startsWith("/") ? imageUrl : `/${imageUrl}`}`;
 }

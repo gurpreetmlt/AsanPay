@@ -213,20 +213,24 @@ function CardShell({
   );
 }
 
-/** After AePS — same order as mobile (Cash Collection with UPI row, not inside AePS). */
+/** Top row with AePS (7-col): AePS×4 + UPI + Money Transfer + Cash Collection. */
 const BANKING_TOP_CODES = [
   "UPI_CASH_POINT",
   "MONEY_TRANSFER",
-  "NEPAL_REMITTANCE",
-  "NEPAL",
-  "DMT",
+  "DMT", // alias if MONEY_TRANSFER missing — layout dedupes below
   "CASH_COLLECTION",
 ];
 
-/** Below UPI / Cash Collection row. */
-const BANKING_BOTTOM_CODES = ["LOANS", "INSURANCE", "CREDIT_CARDS"];
+/** Second row: Nepal Transfer, then Loans … Credit. */
+const BANKING_BOTTOM_CODES = [
+  "NEPAL_REMITTANCE",
+  "NEPAL",
+  "LOANS",
+  "INSURANCE",
+  "CREDIT_CARDS",
+];
 
-/** Banking layout matches mobile: AePS box alone, then other services in a grid. */
+/** Banking: flat 7-col grid like before; AePS border overlays first 4 only. */
 function BankingCard({
   aeps,
   topRest,
@@ -242,11 +246,11 @@ function BankingCard({
   onToggle: (code: string) => void;
   onOpen: (code: string) => void;
 }) {
-  const rest = [...topRest, ...bottomRest];
+  const topRow = [...aeps, ...topRest];
 
   function tile(svc: Svc, index: number) {
     return (
-      <div key={svc.id} className="flex min-w-0 justify-center">
+      <div key={svc.id} className="relative z-10 flex min-w-0 justify-center">
         <ServiceIconCard
           svc={svc}
           index={index}
@@ -263,33 +267,36 @@ function BankingCard({
       title="Banking Services"
       titleIcon={<Building2 size={21} strokeWidth={2.2} color="#2A5CDD" aria-hidden />}
     >
-      <div className="flex w-full min-w-0 flex-col gap-4 sm:gap-5">
-        {aeps.length > 0 ? (
-          <div
-            className="relative min-w-0 rounded-xl border-2 px-1 pb-2 pt-4 sm:px-2 sm:pb-2.5 sm:pt-5"
-            style={{ borderColor: "rgba(11,42,154,0.22)" }}
-          >
-            <span
-              className="absolute right-2 top-0 z-10 flex h-6 w-[110px] -translate-y-1/2 items-center justify-center rounded-md border bg-white px-1.5 shadow-sm sm:right-2.5"
-              style={{ borderColor: B.border }}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/assets/AEPS-Logo.png"
-                alt="AePS — Aadhaar Enabled Payment System"
-                className="h-[22px] w-[100px] object-contain"
+      <div className="flex w-full min-w-0 flex-col gap-5">
+        <div className="relative min-w-0 pt-3">
+          {aeps.length > 0 ? (
+            <>
+              <div
+                aria-hidden
+                className="pointer-events-none absolute left-0 top-3 z-0 rounded-xl border-2 max-lg:right-0 max-lg:bottom-[calc(50%+0.625rem)] lg:bottom-0 lg:w-[calc(57.14%-0.54rem)]"
+                style={{ borderColor: "rgba(11,42,154,0.22)" }}
               />
-            </span>
-            <div className="grid grid-cols-4 content-start items-start gap-x-3 gap-y-4 sm:gap-x-4 lg:gap-x-5">
-              {aeps.map((svc, i) => tile(svc, i))}
-            </div>
-          </div>
-        ) : null}
+              <div className="pointer-events-none absolute left-0 top-3 z-20 h-0 max-lg:right-0 lg:w-[calc(57.14%-0.54rem)]">
+                <span
+                  className="absolute right-2 top-0 flex h-6 w-[110px] -translate-y-1/2 items-center justify-center rounded-md border bg-white px-1.5 shadow-sm sm:right-2.5"
+                  style={{ borderColor: B.border }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/assets/AEPS-Logo.png"
+                    alt="AePS — Aadhaar Enabled Payment System"
+                    className="h-[22px] w-[100px] object-contain"
+                  />
+                </span>
+              </div>
+            </>
+          ) : null}
 
-        {rest.length > 0 ? (
-          <div className={`min-w-0 ${SERVICE_GRID}`}>
-            {rest.map((svc, i) => tile(svc, i + 4))}
-          </div>
+          <div className={`relative min-w-0 ${SERVICE_GRID}`}>{topRow.map((svc, i) => tile(svc, i))}</div>
+        </div>
+
+        {bottomRest.length > 0 ? (
+          <div className={`min-w-0 ${SERVICE_GRID}`}>{bottomRest.map((svc, i) => tile(svc, i + 10))}</div>
         ) : null}
       </div>
     </CardShell>
@@ -360,12 +367,29 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
       .filter((s): s is Svc => Boolean(s));
 
     const byCodeSvc = new Map(bankingAll.map((s) => [s.code, s]));
-    const topRest = BANKING_TOP_CODES.map((c) => byCodeSvc.get(c)).filter(
+    const topRestRaw = BANKING_TOP_CODES.map((c) => byCodeSvc.get(c)).filter(
       (s): s is Svc => Boolean(s),
     );
-    const bottomRest = BANKING_BOTTOM_CODES.map((c) => byCodeSvc.get(c)).filter(
+    // Prefer MONEY_TRANSFER over DMT so row stays AePS + 3 icons.
+    const topRest: Svc[] = [];
+    const topSeen = new Set<string>();
+    for (const s of topRestRaw) {
+      const key = s.code === "DMT" || s.code === "MONEY_TRANSFER" ? "MONEY_TRANSFER" : s.code;
+      if (topSeen.has(key)) continue;
+      topSeen.add(key);
+      topRest.push(s);
+    }
+    const bottomRestRaw = BANKING_BOTTOM_CODES.map((c) => byCodeSvc.get(c)).filter(
       (s): s is Svc => Boolean(s),
     );
+    const bottomRest: Svc[] = [];
+    const bottomSeen = new Set<string>();
+    for (const s of bottomRestRaw) {
+      const key = s.code === "NEPAL" || s.code === "NEPAL_REMITTANCE" ? "NEPAL" : s.code;
+      if (bottomSeen.has(key)) continue;
+      bottomSeen.add(key);
+      bottomRest.push(s);
+    }
     const used = new Set([
       ...aeps.map((s) => s.code),
       ...topRest.map((s) => s.code),
