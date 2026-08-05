@@ -37,8 +37,8 @@ const AEPS_TAB_MAP: Record<string, string> = {
   AADHAAR_PAY: "Withdraw",
 };
 
-/** Collapsed BBPS shows 2×8; View all expands the rest. */
-const BBPS_PREVIEW = 16;
+/** Collapsed BBPS shows 2×7; View all expands the rest. */
+const BBPS_PREVIEW = 14;
 
 function resolveServiceRoute(code: string): string | null {
   const aepsTab = AEPS_TAB_MAP[code];
@@ -132,7 +132,7 @@ function ServiceIconCard({
 
 /** Shared responsive track — Banking + BBPS stay aligned on every breakpoint. */
 const SERVICE_GRID =
-  "grid grid-cols-4 content-start items-start gap-x-3 gap-y-5 sm:gap-x-4 sm:gap-y-5 lg:grid-cols-8 lg:gap-x-5 lg:gap-y-6";
+  "grid grid-cols-4 content-start items-start gap-x-3 gap-y-5 sm:gap-x-4 sm:gap-y-5 lg:grid-cols-7 lg:gap-x-5 lg:gap-y-6";
 
 function ServiceRow({
   services,
@@ -140,7 +140,7 @@ function ServiceRow({
   onToggle,
   onOpen,
   nowrap,
-  /** Fixed columns (e.g. 8) — Recharges & Bills collapsed = 2 rows × 8. */
+  /** Fixed columns — Recharges & Bills collapsed = 2 rows × 7. */
   columns,
 }: {
   services: Svc[];
@@ -148,7 +148,7 @@ function ServiceRow({
   onToggle: (code: string) => void;
   onOpen: (code: string) => void;
   nowrap?: boolean;
-  columns?: 8;
+  columns?: 7;
 }) {
   const layoutClass = columns
     ? SERVICE_GRID
@@ -270,10 +270,10 @@ function BankingCard({
               {/* Overlay only — does not change icon grid alignment or spacing */}
               <div
                 aria-hidden
-                className="pointer-events-none absolute left-0 top-3 z-0 rounded-xl border-2 max-lg:right-0 max-lg:bottom-[calc(50%+0.625rem)] lg:bottom-0 lg:w-[calc(50%-0.625rem)]"
+                className="pointer-events-none absolute left-0 top-3 z-0 rounded-xl border-2 max-lg:right-0 max-lg:bottom-[calc(50%+0.625rem)] lg:bottom-0 lg:w-[calc(57.14%-0.54rem)]"
                 style={{ borderColor: "rgba(11,42,154,0.22)" }}
               />
-              <div className="pointer-events-none absolute left-0 top-3 z-20 h-0 max-lg:right-0 lg:w-[calc(50%-0.625rem)]">
+              <div className="pointer-events-none absolute left-0 top-3 z-20 h-0 max-lg:right-0 lg:w-[calc(57.14%-0.54rem)]">
                 <span
                   className="absolute right-2 top-0 flex h-6 w-[110px] -translate-y-1/2 items-center justify-center rounded-md border bg-white px-1.5 shadow-sm sm:right-2.5"
                   style={{ borderColor: B.border }}
@@ -304,7 +304,7 @@ function BankingCard({
 function DashboardAdBox() {
   return (
     <aside
-      className="flex w-full shrink-0 flex-col xl:w-[300px] 2xl:w-[340px]"
+      className="flex w-full shrink-0 flex-col xl:w-[380px] 2xl:w-[420px]"
       aria-label="Promotions"
     >
       <div className="h-full min-h-[320px] flex-1">
@@ -536,7 +536,7 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
                 codes={codes}
                 onToggle={handleToggle}
                 onOpen={openService}
-                columns={8}
+                columns={7}
               />
             </CardShell>
           )}
