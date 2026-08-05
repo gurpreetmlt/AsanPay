@@ -134,6 +134,7 @@ export default function UpiCashPointPage() {
   const router = useRouter();
   const [stage, setStage] = useState<Stage>("input");
   const [amount, setAmount] = useState("");
+  const [earnDismissed, setEarnDismissed] = useState(false);
   const [timer, setTimer] = useState(QR_EXPIRY_SECONDS);
   const [upiId, setUpiId] = useState("");
   const [copied, setCopied] = useState(false);
@@ -184,6 +185,7 @@ export default function UpiCashPointPage() {
   const timerStr = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
   const amountNum = parseInt(amount, 10) || 0;
   const isExpired = timer === 0;
+  const showEarnStrip = amountNum > 0 && !earnDismissed;
 
   return (
     <AppShell>
@@ -235,7 +237,10 @@ export default function UpiCashPointPage() {
                         type="text"
                         inputMode="numeric"
                         value={amount}
-                        onChange={(e) => setAmount(e.target.value.replace(/\D/g, "").slice(0, 5))}
+                        onChange={(e) => {
+                          setAmount(e.target.value.replace(/\D/g, "").slice(0, 5));
+                          setEarnDismissed(false);
+                        }}
                         placeholder="0"
                         className="w-full min-w-0 bg-transparent text-center text-5xl font-bold leading-none tracking-tight tabular-nums text-gray-900 outline-none placeholder:font-semibold placeholder:text-gray-300"
                       />
@@ -252,7 +257,10 @@ export default function UpiCashPointPage() {
                       <button
                         key={a}
                         type="button"
-                        onClick={() => setAmount(String(a))}
+                        onClick={() => {
+                          setAmount(String(a));
+                          setEarnDismissed(false);
+                        }}
                         className={clsx(
                           "min-w-[5.75rem] rounded-xl border px-3 py-3 text-[15px] font-semibold transition",
                           amount === String(a)
@@ -299,6 +307,37 @@ export default function UpiCashPointPage() {
                     <span>UPI</span>
                   </div>
 
+                  {/* Earn strip — between logos and Supported Apps; animates in when amount entered */}
+                  <div
+                    className={clsx(
+                      "grid transition-[grid-template-rows,opacity,margin] duration-300 ease-out",
+                      showEarnStrip
+                        ? "mt-4 grid-rows-[1fr] opacity-100"
+                        : "mt-0 grid-rows-[0fr] opacity-0",
+                    )}
+                    aria-hidden={!showEarnStrip}
+                  >
+                    <div className="min-h-0 overflow-hidden">
+                      <div className="flex items-center justify-between rounded-xl bg-slate-800 px-4 py-3 text-sm font-semibold text-white shadow-sm">
+                        <span className="flex items-center gap-2.5">
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-[11px] font-black">
+                            ₹
+                          </span>
+                          You will earn ₹2 on this transaction
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setEarnDismissed(true)}
+                          className="rounded p-0.5 text-white/70 hover:text-white"
+                          aria-label="Dismiss"
+                          tabIndex={showEarnStrip ? 0 : -1}
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="mt-6 border-t border-gray-100 pt-5">
                     <p className="mb-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-400">
                       Supported UPI Apps
@@ -324,25 +363,6 @@ export default function UpiCashPointPage() {
                     </div>
                   </div>
                 </div>
-
-                {amountNum > 0 ? (
-                  <div className="flex items-center justify-between bg-slate-800 px-5 py-3 text-sm font-semibold text-white">
-                    <span className="flex items-center gap-2.5">
-                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-[11px] font-black">
-                        ₹
-                      </span>
-                      You will earn ₹2 on this transaction
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setAmount("")}
-                      className="rounded p-0.5 text-white/70 hover:text-white"
-                      aria-label="Dismiss"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                ) : null}
               </div>
             </div>
 
