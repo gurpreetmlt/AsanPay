@@ -215,7 +215,7 @@ const BANKING_TOP_CODES = [
 /** Codes that sit on the second row under / aligned with AePS (Loans … Credit). */
 const BANKING_BOTTOM_CODES = ["LOANS", "INSURANCE", "CREDIT_CARDS"];
 
-/** Spice-style Banking: row1 = AePS box + UPI/MT/Nepal/Cash Collection; row2 = Loans… */
+/** Spice-style Banking: row1 = AePS box + UPI/MT/Nepal/Cash; row2 = Loans… */
 function BankingCard({
   aeps,
   topRest,
@@ -235,23 +235,23 @@ function BankingCard({
 
   return (
     <CardShell title="Banking Services">
-      <div className="flex flex-col gap-5">
-        {/* One horizontal strip — no wrap so Cash Collection stays on row 1 */}
-        <div className={`flex flex-nowrap items-start overflow-x-auto pb-1 ${gap}`}>
+      <div className="flex w-full flex-col gap-5">
+        {/* Spread across full card width so right side is not empty */}
+        <div className={`flex w-full flex-nowrap items-start justify-between ${gap}`}>
           {aeps.length > 0 ? (
             <div
-              className="relative shrink-0 rounded-xl border-2 px-2.5 py-2.5 sm:px-3 sm:py-3"
-              style={{ borderColor: "rgba(11,42,154,0.18)" }}
+              className="relative shrink-0 rounded-xl border-2 px-2.5 pb-2.5 pt-4 sm:px-3 sm:pb-3 sm:pt-5"
+              style={{ borderColor: "rgba(11,42,154,0.22)" }}
             >
               <span
-                className="absolute left-1/2 top-0 z-10 flex -translate-x-1/2 -translate-y-1/2 items-center rounded-md border bg-white px-1.5 py-0.5 shadow-sm"
+                className="absolute left-1/2 top-0 z-10 flex -translate-x-1/2 -translate-y-1/2 items-center rounded-md border bg-white px-2.5 py-1 shadow-sm"
                 style={{ borderColor: B.border }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src="/assets/AEPS-Logo.png"
                   alt="AePS — Aadhaar Enabled Payment System"
-                  className="h-4 w-auto object-contain sm:h-5"
+                  className="h-7 w-auto max-w-[140px] object-contain sm:h-8"
                 />
               </span>
               <div className={`flex flex-nowrap items-start ${gap}`}>
@@ -282,7 +282,7 @@ function BankingCard({
         </div>
 
         {bottomRest.length > 0 ? (
-          <div className={`flex flex-nowrap items-start overflow-x-auto pb-1 ${gap}`}>
+          <div className={`flex w-full flex-nowrap items-start justify-start ${gap}`}>
             {bottomRest.map((svc, i) => (
               <ServiceIconCard
                 key={svc.id}
