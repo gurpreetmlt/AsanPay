@@ -17,6 +17,8 @@ import LinearGradient from "react-native-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ArrowLeft,
+  Check,
+  ChevronDown,
   ChevronRight,
   CircleDot,
   Eye,
@@ -594,12 +596,15 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
     const favs = favBanks
       .map((id) => byId.get(id))
       .filter((b): b is (typeof resolvedBanks)[number] => Boolean(b));
-    // Selected bank from View All (not a fav) still shows in the strip like a fav — no extra name row
-    if (selectedBank && !favs.some((b) => b.id === selectedBank.id)) {
-      return [selectedBank, ...favs];
+    const base = favs.length > 0 ? favs : resolvedBanks.slice(0, 5);
+
+    // View All / any pick: keep selected bank on the strip (center), same look as tap-select
+    if (selectedBank) {
+      const others = base.filter((b) => b.id !== selectedBank.id).slice(0, 4);
+      const mid = Math.floor(others.length / 2);
+      return [...others.slice(0, mid), selectedBank, ...others.slice(mid)];
     }
-    if (favs.length > 0) return favs;
-    return resolvedBanks.slice(0, 5);
+    return base.slice(0, 5);
   }, [favBanks, resolvedBanks, selectedBank]);
 
   function formatAadhaar(v: string) {
@@ -1009,6 +1014,7 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
               <ChevronRight size={14} color={colors.blueLight} />
             </Pressable>
           </View>
+
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -1020,16 +1026,59 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
                 <Pressable
                   key={bank.id}
                   onPress={() => setSelectedBank(bank)}
-                  style={[s.bankItem, active && s.bankItemActive]}
+                  style={s.bankItemWrap}
                 >
-                  <BankIcon bank={bank} size={40} />
-                  <Text style={[s.bankShort, { color: tokens.txt2 }]} numberOfLines={1}>
-                    {bank.shortName}
-                  </Text>
+                  <View style={[s.bankItem, active && s.bankItemActive]}>
+                    <View style={s.bankIconWrap}>
+                      <BankIcon bank={bank} size={40} />
+                      {active ? (
+                        <View style={s.bankCheckBadge}>
+                          <Check size={10} color="#fff" strokeWidth={3} />
+                        </View>
+                      ) : null}
+                    </View>
+                    <Text
+                      style={[
+                        s.bankShort,
+                        { color: active ? colors.blue : tokens.txt2 },
+                        active && s.bankShortActive,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {bank.shortName}
+                    </Text>
+                  </View>
+                  {/* Arrow under selected icon → points to strip below */}
+                  <View style={s.bankCaretSlot}>
+                    {active ? (
+                      <ChevronDown size={16} color={colors.blueLight} strokeWidth={2.6} />
+                    ) : null}
+                  </View>
                 </Pressable>
               );
             })}
           </ScrollView>
+
+          {selectedBank ? (
+            <View style={[s.selectedBankStrip, { backgroundColor: colors.bluePale, borderColor: `${colors.blueLight}55` }]}>
+              <BankIcon bank={selectedBank} size={28} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={[s.selectedBankName, { color: colors.blue }]} numberOfLines={1}>
+                  {selectedBank.name}
+                </Text>
+                <Text style={s.selectedBankHint}>Selected bank for this transaction</Text>
+              </View>
+              <Pressable onPress={() => setBankModalOpen(true)} hitSlop={8}>
+                <Text style={[s.viewAllText, { fontSize: 11 }]}>Change</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={[s.selectedBankStripEmpty, { borderColor: tokens.cardBorder }]}>
+              <Text style={{ fontSize: 12, color: tokens.mute, fontWeight: "600" }}>
+                Tap a bank above to select
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Form fields */}
@@ -1388,10 +1437,65 @@ const s = StyleSheet.create({
   },
 
   // Bank strip — View All sits in the SELECT BANK header row
-  bankStrip: { gap: 10, alignItems: "center", paddingBottom: 4 },
-  bankItem: { alignItems: "center", width: 58, paddingVertical: 4, borderRadius: 14 },
-  bankItemActive: { backgroundColor: "#EFF6FF", borderWidth: 1.5, borderColor: colors.blueLight },
-  bankShort: { fontSize: 9.5, fontWeight: "600", textAlign: "center", marginTop: 3 },
+  bankStrip: { gap: 8, alignItems: "flex-start", paddingBottom: 2 },
+  bankItemWrap: { alignItems: "center", width: 64 },
+  bankItem: {
+    alignItems: "center",
+    width: 64,
+    paddingTop: 6,
+    paddingBottom: 4,
+    paddingHorizontal: 4,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "transparent",
+  },
+  bankItemActive: {
+    backgroundColor: "#EFF6FF",
+    borderColor: colors.blueLight,
+  },
+  bankIconWrap: { position: "relative" },
+  bankCheckBadge: {
+    position: "absolute",
+    right: -2,
+    bottom: -2,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: colors.blue,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "#fff",
+  },
+  bankShort: { fontSize: 9.5, fontWeight: "600", textAlign: "center", marginTop: 4 },
+  bankShortActive: { fontWeight: "800" },
+  bankCaretSlot: {
+    height: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 0,
+  },
+  selectedBankStrip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 2,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  selectedBankStripEmpty: {
+    marginTop: 2,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  selectedBankName: { fontWeight: "800", fontSize: 13 },
+  selectedBankHint: { fontSize: 10, color: "#64748B", marginTop: 1, fontWeight: "500" },
   viewAllBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -1400,8 +1504,6 @@ const s = StyleSheet.create({
     flexShrink: 0,
   },
   viewAllText: { fontSize: 12, fontWeight: "800", color: colors.blueLight },
-
-  // Form fields
   fieldLabel: { fontSize: 11, fontWeight: "800", letterSpacing: 0.3 },
   fieldLabelSpaced: { marginTop: 16 },
   inputRow: {

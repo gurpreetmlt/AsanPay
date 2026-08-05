@@ -223,37 +223,37 @@ export default function UpiCashPointPage() {
                   </p>
                 </div>
 
-                <div className="px-5 pb-5 pt-4">
-                  <p className="mb-3 text-center text-[13px] font-semibold text-gray-800">
+                <div className="px-6 pb-6 pt-5">
+                  <p className="mb-4 text-center text-[15px] font-semibold text-gray-800">
                     Amount to Withdraw
                   </p>
 
-                  {/* Compact amount — not a full-width field */}
-                  <div className="mx-auto w-[148px]">
-                    <div className="flex items-baseline justify-center gap-1 border-b border-gray-200 pb-1">
-                      <span className="text-lg font-semibold text-gray-800">₹</span>
+                  {/* Amount — larger, crisp; container width unchanged */}
+                  <div className="mx-auto w-[180px]">
+                    <div className="flex items-baseline justify-center gap-1.5 border-b-2 border-gray-200 pb-1.5">
+                      <span className="text-xl font-semibold text-gray-800">₹</span>
                       <input
                         type="text"
                         inputMode="numeric"
                         value={amount}
                         onChange={(e) => setAmount(e.target.value.replace(/\D/g, "").slice(0, 5))}
                         placeholder="0"
-                        className="w-full min-w-0 bg-transparent text-center text-[28px] font-bold leading-none tabular-nums text-gray-900 outline-none placeholder:text-gray-300"
+                        className="w-full min-w-0 bg-transparent text-center text-[34px] font-bold leading-none tracking-tight tabular-nums text-gray-900 outline-none placeholder:text-gray-300"
                       />
                     </div>
-                    <p className="mt-1.5 text-center text-[11px] text-gray-400">
+                    <p className="mt-2 text-center text-xs text-gray-500">
                       {amountNum > 0 ? amountInWords(amountNum) : "Enter amount in multiples of ₹100"}
                     </p>
                   </div>
 
-                  <div className="mx-auto mt-5 grid max-w-[420px] grid-cols-5 gap-2">
+                  <div className="mx-auto mt-6 grid max-w-[460px] grid-cols-4 gap-2.5 sm:grid-cols-5">
                     {QUICK_AMOUNTS.map(({ amount: a, hint }) => (
                       <button
                         key={a}
                         type="button"
                         onClick={() => setAmount(String(a))}
                         className={clsx(
-                          "relative rounded-md border px-1 py-1.5 text-[11px] font-semibold transition",
+                          "rounded-lg border px-1.5 py-2.5 text-[13px] font-semibold transition",
                           amount === String(a)
                             ? "border-blue-500 bg-blue-50 text-blue-700"
                             : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50",
@@ -261,7 +261,7 @@ export default function UpiCashPointPage() {
                       >
                         ₹{a.toLocaleString("en-IN")}
                         {hint ? (
-                          <span className="mt-0.5 block text-[8px] font-medium leading-none text-gray-400">
+                          <span className="mt-0.5 block text-[9px] font-medium leading-none text-gray-400">
                             {hint}
                           </span>
                         ) : null}
@@ -269,28 +269,28 @@ export default function UpiCashPointPage() {
                     ))}
                   </div>
 
-                  <div className="mt-6 flex justify-center">
+                  <div className="mt-7 flex justify-center">
                     <button
                       type="button"
                       onClick={handleGenerate}
                       disabled={amountNum < 1}
                       className={clsx(
-                        "inline-flex items-center gap-1.5 rounded-full px-8 py-2 text-[13px] font-bold text-white shadow transition",
+                        "inline-flex items-center gap-2 rounded-full px-10 py-2.5 text-sm font-bold text-white shadow-md transition",
                         amountNum >= 1 ? "hover:opacity-90" : "cursor-not-allowed opacity-45",
                       )}
                       style={{
                         background:
                           amountNum >= 1
-                            ? "linear-gradient(90deg, #6D28D9 0%, #DB2777 50%, #EF4444 100%)"
+                            ? `linear-gradient(135deg, ${B.blue} 0%, ${B.blueMid} 100%)`
                             : "#94a3b8",
                       }}
                     >
                       Generate QR
-                      <QrCode size={15} strokeWidth={2.4} />
+                      <QrCode size={16} strokeWidth={2.4} />
                     </button>
                   </div>
 
-                  <div className="mt-4 flex items-center justify-center gap-3 text-[10px] font-semibold tracking-wide text-gray-400">
+                  <div className="mt-4 flex items-center justify-center gap-3 text-[11px] font-semibold tracking-wide text-gray-400">
                     <span>AsanPay</span>
                     <span className="text-gray-300">·</span>
                     <span>YES BANK</span>
