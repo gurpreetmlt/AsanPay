@@ -36,8 +36,8 @@ const AEPS_TAB_MAP: Record<string, string> = {
   AADHAAR_PAY: "Withdraw",
 };
 
-/** First row of BBPS like Spice (~6–7); View all expands. */
-const BBPS_PREVIEW = 12;
+/** Collapsed BBPS shows 2×8; View all expands the rest. */
+const BBPS_PREVIEW = 16;
 
 function resolveServiceRoute(code: string): string | null {
   const aepsTab = AEPS_TAB_MAP[code];
@@ -55,12 +55,15 @@ function ServiceIconCard({
   favorite,
   onToggleFav,
   onOpen,
+  size = "default",
 }: {
   svc: Svc;
   index: number;
   favorite: boolean;
   onToggleFav: () => void;
   onOpen?: () => void;
+  /** Banking uses lg to fill card width with slightly larger art. */
+  size?: "default" | "lg";
 }) {
   const tile = designTileColors(index, false);
   const assetSrc = serviceIconPath(svc.icon);
@@ -68,10 +71,15 @@ function ServiceIconCard({
   const showAsset = Boolean(assetSrc) && !assetFailed;
   const starColor = favorite ? B.green : B.muted;
   const designKey = serviceCodeToDesignKey(svc.code);
+  const lg = size === "lg";
 
   return (
     <div
-      className="group relative flex w-[6.25rem] shrink-0 flex-col items-center sm:w-[6.75rem]"
+      className={
+        lg
+          ? "group relative flex w-[7rem] shrink-0 flex-col items-center sm:w-[7.75rem]"
+          : "group relative flex w-[6.25rem] shrink-0 flex-col items-center sm:w-[6.75rem]"
+      }
       style={{ "--tile-accent": tile.fg } as React.CSSProperties}
     >
       <button
@@ -107,19 +115,31 @@ function ServiceIconCard({
           <img
             src={assetSrc!}
             alt=""
-            className="mx-auto block h-11 w-11 object-contain transition duration-150 ease-out group-hover:scale-110 group-hover:drop-shadow-md sm:h-12 sm:w-12"
+            className={
+              lg
+                ? "mx-auto block h-12 w-12 object-contain transition duration-150 ease-out group-hover:scale-110 group-hover:drop-shadow-md sm:h-14 sm:w-14"
+                : "mx-auto block h-11 w-11 object-contain transition duration-150 ease-out group-hover:scale-110 group-hover:drop-shadow-md sm:h-12 sm:w-12"
+            }
             onError={() => setAssetFailed(true)}
           />
         ) : (
           <div
-            className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl transition duration-150 ease-out group-hover:scale-110 sm:h-12 sm:w-12"
+            className={
+              lg
+                ? "mx-auto flex h-12 w-12 items-center justify-center rounded-xl transition duration-150 ease-out group-hover:scale-110 sm:h-14 sm:w-14"
+                : "mx-auto flex h-11 w-11 items-center justify-center rounded-xl transition duration-150 ease-out group-hover:scale-110 sm:h-12 sm:w-12"
+            }
             style={{ background: tile.bg }}
           >
-            <DesignIcon name={designKey} size={24} color={tile.fg} />
+            <DesignIcon name={designKey} size={lg ? 28 : 24} color={tile.fg} />
           </div>
         )}
         <div
-          className="mx-auto w-full text-center text-[10px] font-semibold leading-snug transition-colors duration-150 group-hover:text-[var(--tile-accent)] sm:text-[11px]"
+          className={
+            lg
+              ? "mx-auto w-full text-center text-[11px] font-semibold leading-snug transition-colors duration-150 group-hover:text-[var(--tile-accent)] sm:text-[12px]"
+              : "mx-auto w-full text-center text-[10px] font-semibold leading-snug transition-colors duration-150 group-hover:text-[var(--tile-accent)] sm:text-[11px]"
+          }
           style={{ color: B.blue }}
         >
           <span className="line-clamp-2 block min-h-[1.85rem]">{svc.name}</span>
@@ -135,31 +155,42 @@ function ServiceRow({
   onToggle,
   onOpen,
   nowrap,
+  /** Fixed columns (e.g. 8) — Recharges & Bills collapsed = 2 rows × 8. */
+  columns,
 }: {
   services: Svc[];
   codes: string[];
   onToggle: (code: string) => void;
   onOpen: (code: string) => void;
   nowrap?: boolean;
+  columns?: 8;
 }) {
+  const layoutClass = columns
+    ? "grid grid-cols-4 content-start items-start gap-x-4 gap-y-5 sm:grid-cols-4 md:grid-cols-8 md:gap-x-5 md:gap-y-6"
+    : nowrap
+      ? "flex flex-nowrap items-start justify-start gap-5 overflow-x-auto pb-1 sm:gap-6"
+      : "flex flex-wrap content-start items-start justify-start gap-x-5 gap-y-5 sm:gap-x-6 sm:gap-y-6";
+
   return (
-    <div
-      className={
-        nowrap
-          ? "flex flex-nowrap items-start justify-start gap-5 overflow-x-auto pb-1 sm:gap-6"
-          : "flex flex-wrap content-start items-start justify-start gap-x-5 gap-y-5 sm:gap-x-6 sm:gap-y-6"
-      }
-    >
-      {services.map((svc, i) => (
-        <ServiceIconCard
-          key={svc.id}
-          svc={svc}
-          index={i}
-          favorite={codes.includes(svc.code)}
-          onToggleFav={() => onToggle(svc.code)}
-          onOpen={() => onOpen(svc.code)}
-        />
-      ))}
+    <div className={layoutClass}>
+      {services.map((svc, i) => {
+        const card = (
+          <ServiceIconCard
+            svc={svc}
+            index={i}
+            favorite={codes.includes(svc.code)}
+            onToggleFav={() => onToggle(svc.code)}
+            onOpen={() => onOpen(svc.code)}
+          />
+        );
+        return columns ? (
+          <div key={svc.id} className="flex justify-center">
+            {card}
+          </div>
+        ) : (
+          <div key={svc.id}>{card}</div>
+        );
+      })}
     </div>
   );
 }
@@ -222,12 +253,12 @@ function BankingCard({
 }) {
   return (
     <CardShell title="Banking Services">
-      <div className="flex flex-col gap-4 sm:gap-5">
-        {/* Row 1: AePS box + UPI / Money Transfer / Nepal */}
-        <div className="flex flex-wrap items-center gap-5 sm:gap-6">
+      <div className="flex flex-col gap-5 sm:gap-6">
+        {/* Row 1: AePS box + extras — stretch across full card width */}
+        <div className="flex w-full flex-wrap items-center justify-between gap-x-6 gap-y-5 sm:gap-x-8">
           {aeps.length > 0 ? (
             <div
-              className="relative shrink-0 rounded-xl border-2 px-2.5 py-2.5 sm:px-3 sm:py-3"
+              className="relative shrink-0 rounded-xl border-2 px-3 py-3 sm:px-4 sm:py-3.5"
               style={{ borderColor: "rgba(11,42,154,0.18)" }}
             >
               <span
@@ -241,12 +272,13 @@ function BankingCard({
                   className="h-4 w-auto object-contain sm:h-5"
                 />
               </span>
-              <div className="flex flex-nowrap items-start justify-start gap-x-5 sm:gap-x-6">
+              <div className="flex flex-nowrap items-start justify-start gap-x-6 sm:gap-x-8">
                 {aeps.map((svc, i) => (
                   <ServiceIconCard
                     key={svc.id}
                     svc={svc}
                     index={i}
+                    size="lg"
                     favorite={codes.includes(svc.code)}
                     onToggleFav={() => onToggle(svc.code)}
                     onOpen={() => onOpen(svc.code)}
@@ -257,12 +289,13 @@ function BankingCard({
           ) : null}
 
           {topRest.length > 0 ? (
-            <div className="flex flex-wrap items-start justify-start gap-x-5 gap-y-4 sm:gap-x-6">
+            <div className="flex min-w-0 flex-1 flex-wrap items-start justify-evenly gap-x-6 gap-y-4 sm:gap-x-8">
               {topRest.map((svc, i) => (
                 <ServiceIconCard
                   key={svc.id}
                   svc={svc}
                   index={i + 4}
+                  size="lg"
                   favorite={codes.includes(svc.code)}
                   onToggleFav={() => onToggle(svc.code)}
                   onOpen={() => onOpen(svc.code)}
@@ -272,14 +305,15 @@ function BankingCard({
           ) : null}
         </div>
 
-        {/* Row 2: Cash Collection, Loans, Insurance, Credit — left-aligned under AePS */}
+        {/* Row 2: Loans, Insurance, Credit — match top spacing */}
         {bottomRest.length > 0 ? (
-          <div className="flex flex-wrap items-start justify-start gap-x-5 gap-y-4 sm:gap-x-6">
+          <div className="flex flex-wrap items-start justify-start gap-x-6 gap-y-4 sm:gap-x-8">
             {bottomRest.map((svc, i) => (
               <ServiceIconCard
                 key={svc.id}
                 svc={svc}
                 index={i + 10}
+                size="lg"
                 favorite={codes.includes(svc.code)}
                 onToggleFav={() => onToggle(svc.code)}
                 onOpen={() => onOpen(svc.code)}
@@ -547,6 +581,7 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
               codes={codes}
               onToggle={handleToggle}
               onOpen={openService}
+              columns={8}
             />
           </CardShell>
         )}

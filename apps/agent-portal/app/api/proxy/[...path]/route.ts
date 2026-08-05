@@ -37,6 +37,17 @@ async function refreshOnce(refreshToken: string): Promise<{ accessToken: string;
   return promise;
 }
 
+/** Pass browser IP through so backend rate limits are not shared across all portal users. */
+function clientIpHeaders(req: NextRequest): Record<string, string> {
+  const xff = req.headers.get("x-forwarded-for");
+  const realIp = req.headers.get("x-real-ip");
+  if (!xff && !realIp) return {};
+  return {
+    ...(xff ? { "X-Forwarded-For": xff } : realIp ? { "X-Forwarded-For": realIp } : {}),
+    ...(realIp ? { "X-Real-IP": realIp } : {}),
+  };
+}
+
 async function forward(req: NextRequest, path: string[], accessToken: string | null): Promise<Response> {
   const url = `${BACKEND_URL}/${path.join("/")}${req.nextUrl.search}`;
   const body = req.method === "GET" || req.method === "HEAD" ? undefined : await req.text();
@@ -48,6 +59,7 @@ async function forward(req: NextRequest, path: string[], accessToken: string | n
       "Content-Type": req.headers.get("content-type") || "application/json",
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+      ...clientIpHeaders(req),
     },
     body,
     cache: "no-store",

@@ -20,9 +20,14 @@ function clientIp(req: Request): string {
 
 export const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: isDev ? 5000 : 300,
+  // Prod portals proxy via Next.js — many users can share one container IP until
+  // X-Forwarded-For is forwarded. Dashboard alone fires many parallel calls.
+  // 300/15min was exhausting the shared bucket and returning 429 site-wide.
+  limit: isDev ? 5000 : 3000,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => req.path === "/health" || req.path === "/api/health",
+  message: { success: false, message: "Too many requests — wait a moment and retry" },
   keyGenerator: (req) => clientIp(req),
   validate: sharedValidate,
 });

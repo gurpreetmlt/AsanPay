@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { BACKEND_URL, clearAuthCookies, getAuthCookies, setAuthCookies } from "@/lib/serverAuth";
 
+/** Pass browser IP through so backend rate limits are not shared across all portal users. */
+function clientIpHeaders(req: NextRequest): Record<string, string> {
+  const xff = req.headers.get("x-forwarded-for");
+  const realIp = req.headers.get("x-real-ip");
+  if (!xff && !realIp) return {};
+  return {
+    ...(xff ? { "X-Forwarded-For": xff } : realIp ? { "X-Forwarded-For": realIp } : {}),
+    ...(realIp ? { "X-Real-IP": realIp } : {}),
+  };
+}
+
 async function forward(req: NextRequest, path: string[], accessToken: string | null): Promise<Response> {
   const url = `${BACKEND_URL}/${path.join("/")}${req.nextUrl.search}`;
   const body = req.method === "GET" || req.method === "HEAD" ? undefined : await req.text();
@@ -12,6 +23,7 @@ async function forward(req: NextRequest, path: string[], accessToken: string | n
       "Content-Type": req.headers.get("content-type") || "application/json",
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+      ...clientIpHeaders(req),
     },
     body,
     cache: "no-store",
@@ -31,7 +43,19 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
   const isAuth = path[0] === "auth";
   const { accessToken, refreshToken } = await getAuthCookies();
 
-  let upstream = await forward(req, path, accessToken);
+  let upstream: Response;
+  try {
+    upstream = await forward(req, path, accessToken);
+  } catch {
+    return NextResponse.json(
+      {
+        success: false,
+        message:
+          "Cannot reach the API from admin-portal. Set Coolify env API_URL to the backend URL (e.g. https://api…/api) and redeploy.",
+      },
+      { status: 502 },
+    );
+  }
 
   if (!isAuth && upstream.status === 401 && refreshToken) {
     const refreshRes = await fetch(`${BACKEND_URL}/auth/refresh`, {
@@ -44,7 +68,15 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
 
     if (refreshRes.ok && refreshJson?.success) {
       await setAuthCookies(refreshJson.data.accessToken, refreshJson.data.refreshToken);
-      upstream = await forward(req, path, refreshJson.data.accessToken);
+      try {
+        upstream = await forward(req, path, refreshJson.data.accessToken);
+      } catch {
+        await clearAuthCookies();
+        return NextResponse.json(
+          { success: false, message: "Cannot reach the API after token refresh" },
+          { status: 502 },
+        );
+      }
     } else {
       await clearAuthCookies();
     }
@@ -74,7 +106,18 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
       );
     }
 
-    return NextResponse.json(json ?? { success: false, message: "Request failed" }, { status: upstream.status });
+    const message =
+      (typeof json?.message === "string" && json.message.trim()) ||
+      (upstream.status === 401
+        ? "Invalid username or password"
+        : upstream.status >= 500
+          ? `API error (${upstream.status}). Backend may be down — check Coolify backend status.`
+          : `Login failed (HTTP ${upstream.status}). Check API_URL on admin-portal.`);
+
+    return NextResponse.json(
+      { success: false, message, code: json?.code },
+      { status: upstream.status >= 400 ? upstream.status : 502 },
+    );
   }
 
   const data = await upstream.text();
