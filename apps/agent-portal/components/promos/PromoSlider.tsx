@@ -60,44 +60,45 @@ export function PromoSlider({
 
   // A slide whose file is gone (e.g. uploaded before a redeploy) must not blank the panel.
   const slides = allSlides.filter((s) => !brokenIds.includes(s.id));
+  const n = slides.length;
 
   useEffect(() => {
     setIndex(0);
-  }, [slides.length]);
+  }, [n]);
 
   const goTo = useCallback(
     (next: number) => {
-      if (slides.length === 0) return;
-      setIndex(((next % slides.length) + slides.length) % slides.length);
+      if (n === 0) return;
+      setIndex(((next % n) + n) % n);
     },
-    [slides.length],
+    [n],
   );
 
   const goPrev = useCallback(
     (e?: React.MouseEvent) => {
       e?.preventDefault();
       e?.stopPropagation();
-      goTo(index - 1);
+      setIndex((i) => (n === 0 ? 0 : (i - 1 + n) % n));
     },
-    [goTo, index],
+    [n],
   );
 
   const goNext = useCallback(
     (e?: React.MouseEvent) => {
       e?.preventDefault();
       e?.stopPropagation();
-      goTo(index + 1);
+      setIndex((i) => (n === 0 ? 0 : (i + 1) % n));
     },
-    [goTo, index],
+    [n],
   );
 
   useEffect(() => {
-    if (slides.length <= 1 || intervalMs <= 0) return;
+    if (n <= 1 || intervalMs <= 0) return;
     const t = window.setInterval(() => {
-      setIndex((i) => (i + 1) % slides.length);
+      setIndex((i) => (i + 1) % n);
     }, intervalMs);
     return () => window.clearInterval(t);
-  }, [slides.length, intervalMs, index]);
+  }, [n, intervalMs]);
 
   const slide = slides[index];
   const shellClass = `relative overflow-hidden rounded-2xl shadow-md ${fill ? "h-full min-h-[320px]" : "aspect-[3/4] min-h-[280px]"} ${className}`;
@@ -133,7 +134,7 @@ export function PromoSlider({
   }
 
   const controls =
-    slides.length > 1 ? (
+    n > 1 ? (
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/70 to-transparent px-4 pb-4 pt-10">
         {slide.title ? <p className="text-sm font-bold text-white">{slide.title}</p> : null}
         <div className="pointer-events-auto mt-2 flex items-center justify-between gap-2">
@@ -178,45 +179,57 @@ export function PromoSlider({
       </div>
     ) : null;
 
-  const track = (
-    <>
-      <div
-        className="flex h-full w-full transition-transform duration-500 ease-in-out"
-        style={{ transform: `translateX(-${index * 100}%)` }}
-      >
-        {slides.map((s) => {
-          const img = (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={resolvePromoImageSrc(s.imageUrl)}
-              alt={s.title || "Promotion"}
-              className="h-full w-full object-cover"
-              draggable={false}
-              onError={() => setBrokenIds((prev) => (prev.includes(s.id) ? prev : [...prev, s.id]))}
-            />
-          );
-          return (
-            <div key={s.id} className="h-full w-full shrink-0 grow-0 basis-full">
-              {s.linkUrl ? (
-                <a
-                  href={s.linkUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block h-full w-full"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {img}
-                </a>
-              ) : (
-                img
-              )}
-            </div>
-          );
-        })}
+  // translateX % is relative to the track width (all slides). One viewport = 100/n of track.
+  const trackShiftPct = n > 0 ? (index * 100) / n : 0;
+
+  return (
+    <div className={shellClass}>
+      <div className="absolute inset-0 overflow-hidden">
+        <div
+          className="flex h-full will-change-transform transition-transform duration-500 ease-out"
+          style={{
+            width: `${n * 100}%`,
+            transform: `translate3d(-${trackShiftPct}%, 0, 0)`,
+          }}
+        >
+          {slides.map((s) => {
+            const img = (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={resolvePromoImageSrc(s.imageUrl)}
+                alt={s.title || "Promotion"}
+                className="h-full w-full object-cover"
+                draggable={false}
+                onError={() =>
+                  setBrokenIds((prev) => (prev.includes(s.id) ? prev : [...prev, s.id]))
+                }
+              />
+            );
+            return (
+              <div
+                key={s.id}
+                className="h-full shrink-0 grow-0"
+                style={{ width: `${100 / n}%` }}
+              >
+                {s.linkUrl ? (
+                  <a
+                    href={s.linkUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block h-full w-full"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {img}
+                  </a>
+                ) : (
+                  img
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
       {controls}
-    </>
+    </div>
   );
-
-  return <div className={shellClass}>{track}</div>;
 }
