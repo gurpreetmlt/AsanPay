@@ -62,19 +62,19 @@ html.dark {
   --color-border-subtle: #d8e0f0;
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 
-  /* Slightly above default — matches agent portal */
-  --text-xs: 0.75rem;
-  --text-sm: 0.875rem;
-  --text-base: 1rem;
-  --text-lg: 1.125rem;
-  --text-xl: 1.25rem;
-  --text-2xl: 1.5rem;
-  --text-3xl: 1.875rem;
+  /* Match agent/retailer readability — admin was looking smaller */
+  --text-xs: 0.8125rem;
+  --text-sm: 0.9375rem;
+  --text-base: 1.0625rem;
+  --text-lg: 1.1875rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.625rem;
+  --text-3xl: 2rem;
 }
 
 html {
   color-scheme: light;
-  font-size: 106.25%; /* 17px — modest bump for all admin views */
+  font-size: 112.5%; /* 18px — clearer than agent’s 17px so admin sidebar matches retailer feel */
   transition: background-color 0.45s ease, color 0.35s ease;
 }
 
