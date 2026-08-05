@@ -213,18 +213,17 @@ function CardShell({
   );
 }
 
-/** Codes that sit on the top row next to the AePS box (screenshot layout). */
+/** Codes that sit on the top row next to the AePS box (7-col: AePS×4 + these×3). */
 const BANKING_TOP_CODES = [
   "UPI_CASH_POINT",
   "MONEY_TRANSFER",
   "NEPAL_REMITTANCE",
   "NEPAL",
   "DMT",
-  "CASH_COLLECTION",
 ];
 
-/** Codes that sit on the second row under / aligned with AePS (Loans … Credit). */
-const BANKING_BOTTOM_CODES = ["LOANS", "INSURANCE", "CREDIT_CARDS"];
+/** Second row: Cash Collection (not AePS), then Loans … Credit. */
+const BANKING_BOTTOM_CODES = ["CASH_COLLECTION", "LOANS", "INSURANCE", "CREDIT_CARDS"];
 
 /** Banking: all icons in one flat grid (same as BBPS) so tops align; AePS border is overlay only. */
 function BankingCard({
