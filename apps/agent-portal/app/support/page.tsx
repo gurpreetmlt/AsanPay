@@ -16,6 +16,9 @@ import {
   X,
   Zap,
   Headphones,
+  ShieldCheck,
+  Clock,
+  FileText,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { B, brand } from "@/lib/brand";
@@ -69,6 +72,24 @@ const HELP_GUIDES = [
   { title: "DMT money transfer", tag: "DMT" },
   { title: "Add money & Balance", tag: "Balance" },
   { title: "Transaction PIN safety", tag: "Security" },
+] as const;
+
+const SUPPORT_TIPS = [
+  {
+    icon: FileText,
+    title: "Keep the reference ready",
+    body: "Txn ref / UTR and amount make a ticket much faster to resolve.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Never share PIN or OTP",
+    body: "Our team will never ask for your transaction PIN, OTP or password.",
+  },
+  {
+    icon: Clock,
+    title: "Reply within ~5 hrs",
+    body: "Tickets are answered on working days. Urgent? Call your upline.",
+  },
 ] as const;
 
 function roleLabel(role: string) {
@@ -185,28 +206,47 @@ export default function SupportPage() {
   return (
     <AppShell>
       <div className="mx-auto w-full max-w-[1600px] space-y-4 px-4 py-5 md:px-6 md:py-6 lg:px-8">
-        {/* Header */}
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold md:text-3xl" style={{ color: B.blue }}>
-              We are here to help
-            </h1>
-            <p className="mt-1 text-sm" style={{ color: B.muted }}>
-              Upline · {brand.name} care · tickets
-            </p>
+        {/* Hero header */}
+        <div
+          className="relative overflow-hidden rounded-3xl px-5 py-6 md:px-8 md:py-7"
+          style={{ background: B.badgeGrad }}
+        >
+          <span
+            className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full"
+            style={{ background: "rgba(255,255,255,0.08)" }}
+          />
+          <span
+            className="pointer-events-none absolute -bottom-24 right-24 h-48 w-48 rounded-full"
+            style={{ background: "rgba(255,255,255,0.06)" }}
+          />
+          <div className="relative flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <span
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl md:h-14 md:w-14"
+                style={{ background: "rgba(255,255,255,0.15)" }}
+              >
+                <LifeBuoy size={26} className="text-white" />
+              </span>
+              <div>
+                <h1 className="text-2xl font-bold text-white md:text-3xl">We are here to help</h1>
+                <p className="mt-0.5 text-sm text-white/70">
+                  Upline · {brand.name} care · tickets
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setShowForm(true);
+                setSubject((s) => s || "");
+              }}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2.5 text-sm font-bold shadow-sm transition hover:opacity-90"
+              style={{ color: B.blue }}
+            >
+              <Plus size={16} />
+              Raise ticket
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              setShowForm(true);
-              setSubject((s) => s || "");
-            }}
-            className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-bold text-white"
-            style={{ background: B.badgeGrad }}
-          >
-            <Plus size={16} />
-            Raise ticket
-          </button>
         </div>
 
         {/* Quick actions — wider tiles */}
@@ -316,8 +356,8 @@ export default function SupportPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <div className="rounded-2xl border bg-white p-4 md:p-5" style={{ borderColor: B.border }}>
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-5 lg:items-stretch">
+          <div className="rounded-2xl border bg-white p-4 md:p-5 lg:col-span-3" style={{ borderColor: B.border }}>
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-sm font-bold uppercase tracking-wide" style={{ color: B.muted }}>
                 Self-help guides
@@ -357,37 +397,63 @@ export default function SupportPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border bg-white p-4 md:p-5" style={{ borderColor: B.border }}>
-            <div className="mb-2 flex items-center gap-2">
+          <div
+            className="flex flex-col rounded-2xl border bg-white p-4 md:p-5 lg:col-span-2"
+            style={{ borderColor: B.border }}
+          >
+            <div className="mb-3 flex items-center gap-2">
               <MapPin size={16} style={{ color: B.blueLight }} />
               <h3 className="text-sm font-bold uppercase tracking-wide" style={{ color: B.muted }}>
                 Nodal officer
               </h3>
             </div>
-            <p className="text-sm leading-relaxed" style={{ color: B.blueMid }}>
+            <div
+              className="rounded-xl border px-3 py-3 text-sm leading-relaxed"
+              style={{ borderColor: B.border, background: B.bg, color: B.blueMid }}
+            >
               {nodalAddress || "Address not set yet (Admin → Platform Settings)."}
-            </p>
-            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-sm font-medium" style={{ color: B.blueMid }}>
-              {nodalEmail ? (
-                <a href={mailto(nodalEmail)} className="inline-flex items-center gap-1.5 hover:underline">
-                  <Mail size={14} /> {nodalEmail}
-                </a>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 opacity-50">
-                  <Mail size={14} /> Email not set
-                </span>
-              )}
-              {nodalPhone ? (
-                <a href={telHref(nodalPhone)} className="inline-flex items-center gap-1.5 hover:underline">
-                  <Phone size={14} /> {formatPhone(nodalPhone)}
-                </a>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 opacity-50">
-                  <Phone size={14} /> Phone not set
-                </span>
-              )}
+            </div>
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <ContactLine
+                kind="mail"
+                label="Nodal email"
+                value={nodalEmail || "Email not set"}
+                href={nodalEmail ? mailto(nodalEmail) : undefined}
+              />
+              <ContactLine
+                kind="phone"
+                label="Nodal phone"
+                value={nodalPhone ? formatPhone(nodalPhone) : "Phone not set"}
+                href={nodalPhone ? telHref(nodalPhone) : undefined}
+              />
             </div>
           </div>
+        </div>
+
+        {/* Good-to-know strip */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {SUPPORT_TIPS.map((tip) => (
+            <div
+              key={tip.title}
+              className="flex items-start gap-3 rounded-2xl border bg-white p-4"
+              style={{ borderColor: B.border }}
+            >
+              <span
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+                style={{ background: B.secondary }}
+              >
+                <tip.icon size={17} style={{ color: B.blueLight }} />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-bold" style={{ color: B.blue }}>
+                  {tip.title}
+                </p>
+                <p className="mt-0.5 text-xs leading-relaxed" style={{ color: B.muted }}>
+                  {tip.body}
+                </p>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </AppShell>

@@ -147,19 +147,22 @@ export function FundRequestForm({ onClose, onSuccess }: FundRequestFormProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
-      <div className="w-full max-w-md rounded-2xl bg-card p-6 shadow-lg">
+      <div className="w-full max-w-3xl rounded-2xl bg-card p-6 shadow-lg">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-semibold text-gray-900">Add money — fund request</h2>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600" aria-label="Close">
             <X size={18} />
           </button>
         </div>
-      <form onSubmit={handleSubmit} className="max-h-[70vh] space-y-3 overflow-y-auto pr-1">
-        <p className="text-xs" style={{ color: B.muted }}>
+      <form
+        onSubmit={handleSubmit}
+        className="grid max-h-[85vh] grid-cols-1 gap-x-4 gap-y-3 overflow-y-auto pr-1 sm:grid-cols-2"
+      >
+        <p className="text-xs sm:col-span-2" style={{ color: B.muted }}>
           Deposit to a company collection account, then submit UTR and receipt for credit.
         </p>
 
-        <div>
+        <div className="sm:col-span-2">
           <label className="mb-1 block text-sm font-medium text-gray-700">Company bank account</label>
           <select
             required
@@ -293,7 +296,7 @@ export function FundRequestForm({ onClose, onSuccess }: FundRequestFormProps) {
         <button
           type="submit"
           disabled={loading || loadingBanks || banks.length === 0}
-          className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60"
+          className="mt-1 w-full rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60 sm:col-span-2"
         >
           {loading ? "Submitting…" : "Submit fund request"}
         </button>
