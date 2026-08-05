@@ -199,14 +199,19 @@ function BankingCard({
       <div className="flex flex-wrap items-start gap-3 sm:gap-4">
         {aeps.length > 0 ? (
           <div
-            className="relative shrink-0 rounded-xl border-2 px-2 pb-2 pt-4 sm:px-3 sm:pb-3 sm:pt-5"
+            className="relative shrink-0 rounded-xl border-2 px-2 pb-2 pt-5 sm:px-3 sm:pb-3 sm:pt-6"
             style={{ borderColor: "rgba(11,42,154,0.18)" }}
           >
             <span
-              className="absolute left-1/2 top-0 z-10 -translate-x-1/2 -translate-y-1/2 rounded-md px-2.5 py-0.5 text-[10px] font-extrabold tracking-wide text-white shadow-sm"
-              style={{ background: B.badgeGrad }}
+              className="absolute left-1/2 top-0 z-10 flex -translate-x-1/2 -translate-y-1/2 items-center rounded-md border bg-white px-1.5 py-1 shadow-sm"
+              style={{ borderColor: B.border }}
             >
-              AePS
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/assets/AEPS-Logo.png"
+                alt="AePS — Aadhaar Enabled Payment System"
+                className="h-5 w-auto object-contain sm:h-6"
+              />
             </span>
             <div className="flex flex-wrap items-start gap-1 sm:gap-2">
               {aeps.map((svc, i) => (
