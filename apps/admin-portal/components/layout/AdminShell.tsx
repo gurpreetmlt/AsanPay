@@ -149,7 +149,7 @@ function NavLink({
       }}
     >
       <AnimatedNavIcon def={icon} active={active} size={18} className={active ? "opacity-100" : "opacity-70"} />
-      <span className="text-[15px] font-semibold">{label}</span>
+      <span className="text-sm font-medium">{label}</span>
     </Link>
   );
 }
@@ -181,7 +181,7 @@ function NavDropdown({
         }}
       >
         <AnimatedNavIcon def={item.icon} active={active} size={18} className={active ? "opacity-100" : "opacity-70"} />
-        <span className="flex-1 text-left text-[15px] font-semibold">{item.label}</span>
+        <span className="flex-1 text-left text-sm font-medium">{item.label}</span>
         <ChevronDown
           size={14}
           className={cn("shrink-0 transition-transform duration-200", expanded && "rotate-180")}
@@ -240,7 +240,7 @@ function SidebarNav({
       ).map((section) => (
         <div key={section.title}>
           <p
-            className="mb-2 px-3 text-xs font-bold uppercase tracking-wider"
+            className="mb-2 px-3 text-[11px] font-bold uppercase tracking-wider"
             style={{ color: "var(--admin-sidebar-muted)" }}
           >
             {section.title}
@@ -356,12 +356,12 @@ export function AdminShell({ children }: { children: ReactNode }) {
         </div>
         <div className="min-w-0">
           <div
-            className="truncate text-[15px] font-semibold"
+            className="truncate text-[14px] font-semibold"
             style={{ color: "var(--admin-sidebar-text-active)" }}
           >
             {name}
           </div>
-          <div className="text-[13px]" style={{ color: "var(--admin-sidebar-muted)" }}>
+          <div className="text-[11px]" style={{ color: "var(--admin-sidebar-muted)" }}>
             {uid} · Platform Admin
           </div>
         </div>

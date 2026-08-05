@@ -279,7 +279,7 @@ export function AdminHeader({ onOpenMobileNav }: { onOpenMobileNav?: () => void 
               <div className="text-sm font-bold" style={{ color: textPrimary }}>
                 {name}
               </div>
-              <div className="text-[13px]" style={{ color: textMuted }}>
+              <div className="text-xs" style={{ color: textMuted }}>
                 Platform Admin
               </div>
             </div>
