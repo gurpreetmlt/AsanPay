@@ -208,60 +208,61 @@ export default function UpiCashPointPage() {
         </div>
 
         {stage === "input" ? (
-          /* Match Spice Money: compact amount + pills, no blue brand strip */
-          <div className="grid items-start gap-5 md:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_340px]">
+          /* Clean spacious layout — roomy type, same outer shell */
+          <div className="grid items-start gap-6 md:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_340px]">
             <div className="min-w-0">
               <div
                 className="overflow-hidden rounded-2xl border bg-white shadow-sm"
                 style={{ borderColor: B.border }}
               >
-                <div className="flex items-start gap-2 border-b border-amber-100 bg-amber-50 px-4 py-2.5">
-                  <Info size={14} className="mt-0.5 shrink-0 text-amber-600" />
-                  <p className="text-[11px] leading-relaxed text-amber-900">
-                    QR expires in <span className="font-semibold">30 seconds</span>. Customer can
-                    make payment within <span className="font-semibold">2 minutes</span>.
+                <div className="flex items-start gap-2.5 bg-amber-50 px-5 py-3.5">
+                  <Info size={16} className="mt-0.5 shrink-0 text-amber-600" />
+                  <p className="text-[13px] leading-relaxed text-amber-900">
+                    QR expires in <span className="font-bold">30 seconds</span>. Customer can make
+                    payment within <span className="font-bold">2 minutes</span>.
                   </p>
                 </div>
 
-                <div className="px-6 pb-6 pt-5">
-                  <p className="mb-4 text-center text-[15px] font-semibold text-gray-800">
+                <div className="px-8 pb-8 pt-8 sm:px-12">
+                  <p className="mb-6 text-center text-lg font-bold text-gray-900">
                     Amount to Withdraw
                   </p>
 
-                  {/* Amount — larger, crisp; container width unchanged */}
-                  <div className="mx-auto w-[180px]">
-                    <div className="flex items-baseline justify-center gap-1.5 border-b-2 border-gray-200 pb-1.5">
-                      <span className="text-xl font-semibold text-gray-800">₹</span>
+                  <div className="mx-auto w-full max-w-[280px]">
+                    <div className="flex items-center justify-center gap-2 border-b border-gray-200 pb-2">
+                      <span className="text-3xl font-semibold text-gray-500">₹</span>
                       <input
                         type="text"
                         inputMode="numeric"
                         value={amount}
                         onChange={(e) => setAmount(e.target.value.replace(/\D/g, "").slice(0, 5))}
                         placeholder="0"
-                        className="w-full min-w-0 bg-transparent text-center text-[34px] font-bold leading-none tracking-tight tabular-nums text-gray-900 outline-none placeholder:text-gray-300"
+                        className="w-full min-w-0 bg-transparent text-center text-5xl font-bold leading-none tracking-tight tabular-nums text-gray-900 outline-none placeholder:font-semibold placeholder:text-gray-300"
                       />
                     </div>
-                    <p className="mt-2 text-center text-xs text-gray-500">
-                      {amountNum > 0 ? amountInWords(amountNum) : "Enter amount in multiples of ₹100"}
+                    <p className="mt-3 text-center text-sm text-gray-500">
+                      {amountNum > 0
+                        ? amountInWords(amountNum)
+                        : "Enter amount in multiples of ₹100"}
                     </p>
                   </div>
 
-                  <div className="mx-auto mt-6 grid max-w-[460px] grid-cols-4 gap-2.5 sm:grid-cols-5">
+                  <div className="mx-auto mt-8 flex max-w-[520px] flex-wrap justify-center gap-3">
                     {QUICK_AMOUNTS.map(({ amount: a, hint }) => (
                       <button
                         key={a}
                         type="button"
                         onClick={() => setAmount(String(a))}
                         className={clsx(
-                          "rounded-lg border px-1.5 py-2.5 text-[13px] font-semibold transition",
+                          "min-w-[5.75rem] rounded-xl border px-3 py-3 text-[15px] font-semibold transition",
                           amount === String(a)
-                            ? "border-blue-500 bg-blue-50 text-blue-700"
-                            : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50",
+                            ? "border-blue-500 bg-blue-50 text-blue-700 shadow-sm"
+                            : "border-gray-200 bg-white text-gray-800 hover:border-gray-300 hover:bg-gray-50",
                         )}
                       >
                         ₹{a.toLocaleString("en-IN")}
                         {hint ? (
-                          <span className="mt-0.5 block text-[9px] font-medium leading-none text-gray-400">
+                          <span className="mt-1 block text-[10px] font-medium leading-none text-gray-400">
                             {hint}
                           </span>
                         ) : null}
@@ -269,28 +270,28 @@ export default function UpiCashPointPage() {
                     ))}
                   </div>
 
-                  <div className="mt-7 flex justify-center">
+                  <div className="mt-9 flex justify-center">
                     <button
                       type="button"
                       onClick={handleGenerate}
                       disabled={amountNum < 1}
                       className={clsx(
-                        "inline-flex items-center gap-2 rounded-full px-10 py-2.5 text-sm font-bold text-white shadow-md transition",
+                        "inline-flex min-w-[240px] items-center justify-center gap-2.5 rounded-full px-12 py-3.5 text-base font-bold text-white shadow-lg transition",
                         amountNum >= 1 ? "hover:opacity-90" : "cursor-not-allowed opacity-45",
                       )}
                       style={{
                         background:
                           amountNum >= 1
-                            ? `linear-gradient(135deg, ${B.blue} 0%, ${B.blueMid} 100%)`
+                            ? `linear-gradient(135deg, ${B.blueLight} 0%, ${B.blue} 100%)`
                             : "#94a3b8",
                       }}
                     >
                       Generate QR
-                      <QrCode size={16} strokeWidth={2.4} />
+                      <QrCode size={18} strokeWidth={2.4} />
                     </button>
                   </div>
 
-                  <div className="mt-4 flex items-center justify-center gap-3 text-[11px] font-semibold tracking-wide text-gray-400">
+                  <div className="mt-5 flex items-center justify-center gap-4 text-xs font-semibold tracking-wide text-gray-400">
                     <span>AsanPay</span>
                     <span className="text-gray-300">·</span>
                     <span>YES BANK</span>
@@ -300,9 +301,9 @@ export default function UpiCashPointPage() {
                 </div>
 
                 {amountNum > 0 ? (
-                  <div className="flex items-center justify-between bg-slate-800 px-4 py-2.5 text-[12px] font-semibold text-white">
-                    <span className="flex items-center gap-2">
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-black">
+                  <div className="flex items-center justify-between bg-slate-800 px-5 py-3 text-sm font-semibold text-white">
+                    <span className="flex items-center gap-2.5">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-[11px] font-black">
                         ₹
                       </span>
                       You will earn ₹2 on this transaction
@@ -313,49 +314,68 @@ export default function UpiCashPointPage() {
                       className="rounded p-0.5 text-white/70 hover:text-white"
                       aria-label="Dismiss"
                     >
-                      <X size={14} />
+                      <X size={16} />
                     </button>
                   </div>
                 ) : null}
               </div>
 
-              <p className="mt-3 text-center text-[11px] font-medium text-gray-400">
-                Supported UPI Apps
-              </p>
+              <div className="mt-5">
+                <p className="mb-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-400">
+                  Supported UPI Apps
+                </p>
+                <div className="flex flex-wrap items-center justify-center gap-2.5">
+                  {UPI_APPS.slice(0, 6).map((app) => (
+                    <div
+                      key={app.name}
+                      className="flex items-center gap-1.5 rounded-full border border-gray-100 bg-white px-3 py-1.5 shadow-sm"
+                    >
+                      <div
+                        className="flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-black text-white"
+                        style={{ backgroundColor: app.color }}
+                      >
+                        {app.short[0]}
+                      </div>
+                      <span className="text-xs font-semibold text-gray-700">{app.short}</span>
+                    </div>
+                  ))}
+                  <span className="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-500">
+                    +50 Others
+                  </span>
+                </div>
+              </div>
             </div>
 
             <aside className="min-w-0 space-y-4 md:sticky md:top-4">
               <div
-                className="rounded-2xl border bg-white p-4 shadow-sm"
+                className="rounded-2xl border bg-white p-5 shadow-sm"
                 style={{ borderColor: B.border }}
               >
-                <h3 className="mb-2.5 text-sm font-bold text-gray-900">Notes:</h3>
-                <ul className="space-y-2 text-[11px] leading-relaxed text-gray-600">
+                <h3 className="mb-3 text-sm font-bold text-gray-900">Notes:</h3>
+                <ul className="space-y-2.5 text-[12px] leading-relaxed text-gray-600">
                   <li className="flex gap-2">
-                    <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-gray-500" />
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-500" />
                     Daily withdrawal limit per customer is ₹10,000
                   </li>
                   <li className="flex gap-2">
-                    <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-gray-500" />
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-500" />
                     Minimum gap between 2 transactions of same customer should be 30 minutes
                   </li>
                   <li className="flex gap-2">
-                    <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-gray-500" />
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-500" />
                     No commission will be paid for transactions made using your own UPI ID
                   </li>
                 </ul>
               </div>
 
               <div
-                className="rounded-2xl border bg-white p-4 shadow-sm"
+                className="rounded-2xl border bg-white p-5 shadow-sm"
                 style={{ borderColor: B.border }}
               >
-                <h3 className="mb-2.5 text-sm font-bold text-gray-900">Help Video</h3>
-                <div className="flex aspect-video items-center justify-center rounded-lg bg-slate-900">
+                <h3 className="mb-3 text-sm font-bold text-gray-900">Help Video</h3>
+                <div className="flex aspect-video items-center justify-center rounded-xl bg-slate-900">
                   <div className="text-center">
-                    <p className="text-[11px] font-bold tracking-wide text-white/90">
-                      UPI CASH POINT
-                    </p>
+                    <p className="text-xs font-bold tracking-wide text-white/90">UPI CASH POINT</p>
                     <p className="mt-1 text-[10px] text-white/45">Tutorial coming soon</p>
                   </div>
                 </div>
