@@ -514,3 +514,52 @@ adminRouter.patch("/tenant-settings", async (req, res) => {
   const tenantId = await resolveTenantId();
   sendSuccess(res, await patchTenantSettings(tenantId, body), "Settings saved");
 });
+
+adminRouter.get("/promos", async (req, res) => {
+  const placement = z
+    .enum(["dashboard", "login"])
+    .optional()
+    .parse(typeof req.query.placement === "string" ? req.query.placement : undefined);
+  const { listPromoSlides, absolutePromoUrl } = await import("../tenants/promo.service");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const tenantId = await resolveTenantId();
+  const slides = await listPromoSlides(tenantId, placement);
+  const proto = req.get("x-forwarded-proto") || req.protocol || "https";
+  const host = req.get("x-forwarded-host") || req.get("host") || "localhost";
+  const origin = `${proto}://${host}`;
+  sendSuccess(
+    res,
+    slides.map((s) => ({ ...s, imageUrl: absolutePromoUrl(s.imageUrl, origin) })),
+  );
+});
+
+adminRouter.put("/promos", async (req, res) => {
+  const body = z
+    .object({
+      placement: z.enum(["dashboard", "login"]),
+      slides: z.array(z.record(z.string(), z.unknown())).max(5),
+    })
+    .parse(req.body);
+  const { replacePromoSlides, absolutePromoUrl } = await import("../tenants/promo.service");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const tenantId = await resolveTenantId();
+  const slides = await replacePromoSlides(tenantId, body.placement, body.slides);
+  const proto = req.get("x-forwarded-proto") || req.protocol || "https";
+  const host = req.get("x-forwarded-host") || req.get("host") || "localhost";
+  const origin = `${proto}://${host}`;
+  sendSuccess(
+    res,
+    slides.map((s) => ({ ...s, imageUrl: absolutePromoUrl(s.imageUrl, origin) })),
+    "Promotions saved",
+  );
+});
+
+adminRouter.post("/promos/upload", async (req, res) => {
+  const body = z.object({ dataUrl: z.string().min(32).max(2_200_000) }).parse(req.body);
+  const { savePromoUpload, absolutePromoUrl } = await import("../tenants/promo.service");
+  const saved = await savePromoUpload(body.dataUrl);
+  const proto = req.get("x-forwarded-proto") || req.protocol || "https";
+  const host = req.get("x-forwarded-host") || req.get("host") || "localhost";
+  const origin = `${proto}://${host}`;
+  sendSuccess(res, { imageUrl: absolutePromoUrl(saved.imageUrl, origin), path: saved.imageUrl }, "Image uploaded");
+});

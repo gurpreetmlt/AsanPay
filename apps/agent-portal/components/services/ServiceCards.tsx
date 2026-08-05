@@ -3,16 +3,17 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { ChevronDown, Star, Megaphone, Building2, Receipt, Wallet, Landmark, LayoutGrid } from "lucide-react";
+import { ChevronDown, Star, Building2, Receipt, Wallet, Landmark, LayoutGrid } from "lucide-react";
 import { fetchApi } from "@/lib/api";
 import type { CatalogCategoryView } from "@/lib/types";
-import { B, brand } from "@/lib/brand";
+import { B } from "@/lib/brand";
 import { serviceIconPath } from "@asanpay/shared-types";
 import { DesignIcon, designTileColors, serviceCodeToDesignKey } from "@/lib/designIcons";
 import { flattenCatalogServices } from "@/lib/catalog";
 import { extractApiError, isKycServicesUnlocked } from "@/lib/onboarding";
 import { MAX_FAVORITES, selectFavoriteCodes, useFavoritesStore } from "@/lib/favorites";
 import { useAuthStore } from "@/lib/store";
+import { PromoSlider } from "@/components/promos/PromoSlider";
 
 type Svc = { id: string; code: string; name: string; badge: string | null; icon: string | null };
 
@@ -299,41 +300,15 @@ function BankingCard({
   );
 }
 
-/** Side promo — stretches to match services column height. */
+/** Side promo — image slider from Admin → Promotions (dashboard placement). */
 function DashboardAdBox() {
   return (
     <aside
       className="flex w-full shrink-0 flex-col xl:w-[300px] 2xl:w-[340px]"
       aria-label="Promotions"
     >
-      <div
-        className="relative flex h-full min-h-[320px] flex-1 flex-col overflow-hidden rounded-2xl p-5 text-white shadow-md"
-        style={{ background: B.badgeGrad }}
-      >
-        <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10" />
-        <div className="absolute -bottom-8 -left-8 h-32 w-32 rounded-full bg-white/10" />
-        <div className="relative z-10 flex min-h-0 flex-1 flex-col">
-          <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-white/80">
-            <Megaphone size={14} />
-            Promotions
-          </div>
-          <h3 className="text-xl font-bold leading-snug sm:text-2xl">{brand.name} offers</h3>
-          <p className="mt-2 text-sm leading-relaxed text-white/85">
-            Promo panel for campaigns. Creative artwork can go here later.
-          </p>
-          <div className="mt-6 flex min-h-[140px] flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-white/35 bg-white/10 px-4 py-10 text-center">
-            <p className="text-sm font-semibold text-white/90">Ad slot</p>
-            <p className="mt-1 text-xs text-white/70">Reserved · content later</p>
-          </div>
-          <button
-            type="button"
-            disabled
-            className="mt-5 w-full shrink-0 rounded-xl bg-white py-3 text-sm font-bold opacity-90"
-            style={{ color: B.blue }}
-          >
-            Coming soon
-          </button>
-        </div>
+      <div className="h-full min-h-[320px] flex-1">
+        <PromoSlider placement="dashboard" fill />
       </div>
     </aside>
   );

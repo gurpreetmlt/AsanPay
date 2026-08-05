@@ -2,6 +2,7 @@ import express, { type Express } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+import path from "path";
 import { env } from "./config/env";
 import { apiLimiter } from "./middleware/rateLimiter";
 import { hardenRequest } from "./middleware/harden";
@@ -20,6 +21,7 @@ import { fundRequestRouter } from "./modules/fund-requests/fundRequest.routes";
 import { bankingRouter } from "./modules/banking/banking.routes";
 import { settlementRouter } from "./modules/settlements/settlement.routes";
 import { floatRouter } from "./modules/float/float.routes";
+import { promosRouter } from "./modules/promos/promos.routes";
 
 export function createApp(): Express {
   const app = express();
@@ -34,7 +36,7 @@ export function createApp(): Express {
           defaultSrc: ["'self'"],
           scriptSrc: ["'self'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
-          imgSrc: ["'self'", "data:"],
+          imgSrc: ["'self'", "data:", "https:", "http:"],
           connectSrc: ["'self'"],
           fontSrc: ["'self'"],
           objectSrc: ["'none'"],
@@ -65,8 +67,8 @@ export function createApp(): Express {
       credentials: true,
     }),
   );
-  app.use(express.json({ limit: "1mb" }));
-  app.use(express.urlencoded({ extended: true, limit: "1mb" }));
+  app.use(express.json({ limit: "2mb" }));
+  app.use(express.urlencoded({ extended: true, limit: "2mb" }));
   app.use(hardenRequest);
   app.use(morgan(env.NODE_ENV === "development" ? "dev" : "combined"));
   app.use(apiLimiter);
@@ -74,6 +76,8 @@ export function createApp(): Express {
   app.get("/health", (_req, res) => {
     res.json({ success: true, data: { status: "ok", timestamp: new Date().toISOString() } });
   });
+
+  app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
   app.use("/api/auth", authRouter);
   app.use("/api/wallet", walletRouter);
@@ -89,6 +93,7 @@ export function createApp(): Express {
   app.use("/api/banking", bankingRouter);
   app.use("/api/settlements", settlementRouter);
   app.use("/api/float", floatRouter);
+  app.use("/api/promos", promosRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

@@ -84,3 +84,5 @@ app-env-backup.txt
 *-sydney.env
 *-mumbai.env
 coolify-*.env
+uploads/
+apps/backend/uploads/

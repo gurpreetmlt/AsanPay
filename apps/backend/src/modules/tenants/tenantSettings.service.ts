@@ -17,6 +17,8 @@ export interface TenantSettings {
   nodalEmail?: string;
   nodalPhone?: string;
   nodalAddress?: string;
+  /** Dashboard + login promo slider slides (max 5 per placement). */
+  promoSlides?: unknown[];
 }
 
 export type SupportContacts = {
@@ -28,7 +30,7 @@ export type SupportContacts = {
   nodalAddress: string;
 };
 
-function asSettings(raw: unknown): TenantSettings {
+export function asSettings(raw: unknown): TenantSettings {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
   return raw as TenantSettings;
 }
@@ -38,7 +40,7 @@ function strField(v: unknown, max: number): string {
   return v.trim().slice(0, max);
 }
 
-function mergeWithDefaults(s: TenantSettings): Required<TenantSettings> {
+function mergeWithDefaults(s: TenantSettings): Required<Omit<TenantSettings, "promoSlides">> {
   return {
     fundApproveDualRupees:
       typeof s.fundApproveDualRupees === "number" && s.fundApproveDualRupees > 0
@@ -57,7 +59,9 @@ function mergeWithDefaults(s: TenantSettings): Required<TenantSettings> {
   };
 }
 
-export async function getTenantSettings(tenantId: string): Promise<Required<TenantSettings>> {
+export async function getTenantSettings(
+  tenantId: string,
+): Promise<Required<Omit<TenantSettings, "promoSlides">>> {
   const [row] = await db
     .select({ settings: tenants.settings })
     .from(tenants)
@@ -82,7 +86,7 @@ export async function getSupportContacts(tenantId: string): Promise<SupportConta
 export async function patchTenantSettings(
   tenantId: string,
   patch: TenantSettings,
-): Promise<Required<TenantSettings>> {
+): Promise<Required<Omit<TenantSettings, "promoSlides">>> {
   if (patch.fundApproveDualRupees !== undefined) {
     const n = Number(patch.fundApproveDualRupees);
     if (!Number.isFinite(n) || n < 1 || n > 1_000_000_000) {

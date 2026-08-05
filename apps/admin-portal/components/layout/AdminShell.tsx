@@ -4,7 +4,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Crown, Network, Store, Tags, Percent, Plug, ScrollText, Scale, ShieldAlert, Wrench, LifeBuoy, IndianRupee, Landmark, Building2, ArrowLeftRight, Settings } from "lucide-react";
+import { ChevronDown, Crown, Network, Store, Tags, Percent, Plug, ScrollText, Scale, ShieldAlert, Wrench, LifeBuoy, IndianRupee, Landmark, Building2, ArrowLeftRight, Settings, Megaphone } from "lucide-react";
 import { AsanPayLogo } from "@/components/brand/Logo";
 import { AnimatedNavIcon } from "@/components/ui/AnimatedNavIcon";
 import type { NavIconDef } from "@/lib/iconTypes";
@@ -74,6 +74,7 @@ const SITE_CONTROL: NavItem[] = [
     icon: { lib: "fa", name: "FaGlobe" },
     children: [
       { href: "/platform-settings", label: "Platform Settings", icon: { lib: "lucide", icon: Settings } },
+      { href: "/promotions", label: "Promotions", icon: { lib: "lucide", icon: Megaphone } },
       { href: "/site-control", label: "Service Badges", icon: { lib: "lucide", icon: Tags } },
       { href: "/commission", label: "Commissions", icon: { lib: "lucide", icon: Percent } },
       { href: "/service-charges", label: "Service charges", icon: { lib: "lucide", icon: IndianRupee } },
