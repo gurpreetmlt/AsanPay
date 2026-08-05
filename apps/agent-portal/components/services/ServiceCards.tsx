@@ -78,7 +78,7 @@ function ServiceIconCard({
 
   return (
     <div
-      className="group relative flex w-[5.5rem] shrink-0 flex-col items-center sm:w-[6rem]"
+      className="group relative flex w-[5rem] shrink-0 flex-col items-center sm:w-[5.35rem]"
       style={{ "--tile-accent": tile.fg } as React.CSSProperties}
     >
       <button
@@ -90,42 +90,43 @@ function ServiceIconCard({
         }}
         className="absolute right-0 top-0 z-10 rounded-md p-0.5 opacity-0 transition group-hover:opacity-100"
       >
-        <Star size={12} strokeWidth={2.2} color={starColor} fill={favorite ? starColor : "none"} />
+        <Star size={11} strokeWidth={2.2} color={starColor} fill={favorite ? starColor : "none"} />
       </button>
       <button
         type="button"
-        className="flex w-full flex-col items-center gap-1 text-center disabled:opacity-45"
+        className="flex w-full flex-col items-center gap-0.5 text-center disabled:opacity-45"
         onClick={() => (onOpen ? onOpen() : toast(`${svc.name} — coming soon on web`))}
       >
-        {svc.badge ? (
-          <span
-            className="max-w-full truncate rounded px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none"
-            style={{ background: `${tile.fg}18`, color: tile.fg }}
-            title={svc.badge}
-          >
-            {svc.badge}
-          </span>
-        ) : (
-          <span className="h-[15px]" aria-hidden />
-        )}
+        {/* Fixed badge row so AePS (no badge) lines up with NEW / Flat badges outside */}
+        <span
+          className="flex h-[14px] max-w-full items-center justify-center truncate rounded px-1 text-[8px] font-bold uppercase leading-none"
+          style={
+            svc.badge
+              ? { background: `${tile.fg}18`, color: tile.fg }
+              : { visibility: "hidden" }
+          }
+          title={svc.badge ?? undefined}
+        >
+          {svc.badge ?? "·"}
+        </span>
         {showAsset ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={assetSrc!}
             alt=""
-            className="h-10 w-10 object-contain transition duration-150 ease-out group-hover:scale-110 group-hover:drop-shadow-md sm:h-11 sm:w-11"
+            className="h-9 w-9 object-contain transition duration-150 ease-out group-hover:scale-110 group-hover:drop-shadow-md sm:h-10 sm:w-10"
             onError={() => setAssetFailed(true)}
           />
         ) : (
           <div
-            className="flex h-10 w-10 items-center justify-center rounded-xl transition duration-150 ease-out group-hover:scale-110 sm:h-11 sm:w-11"
+            className="flex h-9 w-9 items-center justify-center rounded-xl transition duration-150 ease-out group-hover:scale-110 sm:h-10 sm:w-10"
             style={{ background: tile.bg }}
           >
-            <DesignIcon name={designKey} size={24} color={tile.fg} />
+            <DesignIcon name={designKey} size={20} color={tile.fg} />
           </div>
         )}
         <div
-          className="line-clamp-2 min-h-[2rem] w-full text-center text-[11px] font-semibold leading-snug transition-colors duration-150 group-hover:text-[var(--tile-accent)] sm:text-xs"
+          className="line-clamp-2 min-h-[1.85rem] w-full text-center text-[10px] font-semibold leading-snug transition-colors duration-150 group-hover:text-[var(--tile-accent)] sm:text-[11px]"
           style={{ color: B.blue }}
         >
           {svc.name}
@@ -213,24 +214,25 @@ function BankingCard({
 }) {
   return (
     <CardShell title="Banking Services">
-      <div className="flex flex-wrap items-start gap-3 sm:gap-4">
+      {/* items-center = AePS box icons align with outer icons (same horizontal midline) */}
+      <div className="flex flex-wrap items-center gap-3 sm:gap-4">
         {aeps.length > 0 ? (
           <div
-            className="relative shrink-0 rounded-xl border-2 px-2 pb-2 pt-5 sm:px-3 sm:pb-3 sm:pt-6"
+            className="relative shrink-0 rounded-xl border-2 px-2 py-2 sm:px-2.5 sm:py-2.5"
             style={{ borderColor: "rgba(11,42,154,0.18)" }}
           >
             <span
-              className="absolute left-1/2 top-0 z-10 flex -translate-x-1/2 -translate-y-1/2 items-center rounded-md border bg-white px-1.5 py-1 shadow-sm"
+              className="absolute left-1/2 top-0 z-10 flex -translate-x-1/2 -translate-y-1/2 items-center rounded-md border bg-white px-1.5 py-0.5 shadow-sm"
               style={{ borderColor: B.border }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/assets/AEPS-Logo.png"
                 alt="AePS — Aadhaar Enabled Payment System"
-                className="h-5 w-auto object-contain sm:h-6"
+                className="h-4 w-auto object-contain sm:h-5"
               />
             </span>
-            <div className="flex flex-wrap items-start gap-1 sm:gap-2">
+            <div className="flex flex-wrap items-start gap-1 sm:gap-1.5">
               {aeps.map((svc, i) => (
                 <ServiceIconCard
                   key={svc.id}
@@ -246,7 +248,7 @@ function BankingCard({
         ) : null}
 
         {rest.length > 0 ? (
-          <div className="flex min-w-0 flex-1 flex-wrap items-start gap-1 sm:gap-2">
+          <div className="flex min-w-0 flex-1 flex-wrap items-start gap-1 sm:gap-1.5">
             {rest.map((svc, i) => (
               <ServiceIconCard
                 key={svc.id}
