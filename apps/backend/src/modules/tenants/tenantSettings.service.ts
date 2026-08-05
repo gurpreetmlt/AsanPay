@@ -14,6 +14,8 @@ export interface TenantSettings {
   supportEmail?: string;
   /** Digits for wa.me (e.g. 9198xxxxxxxx). */
   supportWhatsapp?: string;
+  /** Public company website URL (agent Support → Company box). */
+  supportWebsite?: string;
   nodalEmail?: string;
   nodalPhone?: string;
   nodalAddress?: string;
@@ -25,6 +27,7 @@ export type SupportContacts = {
   supportPhone: string;
   supportEmail: string;
   supportWhatsapp: string;
+  supportWebsite: string;
   nodalEmail: string;
   nodalPhone: string;
   nodalAddress: string;
@@ -40,6 +43,21 @@ function strField(v: unknown, max: number): string {
   return v.trim().slice(0, max);
 }
 
+/** Normalize website to https://… or empty. */
+function normalizeWebsite(raw: unknown): string {
+  const s = strField(raw, 200);
+  if (!s) return "";
+  const withScheme = /^https?:\/\//i.test(s) ? s : `https://${s}`;
+  try {
+    const u = new URL(withScheme);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return "";
+    if (!u.hostname.includes(".")) return "";
+    return u.toString().replace(/\/$/, "");
+  } catch {
+    return "";
+  }
+}
+
 function mergeWithDefaults(s: TenantSettings): Required<Omit<TenantSettings, "promoSlides">> {
   return {
     fundApproveDualRupees:
@@ -53,6 +71,7 @@ function mergeWithDefaults(s: TenantSettings): Required<Omit<TenantSettings, "pr
     supportPhone: strField(s.supportPhone, 40),
     supportEmail: strField(s.supportEmail, 150),
     supportWhatsapp: strField(s.supportWhatsapp, 20).replace(/\D/g, "").slice(0, 20),
+    supportWebsite: normalizeWebsite(s.supportWebsite) || "https://asanpay.in",
     nodalEmail: strField(s.nodalEmail, 150),
     nodalPhone: strField(s.nodalPhone, 40),
     nodalAddress: strField(s.nodalAddress, 500),
@@ -77,6 +96,7 @@ export async function getSupportContacts(tenantId: string): Promise<SupportConta
     supportPhone: s.supportPhone,
     supportEmail: s.supportEmail,
     supportWhatsapp: s.supportWhatsapp,
+    supportWebsite: s.supportWebsite,
     nodalEmail: s.nodalEmail,
     nodalPhone: s.nodalPhone,
     nodalAddress: s.nodalAddress,
@@ -117,6 +137,15 @@ export async function patchTenantSettings(
       throw new HttpError(422, "Enter a valid nodal officer email address", "INVALID_NODAL_EMAIL");
     }
   }
+  if (patch.supportWebsite !== undefined && patch.supportWebsite.trim() !== "") {
+    if (!normalizeWebsite(patch.supportWebsite)) {
+      throw new HttpError(
+        422,
+        "Enter a valid website URL (e.g. https://asanpay.in)",
+        "INVALID_SUPPORT_WEBSITE",
+      );
+    }
+  }
 
   return db.transaction(async (tx) => {
     const [row] = await tx
@@ -141,6 +170,9 @@ export async function patchTenantSettings(
       ...(patch.supportEmail !== undefined ? { supportEmail: strField(patch.supportEmail, 150) } : {}),
       ...(patch.supportWhatsapp !== undefined
         ? { supportWhatsapp: strField(patch.supportWhatsapp, 20).replace(/\D/g, "").slice(0, 20) }
+        : {}),
+      ...(patch.supportWebsite !== undefined
+        ? { supportWebsite: normalizeWebsite(patch.supportWebsite) }
         : {}),
       ...(patch.nodalEmail !== undefined ? { nodalEmail: strField(patch.nodalEmail, 150) } : {}),
       ...(patch.nodalPhone !== undefined ? { nodalPhone: strField(patch.nodalPhone, 40) } : {}),

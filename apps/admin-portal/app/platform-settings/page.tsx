@@ -14,6 +14,7 @@ type SupportForm = {
   supportPhone: string;
   supportEmail: string;
   supportWhatsapp: string;
+  supportWebsite: string;
   nodalEmail: string;
   nodalPhone: string;
   nodalAddress: string;
@@ -23,6 +24,7 @@ const EMPTY: SupportForm = {
   supportPhone: "",
   supportEmail: "",
   supportWhatsapp: "",
+  supportWebsite: "https://asanpay.in",
   nodalEmail: "",
   nodalPhone: "",
   nodalAddress: "",
@@ -45,6 +47,7 @@ export default function PlatformSettingsPage() {
         supportPhone: settings.supportPhone ?? "",
         supportEmail: settings.supportEmail ?? "",
         supportWhatsapp: settings.supportWhatsapp ?? "",
+        supportWebsite: settings.supportWebsite ?? "https://asanpay.in",
         nodalEmail: settings.nodalEmail ?? "",
         nodalPhone: settings.nodalPhone ?? "",
         nodalAddress: settings.nodalAddress ?? "",
@@ -76,6 +79,7 @@ export default function PlatformSettingsPage() {
         supportPhone: form.supportPhone.trim(),
         supportEmail: form.supportEmail.trim(),
         supportWhatsapp: form.supportWhatsapp.trim(),
+        supportWebsite: form.supportWebsite.trim(),
         nodalEmail: form.nodalEmail.trim(),
         nodalPhone: form.nodalPhone.trim(),
         nodalAddress: form.nodalAddress.trim(),
@@ -102,8 +106,8 @@ export default function PlatformSettingsPage() {
             Platform Settings
           </h1>
           <p className="mt-1 text-sm" style={{ color: B.muted }}>
-            Care contacts shown on agent Support (call, WhatsApp, email, nodal officer). Stored in the
-            database — no redeploy to change.
+            Care contacts shown on agent Support (call, WhatsApp, email, website, nodal officer).
+            Stored in the database — no redeploy to change.
           </p>
         </div>
 
@@ -143,6 +147,13 @@ export default function PlatformSettingsPage() {
                   value={form.supportWhatsapp}
                   onChange={(v) => setField("supportWhatsapp", v)}
                   placeholder="9198xxxxxxxx"
+                />
+                <Field
+                  label="Website"
+                  hint="Shown on agent Support → Company box"
+                  value={form.supportWebsite}
+                  onChange={(v) => setField("supportWebsite", v)}
+                  placeholder="https://asanpay.in"
                 />
               </section>
 

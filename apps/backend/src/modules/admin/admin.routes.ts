@@ -504,6 +504,7 @@ adminRouter.patch("/tenant-settings", async (req, res) => {
       supportPhone: z.string().max(40).optional(),
       supportEmail: z.string().max(150).optional(),
       supportWhatsapp: z.string().max(20).optional(),
+      supportWebsite: z.string().max(200).optional(),
       nodalEmail: z.string().max(150).optional(),
       nodalPhone: z.string().max(40).optional(),
       nodalAddress: z.string().max(500).optional(),

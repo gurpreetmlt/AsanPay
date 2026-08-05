@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import {
@@ -13,12 +13,9 @@ import {
   PlayCircle,
   ChevronRight,
   Plus,
-  X,
-  Zap,
-  Headphones,
-  ShieldCheck,
-  Clock,
-  FileText,
+  Globe,
+  UserRound,
+  Building2,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { B, brand } from "@/lib/brand";
@@ -53,6 +50,7 @@ interface SupportContacts {
   supportPhone: string;
   supportEmail: string;
   supportWhatsapp: string;
+  supportWebsite: string;
   nodalEmail: string;
   nodalPhone: string;
   nodalAddress: string;
@@ -62,6 +60,7 @@ const EMPTY_CONTACTS: SupportContacts = {
   supportPhone: "",
   supportEmail: "",
   supportWhatsapp: "",
+  supportWebsite: "https://asanpay.in",
   nodalEmail: "",
   nodalPhone: "",
   nodalAddress: "",
@@ -72,24 +71,6 @@ const HELP_GUIDES = [
   { title: "DMT money transfer", tag: "DMT" },
   { title: "Add money & Balance", tag: "Balance" },
   { title: "Transaction PIN safety", tag: "Security" },
-] as const;
-
-const SUPPORT_TIPS = [
-  {
-    icon: FileText,
-    title: "Keep the reference ready",
-    body: "Txn ref / UTR and amount make a ticket much faster to resolve.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Never share PIN or OTP",
-    body: "Our team will never ask for your transaction PIN, OTP or password.",
-  },
-  {
-    icon: Clock,
-    title: "Reply within ~5 hrs",
-    body: "Tickets are answered on working days. Urgent? Call your upline.",
-  },
 ] as const;
 
 function roleLabel(role: string) {
@@ -128,12 +109,12 @@ export default function SupportPage() {
   const router = useRouter();
   const hydrated = useAuthHydrated();
   const accessToken = useAuthStore((s) => s.accessToken);
+  const ticketSectionRef = useRef<HTMLDivElement>(null);
 
   const [tickets, setTickets] = useState<TicketRow[]>([]);
   const [upline, setUpline] = useState<UplineItem | null>(null);
   const [contacts, setContacts] = useState<SupportContacts>(EMPTY_CONTACTS);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -165,6 +146,13 @@ export default function SupportPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken]);
 
+  function focusTicketForm() {
+    ticketSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.setTimeout(() => {
+      document.getElementById("support-ticket-subject")?.focus();
+    }, 280);
+  }
+
   async function submit() {
     if (subject.trim().length < 3) {
       toast.error("Subject must be at least 3 characters");
@@ -180,7 +168,6 @@ export default function SupportPage() {
       toast.success("Ticket raised");
       setSubject("");
       setDescription("");
-      setShowForm(false);
       await loadTickets();
     } catch (err) {
       toast.error(extractApiError(err, "Failed to raise ticket"));
@@ -198,6 +185,7 @@ export default function SupportPage() {
   const carePhone = contacts.supportPhone.trim();
   const careEmail = contacts.supportEmail.trim();
   const careWa = contacts.supportWhatsapp.trim();
+  const companyWebsite = contacts.supportWebsite.trim() || "https://asanpay.in";
   const nodalEmail = contacts.nodalEmail.trim();
   const nodalPhone = contacts.nodalPhone.trim() || carePhone;
   const nodalAddress = contacts.nodalAddress.trim();
@@ -205,164 +193,212 @@ export default function SupportPage() {
 
   return (
     <AppShell>
-      <div className="mx-auto w-full max-w-[1600px] space-y-4 px-4 py-5 md:px-6 md:py-6 lg:px-8">
-        {/* Hero header */}
-        <div
-          className="relative overflow-hidden rounded-3xl px-5 py-6 md:px-8 md:py-7"
-          style={{ background: B.badgeGrad }}
-        >
-          <span
-            className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full"
-            style={{ background: "rgba(255,255,255,0.08)" }}
-          />
-          <span
-            className="pointer-events-none absolute -bottom-24 right-24 h-48 w-48 rounded-full"
-            style={{ background: "rgba(255,255,255,0.06)" }}
-          />
-          <div className="relative flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3.5">
-              <span
-                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl md:h-14 md:w-14"
-                style={{ background: "rgba(255,255,255,0.15)" }}
+      <div className="mx-auto w-full max-w-[1400px] space-y-5 px-4 py-5 md:px-6 md:py-6 lg:px-8">
+        {/* Compact header */}
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-bold md:text-2xl" style={{ color: B.blue }}>
+              Support
+            </h1>
+            <p className="mt-0.5 text-sm" style={{ color: B.muted }}>
+              Call your upline, contact {brand.name}, or raise a ticket below
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {waLink ? (
+              <a
+                href={waLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-bold text-white"
+                style={{ background: B.walletGrad }}
               >
-                <LifeBuoy size={26} className="text-white" />
-              </span>
-              <div>
-                <h1 className="text-2xl font-bold text-white md:text-3xl">We are here to help</h1>
-                <p className="mt-0.5 text-sm text-white/70">
-                  Upline · {brand.name} care · tickets
-                </p>
-              </div>
-            </div>
+                <MessageCircle size={16} />
+                WhatsApp
+              </a>
+            ) : null}
             <button
               type="button"
-              onClick={() => {
-                setShowForm(true);
-                setSubject((s) => s || "");
-              }}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2.5 text-sm font-bold shadow-sm transition hover:opacity-90"
-              style={{ color: B.blue }}
+              onClick={focusTicketForm}
+              className="inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-bold text-white shadow-sm"
+              style={{ background: B.badgeGrad }}
             >
               <Plus size={16} />
-              Raise ticket
+              Raise a ticket
             </button>
           </div>
         </div>
 
-        {/* Quick actions — wider tiles */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <QuickAction
-            icon={<MessageCircle size={20} style={{ color: B.green }} />}
-            iconBg="rgba(18,183,106,0.12)"
-            title="WhatsApp"
-            subtitle={careWa ? "Faster reply" : "Not configured"}
-            href={waLink}
-            accent={B.walletGrad}
-            disabled={!waLink}
-            badge={careWa ? "Fast" : undefined}
-          />
-          <QuickAction
-            icon={<Phone size={20} style={{ color: B.blueLight }} />}
-            iconBg={B.secondary}
-            title={distName ? distRole : "Upline"}
-            subtitle={distributorMobile ? formatPhone(distributorMobile) : "Not linked"}
-            href={distributorMobile ? telHref(distributorMobile) : undefined}
-            disabled={!distributorMobile}
-          />
-          <QuickAction
-            icon={<Headphones size={20} style={{ color: B.blueLight }} />}
-            iconBg={B.secondary}
-            title={brand.name}
-            subtitle={carePhone ? formatPhone(carePhone) : "Not set"}
-            href={carePhone ? telHref(carePhone) : undefined}
-            disabled={!carePhone}
-          />
-          <QuickAction
-            icon={<Mail size={20} style={{ color: B.blueLight }} />}
-            iconBg={B.secondary}
-            title="Email care"
-            subtitle={careEmail || "Not set"}
-            href={careEmail ? mailto(careEmail) : undefined}
-            disabled={!careEmail}
-          />
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-5 lg:items-stretch">
-          <div
-            className="flex flex-col rounded-2xl border bg-white p-4 md:p-5 lg:col-span-3"
-            style={{ borderColor: B.border }}
-          >
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-bold uppercase tracking-wide" style={{ color: B.muted }}>
-                Contact directory
-              </h2>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowForm(true);
-                  setSubject((s) => s || "Request a callback");
-                }}
-                className="text-sm font-bold underline-offset-2 hover:underline"
-                style={{ color: B.blueLight }}
-              >
-                Request callback
-              </button>
-            </div>
-
-            <div className="grid flex-1 grid-cols-1 gap-2 sm:grid-cols-2">
+        {/* Main: contacts left · ticket form right (primary) */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:items-start">
+          <div className="space-y-3 lg:col-span-2">
+            <ContactCard
+              icon={<UserRound size={16} style={{ color: B.blueLight }} />}
+              title={distRole}
+              name={distName || "No upline linked"}
+            >
               <ContactLine
                 kind="phone"
-                label={distName ? `${distRole} · ${distName}` : "Your upline"}
-                value={distributorMobile ? formatPhone(distributorMobile) : "No upline on this account"}
+                label="Phone"
+                value={distributorMobile ? formatPhone(distributorMobile) : "Not available"}
                 href={distributorMobile ? telHref(distributorMobile) : undefined}
               />
               <ContactLine
                 kind="mail"
-                label={distName ? `${distRole} email` : "Upline email"}
+                label="Email"
                 value={distributorEmail ?? (upline ? "No email on file" : "—")}
                 href={distributorEmail ? mailto(distributorEmail) : undefined}
               />
+            </ContactCard>
+
+            <ContactCard
+              icon={<Building2 size={16} style={{ color: B.blueLight }} />}
+              title="Company"
+              name={brand.name}
+            >
               <ContactLine
                 kind="phone"
-                label={`${brand.name} care`}
-                value={carePhone ? formatPhone(carePhone) : "Set in Platform Settings"}
+                label="Phone"
+                value={carePhone ? formatPhone(carePhone) : "Not set yet"}
                 href={carePhone ? telHref(carePhone) : undefined}
               />
               <ContactLine
                 kind="mail"
-                label={`${brand.name} care email`}
-                value={careEmail || "Set in Platform Settings"}
+                label="Email"
+                value={careEmail || "Not set yet"}
                 href={careEmail ? mailto(careEmail) : undefined}
               />
-            </div>
+              <ContactLine
+                kind="web"
+                label="Website"
+                value={companyWebsite.replace(/^https?:\/\//, "")}
+                href={companyWebsite}
+              />
+            </ContactCard>
           </div>
 
           <div
-            className="flex flex-col rounded-2xl border bg-white p-4 md:p-5 lg:col-span-2"
+            id="raise-ticket"
+            ref={ticketSectionRef}
+            className="rounded-2xl border bg-white p-5 shadow-sm lg:col-span-3"
             style={{ borderColor: B.border }}
           >
-            <TicketsBlock
-              tickets={tickets}
-              loading={loading}
-              showForm={showForm}
-              setShowForm={setShowForm}
-              subject={subject}
-              setSubject={setSubject}
-              description={description}
-              setDescription={setDescription}
-              submitting={submitting}
-              onSubmit={() => void submit()}
-            />
+            <div className="mb-4 flex items-start gap-3">
+              <span
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                style={{ background: B.secondary }}
+              >
+                <Ticket size={18} style={{ color: B.blueLight }} />
+              </span>
+              <div>
+                <h2 className="text-base font-bold" style={{ color: B.blue }}>
+                  Create a support ticket
+                </h2>
+                <p className="text-sm" style={{ color: B.muted }}>
+                  Reply within ~5 hrs on working days. Add txn ref / UTR when you can.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <label className="block space-y-1">
+                <span className="text-xs font-semibold" style={{ color: B.muted }}>
+                  Subject
+                </span>
+                <input
+                  id="support-ticket-subject"
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  className="w-full rounded-xl border bg-white px-3 py-2.5 text-sm outline-none focus:ring-2"
+                  style={{ borderColor: B.border }}
+                  placeholder="e.g. Request a callback · AePS failed · Balance credit"
+                />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-xs font-semibold" style={{ color: B.muted }}>
+                  Details
+                </span>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={4}
+                  className="w-full rounded-xl border bg-white px-3 py-2.5 text-sm outline-none focus:ring-2"
+                  style={{ borderColor: B.border }}
+                  placeholder="What happened? Include amount, UTR / txn id, and time if useful."
+                />
+              </label>
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={() => void submit()}
+                className="w-full rounded-xl py-3 text-sm font-bold text-white disabled:opacity-50"
+                style={{ background: B.badgeGrad }}
+              >
+                {submitting ? "Submitting…" : "Submit ticket"}
+              </button>
+            </div>
+
+            <div className="mt-6 border-t pt-4" style={{ borderColor: B.border }}>
+              <p className="mb-2 text-xs font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+                Your tickets
+              </p>
+              <div className="max-h-56 space-y-2 overflow-y-auto">
+                {loading && (
+                  <p className="py-4 text-center text-sm" style={{ color: B.muted }}>
+                    Loading…
+                  </p>
+                )}
+                {!loading && tickets.length === 0 && (
+                  <div
+                    className="flex flex-col items-center gap-1 rounded-xl border border-dashed px-3 py-6 text-center"
+                    style={{ borderColor: B.border, color: B.muted }}
+                  >
+                    <LifeBuoy size={22} style={{ color: B.blueLight }} />
+                    <p className="text-sm font-medium">No tickets yet</p>
+                    <p className="text-xs">Use the form above to create your first ticket</p>
+                  </div>
+                )}
+                {!loading &&
+                  tickets.map((t) => (
+                    <div key={t.id} className="rounded-xl border px-3 py-2.5" style={{ borderColor: B.border }}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate text-sm font-bold" style={{ color: B.blue }}>
+                          {t.subject}
+                        </span>
+                        <span
+                          className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold capitalize"
+                          style={
+                            t.status === "open"
+                              ? { background: "#FEF3C7", color: "#92400E" }
+                              : { background: "#DCFCE7", color: "#166534" }
+                          }
+                        >
+                          {t.status}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 line-clamp-2 text-xs" style={{ color: B.muted }}>
+                        {t.description}
+                      </p>
+                      {t.resolutionNote ? (
+                        <p className="mt-1 line-clamp-2 text-xs font-medium" style={{ color: B.greenDark }}>
+                          {t.resolutionNote}
+                        </p>
+                      ) : null}
+                    </div>
+                  ))}
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-5 lg:items-stretch">
-          <div className="rounded-2xl border bg-white p-4 md:p-5 lg:col-span-3" style={{ borderColor: B.border }}>
+        {/* Secondary: guides + nodal */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div className="rounded-2xl border bg-white p-4 md:p-5" style={{ borderColor: B.border }}>
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+              <h3 className="text-sm font-bold" style={{ color: B.blue }}>
                 Self-help guides
               </h3>
-              <span className="text-sm font-semibold" style={{ color: B.muted }}>
+              <span className="text-xs font-semibold" style={{ color: B.muted }}>
                 Coming soon
               </span>
             </div>
@@ -374,20 +410,15 @@ export default function SupportPage() {
                   onClick={() =>
                     toast("Guide videos will open here soon — raise a ticket if you need help now")
                   }
-                  className="flex items-center gap-3 rounded-xl border px-3 py-3 text-left transition hover:bg-secondary/50"
+                  className="flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition hover:bg-secondary/50"
                   style={{ borderColor: B.border }}
                 >
-                  <span
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
-                    style={{ background: B.secondary }}
-                  >
-                    <PlayCircle size={18} style={{ color: B.blueLight }} />
-                  </span>
+                  <PlayCircle size={16} className="shrink-0" style={{ color: B.blueLight }} />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[14px] font-semibold" style={{ color: B.blue }}>
+                    <span className="block truncate text-sm font-semibold" style={{ color: B.blue }}>
                       {g.title}
                     </span>
-                    <span className="text-[11px] font-bold uppercase" style={{ color: B.muted }}>
+                    <span className="text-[10px] font-bold uppercase" style={{ color: B.muted }}>
                       {g.tag}
                     </span>
                   </span>
@@ -397,143 +428,63 @@ export default function SupportPage() {
             </div>
           </div>
 
-          <div
-            className="flex flex-col rounded-2xl border bg-white p-4 md:p-5 lg:col-span-2"
-            style={{ borderColor: B.border }}
-          >
+          <div className="rounded-2xl border bg-white p-4 md:p-5" style={{ borderColor: B.border }}>
             <div className="mb-3 flex items-center gap-2">
               <MapPin size={16} style={{ color: B.blueLight }} />
-              <h3 className="text-sm font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+              <h3 className="text-sm font-bold" style={{ color: B.blue }}>
                 Nodal officer
               </h3>
             </div>
-            <div
-              className="rounded-xl border px-3 py-3 text-[14px] leading-relaxed"
+            <p
+              className="rounded-xl border px-3 py-2.5 text-sm leading-relaxed"
               style={{ borderColor: B.border, background: B.bg, color: B.blueMid }}
             >
               {nodalAddress || "Address not set yet (Admin → Platform Settings)."}
-            </div>
-            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            </p>
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
               <ContactLine
                 kind="mail"
-                label="Nodal email"
-                value={nodalEmail || "Email not set"}
+                label="Email"
+                value={nodalEmail || "Not set"}
                 href={nodalEmail ? mailto(nodalEmail) : undefined}
               />
               <ContactLine
                 kind="phone"
-                label="Nodal phone"
-                value={nodalPhone ? formatPhone(nodalPhone) : "Phone not set"}
+                label="Phone"
+                value={nodalPhone ? formatPhone(nodalPhone) : "Not set"}
                 href={nodalPhone ? telHref(nodalPhone) : undefined}
               />
             </div>
           </div>
-        </div>
-
-        {/* Good-to-know strip */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {SUPPORT_TIPS.map((tip) => (
-            <div
-              key={tip.title}
-              className="flex items-start gap-3 rounded-2xl border bg-white p-4"
-              style={{ borderColor: B.border }}
-            >
-              <span
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-                style={{ background: B.secondary }}
-              >
-                <tip.icon size={17} style={{ color: B.blueLight }} />
-              </span>
-              <div className="min-w-0">
-                <p className="text-[14px] font-bold" style={{ color: B.blue }}>
-                  {tip.title}
-                </p>
-                <p className="mt-0.5 text-sm leading-relaxed" style={{ color: B.muted }}>
-                  {tip.body}
-                </p>
-              </div>
-            </div>
-          ))}
         </div>
       </div>
     </AppShell>
   );
 }
 
-function QuickAction({
+function ContactCard({
   icon,
-  iconBg,
   title,
-  subtitle,
-  href,
-  disabled,
-  badge,
-  accent,
+  name,
+  children,
 }: {
   icon: React.ReactNode;
-  iconBg: string;
   title: string;
-  subtitle: string;
-  href?: string;
-  disabled?: boolean;
-  badge?: string;
-  accent?: string;
+  name: string;
+  children: React.ReactNode;
 }) {
-  const body = (
-    <>
-      <div className="flex items-start justify-between gap-1">
-        <span className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: iconBg }}>
-          {icon}
-        </span>
-        {badge ? (
-          <span
-            className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase"
-            style={{ background: "rgba(18,183,106,0.15)", color: B.greenDark }}
-          >
-            <Zap size={9} /> {badge}
-          </span>
-        ) : null}
-      </div>
-      <div className="mt-2 min-w-0">
-        <p className="truncate text-sm font-bold" style={{ color: B.blue }}>
-          {title}
-        </p>
-        <p className="truncate text-[14px] font-semibold" style={{ color: disabled ? B.muted : B.blueMid }}>
-          {subtitle}
-        </p>
-      </div>
-      {href && !disabled && accent ? (
-        <span
-          className="mt-2 inline-flex w-full items-center justify-center rounded-lg py-1.5 text-[12px] font-bold text-white"
-          style={{ background: accent }}
-        >
-          Open chat
-        </span>
-      ) : null}
-    </>
-  );
-
-  const cls =
-    "block rounded-2xl border bg-white p-4 text-left transition " +
-    (disabled ? "opacity-70" : "hover:shadow-sm");
-
-  if (href && !disabled) {
-    return (
-      <a
-        href={href}
-        target={href.startsWith("http") ? "_blank" : undefined}
-        rel={href.startsWith("http") ? "noopener noreferrer" : undefined}
-        className={cls}
-        style={{ borderColor: B.border }}
-      >
-        {body}
-      </a>
-    );
-  }
-
   return (
-    <div className={cls} style={{ borderColor: B.border }}>
-      {body}
+    <div className="rounded-2xl border bg-white p-4" style={{ borderColor: B.border }}>
+      <div className="mb-2 flex items-center gap-2">
+        {icon}
+        <h2 className="text-xs font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+          {title}
+        </h2>
+      </div>
+      <p className="mb-3 text-sm font-bold" style={{ color: B.blue }}>
+        {name}
+      </p>
+      <div className="space-y-2">{children}</div>
     </div>
   );
 }
@@ -544,13 +495,14 @@ function ContactLine({
   value,
   href,
 }: {
-  kind: "phone" | "mail";
+  kind: "phone" | "mail" | "web";
   label: string;
   value: string;
   href?: string;
 }) {
-  const Icon = kind === "phone" ? Phone : Mail;
+  const Icon = kind === "phone" ? Phone : kind === "mail" ? Mail : Globe;
   const active = Boolean(href);
+  const external = kind === "web" && Boolean(href);
 
   const inner = (
     <div className="flex items-center gap-2.5">
@@ -565,10 +517,10 @@ function ContactLine({
         <Icon size={14} />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[11px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+        <p className="truncate text-[10px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
           {label}
         </p>
-        <p className="truncate text-[14px] font-semibold" style={{ color: active ? B.blue : B.muted }}>
+        <p className="truncate text-sm font-semibold" style={{ color: active ? B.blue : B.muted }}>
           {value}
         </p>
       </div>
@@ -586,135 +538,12 @@ function ContactLine({
   return (
     <a
       href={href}
-      className="rounded-lg border px-2.5 py-2 transition hover:bg-secondary/40"
+      target={external ? "_blank" : undefined}
+      rel={external ? "noopener noreferrer" : undefined}
+      className="block rounded-lg border px-2.5 py-2 transition hover:bg-secondary/40"
       style={{ borderColor: B.border }}
     >
       {inner}
     </a>
-  );
-}
-
-function TicketsBlock({
-  tickets,
-  loading,
-  showForm,
-  setShowForm,
-  subject,
-  setSubject,
-  description,
-  setDescription,
-  submitting,
-  onSubmit,
-}: {
-  tickets: TicketRow[];
-  loading: boolean;
-  showForm: boolean;
-  setShowForm: (v: boolean | ((p: boolean) => boolean)) => void;
-  subject: string;
-  setSubject: (v: string) => void;
-  description: string;
-  setDescription: (v: string) => void;
-  submitting: boolean;
-  onSubmit: () => void;
-}) {
-  return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Ticket size={14} style={{ color: B.blueLight }} />
-          <div>
-            <h3 className="text-sm font-bold uppercase tracking-wide" style={{ color: B.muted }}>
-              Tickets
-            </h3>
-            <p className="text-sm" style={{ color: B.muted }}>
-              Reply ~5 hrs (working days)
-            </p>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => setShowForm((v) => !v)}
-          className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[12px] font-bold text-white"
-          style={{ background: B.badgeGrad }}
-        >
-          {showForm ? <X size={12} /> : <Plus size={12} />}
-          {showForm ? "Close" : "New"}
-        </button>
-      </div>
-
-      {showForm && (
-        <div className="mb-2 space-y-1.5 rounded-lg border p-2" style={{ borderColor: B.border, background: B.bg }}>
-          <input
-            value={subject}
-            onChange={(e) => setSubject(e.target.value)}
-            className="w-full rounded-md border bg-white px-2.5 py-1.5 text-xs outline-none focus:ring-2"
-            style={{ borderColor: B.border }}
-            placeholder="Subject"
-          />
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={2}
-            className="w-full rounded-md border bg-white px-2.5 py-1.5 text-xs outline-none focus:ring-2"
-            style={{ borderColor: B.border }}
-            placeholder="Details · txn ref / UTR if any"
-          />
-          <button
-            type="button"
-            disabled={submitting}
-            onClick={onSubmit}
-            className="w-full rounded-md py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-            style={{ background: B.badgeGrad }}
-          >
-            {submitting ? "Submitting…" : "Submit"}
-          </button>
-        </div>
-      )}
-
-      <div className="min-h-[8rem] flex-1 space-y-1.5 overflow-y-auto">
-        {loading && (
-          <p className="py-6 text-center text-[12px]" style={{ color: B.muted }}>
-            Loading…
-          </p>
-        )}
-        {!loading && tickets.length === 0 && (
-          <div
-            className="flex flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed px-3 py-8 text-center"
-            style={{ borderColor: B.border, color: B.muted }}
-          >
-            <LifeBuoy size={20} style={{ color: B.blueLight }} />
-            <p className="text-[12px]">No tickets yet</p>
-          </div>
-        )}
-        {!loading &&
-          tickets.map((t) => (
-            <div key={t.id} className="rounded-lg border px-2.5 py-2" style={{ borderColor: B.border }}>
-              <div className="flex items-center justify-between gap-2">
-                <span className="truncate text-[12px] font-bold" style={{ color: B.blue }}>
-                  {t.subject}
-                </span>
-                <span
-                  className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold capitalize"
-                  style={
-                    t.status === "open"
-                      ? { background: "#FEF3C7", color: "#92400E" }
-                      : { background: "#DCFCE7", color: "#166534" }
-                  }
-                >
-                  {t.status}
-                </span>
-              </div>
-              <p className="mt-0.5 line-clamp-1 text-[11px]" style={{ color: B.muted }}>
-                {t.description}
-              </p>
-              {t.resolutionNote && (
-                <p className="mt-0.5 line-clamp-1 text-[11px] font-medium" style={{ color: B.greenDark }}>
-                  {t.resolutionNote}
-                </p>
-              )}
-            </div>
-          ))}
-      </div>
-    </div>
   );
 }
