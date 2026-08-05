@@ -225,7 +225,7 @@ const BANKING_TOP_CODES = [
 /** Codes that sit on the second row under / aligned with AePS (Loans … Credit). */
 const BANKING_BOTTOM_CODES = ["LOANS", "INSURANCE", "CREDIT_CARDS"];
 
-/** Banking: AePS + extras share one responsive grid so spacing matches Recharges on every width. */
+/** Banking: all icons in one flat grid (same as BBPS) so tops align; AePS border is overlay only. */
 function BankingCard({
   aeps,
   topRest,
@@ -241,9 +241,11 @@ function BankingCard({
   onToggle: (code: string) => void;
   onOpen: (code: string) => void;
 }) {
+  const topRow = [...aeps, ...topRest];
+
   function tile(svc: Svc, index: number) {
     return (
-      <div key={svc.id} className="flex min-w-0 justify-center">
+      <div key={svc.id} className="relative z-10 flex min-w-0 justify-center">
         <ServiceIconCard
           svc={svc}
           index={index}
@@ -261,35 +263,37 @@ function BankingCard({
       titleIcon={<Building2 size={21} strokeWidth={2.2} color="#2A5CDD" aria-hidden />}
     >
       <div className="flex w-full min-w-0 flex-col gap-5">
-        {/*
-          One 4→8 col grid (same as BBPS). AePS uses col-span-4 + subgrid on lg
-          so gaps stay equal; box-shadow border does not add layout width.
-        */}
-        <div className={`relative min-w-0 pt-3 ${SERVICE_GRID}`}>
+        <div className="relative min-w-0 pt-3">
           {aeps.length > 0 ? (
-            <div
-              className="relative col-span-4 grid grid-cols-4 gap-x-3 sm:gap-x-4 lg:col-span-4 lg:grid-cols-subgrid lg:gap-x-5 rounded-xl py-2.5"
-              style={{ boxShadow: "0 0 0 2px rgba(11,42,154,0.22)" }}
-            >
-              <span
-                className="absolute right-2 top-0 z-10 flex h-6 w-[110px] -translate-y-1/2 items-center justify-center rounded-md border bg-white px-1.5 shadow-sm sm:right-2.5"
-                style={{ borderColor: B.border }}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="/assets/AEPS-Logo.png"
-                  alt="AePS — Aadhaar Enabled Payment System"
-                  className="h-[22px] w-[100px] object-contain"
-                />
-              </span>
-              {aeps.map((svc, i) => tile(svc, i))}
-            </div>
+            <>
+              {/* Overlay only — does not change icon grid alignment or spacing */}
+              <div
+                aria-hidden
+                className="pointer-events-none absolute left-0 top-3 z-0 rounded-xl border-2 max-lg:right-0 max-lg:bottom-[calc(50%+0.625rem)] lg:bottom-0 lg:w-[calc(50%-0.625rem)]"
+                style={{ borderColor: "rgba(11,42,154,0.22)" }}
+              />
+              <div className="pointer-events-none absolute left-0 top-3 z-20 h-0 max-lg:right-0 lg:w-[calc(50%-0.625rem)]">
+                <span
+                  className="absolute right-2 top-0 flex h-6 w-[110px] -translate-y-1/2 items-center justify-center rounded-md border bg-white px-1.5 shadow-sm sm:right-2.5"
+                  style={{ borderColor: B.border }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/assets/AEPS-Logo.png"
+                    alt="AePS — Aadhaar Enabled Payment System"
+                    className="h-[22px] w-[100px] object-contain"
+                  />
+                </span>
+              </div>
+            </>
           ) : null}
 
-          {topRest.map((svc, i) => tile(svc, i + 4))}
-
-          {bottomRest.map((svc, i) => tile(svc, i + 10))}
+          <div className={`relative min-w-0 ${SERVICE_GRID}`}>{topRow.map((svc, i) => tile(svc, i))}</div>
         </div>
+
+        {bottomRest.length > 0 ? (
+          <div className={`min-w-0 ${SERVICE_GRID}`}>{bottomRest.map((svc, i) => tile(svc, i + 10))}</div>
+        ) : null}
       </div>
     </CardShell>
   );
