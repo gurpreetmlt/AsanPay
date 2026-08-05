@@ -20,13 +20,6 @@ const CATEGORY_NAME_OVERRIDES: Record<string, string> = {
   BILL_PAYMENT_BBPS: "Recharges and Bills",
 };
 
-const AEPS_CODES = new Set([
-  "CASH_WITHDRAW",
-  "MINI_STATEMENT",
-  "CASH_DEPOSIT",
-  "BALANCE_ENQUIRY",
-]);
-
 const HIDDEN_SERVICE_CODES = new Set([
   "AGENT_COLLECTION",
   "SHG_WITHDRAW_CASH",
@@ -198,62 +191,88 @@ function CardShell({
   );
 }
 
-/** AePS framed group + rest of banking tiles — readable icons, wrap cleanly. */
+/** Codes that sit on the top row next to the AePS box (screenshot layout). */
+const BANKING_TOP_CODES = ["UPI_CASH_POINT", "MONEY_TRANSFER", "NEPAL_REMITTANCE", "NEPAL", "DMT"];
+
+/** Codes that sit on the second row under / aligned with AePS (Cash Collection … Credit). */
+const BANKING_BOTTOM_CODES = ["CASH_COLLECTION", "LOANS", "INSURANCE", "CREDIT_CARDS"];
+
+/** Spice-style Banking card: AePS box + top extras, then bottom row of more services. */
 function BankingCard({
   aeps,
-  rest,
+  topRest,
+  bottomRest,
   codes,
   onToggle,
   onOpen,
 }: {
   aeps: Svc[];
-  rest: Svc[];
+  topRest: Svc[];
+  bottomRest: Svc[];
   codes: string[];
   onToggle: (code: string) => void;
   onOpen: (code: string) => void;
 }) {
   return (
     <CardShell title="Banking Services">
-      {/* items-center = AePS box icons align with outer icons (same horizontal midline) */}
-      <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-        {aeps.length > 0 ? (
-          <div
-            className="relative shrink-0 rounded-xl border-2 px-2 py-2 sm:px-2.5 sm:py-2.5"
-            style={{ borderColor: "rgba(11,42,154,0.18)" }}
-          >
-            <span
-              className="absolute left-1/2 top-0 z-10 flex -translate-x-1/2 -translate-y-1/2 items-center rounded-md border bg-white px-1.5 py-0.5 shadow-sm"
-              style={{ borderColor: B.border }}
+      <div className="flex flex-col gap-4 sm:gap-5">
+        {/* Row 1: AePS box + UPI / Money Transfer / Nepal */}
+        <div className="flex flex-wrap items-center gap-4 sm:gap-5">
+          {aeps.length > 0 ? (
+            <div
+              className="relative shrink-0 rounded-xl border-2 px-2 py-2 sm:px-3 sm:py-2.5"
+              style={{ borderColor: "rgba(11,42,154,0.18)" }}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/assets/AEPS-Logo.png"
-                alt="AePS — Aadhaar Enabled Payment System"
-                className="h-4 w-auto object-contain sm:h-5"
-              />
-            </span>
+              <span
+                className="absolute left-1/2 top-0 z-10 flex -translate-x-1/2 -translate-y-1/2 items-center rounded-md border bg-white px-1.5 py-0.5 shadow-sm"
+                style={{ borderColor: B.border }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/assets/AEPS-Logo.png"
+                  alt="AePS — Aadhaar Enabled Payment System"
+                  className="h-4 w-auto object-contain sm:h-5"
+                />
+              </span>
+              <div className="flex flex-nowrap items-start justify-start gap-x-4 sm:gap-x-5">
+                {aeps.map((svc, i) => (
+                  <ServiceIconCard
+                    key={svc.id}
+                    svc={svc}
+                    index={i}
+                    favorite={codes.includes(svc.code)}
+                    onToggleFav={() => onToggle(svc.code)}
+                    onOpen={() => onOpen(svc.code)}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {topRest.length > 0 ? (
             <div className="flex flex-wrap items-start justify-start gap-x-4 gap-y-3 sm:gap-x-5">
-              {aeps.map((svc, i) => (
+              {topRest.map((svc, i) => (
                 <ServiceIconCard
                   key={svc.id}
                   svc={svc}
-                  index={i}
+                  index={i + 4}
                   favorite={codes.includes(svc.code)}
                   onToggleFav={() => onToggle(svc.code)}
                   onOpen={() => onOpen(svc.code)}
                 />
               ))}
             </div>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
 
-        {rest.length > 0 ? (
-          <div className="flex min-w-0 flex-1 flex-wrap items-start justify-start gap-x-4 gap-y-3 sm:gap-x-5">
-            {rest.map((svc, i) => (
+        {/* Row 2: Cash Collection, Loans, Insurance, Credit — left-aligned under AePS */}
+        {bottomRest.length > 0 ? (
+          <div className="flex flex-wrap items-start justify-start gap-x-4 gap-y-3 sm:gap-x-5">
+            {bottomRest.map((svc, i) => (
               <ServiceIconCard
                 key={svc.id}
                 svc={svc}
-                index={i + 4}
+                index={i + 10}
                 favorite={codes.includes(svc.code)}
                 onToggleFav={() => onToggle(svc.code)}
                 onOpen={() => onOpen(svc.code)}
@@ -351,7 +370,22 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
     const aeps = aepsOrder
       .map((code) => bankingAll.find((s) => s.code === code))
       .filter((s): s is Svc => Boolean(s));
-    const rest = bankingAll.filter((s) => !AEPS_CODES.has(s.code));
+
+    const byCodeSvc = new Map(bankingAll.map((s) => [s.code, s]));
+    const topRest = BANKING_TOP_CODES.map((c) => byCodeSvc.get(c)).filter(
+      (s): s is Svc => Boolean(s),
+    );
+    const bottomRest = BANKING_BOTTOM_CODES.map((c) => byCodeSvc.get(c)).filter(
+      (s): s is Svc => Boolean(s),
+    );
+    const used = new Set([
+      ...aeps.map((s) => s.code),
+      ...topRest.map((s) => s.code),
+      ...bottomRest.map((s) => s.code),
+    ]);
+    /** Any leftover banking tiles go on the bottom row after the known set. */
+    const leftover = bankingAll.filter((s) => !used.has(s.code));
+    const bottomAll = [...bottomRest, ...leftover];
 
     const bbps = filterSvc(byCode.get("BILL_PAYMENT_BBPS")?.services);
     const accept = filterSvc(byCode.get("ACCEPT_PAYMENTS")?.services);
@@ -366,7 +400,7 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
         filterSvc(c.services).length > 0,
     );
 
-    return { aeps, rest, bbps, accept, govt, others };
+    return { aeps, topRest, bottomRest: bottomAll, bbps, accept, govt, others };
   }, [categories]);
 
   const favorites = useMemo(() => {
@@ -417,7 +451,8 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
 
   const hasAny =
     layout.aeps.length +
-      layout.rest.length +
+      layout.topRest.length +
+      layout.bottomRest.length +
       layout.bbps.length +
       layout.accept.length +
       layout.govt.length +
@@ -466,10 +501,11 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
           {title}
         </h2>
 
-        {(layout.aeps.length > 0 || layout.rest.length > 0) && (
+        {(layout.aeps.length > 0 || layout.topRest.length > 0 || layout.bottomRest.length > 0) && (
           <BankingCard
             aeps={layout.aeps}
-            rest={layout.rest}
+            topRest={layout.topRest}
+            bottomRest={layout.bottomRest}
             codes={codes}
             onToggle={handleToggle}
             onOpen={openService}
