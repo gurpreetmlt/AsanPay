@@ -72,6 +72,7 @@ export default function AgentDetailPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [newParentUid, setNewParentUid] = useState("");
+  const [aepsReason, setAepsReason] = useState("");
   const [recentTxns, setRecentTxns] = useState<RecentTxn[]>([]);
 
   const load = useCallback(async () => {
@@ -125,6 +126,31 @@ export default function AgentDetailPage() {
       toast.error(
         (err as { response?: { data?: { message?: string } } }).response?.data?.message ??
           "Decision failed",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // The only way out of an AePS block or dormancy. Requires KYC to be verified first — that is
+  // what RBI asks for before a dormant operator resumes, and the API enforces it too.
+  async function reactivateAeps() {
+    if (!agent) return;
+    const reason = aepsReason.trim();
+    if (reason.length < 8) {
+      toast.error("Write a reason — at least 8 characters");
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.post(`/admin/users/${agent.id}/aeps/reactivate`, { reason });
+      toast.success("AePS reactivated");
+      setAepsReason("");
+      await load();
+    } catch (err) {
+      toast.error(
+        (err as { response?: { data?: { message?: string } } }).response?.data?.message ??
+          "Reactivation failed",
       );
     } finally {
       setBusy(false);
@@ -393,6 +419,35 @@ export default function AgentDetailPage() {
                       style={{ background: B.blue }}
                     >
                       Reassign parent
+                    </button>
+                  </div>
+                ) : null}
+
+                {agent.role === "retailer" ? (
+                  <div className="mt-4 space-y-2 border-t pt-4" style={{ borderColor: B.border }}>
+                    <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: B.muted }}>
+                      Reactivate AePS
+                    </p>
+                    <p className="text-xs" style={{ color: B.muted }}>
+                      Clears an AePS block and restarts the dormancy clock. KYC must be verified
+                      first.
+                    </p>
+                    <input
+                      type="text"
+                      value={aepsReason}
+                      onChange={(e) => setAepsReason(e.target.value)}
+                      placeholder="Reason (min 8 characters)"
+                      className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
+                      style={{ borderColor: B.border, color: B.blue }}
+                    />
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void reactivateAeps()}
+                      className="w-full rounded-xl border-2 bg-white px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
+                      style={{ borderColor: B.blue, color: B.blue }}
+                    >
+                      Reactivate AePS
                     </button>
                   </div>
                 ) : null}

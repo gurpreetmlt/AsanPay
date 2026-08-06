@@ -1,0 +1,12 @@
+-- Gives the AePS dormancy check a second anchor so a blocked merchant has a way back.
+--
+-- The dormancy gate anchors on `last_aeps_txn_at`, which only advances after a SUCCESSFUL AePS
+-- transaction. A dormant merchant is blocked from transacting, so that anchor could never move
+-- and the block was permanent — the opposite of spec §6.4, which says a block must never trap an
+-- agent. An admin who re-verifies KYC now stamps `aeps_reactivated_at`, and the gate takes the
+-- later of the two anchors.
+--
+-- Kept separate from `last_aeps_txn_at` rather than just writing that column, because the two
+-- mean different things: one is "they transacted", the other is "we let them back in". Audit and
+-- the RBI dormancy window both need to tell those apart.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS aeps_reactivated_at timestamptz;

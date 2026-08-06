@@ -161,7 +161,10 @@ const envSchema = z.object({
   /** Max km from registered outlet for AEPS txns (InstantPay best practice: 2–3 km). */
   AEPS_GEOFENCE_KM: z.coerce.number().positive().default(3),
   /** Days without AEPS activity before merchant is treated as dormant. */
-  AEPS_DORMANCY_DAYS: z.coerce.number().int().positive().default(180),
+  // RBI "AePS — Due Diligence of AePS Touchpoint Operators" Directions (26 Jun 2025, in force
+  // 1 Jan 2026): an operator with no transactions for three consecutive months must complete
+  // fresh KYC before resuming. 90 is the ceiling, not a tuning knob — do not raise it.
+  AEPS_DORMANCY_DAYS: z.coerce.number().int().positive().max(90).default(90),
   /** Consecutive biometric mismatches on one Aadhaar before merchant block / EDD. */
   AEPS_BIO_MISMATCH_LIMIT: z.coerce.number().int().positive().default(2),
 });

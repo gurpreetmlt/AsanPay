@@ -246,6 +246,13 @@
       "when": 1786010000000,
       "tag": "0034_partitioned_log_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1786030000000,
+      "tag": "0035_aeps_reactivation",
+      "breakpoints": true
     }
   ]
 }

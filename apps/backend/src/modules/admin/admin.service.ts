@@ -483,6 +483,80 @@ export async function deleteAdminUser(adminId: string, userId: string) {
 }
 
 /**
+ * Re-admit a merchant to AePS after a block or dormancy.
+ *
+ * Every AePS gate in modules/aeps/compliance.ts was previously a one-way door: the EDD and
+ * block flags were only ever set, and the dormancy anchor only advanced on a successful
+ * transaction that a blocked merchant could not make. This is the exit — spec §6.4 requires
+ * that a block never traps an agent.
+ *
+ * Gated on KYC being verified, because that is exactly what RBI's AePS Touchpoint Operator
+ * Directions require before a dormant operator resumes: fresh KYC, not just an admin's say-so.
+ * Also covers the merchant who changed their Aadhaar-linked mobile at UIDAI — re-verify, then
+ * reactivate.
+ */
+export async function reactivateAeps(
+  adminId: string,
+  userId: string,
+  reason: string,
+): Promise<{ id: string; uid: string; clearedBlockReason: string | null; wasEddRequired: boolean }> {
+  if (reason.trim().length < 8) {
+    throw new HttpError(422, "A written reason is required", "REASON_REQUIRED");
+  }
+
+  const [target] = await db
+    .select({
+      id: users.id,
+      uid: users.uid,
+      kycStatus: users.kycStatus,
+      aepsBlockReason: users.aepsBlockReason,
+      aepsEddRequired: users.aepsEddRequired,
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  if (!target) throw new HttpError(404, "User not found", "USER_NOT_FOUND");
+  if (target.kycStatus !== "verified") {
+    throw new HttpError(
+      422,
+      "KYC must be re-verified before AePS can be reactivated",
+      "KYC_NOT_VERIFIED",
+    );
+  }
+
+  const now = new Date();
+  await db
+    .update(users)
+    .set({
+      aepsBlockReason: null,
+      aepsEddRequired: false,
+      aepsReactivatedAt: now,
+      updatedAt: now,
+    })
+    .where(eq(users.id, userId));
+
+  await insertAuditLog({
+    userId: adminId,
+    action: "admin.aeps_reactivate",
+    entityType: "user",
+    entityId: userId,
+    metadata: {
+      reason: reason.trim(),
+      clearedBlockReason: target.aepsBlockReason,
+      wasEddRequired: target.aepsEddRequired,
+    },
+  });
+
+  return {
+    id: target.id,
+    uid: target.uid,
+    clearedBlockReason: target.aepsBlockReason,
+    wasEddRequired: target.aepsEddRequired,
+  };
+}
+
+/**
  * Admin-only tree move: change a user's parent and rebuild the closure-table edges
  * for that user and their entire subtree. Wallet balances are unchanged.
  */

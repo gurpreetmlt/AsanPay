@@ -14,6 +14,7 @@ import {
   setUserActive,
   deleteAdminUser,
   reassignUserParent,
+  reactivateAeps,
   listKycQueue,
   decideKyc,
   listAdminTransactions,
@@ -115,6 +116,15 @@ adminRouter.post("/users/:id/reassign", async (req, res) => {
 
   const result = await reassignUserParent(req.auth.sub, req.params.id, body);
   sendSuccess(res, result, "Parent reassigned");
+});
+
+// The way out of an AePS block or dormancy. Without this the flags were set-only and the
+// merchant stayed locked forever — see reactivateAeps().
+adminRouter.post("/users/:id/aeps/reactivate", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const body = z.object({ reason: z.string().trim().min(8).max(500) }).parse(req.body);
+  const result = await reactivateAeps(req.auth.sub, req.params.id, body.reason);
+  sendSuccess(res, result, "AePS reactivated");
 });
 
 adminRouter.get("/kyc", async (req, res) => {

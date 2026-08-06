@@ -30,6 +30,12 @@ export interface AepsGeoInput {
   longitude: string;
 }
 
+function laterOf(a: Date | null, b: Date | null): Date | null {
+  if (!a) return b;
+  if (!b) return a;
+  return a.getTime() >= b.getTime() ? a : b;
+}
+
 /**
  * Pre-txn gates shared by dummy and InstantPay modes:
  * KYC verified, not AEPS-blocked, not EDD-locked, not dormant, within geofence.
@@ -45,6 +51,7 @@ export async function assertAepsCompliance(
       aepsEddRequired: users.aepsEddRequired,
       aepsBlockReason: users.aepsBlockReason,
       lastAepsTxnAt: users.lastAepsTxnAt,
+      aepsReactivatedAt: users.aepsReactivatedAt,
       createdAt: users.createdAt,
       outletLatitude: users.outletLatitude,
       outletLongitude: users.outletLongitude,
@@ -73,14 +80,20 @@ export async function assertAepsCompliance(
     );
   }
 
-  // InstantPay: outlets idle 180+ days need re-onboarding. Dummy mode only flags merchants
-  // who previously did AEPS then went idle (so seed/test accounts aren't locked by createdAt).
+  // RBI's AePS Touchpoint Operator Directions (in force 1 Jan 2026) require fresh KYC after
+  // three consecutive months with no transactions. Dummy mode only flags merchants who
+  // previously did AEPS then went idle (so seed/test accounts aren't locked by createdAt).
+  //
+  // The anchor is the LATER of the last transaction and the last admin reactivation. Anchoring
+  // on the transaction alone made this a one-way door: a dormant merchant cannot transact, so
+  // that timestamp could never advance and the block was permanent.
   const dormantMs = env.AEPS_DORMANCY_DAYS * 24 * 60 * 60 * 1000;
-  const anchor = user.lastAepsTxnAt ?? (isInstantPayAepsMode() ? user.createdAt : null);
+  const txnAnchor = user.lastAepsTxnAt ?? (isInstantPayAepsMode() ? user.createdAt : null);
+  const anchor = laterOf(txnAnchor, user.aepsReactivatedAt);
   if (anchor && Date.now() - anchor.getTime() > dormantMs) {
     throw new HttpError(
       403,
-      `Merchant dormant (no AePS for ${env.AEPS_DORMANCY_DAYS}+ days) — re-onboarding required`,
+      `Merchant dormant (no AePS for ${env.AEPS_DORMANCY_DAYS}+ days) — contact support to re-verify KYC and reactivate`,
       "AEPS_DORMANT",
     );
   }
