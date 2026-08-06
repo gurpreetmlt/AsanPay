@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { Search, Table2, GitBranch } from "lucide-react";
+import { Search, Table2, GitBranch, Trash2 } from "lucide-react";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { Badge } from "@/components/ui/Badge";
@@ -63,6 +63,7 @@ export function UsersPanel({ lockedRole = "" }: Props) {
   const [moveAgents, setMoveAgents] = useState<AdminUser[] | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const rowDeleteEnabled = useDevOptionsStore((s) => s.rowDeleteEnabled);
 
   useEffect(() => {
@@ -138,8 +139,62 @@ export function UsersPanel({ lockedRole = "" }: Props) {
     }
   }
 
+  async function deleteSelected() {
+    if (selectedUsers.length === 0) return;
+    if (
+      !window.confirm(
+        `Permanently delete ${selectedUsers.length} selected agent(s)?\n\nThis cannot be undone. Retailers are deleted first, then distributors, then super distributors.`,
+      )
+    ) {
+      return;
+    }
+
+    const roleOrder: Record<string, number> = {
+      retailer: 0,
+      distributor: 1,
+      super_distributor: 2,
+    };
+    const ordered = [...selectedUsers].sort(
+      (a, b) => (roleOrder[a.role] ?? 9) - (roleOrder[b.role] ?? 9),
+    );
+
+    setBulkDeleting(true);
+    let ok = 0;
+    const failed: string[] = [];
+    try {
+      for (const u of ordered) {
+        try {
+          await api.delete(`/admin/users/${u.id}`);
+          ok += 1;
+          setUsers((prev) => prev.filter((x) => x.id !== u.id));
+          setSelectedIds((prev) => {
+            const next = new Set(prev);
+            next.delete(u.id);
+            return next;
+          });
+        } catch (err) {
+          const msg =
+            (err as { response?: { data?: { message?: string } } }).response?.data?.message ??
+            "Could not delete user";
+          failed.push(`${u.name}: ${msg}`);
+        }
+      }
+      if (ok > 0) toast.success(`Deleted ${ok} agent(s)`);
+      if (failed.length > 0) {
+        toast.error(failed.slice(0, 3).join(" · ") + (failed.length > 3 ? "…" : ""));
+      }
+    } finally {
+      setBulkDeleting(false);
+    }
+  }
+
   function isMovable(u: AdminUser) {
     return u.role === "distributor" || u.role === "retailer";
+  }
+
+  /** Move selection stays D/R; when Safety delete is on, Super Dist can be selected too. */
+  function isSelectable(u: AdminUser) {
+    return isMovable(u) || (rowDeleteEnabled && u.role === "super_distributor");
   }
 
   function toggleSelect(id: string) {
@@ -151,7 +206,7 @@ export function UsersPanel({ lockedRole = "" }: Props) {
     });
   }
 
-  const selectableUsers = users.filter(isMovable);
+  const selectableUsers = users.filter(isSelectable);
   const allSelected = selectableUsers.length > 0 && selectableUsers.every((u) => selectedIds.has(u.id));
 
   function toggleSelectAll() {
@@ -162,8 +217,10 @@ export function UsersPanel({ lockedRole = "" }: Props) {
   }
 
   const selectedUsers = users.filter((u) => selectedIds.has(u.id));
-  const selectedRoles = new Set(selectedUsers.map((u) => u.role));
+  const selectedMovable = selectedUsers.filter(isMovable);
+  const selectedRoles = new Set(selectedMovable.map((u) => u.role));
   const mixedRoles = selectedRoles.size > 1;
+  const canMoveSelected = selectedMovable.length > 0 && !mixedRoles && selectedMovable.length === selectedUsers.length;
 
   const meta = TITLES[lockedRole || ""] ?? TITLES[""];
   const colSpan = lockedRole ? 7 : 8;
@@ -278,6 +335,18 @@ export function UsersPanel({ lockedRole = "" }: Props) {
             )}
           </span>
           <div className="flex items-center gap-2">
+            {rowDeleteEnabled ? (
+              <button
+                type="button"
+                onClick={() => void deleteSelected()}
+                disabled={bulkDeleting || selectedUsers.length === 0}
+                title="Delete selected"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border text-red-600 transition hover:bg-red-50 disabled:opacity-40"
+                style={{ borderColor: B.border, background: "#fff" }}
+              >
+                <Trash2 size={16} />
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => setSelectedIds(new Set())}
@@ -288,12 +357,12 @@ export function UsersPanel({ lockedRole = "" }: Props) {
             </button>
             <button
               type="button"
-              disabled={mixedRoles}
-              onClick={() => setMoveAgents(selectedUsers)}
+              disabled={!canMoveSelected || bulkDeleting}
+              onClick={() => setMoveAgents(selectedMovable)}
               className="rounded-lg px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
               style={{ background: B.badgeGrad }}
             >
-              Move {selectedIds.size}
+              Move {selectedMovable.length > 0 ? selectedMovable.length : selectedIds.size}
             </button>
           </div>
         </div>
@@ -353,7 +422,7 @@ export function UsersPanel({ lockedRole = "" }: Props) {
                     onClick={() => router.push(`/users/${u.id}`)}
                   >
                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                      {isMovable(u) && (
+                      {isSelectable(u) && (
                         <input
                           type="checkbox"
                           checked={selectedIds.has(u.id)}
