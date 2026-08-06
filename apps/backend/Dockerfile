@@ -25,4 +25,9 @@ EXPOSE 4000
 # waiting for a migration nobody can exec into. If the migration fails the API stays down,
 # which is the correct outcome for a money system.
 # Assumes a single backend replica; two replicas starting at once would race the migrator.
+#
+# Scheduled work runs as a SECOND Coolify service off this same image, with its start command
+# overridden to:  npx tsx src/jobs/index.ts
+# That service must NOT run the migrator — only the API container owns schema changes, and two
+# processes migrating at once would race.
 CMD ["sh", "-c", "npx tsx src/db/postgres/migrate.ts && npx tsx src/server.ts"]

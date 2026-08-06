@@ -10,8 +10,10 @@
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "dev:jobs": "tsx watch src/jobs/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "tsx src/server.ts",
+    "start:jobs": "tsx src/jobs/index.ts",
     "lint": "eslint .",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
