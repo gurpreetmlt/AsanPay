@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Eye, Pencil, Trash2, Ban, CheckCircle, Power, Move } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useDevOptionsStore } from "@/lib/devOptionsStore";
 
 const btn =
   "flex h-9 w-9 items-center justify-center rounded-xl border transition hover:scale-110 active:scale-95 disabled:opacity-40 disabled:hover:scale-100";
@@ -34,6 +35,9 @@ export function TableActionButtons({
   deleting?: boolean;
   className?: string;
 }) {
+  const rowDeleteEnabled = useDevOptionsStore((s) => s.rowDeleteEnabled);
+  const showDelete = Boolean(onDelete) && rowDeleteEnabled;
+
   return (
     <div
       className={cn("flex items-center justify-end gap-2", className)}
@@ -104,7 +108,7 @@ export function TableActionButtons({
           <Ban className="h-4 w-4" />
         </button>
       ) : null}
-      {onDelete ? (
+      {showDelete ? (
         <button
           type="button"
           onClick={onDelete}

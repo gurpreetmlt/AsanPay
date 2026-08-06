@@ -8,6 +8,7 @@ import { AdminShell } from "@/components/layout/AdminShell";
 import { B } from "@/lib/brand";
 import api, { fetchApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
+import { useDevOptionsStore } from "@/lib/devOptionsStore";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 
 type SchemeRole = "retailer" | "distributor" | "super_distributor";
@@ -93,6 +94,7 @@ export default function ServiceChargesPage() {
   const router = useRouter();
   const hydrated = useAuthHydrated();
   const accessToken = useAuthStore((s) => s.accessToken);
+  const rowDeleteEnabled = useDevOptionsStore((s) => s.rowDeleteEnabled);
 
   const [rows, setRows] = useState<ServiceCharge[]>([]);
   const [catalog, setCatalog] = useState<CatalogCategory[]>([]);
@@ -530,15 +532,17 @@ export default function ServiceChargesPage() {
                           >
                             <Pencil size={14} />
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => void removeRow(row)}
-                            className="rounded-lg border p-1.5"
-                            style={{ borderColor: B.border, color: "#b91c1c" }}
-                            title="Delete"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                          {rowDeleteEnabled ? (
+                            <button
+                              type="button"
+                              onClick={() => void removeRow(row)}
+                              className="rounded-lg border p-1.5"
+                              style={{ borderColor: B.border, color: "#b91c1c" }}
+                              title="Delete"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          ) : null}
                         </div>
                       </td>
                     </tr>

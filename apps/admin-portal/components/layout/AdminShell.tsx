@@ -4,7 +4,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Crown, Network, Store, Tags, Percent, Plug, ScrollText, Scale, ShieldAlert, Wrench, LifeBuoy, IndianRupee, Landmark, Building2, ArrowLeftRight, Settings, Megaphone } from "lucide-react";
+import { ChevronDown, Crown, Network, Store, Tags, Percent, Plug, ScrollText, Scale, ShieldAlert, Wrench, LifeBuoy, IndianRupee, Landmark, Building2, ArrowLeftRight, Settings, Megaphone, Trash2 } from "lucide-react";
 import { AsanPayLogo } from "@/components/brand/Logo";
 import { AnimatedNavIcon } from "@/components/ui/AnimatedNavIcon";
 import type { NavIconDef } from "@/lib/iconTypes";
@@ -93,6 +93,7 @@ const DEVELOPER_OPTIONS: NavItem[] = [
     icon: { lib: "lucide", icon: Plug },
     children: [
       { href: "/developer-options/providers", label: "Providers", icon: { lib: "lucide", icon: Plug } },
+      { href: "/developer-options/safety", label: "Safety", icon: { lib: "lucide", icon: Trash2 } },
       { href: "/audit-logs", label: "Audit Log", icon: { lib: "lucide", icon: ScrollText } },
     ],
   },
