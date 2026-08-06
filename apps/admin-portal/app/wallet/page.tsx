@@ -10,6 +10,8 @@ import {
   UserPlus,
   Wallet,
   IndianRupee,
+  Landmark,
+  AlertTriangle,
 } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { DownlineTable } from "@/components/dashboard/DownlineTable";
@@ -22,6 +24,16 @@ import { CHILD_ROLE } from "@/lib/roles";
 import { useAuthStore } from "@/lib/store";
 import type { DownlineUser, WalletBalance } from "@/lib/types";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
+
+interface TreasurySummary {
+  bank: string;
+  transit: string;
+  float: string;
+  totalAssets: string;
+  companyBalance: string;
+  downlineLiability: string;
+  solvent: boolean;
+}
 
 function formatInr(amount: string | number) {
   const n = typeof amount === "number" ? amount : Number(amount);
@@ -43,6 +55,7 @@ export default function WalletPage() {
   const [showOnboard, setShowOnboard] = useState(false);
   const [showFundSelf, setShowFundSelf] = useState(false);
   const [fundTarget, setFundTarget] = useState<DownlineUser | null>(null);
+  const [treasury, setTreasury] = useState<TreasurySummary | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -57,6 +70,12 @@ export default function WalletPage() {
       toast.error("Failed to load balance data");
     } finally {
       setLoading(false);
+    }
+    // Treasury is a separate call on purpose: a failure here must not blank the balance cards.
+    try {
+      setTreasury(await fetchApi<TreasurySummary>("/admin/treasury/summary"));
+    } catch {
+      setTreasury(null);
     }
   }, []);
 
@@ -90,7 +109,48 @@ export default function WalletPage() {
         </div>
 
         {/* Retailer-style summary cards */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {/* Treasury — real money the platform holds, not issuable capacity. */}
+          <div
+            className="relative overflow-hidden rounded-2xl border bg-white p-5"
+            style={{
+              borderColor: treasury && !treasury.solvent ? "#DC2626" : B.border,
+              boxShadow: "0 4px 20px rgba(15,23,42,0.04)",
+            }}
+          >
+            <div
+              className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wider"
+              style={{ color: B.muted }}
+            >
+              <Landmark size={14} style={{ color: B.blueLight }} />
+              Treasury
+            </div>
+            <div
+              className="mb-3 text-3xl font-bold leading-none tabular-nums"
+              style={{ color: B.blue }}
+            >
+              {treasury ? formatInr(treasury.totalAssets) : "…"}
+            </div>
+            {treasury && !treasury.solvent ? (
+              <div
+                className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-bold"
+                style={{ background: "#FEE2E2", color: "#991B1B" }}
+              >
+                <AlertTriangle size={13} />
+                Short by {formatInr(Number(treasury.downlineLiability) - Number(treasury.totalAssets))}
+              </div>
+            ) : (
+              <div
+                className="border-t pt-3 text-xs"
+                style={{ borderColor: B.border, color: B.muted }}
+              >
+                {treasury
+                  ? `Bank ${formatInr(treasury.bank)} · Transit ${formatInr(treasury.transit)} · Float ${formatInr(treasury.float)}`
+                  : "Not available"}
+              </div>
+            )}
+          </div>
+
           <div
             className="relative overflow-hidden rounded-2xl p-5 text-white"
             style={{ background: B.badgeGrad, boxShadow: "0 8px 32px rgba(11,42,154,0.28)" }}
@@ -99,13 +159,13 @@ export default function WalletPage() {
             <div className="relative z-10">
               <div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-white/70">
                 <Wallet size={14} />
-                Main
+                Company balance
               </div>
               <div className="mb-3 text-3xl font-bold leading-none tabular-nums">
                 {loading && !main ? "…" : formatInr(main?.balance ?? "0")}
               </div>
               <div className="flex items-center gap-1.5 border-t border-white/15 pt-3 text-xs text-white/85">
-                {pending > 0 ? `Pending: ${formatInr(pending)}` : "No pending balance"}
+                {pending > 0 ? `Pending: ${formatInr(pending)}` : "Left to issue to agents"}
               </div>
             </div>
           </div>

@@ -34,6 +34,7 @@ import {
   tenants,
   accounts,
   accountBalances,
+  allocations,
 } from "../../db/postgres/schema";
 import {
   postJournal,
@@ -727,6 +728,37 @@ interface FundParams {
   amount: string;
   referenceId?: string;
   description?: string;
+  /** The admin performing this. Recorded on the journal, and on the allocation row a top-up writes. */
+  performedBy?: string;
+}
+
+/**
+ * COMPANY_001 is INTERNAL, so `postJournal()` does not balance-check it — spec 1.1 reserves
+ * that for LIABILITY accounts. Funding an agent now spends company capacity rather than
+ * minting its own, so the floor has to be asserted here instead.
+ *
+ * The row is locked FOR UPDATE inside the caller's transaction: without the lock two
+ * concurrent fundings would both read the same balance and both pass.
+ */
+async function assertCompanyBalance(tx: Tx, tenantId: string, amount: Paise): Promise<void> {
+  const [row] = await tx
+    .select({ balance: accountBalances.balance })
+    .from(accounts)
+    .innerJoin(accountBalances, eq(accountBalances.accountId, accounts.id))
+    .where(and(eq(accounts.tenantId, tenantId), eq(accounts.code, COMPANY)))
+    .limit(1)
+    .for("update");
+
+  if (!row) {
+    throw new HttpError(500, "Company account is missing", "COMPANY_ACCOUNT_MISSING");
+  }
+  if (row.balance < amount) {
+    throw new HttpError(
+      422,
+      `Company balance is not enough — available ${paiseToRupees(row.balance)}. Top up the company balance first.`,
+      "INSUFFICIENT_COMPANY_BALANCE",
+    );
+  }
 }
 
 async function doFund(tx: Tx, params: FundParams): Promise<{ groupId: string }> {
@@ -740,31 +772,53 @@ async function doFund(tx: Tx, params: FundParams): Promise<{ groupId: string }> 
     description: params.description,
   });
 
-  // Step 1 — mint spendable capacity on the company wallet. Dr FLOAT_CONTROL / Cr COMPANY.
-  // No asset moves; this is the ALLOCATION the spec puts behind maker-checker, and admin
-  // appears only in `performed_by`, never as a wallet.
-  await postJournal(tx, {
-    tenantId,
-    txnType: "ALLOCATION",
-    idemKey: `LEGACY:${groupId}:ALLOC`,
-    referenceId: params.referenceId ?? null,
-    reason: params.description ?? null,
-    entries: [
-      { code: FLOAT_CONTROL, dir: "DR", amount },
-      { code: COMPANY, dir: "CR", amount },
-    ],
-  });
-
-  // Step 2 — when the target is an agent rather than the aggregator wallet, push it down. Two
-  // journals rather than one because company is the only account allowed to credit a hierarchy
-  // wallet, and control -> agent directly is reserved for the one-time opening-balance backfill.
+  // Exactly one journal per call, and which one depends on the target.
+  //
+  // Aggregator target = a top-up: mint spendable capacity on the company wallet.
+  // Dr FLOAT_CONTROL / Cr COMPANY. No asset moves, this is the ALLOCATION.
+  //
+  // Agent target = funding a downline: spend capacity the company already holds.
+  // Dr COMPANY / Cr <agent>. Deliberately does NOT mint its own allocation — doing both
+  // left COMPANY_001 net zero on every funding, so the company balance only ever grew and
+  // never told anyone how much was left to issue.
   const userIds: string[] = [];
-  if (!target.isAggregator) {
+  if (target.isAggregator) {
+    const journal = await postJournal(tx, {
+      tenantId,
+      txnType: "ALLOCATION",
+      idemKey: `LEGACY:${groupId}:ALLOC`,
+      performedBy: params.performedBy ?? null,
+      referenceId: params.referenceId ?? null,
+      reason: params.description ?? null,
+      entries: [
+        { code: FLOAT_CONTROL, dir: "DR", amount },
+        { code: COMPANY, dir: "CR", amount },
+      ],
+    });
+
+    // Audit trail for minted capacity. `approved_by` stays NULL: the maker-checker CHECK on
+    // this table is the control we switch on once a second admin role exists, so nothing here
+    // may pretend a second operator signed off.
+    if (params.performedBy) {
+      await tx.insert(allocations).values({
+        tenantId,
+        amount,
+        reason: params.description ?? "Company balance top-up",
+        requestedBy: params.performedBy,
+        status: "approved",
+        decisionNote: "Auto-approved (single-admin mode)",
+        journalId: journal.id,
+        decidedAt: new Date(),
+      });
+    }
+  } else {
+    await assertCompanyBalance(tx, tenantId, amount);
     const toCode = await agentAccountCode(tx, tenantId, target);
     await postJournal(tx, {
       tenantId,
       txnType: "WALLET_TRANSFER",
       idemKey: `LEGACY:${groupId}:FUND`,
+      performedBy: params.performedBy ?? null,
       referenceId: params.referenceId ?? null,
       reason: params.description ?? null,
       entries: [

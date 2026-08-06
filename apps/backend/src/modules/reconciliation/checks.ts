@@ -75,21 +75,60 @@ export async function checkTrialBalance(tenantId: string): Promise<ReconFinding[
  * Solvency. Everything we hold (bank + transit + float) must cover everything we owe agents.
  * A shortfall means agent balances exist that no real money backs.
  */
-export async function checkSolvency(tenantId: string): Promise<ReconFinding[]> {
-  const rows = await db.execute<{ assets: string; owed: string }>(sql`
+export interface TreasurySummary {
+  bank: bigint;
+  transit: bigint;
+  float: bigint;
+  totalAssets: bigint;
+  companyBalance: bigint;
+  downlineLiability: bigint;
+  solvent: boolean;
+}
+
+/**
+ * One pass over the ledger for every treasury-side figure the dashboard and the solvency check
+ * both need. Kept here rather than in reports.ts so the check and the API can never drift onto
+ * two different definitions of "assets".
+ */
+export async function getTreasurySummary(tenantId: string): Promise<TreasurySummary> {
+  const rows = await db.execute<{
+    bank: string;
+    transit: string;
+    float: string;
+    company: string;
+    owed: string;
+  }>(sql`
     SELECT
-      COALESCE(SUM(ab.balance) FILTER (WHERE a.account_type IN ('bank','transit','float')), 0)::text AS assets,
+      COALESCE(SUM(ab.balance) FILTER (WHERE a.account_type = 'bank'), 0)::text AS bank,
+      COALESCE(SUM(ab.balance) FILTER (WHERE a.account_type = 'transit'), 0)::text AS transit,
+      COALESCE(SUM(ab.balance) FILTER (WHERE a.account_type = 'float'), 0)::text AS float,
+      COALESCE(SUM(ab.balance) FILTER (WHERE a.account_type = 'company'), 0)::text AS company,
       COALESCE(SUM(ab.balance) FILTER (WHERE a.account_type IN ('sd','distributor','retailer')), 0)::text AS owed
     FROM accounts a
     JOIN account_balances ab ON ab.account_id = a.id
     WHERE a.tenant_id = ${tenantId}
   `);
 
-  const row = rows.rows[0];
-  if (!row) return [];
+  const row = rows.rows[0] ?? { bank: "0", transit: "0", float: "0", company: "0", owed: "0" };
+  const bank = BigInt(row.bank);
+  const transit = BigInt(row.transit);
+  const float = BigInt(row.float);
+  const totalAssets = bank + transit + float;
+  const downlineLiability = BigInt(row.owed);
 
-  const assets = BigInt(row.assets);
-  const owed = BigInt(row.owed);
+  return {
+    bank,
+    transit,
+    float,
+    totalAssets,
+    companyBalance: BigInt(row.company),
+    downlineLiability,
+    solvent: totalAssets >= downlineLiability,
+  };
+}
+
+export async function checkSolvency(tenantId: string): Promise<ReconFinding[]> {
+  const { totalAssets: assets, downlineLiability: owed } = await getTreasurySummary(tenantId);
   if (assets >= owed) return [];
 
   return [

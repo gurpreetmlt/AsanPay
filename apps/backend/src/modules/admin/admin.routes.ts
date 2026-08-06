@@ -383,6 +383,25 @@ adminRouter.get("/ledger/health", async (_req, res) => {
   sendSuccess(res, await getLedgerHealthReport(tenantId));
 });
 
+// Treasury assets vs what the hierarchy is owed. Rupee strings so the portal renders them
+// without ever putting paise through a JS number.
+adminRouter.get("/treasury/summary", async (_req, res) => {
+  const { getTreasurySummary } = await import("../reconciliation/checks");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const { paiseToRupees } = await import("../../core/money");
+  const tenantId = await resolveTenantId();
+  const s = await getTreasurySummary(tenantId);
+  sendSuccess(res, {
+    bank: paiseToRupees(s.bank),
+    transit: paiseToRupees(s.transit),
+    float: paiseToRupees(s.float),
+    totalAssets: paiseToRupees(s.totalAssets),
+    companyBalance: paiseToRupees(s.companyBalance),
+    downlineLiability: paiseToRupees(s.downlineLiability),
+    solvent: s.solvent,
+  });
+});
+
 adminRouter.post("/ledger/recon/run", async (_req, res) => {
   const { runAndPersistReconciliation } = await import("../reconciliation/reports");
   const { resolveTenantId } = await import("../fund-requests/tenant");

@@ -438,8 +438,9 @@ export async function adminFundOwnWallet(
   const wallet = await getWalletOrThrow(walletUserId, "main");
 
   const runFund = async (tx?: Tx): Promise<{ groupId: string }> => {
-    if (tx) return fundWallet({ walletId: wallet.id, amount, description }, tx);
-    return fundWallet({ walletId: wallet.id, amount, description });
+    const fundParams = { walletId: wallet.id, amount, description, performedBy: actor.id };
+    if (tx) return fundWallet(fundParams, tx);
+    return fundWallet(fundParams);
   };
 
   let result: { groupId: string };

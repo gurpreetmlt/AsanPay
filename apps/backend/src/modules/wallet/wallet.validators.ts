@@ -26,7 +26,18 @@ export const fundWalletSchema = z
     txnAuth: z.string().min(20).optional(),
     idempotencyKey: z.string().min(8).max(100),
   })
-  .superRefine(requireTxnProof);
+  .superRefine(requireTxnProof)
+  // A top-up mints spendable capacity out of nothing, so it must say why. Funding a downline
+  // only moves capacity that already exists, so it stays optional there.
+  .superRefine((val, ctx) => {
+    if (!val.targetUserId && (val.description?.trim().length ?? 0) < 8) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["description"],
+        message: "A company top-up needs a written reason (at least 8 characters)",
+      });
+    }
+  });
 export type FundWalletInput = z.infer<typeof fundWalletSchema>;
 
 export const transferWalletSchema = z

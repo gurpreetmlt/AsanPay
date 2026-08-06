@@ -27,13 +27,17 @@ export function FundSelfForm({ onClose, onSuccess }: FundSelfFormProps) {
       toast.error("Enter your 4-digit transaction PIN");
       return;
     }
+    if (description.trim().length < 8) {
+      toast.error("Write a reason — at least 8 characters");
+      return;
+    }
     setLoading(true);
     try {
       await api.post("/wallet/fund", {
         amount,
         txnPin,
+        description: description.trim(),
         idempotencyKey: attemptKey.current.get(),
-        ...(description ? { description } : {}),
       });
       attemptKey.current.clear();
       toast.success(`₹${amount} added to your balance`);
@@ -67,13 +71,18 @@ export function FundSelfForm({ onClose, onSuccess }: FundSelfFormProps) {
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Note (optional)</label>
+          <label className="mb-1 block text-sm font-medium text-gray-700">Reason</label>
           <input
+            required
+            minLength={8}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="e.g. Bank reconciliation ref"
+            placeholder="e.g. Bank reconciliation ref UTR123456"
             className="w-full rounded-lg border border-border-subtle px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
           />
+          <p className="mt-1 text-[11px] text-gray-500">
+            Recorded against this allocation in the audit trail.
+          </p>
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">Transaction PIN</label>
