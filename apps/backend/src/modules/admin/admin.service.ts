@@ -7,12 +7,28 @@ import {
   services,
   serviceCategories,
   wallets,
+  walletLedgerEntries,
+  walletLedgerGroups,
+  walletIdempotency,
   userCommissionRates,
   userHierarchy,
   providers,
   providerServices,
   auditLogs,
   providerLogs,
+  accounts,
+  journals,
+  supportTickets,
+  fundRequests,
+  fundRequestEvents,
+  agentSettlementAccounts,
+  settlementRequests,
+  floatTransfers,
+  allocations,
+  reconAdjustments,
+  reconciliationExceptions,
+  commissionLedger,
+  otpRequests,
 } from "../../db/postgres/schema";
 import { listAdapterCodes } from "../providers/provider.registry";
 import { aepsAdapterCode } from "../providers/aepsMode";
@@ -318,6 +334,152 @@ export async function setUserActive(adminId: string, userId: string, isActive: b
     uid: row.uid,
     isActive: row.isActive,
   };
+}
+
+/**
+ * Hard-delete an agent (not admin). Blocks if they still have downline.
+ * Unlinks ledger accounts / journals; removes wallet books + related rows; then deletes the user
+ * (cascade covers hierarchy, refresh tokens, devices, support tickets owned by them, wallets).
+ */
+export async function deleteAdminUser(adminId: string, userId: string) {
+  if (userId === adminId) {
+    throw new HttpError(403, "You cannot delete your own account", "CANNOT_SELF_DELETE");
+  }
+
+  const [target] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  if (!target) throw new HttpError(404, "User not found", "USER_NOT_FOUND");
+  if (target.role === "admin") {
+    throw new HttpError(403, "Admin accounts cannot be deleted here", "ADMIN_PROTECTED");
+  }
+
+  const [child] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.parentId, userId))
+    .limit(1);
+  if (child) {
+    throw new HttpError(
+      422,
+      "Reassign or delete this agent's downline before deleting them",
+      "HAS_DOWNLINE",
+    );
+  }
+
+  await db.transaction(async (tx) => {
+    await tx.update(accounts).set({ userId: null }).where(eq(accounts.userId, userId));
+    await tx.update(accounts).set({ blockedBy: null }).where(eq(accounts.blockedBy, userId));
+    await tx.update(journals).set({ performedBy: null }).where(eq(journals.performedBy, userId));
+    await tx
+      .update(supportTickets)
+      .set({ resolvedBy: null })
+      .where(eq(supportTickets.resolvedBy, userId));
+    await tx
+      .update(fundRequests)
+      .set({ reviewedBy: null })
+      .where(eq(fundRequests.reviewedBy, userId));
+    await tx
+      .update(fundRequestEvents)
+      .set({ actorId: null })
+      .where(eq(fundRequestEvents.actorId, userId));
+    await tx
+      .update(agentSettlementAccounts)
+      .set({ approvedBy: null })
+      .where(eq(agentSettlementAccounts.approvedBy, userId));
+    await tx
+      .update(reconciliationExceptions)
+      .set({ closedBy: null })
+      .where(eq(reconciliationExceptions.closedBy, userId));
+
+    const userWallets = await tx
+      .select({ id: wallets.id })
+      .from(wallets)
+      .where(eq(wallets.userId, userId));
+    const walletIds = userWallets.map((w) => w.id);
+
+    if (walletIds.length > 0) {
+      const touched = await tx
+        .select({ groupId: walletLedgerEntries.groupId })
+        .from(walletLedgerEntries)
+        .where(inArray(walletLedgerEntries.walletId, walletIds));
+      const groupIds = [...new Set(touched.map((t) => t.groupId))];
+
+      if (groupIds.length > 0) {
+        await tx
+          .delete(commissionLedger)
+          .where(
+            or(
+              eq(commissionLedger.beneficiaryUserId, userId),
+              inArray(commissionLedger.ledgerGroupId, groupIds),
+            ),
+          );
+        await tx
+          .delete(walletLedgerEntries)
+          .where(inArray(walletLedgerEntries.groupId, groupIds));
+        await tx.delete(walletLedgerGroups).where(inArray(walletLedgerGroups.id, groupIds));
+      }
+
+      await tx
+        .delete(walletLedgerEntries)
+        .where(inArray(walletLedgerEntries.walletId, walletIds));
+    }
+
+    await tx.delete(commissionLedger).where(eq(commissionLedger.beneficiaryUserId, userId));
+    await tx.delete(walletIdempotency).where(eq(walletIdempotency.userId, userId));
+
+    const frRows = await tx
+      .select({ id: fundRequests.id })
+      .from(fundRequests)
+      .where(eq(fundRequests.requesterUserId, userId));
+    if (frRows.length > 0) {
+      await tx
+        .delete(fundRequestEvents)
+        .where(
+          inArray(
+            fundRequestEvents.fundRequestId,
+            frRows.map((r) => r.id),
+          ),
+        );
+      await tx.delete(fundRequests).where(eq(fundRequests.requesterUserId, userId));
+    }
+
+    await tx.delete(settlementRequests).where(eq(settlementRequests.userId, userId));
+    await tx
+      .delete(agentSettlementAccounts)
+      .where(
+        or(
+          eq(agentSettlementAccounts.userId, userId),
+          eq(agentSettlementAccounts.createdBy, userId),
+        ),
+      );
+
+    await tx
+      .delete(floatTransfers)
+      .where(
+        or(eq(floatTransfers.initiatedBy, userId), eq(floatTransfers.approvedBy, userId)),
+      );
+    await tx
+      .delete(allocations)
+      .where(or(eq(allocations.requestedBy, userId), eq(allocations.approvedBy, userId)));
+    await tx
+      .delete(reconAdjustments)
+      .where(
+        or(eq(reconAdjustments.requestedBy, userId), eq(reconAdjustments.approvedBy, userId)),
+      );
+
+    await tx.delete(transactions).where(eq(transactions.userId, userId));
+    await tx.delete(otpRequests).where(eq(otpRequests.mobile, target.mobile));
+    await tx.delete(users).where(eq(users.id, userId));
+  });
+
+  await insertAuditLog({
+    userId: adminId,
+    action: "admin.user_delete",
+    entityType: "user",
+    entityId: userId,
+    metadata: { uid: target.uid, mobile: target.mobile, role: target.role, name: target.name },
+  });
+
+  return { id: target.id, uid: target.uid, mobile: target.mobile };
 }
 
 /**

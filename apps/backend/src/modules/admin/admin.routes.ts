@@ -12,6 +12,7 @@ import {
   getAdminUserCommissions,
   upsertAdminUserCommissions,
   setUserActive,
+  deleteAdminUser,
   reassignUserParent,
   listKycQueue,
   decideKyc,
@@ -92,6 +93,12 @@ adminRouter.patch("/users/:id/active", async (req, res) => {
   const body = z.object({ isActive: z.boolean() }).parse(req.body);
   const result = await setUserActive(req.auth.sub, req.params.id, body.isActive);
   sendSuccess(res, result, body.isActive ? "User activated" : "User deactivated");
+});
+
+adminRouter.delete("/users/:id", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const result = await deleteAdminUser(req.auth.sub, req.params.id);
+  sendSuccess(res, result, "User deleted");
 });
 
 adminRouter.post("/users/:id/reassign", async (req, res) => {

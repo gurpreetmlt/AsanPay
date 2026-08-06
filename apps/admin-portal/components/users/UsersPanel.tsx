@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/Badge";
 import { TableActionButtons } from "@/components/ui/TableActionButtons";
 import { NetworkTreeView } from "@/components/users/NetworkTreeView";
 import { MoveAgentModal } from "@/components/users/MoveAgentModal";
+import { useDevOptionsStore } from "@/lib/devOptionsStore";
 
 export type RoleFilter = "" | "super_distributor" | "distributor" | "retailer";
 type KycFilter = "" | "pending" | "verified" | "rejected";
@@ -61,6 +62,8 @@ export function UsersPanel({ lockedRole = "" }: Props) {
   const [view, setView] = useState<"table" | "tree">("table");
   const [moveAgents, setMoveAgents] = useState<AdminUser[] | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const rowDeleteEnabled = useDevOptionsStore((s) => s.rowDeleteEnabled);
 
   useEffect(() => {
     setRole(lockedRole);
@@ -104,6 +107,34 @@ export function UsersPanel({ lockedRole = "" }: Props) {
       );
     } finally {
       setToggling(null);
+    }
+  }
+
+  async function deleteUser(u: AdminUser) {
+    if (
+      !window.confirm(
+        `Permanently delete ${u.name} (${u.mobile})?\n\nThis cannot be undone. Delete retailers before distributors / super distributors if they are linked.`,
+      )
+    ) {
+      return;
+    }
+    setDeletingId(u.id);
+    try {
+      await api.delete(`/admin/users/${u.id}`);
+      toast.success("User deleted");
+      setUsers((prev) => prev.filter((x) => x.id !== u.id));
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(u.id);
+        return next;
+      });
+    } catch (err) {
+      toast.error(
+        (err as { response?: { data?: { message?: string } } }).response?.data?.message ??
+          "Could not delete user",
+      );
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -359,6 +390,8 @@ export function UsersPanel({ lockedRole = "" }: Props) {
                         }
                         onBan={u.isActive && toggling !== u.id ? () => void toggleActive(u) : undefined}
                         onMove={isMovable(u) ? () => setMoveAgents([u]) : undefined}
+                        onDelete={rowDeleteEnabled ? () => void deleteUser(u) : undefined}
+                        deleting={deletingId === u.id}
                       />
                     </td>
                   </tr>
@@ -418,6 +451,8 @@ export function UsersPanel({ lockedRole = "" }: Props) {
                   }
                   onBan={u.isActive && toggling !== u.id ? () => void toggleActive(u) : undefined}
                   onMove={isMovable(u) ? () => setMoveAgents([u]) : undefined}
+                  onDelete={rowDeleteEnabled ? () => void deleteUser(u) : undefined}
+                  deleting={deletingId === u.id}
                 />
               </div>
               <div className="mt-3 flex flex-wrap gap-2">

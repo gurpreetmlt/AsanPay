@@ -59,8 +59,8 @@ export default function DeveloperSafetyPage() {
                   Enable row delete
                 </h2>
                 <p className="mt-1 text-sm leading-relaxed" style={{ color: B.muted }}>
-                  When on, Delete / Trash icons appear on admin tables (commission rules, service
-                  charges, and any action that uses the shared delete button). When off, those
+                  When on, Delete / Trash icons appear on All Agents and other admin tables
+                  (commission rules, service charges, shared action buttons). When off, those
                   icons are hidden.
                 </p>
                 <p className="mt-2 text-xs font-semibold" style={{ color: "#B45309" }}>
