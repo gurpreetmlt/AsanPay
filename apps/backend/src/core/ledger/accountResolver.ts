@@ -11,6 +11,7 @@ export interface ResolvedAccount {
   accountType: AccountType;
   accountClass: "asset" | "liability" | "internal" | "income" | "expense";
   requiresBalanceCheck: boolean;
+  blockServices: boolean;
   blockTopup: boolean;
   blockSettlement: boolean;
   status: "active" | "inactive" | "closed";
@@ -31,6 +32,7 @@ function toResolved(row: typeof accounts.$inferSelect): ResolvedAccount {
     accountType: row.accountType,
     accountClass: row.accountClass,
     requiresBalanceCheck: row.requiresBalanceCheck,
+    blockServices: row.blockServices,
     blockTopup: row.blockTopup,
     blockSettlement: row.blockSettlement,
     status: row.status,

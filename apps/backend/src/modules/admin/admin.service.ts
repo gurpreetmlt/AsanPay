@@ -557,6 +557,77 @@ export async function reactivateAeps(
 }
 
 /**
+ * Graded restriction, replacing the old all-or-nothing `users.is_active` switch.
+ *
+ *   soft   — AePS and money transfer off. Bill payments, recharge, balance, settlement,
+ *            support and login all keep working. This is the default response to a suspicion.
+ *   hard   — the above plus no top-ups. Money already earned can still be settled out.
+ *   freeze — everything, including login. Confirmed fraud only, never automatic.
+ *   none   — lift everything.
+ *
+ * Settlement stays open under soft and hard on purpose. Switching off an agent's services is a
+ * commercial decision we are entitled to make; holding on to money they have already earned is
+ * not, until fraud is established. Only `freeze` stops a payout, and it should carry a documented
+ * case and a review date.
+ */
+export type RestrictionLevel = "none" | "soft" | "hard" | "freeze";
+
+const RESTRICTION_FLAGS: Record<
+  RestrictionLevel,
+  { blockServices: boolean; blockTopup: boolean; blockSettlement: boolean; blockLogin: boolean }
+> = {
+  none: { blockServices: false, blockTopup: false, blockSettlement: false, blockLogin: false },
+  soft: { blockServices: true, blockTopup: false, blockSettlement: false, blockLogin: false },
+  hard: { blockServices: true, blockTopup: true, blockSettlement: false, blockLogin: false },
+  freeze: { blockServices: true, blockTopup: true, blockSettlement: true, blockLogin: true },
+};
+
+export async function setRestrictionLevel(
+  adminId: string,
+  userId: string,
+  level: RestrictionLevel,
+  reason: string,
+): Promise<{ userId: string; level: RestrictionLevel; accountsUpdated: number }> {
+  if (level !== "none" && reason.trim().length < 8) {
+    throw new HttpError(422, "A written reason is required", "REASON_REQUIRED");
+  }
+
+  const [target] = await db
+    .select({ id: users.id, role: users.role })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  if (!target) throw new HttpError(404, "User not found", "USER_NOT_FOUND");
+  if (target.role === "admin") {
+    throw new HttpError(422, "Admins hold no wallet to restrict", "INVALID_TARGET");
+  }
+
+  const flags = RESTRICTION_FLAGS[level];
+  const now = new Date();
+
+  const updated = await db
+    .update(accounts)
+    .set({
+      ...flags,
+      blockReason: level === "none" ? null : reason.trim(),
+      blockedBy: level === "none" ? null : adminId,
+      blockedAt: level === "none" ? null : now,
+    })
+    .where(eq(accounts.userId, userId))
+    .returning({ id: accounts.id });
+
+  await insertAuditLog({
+    userId: adminId,
+    action: "admin.restriction_set",
+    entityType: "user",
+    entityId: userId,
+    metadata: { level, reason: reason.trim(), accountsUpdated: updated.length },
+  });
+
+  return { userId, level, accountsUpdated: updated.length };
+}
+
+/**
  * Admin-only tree move: change a user's parent and rebuild the closure-table edges
  * for that user and their entire subtree. Wallet balances are unchanged.
  */

@@ -53,6 +53,25 @@ const SETTLEABLE_CREDIT_TYPES = new Set<TxnType>([
 
 const SETTLEABLE_DEBIT_TYPES = new Set<TxnType>(["SETTLEMENT_DEBIT", "SETTLEMENT_PAYOUT"]);
 
+/**
+ * Rails that `block_services` switches off. Deliberately NOT every service: BBPS and recharge
+ * stay available so a suspected agent keeps a working shop and a reason to stay reachable,
+ * while the rails that actually carry the fraud risk stop.
+ *
+ * Note this is narrower than spec §6.4, which described block_services as "AePS/DMT/BBPS".
+ * Blocking bill payments punishes the agent's customers for a suspicion about the agent.
+ *
+ * Checked in BOTH directions: AePS withdrawal credits the retailer rather than debiting them
+ * (spec §4.7), so a DR-only check would leave the largest rail wide open.
+ */
+const SERVICE_BLOCKED_TYPES = new Set<TxnType>([
+  "DMT",
+  "AEPS_DEPOSIT",
+  "AEPS_WITHDRAWAL",
+  "MICRO_ATM",
+  "AADHAAR_PAY",
+]);
+
 // Debits that may only consume the USABLE part of a liability wallet (balance - settleable),
 // not the whole balance. An upline reclaiming an advance must not be able to reach into money
 // the downline earned: that money is theirs to withdraw, and taking it would be the compliance
@@ -332,6 +351,23 @@ export async function postJournal(tx: Tx, input: PostJournalInput): Promise<Post
         422,
         `Settlement is blocked on account ${account.code}. Contact support if you need this lifted.`,
         "SETTLEMENT_BLOCKED",
+      );
+    }
+
+    // Services off, money untouched. The agent can still see their balance, settle earnings to
+    // their own bank, raise a ticket and reach their upline — blocking those would strand a
+    // suspicion as a permanent lockout, and a retailer who cannot reach you simply leaves.
+    if (
+      account.accountClass === "liability" &&
+      account.requiresBalanceCheck &&
+      account.blockServices &&
+      SERVICE_BLOCKED_TYPES.has(txnType)
+    ) {
+      throw new HttpError(
+        422,
+        `AePS and money transfer are switched off on account ${account.code}. ` +
+          `Bill payments and recharge still work. Contact your distributor to restore them.`,
+        "SERVICES_BLOCKED",
       );
     }
 

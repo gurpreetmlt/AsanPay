@@ -73,6 +73,7 @@ export default function AgentDetailPage() {
   const [busy, setBusy] = useState(false);
   const [newParentUid, setNewParentUid] = useState("");
   const [aepsReason, setAepsReason] = useState("");
+  const [restrictReason, setRestrictReason] = useState("");
   const [recentTxns, setRecentTxns] = useState<RecentTxn[]>([]);
 
   const load = useCallback(async () => {
@@ -126,6 +127,34 @@ export default function AgentDetailPage() {
       toast.error(
         (err as { response?: { data?: { message?: string } } }).response?.data?.message ??
           "Decision failed",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Graded restriction instead of deactivating the account. Soft and hard leave login, balance,
+  // support and settlement working — a wrongly-suspected agent stays reachable.
+  async function setRestriction(level: "none" | "soft" | "hard" | "freeze") {
+    if (!agent) return;
+    const reason = restrictReason.trim();
+    if (level !== "none" && reason.length < 8) {
+      toast.error("Write a reason — at least 8 characters");
+      return;
+    }
+    if (level === "freeze" && !confirm("Freeze blocks login AND settlement. Confirmed fraud only. Continue?")) {
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.post(`/admin/users/${agent.id}/restrict`, { level, reason });
+      toast.success(level === "none" ? "Restrictions lifted" : `Restriction set to ${level}`);
+      setRestrictReason("");
+      await load();
+    } catch (err) {
+      toast.error(
+        (err as { response?: { data?: { message?: string } } }).response?.data?.message ??
+          "Update failed",
       );
     } finally {
       setBusy(false);
@@ -420,6 +449,44 @@ export default function AgentDetailPage() {
                     >
                       Reassign parent
                     </button>
+                  </div>
+                ) : null}
+
+                {agent.role !== "admin" ? (
+                  <div className="mt-4 space-y-2 border-t pt-4" style={{ borderColor: B.border }}>
+                    <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: B.muted }}>
+                      Restrict services
+                    </p>
+                    <p className="text-xs" style={{ color: B.muted }}>
+                      Soft: AePS + money transfer off, bill payments still work. Hard: adds no
+                      top-ups. Both keep login, balance and settlement working. Freeze stops
+                      everything — confirmed fraud only.
+                    </p>
+                    <input
+                      type="text"
+                      value={restrictReason}
+                      onChange={(e) => setRestrictReason(e.target.value)}
+                      placeholder="Reason (min 8 characters)"
+                      className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
+                      style={{ borderColor: B.border, color: B.blue }}
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      {(["soft", "hard", "freeze", "none"] as const).map((lvl) => (
+                        <button
+                          key={lvl}
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void setRestriction(lvl)}
+                          className="rounded-xl border-2 bg-white px-3 py-2 text-xs font-bold capitalize disabled:opacity-50"
+                          style={{
+                            borderColor: lvl === "freeze" ? "#DC2626" : lvl === "none" ? B.green : B.border,
+                            color: lvl === "freeze" ? "#DC2626" : lvl === "none" ? B.greenDark : B.blue,
+                          }}
+                        >
+                          {lvl === "none" ? "Lift all" : lvl}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 ) : null}
 

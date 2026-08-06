@@ -15,6 +15,7 @@ import {
   deleteAdminUser,
   reassignUserParent,
   reactivateAeps,
+  setRestrictionLevel,
   listKycQueue,
   decideKyc,
   listAdminTransactions,
@@ -125,6 +126,21 @@ adminRouter.post("/users/:id/aeps/reactivate", async (req, res) => {
   const body = z.object({ reason: z.string().trim().min(8).max(500) }).parse(req.body);
   const result = await reactivateAeps(req.auth.sub, req.params.id, body.reason);
   sendSuccess(res, result, "AePS reactivated");
+});
+
+// Graded restriction. Prefer this over deactivating the account: soft and hard leave login,
+// balance visibility, support and settlement working, which is what keeps a wrongly-suspected
+// agent reachable instead of gone.
+adminRouter.post("/users/:id/restrict", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const body = z
+    .object({
+      level: z.enum(["none", "soft", "hard", "freeze"]),
+      reason: z.string().trim().max(500).default(""),
+    })
+    .parse(req.body);
+  const result = await setRestrictionLevel(req.auth.sub, req.params.id, body.level, body.reason);
+  sendSuccess(res, result, `Restriction set to ${body.level}`);
 });
 
 adminRouter.get("/kyc", async (req, res) => {
