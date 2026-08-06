@@ -26,8 +26,11 @@ EXPOSE 4000
 # which is the correct outcome for a money system.
 # Assumes a single backend replica; two replicas starting at once would race the migrator.
 #
-# Scheduled work runs as a SECOND Coolify service off this same image, with its start command
-# overridden to:  npx tsx src/jobs/index.ts
-# That service must NOT run the migrator — only the API container owns schema changes, and two
-# processes migrating at once would race.
-CMD ["sh", "-c", "npx tsx src/db/postgres/migrate.ts && npx tsx src/server.ts"]
+# One image, two roles. Scheduled work (src/jobs) runs as a SECOND Coolify service off this same
+# image with PROCESS_ROLE=jobs in its environment. Coolify's Dockerfile build pack has no start
+# command override, so the role is selected here rather than in the service config.
+#
+# The jobs role deliberately skips the migrator: only the API container owns schema changes, and
+# two processes migrating at once would race. Unset PROCESS_ROLE means API, so the existing
+# backend service keeps working with no config change.
+CMD ["sh", "-c", "if [ \"$PROCESS_ROLE\" = \"jobs\" ]; then exec npx tsx src/jobs/index.ts; else npx tsx src/db/postgres/migrate.ts && exec npx tsx src/server.ts; fi"]
