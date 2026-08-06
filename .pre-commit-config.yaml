@@ -37,6 +37,31 @@ repos:
     hooks:
       - id: gitleaks
 
+  - repo: local
+    hooks:
+      # Catch type errors here rather than in a deploy. A build container that dies mid-typecheck
+      # reports nothing useful, so the check has to have already happened on a dev machine.
+      - id: typecheck-agent-portal
+        name: typecheck agent-portal
+        language: system
+        entry: bash -c 'cd apps/agent-portal && npx tsc --noEmit'
+        files: ^apps/agent-portal/.*\.(ts|tsx)$
+        pass_filenames: false
+
+      - id: typecheck-admin-portal
+        name: typecheck admin-portal
+        language: system
+        entry: bash -c 'cd apps/admin-portal && npx tsc --noEmit'
+        files: ^apps/admin-portal/.*\.(ts|tsx)$
+        pass_filenames: false
+
+      - id: typecheck-backend
+        name: typecheck backend
+        language: system
+        entry: bash -c 'cd apps/backend && npx tsc --noEmit'
+        files: ^apps/backend/.*\.ts$
+        pass_filenames: false
+
   # Strip Cursor/Claude/Anthropic Co-authored-by / Made-with trailers (never in history)
   - repo: local
     hooks:
