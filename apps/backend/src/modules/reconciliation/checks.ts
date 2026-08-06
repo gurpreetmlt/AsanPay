@@ -307,6 +307,158 @@ export async function checkUnmatchedBankCredits(tenantId: string): Promise<Recon
   }));
 }
 
+/**
+ * Allocation control (spec §7). Minting spendable capacity is the one operation that creates
+ * money out of nothing, so every ALLOCATION journal must be traceable to an `allocations` row
+ * naming the operator and the reason. A journal without one means capacity was minted around
+ * the audit trail.
+ *
+ * Scoped to journals posted after the first allocations row exists: allocations that predate
+ * the audit table are not defects, and re-flagging them forever would bury real findings.
+ */
+export async function checkAllocationControl(tenantId: string): Promise<ReconFinding[]> {
+  const orphans = await db.execute<{ journal_id: string; amount: string; created_at: string }>(sql`
+    SELECT j.id::text AS journal_id,
+           COALESCE(SUM(le.amount) FILTER (WHERE le.direction = 'CR'), 0)::text AS amount,
+           j.created_at::text
+    FROM journals j
+    JOIN ledger_entries le ON le.journal_id = j.id
+    WHERE j.tenant_id = ${tenantId}
+      AND j.txn_type = 'ALLOCATION'
+      AND j.created_at >= (SELECT MIN(requested_at) FROM allocations WHERE tenant_id = ${tenantId})
+      AND NOT EXISTS (SELECT 1 FROM allocations al WHERE al.journal_id = j.id)
+    GROUP BY j.id, j.created_at
+  `);
+
+  const mismatched = await db.execute<{
+    allocation_id: string;
+    row_amount: string;
+    journal_amount: string;
+  }>(sql`
+    SELECT al.id::text AS allocation_id,
+           al.amount::text AS row_amount,
+           COALESCE(SUM(le.amount) FILTER (WHERE le.direction = 'CR'), 0)::text AS journal_amount
+    FROM allocations al
+    JOIN ledger_entries le ON le.journal_id = al.journal_id
+    WHERE al.tenant_id = ${tenantId}
+      AND al.journal_id IS NOT NULL
+    GROUP BY al.id, al.amount
+    HAVING al.amount <> COALESCE(SUM(le.amount) FILTER (WHERE le.direction = 'CR'), 0)
+  `);
+
+  // An approved allocation with no journal moved no money — the approval silently did nothing.
+  const unposted = await db.execute<{ allocation_id: string; amount: string }>(sql`
+    SELECT al.id::text AS allocation_id, al.amount::text
+    FROM allocations al
+    WHERE al.tenant_id = ${tenantId}
+      AND al.status = 'approved'
+      AND al.journal_id IS NULL
+  `);
+
+  return [
+    ...orphans.rows.map((r) => ({
+      checkName: "allocation_control",
+      severity: "critical" as const,
+      fingerprint: `allocation_control:orphan:${r.journal_id}`,
+      details: {
+        journalId: r.journal_id,
+        amountPaise: r.amount,
+        createdAt: r.created_at,
+        reason: "ALLOCATION journal has no allocations row — capacity minted outside the audit trail",
+      },
+    })),
+    ...mismatched.rows.map((r) => ({
+      checkName: "allocation_control",
+      severity: "critical" as const,
+      fingerprint: `allocation_control:amount:${r.allocation_id}`,
+      details: {
+        allocationId: r.allocation_id,
+        rowAmountPaise: r.row_amount,
+        journalAmountPaise: r.journal_amount,
+        reason: "Allocation amount does not match the journal it points at",
+      },
+    })),
+    ...unposted.rows.map((r) => ({
+      checkName: "allocation_control",
+      severity: "warn" as const,
+      fingerprint: `allocation_control:unposted:${r.allocation_id}`,
+      details: {
+        allocationId: r.allocation_id,
+        amountPaise: r.amount,
+        reason: "Allocation is approved but no journal was posted",
+      },
+    })),
+  ];
+}
+
+/**
+ * Aggregator settlement (spec §7). The full check compares the provider's own settlement report
+ * against the FLOAT_* ledger; there is no provider-report ingest table yet, so this covers the
+ * half that is verifiable today — that every float movement we claim happened has the journals
+ * to prove it. A transfer marked confirmed without a confirm journal means our float balance
+ * says money arrived at the aggregator when the ledger never recorded it.
+ */
+export async function checkAggregatorSettlement(tenantId: string): Promise<ReconFinding[]> {
+  const rows = await db.execute<{
+    id: string;
+    status: string;
+    amount: string;
+    missing: string;
+    initiated_at: string;
+  }>(sql`
+    SELECT ft.id::text,
+           ft.status::text,
+           ft.amount::text,
+           CASE WHEN ft.transit_journal_id IS NULL THEN 'transit' ELSE 'confirm' END AS missing,
+           ft.initiated_at::text
+    FROM float_transfers ft
+    WHERE ft.tenant_id = ${tenantId}
+      AND (
+        (ft.status IN ('in_transit','confirmed') AND ft.transit_journal_id IS NULL)
+        OR (ft.status = 'confirmed' AND ft.confirm_journal_id IS NULL)
+      )
+  `);
+
+  const mismatched = await db.execute<{ id: string; row_amount: string; journal_amount: string }>(sql`
+    SELECT ft.id::text,
+           ft.amount::text AS row_amount,
+           COALESCE(SUM(le.amount) FILTER (WHERE le.direction = 'CR'), 0)::text AS journal_amount
+    FROM float_transfers ft
+    JOIN ledger_entries le ON le.journal_id = ft.confirm_journal_id
+    WHERE ft.tenant_id = ${tenantId}
+      AND ft.status = 'confirmed'
+    GROUP BY ft.id, ft.amount
+    HAVING ft.amount <> COALESCE(SUM(le.amount) FILTER (WHERE le.direction = 'CR'), 0)
+  `);
+
+  return [
+    ...rows.rows.map((r) => ({
+      checkName: "aggregator_settlement",
+      severity: "critical" as const,
+      fingerprint: `aggregator_settlement:journal:${r.id}`,
+      details: {
+        floatTransferId: r.id,
+        status: r.status,
+        amountPaise: r.amount,
+        missingJournal: r.missing,
+        initiatedAt: r.initiated_at,
+        reason: `Float transfer is ${r.status} but its ${r.missing} journal is missing`,
+      },
+    })),
+    ...mismatched.rows.map((r) => ({
+      checkName: "aggregator_settlement",
+      severity: "critical" as const,
+      fingerprint: `aggregator_settlement:amount:${r.id}`,
+      details: {
+        floatTransferId: r.id,
+        rowAmountPaise: r.row_amount,
+        journalAmountPaise: r.journal_amount,
+        reason: "Confirmed float transfer amount does not match its journal",
+      },
+    })),
+  ];
+}
+
 export const ALL_CHECKS = [
   checkLedgerVsBalance,
   checkTrialBalance,
@@ -316,6 +468,8 @@ export const ALL_CHECKS = [
   checkStaleTransit,
   checkStaleFundRequest,
   checkUnmatchedBankCredits,
+  checkAllocationControl,
+  checkAggregatorSettlement,
 ];
 
 /**
