@@ -239,6 +239,13 @@
       "when": 1785930000000,
       "tag": "0033_aeps_favourite_banks",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1786010000000,
+      "tag": "0034_partitioned_log_tables",
+      "breakpoints": true
     }
   ]
 }

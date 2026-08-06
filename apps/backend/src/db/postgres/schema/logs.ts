@@ -1,5 +1,6 @@
 import {
   pgTable,
+  pgSchema,
   uuid,
   varchar,
   text,
@@ -11,9 +12,21 @@ import {
 } from "drizzle-orm/pg-core";
 import { otpPurposeEnum } from "./enums";
 
+/**
+ * The two append-only trace tables live in the `logs` schema as monthly range partitions
+ * (spec §1), physically apart from the money tables. Retention is DROP PARTITION, run by the
+ * jobs worker — never DELETE. Writes are best-effort: a failed trace insert must never roll
+ * back a ledger write.
+ *
+ * Their primary key is (id, created_at) in the database, because Postgres requires the
+ * partition key in every unique constraint. Drizzle only ever inserts and reads by range here,
+ * so the extra key column does not surface in application code.
+ */
+const logsSchema = pgSchema("logs");
+
 // Security/action audit trail. No FK on userId — logging must succeed even for
 // actions tied to a user that's since been deleted, or attempts by unknown mobiles.
-export const auditLogs = pgTable(
+export const auditLogs = logsSchema.table(
   "audit_logs",
   {
     id: uuid("id").primaryKey().defaultRandom(),
@@ -100,7 +113,7 @@ export const otpRequests = pgTable(
 
 // Raw provider request/response payloads — large, schemaless, only read during
 // support/debugging. The transactions table stores only the small structured fields.
-export const providerLogs = pgTable(
+export const providerLogs = logsSchema.table(
   "provider_logs",
   {
     id: uuid("id").primaryKey().defaultRandom(),

@@ -17,10 +17,12 @@ import { deleteExpiredOtpRequests } from "../db/postgres/repositories/otpRequest
 import { runReconciliation } from "../modules/reconciliation/checks";
 import { reconcileStaleTransactions, runDailyReconciliation } from "../modules/transactions/txn.service";
 import { runStatementEmailJobs } from "../modules/notifications/userEmail.service";
+import { sweepLogPartitions } from "./logPartitions";
 import { logger } from "../utils/logger";
 
 const OTP_SWEEP_INTERVAL_MS = 30 * 60 * 1000;
 const DAILY_RECONCILE_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const PARTITION_SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 /** Ledger recon across every active tenant. Detection only — never mutates balances. */
 export async function runLedgerReconciliationSweep(): Promise<void> {
@@ -103,6 +105,18 @@ async function main() {
     );
     logger.info({ intervalMs: env.LEDGER_RECON_INTERVAL_MS }, "ledger reconciliation cron enabled");
   }
+
+  // Log partition maintenance. Run once at boot too: if the worker was down across a month
+  // boundary, waiting a full day would leave writes falling into the DEFAULT partition.
+  const runPartitionSweep = () =>
+    sweepLogPartitions()
+      .then((r) => {
+        if (r.dropped.length > 0 || r.defaultRows > 0) logger.info(r, "log partition sweep");
+      })
+      .catch((err: unknown) => logger.error({ err }, "log partition sweep failed"));
+
+  void runPartitionSweep();
+  timers.push(setInterval(() => void runPartitionSweep(), PARTITION_SWEEP_INTERVAL_MS));
 
   logger.info({ timers: timers.length }, "AsanPay jobs worker started");
 
