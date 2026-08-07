@@ -3,11 +3,17 @@ import { requireAuth } from "../../middleware/auth.middleware";
 import { sendSuccess } from "../../utils/apiResponse";
 import { HttpError } from "../../utils/httpError";
 import { kycSubmitSchema } from "../auth/auth.validators";
-import { submitKyc } from "./kyc.service";
+import { getMyKycProfile, submitKyc } from "./kyc.service";
 
 export const kycRouter = Router();
 
 kycRouter.use(requireAuth);
+
+kycRouter.get("/me", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const profile = await getMyKycProfile(req.auth.sub);
+  sendSuccess(res, { profile });
+});
 
 kycRouter.get("/ifsc/:code", async (req, res) => {
   const ifsc = String(req.params.code ?? "")

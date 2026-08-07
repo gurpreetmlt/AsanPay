@@ -101,7 +101,6 @@ function buildAgentNav(role: UserRole | undefined): NavItem[] {
         icon: Users,
         children: [
           { to: "/customers", label: "Customers", icon: Users },
-          { to: "/kyc", label: "KYC", icon: Shield },
           { to: "/reports", label: "Reports", icon: BarChart3 },
         ],
       },

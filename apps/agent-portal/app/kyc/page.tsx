@@ -1,747 +1,136 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "react-hot-toast";
-import {
-  FileText,
-  User,
-  Fingerprint,
-  CreditCard,
-  Building2,
-  Eye,
-  ArrowRight,
-  ArrowLeft,
-  Check,
-  CheckCircle2,
-} from "lucide-react";
+import { Check, CheckCircle2, Clock3, ShieldAlert } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
-import { EmailVerifyField } from "@/components/EmailVerifyField";
+import { SignupStepper, SIGNUP_STEPS } from "@/components/signup/SignupStepper";
 import { B } from "@/lib/brand";
+import { needsSignupKycCompletion } from "@/lib/onboarding";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
-import api from "@/lib/api";
-import { formatAadhaar, stripAadhaar } from "@/lib/aadhaar";
-import { lookupIndianIfsc } from "@/lib/ifsc";
-import { lookupIndianPincode } from "@/lib/pincode";
-import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 
-const STEPS = [
-  { id: "agreement", label: "Agreement", icon: FileText },
-  { id: "personal", label: "Personal", icon: User },
-  { id: "aadhaar", label: "Aadhaar", icon: Fingerprint },
-  { id: "pan", label: "PAN", icon: CreditCard },
-  { id: "bank", label: "Bank", icon: Building2 },
-  { id: "review", label: "Review", icon: Eye },
-] as const;
-
-type KycForm = {
-  fullName: string;
-  dob: string;
-  email: string;
-  address: string;
-  city: string;
-  state: string;
-  region: string;
-  pincode: string;
-  aadhaar: string;
-  pan: string;
-  accountName: string;
-  accountNumber: string;
-  accountNumberConfirm: string;
-  ifsc: string;
-  bankName: string;
-  bankBranch: string;
-  cancelledChequeName: string;
-};
-
-type KycDraft = {
-  step: number;
-  agreed: boolean;
-  form: KycForm;
-};
-
-function kycDraftKey(userId: string) {
-  return `asanpay:kyc-draft:${userId}`;
-}
-
-function Label({ children }: { children: ReactNode }) {
-  return (
-    <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider" style={{ color: B.muted }}>
-      {children}
-    </div>
-  );
-}
-
-function Field({
-  label,
-  placeholder,
-  value,
-  onChange,
-  type = "text",
-}: {
-  label: string;
-  placeholder: string;
-  value: string;
-  onChange: (v: string) => void;
-  type?: string;
-}) {
-  return (
-    <div>
-      <Label>{label}</Label>
-      <input
-        type={type}
-        placeholder={placeholder}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-2xl border-2 bg-white px-4 py-3 text-sm outline-none"
-        style={{ borderColor: B.border, color: B.blue }}
-      />
-    </div>
-  );
-}
-
+/**
+ * Business → KYC uses the same onboarding wizard as signup.
+ * Incomplete / rejected → continue on /signup (PAN → … → Agreement).
+ * Pending / verified → status inside the portal shell.
+ */
 export default function KycPage() {
   const router = useRouter();
   const hydrated = useAuthHydrated();
   const accessToken = useAuthStore((s) => s.accessToken);
   const user = useAuthStore((s) => s.user);
-  const setUser = useAuthStore((s) => s.setUser);
-  const [step, setStep] = useState(0);
-  const [submitting, setSubmitting] = useState(false);
-  const [agreed, setAgreed] = useState(false);
-  const [draftReady, setDraftReady] = useState(false);
-  const [form, setForm] = useState<KycForm>({
-    fullName: "",
-    dob: "",
-    email: "",
-    address: "",
-    city: "",
-    state: "",
-    region: "",
-    pincode: "",
-    aadhaar: "",
-    pan: "",
-    accountName: "",
-    accountNumber: "",
-    accountNumberConfirm: "",
-    ifsc: "",
-    bankName: "",
-    bankBranch: "",
-    cancelledChequeName: "",
-  });
-  const [pinLookupBusy, setPinLookupBusy] = useState(false);
-  const [ifscLookupBusy, setIfscLookupBusy] = useState(false);
-  const [chequePreview, setChequePreview] = useState<string | null>(null);
 
   useEffect(() => {
-    if (hydrated && !accessToken) router.replace("/login");
-  }, [hydrated, accessToken, router]);
-
-  // Resume KYC from the last saved step for this user.
-  useEffect(() => {
-    if (!user?.id) return;
-    try {
-      const raw = localStorage.getItem(kycDraftKey(user.id));
-      if (raw) {
-        const draft = JSON.parse(raw) as Partial<KycDraft>;
-        if (typeof draft.step === "number" && draft.step >= 0 && draft.step < STEPS.length) {
-          setStep(draft.step);
-        }
-        if (draft.agreed) setAgreed(true);
-        if (draft.form && typeof draft.form === "object") {
-          setForm((f) => ({ ...f, ...draft.form }));
-        }
-      }
-    } catch {
-      // ignore corrupt draft
+    if (!hydrated) return;
+    if (!accessToken) {
+      router.replace("/login");
+      return;
     }
-    setDraftReady(true);
-  }, [user?.id]);
-
-  useEffect(() => {
-    if (!user?.id || !draftReady) return;
-    const draft: KycDraft = { step, agreed, form };
-    localStorage.setItem(kycDraftKey(user.id), JSON.stringify(draft));
-  }, [user?.id, draftReady, step, agreed, form]);
-
-  useEffect(() => {
-    if (!user) return;
-    setForm((f) => ({
-      ...f,
-      fullName: f.fullName || user.name,
-      accountName: f.accountName || user.name,
-      email: f.email || user.email || "",
-    }));
-  }, [user]);
-
-  // Free India Post API — autofill city / state / region when PIN is complete.
-  useEffect(() => {
-    const pin = form.pincode;
-    if (pin.length !== 6) return;
-
-    let cancelled = false;
-    setPinLookupBusy(true);
-    void lookupIndianPincode(pin)
-      .then((place) => {
-        if (cancelled) return;
-        if (!place) {
-          toast.error("Invalid pincode — check and try again");
-          return;
-        }
-        setForm((f) => ({
-          ...f,
-          city: place.city || f.city,
-          state: place.state || f.state,
-          region: place.region || f.region,
-        }));
-      })
-      .catch(() => {
-        if (!cancelled) toast.error("Could not look up pincode");
-      })
-      .finally(() => {
-        if (!cancelled) setPinLookupBusy(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [form.pincode]);
-
-  // Free Razorpay IFSC API — autofill bank name + branch when IFSC is complete.
-  useEffect(() => {
-    const ifsc = form.ifsc;
-    if (ifsc.length !== 11) return;
-
-    let cancelled = false;
-    setIfscLookupBusy(true);
-    void lookupIndianIfsc(ifsc)
-      .then((place) => {
-        if (cancelled) return;
-        if (!place) {
-          toast.error("Invalid IFSC — check and try again");
-          return;
-        }
-        setForm((f) => ({
-          ...f,
-          bankName: place.bank || f.bankName,
-          bankBranch: place.branch || f.bankBranch,
-        }));
-      })
-      .catch(() => {
-        if (!cancelled) toast.error("Could not look up IFSC");
-      })
-      .finally(() => {
-        if (!cancelled) setIfscLookupBusy(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [form.ifsc]);
+    if (needsSignupKycCompletion(user)) {
+      router.replace("/signup");
+    }
+  }, [hydrated, accessToken, user, router]);
 
   if (!hydrated || !accessToken) return null;
 
-  const emailVerified =
-    Boolean(user?.emailVerifiedAt) &&
-    Boolean(form.email.trim()) &&
-    (user?.email ?? "").toLowerCase() === form.email.trim().toLowerCase();
-
-  function set(key: keyof typeof form, value: string) {
-    setForm((f) => ({ ...f, [key]: value }));
+  if (needsSignupKycCompletion(user)) {
+    return (
+      <AppShell>
+        <div className="flex min-h-[40vh] items-center justify-center p-6 text-sm" style={{ color: B.muted }}>
+          Opening signup KYC steps…
+        </div>
+      </AppShell>
+    );
   }
 
-  function validateBankStep(): string | null {
-    if (form.ifsc.length !== 11) return "Enter a valid 11-character IFSC";
-    if (!form.bankName.trim()) return "Bank name is required — enter IFSC and tap Fetch";
-    if (!form.accountNumber.trim()) return "Account number is required";
-    if (form.accountNumber !== form.accountNumberConfirm) {
-      return "Account number and confirm account number must match";
-    }
-    if (!form.accountName.trim()) return "Account holder name is required";
-    if (!form.cancelledChequeName.trim()) return "Upload a cancelled cheque image";
-    return null;
-  }
-
-  function onChequeSelected(file: File | null) {
-    if (!file) {
-      set("cancelledChequeName", "");
-      setChequePreview(null);
-      return;
-    }
-    const okType = /^(image\/(jpeg|jpg|png|webp)|application\/pdf)$/i.test(file.type);
-    if (!okType) {
-      toast.error("Upload JPG, PNG, WEBP, or PDF only");
-      return;
-    }
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error("Cancelled cheque must be under 2 MB");
-      return;
-    }
-    set("cancelledChequeName", file.name);
-    if (file.type.startsWith("image/")) {
-      const url = URL.createObjectURL(file);
-      setChequePreview((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return url;
-      });
-    } else {
-      setChequePreview((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return null;
-      });
-    }
-  }
-
-  async function fetchBankFromIfsc() {
-    const ifsc = form.ifsc;
-    if (ifsc.length !== 11) {
-      toast.error("Enter the full 11-character IFSC (e.g. HDFC0001209)");
-      return;
-    }
-    setIfscLookupBusy(true);
-    try {
-      const place = await lookupIndianIfsc(ifsc);
-      if (!place) {
-        toast.error("Invalid IFSC — check and try again");
-        return;
-      }
-      setForm((f) => ({
-        ...f,
-        bankName: place.bank || f.bankName,
-        bankBranch: place.branch || f.bankBranch,
-      }));
-      toast.success(`${place.bank} — ${place.branch}`);
-    } catch {
-      toast.error("Could not look up IFSC");
-    } finally {
-      setIfscLookupBusy(false);
-    }
-  }
-
-  function next() {
-    if (step === 0 && !agreed) {
-      toast.error("Please accept the agreement");
-      return;
-    }
-    if (step === 1) {
-      if (!form.email.trim()) {
-        toast.error("Email is required");
-        return;
-      }
-      if (!emailVerified) {
-        toast.error("Verify your email before continuing");
-        return;
-      }
-    }
-    if (step === 4) {
-      const bankErr = validateBankStep();
-      if (bankErr) {
-        toast.error(bankErr);
-        return;
-      }
-    }
-    if (step < STEPS.length - 1) setStep((s) => s + 1);
-  }
-
-  function back() {
-    if (step > 0) setStep((s) => s - 1);
-  }
-
-  async function submit() {
-    if (!form.pan || !form.aadhaar) {
-      toast.error("PAN and Aadhaar are required");
-      setStep(3);
-      return;
-    }
-    const bankErr = validateBankStep();
-    if (bankErr) {
-      toast.error(bankErr);
-      setStep(4);
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const { data } = await api.post<ApiResponse<{ user: AuthUser }>>("/kyc/submit", {
-        fullName: form.fullName || user?.name,
-        panNumber: form.pan.toUpperCase(),
-        aadhaarNumber: form.aadhaar.replace(/\s/g, ""),
-        email: form.email || undefined,
-        address:
-          [form.address, form.region, form.state].filter(Boolean).join(", ") || undefined,
-        city: form.city || undefined,
-        pincode: form.pincode || undefined,
-        bankAccountName: form.accountName || undefined,
-        bankAccountNumber: form.accountNumber || undefined,
-        bankIfsc: form.ifsc ? form.ifsc.toUpperCase() : undefined,
-        bankName: form.bankName || undefined,
-        cancelledChequeFileName: form.cancelledChequeName || undefined,
-      });
-      if (!data.success) throw new Error(data.message);
-      if (user?.id) localStorage.removeItem(kycDraftKey(user.id));
-      setUser(data.data.user);
-      toast.success("KYC submitted — set your PIN next");
-      router.replace("/onboarding/pin");
-    } catch (err) {
-      toast.error(
-        (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? "KYC submit failed",
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  }
+  const rejected = user?.kycStatus === "rejected";
+  const verified = user?.kycStatus === "verified";
+  const pendingReview = !rejected && !verified && Boolean(user?.hasKycDocs);
 
   return (
     <AppShell>
-      <div className="mx-auto w-full max-w-[1600px] space-y-6 p-6">
+      <div className="mx-auto w-full max-w-[900px] space-y-6 p-6">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: B.blue }}>
             KYC Onboarding
           </h1>
           <p className="mt-0.5 text-sm" style={{ color: B.muted }}>
-            Complete verification to unlock full transaction limits
+            Same steps as signup — status updates after admin review
           </p>
         </div>
 
-        <div className="flex items-center gap-1 overflow-x-auto rounded-2xl border bg-white p-3" style={{ borderColor: B.border }}>
-          {STEPS.map((s, i) => {
-            const Icon = s.icon;
-            const done = i < step;
-            const active = i === step;
-            return (
-              <div key={s.id} className="flex min-w-0 flex-1 items-center gap-1">
-                <div
-                  className="flex flex-1 flex-col items-center gap-1 rounded-xl px-2 py-2"
-                  style={{
-                    background: active ? `${B.blue}0C` : done ? `${B.green}10` : "transparent",
-                  }}
-                >
-                  <div
-                    className="flex h-8 w-8 items-center justify-center rounded-full"
-                    style={{
-                      background: done ? B.green : active ? B.badgeGrad : B.secondary,
-                      color: done || active ? "#fff" : B.muted,
-                    }}
-                  >
-                    {done ? <Check size={14} strokeWidth={3} /> : <Icon size={14} />}
-                  </div>
-                  <span
-                    className="truncate text-[11px] font-semibold"
-                    style={{ color: active ? B.blue : done ? B.green : B.muted }}
-                  >
-                    {s.label}
-                  </span>
-                </div>
-                {i < STEPS.length - 1 && (
-                  <div className="h-0.5 w-3 flex-shrink-0 rounded" style={{ background: done ? B.green : B.border }} />
-                )}
-              </div>
-            );
-          })}
-        </div>
-
         <div className="rounded-2xl border bg-white p-6" style={{ borderColor: B.border }}>
-          {step === 0 && (
-            <div className="space-y-4">
-              <h2 className="text-lg font-bold" style={{ color: B.blue }}>
-                Agent Agreement
-              </h2>
-              <div
-                className="max-h-56 space-y-3 overflow-y-auto rounded-xl p-4 text-sm leading-relaxed"
-                style={{ background: B.bg, color: B.muted }}
+          <SignupStepper currentIndex={SIGNUP_STEPS.length - 1} />
+
+          <div
+            className="mt-2 flex items-start gap-3 rounded-xl border p-4"
+            style={{
+              borderColor: verified ? "#86EFAC" : pendingReview ? "#86EFAC" : "#FECACA",
+              background: verified || pendingReview ? "#F0FDF4" : "#FEF2F2",
+            }}
+          >
+            {verified ? (
+              <CheckCircle2 size={22} className="mt-0.5 shrink-0" style={{ color: B.green }} />
+            ) : pendingReview ? (
+              <Clock3 size={22} className="mt-0.5 shrink-0" style={{ color: B.green }} />
+            ) : (
+              <ShieldAlert size={22} className="mt-0.5 shrink-0" style={{ color: "#DC2626" }} />
+            )}
+            <div>
+              <p
+                className="text-sm font-bold"
+                style={{ color: verified || pendingReview ? "#14532D" : "#991B1B" }}
               >
-                <p>
-                  By continuing, you agree to AsanPay&apos;s agent terms: you will comply with applicable RBI
-                  guidelines, maintain accurate KYC records for customers, and not misuse the platform for fraudulent
-                  transactions.
-                </p>
-                <p>
-                  Commission rates, settlement timelines, and service availability are subject to network and partner
-                  bank rules. AsanPay may suspend access for compliance violations.
-                </p>
-                <p>Your personal and business data will be processed as described in our privacy policy.</p>
-              </div>
-              <label className="flex cursor-pointer items-start gap-3">
-                <input
-                  type="checkbox"
-                  checked={agreed}
-                  onChange={(e) => setAgreed(e.target.checked)}
-                  className="mt-1"
-                />
-                <span className="text-sm" style={{ color: B.blue }}>
-                  I have read and agree to the agent agreement and terms of service.
-                </span>
-              </label>
-            </div>
-          )}
-
-          {step === 1 && (
-            <div className="space-y-4">
-              <h2 className="text-lg font-bold" style={{ color: B.blue }}>
-                Personal Information
-              </h2>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Full Name" placeholder="As per Aadhaar" value={form.fullName} onChange={(v) => set("fullName", v)} />
-                <Field label="Date of Birth" placeholder="DD/MM/YYYY" value={form.dob} onChange={(v) => set("dob", v)} type="date" />
-                <div className="col-span-2">
-                  <EmailVerifyField required email={form.email} onChange={(v) => set("email", v)} />
-                  {!emailVerified && form.email.trim() ? (
-                    <p className="mt-1.5 text-xs" style={{ color: "#B45309" }}>
-                      Verify your email to continue to the next step.
-                    </p>
-                  ) : null}
-                </div>
-                <Field
-                  label="Pincode"
-                  placeholder="6-digit"
-                  value={form.pincode}
-                  onChange={(v) => set("pincode", v.replace(/\D/g, "").slice(0, 6))}
-                />
-                <div>
-                  <Label>City</Label>
-                  <input
-                    type="text"
-                    placeholder={pinLookupBusy ? "Looking up…" : "City / district"}
-                    value={form.city}
-                    onChange={(e) => set("city", e.target.value)}
-                    className="w-full rounded-2xl border-2 bg-white px-4 py-3 text-sm outline-none"
-                    style={{ borderColor: B.border, color: B.blue }}
-                  />
-                </div>
-                <Field label="State" placeholder="State" value={form.state} onChange={(v) => set("state", v)} />
-                <Field label="Region" placeholder="Region / locality" value={form.region} onChange={(v) => set("region", v)} />
-                <div className="col-span-2">
-                  <Field label="Address" placeholder="House / street / landmark" value={form.address} onChange={(v) => set("address", v)} />
-                </div>
-                {pinLookupBusy ? (
-                  <p className="col-span-2 text-xs" style={{ color: B.muted }}>
-                    Fetching city, state, and region from India Post…
-                  </p>
-                ) : null}
-              </div>
-            </div>
-          )}
-
-          {step === 2 && (
-            <div className="space-y-4">
-              <h2 className="text-lg font-bold" style={{ color: B.blue }}>
-                Aadhaar Verification
-              </h2>
-              <Field
-                label="Aadhaar Number"
-                placeholder="XXXX XXXX XXXX"
-                value={formatAadhaar(form.aadhaar)}
-                onChange={(v) => set("aadhaar", stripAadhaar(v))}
-              />
-              <p className="text-xs" style={{ color: B.muted }}>
-                OTP verification will be required in production. For now, enter your 12-digit Aadhaar number.
+                {verified
+                  ? "KYC verified"
+                  : pendingReview
+                    ? "KYC under review"
+                    : "KYC rejected"}
+              </p>
+              <p
+                className="mt-1 text-xs font-medium"
+                style={{ color: verified || pendingReview ? "#15803D" : "#B91C1C" }}
+              >
+                {verified
+                  ? "All signup KYC steps are complete. Services are unlocked."
+                  : pendingReview
+                    ? "You finished every signup KYC step. Services stay locked until admin approval."
+                    : "Update your details on the signup KYC flow and submit again."}
               </p>
             </div>
-          )}
+          </div>
 
-          {step === 3 && (
-            <div className="space-y-4">
-              <h2 className="text-lg font-bold" style={{ color: B.blue }}>
-                PAN Card
-              </h2>
-              <Field
-                label="PAN Number"
-                placeholder="ABCDE1234F"
-                value={form.pan}
-                onChange={(v) => set("pan", v.toUpperCase().slice(0, 10))}
-              />
-            </div>
-          )}
-
-          {step === 4 && (
-            <div className="space-y-4">
-              <h2 className="text-lg font-bold" style={{ color: B.blue }}>
-                Bank Details
-              </h2>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <Label>IFSC</Label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="e.g. HDFC0001209"
-                      value={form.ifsc}
-                      onChange={(e) =>
-                        set("ifsc", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11))
-                      }
-                      className="min-w-0 flex-1 rounded-2xl border-2 bg-white px-4 py-3 font-mono text-sm outline-none"
-                      style={{ borderColor: B.border, color: B.blue }}
-                      maxLength={11}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => void fetchBankFromIfsc()}
-                      disabled={ifscLookupBusy}
-                      className="shrink-0 rounded-2xl px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
-                      style={{ background: B.badgeGrad }}
-                    >
-                      {ifscLookupBusy ? "…" : "Fetch"}
-                    </button>
-                  </div>
-                  <p className="mt-1.5 text-xs" style={{ color: form.ifsc.length === 11 ? B.green : B.muted }}>
-                    Enter IFSC first ({form.ifsc.length}/11) to autofill bank name and branch
-                  </p>
-                </div>
-
-                <Field
-                  label="Bank Name"
-                  placeholder={ifscLookupBusy ? "Looking up…" : "Auto-filled from IFSC"}
-                  value={form.bankName}
-                  onChange={(v) => set("bankName", v)}
-                />
-                <Field
-                  label="Branch"
-                  placeholder={ifscLookupBusy ? "Looking up…" : "Auto-filled from IFSC"}
-                  value={form.bankBranch}
-                  onChange={(v) => set("bankBranch", v)}
-                />
-
-                <Field
-                  label="Account Number"
-                  placeholder="Account number"
-                  value={form.accountNumber}
-                  onChange={(v) => set("accountNumber", v.replace(/\D/g, "").slice(0, 30))}
-                />
-                <Field
-                  label="Confirm Account Number"
-                  placeholder="Re-enter account number"
-                  value={form.accountNumberConfirm}
-                  onChange={(v) => set("accountNumberConfirm", v.replace(/\D/g, "").slice(0, 30))}
-                />
-                {form.accountNumberConfirm.length > 0 &&
-                form.accountNumber !== form.accountNumberConfirm ? (
-                  <p className="col-span-2 text-xs" style={{ color: "#B45309" }}>
-                    Account numbers do not match
-                  </p>
-                ) : null}
-
-                <div className="col-span-2">
-                  <Field
-                    label="Account Holder Name"
-                    placeholder="Name as on bank account / passbook"
-                    value={form.accountName}
-                    onChange={(v) => set("accountName", v)}
-                  />
-                </div>
-
-                <div className="col-span-2">
-                  <Label>Cancelled Cheque</Label>
-                  <label
-                    className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed px-4 py-6 text-center"
-                    style={{ borderColor: B.border, background: B.bg }}
-                  >
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp,application/pdf"
-                      className="hidden"
-                      onChange={(e) => onChequeSelected(e.target.files?.[0] ?? null)}
-                    />
-                    {chequePreview ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={chequePreview}
-                        alt="Cancelled cheque preview"
-                        className="max-h-40 rounded-xl object-contain"
-                      />
-                    ) : null}
-                    <span className="text-sm font-semibold" style={{ color: B.blue }}>
-                      {form.cancelledChequeName
-                        ? form.cancelledChequeName
-                        : "Tap to upload cancelled cheque"}
-                    </span>
-                    <span className="text-xs" style={{ color: B.muted }}>
-                      JPG, PNG, WEBP or PDF · max 2 MB
-                    </span>
-                  </label>
-                  {form.cancelledChequeName ? (
-                    <button
-                      type="button"
-                      className="mt-2 text-xs font-semibold underline"
-                      style={{ color: B.muted }}
-                      onClick={() => onChequeSelected(null)}
-                    >
-                      Remove file
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {step === 5 && (
-            <div className="space-y-4">
-              <h2 className="text-lg font-bold" style={{ color: B.blue }}>
-                Review & Submit
-              </h2>
-              <div className="grid grid-cols-2 gap-3 rounded-xl p-4" style={{ background: B.bg }}>
-                {[
-                  { label: "Name", value: form.fullName },
-                  { label: "Mobile", value: user?.mobile ?? "—" },
-                  { label: "Aadhaar", value: form.aadhaar ? `XXXX XXXX ${form.aadhaar.slice(-4)}` : "—" },
-                  { label: "PAN", value: form.pan || "—" },
-                  { label: "Bank", value: form.bankName || "—" },
-                  { label: "Branch", value: form.bankBranch || "—" },
-                  { label: "IFSC", value: form.ifsc || "—" },
-                  { label: "Account holder", value: form.accountName || "—" },
-                  { label: "Account", value: form.accountNumber ? `****${form.accountNumber.slice(-4)}` : "—" },
-                  { label: "Cancelled cheque", value: form.cancelledChequeName || "—" },
-                ].map((r) => (
-                  <div key={r.label}>
-                    <div className="text-xs" style={{ color: B.muted }}>
-                      {r.label}
-                    </div>
-                    <div className="text-sm font-semibold" style={{ color: B.blue }}>
-                      {r.value || "—"}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div
-                className="flex items-center gap-2 rounded-xl p-3 text-sm"
-                style={{ background: `${B.green}12`, color: B.green }}
+          <ul className="mt-6 space-y-2">
+            {SIGNUP_STEPS.map((step) => (
+              <li
+                key={step.id}
+                className="flex items-center gap-3 rounded-xl border px-3 py-2.5"
+                style={{ borderColor: B.border }}
               >
-                <CheckCircle2 size={16} /> All steps complete — submit for verification
-              </div>
-            </div>
-          )}
+                <span
+                  className="flex h-7 w-7 items-center justify-center rounded-full text-white"
+                  style={{ background: B.green }}
+                >
+                  <Check size={14} strokeWidth={3} />
+                </span>
+                <span className="text-sm font-semibold" style={{ color: B.blue }}>
+                  {step.label}
+                </span>
+              </li>
+            ))}
+          </ul>
 
-          <div className="mt-6 flex items-center justify-between border-t pt-5" style={{ borderColor: B.border }}>
+          {rejected ? (
             <button
               type="button"
-              onClick={back}
-              disabled={step === 0}
-              className="flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold disabled:opacity-40"
-              style={{ borderColor: B.border, color: B.blue }}
+              onClick={() => router.push("/signup")}
+              className="mt-6 rounded-xl px-5 py-2.5 text-sm font-semibold text-white"
+              style={{ background: B.badgeGrad }}
             >
-              <ArrowLeft size={14} /> Back
+              Resubmit KYC
             </button>
-            {step < STEPS.length - 1 ? (
-              <button
-                type="button"
-                onClick={next}
-                disabled={step === 1 && !emailVerified}
-                className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-                style={{ background: B.badgeGrad }}
-              >
-                Next <ArrowRight size={14} />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={submit}
-                disabled={submitting}
-                className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
-                style={{ background: B.walletGrad }}
-              >
-                {submitting ? "Submitting…" : "Submit KYC"} <Check size={14} />
-              </button>
-            )}
-          </div>
+          ) : null}
         </div>
       </div>
     </AppShell>

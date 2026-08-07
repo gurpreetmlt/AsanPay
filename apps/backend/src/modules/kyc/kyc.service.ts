@@ -1,9 +1,9 @@
 import { eq } from "drizzle-orm";
 import { db } from "../../db/postgres";
 import { users } from "../../db/postgres/schema";
-import { encryptPII } from "../../utils/aes";
+import { decryptPII, encryptPII } from "../../utils/aes";
 import { HttpError } from "../../utils/httpError";
-import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
+import { findLatestAuditLog, insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import { kycSubmittedEmailTemplate, notifyUserEmail } from "../../utils/mailer";
 import type { AuthUser } from "@asanpay/shared-types";
 import type { KycSubmitInput } from "../auth/auth.validators";
@@ -25,6 +25,82 @@ function toAuthUser(row: typeof users.$inferSelect): AuthUser {
     hasInstantpayOutlet: Boolean(row.instantpayOutletId),
     hasTxnPin: Boolean(row.txnPinHash),
     hasLoginMpin: Boolean(row.loginMpinHash),
+  };
+}
+
+function metaString(meta: Record<string, unknown>, key: string): string | null {
+  const v = meta[key];
+  return typeof v === "string" && v.trim() ? v.trim() : null;
+}
+
+/** Agent self-view: signup KYC + /kyc form share this profile for prefill. */
+export type MyKycProfile = {
+  kycStatus: AuthUser["kycStatus"];
+  hasKycDocs: boolean;
+  submittedAt: string | null;
+  fullName: string | null;
+  email: string | null;
+  dob: string | null;
+  address: string | null;
+  city: string | null;
+  district: string | null;
+  state: string | null;
+  pincode: string | null;
+  aadhaarNumber: string | null;
+  panNumber: string | null;
+  bankAccountName: string | null;
+  bankAccountNumber: string | null;
+  bankIfsc: string | null;
+  bankName: string | null;
+  bankBranch: string | null;
+  cancelledChequeFileName: string | null;
+};
+
+export async function getMyKycProfile(userId: string): Promise<MyKycProfile> {
+  const [user] = await db.select().from(users).where(eq(users.id, userId));
+  if (!user || !user.isActive) {
+    throw new HttpError(403, "Account is not active", "ACCOUNT_INACTIVE");
+  }
+
+  let panNumber: string | null = null;
+  let aadhaarNumber: string | null = null;
+  try {
+    if (user.panNumberEncrypted) {
+      const pan = decryptPII(user.panNumberEncrypted).toUpperCase().replace(/[^A-Z0-9]/g, "");
+      panNumber = /^[A-Z]{5}\d{4}[A-Z]$/.test(pan) ? pan : null;
+    }
+    if (user.aadhaarNumberEncrypted) {
+      const digits = decryptPII(user.aadhaarNumberEncrypted).replace(/\D/g, "");
+      aadhaarNumber = /^\d{12}$/.test(digits) ? digits : null;
+    }
+  } catch {
+    panNumber = null;
+    aadhaarNumber = null;
+  }
+
+  const audit = await findLatestAuditLog({ userId, action: "kyc.submit" });
+  const meta = (audit?.metadata ?? {}) as Record<string, unknown>;
+
+  return {
+    kycStatus: user.kycStatus,
+    hasKycDocs: Boolean(panNumber && aadhaarNumber),
+    submittedAt: audit?.createdAt ? audit.createdAt.toISOString() : null,
+    fullName: user.name || null,
+    email: user.email ?? null,
+    dob: metaString(meta, "dob"),
+    address: metaString(meta, "address"),
+    city: metaString(meta, "city") || metaString(meta, "district"),
+    district: metaString(meta, "district"),
+    state: metaString(meta, "state"),
+    pincode: metaString(meta, "pincode"),
+    aadhaarNumber,
+    panNumber,
+    bankAccountName: metaString(meta, "bankAccountName"),
+    bankAccountNumber: metaString(meta, "bankAccountNumber"),
+    bankIfsc: metaString(meta, "bankIfsc"),
+    bankName: metaString(meta, "bankName"),
+    bankBranch: metaString(meta, "bankBranch"),
+    cancelledChequeFileName: metaString(meta, "cancelledChequeFileName"),
   };
 }
 
@@ -68,8 +144,12 @@ export async function submitKyc(userId: string, input: KycSubmitInput): Promise<
     entityId: userId,
     metadata: {
       hasBank: Boolean(input.bankAccountNumber && input.bankIfsc),
+      address: input.address ?? null,
       city: input.city ?? null,
       pincode: input.pincode ?? null,
+      bankAccountName: input.bankAccountName ?? null,
+      bankAccountNumber: input.bankAccountNumber ?? null,
+      bankIfsc: input.bankIfsc ?? null,
       bankName: input.bankName ?? null,
       bankBranch: input.bankBranch ?? null,
       cancelledChequeFileName: input.cancelledChequeFileName ?? null,
