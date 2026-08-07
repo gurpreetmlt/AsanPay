@@ -23,7 +23,9 @@ import { BiometricDevices } from "@/components/settings/BiometricDevices";
 import { DeviceRepairRequests } from "@/components/settings/DeviceRepairRequests";
 import { B, initials, roleFromUserRole } from "@/lib/brand";
 import api from "@/lib/api";
-import { extractApiError } from "@/lib/onboarding";
+import { SignupStepper, SIGNUP_STEPS } from "@/components/signup/SignupStepper";
+import { extractApiError, needsSignupKycCompletion } from "@/lib/onboarding";
+import { loadSignupDraft } from "@/lib/signupDraft";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 import { enableBiometricLogin, isWebAuthnAvailable } from "@/lib/webauthn";
@@ -62,6 +64,7 @@ export default function SettingsPage() {
   const setUser = useAuthStore((s) => s.setUser);
   const role = roleFromUserRole(user?.role);
   const [active, setActive] = useState("profile");
+  const [signupStepIndex, setSignupStepIndex] = useState(2);
   const [showPin, setShowPin] = useState(false);
   const [bioLoading, setBioLoading] = useState(false);
   const [marketingBusy, setMarketingBusy] = useState(false);
@@ -76,6 +79,20 @@ export default function SettingsPage() {
   useEffect(() => {
     setEmail(user?.email ?? "");
   }, [user?.email]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    if (tab && SECTIONS.some((s) => s.id === tab)) setActive(tab);
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    const phone = (user.mobile || "").replace(/\D/g, "").slice(0, 10);
+    const draft = (user.id && loadSignupDraft(user.id)) || (phone ? loadSignupDraft(phone) : null);
+    const idx = draft?.stepIndex ?? 2;
+    setSignupStepIndex(Math.max(2, Math.min(idx, SIGNUP_STEPS.length - 1)));
+  }, [user, active]);
 
   async function toggleMarketingOptIn() {
     if (!user || marketingBusy) return;
@@ -404,127 +421,177 @@ export default function SettingsPage() {
                 <h2 className="text-lg font-bold" style={{ color: B.blue }}>
                   KYC & Transaction Limits
                 </h2>
-                <div
-                  className="rounded-2xl border p-4"
-                  style={{ borderColor: B.green, background: `${B.green}08` }}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100">
-                      <Check size={18} className="text-emerald-600" />
-                    </div>
-                    <div>
-                      <div className="text-sm font-bold" style={{ color: B.green }}>
-                        KYC {user?.kycStatus === "verified" ? "Verified" : "Pending"}
-                      </div>
-                      <div className="text-xs" style={{ color: B.muted }}>
-                        Status: {user?.kycStatus ?? "unknown"}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                {user?.role === "retailer" && user.hasInstantpayOutlet !== true ? (
-                  <button
-                    type="button"
-                    onClick={() => router.push("/onboarding/outlet")}
-                    className="flex w-full items-center justify-between rounded-2xl border-2 p-4 transition-all hover:shadow-md"
-                    style={{ borderColor: B.blueLight, background: `${B.blue}06` }}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="flex h-10 w-10 items-center justify-center rounded-xl"
-                        style={{ background: B.badgeGrad }}
-                      >
-                        <FileText size={18} className="text-white" />
-                      </div>
-                      <div className="text-left">
-                        <div className="text-sm font-bold" style={{ color: B.blue }}>
-                          Register outlet
-                        </div>
-                        <div className="text-xs" style={{ color: B.muted }}>
-                          InstantPay Min-KYC — name, PAN, Aadhaar, shop geo
-                        </div>
-                      </div>
-                    </div>
-                    <ArrowRight size={16} style={{ color: B.blueLight }} />
-                  </button>
-                ) : null}
 
-                {user?.role === "retailer" && user.hasInstantpayOutlet === true ? (
-                  <button
-                    type="button"
-                    onClick={() => router.push("/onboarding/bio-kyc")}
-                    className="flex w-full items-center justify-between rounded-2xl border-2 p-4 transition-all hover:shadow-md"
-                    style={{ borderColor: B.blueLight, background: `${B.blue}06` }}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="flex h-10 w-10 items-center justify-center rounded-xl"
-                        style={{ background: B.badgeGrad }}
-                      >
-                        <Shield size={18} className="text-white" />
-                      </div>
-                      <div className="text-left">
-                        <div className="text-sm font-bold" style={{ color: B.blue }}>
-                          Biometric KYC
-                        </div>
-                        <div className="text-xs" style={{ color: B.muted }}>
-                          Fingerprint eKYC for AePS / DMT rails
-                        </div>
-                      </div>
-                    </div>
-                    <ArrowRight size={16} style={{ color: B.blueLight }} />
-                  </button>
-                ) : null}
-
-                <button
-                  type="button"
-                  onClick={() => router.push("/kyc")}
-                  className="flex w-full items-center justify-between rounded-2xl border-2 p-4 transition-all hover:shadow-md"
-                  style={{ borderColor: B.border, background: "#fff" }}
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="flex h-10 w-10 items-center justify-center rounded-xl"
-                      style={{ background: `${B.blue}12` }}
+                {needsSignupKycCompletion(user) ? (
+                  <>
+                    <p className="text-sm" style={{ color: B.muted }}>
+                      Same steps as signup. Incomplete steps stay grey — fill them before continuing.
+                    </p>
+                    <SignupStepper currentIndex={signupStepIndex} />
+                    <ul className="space-y-2">
+                      {SIGNUP_STEPS.map((step, i) => {
+                        const done = i < signupStepIndex;
+                        const current = i === signupStepIndex;
+                        return (
+                          <li
+                            key={step.id}
+                            className="flex items-center gap-3 rounded-xl border px-3 py-2.5"
+                            style={{
+                              borderColor: current ? B.blue : B.border,
+                              background: current ? `${B.blue}08` : "#fff",
+                            }}
+                          >
+                            <span
+                              className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold"
+                              style={{
+                                background: done ? B.green : current ? B.blue : B.secondary,
+                                color: done || current ? "#fff" : B.muted,
+                              }}
+                            >
+                              {done ? <Check size={14} strokeWidth={3} /> : i + 1}
+                            </span>
+                            <span
+                              className="text-sm font-semibold"
+                              style={{ color: done ? B.greenDark : current ? B.blue : B.muted }}
+                            >
+                              {step.label}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    <button
+                      type="button"
+                      onClick={() => router.push("/signup?from=settings")}
+                      className="flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-white"
+                      style={{ background: B.badgeGrad }}
                     >
-                      <FileText size={18} style={{ color: B.blue }} />
-                    </div>
-                    <div className="text-left">
-                      <div className="text-sm font-bold" style={{ color: B.blue }}>
-                        Platform KYC docs
-                      </div>
-                      <div className="text-xs" style={{ color: B.muted }}>
-                        Upload / resubmit AsanPay KYC documents
-                      </div>
-                    </div>
-                  </div>
-                  <ArrowRight size={16} style={{ color: B.blueLight }} />
-                </button>
-
-                <div className="space-y-3">
-                  {[
-                    { label: "Daily Transaction Limit", value: "₹2,00,000", used: "₹1,82,400", pct: 91 },
-                    { label: "Monthly Transaction Limit", value: "₹50,00,000", used: "₹8,40,000", pct: 17 },
-                    { label: "Max Single Transaction", value: "₹50,000", used: "₹25,000", pct: 50 },
-                  ].map((l) => (
-                    <div key={l.label} className="rounded-xl border p-4" style={{ borderColor: B.border }}>
-                      <div className="mb-2 flex items-center justify-between">
-                        <span className="text-sm font-semibold" style={{ color: B.blue }}>
-                          {l.label}
-                        </span>
-                        <span className="text-xs font-semibold" style={{ color: B.muted }}>
-                          {l.used} / {l.value}
-                        </span>
-                      </div>
-                      <div className="h-2 rounded-full bg-gray-100">
+                      {user?.kycStatus === "rejected" ? "Resubmit KYC" : "Continue KYC"}
+                      <ArrowRight size={16} />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div
+                      className="rounded-2xl border p-4"
+                      style={{
+                        borderColor: user?.kycStatus === "verified" ? B.green : "#FDBA74",
+                        background: user?.kycStatus === "verified" ? `${B.green}08` : "#FFF7ED",
+                      }}
+                    >
+                      <div className="flex items-center gap-3">
                         <div
-                          className="h-2 rounded-full transition-all"
-                          style={{ width: `${l.pct}%`, background: l.pct > 80 ? "#DC2626" : B.green }}
-                        />
+                          className="flex h-10 w-10 items-center justify-center rounded-xl"
+                          style={{
+                            background: user?.kycStatus === "verified" ? "#D1FAE5" : "#FFEDD5",
+                          }}
+                        >
+                          <Check
+                            size={18}
+                            style={{
+                              color: user?.kycStatus === "verified" ? "#059669" : "#EA580C",
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <div
+                            className="text-sm font-bold"
+                            style={{
+                              color: user?.kycStatus === "verified" ? B.green : "#C2410C",
+                            }}
+                          >
+                            {user?.kycStatus === "verified" ? "KYC Verified" : "KYC under review"}
+                          </div>
+                          <div className="text-xs" style={{ color: B.muted }}>
+                            Status: {user?.kycStatus ?? "unknown"}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  ))}
-                </div>
+
+                    {user?.role === "retailer" && user.hasInstantpayOutlet !== true ? (
+                      <button
+                        type="button"
+                        onClick={() => router.push("/onboarding/outlet")}
+                        className="flex w-full items-center justify-between rounded-2xl border-2 p-4 transition-all hover:shadow-md"
+                        style={{ borderColor: B.blueLight, background: `${B.blue}06` }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="flex h-10 w-10 items-center justify-center rounded-xl"
+                            style={{ background: B.badgeGrad }}
+                          >
+                            <FileText size={18} className="text-white" />
+                          </div>
+                          <div className="text-left">
+                            <div className="text-sm font-bold" style={{ color: B.blue }}>
+                              Register outlet
+                            </div>
+                            <div className="text-xs" style={{ color: B.muted }}>
+                              InstantPay Min-KYC — name, PAN, Aadhaar, shop geo
+                            </div>
+                          </div>
+                        </div>
+                        <ArrowRight size={16} style={{ color: B.blueLight }} />
+                      </button>
+                    ) : null}
+
+                    {user?.role === "retailer" && user.hasInstantpayOutlet === true ? (
+                      <button
+                        type="button"
+                        onClick={() => router.push("/onboarding/bio-kyc")}
+                        className="flex w-full items-center justify-between rounded-2xl border-2 p-4 transition-all hover:shadow-md"
+                        style={{ borderColor: B.blueLight, background: `${B.blue}06` }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="flex h-10 w-10 items-center justify-center rounded-xl"
+                            style={{ background: B.badgeGrad }}
+                          >
+                            <Shield size={18} className="text-white" />
+                          </div>
+                          <div className="text-left">
+                            <div className="text-sm font-bold" style={{ color: B.blue }}>
+                              Biometric KYC
+                            </div>
+                            <div className="text-xs" style={{ color: B.muted }}>
+                              Fingerprint eKYC for AePS / DMT rails
+                            </div>
+                          </div>
+                        </div>
+                        <ArrowRight size={16} style={{ color: B.blueLight }} />
+                      </button>
+                    ) : null}
+
+                    <div className="space-y-3">
+                      {[
+                        { label: "Daily Transaction Limit", value: "₹2,00,000", used: "₹1,82,400", pct: 91 },
+                        { label: "Monthly Transaction Limit", value: "₹50,00,000", used: "₹8,40,000", pct: 17 },
+                        { label: "Max Single Transaction", value: "₹50,000", used: "₹25,000", pct: 50 },
+                      ].map((l) => (
+                        <div key={l.label} className="rounded-xl border p-4" style={{ borderColor: B.border }}>
+                          <div className="mb-2 flex items-center justify-between">
+                            <span className="text-sm font-semibold" style={{ color: B.blue }}>
+                              {l.label}
+                            </span>
+                            <span className="text-xs font-semibold" style={{ color: B.muted }}>
+                              {l.used} / {l.value}
+                            </span>
+                          </div>
+                          <div className="h-2 rounded-full bg-gray-100">
+                            <div
+                              className="h-2 rounded-full transition-all"
+                              style={{
+                                width: `${l.pct}%`,
+                                background: l.pct > 80 ? "#DC2626" : B.green,
+                              }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             )}
 

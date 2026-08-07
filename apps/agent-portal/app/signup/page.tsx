@@ -922,7 +922,10 @@ export default function SignupPage() {
       useAuthStore.getState().setUser(data.data.user);
       clearSignupDraft(user?.id || storageKey);
       toast.success("Onboarding submitted — awaiting approval");
-      router.replace("/dashboard");
+      const fromSettings =
+        typeof window !== "undefined" &&
+        new URLSearchParams(window.location.search).get("from") === "settings";
+      router.replace(fromSettings ? "/settings?tab=kyc" : "/dashboard");
     } catch (err) {
       toast.error(extractApiError(err, "Submit failed"));
     } finally {

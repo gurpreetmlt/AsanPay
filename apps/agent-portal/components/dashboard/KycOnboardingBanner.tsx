@@ -73,7 +73,7 @@ export function KycOnboardingBanner() {
   let title = "Complete your KYC for Onboarding";
   let body = "Finish signup KYC to unlock services after admin approval.";
   let cta = "Complete KYC";
-  let href = "/signup";
+  let href = "/settings?tab=kyc";
   let tone: BannerTone = "orange";
 
   if (rejected) {
@@ -84,8 +84,8 @@ export function KycOnboardingBanner() {
   } else if (pendingReview) {
     title = "KYC under review";
     body = "Onboarding in progress. Services stay locked until admin approval.";
-    cta = "";
-    href = "";
+    cta = "View KYC status";
+    href = "/settings?tab=kyc";
     tone = "green";
   } else if (needsComplete) {
     title = "Complete your KYC for Onboarding";
