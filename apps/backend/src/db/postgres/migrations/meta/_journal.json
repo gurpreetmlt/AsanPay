@@ -253,6 +253,13 @@
       "when": 1786030000000,
       "tag": "0035_aeps_reactivation",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1786040000000,
+      "tag": "0036_agent_devices",
+      "breakpoints": true
     }
   ]
 }

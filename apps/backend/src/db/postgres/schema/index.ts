@@ -10,6 +10,7 @@ export * from "./settlements";
 export * from "./float";
 export * from "./reconciliation";
 export * from "./devices";
+export * from "./agentDevices";
 export * from "./biometricReplay";
 export * from "./wallets";
 export * from "./catalog";

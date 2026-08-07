@@ -4,7 +4,13 @@ import { otpRequests, type OtpMeta } from "../schema";
 
 export const MAX_OTP_ATTEMPTS = 5;
 
-export type OtpPurpose = "login" | "signup" | "wallet_pull" | "email_verify" | "settlement_bank";
+export type OtpPurpose =
+  | "login"
+  | "signup"
+  | "wallet_pull"
+  | "email_verify"
+  | "settlement_bank"
+  | "device_register";
 
 export interface InsertOtpRequestInput {
   mobile: string;

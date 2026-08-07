@@ -13,6 +13,7 @@ import { catalogRouter } from "./modules/catalog/catalog.routes";
 import { usersRouter } from "./modules/users/users.routes";
 import { txnRouter } from "./modules/transactions/txn.routes";
 import { kycRouter } from "./modules/kyc/kyc.routes";
+import { agentDeviceRouter } from "./modules/devices/agentDevice.routes";
 import { adminRouter } from "./modules/admin/admin.routes";
 import { dashboardRouter } from "./modules/dashboard/dashboard.routes";
 import { onboardingRouter } from "./modules/onboarding/onboarding.routes";
@@ -85,6 +86,7 @@ export function createApp(): Express {
   app.use("/api/users", usersRouter);
   app.use("/api/txn", txnRouter);
   app.use("/api/kyc", kycRouter);
+  app.use("/api/devices", agentDeviceRouter);
   app.use("/api/admin", adminRouter);
   app.use("/api/dashboard", dashboardRouter);
   app.use("/api/onboarding", onboardingRouter);

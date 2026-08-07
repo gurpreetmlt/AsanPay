@@ -165,6 +165,12 @@ const envSchema = z.object({
   // 1 Jan 2026): an operator with no transactions for three consecutive months must complete
   // fresh KYC before resuming. 90 is the ceiling, not a tuning knob — do not raise it.
   AEPS_DORMANCY_DAYS: z.coerce.number().int().positive().max(90).default(90),
+  /**
+   * Concurrent biometric scanners an agent may keep registered. A cap plus self-service
+   * de-registration handles honest churn without an approval queue, while the one-serial-one-agent
+   * index handles the case a cap cannot: the same device moving between agents.
+   */
+  MAX_AGENT_DEVICES: z.coerce.number().int().positive().max(10).default(3),
   /** Consecutive biometric mismatches on one Aadhaar before merchant block / EDD. */
   AEPS_BIO_MISMATCH_LIMIT: z.coerce.number().int().positive().default(2),
 });
