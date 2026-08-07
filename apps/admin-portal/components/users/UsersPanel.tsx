@@ -23,6 +23,8 @@ interface AdminUser {
   role: string;
   kycStatus: string;
   isActive: boolean;
+  /** Full-freeze status (accounts.blockLogin) — the moderation lever. isActive is lifecycle-only. */
+  isFrozen: boolean;
   createdAt: string;
 }
 
@@ -96,12 +98,27 @@ export function UsersPanel({ lockedRole = "" }: Props) {
     return () => clearTimeout(t);
   }, [q]);
 
+  // Routes through the graded restriction endpoint rather than users.isActive directly — a
+  // straight deactivate also kills login, which is the one lever spec §6.4 says to hold back
+  // for confirmed fraud. "Ban" here means freeze; unban lifts every restriction level.
   async function toggleActive(u: AdminUser) {
+    let reason = "";
+    if (!u.isFrozen) {
+      const input = window.prompt("Reason for freezing this account (min 8 characters)");
+      if (!input || input.trim().length < 8) {
+        if (input !== null) toast.error("A reason of at least 8 characters is required");
+        return;
+      }
+      reason = input.trim();
+    }
     setToggling(u.id);
     try {
-      await api.patch(`/admin/users/${u.id}/active`, { isActive: !u.isActive });
-      toast.success(u.isActive ? "User deactivated" : "User activated");
-      setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, isActive: !x.isActive } : x)));
+      await api.post(`/admin/users/${u.id}/restrict`, {
+        level: u.isFrozen ? "none" : "freeze",
+        reason,
+      });
+      toast.success(u.isFrozen ? "Restrictions lifted" : "Account frozen");
+      setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, isFrozen: !x.isFrozen } : x)));
     } catch (err) {
       toast.error(
         (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? "Update failed",
@@ -449,15 +466,15 @@ export function UsersPanel({ lockedRole = "" }: Props) {
                       <Badge status={u.kycStatus} />
                     </td>
                     <td className="px-4 py-3">
-                      <Badge status={u.isActive ? "active" : "inactive"} />
+                      <Badge status={u.isFrozen ? "inactive" : "active"} />
                     </td>
                     <td className="px-4 py-3">
                       <TableActionButtons
                         viewHref={`/users/${u.id}`}
                         onToggleActive={
-                          !u.isActive && toggling !== u.id ? () => void toggleActive(u) : undefined
+                          u.isFrozen && toggling !== u.id ? () => void toggleActive(u) : undefined
                         }
-                        onBan={u.isActive && toggling !== u.id ? () => void toggleActive(u) : undefined}
+                        onBan={!u.isFrozen && toggling !== u.id ? () => void toggleActive(u) : undefined}
                         onMove={isMovable(u) ? () => setMoveAgents([u]) : undefined}
                         onDelete={rowDeleteEnabled ? () => void deleteUser(u) : undefined}
                         deleting={deletingId === u.id}
@@ -516,9 +533,9 @@ export function UsersPanel({ lockedRole = "" }: Props) {
                 <TableActionButtons
                   viewHref={`/users/${u.id}`}
                   onToggleActive={
-                    !u.isActive && toggling !== u.id ? () => void toggleActive(u) : undefined
+                    u.isFrozen && toggling !== u.id ? () => void toggleActive(u) : undefined
                   }
-                  onBan={u.isActive && toggling !== u.id ? () => void toggleActive(u) : undefined}
+                  onBan={!u.isFrozen && toggling !== u.id ? () => void toggleActive(u) : undefined}
                   onMove={isMovable(u) ? () => setMoveAgents([u]) : undefined}
                   onDelete={rowDeleteEnabled ? () => void deleteUser(u) : undefined}
                   deleting={deletingId === u.id}
@@ -527,7 +544,7 @@ export function UsersPanel({ lockedRole = "" }: Props) {
               <div className="mt-3 flex flex-wrap gap-2">
                 {!lockedRole && <Badge status={u.role} />}
                 <Badge status={u.kycStatus} />
-                <Badge status={u.isActive ? "active" : "inactive"} />
+                <Badge status={u.isFrozen ? "inactive" : "active"} />
               </div>
             </div>
           ))}

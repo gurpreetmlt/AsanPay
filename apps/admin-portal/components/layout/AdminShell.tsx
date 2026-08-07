@@ -75,11 +75,13 @@ const SITE_CONTROL: NavItem[] = [
     children: [
       { href: "/platform-settings", label: "Platform Settings", icon: { lib: "lucide", icon: Settings } },
       { href: "/promotions", label: "Promotions", icon: { lib: "lucide", icon: Megaphone } },
+      { href: "/announcements", label: "Announcements", icon: { lib: "lucide", icon: Megaphone } },
       { href: "/site-control", label: "Service Badges", icon: { lib: "lucide", icon: Tags } },
       { href: "/commission", label: "Commissions", icon: { lib: "lucide", icon: Percent } },
       { href: "/service-charges", label: "Service charges", icon: { lib: "lucide", icon: IndianRupee } },
       { href: "/risk-alerts", label: "Risk Alerts", icon: { lib: "lucide", icon: ShieldAlert } },
       { href: "/device-repairs", label: "Device Repairs", icon: { lib: "lucide", icon: Wrench } },
+      { href: "/disputes", label: "Disputes", icon: { lib: "lucide", icon: ShieldAlert } },
       { href: "/recovery-workbench", label: "Recovery Workbench", icon: { lib: "lucide", icon: Wrench } },
       { href: "/support-tickets", label: "Support Tickets", icon: { lib: "lucide", icon: LifeBuoy } },
     ],

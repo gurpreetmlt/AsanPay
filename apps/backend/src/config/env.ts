@@ -171,6 +171,8 @@ const envSchema = z.object({
    * index handles the case a cap cannot: the same device moving between agents.
    */
   MAX_AGENT_DEVICES: z.coerce.number().int().positive().max(10).default(3),
+  /** SLA clock for disputes (task #11) — hours from raise to due, surfaced to ops, not enforced automatically. */
+  DISPUTE_SLA_HOURS: z.coerce.number().int().positive().default(48),
   /** Consecutive biometric mismatches on one Aadhaar before merchant block / EDD. */
   AEPS_BIO_MISMATCH_LIMIT: z.coerce.number().int().positive().default(2),
 });

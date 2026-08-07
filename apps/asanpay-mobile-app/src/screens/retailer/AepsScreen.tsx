@@ -36,6 +36,7 @@ import { apiError } from "../../utils/apiError";
 import { formatINR } from "../../lib/format";
 import { createAttemptKeyHolder } from "../../lib/idempotencyKey";
 import { captureFingerprint, listInstalledRdPackages } from "../../lib/rdServiceFingerprint";
+import { getAepsGeoTag } from "../../lib/geoCapture";
 import { useTxnPin } from "../../hooks/useTxnPin";
 import { useAuthStore } from "../../store/auth";
 import { useTheme } from "../../theme/ThemeContext";
@@ -786,6 +787,7 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
     if (!selectedBank || submitting) return;
     setSubmitting(true);
     try {
+      const geo = await getAepsGeoTag();
       const { data } = await api.post<ApiResponse<{ data?: { referenceKey?: string } }>>(
         "/txn/aeps/withdraw/otp",
         {
@@ -793,6 +795,7 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
           bankIin: selectedBank.iin,
           mobile,
           amount,
+          ...(geo ?? {}),
         },
       );
       const referenceKey = data.data?.data?.referenceKey;
@@ -824,6 +827,10 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
     }
 
     setScanning(true);
+    // Kicked off alongside the fingerprint capture (not after) so the ~5s location timeout
+    // overlaps with the capture instead of adding to it. Never blocks the transaction — see
+    // getAepsGeoTag's contract.
+    const geoPromise = getAepsGeoTag();
     let pidData: string;
     try {
       pidData = await captureFingerprint(activeDevice.rdPackage, needsTxnOtp ? txnOtp : undefined);
@@ -849,6 +856,7 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
         setSubmitting(true);
         const isDeposit = tab === "Deposit";
         const idempotencyKey = withdrawAttemptKey.current.get();
+        const geo = await geoPromise;
         const { data } = await api.post<ApiResponse<{ txn: { txnRef: string; status: string } }>>(
           isDeposit ? "/txn/aeps/deposit" : "/txn/aeps/withdraw",
           {
@@ -860,6 +868,7 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
             biometricPayload: pidData,
             amount,
             ...(needsTxnOtp && otpRef ? { otpReferenceKey: otpRef.referenceKey } : {}),
+            ...(geo ?? {}),
           },
         );
         if (!data.success) throw new Error(data.message);
@@ -875,6 +884,7 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
         setSubmitting(true);
         const isMini = tab === "Mini Statement";
         const path = isMini ? "/txn/aeps/mini-statement" : "/txn/aeps/balance-enquiry";
+        const geo = await geoPromise;
         const { data } = await api.post<
           ApiResponse<{
             data?: {
@@ -887,6 +897,7 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
           bankIin: selectedBank.iin,
           mobile,
           biometricPayload: pidData,
+          ...(geo ?? {}),
         });
         if (!data.success) throw new Error(data.message);
         if (isMini) {

@@ -13,6 +13,7 @@ import { env } from "../../config/env";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import type { UserRole, WalletType } from "@asanpay/shared-types";
 import { resolveCustomerFee } from "../service-charges/serviceCharge.service";
+import { evaluateVelocitySpike, effectiveDailyLimit } from "../limits/velocity.service";
 
 type Actor = { id: string; role: UserRole };
 type TxnRow = typeof transactions.$inferSelect;
@@ -130,14 +131,19 @@ async function checkFraudPatterns(actor: Actor, serviceId: string, amount: strin
   }
 }
 
-/** Alerts (never blocks) when a retailer's successful transactions today cross their configured daily limit. */
+/**
+ * Alerts (never blocks) when a retailer's successful transactions today cross their daily
+ * limit. Falls back to a role-based default (velocity.service.ROLE_DEFAULT_DAILY_LIMIT) when
+ * the agent has none configured — previously null meant "no limit at all", which is not a
+ * default, it is the absence of one.
+ */
 async function checkDailyLimit(actor: Actor, amount: string | null): Promise<void> {
   if (amount == null) return;
-  const [user] = await db
-    .select({ name: users.name, dailyLimitAmount: users.dailyLimitAmount })
-    .from(users)
-    .where(eq(users.id, actor.id));
-  if (!user?.dailyLimitAmount) return;
+  const [user, limit] = await Promise.all([
+    db.select({ name: users.name }).from(users).where(eq(users.id, actor.id)).then((r) => r[0]),
+    effectiveDailyLimit(actor.id),
+  ]);
+  if (!limit) return;
 
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
@@ -152,12 +158,12 @@ async function checkDailyLimit(actor: Actor, amount: string | null): Promise<voi
       ),
     );
   const todayTotal = Number(row?.total ?? 0) + Number(amount);
-  if (todayTotal > Number(user.dailyLimitAmount)) {
+  if (todayTotal > Number(limit)) {
     void sendSlackAlert("Daily transaction limit exceeded", "general", {
       retailerId: actor.id,
-      retailerName: user.name,
+      retailerName: user?.name,
       todayTotal: todayTotal.toFixed(2),
-      dailyLimit: user.dailyLimitAmount,
+      dailyLimit: limit,
     });
   }
 }
@@ -217,6 +223,7 @@ export async function executeServiceTxn(input: ExecuteTxnInput): Promise<TxnOutc
   assertAmountWithinLimits(amount, service);
   void checkFraudPatterns(actor, service.id, amount);
   void checkDailyLimit(actor, amount);
+  if (amount != null) void evaluateVelocitySpike(actor.id, amount);
 
   const routedProviders = await resolveProvidersForService(serviceCode);
   const routed = routedProviders[0]!; // fail-over between providers is a later enhancement

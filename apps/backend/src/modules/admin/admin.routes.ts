@@ -254,6 +254,38 @@ adminRouter.post("/repair-requests/:id/resolve", async (req, res) => {
   sendSuccess(res, result, `Request ${body.outcome}`);
 });
 
+// Disputes / chargebacks (task #11).
+adminRouter.get("/disputes", async (req, res) => {
+  const statuses = ["raised", "under_review", "resolved", "rejected"] as const;
+  const status =
+    typeof req.query.status === "string" && (statuses as readonly string[]).includes(req.query.status)
+      ? (req.query.status as (typeof statuses)[number])
+      : undefined;
+  const limit = Math.min(Number(req.query.limit) || 100, 300);
+  const { listDisputeQueue } = await import("../disputes/dispute.service");
+  sendSuccess(res, await listDisputeQueue(status, limit));
+});
+
+adminRouter.post("/disputes/:id/review", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { markUnderReview } = await import("../disputes/dispute.service");
+  sendSuccess(res, await markUnderReview(req.auth.sub, req.params.id), "Marked under review");
+});
+
+adminRouter.post("/disputes/:id/resolve", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const body = z
+    .object({
+      outcome: z.enum(["resolved", "rejected"]),
+      resolutionNote: z.string().trim().min(1).max(1000),
+      refund: z.boolean().optional(),
+    })
+    .parse(req.body);
+  const { resolveDispute } = await import("../disputes/dispute.service");
+  const result = await resolveDispute({ adminId: req.auth.sub, id: req.params.id, ...body });
+  sendSuccess(res, result, `Dispute ${body.outcome}`);
+});
+
 adminRouter.get("/network-tree", async (_req, res) => {
   sendSuccess(res, await getNetworkTreeAdmin());
 });

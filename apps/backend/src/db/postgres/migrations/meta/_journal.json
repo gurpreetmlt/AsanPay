@@ -274,6 +274,13 @@
       "when": 1786060000000,
       "tag": "0038_device_repair_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1786070000000,
+      "tag": "0039_disputes",
+      "breakpoints": true
     }
   ]
 }

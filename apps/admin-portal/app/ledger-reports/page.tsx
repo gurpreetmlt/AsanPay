@@ -10,6 +10,15 @@ import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 
+interface ReconException {
+  id: string;
+  check_name: string;
+  severity: string;
+  fingerprint: string;
+  first_seen_at: string;
+  last_seen_at: string;
+}
+
 interface LedgerHealth {
   trialBalanceOk: boolean;
   solvencyOk: boolean;
@@ -40,6 +49,7 @@ export default function AdminLedgerReportsPage() {
   const hydrated = useAuthHydrated();
   const accessToken = useAuthStore((s) => s.accessToken);
   const [health, setHealth] = useState<LedgerHealth | null>(null);
+  const [exceptions, setExceptions] = useState<ReconException[]>([]);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
 
@@ -51,6 +61,13 @@ export default function AdminLedgerReportsPage() {
       toast.error(errMessage(err, "Failed to load ledger health"));
     } finally {
       setLoading(false);
+    }
+    // Separate call, non-fatal: persisted exceptions (from past recon runs) are a distinct
+    // history from the live checks above, tracking how long each finding has recurred.
+    try {
+      setExceptions(await fetchApi<ReconException[]>("/admin/ledger/exceptions"));
+    } catch {
+      setExceptions([]);
     }
   }, []);
 
@@ -171,6 +188,41 @@ export default function AdminLedgerReportsPage() {
                         <td className="px-3 py-2">{f.checkName}</td>
                         <td className="px-3 py-2">{f.severity}</td>
                         <td className="px-3 py-2 font-mono text-xs">{f.fingerprint}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <p className="text-sm" style={{ color: B.muted }}>
+              Persisted exceptions — filed by past reconciliation runs (manual or the daily jobs
+              sweep), open until a human closes them.
+            </p>
+            <div className="overflow-x-auto rounded-2xl border bg-white" style={{ borderColor: B.border }}>
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr style={{ color: B.muted }}>
+                    <th className="px-3 py-2 text-left font-medium">Check</th>
+                    <th className="px-3 py-2 text-left font-medium">Severity</th>
+                    <th className="px-3 py-2 text-left font-medium">First seen</th>
+                    <th className="px-3 py-2 text-left font-medium">Last seen</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {exceptions.length === 0 ? (
+                    <tr>
+                      <td className="px-3 py-4" colSpan={4} style={{ color: B.muted }}>
+                        No open exceptions
+                      </td>
+                    </tr>
+                  ) : (
+                    exceptions.map((e) => (
+                      <tr key={e.id} className="border-t" style={{ borderColor: B.border }}>
+                        <td className="px-3 py-2">{e.check_name}</td>
+                        <td className="px-3 py-2">{e.severity}</td>
+                        <td className="px-3 py-2 text-xs">{new Date(e.first_seen_at).toLocaleString("en-IN")}</td>
+                        <td className="px-3 py-2 text-xs">{new Date(e.last_seen_at).toLocaleString("en-IN")}</td>
                       </tr>
                     ))
                   )}

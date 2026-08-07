@@ -13,8 +13,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   Building2,
+  ChevronDown,
   ChevronLeft,
   Globe,
+  HelpCircle,
   Mail,
   MapPin,
   MessageCircle,
@@ -23,6 +25,7 @@ import {
   UserRound,
 } from "lucide-react-native";
 import { api, fetchApi } from "../../lib/api";
+import { FAQ_ITEMS } from "../../lib/helpContent";
 import { showAlert } from "../../components/AppAlert";
 import { useTheme } from "../../theme/ThemeContext";
 import { colors } from "../../theme/colors";
@@ -215,6 +218,7 @@ export function SupportModal({ visible, onClose }: { visible: boolean; onClose: 
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -522,6 +526,57 @@ export function SupportModal({ visible, onClose }: { visible: boolean; onClose: 
                 ))
               )}
             </View>
+
+            <View style={{ marginTop: 20 }}>
+              <View style={styles.faqHeader}>
+                <HelpCircle size={15} color={colors.blueLight} strokeWidth={2.2} />
+                <Text style={[styles.sectionTitle, { color: colors.blue }]}>
+                  Frequently asked questions
+                </Text>
+              </View>
+              {FAQ_ITEMS.map((item, i) => {
+                const open = openFaq === i;
+                return (
+                  <View
+                    key={i}
+                    style={[styles.faqRow, { borderColor: tokens.cardBorder }]}
+                  >
+                    <Pressable
+                      onPress={() => setOpenFaq(open ? null : i)}
+                      style={styles.faqQRow}
+                    >
+                      <Text style={[styles.faqQ, { color: colors.blue }]}>{item.question}</Text>
+                      <ChevronDown
+                        size={15}
+                        color={tokens.mute}
+                        style={{ transform: [{ rotate: open ? "180deg" : "0deg" }] }}
+                      />
+                    </Pressable>
+                    {open ? (
+                      <Text style={[styles.faqA, { color: tokens.sub }]}>{item.answer}</Text>
+                    ) : null}
+                  </View>
+                );
+              })}
+            </View>
+
+            <View style={styles.legalRow}>
+              <Text
+                style={[styles.legalLink, { color: colors.blueLight }]}
+                onPress={() => void Linking.openURL("https://asanpay.in/about")}
+              >
+                About {BRAND}
+              </Text>
+              <Text style={{ color: tokens.mute }}> · </Text>
+              <Text
+                style={[styles.legalLink, { color: colors.blueLight }]}
+                onPress={() => void Linking.openURL("https://asanpay.in/privacy")}
+              >
+                {/* Points at the agent-portal web app's own /about and /privacy pages —
+                    same content built in this pass, reused rather than duplicated natively. */}
+                Privacy policy
+              </Text>
+            </View>
           </ScrollView>
         )}
       </SafeAreaView>
@@ -531,6 +586,25 @@ export function SupportModal({ visible, onClose }: { visible: boolean; onClose: 
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
+  faqHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 },
+  sectionTitle: { fontSize: 14, fontWeight: "800" },
+  faqRow: { borderWidth: 1, borderRadius: 12, marginBottom: 8, overflow: "hidden" },
+  faqQRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  faqQ: { flex: 1, fontSize: 13, fontWeight: "700", marginRight: 8 },
+  faqA: { fontSize: 12.5, lineHeight: 18, paddingHorizontal: 12, paddingBottom: 12 },
+  legalRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 18,
+    marginBottom: 8,
+  },
+  legalLink: { fontSize: 12, fontWeight: "700" },
   topBar: {
     flexDirection: "row",
     alignItems: "flex-start",

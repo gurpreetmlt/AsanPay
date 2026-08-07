@@ -23,6 +23,11 @@ import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 import { extractApiError } from "@/lib/onboarding";
 import api, { fetchApi } from "@/lib/api";
+import { MyDisputes } from "@/components/settings/MyDisputes";
+import { HelpGuideModal } from "@/components/support/HelpGuideModal";
+import { FaqSection } from "@/components/support/FaqSection";
+import { HELP_GUIDES } from "@/lib/helpContent";
+import type { HelpGuide } from "@/lib/helpContent";
 
 interface TicketRow {
   id: string;
@@ -65,13 +70,6 @@ const EMPTY_CONTACTS: SupportContacts = {
   nodalPhone: "",
   nodalAddress: "",
 };
-
-const HELP_GUIDES = [
-  { title: "AePS cash withdrawal", tag: "AePS" },
-  { title: "DMT money transfer", tag: "DMT" },
-  { title: "Add money & Balance", tag: "Balance" },
-  { title: "Transaction PIN safety", tag: "Security" },
-] as const;
 
 function roleLabel(role: string) {
   if (role === "super_distributor") return "Super Distributor";
@@ -118,6 +116,7 @@ export default function SupportPage() {
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [openGuide, setOpenGuide] = useState<HelpGuide | null>(null);
 
   async function loadTickets() {
     setLoading(true);
@@ -420,24 +419,21 @@ export default function SupportPage() {
           </div>
         </div>
 
+        <MyDisputes />
+
         {/* Self-help guides */}
         <div className="rounded-2xl border bg-white p-4 md:p-5" style={{ borderColor: B.border }}>
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-bold" style={{ color: B.blue }}>
               Self-help guides
             </h3>
-            <span className="text-xs font-semibold" style={{ color: B.muted }}>
-              Coming soon
-            </span>
           </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
             {HELP_GUIDES.map((g) => (
               <button
-                key={g.title}
+                key={g.id}
                 type="button"
-                onClick={() =>
-                  toast("Guide videos will open here soon — raise a ticket if you need help now")
-                }
+                onClick={() => setOpenGuide(g)}
                 className="flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition hover:bg-secondary/50"
                 style={{ borderColor: B.border }}
               >
@@ -455,7 +451,21 @@ export default function SupportPage() {
             ))}
           </div>
         </div>
+
+        <FaqSection />
+
+        <div className="text-center text-xs" style={{ color: B.muted }}>
+          <a href="/about" className="hover:underline">
+            About us
+          </a>
+          <span className="mx-2">·</span>
+          <a href="/privacy" className="hover:underline">
+            Privacy policy
+          </a>
+        </div>
       </div>
+
+      {openGuide && <HelpGuideModal guide={openGuide} onClose={() => setOpenGuide(null)} />}
     </AppShell>
   );
 }

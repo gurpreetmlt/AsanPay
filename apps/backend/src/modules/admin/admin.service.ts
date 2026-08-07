@@ -160,6 +160,14 @@ export async function getAdminUserDetail(userId: string) {
 
   const kycAudit = await findLatestAuditLog({ userId: row.id, action: "kyc.submit" });
 
+  // Full-freeze status, not isActive — see setRestrictionLevel(). isActive stays the
+  // account-lifecycle flag (never onboarded / closed); this is the moderation lever now.
+  const [frozenRow] = await db
+    .select({ isFrozen: sql<boolean>`coalesce(bool_or(${accounts.blockLogin}), false)` })
+    .from(accounts)
+    .where(eq(accounts.userId, userId));
+  const isFrozen = frozenRow?.isFrozen ?? false;
+
   const meta = (kycAudit?.metadata ?? {}) as Record<string, unknown>;
 
   const documents: Record<string, string> = {};
@@ -197,6 +205,7 @@ export async function getAdminUserDetail(userId: string) {
 
   return {
     ...safe,
+    isFrozen,
     hasKycDocs: Boolean(panFull && aadhaarFull),
     kyc: {
       status: row.kycStatus,
@@ -296,45 +305,49 @@ export async function listAdminUsers(opts: {
       role: users.role,
       kycStatus: users.kycStatus,
       isActive: users.isActive,
+      // Full-freeze status, not isActive — see setRestrictionLevel(). isActive is the
+      // account-lifecycle flag (never onboarded / closed), no longer the moderation lever.
+      isFrozen: sql<boolean>`coalesce(bool_or(${accounts.blockLogin}), false)`,
       parentId: users.parentId,
       hasKycDocs: sql<boolean>`(${users.panNumberEncrypted} is not null and ${users.aadhaarNumberEncrypted} is not null)`,
       createdAt: users.createdAt,
     })
     .from(users)
+    .leftJoin(accounts, eq(accounts.userId, users.id))
     .where(and(...conditions))
+    .groupBy(
+      users.id,
+      users.uid,
+      users.name,
+      users.mobile,
+      users.role,
+      users.kycStatus,
+      users.isActive,
+      users.parentId,
+      users.panNumberEncrypted,
+      users.aadhaarNumberEncrypted,
+      users.createdAt,
+    )
     .orderBy(desc(users.createdAt))
     .limit(opts.limit)
     .offset(opts.offset);
 }
 
+/**
+ * @deprecated Thin alias kept for any external caller still hitting
+ * PATCH /admin/users/:id/active. Routes through setRestrictionLevel() rather than writing
+ * users.isActive directly — a straight deactivate used to kill login outright, which is the
+ * one lever spec §6.4 reserves for confirmed fraud. Use setRestrictionLevel() ("freeze" / "none")
+ * for any new caller.
+ */
 export async function setUserActive(adminId: string, userId: string, isActive: boolean) {
-  if (userId === adminId) {
-    throw new HttpError(403, "You cannot change your own active status", "CANNOT_SELF_DEACTIVATE");
-  }
-  const [target] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-  if (!target) throw new HttpError(404, "User not found", "USER_NOT_FOUND");
-  if (target.role === "admin") {
-    throw new HttpError(403, "Admin accounts cannot be activated or deactivated here", "ADMIN_PROTECTED");
-  }
-
-  const [row] = await db
-    .update(users)
-    .set({ isActive, updatedAt: new Date() })
-    .where(eq(users.id, userId))
-    .returning();
-  if (!row) throw new HttpError(404, "User not found", "USER_NOT_FOUND");
-  await insertAuditLog({
-    userId: adminId,
-    action: isActive ? "admin.user_activate" : "admin.user_deactivate",
-    entityType: "user",
-    entityId: userId,
-    metadata: {},
-  });
-  return {
-    id: row.id,
-    uid: row.uid,
-    isActive: row.isActive,
-  };
+  const result = await setRestrictionLevel(
+    adminId,
+    userId,
+    isActive ? "none" : "freeze",
+    isActive ? "" : "Deactivated via legacy admin.user_deactivate path",
+  );
+  return { id: result.userId, uid: userId, isActive };
 }
 
 /**

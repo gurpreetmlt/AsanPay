@@ -19,6 +19,8 @@ import { reconcileStaleTransactions, runDailyReconciliation } from "../modules/t
 import { runStatementEmailJobs } from "../modules/notifications/userEmail.service";
 import { sweepLogPartitions } from "./logPartitions";
 import { sweepExpiringRdLicenses } from "../modules/risk/riskSignal.service";
+import { listOverdueDisputes } from "../modules/disputes/dispute.service";
+import { sendSlackAlert } from "../utils/alert";
 import { logger } from "../utils/logger";
 
 const OTP_SWEEP_INTERVAL_MS = 30 * 60 * 1000;
@@ -48,6 +50,31 @@ export async function runLedgerReconciliationSweep(): Promise<void> {
         "ledger reconciliation failed for tenant",
       );
     }
+  }
+}
+
+/** Alerts (never auto-closes) on disputes past their SLA — task #11. */
+async function sweepOverdueDisputes(): Promise<void> {
+  const active = await db
+    .select({ id: tenants.id, code: tenants.code })
+    .from(tenants)
+    .where(eq(tenants.isActive, true));
+
+  for (const tenant of active) {
+    const overdue = await listOverdueDisputes(tenant.id).catch((err: unknown) => {
+      logger.error({ err, tenantId: tenant.id }, "overdue dispute lookup failed for tenant");
+      return [];
+    });
+    const pastSla = overdue.filter((d) => d.slaDueAt.getTime() < Date.now());
+    if (pastSla.length === 0) continue;
+
+    logger.warn({ tenantId: tenant.id, count: pastSla.length }, "disputes past SLA");
+    void sendSlackAlert("Disputes past SLA", "general", {
+      tenantCode: tenant.code,
+      count: pastSla.length,
+      oldestId: pastSla[0]?.id,
+      oldestDueAt: pastSla[0]?.slaDueAt.toISOString(),
+    });
   }
 }
 
@@ -92,6 +119,9 @@ async function main() {
       runStatementEmailJobs()
         .then((r) => logger.info(r, "statement email jobs"))
         .catch((err: unknown) => logger.error({ err }, "statement email jobs failed"));
+      sweepOverdueDisputes().catch((err: unknown) =>
+        logger.error({ err }, "overdue dispute sweep failed"),
+      );
     }, DAILY_RECONCILE_INTERVAL_MS),
   );
 

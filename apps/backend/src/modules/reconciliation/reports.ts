@@ -27,28 +27,12 @@ export interface LedgerHealthReport {
 
 /** Live treasury health for the admin reports page. Runs checks but does not persist. */
 export async function getLedgerHealthReport(tenantId: string): Promise<LedgerHealthReport> {
-  const {
-    checkTrialBalance,
-    checkSolvency,
-    checkLedgerVsBalance,
-    checkSettleable,
-    checkNegativeAgentBalance,
-    checkStaleTransit,
-    checkStaleFundRequest,
-    checkUnmatchedBankCredits,
-  } = await import("./checks");
+  // ALL_CHECKS, not a hand-picked subset — this hardcoded 8 of 10 checks and silently dropped
+  // the allocation_control and aggregator_settlement checks added after it was first written.
+  const { ALL_CHECKS } = await import("./checks");
 
   const findings: ReconFinding[] = [];
-  for (const check of [
-    checkLedgerVsBalance,
-    checkTrialBalance,
-    checkSolvency,
-    checkSettleable,
-    checkNegativeAgentBalance,
-    checkStaleTransit,
-    checkStaleFundRequest,
-    checkUnmatchedBankCredits,
-  ]) {
+  for (const check of ALL_CHECKS) {
     findings.push(...(await check(tenantId)));
   }
 

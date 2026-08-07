@@ -11,6 +11,7 @@ export const RISK_SIGNAL_TYPES = [
   "device_change_flag",
   "device_change_investigate",
   "rd_license_expiring",
+  "txn_velocity_spike",
 ] as const;
 export type RiskSignalType = (typeof RISK_SIGNAL_TYPES)[number];
 

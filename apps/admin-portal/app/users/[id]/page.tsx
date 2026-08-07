@@ -42,6 +42,8 @@ interface AgentDetail {
   role: string;
   kycStatus: string;
   isActive: boolean;
+  /** Full-freeze status (accounts.blockLogin) — the moderation lever. isActive is lifecycle-only. */
+  isFrozen: boolean;
   parentId: string | null;
   createdAt: string;
   updatedAt: string;
@@ -98,23 +100,6 @@ export default function AgentDetailPage() {
     }
     void load();
   }, [hydrated, accessToken, router, load]);
-
-  async function toggleActive() {
-    if (!agent) return;
-    setBusy(true);
-    try {
-      await api.patch(`/admin/users/${agent.id}/active`, { isActive: !agent.isActive });
-      toast.success(agent.isActive ? "Agent deactivated" : "Agent activated");
-      await load();
-    } catch (err) {
-      toast.error(
-        (err as { response?: { data?: { message?: string } } }).response?.data?.message ??
-          "Update failed",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
 
   async function decideKyc(decision: "verified" | "rejected") {
     if (!agent) return;
@@ -248,7 +233,7 @@ export default function AgentDetailPage() {
             <div className="flex flex-wrap items-center gap-2">
               <Badge status={agent.role} />
               <Badge status={agent.kycStatus} />
-              <Badge status={agent.isActive ? "active" : "inactive"} />
+              <Badge status={agent.isFrozen ? "inactive" : "active"} />
             </div>
           ) : null}
         </div>
@@ -364,7 +349,7 @@ export default function AgentDetailPage() {
               <DetailSection title="Verification" icon={ShieldCheck}>
                 <div className="space-y-3">
                   <InfoRow label="KYC" value={agent.kycStatus} />
-                  <InfoRow label="Account" value={agent.isActive ? "Active" : "Inactive"} />
+                  <InfoRow label="Account" value={agent.isFrozen ? "Frozen" : "Active"} />
                   <div className="flex flex-col gap-2 pt-1">
                     {agent.kycStatus === "pending" ? (
                       <>
@@ -388,15 +373,22 @@ export default function AgentDetailPage() {
                         </button>
                       </>
                     ) : null}
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void toggleActive()}
-                      className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-                      style={{ background: B.badgeGrad }}
-                    >
-                      {agent.isActive ? "Deactivate agent" : "Activate agent"}
-                    </button>
+                    {agent.isFrozen ? (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void setRestriction("none")}
+                        className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                        style={{ background: B.badgeGrad }}
+                      >
+                        Unfreeze agent
+                      </button>
+                    ) : (
+                      <p className="text-xs" style={{ color: B.muted }}>
+                        Use "Restrict services" below to freeze this account — soft/hard leave
+                        login working, freeze does not.
+                      </p>
+                    )}
                   </div>
                 </div>
               </DetailSection>

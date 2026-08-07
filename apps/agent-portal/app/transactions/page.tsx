@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Download } from "lucide-react";
+import { Search, Download, AlertCircle } from "lucide-react";
+import { RaiseDisputeModal } from "@/components/transactions/RaiseDisputeModal";
 import { toast } from "react-hot-toast";
 import { AppShell } from "@/components/layout/AppShell";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -42,6 +43,7 @@ export default function TransactionsPage() {
   const [filter, setFilter] = useState("All");
   const [search, setSearch] = useState("");
   const [txns, setTxns] = useState<TxnRow[]>([]);
+  const [disputeTxn, setDisputeTxn] = useState<TxnRow | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -168,7 +170,7 @@ export default function TransactionsPage() {
             <table className="w-full text-sm">
               <thead style={{ background: B.secondary }}>
                 <tr>
-                  {["Txn ID", "Service", "Account", "Amount", "Status", "Time", "Receipt"].map((h) => (
+                  {["Txn ID", "Service", "Account", "Amount", "Status", "Time", "Receipt", "Dispute"].map((h) => (
                     <th
                       key={h}
                       className={`px-4 py-3 text-xs font-semibold uppercase tracking-wider ${
@@ -238,6 +240,16 @@ export default function TransactionsPage() {
                         <Download size={12} /> PDF
                       </a>
                     </td>
+                    <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={() => setDisputeTxn(t)}
+                        className="inline-flex items-center gap-1 text-xs font-semibold hover:underline"
+                        style={{ color: "#DC2626" }}
+                      >
+                        <AlertCircle size={12} /> Raise
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -250,6 +262,15 @@ export default function TransactionsPage() {
           )}
         </div>
       </div>
+
+      {disputeTxn && (
+        <RaiseDisputeModal
+          transactionId={disputeTxn.id}
+          txnRef={disputeTxn.txnRef}
+          onClose={() => setDisputeTxn(null)}
+          onRaised={() => {}}
+        />
+      )}
     </AppShell>
   );
 }
