@@ -12,6 +12,7 @@ export * from "./reconciliation";
 export * from "./devices";
 export * from "./agentDevices";
 export * from "./riskSignals";
+export * from "./deviceRepairRequests";
 export * from "./biometricReplay";
 export * from "./wallets";
 export * from "./catalog";

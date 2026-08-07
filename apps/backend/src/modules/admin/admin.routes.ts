@@ -211,6 +211,49 @@ adminRouter.post("/risk-signals/:id/review", async (req, res) => {
   sendSuccess(res, { id: req.params.id }, "Marked reviewed");
 });
 
+// Device repair / RMA queue (task #16).
+adminRouter.get("/repair-requests", async (req, res) => {
+  const { listRepairQueue } = await import("../devices/deviceRepair.service");
+  const statuses = ["submitted", "rma_issued", "in_repair", "resolved", "rejected"] as const;
+  const status =
+    typeof req.query.status === "string" && (statuses as readonly string[]).includes(req.query.status)
+      ? (req.query.status as (typeof statuses)[number])
+      : undefined;
+  const limit = Math.min(Number(req.query.limit) || 100, 300);
+  sendSuccess(res, await listRepairQueue(status, limit));
+});
+
+adminRouter.post("/repair-requests/:id/rma", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const body = z.object({ rmaNumber: z.string().trim().min(1).max(60) }).parse(req.body);
+  const { issueRma } = await import("../devices/deviceRepair.service");
+  sendSuccess(res, await issueRma(req.auth.sub, req.params.id, body.rmaNumber), "RMA issued");
+});
+
+adminRouter.post("/repair-requests/:id/in-repair", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { markInRepair } = await import("../devices/deviceRepair.service");
+  sendSuccess(res, await markInRepair(req.auth.sub, req.params.id), "Marked in repair");
+});
+
+adminRouter.post("/repair-requests/:id/resolve", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const body = z
+    .object({
+      outcome: z.enum(["resolved", "rejected"]),
+      resolutionNote: z.string().trim().min(1).max(1000),
+      replaced: z.boolean().optional(),
+    })
+    .parse(req.body);
+  const { resolveRepairRequest } = await import("../devices/deviceRepair.service");
+  const result = await resolveRepairRequest({
+    adminId: req.auth.sub,
+    id: req.params.id,
+    ...body,
+  });
+  sendSuccess(res, result, `Request ${body.outcome}`);
+});
+
 adminRouter.get("/network-tree", async (_req, res) => {
   sendSuccess(res, await getNetworkTreeAdmin());
 });

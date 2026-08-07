@@ -20,6 +20,7 @@ import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import { AppShell } from "@/components/layout/AppShell";
 import { EmailVerifyField } from "@/components/EmailVerifyField";
 import { BiometricDevices } from "@/components/settings/BiometricDevices";
+import { DeviceRepairRequests } from "@/components/settings/DeviceRepairRequests";
 import { B, initials, roleFromUserRole } from "@/lib/brand";
 import api from "@/lib/api";
 import { extractApiError } from "@/lib/onboarding";
@@ -583,7 +584,12 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {active === "devices" && <BiometricDevices />}
+            {active === "devices" && (
+              <div className="space-y-4">
+                <BiometricDevices />
+                <DeviceRepairRequests />
+              </div>
+            )}
           </div>
         </div>
       </div>
