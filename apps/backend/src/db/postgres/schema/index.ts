@@ -11,6 +11,7 @@ export * from "./float";
 export * from "./reconciliation";
 export * from "./devices";
 export * from "./agentDevices";
+export * from "./riskSignals";
 export * from "./biometricReplay";
 export * from "./wallets";
 export * from "./catalog";

@@ -4,22 +4,13 @@ import { db } from "../../db/postgres";
 import { aepsBioMismatchCounters, aepsCashReceipts, users } from "../../db/postgres/schema";
 import { env, isInstantPayAepsMode } from "../../config/env";
 import { HttpError } from "../../utils/httpError";
+import { logger } from "../../utils/logger";
+import { evaluateGeoSignal } from "../risk/riskSignal.service";
+import { haversineKm } from "../../core/geo";
 
-const EARTH_RADIUS_KM = 6371;
-
-function toRad(deg: number): number {
-  return (deg * Math.PI) / 180;
-}
-
-/** Haversine distance in km between two WGS84 points. */
-export function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-  return 2 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(a));
-}
+// Re-exported for backward compatibility — haversineKm moved to core/geo to break a circular
+// import with risk/riskSignal.service.ts, which also needs it and is imported here.
+export { haversineKm };
 
 export function hashAadhaar(aadhaarNumber: string): string {
   return createHash("sha256").update(aadhaarNumber).digest("hex");
@@ -28,6 +19,10 @@ export function hashAadhaar(aadhaarNumber: string): string {
 export interface AepsGeoInput {
   latitude: string;
   longitude: string;
+  /** GPS accuracy in metres, when the client reports it. */
+  accuracyMeters?: number;
+  /** True when the OS flags the location as coming from a mock provider (Android). */
+  isMockLocation?: boolean;
 }
 
 function laterOf(a: Date | null, b: Date | null): Date | null {
@@ -97,6 +92,15 @@ export async function assertAepsCompliance(
       "AEPS_DORMANT",
     );
   }
+
+  // Log-only risk signals (task #15) — mock location, low accuracy, missing GPS, out-of-zone.
+  // Deliberately fire-and-forget: a write failure here must never fail a transaction, and the
+  // whole point of this phase is that nothing here is allowed to change the outcome below.
+  const txnRef = `${userId}:${Date.now()}`;
+  void evaluateGeoSignal(userId, txnRef, geo ?? null, {
+    latitude: user.outletLatitude,
+    longitude: user.outletLongitude,
+  }).catch((err: unknown) => logger.error({ err, userId }, "geo risk signal evaluation failed"));
 
   if (geo && user.outletLatitude && user.outletLongitude) {
     assertWithinOutletGeofence(user.outletLatitude, user.outletLongitude, geo);

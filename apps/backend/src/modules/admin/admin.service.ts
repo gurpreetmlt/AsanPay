@@ -1,4 +1,4 @@
-import { and, count, desc, eq, ilike, inArray, notInArray, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, ilike, inArray, isNull, notInArray, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "../../db/postgres";
 import {
@@ -23,6 +23,7 @@ import {
   fundRequestEvents,
   agentSettlementAccounts,
   settlementRequests,
+  agentRiskSignals,
   floatTransfers,
   allocations,
   reconAdjustments,
@@ -1580,4 +1581,50 @@ export async function listRiskAlerts(opts: { windowHours: number; minFailures: n
     .orderBy(desc(count()));
 
   return rows;
+}
+
+/**
+ * Device and location findings from task #15 — mock location, low-accuracy, missing GPS,
+ * out-of-zone, device-change frequency, RD licence expiry. All log-only: nothing here has ever
+ * blocked a transaction or a device. This is the surface for the "collect a month, then set
+ * thresholds" review the feature was built for.
+ */
+export async function listRiskSignals(opts: {
+  signalType?: string;
+  unreviewedOnly?: boolean;
+  limit: number;
+}) {
+  const conditions = [];
+  if (opts.signalType) conditions.push(eq(agentRiskSignals.signalType, opts.signalType));
+  if (opts.unreviewedOnly) conditions.push(isNull(agentRiskSignals.reviewedAt));
+
+  return db
+    .select({
+      id: agentRiskSignals.id,
+      userId: agentRiskSignals.userId,
+      userName: users.name,
+      userUid: users.uid,
+      signalType: agentRiskSignals.signalType,
+      severity: agentRiskSignals.severity,
+      details: agentRiskSignals.details,
+      reviewedAt: agentRiskSignals.reviewedAt,
+      createdAt: agentRiskSignals.createdAt,
+    })
+    .from(agentRiskSignals)
+    .innerJoin(users, eq(agentRiskSignals.userId, users.id))
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(desc(agentRiskSignals.createdAt))
+    .limit(opts.limit);
+}
+
+export async function markRiskSignalReviewed(
+  adminId: string,
+  signalId: string,
+): Promise<void> {
+  const [updated] = await db
+    .update(agentRiskSignals)
+    .set({ reviewedAt: new Date(), reviewedBy: adminId })
+    .where(eq(agentRiskSignals.id, signalId))
+    .returning({ id: agentRiskSignals.id });
+  if (!updated) throw new HttpError(404, "Risk signal not found", "RISK_SIGNAL_NOT_FOUND");
 }

@@ -25,6 +25,8 @@ import {
   markOtpConsumed,
 } from "../../db/postgres/repositories/otpRequest";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
+import { evaluateDeviceChangeVelocity } from "../risk/riskSignal.service";
+import { logger } from "../../utils/logger";
 
 const DEVICE_OTP_TTL_MS = 10 * 60 * 1000;
 
@@ -198,6 +200,12 @@ export async function registerDevice(params: {
       rdLicenseExpiry: params.rdLicenseExpiry?.toISOString() ?? null,
     },
   });
+
+  // Log-only (task #15): how often this agent is swapping devices. Fire-and-forget — a write
+  // failure here must never fail the registration that just succeeded.
+  evaluateDeviceChangeVelocity(params.userId).catch((err: unknown) =>
+    logger.error({ err, userId: params.userId }, "device change velocity evaluation failed"),
+  );
 
   return row;
 }

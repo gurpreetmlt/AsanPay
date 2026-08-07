@@ -877,7 +877,14 @@ export async function aepsBalanceEnquiry(req: Request, res: Response): Promise<v
   await assertAgentAuthFresh(userId);
   await assertAepsCompliance(
     userId,
-    body.latitude && body.longitude ? { latitude: body.latitude, longitude: body.longitude } : null,
+    body.latitude && body.longitude
+      ? {
+          latitude: body.latitude,
+          longitude: body.longitude,
+          accuracyMeters: body.accuracyMeters,
+          isMockLocation: body.isMockLocation,
+        }
+      : null,
   );
   await assertFreshBiometric(body.biometricPayload);
   const routedProviders = await resolveProvidersForService("aeps_balance_enquiry");
@@ -903,7 +910,14 @@ export async function aepsMiniStatement(req: Request, res: Response): Promise<vo
   await assertAgentAuthFresh(userId);
   await assertAepsCompliance(
     userId,
-    body.latitude && body.longitude ? { latitude: body.latitude, longitude: body.longitude } : null,
+    body.latitude && body.longitude
+      ? {
+          latitude: body.latitude,
+          longitude: body.longitude,
+          accuracyMeters: body.accuracyMeters,
+          isMockLocation: body.isMockLocation,
+        }
+      : null,
   );
   await assertFreshBiometric(body.biometricPayload);
   const routedProviders = await resolveProvidersForService("aeps_mini_statement");
@@ -930,7 +944,14 @@ export async function aepsWithdrawOtp(req: Request, res: Response): Promise<void
   await assertAgentAuthFresh(userId);
   await assertAepsCompliance(
     userId,
-    body.latitude && body.longitude ? { latitude: body.latitude, longitude: body.longitude } : null,
+    body.latitude && body.longitude
+      ? {
+          latitude: body.latitude,
+          longitude: body.longitude,
+          accuracyMeters: body.accuracyMeters,
+          isMockLocation: body.isMockLocation,
+        }
+      : null,
   );
   const routedProviders = await resolveProvidersForService("aeps_cash_withdrawal");
   const result = await callProvider(
@@ -959,7 +980,14 @@ export async function aepsWithdraw(req: Request, res: Response): Promise<void> {
   await assertAgentAuthFresh(userId);
   await assertAepsCompliance(
     userId,
-    body.latitude && body.longitude ? { latitude: body.latitude, longitude: body.longitude } : null,
+    body.latitude && body.longitude
+      ? {
+          latitude: body.latitude,
+          longitude: body.longitude,
+          accuracyMeters: body.accuracyMeters,
+          isMockLocation: body.isMockLocation,
+        }
+      : null,
   );
   await assertFreshBiometric(body.biometricPayload);
   await assertTxnAuthorization(userId, { txnPin: body.txnPin, txnAuth: body.txnAuth });
@@ -1020,7 +1048,14 @@ export async function aepsDeposit(req: Request, res: Response): Promise<void> {
   await assertAgentAuthFresh(userId);
   await assertAepsCompliance(
     userId,
-    body.latitude && body.longitude ? { latitude: body.latitude, longitude: body.longitude } : null,
+    body.latitude && body.longitude
+      ? {
+          latitude: body.latitude,
+          longitude: body.longitude,
+          accuracyMeters: body.accuracyMeters,
+          isMockLocation: body.isMockLocation,
+        }
+      : null,
   );
   await assertFreshBiometric(body.biometricPayload);
   await assertTxnAuthorization(userId, { txnPin: body.txnPin, txnAuth: body.txnAuth });
@@ -1069,7 +1104,14 @@ export async function aadhaarPay(req: Request, res: Response): Promise<void> {
   await assertAgentAuthFresh(userId);
   await assertAepsCompliance(
     userId,
-    body.latitude && body.longitude ? { latitude: body.latitude, longitude: body.longitude } : null,
+    body.latitude && body.longitude
+      ? {
+          latitude: body.latitude,
+          longitude: body.longitude,
+          accuracyMeters: body.accuracyMeters,
+          isMockLocation: body.isMockLocation,
+        }
+      : null,
   );
   await assertFreshBiometric(body.biometricPayload);
   await assertTxnAuthorization(userId, { txnPin: body.txnPin, txnAuth: body.txnAuth });

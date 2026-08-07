@@ -31,6 +31,8 @@ import {
   getUserAncestorsAdmin,
   listReconciliationMismatches,
   listRiskAlerts,
+  listRiskSignals,
+  markRiskSignalReviewed,
 } from "./admin.service";
 
 export const adminRouter = Router();
@@ -192,6 +194,21 @@ adminRouter.get("/risk-alerts", async (req, res) => {
   const windowHours = Math.min(Number(req.query.windowHours) || 24, 168);
   const minFailures = Math.max(Number(req.query.minFailures) || 3, 1);
   sendSuccess(res, await listRiskAlerts({ windowHours, minFailures }));
+});
+
+// Task #15 — device and location signals. Log-only: listing here is the review surface, not a
+// moderation queue. "Reviewed" just means a human looked at it, not that anything was actioned.
+adminRouter.get("/risk-signals", async (req, res) => {
+  const signalType = typeof req.query.signalType === "string" ? req.query.signalType : undefined;
+  const unreviewedOnly = req.query.unreviewedOnly === "true";
+  const limit = Math.min(Number(req.query.limit) || 100, 500);
+  sendSuccess(res, await listRiskSignals({ signalType, unreviewedOnly, limit }));
+});
+
+adminRouter.post("/risk-signals/:id/review", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  await markRiskSignalReviewed(req.auth.sub, req.params.id);
+  sendSuccess(res, { id: req.params.id }, "Marked reviewed");
 });
 
 adminRouter.get("/network-tree", async (_req, res) => {

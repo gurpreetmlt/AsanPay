@@ -18,11 +18,13 @@ import { runReconciliation } from "../modules/reconciliation/checks";
 import { reconcileStaleTransactions, runDailyReconciliation } from "../modules/transactions/txn.service";
 import { runStatementEmailJobs } from "../modules/notifications/userEmail.service";
 import { sweepLogPartitions } from "./logPartitions";
+import { sweepExpiringRdLicenses } from "../modules/risk/riskSignal.service";
 import { logger } from "../utils/logger";
 
 const OTP_SWEEP_INTERVAL_MS = 30 * 60 * 1000;
 const DAILY_RECONCILE_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const PARTITION_SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const RD_LICENSE_SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 /** Ledger recon across every active tenant. Detection only — never mutates balances. */
 export async function runLedgerReconciliationSweep(): Promise<void> {
@@ -117,6 +119,18 @@ async function main() {
 
   void runPartitionSweep();
   timers.push(setInterval(() => void runPartitionSweep(), PARTITION_SWEEP_INTERVAL_MS));
+
+  // RD licence expiry (task #15) — a large share of "my scanner is broken" tickets are an
+  // expired licence, not a dead device. Log-only: writes agent_risk_signals, blocks nothing.
+  const runRdLicenseSweep = () =>
+    sweepExpiringRdLicenses()
+      .then((n) => {
+        if (n > 0) logger.info({ flagged: n }, "RD licence expiry sweep");
+      })
+      .catch((err: unknown) => logger.error({ err }, "RD licence expiry sweep failed"));
+
+  void runRdLicenseSweep();
+  timers.push(setInterval(() => void runRdLicenseSweep(), RD_LICENSE_SWEEP_INTERVAL_MS));
 
   logger.info({ timers: timers.length }, "AsanPay jobs worker started");
 

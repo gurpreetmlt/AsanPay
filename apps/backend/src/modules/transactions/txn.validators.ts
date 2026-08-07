@@ -472,6 +472,13 @@ export const dmtTransferSchema = z
   })
   .superRefine(requireTxnProof);
 
+// accuracyMeters/isMockLocation feed the log-only risk signals in modules/risk/riskSignal.service
+// (task #15) — never a compliance gate on their own. Optional because no client sends them yet.
+const geoRiskFields = {
+  accuracyMeters: z.coerce.number().positive().max(1_000_000).optional(),
+  isMockLocation: z.coerce.boolean().optional(),
+};
+
 const aepsBase = {
   aadhaarNumber: z.string().regex(/^\d{12}$/),
   bankIin: z.string().min(3).max(11),
@@ -479,6 +486,7 @@ const aepsBase = {
   biometricPayload: z.string().min(1),
   latitude: z.string().min(1).max(32).optional(),
   longitude: z.string().min(1).max(32).optional(),
+  ...geoRiskFields,
 };
 
 export const aepsEnquirySchema = z.object({ ...aepsBase });
@@ -492,6 +500,7 @@ export const aepsTxnOtpSchema = z.object({
   amount,
   latitude: z.string().min(1).max(32).optional(),
   longitude: z.string().min(1).max(32).optional(),
+  ...geoRiskFields,
 });
 
 export const aepsWithdrawSchema = z
