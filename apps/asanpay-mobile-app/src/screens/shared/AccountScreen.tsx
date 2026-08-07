@@ -25,6 +25,7 @@ import { SettlementsModal } from "./SettlementsModal";
 import { FundRequestModal } from "./FundRequestScreen";
 import { RegisterOutletModal } from "./RegisterOutletModal";
 import { BioKycModal } from "./BioKycModal";
+import { BiometricDevicesModal } from "./BiometricDevicesModal";
 
 const THEME_OPTIONS: { key: ThemeMode; label: string; icon: typeof Sun }[] = [
   { key: "light", label: "Light", icon: Sun },
@@ -40,6 +41,7 @@ export function AccountScreen() {
   const [showSetPin, setShowSetPin] = useState(false);
   const [showSetMpin, setShowSetMpin] = useState(false);
   const [showDevices, setShowDevices] = useState(false);
+  const [showBiometricDevices, setShowBiometricDevices] = useState(false);
   const [bioEnabled, setBioEnabled] = useState(false);
   const [showSupport, setShowSupport] = useState(false);
   const [showSettlements, setShowSettlements] = useState(false);
@@ -182,6 +184,15 @@ export function AccountScreen() {
           <Text style={[styles.menuText, { color: tokens.txt }]}>Trusted devices</Text>
           <ChevronRight size={18} color={tokens.mute} />
         </Pressable>
+        {(user.role === "retailer" || user.role === "distributor") ? (
+          <Pressable
+            style={[styles.menuItem, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
+            onPress={() => setShowBiometricDevices(true)}
+          >
+            <Text style={[styles.menuText, { color: tokens.txt }]}>Biometric devices</Text>
+            <ChevronRight size={18} color={tokens.mute} />
+          </Pressable>
+        ) : null}
         <Pressable
           style={[styles.menuItem, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
           onPress={() => setShowSettlements(true)}
@@ -249,6 +260,10 @@ export function AccountScreen() {
       />
       <SetTxnPinModal visible={showSetPin} onClose={() => setShowSetPin(false)} />
       <TrustedDevicesModal visible={showDevices} onClose={() => setShowDevices(false)} />
+      <BiometricDevicesModal
+        visible={showBiometricDevices}
+        onClose={() => setShowBiometricDevices(false)}
+      />
       <SupportModal visible={showSupport} onClose={() => setShowSupport(false)} />
       <SettlementsModal visible={showSettlements} onClose={() => setShowSettlements(false)} />
       <FundRequestModal visible={showFund} onClose={() => setShowFund(false)} />
