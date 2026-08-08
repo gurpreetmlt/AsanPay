@@ -223,6 +223,14 @@ bankingRouter.get("/van", requireRole("admin"), async (req, res) => {
   sendSuccess(res, await listVirtualAccounts(tenantId, userId));
 });
 
+/** Self-service — the caller's own virtual account(s) for the "Add Money" screen. */
+bankingRouter.get("/van/mine", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const tenantId = await resolveTenantId();
+  const vans = await listVirtualAccounts(tenantId, req.auth.sub);
+  sendSuccess(res, vans.filter((v) => v.status === "active"));
+});
+
 bankingRouter.post(
   "/van/assign",
   requireRole("admin"),

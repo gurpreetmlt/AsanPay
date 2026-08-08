@@ -11,7 +11,22 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { launchImageLibrary } from "react-native-image-picker";
+import QRCode from "react-native-qrcode-svg";
+import {
+  ArrowLeft,
+  Banknote,
+  Building2,
+  ChevronRight,
+  CreditCard,
+  HelpCircle,
+  Info,
+  Landmark,
+  Wallet,
+  X,
+  Zap,
+} from "lucide-react-native";
 import { api, fetchApi } from "../../lib/api";
+import { formatINR } from "../../lib/format";
 import { showAlert } from "../../components/AppAlert";
 import { useTheme } from "../../theme/ThemeContext";
 import { colors } from "../../theme/colors";
@@ -21,9 +36,20 @@ interface BankAccount {
   bankName: string;
   accountNumberLast4: string;
   ifsc: string;
+  isActive: boolean;
 }
 
-const PAYMENT_MODES = ["neft", "rtgs", "imps", "upi", "cash_deposit", "cheque"] as const;
+interface MyVan {
+  id: string;
+  vanNumber: string | null;
+  vpa: string | null;
+  status: string;
+  bankAccountId: string;
+  bankName: string;
+  ifsc: string;
+}
+
+const AMOUNT_PRESETS = ["500", "1000", "2000", "5000"];
 
 async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
   const subtle = globalThis.crypto?.subtle;
@@ -38,41 +64,477 @@ function newIdemKey() {
   return `fr-mobile-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`.slice(0, 100);
 }
 
+type Step = "home" | "upi" | "bank" | "cashSelect" | "confirm";
+type ConfirmMode = "upi" | "neft" | "cash_deposit";
+
+interface ConfirmPrefill {
+  mode: ConfirmMode;
+  bankAccountId?: string;
+  headline: string;
+  subtext: string;
+}
+
 export function FundRequestModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const { tokens } = useTheme();
+  const [step, setStep] = useState<Step>("home");
   const [banks, setBanks] = useState<BankAccount[]>([]);
-  const [bankAccountId, setBankAccountId] = useState("");
-  const [amount, setAmount] = useState("");
-  const [paymentMode, setPaymentMode] = useState<(typeof PAYMENT_MODES)[number]>("neft");
-  const [referenceNumber, setReferenceNumber] = useState("");
-  const [senderName, setSenderName] = useState("");
-  const [receiptUri, setReceiptUri] = useState<string | null>(null);
-  const [receiptName, setReceiptName] = useState<string | null>(null);
+  const [myVan, setMyVan] = useState<MyVan | null>(null);
+  const [walletBalance, setWalletBalance] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const idemRef = useRef(newIdemKey());
+  const [confirmPrefill, setConfirmPrefill] = useState<ConfirmPrefill | null>(null);
 
-  const loadBanks = useCallback(async () => {
+  const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const rows = await fetchApi<BankAccount[]>("/banking/accounts", { purpose: "collection" });
-      setBanks(rows);
-      if (rows[0]) setBankAccountId(rows[0].id);
+      const [bankRows, vanRows, wallets] = await Promise.all([
+        fetchApi<BankAccount[]>("/banking/accounts", { purpose: "collection" }),
+        fetchApi<MyVan[]>("/banking/van/mine").catch(() => []),
+        fetchApi<{ walletType: string; balance: string }[]>("/wallet/me").catch(() => []),
+      ]);
+      setBanks(bankRows);
+      setMyVan(vanRows[0] ?? null);
+      const main = wallets.find((w) => w.walletType === "main");
+      setWalletBalance(main?.balance ?? null);
     } catch (err) {
-      showAlert("Error", (err as Error).message || "Failed to load collection banks");
+      showAlert("Error", (err as Error).message || "Failed to load Add Money details");
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (visible) void loadBanks();
-  }, [visible, loadBanks]);
+    if (visible) {
+      setStep("home");
+      void loadAll();
+    }
+  }, [visible, loadAll]);
 
-  const bankLabel = useMemo(() => {
-    const b = banks.find((x) => x.id === bankAccountId);
-    return b ? `${b.bankName} · ****${b.accountNumberLast4}` : "Select bank";
-  }, [banks, bankAccountId]);
+  function close() {
+    setStep("home");
+    onClose();
+  }
+
+  function goConfirm(prefill: ConfirmPrefill) {
+    setConfirmPrefill(prefill);
+    setStep("confirm");
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={close}>
+      <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bg }]} edges={["top", "bottom"]}>
+        {loading ? (
+          <ActivityIndicator color={colors.blueFlat} style={{ marginTop: 60 }} />
+        ) : step === "home" ? (
+          <HomeStep
+            walletBalance={walletBalance}
+            hasUpi={Boolean(myVan?.vpa)}
+            onClose={close}
+            onUpi={() => setStep("upi")}
+            onBank={() => setStep("bank")}
+            onCash={() => setStep("cashSelect")}
+          />
+        ) : step === "upi" ? (
+          <UpiStep
+            van={myVan}
+            onBack={() => setStep("home")}
+            onContinue={(amount) =>
+              goConfirm({
+                mode: "upi",
+                bankAccountId: myVan?.bankAccountId,
+                headline: "Confirm UPI payment",
+                subtext: `Paid ₹${amount} via UPI — attach the payment screenshot to complete.`,
+              })
+            }
+          />
+        ) : step === "bank" ? (
+          <BankStep
+            banks={banks}
+            myVan={myVan}
+            onBack={() => setStep("home")}
+            onContinue={(bankAccountId) =>
+              goConfirm({
+                mode: "neft",
+                bankAccountId,
+                headline: "Confirm bank transfer",
+                subtext: "Transferred to the account above — attach your bank receipt to complete.",
+              })
+            }
+          />
+        ) : step === "cashSelect" ? (
+          <CashSelectStep
+            onBack={() => setStep("home")}
+            onSelect={(kind) =>
+              goConfirm({
+                mode: "cash_deposit",
+                headline: kind === "claim" ? "Deposit Cash & Claim" : "Instant Credit via E-Collect",
+                subtext:
+                  kind === "claim"
+                    ? "Deposit cash at the bank branch, then upload the slip below — wallet loads in 15–60 minutes after verification."
+                    : "Deposit cash at an E-Collect machine, then upload the receipt below for instant wallet credit.",
+              })
+            }
+          />
+        ) : (
+          <ConfirmStep
+            banks={banks}
+            prefill={confirmPrefill!}
+            onBack={() => setStep("home")}
+            onDone={close}
+          />
+        )}
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+function ScreenTop({
+  title,
+  onBack,
+  onClose,
+}: {
+  title: string;
+  onBack?: () => void;
+  onClose?: () => void;
+}) {
+  const { tokens } = useTheme();
+  return (
+    <View style={topStyles.row}>
+      {onBack ? (
+        <Pressable onPress={onBack} hitSlop={10} style={topStyles.iconBtn}>
+          <ArrowLeft size={20} color={tokens.txt} />
+        </Pressable>
+      ) : (
+        <View style={topStyles.iconBtn} />
+      )}
+      <Text style={[topStyles.title, { color: tokens.txt }]}>{title}</Text>
+      {onClose ? (
+        <Pressable onPress={onClose} hitSlop={10} style={topStyles.iconBtn}>
+          <X size={20} color={tokens.txt} />
+        </Pressable>
+      ) : (
+        <View style={topStyles.iconBtn} />
+      )}
+    </View>
+  );
+}
+
+const topStyles = StyleSheet.create({
+  row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 },
+  iconBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
+  title: { fontSize: 16, fontWeight: "800" },
+});
+
+function HomeStep({
+  walletBalance,
+  hasUpi,
+  onClose,
+  onUpi,
+  onBank,
+  onCash,
+}: {
+  walletBalance: string | null;
+  hasUpi: boolean;
+  onClose: () => void;
+  onUpi: () => void;
+  onBank: () => void;
+  onCash: () => void;
+}) {
+  const { tokens } = useTheme();
+  return (
+    <ScrollView contentContainerStyle={styles.content}>
+      <ScreenTop title="" onClose={onClose} />
+      <Text style={[styles.h1, { color: tokens.txt }]}>Add Money to Wallet</Text>
+      {walletBalance !== null ? (
+        <Text style={[styles.h1Sub, { color: tokens.sub }]}>
+          Main Wallet balance: {formatINR(walletBalance)}
+        </Text>
+      ) : null}
+
+      <Text style={[styles.groupLabel, { color: tokens.txt }]}>Add Money Online</Text>
+      <View style={[styles.card, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
+        <OptionRow
+          icon={Wallet}
+          title="UPI"
+          subtitle={hasUpi ? "No charges" : "Set up by your distributor"}
+          tokens={tokens}
+          onPress={onUpi}
+        />
+        <View style={[styles.divider, { backgroundColor: tokens.cardBorder }]} />
+        <OptionRow icon={Landmark} title="Bank Account Transfer" subtitle="No charges" tokens={tokens} onPress={onBank} />
+      </View>
+
+      <Text style={[styles.groupLabel, { color: tokens.txt }]}>Deposit Cash & Get Credit</Text>
+      <View style={[styles.card, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
+        <OptionRow icon={Building2} title="At Bank Branch" subtitle="Bank-wise charges & limits" tokens={tokens} onPress={onCash} />
+        <View style={[styles.divider, { backgroundColor: tokens.cardBorder }]} />
+        <OptionRow icon={CreditCard} title="At Cash Deposit Machine" subtitle="Bank-wise charges & limits" tokens={tokens} onPress={onCash} />
+      </View>
+    </ScrollView>
+  );
+}
+
+function OptionRow({
+  icon: Icon,
+  title,
+  subtitle,
+  tokens,
+  onPress,
+}: {
+  icon: typeof Wallet;
+  title: string;
+  subtitle: string;
+  tokens: ReturnType<typeof useTheme>["tokens"];
+  onPress: () => void;
+}) {
+  return (
+    <Pressable style={optionStyles.row} onPress={onPress}>
+      <Icon size={22} color={colors.blueFlat} strokeWidth={1.8} />
+      <View style={{ flex: 1, marginLeft: 12 }}>
+        <Text style={[optionStyles.title, { color: tokens.txt }]}>{title}</Text>
+        <Text style={[optionStyles.subtitle, { color: tokens.sub }]}>{subtitle}</Text>
+      </View>
+      <ChevronRight size={18} color={tokens.mute} />
+    </Pressable>
+  );
+}
+
+const optionStyles = StyleSheet.create({
+  row: { flexDirection: "row", alignItems: "center", paddingVertical: 14 },
+  title: { fontSize: 15, fontWeight: "700" },
+  subtitle: { fontSize: 12, marginTop: 2 },
+});
+
+function UpiStep({
+  van,
+  onBack,
+  onContinue,
+}: {
+  van: MyVan | null;
+  onBack: () => void;
+  onContinue: (amount: string) => void;
+}) {
+  const { tokens } = useTheme();
+  const [amount, setAmount] = useState("");
+  const upiUri = van?.vpa && amount ? `upi://pay?pa=${van.vpa}&pn=AsanPay&am=${amount}&cu=INR` : null;
+
+  return (
+    <ScrollView contentContainerStyle={styles.content}>
+      <ScreenTop title="UPI Deposit" onBack={onBack} />
+
+      {!van?.vpa ? (
+        <View style={[styles.noticeBanner, { backgroundColor: "#FEF3C7" }]}>
+          <Info size={16} color="#92400E" />
+          <Text style={styles.noticeText}>
+            No UPI ID is assigned to your account yet. Ask your distributor/admin to assign one, or use Bank
+            Account Transfer instead.
+          </Text>
+        </View>
+      ) : (
+        <>
+          <Text style={[styles.centerLabel, { color: tokens.sub }]}>Enter amount to add</Text>
+          <TextInput
+            style={[styles.amountInput, { color: tokens.txt }]}
+            keyboardType="decimal-pad"
+            value={amount}
+            onChangeText={setAmount}
+            placeholder="0"
+            placeholderTextColor={tokens.mute}
+          />
+          <View style={styles.presetRow}>
+            {AMOUNT_PRESETS.map((p) => (
+              <Pressable key={p} onPress={() => setAmount(p)} style={[styles.presetChip, { borderColor: tokens.cardBorder }]}>
+                <Text style={{ color: tokens.txt, fontWeight: "700", fontSize: 13 }}>₹{p}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {upiUri ? (
+            <View style={[styles.qrWrap, { borderColor: tokens.cardBorder }]}>
+              <Text style={[styles.qrLabel, { color: tokens.sub }]}>Scan and pay to</Text>
+              <Text style={[styles.qrVpa, { color: tokens.txt }]}>{van.vpa}</Text>
+              <View style={styles.qrBox}>
+                <QRCode value={upiUri} size={180} />
+              </View>
+            </View>
+          ) : (
+            <Text style={[styles.hint, { color: tokens.mute, textAlign: "center", marginTop: 12 }]}>
+              Enter an amount to generate the QR code
+            </Text>
+          )}
+
+          <Pressable
+            style={[styles.submit, { opacity: amount ? 1 : 0.5 }]}
+            disabled={!amount}
+            onPress={() => onContinue(amount)}
+          >
+            <Text style={styles.submitText}>I've paid — continue</Text>
+          </Pressable>
+        </>
+      )}
+    </ScrollView>
+  );
+}
+
+function BankStep({
+  banks,
+  myVan,
+  onBack,
+  onContinue,
+}: {
+  banks: BankAccount[];
+  myVan: MyVan | null;
+  onBack: () => void;
+  onContinue: (bankAccountId: string) => void;
+}) {
+  const { tokens } = useTheme();
+  const [selected, setSelected] = useState(banks[0]?.id ?? "");
+
+  return (
+    <ScrollView contentContainerStyle={styles.content}>
+      <ScreenTop title="Bank Account Transfer" onBack={onBack} />
+      <View style={[styles.noticeBanner, { backgroundColor: "#FEF3C7" }]}>
+        <Info size={16} color="#92400E" />
+        <Text style={styles.noticeText}>
+          Transfer from a bank account registered with AsanPay to load your wallet instantly.
+        </Text>
+      </View>
+
+      <Text style={[styles.groupLabel, { color: tokens.txt, marginTop: 16 }]}>Available banks</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 16 }}>
+        {banks.map((b) => {
+          const active = selected === b.id;
+          const isMine = myVan?.bankAccountId === b.id;
+          return (
+            <Pressable
+              key={b.id}
+              onPress={() => setSelected(b.id)}
+              style={[
+                cardStyles.bankCard,
+                {
+                  borderColor: active ? colors.blueFlat : tokens.cardBorder,
+                  backgroundColor: active ? `${colors.blueFlat}0D` : tokens.card,
+                  opacity: b.isActive ? 1 : 0.5,
+                },
+              ]}
+            >
+              <View style={cardStyles.bankCardHeader}>
+                <Banknote size={18} color={colors.blueFlat} />
+                <Text style={[cardStyles.bankName, { color: tokens.txt }]} numberOfLines={1}>
+                  {b.bankName}
+                </Text>
+                {active ? <View style={cardStyles.checkDot} /> : null}
+              </View>
+              {!b.isActive ? (
+                <Text style={cardStyles.downNote}>Currently unavailable</Text>
+              ) : (
+                <>
+                  {isMine && myVan?.vanNumber ? (
+                    <>
+                      <Text style={[cardStyles.fieldLabel, { color: tokens.sub }]}>Your Virtual A/C No.</Text>
+                      <Text selectable style={[cardStyles.fieldValue, { color: tokens.txt }]}>
+                        {myVan.vanNumber}
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={[cardStyles.fieldLabel, { color: tokens.sub }]}>A/C No. (last 4)</Text>
+                      <Text selectable style={[cardStyles.fieldValue, { color: tokens.txt }]}>
+                        ****{b.accountNumberLast4}
+                      </Text>
+                    </>
+                  )}
+                  <Text style={[cardStyles.fieldLabel, { color: tokens.sub }]}>IFSC Code</Text>
+                  <Text selectable style={[cardStyles.fieldValue, { color: tokens.txt }]}>
+                    {b.ifsc}
+                  </Text>
+                </>
+              )}
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+
+      <Pressable
+        style={[styles.submit, { opacity: selected ? 1 : 0.5 }]}
+        disabled={!selected}
+        onPress={() => onContinue(selected)}
+      >
+        <Text style={styles.submitText}>I've transferred — continue</Text>
+      </Pressable>
+    </ScrollView>
+  );
+}
+
+const cardStyles = StyleSheet.create({
+  bankCard: { width: 240, borderRadius: 16, borderWidth: 1.5, padding: 16, marginRight: 12 },
+  bankCardHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
+  bankName: { fontSize: 15, fontWeight: "800", flex: 1 },
+  checkDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.blueFlat },
+  fieldLabel: { fontSize: 10.5, fontWeight: "700", marginTop: 8, textTransform: "uppercase" },
+  fieldValue: { fontSize: 13.5, fontWeight: "700", marginTop: 2 },
+  downNote: { fontSize: 12.5, fontWeight: "700", color: colors.danger, marginTop: 4 },
+});
+
+function CashSelectStep({
+  onBack,
+  onSelect,
+}: {
+  onBack: () => void;
+  onSelect: (kind: "claim" | "ecollect") => void;
+}) {
+  const { tokens } = useTheme();
+  return (
+    <ScrollView contentContainerStyle={styles.content}>
+      <ScreenTop title="Select Mode" onBack={onBack} />
+      <View style={[styles.card, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
+        <OptionRow
+          icon={Building2}
+          title="Deposit Cash & Claim"
+          subtitle="Deposit cash at bank & claim — 15–60 min load time"
+          tokens={tokens}
+          onPress={() => onSelect("claim")}
+        />
+        <View style={[styles.divider, { backgroundColor: tokens.cardBorder }]} />
+        <OptionRow
+          icon={Zap}
+          title="Instant Credit via E-Collect"
+          subtitle="For deposits under ₹10 Lac — instant wallet load"
+          tokens={tokens}
+          onPress={() => onSelect("ecollect")}
+        />
+      </View>
+    </ScrollView>
+  );
+}
+
+const PAYMENT_MODE_MAP: Record<ConfirmMode, string> = {
+  upi: "upi",
+  neft: "neft",
+  cash_deposit: "cash_deposit",
+};
+
+function ConfirmStep({
+  banks,
+  prefill,
+  onBack,
+  onDone,
+}: {
+  banks: BankAccount[];
+  prefill: ConfirmPrefill;
+  onBack: () => void;
+  onDone: () => void;
+}) {
+  const { tokens } = useTheme();
+  const [bankAccountId, setBankAccountId] = useState(prefill.bankAccountId ?? banks[0]?.id ?? "");
+  const [amount, setAmount] = useState("");
+  const [referenceNumber, setReferenceNumber] = useState("");
+  const [senderName, setSenderName] = useState("");
+  const [receiptUri, setReceiptUri] = useState<string | null>(null);
+  const [receiptName, setReceiptName] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const idemRef = useRef(newIdemKey());
+
+  const needsBankPicker = !prefill.bankAccountId;
 
   async function pickReceipt() {
     const res = await launchImageLibrary({ mediaType: "photo", selectionLimit: 1, quality: 0.8 });
@@ -93,7 +555,7 @@ export function FundRequestModal({ visible, onClose }: { visible: boolean; onClo
       return;
     }
     if (!receiptUri) {
-      showAlert("Receipt required", "Attach your deposit receipt image");
+      showAlert("Receipt required", "Attach your deposit / payment receipt image");
       return;
     }
 
@@ -113,7 +575,7 @@ export function FundRequestModal({ visible, onClose }: { visible: boolean; onClo
         {
           bankAccountId,
           amount,
-          paymentMode,
+          paymentMode: PAYMENT_MODE_MAP[prefill.mode],
           referenceNumber: referenceNumber.trim() || null,
           depositDatetime: new Date().toISOString(),
           senderName: senderName.trim() || null,
@@ -124,7 +586,7 @@ export function FundRequestModal({ visible, onClose }: { visible: boolean; onClo
       );
       idemRef.current = newIdemKey();
       showAlert("Submitted", "Fund request submitted for review");
-      onClose();
+      onDone();
     } catch (err) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
@@ -137,177 +599,106 @@ export function FundRequestModal({ visible, onClose }: { visible: boolean; onClo
   }
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bg }]} edges={["top", "bottom"]}>
-        <View style={styles.header}>
-          <Pressable onPress={onClose}>
-            <Text style={[styles.back, { color: colors.blueFlat }]}>Close</Text>
-          </Pressable>
-          <Text style={[styles.title, { color: tokens.txt }]}>Add Money</Text>
-          <View style={{ width: 48 }} />
-        </View>
+    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScreenTop title={prefill.headline} onBack={onBack} />
+      <View style={[styles.noticeBanner, { backgroundColor: "#EFF6FF" }]}>
+        <HelpCircle size={16} color={colors.blueFlat} />
+        <Text style={[styles.noticeText, { color: colors.blueFlat }]}>{prefill.subtext}</Text>
+      </View>
 
-        {loading ? (
-          <ActivityIndicator color={colors.blueFlat} style={{ marginTop: 40 }} />
-        ) : (
-          <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-            <Text style={[styles.label, { color: tokens.sub }]}>Company bank</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-              {banks.map((b) => (
-                <Pressable
-                  key={b.id}
-                  onPress={() => setBankAccountId(b.id)}
-                  style={[
-                    styles.chip,
-                    {
-                      backgroundColor: bankAccountId === b.id ? colors.blue : tokens.card,
-                      borderColor: tokens.cardBorder,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={{
-                      color: bankAccountId === b.id ? "#fff" : tokens.txt,
-                      fontWeight: "700",
-                      fontSize: 12,
-                    }}
-                  >
-                    {b.bankName} · ****{b.accountNumberLast4}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-            <Text style={[styles.hint, { color: tokens.mute }]}>{bankLabel}</Text>
-
-            <Text style={[styles.label, { color: tokens.sub }]}>Amount (₹)</Text>
-            <TextInput
-              style={[
-                styles.input,
-                { backgroundColor: tokens.card, borderColor: tokens.cardBorder, color: tokens.txt },
-              ]}
-              keyboardType="decimal-pad"
-              value={amount}
-              onChangeText={(v) => {
-                idemRef.current = newIdemKey();
-                setAmount(v);
-              }}
-              placeholder="0.00"
-              placeholderTextColor={tokens.mute}
-            />
-
-            <Text style={[styles.label, { color: tokens.sub }]}>Payment mode</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-              {PAYMENT_MODES.map((m) => (
-                <Pressable
-                  key={m}
-                  onPress={() => setPaymentMode(m)}
-                  style={[
-                    styles.chip,
-                    {
-                      backgroundColor: paymentMode === m ? colors.blue : tokens.card,
-                      borderColor: tokens.cardBorder,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={{
-                      color: paymentMode === m ? "#fff" : tokens.txt,
-                      fontWeight: "700",
-                      fontSize: 12,
-                    }}
-                  >
-                    {m.toUpperCase()}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-
-            <Text style={[styles.label, { color: tokens.sub }]}>UTR / reference (optional)</Text>
-            <TextInput
-              style={[
-                styles.input,
-                { backgroundColor: tokens.card, borderColor: tokens.cardBorder, color: tokens.txt },
-              ]}
-              value={referenceNumber}
-              onChangeText={setReferenceNumber}
-              placeholderTextColor={tokens.mute}
-            />
-
-            <Text style={[styles.label, { color: tokens.sub }]}>Sender name (optional)</Text>
-            <TextInput
-              style={[
-                styles.input,
-                { backgroundColor: tokens.card, borderColor: tokens.cardBorder, color: tokens.txt },
-              ]}
-              value={senderName}
-              onChangeText={setSenderName}
-              placeholderTextColor={tokens.mute}
-            />
-
-            <Pressable
-              style={[styles.receiptBtn, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
-              onPress={() => void pickReceipt()}
-            >
-              <Text style={{ color: tokens.txt, fontWeight: "700" }}>
-                {receiptName ? `Receipt: ${receiptName}` : "Attach receipt photo"}
-              </Text>
-            </Pressable>
-
-            <Pressable
-              style={[styles.submit, { opacity: saving ? 0.6 : 1 }]}
-              onPress={() => void submit()}
-              disabled={saving}
-            >
-              <Text style={styles.submitText}>{saving ? "Submitting…" : "Submit fund request"}</Text>
-            </Pressable>
+      {needsBankPicker ? (
+        <>
+          <Text style={[styles.label, { color: tokens.sub }]}>Company bank</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+            {banks.map((b) => (
+              <Pressable
+                key={b.id}
+                onPress={() => setBankAccountId(b.id)}
+                style={[
+                  styles.chip,
+                  {
+                    backgroundColor: bankAccountId === b.id ? colors.blue : tokens.card,
+                    borderColor: tokens.cardBorder,
+                  },
+                ]}
+              >
+                <Text style={{ color: bankAccountId === b.id ? "#fff" : tokens.txt, fontWeight: "700", fontSize: 12 }}>
+                  {b.bankName} · ****{b.accountNumberLast4}
+                </Text>
+              </Pressable>
+            ))}
           </ScrollView>
-        )}
-      </SafeAreaView>
-    </Modal>
+        </>
+      ) : null}
+
+      <Text style={[styles.label, { color: tokens.sub }]}>Amount (₹)</Text>
+      <TextInput
+        style={[styles.input, { backgroundColor: tokens.card, borderColor: tokens.cardBorder, color: tokens.txt }]}
+        keyboardType="decimal-pad"
+        value={amount}
+        onChangeText={(v) => {
+          idemRef.current = newIdemKey();
+          setAmount(v);
+        }}
+        placeholder="0.00"
+        placeholderTextColor={tokens.mute}
+      />
+
+      <Text style={[styles.label, { color: tokens.sub }]}>UTR / reference (optional)</Text>
+      <TextInput
+        style={[styles.input, { backgroundColor: tokens.card, borderColor: tokens.cardBorder, color: tokens.txt }]}
+        value={referenceNumber}
+        onChangeText={setReferenceNumber}
+        placeholderTextColor={tokens.mute}
+      />
+
+      <Text style={[styles.label, { color: tokens.sub }]}>Sender name (optional)</Text>
+      <TextInput
+        style={[styles.input, { backgroundColor: tokens.card, borderColor: tokens.cardBorder, color: tokens.txt }]}
+        value={senderName}
+        onChangeText={setSenderName}
+        placeholderTextColor={tokens.mute}
+      />
+
+      <Pressable
+        style={[styles.receiptBtn, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
+        onPress={() => void pickReceipt()}
+      >
+        <Text style={{ color: tokens.txt, fontWeight: "700" }}>
+          {receiptName ? `Receipt: ${receiptName}` : "Attach receipt / payment proof"}
+        </Text>
+      </Pressable>
+
+      <Pressable style={[styles.submit, { opacity: saving ? 0.6 : 1 }]} onPress={() => void submit()} disabled={saving}>
+        <Text style={styles.submitText}>{saving ? "Submitting…" : "Submit fund request"}</Text>
+      </Pressable>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  back: { fontWeight: "700", fontSize: 15, width: 48 },
-  title: { fontSize: 18, fontWeight: "800" },
   content: { padding: 16, paddingBottom: 40 },
+  h1: { fontSize: 21, fontWeight: "800", marginTop: 4 },
+  h1Sub: { fontSize: 13, fontWeight: "600", marginTop: 4, marginBottom: 18 },
+  groupLabel: { fontSize: 13.5, fontWeight: "800", marginBottom: 8, marginTop: 6 },
+  card: { borderRadius: 16, borderWidth: 1, paddingHorizontal: 14, marginBottom: 18 },
+  divider: { height: 1 },
+  centerLabel: { fontSize: 13, fontWeight: "600", textAlign: "center", marginTop: 8 },
+  amountInput: { fontSize: 40, fontWeight: "800", textAlign: "center", marginTop: 8 },
+  presetRow: { flexDirection: "row", justifyContent: "center", gap: 10, marginTop: 14, flexWrap: "wrap" },
+  presetChip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 8 },
+  qrWrap: { borderWidth: 1, borderRadius: 16, padding: 20, marginTop: 22, alignItems: "center" },
+  qrLabel: { fontSize: 12, fontWeight: "600" },
+  qrVpa: { fontSize: 14, fontWeight: "800", marginTop: 2, marginBottom: 14 },
+  qrBox: { padding: 12, backgroundColor: "#fff", borderRadius: 12 },
+  noticeBanner: { flexDirection: "row", gap: 8, borderRadius: 12, padding: 12, alignItems: "flex-start" },
+  noticeText: { flex: 1, fontSize: 12, fontWeight: "600", color: "#92400E", lineHeight: 17 },
   label: { fontSize: 12, fontWeight: "700", marginBottom: 6, marginTop: 8 },
   hint: { fontSize: 11, marginBottom: 8 },
-  input: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
-    marginBottom: 4,
-  },
-  chip: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginRight: 8,
-  },
-  receiptBtn: {
-    marginTop: 16,
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
-  },
-  submit: {
-    marginTop: 20,
-    backgroundColor: colors.blue,
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: "center",
-  },
+  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, marginBottom: 4 },
+  chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, marginRight: 8 },
+  receiptBtn: { marginTop: 16, borderWidth: 1, borderRadius: 12, padding: 14 },
+  submit: { marginTop: 20, backgroundColor: colors.blue, borderRadius: 14, paddingVertical: 14, alignItems: "center" },
   submitText: { color: "#fff", fontWeight: "800", fontSize: 15 },
 });

@@ -1,22 +1,29 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
 import LinearGradient from "react-native-linear-gradient";
+import Svg, { Circle, Path } from "react-native-svg";
 import {
   ChevronRight,
   Fingerprint,
+  HelpCircle,
+  Info,
   KeyRound,
+  Landmark,
   LifeBuoy,
   Lock,
   Moon,
   ShieldCheck,
   Smartphone,
   Sun,
+  UserCircle,
+  Wallet,
 } from "lucide-react-native";
 import { ROLE_LABELS, type ApiResponse, type AuthUser } from "@asanpay/shared-types";
+import { BrandMark } from "../../components/BrandMark";
 import { ModalSheet } from "../../components/ModalSheet";
 import { PinInput } from "../../components/PinInput";
-import { ScreenHeader } from "../../components/ScreenHeader";
 import { api } from "../../lib/api";
 import { logoutEverywhere } from "../../lib/logout";
 import { apiError } from "../../utils/apiError";
@@ -38,53 +45,103 @@ import { BioKycModal } from "./BioKycModal";
 import { BiometricDevicesModal } from "./BiometricDevicesModal";
 import { DeviceRepairModal } from "./DeviceRepairModal";
 
+/** Decorative cover art behind the profile banner — waves + soft dots, brand blue/green only. */
+function BannerCover() {
+  return (
+    <Svg
+      width="100%"
+      height="100%"
+      viewBox="0 0 400 260"
+      preserveAspectRatio="none"
+      style={StyleSheet.absoluteFill}
+    >
+      <Circle cx="360" cy="20" r="70" fill="rgba(255,255,255,0.08)" />
+      <Circle cx="40" cy="230" r="90" fill="rgba(255,255,255,0.06)" />
+      <Circle cx="330" cy="150" r="10" fill={colors.greenLight} opacity={0.5} />
+      <Circle cx="300" cy="190" r="5" fill="#fff" opacity={0.4} />
+      <Path
+        d="M0 190 Q100 150 200 185 T400 175 V260 H0 Z"
+        fill="rgba(255,255,255,0.05)"
+      />
+      <Path
+        d="M0 220 Q120 190 220 218 T400 210 V260 H0 Z"
+        fill="rgba(255,255,255,0.07)"
+      />
+    </Svg>
+  );
+}
+
+function SectionCard({
+  tokens,
+  children,
+}: {
+  tokens: ReturnType<typeof useTheme>["tokens"];
+  children: React.ReactNode;
+}) {
+  const items = React.Children.toArray(children).filter(Boolean);
+  return (
+    <View style={[menuStyles.card, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
+      {items.map((child, i) => (
+        <View key={i} style={i < items.length - 1 && { borderBottomWidth: 1, borderBottomColor: tokens.cardBorder }}>
+          {child}
+        </View>
+      ))}
+    </View>
+  );
+}
+
 function MenuRow({
   icon: Icon,
   label,
+  subtitle,
   onPress,
   right,
   tokens,
 }: {
   icon: typeof Sun;
   label: string;
+  subtitle?: string;
   onPress?: () => void;
   right?: React.ReactNode;
   tokens: ReturnType<typeof useTheme>["tokens"];
 }) {
   return (
-    <Pressable
-      style={[menuStyles.item, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
-      onPress={onPress}
-      disabled={!onPress}
-    >
-      <View style={[menuStyles.iconWrap, { backgroundColor: `${colors.blueFlat}14` }]}>
-        <Icon size={17} color={colors.blueFlat} />
+    <Pressable style={menuStyles.item} onPress={onPress} disabled={!onPress}>
+      <View style={[menuStyles.iconWrap, { borderColor: tokens.cardBorder }]}>
+        <Icon size={19} color={tokens.txt} strokeWidth={1.8} />
       </View>
-      <Text style={[menuStyles.text, { color: tokens.txt }]}>{label}</Text>
-      <View style={{ flex: 1 }} />
+      <View style={{ flex: 1 }}>
+        <Text style={[menuStyles.text, { color: tokens.txt }]}>{label}</Text>
+        {subtitle ? <Text style={[menuStyles.subtitle, { color: tokens.sub }]}>{subtitle}</Text> : null}
+      </View>
       {right ?? (onPress ? <ChevronRight size={18} color={tokens.mute} /> : null)}
     </Pressable>
   );
 }
 
 const menuStyles = StyleSheet.create({
+  card: {
+    borderRadius: 18,
+    borderWidth: 1,
+    overflow: "hidden",
+    marginBottom: 20,
+  },
   item: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 8,
-    borderWidth: 1,
+    padding: 16,
+    gap: 14,
   },
   iconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
   },
-  text: { fontSize: 14.5, fontWeight: "600" },
+  text: { fontSize: 15, fontWeight: "700" },
+  subtitle: { fontSize: 12, fontWeight: "500", marginTop: 2 },
 });
 
 const THEME_OPTIONS: { key: ThemeMode; label: string; icon: typeof Sun }[] = [
@@ -98,18 +155,46 @@ export function AccountScreen() {
   const updateUser = useAuthStore((s) => s.updateUser);
   const refreshToken = useAuthStore((s) => s.refreshToken);
   const { tokens, mode, setMode } = useTheme();
+  const navigation = useNavigation();
   const [showSetPin, setShowSetPin] = useState(false);
   const [showSetMpin, setShowSetMpin] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showDevices, setShowDevices] = useState(false);
   const [showBiometricDevices, setShowBiometricDevices] = useState(false);
   const [showDeviceRepair, setShowDeviceRepair] = useState(false);
+  const [showDevicesHub, setShowDevicesHub] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const [bioEnabled, setBioEnabled] = useState(false);
   const [showSupport, setShowSupport] = useState(false);
   const [showSettlements, setShowSettlements] = useState(false);
   const [showFund, setShowFund] = useState(false);
   const [showRegisterOutlet, setShowRegisterOutlet] = useState(false);
   const [showBioKyc, setShowBioKyc] = useState(false);
+
+  const isRetailer = user.role === "retailer";
+  const hasWalletTab = isRetailer; // only RetailerTabs has a "Balance" tab today
+
+  function goManageWallet() {
+    if (hasWalletTab) {
+      navigation.navigate("Balance" as never);
+    } else {
+      // SD/Distributor tabs have no dedicated wallet screen — money movement lives here instead.
+      setShowSettlements(true);
+    }
+  }
+
+  function goMyEarnings() {
+    // RetailerTabs names the passbook tab "History"; PartnerTabs (SD/Distributor) names it "Passbook".
+    navigation.navigate((isRetailer ? "History" : "Passbook") as never);
+  }
+
+  function goRequestFunds() {
+    if (isRetailer) {
+      setShowFund(true);
+    } else {
+      showAlert("Not applicable", "Fund requests are only for retailer accounts.");
+    }
+  }
 
   useEffect(() => {
     void getBioUnlock().then((rec) => {
@@ -167,14 +252,50 @@ export function AccountScreen() {
     { label: "Status", value: user.isActive ? "Active" : "Inactive" },
   ];
 
+  const QUICK_ACTIONS = [
+    { icon: Wallet, label: "Manage\nWallet", action: goManageWallet },
+    { icon: Landmark, label: "Bank\nSettlement", action: () => setShowSettlements(true) },
+    { icon: KeyRound, label: "Request\nFunds", action: goRequestFunds },
+    { icon: ShieldCheck, label: "My\nEarnings", action: goMyEarnings },
+  ];
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bg }]} edges={["top"]}>
-      <ScreenHeader
-        variant="profile"
-        avatarLetter={user.name.charAt(0).toUpperCase()}
-        title={user.name}
-        subtitle={ROLE_LABELS[user.role]}
-      />
+      <LinearGradient
+        colors={[...colors.gradient]}
+        start={gradientDirection.diagonal.start}
+        end={gradientDirection.diagonal.end}
+        style={styles.banner}
+      >
+        <BannerCover />
+        <View style={styles.profileRow}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{user.name.charAt(0).toUpperCase()}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.bannerTitle} numberOfLines={1}>
+              {user.name}
+            </Text>
+            <Text style={styles.bannerSubtitle} numberOfLines={1}>
+              {ROLE_LABELS[user.role]}
+            </Text>
+          </View>
+        </View>
+        <View style={styles.brandRow}>
+          <BrandMark size={26} variant="mark" />
+          <Text style={styles.poweredBy}>Powered by AsanPay</Text>
+        </View>
+        <View style={styles.quickActions}>
+          {QUICK_ACTIONS.map((qa) => (
+            <Pressable key={qa.label} onPress={qa.action} style={styles.quickAction}>
+              <View style={styles.quickActionIcon}>
+                <qa.icon size={18} color={colors.white} />
+              </View>
+              <Text style={styles.quickActionLabel}>{qa.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </LinearGradient>
 
       <ScrollView contentContainerStyle={styles.content}>
         <View style={[styles.themeCard, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
@@ -206,79 +327,127 @@ export function AccountScreen() {
           </View>
         </View>
 
-        <Text style={[styles.section, { color: tokens.sub }]}>Account details</Text>
-        <View style={[styles.card, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
-          {rows.map((r, i) => (
-            <View key={r.label} style={[styles.row, i < rows.length - 1 && { borderBottomWidth: 1, borderBottomColor: tokens.cardBorder }]}>
-              <Text style={[styles.rowLabel, { color: tokens.sub }]}>{r.label}</Text>
-              <Text style={[styles.rowValue, { color: tokens.txt }]}>{r.value}</Text>
-            </View>
-          ))}
-        </View>
-
         <Text style={[styles.section, { color: tokens.sub }]}>Manage</Text>
-        <MenuRow icon={Smartphone} label="Trusted devices" tokens={tokens} onPress={() => setShowDevices(true)} />
-        {(user.role === "retailer" || user.role === "distributor") ? (
+        <SectionCard tokens={tokens}>
           <MenuRow
-            icon={Fingerprint}
-            label="Biometric devices"
+            icon={UserCircle}
+            label="Profile"
+            subtitle="view your personal details"
             tokens={tokens}
-            onPress={() => setShowBiometricDevices(true)}
+            onPress={() => setShowProfile(true)}
           />
-        ) : null}
-        {(user.role === "retailer" || user.role === "distributor") ? (
+          <MenuRow
+            icon={Landmark}
+            label="Bank accounts"
+            subtitle="link & manage bank accounts"
+            tokens={tokens}
+            onPress={() => setShowSettlements(true)}
+          />
           <MenuRow
             icon={Smartphone}
-            label="Device repair"
+            label="Devices"
+            subtitle="add, activate or repair your devices"
             tokens={tokens}
-            onPress={() => setShowDeviceRepair(true)}
+            onPress={() => setShowDevicesHub(true)}
           />
-        ) : null}
-        <MenuRow icon={ShieldCheck} label="Settlements" tokens={tokens} onPress={() => setShowSettlements(true)} />
-        {user.role === "retailer" ? (
-          <MenuRow icon={ShieldCheck} label="Add Money" tokens={tokens} onPress={() => setShowFund(true)} />
-        ) : null}
-        {user.role === "retailer" && !user.hasInstantpayOutlet ? (
+          {user.role === "retailer" ? (
+            <MenuRow
+              icon={Wallet}
+              label="Add Money"
+              subtitle="fund your wallet"
+              tokens={tokens}
+              onPress={() => setShowFund(true)}
+            />
+          ) : null}
+          {user.role === "retailer" && !user.hasInstantpayOutlet ? (
+            <MenuRow
+              icon={ShieldCheck}
+              label="Register InstantPay outlet"
+              subtitle="onboard your outlet for InstantPay"
+              tokens={tokens}
+              onPress={() => setShowRegisterOutlet(true)}
+            />
+          ) : null}
+          {user.role === "retailer" && user.hasInstantpayOutlet ? (
+            <MenuRow
+              icon={Fingerprint}
+              label="Outlet biometric KYC"
+              subtitle="verify your outlet with biometrics"
+              tokens={tokens}
+              onPress={() => setShowBioKyc(true)}
+            />
+          ) : null}
+        </SectionCard>
+
+        <Text style={[styles.section, { color: tokens.sub }]}>Security</Text>
+        <SectionCard tokens={tokens}>
           <MenuRow
-            icon={ShieldCheck}
-            label="Register InstantPay outlet"
+            icon={KeyRound}
+            label={user.hasLoginMpin ? "Change login PIN" : "Set login PIN"}
+            subtitle="reset your 4-digit login PIN"
             tokens={tokens}
-            onPress={() => setShowRegisterOutlet(true)}
+            onPress={() => setShowSetMpin(true)}
           />
-        ) : null}
-        {user.role === "retailer" && user.hasInstantpayOutlet ? (
+          <MenuRow
+            icon={Lock}
+            label="Change password"
+            subtitle="update your login password"
+            tokens={tokens}
+            onPress={() => setShowChangePassword(true)}
+          />
+          <MenuRow
+            icon={KeyRound}
+            label="Transaction PIN"
+            subtitle="PIN required for balance transfers"
+            tokens={tokens}
+            onPress={() => setShowSetPin(true)}
+          />
           <MenuRow
             icon={Fingerprint}
-            label="Outlet biometric KYC"
+            label="Enable fingerprint unlock"
+            subtitle="unlock the app with your fingerprint"
             tokens={tokens}
-            onPress={() => setShowBioKyc(true)}
+            right={
+              <Switch
+                value={bioEnabled}
+                onValueChange={() => void toggleFingerprint()}
+                trackColor={{ true: colors.blueFlat }}
+              />
+            }
           />
-        ) : null}
+        </SectionCard>
 
-        <Text style={[styles.section, { color: tokens.sub, marginTop: 14 }]}>Security</Text>
-        <MenuRow
-          icon={KeyRound}
-          label={user.hasLoginMpin ? "Change login PIN" : "Set login PIN"}
-          tokens={tokens}
-          onPress={() => setShowSetMpin(true)}
-        />
-        <MenuRow icon={Lock} label="Change password" tokens={tokens} onPress={() => setShowChangePassword(true)} />
-        <MenuRow icon={KeyRound} label="Transaction PIN" tokens={tokens} onPress={() => setShowSetPin(true)} />
-        <MenuRow
-          icon={Fingerprint}
-          label="Enable fingerprint unlock"
-          tokens={tokens}
-          right={
-            <Switch
-              value={bioEnabled}
-              onValueChange={() => void toggleFingerprint()}
-              trackColor={{ true: colors.blueFlat }}
-            />
-          }
-        />
-
-        <Text style={[styles.section, { color: tokens.sub, marginTop: 14 }]}>Legal and Help</Text>
-        <MenuRow icon={LifeBuoy} label="Help & support" tokens={tokens} onPress={() => setShowSupport(true)} />
+        <Text style={[styles.section, { color: tokens.sub }]}>Legal and Help</Text>
+        <SectionCard tokens={tokens}>
+          <MenuRow
+            icon={Info}
+            label="About us"
+            subtitle="learn about AsanPay"
+            tokens={tokens}
+            onPress={() => void Linking.openURL("https://asanpay.in/about")}
+          />
+          <MenuRow
+            icon={ShieldCheck}
+            label="Privacy policy"
+            subtitle="learn how we protect your data"
+            tokens={tokens}
+            onPress={() => void Linking.openURL("https://asanpay.in/privacy")}
+          />
+          <MenuRow
+            icon={HelpCircle}
+            label="Frequently asked questions"
+            subtitle="find solutions to your questions"
+            tokens={tokens}
+            onPress={() => setShowSupport(true)}
+          />
+          <MenuRow
+            icon={LifeBuoy}
+            label="Help & support"
+            subtitle="talk to our support team"
+            tokens={tokens}
+            onPress={() => setShowSupport(true)}
+          />
+        </SectionCard>
 
         <Pressable onPress={handleLogout} style={styles.logoutWrap}>
           <LinearGradient
@@ -311,12 +480,107 @@ export function AccountScreen() {
         onClose={() => setShowBiometricDevices(false)}
       />
       <DeviceRepairModal visible={showDeviceRepair} onClose={() => setShowDeviceRepair(false)} />
+      <DevicesHubModal
+        visible={showDevicesHub}
+        onClose={() => setShowDevicesHub(false)}
+        showBiometric={user.role === "retailer" || user.role === "distributor"}
+        onTrusted={() => {
+          setShowDevicesHub(false);
+          setShowDevices(true);
+        }}
+        onBiometric={() => {
+          setShowDevicesHub(false);
+          setShowBiometricDevices(true);
+        }}
+        onRepair={() => {
+          setShowDevicesHub(false);
+          setShowDeviceRepair(true);
+        }}
+      />
+      <ProfileModal visible={showProfile} onClose={() => setShowProfile(false)} rows={rows} />
       <SupportModal visible={showSupport} onClose={() => setShowSupport(false)} />
       <SettlementsModal visible={showSettlements} onClose={() => setShowSettlements(false)} />
       <FundRequestModal visible={showFund} onClose={() => setShowFund(false)} />
       <RegisterOutletModal visible={showRegisterOutlet} onClose={() => setShowRegisterOutlet(false)} />
       <BioKycModal visible={showBioKyc} onClose={() => setShowBioKyc(false)} />
     </SafeAreaView>
+  );
+}
+
+function ProfileModal({
+  visible,
+  onClose,
+  rows,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  rows: { label: string; value: string }[];
+}) {
+  const { tokens } = useTheme();
+  return (
+    <ModalSheet visible={visible} title="Profile" onClose={onClose}>
+      <Text style={styles.pinSub}>View your personal details. Contact support to update them.</Text>
+      <View style={[styles.card, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
+        {rows.map((r, i) => (
+          <View
+            key={r.label}
+            style={[styles.row, i < rows.length - 1 && { borderBottomWidth: 1, borderBottomColor: tokens.cardBorder }]}
+          >
+            <Text style={[styles.rowLabel, { color: tokens.sub }]}>{r.label}</Text>
+            <Text style={[styles.rowValue, { color: tokens.txt }]}>{r.value}</Text>
+          </View>
+        ))}
+      </View>
+    </ModalSheet>
+  );
+}
+
+function DevicesHubModal({
+  visible,
+  onClose,
+  showBiometric,
+  onTrusted,
+  onBiometric,
+  onRepair,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  showBiometric: boolean;
+  onTrusted: () => void;
+  onBiometric: () => void;
+  onRepair: () => void;
+}) {
+  const { tokens } = useTheme();
+  return (
+    <ModalSheet visible={visible} title="Devices" onClose={onClose}>
+      <SectionCard tokens={tokens}>
+        <MenuRow
+          icon={Smartphone}
+          label="Trusted devices"
+          subtitle="app login sessions on this device"
+          tokens={tokens}
+          onPress={onTrusted}
+        />
+        {showBiometric ? (
+          <>
+            <MenuRow
+              icon={Fingerprint}
+              label="Biometric devices"
+              subtitle="UIDAI scanners linked to your account"
+              tokens={tokens}
+              onPress={onBiometric}
+            />
+            <MenuRow
+              icon={Smartphone}
+              label="Device repair"
+              subtitle="report a broken device"
+              tokens={tokens}
+              onPress={onRepair}
+            />
+          </>
+        ) : null}
+      </SectionCard>
+    </ModalSheet>
   );
 }
 
@@ -631,6 +895,54 @@ function SetTxnPinModal({ visible, onClose }: { visible: boolean; onClose: () =>
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
+  banner: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 20,
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
+    overflow: "hidden",
+  },
+  profileRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  avatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.3)",
+  },
+  avatarText: { color: colors.white, fontSize: 18, fontWeight: "800" },
+  bannerTitle: { color: colors.white, fontSize: 17, fontWeight: "800" },
+  bannerSubtitle: { color: colors.onGradientMuted, fontSize: 12.5, fontWeight: "600", marginTop: 1 },
+  brandRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 14 },
+  poweredBy: { color: colors.onGradientMuted, fontSize: 11.5, fontWeight: "600" },
+  quickActions: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 16,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.16)",
+  },
+  quickAction: { alignItems: "center", flex: 1, gap: 6 },
+  quickActionIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.16)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quickActionLabel: {
+    color: colors.onGradient,
+    fontSize: 10.5,
+    fontWeight: "700",
+    textAlign: "center",
+    lineHeight: 13,
+  },
   content: { padding: 16, paddingBottom: 32 },
   themeCard: { borderWidth: 1, borderRadius: 18, padding: 16, marginBottom: 20 },
   themeHeaderRow: { flexDirection: "row", alignItems: "center", gap: 9, marginBottom: 13 },
