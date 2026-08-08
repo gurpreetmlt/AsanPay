@@ -108,6 +108,14 @@ export async function replacePromoSlides(
     }
   }
 
+  // Persist data-URLs as files so public /promos stays small and login slider can load images.
+  for (const s of normalized) {
+    if (s.imageUrl.startsWith("data:image/")) {
+      const saved = await savePromoUpload(s.imageUrl);
+      s.imageUrl = saved.imageUrl;
+    }
+  }
+
   return db.transaction(async (tx) => {
     const [row] = await tx
       .select({ settings: tenants.settings })
@@ -170,27 +178,24 @@ export function resolvePromoFilePath(nameOrUrl: string): string | null {
   return path.join(UPLOAD_DIR, name);
 }
 
-/** Prefer data URLs as-is (stored in settings — works without disk / Coolify volume). */
+/** Prefer data URLs as-is. File slides → stable relative path (portals rewrite via /api/proxy). */
 export function absolutePromoUrl(imageUrl: string, origin: string): string {
   if (imageUrl.startsWith("data:")) return imageUrl;
-  if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
-    try {
-      const u = new URL(imageUrl);
-      const file = resolvePromoFilePath(u.pathname);
-      if (file) {
-        const name = path.basename(file);
-        return `${origin.replace(/\/$/, "")}/api/promos/file/${name}`;
-      }
-    } catch {
-      /* keep */
-    }
-    return imageUrl;
-  }
-  const file = resolvePromoFilePath(imageUrl);
+  const file = resolvePromoFilePath(
+    imageUrl.startsWith("http://") || imageUrl.startsWith("https://")
+      ? (() => {
+          try {
+            return new URL(imageUrl).pathname;
+          } catch {
+            return imageUrl;
+          }
+        })()
+      : imageUrl,
+  );
   if (file) {
-    const name = path.basename(file);
-    return `${origin.replace(/\/$/, "")}/api/promos/file/${name}`;
+    return `/api/promos/file/${path.basename(file)}`;
   }
+  if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) return imageUrl;
   const base = origin.replace(/\/$/, "");
   return `${base}${imageUrl.startsWith("/") ? imageUrl : `/${imageUrl}`}`;
 }

@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { resolvePromoImageSrc } from "@/lib/promoImage";
 
@@ -25,9 +24,11 @@ type Props = {
   fill?: boolean;
 };
 
+type ApiEnvelope<T> = { success: boolean; message?: string; data: T };
+
 /**
  * Promo image slider — dashboard sidebar + login screen.
- * Slides move with a smooth horizontal transition; auto-advances when 2+.
+ * Crossfade animation (reliable); auto-advances when 2+ slides.
  */
 export function PromoSlider({
   placement,
@@ -45,8 +46,19 @@ export function PromoSlider({
     let alive = true;
     (async () => {
       try {
-        const data = await fetchApi<PromoSlideView[]>("/promos", { placement });
-        if (alive) setAllSlides(Array.isArray(data) ? data : []);
+        // Public endpoint — plain fetch (avoid auth 401 → logout side effects).
+        const res = await fetch(`/api/proxy/promos?placement=${encodeURIComponent(placement)}`, {
+          method: "GET",
+          credentials: "same-origin",
+          cache: "no-store",
+        });
+        const json = (await res.json()) as ApiEnvelope<PromoSlideView[]>;
+        if (!alive) return;
+        if (res.ok && json?.success && Array.isArray(json.data)) {
+          setAllSlides(json.data);
+        } else {
+          setAllSlides([]);
+        }
       } catch {
         if (alive) setAllSlides([]);
       } finally {
@@ -174,48 +186,48 @@ export function PromoSlider({
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
-      <div className="absolute inset-0 overflow-hidden">
-        {/* Track width = viewport; each slide min-w-full; translate by index * 100% of track */}
-        <div
-          className="flex h-full w-full ease-in-out"
-          style={{
-            transform: `translate3d(-${index * 100}%, 0, 0)`,
-            transition: "transform 700ms cubic-bezier(0.22, 1, 0.36, 1)",
-            willChange: "transform",
-          }}
-        >
-          {slides.map((s) => {
-            const img = (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={resolvePromoImageSrc(s.imageUrl)}
-                alt={s.title || "Promotion"}
-                className="absolute inset-0 h-full w-full object-cover"
-                draggable={false}
-                onError={() =>
-                  setBrokenIds((prev) => (prev.includes(s.id) ? prev : [...prev, s.id]))
-                }
-              />
-            );
-            return (
-              <div key={s.id} className="relative h-full w-full min-w-full shrink-0 grow-0 basis-full">
-                {s.linkUrl ? (
-                  <a
-                    href={s.linkUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="absolute inset-0 block"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {img}
-                  </a>
-                ) : (
-                  img
-                )}
-              </div>
-            );
-          })}
-        </div>
+      <div className="absolute inset-0 overflow-hidden bg-[#0B2A9A]">
+        {slides.map((s, i) => {
+          const active = i === index;
+          const img = (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={resolvePromoImageSrc(s.imageUrl)}
+              alt={s.title || "Promotion"}
+              className="h-full w-full object-cover"
+              draggable={false}
+              onError={() =>
+                setBrokenIds((prev) => (prev.includes(s.id) ? prev : [...prev, s.id]))
+              }
+            />
+          );
+          return (
+            <div
+              key={s.id}
+              className="absolute inset-0 transition-opacity duration-700 ease-in-out"
+              style={{
+                opacity: active ? 1 : 0,
+                zIndex: active ? 1 : 0,
+                pointerEvents: active ? "auto" : "none",
+              }}
+              aria-hidden={!active}
+            >
+              {s.linkUrl ? (
+                <a
+                  href={s.linkUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block h-full w-full"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {img}
+                </a>
+              ) : (
+                img
+              )}
+            </div>
+          );
+        })}
       </div>
       {controls}
     </div>

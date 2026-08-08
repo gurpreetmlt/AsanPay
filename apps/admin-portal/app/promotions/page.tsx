@@ -104,13 +104,20 @@ export default function PromotionsPage() {
         reader.onerror = () => reject(new Error("read failed"));
         reader.readAsDataURL(file);
       });
-      // Store data URL in the slide — preview + Save work without Coolify disk/volume.
-      // Optional: also push a server file copy (best-effort).
-      updateSlide(index, { imageUrl: dataUrl });
+      // Prefer server file path so agent login can load via /api/proxy/promos/file/…
       try {
-        await api.post("/admin/promos/upload", { dataUrl });
+        const res = await api.post<{
+          success: boolean;
+          data?: { path?: string; imageUrl?: string };
+        }>("/admin/promos/upload", { dataUrl });
+        const path = res.data?.data?.path || res.data?.data?.imageUrl;
+        if (res.data?.success && path) {
+          updateSlide(index, { imageUrl: path.startsWith("data:") ? dataUrl : path });
+        } else {
+          updateSlide(index, { imageUrl: dataUrl });
+        }
       } catch {
-        /* file copy optional */
+        updateSlide(index, { imageUrl: dataUrl });
       }
       toast.success("Image ready — click Save to keep it");
     } catch {
@@ -276,7 +283,11 @@ export default function PromotionsPage() {
                     <label className="block text-xs font-semibold" style={{ color: B.muted }}>
                       Image URL (optional if you uploaded a file)
                       <input
-                        value={slide.imageUrl.startsWith("data:") ? "(uploaded image)" : slide.imageUrl}
+                        value={
+                          slide.imageUrl.startsWith("data:") || slide.imageUrl.includes("/promos/file/")
+                            ? "(uploaded image)"
+                            : slide.imageUrl
+                        }
                         onChange={(e) => {
                           const v = e.target.value;
                           if (v === "(uploaded image)") return;
@@ -285,7 +296,9 @@ export default function PromotionsPage() {
                         placeholder="https://… or upload a file below"
                         className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
                         style={{ borderColor: B.border }}
-                        disabled={slide.imageUrl.startsWith("data:")}
+                        disabled={
+                          slide.imageUrl.startsWith("data:") || slide.imageUrl.includes("/promos/file/")
+                        }
                       />
                     </label>
 
