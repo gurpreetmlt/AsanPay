@@ -665,16 +665,13 @@ adminRouter.get("/promos", async (req, res) => {
     .enum(["dashboard", "login"])
     .optional()
     .parse(typeof req.query.placement === "string" ? req.query.placement : undefined);
-  const { listPromoSlides, absolutePromoUrl } = await import("../tenants/promo.service");
+  const { listPromoSlides, clientPromoImageUrl } = await import("../tenants/promo.service");
   const { resolveTenantId } = await import("../fund-requests/tenant");
   const tenantId = await resolveTenantId();
   const slides = await listPromoSlides(tenantId, placement);
-  const proto = req.get("x-forwarded-proto") || req.protocol || "https";
-  const host = req.get("x-forwarded-host") || req.get("host") || "localhost";
-  const origin = `${proto}://${host}`;
   sendSuccess(
     res,
-    slides.map((s) => ({ ...s, imageUrl: absolutePromoUrl(s.imageUrl, origin) })),
+    slides.map((s) => ({ ...s, imageUrl: clientPromoImageUrl(s) })),
   );
 });
 
@@ -685,16 +682,13 @@ adminRouter.put("/promos", async (req, res) => {
       slides: z.array(z.record(z.string(), z.unknown())).max(5),
     })
     .parse(req.body);
-  const { replacePromoSlides, absolutePromoUrl } = await import("../tenants/promo.service");
+  const { replacePromoSlides, clientPromoImageUrl } = await import("../tenants/promo.service");
   const { resolveTenantId } = await import("../fund-requests/tenant");
   const tenantId = await resolveTenantId();
   const slides = await replacePromoSlides(tenantId, body.placement, body.slides);
-  const proto = req.get("x-forwarded-proto") || req.protocol || "https";
-  const host = req.get("x-forwarded-host") || req.get("host") || "localhost";
-  const origin = `${proto}://${host}`;
   sendSuccess(
     res,
-    slides.map((s) => ({ ...s, imageUrl: absolutePromoUrl(s.imageUrl, origin) })),
+    slides.map((s) => ({ ...s, imageUrl: clientPromoImageUrl(s) })),
     "Promotions saved",
   );
 });

@@ -1,8 +1,21 @@
-/** Preview helper — data URLs and /api/proxy file paths. */
+/** Preview helper — data URLs and /api/proxy file / by-id paths. */
 export function resolvePromoImageSrc(url: string): string {
   const u = url.trim();
   if (!u) return "";
   if (u.startsWith("data:") || u.startsWith("blob:")) return u;
+
+  const byId =
+    u.match(/\/(?:api\/)?(?:proxy\/)?promos\/by-id\/([^/?#]+)/) ||
+    (u.startsWith("http")
+      ? (() => {
+          try {
+            return new URL(u).pathname.match(/\/(?:api\/)?promos\/by-id\/([^/?#]+)/);
+          } catch {
+            return null;
+          }
+        })()
+      : null);
+  if (byId?.[1]) return `/api/proxy/promos/by-id/${encodeURIComponent(byId[1])}`;
 
   const fileMatch =
     u.match(/\/(?:api\/)?promos\/file\/([^/?#]+)/) ||
@@ -10,7 +23,9 @@ export function resolvePromoImageSrc(url: string): string {
     (u.startsWith("http")
       ? (() => {
           try {
-            return new URL(u).pathname.match(/\/(?:api\/)?promos\/file\/([^/?#]+)|\/uploads\/promos\/([^/?#]+)/);
+            return new URL(u).pathname.match(
+              /\/(?:api\/)?promos\/file\/([^/?#]+)|\/uploads\/promos\/([^/?#]+)/,
+            );
           } catch {
             return null;
           }

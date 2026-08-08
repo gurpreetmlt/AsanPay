@@ -104,6 +104,14 @@ export default function PromotionsPage() {
     setSlides((prev) => prev.map((s, i) => (i === index ? { ...s, ...patch } : s)));
   }
 
+  function isStoredUpload(url: string): boolean {
+    return (
+      url.startsWith("data:") ||
+      url.includes("/promos/file/") ||
+      url.includes("/promos/by-id/")
+    );
+  }
+
   function thumbSrc(slide: PromoSlide): string {
     if (previews[slide.id]) return previews[slide.id];
     if (slide.imageUrl.startsWith("data:") || slide.imageUrl.startsWith("blob:")) {
@@ -337,8 +345,7 @@ export default function PromotionsPage() {
                           Image URL
                           <input
                             value={
-                              slide.imageUrl.startsWith("data:") ||
-                              slide.imageUrl.includes("/promos/file/")
+                              isStoredUpload(slide.imageUrl)
                                 ? "(uploaded image)"
                                 : slide.imageUrl
                             }
@@ -350,10 +357,7 @@ export default function PromotionsPage() {
                             placeholder="https://… or upload"
                             className="mt-0.5 w-full rounded-md border px-2 py-1 text-xs"
                             style={{ borderColor: B.border }}
-                            disabled={
-                              slide.imageUrl.startsWith("data:") ||
-                              slide.imageUrl.includes("/promos/file/")
-                            }
+                            disabled={isStoredUpload(slide.imageUrl)}
                           />
                         </label>
 

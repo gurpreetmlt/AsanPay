@@ -65,6 +65,19 @@ export async function listPromoSlides(
   return slides;
 }
 
+export async function getPromoSlideById(
+  tenantId: string,
+  slideId: string,
+): Promise<PromoSlide | null> {
+  const slides = await listPromoSlides(tenantId);
+  return slides.find((s) => s.id === slideId) ?? null;
+}
+
+function isPromoByIdRef(url: string): string | null {
+  const m = url.trim().match(/\/(?:api\/)?(?:proxy\/)?promos\/by-id\/([^/?#]+)/i);
+  return m?.[1] ?? null;
+}
+
 /** Replace all slides for one placement (max 5). Other placements untouched. */
 export async function replacePromoSlides(
   tenantId: string,
@@ -92,7 +105,8 @@ export async function replacePromoSlides(
       s.imageUrl.startsWith("data:image/") ||
       s.imageUrl.startsWith("http") ||
       s.imageUrl.startsWith("/uploads/") ||
-      s.imageUrl.startsWith("/api/promos/file/");
+      s.imageUrl.startsWith("/api/promos/file/") ||
+      Boolean(isPromoByIdRef(s.imageUrl));
     if (!ok) {
       throw new HttpError(
         422,
@@ -121,7 +135,19 @@ export async function replacePromoSlides(
     if (!row) throw new HttpError(404, "Tenant not found", "TENANT_NOT_FOUND");
 
     const prev = asSettings(row.settings);
-    const others = readSlides(prev).filter((s) => s.placement !== placement);
+    const prevSlides = readSlides(prev);
+
+    // Admin list returns /api/promos/by-id/:id instead of huge data URLs. On Save, restore
+    // the real image payload from the previous row when the client echoes that ref.
+    for (const s of normalized) {
+      const refId = isPromoByIdRef(s.imageUrl);
+      if (!refId) continue;
+      const old =
+        prevSlides.find((p) => p.id === s.id) || prevSlides.find((p) => p.id === refId);
+      if (old?.imageUrl) s.imageUrl = old.imageUrl;
+    }
+
+    const others = prevSlides.filter((s) => s.placement !== placement);
     const mergedSlides = [...others, ...normalized];
     const next: TenantSettings = { ...prev, promoSlides: mergedSlides };
 
@@ -173,6 +199,17 @@ export function resolvePromoFilePath(nameOrUrl: string): string | null {
   return path.join(UPLOAD_DIR, name);
 }
 
+/**
+ * List/API response URL — never embed multi-MB data: URLs in JSON (slow admin load).
+ * data: → /api/promos/by-id/:id ; files → /api/promos/file/:name
+ */
+export function clientPromoImageUrl(slide: PromoSlide, _origin?: string): string {
+  if (slide.imageUrl.startsWith("data:")) {
+    return `/api/promos/by-id/${encodeURIComponent(slide.id)}`;
+  }
+  return absolutePromoUrl(slide.imageUrl, _origin || "http://localhost");
+}
+
 /** Prefer data URLs as-is. File slides → stable relative path (portals rewrite via /api/proxy). */
 export function absolutePromoUrl(imageUrl: string, origin: string): string {
   if (imageUrl.startsWith("data:")) return imageUrl;
@@ -193,4 +230,18 @@ export function absolutePromoUrl(imageUrl: string, origin: string): string {
   if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) return imageUrl;
   const base = origin.replace(/\/$/, "");
   return `${base}${imageUrl.startsWith("/") ? imageUrl : `/${imageUrl}`}`;
+}
+
+/** Parse data-URL or resolve file for streaming. */
+export function resolvePromoImagePayload(imageUrl: string): {
+  contentType: string;
+  buffer: Buffer;
+} | { filePath: string } | null {
+  const data = /^data:(image\/[a-z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$/i.exec(imageUrl.trim());
+  if (data?.[1] && data[2]) {
+    return { contentType: data[1], buffer: Buffer.from(data[2], "base64") };
+  }
+  const filePath = resolvePromoFilePath(imageUrl);
+  if (filePath) return { filePath };
+  return null;
 }

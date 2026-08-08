@@ -4,21 +4,17 @@ import { access } from "fs/promises";
 import { constants } from "fs";
 import { sendSuccess } from "../../utils/apiResponse";
 import {
-  absolutePromoUrl,
+  clientPromoImageUrl,
+  getPromoSlideById,
   listPromoSlides,
   resolvePromoFilePath,
+  resolvePromoImagePayload,
   type PromoPlacement,
 } from "../tenants/promo.service";
 import { resolveTenantId } from "../fund-requests/tenant";
 import { HttpError } from "../../utils/httpError";
 
 export const promosRouter = Router();
-
-function requestOrigin(req: { protocol: string; get: (h: string) => string | undefined }): string {
-  const proto = req.get("x-forwarded-proto") || req.protocol || "https";
-  const host = req.get("x-forwarded-host") || req.get("host") || "localhost";
-  return `${proto}://${host}`;
-}
 
 /** Stream uploaded promo file — works via Coolify /api and portal /api/proxy. */
 promosRouter.get("/file/:name", async (req, res, next) => {
@@ -33,7 +29,28 @@ promosRouter.get("/file/:name", async (req, res, next) => {
   }
 });
 
-/** Public — dashboard sidebar + future login slider. */
+/** Serve slide image by id (data-URL or file) — keeps list JSON small/fast. */
+promosRouter.get("/by-id/:id", async (req, res, next) => {
+  try {
+    const tenantId = await resolveTenantId();
+    const slide = await getPromoSlideById(tenantId, req.params.id);
+    if (!slide?.imageUrl) throw new HttpError(404, "Image not found", "PROMO_FILE_NOT_FOUND");
+    const payload = resolvePromoImagePayload(slide.imageUrl);
+    if (!payload) throw new HttpError(404, "Image not found", "PROMO_FILE_NOT_FOUND");
+    res.setHeader("Cache-Control", "public, max-age=300");
+    if ("filePath" in payload) {
+      await access(payload.filePath, constants.R_OK);
+      return res.sendFile(payload.filePath);
+    }
+    res.setHeader("Content-Type", payload.contentType);
+    res.send(payload.buffer);
+  } catch (err) {
+    if (err instanceof HttpError) return next(err);
+    next(new HttpError(404, "Image not found", "PROMO_FILE_NOT_FOUND"));
+  }
+});
+
+/** Public — dashboard sidebar + login slider (lightweight URLs, not embedded base64). */
 promosRouter.get("/", async (req, res) => {
   const placement = z
     .enum(["dashboard", "login"])
@@ -41,12 +58,11 @@ promosRouter.get("/", async (req, res) => {
     .parse(typeof req.query.placement === "string" ? req.query.placement : undefined);
   const tenantId = await resolveTenantId();
   const slides = await listPromoSlides(tenantId, placement as PromoPlacement | undefined, true);
-  const origin = requestOrigin(req);
   sendSuccess(
     res,
     slides.map((s) => ({
       ...s,
-      imageUrl: absolutePromoUrl(s.imageUrl, origin),
+      imageUrl: clientPromoImageUrl(s),
     })),
   );
 });
