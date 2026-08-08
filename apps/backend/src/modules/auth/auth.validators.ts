@@ -282,6 +282,7 @@ export const kycSubmitSchema = z.object({
   gender: z.string().trim().max(20).optional(),
   fatherName: z.string().trim().max(120).optional(),
   dob: z.string().trim().max(32).optional(),
+  anniversaryDate: z.string().trim().max(32).optional(),
   district: z.string().trim().max(80).optional(),
   state: z.string().trim().max(80).optional(),
   businessName: z.string().trim().max(160).optional(),

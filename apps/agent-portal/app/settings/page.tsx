@@ -43,6 +43,14 @@ const SECTIONS = [
   { id: "legal", icon: LifeBuoy, label: "Legal and Help" },
 ];
 
+function formatKycDate(value: string | null | undefined): string {
+  if (!value || !String(value).trim()) return "—";
+  const raw = String(value).trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  return raw;
+}
+
 function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   return (
     <button
@@ -75,6 +83,7 @@ export default function SettingsPage() {
     fullName: string | null;
     email: string | null;
     dob: string | null;
+    anniversaryDate: string | null;
     gender: string | null;
     fatherName: string | null;
     address: string | null;
@@ -629,92 +638,96 @@ export default function SettingsPage() {
                                 rows: [
                                   {
                                     label: "Full name (as per PAN)",
-                                    value: kycProfile?.fullName || user?.name,
+                                    value: kycProfile?.fullName || user?.name || "—",
                                   },
-                                  { label: "Agent UID", value: kycProfile?.uid || user?.uid },
-                                  { label: "Mobile", value: kycProfile?.mobile || user?.mobile },
-                                  { label: "Email", value: kycProfile?.email || user?.email },
-                                  { label: "Date of birth", value: kycProfile?.dob },
-                                  { label: "Gender", value: kycProfile?.gender },
-                                  { label: "Father name", value: kycProfile?.fatherName },
-                                  { label: "PAN", value: kycProfile?.panMasked },
-                                  { label: "Aadhaar", value: kycProfile?.aadhaarMasked },
+                                  { label: "Agent UID", value: kycProfile?.uid || user?.uid || "—" },
+                                  { label: "Mobile", value: kycProfile?.mobile || user?.mobile || "—" },
+                                  { label: "Email", value: kycProfile?.email || user?.email || "—" },
+                                  {
+                                    label: "Date of birth",
+                                    value: formatKycDate(kycProfile?.dob),
+                                  },
+                                  {
+                                    label: "Anniversary date",
+                                    value: formatKycDate(kycProfile?.anniversaryDate),
+                                  },
+                                  { label: "Gender", value: kycProfile?.gender || "—" },
+                                  { label: "Father name", value: kycProfile?.fatherName || "—" },
+                                  { label: "PAN No.", value: kycProfile?.panMasked || "—" },
+                                  { label: "Aadhaar No.", value: kycProfile?.aadhaarMasked || "—" },
                                   {
                                     label: "Address",
-                                    value: [
-                                      kycProfile?.address,
-                                      kycProfile?.city || kycProfile?.district,
-                                      kycProfile?.state,
-                                      kycProfile?.pincode,
-                                    ]
-                                      .filter(Boolean)
-                                      .join(", "),
+                                    value:
+                                      [
+                                        kycProfile?.address,
+                                        kycProfile?.city || kycProfile?.district,
+                                        kycProfile?.state,
+                                        kycProfile?.pincode,
+                                      ]
+                                        .filter(Boolean)
+                                        .join(", ") || "—",
                                   },
                                 ],
                               },
                               {
                                 title: "Business & bank",
                                 rows: [
-                                  { label: "Business name", value: kycProfile?.businessName },
-                                  { label: "Business type", value: kycProfile?.businessType },
-                                  { label: "Bank name", value: kycProfile?.bankName },
-                                  { label: "Branch", value: kycProfile?.bankBranch },
-                                  { label: "IFSC", value: kycProfile?.bankIfsc },
-                                  { label: "Account holder", value: kycProfile?.bankAccountName },
+                                  { label: "Business name", value: kycProfile?.businessName || "—" },
+                                  { label: "Business type", value: kycProfile?.businessType || "—" },
+                                  { label: "Bank name", value: kycProfile?.bankName || "—" },
+                                  { label: "Branch", value: kycProfile?.bankBranch || "—" },
+                                  { label: "IFSC", value: kycProfile?.bankIfsc || "—" },
+                                  {
+                                    label: "Account holder",
+                                    value: kycProfile?.bankAccountName || "—",
+                                  },
                                   {
                                     label: "Account number",
-                                    value: kycProfile?.bankAccountMasked,
+                                    value: kycProfile?.bankAccountMasked || "—",
                                   },
                                 ],
                               },
-                            ] as { title: string; rows: { label: string; value?: string | null }[] }[]
-                          ).map((card) => {
-                            const filled = card.rows.filter((r) => Boolean(r.value && String(r.value).trim()));
-                            return (
-                              <div
-                                key={card.title}
-                                className="rounded-2xl border p-3.5"
-                                style={{ borderColor: B.border, background: "#fff" }}
-                              >
-                                <h3 className="mb-2.5 text-sm font-bold" style={{ color: B.blue }}>
-                                  {card.title}
-                                </h3>
-                                {filled.length === 0 ? (
-                                  <p className="text-xs" style={{ color: B.muted }}>
-                                    No details on file yet
-                                  </p>
-                                ) : (
-                                  <dl className="space-y-2">
-                                    {filled.map((row) => (
-                                      <div
-                                        key={row.label}
-                                        className="flex items-start justify-between gap-3 border-b pb-2 last:border-0 last:pb-0"
-                                        style={{ borderColor: B.border }}
-                                      >
-                                        <dt
-                                          className="shrink-0 text-[10px] font-bold uppercase tracking-wider"
-                                          style={{ color: B.muted }}
-                                        >
-                                          {row.label}
-                                        </dt>
-                                        <dd
-                                          className="text-right text-sm font-semibold break-all"
-                                          style={{ color: B.blue }}
-                                        >
-                                          {row.value}
-                                        </dd>
-                                      </div>
-                                    ))}
-                                  </dl>
-                                )}
-                              </div>
-                            );
-                          })}
+                            ] as { title: string; rows: { label: string; value: string }[] }[]
+                          ).map((card) => (
+                            <div
+                              key={card.title}
+                              className="rounded-2xl border p-3.5"
+                              style={{ borderColor: B.border, background: "#fff" }}
+                            >
+                              <h3 className="mb-2.5 text-sm font-bold" style={{ color: B.blue }}>
+                                {card.title}
+                              </h3>
+                              <dl className="space-y-2">
+                                {card.rows.map((row) => (
+                                  <div
+                                    key={row.label}
+                                    className="flex items-start justify-between gap-3 border-b pb-2 last:border-0 last:pb-0"
+                                    style={{ borderColor: B.border }}
+                                  >
+                                    <dt
+                                      className="shrink-0 text-[10px] font-bold uppercase tracking-wider"
+                                      style={{ color: B.muted }}
+                                    >
+                                      {row.label}
+                                    </dt>
+                                    <dd
+                                      className="text-right text-sm font-semibold break-all"
+                                      style={{
+                                        color: row.value === "—" ? B.muted : B.blue,
+                                      }}
+                                    >
+                                      {row.value}
+                                    </dd>
+                                  </div>
+                                ))}
+                              </dl>
+                            </div>
+                          ))}
                         </div>
                         {!kycProfile?.panMasked && !kycProfile?.aadhaarMasked ? (
                           <p className="text-xs" style={{ color: "#B45309" }}>
-                            PAN / Aadhaar not on file yet. Redeploy backend if you just submitted, or
-                            resubmit KYC for full bank details.
+                            PAN / Aadhaar not on file yet. Coolify pe backend redeploy karo, phir refresh.
+                            Purane accounts ke liye KYC resubmit se bank / DOB / anniversary bharenge.
                           </p>
                         ) : null}
                       </>

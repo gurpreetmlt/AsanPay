@@ -60,6 +60,7 @@ export type MyKycProfile = {
   fullName: string | null;
   email: string | null;
   dob: string | null;
+  anniversaryDate: string | null;
   gender: string | null;
   fatherName: string | null;
   address: string | null;
@@ -115,6 +116,7 @@ export async function getMyKycProfile(userId: string): Promise<MyKycProfile> {
     fullName: user.name || null,
     email: user.email ?? null,
     dob: metaString(meta, "dob"),
+    anniversaryDate: metaString(meta, "anniversaryDate"),
     gender: metaString(meta, "gender"),
     fatherName: metaString(meta, "fatherName"),
     address: metaString(meta, "address"),
@@ -187,6 +189,7 @@ export async function submitKyc(userId: string, input: KycSubmitInput): Promise<
       gender: input.gender ?? null,
       fatherName: input.fatherName ?? null,
       dob: input.dob ?? null,
+      anniversaryDate: input.anniversaryDate ?? null,
       district: input.district ?? null,
       state: input.state ?? null,
       businessName: input.businessName ?? null,

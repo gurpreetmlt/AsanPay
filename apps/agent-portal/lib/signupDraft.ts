@@ -29,6 +29,7 @@ export type SignupDraft = {
   pan: string;
   gender: string;
   dob: string;
+  anniversaryDate: string;
   fatherName: string;
   panImage: SignupFileMeta | null;
   aadhaar: string;
@@ -77,6 +78,7 @@ export const EMPTY_SIGNUP_DRAFT: SignupDraft = {
   pan: "",
   gender: "",
   dob: "",
+  anniversaryDate: "",
   fatherName: "",
   panImage: null,
   aadhaar: "",

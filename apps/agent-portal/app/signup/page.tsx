@@ -894,6 +894,7 @@ export default function SignupPage() {
         gender: draft.gender,
         fatherName: draft.fatherName.trim(),
         dob: draft.dob,
+        anniversaryDate: draft.anniversaryDate || undefined,
         district: draft.district.trim(),
         state: draft.state.trim(),
         businessName: draft.businessName.trim(),
@@ -1301,6 +1302,18 @@ export default function SignupPage() {
                   />
                   <p className="mt-1 text-xs" style={{ color: B.muted }}>
                     As on PAN card (browser may show DD/MM/YYYY).
+                  </p>
+                </Field>
+                <Field label="Anniversary Date">
+                  <input
+                    type="date"
+                    value={draft.anniversaryDate}
+                    onChange={(e) => patch({ anniversaryDate: e.target.value })}
+                    className={inputCls}
+                    style={inputStyle}
+                  />
+                  <p className="mt-1 text-xs" style={{ color: B.muted }}>
+                    Optional — wedding / business anniversary.
                   </p>
                 </Field>
                 <Field label="Father Name *">
