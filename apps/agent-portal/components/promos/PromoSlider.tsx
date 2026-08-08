@@ -101,12 +101,12 @@ export function PromoSlider({
   }, [n, intervalMs]);
 
   const slide = slides[index];
-  const shellClass = `relative overflow-hidden rounded-2xl shadow-md ${fill ? "h-full min-h-[320px]" : "aspect-[3/4] min-h-[280px]"} ${className}`;
+  const shellClass = `relative overflow-hidden ${fill ? "h-full min-h-[320px]" : "aspect-[3/4] min-h-[280px] rounded-2xl shadow-md"} ${className}`;
 
   if (!loaded) {
     return (
       <div
-        className={`animate-pulse rounded-2xl bg-slate-200 ${fill ? "h-full min-h-[320px]" : "min-h-[280px]"} ${className}`}
+        className={`animate-pulse bg-slate-200 ${fill ? "h-full min-h-[320px]" : "min-h-[280px] rounded-2xl"} ${className}`}
       />
     );
   }
@@ -114,19 +114,20 @@ export function PromoSlider({
   if (!slide) {
     return (
       <div
-        className={`relative flex flex-col overflow-hidden rounded-2xl p-5 text-white shadow-md ${fill ? "h-full min-h-[320px]" : "min-h-[280px]"} ${className}`}
+        className={`relative flex flex-col overflow-hidden p-8 text-white ${fill ? "h-full min-h-[320px]" : "min-h-[280px] rounded-2xl shadow-md"} ${className}`}
         style={{ background: B.badgeGrad }}
       >
         <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-white/80">
           <Megaphone size={14} />
           Promotions
         </div>
-        <h3 className="text-xl font-bold leading-snug sm:text-2xl">{brand.name} offers</h3>
-        <p className="mt-2 text-sm leading-relaxed text-white/85">
-          Add slides in Admin → Platform Control → Promotions.
+        <h3 className="text-2xl font-bold leading-snug sm:text-3xl">{brand.tagline}</h3>
+        <p className="mt-3 max-w-md text-sm leading-relaxed text-white/85">
+          Offers and campaigns appear here. Add slides in Admin → Platform Control → Promotions
+          (placement: Login).
         </p>
-        <div className="mt-6 flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-white/35 bg-white/10 px-4 py-10 text-center">
-          <p className="text-sm font-semibold text-white/90">Ad slot</p>
+        <div className="mt-auto flex flex-1 flex-col items-center justify-center rounded-2xl border border-dashed border-white/35 bg-white/10 px-4 py-16 text-center">
+          <p className="text-sm font-semibold text-white/90">Login promo slider</p>
           <p className="mt-1 text-xs text-white/70">No active slides yet</p>
         </div>
       </div>

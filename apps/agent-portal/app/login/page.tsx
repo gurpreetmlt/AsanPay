@@ -14,15 +14,15 @@ import {
   EyeOff,
   ArrowRight,
   Fingerprint,
-  Shield,
   Check,
   KeyRound,
   Sparkles,
 } from "lucide-react";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import { AsanPayLogo } from "@/components/brand/Logo";
+import { PromoSlider } from "@/components/promos/PromoSlider";
 import api from "@/lib/api";
-import { B, ROLES, brand, type Role } from "@/lib/brand";
+import { B, ROLES, type Role } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { extractApiError, nextOnboardingPath } from "@/lib/onboarding";
 import { authenticateBiometric, clearBiometricStore, getBiometricStore } from "@/lib/webauthn";
@@ -289,37 +289,26 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen w-full font-sans">
-      <div
-        className="relative hidden w-[460px] flex-shrink-0 flex-col justify-between overflow-hidden p-10 lg:flex"
-        style={{ background: role.gradient }}
-      >
-        <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-white opacity-10" />
-        <div className="absolute -left-20 top-1/2 h-56 w-56 rounded-full bg-white opacity-10" />
-        <div className="relative z-10">
-          <AsanPayLogo width={230} variant="light" />
+      {/* Left: full-bleed promo slider */}
+      <div className="relative hidden min-h-screen flex-1 lg:block">
+        <div className="absolute inset-0">
+          <PromoSlider
+            placement="login"
+            fill
+            intervalMs={6000}
+            className="h-full min-h-screen rounded-none shadow-none"
+          />
         </div>
-        <div className="relative z-10">
-          <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5">
-            {(() => {
-              const Icon = ROLE_ICONS[role.id];
-              return <Icon size={13} className="text-white" />;
-            })()}
-            <span className="text-xs font-semibold text-white">{role.label} Portal</span>
-          </div>
-          <h1 className="mb-4 font-bold text-white" style={{ fontSize: "2.2rem", lineHeight: 1.18 }}>
-            {brand.tagline}
-          </h1>
-          <p className="mb-8 text-sm leading-relaxed text-white/70">
-            Easy login: verify your mobile OTP, then your 4-digit PIN. Password is optional.
-          </p>
-        </div>
-        <div className="relative z-10 flex items-center gap-2">
-          <Shield size={13} className="text-white/40" />
-          <span className="text-xs text-white/40">OTP · PIN · Biometric</span>
+        <div className="pointer-events-none absolute left-6 top-6 z-20">
+          <AsanPayLogo width={200} variant="light" />
         </div>
       </div>
 
-      <div className="flex flex-1 items-center justify-center p-8 lg:p-12" style={{ background: B.bg }}>
+      {/* Center / right: login */}
+      <div
+        className="flex w-full flex-shrink-0 items-center justify-center px-5 py-8 sm:px-8 lg:w-[460px] xl:w-[500px]"
+        style={{ background: "#fff" }}
+      >
         <div className="w-full max-w-md">
           <div className="mb-8 lg:hidden">
             <AsanPayLogo width={190} />
