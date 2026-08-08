@@ -16,7 +16,8 @@ RUN npm pkg set dependencies.@asanpay/shared-types="file:../../packages/shared-t
   && npm pkg set dependencies.@asanpay/auth="file:../../packages/auth" \
   && NODE_ENV=development npm install --include=dev
 
-ENV NODE_OPTIONS=--max-old-space-size=3072
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_OPTIONS=--max-old-space-size=4096
 RUN npm run build
 ENV NODE_OPTIONS=
 

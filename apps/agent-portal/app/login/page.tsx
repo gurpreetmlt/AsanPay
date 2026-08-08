@@ -290,8 +290,8 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen w-full font-sans">
-      {/* 1. Promo slider */}
-      <div className="relative hidden min-h-screen min-w-0 flex-1 lg:block">
+      {/* 1. Promo slider (capped width) */}
+      <div className="relative hidden min-h-screen w-[42%] flex-shrink-0 lg:block xl:w-[44%]">
         <div className="absolute inset-0">
           <PromoSlider
             placement="login"
@@ -304,10 +304,10 @@ export default function LoginPage() {
 
       {/* 2. Login */}
       <div
-        className="flex w-full flex-shrink-0 items-center justify-center px-4 py-6 sm:px-5 lg:w-[340px] xl:w-[360px]"
+        className="flex min-w-0 flex-1 items-center justify-center px-5 py-8 sm:px-8"
         style={{ background: "#fff" }}
       >
-        <div className="w-full max-w-[340px]">
+        <div className="w-full max-w-[400px]">
           <div className="mb-8 lg:hidden">
             <AsanPayLogo width={190} />
           </div>
@@ -600,32 +600,32 @@ export default function LoginPage() {
 
       {/* 3. Brand strip */}
       <div
-        className="relative hidden w-[180px] flex-shrink-0 flex-col justify-between overflow-hidden p-5 xl:w-[200px] lg:flex"
+        className="relative hidden w-[220px] flex-shrink-0 flex-col justify-between overflow-hidden p-6 xl:w-[260px] lg:flex"
         style={{ background: role.gradient }}
       >
         <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-white opacity-10" />
         <div className="absolute -left-12 bottom-24 h-40 w-40 rounded-full bg-white opacity-10" />
         <div className="relative z-10">
-          <AsanPayLogo width={148} variant="light" />
+          <AsanPayLogo width={168} variant="light" />
         </div>
         <div className="relative z-10">
-          <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-2.5 py-1">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5">
             {(() => {
               const Icon = ROLE_ICONS[role.id];
-              return <Icon size={12} className="text-white" />;
+              return <Icon size={13} className="text-white" />;
             })()}
-            <span className="text-[11px] font-semibold text-white">{role.label} Portal</span>
+            <span className="text-xs font-semibold text-white">{role.label} Portal</span>
           </div>
-          <h1 className="mb-2 font-bold text-white" style={{ fontSize: "1.35rem", lineHeight: 1.2 }}>
+          <h1 className="mb-3 font-bold text-white" style={{ fontSize: "1.55rem", lineHeight: 1.2 }}>
             {brand.tagline}
           </h1>
-          <p className="text-xs leading-relaxed text-white/70">
+          <p className="text-sm leading-relaxed text-white/70">
             Easy login: verify your mobile OTP, then your 4-digit PIN. Password is optional.
           </p>
         </div>
         <div className="relative z-10 flex items-center gap-2">
-          <Shield size={12} className="text-white/40" />
-          <span className="text-[11px] text-white/40">OTP · PIN · Biometric</span>
+          <Shield size={13} className="text-white/40" />
+          <span className="text-xs text-white/40">OTP · PIN · Biometric</span>
         </div>
       </div>
     </div>

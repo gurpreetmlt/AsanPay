@@ -5,12 +5,14 @@ const monorepoRoot = path.resolve(__dirname, "../..");
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@asanpay/shared-types"],
-  // Types are checked on Mac (`npx tsc --noEmit` / local `next build`).
-  // Coolify's small build container OOMs during "Running TypeScript ..." (exit 255)
-  // even with memoryBasedWorkersCount — no TS error in the log, just kill.
+  // Types checked on Mac. Coolify build container OOMs on "Running TypeScript" / static gen.
   typescript: { ignoreBuildErrors: true },
   experimental: {
+    cpus: 1,
     memoryBasedWorkersCount: true,
+    webpackMemoryOptimizations: true,
+    // Sequential static generation — parallel workers kill Coolify (exit 255).
+    staticGenerationMaxConcurrency: 1,
   },
   turbopack: {
     root: monorepoRoot,
