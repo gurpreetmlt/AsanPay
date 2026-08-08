@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   User,
   Lock,
@@ -14,6 +15,8 @@ import {
   EyeOff,
   ArrowRight,
   FileText,
+  Info,
+  LifeBuoy,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
@@ -21,6 +24,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { EmailVerifyField } from "@/components/EmailVerifyField";
 import { BiometricDevices } from "@/components/settings/BiometricDevices";
 import { DeviceRepairRequests } from "@/components/settings/DeviceRepairRequests";
+import { FaqSection } from "@/components/support/FaqSection";
 import { B, initials, roleFromUserRole } from "@/lib/brand";
 import api from "@/lib/api";
 import { SignupStepper, SIGNUP_STEPS } from "@/components/signup/SignupStepper";
@@ -36,6 +40,7 @@ const SECTIONS = [
   { id: "notify", icon: Bell, label: "Notifications" },
   { id: "kyc", icon: Shield, label: "KYC & Limits" },
   { id: "devices", icon: Smartphone, label: "Devices" },
+  { id: "legal", icon: LifeBuoy, label: "Legal and Help" },
 ];
 
 function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
@@ -695,6 +700,60 @@ export default function SettingsPage() {
               <div className="space-y-4">
                 <BiometricDevices />
                 <DeviceRepairRequests />
+              </div>
+            )}
+
+            {active === "legal" && (
+              <div className="space-y-4">
+                <div className="rounded-2xl border bg-white p-6" style={{ borderColor: B.border }}>
+                  <h2 className="mb-4 text-lg font-bold" style={{ color: B.blue }}>
+                    Legal and Help
+                  </h2>
+                  <div className="divide-y" style={{ borderColor: B.border }}>
+                    <Link href="/privacy" className="flex items-center gap-3 py-3.5">
+                      <Shield size={18} style={{ color: B.blue }} />
+                      <div className="flex-1">
+                        <div className="text-sm font-bold" style={{ color: B.blue }}>
+                          Privacy policy
+                        </div>
+                        <div className="text-xs" style={{ color: B.muted }}>
+                          Learn how we protect your data
+                        </div>
+                      </div>
+                      <ChevronRight size={16} style={{ color: B.muted }} />
+                    </Link>
+                    <a
+                      href="https://asanpay.in/about"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-3 py-3.5"
+                    >
+                      <Info size={18} style={{ color: B.blue }} />
+                      <div className="flex-1">
+                        <div className="text-sm font-bold" style={{ color: B.blue }}>
+                          About us
+                        </div>
+                        <div className="text-xs" style={{ color: B.muted }}>
+                          Learn about AsanPay
+                        </div>
+                      </div>
+                      <ChevronRight size={16} style={{ color: B.muted }} />
+                    </a>
+                    <Link href="/support" className="flex items-center gap-3 py-3.5">
+                      <LifeBuoy size={18} style={{ color: B.blue }} />
+                      <div className="flex-1">
+                        <div className="text-sm font-bold" style={{ color: B.blue }}>
+                          Help & support
+                        </div>
+                        <div className="text-xs" style={{ color: B.muted }}>
+                          Talk to your upline or raise a ticket
+                        </div>
+                      </div>
+                      <ChevronRight size={16} style={{ color: B.muted }} />
+                    </Link>
+                  </div>
+                </div>
+                <FaqSection />
               </div>
             )}
           </div>
