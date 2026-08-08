@@ -134,52 +134,6 @@ export function PromoSlider({
 
   const showTitle = placement !== "login" && Boolean(slide.title);
 
-  const controls =
-    n > 1 ? (
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/55 to-transparent px-4 pb-4 pt-10">
-        {showTitle ? <p className="text-sm font-bold text-white">{slide.title}</p> : null}
-        <div className={`pointer-events-auto flex items-center justify-between gap-2 ${showTitle ? "mt-2" : ""}`}>
-          <div className="flex gap-1.5">
-            {slides.map((s, i) => (
-              <button
-                key={s.id}
-                type="button"
-                aria-label={`Go to slide ${i + 1}`}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  goTo(i);
-                }}
-                className={`h-1.5 rounded-full transition-all duration-300 ${i === index ? "w-5 bg-white" : "w-1.5 bg-white/50"}`}
-              />
-            ))}
-          </div>
-          <div className="flex gap-1">
-            <button
-              type="button"
-              aria-label="Previous slide"
-              className="rounded-full bg-white/20 p-1.5 text-white backdrop-blur transition hover:bg-white/30"
-              onClick={goPrev}
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <button
-              type="button"
-              aria-label="Next slide"
-              className="rounded-full bg-white/20 p-1.5 text-white backdrop-blur transition hover:bg-white/30"
-              onClick={goNext}
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
-        </div>
-      </div>
-    ) : showTitle ? (
-      <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/55 to-transparent px-4 pb-4 pt-10">
-        <p className="text-sm font-bold text-white">{slide.title}</p>
-      </div>
-    ) : null;
-
   return (
     <div
       className={shellClass}
@@ -229,7 +183,54 @@ export function PromoSlider({
           );
         })}
       </div>
-      {controls}
+
+      {/* Side arrows — vertical center */}
+      {n > 1 ? (
+        <>
+          <button
+            type="button"
+            aria-label="Previous slide"
+            className="absolute left-3 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/35 p-2 text-white shadow-md backdrop-blur transition hover:bg-black/50"
+            onClick={goPrev}
+          >
+            <ChevronLeft size={20} />
+          </button>
+          <button
+            type="button"
+            aria-label="Next slide"
+            className="absolute right-3 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/35 p-2 text-white shadow-md backdrop-blur transition hover:bg-black/50"
+            onClick={goNext}
+          >
+            <ChevronRight size={20} />
+          </button>
+        </>
+      ) : null}
+
+      {/* Bottom title + dashes */}
+      {n > 1 || showTitle ? (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/55 to-transparent px-4 pb-4 pt-10">
+          {showTitle ? <p className="mb-2 text-sm font-bold text-white">{slide.title}</p> : null}
+          {n > 1 ? (
+            <div className="pointer-events-auto flex items-center justify-center gap-1.5">
+              {slides.map((s, i) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  aria-label={`Go to slide ${i + 1}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    goTo(i);
+                  }}
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    i === index ? "w-6 bg-white" : "w-3 bg-white/45 hover:bg-white/70"
+                  }`}
+                />
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
