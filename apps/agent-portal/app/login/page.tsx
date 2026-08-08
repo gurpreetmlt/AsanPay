@@ -289,24 +289,27 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen w-full font-sans">
-      {/* 1. Promo slider — fills remaining width; image covers full panel */}
-      <div className="relative hidden min-h-screen min-w-0 flex-1 lg:block">
+      {/* 1. Promo slider — wide + image stretches to fill */}
+      <div
+        className="relative hidden min-h-screen flex-shrink-0 lg:block"
+        style={{ width: "78%", minWidth: 0 }}
+      >
         <div className="absolute inset-0">
           <PromoSlider
             placement="login"
             fill
             intervalMs={6000}
-            className="h-full min-h-screen rounded-none shadow-none"
+            className="h-full min-h-screen w-full rounded-none shadow-none"
           />
         </div>
       </div>
 
-      {/* 2. Login */}
+      {/* 2. Login — remaining ~22% */}
       <div
-        className="flex w-full flex-shrink-0 items-center justify-center px-5 py-8 sm:px-8 lg:w-[420px] xl:w-[460px]"
+        className="flex min-h-screen min-w-0 flex-1 items-center justify-center px-4 py-8 sm:px-6"
         style={{ background: "#fff" }}
       >
-        <div className="w-full max-w-[400px]">
+        <div className="w-full max-w-[380px]">
           <div className="mb-6">
             <AsanPayLogo width={200} variant="dark" />
           </div>
