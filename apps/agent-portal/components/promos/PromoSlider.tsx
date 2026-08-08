@@ -156,7 +156,11 @@ export function PromoSlider({
             <img
               src={resolvePromoImageSrc(s.imageUrl)}
               alt={s.title || "Promotion"}
-              className={`h-full w-full ${placement === "login" ? "object-fill" : "object-cover object-center"}`}
+              className={`h-full w-full ${
+                placement === "login"
+                  ? "object-fill"
+                  : "object-contain object-center"
+              }`}
               style={{ minHeight: "100%", minWidth: "100%" }}
               draggable={false}
               onError={() =>

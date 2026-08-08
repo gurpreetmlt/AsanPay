@@ -39,14 +39,14 @@ const SECTIONS = [
     label: "Dashboard Slider",
     icon: LayoutDashboard,
     hint: "Shows on the agent dashboard promo column.",
-    size: "800 × 1200 px (portrait 2:3)",
+    size: "800 × 1200 px (portrait 2:3) — use Dashboard Slider assets, not login landscape",
   },
   {
     id: "login" as const,
     label: "Login screen Slider",
     icon: LogIn,
     hint: "Shows on the left of the agent login page (full panel, auto-fit).",
-    size: "1920 × 1600 px (landscape)",
+    size: "1920 × 1600 px (landscape 6:5) — full-bleed login panel",
   },
 ] as const;
 
