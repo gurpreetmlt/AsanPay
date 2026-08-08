@@ -224,29 +224,37 @@ export function PromoSlider({
         </>
       ) : null}
 
-      {/* Bottom title + dashes */}
-      {n > 1 || showTitle ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/55 to-transparent px-4 pb-4 pt-10">
-          {showTitle ? <p className="mb-2 text-sm font-bold text-white">{slide.title}</p> : null}
-          {n > 1 ? (
-            <div className="pointer-events-auto flex items-center justify-center gap-1.5">
-              {slides.map((s, i) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  aria-label={`Go to slide ${i + 1}`}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    goTo(i);
-                  }}
-                  className={`h-1.5 rounded-full transition-all duration-300 ${
-                    i === index ? "w-6 bg-white" : "w-3 bg-white/45 hover:bg-white/70"
-                  }`}
-                />
-              ))}
-            </div>
-          ) : null}
+      {/* Bottom dashes — hover only, slide up from bottom; no dark overlay */}
+      {n > 1 ? (
+        <div
+          className={`pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-center px-4 pb-4 pt-2 transition-all duration-300 ease-out ${
+            hovered
+              ? "translate-y-0 opacity-100"
+              : "pointer-events-none translate-y-4 opacity-0"
+          }`}
+        >
+          <div className={`flex items-center justify-center gap-1.5 ${hovered ? "pointer-events-auto" : ""}`}>
+            {slides.map((s, i) => (
+              <button
+                key={s.id}
+                type="button"
+                aria-label={`Go to slide ${i + 1}`}
+                tabIndex={hovered ? 0 : -1}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  goTo(i);
+                }}
+                className={`h-1.5 rounded-full shadow-sm transition-all duration-300 ${
+                  i === index ? "w-6 bg-white" : "w-3 bg-white/70 hover:bg-white"
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+      ) : showTitle && hovered ? (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 px-4 pb-4 pt-2">
+          <p className="text-sm font-bold text-white drop-shadow">{slide.title}</p>
         </div>
       ) : null}
     </div>
