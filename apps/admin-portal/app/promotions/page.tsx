@@ -72,6 +72,9 @@ export default function PromotionsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
+  /** Local previews so thumbnails show even if disk file is missing after redeploy. */
+  const [previews, setPreviews] = useState<Record<string, string>>({});
+  const [brokenIds, setBrokenIds] = useState<string[]>([]);
 
   const section = SECTIONS.find((s) => s.id === placement) ?? SECTIONS[0];
 
@@ -101,6 +104,12 @@ export default function PromotionsPage() {
     setSlides((prev) => prev.map((s, i) => (i === index ? { ...s, ...patch } : s)));
   }
 
+  function thumbSrc(slide: PromoSlide): string {
+    if (previews[slide.id]) return previews[slide.id];
+    if (brokenIds.includes(slide.id)) return "";
+    return resolvePromoImageSrc(slide.imageUrl);
+  }
+
   function addSlide() {
     if (slides.length >= MAX) {
       toast.error(`Maximum ${MAX} slides for this placement`);
@@ -123,6 +132,8 @@ export default function PromotionsPage() {
       toast.error("Image must be under 1.4 MB");
       return;
     }
+    const slideId = slides[index]?.id;
+    if (!slideId) return;
     setUploadingIdx(index);
     try {
       const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -145,6 +156,8 @@ export default function PromotionsPage() {
       } catch {
         updateSlide(index, { imageUrl: dataUrl });
       }
+      setPreviews((prev) => ({ ...prev, [slideId]: dataUrl }));
+      setBrokenIds((prev) => prev.filter((id) => id !== slideId));
       toast.success("Image ready — click Save to keep it");
     } catch {
       toast.error("Image upload failed");
@@ -277,14 +290,16 @@ export default function PromotionsPage() {
                 Loading…
               </p>
             ) : (
-              <div className="grid gap-4 md:grid-cols-2">
-                {slides.map((slide, index) => (
+              <div className="grid gap-3 md:grid-cols-2">
+                {slides.map((slide, index) => {
+                  const src = thumbSrc(slide);
+                  return (
                   <div
                     key={slide.id}
-                    className="rounded-2xl border bg-white p-4 shadow-sm"
+                    className="rounded-xl border bg-white p-3 shadow-sm"
                     style={{ borderColor: B.border }}
                   >
-                    <div className="mb-3 flex items-center justify-between gap-2">
+                    <div className="mb-2 flex items-center justify-between gap-2">
                       <span className="text-sm font-bold" style={{ color: B.blue }}>
                         Slide {index + 1}
                       </span>
@@ -298,28 +313,33 @@ export default function PromotionsPage() {
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-[96px_1fr] gap-3 sm:grid-cols-[112px_1fr]">
+                    <div className="flex gap-3">
                       <div
-                        className="flex aspect-[3/4] w-full items-center justify-center overflow-hidden rounded-xl border bg-slate-50"
+                        className="flex h-[88px] w-[88px] flex-shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-slate-50"
                         style={{ borderColor: B.border }}
                       >
-                        {slide.imageUrl ? (
+                        {src ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
-                            src={resolvePromoImageSrc(slide.imageUrl)}
+                            src={src}
                             alt=""
                             className="h-full w-full object-cover"
+                            onError={() =>
+                              setBrokenIds((prev) =>
+                                prev.includes(slide.id) ? prev : [...prev, slide.id],
+                              )
+                            }
                           />
                         ) : (
-                          <span className="px-1 text-center text-[10px]" style={{ color: B.muted }}>
-                            No image
+                          <span className="px-1 text-center text-[10px] leading-tight" style={{ color: B.muted }}>
+                            {slide.imageUrl ? "Re-upload" : "No image"}
                           </span>
                         )}
                       </div>
 
-                      <div className="min-w-0 space-y-2.5">
-                        <label className="block text-xs font-semibold" style={{ color: B.muted }}>
-                          Image URL (optional if you uploaded a file)
+                      <div className="min-w-0 flex-1 space-y-1.5">
+                        <label className="block text-[11px] font-semibold" style={{ color: B.muted }}>
+                          Image URL
                           <input
                             value={
                               slide.imageUrl.startsWith("data:") ||
@@ -332,8 +352,8 @@ export default function PromotionsPage() {
                               if (v === "(uploaded image)") return;
                               updateSlide(index, { imageUrl: v });
                             }}
-                            placeholder="https://… or upload a file below"
-                            className="mt-1 w-full rounded-lg border px-2.5 py-1.5 text-sm"
+                            placeholder="https://… or upload"
+                            className="mt-0.5 w-full rounded-md border px-2 py-1 text-xs"
                             style={{ borderColor: B.border }}
                             disabled={
                               slide.imageUrl.startsWith("data:") ||
@@ -343,10 +363,10 @@ export default function PromotionsPage() {
                         </label>
 
                         <label
-                          className="inline-flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs font-bold"
+                          className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-bold"
                           style={{ borderColor: B.border, color: B.blue }}
                         >
-                          <Upload size={14} />
+                          <Upload size={12} />
                           {uploadingIdx === index ? "Uploading…" : "Upload image"}
                           <input
                             type="file"
@@ -357,29 +377,29 @@ export default function PromotionsPage() {
                           />
                         </label>
 
-                        <label className="block text-xs font-semibold" style={{ color: B.muted }}>
-                          Title (optional)
+                        <label className="block text-[11px] font-semibold" style={{ color: B.muted }}>
+                          Title
                           <input
                             value={slide.title}
                             onChange={(e) => updateSlide(index, { title: e.target.value })}
-                            className="mt-1 w-full rounded-lg border px-2.5 py-1.5 text-sm"
+                            className="mt-0.5 w-full rounded-md border px-2 py-1 text-xs"
                             style={{ borderColor: B.border }}
                           />
                         </label>
 
-                        <label className="block text-xs font-semibold" style={{ color: B.muted }}>
-                          Link URL (optional)
+                        <label className="block text-[11px] font-semibold" style={{ color: B.muted }}>
+                          Link URL
                           <input
                             value={slide.linkUrl}
                             onChange={(e) => updateSlide(index, { linkUrl: e.target.value })}
                             placeholder="https://…"
-                            className="mt-1 w-full rounded-lg border px-2.5 py-1.5 text-sm"
+                            className="mt-0.5 w-full rounded-md border px-2 py-1 text-xs"
                             style={{ borderColor: B.border }}
                           />
                         </label>
 
                         <label
-                          className="flex items-center gap-2 text-sm font-semibold"
+                          className="flex items-center gap-1.5 text-xs font-semibold"
                           style={{ color: B.blue }}
                         >
                           <input
@@ -392,13 +412,14 @@ export default function PromotionsPage() {
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
 
                 <button
                   type="button"
                   onClick={addSlide}
                   disabled={slides.length >= MAX}
-                  className="inline-flex min-h-[120px] items-center justify-center gap-2 rounded-2xl border border-dashed px-4 py-6 text-sm font-bold disabled:opacity-40 md:col-span-2"
+                  className="inline-flex min-h-[72px] items-center justify-center gap-2 rounded-xl border border-dashed px-4 py-4 text-sm font-bold disabled:opacity-40 md:col-span-2"
                   style={{ borderColor: B.border, color: B.blue, background: "#fff" }}
                 >
                   <Plus size={16} />
