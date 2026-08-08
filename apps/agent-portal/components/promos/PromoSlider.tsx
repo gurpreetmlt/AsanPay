@@ -41,6 +41,7 @@ export function PromoSlider({
   const [index, setIndex] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const [paused, setPaused] = useState(false);
+  const [hovered, setHovered] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -137,8 +138,14 @@ export function PromoSlider({
   return (
     <div
       className={shellClass}
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
+      onMouseEnter={() => {
+        setPaused(true);
+        setHovered(true);
+      }}
+      onMouseLeave={() => {
+        setPaused(false);
+        setHovered(false);
+      }}
     >
       <div className="absolute inset-0 overflow-hidden bg-[#0B2A9A]">
         {slides.map((s, i) => {
@@ -185,13 +192,18 @@ export function PromoSlider({
         })}
       </div>
 
-      {/* Side arrows — vertical center */}
+      {/* Side arrows — vertical center; show only on hover with slide-in */}
       {n > 1 ? (
         <>
           <button
             type="button"
             aria-label="Previous slide"
-            className="absolute left-3 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/35 p-2 text-white shadow-md backdrop-blur transition hover:bg-black/50"
+            tabIndex={hovered ? 0 : -1}
+            className={`absolute left-3 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/40 p-2.5 text-white shadow-md backdrop-blur transition-all duration-300 ease-out hover:bg-black/55 ${
+              hovered
+                ? "pointer-events-auto translate-x-0 opacity-100"
+                : "pointer-events-none -translate-x-4 opacity-0"
+            }`}
             onClick={goPrev}
           >
             <ChevronLeft size={20} />
@@ -199,7 +211,12 @@ export function PromoSlider({
           <button
             type="button"
             aria-label="Next slide"
-            className="absolute right-3 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/35 p-2 text-white shadow-md backdrop-blur transition hover:bg-black/50"
+            tabIndex={hovered ? 0 : -1}
+            className={`absolute right-3 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/40 p-2.5 text-white shadow-md backdrop-blur transition-all duration-300 ease-out hover:bg-black/55 ${
+              hovered
+                ? "pointer-events-auto translate-x-0 opacity-100"
+                : "pointer-events-none translate-x-4 opacity-0"
+            }`}
             onClick={goNext}
           >
             <ChevronRight size={20} />

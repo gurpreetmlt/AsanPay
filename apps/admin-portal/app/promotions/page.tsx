@@ -3,7 +3,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { Megaphone, Plus, Trash2, Upload } from "lucide-react";
+import {
+  ChevronRight,
+  LayoutDashboard,
+  LogIn,
+  Megaphone,
+  Plus,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
@@ -24,6 +32,23 @@ type PromoSlide = {
 };
 
 const MAX = 5;
+
+const SECTIONS = [
+  {
+    id: "dashboard" as const,
+    label: "Dashboard Slider",
+    icon: LayoutDashboard,
+    hint: "Shows on the agent dashboard promo column.",
+    size: "800 × 1200 px (portrait 2:3)",
+  },
+  {
+    id: "login" as const,
+    label: "Login screen Slider",
+    icon: LogIn,
+    hint: "Shows on the left of the agent login page (full panel, auto-fit).",
+    size: "1400 × 1800 px (portrait)",
+  },
+] as const;
 
 function emptySlide(placement: Placement): PromoSlide {
   return {
@@ -47,6 +72,8 @@ export default function PromotionsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
+
+  const section = SECTIONS.find((s) => s.id === placement) ?? SECTIONS[0];
 
   const load = useCallback(async (p: Placement) => {
     setLoading(true);
@@ -104,7 +131,6 @@ export default function PromotionsPage() {
         reader.onerror = () => reject(new Error("read failed"));
         reader.readAsDataURL(file);
       });
-      // Prefer server file path so agent login can load via /api/proxy/promos/file/…
       try {
         const res = await api.post<{
           success: boolean;
@@ -128,20 +154,6 @@ export default function PromotionsPage() {
   }
 
   async function save() {
-    const cleaned = slides
-      .map((s, i) => ({
-        ...s,
-        placement,
-        sortOrder: i,
-        imageUrl: s.imageUrl.trim(),
-        title: s.title.trim(),
-        linkUrl: s.linkUrl.trim(),
-      }))
-      .filter((s) => s.imageUrl);
-
-    if (cleaned.length !== slides.filter((s) => s.imageUrl.trim()).length) {
-      // ok
-    }
     for (const s of slides) {
       if (!s.imageUrl.trim()) {
         toast.error("Each slide needs an image — upload or paste a URL");
@@ -179,16 +191,15 @@ export default function PromotionsPage() {
 
   return (
     <AdminShell>
-      <div className="mx-auto w-full max-w-[1600px] space-y-5 p-4 sm:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="mx-auto w-full max-w-[1600px] px-4 py-5 sm:px-6">
+        <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="flex items-center gap-2 text-xl font-bold" style={{ color: B.blue }}>
-              <Megaphone size={22} />
+            <h1 className="flex items-center gap-2 text-2xl font-bold" style={{ color: B.blue }}>
+              <Megaphone size={24} />
               Promotions
             </h1>
             <p className="mt-1 text-sm" style={{ color: B.muted }}>
-              Up to {MAX} slides per placement. Active images show on the agent dashboard sidebar and
-              agent login screen.
+              Up to {MAX} slides per placement. Active images show on agent dashboard and login.
             </p>
           </div>
           <button
@@ -202,165 +213,199 @@ export default function PromotionsPage() {
           </button>
         </div>
 
-        <div className="flex gap-2 rounded-xl border p-1" style={{ borderColor: B.border }}>
-          {(
-            [
-              { id: "dashboard" as const, label: "Dashboard sidebar" },
-              { id: "login" as const, label: "Login screen" },
-            ] as const
-          ).map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setPlacement(tab.id)}
-              className="flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition"
-              style={{
-                background: placement === tab.id ? B.blue : "transparent",
-                color: placement === tab.id ? "#fff" : B.blue,
-              }}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {placement === "login" ? (
-          <div
-            className="rounded-xl border px-4 py-3 text-sm"
-            style={{ borderColor: B.border, background: `${B.blue}08`, color: B.muted }}
-          >
-            These slides fill the left side of the agent login page (full height, auto-fit). Design
-            at <strong style={{ color: B.blue }}>1400 × 1800 px</strong>, under 1.4 MB. Mark Active,
-            then Save.
-          </div>
-        ) : null}
-
-        {loading ? (
-          <p className="text-sm" style={{ color: B.muted }}>
-            Loading…
-          </p>
-        ) : (
-          <div className="space-y-4">
-            {slides.map((slide, index) => (
-              <div
-                key={slide.id}
-                className="rounded-2xl border bg-white p-4 shadow-sm"
-                style={{ borderColor: B.border }}
-              >
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <span className="text-sm font-bold" style={{ color: B.blue }}>
-                    Slide {index + 1}
-                  </span>
+        <div className="flex flex-col gap-5 lg:flex-row">
+          {/* Settings-style side tabs */}
+          <div className="w-full flex-shrink-0 lg:w-56">
+            <div className="overflow-hidden rounded-2xl border bg-white" style={{ borderColor: B.border }}>
+              {SECTIONS.map((s) => {
+                const active = placement === s.id;
+                const Icon = s.icon;
+                return (
                   <button
+                    key={s.id}
                     type="button"
-                    onClick={() => removeSlide(index)}
-                    className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-50"
+                    onClick={() => setPlacement(s.id)}
+                    className="flex w-full items-center justify-between border-b px-4 py-3.5 text-left transition-all last:border-b-0"
+                    style={{
+                      borderColor: B.border,
+                      background: active ? `${B.blue}0A` : "transparent",
+                      borderLeft: active ? `3px solid ${B.blue}` : "3px solid transparent",
+                    }}
                   >
-                    <Trash2 size={14} />
-                    Remove
+                    <div className="flex items-center gap-3">
+                      <Icon size={16} style={{ color: active ? B.blue : B.muted }} />
+                      <span
+                        className="text-sm font-semibold"
+                        style={{ color: active ? B.blue : B.muted }}
+                      >
+                        {s.label}
+                      </span>
+                    </div>
+                    <ChevronRight size={13} style={{ color: B.muted }} />
                   </button>
-                </div>
+                );
+              })}
+            </div>
+          </div>
 
-                <div className="grid gap-4 sm:grid-cols-[160px_1fr]">
+          {/* Content */}
+          <div className="min-w-0 flex-1 space-y-4">
+            <div
+              className="rounded-2xl border bg-white px-4 py-3.5"
+              style={{ borderColor: B.border }}
+            >
+              <h2 className="text-base font-bold" style={{ color: B.blue }}>
+                {section.label}
+              </h2>
+              <p className="mt-1 text-sm" style={{ color: B.muted }}>
+                {section.hint}
+              </p>
+              <div
+                className="mt-3 rounded-xl border px-3 py-2.5 text-sm"
+                style={{ borderColor: B.border, background: `${B.blue}08`, color: B.muted }}
+              >
+                <span className="font-semibold" style={{ color: B.blue }}>
+                  Image size:
+                </span>{" "}
+                {section.size}. Format PNG / JPG / WebP. Max <strong style={{ color: B.blue }}>1.4 MB</strong>{" "}
+                per image. Mark Active, then Save.
+              </div>
+            </div>
+
+            {loading ? (
+              <p className="text-sm" style={{ color: B.muted }}>
+                Loading…
+              </p>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                {slides.map((slide, index) => (
                   <div
-                    className="flex aspect-[3/4] items-center justify-center overflow-hidden rounded-xl border bg-slate-50"
+                    key={slide.id}
+                    className="rounded-2xl border bg-white p-4 shadow-sm"
                     style={{ borderColor: B.border }}
                   >
-                    {slide.imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={resolvePromoImageSrc(slide.imageUrl)}
-                        alt=""
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <span className="px-2 text-center text-xs" style={{ color: B.muted }}>
-                        No image
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                      <span className="text-sm font-bold" style={{ color: B.blue }}>
+                        Slide {index + 1}
                       </span>
-                    )}
+                      <button
+                        type="button"
+                        onClick={() => removeSlide(index)}
+                        className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-50"
+                      >
+                        <Trash2 size={14} />
+                        Remove
+                      </button>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div
+                        className="flex aspect-[3/4] max-h-52 items-center justify-center overflow-hidden rounded-xl border bg-slate-50"
+                        style={{ borderColor: B.border }}
+                      >
+                        {slide.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={resolvePromoImageSrc(slide.imageUrl)}
+                            alt=""
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <span className="px-2 text-center text-xs" style={{ color: B.muted }}>
+                            No image
+                          </span>
+                        )}
+                      </div>
+
+                      <label className="block text-xs font-semibold" style={{ color: B.muted }}>
+                        Image URL (optional if you uploaded a file)
+                        <input
+                          value={
+                            slide.imageUrl.startsWith("data:") ||
+                            slide.imageUrl.includes("/promos/file/")
+                              ? "(uploaded image)"
+                              : slide.imageUrl
+                          }
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            if (v === "(uploaded image)") return;
+                            updateSlide(index, { imageUrl: v });
+                          }}
+                          placeholder="https://… or upload a file below"
+                          className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                          style={{ borderColor: B.border }}
+                          disabled={
+                            slide.imageUrl.startsWith("data:") ||
+                            slide.imageUrl.includes("/promos/file/")
+                          }
+                        />
+                      </label>
+
+                      <label
+                        className="inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold"
+                        style={{ borderColor: B.border, color: B.blue }}
+                      >
+                        <Upload size={14} />
+                        {uploadingIdx === index ? "Uploading…" : "Upload image"}
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp,image/gif"
+                          className="hidden"
+                          disabled={uploadingIdx !== null}
+                          onChange={(e) => void onPickFile(index, e.target.files?.[0] ?? null)}
+                        />
+                      </label>
+
+                      <label className="block text-xs font-semibold" style={{ color: B.muted }}>
+                        Title (optional)
+                        <input
+                          value={slide.title}
+                          onChange={(e) => updateSlide(index, { title: e.target.value })}
+                          className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                          style={{ borderColor: B.border }}
+                        />
+                      </label>
+
+                      <label className="block text-xs font-semibold" style={{ color: B.muted }}>
+                        Link URL (optional)
+                        <input
+                          value={slide.linkUrl}
+                          onChange={(e) => updateSlide(index, { linkUrl: e.target.value })}
+                          placeholder="https://…"
+                          className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                          style={{ borderColor: B.border }}
+                        />
+                      </label>
+
+                      <label
+                        className="flex items-center gap-2 text-sm font-semibold"
+                        style={{ color: B.blue }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={slide.active}
+                          onChange={(e) => updateSlide(index, { active: e.target.checked })}
+                        />
+                        Active
+                      </label>
+                    </div>
                   </div>
+                ))}
 
-                  <div className="space-y-3">
-                    <label className="block text-xs font-semibold" style={{ color: B.muted }}>
-                      Image URL (optional if you uploaded a file)
-                      <input
-                        value={
-                          slide.imageUrl.startsWith("data:") || slide.imageUrl.includes("/promos/file/")
-                            ? "(uploaded image)"
-                            : slide.imageUrl
-                        }
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          if (v === "(uploaded image)") return;
-                          updateSlide(index, { imageUrl: v });
-                        }}
-                        placeholder="https://… or upload a file below"
-                        className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
-                        style={{ borderColor: B.border }}
-                        disabled={
-                          slide.imageUrl.startsWith("data:") || slide.imageUrl.includes("/promos/file/")
-                        }
-                      />
-                    </label>
-
-                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold" style={{ borderColor: B.border, color: B.blue }}>
-                      <Upload size={14} />
-                      {uploadingIdx === index ? "Uploading…" : "Upload image"}
-                      <input
-                        type="file"
-                        accept="image/png,image/jpeg,image/webp,image/gif"
-                        className="hidden"
-                        disabled={uploadingIdx !== null}
-                        onChange={(e) => void onPickFile(index, e.target.files?.[0] ?? null)}
-                      />
-                    </label>
-
-                    <label className="block text-xs font-semibold" style={{ color: B.muted }}>
-                      Title (optional)
-                      <input
-                        value={slide.title}
-                        onChange={(e) => updateSlide(index, { title: e.target.value })}
-                        className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
-                        style={{ borderColor: B.border }}
-                      />
-                    </label>
-
-                    <label className="block text-xs font-semibold" style={{ color: B.muted }}>
-                      Link URL (optional)
-                      <input
-                        value={slide.linkUrl}
-                        onChange={(e) => updateSlide(index, { linkUrl: e.target.value })}
-                        placeholder="https://…"
-                        className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
-                        style={{ borderColor: B.border }}
-                      />
-                    </label>
-
-                    <label className="flex items-center gap-2 text-sm font-semibold" style={{ color: B.blue }}>
-                      <input
-                        type="checkbox"
-                        checked={slide.active}
-                        onChange={(e) => updateSlide(index, { active: e.target.checked })}
-                      />
-                      Active
-                    </label>
-                  </div>
-                </div>
+                <button
+                  type="button"
+                  onClick={addSlide}
+                  disabled={slides.length >= MAX}
+                  className="inline-flex min-h-[120px] items-center justify-center gap-2 rounded-2xl border border-dashed px-4 py-6 text-sm font-bold disabled:opacity-40 md:col-span-2"
+                  style={{ borderColor: B.border, color: B.blue, background: "#fff" }}
+                >
+                  <Plus size={16} />
+                  Add slide ({slides.length}/{MAX})
+                </button>
               </div>
-            ))}
-
-            <button
-              type="button"
-              onClick={addSlide}
-              disabled={slides.length >= MAX}
-              className="inline-flex items-center gap-2 rounded-xl border border-dashed px-4 py-3 text-sm font-bold disabled:opacity-40"
-              style={{ borderColor: B.border, color: B.blue }}
-            >
-              <Plus size={16} />
-              Add slide ({slides.length}/{MAX})
-            </button>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </AdminShell>
   );
