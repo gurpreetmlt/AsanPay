@@ -21,14 +21,13 @@ type Props = {
   /** Auto-advance interval ms; 0 = off */
   intervalMs?: number;
   className?: string;
-  /** Fill parent height (dashboard sidebar). */
+  /** Fill parent height (dashboard sidebar / login). */
   fill?: boolean;
 };
 
 /**
- * Reusable promo image slider.
- * - placement="dashboard" → agent dashboard ad column
- * - placement="login" → wire on login screens later (same API)
+ * Promo image slider — dashboard sidebar + login screen.
+ * Slides move with a smooth horizontal transition; auto-advances when 2+.
  */
 export function PromoSlider({
   placement,
@@ -40,6 +39,7 @@ export function PromoSlider({
   const [brokenIds, setBrokenIds] = useState<string[]>([]);
   const [index, setIndex] = useState(0);
   const [loaded, setLoaded] = useState(false);
+  const [paused, setPaused] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -58,12 +58,11 @@ export function PromoSlider({
     };
   }, [placement]);
 
-  // A slide whose file is gone (e.g. uploaded before a redeploy) must not blank the panel.
   const slides = allSlides.filter((s) => !brokenIds.includes(s.id));
   const n = slides.length;
 
   useEffect(() => {
-    setIndex(0);
+    setIndex((i) => (n === 0 ? 0 : Math.min(i, n - 1)));
   }, [n]);
 
   const goTo = useCallback(
@@ -93,12 +92,12 @@ export function PromoSlider({
   );
 
   useEffect(() => {
-    if (n <= 1 || intervalMs <= 0) return;
+    if (n <= 1 || intervalMs <= 0 || paused) return;
     const t = window.setInterval(() => {
       setIndex((i) => (i + 1) % n);
     }, intervalMs);
     return () => window.clearInterval(t);
-  }, [n, intervalMs]);
+  }, [n, intervalMs, paused, index]);
 
   const slide = slides[index];
   const shellClass = `relative overflow-hidden ${fill ? "h-full min-h-[320px]" : "aspect-[3/4] min-h-[280px] rounded-2xl shadow-md"} ${className}`;
@@ -111,7 +110,6 @@ export function PromoSlider({
     );
   }
 
-  // No copy / dashed placeholder — solid panel until Admin uploads Login placement images.
   if (!slide) {
     return (
       <div
@@ -122,7 +120,6 @@ export function PromoSlider({
     );
   }
 
-  // Login: image only (+ dots/arrows). Dashboard may show title under the fade.
   const showTitle = placement !== "login" && Boolean(slide.title);
 
   const controls =
@@ -149,7 +146,7 @@ export function PromoSlider({
             <button
               type="button"
               aria-label="Previous slide"
-              className="rounded-full bg-white/20 p-1 text-white backdrop-blur transition hover:bg-white/30"
+              className="rounded-full bg-white/20 p-1.5 text-white backdrop-blur transition hover:bg-white/30"
               onClick={goPrev}
             >
               <ChevronLeft size={16} />
@@ -157,7 +154,7 @@ export function PromoSlider({
             <button
               type="button"
               aria-label="Next slide"
-              className="rounded-full bg-white/20 p-1 text-white backdrop-blur transition hover:bg-white/30"
+              className="rounded-full bg-white/20 p-1.5 text-white backdrop-blur transition hover:bg-white/30"
               onClick={goNext}
             >
               <ChevronRight size={16} />
@@ -171,17 +168,20 @@ export function PromoSlider({
       </div>
     ) : null;
 
-  // translateX % is relative to the track width (all slides). One viewport = 100/n of track.
-  const trackShiftPct = n > 0 ? (index * 100) / n : 0;
-
   return (
-    <div className={shellClass}>
+    <div
+      className={shellClass}
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+    >
       <div className="absolute inset-0 overflow-hidden">
+        {/* Track width = viewport; each slide min-w-full; translate by index * 100% of track */}
         <div
-          className="flex h-full will-change-transform transition-transform duration-500 ease-out"
+          className="flex h-full w-full ease-in-out"
           style={{
-            width: `${n * 100}%`,
-            transform: `translate3d(-${trackShiftPct}%, 0, 0)`,
+            transform: `translate3d(-${index * 100}%, 0, 0)`,
+            transition: "transform 700ms cubic-bezier(0.22, 1, 0.36, 1)",
+            willChange: "transform",
           }}
         >
           {slides.map((s) => {
@@ -190,7 +190,7 @@ export function PromoSlider({
               <img
                 src={resolvePromoImageSrc(s.imageUrl)}
                 alt={s.title || "Promotion"}
-                className={`h-full w-full ${placement === "login" ? "object-contain bg-[#0B2A9A]" : "object-cover"}`}
+                className="absolute inset-0 h-full w-full object-cover"
                 draggable={false}
                 onError={() =>
                   setBrokenIds((prev) => (prev.includes(s.id) ? prev : [...prev, s.id]))
@@ -198,17 +198,13 @@ export function PromoSlider({
               />
             );
             return (
-              <div
-                key={s.id}
-                className="h-full shrink-0 grow-0"
-                style={{ width: `${100 / n}%` }}
-              >
+              <div key={s.id} className="relative h-full w-full min-w-full shrink-0 grow-0 basis-full">
                 {s.linkUrl ? (
                   <a
                     href={s.linkUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block h-full w-full"
+                    className="absolute inset-0 block"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {img}
