@@ -1,10 +1,10 @@
 "use client";
 
 const LOGO_SRC = {
-  /** Blue "Asan" — use on light / white backgrounds */
-  dark: "/brand/asanpay-logo-dark.png",
-  /** White "Asan" — use on blue / dark backgrounds */
-  light: "/brand/asanpay-logo-light.png",
+  /** Blue "Asan" — light / white backgrounds */
+  dark: "/brand/asanpay-logo-dark.svg",
+  /** White "Asan" — blue / dark backgrounds */
+  light: "/brand/asanpay-logo-light.svg",
 } as const;
 
 export function AsanPayLogo({

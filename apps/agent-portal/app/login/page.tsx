@@ -327,8 +327,8 @@ export default function LoginPage() {
         style={{ background: "#fff" }}
       >
         <div className="w-full max-w-[400px]">
-          <div className="mb-8 lg:hidden">
-            <AsanPayLogo width={190} variant="dark" />
+          <div className="mb-6">
+            <AsanPayLogo width={200} variant="dark" />
           </div>
 
           {unlockMode && remembered ? (
