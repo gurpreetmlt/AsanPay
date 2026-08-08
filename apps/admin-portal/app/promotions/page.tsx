@@ -16,6 +16,7 @@ import { AdminShell } from "@/components/layout/AdminShell";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { resolvePromoImageSrc } from "@/lib/promoImage";
+import { compressPromoImage } from "@/lib/compressPromoImage";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 
@@ -142,20 +143,15 @@ export default function PromotionsPage() {
       toast.error("Choose a PNG, JPEG, WebP, or GIF image");
       return;
     }
-    if (file.size > 1_400_000) {
-      toast.error("Image must be under 1.4 MB");
+    if (file.size > 8_000_000) {
+      toast.error("Image must be under 8 MB");
       return;
     }
     const slideId = slides[index]?.id;
     if (!slideId) return;
     setUploadingIdx(index);
     try {
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result));
-        reader.onerror = () => reject(new Error("read failed"));
-        reader.readAsDataURL(file);
-      });
+      const { dataUrl, bytes, compressed } = await compressPromoImage(file, placement);
       setPreviews((prev) => ({ ...prev, [slideId]: dataUrl }));
       setBrokenIds((prev) => prev.filter((id) => id !== slideId));
 
@@ -171,7 +167,12 @@ export default function PromotionsPage() {
         throw new Error(typeof data?.message === "string" ? data.message : "upload failed");
       }
       updateSlide(index, { imageUrl: stored });
-      toast.success("Image uploaded — click Save to publish");
+      const kb = Math.round(bytes / 1024);
+      toast.success(
+        compressed
+          ? `Image optimized (${kb} KB) — click Save to publish`
+          : `Image uploaded (${kb} KB) — click Save to publish`,
+      );
     } catch (err: unknown) {
       const msg =
         err && typeof err === "object" && "response" in err
@@ -311,8 +312,8 @@ export default function PromotionsPage() {
                 <span className="font-semibold" style={{ color: B.blue }}>
                   Image size:
                 </span>{" "}
-                {section.size}. Format PNG / JPG / WebP. Max <strong style={{ color: B.blue }}>1.4 MB</strong>{" "}
-                per image. Unchecked Active = hidden on agent. After Upload, click Save.
+                {section.size}. Format PNG / JPG / WebP. Auto-optimized on upload (high quality,
+                target under 1.4 MB). Unchecked Active = hidden on agent. After Upload, click Save.
               </div>
             </div>
 
