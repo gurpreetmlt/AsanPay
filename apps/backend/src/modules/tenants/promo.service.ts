@@ -108,13 +108,8 @@ export async function replacePromoSlides(
     }
   }
 
-  // Persist data-URLs as files so public /promos stays small and login slider can load images.
-  for (const s of normalized) {
-    if (s.imageUrl.startsWith("data:image/")) {
-      const saved = await savePromoUpload(s.imageUrl);
-      s.imageUrl = saved.imageUrl;
-    }
-  }
+  // Keep data: URLs in DB — Coolify containers lose uploads/ on redeploy, so file paths
+  // break admin preview + login after refresh. Data URLs survive in tenant settings.
 
   return db.transaction(async (tx) => {
     const [row] = await tx

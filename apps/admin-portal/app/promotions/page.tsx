@@ -46,7 +46,7 @@ const SECTIONS = [
     label: "Login screen Slider",
     icon: LogIn,
     hint: "Shows on the left of the agent login page (full panel, auto-fit).",
-    size: "1800 × 1800 px (square 1:1)",
+    size: "1920 × 1600 px (landscape)",
   },
 ] as const;
 
@@ -106,6 +106,9 @@ export default function PromotionsPage() {
 
   function thumbSrc(slide: PromoSlide): string {
     if (previews[slide.id]) return previews[slide.id];
+    if (slide.imageUrl.startsWith("data:") || slide.imageUrl.startsWith("blob:")) {
+      return slide.imageUrl;
+    }
     if (brokenIds.includes(slide.id)) return "";
     return resolvePromoImageSrc(slide.imageUrl);
   }
@@ -142,22 +145,14 @@ export default function PromotionsPage() {
         reader.onerror = () => reject(new Error("read failed"));
         reader.readAsDataURL(file);
       });
-      try {
-        const res = await api.post<{
-          success: boolean;
-          data?: { path?: string; imageUrl?: string };
-        }>("/admin/promos/upload", { dataUrl });
-        const path = res.data?.data?.path || res.data?.data?.imageUrl;
-        if (res.data?.success && path) {
-          updateSlide(index, { imageUrl: path.startsWith("data:") ? dataUrl : path });
-        } else {
-          updateSlide(index, { imageUrl: dataUrl });
-        }
-      } catch {
-        updateSlide(index, { imageUrl: dataUrl });
-      }
+      // Always keep data URL in slide state so Save → DB → refresh still shows the image
+      // (Coolify disk uploads disappear on redeploy).
+      updateSlide(index, { imageUrl: dataUrl });
       setPreviews((prev) => ({ ...prev, [slideId]: dataUrl }));
       setBrokenIds((prev) => prev.filter((id) => id !== slideId));
+      void api.post("/admin/promos/upload", { dataUrl }).catch(() => {
+        /* optional disk copy */
+      });
       toast.success("Image ready — click Save to keep it");
     } catch {
       toast.error("Image upload failed");
