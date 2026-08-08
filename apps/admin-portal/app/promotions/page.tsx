@@ -46,7 +46,7 @@ const SECTIONS = [
     label: "Login screen Slider",
     icon: LogIn,
     hint: "Shows on the left of the agent login page (full panel, auto-fit).",
-    size: "1400 × 1800 px (portrait)",
+    size: "1800 × 1800 px (square 1:1)",
   },
 ] as const;
 
@@ -298,9 +298,9 @@ export default function PromotionsPage() {
                       </button>
                     </div>
 
-                    <div className="space-y-3">
+                    <div className="grid grid-cols-[96px_1fr] gap-3 sm:grid-cols-[112px_1fr]">
                       <div
-                        className="flex aspect-[3/4] max-h-52 items-center justify-center overflow-hidden rounded-xl border bg-slate-50"
+                        className="flex aspect-[3/4] w-full items-center justify-center overflow-hidden rounded-xl border bg-slate-50"
                         style={{ borderColor: B.border }}
                       >
                         {slide.imageUrl ? (
@@ -311,83 +311,85 @@ export default function PromotionsPage() {
                             className="h-full w-full object-cover"
                           />
                         ) : (
-                          <span className="px-2 text-center text-xs" style={{ color: B.muted }}>
+                          <span className="px-1 text-center text-[10px]" style={{ color: B.muted }}>
                             No image
                           </span>
                         )}
                       </div>
 
-                      <label className="block text-xs font-semibold" style={{ color: B.muted }}>
-                        Image URL (optional if you uploaded a file)
-                        <input
-                          value={
-                            slide.imageUrl.startsWith("data:") ||
-                            slide.imageUrl.includes("/promos/file/")
-                              ? "(uploaded image)"
-                              : slide.imageUrl
-                          }
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            if (v === "(uploaded image)") return;
-                            updateSlide(index, { imageUrl: v });
-                          }}
-                          placeholder="https://… or upload a file below"
-                          className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
-                          style={{ borderColor: B.border }}
-                          disabled={
-                            slide.imageUrl.startsWith("data:") ||
-                            slide.imageUrl.includes("/promos/file/")
-                          }
-                        />
-                      </label>
+                      <div className="min-w-0 space-y-2.5">
+                        <label className="block text-xs font-semibold" style={{ color: B.muted }}>
+                          Image URL (optional if you uploaded a file)
+                          <input
+                            value={
+                              slide.imageUrl.startsWith("data:") ||
+                              slide.imageUrl.includes("/promos/file/")
+                                ? "(uploaded image)"
+                                : slide.imageUrl
+                            }
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              if (v === "(uploaded image)") return;
+                              updateSlide(index, { imageUrl: v });
+                            }}
+                            placeholder="https://… or upload a file below"
+                            className="mt-1 w-full rounded-lg border px-2.5 py-1.5 text-sm"
+                            style={{ borderColor: B.border }}
+                            disabled={
+                              slide.imageUrl.startsWith("data:") ||
+                              slide.imageUrl.includes("/promos/file/")
+                            }
+                          />
+                        </label>
 
-                      <label
-                        className="inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold"
-                        style={{ borderColor: B.border, color: B.blue }}
-                      >
-                        <Upload size={14} />
-                        {uploadingIdx === index ? "Uploading…" : "Upload image"}
-                        <input
-                          type="file"
-                          accept="image/png,image/jpeg,image/webp,image/gif"
-                          className="hidden"
-                          disabled={uploadingIdx !== null}
-                          onChange={(e) => void onPickFile(index, e.target.files?.[0] ?? null)}
-                        />
-                      </label>
+                        <label
+                          className="inline-flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs font-bold"
+                          style={{ borderColor: B.border, color: B.blue }}
+                        >
+                          <Upload size={14} />
+                          {uploadingIdx === index ? "Uploading…" : "Upload image"}
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp,image/gif"
+                            className="hidden"
+                            disabled={uploadingIdx !== null}
+                            onChange={(e) => void onPickFile(index, e.target.files?.[0] ?? null)}
+                          />
+                        </label>
 
-                      <label className="block text-xs font-semibold" style={{ color: B.muted }}>
-                        Title (optional)
-                        <input
-                          value={slide.title}
-                          onChange={(e) => updateSlide(index, { title: e.target.value })}
-                          className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
-                          style={{ borderColor: B.border }}
-                        />
-                      </label>
+                        <label className="block text-xs font-semibold" style={{ color: B.muted }}>
+                          Title (optional)
+                          <input
+                            value={slide.title}
+                            onChange={(e) => updateSlide(index, { title: e.target.value })}
+                            className="mt-1 w-full rounded-lg border px-2.5 py-1.5 text-sm"
+                            style={{ borderColor: B.border }}
+                          />
+                        </label>
 
-                      <label className="block text-xs font-semibold" style={{ color: B.muted }}>
-                        Link URL (optional)
-                        <input
-                          value={slide.linkUrl}
-                          onChange={(e) => updateSlide(index, { linkUrl: e.target.value })}
-                          placeholder="https://…"
-                          className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
-                          style={{ borderColor: B.border }}
-                        />
-                      </label>
+                        <label className="block text-xs font-semibold" style={{ color: B.muted }}>
+                          Link URL (optional)
+                          <input
+                            value={slide.linkUrl}
+                            onChange={(e) => updateSlide(index, { linkUrl: e.target.value })}
+                            placeholder="https://…"
+                            className="mt-1 w-full rounded-lg border px-2.5 py-1.5 text-sm"
+                            style={{ borderColor: B.border }}
+                          />
+                        </label>
 
-                      <label
-                        className="flex items-center gap-2 text-sm font-semibold"
-                        style={{ color: B.blue }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={slide.active}
-                          onChange={(e) => updateSlide(index, { active: e.target.checked })}
-                        />
-                        Active
-                      </label>
+                        <label
+                          className="flex items-center gap-2 text-sm font-semibold"
+                          style={{ color: B.blue }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={slide.active}
+                            onChange={(e) => updateSlide(index, { active: e.target.checked })}
+                          />
+                          Active
+                        </label>
+                      </div>
                     </div>
                   </div>
                 ))}
