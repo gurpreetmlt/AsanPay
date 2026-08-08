@@ -5,10 +5,12 @@ import { constants } from "fs";
 import { sendSuccess } from "../../utils/apiResponse";
 import {
   clientPromoImageUrl,
+  getPromoAssetDataUrl,
   getPromoSlideById,
   listPromoSlides,
   resolvePromoFilePath,
   resolvePromoImagePayload,
+  resolveSlideImagePayload,
   type PromoPlacement,
 } from "../tenants/promo.service";
 import { resolveTenantId } from "../fund-requests/tenant";
@@ -29,13 +31,32 @@ promosRouter.get("/file/:name", async (req, res, next) => {
   }
 });
 
-/** Serve slide image by id (data-URL or file) — keeps list JSON small/fast. */
+/** Stream DB-stored promo asset (survives Coolify redeploy). */
+promosRouter.get("/asset/:id", async (req, res, next) => {
+  try {
+    const tenantId = await resolveTenantId();
+    const dataUrl = await getPromoAssetDataUrl(tenantId, req.params.id);
+    if (!dataUrl) throw new HttpError(404, "Image not found", "PROMO_FILE_NOT_FOUND");
+    const payload = resolvePromoImagePayload(dataUrl);
+    if (!payload || "filePath" in payload) {
+      throw new HttpError(404, "Image not found", "PROMO_FILE_NOT_FOUND");
+    }
+    res.setHeader("Cache-Control", "public, max-age=300");
+    res.setHeader("Content-Type", payload.contentType);
+    res.send(payload.buffer);
+  } catch (err) {
+    if (err instanceof HttpError) return next(err);
+    next(new HttpError(404, "Image not found", "PROMO_FILE_NOT_FOUND"));
+  }
+});
+
+/** Serve slide image by id (asset / data-URL / file) — keeps list JSON small/fast. */
 promosRouter.get("/by-id/:id", async (req, res, next) => {
   try {
     const tenantId = await resolveTenantId();
     const slide = await getPromoSlideById(tenantId, req.params.id);
     if (!slide?.imageUrl) throw new HttpError(404, "Image not found", "PROMO_FILE_NOT_FOUND");
-    const payload = resolvePromoImagePayload(slide.imageUrl);
+    const payload = await resolveSlideImagePayload(tenantId, slide);
     if (!payload) throw new HttpError(404, "Image not found", "PROMO_FILE_NOT_FOUND");
     res.setHeader("Cache-Control", "public, max-age=300");
     if ("filePath" in payload) {

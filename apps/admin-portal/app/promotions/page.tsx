@@ -110,7 +110,8 @@ export default function PromotionsPage() {
     return (
       url.startsWith("data:") ||
       url.includes("/promos/file/") ||
-      url.includes("/promos/by-id/")
+      url.includes("/promos/by-id/") ||
+      url.includes("/promos/asset/")
     );
   }
 
@@ -155,17 +156,37 @@ export default function PromotionsPage() {
         reader.onerror = () => reject(new Error("read failed"));
         reader.readAsDataURL(file);
       });
-      // Always keep data URL in slide state so Save → DB → refresh still shows the image
-      // (Coolify disk uploads disappear on redeploy).
-      updateSlide(index, { imageUrl: dataUrl });
       setPreviews((prev) => ({ ...prev, [slideId]: dataUrl }));
       setBrokenIds((prev) => prev.filter((id) => id !== slideId));
-      void api.post("/admin/promos/upload", { dataUrl }).catch(() => {
-        /* optional disk copy */
+
+      // Persist to DB as promoAssets immediately — Save only sends a short /asset/ URL
+      // (multi-MB Save was causing intermittent "Failed to save").
+      const { data } = await api.post<{
+        success: boolean;
+        message?: string;
+        data?: { imageUrl?: string };
+      }>("/admin/promos/upload", { dataUrl });
+      const stored = data?.data?.imageUrl?.trim();
+      if (!data?.success || !stored) {
+        throw new Error(typeof data?.message === "string" ? data.message : "upload failed");
+      }
+      updateSlide(index, { imageUrl: stored });
+      toast.success("Image uploaded — click Save to publish");
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === "object" && "response" in err
+          ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (err as any).response?.data?.message
+          : err instanceof Error
+            ? err.message
+            : null;
+      toast.error(typeof msg === "string" && msg.trim() ? msg : "Image upload failed");
+      updateSlide(index, { imageUrl: "" });
+      setPreviews((prev) => {
+        const next = { ...prev };
+        delete next[slideId];
+        return next;
       });
-      toast.success("Image ready — click Save to keep it");
-    } catch {
-      toast.error("Image upload failed");
     } finally {
       setUploadingIdx(null);
     }

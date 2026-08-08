@@ -695,10 +695,9 @@ adminRouter.put("/promos", async (req, res) => {
 
 adminRouter.post("/promos/upload", async (req, res) => {
   const body = z.object({ dataUrl: z.string().min(32).max(2_200_000) }).parse(req.body);
-  const { savePromoUpload, absolutePromoUrl } = await import("../tenants/promo.service");
-  const saved = await savePromoUpload(body.dataUrl);
-  const proto = req.get("x-forwarded-proto") || req.protocol || "https";
-  const host = req.get("x-forwarded-host") || req.get("host") || "localhost";
-  const origin = `${proto}://${host}`;
-  sendSuccess(res, { imageUrl: absolutePromoUrl(saved.imageUrl, origin), path: saved.imageUrl }, "Image uploaded");
+  const { savePromoUpload } = await import("../tenants/promo.service");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const tenantId = await resolveTenantId();
+  const saved = await savePromoUpload(tenantId, body.dataUrl);
+  sendSuccess(res, { imageUrl: saved.imageUrl, path: saved.imageUrl }, "Image uploaded");
 });

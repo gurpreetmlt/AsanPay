@@ -1,8 +1,21 @@
-/** Preview helper — data URLs and /api/proxy file / by-id paths. */
+/** Preview helper — data URLs and /api/proxy file / asset / by-id paths. */
 export function resolvePromoImageSrc(url: string): string {
   const u = url.trim();
   if (!u) return "";
   if (u.startsWith("data:") || u.startsWith("blob:")) return u;
+
+  const asset =
+    u.match(/\/(?:api\/)?(?:proxy\/)?promos\/asset\/([^/?#]+)/) ||
+    (u.startsWith("http")
+      ? (() => {
+          try {
+            return new URL(u).pathname.match(/\/(?:api\/)?promos\/asset\/([^/?#]+)/);
+          } catch {
+            return null;
+          }
+        })()
+      : null);
+  if (asset?.[1]) return `/api/proxy/promos/asset/${encodeURIComponent(asset[1])}`;
 
   const byId =
     u.match(/\/(?:api\/)?(?:proxy\/)?promos\/by-id\/([^/?#]+)/) ||

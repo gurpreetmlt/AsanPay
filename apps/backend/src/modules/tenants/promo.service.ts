@@ -22,6 +22,7 @@ export type PromoSlide = {
 
 export const PROMO_MAX_SLIDES = 5;
 const UPLOAD_DIR = path.join(process.cwd(), "uploads", "promos");
+const MAX_ASSETS = 40;
 
 function normalizeSlide(raw: unknown, index: number): PromoSlide | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
@@ -31,7 +32,7 @@ function normalizeSlide(raw: unknown, index: number): PromoSlide | null {
   const placement: PromoPlacement = o.placement === "login" ? "login" : "dashboard";
   return {
     id: typeof o.id === "string" && o.id.trim() ? o.id.trim() : randomUUID(),
-    // data: URLs can be large; cap stored length in replacePromoSlides
+    // Slides should store short refs (/asset/, /file/, https). data: only briefly during migrate.
     imageUrl: imageUrl.startsWith("data:") ? imageUrl.slice(0, 2_000_000) : imageUrl.slice(0, 2000),
     title: typeof o.title === "string" ? o.title.trim().slice(0, 120) : "",
     linkUrl: typeof o.linkUrl === "string" ? o.linkUrl.trim().slice(0, 2000) : "",
@@ -48,6 +49,57 @@ function readSlides(settings: TenantSettings): PromoSlide[] {
     .map((s, i) => normalizeSlide(s, i))
     .filter((s): s is PromoSlide => Boolean(s))
     .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
+}
+
+function readAssets(settings: TenantSettings): Record<string, string> {
+  const raw = settings.promoAssets;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (typeof k === "string" && k && typeof v === "string" && v.startsWith("data:image/")) {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
+export function isPromoAssetRef(url: string): string | null {
+  const m = url.trim().match(/\/(?:api\/)?(?:proxy\/)?promos\/asset\/([^/?#]+)/i);
+  return m?.[1] ?? null;
+}
+
+function isPromoByIdRef(url: string): string | null {
+  const m = url.trim().match(/\/(?:api\/)?(?:proxy\/)?promos\/by-id\/([^/?#]+)/i);
+  return m?.[1] ?? null;
+}
+
+function assetPublicUrl(id: string): string {
+  return `/api/promos/asset/${encodeURIComponent(id)}`;
+}
+
+function collectAssetIds(slides: PromoSlide[]): Set<string> {
+  const ids = new Set<string>();
+  for (const s of slides) {
+    const id = isPromoAssetRef(s.imageUrl);
+    if (id) ids.add(id);
+  }
+  return ids;
+}
+
+function pruneAssets(
+  assets: Record<string, string>,
+  keep: Set<string>,
+): Record<string, string> {
+  const next: Record<string, string> = {};
+  for (const id of keep) {
+    if (assets[id]) next[id] = assets[id]!;
+  }
+  // If somehow empty keep but assets remain (upload before save), keep newest MAX_ASSETS
+  if (Object.keys(next).length === 0 && Object.keys(assets).length > 0) {
+    const entries = Object.entries(assets).slice(-MAX_ASSETS);
+    for (const [k, v] of entries) next[k] = v;
+  }
+  return next;
 }
 
 export async function listPromoSlides(
@@ -74,9 +126,37 @@ export async function getPromoSlideById(
   return slides.find((s) => s.id === slideId) ?? null;
 }
 
-function isPromoByIdRef(url: string): string | null {
-  const m = url.trim().match(/\/(?:api\/)?(?:proxy\/)?promos\/by-id\/([^/?#]+)/i);
-  return m?.[1] ?? null;
+export async function getPromoAssetDataUrl(
+  tenantId: string,
+  assetId: string,
+): Promise<string | null> {
+  const [row] = await db
+    .select({ settings: tenants.settings })
+    .from(tenants)
+    .where(eq(tenants.id, tenantId))
+    .limit(1);
+  const assets = readAssets(asSettings(row?.settings));
+  return assets[assetId] ?? null;
+}
+
+/** Resolve bytes for a slide (asset map, data URL, or disk file). */
+export async function resolveSlideImagePayload(
+  tenantId: string,
+  slide: PromoSlide,
+): Promise<{ contentType: string; buffer: Buffer } | { filePath: string } | null> {
+  const [row] = await db
+    .select({ settings: tenants.settings })
+    .from(tenants)
+    .where(eq(tenants.id, tenantId))
+    .limit(1);
+  const assets = readAssets(asSettings(row?.settings));
+  const assetId = isPromoAssetRef(slide.imageUrl);
+  if (assetId) {
+    const dataUrl = assets[assetId];
+    if (!dataUrl) return null;
+    return resolvePromoImagePayload(dataUrl);
+  }
+  return resolvePromoImagePayload(slide.imageUrl);
 }
 
 /** Replace all slides for one placement (max 5). Other placements untouched. */
@@ -107,11 +187,12 @@ export async function replacePromoSlides(
       s.imageUrl.startsWith("http") ||
       s.imageUrl.startsWith("/uploads/") ||
       s.imageUrl.startsWith("/api/promos/file/") ||
+      Boolean(isPromoAssetRef(s.imageUrl)) ||
       Boolean(isPromoByIdRef(s.imageUrl));
     if (!ok) {
       throw new HttpError(
         422,
-        "Each slide needs an image (upload a file, or use https://… / /api/promos/file/…)",
+        "Each slide needs an image — use Upload image, then Save",
         "INVALID_PROMO_IMAGE",
       );
     }
@@ -122,9 +203,6 @@ export async function replacePromoSlides(
       throw new HttpError(422, "Link URL must start with https:// or /", "INVALID_PROMO_LINK");
     }
   }
-
-  // Keep data: URLs in DB — Coolify containers lose uploads/ on redeploy, so file paths
-  // break admin preview + login after refresh. Data URLs survive in tenant settings.
 
   return db.transaction(async (tx) => {
     const [row] = await tx
@@ -137,11 +215,12 @@ export async function replacePromoSlides(
 
     const prev = asSettings(row.settings);
     const prevSlides = readSlides(prev);
+    let assets = readAssets(prev);
 
-    // Admin list returns /api/promos/by-id/:id instead of huge data URLs. On Save, restore
-    // the real image payload from the previous row when the client echoes that ref.
     for (let i = 0; i < normalized.length; i++) {
       const s = normalized[i]!;
+      const slideNo = i + 1;
+
       const refId = isPromoByIdRef(s.imageUrl);
       if (refId) {
         const old =
@@ -151,22 +230,85 @@ export async function replacePromoSlides(
         }
       }
 
-      // Never persist by-id stubs — that wipes the real image and breaks refresh + agent UI.
       if (isPromoByIdRef(s.imageUrl)) {
         throw new HttpError(
           422,
-          `Slide ${i + 1}: image missing — re-upload the image, then Save`,
+          `Slide ${slideNo}: image missing — re-upload the image, then Save`,
           "PROMO_IMAGE_MISSING",
         );
       }
 
-      // Prefer data: in DB (survives Coolify redeploy). Convert existing disk files when present.
-      s.imageUrl = await ensurePersistedImageUrl(s.imageUrl, i + 1);
+      // Inline data: → promoAssets (keeps Save payload small next time; survives redeploy)
+      if (s.imageUrl.startsWith("data:image/")) {
+        const id = randomUUID();
+        assets[id] = s.imageUrl.slice(0, 2_000_000);
+        s.imageUrl = assetPublicUrl(id);
+        continue;
+      }
+
+      const assetId = isPromoAssetRef(s.imageUrl);
+      if (assetId) {
+        if (!assets[assetId]) {
+          throw new HttpError(
+            422,
+            `Slide ${slideNo}: image missing — re-upload the image, then Save`,
+            "PROMO_IMAGE_MISSING",
+          );
+        }
+        s.imageUrl = assetPublicUrl(assetId);
+        continue;
+      }
+
+      if (s.imageUrl.startsWith("http://") || s.imageUrl.startsWith("https://")) {
+        continue;
+      }
+
+      // Legacy disk file → migrate into promoAssets when readable
+      const filePath = resolvePromoFilePath(s.imageUrl);
+      if (!filePath) {
+        throw new HttpError(
+          422,
+          `Slide ${slideNo}: image missing — re-upload the image, then Save`,
+          "PROMO_IMAGE_MISSING",
+        );
+      }
+      try {
+        await access(filePath, constants.R_OK);
+        const buf = await readFile(filePath);
+        if (buf.length > 1_500_000) {
+          throw new HttpError(422, `Slide ${slideNo}: Image must be under 1.5 MB`, "IMAGE_TOO_LARGE");
+        }
+        const ext = path.extname(filePath).toLowerCase().replace(".", "") || "jpeg";
+        const mime =
+          ext === "png"
+            ? "image/png"
+            : ext === "webp"
+              ? "image/webp"
+              : ext === "gif"
+                ? "image/gif"
+                : "image/jpeg";
+        const id = randomUUID();
+        assets[id] = `data:${mime};base64,${buf.toString("base64")}`;
+        s.imageUrl = assetPublicUrl(id);
+      } catch (err) {
+        if (err instanceof HttpError) throw err;
+        throw new HttpError(
+          422,
+          `Slide ${slideNo}: image missing on server — re-upload the image, then Save`,
+          "PROMO_IMAGE_MISSING",
+        );
+      }
     }
 
     const others = prevSlides.filter((s) => s.placement !== placement);
     const mergedSlides = [...others, ...normalized];
-    const next: TenantSettings = { ...prev, promoSlides: mergedSlides };
+    assets = pruneAssets(assets, collectAssetIds(mergedSlides));
+
+    const next: TenantSettings = {
+      ...prev,
+      promoSlides: mergedSlides,
+      promoAssets: assets,
+    };
 
     await tx
       .update(tenants)
@@ -177,47 +319,14 @@ export async function replacePromoSlides(
   });
 }
 
-/** data: as-is; readable promo file → data:; missing file → clear error. */
-async function ensurePersistedImageUrl(imageUrl: string, slideNo: number): Promise<string> {
-  if (imageUrl.startsWith("data:image/")) return imageUrl;
-  if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) return imageUrl;
-
-  const filePath = resolvePromoFilePath(imageUrl);
-  if (!filePath) {
-    throw new HttpError(
-      422,
-      `Slide ${slideNo}: image missing — re-upload the image, then Save`,
-      "PROMO_IMAGE_MISSING",
-    );
-  }
-  try {
-    await access(filePath, constants.R_OK);
-    const buf = await readFile(filePath);
-    if (buf.length > 1_500_000) {
-      throw new HttpError(422, `Slide ${slideNo}: Image must be under 1.5 MB`, "IMAGE_TOO_LARGE");
-    }
-    const ext = path.extname(filePath).toLowerCase().replace(".", "") || "jpeg";
-    const mime =
-      ext === "png"
-        ? "image/png"
-        : ext === "webp"
-          ? "image/webp"
-          : ext === "gif"
-            ? "image/gif"
-            : "image/jpeg";
-    return `data:${mime};base64,${buf.toString("base64")}`;
-  } catch (err) {
-    if (err instanceof HttpError) throw err;
-    throw new HttpError(
-      422,
-      `Slide ${slideNo}: image missing on server — re-upload the image, then Save`,
-      "PROMO_IMAGE_MISSING",
-    );
-  }
-}
-
-/** Save a data-URL image under uploads/promos and return public path. */
-export async function savePromoUpload(dataUrl: string): Promise<{ imageUrl: string }> {
+/**
+ * Store image in DB (promoAssets) — survives Coolify redeploy.
+ * Returns a short URL so admin Save stays small (no multi-MB JSON).
+ */
+export async function savePromoUpload(
+  tenantId: string,
+  dataUrl: string,
+): Promise<{ imageUrl: string }> {
   const m = /^data:(image\/(png|jpeg|jpg|webp|gif));base64,([A-Za-z0-9+/=]+)$/i.exec(dataUrl.trim());
   if (!m) {
     throw new HttpError(
@@ -231,16 +340,50 @@ export async function savePromoUpload(dataUrl: string): Promise<{ imageUrl: stri
   if (!extRaw || !b64) {
     throw new HttpError(422, "Upload a PNG, JPEG, WebP, or GIF image", "INVALID_IMAGE_UPLOAD");
   }
-  const ext = extRaw.toLowerCase() === "jpeg" ? "jpg" : extRaw.toLowerCase();
   const buf = Buffer.from(b64, "base64");
   if (buf.length > 1_500_000) {
     throw new HttpError(422, "Image must be under 1.5 MB", "IMAGE_TOO_LARGE");
   }
-  await mkdir(UPLOAD_DIR, { recursive: true });
-  const filename = `${Date.now()}-${randomUUID().slice(0, 8)}.${ext}`;
-  await writeFile(path.join(UPLOAD_DIR, filename), buf);
-  // Served via GET /api/promos/file/:name (works through Coolify /api + portal proxy)
-  return { imageUrl: `/api/promos/file/${filename}` };
+
+  const id = randomUUID();
+  const stored = dataUrl.trim().slice(0, 2_000_000);
+
+  await db.transaction(async (tx) => {
+    const [row] = await tx
+      .select({ settings: tenants.settings })
+      .from(tenants)
+      .where(eq(tenants.id, tenantId))
+      .for("update")
+      .limit(1);
+    if (!row) throw new HttpError(404, "Tenant not found", "TENANT_NOT_FOUND");
+    const prev = asSettings(row.settings);
+    const assets = readAssets(prev);
+    assets[id] = stored;
+    // Cap growth before slides reference them
+    const keys = Object.keys(assets);
+    if (keys.length > MAX_ASSETS) {
+      for (const k of keys.slice(0, keys.length - MAX_ASSETS)) {
+        if (k !== id) delete assets[k];
+      }
+    }
+    await tx
+      .update(tenants)
+      .set({
+        settings: { ...prev, promoAssets: assets } as Record<string, unknown>,
+      })
+      .where(eq(tenants.id, tenantId));
+  });
+
+  // Optional disk cache (may vanish on redeploy — DB asset is source of truth)
+  try {
+    const ext = (extRaw.toLowerCase() === "jpeg" ? "jpg" : extRaw.toLowerCase()) as string;
+    await mkdir(UPLOAD_DIR, { recursive: true });
+    await writeFile(path.join(UPLOAD_DIR, `${id}.${ext}`), buf);
+  } catch {
+    /* ignore disk errors */
+  }
+
+  return { imageUrl: assetPublicUrl(id) };
 }
 
 /** Safe path inside uploads/promos, or null. */
@@ -256,11 +399,14 @@ export function resolvePromoFilePath(nameOrUrl: string): string | null {
 }
 
 /**
- * List/API response URL — never embed multi-MB data: URLs in JSON (slow admin load).
- * data: → /api/promos/by-id/:id ; files → /api/promos/file/:name
+ * List/API response URL — never embed multi-MB data: URLs in JSON.
  */
 export function clientPromoImageUrl(slide: PromoSlide, _origin?: string): string {
-  // Always by-id for stored slides (data: or local file) — keeps list JSON small.
+  if (isPromoAssetRef(slide.imageUrl)) {
+    return slide.imageUrl.startsWith("/api/")
+      ? slide.imageUrl
+      : `/api/promos/asset/${encodeURIComponent(isPromoAssetRef(slide.imageUrl)!)}`;
+  }
   if (
     slide.imageUrl.startsWith("data:") ||
     resolvePromoFilePath(slide.imageUrl) ||
@@ -271,9 +417,10 @@ export function clientPromoImageUrl(slide: PromoSlide, _origin?: string): string
   return absolutePromoUrl(slide.imageUrl, _origin || "http://localhost");
 }
 
-/** Prefer data URLs as-is. File slides → stable relative path (portals rewrite via /api/proxy). */
 export function absolutePromoUrl(imageUrl: string, origin: string): string {
   if (imageUrl.startsWith("data:")) return imageUrl;
+  const assetId = isPromoAssetRef(imageUrl);
+  if (assetId) return assetPublicUrl(assetId);
   const file = resolvePromoFilePath(
     imageUrl.startsWith("http://") || imageUrl.startsWith("https://")
       ? (() => {

@@ -21,6 +21,8 @@ export interface TenantSettings {
   nodalAddress?: string;
   /** Dashboard + login promo slider slides (max 5 per placement). */
   promoSlides?: unknown[];
+  /** Promo image payloads keyed by asset id (data: URLs). Survives Coolify disk wipe. */
+  promoAssets?: Record<string, string>;
 }
 
 export type SupportContacts = {
@@ -58,7 +60,7 @@ function normalizeWebsite(raw: unknown): string {
   }
 }
 
-function mergeWithDefaults(s: TenantSettings): Required<Omit<TenantSettings, "promoSlides">> {
+function mergeWithDefaults(s: TenantSettings): Required<Omit<TenantSettings, "promoSlides" | "promoAssets">> {
   return {
     fundApproveDualRupees:
       typeof s.fundApproveDualRupees === "number" && s.fundApproveDualRupees > 0
@@ -80,7 +82,7 @@ function mergeWithDefaults(s: TenantSettings): Required<Omit<TenantSettings, "pr
 
 export async function getTenantSettings(
   tenantId: string,
-): Promise<Required<Omit<TenantSettings, "promoSlides">>> {
+): Promise<Required<Omit<TenantSettings, "promoSlides" | "promoAssets">>> {
   const [row] = await db
     .select({ settings: tenants.settings })
     .from(tenants)
@@ -106,7 +108,7 @@ export async function getSupportContacts(tenantId: string): Promise<SupportConta
 export async function patchTenantSettings(
   tenantId: string,
   patch: TenantSettings,
-): Promise<Required<Omit<TenantSettings, "promoSlides">>> {
+): Promise<Required<Omit<TenantSettings, "promoSlides" | "promoAssets">>> {
   if (patch.fundApproveDualRupees !== undefined) {
     const n = Number(patch.fundApproveDualRupees);
     if (!Number.isFinite(n) || n < 1 || n > 1_000_000_000) {
