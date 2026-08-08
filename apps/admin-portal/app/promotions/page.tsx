@@ -180,8 +180,8 @@ export default function PromotionsPage() {
               Promotions
             </h1>
             <p className="mt-1 text-sm" style={{ color: B.muted }}>
-              Up to {MAX} slides per placement. Dashboard sidebar shows now; login slider is ready to
-              wire later.
+              Up to {MAX} slides per placement. Active images show on the agent dashboard sidebar and
+              agent login screen.
             </p>
           </div>
           <button
@@ -222,8 +222,8 @@ export default function PromotionsPage() {
             className="rounded-xl border px-4 py-3 text-sm"
             style={{ borderColor: B.border, background: `${B.blue}08`, color: B.muted }}
           >
-            Login slides are saved here. Agent / admin login UI can mount the same slider with
-            placement=&quot;login&quot; later — no rework needed.
+            These slides appear on the right side of the agent login page. Upload an image, mark
+            Active, then Save.
           </div>
         ) : null}
 

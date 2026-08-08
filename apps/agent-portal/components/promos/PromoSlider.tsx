@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Megaphone } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { fetchApi } from "@/lib/api";
-import { B, brand } from "@/lib/brand";
+import { B } from "@/lib/brand";
 import { resolvePromoImageSrc } from "@/lib/promoImage";
 
 export type PromoPlacement = "dashboard" | "login";
@@ -111,34 +111,25 @@ export function PromoSlider({
     );
   }
 
+  // No copy / dashed placeholder — solid panel until Admin uploads Login placement images.
   if (!slide) {
     return (
       <div
-        className={`relative flex flex-col overflow-hidden p-8 text-white ${fill ? "h-full min-h-[320px]" : "min-h-[280px] rounded-2xl shadow-md"} ${className}`}
+        className={`${fill ? "h-full min-h-[320px]" : "min-h-[280px] rounded-2xl"} ${className}`}
         style={{ background: B.badgeGrad }}
-      >
-        <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-white/80">
-          <Megaphone size={14} />
-          Promotions
-        </div>
-        <h3 className="text-2xl font-bold leading-snug sm:text-3xl">{brand.tagline}</h3>
-        <p className="mt-3 max-w-md text-sm leading-relaxed text-white/85">
-          Offers and campaigns appear here. Add slides in Admin → Platform Control → Promotions
-          (placement: Login).
-        </p>
-        <div className="mt-auto flex flex-1 flex-col items-center justify-center rounded-2xl border border-dashed border-white/35 bg-white/10 px-4 py-16 text-center">
-          <p className="text-sm font-semibold text-white/90">Login promo slider</p>
-          <p className="mt-1 text-xs text-white/70">No active slides yet</p>
-        </div>
-      </div>
+        aria-hidden
+      />
     );
   }
 
+  // Login: image only (+ dots/arrows). Dashboard may show title under the fade.
+  const showTitle = placement !== "login" && Boolean(slide.title);
+
   const controls =
     n > 1 ? (
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/70 to-transparent px-4 pb-4 pt-10">
-        {slide.title ? <p className="text-sm font-bold text-white">{slide.title}</p> : null}
-        <div className="pointer-events-auto mt-2 flex items-center justify-between gap-2">
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/55 to-transparent px-4 pb-4 pt-10">
+        {showTitle ? <p className="text-sm font-bold text-white">{slide.title}</p> : null}
+        <div className={`pointer-events-auto flex items-center justify-between gap-2 ${showTitle ? "mt-2" : ""}`}>
           <div className="flex gap-1.5">
             {slides.map((s, i) => (
               <button
@@ -174,8 +165,8 @@ export function PromoSlider({
           </div>
         </div>
       </div>
-    ) : slide.title ? (
-      <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/70 to-transparent px-4 pb-4 pt-10">
+    ) : showTitle ? (
+      <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/55 to-transparent px-4 pb-4 pt-10">
         <p className="text-sm font-bold text-white">{slide.title}</p>
       </div>
     ) : null;

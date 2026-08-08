@@ -292,13 +292,13 @@ export default function LoginPage() {
     <div className="flex min-h-screen w-full font-sans">
       {/* Left brand strip */}
       <div
-        className="relative hidden w-[280px] flex-shrink-0 flex-col justify-between overflow-hidden p-8 xl:w-[320px] lg:flex"
+        className="relative hidden w-[220px] flex-shrink-0 flex-col justify-between overflow-hidden p-7 xl:w-[240px] lg:flex"
         style={{ background: role.gradient }}
       >
         <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-white opacity-10" />
         <div className="absolute -left-12 bottom-24 h-40 w-40 rounded-full bg-white opacity-10" />
         <div className="relative z-10">
-          <AsanPayLogo width={200} variant="light" />
+          <AsanPayLogo width={168} variant="light" />
         </div>
         <div className="relative z-10">
           <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5">
@@ -308,7 +308,7 @@ export default function LoginPage() {
             })()}
             <span className="text-xs font-semibold text-white">{role.label} Portal</span>
           </div>
-          <h1 className="mb-3 font-bold text-white" style={{ fontSize: "1.85rem", lineHeight: 1.2 }}>
+          <h1 className="mb-3 font-bold text-white" style={{ fontSize: "1.55rem", lineHeight: 1.2 }}>
             {brand.tagline}
           </h1>
           <p className="text-sm leading-relaxed text-white/70">
@@ -321,12 +321,12 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Center: login */}
+      {/* Center: login (narrow) */}
       <div
-        className="flex min-w-0 flex-1 items-center justify-center px-5 py-8 sm:px-8"
+        className="flex w-full flex-shrink-0 items-center justify-center px-4 py-8 sm:px-6 lg:w-[360px] xl:w-[380px]"
         style={{ background: "#fff" }}
       >
-        <div className="w-full max-w-md">
+        <div className="w-full max-w-[340px]">
           <div className="mb-8 lg:hidden">
             <AsanPayLogo width={190} />
           </div>
@@ -617,8 +617,8 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Right: promo slider */}
-      <div className="relative hidden min-h-screen w-[42%] max-w-[560px] flex-shrink-0 xl:w-[46%] lg:block">
+      {/* Right: promo slider (wide — Admin Login placement images) */}
+      <div className="relative hidden min-h-screen min-w-0 flex-1 lg:block">
         <div className="absolute inset-0">
           <PromoSlider
             placement="login"
