@@ -615,78 +615,110 @@ export default function SettingsPage() {
                       </div>
                     </div>
 
-                    <div className="rounded-2xl border p-4" style={{ borderColor: B.border, background: "#fff" }}>
-                      <h3 className="mb-3 text-sm font-bold" style={{ color: B.blue }}>
-                        KYC details
-                      </h3>
-                      {kycProfileLoading ? (
-                        <p className="text-sm" style={{ color: B.muted }}>
-                          Loading KYC details…
-                        </p>
-                      ) : (
-                        <div className="grid gap-3 sm:grid-cols-2">
+                    {kycProfileLoading ? (
+                      <p className="text-sm" style={{ color: B.muted }}>
+                        Loading KYC details…
+                      </p>
+                    ) : (
+                      <>
+                        <div className="grid gap-3 lg:grid-cols-2">
                           {(
                             [
                               {
-                                label: "Full name (as per PAN)",
-                                value: kycProfile?.fullName || user?.name || "—",
+                                title: "Personal & ID",
+                                rows: [
+                                  {
+                                    label: "Full name (as per PAN)",
+                                    value: kycProfile?.fullName || user?.name,
+                                  },
+                                  { label: "Agent UID", value: kycProfile?.uid || user?.uid },
+                                  { label: "Mobile", value: kycProfile?.mobile || user?.mobile },
+                                  { label: "Email", value: kycProfile?.email || user?.email },
+                                  { label: "Date of birth", value: kycProfile?.dob },
+                                  { label: "Gender", value: kycProfile?.gender },
+                                  { label: "Father name", value: kycProfile?.fatherName },
+                                  { label: "PAN", value: kycProfile?.panMasked },
+                                  { label: "Aadhaar", value: kycProfile?.aadhaarMasked },
+                                  {
+                                    label: "Address",
+                                    value: [
+                                      kycProfile?.address,
+                                      kycProfile?.city || kycProfile?.district,
+                                      kycProfile?.state,
+                                      kycProfile?.pincode,
+                                    ]
+                                      .filter(Boolean)
+                                      .join(", "),
+                                  },
+                                ],
                               },
-                              { label: "Agent UID", value: kycProfile?.uid || user?.uid || "—" },
-                              { label: "Mobile", value: kycProfile?.mobile || user?.mobile || "—" },
                               {
-                                label: "Email",
-                                value: kycProfile?.email || user?.email || "—",
+                                title: "Business & bank",
+                                rows: [
+                                  { label: "Business name", value: kycProfile?.businessName },
+                                  { label: "Business type", value: kycProfile?.businessType },
+                                  { label: "Bank name", value: kycProfile?.bankName },
+                                  { label: "Branch", value: kycProfile?.bankBranch },
+                                  { label: "IFSC", value: kycProfile?.bankIfsc },
+                                  { label: "Account holder", value: kycProfile?.bankAccountName },
+                                  {
+                                    label: "Account number",
+                                    value: kycProfile?.bankAccountMasked,
+                                  },
+                                ],
                               },
-                              { label: "Date of birth", value: kycProfile?.dob || "—" },
-                              { label: "Gender", value: kycProfile?.gender || "—" },
-                              { label: "Father name", value: kycProfile?.fatherName || "—" },
-                              { label: "PAN", value: kycProfile?.panMasked || "—" },
-                              { label: "Aadhaar", value: kycProfile?.aadhaarMasked || "—" },
-                              {
-                                label: "Address",
-                                value:
-                                  [
-                                    kycProfile?.address,
-                                    kycProfile?.city || kycProfile?.district,
-                                    kycProfile?.state,
-                                    kycProfile?.pincode,
-                                  ]
-                                    .filter(Boolean)
-                                    .join(", ") || "—",
-                              },
-                              { label: "Business name", value: kycProfile?.businessName || "—" },
-                              { label: "Business type", value: kycProfile?.businessType || "—" },
-                              { label: "Bank name", value: kycProfile?.bankName || "—" },
-                              { label: "Branch", value: kycProfile?.bankBranch || "—" },
-                              { label: "IFSC", value: kycProfile?.bankIfsc || "—" },
-                              { label: "Account holder", value: kycProfile?.bankAccountName || "—" },
-                              {
-                                label: "Account number",
-                                value: kycProfile?.bankAccountMasked || "—",
-                              },
-                            ] as { label: string; value: string }[]
-                          ).map((row) => (
-                            <div key={row.label}>
+                            ] as { title: string; rows: { label: string; value?: string | null }[] }[]
+                          ).map((card) => {
+                            const filled = card.rows.filter((r) => Boolean(r.value && String(r.value).trim()));
+                            return (
                               <div
-                                className="text-[10px] font-bold uppercase tracking-wider"
-                                style={{ color: B.muted }}
+                                key={card.title}
+                                className="rounded-2xl border p-3.5"
+                                style={{ borderColor: B.border, background: "#fff" }}
                               >
-                                {row.label}
+                                <h3 className="mb-2.5 text-sm font-bold" style={{ color: B.blue }}>
+                                  {card.title}
+                                </h3>
+                                {filled.length === 0 ? (
+                                  <p className="text-xs" style={{ color: B.muted }}>
+                                    No details on file yet
+                                  </p>
+                                ) : (
+                                  <dl className="space-y-2">
+                                    {filled.map((row) => (
+                                      <div
+                                        key={row.label}
+                                        className="flex items-start justify-between gap-3 border-b pb-2 last:border-0 last:pb-0"
+                                        style={{ borderColor: B.border }}
+                                      >
+                                        <dt
+                                          className="shrink-0 text-[10px] font-bold uppercase tracking-wider"
+                                          style={{ color: B.muted }}
+                                        >
+                                          {row.label}
+                                        </dt>
+                                        <dd
+                                          className="text-right text-sm font-semibold break-all"
+                                          style={{ color: B.blue }}
+                                        >
+                                          {row.value}
+                                        </dd>
+                                      </div>
+                                    ))}
+                                  </dl>
+                                )}
                               </div>
-                              <div className="mt-0.5 text-sm font-semibold" style={{ color: B.blue }}>
-                                {row.value}
-                              </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
-                      )}
-                      {!kycProfileLoading && !kycProfile?.panMasked && !kycProfile?.aadhaarMasked ? (
-                        <p className="mt-3 text-xs" style={{ color: "#B45309" }}>
-                          PAN / Aadhaar not found on file yet. If you just submitted KYC, refresh after
-                          backend redeploy. Older accounts may need a KYC resubmit for bank fields.
-                        </p>
-                      ) : null}
-                    </div>
+                        {!kycProfile?.panMasked && !kycProfile?.aadhaarMasked ? (
+                          <p className="text-xs" style={{ color: "#B45309" }}>
+                            PAN / Aadhaar not on file yet. Redeploy backend if you just submitted, or
+                            resubmit KYC for full bank details.
+                          </p>
+                        ) : null}
+                      </>
+                    )}
 
                     {user?.role === "retailer" && user.hasInstantpayOutlet !== true ? (
                       <button
