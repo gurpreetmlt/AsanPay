@@ -289,29 +289,36 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen w-full font-sans">
-      {/* 1. Promo slider — fills remaining; image auto-covers full panel */}
+      {/* 1. Promo slider — gap from body + blue→green gradient border */}
       <div
-        className="relative hidden min-h-screen min-w-0 flex-1 lg:block"
-        style={{ minWidth: 0 }}
+        className="relative hidden min-h-screen min-w-0 flex-1 p-5 lg:flex lg:flex-col"
+        style={{ background: B.bg, minWidth: 0 }}
       >
-        <div className="absolute inset-0">
-          <PromoSlider
-            placement="login"
-            fill
-            intervalMs={6000}
-            className="h-full min-h-screen w-full rounded-none shadow-none"
-          />
+        <div
+          className="relative min-h-0 flex-1 rounded-2xl p-[3px] shadow-md"
+          style={{
+            background: `linear-gradient(135deg, ${B.blue} 0%, ${B.blueLight} 42%, ${B.green} 100%)`,
+          }}
+        >
+          <div className="relative h-full w-full overflow-hidden rounded-[13px] bg-[#0B2A9A]">
+            <PromoSlider
+              placement="login"
+              fill
+              intervalMs={6000}
+              className="h-full min-h-full w-full rounded-none shadow-none"
+            />
+          </div>
         </div>
       </div>
 
       {/* 2. Login — a bit wider */}
       <div
-        className="flex min-h-screen w-full flex-shrink-0 items-center justify-center px-5 py-8 sm:px-7 lg:w-[480px] xl:w-[520px]"
+        className="flex min-h-screen w-full flex-shrink-0 items-center justify-center px-5 py-8 sm:px-8 lg:w-[560px] xl:w-[600px]"
         style={{ background: "#fff" }}
       >
-        <div className="w-full max-w-[420px]">
-          <div className="mb-6">
-            <AsanPayLogo width={200} variant="dark" />
+        <div className="w-full max-w-[480px]">
+          <div className="mb-7">
+            <AsanPayLogo width={350} variant="dark" />
           </div>
 
           {unlockMode && remembered ? (
