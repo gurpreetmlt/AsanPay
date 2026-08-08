@@ -32,7 +32,6 @@ import {
   Banknote,
   MapPin,
   History,
-  UserCircle,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import type { UserRole } from "@asanpay/shared-types";
@@ -50,8 +49,7 @@ type LucideIcon = ComponentType<{ size?: number; className?: string; strokeWidth
 type NavChild = { to: string; label: string; icon: LucideIcon; exact?: boolean };
 type NavItem =
   | { type: "link"; to: string; label: string; icon: LucideIcon }
-  | { type: "group"; id: string; label: string; icon: LucideIcon; children: NavChild[] }
-  | { type: "action"; id: string; label: string; icon: LucideIcon };
+  | { type: "group"; id: string; label: string; icon: LucideIcon; children: NavChild[] };
 
 function pathActive(pathname: string, to: string, exact?: boolean) {
   if (exact) return pathname === to || pathname === `${to}/`;
@@ -106,7 +104,6 @@ function buildAgentNav(role: UserRole | undefined): NavItem[] {
       },
       { type: "link", to: "/support", label: "Support", icon: LifeBuoy },
       { type: "link", to: "/settings", label: "Settings", icon: Settings },
-      { type: "action", id: "account", label: "Account", icon: UserCircle },
     ];
   }
 
@@ -144,7 +141,6 @@ function buildAgentNav(role: UserRole | undefined): NavItem[] {
     { type: "link", to: "/reports", label: "Reports", icon: BarChart3 },
     { type: "link", to: "/support", label: "Support", icon: LifeBuoy },
     { type: "link", to: "/settings", label: "Settings", icon: Settings },
-    { type: "action", id: "account", label: "Account", icon: UserCircle },
   ];
 }
 
@@ -276,24 +272,6 @@ function SidebarContent({
                   </span>
                 )}
               </Link>
-            );
-          }
-
-          if (item.type === "action") {
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => toast("Open Settings for account options")}
-                className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-all hover:bg-white/8"
-                style={{ borderLeft: "3px solid transparent" }}
-              >
-                <Icon size={18} className="text-white/50 group-hover:text-white" strokeWidth={2} />
-                {open && (
-                  <span className="text-sm font-medium text-white/60 group-hover:text-white">{item.label}</span>
-                )}
-              </button>
             );
           }
 
