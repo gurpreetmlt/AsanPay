@@ -160,6 +160,7 @@ export function FundRequestForm({ onClose, onSuccess }: FundRequestFormProps) {
         ) : (
           <ConfirmStep
             banks={banks}
+            myVan={myVan}
             prefill={confirmPrefill!}
             onBack={() => setStep("home")}
             onDone={() => {
@@ -353,6 +354,83 @@ function UpiStep({
   );
 }
 
+/** Company bank accounts as a "credit card" slider — shared by Bank Transfer and the Cash Deposit confirm step. */
+function BankCardSlider({
+  banks,
+  myVan,
+  selected,
+  onSelect,
+}: {
+  banks: BankAccount[];
+  myVan: MyVan | null;
+  selected: string;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <div className="flex gap-3 overflow-x-auto pb-2">
+      {banks.map((b) => {
+        const active = selected === b.id;
+        const isMine = myVan?.bankAccountId === b.id;
+        const isActive = b.isActive !== false;
+        return (
+          <button
+            key={b.id}
+            type="button"
+            onClick={() => onSelect(b.id)}
+            className="w-60 shrink-0 rounded-2xl border-2 p-4 text-left"
+            style={{
+              borderColor: active ? B.blue : B.border,
+              background: active ? `${B.blue}0D` : "#fff",
+              opacity: isActive ? 1 : 0.5,
+            }}
+          >
+            <div className="mb-2.5 flex items-center gap-2">
+              <Banknote size={18} style={{ color: B.blue }} />
+              <span className="flex-1 truncate text-sm font-extrabold" style={{ color: B.blue }}>
+                {b.bankName}
+              </span>
+              {active && <span className="h-2 w-2 rounded-full" style={{ background: B.blue }} />}
+            </div>
+            {!isActive ? (
+              <p className="text-xs font-bold" style={{ color: "#dc2626" }}>
+                Currently unavailable
+              </p>
+            ) : (
+              <>
+                {isMine && myVan?.vanNumber ? (
+                  <>
+                    <p className="mt-2 text-[10px] font-bold uppercase" style={{ color: B.muted }}>
+                      Your Virtual A/C No.
+                    </p>
+                    <p className="text-[13px] font-bold" style={{ color: B.blue }}>
+                      {myVan.vanNumber}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="mt-2 text-[10px] font-bold uppercase" style={{ color: B.muted }}>
+                      A/C No. (last 4)
+                    </p>
+                    <p className="text-[13px] font-bold" style={{ color: B.blue }}>
+                      ****{b.accountNumberLast4}
+                    </p>
+                  </>
+                )}
+                <p className="mt-2 text-[10px] font-bold uppercase" style={{ color: B.muted }}>
+                  IFSC Code
+                </p>
+                <p className="text-[13px] font-bold" style={{ color: B.blue }}>
+                  {b.ifsc}
+                </p>
+              </>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function BankStep({
   banks,
   myVan,
@@ -380,67 +458,7 @@ function BankStep({
         <p className="mb-2 text-xs font-bold uppercase tracking-wide" style={{ color: B.blue }}>
           Available banks
         </p>
-        <div className="flex gap-3 overflow-x-auto pb-2">
-          {banks.map((b) => {
-            const active = selected === b.id;
-            const isMine = myVan?.bankAccountId === b.id;
-            const isActive = b.isActive !== false;
-            return (
-              <button
-                key={b.id}
-                type="button"
-                onClick={() => setSelected(b.id)}
-                className="w-60 shrink-0 rounded-2xl border-2 p-4 text-left"
-                style={{
-                  borderColor: active ? B.blue : B.border,
-                  background: active ? `${B.blue}0D` : "#fff",
-                  opacity: isActive ? 1 : 0.5,
-                }}
-              >
-                <div className="mb-2.5 flex items-center gap-2">
-                  <Banknote size={18} style={{ color: B.blue }} />
-                  <span className="flex-1 truncate text-sm font-extrabold" style={{ color: B.blue }}>
-                    {b.bankName}
-                  </span>
-                  {active && <span className="h-2 w-2 rounded-full" style={{ background: B.blue }} />}
-                </div>
-                {!isActive ? (
-                  <p className="text-xs font-bold" style={{ color: "#dc2626" }}>
-                    Currently unavailable
-                  </p>
-                ) : (
-                  <>
-                    {isMine && myVan?.vanNumber ? (
-                      <>
-                        <p className="mt-2 text-[10px] font-bold uppercase" style={{ color: B.muted }}>
-                          Your Virtual A/C No.
-                        </p>
-                        <p className="text-[13px] font-bold" style={{ color: B.blue }}>
-                          {myVan.vanNumber}
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <p className="mt-2 text-[10px] font-bold uppercase" style={{ color: B.muted }}>
-                          A/C No. (last 4)
-                        </p>
-                        <p className="text-[13px] font-bold" style={{ color: B.blue }}>
-                          ****{b.accountNumberLast4}
-                        </p>
-                      </>
-                    )}
-                    <p className="mt-2 text-[10px] font-bold uppercase" style={{ color: B.muted }}>
-                      IFSC Code
-                    </p>
-                    <p className="text-[13px] font-bold" style={{ color: B.blue }}>
-                      {b.ifsc}
-                    </p>
-                  </>
-                )}
-              </button>
-            );
-          })}
-        </div>
+        <BankCardSlider banks={banks} myVan={myVan} selected={selected} onSelect={setSelected} />
 
         <button
           type="button"
@@ -484,11 +502,13 @@ const PAYMENT_MODE_MAP: Record<ConfirmMode, string> = { upi: "upi", neft: "neft"
 
 function ConfirmStep({
   banks,
+  myVan,
   prefill,
   onBack,
   onDone,
 }: {
   banks: BankAccount[];
+  myVan: MyVan | null;
   prefill: ConfirmPrefill;
   onBack: () => void;
   onDone: () => void;
@@ -582,23 +602,22 @@ function ConfirmStep({
 
         {needsBankPicker && (
           <div className="sm:col-span-2">
-            <label className="mb-1 block text-sm font-medium text-gray-700">Company bank account</label>
-            <select
-              required
-              value={bankAccountId}
-              onChange={(e) => {
-                setBankAccountId(e.target.value);
-                attemptKey.current.clear();
-              }}
-              className={inputClass}
-            >
-              {banks.length === 0 && <option value="">No collection accounts</option>}
-              {banks.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.bankName} ·····{b.accountNumberLast4} ({b.ifsc})
-                </option>
-              ))}
-            </select>
+            <label className="mb-2 block text-sm font-medium text-gray-700">Company bank account</label>
+            {banks.length === 0 ? (
+              <p className="text-sm" style={{ color: B.muted }}>
+                No collection accounts
+              </p>
+            ) : (
+              <BankCardSlider
+                banks={banks}
+                myVan={myVan}
+                selected={bankAccountId}
+                onSelect={(id) => {
+                  setBankAccountId(id);
+                  attemptKey.current.clear();
+                }}
+              />
+            )}
           </div>
         )}
 

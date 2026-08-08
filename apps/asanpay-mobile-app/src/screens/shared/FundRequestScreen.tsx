@@ -11,7 +11,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { launchImageLibrary } from "react-native-image-picker";
-import QRCode from "react-native-qrcode-svg";
+// The monorepo hoists a single node_modules with multiple React copies (web uses 19, this app
+// uses 18); react-native-qrcode-svg's class-component types resolve against the wrong React
+// namespace as a result, so TS sees an invalid JSX component even though it renders fine.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+import RawQRCode from "react-native-qrcode-svg";
+const QRCode = RawQRCode as unknown as React.ComponentType<{ value: string; size: number }>;
 import {
   ArrowLeft,
   Banknote,
@@ -177,6 +182,7 @@ export function FundRequestModal({ visible, onClose }: { visible: boolean; onClo
         ) : (
           <ConfirmStep
             banks={banks}
+            myVan={myVan}
             prefill={confirmPrefill!}
             onBack={() => setStep("home")}
             onDone={close}
@@ -375,6 +381,76 @@ function UpiStep({
   );
 }
 
+/** Company bank accounts as a horizontal "credit card" slider — shared by Bank Transfer and the Cash Deposit confirm step. */
+function BankCardSlider({
+  banks,
+  myVan,
+  selected,
+  onSelect,
+}: {
+  banks: BankAccount[];
+  myVan: MyVan | null;
+  selected: string;
+  onSelect: (id: string) => void;
+}) {
+  const { tokens } = useTheme();
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 16 }}>
+      {banks.map((b) => {
+        const active = selected === b.id;
+        const isMine = myVan?.bankAccountId === b.id;
+        return (
+          <Pressable
+            key={b.id}
+            onPress={() => onSelect(b.id)}
+            style={[
+              cardStyles.bankCard,
+              {
+                borderColor: active ? colors.blueFlat : tokens.cardBorder,
+                backgroundColor: active ? `${colors.blueFlat}0D` : tokens.card,
+                opacity: b.isActive ? 1 : 0.5,
+              },
+            ]}
+          >
+            <View style={cardStyles.bankCardHeader}>
+              <Banknote size={18} color={colors.blueFlat} />
+              <Text style={[cardStyles.bankName, { color: tokens.txt }]} numberOfLines={1}>
+                {b.bankName}
+              </Text>
+              {active ? <View style={cardStyles.checkDot} /> : null}
+            </View>
+            {!b.isActive ? (
+              <Text style={cardStyles.downNote}>Currently unavailable</Text>
+            ) : (
+              <>
+                {isMine && myVan?.vanNumber ? (
+                  <>
+                    <Text style={[cardStyles.fieldLabel, { color: tokens.sub }]}>Your Virtual A/C No.</Text>
+                    <Text selectable style={[cardStyles.fieldValue, { color: tokens.txt }]}>
+                      {myVan.vanNumber}
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={[cardStyles.fieldLabel, { color: tokens.sub }]}>A/C No. (last 4)</Text>
+                    <Text selectable style={[cardStyles.fieldValue, { color: tokens.txt }]}>
+                      ****{b.accountNumberLast4}
+                    </Text>
+                  </>
+                )}
+                <Text style={[cardStyles.fieldLabel, { color: tokens.sub }]}>IFSC Code</Text>
+                <Text selectable style={[cardStyles.fieldValue, { color: tokens.txt }]}>
+                  {b.ifsc}
+                </Text>
+              </>
+            )}
+          </Pressable>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
 function BankStep({
   banks,
   myVan,
@@ -400,59 +476,7 @@ function BankStep({
       </View>
 
       <Text style={[styles.groupLabel, { color: tokens.txt, marginTop: 16 }]}>Available banks</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 16 }}>
-        {banks.map((b) => {
-          const active = selected === b.id;
-          const isMine = myVan?.bankAccountId === b.id;
-          return (
-            <Pressable
-              key={b.id}
-              onPress={() => setSelected(b.id)}
-              style={[
-                cardStyles.bankCard,
-                {
-                  borderColor: active ? colors.blueFlat : tokens.cardBorder,
-                  backgroundColor: active ? `${colors.blueFlat}0D` : tokens.card,
-                  opacity: b.isActive ? 1 : 0.5,
-                },
-              ]}
-            >
-              <View style={cardStyles.bankCardHeader}>
-                <Banknote size={18} color={colors.blueFlat} />
-                <Text style={[cardStyles.bankName, { color: tokens.txt }]} numberOfLines={1}>
-                  {b.bankName}
-                </Text>
-                {active ? <View style={cardStyles.checkDot} /> : null}
-              </View>
-              {!b.isActive ? (
-                <Text style={cardStyles.downNote}>Currently unavailable</Text>
-              ) : (
-                <>
-                  {isMine && myVan?.vanNumber ? (
-                    <>
-                      <Text style={[cardStyles.fieldLabel, { color: tokens.sub }]}>Your Virtual A/C No.</Text>
-                      <Text selectable style={[cardStyles.fieldValue, { color: tokens.txt }]}>
-                        {myVan.vanNumber}
-                      </Text>
-                    </>
-                  ) : (
-                    <>
-                      <Text style={[cardStyles.fieldLabel, { color: tokens.sub }]}>A/C No. (last 4)</Text>
-                      <Text selectable style={[cardStyles.fieldValue, { color: tokens.txt }]}>
-                        ****{b.accountNumberLast4}
-                      </Text>
-                    </>
-                  )}
-                  <Text style={[cardStyles.fieldLabel, { color: tokens.sub }]}>IFSC Code</Text>
-                  <Text selectable style={[cardStyles.fieldValue, { color: tokens.txt }]}>
-                    {b.ifsc}
-                  </Text>
-                </>
-              )}
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+      <BankCardSlider banks={banks} myVan={myVan} selected={selected} onSelect={setSelected} />
 
       <Pressable
         style={[styles.submit, { opacity: selected ? 1 : 0.5 }]}
@@ -515,11 +539,13 @@ const PAYMENT_MODE_MAP: Record<ConfirmMode, string> = {
 
 function ConfirmStep({
   banks,
+  myVan,
   prefill,
   onBack,
   onDone,
 }: {
   banks: BankAccount[];
+  myVan: MyVan | null;
   prefill: ConfirmPrefill;
   onBack: () => void;
   onDone: () => void;
@@ -609,25 +635,9 @@ function ConfirmStep({
       {needsBankPicker ? (
         <>
           <Text style={[styles.label, { color: tokens.sub }]}>Company bank</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-            {banks.map((b) => (
-              <Pressable
-                key={b.id}
-                onPress={() => setBankAccountId(b.id)}
-                style={[
-                  styles.chip,
-                  {
-                    backgroundColor: bankAccountId === b.id ? colors.blue : tokens.card,
-                    borderColor: tokens.cardBorder,
-                  },
-                ]}
-              >
-                <Text style={{ color: bankAccountId === b.id ? "#fff" : tokens.txt, fontWeight: "700", fontSize: 12 }}>
-                  {b.bankName} · ****{b.accountNumberLast4}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
+          <View style={{ marginBottom: 4 }}>
+            <BankCardSlider banks={banks} myVan={myVan} selected={bankAccountId} onSelect={setBankAccountId} />
+          </View>
         </>
       ) : null}
 
