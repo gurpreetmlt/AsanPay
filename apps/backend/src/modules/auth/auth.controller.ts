@@ -16,6 +16,7 @@ import {
   sponsorMobileQuerySchema,
   mpinLoginSchema,
   setLoginMpinSchema,
+  changePasswordSchema,
   emailVerifyRequestSchema,
   emailVerifyConfirmSchema,
   emailPreferencesSchema,
@@ -30,6 +31,7 @@ import {
   verifyLoginOtp,
   loginWithMpin,
   setLoginMpin,
+  changePassword,
   setEmailMarketingOptIn,
   getAepsFavouriteBanks,
   setAepsFavouriteBanks,
@@ -137,6 +139,13 @@ export async function setMpin(req: Request, res: Response): Promise<void> {
   const input = setLoginMpinSchema.parse(req.body);
   const user = await setLoginMpin(req.auth.sub, input);
   sendSuccess(res, { user }, "Login MPIN set successfully");
+}
+
+export async function changePasswordHandler(req: Request, res: Response): Promise<void> {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const input = changePasswordSchema.parse(req.body);
+  const user = await changePassword(req.auth.sub, input);
+  sendSuccess(res, { user }, "Password changed successfully");
 }
 
 export async function requestEmailOtp(req: Request, res: Response): Promise<void> {

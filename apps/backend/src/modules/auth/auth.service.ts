@@ -693,6 +693,40 @@ export async function setLoginMpin(
   return getAuthMe(userId);
 }
 
+export async function changePassword(
+  userId: string,
+  input: { currentPassword: string; newPassword: string },
+): Promise<AuthUser> {
+  const [row] = await db.select().from(users).where(eq(users.id, userId));
+  if (!row || !row.isActive) {
+    throw new HttpError(403, "Account is not active", "ACCOUNT_INACTIVE");
+  }
+
+  const ok = await comparePassword(input.currentPassword, row.passwordHash);
+  if (!ok) {
+    throw new HttpError(401, "Current password is incorrect", "PASSWORD_INCORRECT");
+  }
+
+  const passwordHash = await hashPassword(input.newPassword);
+  await db.update(users).set({ passwordHash, updatedAt: new Date() }).where(eq(users.id, userId));
+
+  // Step-up, same reasoning as an MPIN change: a changed password should force every other
+  // session to re-authenticate, this one included.
+  await revokeAllSessionsForUser(userId);
+
+  await insertAuditLog({
+    userId,
+    action: "auth.password_changed",
+    entityType: "user",
+    entityId: userId,
+    ipAddress: null,
+    userAgent: null,
+    metadata: {},
+  });
+
+  return getAuthMe(userId);
+}
+
 export async function setEmailMarketingOptIn(
   userId: string,
   emailMarketingOptIn: boolean,

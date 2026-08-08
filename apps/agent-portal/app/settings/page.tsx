@@ -65,6 +65,10 @@ export default function SettingsPage() {
   const [active, setActive] = useState("profile");
   const [signupStepIndex, setSignupStepIndex] = useState(2);
   const [showPin, setShowPin] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordBusy, setPasswordBusy] = useState(false);
   const [bioLoading, setBioLoading] = useState(false);
   const [marketingBusy, setMarketingBusy] = useState(false);
   const [email, setEmail] = useState("");
@@ -108,6 +112,37 @@ export default function SettingsPage() {
       toast.error(extractApiError(err, "Could not update email preference"));
     } finally {
       setMarketingBusy(false);
+    }
+  }
+
+  async function handleChangePassword() {
+    if (!currentPassword) {
+      toast.error("Enter your current password");
+      return;
+    }
+    if (newPassword.length < 8) {
+      toast.error("New password must be at least 8 characters");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("New password and confirm password do not match");
+      return;
+    }
+    setPasswordBusy(true);
+    try {
+      await api.post("/auth/password", { currentPassword, newPassword });
+      toast.success("Password changed — please log in again");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      // The backend revokes every session (including this one) on a password change — the
+      // cookie is already dead server-side, so send the user straight back to login.
+      useAuthStore.getState().logout();
+      router.replace("/login");
+    } catch (err) {
+      toast.error(extractApiError(err, "Could not change password"));
+    } finally {
+      setPasswordBusy(false);
     }
   }
 
@@ -268,7 +303,13 @@ export default function SettingsPage() {
                     <div className="mb-3 text-sm font-semibold" style={{ color: B.blue }}>
                       Change Password
                     </div>
-                    {["Current Password", "New Password", "Confirm Password"].map((f) => (
+                    {(
+                      [
+                        ["Current Password", currentPassword, setCurrentPassword],
+                        ["New Password", newPassword, setNewPassword],
+                        ["Confirm Password", confirmPassword, setConfirmPassword],
+                      ] as const
+                    ).map(([f, value, setValue]) => (
                       <div key={f} className="mb-3">
                         <label className="mb-1 block text-xs font-semibold" style={{ color: B.muted }}>
                           {f}
@@ -280,6 +321,8 @@ export default function SettingsPage() {
                           <Lock size={14} style={{ color: B.muted }} />
                           <input
                             type={showPin ? "text" : "password"}
+                            value={value}
+                            onChange={(e) => setValue(e.target.value)}
                             placeholder="••••••••"
                             className="flex-1 bg-transparent text-sm outline-none"
                             style={{ color: B.blue }}
@@ -296,10 +339,12 @@ export default function SettingsPage() {
                     ))}
                     <button
                       type="button"
-                      className="rounded-xl px-5 py-2 text-sm font-semibold text-white"
+                      disabled={passwordBusy}
+                      onClick={() => void handleChangePassword()}
+                      className="rounded-xl px-5 py-2 text-sm font-semibold text-white disabled:opacity-50"
                       style={{ background: B.badgeGrad }}
                     >
-                      Update Password
+                      {passwordBusy ? "Updating…" : "Update Password"}
                     </button>
                   </div>
                   <div className="rounded-xl border p-4" style={{ borderColor: B.border }}>

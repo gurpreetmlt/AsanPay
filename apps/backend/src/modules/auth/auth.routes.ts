@@ -9,6 +9,7 @@ import {
   verifyOtp,
   mpinLogin,
   setMpin,
+  changePasswordHandler,
   requestEmailOtp,
   verifyEmailOtpHandler,
   updateEmailPreferences,
@@ -45,6 +46,8 @@ authRouter.post("/otp/verify", authLimiter, verifyOtp);
 
 authRouter.post("/mpin/login", authLimiter, mpinLogin);
 authRouter.post("/mpin/set", requireAuth, setMpin);
+
+authRouter.post("/password", requireAuth, authLimiter, changePasswordHandler);
 
 authRouter.post("/email/otp/request", requireAuth, otpRequestLimiter, requestEmailOtp);
 authRouter.post("/email/otp/verify", requireAuth, authLimiter, verifyEmailOtpHandler);

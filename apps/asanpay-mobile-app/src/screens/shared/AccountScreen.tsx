@@ -1,8 +1,18 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import LinearGradient from "react-native-linear-gradient";
-import { ChevronRight, Moon, ShieldCheck, Smartphone, Sun } from "lucide-react-native";
+import {
+  ChevronRight,
+  Fingerprint,
+  KeyRound,
+  LifeBuoy,
+  Lock,
+  Moon,
+  ShieldCheck,
+  Smartphone,
+  Sun,
+} from "lucide-react-native";
 import { ROLE_LABELS, type ApiResponse, type AuthUser } from "@asanpay/shared-types";
 import { ModalSheet } from "../../components/ModalSheet";
 import { PinInput } from "../../components/PinInput";
@@ -28,6 +38,55 @@ import { BioKycModal } from "./BioKycModal";
 import { BiometricDevicesModal } from "./BiometricDevicesModal";
 import { DeviceRepairModal } from "./DeviceRepairModal";
 
+function MenuRow({
+  icon: Icon,
+  label,
+  onPress,
+  right,
+  tokens,
+}: {
+  icon: typeof Sun;
+  label: string;
+  onPress?: () => void;
+  right?: React.ReactNode;
+  tokens: ReturnType<typeof useTheme>["tokens"];
+}) {
+  return (
+    <Pressable
+      style={[menuStyles.item, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
+      onPress={onPress}
+      disabled={!onPress}
+    >
+      <View style={[menuStyles.iconWrap, { backgroundColor: `${colors.blueFlat}14` }]}>
+        <Icon size={17} color={colors.blueFlat} />
+      </View>
+      <Text style={[menuStyles.text, { color: tokens.txt }]}>{label}</Text>
+      <View style={{ flex: 1 }} />
+      {right ?? (onPress ? <ChevronRight size={18} color={tokens.mute} /> : null)}
+    </Pressable>
+  );
+}
+
+const menuStyles = StyleSheet.create({
+  item: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 8,
+    borderWidth: 1,
+  },
+  iconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  text: { fontSize: 14.5, fontWeight: "600" },
+});
+
 const THEME_OPTIONS: { key: ThemeMode; label: string; icon: typeof Sun }[] = [
   { key: "light", label: "Light", icon: Sun },
   { key: "dark", label: "Dark", icon: Moon },
@@ -41,6 +100,7 @@ export function AccountScreen() {
   const { tokens, mode, setMode } = useTheme();
   const [showSetPin, setShowSetPin] = useState(false);
   const [showSetMpin, setShowSetMpin] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
   const [showDevices, setShowDevices] = useState(false);
   const [showBiometricDevices, setShowBiometricDevices] = useState(false);
   const [showDeviceRepair, setShowDeviceRepair] = useState(false);
@@ -156,95 +216,69 @@ export function AccountScreen() {
           ))}
         </View>
 
-        <Text style={[styles.section, { color: tokens.sub }]}>Settings</Text>
-        <Pressable
-          style={[styles.menuItem, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
-          onPress={() => void toggleFingerprint()}
-        >
-          <Text style={[styles.menuText, { color: tokens.txt }]}>
-            {bioEnabled ? "Disable fingerprint unlock" : "Enable fingerprint unlock"}
-          </Text>
-          <ChevronRight size={18} color={tokens.mute} />
-        </Pressable>
-        <Pressable
-          style={[styles.menuItem, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
-          onPress={() => setShowSetMpin(true)}
-        >
-          <Text style={[styles.menuText, { color: tokens.txt }]}>
-            {user.hasLoginMpin ? "Change login MPIN" : "Set login MPIN"}
-          </Text>
-          <ChevronRight size={18} color={tokens.mute} />
-        </Pressable>
-        <Pressable style={[styles.menuItem, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]} onPress={() => setShowSetPin(true)}>
-          <Text style={[styles.menuText, { color: tokens.txt }]}>Set transaction PIN</Text>
-          <ChevronRight size={18} color={tokens.mute} />
-        </Pressable>
-        <Pressable
-          style={[styles.menuItem, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
-          onPress={() => setShowDevices(true)}
-        >
-          <Text style={[styles.menuText, { color: tokens.txt }]}>Trusted devices</Text>
-          <ChevronRight size={18} color={tokens.mute} />
-        </Pressable>
+        <Text style={[styles.section, { color: tokens.sub }]}>Manage</Text>
+        <MenuRow icon={Smartphone} label="Trusted devices" tokens={tokens} onPress={() => setShowDevices(true)} />
         {(user.role === "retailer" || user.role === "distributor") ? (
-          <Pressable
-            style={[styles.menuItem, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
+          <MenuRow
+            icon={Fingerprint}
+            label="Biometric devices"
+            tokens={tokens}
             onPress={() => setShowBiometricDevices(true)}
-          >
-            <Text style={[styles.menuText, { color: tokens.txt }]}>Biometric devices</Text>
-            <ChevronRight size={18} color={tokens.mute} />
-          </Pressable>
+          />
         ) : null}
         {(user.role === "retailer" || user.role === "distributor") ? (
-          <Pressable
-            style={[styles.menuItem, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
+          <MenuRow
+            icon={Smartphone}
+            label="Device repair"
+            tokens={tokens}
             onPress={() => setShowDeviceRepair(true)}
-          >
-            <Text style={[styles.menuText, { color: tokens.txt }]}>Device repair</Text>
-            <ChevronRight size={18} color={tokens.mute} />
-          </Pressable>
+          />
         ) : null}
-        <Pressable
-          style={[styles.menuItem, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
-          onPress={() => setShowSettlements(true)}
-        >
-          <Text style={[styles.menuText, { color: tokens.txt }]}>Settlements</Text>
-          <ChevronRight size={18} color={tokens.mute} />
-        </Pressable>
+        <MenuRow icon={ShieldCheck} label="Settlements" tokens={tokens} onPress={() => setShowSettlements(true)} />
         {user.role === "retailer" ? (
-          <Pressable
-            style={[styles.menuItem, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
-            onPress={() => setShowFund(true)}
-          >
-            <Text style={[styles.menuText, { color: tokens.txt }]}>Add Money</Text>
-            <ChevronRight size={18} color={tokens.mute} />
-          </Pressable>
+          <MenuRow icon={ShieldCheck} label="Add Money" tokens={tokens} onPress={() => setShowFund(true)} />
         ) : null}
         {user.role === "retailer" && !user.hasInstantpayOutlet ? (
-          <Pressable
-            style={[styles.menuItem, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
+          <MenuRow
+            icon={ShieldCheck}
+            label="Register InstantPay outlet"
+            tokens={tokens}
             onPress={() => setShowRegisterOutlet(true)}
-          >
-            <Text style={[styles.menuText, { color: tokens.txt }]}>Register InstantPay outlet</Text>
-            <ChevronRight size={18} color={tokens.mute} />
-          </Pressable>
+          />
         ) : null}
         {user.role === "retailer" && user.hasInstantpayOutlet ? (
-          <Pressable
-            style={[styles.menuItem, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
+          <MenuRow
+            icon={Fingerprint}
+            label="Outlet biometric KYC"
+            tokens={tokens}
             onPress={() => setShowBioKyc(true)}
-          >
-            <Text style={[styles.menuText, { color: tokens.txt }]}>Outlet biometric KYC</Text>
-            <ChevronRight size={18} color={tokens.mute} />
-          </Pressable>
+          />
         ) : null}
-        <Pressable
-          style={[styles.menuItem, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
-          onPress={() => setShowSupport(true)}
-        >
-          <Text style={[styles.menuText, { color: tokens.txt }]}>Help & support</Text>
-          <ChevronRight size={18} color={tokens.mute} />
-        </Pressable>
+
+        <Text style={[styles.section, { color: tokens.sub, marginTop: 14 }]}>Security</Text>
+        <MenuRow
+          icon={KeyRound}
+          label={user.hasLoginMpin ? "Change login PIN" : "Set login PIN"}
+          tokens={tokens}
+          onPress={() => setShowSetMpin(true)}
+        />
+        <MenuRow icon={Lock} label="Change password" tokens={tokens} onPress={() => setShowChangePassword(true)} />
+        <MenuRow icon={KeyRound} label="Transaction PIN" tokens={tokens} onPress={() => setShowSetPin(true)} />
+        <MenuRow
+          icon={Fingerprint}
+          label="Enable fingerprint unlock"
+          tokens={tokens}
+          right={
+            <Switch
+              value={bioEnabled}
+              onValueChange={() => void toggleFingerprint()}
+              trackColor={{ true: colors.blueFlat }}
+            />
+          }
+        />
+
+        <Text style={[styles.section, { color: tokens.sub, marginTop: 14 }]}>Legal and Help</Text>
+        <MenuRow icon={LifeBuoy} label="Help & support" tokens={tokens} onPress={() => setShowSupport(true)} />
 
         <Pressable onPress={handleLogout} style={styles.logoutWrap}>
           <LinearGradient
@@ -270,6 +304,7 @@ export function AccountScreen() {
         }}
       />
       <SetTxnPinModal visible={showSetPin} onClose={() => setShowSetPin(false)} />
+      <ChangePasswordModal visible={showChangePassword} onClose={() => setShowChangePassword(false)} />
       <TrustedDevicesModal visible={showDevices} onClose={() => setShowDevices(false)} />
       <BiometricDevicesModal
         visible={showBiometricDevices}
@@ -468,6 +503,84 @@ const deviceStyles = StyleSheet.create({
   sub: { fontSize: 12, marginTop: 2 },
   signOut: { fontSize: 12.5, fontWeight: "800", color: "#DC2626" },
 });
+
+function ChangePasswordModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function submit() {
+    if (!currentPassword) {
+      showAlert("Current password required", "Enter your current password.");
+      return;
+    }
+    if (newPassword.length < 8) {
+      showAlert("Password too short", "New password must be at least 8 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      showAlert("Mismatch", "New password and confirm password do not match.");
+      return;
+    }
+    setLoading(true);
+    try {
+      await api.post("/auth/password", { currentPassword, newPassword });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      onClose();
+      // The backend revokes every session (including this one) on a password change.
+      showAlert("Password changed", "Please log in again with your new password.", [
+        { text: "OK", onPress: () => void logoutEverywhere() },
+      ]);
+    } catch (err) {
+      showAlert("Failed", apiError(err, "Could not change password"));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <ModalSheet visible={visible} title="Change Password" onClose={onClose}>
+      <Text style={styles.fieldLabel}>Current Password</Text>
+      <TextInput
+        style={styles.fieldInput}
+        secureTextEntry
+        value={currentPassword}
+        onChangeText={setCurrentPassword}
+        placeholder="••••••••"
+        placeholderTextColor={colors.textLight}
+      />
+      <Text style={styles.fieldLabel}>New Password</Text>
+      <TextInput
+        style={styles.fieldInput}
+        secureTextEntry
+        value={newPassword}
+        onChangeText={setNewPassword}
+        placeholder="At least 8 characters"
+        placeholderTextColor={colors.textLight}
+      />
+      <Text style={styles.fieldLabel}>Confirm New Password</Text>
+      <TextInput
+        style={styles.fieldInput}
+        secureTextEntry
+        value={confirmPassword}
+        onChangeText={setConfirmPassword}
+        placeholder="••••••••"
+        placeholderTextColor={colors.textLight}
+      />
+      <Pressable
+        onPress={submit}
+        disabled={loading || !currentPassword || newPassword.length < 8 || !confirmPassword}
+      >
+        <LinearGradient colors={[...colors.gradient]} style={styles.setPinBtn}>
+          <Text style={styles.setPinBtnText}>{loading ? "Saving..." : "Update Password"}</Text>
+        </LinearGradient>
+      </Pressable>
+    </ModalSheet>
+  );
+}
 
 function SetTxnPinModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const [password, setPassword] = useState("");
