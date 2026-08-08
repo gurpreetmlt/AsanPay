@@ -31,7 +31,7 @@ type PromoSlide = {
   active: boolean;
 };
 
-const MAX = 5;
+const MAX = 8;
 
 const SECTIONS = [
   {
@@ -214,7 +214,10 @@ export default function PromotionsPage() {
           placement,
         })),
       });
-      toast.success("Promotions saved");
+      const activeCount = slides.filter((s) => s.active).length;
+      toast.success(
+        `Saved ${slides.length} slides (${activeCount} active) for ${placement === "login" ? "Login" : "Dashboard"}`,
+      );
       await load(placement);
     } catch (err: unknown) {
       const msg =
@@ -238,7 +241,9 @@ export default function PromotionsPage() {
               Promotions
             </h1>
             <p className="mt-1 text-sm" style={{ color: B.muted }}>
-              Up to {MAX} slides per placement. Active images show on agent dashboard and login.
+              Up to {MAX} slides per placement (Login and Dashboard are separate). Only{" "}
+              <strong>Active</strong> slides with a working image show on agent login / dashboard —
+              mark Active, then Save.
             </p>
           </div>
           <button
@@ -307,7 +312,7 @@ export default function PromotionsPage() {
                   Image size:
                 </span>{" "}
                 {section.size}. Format PNG / JPG / WebP. Max <strong style={{ color: B.blue }}>1.4 MB</strong>{" "}
-                per image. Mark Active, then Save.
+                per image. Unchecked Active = hidden on agent. After Upload, click Save.
               </div>
             </div>
 

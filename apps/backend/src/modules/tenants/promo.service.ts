@@ -20,7 +20,7 @@ export type PromoSlide = {
   active: boolean;
 };
 
-export const PROMO_MAX_SLIDES = 5;
+export const PROMO_MAX_SLIDES = 8;
 const UPLOAD_DIR = path.join(process.cwd(), "uploads", "promos");
 const MAX_ASSETS = 40;
 

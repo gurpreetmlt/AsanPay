@@ -71,7 +71,7 @@ export function PromoSlider({
     };
   }, [placement]);
 
-  const slides = allSlides.filter((s) => !brokenIds.includes(s.id));
+  const slides = allSlides;
   const n = slides.length;
 
   useEffect(() => {
@@ -150,7 +150,8 @@ export function PromoSlider({
       <div className="absolute inset-0 overflow-hidden bg-[#0B2A9A]">
         {slides.map((s, i) => {
           const active = i === index;
-          const img = (
+          const broken = brokenIds.includes(s.id);
+          const img = broken ? null : (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={resolvePromoImageSrc(s.imageUrl)}

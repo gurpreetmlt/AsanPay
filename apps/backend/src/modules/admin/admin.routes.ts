@@ -679,7 +679,7 @@ adminRouter.put("/promos", async (req, res) => {
   const body = z
     .object({
       placement: z.enum(["dashboard", "login"]),
-      slides: z.array(z.record(z.string(), z.unknown())).max(5),
+      slides: z.array(z.record(z.string(), z.unknown())).max(8),
     })
     .parse(req.body);
   const { replacePromoSlides, clientPromoImageUrl } = await import("../tenants/promo.service");
