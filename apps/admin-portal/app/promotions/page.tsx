@@ -80,6 +80,8 @@ export default function PromotionsPage() {
 
   const load = useCallback(async (p: Placement) => {
     setLoading(true);
+    setBrokenIds([]);
+    setPreviews({});
     try {
       const data = await fetchApi<PromoSlide[]>("/admin/promos", { placement: p });
       setSlides(Array.isArray(data) ? data : []);

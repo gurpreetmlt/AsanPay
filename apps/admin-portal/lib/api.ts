@@ -7,7 +7,8 @@ const API_BASE = "/api/proxy";
 const api = axios.create({
   baseURL: API_BASE,
   headers: { "Content-Type": "application/json" },
-  timeout: 15000,
+  // Promo Save can send multi-MB data URLs; 15s was too short and looked like "image vanished".
+  timeout: 120000,
 });
 
 api.interceptors.response.use(

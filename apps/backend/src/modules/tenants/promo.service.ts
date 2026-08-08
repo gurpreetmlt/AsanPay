@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
-import { mkdir, writeFile } from "fs/promises";
+import { access, mkdir, readFile, writeFile } from "fs/promises";
+import { constants } from "fs";
 import path from "path";
 import { eq } from "drizzle-orm";
 import { db } from "../../db/postgres";
@@ -139,12 +140,28 @@ export async function replacePromoSlides(
 
     // Admin list returns /api/promos/by-id/:id instead of huge data URLs. On Save, restore
     // the real image payload from the previous row when the client echoes that ref.
-    for (const s of normalized) {
+    for (let i = 0; i < normalized.length; i++) {
+      const s = normalized[i]!;
       const refId = isPromoByIdRef(s.imageUrl);
-      if (!refId) continue;
-      const old =
-        prevSlides.find((p) => p.id === s.id) || prevSlides.find((p) => p.id === refId);
-      if (old?.imageUrl) s.imageUrl = old.imageUrl;
+      if (refId) {
+        const old =
+          prevSlides.find((p) => p.id === s.id) || prevSlides.find((p) => p.id === refId);
+        if (old?.imageUrl && !isPromoByIdRef(old.imageUrl)) {
+          s.imageUrl = old.imageUrl;
+        }
+      }
+
+      // Never persist by-id stubs — that wipes the real image and breaks refresh + agent UI.
+      if (isPromoByIdRef(s.imageUrl)) {
+        throw new HttpError(
+          422,
+          `Slide ${i + 1}: image missing — re-upload the image, then Save`,
+          "PROMO_IMAGE_MISSING",
+        );
+      }
+
+      // Prefer data: in DB (survives Coolify redeploy). Convert existing disk files when present.
+      s.imageUrl = await ensurePersistedImageUrl(s.imageUrl, i + 1);
     }
 
     const others = prevSlides.filter((s) => s.placement !== placement);
@@ -158,6 +175,45 @@ export async function replacePromoSlides(
 
     return normalized;
   });
+}
+
+/** data: as-is; readable promo file → data:; missing file → clear error. */
+async function ensurePersistedImageUrl(imageUrl: string, slideNo: number): Promise<string> {
+  if (imageUrl.startsWith("data:image/")) return imageUrl;
+  if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) return imageUrl;
+
+  const filePath = resolvePromoFilePath(imageUrl);
+  if (!filePath) {
+    throw new HttpError(
+      422,
+      `Slide ${slideNo}: image missing — re-upload the image, then Save`,
+      "PROMO_IMAGE_MISSING",
+    );
+  }
+  try {
+    await access(filePath, constants.R_OK);
+    const buf = await readFile(filePath);
+    if (buf.length > 1_500_000) {
+      throw new HttpError(422, `Slide ${slideNo}: Image must be under 1.5 MB`, "IMAGE_TOO_LARGE");
+    }
+    const ext = path.extname(filePath).toLowerCase().replace(".", "") || "jpeg";
+    const mime =
+      ext === "png"
+        ? "image/png"
+        : ext === "webp"
+          ? "image/webp"
+          : ext === "gif"
+            ? "image/gif"
+            : "image/jpeg";
+    return `data:${mime};base64,${buf.toString("base64")}`;
+  } catch (err) {
+    if (err instanceof HttpError) throw err;
+    throw new HttpError(
+      422,
+      `Slide ${slideNo}: image missing on server — re-upload the image, then Save`,
+      "PROMO_IMAGE_MISSING",
+    );
+  }
 }
 
 /** Save a data-URL image under uploads/promos and return public path. */
@@ -204,7 +260,12 @@ export function resolvePromoFilePath(nameOrUrl: string): string | null {
  * data: → /api/promos/by-id/:id ; files → /api/promos/file/:name
  */
 export function clientPromoImageUrl(slide: PromoSlide, _origin?: string): string {
-  if (slide.imageUrl.startsWith("data:")) {
+  // Always by-id for stored slides (data: or local file) — keeps list JSON small.
+  if (
+    slide.imageUrl.startsWith("data:") ||
+    resolvePromoFilePath(slide.imageUrl) ||
+    isPromoByIdRef(slide.imageUrl)
+  ) {
     return `/api/promos/by-id/${encodeURIComponent(slide.id)}`;
   }
   return absolutePromoUrl(slide.imageUrl, _origin || "http://localhost");

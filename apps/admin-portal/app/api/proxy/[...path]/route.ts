@@ -125,11 +125,14 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
     );
   }
 
-  const data = await upstream.text();
-  return new NextResponse(data, {
-    status: upstream.status,
-    headers: { "Content-Type": upstream.headers.get("content-type") || "application/json" },
-  });
+  // arrayBuffer — promo images (/promos/by-id, /promos/file) are binary; text() corrupts thumbs.
+  const data = await upstream.arrayBuffer();
+  const headers: Record<string, string> = {
+    "Content-Type": upstream.headers.get("content-type") || "application/json",
+  };
+  const disposition = upstream.headers.get("content-disposition");
+  if (disposition) headers["Content-Disposition"] = disposition;
+  return new NextResponse(data, { status: upstream.status, headers });
 }
 
 export { handle as GET, handle as POST, handle as PUT, handle as PATCH, handle as DELETE };
