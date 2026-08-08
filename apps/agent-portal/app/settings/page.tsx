@@ -69,6 +69,31 @@ export default function SettingsPage() {
   const role = roleFromUserRole(user?.role);
   const [active, setActive] = useState("profile");
   const [signupStepIndex, setSignupStepIndex] = useState(2);
+  const [kycProfile, setKycProfile] = useState<{
+    uid: string;
+    mobile: string;
+    fullName: string | null;
+    email: string | null;
+    dob: string | null;
+    gender: string | null;
+    fatherName: string | null;
+    address: string | null;
+    city: string | null;
+    district: string | null;
+    state: string | null;
+    pincode: string | null;
+    aadhaarMasked: string | null;
+    panMasked: string | null;
+    bankAccountName: string | null;
+    bankAccountMasked: string | null;
+    bankIfsc: string | null;
+    bankName: string | null;
+    bankBranch: string | null;
+    businessName: string | null;
+    businessType: string | null;
+    submittedAt: string | null;
+  } | null>(null);
+  const [kycProfileLoading, setKycProfileLoading] = useState(false);
   const [showPin, setShowPin] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -101,6 +126,39 @@ export default function SettingsPage() {
     const idx = draft?.stepIndex ?? 2;
     setSignupStepIndex(Math.max(2, Math.min(idx, SIGNUP_STEPS.length - 1)));
   }, [user, active]);
+
+  useEffect(() => {
+    if (active !== "kyc" || !accessToken || !user || needsSignupKycCompletion(user)) {
+      return;
+    }
+    let cancelled = false;
+    setKycProfileLoading(true);
+    void (async () => {
+      try {
+        const { data } = await api.get<
+          ApiResponse<{
+            profile: NonNullable<typeof kycProfile> & {
+              kycStatus: string;
+              hasKycDocs: boolean;
+            };
+          }>
+        >("/kyc/me");
+        if (cancelled) return;
+        if (!data.success) throw new Error(data.message);
+        setKycProfile(data.data.profile);
+      } catch (err) {
+        if (!cancelled) {
+          toast.error(extractApiError(err, "Could not load KYC details"));
+          setKycProfile(null);
+        }
+      } finally {
+        if (!cancelled) setKycProfileLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [active, accessToken, user]);
 
   async function toggleMarketingOptIn() {
     if (!user || marketingBusy) return;
@@ -549,9 +607,73 @@ export default function SettingsPage() {
                           </div>
                           <div className="text-xs" style={{ color: B.muted }}>
                             Status: {user?.kycStatus ?? "unknown"}
+                            {kycProfile?.submittedAt
+                              ? ` · Submitted ${new Date(kycProfile.submittedAt).toLocaleDateString("en-IN")}`
+                              : ""}
                           </div>
                         </div>
                       </div>
+                    </div>
+
+                    <div className="rounded-2xl border p-4" style={{ borderColor: B.border }}>
+                      <h3 className="mb-3 text-sm font-bold" style={{ color: B.blue }}>
+                        KYC details
+                      </h3>
+                      {kycProfileLoading ? (
+                        <p className="text-sm" style={{ color: B.muted }}>
+                          Loading KYC details…
+                        </p>
+                      ) : (
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          {(
+                            [
+                              { label: "Full name (as per PAN)", value: kycProfile?.fullName || user?.name },
+                              { label: "Agent UID", value: kycProfile?.uid || user?.uid },
+                              { label: "Mobile", value: kycProfile?.mobile || user?.mobile },
+                              { label: "Email", value: kycProfile?.email || user?.email },
+                              { label: "Date of birth", value: kycProfile?.dob },
+                              { label: "Gender", value: kycProfile?.gender },
+                              { label: "Father name", value: kycProfile?.fatherName },
+                              { label: "PAN", value: kycProfile?.panMasked },
+                              { label: "Aadhaar", value: kycProfile?.aadhaarMasked },
+                              {
+                                label: "Address",
+                                value: [
+                                  kycProfile?.address,
+                                  kycProfile?.city || kycProfile?.district,
+                                  kycProfile?.state,
+                                  kycProfile?.pincode,
+                                ]
+                                  .filter(Boolean)
+                                  .join(", "),
+                              },
+                              { label: "Business name", value: kycProfile?.businessName },
+                              { label: "Business type", value: kycProfile?.businessType },
+                              { label: "Bank name", value: kycProfile?.bankName },
+                              { label: "Branch", value: kycProfile?.bankBranch },
+                              { label: "IFSC", value: kycProfile?.bankIfsc },
+                              { label: "Account holder", value: kycProfile?.bankAccountName },
+                              { label: "Account number", value: kycProfile?.bankAccountMasked },
+                            ] as { label: string; value: string | null | undefined }[]
+                          )
+                            .filter((row) => Boolean(row.value && String(row.value).trim()))
+                            .map((row) => (
+                              <div key={row.label}>
+                                <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: B.muted }}>
+                                  {row.label}
+                                </div>
+                                <div className="mt-0.5 text-sm font-semibold" style={{ color: B.blue }}>
+                                  {row.value}
+                                </div>
+                              </div>
+                            ))}
+                        </div>
+                      )}
+                      {!kycProfileLoading && !kycProfile?.panMasked && !kycProfile?.aadhaarMasked ? (
+                        <p className="mt-2 text-xs" style={{ color: B.muted }}>
+                          Detailed KYC fields will appear after a full signup KYC submit.
+                        </p>
+                      ) : null}
                     </div>
 
                     {user?.role === "retailer" && user.hasInstantpayOutlet !== true ? (

@@ -33,26 +33,49 @@ function metaString(meta: Record<string, unknown>, key: string): string | null {
   return typeof v === "string" && v.trim() ? v.trim() : null;
 }
 
-/** Agent self-view: signup KYC + /kyc form share this profile for prefill. */
+function maskPan(pan: string) {
+  if (pan.length < 6) return "••••••••••";
+  return `${pan.slice(0, 5)}****${pan.slice(-1)}`;
+}
+
+function maskAadhaar(aadhaar: string) {
+  const digits = aadhaar.replace(/\D/g, "");
+  if (digits.length < 4) return "XXXX XXXX XXXX";
+  return `XXXX XXXX ${digits.slice(-4)}`;
+}
+
+function maskAccount(account: string) {
+  const digits = account.replace(/\s/g, "");
+  if (digits.length < 4) return "****";
+  return `****${digits.slice(-4)}`;
+}
+
+/** Agent self-view: masked KYC details after signup submit (Settings → KYC). */
 export type MyKycProfile = {
   kycStatus: AuthUser["kycStatus"];
   hasKycDocs: boolean;
   submittedAt: string | null;
+  uid: string;
+  mobile: string;
   fullName: string | null;
   email: string | null;
   dob: string | null;
+  gender: string | null;
+  fatherName: string | null;
   address: string | null;
   city: string | null;
   district: string | null;
   state: string | null;
   pincode: string | null;
-  aadhaarNumber: string | null;
-  panNumber: string | null;
+  aadhaarMasked: string | null;
+  panMasked: string | null;
   bankAccountName: string | null;
-  bankAccountNumber: string | null;
+  bankAccountMasked: string | null;
   bankIfsc: string | null;
   bankName: string | null;
   bankBranch: string | null;
+  businessName: string | null;
+  businessType: string | null;
   cancelledChequeFileName: string | null;
 };
 
@@ -62,44 +85,52 @@ export async function getMyKycProfile(userId: string): Promise<MyKycProfile> {
     throw new HttpError(403, "Account is not active", "ACCOUNT_INACTIVE");
   }
 
-  let panNumber: string | null = null;
-  let aadhaarNumber: string | null = null;
+  let panMasked: string | null = null;
+  let aadhaarMasked: string | null = null;
   try {
     if (user.panNumberEncrypted) {
       const pan = decryptPII(user.panNumberEncrypted).toUpperCase().replace(/[^A-Z0-9]/g, "");
-      panNumber = /^[A-Z]{5}\d{4}[A-Z]$/.test(pan) ? pan : null;
+      if (/^[A-Z]{5}\d{4}[A-Z]$/.test(pan)) panMasked = maskPan(pan);
     }
     if (user.aadhaarNumberEncrypted) {
       const digits = decryptPII(user.aadhaarNumberEncrypted).replace(/\D/g, "");
-      aadhaarNumber = /^\d{12}$/.test(digits) ? digits : null;
+      if (/^\d{12}$/.test(digits)) aadhaarMasked = maskAadhaar(digits);
     }
   } catch {
-    panNumber = null;
-    aadhaarNumber = null;
+    panMasked = null;
+    aadhaarMasked = null;
   }
+  const hasDocs = Boolean(panMasked && aadhaarMasked);
 
   const audit = await findLatestAuditLog({ userId, action: "kyc.submit" });
   const meta = (audit?.metadata ?? {}) as Record<string, unknown>;
+  const accountRaw = metaString(meta, "bankAccountNumber");
 
   return {
     kycStatus: user.kycStatus,
-    hasKycDocs: Boolean(panNumber && aadhaarNumber),
+    hasKycDocs: hasDocs,
     submittedAt: audit?.createdAt ? audit.createdAt.toISOString() : null,
+    uid: user.uid,
+    mobile: user.mobile,
     fullName: user.name || null,
     email: user.email ?? null,
     dob: metaString(meta, "dob"),
+    gender: metaString(meta, "gender"),
+    fatherName: metaString(meta, "fatherName"),
     address: metaString(meta, "address"),
     city: metaString(meta, "city") || metaString(meta, "district"),
     district: metaString(meta, "district"),
     state: metaString(meta, "state"),
     pincode: metaString(meta, "pincode"),
-    aadhaarNumber,
-    panNumber,
+    aadhaarMasked,
+    panMasked,
     bankAccountName: metaString(meta, "bankAccountName"),
-    bankAccountNumber: metaString(meta, "bankAccountNumber"),
+    bankAccountMasked: accountRaw ? maskAccount(accountRaw) : null,
     bankIfsc: metaString(meta, "bankIfsc"),
     bankName: metaString(meta, "bankName"),
     bankBranch: metaString(meta, "bankBranch"),
+    businessName: metaString(meta, "businessName"),
+    businessType: metaString(meta, "businessType"),
     cancelledChequeFileName: metaString(meta, "cancelledChequeFileName"),
   };
 }
