@@ -337,28 +337,12 @@ export function AccountScreen() {
             onPress={() => setShowProfile(true)}
           />
           <MenuRow
-            icon={Landmark}
-            label="Bank accounts"
-            subtitle="link & manage bank accounts"
-            tokens={tokens}
-            onPress={() => setShowSettlements(true)}
-          />
-          <MenuRow
             icon={Smartphone}
             label="Devices"
             subtitle="add, activate or repair your devices"
             tokens={tokens}
             onPress={() => setShowDevicesHub(true)}
           />
-          {user.role === "retailer" ? (
-            <MenuRow
-              icon={Wallet}
-              label="Add Money"
-              subtitle="fund your wallet"
-              tokens={tokens}
-              onPress={() => setShowFund(true)}
-            />
-          ) : null}
           {user.role === "retailer" && !user.hasInstantpayOutlet ? (
             <MenuRow
               icon={ShieldCheck}
