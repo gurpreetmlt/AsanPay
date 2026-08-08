@@ -14,7 +14,6 @@ import {
 import { toast } from "react-hot-toast";
 import { AppShell } from "@/components/layout/AppShell";
 import { FundForm } from "@/components/dashboard/FundForm";
-import { FundRequestForm } from "@/components/dashboard/FundRequestForm";
 import { PullForm } from "@/components/dashboard/PullForm";
 import { fetchApi } from "@/lib/api";
 import { B, initials, roleFromUserRole } from "@/lib/brand";
@@ -38,7 +37,6 @@ export default function WalletPage() {
   const [downline, setDownline] = useState<DownlineUser[]>([]);
   const [fundTarget, setFundTarget] = useState<DownlineUser | null>(null);
   const [pullTarget, setPullTarget] = useState<DownlineUser | null>(null);
-  const [showFundRequest, setShowFundRequest] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -118,7 +116,7 @@ export default function WalletPage() {
                     label: "Add Money",
                     action: () =>
                       isRetailer
-                        ? setShowFundRequest(true)
+                        ? router.push("/fund-request")
                         : toast("Ask your upline to fund your balance, or use Collect"),
                   },
                   {
@@ -168,7 +166,7 @@ export default function WalletPage() {
                     label: "Add Money",
                     action: () =>
                       isRetailer
-                        ? setShowFundRequest(true)
+                        ? router.push("/fund-request")
                         : toast("Ask your upline to fund your balance, or use Collect"),
                   },
                   {
@@ -419,9 +417,6 @@ export default function WalletPage() {
           onClose={() => setPullTarget(null)}
           onSuccess={() => void load()}
         />
-      )}
-      {showFundRequest && (
-        <FundRequestForm onClose={() => setShowFundRequest(false)} onSuccess={() => void load()} />
       )}
     </AppShell>
   );

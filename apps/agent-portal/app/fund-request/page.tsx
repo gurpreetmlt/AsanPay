@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { PlusCircle, RefreshCcw } from "lucide-react";
+import { RefreshCcw } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { AppShell } from "@/components/layout/AppShell";
 import { FundRequestForm } from "@/components/dashboard/FundRequestForm";
@@ -36,7 +36,6 @@ export default function FundRequestPage() {
   const user = useAuthStore((s) => s.user);
   const [rows, setRows] = useState<FundRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -88,18 +87,14 @@ export default function FundRequestPage() {
               <RefreshCcw size={15} />
               Refresh
             </button>
-            <button
-              type="button"
-              onClick={() => setShowForm(true)}
-              className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold text-white"
-              style={{ background: B.badgeGrad }}
-            >
-              <PlusCircle size={15} />
-              New request
-            </button>
           </div>
         </div>
 
+        <FundRequestForm onSuccess={() => void load()} />
+
+        <h2 className="text-lg font-bold" style={{ color: B.blue }}>
+          Your requests
+        </h2>
         <div className="overflow-hidden rounded-2xl border bg-white" style={{ borderColor: B.border }}>
           <table className="w-full text-left text-[14px]">
             <thead>
@@ -124,7 +119,7 @@ export default function FundRequestPage() {
               {!loading && rows.length === 0 && (
                 <tr>
                   <td colSpan={4} className="px-4 py-8 text-center text-[14px]" style={{ color: B.muted }}>
-                    No fund requests yet — tap New request after you deposit
+                    No fund requests yet — submit one above after you deposit
                   </td>
                 </tr>
               )}
@@ -155,16 +150,6 @@ export default function FundRequestPage() {
           </table>
         </div>
       </div>
-
-      {showForm && (
-        <FundRequestForm
-          onClose={() => setShowForm(false)}
-          onSuccess={() => {
-            setShowForm(false);
-            void load();
-          }}
-        />
-      )}
     </AppShell>
   );
 }
