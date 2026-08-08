@@ -229,7 +229,8 @@ export default function PromotionsPage() {
             className="rounded-xl border px-4 py-3 text-sm"
             style={{ borderColor: B.border, background: `${B.blue}08`, color: B.muted }}
           >
-            These slides appear on the right side of the agent login page. Upload an image, mark
+            These slides appear on the left of the agent login page. Use exactly{" "}
+            <strong style={{ color: B.blue }}>1200 × 1800 px</strong> (portrait, under 1.4 MB). Mark
             Active, then Save.
           </div>
         ) : null}

@@ -289,8 +289,11 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen w-full font-sans">
-      {/* 1. Promo slider (wide — full image) */}
-      <div className="relative hidden min-h-screen min-w-0 flex-1 lg:block">
+      {/* 1. Promo slider — fixed 2:3 panel (matches design size 1200×1800) */}
+      <div
+        className="relative hidden min-h-screen flex-shrink-0 lg:block"
+        style={{ width: "min(66.666vh, calc(100vw - 520px))" }}
+      >
         <div className="absolute inset-0">
           <PromoSlider
             placement="login"
@@ -301,9 +304,9 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* 2. Login (wider so slider image fits without side bars) */}
+      {/* 2. Login — fills remaining width */}
       <div
-        className="flex w-full flex-shrink-0 items-center justify-center px-5 py-8 sm:px-8 lg:w-[520px] xl:w-[560px]"
+        className="flex min-w-0 flex-1 items-center justify-center px-5 py-8 sm:px-8"
         style={{ background: "#fff" }}
       >
         <div className="w-full max-w-[440px]">
