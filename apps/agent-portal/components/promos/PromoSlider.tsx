@@ -148,7 +148,7 @@ export function PromoSlider({
             <img
               src={resolvePromoImageSrc(s.imageUrl)}
               alt={s.title || "Promotion"}
-              className="h-full w-full object-cover"
+              className={`h-full w-full ${placement === "login" ? "object-contain bg-[#0B2A9A]" : "object-cover"}`}
               draggable={false}
               onError={() =>
                 setBrokenIds((prev) => (prev.includes(s.id) ? prev : [...prev, s.id]))
