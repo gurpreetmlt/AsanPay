@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import { ArrowLeft, Banknote, Building2, ChevronRight, CreditCard, Info, Landmark, Wallet, X, Zap } from "lucide-react";
+import { useEffect, useRef, useState, type FormEvent, type MouseEvent } from "react";
+import { ArrowLeft, Banknote, Building2, Check, ChevronRight, Copy, CreditCard, Info, Landmark, Wallet, X, Zap } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "react-hot-toast";
 import api, { fetchApi } from "@/lib/api";
@@ -355,6 +355,37 @@ function UpiStep({
 }
 
 /** Company bank accounts as a "credit card" slider — shared by Bank Transfer and the Cash Deposit confirm step. */
+function CopyField({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function copy(e: MouseEvent) {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard permission denied — silently ignore, value is still selectable text */
+    }
+  }
+
+  return (
+    <div className="mt-2 flex items-center justify-between gap-2">
+      <div>
+        <p className="text-[10px] font-bold uppercase" style={{ color: B.muted }}>
+          {label}
+        </p>
+        <p className="text-[13px] font-bold" style={{ color: B.blue }}>
+          {value}
+        </p>
+      </div>
+      <button type="button" onClick={copy} className="shrink-0 rounded-lg p-1.5 hover:bg-black/5" aria-label={`Copy ${label}`}>
+        {copied ? <Check size={14} style={{ color: B.green }} /> : <Copy size={14} style={{ color: B.blue }} />}
+      </button>
+    </div>
+  );
+}
+
 function BankCardSlider({
   banks,
   myVan,
@@ -373,58 +404,53 @@ function BankCardSlider({
         const isMine = myVan?.bankAccountId === b.id;
         const isActive = b.isActive !== false;
         return (
-          <button
+          <div
             key={b.id}
-            type="button"
+            role="button"
+            tabIndex={0}
             onClick={() => onSelect(b.id)}
-            className="w-60 shrink-0 rounded-2xl border-2 p-4 text-left"
+            onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onSelect(b.id)}
+            className="w-64 shrink-0 cursor-pointer rounded-2xl border-2 p-4 text-left shadow-sm transition-shadow hover:shadow-md"
             style={{
               borderColor: active ? B.blue : B.border,
               background: active ? `${B.blue}0D` : "#fff",
               opacity: isActive ? 1 : 0.5,
             }}
           >
-            <div className="mb-2.5 flex items-center gap-2">
-              <Banknote size={18} style={{ color: B.blue }} />
+            <div className="flex items-center gap-2">
+              <div
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+                style={{ background: `${B.blue}14` }}
+              >
+                <Banknote size={16} style={{ color: B.blue }} />
+              </div>
               <span className="flex-1 truncate text-sm font-extrabold" style={{ color: B.blue }}>
                 {b.bankName}
               </span>
-              {active && <span className="h-2 w-2 rounded-full" style={{ background: B.blue }} />}
+              {active && (
+                <span
+                  className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full"
+                  style={{ background: B.blue }}
+                >
+                  <Check size={11} color="#fff" />
+                </span>
+              )}
             </div>
             {!isActive ? (
-              <p className="text-xs font-bold" style={{ color: "#dc2626" }}>
+              <p className="mt-2 text-xs font-bold" style={{ color: "#dc2626" }}>
                 Currently unavailable
               </p>
             ) : (
-              <>
+              <div className="divide-y" style={{ borderColor: B.border }}>
                 {isMine && myVan?.vanNumber ? (
-                  <>
-                    <p className="mt-2 text-[10px] font-bold uppercase" style={{ color: B.muted }}>
-                      Your Virtual A/C No.
-                    </p>
-                    <p className="text-[13px] font-bold" style={{ color: B.blue }}>
-                      {myVan.vanNumber}
-                    </p>
-                  </>
+                  <CopyField label="Your Virtual A/C No." value={myVan.vanNumber} />
                 ) : (
-                  <>
-                    <p className="mt-2 text-[10px] font-bold uppercase" style={{ color: B.muted }}>
-                      A/C No. (last 4)
-                    </p>
-                    <p className="text-[13px] font-bold" style={{ color: B.blue }}>
-                      ****{b.accountNumberLast4}
-                    </p>
-                  </>
+                  <CopyField label="A/C No. (last 4)" value={`****${b.accountNumberLast4}`} />
                 )}
-                <p className="mt-2 text-[10px] font-bold uppercase" style={{ color: B.muted }}>
-                  IFSC Code
-                </p>
-                <p className="text-[13px] font-bold" style={{ color: B.blue }}>
-                  {b.ifsc}
-                </p>
-              </>
+                <CopyField label="IFSC Code" value={b.ifsc} />
+              </div>
             )}
-          </button>
+          </div>
         );
       })}
     </div>

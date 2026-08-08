@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { launchImageLibrary } from "react-native-image-picker";
+import Clipboard from "@react-native-clipboard/clipboard";
 // The monorepo hoists a single node_modules with multiple React copies (web uses 19, this app
 // uses 18); react-native-qrcode-svg's class-component types resolve against the wrong React
 // namespace as a result, so TS sees an invalid JSX component even though it renders fine.
@@ -21,7 +22,9 @@ import {
   ArrowLeft,
   Banknote,
   Building2,
+  Check,
   ChevronRight,
+  Copy,
   CreditCard,
   HelpCircle,
   Info,
@@ -382,6 +385,31 @@ function UpiStep({
 }
 
 /** Company bank accounts as a horizontal "credit card" slider — shared by Bank Transfer and the Cash Deposit confirm step. */
+function CopyField({ label, value }: { label: string; value: string }) {
+  const { tokens } = useTheme();
+  const [copied, setCopied] = useState(false);
+
+  function copy() {
+    Clipboard.setString(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  return (
+    <View style={cardStyles.fieldRow}>
+      <View style={{ flex: 1 }}>
+        <Text style={[cardStyles.fieldLabel, { color: tokens.sub }]}>{label}</Text>
+        <Text selectable style={[cardStyles.fieldValue, { color: tokens.txt }]}>
+          {value}
+        </Text>
+      </View>
+      <Pressable onPress={copy} hitSlop={8} style={cardStyles.copyBtn}>
+        {copied ? <Check size={15} color={colors.green} /> : <Copy size={15} color={colors.blueFlat} />}
+      </Pressable>
+    </View>
+  );
+}
+
 function BankCardSlider({
   banks,
   myVan,
@@ -395,7 +423,7 @@ function BankCardSlider({
 }) {
   const { tokens } = useTheme();
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 16 }}>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 16, paddingVertical: 4 }}>
       {banks.map((b) => {
         const active = selected === b.id;
         const isMine = myVan?.bankAccountId === b.id;
@@ -409,40 +437,35 @@ function BankCardSlider({
                 borderColor: active ? colors.blueFlat : tokens.cardBorder,
                 backgroundColor: active ? `${colors.blueFlat}0D` : tokens.card,
                 opacity: b.isActive ? 1 : 0.5,
+                shadowOpacity: active ? 0.12 : 0.05,
               },
             ]}
           >
             <View style={cardStyles.bankCardHeader}>
-              <Banknote size={18} color={colors.blueFlat} />
+              <View style={[cardStyles.bankIconWrap, { backgroundColor: `${colors.blueFlat}14` }]}>
+                <Banknote size={16} color={colors.blueFlat} />
+              </View>
               <Text style={[cardStyles.bankName, { color: tokens.txt }]} numberOfLines={1}>
                 {b.bankName}
               </Text>
-              {active ? <View style={cardStyles.checkDot} /> : null}
+              {active ? (
+                <View style={cardStyles.selectedBadge}>
+                  <Check size={11} color="#fff" />
+                </View>
+              ) : null}
             </View>
             {!b.isActive ? (
               <Text style={cardStyles.downNote}>Currently unavailable</Text>
             ) : (
-              <>
+              <View style={{ marginTop: 4 }}>
                 {isMine && myVan?.vanNumber ? (
-                  <>
-                    <Text style={[cardStyles.fieldLabel, { color: tokens.sub }]}>Your Virtual A/C No.</Text>
-                    <Text selectable style={[cardStyles.fieldValue, { color: tokens.txt }]}>
-                      {myVan.vanNumber}
-                    </Text>
-                  </>
+                  <CopyField label="Your Virtual A/C No." value={myVan.vanNumber} />
                 ) : (
-                  <>
-                    <Text style={[cardStyles.fieldLabel, { color: tokens.sub }]}>A/C No. (last 4)</Text>
-                    <Text selectable style={[cardStyles.fieldValue, { color: tokens.txt }]}>
-                      ****{b.accountNumberLast4}
-                    </Text>
-                  </>
+                  <CopyField label="A/C No. (last 4)" value={`****${b.accountNumberLast4}`} />
                 )}
-                <Text style={[cardStyles.fieldLabel, { color: tokens.sub }]}>IFSC Code</Text>
-                <Text selectable style={[cardStyles.fieldValue, { color: tokens.txt }]}>
-                  {b.ifsc}
-                </Text>
-              </>
+                <View style={[cardStyles.fieldDivider, { backgroundColor: tokens.cardBorder }]} />
+                <CopyField label="IFSC Code" value={b.ifsc} />
+              </View>
             )}
           </Pressable>
         );
@@ -490,11 +513,32 @@ function BankStep({
 }
 
 const cardStyles = StyleSheet.create({
-  bankCard: { width: 240, borderRadius: 16, borderWidth: 1.5, padding: 16, marginRight: 12 },
-  bankCardHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
-  bankName: { fontSize: 15, fontWeight: "800", flex: 1 },
-  checkDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.blueFlat },
-  fieldLabel: { fontSize: 10.5, fontWeight: "700", marginTop: 8, textTransform: "uppercase" },
+  bankCard: {
+    width: 260,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    padding: 16,
+    marginRight: 12,
+    shadowColor: "#0B2A9A",
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  bankCardHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
+  bankIconWrap: { width: 30, height: 30, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  bankName: { fontSize: 14.5, fontWeight: "800", flex: 1 },
+  selectedBadge: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: colors.blueFlat,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fieldRow: { flexDirection: "row", alignItems: "center", paddingVertical: 6 },
+  fieldDivider: { height: 1, marginVertical: 2 },
+  copyBtn: { width: 28, height: 28, alignItems: "center", justifyContent: "center" },
+  fieldLabel: { fontSize: 10.5, fontWeight: "700", textTransform: "uppercase" },
   fieldValue: { fontSize: 13.5, fontWeight: "700", marginTop: 2 },
   downNote: { fontSize: 12.5, fontWeight: "700", color: colors.danger, marginTop: 4 },
 });
