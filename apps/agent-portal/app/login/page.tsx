@@ -301,12 +301,12 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* 2. Login */}
+      {/* 2. Login (wider so slider image fits without side bars) */}
       <div
-        className="flex w-full flex-shrink-0 items-center justify-center px-5 py-8 sm:px-8 lg:w-[420px] xl:w-[460px]"
+        className="flex w-full flex-shrink-0 items-center justify-center px-5 py-8 sm:px-8 lg:w-[520px] xl:w-[560px]"
         style={{ background: "#fff" }}
       >
-        <div className="w-full max-w-[400px]">
+        <div className="w-full max-w-[440px]">
           <div className="mb-6">
             <AsanPayLogo width={200} variant="dark" />
           </div>
