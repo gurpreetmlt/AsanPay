@@ -50,6 +50,9 @@ export interface AgentDeviceRow {
   vendor: string | null;
   model: string | null;
   rdLicenseExpiry: Date | null;
+  invoiceDate: Date | null;
+  invoiceNumber: string | null;
+  remarks: string | null;
   registeredAt: Date;
 }
 
@@ -61,6 +64,9 @@ export async function listActiveDevices(userId: string): Promise<AgentDeviceRow[
       vendor: agentDevices.vendor,
       model: agentDevices.model,
       rdLicenseExpiry: agentDevices.rdLicenseExpiry,
+      invoiceDate: agentDevices.invoiceDate,
+      invoiceNumber: agentDevices.invoiceNumber,
+      remarks: agentDevices.remarks,
       registeredAt: agentDevices.registeredAt,
     })
     .from(agentDevices)
@@ -125,6 +131,9 @@ export async function registerDevice(params: {
   vendor?: string;
   model?: string;
   rdLicenseExpiry?: Date | null;
+  invoiceDate?: Date | null;
+  invoiceNumber?: string;
+  remarks?: string;
   otp: string;
   ip?: string | null;
 }): Promise<AgentDeviceRow> {
@@ -153,6 +162,9 @@ export async function registerDevice(params: {
         vendor: params.vendor ?? null,
         model: params.model ?? null,
         rdLicenseExpiry: params.rdLicenseExpiry ?? null,
+        invoiceDate: params.invoiceDate ?? null,
+        invoiceNumber: params.invoiceNumber ?? null,
+        remarks: params.remarks ?? null,
         registeredIp: params.ip ?? null,
       })
       .returning({
@@ -161,6 +173,9 @@ export async function registerDevice(params: {
         vendor: agentDevices.vendor,
         model: agentDevices.model,
         rdLicenseExpiry: agentDevices.rdLicenseExpiry,
+        invoiceDate: agentDevices.invoiceDate,
+        invoiceNumber: agentDevices.invoiceNumber,
+        remarks: agentDevices.remarks,
         registeredAt: agentDevices.registeredAt,
       });
   } catch (err) {

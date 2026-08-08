@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
-import { Fingerprint, Plus, X, AlertTriangle } from "lucide-react-native";
+import DateTimePicker, { type DateTimePickerEvent } from "@react-native-community/datetimepicker";
+import { Fingerprint, Plus, X, AlertTriangle, Calendar } from "lucide-react-native";
 import type { ApiResponse } from "@asanpay/shared-types";
 import { ModalSheet } from "../../components/ModalSheet";
 import { PinInput } from "../../components/PinInput";
@@ -17,10 +18,16 @@ interface DeviceRow {
   vendor: string | null;
   model: string | null;
   rdLicenseExpiry: string | null;
+  invoiceNumber: string | null;
   registeredAt: string;
 }
 
 const MAX_DEVICES = 3; // mirrors backend MAX_AGENT_DEVICES default; server is the source of truth
+const VENDORS = ["Mantra", "Morpho", "Startek", "Other"] as const;
+
+function isoDateOnly(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
 
 function daysUntil(iso: string | null): number | null {
   if (!iso) return null;
@@ -46,7 +53,12 @@ export function BiometricDevicesModal({ visible, onClose }: Props) {
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
   const [serial, setSerial] = useState("");
-  const [vendor, setVendor] = useState("");
+  const [vendor, setVendor] = useState<(typeof VENDORS)[number]>(VENDORS[0]);
+  const [vendorOther, setVendorOther] = useState("");
+  const [invoiceDate, setInvoiceDate] = useState<Date | null>(null);
+  const [showInvoiceDatePicker, setShowInvoiceDatePicker] = useState(false);
+  const [invoiceNumber, setInvoiceNumber] = useState("");
+  const [remarks, setRemarks] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function load() {
@@ -70,7 +82,11 @@ export function BiometricDevicesModal({ visible, onClose }: Props) {
     setOtpSent(false);
     setOtp("");
     setSerial("");
-    setVendor("");
+    setVendor(VENDORS[0]);
+    setVendorOther("");
+    setInvoiceDate(null);
+    setInvoiceNumber("");
+    setRemarks("");
   }
 
   async function requestOtp() {
@@ -96,9 +112,13 @@ export function BiometricDevicesModal({ visible, onClose }: Props) {
     }
     setBusy(true);
     try {
+      const vendorValue = vendor === "Other" ? vendorOther.trim() : vendor;
       await api.post("/devices", {
         serial: serial.trim(),
-        vendor: vendor.trim() || undefined,
+        vendor: vendorValue || undefined,
+        invoiceDate: invoiceDate ? isoDateOnly(invoiceDate) : undefined,
+        invoiceNumber: invoiceNumber.trim() || undefined,
+        remarks: remarks.trim() || undefined,
         otp,
       });
       resetForm();
@@ -201,12 +221,79 @@ export function BiometricDevicesModal({ visible, onClose }: Props) {
             placeholder="Device serial number"
             placeholderTextColor={colors.textLight}
           />
+
+          <Text style={[modalStyles.fieldLabel, { color: tokens.sub }]}>Device company</Text>
+          <View style={modalStyles.chipRow}>
+            {VENDORS.map((v) => (
+              <Pressable
+                key={v}
+                onPress={() => !otpSent && setVendor(v)}
+                style={[
+                  modalStyles.chip,
+                  {
+                    borderColor: vendor === v ? colors.blueFlat : tokens.cardBorder,
+                    backgroundColor: vendor === v ? `${colors.blueFlat}14` : tokens.card,
+                  },
+                ]}
+              >
+                <Text style={{ color: tokens.txt, fontWeight: "700", fontSize: 12.5 }}>{v}</Text>
+              </Pressable>
+            ))}
+          </View>
+          {vendor === "Other" ? (
+            <TextInput
+              style={[modalStyles.input, { borderColor: tokens.cardBorder, color: tokens.txt }]}
+              value={vendorOther}
+              onChangeText={setVendorOther}
+              editable={!otpSent}
+              placeholder="Company name"
+              placeholderTextColor={colors.textLight}
+            />
+          ) : null}
+
+          <Text style={[modalStyles.fieldLabel, { color: tokens.sub }]}>Invoice date — optional</Text>
+          <Pressable
+            onPress={() => !otpSent && setShowInvoiceDatePicker(true)}
+            style={[
+              modalStyles.input,
+              { borderColor: tokens.cardBorder, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+            ]}
+          >
+            <Text style={{ color: invoiceDate ? tokens.txt : colors.textLight, fontSize: 14 }}>
+              {invoiceDate ? isoDateOnly(invoiceDate) : "Select invoice date"}
+            </Text>
+            <Calendar size={16} color={tokens.sub} />
+          </Pressable>
+          {showInvoiceDatePicker ? (
+            <DateTimePicker
+              value={invoiceDate ?? new Date()}
+              mode="date"
+              display={Platform.OS === "ios" ? "spinner" : "default"}
+              maximumDate={new Date()}
+              onChange={(event: DateTimePickerEvent, date?: Date) => {
+                if (Platform.OS === "android") setShowInvoiceDatePicker(false);
+                if (event.type === "dismissed") return;
+                if (date) setInvoiceDate(date);
+                if (Platform.OS === "ios" && event.type === "set") setShowInvoiceDatePicker(false);
+              }}
+            />
+          ) : null}
+
           <TextInput
             style={[modalStyles.input, { borderColor: tokens.cardBorder, color: tokens.txt }]}
-            value={vendor}
-            onChangeText={setVendor}
+            value={invoiceNumber}
+            onChangeText={setInvoiceNumber}
             editable={!otpSent}
-            placeholder="Vendor (e.g. Mantra) — optional"
+            placeholder="Invoice number — optional"
+            placeholderTextColor={colors.textLight}
+          />
+          <TextInput
+            style={[modalStyles.input, { borderColor: tokens.cardBorder, color: tokens.txt, height: 70 }]}
+            value={remarks}
+            onChangeText={setRemarks}
+            editable={!otpSent}
+            multiline
+            placeholder="Remarks — optional"
             placeholderTextColor={colors.textLight}
           />
 
@@ -234,6 +321,9 @@ export function BiometricDevicesModal({ visible, onClose }: Props) {
 
 const modalStyles = StyleSheet.create({
   sub: { fontSize: 12.5, fontWeight: "600" },
+  fieldLabel: { fontSize: 12, fontWeight: "700", marginBottom: 6, marginTop: 2 },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 10 },
+  chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
   row: {
     flexDirection: "row",
     alignItems: "center",

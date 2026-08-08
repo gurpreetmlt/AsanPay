@@ -26,6 +26,10 @@ export const agentDevices = pgTable(
     model: varchar("model", { length: 60 }),
     /** RD licence expiry. Alerted 15 days out — an expired licence looks like a dead scanner. */
     rdLicenseExpiry: timestamp("rd_license_expiry", { withTimezone: true }),
+    /** Purchase paperwork, captured once at registration so it's on hand for a later repair/RMA claim. */
+    invoiceDate: timestamp("invoice_date", { withTimezone: true }),
+    invoiceNumber: varchar("invoice_number", { length: 60 }),
+    remarks: varchar("remarks", { length: 300 }),
     registeredAt: timestamp("registered_at", { withTimezone: true }).notNull().defaultNow(),
     registeredIp: varchar("registered_ip", { length: 45 }),
     deregisteredAt: timestamp("deregistered_at", { withTimezone: true }),

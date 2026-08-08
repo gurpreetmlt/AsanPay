@@ -81,7 +81,12 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
 
   let upstream = await forward(req, path, accessToken);
 
-  if (!isAuth && upstream.status === 401 && refreshToken) {
+  // Credential-entry endpoints (login/otp/mpin/signup) are always POST and a 401 there means
+  // "wrong credentials", not "expired access token" — never retry those. GET auth endpoints
+  // (e.g. /auth/me) only ever fail 401 because the access cookie expired, so they need the same
+  // silent-refresh treatment as everything else.
+  const canRetry = !isAuth || req.method === "GET";
+  if (canRetry && upstream.status === 401 && refreshToken) {
     const refreshed = await refreshOnce(refreshToken);
 
     if (refreshed) {

@@ -45,6 +45,9 @@ const registerBody = z.object({
   vendor: z.string().trim().max(60).optional(),
   model: z.string().trim().max(60).optional(),
   rdLicenseExpiry: z.coerce.date().optional(),
+  invoiceDate: z.coerce.date().optional(),
+  invoiceNumber: z.string().trim().max(60).optional(),
+  remarks: z.string().trim().max(300).optional(),
   otp: z.string().regex(/^\d{6}$/),
 });
 
@@ -57,6 +60,9 @@ agentDeviceRouter.post("/", async (req, res) => {
     vendor: body.vendor,
     model: body.model,
     rdLicenseExpiry: body.rdLicenseExpiry ?? null,
+    invoiceDate: body.invoiceDate ?? null,
+    invoiceNumber: body.invoiceNumber,
+    remarks: body.remarks,
     otp: body.otp,
     ip: req.ip ?? null,
   });

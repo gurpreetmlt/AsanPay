@@ -17,7 +17,6 @@ export default function SetPinPage() {
   const router = useRouter();
   const hydrated = useAuthHydrated();
   const accessToken = useAuthStore((s) => s.accessToken);
-  const refreshToken = useAuthStore((s) => s.refreshToken);
   const user = useAuthStore((s) => s.user);
   const setUser = useAuthStore((s) => s.setUser);
   const [pin, setPin] = useState("");
@@ -53,7 +52,7 @@ export default function SetPinPage() {
       if (!data.success) throw new Error(data.message);
       setUser(data.data.user);
       toast.success("PIN set successfully");
-      if (isWebAuthnAvailable() && refreshToken && refreshToken !== "cookie" && user) setOfferBio(true);
+      if (isWebAuthnAvailable() && user) setOfferBio(true);
       else router.replace("/dashboard");
     } catch (err) {
       toast.error(extractApiError(err, "Failed to set PIN"));
@@ -63,8 +62,7 @@ export default function SetPinPage() {
   }
 
   async function enableBio() {
-    if (!user || !refreshToken || refreshToken === "cookie") {
-      toast.error("Biometric setup unavailable in secure web session mode");
+    if (!user) {
       router.replace("/dashboard");
       return;
     }
@@ -73,7 +71,6 @@ export default function SetPinPage() {
         userId: user.id,
         userName: user.mobile,
         userLabel: user.name,
-        refreshToken,
       });
       toast.success("Fingerprint / Face ID enabled for this browser");
       router.replace("/dashboard");

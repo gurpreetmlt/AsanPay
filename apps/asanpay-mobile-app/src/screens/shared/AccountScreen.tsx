@@ -26,6 +26,7 @@ import { FundRequestModal } from "./FundRequestScreen";
 import { RegisterOutletModal } from "./RegisterOutletModal";
 import { BioKycModal } from "./BioKycModal";
 import { BiometricDevicesModal } from "./BiometricDevicesModal";
+import { DeviceRepairModal } from "./DeviceRepairModal";
 
 const THEME_OPTIONS: { key: ThemeMode; label: string; icon: typeof Sun }[] = [
   { key: "light", label: "Light", icon: Sun },
@@ -42,6 +43,7 @@ export function AccountScreen() {
   const [showSetMpin, setShowSetMpin] = useState(false);
   const [showDevices, setShowDevices] = useState(false);
   const [showBiometricDevices, setShowBiometricDevices] = useState(false);
+  const [showDeviceRepair, setShowDeviceRepair] = useState(false);
   const [bioEnabled, setBioEnabled] = useState(false);
   const [showSupport, setShowSupport] = useState(false);
   const [showSettlements, setShowSettlements] = useState(false);
@@ -193,6 +195,15 @@ export function AccountScreen() {
             <ChevronRight size={18} color={tokens.mute} />
           </Pressable>
         ) : null}
+        {(user.role === "retailer" || user.role === "distributor") ? (
+          <Pressable
+            style={[styles.menuItem, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
+            onPress={() => setShowDeviceRepair(true)}
+          >
+            <Text style={[styles.menuText, { color: tokens.txt }]}>Device repair</Text>
+            <ChevronRight size={18} color={tokens.mute} />
+          </Pressable>
+        ) : null}
         <Pressable
           style={[styles.menuItem, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
           onPress={() => setShowSettlements(true)}
@@ -264,6 +275,7 @@ export function AccountScreen() {
         visible={showBiometricDevices}
         onClose={() => setShowBiometricDevices(false)}
       />
+      <DeviceRepairModal visible={showDeviceRepair} onClose={() => setShowDeviceRepair(false)} />
       <SupportModal visible={showSupport} onClose={() => setShowSupport(false)} />
       <SettlementsModal visible={showSettlements} onClose={() => setShowSettlements(false)} />
       <FundRequestModal visible={showFund} onClose={() => setShowFund(false)} />

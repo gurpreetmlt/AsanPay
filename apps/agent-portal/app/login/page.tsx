@@ -25,7 +25,7 @@ import api from "@/lib/api";
 import { B, ROLES, brand, type Role } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { extractApiError, nextOnboardingPath } from "@/lib/onboarding";
-import { authenticateBiometric, getBiometricStore, saveBiometricStore } from "@/lib/webauthn";
+import { authenticateBiometric, clearBiometricStore, getBiometricStore } from "@/lib/webauthn";
 import { getDeviceId, getDeviceLabel } from "@/lib/deviceId";
 import { clearRememberedLogin, getRememberedLogin, setRememberedLogin, type RememberedLogin } from "@/lib/rememberedLogin";
 
@@ -236,11 +236,9 @@ export default function LoginPage() {
     if (!pending || pin.length !== 4) return;
     setLoading(true);
     try {
-      await api.post(
-        "/auth/txn-pin/verify",
-        { pin },
-        { headers: { Authorization: `Bearer ${pending.accessToken}` } },
-      );
+      // The session cookie was already set server-side when /auth/otp/verify ran — no bearer
+      // token needed here, the proxy authenticates this request from the cookie.
+      await api.post("/auth/txn-pin/verify", { pin });
       finishLogin(pending);
     } catch (err) {
       toast.error(extractApiError(err, "Incorrect PIN"));
@@ -257,24 +255,19 @@ export default function LoginPage() {
         toast.error("OTP se pehle login karke Settings → Enable biometric");
         return;
       }
-      const bio = await authenticateBiometric();
-      const { data } = await api.post<ApiResponse<{ accessToken: string; refreshToken: string }>>("/auth/refresh", {
-        refreshToken: bio.refreshToken,
-      });
-      if (!data.success) throw new Error(data.message);
-      // The server rotates refresh tokens on every /auth/refresh call — the old one bio holds
-      // is now revoked. Without this, the NEXT biometric attempt would present a dead token and
-      // fail (or trip reuse-detection and revoke every session). Persist the new one immediately.
-      saveBiometricStore({ ...bio, refreshToken: data.data.refreshToken });
-      const me = await api.get<ApiResponse<{ user: AuthUser }>>("/auth/me", {
-        headers: { Authorization: `Bearer ${data.data.accessToken}` },
-      });
-      if (me.data.success) {
-        finishLogin({
-          user: me.data.data.user,
-          accessToken: data.data.accessToken,
-          refreshToken: data.data.refreshToken,
-        });
+      await authenticateBiometric();
+      // The session already lives in this browser's httpOnly cookies from the last real login —
+      // biometrics is just a local unlock gate. /auth/me confirms + refreshes it (proxy
+      // silently re-issues the access cookie from the refresh cookie on a 401).
+      try {
+        const me = await api.get<ApiResponse<{ user: AuthUser }>>("/auth/me");
+        if (!me.data.success) throw new Error(me.data.message);
+        finishLogin({ user: me.data.data.user, accessToken: "cookie", refreshToken: "cookie" });
+      } catch {
+        // No valid session cookie left (expired refresh cookie, cleared cookies, etc.) —
+        // biometric unlock has nothing to unlock; fall back to a full login.
+        clearBiometricStore();
+        toast.error("Session expired — please log in again");
       }
     } catch (err) {
       toast.error(extractApiError(err, err instanceof Error ? err.message : "Biometric login failed"));

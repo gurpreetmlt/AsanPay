@@ -59,7 +59,6 @@ export default function SettingsPage() {
   const router = useRouter();
   const hydrated = useAuthHydrated();
   const accessToken = useAuthStore((s) => s.accessToken);
-  const refreshToken = useAuthStore((s) => s.refreshToken);
   const user = useAuthStore((s) => s.user);
   const setUser = useAuthStore((s) => s.setUser);
   const role = roleFromUserRole(user?.role);
@@ -113,10 +112,7 @@ export default function SettingsPage() {
   }
 
   async function handleEnableBiometric() {
-    if (!user || !refreshToken || refreshToken === "cookie") {
-      toast.error("Biometric setup unavailable in secure web session mode");
-      return;
-    }
+    if (!user) return;
     if (!isWebAuthnAvailable()) {
       toast.error("Biometric login not supported on this browser");
       return;
@@ -127,7 +123,6 @@ export default function SettingsPage() {
         userId: user.id,
         userName: user.mobile,
         userLabel: user.name,
-        refreshToken,
       });
       toast.success("Biometric login enabled");
     } catch (err) {

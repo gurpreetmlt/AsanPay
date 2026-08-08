@@ -34,6 +34,8 @@ const STATUS_COLOR: Record<RepairRow["status"], string> = {
   rejected: "#dc2626",
 };
 
+const VENDORS = ["Mantra", "Morpho", "Startek", "Other"] as const;
+
 const ISSUE_TYPES = [
   "Device not connecting",
   "Fingerprint not capturing",
@@ -53,7 +55,10 @@ export function DeviceRepairRequests() {
   const [showForm, setShowForm] = useState(false);
   const [serial, setSerial] = useState("");
   const [deviceType, setDeviceType] = useState("biometric_machine");
+  const [vendor, setVendor] = useState<(typeof VENDORS)[number]>(VENDORS[0]);
+  const [vendorOther, setVendorOther] = useState("");
   const [issueType, setIssueType] = useState(ISSUE_TYPES[0]!);
+  const [invoiceDate, setInvoiceDate] = useState("");
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [remarks, setRemarks] = useState("");
   const [busy, setBusy] = useState(false);
@@ -73,6 +78,9 @@ export function DeviceRepairRequests() {
   function resetForm() {
     setShowForm(false);
     setSerial("");
+    setVendor(VENDORS[0]);
+    setVendorOther("");
+    setInvoiceDate("");
     setInvoiceNumber("");
     setRemarks("");
     setIssueType(ISSUE_TYPES[0]!);
@@ -89,10 +97,13 @@ export function DeviceRepairRequests() {
     }
     setBusy(true);
     try {
+      const vendorValue = vendor === "Other" ? vendorOther.trim() : vendor;
       await api.post("/device-repair-requests", {
         serial: serial.trim(),
         deviceType,
+        vendor: vendorValue || undefined,
         issueType,
+        invoiceDate: invoiceDate || undefined,
         invoiceNumber: invoiceNumber.trim() || undefined,
         remarks: remarks.trim(),
       });
@@ -210,6 +221,39 @@ export function DeviceRepairRequests() {
             style={{ borderColor: B.border, color: B.blue }}
           />
 
+          <div>
+            <p className="mb-1.5 text-xs font-semibold" style={{ color: B.muted }}>
+              Device company
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {VENDORS.map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setVendor(v)}
+                  className="rounded-full border px-3 py-1.5 text-xs font-semibold"
+                  style={{
+                    borderColor: vendor === v ? B.blue : B.border,
+                    background: vendor === v ? `${B.blue}14` : "white",
+                    color: B.blue,
+                  }}
+                >
+                  {v}
+                </button>
+              ))}
+            </div>
+          </div>
+          {vendor === "Other" && (
+            <input
+              type="text"
+              value={vendorOther}
+              onChange={(e) => setVendorOther(e.target.value)}
+              placeholder="Company name"
+              className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none"
+              style={{ borderColor: B.border, color: B.blue }}
+            />
+          )}
+
           <select
             value={issueType}
             onChange={(e) => setIssueType(e.target.value)}
@@ -223,6 +267,19 @@ export function DeviceRepairRequests() {
             ))}
           </select>
 
+          <div>
+            <p className="mb-1.5 text-xs font-semibold" style={{ color: B.muted }}>
+              Invoice date — optional
+            </p>
+            <input
+              type="date"
+              value={invoiceDate}
+              onChange={(e) => setInvoiceDate(e.target.value)}
+              max={new Date().toISOString().slice(0, 10)}
+              className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none"
+              style={{ borderColor: B.border, color: B.blue }}
+            />
+          </div>
           <input
             type="text"
             value={invoiceNumber}

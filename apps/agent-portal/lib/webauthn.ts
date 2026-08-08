@@ -14,9 +14,11 @@ function getBiometricStorage(): Storage | null {
   }
 }
 
+// No refresh token here on purpose — the real session lives entirely in the httpOnly cookies
+// set by /api/proxy. This store is only a local "biometric unlock is set up" marker plus the
+// WebAuthn credential to assert against; it carries nothing an attacker could replay as a session.
 export type BiometricStore = {
   credentialId: string;
-  refreshToken: string;
   userLabel: string;
 };
 
@@ -64,7 +66,6 @@ export async function enableBiometricLogin(opts: {
   userId: string;
   userName: string;
   userLabel: string;
-  refreshToken: string;
 }): Promise<void> {
   if (!isWebAuthnAvailable()) throw new Error("Biometric login not supported on this device/browser");
 
@@ -97,12 +98,11 @@ export async function enableBiometricLogin(opts: {
 
   saveBiometricStore({
     credentialId: bufToB64(cred.rawId),
-    refreshToken: opts.refreshToken,
     userLabel: opts.userLabel,
   });
 }
 
-/** Prompt biometrics then return stored refresh token for /auth/refresh. */
+/** Prompt biometrics to gate access — the session itself comes from the httpOnly cookies. */
 export async function authenticateBiometric(): Promise<BiometricStore> {
   const stored = getBiometricStore();
   if (!stored) throw new Error("Enable biometric login from Settings after PIN setup");

@@ -17,6 +17,7 @@ interface DeviceRow {
 }
 
 const MAX_DEVICES = 3; // mirrors backend MAX_AGENT_DEVICES default; server is the source of truth
+const VENDORS = ["Mantra", "Morpho", "Startek", "Other"] as const;
 
 function daysUntil(iso: string | null): number | null {
   if (!iso) return null;
@@ -34,7 +35,11 @@ export function BiometricDevices() {
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
   const [serial, setSerial] = useState("");
-  const [vendor, setVendor] = useState("");
+  const [vendor, setVendor] = useState<(typeof VENDORS)[number]>(VENDORS[0]);
+  const [vendorOther, setVendorOther] = useState("");
+  const [invoiceDate, setInvoiceDate] = useState("");
+  const [invoiceNumber, setInvoiceNumber] = useState("");
+  const [remarks, setRemarks] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function load() {
@@ -73,9 +78,13 @@ export function BiometricDevices() {
     }
     setBusy(true);
     try {
+      const vendorValue = vendor === "Other" ? vendorOther.trim() : vendor;
       await api.post("/devices", {
         serial: serial.trim(),
-        vendor: vendor.trim() || undefined,
+        vendor: vendorValue || undefined,
+        invoiceDate: invoiceDate || undefined,
+        invoiceNumber: invoiceNumber.trim() || undefined,
+        remarks: remarks.trim() || undefined,
         otp,
       });
       toast.success("Device registered");
@@ -110,7 +119,11 @@ export function BiometricDevices() {
     setOtpSent(false);
     setOtp("");
     setSerial("");
-    setVendor("");
+    setVendor(VENDORS[0]);
+    setVendorOther("");
+    setInvoiceDate("");
+    setInvoiceNumber("");
+    setRemarks("");
   }
 
   const atLimit = (devices?.length ?? 0) >= MAX_DEVICES;
@@ -225,11 +238,69 @@ export function BiometricDevices() {
                 className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none disabled:opacity-60"
                 style={{ borderColor: B.border, color: B.blue }}
               />
+              <div>
+                <p className="mb-1.5 text-xs font-semibold" style={{ color: B.muted }}>
+                  Device company
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {VENDORS.map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      disabled={otpSent}
+                      onClick={() => setVendor(v)}
+                      className="rounded-full border px-3 py-1.5 text-xs font-semibold disabled:opacity-60"
+                      style={{
+                        borderColor: vendor === v ? B.blue : B.border,
+                        background: vendor === v ? `${B.blue}14` : "white",
+                        color: B.blue,
+                      }}
+                    >
+                      {v}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {vendor === "Other" && (
+                <input
+                  type="text"
+                  value={vendorOther}
+                  onChange={(e) => setVendorOther(e.target.value)}
+                  placeholder="Company name"
+                  disabled={otpSent}
+                  className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none disabled:opacity-60"
+                  style={{ borderColor: B.border, color: B.blue }}
+                />
+              )}
+
+              <div>
+                <p className="mb-1.5 text-xs font-semibold" style={{ color: B.muted }}>
+                  Invoice date — optional
+                </p>
+                <input
+                  type="date"
+                  value={invoiceDate}
+                  onChange={(e) => setInvoiceDate(e.target.value)}
+                  max={new Date().toISOString().slice(0, 10)}
+                  disabled={otpSent}
+                  className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none disabled:opacity-60"
+                  style={{ borderColor: B.border, color: B.blue }}
+                />
+              </div>
               <input
                 type="text"
-                value={vendor}
-                onChange={(e) => setVendor(e.target.value)}
-                placeholder="Vendor (e.g. Mantra) — optional"
+                value={invoiceNumber}
+                onChange={(e) => setInvoiceNumber(e.target.value)}
+                placeholder="Invoice number — optional"
+                disabled={otpSent}
+                className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none disabled:opacity-60"
+                style={{ borderColor: B.border, color: B.blue }}
+              />
+              <textarea
+                value={remarks}
+                onChange={(e) => setRemarks(e.target.value)}
+                rows={3}
+                placeholder="Remarks — optional"
                 disabled={otpSent}
                 className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none disabled:opacity-60"
                 style={{ borderColor: B.border, color: B.blue }}
