@@ -19,6 +19,7 @@ class MainApplication : Application(), ReactApplication {
         override fun getPackages(): List<ReactPackage> =
             PackageList(this).packages.apply {
               add(RdServicePackage())
+              add(MockLocationPackage())
             }
 
         override fun getJSMainModuleName(): String = "index"

@@ -1,19 +1,33 @@
+import { NativeModules, Platform } from "react-native";
 import Geolocation from "@react-native-community/geolocation";
+
+const { MockLocation } = NativeModules as {
+  MockLocation?: { isMockLocation(): Promise<boolean | null> };
+};
 
 export interface AepsGeoTag {
   latitude: string;
   longitude: string;
   accuracyMeters?: number;
   /**
-   * NOT populated by this helper — @react-native-community/geolocation does not expose
-   * Android's `Location.isFromMockProvider()` through its JS bridge. Real mock detection needs
-   * a small native module reading that flag off the raw Location object, which does not exist
-   * in this codebase yet (task #21 follow-up). Left undefined here rather than sending a
-   * fabricated `false`, which would read to the backend as "confirmed genuine" when it is
-   * really "unknown" — those are different things, and log-only findings only mean something
-   * if what they log is real.
+   * From the native `MockLocation` module (Android only), which reads
+   * `Location.isFromMockProvider()` off the last known fix — a flag
+   * @react-native-community/geolocation does not expose through its JS bridge. `undefined` means
+   * "unknown" (no native module, iOS, no permission, or no cached fix yet), not "confirmed
+   * genuine" — left unset rather than sending a fabricated `false`, since log-only findings only
+   * mean something if what they log is real.
    */
   isMockLocation?: boolean;
+}
+
+async function detectMockLocation(): Promise<boolean | undefined> {
+  if (Platform.OS !== "android" || !MockLocation) return undefined;
+  try {
+    const result = await MockLocation.isMockLocation();
+    return result ?? undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -26,12 +40,13 @@ export interface AepsGeoTag {
 export function getAepsGeoTag(): Promise<AepsGeoTag | null> {
   return new Promise((resolve) => {
     Geolocation.getCurrentPosition(
-      (pos) => {
+      async (pos) => {
         resolve({
           latitude: pos.coords.latitude.toFixed(6),
           longitude: pos.coords.longitude.toFixed(6),
           accuracyMeters:
             typeof pos.coords.accuracy === "number" ? Math.round(pos.coords.accuracy) : undefined,
+          isMockLocation: await detectMockLocation(),
         });
       },
       () => resolve(null),

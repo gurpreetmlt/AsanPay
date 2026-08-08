@@ -27,6 +27,7 @@ interface Props {
 export function AppLockScreen({ onUnlock }: Props) {
   const user = useAuthStore((s) => s.user);
   const setAuth = useAuthStore((s) => s.setAuth);
+  const logout = useAuthStore((s) => s.logout);
   const [pin, setPin] = useState("");
   const [loading, setLoading] = useState(false);
   const [bioReady, setBioReady] = useState(false);
@@ -91,6 +92,12 @@ export function AppLockScreen({ onUnlock }: Props) {
       await touchRememberedLoginAuth();
       onUnlock();
     } catch (err) {
+      const code = (err as { response?: { data?: { code?: string } } })?.response?.data?.code;
+      if (code === "DEVICE_NOT_TRUSTED") {
+        showAlert("Incorrect PIN", apiError(err, "Please try again"));
+        logout();
+        return;
+      }
       showAlert("Incorrect PIN", apiError(err, "Please try again"));
       setPin("");
     } finally {

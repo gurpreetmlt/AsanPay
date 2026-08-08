@@ -1,7 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState, type MouseEvent } from "react";
-import { Banknote, Building2, Check, Copy, Info, Landmark, Wallet, Zap } from "lucide-react";
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import {
+  Banknote,
+  Building2,
+  Check,
+  ClipboardList,
+  Copy,
+  FileUp,
+  Info,
+  Landmark,
+  RefreshCcw,
+  Wallet,
+  Zap,
+} from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "react-hot-toast";
 import api, { fetchApi } from "@/lib/api";
@@ -27,6 +39,17 @@ interface MyVan {
   ifsc: string;
 }
 
+export interface FundRequestRow {
+  id: string;
+  amount: string;
+  paymentMode: string;
+  referenceNumber: string | null;
+  status: string;
+  displayStatus: string;
+  submittedAt: string;
+  creditedAmount: string | null;
+}
+
 const AMOUNT_PRESETS = ["500", "1000", "2000", "5000"];
 
 async function sha256Hex(file: File): Promise<string> {
@@ -48,10 +71,17 @@ const formatInr = (v: string) => {
   return Number.isFinite(n) ? `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}` : `₹${v}`;
 };
 
-type TabId = "upi" | "bank" | "cashClaim" | "ecollect";
+type TabId = "upi" | "bank" | "cashClaim" | "ecollect" | "history";
 type PaymentMode = "upi" | "neft" | "cash_deposit";
 
-const TABS: { id: TabId; label: string; icon: typeof Wallet; mode: PaymentMode; headline: string; subtext: string }[] = [
+const TABS: {
+  id: TabId;
+  label: string;
+  icon: typeof Wallet;
+  mode?: PaymentMode;
+  headline: string;
+  subtext: string;
+}[] = [
   {
     id: "upi",
     label: "UPI",
@@ -66,7 +96,7 @@ const TABS: { id: TabId; label: string; icon: typeof Wallet; mode: PaymentMode; 
     icon: Landmark,
     mode: "neft",
     headline: "Bank Account Transfer",
-    subtext: "Transfer from a bank account registered with AsanPay to load your wallet instantly.",
+    subtext: "Transfer from your bank to the AsanPay account below, then submit UTR and receipt.",
   },
   {
     id: "cashClaim",
@@ -74,7 +104,7 @@ const TABS: { id: TabId; label: string; icon: typeof Wallet; mode: PaymentMode; 
     icon: Building2,
     mode: "cash_deposit",
     headline: "Deposit Cash & Claim",
-    subtext: "Deposit cash at the bank branch, then upload the slip below — wallet loads in 15–60 minutes after verification.",
+    subtext: "Deposit cash at the bank branch, then upload the slip — credit after verification (15–60 min).",
   },
   {
     id: "ecollect",
@@ -82,9 +112,45 @@ const TABS: { id: TabId; label: string; icon: typeof Wallet; mode: PaymentMode; 
     icon: Zap,
     mode: "cash_deposit",
     headline: "Instant Credit via E-Collect",
-    subtext: "Deposit cash at an E-Collect machine, then upload the receipt below for instant wallet credit.",
+    subtext: "Deposit cash at an E-Collect machine, then upload the receipt for wallet credit.",
+  },
+  {
+    id: "history",
+    label: "Your Request",
+    icon: ClipboardList,
+    headline: "Your requests",
+    subtext: "Track every fund request you submitted — pending, credited, or rejected.",
   },
 ];
+
+function statusTone(status: string, display: string): { bg: string; fg: string; border: string } {
+  const s = `${status} ${display}`.toLowerCase();
+  if (s.includes("credit") || s.includes("approved") || s.includes("success")) {
+    return { bg: "#F0FDF4", fg: "#15803D", border: "#86EFAC" };
+  }
+  if (s.includes("reject") || s.includes("fail") || s.includes("cancel")) {
+    return { bg: "#FEF2F2", fg: "#B91C1C", border: "#FECACA" };
+  }
+  if (s.includes("pending") || s.includes("review") || s.includes("submit")) {
+    return { bg: "#FFF7ED", fg: "#C2410C", border: "#FDBA74" };
+  }
+  return { bg: `${B.blue}08`, fg: B.blueMid, border: B.border };
+}
+
+function FieldLabel({ children, hint }: { children: ReactNode; hint?: string }) {
+  return (
+    <label className="mb-1.5 block">
+      <span className="text-xs font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+        {children}
+      </span>
+      {hint ? (
+        <span className="mt-0.5 block text-[11px] font-medium normal-case tracking-normal" style={{ color: B.muted }}>
+          {hint}
+        </span>
+      ) : null}
+    </label>
+  );
+}
 
 function CopyField({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false);
@@ -94,30 +160,37 @@ function CopyField({ label, value }: { label: string; value: string }) {
     try {
       await navigator.clipboard.writeText(value);
       setCopied(true);
+      toast.success(`${label} copied`);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      /* clipboard permission denied — silently ignore, value is still selectable text */
+      /* ignore */
     }
   }
 
   return (
-    <div className="mt-2 flex items-center justify-between gap-2">
-      <div>
-        <p className="text-[10px] font-bold uppercase" style={{ color: B.muted }}>
+    <div className="flex items-center justify-between gap-3 border-b py-3 last:border-0" style={{ borderColor: B.border }}>
+      <div className="min-w-0">
+        <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: B.muted }}>
           {label}
         </p>
-        <p className="text-[13px] font-bold" style={{ color: B.blue }}>
+        <p className="mt-0.5 truncate font-mono text-sm font-bold" style={{ color: B.blue }}>
           {value}
         </p>
       </div>
-      <button type="button" onClick={copy} className="shrink-0 rounded-lg p-1.5 hover:bg-black/5" aria-label={`Copy ${label}`}>
-        {copied ? <Check size={14} style={{ color: B.green }} /> : <Copy size={14} style={{ color: B.blue }} />}
+      <button
+        type="button"
+        onClick={copy}
+        className="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold"
+        style={{ background: copied ? `${B.green}18` : `${B.blue}10`, color: copied ? B.green : B.blue }}
+        aria-label={`Copy ${label}`}
+      >
+        {copied ? <Check size={13} /> : <Copy size={13} />}
+        {copied ? "Copied" : "Copy"}
       </button>
     </div>
   );
 }
 
-/** Company bank accounts as a "credit card" slider — clicking one drives the "full details" panel below it. */
 function BankCardSlider({
   banks,
   myVan,
@@ -130,91 +203,125 @@ function BankCardSlider({
   onSelect: (id: string) => void;
 }) {
   return (
-    <div className="flex gap-3 overflow-x-auto pb-2">
+    <div className="flex gap-3 overflow-x-auto pb-1">
       {banks.map((b) => {
         const active = selected === b.id;
         const isActive = b.isActive !== false;
         return (
-          <div
+          <button
             key={b.id}
-            role="button"
-            tabIndex={0}
+            type="button"
             onClick={() => onSelect(b.id)}
-            onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onSelect(b.id)}
-            className="w-56 shrink-0 cursor-pointer rounded-2xl border-2 p-4 text-left shadow-sm transition-shadow hover:shadow-md"
+            className="w-[220px] shrink-0 rounded-2xl border-2 p-4 text-left transition-all"
             style={{
               borderColor: active ? B.blue : B.border,
-              background: active ? `${B.blue}0D` : "#fff",
-              opacity: isActive ? 1 : 0.5,
+              background: active ? `${B.blue}0A` : "#fff",
+              boxShadow: active ? `0 0 0 3px ${B.blue}14` : undefined,
+              opacity: isActive ? 1 : 0.55,
             }}
           >
-            <div className="flex items-center gap-2">
+            <div className="flex items-start gap-2">
               <div
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
-                style={{ background: `${B.blue}14` }}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+                style={{ background: active ? B.badgeGrad : `${B.blue}12` }}
               >
-                <Banknote size={16} style={{ color: B.blue }} />
+                <Banknote size={16} color={active ? "#fff" : B.blue} />
               </div>
-              <span className="flex-1 truncate text-sm font-extrabold" style={{ color: B.blue }}>
-                {b.bankName}
-              </span>
-              {active && (
-                <span
-                  className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full"
-                  style={{ background: B.blue }}
-                >
-                  <Check size={11} color="#fff" />
-                </span>
-              )}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate text-sm font-extrabold" style={{ color: B.blue }}>
+                    {b.bankName}
+                  </span>
+                  {active ? (
+                    <span
+                      className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full"
+                      style={{ background: B.blue }}
+                    >
+                      <Check size={10} color="#fff" />
+                    </span>
+                  ) : null}
+                </div>
+                {!isActive ? (
+                  <p className="mt-1 text-xs font-bold" style={{ color: "#DC2626" }}>
+                    Unavailable
+                  </p>
+                ) : (
+                  <p className="mt-1 text-xs font-medium" style={{ color: B.muted }}>
+                    ****{b.accountNumberLast4}
+                  </p>
+                )}
+                {myVan?.bankAccountId === b.id && myVan.vanNumber ? (
+                  <p className="mt-1 text-[11px] font-bold" style={{ color: B.green }}>
+                    Your dedicated account
+                  </p>
+                ) : null}
+              </div>
             </div>
-            {!isActive ? (
-              <p className="mt-2 text-xs font-bold" style={{ color: "#dc2626" }}>
-                Currently unavailable
-              </p>
-            ) : (
-              <p className="mt-2 text-xs font-medium" style={{ color: B.muted }}>
-                ****{b.accountNumberLast4} · {b.ifsc}
-              </p>
-            )}
-            {myVan?.bankAccountId === b.id && myVan.vanNumber && (
-              <p className="mt-1 text-[11px] font-bold" style={{ color: B.green }}>
-                Your dedicated account
-              </p>
-            )}
-          </div>
+          </button>
         );
       })}
     </div>
   );
 }
 
-/** The selected card's full details, expanded below the slider — bank name, account/VAN, IFSC, each copyable. */
 function SelectedBankDetails({ bank, myVan }: { bank: BankAccount | undefined; myVan: MyVan | null }) {
   if (!bank) return null;
   const isMine = myVan?.bankAccountId === bank.id;
 
   return (
-    <div className="mt-4 rounded-2xl border p-5" style={{ borderColor: B.border, background: `${B.blue}05` }}>
+    <div
+      className="mt-4 rounded-2xl border-2 p-4 sm:p-5"
+      style={{ borderColor: `${B.blue}35`, background: `linear-gradient(180deg, ${B.blue}08, #fff)` }}
+    >
       <div className="mb-1 flex items-center gap-2">
-        <Banknote size={16} style={{ color: B.blue }} />
+        <Landmark size={16} style={{ color: B.blue }} />
         <p className="text-sm font-bold" style={{ color: B.blue }}>
           {bank.bankName} — full details
         </p>
       </div>
-      <div className="divide-y" style={{ borderColor: B.border }}>
-        {isMine && myVan?.vanNumber ? (
-          <CopyField label="Your Virtual A/C No." value={myVan.vanNumber} />
-        ) : (
-          <CopyField label="Account number (last 4)" value={`****${bank.accountNumberLast4}`} />
-        )}
-        <CopyField label="IFSC code" value={bank.ifsc} />
-        <CopyField label="Account holder" value="AsanPay" />
-      </div>
+      <p className="mb-2 text-xs" style={{ color: B.muted }}>
+        Copy these details into your banking app, then return here to submit the request.
+      </p>
+      {isMine && myVan?.vanNumber ? (
+        <CopyField label="Your Virtual A/C No." value={myVan.vanNumber} />
+      ) : (
+        <CopyField label="Account number (last 4)" value={`****${bank.accountNumberLast4}`} />
+      )}
+      <CopyField label="IFSC code" value={bank.ifsc} />
+      <CopyField label="Account holder" value="AsanPay" />
     </div>
   );
 }
 
-export function FundRequestForm({ onSuccess }: { onSuccess: () => void }) {
+function InfoBanner({ tone, children }: { tone: "amber" | "blue"; children: ReactNode }) {
+  const amber = tone === "amber";
+  return (
+    <div
+      className="mt-4 flex gap-2.5 rounded-xl border px-3.5 py-3"
+      style={{
+        background: amber ? "#FFFBEB" : `${B.blue}08`,
+        borderColor: amber ? "#FDE68A" : `${B.blue}28`,
+      }}
+    >
+      <Info size={16} style={{ color: amber ? "#B45309" : B.blue }} className="mt-0.5 shrink-0" />
+      <p className="text-xs font-medium leading-relaxed" style={{ color: amber ? "#92400E" : B.blue }}>
+        {children}
+      </p>
+    </div>
+  );
+}
+
+export function FundRequestForm({
+  rows,
+  historyLoading,
+  onRefreshHistory,
+  onSuccess,
+}: {
+  rows: FundRequestRow[];
+  historyLoading: boolean;
+  onRefreshHistory: () => void;
+  onSuccess: () => void;
+}) {
   const [activeTab, setActiveTab] = useState<TabId>("upi");
   const [banks, setBanks] = useState<BankAccount[]>([]);
   const [myVan, setMyVan] = useState<MyVan | null>(null);
@@ -230,6 +337,7 @@ export function FundRequestForm({ onSuccess }: { onSuccess: () => void }) {
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const attemptKey = useRef(createAttemptKeyHolder("fund-request"));
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let alive = true;
@@ -259,16 +367,24 @@ export function FundRequestForm({ onSuccess }: { onSuccess: () => void }) {
   const tab = TABS.find((t) => t.id === activeTab)!;
   const selectedBank = banks.find((b) => b.id === bankAccountId);
   const upiUri = myVan?.vpa && amount ? `upi://pay?pa=${myVan.vpa}&pn=AsanPay&am=${amount}&cu=INR` : null;
+  const pendingCount = rows.filter((r) => {
+    const s = `${r.status} ${r.displayStatus}`.toLowerCase();
+    return s.includes("pending") || s.includes("review") || s.includes("submit");
+  }).length;
 
   function switchTab(id: TabId) {
     setActiveTab(id);
+    if (id === "history") {
+      onRefreshHistory();
+      return;
+    }
     attemptKey.current.clear();
     if (id === "upi" && myVan?.bankAccountId) setBankAccountId(myVan.bankAccountId);
     else if (id !== "upi" && !bankAccountId && banks[0]) setBankAccountId(banks[0].id);
   }
 
   async function handleSubmit() {
-    if (submitting) return;
+    if (submitting || activeTab === "history" || !tab.mode) return;
     if (!bankAccountId) {
       toast.error("Select the company bank account you deposited to");
       return;
@@ -327,6 +443,7 @@ export function FundRequestForm({ onSuccess }: { onSuccess: () => void }) {
       setRemarks("");
       setReceiptFile(null);
       onSuccess();
+      setActiveTab("history");
     } catch (err) {
       toast.error(extractApiError(err, "Fund request failed"));
     } finally {
@@ -335,197 +452,384 @@ export function FundRequestForm({ onSuccess }: { onSuccess: () => void }) {
   }
 
   const inputClass =
-    "w-full rounded-lg border border-border-subtle px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
+    "w-full rounded-xl border-2 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:ring-2";
+  const inputStyle = { borderColor: B.border, color: B.blue } as const;
 
   if (loading) {
     return (
-      <div className="rounded-2xl border bg-white p-8 text-center text-sm" style={{ borderColor: B.border, color: B.muted }}>
-        Loading…
+      <div
+        className="rounded-2xl border bg-white p-10 text-center text-sm"
+        style={{ borderColor: B.border, color: B.muted }}
+      >
+        Loading Add Money options…
       </div>
     );
   }
 
   return (
     <div>
-      <h2 className="text-xl font-bold" style={{ color: B.blue }}>
-        Add Money to Wallet
-      </h2>
-      {walletBalance !== null && (
-        <p className="mt-1 text-sm font-medium" style={{ color: B.muted }}>
-          Main Wallet balance: {formatInr(walletBalance)}
-        </p>
-      )}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold" style={{ color: B.blue }}>
+            Add Money to Wallet
+          </h2>
+          {walletBalance !== null ? (
+            <p className="mt-1 text-sm font-medium" style={{ color: B.muted }}>
+              Main Wallet balance:{" "}
+              <span className="font-bold tabular-nums" style={{ color: B.blue }}>
+                {formatInr(walletBalance)}
+              </span>
+            </p>
+          ) : null}
+        </div>
+      </div>
 
-      <div className="mt-5 flex gap-5">
-        <div className="w-64 flex-shrink-0">
-          <div className="overflow-hidden rounded-2xl border bg-white" style={{ borderColor: B.border }}>
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => switchTab(t.id)}
-                className="flex w-full items-center gap-3 border-b px-4 py-3.5 text-left transition-all"
-                style={{
-                  borderColor: B.border,
-                  background: activeTab === t.id ? `${B.blue}0A` : "transparent",
-                  borderLeft: activeTab === t.id ? `3px solid ${B.blue}` : "3px solid transparent",
-                }}
-              >
-                <t.icon size={16} style={{ color: activeTab === t.id ? B.blue : B.muted }} />
-                <span className="text-sm font-semibold" style={{ color: activeTab === t.id ? B.blue : B.muted }}>
-                  {t.label}
-                </span>
-              </button>
-            ))}
+      <div className="mt-5 flex flex-col gap-5 lg:flex-row">
+        <div className="w-full shrink-0 lg:w-64">
+          <div className="overflow-hidden rounded-2xl border bg-white shadow-sm" style={{ borderColor: B.border }}>
+            {TABS.map((t) => {
+              const active = activeTab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => switchTab(t.id)}
+                  className="flex w-full items-center gap-3 border-b px-4 py-3.5 text-left transition-all last:border-b-0"
+                  style={{
+                    borderColor: B.border,
+                    background: active ? `${B.blue}0A` : "transparent",
+                    borderLeft: active ? `3px solid ${B.blue}` : "3px solid transparent",
+                  }}
+                >
+                  <t.icon size={16} style={{ color: active ? B.blue : B.muted }} />
+                  <span className="flex-1 text-sm font-semibold" style={{ color: active ? B.blue : B.muted }}>
+                    {t.label}
+                  </span>
+                  {t.id === "history" && pendingCount > 0 ? (
+                    <span
+                      className="rounded-full px-2 py-0.5 text-[10px] font-extrabold text-white"
+                      style={{ background: B.blue }}
+                    >
+                      {pendingCount}
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        <div className="flex-1 rounded-2xl border bg-white p-6" style={{ borderColor: B.border }}>
-          <h3 className="text-base font-bold" style={{ color: B.blue }}>
-            {tab.headline}
-          </h3>
-          <div className="mt-3 flex gap-2 rounded-xl p-3" style={{ background: activeTab === "upi" || activeTab === "bank" ? "#FEF3C7" : "#EFF6FF" }}>
-            <Info size={16} style={{ color: activeTab === "upi" || activeTab === "bank" ? "#92400E" : B.blue }} className="mt-0.5 shrink-0" />
-            <p className="text-xs font-medium" style={{ color: activeTab === "upi" || activeTab === "bank" ? "#92400E" : B.blue }}>
-              {tab.subtext}
-            </p>
+        <div className="min-w-0 flex-1 rounded-2xl border bg-white p-5 shadow-sm sm:p-6" style={{ borderColor: B.border }}>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-bold" style={{ color: B.blue }}>
+                {tab.headline}
+              </h3>
+              <p className="mt-0.5 text-xs font-medium" style={{ color: B.muted }}>
+                {activeTab === "history" ? "Submitted requests for this account" : "Follow the steps, then submit"}
+              </p>
+            </div>
+            {activeTab === "history" ? (
+              <button
+                type="button"
+                onClick={onRefreshHistory}
+                className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold"
+                style={{ background: B.secondary, color: B.blueMid }}
+              >
+                <RefreshCcw size={14} />
+                Refresh
+              </button>
+            ) : null}
           </div>
 
-          {activeTab === "upi" ? (
-            !myVan?.vpa ? (
-              <p className="mt-4 text-xs font-medium" style={{ color: B.muted }}>
-                No UPI ID is assigned to your account yet. Ask your distributor/admin to assign one, or use Bank
-                Account Transfer instead.
-              </p>
-            ) : (
-              <div className="mt-4 flex flex-col items-center rounded-2xl border p-5" style={{ borderColor: B.border }}>
-                <p className="text-xs font-medium" style={{ color: B.muted }}>
-                  Scan and pay to
-                </p>
-                <p className="mb-3 text-sm font-bold" style={{ color: B.blue }}>
-                  {myVan.vpa}
-                </p>
-                {upiUri ? (
-                  <QRCodeSVG value={upiUri} size={160} />
-                ) : (
-                  <p className="text-xs" style={{ color: B.muted }}>
-                    Enter an amount below to generate the QR
-                  </p>
-                )}
-                <div className="mt-3 flex flex-wrap justify-center gap-2">
-                  {AMOUNT_PRESETS.map((p) => (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() => setAmount(p)}
-                      className="rounded-full border px-4 py-1.5 text-sm font-semibold"
-                      style={{ borderColor: B.border, color: B.blue }}
-                    >
-                      ₹{p}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )
+          <InfoBanner tone={activeTab === "upi" || activeTab === "bank" ? "amber" : "blue"}>{tab.subtext}</InfoBanner>
+
+          {activeTab === "history" ? (
+            <div className="mt-5 overflow-hidden rounded-2xl border" style={{ borderColor: B.border }}>
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr
+                    className="border-b text-[11px] font-semibold uppercase tracking-wider"
+                    style={{ borderColor: B.border, background: B.secondary, color: B.muted }}
+                  >
+                    <th className="px-4 py-3.5">Amount</th>
+                    <th className="px-4 py-3.5">Mode / UTR</th>
+                    <th className="px-4 py-3.5">Status</th>
+                    <th className="px-4 py-3.5">Submitted</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {historyLoading ? (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-10 text-center" style={{ color: B.muted }}>
+                        Loading requests…
+                      </td>
+                    </tr>
+                  ) : null}
+                  {!historyLoading && rows.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-12 text-center">
+                        <ClipboardList size={28} className="mx-auto mb-2" style={{ color: B.muted }} />
+                        <p className="text-sm font-semibold" style={{ color: B.blue }}>
+                          No fund requests yet
+                        </p>
+                        <p className="mt-1 text-xs" style={{ color: B.muted }}>
+                          Deposit via UPI or bank, then submit a request from the other tabs.
+                        </p>
+                      </td>
+                    </tr>
+                  ) : null}
+                  {!historyLoading &&
+                    rows.map((r) => {
+                      const tone = statusTone(r.status, r.displayStatus);
+                      return (
+                        <tr key={r.id} className="border-b last:border-0" style={{ borderColor: B.border }}>
+                          <td className="px-4 py-3.5 font-semibold tabular-nums" style={{ color: B.blue }}>
+                            {formatInr(r.amount)}
+                            {r.creditedAmount ? (
+                              <div className="text-xs font-medium" style={{ color: B.green }}>
+                                Credited {formatInr(r.creditedAmount)}
+                              </div>
+                            ) : null}
+                          </td>
+                          <td className="px-4 py-3.5" style={{ color: B.muted }}>
+                            <div className="text-xs font-bold uppercase tracking-wide">
+                              {r.paymentMode.replace(/_/g, " ")}
+                            </div>
+                            <div className="font-mono text-xs">{r.referenceNumber || "—"}</div>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <span
+                              className="inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold"
+                              style={{ background: tone.bg, color: tone.fg, borderColor: tone.border }}
+                            >
+                              {r.displayStatus || r.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3.5 text-xs whitespace-nowrap" style={{ color: B.muted }}>
+                            {new Date(r.submittedAt).toLocaleString("en-IN")}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <>
-              <p className="mb-2 mt-4 text-xs font-bold uppercase tracking-wide" style={{ color: B.blue }}>
-                Available banks
-              </p>
-              {banks.length === 0 ? (
-                <p className="text-sm" style={{ color: B.muted }}>
-                  No collection accounts
-                </p>
+              {activeTab === "upi" ? (
+                !myVan?.vpa ? (
+                  <div
+                    className="mt-5 rounded-2xl border border-dashed p-6 text-center"
+                    style={{ borderColor: B.border, background: B.bg }}
+                  >
+                    <Wallet size={24} className="mx-auto mb-2" style={{ color: B.muted }} />
+                    <p className="text-sm font-semibold" style={{ color: B.blue }}>
+                      No UPI ID assigned yet
+                    </p>
+                    <p className="mt-1 text-xs" style={{ color: B.muted }}>
+                      Ask your distributor or admin to assign one, or use Bank Account Transfer.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => switchTab("bank")}
+                      className="mt-4 rounded-xl px-4 py-2 text-sm font-semibold text-white"
+                      style={{ background: B.badgeGrad }}
+                    >
+                      Go to Bank Transfer
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    className="mt-5 grid gap-4 rounded-2xl border p-5 lg:grid-cols-[180px_1fr]"
+                    style={{ borderColor: B.border, background: B.bg }}
+                  >
+                    <div className="flex flex-col items-center justify-center rounded-xl bg-white p-4 shadow-sm">
+                      {upiUri ? (
+                        <QRCodeSVG value={upiUri} size={148} />
+                      ) : (
+                        <div
+                          className="flex h-[148px] w-[148px] items-center justify-center rounded-xl border border-dashed text-center text-xs"
+                          style={{ borderColor: B.border, color: B.muted }}
+                        >
+                          Enter amount to generate QR
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+                        Pay to UPI ID
+                      </p>
+                      <p className="mt-1 font-mono text-base font-bold" style={{ color: B.blue }}>
+                        {myVan.vpa}
+                      </p>
+                      <p className="mt-3 text-xs" style={{ color: B.muted }}>
+                        Quick amount
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {AMOUNT_PRESETS.map((p) => (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => setAmount(p)}
+                            className="rounded-full border-2 px-3.5 py-1.5 text-sm font-semibold"
+                            style={{
+                              borderColor: amount === p ? B.blue : B.border,
+                              background: amount === p ? `${B.blue}10` : "#fff",
+                              color: B.blue,
+                            }}
+                          >
+                            ₹{p}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )
               ) : (
-                <>
-                  <BankCardSlider
-                    banks={banks}
-                    myVan={myVan}
-                    selected={bankAccountId}
-                    onSelect={(id) => {
-                      setBankAccountId(id);
-                      attemptKey.current.clear();
-                    }}
-                  />
-                  <SelectedBankDetails bank={selectedBank} myVan={myVan} />
-                </>
+                <div className="mt-5">
+                  <p className="mb-2 text-xs font-bold uppercase tracking-wide" style={{ color: B.blue }}>
+                    Available banks
+                  </p>
+                  {banks.length === 0 ? (
+                    <p className="text-sm" style={{ color: B.muted }}>
+                      No collection accounts available right now.
+                    </p>
+                  ) : (
+                    <>
+                      <BankCardSlider
+                        banks={banks}
+                        myVan={myVan}
+                        selected={bankAccountId}
+                        onSelect={(id) => {
+                          setBankAccountId(id);
+                          attemptKey.current.clear();
+                        }}
+                      />
+                      <SelectedBankDetails bank={selectedBank} myVan={myVan} />
+                    </>
+                  )}
+                </div>
               )}
+
+              <div className="mt-6 rounded-2xl border p-4 sm:p-5" style={{ borderColor: B.border, background: "#FAFBFF" }}>
+                <p className="mb-4 text-sm font-bold" style={{ color: B.blue }}>
+                  Submit fund request
+                </p>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <FieldLabel>Amount (₹)</FieldLabel>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={amount}
+                      onChange={(e) => {
+                        setAmount(e.target.value.replace(/[^\d.]/g, ""));
+                        attemptKey.current.clear();
+                      }}
+                      placeholder="5000.00"
+                      className={inputClass}
+                      style={{ ...inputStyle, boxShadow: "0 0 0 0 transparent" }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = B.blue;
+                        e.currentTarget.style.boxShadow = `0 0 0 3px ${B.blue}22`;
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = B.border;
+                        e.currentTarget.style.boxShadow = "none";
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <FieldLabel hint="Optional — helps faster matching">UTR / reference</FieldLabel>
+                    <input
+                      value={referenceNumber}
+                      onChange={(e) => {
+                        setReferenceNumber(e.target.value);
+                        attemptKey.current.clear();
+                      }}
+                      placeholder="Bank UTR or reference number"
+                      maxLength={60}
+                      className={inputClass}
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div>
+                    <FieldLabel>Deposit / payment date & time</FieldLabel>
+                    <input
+                      type="datetime-local"
+                      value={depositLocal}
+                      onChange={(e) => {
+                        setDepositLocal(e.target.value);
+                        attemptKey.current.clear();
+                      }}
+                      className={inputClass}
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div>
+                    <FieldLabel hint="Optional">Sender name</FieldLabel>
+                    <input
+                      value={senderName}
+                      onChange={(e) => setSenderName(e.target.value)}
+                      maxLength={160}
+                      placeholder="Name on the transfer"
+                      className={inputClass}
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <FieldLabel hint="PDF or image · max 2 MB — blocks duplicate slips">Receipt file</FieldLabel>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed px-4 py-6 text-center transition hover:bg-white"
+                      style={{ borderColor: receiptFile ? B.green : B.border, background: "#fff" }}
+                    >
+                      <FileUp size={22} style={{ color: receiptFile ? B.green : B.blue }} />
+                      <span className="text-sm font-semibold" style={{ color: B.blue }}>
+                        {receiptFile ? receiptFile.name : "Tap to choose receipt"}
+                      </span>
+                      <span className="text-xs" style={{ color: B.muted }}>
+                        {receiptFile ? `${(receiptFile.size / 1024).toFixed(0)} KB` : "JPG, PNG, WEBP or PDF"}
+                      </span>
+                    </button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*,application/pdf"
+                      className="hidden"
+                      onChange={(e) => {
+                        setReceiptFile(e.target.files?.[0] ?? null);
+                        attemptKey.current.clear();
+                      }}
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <FieldLabel hint="Optional">Remarks</FieldLabel>
+                    <input
+                      value={remarks}
+                      onChange={(e) => setRemarks(e.target.value)}
+                      maxLength={500}
+                      placeholder="Any note for the finance team"
+                      className={inputClass}
+                      style={inputStyle}
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={submitting || banks.length === 0}
+                  onClick={() => void handleSubmit()}
+                  className="mt-5 w-full rounded-xl py-3 text-sm font-bold text-white transition disabled:opacity-60"
+                  style={{ background: B.badgeGrad }}
+                >
+                  {submitting ? "Submitting…" : "Submit fund request"}
+                </button>
+              </div>
             </>
           )}
-
-          <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Amount (₹)</label>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={amount}
-                onChange={(e) => {
-                  setAmount(e.target.value.replace(/[^\d.]/g, ""));
-                  attemptKey.current.clear();
-                }}
-                placeholder="5000.00"
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">UTR / reference (optional)</label>
-              <input
-                value={referenceNumber}
-                onChange={(e) => {
-                  setReferenceNumber(e.target.value);
-                  attemptKey.current.clear();
-                }}
-                placeholder="Bank UTR or reference number"
-                maxLength={60}
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Deposit / payment date & time</label>
-              <input
-                type="datetime-local"
-                value={depositLocal}
-                onChange={(e) => {
-                  setDepositLocal(e.target.value);
-                  attemptKey.current.clear();
-                }}
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Sender name (optional)</label>
-              <input value={senderName} onChange={(e) => setSenderName(e.target.value)} maxLength={160} className={inputClass} />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Receipt file</label>
-              <input
-                type="file"
-                accept="image/*,application/pdf"
-                onChange={(e) => {
-                  setReceiptFile(e.target.files?.[0] ?? null);
-                  attemptKey.current.clear();
-                }}
-                className="w-full text-sm"
-              />
-              <p className="mt-1 text-[12px]" style={{ color: B.muted }}>
-                Used to block duplicate slips. Max 2 MB.
-              </p>
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Remarks (optional)</label>
-              <input value={remarks} onChange={(e) => setRemarks(e.target.value)} maxLength={500} className={inputClass} />
-            </div>
-          </div>
-
-          <button
-            type="button"
-            disabled={submitting || banks.length === 0}
-            onClick={() => void handleSubmit()}
-            className="mt-5 w-full rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60"
-          >
-            {submitting ? "Submitting…" : "Submit fund request"}
-          </button>
         </div>
       </div>
     </div>

@@ -2,32 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { RefreshCcw } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { AppShell } from "@/components/layout/AppShell";
-import { FundRequestForm } from "@/components/dashboard/FundRequestForm";
+import { FundRequestForm, type FundRequestRow } from "@/components/dashboard/FundRequestForm";
 import { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { extractApiError } from "@/lib/onboarding";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
-
-interface FundRequestRow {
-  id: string;
-  amount: string;
-  paymentMode: string;
-  referenceNumber: string | null;
-  status: string;
-  displayStatus: string;
-  submittedAt: string;
-  creditedAmount: string | null;
-}
-
-function formatInr(amount: string) {
-  const n = Number(amount);
-  if (!Number.isFinite(n)) return `₹${amount}`;
-  return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
-}
 
 export default function FundRequestPage() {
   const router = useRouter();
@@ -68,87 +50,21 @@ export default function FundRequestPage() {
   return (
     <AppShell>
       <div className="mx-auto w-full max-w-[1600px] space-y-5 px-4 py-5 sm:px-6 lg:px-8">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold" style={{ color: B.blue }}>
-              Fund request
-            </h1>
-            <p className="mt-0.5 text-[14px]" style={{ color: B.muted }}>
-              Deposit to company bank, then submit UTR and receipt for balance credit
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => void load()}
-              className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold"
-              style={{ background: B.secondary, color: B.blueMid }}
-            >
-              <RefreshCcw size={15} />
-              Refresh
-            </button>
-          </div>
+        <div>
+          <h1 className="text-2xl font-bold" style={{ color: B.blue }}>
+            Fund request
+          </h1>
+          <p className="mt-0.5 text-[14px]" style={{ color: B.muted }}>
+            Deposit to company bank, then submit UTR and receipt for balance credit
+          </p>
         </div>
 
-        <FundRequestForm onSuccess={() => void load()} />
-
-        <h2 className="text-lg font-bold" style={{ color: B.blue }}>
-          Your requests
-        </h2>
-        <div className="overflow-hidden rounded-2xl border bg-white" style={{ borderColor: B.border }}>
-          <table className="w-full text-left text-[14px]">
-            <thead>
-              <tr
-                className="border-b text-[11px] font-semibold uppercase tracking-wider"
-                style={{ borderColor: B.border, background: B.secondary, color: B.muted }}
-              >
-                <th className="px-4 py-3.5 font-semibold">Amount</th>
-                <th className="px-4 py-3.5 font-semibold">Mode / UTR</th>
-                <th className="px-4 py-3.5 font-semibold">Status</th>
-                <th className="px-4 py-3.5 font-semibold">Submitted</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading && (
-                <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-[14px]" style={{ color: B.muted }}>
-                    Loading…
-                  </td>
-                </tr>
-              )}
-              {!loading && rows.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-[14px]" style={{ color: B.muted }}>
-                    No fund requests yet — submit one above after you deposit
-                  </td>
-                </tr>
-              )}
-              {!loading &&
-                rows.map((r) => (
-                  <tr key={r.id} className="border-b last:border-0" style={{ borderColor: B.border }}>
-                    <td className="px-4 py-3.5 font-semibold tabular-nums" style={{ color: B.blue }}>
-                      {formatInr(r.amount)}
-                      {r.creditedAmount && (
-                        <div className="text-sm font-normal" style={{ color: B.green }}>
-                          Credited {formatInr(r.creditedAmount)}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3.5 text-sm" style={{ color: B.muted }}>
-                      <div className="uppercase">{r.paymentMode.replace("_", " ")}</div>
-                      <div className="font-mono">{r.referenceNumber || "—"}</div>
-                    </td>
-                    <td className="px-4 py-3.5 text-[14px] font-medium" style={{ color: B.blueMid }}>
-                      {r.displayStatus || r.status}
-                    </td>
-                    <td className="px-4 py-3.5 text-sm whitespace-nowrap" style={{ color: B.muted }}>
-                      {new Date(r.submittedAt).toLocaleString("en-IN")}
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
+        <FundRequestForm
+          rows={rows}
+          historyLoading={loading}
+          onRefreshHistory={() => void load()}
+          onSuccess={() => void load()}
+        />
       </div>
     </AppShell>
   );
