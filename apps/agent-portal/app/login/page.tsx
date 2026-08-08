@@ -14,6 +14,7 @@ import {
   EyeOff,
   ArrowRight,
   Fingerprint,
+  Shield,
   Check,
   KeyRound,
   Sparkles,
@@ -22,7 +23,7 @@ import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import { AsanPayLogo } from "@/components/brand/Logo";
 import { PromoSlider } from "@/components/promos/PromoSlider";
 import api from "@/lib/api";
-import { B, ROLES, type Role } from "@/lib/brand";
+import { B, ROLES, brand, type Role } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { extractApiError, nextOnboardingPath } from "@/lib/onboarding";
 import { authenticateBiometric, clearBiometricStore, getBiometricStore } from "@/lib/webauthn";
@@ -289,24 +290,40 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen w-full font-sans">
-      {/* Left: full-bleed promo slider */}
-      <div className="relative hidden min-h-screen flex-1 lg:block">
-        <div className="absolute inset-0">
-          <PromoSlider
-            placement="login"
-            fill
-            intervalMs={6000}
-            className="h-full min-h-screen rounded-none shadow-none"
-          />
-        </div>
-        <div className="pointer-events-none absolute left-6 top-6 z-20">
+      {/* Left brand strip */}
+      <div
+        className="relative hidden w-[280px] flex-shrink-0 flex-col justify-between overflow-hidden p-8 xl:w-[320px] lg:flex"
+        style={{ background: role.gradient }}
+      >
+        <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-white opacity-10" />
+        <div className="absolute -left-12 bottom-24 h-40 w-40 rounded-full bg-white opacity-10" />
+        <div className="relative z-10">
           <AsanPayLogo width={200} variant="light" />
+        </div>
+        <div className="relative z-10">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5">
+            {(() => {
+              const Icon = ROLE_ICONS[role.id];
+              return <Icon size={13} className="text-white" />;
+            })()}
+            <span className="text-xs font-semibold text-white">{role.label} Portal</span>
+          </div>
+          <h1 className="mb-3 font-bold text-white" style={{ fontSize: "1.85rem", lineHeight: 1.2 }}>
+            {brand.tagline}
+          </h1>
+          <p className="text-sm leading-relaxed text-white/70">
+            Easy login: verify your mobile OTP, then your 4-digit PIN. Password is optional.
+          </p>
+        </div>
+        <div className="relative z-10 flex items-center gap-2">
+          <Shield size={13} className="text-white/40" />
+          <span className="text-xs text-white/40">OTP · PIN · Biometric</span>
         </div>
       </div>
 
-      {/* Center / right: login */}
+      {/* Center: login */}
       <div
-        className="flex w-full flex-shrink-0 items-center justify-center px-5 py-8 sm:px-8 lg:w-[460px] xl:w-[500px]"
+        className="flex min-w-0 flex-1 items-center justify-center px-5 py-8 sm:px-8"
         style={{ background: "#fff" }}
       >
         <div className="w-full max-w-md">
@@ -597,6 +614,18 @@ export default function LoginPage() {
           </p>
           </>
           )}
+        </div>
+      </div>
+
+      {/* Right: promo slider */}
+      <div className="relative hidden min-h-screen w-[42%] max-w-[560px] flex-shrink-0 xl:w-[46%] lg:block">
+        <div className="absolute inset-0">
+          <PromoSlider
+            placement="login"
+            fill
+            intervalMs={6000}
+            className="h-full min-h-screen rounded-none shadow-none"
+          />
         </div>
       </div>
     </div>
