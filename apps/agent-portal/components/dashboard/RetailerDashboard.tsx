@@ -128,7 +128,7 @@ export function RetailerDashboard() {
             onClick={() => router.push("/fund-request")}
             size="sm"
             showArrow={false}
-            className="!w-auto !shadow-none"
+            className="btn-pill--wallet-cta !w-auto"
           >
             <PlusCircle size={14} />
             Add Money

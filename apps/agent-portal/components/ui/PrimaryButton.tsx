@@ -26,12 +26,12 @@ const SIZE_CLASS: Record<Size, string> = {
 };
 
 /**
- * Shared CTA hierarchy:
- * - primary = one solid blue per page/section
+ * Shared CTA — soft 12px corners, blue diagonal gradient primary.
+ * - primary = blue gradient (best default CTA)
  * - secondary = outline
- * - destructive = red outline (cancel/delete)
- * - ghost = text link style
- * Loading: spinner + opacity only (never glow).
+ * - destructive = red outline
+ * - ghost = text
+ * Loading: spinner + opacity only. Glow only with loopGlow inside login panel.
  */
 export function PrimaryButton({
   children,
@@ -52,6 +52,27 @@ export function PrimaryButton({
   const sizeClass = SIZE_CLASS[size];
   const glowClass = isPrimary && loopGlow && !loading ? "btn-pill--glow" : "";
 
+  const content = loading ? (
+    <span
+      className={`h-5 w-5 animate-spin rounded-full border-2 ${
+        isPrimary ? "border-white/30 border-t-white" : "border-current/30 border-t-current"
+      }`}
+    />
+  ) : isPrimary ? (
+    <>
+      <span className="relative z-[1] inline-flex items-center gap-2">{children}</span>
+      {arrow ? (
+        <ArrowRight
+          size={size === "sm" ? 14 : size === "lg" ? 18 : 16}
+          strokeWidth={2.5}
+          className="relative z-[1] shrink-0"
+        />
+      ) : null}
+    </>
+  ) : (
+    children
+  );
+
   if (resolved === "secondary") {
     return (
       <button
@@ -60,11 +81,7 @@ export function PrimaryButton({
         className={`btn-pill btn-pill--secondary ${sizeClass} ${className}`.trim()}
         {...rest}
       >
-        {loading ? (
-          <span className="h-5 w-5 animate-spin rounded-full border-2 border-current/30 border-t-current" />
-        ) : (
-          children
-        )}
+        {content}
       </button>
     );
   }
@@ -77,11 +94,7 @@ export function PrimaryButton({
         className={`btn-pill btn-pill--destructive ${sizeClass} ${className}`.trim()}
         {...rest}
       >
-        {loading ? (
-          <span className="h-5 w-5 animate-spin rounded-full border-2 border-current/30 border-t-current" />
-        ) : (
-          children
-        )}
+        {content}
       </button>
     );
   }
@@ -114,16 +127,7 @@ export function PrimaryButton({
       }}
       {...rest}
     >
-      {loading ? (
-        <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-      ) : (
-        <>
-          <span className="inline-flex items-center gap-2">{children}</span>
-          {arrow ? (
-            <ArrowRight size={size === "sm" ? 14 : size === "lg" ? 18 : 16} strokeWidth={2.5} className="shrink-0" />
-          ) : null}
-        </>
-      )}
+      {content}
     </button>
   );
 }

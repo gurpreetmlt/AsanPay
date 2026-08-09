@@ -107,7 +107,7 @@ export function WalletBar({ wallets, onWalletPress, onAddMoney, onReports }: Pro
           onPress={onAddMoney ?? (() => showAlert("Coming soon", "Add money / load balance"))}
           style={styles.quickBtnPress}
         >
-          <LinearGradient colors={[...colors.gradientButton]} style={styles.quickBtnFill}>
+          <LinearGradient colors={[colors.blueLight, colors.blue]} style={styles.quickBtnFill}>
             <Text style={styles.quickBtnText}>+ Add Money</Text>
           </LinearGradient>
         </Pressable>

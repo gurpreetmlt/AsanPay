@@ -25,8 +25,8 @@ export const B = {
   secondary: "#E8EEFB",
   border: "rgba(11,42,154,0.1)",
   badgeGrad: "linear-gradient(135deg, #2A5CDD 0%, #0B2A9A 100%)",
-  /** Primary CTA — horizontal blue → navy (login Unlock with MPIN). */
-  btnGrad: "linear-gradient(90deg, #3B6EF5 0%, #2A5CDD 42%, #0B2A9A 100%)",
+  /** Primary CTA — soft diagonal blue → navy. */
+  btnGrad: "linear-gradient(135deg, #4B7BFF 0%, #2A5CDD 48%, #0B2A9A 100%)",
   /** @deprecated Alias of btnGrad — dashboard CTAs use blue primary only. */
   actionGrad: "linear-gradient(90deg, #3B6EF5 0%, #2A5CDD 42%, #0B2A9A 100%)",
   walletGrad: "linear-gradient(135deg, #24CC82 0%, #11A362 100%)",

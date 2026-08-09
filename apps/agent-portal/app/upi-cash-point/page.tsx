@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { ArrowLeft, Copy, Check, Info, QrCode, X } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
+import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { B } from "@/lib/brand";
 
 const QUICK_AMOUNTS = [
@@ -303,23 +304,18 @@ export default function UpiCashPointPage() {
                   </div>
 
                   <div className="mt-9 flex justify-center">
-                    <button
+                    <PrimaryButton
                       type="button"
-                      onClick={handleGenerate}
+                      variant="primary"
+                      size="md"
+                      showArrow={false}
                       disabled={!amountValid}
-                      className={clsx(
-                        "inline-flex min-w-[240px] items-center justify-center gap-2.5 rounded-full px-12 py-3.5 text-base font-bold text-white shadow-lg transition",
-                        amountValid ? "hover:opacity-90" : "cursor-not-allowed opacity-45",
-                      )}
-                      style={{
-                        background: amountValid
-                          ? `linear-gradient(135deg, ${B.blueLight} 0%, ${B.blue} 100%)`
-                          : "#94a3b8",
-                      }}
+                      onClick={handleGenerate}
+                      className="!w-auto min-w-[240px]"
                     >
                       Generate QR
                       <QrCode size={18} strokeWidth={2.4} />
-                    </button>
+                    </PrimaryButton>
                   </div>
 
                   <div className="mt-5 flex items-center justify-center gap-4 text-xs font-semibold tracking-wide text-gray-400">

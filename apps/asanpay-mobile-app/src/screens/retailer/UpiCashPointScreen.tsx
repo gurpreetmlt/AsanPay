@@ -616,7 +616,7 @@ const s = StyleSheet.create({
     color: "#9CA3AF",
   },
 
-  generateBtn: { borderRadius: 999, overflow: "hidden", marginTop: 28, alignSelf: "center" },
+  generateBtn: { borderRadius: 14, overflow: "hidden", marginTop: 28, alignSelf: "center" },
   generateBtnDisabled: { opacity: 0.55 },
   generateGradient: {
     flexDirection: "row",
@@ -625,7 +625,7 @@ const s = StyleSheet.create({
     gap: 10,
     paddingHorizontal: 40,
     height: 50,
-    borderRadius: 999,
+    borderRadius: 14,
     minWidth: 220,
   },
   generateText: { color: "#fff", fontWeight: "800", fontSize: 16 },
