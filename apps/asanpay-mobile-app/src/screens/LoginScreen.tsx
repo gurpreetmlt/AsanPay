@@ -6,21 +6,14 @@ import { Eye, EyeOff, Fingerprint, Lock, Network, ShieldCheck, Star, Store, User
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import { api, API_BASE, setAuthHeader } from "../lib/api";
 import { apiError } from "../utils/apiError";
-import { BrandMark } from "../components/BrandMark";
+import { BrandLockup, BrandMark } from "../components/BrandMark";
 import { PinInput } from "../components/PinInput";
 import { colors } from "../theme/colors";
-import { BRAND } from "../theme/brand";
 import { showAlert } from "../components/AppAlert";
 import { setRememberedLogin } from "../lib/rememberedLogin";
 import { enableBioUnlock, getBioUnlock, promptDeviceBiometric } from "../lib/bioUnlock";
 import { getDeviceId, getDeviceLabel } from "../lib/deviceId";
 import { useAuthStore } from "../store/auth";
-
-// Single source of truth for the wordmark: BRAND.appName (theme/brand.ts). Splits off a
-// trailing "Pay" so it renders in the accent green, same as web's Logo.tsx — falls back to
-// plain text if a future brand name doesn't end in "Pay".
-const brandPrefix = BRAND.appName.endsWith("Pay") ? BRAND.appName.slice(0, -3) : BRAND.appName;
-const brandSuffix = BRAND.appName.endsWith("Pay") ? "Pay" : "";
 
 export type LoginRoleChip = "retailer" | "distributor" | "super_distributor";
 
@@ -312,11 +305,7 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
       <LinearGradient colors={["#3564E6", "#0B2A9A", "#06175A"]} style={styles.bg}>
         <View style={styles.topRow}>
           <View style={styles.brandRow}>
-            <BrandMark size={40} />
-            <Text style={styles.brandText}>
-              {brandPrefix}
-              {brandSuffix ? <Text style={styles.brandTextGreen}>{brandSuffix}</Text> : null}
-            </Text>
+            <BrandLockup iconSize={40} animate light />
           </View>
           <View style={styles.secureChip}>
             <ShieldCheck size={13} color="#3BE39A" strokeWidth={2.3} />
@@ -351,31 +340,9 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
 
           <View style={styles.panel}>
             <>
-                <View style={styles.methodRow}>
-                  {(["otp", "password"] as const).map((m) => {
-                    const active = method === m;
-                    return (
-                      <Pressable
-                        key={m}
-                        onPress={() => {
-                          setMethod(m);
-                          setOtpStep("mobile");
-                          setOtp("");
-                          setDevOtp(null);
-                        }}
-                        style={[styles.methodPill, active && styles.methodPillActive]}
-                      >
-                        <Text style={[styles.methodPillText, active && styles.methodPillTextActive]}>
-                          {m === "otp" ? "OTP" : "Password"}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-
                 {!(method === "otp" && otpStep === "otp") ? (
                   <>
-                    <Text style={[styles.label, styles.labelSpaced]}>CONTINUE AS</Text>
+                    <Text style={styles.label}>CONTINUE AS</Text>
                     <View style={styles.chipRow}>
                       {ROLE_CHIPS.map((r) => {
                         const active = role === r.key;
@@ -418,9 +385,29 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
                   </>
                 ) : null}
 
-                <Text style={[styles.label, !(method === "otp" && otpStep === "otp") ? styles.labelSpaced : undefined]}>
-                  MOBILE NUMBER
-                </Text>
+                <View style={[styles.methodRow, !(method === "otp" && otpStep === "otp") && { marginTop: 14 }]}>
+                  {(["otp", "password"] as const).map((m) => {
+                    const active = method === m;
+                    return (
+                      <Pressable
+                        key={m}
+                        onPress={() => {
+                          setMethod(m);
+                          setOtpStep("mobile");
+                          setOtp("");
+                          setDevOtp(null);
+                        }}
+                        style={[styles.methodPill, active && styles.methodPillActive]}
+                      >
+                        <Text style={[styles.methodPillText, active && styles.methodPillTextActive]}>
+                          {m === "otp" ? "OTP" : "Password"}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                <Text style={[styles.label, styles.labelSpaced]}>MOBILE NUMBER</Text>
                 <View style={styles.inputRow}>
                   <Text style={styles.prefix}>+91</Text>
                   <View style={styles.divider} />

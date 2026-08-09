@@ -21,7 +21,7 @@ import { DmtScreen } from "./DmtScreen";
 import { NepalScreen } from "./NepalScreen";
 import { UpiCashPointScreen } from "./UpiCashPointScreen";
 import { showAlert } from "../../components/AppAlert";
-import { BrandMark } from "../../components/BrandMark";
+import { BrandLockup } from "../../components/BrandMark";
 
 function isKycServicesUnlocked(user: { kycStatus: string }) {
   return user.kycStatus === "verified";
@@ -135,11 +135,20 @@ export function ServicesScreen() {
   if (activeScreen === "nepal") return <NepalScreen onBack={backToHome} />;
   if (activeScreen === "upi_cp") return <UpiCashPointScreen onBack={backToHome} />;
 
+  const initials = user.name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() ?? "")
+    .join("");
+  const firstName = user.name.split(" ")[0] ?? user.name;
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bg }]} edges={["top"]}>
       <ScreenHeader
         variant="profile"
-        leading={<BrandMark size={52} variant="mark" animate />}
+        brand={<BrandLockup iconSize={42} animate light />}
+        avatarLetter={initials || firstName.charAt(0).toUpperCase()}
         eyebrow={greetingName(user.name)}
         title={user.name}
         topRight={

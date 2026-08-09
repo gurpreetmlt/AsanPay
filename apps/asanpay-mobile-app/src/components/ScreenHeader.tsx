@@ -11,6 +11,8 @@ interface Props {
   avatarLetter?: string;
   /** Replaces letter avatar when set (e.g. animated BrandMark). */
   leading?: React.ReactNode;
+  /** Optional brand lockup above the title row (YouTube-style logo). */
+  brand?: React.ReactNode;
   /** Optional icon row rendered top-right, alongside the title/avatar block. */
   topRight?: React.ReactNode;
   children?: React.ReactNode;
@@ -24,6 +26,7 @@ export function ScreenHeader({
   variant = "default",
   avatarLetter,
   leading,
+  brand,
   topRight,
   children,
   style,
@@ -37,6 +40,8 @@ export function ScreenHeader({
     >
       <View style={styles.glowTop} pointerEvents="none" />
       <View style={styles.rail} pointerEvents="none" />
+
+      {brand ? <View style={styles.brandSlot}>{brand}</View> : null}
 
       {variant === "profile" ? (
         <View style={styles.profile}>
@@ -118,6 +123,7 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   topRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
+  brandSlot: { marginBottom: 10 },
   textBlock: { marginBottom: 2, flexShrink: 1 },
   eyebrow: {
     color: colors.onGradientMuted,

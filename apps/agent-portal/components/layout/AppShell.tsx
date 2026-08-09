@@ -35,7 +35,7 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import type { UserRole } from "@asanpay/shared-types";
-import { AsanPayLogo, AsanIcon } from "@/components/brand/Logo";
+import { AsanPayLockup } from "@/components/brand/Logo";
 import { fetchApi } from "@/lib/api";
 import { B, initials, roleFromUserRole } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
@@ -213,8 +213,12 @@ function SidebarContent({
         className="flex items-center gap-2 overflow-hidden border-b border-white/10 px-4 py-4"
         style={{ minHeight: 68 }}
       >
-        <Link href="/dashboard" className="flex items-center">
-          {open ? <AsanPayLogo width={188} variant="light" animate /> : <AsanIcon size={44} animate />}
+        <Link href="/dashboard" className="flex items-center overflow-hidden">
+          {open ? (
+            <AsanPayLockup iconSize={44} light animate />
+          ) : (
+            <AsanPayLockup iconSize={44} wordmark={false} light animate />
+          )}
         </Link>
         {onClose ? (
           <button

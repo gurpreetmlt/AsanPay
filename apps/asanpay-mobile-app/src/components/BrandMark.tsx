@@ -1,60 +1,31 @@
 import React, { useEffect, useRef } from "react";
-import { Animated, Easing, Image, StyleSheet, View } from "react-native";
+import { Animated, Easing, Image, StyleSheet, Text, View } from "react-native";
+import { BRAND } from "../theme/brand";
+import { colors } from "../theme/colors";
 
-interface Props {
+interface BrandMarkProps {
   size?: number;
   /** `mark` = square app icon. `logo` = full wordmark logo. */
   variant?: "mark" | "logo";
-  /** Soft idle scale + glow — dashboard / splash. */
-  animate?: boolean;
 }
 
 const markSource = require("../assets/asan-pay-appicon-flat.png");
 const logoSource = require("../assets/asan-pay-logo.png");
 
 /** Official AsanPay brand mark / wordmark for auth surfaces. */
-export function BrandMark({ size = 72, variant = "mark", animate = false }: Props) {
-  const pulse = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    if (!animate) {
-      pulse.setValue(1);
-      return;
-    }
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, {
-          toValue: 1.08,
-          duration: 1400,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulse, {
-          toValue: 1,
-          duration: 1400,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [animate, pulse]);
-
+export function BrandMark({ size = 72, variant = "mark" }: BrandMarkProps) {
   if (variant === "logo") {
     const height = size;
     const width = Math.round(size * 3.2);
-    const body = (
+    return (
       <View style={[styles.logoWrap, { height, width }]}>
         <Image source={logoSource} style={{ width, height }} resizeMode="contain" />
       </View>
     );
-    if (!animate) return body;
-    return <Animated.View style={{ transform: [{ scale: pulse }] }}>{body}</Animated.View>;
   }
 
   const radius = Math.round(size * 0.24);
-  const mark = (
+  return (
     <View style={[styles.shadow, { borderRadius: radius, width: size, height: size }]}>
       <Image
         source={markSource}
@@ -63,9 +34,77 @@ export function BrandMark({ size = 72, variant = "mark", animate = false }: Prop
       />
     </View>
   );
+}
 
-  if (!animate) return mark;
-  return <Animated.View style={{ transform: [{ scale: pulse }] }}>{mark}</Animated.View>;
+const brandPrefix = BRAND.appName.endsWith("Pay") ? BRAND.appName.slice(0, -3) : BRAND.appName;
+const brandSuffix = BRAND.appName.endsWith("Pay") ? "Pay" : "";
+
+interface BrandLockupProps {
+  iconSize?: number;
+  /** YouTube-style: icon from left, wordmark from right. */
+  animate?: boolean;
+  /** Dark blue header / login — white Asan + green Pay */
+  light?: boolean;
+}
+
+/** Wallet icon + AsanPay wordmark — YouTube-style meet animation. */
+export function BrandLockup({ iconSize = 40, animate = true, light = true }: BrandLockupProps) {
+  const iconX = useRef(new Animated.Value(-32)).current;
+  const textX = useRef(new Animated.Value(36)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!animate) {
+      iconX.setValue(0);
+      textX.setValue(0);
+      opacity.setValue(1);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(opacity, { toValue: 1, duration: 380, useNativeDriver: true }),
+          Animated.timing(iconX, {
+            toValue: 0,
+            duration: 780,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          Animated.timing(textX, {
+            toValue: 0,
+            duration: 780,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.delay(1600),
+        Animated.parallel([
+          Animated.timing(opacity, { toValue: 0.5, duration: 320, useNativeDriver: true }),
+          Animated.timing(iconX, { toValue: -16, duration: 420, useNativeDriver: true }),
+          Animated.timing(textX, { toValue: 18, duration: 420, useNativeDriver: true }),
+        ]),
+        Animated.delay(160),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [animate, iconX, textX, opacity]);
+
+  const asanColor = light ? "#FFFFFF" : colors.blue;
+  const payColor = light ? "#3BE39A" : colors.green;
+  const fontSize = Math.round(iconSize * 0.55);
+
+  return (
+    <View style={styles.lockup} accessibilityLabel="AsanPay">
+      <Animated.View style={{ opacity, transform: [{ translateX: iconX }] }}>
+        <BrandMark size={iconSize} variant="mark" />
+      </Animated.View>
+      <Animated.View style={[styles.word, { opacity, transform: [{ translateX: textX }] }]}>
+        <Text style={[styles.asan, { color: asanColor, fontSize }]}>{brandPrefix}</Text>
+        {brandSuffix ? <Text style={[styles.pay, { color: payColor, fontSize }]}>{brandSuffix}</Text> : null}
+      </Animated.View>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -80,4 +119,17 @@ const styles = StyleSheet.create({
   logoWrap: {
     justifyContent: "center",
   },
+  lockup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    overflow: "hidden",
+  },
+  word: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginLeft: -2,
+  },
+  asan: { fontWeight: "800", letterSpacing: -0.4 },
+  pay: { fontWeight: "800", letterSpacing: -0.4 },
 });
