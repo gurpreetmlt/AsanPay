@@ -149,16 +149,9 @@ export function RetailerDashboard() {
               <Activity size={12} className="text-white/80" />
               <span className="text-xs text-white/90">Pending: {formatInr(totalPending)}</span>
             </div>
-            <PrimaryButton
-              type="button"
-              variant="action"
-              showArrow={false}
-              onClick={() => router.push("/fund-request")}
-              className="!py-2 text-xs"
-            >
-              <PlusCircle size={14} />
-              Add Money
-            </PrimaryButton>
+            <p className="rounded-full bg-white/15 px-3 py-2 text-center text-[11px] font-semibold leading-snug text-white/95">
+              Credits from AePS cash-out only — no Add Money here
+            </p>
           </div>
         )}
 

@@ -27,8 +27,8 @@ export const B = {
   badgeGrad: "linear-gradient(135deg, #2A5CDD 0%, #0B2A9A 100%)",
   /** Primary pill — horizontal blue → navy (login). */
   btnGrad: "linear-gradient(90deg, #3B6EF5 0%, #2A5CDD 42%, #0B2A9A 100%)",
-  /** Action pill — green → blue (Scan Finger / dashboard CTAs). */
-  actionGrad: "linear-gradient(90deg, #24CC82 0%, #12B76A 38%, #2A5CDD 100%)",
+  /** Action pill — bright green → blue (Add Money / Scan Finger). */
+  actionGrad: "linear-gradient(90deg, #22C55E 0%, #16A34A 32%, #2563EB 72%, #1D4ED8 100%)",
   walletGrad: "linear-gradient(135deg, #24CC82 0%, #11A362 100%)",
 } as const;
 
