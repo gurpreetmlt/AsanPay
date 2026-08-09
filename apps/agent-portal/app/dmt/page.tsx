@@ -1463,25 +1463,31 @@ export default function DmtPage() {
                       className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none"
                     />
                     <div className="flex gap-2">
-                      <button
+                      <PrimaryButton
                         type="button"
-                        disabled={deleteBusy}
+                        variant="destructive"
+                        size="sm"
+                        disabled={deleteBusy || deleteOtp.length < 4}
+                        loading={deleteBusy}
                         onClick={() => void confirmDeleteBeneficiary()}
-                        className="flex-1 rounded-xl bg-red-600 py-2 text-sm font-bold text-white disabled:opacity-50"
+                        className="flex-1"
                       >
                         Confirm Delete
-                      </button>
-                      <button
+                      </PrimaryButton>
+                      <PrimaryButton
                         type="button"
+                        variant="secondary"
+                        size="sm"
+                        showArrow={false}
                         onClick={() => {
                           setDeleteTarget(null);
                           setDeleteOtp("");
                           setDeleteKey("");
                         }}
-                        className="rounded-xl border bg-white px-4 py-2 text-sm font-bold"
+                        className="!w-auto"
                       >
                         Cancel
-                      </button>
+                      </PrimaryButton>
                     </div>
                   </div>
                 )}

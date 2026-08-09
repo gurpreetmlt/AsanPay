@@ -1,11 +1,14 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
-import { Fingerprint, Wallet } from "lucide-react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Eye, EyeOff, Fingerprint, Wallet } from "lucide-react-native";
 import { formatINR } from "../lib/format";
 import type { WalletBalance } from "../lib/types";
 import { colors } from "../theme/colors";
 import { showAlert } from "./AppAlert";
+
+const BALANCE_VISIBLE_KEY = "asanpay_balance_visible";
 
 interface Props {
   wallets: WalletBalance[];
@@ -18,6 +21,21 @@ interface Props {
 export function WalletBar({ wallets, onWalletPress, onAddMoney, onReports }: Props) {
   const main = wallets.find((w) => w.walletType === "main");
   const aeps = wallets.find((w) => w.walletType === "aeps");
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    void AsyncStorage.getItem(BALANCE_VISIBLE_KEY).then((v) => {
+      if (v === "0") setVisible(false);
+    });
+  }, []);
+
+  async function toggleVisible() {
+    setVisible((prev) => {
+      const next = !prev;
+      void AsyncStorage.setItem(BALANCE_VISIBLE_KEY, next ? "1" : "0");
+      return next;
+    });
+  }
 
   function openWallet() {
     if (onWalletPress) {
@@ -25,6 +43,10 @@ export function WalletBar({ wallets, onWalletPress, onAddMoney, onReports }: Pro
       return;
     }
     showAlert("Balance", "Open the Balance tab from bottom navigation.");
+  }
+
+  function amount(raw: string | undefined) {
+    return visible ? formatINR(raw ?? "0") : "₹ ••••••";
   }
 
   return (
@@ -36,8 +58,19 @@ export function WalletBar({ wallets, onWalletPress, onAddMoney, onReports }: Pro
               <Wallet size={12} color={colors.blue} strokeWidth={2.4} />
             </View>
             <Text style={styles.walletCardLabel}>Main</Text>
+            <Pressable
+              onPress={(e) => {
+                e?.stopPropagation?.();
+                void toggleVisible();
+              }}
+              hitSlop={8}
+              style={styles.eyeBtn}
+              accessibilityLabel={visible ? "Hide balances" : "Show balances"}
+            >
+              {visible ? <EyeOff size={14} color="#C7D2F5" /> : <Eye size={14} color="#C7D2F5" />}
+            </Pressable>
           </View>
-          <Text style={styles.walletCardAmount}>{formatINR(main?.balance ?? "0")}</Text>
+          <Text style={styles.walletCardAmount}>{amount(main?.balance)}</Text>
           <Text style={styles.walletCardDelta}>▲ Today</Text>
         </Pressable>
 
@@ -51,8 +84,19 @@ export function WalletBar({ wallets, onWalletPress, onAddMoney, onReports }: Pro
                 <Fingerprint size={12} color="#fff" strokeWidth={2.4} />
               </View>
               <Text style={styles.walletCardLabelGreen}>AEPS</Text>
+              <Pressable
+                onPress={(e) => {
+                  e?.stopPropagation?.();
+                  void toggleVisible();
+                }}
+                hitSlop={8}
+                style={styles.eyeBtn}
+                accessibilityLabel={visible ? "Hide balances" : "Show balances"}
+              >
+                {visible ? <EyeOff size={14} color="#BFF3D9" /> : <Eye size={14} color="#BFF3D9" />}
+              </Pressable>
             </View>
-            <Text style={styles.walletCardAmount}>{formatINR(aeps?.balance ?? "0")}</Text>
+            <Text style={styles.walletCardAmount}>{amount(aeps?.balance)}</Text>
             <Text style={styles.walletCardNoteGreen}>Settlement pending</Text>
           </LinearGradient>
         </Pressable>
@@ -90,6 +134,7 @@ const styles = StyleSheet.create({
   },
   walletCardAeps: { borderColor: "rgba(59,227,154,.35)" },
   walletCardTopRow: { flexDirection: "row", alignItems: "center", gap: 7 },
+  eyeBtn: { marginLeft: "auto", padding: 2 },
   walletCardIconLight: {
     width: 22,
     height: 22,

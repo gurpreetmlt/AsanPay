@@ -412,7 +412,12 @@ export default function SettingsPage() {
                       type="button"
                       variant="primary"
                       size="sm"
-                      disabled={passwordBusy}
+                      disabled={
+                        passwordBusy ||
+                        !currentPassword.trim() ||
+                        newPassword.length < 8 ||
+                        confirmPassword !== newPassword
+                      }
                       loading={passwordBusy}
                       onClick={() => void handleChangePassword()}
                       className="!w-auto"

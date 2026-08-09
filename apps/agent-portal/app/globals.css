@@ -151,8 +151,21 @@ body {
   font-size: 0.75rem;
 }
 
+.btn-pill--lg {
+  gap: 0.625rem;
+  border-radius: 1rem;
+  padding: 1rem 1.5rem;
+  font-size: 1.0625rem;
+}
+
 .btn-pill:disabled {
   cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.btn-pill:focus-visible {
+  outline: 2px solid rgba(11, 42, 154, 0.45);
+  outline-offset: 2px;
 }
 
 .btn-pill--primary {
@@ -215,7 +228,47 @@ body {
   border-color: rgba(11, 42, 154, 0.35);
   background: #f8faff;
   transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(11, 42, 154, 0.1);
+}
+
+.btn-pill--destructive {
+  color: #b91c1c;
+  background: #fff;
+  border: 1.5px solid rgba(185, 28, 28, 0.35);
+  box-shadow: none;
+}
+
+.btn-pill--destructive:hover:not(:disabled) {
+  background: #fef2f2;
+  border-color: rgba(185, 28, 28, 0.55);
+  transform: translateY(-1px);
+}
+
+.btn-pill--destructive:focus-visible {
+  outline: 2px solid rgba(185, 28, 28, 0.45);
+  outline-offset: 2px;
+}
+
+.btn-pill--ghost {
+  width: auto;
+  color: var(--color-brand-700);
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+  font-weight: 600;
+}
+
+.btn-pill--ghost:hover:not(:disabled) {
+  background: rgba(11, 42, 154, 0.06);
+}
+
+/* Soft surface cards — light border, no heavy blue glow */
+.ui-card {
+  border-radius: 1rem;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .login-panel-animate {
@@ -266,8 +319,8 @@ body {
     box-shadow 0.25s ease;
 }
 .dash-card-hover:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 14px 36px rgba(11, 42, 154, 0.12);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
 }
 
 /* Smooth loop: slow Y→A + text reveal → hold → slow A→Y. No opacity fade (no blink). */

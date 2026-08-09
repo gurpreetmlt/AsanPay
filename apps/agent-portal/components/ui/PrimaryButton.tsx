@@ -4,21 +4,34 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { ArrowRight } from "lucide-react";
 import { B } from "@/lib/brand";
 
+type Variant = "primary" | "secondary" | "action" | "destructive" | "ghost";
+type Size = "sm" | "md" | "lg";
+
 type Props = {
   children: ReactNode;
   loading?: boolean;
-  /** Soft looping glow + shimmer — same as login Unlock with MPIN */
+  /** Soft looping glow — login panel only (CSS scopes it) */
   loopGlow?: boolean;
+  /** Default: arrow only on primary */
   showArrow?: boolean;
-  /** primary = blue login CTA (Unlock with MPIN); secondary = outline */
-  variant?: "primary" | "secondary" | "action";
-  size?: "md" | "sm";
+  variant?: Variant;
+  size?: Size;
   className?: string;
 } & Omit<ButtonHTMLAttributes<HTMLButtonElement>, "className" | "children">;
 
+const SIZE_CLASS: Record<Size, string> = {
+  sm: "btn-pill--sm",
+  md: "",
+  lg: "btn-pill--lg",
+};
+
 /**
- * Shared CTA — login "Unlock with MPIN" look: blue gradient, soft glow, rounded-xl (not capsule).
- * `action` is kept as an alias of `primary` for older call sites.
+ * Shared CTA hierarchy:
+ * - primary = one solid blue per page/section
+ * - secondary = outline
+ * - destructive = red outline (cancel/delete)
+ * - ghost = text link style
+ * Loading: spinner + opacity only (never glow).
  */
 export function PrimaryButton({
   children,
@@ -33,11 +46,13 @@ export function PrimaryButton({
   ...rest
 }: Props) {
   const isDisabled = Boolean(disabled || loading);
-  const isOutline = variant === "secondary";
-  const arrow = showArrow ?? !isOutline;
-  const sizeClass = size === "sm" ? "btn-pill--sm" : "";
+  const resolved: Variant = variant === "action" ? "primary" : variant;
+  const isPrimary = resolved === "primary";
+  const arrow = showArrow ?? isPrimary;
+  const sizeClass = SIZE_CLASS[size];
+  const glowClass = isPrimary && loopGlow && !loading ? "btn-pill--glow" : "";
 
-  if (isOutline) {
+  if (resolved === "secondary") {
     return (
       <button
         type={type}
@@ -54,11 +69,45 @@ export function PrimaryButton({
     );
   }
 
+  if (resolved === "destructive") {
+    return (
+      <button
+        type={type}
+        disabled={isDisabled}
+        className={`btn-pill btn-pill--destructive ${sizeClass} ${className}`.trim()}
+        {...rest}
+      >
+        {loading ? (
+          <span className="h-5 w-5 animate-spin rounded-full border-2 border-current/30 border-t-current" />
+        ) : (
+          children
+        )}
+      </button>
+    );
+  }
+
+  if (resolved === "ghost") {
+    return (
+      <button
+        type={type}
+        disabled={isDisabled}
+        className={`btn-pill btn-pill--ghost ${sizeClass} ${className}`.trim()}
+        {...rest}
+      >
+        {loading ? (
+          <span className="h-4 w-4 animate-spin rounded-full border-2 border-current/30 border-t-current" />
+        ) : (
+          children
+        )}
+      </button>
+    );
+  }
+
   return (
     <button
       type={type}
       disabled={isDisabled}
-      className={`btn-pill btn-pill--primary ${sizeClass} ${loopGlow && !loading ? "btn-pill--glow" : ""} ${className}`.trim()}
+      className={`btn-pill btn-pill--primary ${sizeClass} ${glowClass} ${className}`.trim()}
       style={{
         background: B.btnGrad,
         opacity: isDisabled ? 0.45 : 1,
@@ -71,7 +120,7 @@ export function PrimaryButton({
         <>
           <span className="inline-flex items-center gap-2">{children}</span>
           {arrow ? (
-            <ArrowRight size={size === "sm" ? 14 : 16} strokeWidth={2.5} className="shrink-0" />
+            <ArrowRight size={size === "sm" ? 14 : size === "lg" ? 18 : 16} strokeWidth={2.5} className="shrink-0" />
           ) : null}
         </>
       )}

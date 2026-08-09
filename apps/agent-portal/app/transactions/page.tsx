@@ -7,6 +7,7 @@ import { RaiseDisputeModal } from "@/components/transactions/RaiseDisputeModal";
 import { toast } from "react-hot-toast";
 import { AppShell } from "@/components/layout/AppShell";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { extractApiError } from "@/lib/onboarding";
@@ -256,9 +257,11 @@ export default function TransactionsPage() {
             </table>
           )}
           {!loading && shown.length === 0 && (
-            <div className="py-12 text-center text-sm" style={{ color: B.muted }}>
-              No transactions found
-            </div>
+            <EmptyState
+              title="No transactions found"
+              description="Try another filter, or check back after your next transfer."
+              className="!py-10"
+            />
           )}
         </div>
       </div>

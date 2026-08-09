@@ -13,6 +13,8 @@ import {
   Bell,
   ShieldCheck,
   PlusCircle,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { fetchApi } from "@/lib/api";
@@ -20,9 +22,13 @@ import { B, roleFromUserRole } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import { ServiceCards } from "@/components/services/ServiceCards";
 import { formatInr, walletDisplayName } from "@/lib/walletLabels";
 import type { TxnRow, WalletBalance } from "@/lib/types";
+
+const BALANCE_VISIBLE_KEY = "asanpay_balance_visible";
 
 interface RetailerStats {
   role: "retailer";
@@ -58,6 +64,33 @@ export function RetailerDashboard() {
   const [recent, setRecent] = useState<TxnRow[]>([]);
   const [stats, setStats] = useState<RetailerStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [balanceVisible, setBalanceVisible] = useState(true);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(BALANCE_VISIBLE_KEY);
+      if (raw === "0") setBalanceVisible(false);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  function toggleBalanceVisible() {
+    setBalanceVisible((v) => {
+      const next = !v;
+      try {
+        localStorage.setItem(BALANCE_VISIBLE_KEY, next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }
+
+  function maskAmount(value: string) {
+    return balanceVisible ? formatInr(value) : "₹ ••••••";
+  }
+
 
   useEffect(() => {
     let alive = true;
@@ -102,20 +135,30 @@ export function RetailerDashboard() {
         {/* Main Wallet */}
         <div
           className="dash-card-hover relative overflow-hidden rounded-2xl p-5 text-white"
-          style={{ background: role.gradient, boxShadow: `0 8px 32px ${role.color}40` }}
+          style={{ background: role.gradient, boxShadow: `0 4px 16px ${role.color}28` }}
         >
           <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white opacity-10" />
-          <div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-white/70">
-            <Wallet size={14} />
-            {primary ? walletDisplayName(primary.walletType) : "Main"}
+          <div className="mb-1 flex items-center justify-between gap-2 text-xs font-medium uppercase tracking-wider text-white/70">
+            <span className="inline-flex items-center gap-2">
+              <Wallet size={14} />
+              {primary ? walletDisplayName(primary.walletType) : "Main"}
+            </span>
+            <button
+              type="button"
+              onClick={toggleBalanceVisible}
+              className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/15 text-white hover:bg-white/25"
+              aria-label={balanceVisible ? "Hide balances" : "Show balances"}
+            >
+              {balanceVisible ? <EyeOff size={15} /> : <Eye size={15} />}
+            </button>
           </div>
           <div className="mb-3 text-3xl font-bold leading-none">
-            {loading ? "…" : formatInr(primary?.balance ?? "0")}
+            {loading ? "…" : maskAmount(primary?.balance ?? "0")}
           </div>
           <div className="mb-3 flex items-center gap-1.5 border-t border-white/15 pt-3">
             <TrendingUp size={12} style={{ color: B.greenLight }} />
             <span className="text-xs font-semibold" style={{ color: B.greenLight }}>
-              Today: {formatInr(stats?.today.commissionEarned ?? "0")} earned
+              Today: {balanceVisible ? formatInr(stats?.today.commissionEarned ?? "0") : "••••"} earned
             </span>
           </div>
           <PrimaryButton
@@ -123,6 +166,8 @@ export function RetailerDashboard() {
             variant="primary"
             onClick={() => router.push("/fund-request")}
             size="sm"
+            showArrow={false}
+            className="!w-auto"
           >
             <PlusCircle size={14} />
             Add Money
@@ -133,25 +178,38 @@ export function RetailerDashboard() {
         {secondary && (
           <div
             className="dash-card-hover relative overflow-hidden rounded-2xl p-5 text-white"
-            style={{ background: B.green, boxShadow: `0 8px 32px ${B.green}40` }}
+            style={{ background: B.green, boxShadow: `0 4px 16px ${B.green}28` }}
           >
             <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white opacity-10" />
-            <div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-white/70">
-              <Wallet size={14} />
-              {walletDisplayName(secondary.walletType)}
+            <div className="mb-1 flex items-center justify-between gap-2 text-xs font-medium uppercase tracking-wider text-white/70">
+              <span className="inline-flex items-center gap-2">
+                <Wallet size={14} />
+                {walletDisplayName(secondary.walletType)}
+              </span>
+              <button
+                type="button"
+                onClick={toggleBalanceVisible}
+                className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/15 text-white hover:bg-white/25"
+                aria-label={balanceVisible ? "Hide balances" : "Show balances"}
+              >
+                {balanceVisible ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
             </div>
             <div className="mb-3 text-3xl font-bold leading-none">
-              {loading ? "…" : formatInr(secondary.balance)}
+              {loading ? "…" : maskAmount(secondary.balance)}
             </div>
             <div className="mb-3 flex items-center gap-1.5 border-t border-white/15 pt-3">
               <Activity size={12} className="text-white/80" />
-              <span className="text-xs text-white/90">Pending: {formatInr(totalPending)}</span>
+              <span className="text-xs text-white/90">
+                Pending: {balanceVisible ? formatInr(totalPending) : "••••"}
+              </span>
             </div>
             <p className="rounded-2xl bg-white/15 px-3 py-2 text-center text-[11px] font-semibold leading-snug text-white/95">
               Credits from AePS cash-out only — no Add Money here
             </p>
           </div>
         )}
+
 
         {/* Today's Stats Cards */}
         <StatCard
@@ -184,25 +242,35 @@ export function RetailerDashboard() {
       {/* Announcements + KYC row */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {/* Announcements */}
-        <div className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
-          <div className="mb-3 flex items-center gap-2">
-            <Bell size={16} style={{ color: B.blue }} />
-            <h3 className="text-sm font-bold" style={{ color: B.blue }}>Notices & Announcements</h3>
-          </div>
-          <div className="flex flex-col items-center py-6 text-center">
-            <Bell size={28} className="mb-2 opacity-30" style={{ color: B.muted }} />
-            <p className="text-xs" style={{ color: B.muted }}>
-              No announcements right now. Check back later!
-            </p>
-          </div>
+        <div className="ui-card dash-card-hover p-5">
+          <SectionHeader
+            title={
+              <span className="inline-flex items-center gap-2">
+                <Bell size={16} /> Notices & Announcements
+              </span>
+            }
+            subtitle="Updates from AsanPay"
+          />
+          <EmptyState
+            icon={<Bell size={22} strokeWidth={1.75} />}
+            title="No announcements"
+            description="Nothing new right now. Check back later."
+            className="!py-4"
+          />
         </div>
 
         {/* KYC Status */}
-        <div className="dash-card-hover rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
-          <div className="mb-3 flex items-center gap-2">
-            <ShieldCheck size={16} style={{ color: kycDone ? B.green : "#D97706" }} />
-            <h3 className="text-sm font-bold" style={{ color: B.blue }}>KYC Status</h3>
-          </div>
+        <div className="ui-card dash-card-hover p-5">
+          <SectionHeader
+            title={
+              <span className="inline-flex items-center gap-2">
+                <ShieldCheck size={16} style={{ color: kycDone ? B.green : "#D97706" }} />
+                KYC Status
+              </span>
+            }
+            subtitle={kycDone ? "Verified" : "Action may be required"}
+          />
+
           {kycDone ? (
             <div className="flex items-center gap-3 rounded-xl p-4" style={{ background: `${B.blue}10` }}>
               <CheckCircle2 size={24} style={{ color: B.blue }} />
@@ -266,9 +334,10 @@ export function RetailerDashboard() {
                 {!user?.hasKycDocs || user?.kycStatus === "rejected" ? (
                   <PrimaryButton
                     type="button"
-                    variant="primary"
+                    variant="secondary"
                     size="sm"
-                    className="mt-3"
+                    showArrow={false}
+                    className="mt-3 !w-auto"
                     onClick={() => router.push("/signup")}
                   >
                     Complete KYC
@@ -281,22 +350,43 @@ export function RetailerDashboard() {
       </div>
 
       {/* Recent Transactions */}
-      <div className="dash-card-hover rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-bold" style={{ color: B.blue }}>Recent Transactions</h2>
-          <button
-            type="button"
-            className="flex items-center gap-0.5 text-xs font-semibold"
-            style={{ color: B.green }}
-            onClick={() => router.push("/transactions")}
-          >
-            View All <ChevronRight size={12} />
-          </button>
-        </div>
+      <div className="ui-card dash-card-hover p-5">
+        <SectionHeader
+          title="Recent Transactions"
+          subtitle="Latest activity on your account"
+          action={
+            <PrimaryButton
+              type="button"
+              variant="ghost"
+              size="sm"
+              showArrow={false}
+              className="!w-auto"
+              onClick={() => router.push("/transactions")}
+            >
+              View all <ChevronRight size={12} />
+            </PrimaryButton>
+          }
+        />
         {loading && recent.length === 0 ? (
           <p className="py-8 text-center text-sm" style={{ color: B.muted }}>Loading…</p>
         ) : recent.length === 0 ? (
-          <p className="py-8 text-center text-sm" style={{ color: B.muted }}>No transactions yet</p>
+          <EmptyState
+            icon={<IndianRupee size={22} strokeWidth={1.75} />}
+            title="No transactions yet"
+            description="Your recent transfers and AePS activity will show up here."
+            action={
+              <PrimaryButton
+                type="button"
+                variant="secondary"
+                size="sm"
+                showArrow={false}
+                className="!w-auto"
+                onClick={() => router.push("/transactions")}
+              >
+                Open transactions
+              </PrimaryButton>
+            }
+          />
         ) : (
           <div className="space-y-2">
             {recent.map((t) => (
@@ -334,13 +424,13 @@ function StatCard({ icon, label, value, sub, accent }: {
   icon: React.ReactNode; label: string; value: string; sub: string; accent: string;
 }) {
   return (
-    <div className="dash-card-hover rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
+    <div className="ui-card dash-card-hover p-5">
       <div className="mb-2 flex items-center gap-2">
         <span style={{ color: accent }}>{icon}</span>
         <span className="text-xs font-medium uppercase tracking-wider" style={{ color: B.muted }}>{label}</span>
       </div>
       <div className="text-2xl font-bold" style={{ color: B.blue }}>{value}</div>
-      <div className="mt-1 text-xs font-medium" style={{ color: B.green }}>{sub}</div>
+      <div className="mt-1 text-xs font-medium" style={{ color: B.muted }}>{sub}</div>
     </div>
   );
 }

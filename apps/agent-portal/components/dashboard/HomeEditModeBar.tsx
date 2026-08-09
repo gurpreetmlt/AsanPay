@@ -20,8 +20,9 @@ export function HomeEditModeBar({ active, onDone }: Props) {
       </p>
         <PrimaryButton
           type="button"
-          variant="primary"
+          variant="secondary"
           size="sm"
+          showArrow={false}
           onClick={onDone}
           className="!w-auto"
         >

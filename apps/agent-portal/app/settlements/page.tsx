@@ -2,11 +2,13 @@
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Landmark, Plus, RefreshCcw } from "lucide-react";
+import { Landmark, Plus, RefreshCcw, Inbox } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { AppShell } from "@/components/layout/AppShell";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { StatusBadge, toneFromStatus } from "@/components/ui/StatusBadge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { createAttemptKeyHolder } from "@/lib/idempotencyKey";
@@ -160,24 +162,29 @@ export default function SettlementsPage() {
           </button>
         </div>
 
-        <div className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="flex items-center gap-2 text-base font-bold" style={{ color: B.blue }}>
-              <Landmark size={18} />
-              Settlement banks
-            </h2>
-            <PrimaryButton
-              type="button"
-              variant="secondary"
-              size="sm"
-              showArrow={false}
-              onClick={() => setShowBankForm((v) => !v)}
-              className="!w-auto"
-            >
-              <Plus size={14} />
-              Add bank
-            </PrimaryButton>
-          </div>
+        <div className="ui-card p-5">
+          <SectionHeader
+            title={
+              <span className="inline-flex items-center gap-2">
+                <Landmark size={18} />
+                Settlement banks
+              </span>
+            }
+            subtitle="Verified accounts for withdrawals"
+            action={
+              <PrimaryButton
+                type="button"
+                variant="secondary"
+                size="sm"
+                showArrow={false}
+                onClick={() => setShowBankForm((v) => !v)}
+                className="!w-auto"
+              >
+                <Plus size={14} />
+                Add bank
+              </PrimaryButton>
+            }
+          />
 
           {showBankForm ? (
             <form onSubmit={registerBank} className="mb-4 grid gap-3 rounded-xl border p-4 md:grid-cols-3" style={{ borderColor: B.border }}>
@@ -208,7 +215,12 @@ export default function SettlementsPage() {
               <PrimaryButton
                 type="submit"
                 variant="primary"
-                disabled={saving}
+                disabled={
+                  saving ||
+                  !accountNumber.trim() ||
+                  !ifsc.trim() ||
+                  !holderName.trim()
+                }
                 loading={saving}
                 className="md:col-span-3"
               >
@@ -220,7 +232,24 @@ export default function SettlementsPage() {
           {loading ? (
             <p className="text-sm" style={{ color: B.muted }}>Loading…</p>
           ) : banks.length === 0 ? (
-            <p className="text-sm" style={{ color: B.muted }}>No settlement banks yet. Add one to withdraw.</p>
+            <EmptyState
+              icon={<Landmark size={22} strokeWidth={1.75} />}
+              title="No settlement banks yet"
+              description="Add a bank account to withdraw funds."
+              action={
+                <PrimaryButton
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  showArrow={false}
+                  className="!w-auto"
+                  onClick={() => setShowBankForm(true)}
+                >
+                  <Plus size={14} />
+                  Add bank
+                </PrimaryButton>
+              }
+            />
           ) : (
             <ul className="space-y-2">
               {banks.map((b) => (
@@ -254,23 +283,24 @@ export default function SettlementsPage() {
           )}
         </div>
 
-        <div className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-base font-bold" style={{ color: B.blue }}>
-              Withdraw to bank
-            </h2>
-            <PrimaryButton
-              type="button"
-              variant="secondary"
-              size="sm"
-              showArrow={false}
-              disabled={!hasActiveBank}
-              onClick={() => setShowSettleForm((v) => !v)}
-              className="!w-auto"
-            >
-              Request settlement
-            </PrimaryButton>
-          </div>
+        <div className="ui-card p-5">
+          <SectionHeader
+            title="Withdraw to bank"
+            subtitle="Request settlement from your AePS / main balance"
+            action={
+              <PrimaryButton
+                type="button"
+                variant="secondary"
+                size="sm"
+                showArrow={false}
+                disabled={!hasActiveBank}
+                onClick={() => setShowSettleForm((v) => !v)}
+                className="!w-auto"
+              >
+                Request settlement
+              </PrimaryButton>
+            }
+          />
           {!hasActiveBank ? (
             <p className="mb-3 text-sm" style={{ color: B.muted }}>
               You need an active verified bank before requesting a settlement.
@@ -309,7 +339,7 @@ export default function SettlementsPage() {
                 type="submit"
                 variant="primary"
                 size="sm"
-                disabled={saving}
+                disabled={saving || !amount.trim() || Number(amount) <= 0}
                 loading={saving}
                 className="!w-auto"
               >
@@ -321,7 +351,12 @@ export default function SettlementsPage() {
           {loading ? (
             <p className="text-sm" style={{ color: B.muted }}>Loading…</p>
           ) : requests.length === 0 ? (
-            <p className="text-sm" style={{ color: B.muted }}>No settlement requests yet.</p>
+            <EmptyState
+              icon={<Inbox size={22} strokeWidth={1.75} />}
+              title="No settlement requests yet"
+              description="When you withdraw, history will appear here."
+              className="!py-6"
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[640px] text-left text-sm">

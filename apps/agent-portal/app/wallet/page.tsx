@@ -10,6 +10,8 @@ import {
   ArrowDownLeft,
   Download,
   Clock,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { AppShell } from "@/components/layout/AppShell";
@@ -24,6 +26,9 @@ import { useAuthHydrated } from "@/lib/useAuthHydrated";
 import { formatInr, walletDisplayName } from "@/lib/walletLabels";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { EmptyState } from "@/components/ui/EmptyState";
+
+const BALANCE_VISIBLE_KEY = "asanpay_balance_visible";
 
 export default function WalletPage() {
   const router = useRouter();
@@ -40,6 +45,32 @@ export default function WalletPage() {
   const [fundTarget, setFundTarget] = useState<DownlineUser | null>(null);
   const [pullTarget, setPullTarget] = useState<DownlineUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [balanceVisible, setBalanceVisible] = useState(true);
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(BALANCE_VISIBLE_KEY) === "0") setBalanceVisible(false);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  function toggleBalanceVisible() {
+    setBalanceVisible((v) => {
+      const next = !v;
+      try {
+        localStorage.setItem(BALANCE_VISIBLE_KEY, next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }
+
+  function maskAmount(value: string) {
+    return balanceVisible ? formatInr(value) : "₹ ••••••";
+  }
+
 
   useEffect(() => {
     if (hydrated && !accessToken) router.replace("/login");
@@ -96,19 +127,27 @@ export default function WalletPage() {
           {/* Main Wallet */}
           <div
             className="relative overflow-hidden rounded-2xl p-4 text-white"
-            style={{ background: role.gradient, boxShadow: `0 8px 32px ${role.color}40` }}
+            style={{ background: role.gradient, boxShadow: `0 4px 16px ${role.color}28` }}
           >
             <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white opacity-10" />
             <div className="relative z-10">
-              <div className="mb-1 text-xs font-medium uppercase tracking-wider text-white/70">
-                {walletDisplayName("main")}
+              <div className="mb-1 flex items-center justify-between text-xs font-medium uppercase tracking-wider text-white/70">
+                <span>{walletDisplayName("main")}</span>
+                <button
+                  type="button"
+                  onClick={toggleBalanceVisible}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/15 text-white hover:bg-white/25"
+                  aria-label={balanceVisible ? "Hide balances" : "Show balances"}
+                >
+                  {balanceVisible ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
               </div>
               <div className="mb-2 text-2xl font-bold leading-none">
-                {loading && !main ? "…" : formatInr(main?.balance ?? "0")}
+                {loading && !main ? "…" : maskAmount(main?.balance ?? "0")}
               </div>
               <div className="mb-3 flex items-center gap-1.5 border-t border-white/15 pt-2 text-xs text-white/80">
                 {parseFloat(main?.pendingBalance ?? "0") > 0
-                  ? `Pending: ${formatInr(main?.pendingBalance ?? "0")}`
+                  ? `Pending: ${balanceVisible ? formatInr(main?.pendingBalance ?? "0") : "••••"}`
                   : "No pending balance"}
               </div>
               <div className="grid grid-cols-4 gap-2">
@@ -148,17 +187,25 @@ export default function WalletPage() {
           {aeps && (
             <div
               className="relative overflow-hidden rounded-2xl p-4 text-white"
-              style={{ background: B.green, boxShadow: `0 8px 32px ${B.green}40` }}
+              style={{ background: B.green, boxShadow: `0 4px 16px ${B.green}28` }}
             >
               <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white opacity-10" />
               <div className="relative z-10">
-                <div className="mb-1 text-xs font-medium uppercase tracking-wider text-white/70">
-                  {walletDisplayName("aeps")}
+                <div className="mb-1 flex items-center justify-between text-xs font-medium uppercase tracking-wider text-white/70">
+                  <span>{walletDisplayName("aeps")}</span>
+                  <button
+                    type="button"
+                    onClick={toggleBalanceVisible}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/15 text-white hover:bg-white/25"
+                    aria-label={balanceVisible ? "Hide balances" : "Show balances"}
+                  >
+                    {balanceVisible ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
                 </div>
-                <div className="mb-2 text-2xl font-bold leading-none">{formatInr(aeps.balance)}</div>
+                <div className="mb-2 text-2xl font-bold leading-none">{maskAmount(aeps.balance)}</div>
               <div className="mb-3 flex items-center gap-1.5 border-t border-white/15 pt-2 text-xs text-white/80">
                 {parseFloat(aeps.pendingBalance ?? "0") > 0
-                  ? `Pending: ${formatInr(aeps.pendingBalance ?? "0")}`
+                  ? `Pending: ${balanceVisible ? formatInr(aeps.pendingBalance ?? "0") : "••••"}`
                   : "Credits from AePS cash-out only"}
               </div>
               <div className="grid grid-cols-2 gap-2">

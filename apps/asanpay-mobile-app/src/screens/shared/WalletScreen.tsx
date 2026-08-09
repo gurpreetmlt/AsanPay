@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Landmark } from "lucide-react-native";
+import { Eye, EyeOff, Landmark } from "lucide-react-native";
 import { fetchApi } from "../../lib/api";
 import { formatDate, formatINR } from "../../lib/format";
 import type { LedgerEntry, WalletBalance } from "../../lib/types";
@@ -13,6 +14,7 @@ import { FundRequestModal } from "./FundRequestScreen";
 import { SettlementsModal } from "./SettlementsModal";
 
 type WalletKind = "main" | "aeps";
+const BALANCE_VISIBLE_KEY = "asanpay_balance_visible";
 
 export function WalletScreen() {
   const user = useAuthStore((s) => s.user)!;
@@ -24,6 +26,26 @@ export function WalletScreen() {
   const [active, setActive] = useState<WalletKind>("main");
   const [showFund, setShowFund] = useState(false);
   const [showSettle, setShowSettle] = useState(false);
+  const [balanceVisible, setBalanceVisible] = useState(true);
+
+  useEffect(() => {
+    void AsyncStorage.getItem(BALANCE_VISIBLE_KEY).then((v) => {
+      if (v === "0") setBalanceVisible(false);
+    });
+  }, []);
+
+  function toggleBalanceVisible() {
+    setBalanceVisible((prev) => {
+      const next = !prev;
+      void AsyncStorage.setItem(BALANCE_VISIBLE_KEY, next ? "1" : "0");
+      return next;
+    });
+  }
+
+  function mask(raw: string | undefined) {
+    return balanceVisible ? formatINR(raw ?? "0") : "₹ ••••••";
+  }
+
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -95,7 +117,7 @@ export function WalletScreen() {
                   {k === "main" ? "Main" : "AEPS"}
                 </Text>
                 <Text style={[styles.switchAmount, { color: isActive ? "#fff" : tokens.txt2 }]}>
-                  {formatINR(w?.balance ?? "0")}
+                  {mask(w?.balance)}
                 </Text>
               </View>
             </Pressable>
@@ -115,13 +137,23 @@ export function WalletScreen() {
         >
           <View style={styles.heroTopRow}>
             <Text style={styles.heroLabel}>{active === "main" ? "Main" : "AEPS"}</Text>
-            <View style={styles.heroBadge}>
-              <Text style={styles.heroBadgeText}>{user.uid}</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Pressable
+                onPress={toggleBalanceVisible}
+                hitSlop={10}
+                accessibilityLabel={balanceVisible ? "Hide balances" : "Show balances"}
+                style={styles.eyeBtn}
+              >
+                {balanceVisible ? <EyeOff size={18} color="#fff" /> : <Eye size={18} color="#fff" />}
+              </Pressable>
+              <View style={styles.heroBadge}>
+                <Text style={styles.heroBadgeText}>{user.uid}</Text>
+              </View>
             </View>
           </View>
-          <Text style={styles.heroAmount}>{formatINR(activeWallet?.balance ?? "0")}</Text>
+          <Text style={styles.heroAmount}>{mask(activeWallet?.balance)}</Text>
           <Text style={styles.heroPending}>
-            Pending {formatINR(activeWallet?.pendingBalance ?? "0")}
+            Pending {balanceVisible ? formatINR(activeWallet?.pendingBalance ?? "0") : "••••"}
           </Text>
           <Text style={styles.heroNote}>
             {active === "main" ? "Available for services" : "Cash from customer AEPS services only"}
@@ -226,6 +258,14 @@ const styles = StyleSheet.create({
   content: { padding: 20, paddingTop: 14, paddingBottom: 32 },
   heroCard: { borderRadius: 22, padding: 20 },
   heroTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  eyeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   heroLabel: { fontSize: 12.5, color: "rgba(255,255,255,.82)", fontWeight: "600" },
   heroBadge: { backgroundColor: "rgba(255,255,255,.18)", paddingHorizontal: 9, paddingVertical: 3, borderRadius: 20 },
   heroBadgeText: { fontSize: 11, color: "#fff", fontWeight: "700" },
