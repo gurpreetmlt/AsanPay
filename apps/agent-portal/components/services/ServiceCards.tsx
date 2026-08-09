@@ -14,6 +14,7 @@ import { extractApiError, isKycServicesUnlocked } from "@/lib/onboarding";
 import { MAX_FAVORITES, selectFavoriteCodes, useFavoritesStore } from "@/lib/favorites";
 import { useAuthStore } from "@/lib/store";
 import { PromoSlider } from "@/components/promos/PromoSlider";
+import { CashWithdrawIconAnim } from "@/components/services/CashWithdrawIconAnim";
 
 type Svc = { id: string; code: string; name: string; badge: string | null; icon: string | null };
 
@@ -69,8 +70,7 @@ function ServiceIconCard({
   const showAsset = Boolean(assetSrc) && !assetFailed;
   const starColor = favorite ? B.green : B.muted;
   const designKey = serviceCodeToDesignKey(svc.code);
-  /** Phase 1 demo: only Cash Withdraw (first AePS tile) idles. */
-  const iconAnimClass = svc.code === "CASH_WITHDRAW" ? "svc-icon-anim--bounce" : "";
+  const isCashWithdraw = svc.code === "CASH_WITHDRAW";
 
   return (
     <div
@@ -105,17 +105,19 @@ function ServiceIconCard({
         >
           {svc.badge ?? "·"}
         </span>
-        {showAsset ? (
+        {isCashWithdraw ? (
+          <CashWithdrawIconAnim className="mx-auto h-12 w-12" />
+        ) : showAsset ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={assetSrc!}
             alt=""
-            className={`mx-auto block h-12 w-12 object-contain transition duration-150 ease-out group-hover:scale-110 group-hover:drop-shadow-md ${iconAnimClass}`.trim()}
+            className="mx-auto block h-12 w-12 object-contain transition duration-150 ease-out group-hover:scale-110 group-hover:drop-shadow-md"
             onError={() => setAssetFailed(true)}
           />
         ) : (
           <div
-            className={`mx-auto flex h-12 w-12 items-center justify-center rounded-xl transition duration-150 ease-out group-hover:scale-110 ${iconAnimClass}`.trim()}
+            className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl transition duration-150 ease-out group-hover:scale-110"
             style={{ background: tile.bg }}
           >
             <DesignIcon name={designKey} size={26} color={tile.fg} />

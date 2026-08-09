@@ -267,31 +267,80 @@ body {
   transform: scale(0.97);
 }
 
-/* Phase 1 demo — Cash Withdraw (AePS) idle bounce only */
-@keyframes svc-icon-bounce {
+/* Cash Withdraw layered idle — fingerprint rings + hand (not Lottie) */
+@keyframes cw-fp-reveal {
   0%,
+  4% {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  14%,
+  58% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  72%,
   100% {
-    transform: translateY(0) scale(1);
-  }
-  40% {
-    transform: translateY(-5px) scale(1.04);
-  }
-  55% {
-    transform: translateY(0) scale(0.98);
-  }
-  70% {
-    transform: translateY(-2px) scale(1.02);
+    opacity: 0;
+    transform: translateY(-1px);
   }
 }
 
-.svc-icon-anim--bounce {
-  animation: svc-icon-bounce 2.2s ease-in-out infinite;
-  will-change: transform;
+@keyframes cw-hand-rise {
+  0%,
+  18% {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  38%,
+  62% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  78%,
+  100% {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+.cw-icon {
+  display: block;
+  overflow: visible;
+}
+
+.cw-fp {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: cw-fp-reveal 4s ease-in-out infinite;
+}
+
+.cw-fp--1 {
+  animation-delay: 0s;
+}
+.cw-fp--2 {
+  animation-delay: 0.28s;
+}
+.cw-fp--3 {
+  animation-delay: 0.56s;
+}
+.cw-fp--4 {
+  animation-delay: 0.84s;
+}
+
+.cw-hand {
+  opacity: 0;
+  transform-box: fill-box;
   transform-origin: center bottom;
+  animation: cw-hand-rise 4s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .svc-icon-anim--bounce {
+  .cw-fp,
+  .cw-hand {
     animation: none;
+    opacity: 1;
+    transform: none;
   }
 }
