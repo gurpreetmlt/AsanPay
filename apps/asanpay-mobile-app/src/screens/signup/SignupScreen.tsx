@@ -2047,7 +2047,7 @@ const styles = StyleSheet.create({
   roleRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 6 },
   roleChip: { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 },
   emailRow: { flexDirection: "row", gap: 8, alignItems: "center" },
-  fieldRow: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
+  fieldRow: { flexDirection: "row", gap: 14, alignItems: "flex-start", marginBottom: 4 },
   fieldHalf: { flex: 1, minWidth: 0 },
   verifyBtn: {
     backgroundColor: colors.blue,

@@ -140,8 +140,8 @@ function FileUpload({
     <div className="min-w-0">
       <Label>{label}</Label>
       <label
-        className={`flex h-full cursor-pointer flex-col gap-1.5 rounded-2xl border-2 border-dashed transition ${
-          compact ? "px-3 py-3" : "gap-2 px-4 py-4"
+        className={`flex h-full cursor-pointer flex-col rounded-2xl border-2 border-dashed transition ${
+          compact ? "min-h-[5.5rem] gap-1 px-3 py-3" : "min-h-[6.5rem] gap-2 px-4 py-4"
         }`}
         style={{
           borderColor: error ? "#DC2626" : meta ? B.green : B.border,
@@ -1397,7 +1397,10 @@ function SignupPageInner() {
                 <p className="text-xs" style={{ color: B.muted }}>
                   Enter the Aadhaar linked to your mobile number. Upload clear front and back images.
                 </p>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div
+                  className="mb-1 grid grid-cols-1 sm:grid-cols-2"
+                  style={{ gap: 20, columnGap: 20, rowGap: 16 }}
+                >
                   <FileUpload
                     label="Aadhaar Front (optional)"
                     meta={draft.aadhaarFront}
@@ -1716,7 +1719,10 @@ function SignupPageInner() {
                 <p className="text-xs" style={{ color: B.muted }}>
                   Capture both photos live with the camera. Location (lat/lng) is saved with each photo.
                 </p>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div
+                  className="grid grid-cols-1 sm:grid-cols-2"
+                  style={{ gap: 20, columnGap: 20, rowGap: 16 }}
+                >
                   <LivePhotoCapture
                     label="Personal Photo *"
                     facing="user"
