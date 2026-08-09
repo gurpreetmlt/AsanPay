@@ -1,7 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
 const LOGO_SRC = {
   /** Blue "Asan" — light / white backgrounds */
   dark: "/brand/asanpay-logo-dark.svg",
@@ -10,8 +8,6 @@ const LOGO_SRC = {
 } as const;
 
 const TAGLINE = "Payment Made Easy";
-/** Full logo loop — long still in the middle */
-const LOGO_LOOP_MS = 5600;
 
 export function AsanPayLogo({
   width = 180,
@@ -61,53 +57,9 @@ export function AsanIcon({ size = 36 }: { size?: number }) {
   );
 }
 
-function TypeTagline({ cycle }: { cycle: number }) {
-  const [n, setN] = useState(0);
-
-  useEffect(() => {
-    setN(0);
-    let intervalId: number | undefined;
-    const start = window.setTimeout(() => {
-      let i = 0;
-      intervalId = window.setInterval(() => {
-        i += 1;
-        setN(i);
-        if (i >= TAGLINE.length && intervalId !== undefined) window.clearInterval(intervalId);
-      }, 48);
-    }, 900);
-    return () => {
-      window.clearTimeout(start);
-      if (intervalId !== undefined) window.clearInterval(intervalId);
-    };
-  }, [cycle]);
-
-  return (
-    <span className="yt-tagline" aria-label={TAGLINE}>
-      {TAGLINE.slice(0, n)}
-      {n < TAGLINE.length ? <span className="yt-tagline-caret">|</span> : null}
-    </span>
-  );
-}
-
-/** Tagline sits under wordmark only (not under wallet icon) — Final-Logo alignment. */
-function TaglineBlock({
-  cycle,
-  animate,
-}: {
-  cycle: number;
-  animate: boolean;
-}) {
-  return (
-    <span className="yt-tagline-block">
-      <span className="yt-tagline-rule" aria-hidden />
-      {animate ? <TypeTagline cycle={cycle} /> : <span className="yt-tagline">{TAGLINE}</span>}
-    </span>
-  );
-}
-
 /**
- * Wallet icon + AsanPay column + typed tagline under AsanPay only.
- * Soft in-bounds animation (no translate clip).
+ * YouTube-style: wallet icon holds; AsanPay + tagline slide out from under the icon.
+ * No typing — full tagline visible. Soft loop with long still.
  */
 export function AsanPayLockup({
   width = 168,
@@ -125,22 +77,15 @@ export function AsanPayLockup({
   showTagline?: boolean;
   className?: string;
 }) {
-  const [cycle, setCycle] = useState(0);
-  const iconSize = Math.round(width * 0.26);
-  const fontSize = Math.round(iconSize * 0.52);
+  const iconSize = Math.round(width * 0.28);
+  const fontSize = Math.round(iconSize * 0.5);
   const asanColor = light ? "#FFFFFF" : "#0B2A9A";
   const payColor = light ? "#3BE39A" : "#18B26E";
 
-  useEffect(() => {
-    if (!animate) return;
-    const id = window.setInterval(() => setCycle((c) => c + 1), LOGO_LOOP_MS);
-    return () => window.clearInterval(id);
-  }, [animate]);
-
   if (!wordmark) {
     return (
-      <span className={`yt-final-lockup ${className}`.trim()} aria-label="AsanPay">
-        <span className={animate ? "yt-final-mark--animate" : undefined}>
+      <span className={`yt-lockup ${className}`.trim()} aria-label="AsanPay">
+        <span className={animate ? "yt-lockup-icon yt-lockup-icon--anim" : "yt-lockup-icon"}>
           <AsanIcon size={iconSize} />
         </span>
       </span>
@@ -149,16 +94,23 @@ export function AsanPayLockup({
 
   return (
     <span
-      className={`yt-final-lockup yt-final-lockup--row ${animate ? "yt-final-mark--animate" : ""} ${className}`.trim()}
+      className={`yt-lockup yt-lockup--row ${animate ? "yt-lockup--anim" : ""} ${className}`.trim()}
       aria-label="AsanPay"
     >
-      <AsanIcon size={iconSize} />
-      <span className="yt-final-wordcol">
-        <span className="yt-final-word" style={{ fontSize }}>
+      <span className="yt-lockup-icon">
+        <AsanIcon size={iconSize} />
+      </span>
+      <span className="yt-lockup-reveal">
+        <span className="yt-lockup-word" style={{ fontSize }}>
           <span style={{ color: asanColor, fontWeight: 800 }}>Asan</span>
           <span style={{ color: payColor, fontWeight: 800 }}>Pay</span>
         </span>
-        {showTagline ? <TaglineBlock cycle={cycle} animate={animate} /> : null}
+        {showTagline ? (
+          <span className="yt-lockup-tag">
+            <span className="yt-lockup-rule" aria-hidden />
+            <span className="yt-lockup-tagline">{TAGLINE}</span>
+          </span>
+        ) : null}
       </span>
     </span>
   );

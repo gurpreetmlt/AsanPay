@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import { Animated, Easing, Image, StyleSheet, Text, View } from "react-native";
 import { BRAND } from "../theme/brand";
 
@@ -12,7 +12,6 @@ const markSource = require("../assets/asan-pay-appicon-flat.png");
 const logoSource = require("../assets/asan-pay-logo.png");
 
 const TAGLINE = "Payment Made Easy";
-const LOGO_LOOP_MS = 5600;
 
 const brandPrefix = BRAND.appName.endsWith("Pay") ? BRAND.appName.slice(0, -3) : BRAND.appName;
 const brandSuffix = BRAND.appName.endsWith("Pay") ? "Pay" : "";
@@ -41,48 +40,18 @@ export function BrandMark({ size = 72, variant = "mark" }: BrandMarkProps) {
   );
 }
 
-function TypeTagline({ cycle }: { cycle: number }) {
-  const [n, setN] = useState(0);
-
-  useEffect(() => {
-    setN(0);
-    let intervalId: ReturnType<typeof setInterval> | undefined;
-    const start = setTimeout(() => {
-      let i = 0;
-      intervalId = setInterval(() => {
-        i += 1;
-        setN(i);
-        if (i >= TAGLINE.length && intervalId) clearInterval(intervalId);
-      }, 42);
-    }, 700);
-    return () => {
-      clearTimeout(start);
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [cycle]);
-
-  return (
-    <Text style={styles.tagline} accessibilityLabel={TAGLINE} numberOfLines={1}>
-      {TAGLINE.slice(0, n)}
-      {n < TAGLINE.length ? <Text style={styles.caret}>|</Text> : null}
-    </Text>
-  );
-}
-
 interface BrandLockupProps {
-  /** Wallet icon size (wordmark scales with it). */
   iconSize?: number;
-  /** @deprecated use iconSize — kept so older call sites still compile */
+  /** @deprecated — accepted for older call sites */
   width?: number;
   animate?: boolean;
-  /** true = white Asan + green Pay (dark/blue header) */
   light?: boolean;
   showTagline?: boolean;
 }
 
 /**
- * Wallet icon + AsanPay wordmark + typed tagline under AsanPay only.
- * No image crop / no overflow clip — tagline never under the icon.
+ * YouTube-style: wallet holds; AsanPay + tagline slide out from under the icon.
+ * No typing — full tagline. Long still.
  */
 export function BrandLockup({
   iconSize,
@@ -92,60 +61,114 @@ export function BrandLockup({
   showTagline = true,
 }: BrandLockupProps) {
   const size = iconSize ?? (width ? Math.round(width * 0.24) : 40);
-  const [cycle, setCycle] = useState(0);
-  const opacity = useRef(new Animated.Value(1)).current;
-  const scale = useRef(new Animated.Value(1)).current;
+  const cycle = useRef(0);
+  const iconScale = useRef(new Animated.Value(1)).current;
+  const iconOpacity = useRef(new Animated.Value(1)).current;
+  const textX = useRef(new Animated.Value(0)).current;
+  const textOpacity = useRef(new Animated.Value(1)).current;
+  const textScaleX = useRef(new Animated.Value(1)).current;
 
   const asanColor = light ? "#FFFFFF" : "#0B2A9A";
   const payColor = light ? "#3BE39A" : "#18B26E";
-  const fontSize = Math.round(size * 0.52);
-
-  useEffect(() => {
-    if (!animate) return;
-    const id = setInterval(() => setCycle((c) => c + 1), LOGO_LOOP_MS);
-    return () => clearInterval(id);
-  }, [animate]);
+  const fontSize = Math.round(size * 0.5);
 
   useEffect(() => {
     if (!animate) {
-      opacity.setValue(1);
-      scale.setValue(1);
+      iconScale.setValue(1);
+      iconOpacity.setValue(1);
+      textX.setValue(0);
+      textOpacity.setValue(1);
+      textScaleX.setValue(1);
       return;
     }
-    // In-bounds only (opacity + soft scale) — no translateX so edges never clip.
-    opacity.setValue(0);
-    scale.setValue(0.96);
-    const anim = Animated.sequence([
-      Animated.parallel([
-        Animated.timing(opacity, { toValue: 1, duration: 480, useNativeDriver: true }),
-        Animated.sequence([
-          Animated.timing(scale, {
-            toValue: 1.03,
-            duration: 400,
+
+    let alive = true;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    function runLoop() {
+      if (!alive) return;
+      cycle.current += 1;
+
+      iconOpacity.setValue(0.65);
+      iconScale.setValue(0.9);
+      textOpacity.setValue(0);
+      textX.setValue(-16);
+      textScaleX.setValue(0.92);
+
+      const anim = Animated.sequence([
+        // Icon pops first
+        Animated.parallel([
+          Animated.timing(iconOpacity, { toValue: 1, duration: 380, useNativeDriver: true }),
+          Animated.sequence([
+            Animated.timing(iconScale, {
+              toValue: 1.07,
+              duration: 320,
+              easing: Easing.out(Easing.cubic),
+              useNativeDriver: true,
+            }),
+            Animated.timing(iconScale, { toValue: 1, duration: 220, useNativeDriver: true }),
+          ]),
+        ]),
+        // Text slides out from under wallet
+        Animated.parallel([
+          Animated.timing(textOpacity, { toValue: 1, duration: 520, useNativeDriver: true }),
+          Animated.timing(textX, {
+            toValue: 0,
+            duration: 620,
             easing: Easing.out(Easing.cubic),
             useNativeDriver: true,
           }),
-          Animated.timing(scale, { toValue: 1, duration: 260, useNativeDriver: true }),
+          Animated.timing(textScaleX, {
+            toValue: 1,
+            duration: 620,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
         ]),
-      ]),
-      Animated.delay(3600),
-      Animated.parallel([
-        Animated.timing(opacity, { toValue: 0.94, duration: 280, useNativeDriver: true }),
-        Animated.timing(scale, { toValue: 0.98, duration: 280, useNativeDriver: true }),
-      ]),
-      Animated.delay(180),
-    ]);
-    anim.start();
-    return () => anim.stop();
-  }, [animate, cycle, opacity, scale]);
+        // Long still
+        Animated.delay(3400),
+        // Soft tuck back under icon
+        Animated.parallel([
+          Animated.timing(textOpacity, { toValue: 0.75, duration: 360, useNativeDriver: true }),
+          Animated.timing(textX, { toValue: -8, duration: 360, useNativeDriver: true }),
+          Animated.timing(iconScale, { toValue: 0.97, duration: 360, useNativeDriver: true }),
+        ]),
+        Animated.delay(200),
+      ]);
+
+      anim.start(({ finished }) => {
+        if (!finished || !alive) return;
+        timeoutId = setTimeout(runLoop, 80);
+      });
+    }
+
+    runLoop();
+    return () => {
+      alive = false;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [animate, iconScale, iconOpacity, textX, textOpacity, textScaleX]);
 
   return (
-    <Animated.View
-      style={[styles.lockup, { opacity, transform: [{ scale }] }]}
-      accessibilityLabel="AsanPay"
-    >
-      <BrandMark size={size} variant="mark" />
-      <View style={styles.wordCol}>
+    <View style={styles.lockup} accessibilityLabel="AsanPay">
+      <Animated.View
+        style={[
+          styles.iconWrap,
+          { opacity: iconOpacity, transform: [{ scale: iconScale }] },
+        ]}
+      >
+        <BrandMark size={size} variant="mark" />
+      </Animated.View>
+
+      <Animated.View
+        style={[
+          styles.reveal,
+          {
+            opacity: textOpacity,
+            transform: [{ translateX: textX }, { scaleX: textScaleX }],
+          },
+        ]}
+      >
         <Text style={[styles.wordRow, { fontSize }]} numberOfLines={1}>
           <Text style={[styles.asan, { color: asanColor }]}>{brandPrefix}</Text>
           {brandSuffix ? <Text style={[styles.pay, { color: payColor }]}>{brandSuffix}</Text> : null}
@@ -153,11 +176,11 @@ export function BrandLockup({
         {showTagline ? (
           <View style={styles.tagBlock}>
             <View style={styles.tagRule} />
-            {animate ? <TypeTagline cycle={cycle} /> : <Text style={styles.tagline}>{TAGLINE}</Text>}
+            <Text style={styles.tagline}>{TAGLINE}</Text>
           </View>
         ) : null}
-      </View>
-    </Animated.View>
+      </Animated.View>
+    </View>
   );
 }
 
@@ -176,31 +199,30 @@ const styles = StyleSheet.create({
   lockup: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 9,
     overflow: "visible",
     paddingVertical: 2,
   },
-  wordCol: {
-    flexShrink: 1,
+  iconWrap: {
+    zIndex: 2,
+  },
+  reveal: {
+    marginLeft: 6,
     paddingTop: 2,
-    minWidth: 0,
+    zIndex: 1,
   },
   wordRow: {
     fontWeight: "800",
     letterSpacing: -0.5,
-    lineHeight: undefined,
   },
   asan: { fontWeight: "800" },
   pay: { fontWeight: "800" },
   tagBlock: {
-    marginTop: 4,
+    marginTop: 5,
     gap: 3,
-    alignSelf: "stretch",
   },
   tagRule: {
     height: 1.5,
-    width: "100%",
-    maxWidth: 132,
+    width: 128,
     borderRadius: 1,
     backgroundColor: "#5B8CFF",
   },
@@ -210,9 +232,5 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     letterSpacing: 0.9,
     lineHeight: 13,
-  },
-  caret: {
-    color: "#FF8400",
-    fontWeight: "400",
   },
 });

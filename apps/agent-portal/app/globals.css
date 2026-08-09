@@ -255,108 +255,132 @@ body {
   box-shadow: 0 14px 36px rgba(11, 42, 154, 0.12);
 }
 
-/* Brand lockup: icon + AsanPay column + typed tagline — in-bounds, no clip */
-@keyframes yt-final-in {
+/* YouTube-style: text reveals from under wallet icon — long still, no clip */
+@keyframes yt-icon-pulse {
   0%,
-  3% {
-    opacity: 0;
-    transform: scale(0.96);
+  4% {
+    opacity: 0.7;
+    transform: scale(0.9);
   }
-  12% {
+  14% {
     opacity: 1;
-    transform: scale(1.03);
+    transform: scale(1.06);
   }
-  18%,
-  84% {
+  22%,
+  82% {
     opacity: 1;
     transform: scale(1);
   }
-  94%,
+  92%,
   100% {
-    opacity: 0.94;
-    transform: scale(0.98);
+    opacity: 1;
+    transform: scale(0.97);
   }
 }
-.yt-final-lockup {
+@keyframes yt-text-reveal {
+  0%,
+  6% {
+    opacity: 0;
+    transform: translateX(-18px);
+    clip-path: inset(0 100% 0 0);
+  }
+  8% {
+    opacity: 0.4;
+    clip-path: inset(0 85% 0 0);
+  }
+  22% {
+    opacity: 1;
+    transform: translateX(0);
+    clip-path: inset(0 0 0 0);
+  }
+  22%,
+  82% {
+    opacity: 1;
+    transform: translateX(0);
+    clip-path: inset(0 0 0 0);
+  }
+  92%,
+  100% {
+    opacity: 0.85;
+    transform: translateX(-6px);
+    clip-path: inset(0 12% 0 0);
+  }
+}
+.yt-lockup {
   display: inline-flex;
-  flex-direction: column;
   align-items: flex-start;
-  gap: 0.2rem;
   overflow: visible;
   max-width: 100%;
 }
-.yt-final-lockup--row {
+.yt-lockup--row {
   flex-direction: row;
-  align-items: flex-start;
-  gap: 0.55rem;
+  gap: 0.45rem;
 }
-.yt-final-wordcol {
+.yt-lockup-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+  transform-origin: center center;
+}
+.yt-lockup-reveal {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   min-width: 0;
-  padding-top: 0.1rem;
+  padding-top: 0.12rem;
+  position: relative;
+  z-index: 1;
+  /* tuck under icon slightly so reveal feels like sliding out from wallet */
+  margin-left: -0.15rem;
 }
-.yt-final-word {
+.yt-lockup-word {
   display: inline-flex;
   letter-spacing: -0.04em;
   line-height: 1.05;
   white-space: nowrap;
 }
-.yt-final-mark--animate {
-  transform-origin: left center;
-  will-change: transform, opacity;
-  animation: yt-final-in 5.6s ease-in-out infinite;
-}
-.yt-tagline-block {
+.yt-lockup-tag {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.2rem;
-  margin-top: 0.28rem;
+  gap: 0.22rem;
+  margin-top: 0.3rem;
   width: max-content;
-  max-width: 100%;
-  box-sizing: border-box;
 }
-.yt-tagline-rule {
+.yt-lockup-rule {
   display: block;
   width: 100%;
-  min-width: 7.5rem;
+  min-width: 7.8rem;
   height: 1.5px;
   border-radius: 1px;
-  background: linear-gradient(90deg, #5b8cff 0%, #2a5cdd 70%, transparent 100%);
-  opacity: 0.95;
+  background: linear-gradient(90deg, #5b8cff 0%, #2a5cdd 75%, transparent 100%);
 }
-.yt-tagline {
-  display: block;
-  min-height: 1em;
+.yt-lockup-tagline {
   font-size: 0.62rem;
   font-weight: 600;
   letter-spacing: 0.1em;
   color: #ff8400;
   white-space: nowrap;
   line-height: 1.25;
-  overflow: visible;
 }
-.yt-tagline-caret {
-  display: inline-block;
-  margin-left: 1px;
-  color: #ff8400;
-  animation: yt-caret-blink 0.85s step-end infinite;
+.yt-lockup--anim .yt-lockup-icon {
+  animation: yt-icon-pulse 5.8s ease-in-out infinite;
 }
-@keyframes yt-caret-blink {
-  50% {
-    opacity: 0;
-  }
+.yt-lockup--anim .yt-lockup-reveal {
+  animation: yt-text-reveal 5.8s ease-in-out infinite;
+}
+.yt-lockup-icon--anim {
+  animation: yt-icon-pulse 5.8s ease-in-out infinite;
 }
 @media (prefers-reduced-motion: reduce) {
-  .yt-final-mark--animate {
+  .yt-lockup--anim .yt-lockup-icon,
+  .yt-lockup--anim .yt-lockup-reveal,
+  .yt-lockup-icon--anim {
     animation: none;
     opacity: 1;
     transform: none;
-  }
-  .yt-tagline-caret {
-    display: none;
+    clip-path: none;
   }
 }
 
