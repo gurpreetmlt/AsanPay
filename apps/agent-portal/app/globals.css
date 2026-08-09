@@ -255,55 +255,33 @@ body {
   box-shadow: 0 14px 36px rgba(11, 42, 154, 0.12);
 }
 
-/* YouTube-style: text reveals from under wallet icon — long still, no clip */
-@keyframes yt-icon-pulse {
-  0%,
-  4% {
-    opacity: 0.7;
-    transform: scale(0.9);
+/* Smooth loop: slow Y→A + text reveal → hold → slow A→Y. No opacity fade (no blink). */
+@keyframes yt-wallet-ya {
+  0% {
+    transform: translateX(var(--yt-travel, 110px));
   }
-  14% {
-    opacity: 1;
-    transform: scale(1.06);
+  28% {
+    transform: translateX(0);
   }
-  22%,
-  82% {
-    opacity: 1;
-    transform: scale(1);
+  72% {
+    transform: translateX(0);
   }
-  92%,
   100% {
-    opacity: 1;
-    transform: scale(0.97);
+    transform: translateX(var(--yt-travel, 110px));
   }
 }
 @keyframes yt-text-reveal {
-  0%,
-  6% {
-    opacity: 0;
-    transform: translateX(-18px);
+  0% {
     clip-path: inset(0 100% 0 0);
   }
-  8% {
-    opacity: 0.4;
-    clip-path: inset(0 85% 0 0);
-  }
-  22% {
-    opacity: 1;
-    transform: translateX(0);
+  28% {
     clip-path: inset(0 0 0 0);
   }
-  22%,
-  82% {
-    opacity: 1;
-    transform: translateX(0);
+  72% {
     clip-path: inset(0 0 0 0);
   }
-  92%,
   100% {
-    opacity: 0.85;
-    transform: translateX(-6px);
-    clip-path: inset(0 12% 0 0);
+    clip-path: inset(0 100% 0 0);
   }
 }
 .yt-lockup {
@@ -311,17 +289,19 @@ body {
   align-items: center;
   overflow: visible;
   max-width: 100%;
+  opacity: 1;
 }
 .yt-lockup--row {
   flex-direction: row;
-  gap: 0.45rem;
+  gap: 0.5rem;
 }
 .yt-lockup-icon {
   display: inline-flex;
   flex-shrink: 0;
   position: relative;
-  z-index: 2;
+  z-index: 3;
   transform-origin: center center;
+  backface-visibility: hidden;
 }
 .yt-lockup-reveal {
   display: block;
@@ -329,31 +309,31 @@ body {
   overflow: hidden;
   position: relative;
   z-index: 1;
-  /* tuck under icon so reveal slides out from wallet */
-  margin-left: -0.2rem;
+  margin-left: -0.1rem;
   align-self: center;
+  backface-visibility: hidden;
 }
 .yt-lockup-wordmark {
   max-width: 100%;
   height: auto;
   pointer-events: none;
   user-select: none;
+  display: block;
 }
 .yt-lockup--anim .yt-lockup-icon {
-  animation: yt-icon-pulse 5.8s ease-in-out infinite;
+  animation: yt-wallet-ya 8s cubic-bezier(0.45, 0.05, 0.25, 1) infinite;
 }
 .yt-lockup--anim .yt-lockup-reveal {
-  animation: yt-text-reveal 5.8s ease-in-out infinite;
+  animation: yt-text-reveal 8s cubic-bezier(0.45, 0.05, 0.25, 1) infinite;
 }
 .yt-lockup-icon--anim {
-  animation: yt-icon-pulse 5.8s ease-in-out infinite;
+  animation: yt-wallet-ya 8s cubic-bezier(0.45, 0.05, 0.25, 1) infinite;
 }
 @media (prefers-reduced-motion: reduce) {
   .yt-lockup--anim .yt-lockup-icon,
   .yt-lockup--anim .yt-lockup-reveal,
   .yt-lockup-icon--anim {
     animation: none;
-    opacity: 1;
     transform: none;
     clip-path: none;
   }

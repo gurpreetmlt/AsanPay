@@ -1,5 +1,7 @@
 "use client";
 
+import type { CSSProperties } from "react";
+
 /** Exact Final Logo assets (wordmark includes AsanPay + tagline). */
 const WORDMARK_SRC = {
   /** Blue Asan — light / white backgrounds */
@@ -17,6 +19,9 @@ const ICON_SRC = {
   dark: "/brand/AsanPay-Dark-Icon.svg",
   light: "/brand/AsanPay-Light-Icon.svg",
 } as const;
+
+/** Wordmark crop aspect from Final Logo (viewBox 620×200). */
+const WORD_ASPECT = 200 / 620;
 
 export function AsanPayLogo({
   width = 180,
@@ -48,7 +53,6 @@ export function AsanIcon({
   light = true,
 }: {
   size?: number;
-  /** true = icon for dark/blue UI (same mark; light/dark files match) */
   light?: boolean;
 }) {
   const src = light ? ICON_SRC.light : ICON_SRC.dark;
@@ -67,8 +71,8 @@ export function AsanIcon({
 }
 
 /**
- * YouTube-style mask text reveal: wallet holds; exact Final Logo wordmark
- * (AsanPay + tagline) slides out from under the icon. Tagline stays inside logo bounds.
+ * Meet animation: wallet travels Y→A (right→left); wordmark mask-reveals A→Y.
+ * Proportions match Final Logo: large wallet, smaller wordmark.
  */
 export function AsanPayLockup({
   width = 168,
@@ -83,14 +87,16 @@ export function AsanPayLockup({
   /** true = white Asan for dark/blue UI */
   light?: boolean;
   animate?: boolean;
-  /** Kept for API compat — Final Logo wordmark always includes the tagline. */
   showTagline?: boolean;
   className?: string;
 }) {
-  const iconSize = Math.round(width * 0.26);
-  const wordW = Math.round(width * 0.78);
-  const wordH = Math.round((wordW * 155) / 560);
+  /* Final Logo ratio ≈ icon 240 : wordmark 620 on 1000 canvas */
+  const iconSize = Math.round(width * 0.29);
+  const wordW = Math.round(width * 0.66);
+  const wordH = Math.round(wordW * WORD_ASPECT);
   const variant = light ? "light" : "dark";
+  /** Wallet starts near the "Y" of AsanPay, then slides to the "A" side */
+  const travelPx = Math.round(wordW * 0.92);
 
   if (!wordmark) {
     return (
@@ -106,6 +112,7 @@ export function AsanPayLockup({
     <span
       className={`yt-lockup yt-lockup--row ${animate ? "yt-lockup--anim" : ""} ${className}`.trim()}
       aria-label="AsanPay — Payment Made Easy"
+      style={{ ["--yt-travel" as string]: `${travelPx}px` } as CSSProperties}
     >
       <span className="yt-lockup-icon">
         <AsanIcon size={iconSize} light={light} />
@@ -124,7 +131,7 @@ export function AsanPayLockup({
             height: wordH,
             display: "block",
             objectFit: "contain",
-            objectPosition: "left top",
+            objectPosition: "left center",
             ...(showTagline ? {} : { clipPath: "inset(0 0 38% 0)" }),
           }}
         />

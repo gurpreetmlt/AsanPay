@@ -215,9 +215,9 @@ function SidebarContent({
       >
         <Link href="/dashboard" className="flex min-w-0 flex-1 items-center py-0.5">
           {open ? (
-            <AsanPayLockup width={158} light animate showTagline />
+            <AsanPayLockup width={188} light animate showTagline />
           ) : (
-            <AsanPayLockup width={158} wordmark={false} light animate showTagline={false} />
+            <AsanPayLockup width={188} wordmark={false} light animate showTagline={false} />
           )}
         </Link>
         {onClose ? (

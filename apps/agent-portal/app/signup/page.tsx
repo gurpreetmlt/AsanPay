@@ -1055,7 +1055,7 @@ function SignupPageInner() {
             <ArrowLeft size={18} />
           </button>
           <div className="min-w-0 flex-1">
-            <AsanPayLockup width={200} light={false} animate showTagline />
+            <AsanPayLockup width={240} light={false} animate showTagline />
             <h1 className="mt-2 text-xl font-bold" style={{ color: B.blue }}>
               Sign Up
             </h1>
