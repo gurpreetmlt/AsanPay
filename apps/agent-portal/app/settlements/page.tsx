@@ -167,9 +167,9 @@ export default function SettlementsPage() {
             </h2>
             <PrimaryButton
               type="button"
-              variant="primary"
+              variant="secondary"
               size="sm"
-              loopGlow
+              showArrow={false}
               onClick={() => setShowBankForm((v) => !v)}
               className="!w-auto"
             >
@@ -207,7 +207,6 @@ export default function SettlementsPage() {
               <PrimaryButton
                 type="submit"
                 variant="primary"
-                loopGlow
                 disabled={saving}
                 loading={saving}
                 className="md:col-span-3"
@@ -259,9 +258,9 @@ export default function SettlementsPage() {
             </h2>
             <PrimaryButton
               type="button"
-              variant="primary"
+              variant="secondary"
               size="sm"
-              loopGlow
+              showArrow={false}
               disabled={!hasActiveBank}
               onClick={() => setShowSettleForm((v) => !v)}
               className="!w-auto"
@@ -307,7 +306,6 @@ export default function SettlementsPage() {
                 type="submit"
                 variant="primary"
                 size="sm"
-                loopGlow
                 disabled={saving}
                 loading={saving}
                 className="!w-auto"
