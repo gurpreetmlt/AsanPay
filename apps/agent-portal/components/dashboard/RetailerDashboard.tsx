@@ -149,7 +149,7 @@ export function RetailerDashboard() {
               <Activity size={12} className="text-white/80" />
               <span className="text-xs text-white/90">Pending: {formatInr(totalPending)}</span>
             </div>
-            <p className="rounded-full bg-white/15 px-3 py-2 text-center text-[11px] font-semibold leading-snug text-white/95">
+            <p className="rounded-2xl bg-white/15 px-3 py-2 text-center text-[11px] font-semibold leading-snug text-white/95">
               Credits from AePS cash-out only — no Add Money here
             </p>
           </div>

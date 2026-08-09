@@ -16,7 +16,7 @@ type Props = {
 } & Omit<ButtonHTMLAttributes<HTMLButtonElement>, "className" | "children">;
 
 /**
- * Shared pill CTA — login Send OTP / dashboard Scan Finger look.
+ * Shared CTA — same rounded-2xl shape as original login buttons (not capsule).
  */
 export function PrimaryButton({
   children,

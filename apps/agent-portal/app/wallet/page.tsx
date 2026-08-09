@@ -132,7 +132,7 @@ export default function WalletPage() {
                     key={label}
                     type="button"
                     onClick={action}
-                    className="flex flex-col items-center gap-1 rounded-full border border-white/20 bg-white/15 px-2 py-2 text-white transition-all hover:bg-white/25"
+                    className="flex flex-col items-center gap-1 rounded-2xl border border-white/20 bg-white/15 px-2 py-2 text-white transition-all hover:bg-white/25"
                   >
                     <Icon size={16} />
                     <span className="text-[11px] font-semibold">{label}</span>
@@ -168,7 +168,7 @@ export default function WalletPage() {
                     key={label}
                     type="button"
                     onClick={action}
-                    className="flex flex-col items-center gap-1 rounded-full border border-white/20 bg-white/15 px-2 py-2 text-white transition-all hover:bg-white/25"
+                    className="flex flex-col items-center gap-1 rounded-2xl border border-white/20 bg-white/15 px-2 py-2 text-white transition-all hover:bg-white/25"
                   >
                     <Icon size={16} />
                     <span className="text-[11px] font-semibold">{label}</span>

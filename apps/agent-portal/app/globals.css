@@ -131,7 +131,8 @@ body {
   justify-content: center;
   gap: 0.5rem;
   overflow: hidden;
-  border-radius: 9999px;
+  /* Same as original login CTAs — rounded rectangle, not capsule */
+  border-radius: 1rem;
   padding: 0.875rem 1.25rem;
   font-size: 1rem;
   font-weight: 700;
