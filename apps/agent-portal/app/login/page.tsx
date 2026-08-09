@@ -597,7 +597,6 @@ export default function LoginPage() {
           </button>
 
           <p className="text-center text-xs" style={{ color: B.muted }}>
-            New agent?{" "}
             <Link
               href={`/signup?role=${role.id === "super" ? "super_distributor" : role.id}`}
               className="font-semibold"

@@ -158,9 +158,14 @@ export function PromoSlider({
               alt={s.title || "Promotion"}
               className={`h-full w-full ${
                 placement === "login"
-                  ? "object-contain object-center"
+                  ? "object-fill"
                   : "object-cover object-center"
               }`}
+              style={
+                placement === "login"
+                  ? { minHeight: "100%", minWidth: "100%" }
+                  : undefined
+              }
               draggable={false}
               onError={() =>
                 setBrokenIds((prev) => (prev.includes(s.id) ? prev : [...prev, s.id]))
