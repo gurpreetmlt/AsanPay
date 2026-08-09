@@ -113,12 +113,12 @@ export function PromoSlider({
   }, [n, intervalMs, paused, index]);
 
   const slide = slides[index];
-  const shellClass = `relative overflow-hidden ${fill ? "h-full min-h-[320px]" : "aspect-[3/4] min-h-[280px] rounded-2xl shadow-md"} ${className}`;
+  const shellClass = `relative overflow-hidden ${fill ? "h-full w-full min-h-0" : "aspect-[2/3] min-h-[280px] rounded-2xl shadow-md"} ${className}`;
 
   if (!loaded) {
     return (
       <div
-        className={`animate-pulse bg-slate-200 ${fill ? "h-full min-h-[320px]" : "min-h-[280px] rounded-2xl"} ${className}`}
+        className={`animate-pulse bg-slate-200 ${fill ? "h-full w-full min-h-0" : "aspect-[2/3] min-h-[280px] rounded-2xl"} ${className}`}
       />
     );
   }
@@ -126,7 +126,7 @@ export function PromoSlider({
   if (!slide) {
     return (
       <div
-        className={`${fill ? "h-full min-h-[320px]" : "min-h-[280px] rounded-2xl"} ${className}`}
+        className={`${fill ? "h-full w-full min-h-0" : "aspect-[2/3] min-h-[280px] rounded-2xl"} ${className}`}
         style={{ background: B.badgeGrad }}
         aria-hidden
       />
@@ -158,10 +158,9 @@ export function PromoSlider({
               alt={s.title || "Promotion"}
               className={`h-full w-full ${
                 placement === "login"
-                  ? "object-fill"
-                  : "object-contain object-center"
+                  ? "object-contain object-center"
+                  : "object-cover object-center"
               }`}
-              style={{ minHeight: "100%", minWidth: "100%" }}
               draggable={false}
               onError={() =>
                 setBrokenIds((prev) => (prev.includes(s.id) ? prev : [...prev, s.id]))

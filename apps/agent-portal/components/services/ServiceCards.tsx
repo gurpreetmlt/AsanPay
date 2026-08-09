@@ -308,15 +308,19 @@ function BankingCard({
   );
 }
 
-/** Side promo — image slider from Admin → Promotions (dashboard placement). */
+/** Side promo — fixed 2:3 frame (matches Admin 800×1200 dashboard creatives). */
 function DashboardAdBox() {
   return (
     <aside
-      className="flex w-full shrink-0 flex-col xl:w-[380px] 2xl:w-[420px]"
+      className="mx-auto w-full max-w-[420px] shrink-0 xl:mx-0 xl:w-[380px] 2xl:w-[420px]"
       aria-label="Promotions"
     >
-      <div className="h-full min-h-[320px] flex-1">
-        <PromoSlider placement="dashboard" fill />
+      <div className="aspect-[2/3] w-full overflow-hidden rounded-2xl shadow-md">
+        <PromoSlider
+          placement="dashboard"
+          fill
+          className="h-full min-h-0 rounded-2xl shadow-none"
+        />
       </div>
     </aside>
   );
