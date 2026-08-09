@@ -172,23 +172,23 @@ body {
 
 .btn-pill--primary {
   color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(180, 210, 255, 0.35);
   box-shadow: none !important;
   filter: none;
 }
 
-/* Soft top sheen — depth without outer glow */
+/* Soft rim highlight — polished, not outer glow */
 .btn-pill--primary::before {
   content: "";
   pointer-events: none;
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.18) 0%,
-    rgba(255, 255, 255, 0.04) 42%,
-    transparent 70%
+  background: radial-gradient(
+    ellipse 90% 70% at 30% 15%,
+    rgba(255, 255, 255, 0.22) 0%,
+    rgba(255, 255, 255, 0.06) 40%,
+    transparent 68%
   );
 }
 
@@ -198,14 +198,14 @@ body {
 }
 
 .btn-pill--primary:hover:not(:disabled) {
-  filter: brightness(1.05);
+  filter: brightness(1.06);
   transform: translateY(-1px);
   box-shadow: none !important;
 }
 
 .btn-pill--primary:active:not(:disabled) {
   transform: translateY(0) scale(0.985);
-  filter: brightness(0.98);
+  filter: brightness(0.97);
 }
 
 /* Glow/shimmer ONLY inside login panel */
@@ -241,25 +241,39 @@ body {
 
 .btn-pill--secondary {
   color: var(--color-brand-700);
-  background: #fff;
+  background: radial-gradient(ellipse 120% 100% at 25% 20%, #ffffff 0%, #eef3ff 100%);
   border: 1.5px solid rgba(11, 42, 154, 0.22);
   box-shadow: none;
 }
 
 .btn-pill--secondary:hover:not(:disabled) {
   border-color: rgba(11, 42, 154, 0.4);
-  background: #f5f8ff;
+  background: radial-gradient(ellipse 120% 100% at 25% 20%, #ffffff 0%, #e4ecff 100%);
   transform: translateY(-1px);
 }
 
+/* White CTA on blue/green wallet cards — soft radial white */
 .btn-pill--wallet-cta {
+  background: radial-gradient(ellipse 120% 100% at 28% 18%, #ffffff 0%, #eef3ff 100%) !important;
+  color: #0b2a9a !important;
+  border: 1px solid rgba(255, 255, 255, 0.95) !important;
   box-shadow: none !important;
+  filter: none !important;
   animation: none !important;
 }
 
+.btn-pill--wallet-cta::before {
+  display: none !important;
+  content: none !important;
+}
+
 .btn-pill--wallet-cta:hover:not(:disabled) {
+  background: radial-gradient(ellipse 120% 100% at 28% 18%, #ffffff 0%, #e4ecff 100%) !important;
+  border-color: #ffffff !important;
   box-shadow: none !important;
-  filter: brightness(1.05) !important;
+  filter: none !important;
+  transform: translateY(-1px);
+  color: #0b2a9a !important;
 }
 
 .btn-pill--wallet-cta::after {
@@ -269,13 +283,13 @@ body {
 
 .btn-pill--destructive {
   color: #b91c1c;
-  background: #fff;
+  background: radial-gradient(ellipse 120% 100% at 25% 20%, #ffffff 0%, #fff1f1 100%);
   border: 1.5px solid rgba(185, 28, 28, 0.35);
   box-shadow: none;
 }
 
 .btn-pill--destructive:hover:not(:disabled) {
-  background: #fef2f2;
+  background: radial-gradient(ellipse 120% 100% at 25% 20%, #ffffff 0%, #ffe4e4 100%);
   border-color: rgba(185, 28, 28, 0.55);
   transform: translateY(-1px);
 }

@@ -26,12 +26,11 @@ const SIZE_CLASS: Record<Size, string> = {
 };
 
 /**
- * Shared CTA — soft 12px corners, blue diagonal gradient primary.
- * - primary = blue gradient (best default CTA)
- * - secondary = outline
- * - destructive = red outline
- * - ghost = text
- * Loading: spinner + opacity only. Glow only with loopGlow inside login panel.
+ * Shared CTA — soft 12px corners, radial fills.
+ * - primary = radial blue (light focus → navy)
+ * - secondary / wallet-cta = radial white → soft blue tint
+ * - destructive = radial white → soft red tint
+ * Glow only with loopGlow inside login panel.
  */
 export function PrimaryButton({
   children,
