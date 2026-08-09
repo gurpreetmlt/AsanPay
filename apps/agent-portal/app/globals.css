@@ -344,3 +344,167 @@ body {
     transform: none;
   }
 }
+
+/* Shared 2.4s AePS icon loops — Mini Statement / Cash Deposit / Balance Enquiry */
+@keyframes aeps-hold {
+  0%,
+  8% {
+    opacity: 0;
+    transform: translateY(4px) scale(0.96);
+  }
+  18%,
+  78% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  90%,
+  100% {
+    opacity: 0;
+    transform: translateY(-2px) scale(0.98);
+  }
+}
+
+@keyframes aeps-lines-reveal {
+  0%,
+  10% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  22%,
+  78% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  90%,
+  100% {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes aeps-rupee-pulse {
+  0%,
+  20% {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  32%,
+  55% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+  65%,
+  78% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  90%,
+  100% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+@keyframes aeps-cash-drop {
+  0%,
+  8% {
+    opacity: 0;
+    transform: translateY(-14px);
+  }
+  28%,
+  78% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  90%,
+  100% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes aeps-card-tilt {
+  0%,
+  6% {
+    opacity: 0;
+    transform: rotate(-6deg) translateY(6px);
+  }
+  22%,
+  78% {
+    opacity: 1;
+    transform: rotate(0deg) translateY(0);
+  }
+  90%,
+  100% {
+    opacity: 0;
+    transform: rotate(4deg) translateY(4px);
+  }
+}
+
+.ms-icon,
+.cd-icon,
+.be-icon {
+  display: block;
+  overflow: visible;
+}
+
+.ms-page,
+.cd-frame,
+.be-doc {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: aeps-hold 2.4s ease-in-out infinite;
+}
+
+.ms-lines,
+.be-lines {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center top;
+  animation: aeps-lines-reveal 2.4s ease-in-out infinite;
+  animation-delay: 0.12s;
+}
+
+.ms-rupee,
+.cd-rupee,
+.be-rupee {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: aeps-rupee-pulse 2.4s ease-in-out infinite;
+  animation-delay: 0.28s;
+}
+
+.cd-cash {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center top;
+  animation: aeps-cash-drop 2.4s ease-in-out infinite;
+  animation-delay: 0.1s;
+}
+
+.be-card {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: aeps-card-tilt 2.4s ease-in-out infinite;
+  animation-delay: 0.08s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ms-page,
+  .ms-lines,
+  .ms-rupee,
+  .cd-frame,
+  .cd-cash,
+  .cd-rupee,
+  .be-doc,
+  .be-lines,
+  .be-card,
+  .be-rupee {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}

@@ -15,6 +15,11 @@ import { MAX_FAVORITES, selectFavoriteCodes, useFavoritesStore } from "@/lib/fav
 import { useAuthStore } from "@/lib/store";
 import { PromoSlider } from "@/components/promos/PromoSlider";
 import { CashWithdrawIconAnim } from "@/components/services/CashWithdrawIconAnim";
+import {
+  BalanceEnquiryIconAnim,
+  CashDepositIconAnim,
+  MiniStatementIconAnim,
+} from "@/components/services/AePSIconAnims";
 
 type Svc = { id: string; code: string; name: string; badge: string | null; icon: string | null };
 
@@ -70,7 +75,16 @@ function ServiceIconCard({
   const showAsset = Boolean(assetSrc) && !assetFailed;
   const starColor = favorite ? B.green : B.muted;
   const designKey = serviceCodeToDesignKey(svc.code);
-  const isCashWithdraw = svc.code === "CASH_WITHDRAW";
+  const animatedIcon =
+    svc.code === "CASH_WITHDRAW" ? (
+      <CashWithdrawIconAnim className="mx-auto h-12 w-12" />
+    ) : svc.code === "MINI_STATEMENT" ? (
+      <MiniStatementIconAnim className="mx-auto h-12 w-12" />
+    ) : svc.code === "CASH_DEPOSIT" ? (
+      <CashDepositIconAnim className="mx-auto h-12 w-12" />
+    ) : svc.code === "BALANCE_ENQUIRY" ? (
+      <BalanceEnquiryIconAnim className="mx-auto h-12 w-12" />
+    ) : null;
 
   return (
     <div
@@ -105,8 +119,8 @@ function ServiceIconCard({
         >
           {svc.badge ?? "·"}
         </span>
-        {isCashWithdraw ? (
-          <CashWithdrawIconAnim className="mx-auto h-12 w-12" />
+        {animatedIcon ? (
+          animatedIcon
         ) : showAsset ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
