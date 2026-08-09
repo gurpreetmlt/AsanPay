@@ -2,6 +2,7 @@ package com.asanpay.mobile
 
 import android.os.Bundle
 import android.view.WindowManager
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
@@ -16,6 +17,8 @@ class MainActivity : ReactActivity() {
   override fun getMainComponentName(): String = "AsanPay"
 
   override fun onCreate(savedInstanceState: Bundle?) {
+    // Must run before super — keeps branded splash until first draw (matches React splash blue).
+    installSplashScreen()
     super.onCreate(savedInstanceState)
     if (BuildConfig.ENABLE_SECURE_SCREEN) {
       // Block screenshots / recent-apps thumbnails for Aadhaar, OTP and PIN surfaces.
