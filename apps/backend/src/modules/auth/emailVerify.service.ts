@@ -63,14 +63,18 @@ export async function requestEmailVerifyOtp(input: {
     throw new HttpError(409, "This email is already verified", "EMAIL_ALREADY_VERIFIED");
   }
 
-  // users.email is unique — reject early with a clear message instead of a DB error on verify.
+  // users.email is unique — only active accounts block; free inactive holders.
   const [taken] = await db
     .select({ id: users.id })
     .from(users)
-    .where(and(eq(users.email, email), ne(users.id, input.userId)));
+    .where(and(eq(users.email, email), eq(users.isActive, true), ne(users.id, input.userId)));
   if (taken) {
     throw new HttpError(409, "This email is already in use", "EMAIL_TAKEN");
   }
+  await db
+    .update(users)
+    .set({ email: null, emailVerifiedAt: null })
+    .where(and(eq(users.email, email), eq(users.isActive, false)));
 
   const otp = randomInt(100000, 1000000).toString();
 

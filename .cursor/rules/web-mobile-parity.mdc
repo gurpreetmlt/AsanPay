@@ -1,0 +1,42 @@
+---
+description: Keep agent-portal web and mobile UI changes in lockstep
+alwaysApply: true
+---
+
+# Web ↔ Mobile same change
+
+AsanPay agent product has **two surfaces** that must stay in sync for user-facing UI:
+
+- Web: `apps/agent-portal`
+- Mobile: `apps/asanpay-mobile-app`
+
+## Rule
+
+Jab bhi **agent-facing UI** change ho (icons, animations, buttons/CTAs, labels, dashboard tiles, service entrypoints, wallet chips, KYC banners, empty states, hover/cursor affordances that have a mobile equivalent):
+
+1. **Same chat / same PR** mein **web + mobile dono** implement karo.
+2. Web pe kaam kiya → mobile pe matching change **usi turn** mein (ya turant next step), alag “baad mein mobile” mat chhodo.
+3. Mobile pe kaam kiya → web pe matching change usi turn mein.
+4. Done tab maano jab dono surfaces pe behavior match kare (timing, copy, visibility rules), ya task file / reply mein **explicit platform exception** likhi ho (e.g. “hover cursor = web only”).
+
+## What counts as matching
+
+| Web | Mobile |
+|-----|--------|
+| `ServiceCards` / service tiles | `ServiceTile` / home services |
+| `PrimaryButton` / CTA style | same screen primary buttons |
+| Icon idle animations | same codes, same timing |
+| English product copy | same English strings |
+
+## Exceptions (document in reply)
+
+- Pure CSS that has **no** mobile equivalent (e.g. `cursor: pointer`) — note “web only”.
+- Admin-only (`apps/admin-portal`) — mobile nahi.
+- Backend-only — no UI parity required.
+
+## Why
+
+Alag-alag waves se delay + drift hota hai. Owner expects InstantPay-style parity; ship both together.
+---
+name: web-mobile-parity
+---

@@ -45,8 +45,15 @@ export function AuthFlow() {
   }
 
   if (step === "signup") {
-    return <SignupScreen onBack={() => setStep("login")} />;
+    return <SignupScreen initialRole={role} onBack={() => setStep("login")} />;
   }
 
-  return <LoginScreen onSignup={() => setStep("signup")} />;
+  return (
+    <LoginScreen
+      onSignup={(selected) => {
+        setRole(selected);
+        setStep("signup");
+      }}
+    />
+  );
 }

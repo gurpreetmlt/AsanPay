@@ -38,6 +38,15 @@ type SponsorRole = "admin" | "super_distributor" | "distributor";
 
 interface SignupScreenProps {
   onBack: () => void;
+  /** Pre-select role when opening signup from login role chips. */
+  initialRole?: SignupRole;
+}
+
+function signupRoleLabel(role: SignupRole): string {
+  if (role === "super_distributor") return "Super Distributor";
+  if (role === "distributor") return "Distributor";
+  if (role === "direct_retailer") return "Direct Retailer";
+  return "Retailer";
 }
 
 interface LoginResponse {
@@ -93,7 +102,7 @@ function dateToIso(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-export function SignupScreen({ onBack }: SignupScreenProps) {
+export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
   const { tokens } = useTheme();
   const setAuth = useAuthStore((s) => s.setAuth);
   const updateUser = useAuthStore((s) => s.updateUser);
@@ -371,6 +380,13 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
         } else if (existing.signupToken && existing.stepIndex < 1 && !existing.accountCreated) {
           setDraft({ ...existing, stepIndex: 1 });
         }
+      } else if (
+        initialRole === "retailer" ||
+        initialRole === "distributor" ||
+        initialRole === "super_distributor" ||
+        initialRole === "direct_retailer"
+      ) {
+        setDraft({ ...EMPTY_MOBILE_SIGNUP_DRAFT, role: initialRole });
       }
       setDraftReady(true);
     })();
@@ -1037,7 +1053,7 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
           </Pressable>
           <View style={{ flex: 1 }}>
             <Text style={[styles.brandMark, { color: colors.blue }]}>{BRAND.appName}</Text>
-            <Text style={[styles.title, { color: tokens.txt }]}>Sign Up</Text>
+            <Text style={[styles.title, { color: tokens.txt }]}>Sign up as {signupRoleLabel(draft.role)}</Text>
             <Text style={[styles.sub, { color: tokens.sub }]}>{subtitle}</Text>
           </View>
         </View>
@@ -1716,6 +1732,17 @@ export function SignupScreen({ onBack }: SignupScreenProps) {
               >
                 <Text style={styles.ctaText}>{primaryLabel}</Text>
               </Pressable>
+
+              {stepIndex === 0 ? (
+                <Pressable onPress={onBack} style={{ marginTop: 14, alignItems: "center" }}>
+                  <Text style={{ fontSize: 13, color: tokens.mute, fontWeight: "500" }}>
+                    Already have an account?{" "}
+                    <Text style={{ color: colors.green, fontWeight: "700" }}>
+                      Login as {signupRoleLabel(draft.role)}
+                    </Text>
+                  </Text>
+                </Pressable>
+              ) : null}
             </View>
           ) : null}
         </ScrollView>

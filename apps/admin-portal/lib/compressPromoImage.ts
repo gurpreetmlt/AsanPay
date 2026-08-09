@@ -10,7 +10,8 @@ const START_QUALITY = 0.92;
 
 const MAX_DIM: Record<PromoCompressPlacement, { w: number; h: number }> = {
   dashboard: { w: 800, h: 1200 },
-  login: { w: 1920, h: 1600 },
+  // Allow square 1800 or landscape 1920×1600 without forced squeeze
+  login: { w: 1920, h: 1920 },
 };
 
 function loadImage(file: File): Promise<HTMLImageElement> {

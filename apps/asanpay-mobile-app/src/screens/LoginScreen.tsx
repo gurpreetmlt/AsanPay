@@ -46,8 +46,14 @@ function roleFromMismatchMessage(msg: string): LoginRoleChip | null {
   return null;
 }
 
+function roleSignupLabel(role: LoginRoleChip): string {
+  if (role === "super_distributor") return "Super Distributor";
+  if (role === "distributor") return "Distributor";
+  return "Retailer";
+}
+
 interface LoginScreenProps {
-  onSignup: () => void;
+  onSignup: (role: LoginRoleChip) => void;
 }
 
 interface PendingSession {
@@ -436,7 +442,11 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
                           (mobile.length !== 10 || !password || loading) && styles.buttonDisabled,
                         ]}
                       >
-                        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Login  →</Text>}
+                        {loading ? (
+                          <ActivityIndicator color="#fff" />
+                        ) : (
+                          <Text style={styles.buttonText}>Login as {roleSignupLabel(role)}  →</Text>
+                        )}
                       </LinearGradient>
                     </Pressable>
                   </>
@@ -488,7 +498,7 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
                         {loading ? (
                           <ActivityIndicator color="#fff" />
                         ) : (
-                          <Text style={styles.buttonText}>Continue  →</Text>
+                          <Text style={styles.buttonText}>Continue as {roleSignupLabel(role)}  →</Text>
                         )}
                       </LinearGradient>
                     </Pressable>
@@ -497,9 +507,9 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
               </>
           </View>
 
-          <Pressable onPress={onSignup} style={styles.signupRow}>
+          <Pressable onPress={() => onSignup(role)} style={styles.signupRow}>
             <Text style={styles.signupText}>
-              New agent? <Text style={styles.signupLink}>Sign up</Text>
+              New agent? <Text style={styles.signupLink}>Sign up as {roleSignupLabel(role)}</Text>
             </Text>
           </Pressable>
 

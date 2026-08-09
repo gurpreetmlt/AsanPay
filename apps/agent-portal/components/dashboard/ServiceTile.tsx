@@ -109,7 +109,7 @@ export function ServiceTile({
         onClick={openService}
         {...(onLongPress && !homeEditMode ? longPressHandlers : {})}
         className={clsx(
-          "relative flex w-full flex-col items-center gap-2 rounded-lg p-2 text-center transition select-none",
+          "relative flex w-full cursor-pointer flex-col items-center gap-2 rounded-lg p-2 text-center transition select-none",
           !homeEditMode && "hover:bg-surface",
         )}
       >

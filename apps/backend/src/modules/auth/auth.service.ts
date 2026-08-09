@@ -122,12 +122,25 @@ export async function registerUser(
     );
   }
 
-  const [existingMobile] = await db.select({ id: users.id }).from(users).where(eq(users.mobile, input.mobile));
-  if (existingMobile) throw new HttpError(409, "Mobile number is already registered", "MOBILE_TAKEN");
+  const [existingMobile] = await db
+    .select({ id: users.id, isActive: users.isActive })
+    .from(users)
+    .where(eq(users.mobile, input.mobile));
+  if (existingMobile?.isActive) {
+    throw new HttpError(409, "Mobile number is already registered", "MOBILE_TAKEN");
+  }
 
   if (input.email) {
-    const [existingEmail] = await db.select({ id: users.id }).from(users).where(eq(users.email, input.email));
+    const [existingEmail] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(eq(users.email, input.email), eq(users.isActive, true)));
     if (existingEmail) throw new HttpError(409, "Email is already registered", "EMAIL_TAKEN");
+    // Inactive / deleted-but-retained rows must not block reuse
+    await db
+      .update(users)
+      .set({ email: null, emailVerifiedAt: null })
+      .where(and(eq(users.email, input.email), eq(users.isActive, false)));
   }
 
   const passwordHash = await hashPassword(input.password);
@@ -1004,8 +1017,11 @@ export async function searchSponsorsByMobile(
 export async function checkSignupMobileAvailable(
   mobile: string,
 ): Promise<{ available: true } | { available: false; message: string; code: "MOBILE_TAKEN" }> {
-  const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.mobile, mobile));
-  if (existing) {
+  const [existing] = await db
+    .select({ id: users.id, isActive: users.isActive })
+    .from(users)
+    .where(eq(users.mobile, mobile));
+  if (existing?.isActive) {
     return {
       available: false,
       message: "This mobile number is already registered. Please log in instead.",
@@ -1015,15 +1031,16 @@ export async function checkSignupMobileAvailable(
   return { available: true };
 }
 
-/** Live check — email free, or already owned by the current user. */
+/** Live check — email free, or already owned by the current user. Inactive rows do not block. */
 export async function checkSignupEmailAvailable(
   email: string,
   currentUserId: string,
 ): Promise<{ available: true } | { available: false; message: string; code: "EMAIL_TAKEN" }> {
+  const normalized = email.trim().toLowerCase();
   const [existing] = await db
     .select({ id: users.id })
     .from(users)
-    .where(eq(users.email, email));
+    .where(and(eq(users.email, normalized), eq(users.isActive, true)));
   if (existing && existing.id !== currentUserId) {
     return {
       available: false,
@@ -1031,6 +1048,10 @@ export async function checkSignupEmailAvailable(
       code: "EMAIL_TAKEN",
     };
   }
+  await db
+    .update(users)
+    .set({ email: null, emailVerifiedAt: null })
+    .where(and(eq(users.email, normalized), eq(users.isActive, false)));
   return { available: true };
 }
 
@@ -1043,8 +1064,11 @@ export async function requestSignupOtp(
     throw new HttpError(400, "Signup is only available on the agent portal", "WRONG_PORTAL");
   }
 
-  const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.mobile, input.mobile));
-  if (existing) {
+  const [existing] = await db
+    .select({ id: users.id, isActive: users.isActive })
+    .from(users)
+    .where(eq(users.mobile, input.mobile));
+  if (existing?.isActive) {
     throw new HttpError(
       422,
       "This mobile number is already registered. Please log in instead.",
@@ -1165,13 +1189,27 @@ export async function completeSignup(
     throw new HttpError(400, "Signup is only available on the agent portal", "WRONG_PORTAL");
   }
 
-  const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.mobile, input.mobile));
-  if (existing) {
+  const [existing] = await db
+    .select({ id: users.id, isActive: users.isActive })
+    .from(users)
+    .where(eq(users.mobile, input.mobile));
+  if (existing?.isActive) {
     throw new HttpError(
       422,
       "This mobile number is already registered. Please log in instead.",
       "MOBILE_TAKEN",
     );
+  }
+  if (existing && !existing.isActive) {
+    // Free unique mobile so a new signup can reuse this number
+    await db
+      .update(users)
+      .set({
+        mobile: `del${existing.id.replace(/-/g, "").slice(0, 10)}`,
+        email: null,
+        emailVerifiedAt: null,
+      })
+      .where(eq(users.id, existing.id));
   }
 
   const record = await findLatestActiveOtp({ mobile: input.mobile, purpose: "signup" });
