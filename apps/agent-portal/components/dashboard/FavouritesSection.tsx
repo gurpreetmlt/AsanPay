@@ -54,7 +54,7 @@ export function FavouritesSection({ userId, categories, homeEditMode, onEnterEdi
             Favourites
           </h2>
           <span
-            className="rounded-full bg-white px-2 py-0.5 text-[12px] font-bold"
+            className="rounded-2xl bg-white px-2 py-0.5 text-[12px] font-bold"
             style={{ color: B.greenDark }}
           >
             {services.length}

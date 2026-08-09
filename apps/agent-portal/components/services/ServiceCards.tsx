@@ -501,7 +501,7 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
           titleIcon={<Star size={21} strokeWidth={2.2} color={B.green} aria-hidden />}
           action={
             <span
-              className="rounded-full px-2 py-0.5 text-[11px] font-bold"
+              className="rounded-2xl px-2 py-0.5 text-[11px] font-bold"
               style={{ background: `${B.green}18`, color: B.greenDark }}
             >
               {favorites.length}

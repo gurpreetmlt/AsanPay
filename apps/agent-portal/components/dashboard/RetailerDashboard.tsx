@@ -124,7 +124,7 @@ export function RetailerDashboard() {
             showArrow={false}
             loopGlow
             onClick={() => router.push("/fund-request")}
-            className="!py-2 text-xs"
+            size="sm"
           >
             <PlusCircle size={14} />
             Add Money
@@ -269,8 +269,9 @@ export function RetailerDashboard() {
                   <PrimaryButton
                     type="button"
                     variant="action"
+                    size="sm"
                     loopGlow
-                    className="mt-3 !py-2.5 text-xs"
+                    className="mt-3"
                     onClick={() => router.push("/signup")}
                   >
                     Complete KYC

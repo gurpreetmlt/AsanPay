@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Clock3, ShieldAlert } from "lucide-react";
+import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { needsSignupKycCompletion } from "@/lib/onboarding";
 import { useAuthStore } from "@/lib/store";
 
@@ -60,26 +61,38 @@ const TONE: Record<
 };
 
 /** Hanging banner under page header / above wallet — KYC onboarding status. */
-export function KycOnboardingBanner() {
+export function KycOnboardingBanner({
+  /** Verified badge but PAN/Aadhaar missing — still show action card (Settings KYC tab). */
+  profileIncomplete = false,
+}: {
+  profileIncomplete?: boolean;
+} = {}) {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
-  // Verified → no banner (services unlocked)
-  if (!user || user.kycStatus === "verified") return null;
+  if (!user) return null;
+  if (user.kycStatus === "verified" && !profileIncomplete) return null;
 
-  const needsComplete = needsSignupKycCompletion(user);
+  const needsComplete = needsSignupKycCompletion(user) || profileIncomplete;
   const rejected = user.kycStatus === "rejected";
-  const pendingReview = !rejected && user.hasKycDocs;
+  const pendingReview = !rejected && !profileIncomplete && user.hasKycDocs;
 
   let title = "Complete your KYC for Onboarding";
   let body = "Finish signup KYC to unlock services after admin approval.";
   let cta = "Complete KYC";
-  let href = "/settings?tab=kyc";
+  let href = "/signup?from=settings";
   let tone: BannerTone = "orange";
 
-  if (rejected) {
+  if (profileIncomplete && user.kycStatus === "verified") {
+    title = "KYC details incomplete";
+    body = "PAN / Aadhaar are missing on file. Resubmit KYC so your profile is complete.";
+    cta = "Resubmit KYC";
+    href = "/signup?from=settings";
+    tone = "orange";
+  } else if (rejected) {
     title = "KYC rejected — please resubmit";
     body = "Update your details and submit again to continue onboarding.";
     cta = "Resubmit KYC";
+    href = "/signup?from=settings";
     tone = "red";
   } else if (pendingReview) {
     title = "KYC under review";
@@ -90,6 +103,7 @@ export function KycOnboardingBanner() {
   } else if (needsComplete) {
     title = "Complete your KYC for Onboarding";
     body = "Continue where you left off to submit documents for approval.";
+    href = "/signup?from=settings";
     tone = "orange";
   }
 
@@ -122,14 +136,17 @@ export function KycOnboardingBanner() {
         </div>
       </div>
       {cta ? (
-        <button
+        <PrimaryButton
           type="button"
+          variant="action"
+          size="sm"
+          showArrow={false}
+          loopGlow
           onClick={() => router.push(href)}
-          className="shrink-0 rounded-xl px-4 py-2 text-xs font-bold text-white"
-          style={{ background: colors.button }}
+          className="!w-auto shrink-0"
         >
           {cta}
-        </button>
+        </PrimaryButton>
       ) : null}
     </div>
   );

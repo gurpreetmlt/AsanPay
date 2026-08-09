@@ -144,6 +144,12 @@ body {
     opacity 0.2s ease;
 }
 
+.btn-pill--sm {
+  gap: 0.375rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.75rem;
+}
+
 .btn-pill:disabled {
   cursor: not-allowed;
 }

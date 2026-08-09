@@ -22,6 +22,7 @@ import { useAuthStore } from "@/lib/store";
 import type { DownlineUser, LedgerEntry, WalletBalance } from "@/lib/types";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 import { formatInr, walletDisplayName } from "@/lib/walletLabels";
+import { PrimaryButton } from "@/components/ui/PrimaryButton";
 
 export default function WalletPage() {
   const router = useRouter();
@@ -284,24 +285,27 @@ export default function WalletPage() {
                       </td>
                       <td className="px-5 py-3 text-right">
                         <div className="flex flex-wrap items-center justify-end gap-2">
-                          <button
+                          <PrimaryButton
                             type="button"
+                            variant="action"
+                            size="sm"
+                            showArrow={false}
                             disabled={!d.isActive}
-                            className="rounded-xl px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
-                            style={{ background: B.badgeGrad }}
+                            className="!w-auto"
                             onClick={() => setFundTarget(d)}
                           >
                             Fund
-                          </button>
-                          <button
+                          </PrimaryButton>
+                          <PrimaryButton
                             type="button"
+                            variant="secondary"
+                            size="sm"
                             disabled={!d.isActive || Number(d.mainBalance) <= 0}
-                            className="rounded-xl border px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40"
-                            style={{ borderColor: B.blue, color: B.blue }}
+                            className="!w-auto"
                             onClick={() => setPullTarget(d)}
                           >
                             Reverse
-                          </button>
+                          </PrimaryButton>
                         </div>
                       </td>
                     </tr>

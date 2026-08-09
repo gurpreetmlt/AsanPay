@@ -1,5 +1,7 @@
 "use client";
 
+import { PrimaryButton } from "@/components/ui/PrimaryButton";
+
 interface Props {
   active: boolean;
   onDone: () => void;
@@ -10,20 +12,22 @@ export function HomeEditModeBar({ active, onDone }: Props) {
 
   return (
     <div
-      className="flex items-center justify-between gap-2 rounded-xl border px-3 py-2.5"
+      className="flex items-center justify-between gap-2 rounded-2xl border px-3 py-2.5"
       style={{ borderColor: "rgba(11,42,154,0.2)", background: "#E8EEFB" }}
     >
       <p className="text-[12px] font-semibold" style={{ color: "#5A6DA8" }}>
         − remove · ★ add to Favourites
       </p>
-      <button
+      <PrimaryButton
         type="button"
+        variant="action"
+        size="sm"
+        showArrow={false}
         onClick={onDone}
-        className="text-sm font-extrabold"
-        style={{ color: "#0B2A9A" }}
+        className="!w-auto"
       >
         Done
-      </button>
+      </PrimaryButton>
     </div>
   );
 }

@@ -414,7 +414,7 @@ function WalletPill({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 rounded-xl border px-3 py-1.5 transition-colors hover:bg-secondary"
+        className="flex items-center gap-1.5 rounded-2xl border px-3 py-1.5 transition-colors hover:bg-secondary"
         style={{ borderColor: B.border, background: B.bg }}
         title={walletDisplayName(wallet.walletType)}
       >
@@ -428,7 +428,7 @@ function WalletPill({
       </button>
       {open && (
         <div
-          className="absolute right-0 top-full z-50 mt-1 min-w-[11rem] rounded-xl border bg-white p-1.5 shadow-lg"
+          className="absolute right-0 top-full z-50 mt-1 min-w-[11rem] rounded-2xl border bg-white p-1.5 shadow-lg"
           style={{ borderColor: B.border }}
         >
           {actions.map(({ icon: Icon, label, action }) => (
@@ -440,7 +440,7 @@ function WalletPill({
                 setOpen(false);
               }}
               disabled={label === "Refresh" && loading}
-              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-semibold transition-colors hover:bg-secondary disabled:opacity-50"
+              className="flex w-full items-center gap-2 rounded-2xl px-2.5 py-2 text-left text-xs font-semibold transition-colors hover:bg-secondary disabled:opacity-50"
               style={{ color: B.blue }}
             >
               <Icon size={14} className={label === "Refresh" && loading ? "animate-spin" : ""} />
@@ -474,7 +474,7 @@ function HeaderWalletBalances({
     <div className="flex items-center gap-2">
       {loading && ordered.length === 0 ? (
         <div
-          className="rounded-xl px-3 py-1.5 text-xs font-semibold"
+          className="rounded-2xl px-3 py-1.5 text-xs font-semibold"
           style={{ background: B.bg, color: B.muted }}
         >
           …
@@ -486,7 +486,7 @@ function HeaderWalletBalances({
         type="button"
         onClick={onRefresh}
         disabled={loading}
-        className="flex h-9 w-9 items-center justify-center rounded-xl disabled:opacity-50"
+        className="flex h-9 w-9 items-center justify-center rounded-2xl disabled:opacity-50"
         style={{ background: B.bg, color: B.green }}
         aria-label="Refresh balances"
       >
@@ -664,7 +664,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   <Link
                     key={w.id}
                     href="/wallet"
-                    className="flex shrink-0 items-center gap-2 rounded-xl border px-3 py-1.5"
+                    className="flex shrink-0 items-center gap-2 rounded-2xl border px-3 py-1.5"
                     style={{ borderColor: B.border, background: B.bg }}
                   >
                     <span className="text-[12px] font-bold uppercase" style={{ color: B.muted }}>

@@ -12,6 +12,7 @@ type Props = {
   showArrow?: boolean;
   /** primary = blue login CTA; action = green→blue Scan Finger; secondary = outline */
   variant?: "primary" | "secondary" | "action";
+  size?: "md" | "sm";
   className?: string;
 } & Omit<ButtonHTMLAttributes<HTMLButtonElement>, "className" | "children">;
 
@@ -24,6 +25,7 @@ export function PrimaryButton({
   loopGlow = false,
   showArrow,
   variant = "primary",
+  size = "md",
   className = "",
   disabled,
   type = "button",
@@ -31,13 +33,14 @@ export function PrimaryButton({
 }: Props) {
   const isDisabled = Boolean(disabled || loading);
   const arrow = showArrow ?? variant === "primary";
+  const sizeClass = size === "sm" ? "btn-pill--sm" : "";
 
   if (variant === "secondary") {
     return (
       <button
         type={type}
         disabled={isDisabled}
-        className={`btn-pill btn-pill--secondary ${className}`.trim()}
+        className={`btn-pill btn-pill--secondary ${sizeClass} ${className}`.trim()}
         {...rest}
       >
         {loading ? (
@@ -56,7 +59,7 @@ export function PrimaryButton({
     <button
       type={type}
       disabled={isDisabled}
-      className={`btn-pill ${toneClass} ${loopGlow && !loading ? "btn-pill--glow" : ""} ${className}`.trim()}
+      className={`btn-pill ${toneClass} ${sizeClass} ${loopGlow && !loading ? "btn-pill--glow" : ""} ${className}`.trim()}
       style={{
         background: bg,
         opacity: isDisabled ? 0.45 : 1,
@@ -68,7 +71,9 @@ export function PrimaryButton({
       ) : (
         <>
           <span className="inline-flex items-center gap-2">{children}</span>
-          {arrow ? <ArrowRight size={16} strokeWidth={2.5} className="shrink-0" /> : null}
+          {arrow ? (
+            <ArrowRight size={size === "sm" ? 14 : 16} strokeWidth={2.5} className="shrink-0" />
+          ) : null}
         </>
       )}
     </button>

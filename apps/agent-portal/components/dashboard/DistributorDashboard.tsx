@@ -358,7 +358,7 @@ function QuickAction({
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center gap-3 rounded-xl border px-3 py-3 text-left transition hover:shadow-sm"
+      className="flex items-center gap-3 rounded-2xl border px-3 py-3 text-left transition hover:shadow-sm"
       style={{ borderColor: B.border }}
     >
       <div

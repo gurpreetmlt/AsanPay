@@ -20,6 +20,7 @@ import api, { fetchApi } from "@/lib/api";
 import { extractApiError } from "@/lib/onboarding";
 import { createAttemptKeyHolder } from "@/lib/idempotencyKey";
 import { B } from "@/lib/brand";
+import { PrimaryButton } from "@/components/ui/PrimaryButton";
 
 interface BankAccount {
   id: string;
@@ -507,7 +508,7 @@ export function FundRequestForm({
                   </span>
                   {t.id === "history" && pendingCount > 0 ? (
                     <span
-                      className="rounded-full px-2 py-0.5 text-[10px] font-extrabold text-white"
+                      className="rounded-2xl px-2 py-0.5 text-[10px] font-extrabold text-white"
                       style={{ background: B.blue }}
                     >
                       {pendingCount}
@@ -530,15 +531,16 @@ export function FundRequestForm({
               </p>
             </div>
             {activeTab === "history" ? (
-              <button
+              <PrimaryButton
                 type="button"
+                variant="secondary"
+                size="sm"
                 onClick={onRefreshHistory}
-                className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold"
-                style={{ background: B.secondary, color: B.blueMid }}
+                className="!w-auto"
               >
                 <RefreshCcw size={14} />
                 Refresh
-              </button>
+              </PrimaryButton>
             ) : null}
           </div>
 
@@ -600,7 +602,7 @@ export function FundRequestForm({
                           </td>
                           <td className="px-4 py-3.5">
                             <span
-                              className="inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold"
+                              className="inline-flex rounded-2xl border px-2.5 py-1 text-[11px] font-bold"
                               style={{ background: tone.bg, color: tone.fg, borderColor: tone.border }}
                             >
                               {r.displayStatus || r.status}
@@ -630,14 +632,16 @@ export function FundRequestForm({
                     <p className="mt-1 text-xs" style={{ color: B.muted }}>
                       Ask your distributor or admin to assign one, or use Bank Account Transfer.
                     </p>
-                    <button
+                    <PrimaryButton
                       type="button"
+                      variant="action"
+                      size="sm"
+                      showArrow={false}
                       onClick={() => switchTab("bank")}
-                      className="mt-4 rounded-xl px-4 py-2 text-sm font-semibold text-white"
-                      style={{ background: B.badgeGrad }}
+                      className="mt-4 !w-auto mx-auto"
                     >
                       Go to Bank Transfer
-                    </button>
+                    </PrimaryButton>
                   </div>
                 ) : (
                   <div
@@ -672,7 +676,7 @@ export function FundRequestForm({
                             key={p}
                             type="button"
                             onClick={() => setAmount(p)}
-                            className="rounded-full border-2 px-3.5 py-1.5 text-sm font-semibold"
+                            className="rounded-2xl border-2 px-3.5 py-1.5 text-sm font-semibold"
                             style={{
                               borderColor: amount === p ? B.blue : B.border,
                               background: amount === p ? `${B.blue}10` : "#fff",
@@ -818,15 +822,18 @@ export function FundRequestForm({
                   </div>
                 </div>
 
-                <button
+                <PrimaryButton
                   type="button"
+                  variant="action"
+                  loopGlow
                   disabled={submitting || banks.length === 0}
+                  loading={submitting}
+                  showArrow={false}
                   onClick={() => void handleSubmit()}
-                  className="mt-5 w-full rounded-xl py-3 text-sm font-bold text-white transition disabled:opacity-60"
-                  style={{ background: B.badgeGrad }}
+                  className="mt-5"
                 >
-                  {submitting ? "Submitting…" : "Submit fund request"}
-                </button>
+                  Submit fund request
+                </PrimaryButton>
               </div>
             </>
           )}

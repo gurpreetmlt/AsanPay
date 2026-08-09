@@ -4,6 +4,7 @@ import { useRef, useState, type FormEvent } from "react";
 import { toast } from "react-hot-toast";
 import api from "@/lib/api";
 import { Modal } from "@/components/ui/Modal";
+import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { extractApiError } from "@/lib/onboarding";
 import { createAttemptKeyHolder } from "@/lib/idempotencyKey";
 import type { DownlineUser } from "@/lib/types";
@@ -86,13 +87,16 @@ export function FundForm({ target, onClose, onSuccess }: FundFormProps) {
             className="w-full rounded-lg border border-border-subtle px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
           />
         </div>
-        <button
+        <PrimaryButton
           type="submit"
+          variant="action"
+          loopGlow
+          showArrow={false}
           disabled={loading || txnPin.length !== 4}
-          className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60"
+          loading={loading}
         >
-          {loading ? "Sending..." : "Send Funds"}
-        </button>
+          Send Funds
+        </PrimaryButton>
       </form>
     </Modal>
   );
