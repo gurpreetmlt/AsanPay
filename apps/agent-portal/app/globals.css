@@ -255,26 +255,26 @@ body {
   box-shadow: 0 14px 36px rgba(11, 42, 154, 0.12);
 }
 
-/* Official Final-Logo + typed tagline — long still, no clip */
+/* Brand lockup: icon + AsanPay column + typed tagline — in-bounds, no clip */
 @keyframes yt-final-in {
   0%,
   3% {
     opacity: 0;
-    transform: translateX(-8px) scale(0.94);
+    transform: scale(0.96);
   }
   12% {
     opacity: 1;
-    transform: translateX(0) scale(1.03);
+    transform: scale(1.03);
   }
   18%,
   84% {
     opacity: 1;
-    transform: translateX(0) scale(1);
+    transform: scale(1);
   }
   94%,
   100% {
-    opacity: 0.92;
-    transform: translateX(-3px) scale(0.98);
+    opacity: 0.94;
+    transform: scale(0.98);
   }
 }
 .yt-final-lockup {
@@ -285,39 +285,58 @@ body {
   overflow: visible;
   max-width: 100%;
 }
-.yt-final-crop {
-  display: block;
-  overflow: hidden;
-  flex-shrink: 0;
-  line-height: 0;
+.yt-final-lockup--row {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.55rem;
 }
-.yt-final-img {
-  display: block;
-  max-width: none;
-  object-fit: contain;
-  object-position: left top;
-  pointer-events: none;
-  user-select: none;
+.yt-final-wordcol {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  padding-top: 0.1rem;
 }
-.yt-final-mark,
-.yt-final-crop.yt-final-mark--animate,
+.yt-final-word {
+  display: inline-flex;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+  white-space: nowrap;
+}
 .yt-final-mark--animate {
   transform-origin: left center;
   will-change: transform, opacity;
-}
-.yt-final-mark--animate {
   animation: yt-final-in 5.6s ease-in-out infinite;
+}
+.yt-tagline-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  margin-top: 0.28rem;
+  width: max-content;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.yt-tagline-rule {
+  display: block;
+  width: 100%;
+  min-width: 7.5rem;
+  height: 1.5px;
+  border-radius: 1px;
+  background: linear-gradient(90deg, #5b8cff 0%, #2a5cdd 70%, transparent 100%);
+  opacity: 0.95;
 }
 .yt-tagline {
   display: block;
   min-height: 1em;
-  font-size: 0.68rem;
+  font-size: 0.62rem;
   font-weight: 600;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   color: #ff8400;
   white-space: nowrap;
-  line-height: 1.2;
-  padding-left: 0.15rem;
+  line-height: 1.25;
+  overflow: visible;
 }
 .yt-tagline-caret {
   display: inline-block;

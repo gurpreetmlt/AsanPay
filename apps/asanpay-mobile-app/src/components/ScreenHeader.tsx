@@ -96,11 +96,12 @@ export function ScreenHeader({
 const styles = StyleSheet.create({
   wrap: {
     paddingHorizontal: 20,
-    paddingTop: 8,
+    paddingTop: 10,
     paddingBottom: 16,
     borderBottomLeftRadius: 26,
     borderBottomRightRadius: 26,
-    overflow: "hidden",
+    // Keep visible so brand lockup / tagline are never clipped by the header shell.
+    overflow: "visible",
   },
   glowTop: {
     position: "absolute",
@@ -123,7 +124,12 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   topRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
-  brandSlot: { marginBottom: 10 },
+  brandSlot: {
+    marginBottom: 12,
+    marginRight: 8,
+    overflow: "visible",
+    zIndex: 2,
+  },
   textBlock: { marginBottom: 2, flexShrink: 1 },
   eyebrow: {
     color: colors.onGradientMuted,

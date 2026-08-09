@@ -147,7 +147,7 @@ export function ServicesScreen() {
     <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bg }]} edges={["top"]}>
       <ScreenHeader
         variant="profile"
-        brand={<BrandLockup width={172} animate light showTagline />}
+        brand={<BrandLockup iconSize={40} animate light showTagline />}
         avatarLetter={initials || firstName.charAt(0).toUpperCase()}
         eyebrow={greetingName(user.name)}
         title={user.name}

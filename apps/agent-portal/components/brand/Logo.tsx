@@ -9,13 +9,6 @@ const LOGO_SRC = {
   light: "/brand/asanpay-logo-light.svg",
 } as const;
 
-const FINAL_LOGO = {
-  /** White Asan + green Pay — for dark/blue sidebars */
-  light: "/brand/asanpay-final-light.svg",
-  /** Blue Asan + green Pay — for light backgrounds */
-  dark: "/brand/asanpay-final-dark.svg",
-} as const;
-
 const TAGLINE = "Payment Made Easy";
 /** Full logo loop — long still in the middle */
 const LOGO_LOOP_MS = 5600;
@@ -96,9 +89,25 @@ function TypeTagline({ cycle }: { cycle: number }) {
   );
 }
 
+/** Tagline sits under wordmark only (not under wallet icon) — Final-Logo alignment. */
+function TaglineBlock({
+  cycle,
+  animate,
+}: {
+  cycle: number;
+  animate: boolean;
+}) {
+  return (
+    <span className="yt-tagline-block">
+      <span className="yt-tagline-rule" aria-hidden />
+      {animate ? <TypeTagline cycle={cycle} /> : <span className="yt-tagline">{TAGLINE}</span>}
+    </span>
+  );
+}
+
 /**
- * Official Final-Logo lockup (light/dark) + typed tagline.
- * YouTube-style soft entrance, long still, no clip.
+ * Wallet icon + AsanPay column + typed tagline under AsanPay only.
+ * Soft in-bounds animation (no translate clip).
  */
 export function AsanPayLockup({
   width = 168,
@@ -110,16 +119,17 @@ export function AsanPayLockup({
 }: {
   width?: number;
   wordmark?: boolean;
-  /** true = final light logo (white Asan) for dark/blue UI */
+  /** true = white Asan for dark/blue UI */
   light?: boolean;
   animate?: boolean;
   showTagline?: boolean;
   className?: string;
 }) {
   const [cycle, setCycle] = useState(0);
-  const src = light ? FINAL_LOGO.light : FINAL_LOGO.dark;
-  // Crop baked-in SVG tagline; we type it separately below.
-  const cropH = Math.round(width * 0.205);
+  const iconSize = Math.round(width * 0.26);
+  const fontSize = Math.round(iconSize * 0.52);
+  const asanColor = light ? "#FFFFFF" : "#0B2A9A";
+  const payColor = light ? "#3BE39A" : "#18B26E";
 
   useEffect(() => {
     if (!animate) return;
@@ -130,33 +140,26 @@ export function AsanPayLockup({
   if (!wordmark) {
     return (
       <span className={`yt-final-lockup ${className}`.trim()} aria-label="AsanPay">
-        <span className={animate ? "yt-final-mark yt-final-mark--animate" : "yt-final-mark"}>
-          <AsanIcon size={Math.round(width * 0.26)} />
+        <span className={animate ? "yt-final-mark--animate" : undefined}>
+          <AsanIcon size={iconSize} />
         </span>
       </span>
     );
   }
 
   return (
-    <span className={`yt-final-lockup ${className}`.trim()} aria-label="AsanPay">
-      <span
-        className={animate ? "yt-final-crop yt-final-mark--animate" : "yt-final-crop"}
-        style={{ width, height: cropH }}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          key={cycle}
-          src={src}
-          alt=""
-          width={width}
-          draggable={false}
-          className="yt-final-img"
-          style={{ width, height: "auto" }}
-        />
+    <span
+      className={`yt-final-lockup yt-final-lockup--row ${animate ? "yt-final-mark--animate" : ""} ${className}`.trim()}
+      aria-label="AsanPay"
+    >
+      <AsanIcon size={iconSize} />
+      <span className="yt-final-wordcol">
+        <span className="yt-final-word" style={{ fontSize }}>
+          <span style={{ color: asanColor, fontWeight: 800 }}>Asan</span>
+          <span style={{ color: payColor, fontWeight: 800 }}>Pay</span>
+        </span>
+        {showTagline ? <TaglineBlock cycle={cycle} animate={animate} /> : null}
       </span>
-      {showTagline ? (
-        animate ? <TypeTagline cycle={cycle} /> : <span className="yt-tagline">{TAGLINE}</span>
-      ) : null}
     </span>
   );
 }

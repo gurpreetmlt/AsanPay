@@ -305,7 +305,7 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
       <LinearGradient colors={["#3564E6", "#0B2A9A", "#06175A"]} style={styles.bg}>
         <View style={styles.topRow}>
           <View style={styles.brandRow}>
-            <BrandLockup width={168} animate light showTagline />
+            <BrandLockup iconSize={40} animate light showTagline />
           </View>
           <View style={styles.secureChip}>
             <ShieldCheck size={13} color="#3BE39A" strokeWidth={2.3} />

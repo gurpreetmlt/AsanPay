@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, Easing, Image, StyleSheet, Text, View } from "react-native";
+import { BRAND } from "../theme/brand";
 
 interface BrandMarkProps {
   size?: number;
@@ -9,11 +10,12 @@ interface BrandMarkProps {
 
 const markSource = require("../assets/asan-pay-appicon-flat.png");
 const logoSource = require("../assets/asan-pay-logo.png");
-const finalLight = require("../assets/asanpay-final-light.png");
-const finalDark = require("../assets/asanpay-final-dark.png");
 
 const TAGLINE = "Payment Made Easy";
 const LOGO_LOOP_MS = 5600;
+
+const brandPrefix = BRAND.appName.endsWith("Pay") ? BRAND.appName.slice(0, -3) : BRAND.appName;
+const brandSuffix = BRAND.appName.endsWith("Pay") ? "Pay" : "";
 
 /** Official AsanPay brand mark / wordmark for auth surfaces. */
 export function BrandMark({ size = 72, variant = "mark" }: BrandMarkProps) {
@@ -51,8 +53,8 @@ function TypeTagline({ cycle }: { cycle: number }) {
         i += 1;
         setN(i);
         if (i >= TAGLINE.length && intervalId) clearInterval(intervalId);
-      }, 48);
-    }, 900);
+      }, 42);
+    }, 700);
     return () => {
       clearTimeout(start);
       if (intervalId) clearInterval(intervalId);
@@ -60,7 +62,7 @@ function TypeTagline({ cycle }: { cycle: number }) {
   }, [cycle]);
 
   return (
-    <Text style={styles.tagline} accessibilityLabel={TAGLINE}>
+    <Text style={styles.tagline} accessibilityLabel={TAGLINE} numberOfLines={1}>
       {TAGLINE.slice(0, n)}
       {n < TAGLINE.length ? <Text style={styles.caret}>|</Text> : null}
     </Text>
@@ -68,27 +70,35 @@ function TypeTagline({ cycle }: { cycle: number }) {
 }
 
 interface BrandLockupProps {
-  /** Logo image width (icon + AsanPay). */
+  /** Wallet icon size (wordmark scales with it). */
+  iconSize?: number;
+  /** @deprecated use iconSize — kept so older call sites still compile */
   width?: number;
   animate?: boolean;
-  /** true = light logo (white Asan) for dark blue UI */
+  /** true = white Asan + green Pay (dark/blue header) */
   light?: boolean;
   showTagline?: boolean;
 }
 
-/** Official Final-Logo + typed orange tagline — long still, no clip. */
+/**
+ * Wallet icon + AsanPay wordmark + typed tagline under AsanPay only.
+ * No image crop / no overflow clip — tagline never under the icon.
+ */
 export function BrandLockup({
-  width = 168,
+  iconSize,
+  width,
   animate = true,
   light = true,
   showTagline = true,
 }: BrandLockupProps) {
+  const size = iconSize ?? (width ? Math.round(width * 0.24) : 40);
   const [cycle, setCycle] = useState(0);
   const opacity = useRef(new Animated.Value(1)).current;
   const scale = useRef(new Animated.Value(1)).current;
-  const tx = useRef(new Animated.Value(0)).current;
-  const cropH = Math.round(width * 0.205);
-  const source = light ? finalLight : finalDark;
+
+  const asanColor = light ? "#FFFFFF" : "#0B2A9A";
+  const payColor = light ? "#3BE39A" : "#18B26E";
+  const fontSize = Math.round(size * 0.52);
 
   useEffect(() => {
     if (!animate) return;
@@ -100,59 +110,54 @@ export function BrandLockup({
     if (!animate) {
       opacity.setValue(1);
       scale.setValue(1);
-      tx.setValue(0);
       return;
     }
+    // In-bounds only (opacity + soft scale) — no translateX so edges never clip.
     opacity.setValue(0);
-    scale.setValue(0.94);
-    tx.setValue(-8);
+    scale.setValue(0.96);
     const anim = Animated.sequence([
       Animated.parallel([
-        Animated.timing(opacity, { toValue: 1, duration: 520, useNativeDriver: true }),
-        Animated.timing(tx, {
-          toValue: 0,
-          duration: 700,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
+        Animated.timing(opacity, { toValue: 1, duration: 480, useNativeDriver: true }),
         Animated.sequence([
           Animated.timing(scale, {
             toValue: 1.03,
-            duration: 420,
+            duration: 400,
             easing: Easing.out(Easing.cubic),
             useNativeDriver: true,
           }),
-          Animated.timing(scale, { toValue: 1, duration: 280, useNativeDriver: true }),
+          Animated.timing(scale, { toValue: 1, duration: 260, useNativeDriver: true }),
         ]),
       ]),
-      Animated.delay(3400),
+      Animated.delay(3600),
       Animated.parallel([
-        Animated.timing(opacity, { toValue: 0.92, duration: 320, useNativeDriver: true }),
-        Animated.timing(tx, { toValue: -3, duration: 320, useNativeDriver: true }),
-        Animated.timing(scale, { toValue: 0.98, duration: 320, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0.94, duration: 280, useNativeDriver: true }),
+        Animated.timing(scale, { toValue: 0.98, duration: 280, useNativeDriver: true }),
       ]),
-      Animated.delay(200),
+      Animated.delay(180),
     ]);
     anim.start();
     return () => anim.stop();
-  }, [animate, cycle, opacity, scale, tx]);
+  }, [animate, cycle, opacity, scale]);
 
   return (
-    <View style={styles.lockup} accessibilityLabel="AsanPay">
-      <Animated.View
-        style={[
-          styles.crop,
-          { width, height: cropH, opacity, transform: [{ translateX: tx }, { scale }] },
-        ]}
-      >
-        <Image
-          source={source}
-          style={{ width, height: Math.round(width * (340 / 1000)), position: "absolute", top: 0, left: 0 }}
-          resizeMode="contain"
-        />
-      </Animated.View>
-      {showTagline ? (animate ? <TypeTagline cycle={cycle} /> : <Text style={styles.tagline}>{TAGLINE}</Text>) : null}
-    </View>
+    <Animated.View
+      style={[styles.lockup, { opacity, transform: [{ scale }] }]}
+      accessibilityLabel="AsanPay"
+    >
+      <BrandMark size={size} variant="mark" />
+      <View style={styles.wordCol}>
+        <Text style={[styles.wordRow, { fontSize }]} numberOfLines={1}>
+          <Text style={[styles.asan, { color: asanColor }]}>{brandPrefix}</Text>
+          {brandSuffix ? <Text style={[styles.pay, { color: payColor }]}>{brandSuffix}</Text> : null}
+        </Text>
+        {showTagline ? (
+          <View style={styles.tagBlock}>
+            <View style={styles.tagRule} />
+            {animate ? <TypeTagline cycle={cycle} /> : <Text style={styles.tagline}>{TAGLINE}</Text>}
+          </View>
+        ) : null}
+      </View>
+    </Animated.View>
   );
 }
 
@@ -169,21 +174,42 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   lockup: {
+    flexDirection: "row",
     alignItems: "flex-start",
+    gap: 9,
     overflow: "visible",
-    gap: 3,
+    paddingVertical: 2,
   },
-  crop: {
-    overflow: "hidden",
-    position: "relative",
+  wordCol: {
+    flexShrink: 1,
+    paddingTop: 2,
+    minWidth: 0,
+  },
+  wordRow: {
+    fontWeight: "800",
+    letterSpacing: -0.5,
+    lineHeight: undefined,
+  },
+  asan: { fontWeight: "800" },
+  pay: { fontWeight: "800" },
+  tagBlock: {
+    marginTop: 4,
+    gap: 3,
+    alignSelf: "stretch",
+  },
+  tagRule: {
+    height: 1.5,
+    width: "100%",
+    maxWidth: 132,
+    borderRadius: 1,
+    backgroundColor: "#5B8CFF",
   },
   tagline: {
     color: "#FF8400",
     fontSize: 10,
     fontWeight: "600",
-    letterSpacing: 1.4,
-    minHeight: 14,
-    paddingLeft: 2,
+    letterSpacing: 0.9,
+    lineHeight: 13,
   },
   caret: {
     color: "#FF8400",
