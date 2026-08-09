@@ -255,92 +255,89 @@ body {
   box-shadow: 0 14px 36px rgba(11, 42, 154, 0.12);
 }
 
-/* YouTube-style brand: soft meet — stays in-bounds (no clip) */
-@keyframes yt-brand-icon-in {
+/* Official Final-Logo + typed tagline — long still, no clip */
+@keyframes yt-final-in {
   0%,
-  5% {
+  3% {
     opacity: 0;
-    transform: translateX(-10px) scale(0.88);
+    transform: translateX(-8px) scale(0.94);
   }
-  18% {
+  12% {
     opacity: 1;
-    transform: translateX(0) scale(1.04);
+    transform: translateX(0) scale(1.03);
   }
-  28%,
-  78% {
+  18%,
+  84% {
     opacity: 1;
     transform: translateX(0) scale(1);
   }
-  90% {
-    opacity: 1;
-    transform: translateX(-4px) scale(0.97);
-  }
+  94%,
   100% {
-    opacity: 0.85;
-    transform: translateX(-8px) scale(0.92);
+    opacity: 0.92;
+    transform: translateX(-3px) scale(0.98);
   }
 }
-@keyframes yt-brand-text-in {
-  0%,
-  5% {
-    opacity: 0;
-    transform: translateX(12px);
-  }
-  18% {
-    opacity: 1;
-    transform: translateX(-2px);
-  }
-  28%,
-  78% {
-    opacity: 1;
-    transform: translateX(0);
-  }
-  90% {
-    opacity: 1;
-    transform: translateX(4px);
-  }
-  100% {
-    opacity: 0.85;
-    transform: translateX(8px);
-  }
-}
-.yt-brand-lockup {
+.yt-final-lockup {
   display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
   overflow: visible;
-  padding: 2px 4px;
+  max-width: 100%;
+}
+.yt-final-crop {
+  display: block;
+  overflow: hidden;
+  flex-shrink: 0;
+  line-height: 0;
+}
+.yt-final-img {
+  display: block;
   max-width: none;
+  object-fit: contain;
+  object-position: left top;
+  pointer-events: none;
+  user-select: none;
 }
-.yt-brand-icon {
-  display: inline-flex;
-  flex-shrink: 0;
-  position: relative;
-  z-index: 1;
-  transform-origin: center center;
+.yt-final-mark,
+.yt-final-crop.yt-final-mark--animate,
+.yt-final-mark--animate {
+  transform-origin: left center;
   will-change: transform, opacity;
 }
-.yt-brand-text {
-  display: inline-flex;
-  letter-spacing: -0.04em;
+.yt-final-mark--animate {
+  animation: yt-final-in 5.6s ease-in-out infinite;
+}
+.yt-tagline {
+  display: block;
+  min-height: 1em;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: #ff8400;
   white-space: nowrap;
-  position: relative;
-  z-index: 2;
-  flex-shrink: 0;
-  will-change: transform, opacity;
+  line-height: 1.2;
+  padding-left: 0.15rem;
 }
-.yt-brand-lockup--animate .yt-brand-icon {
-  animation: yt-brand-icon-in 3.6s ease-in-out infinite;
+.yt-tagline-caret {
+  display: inline-block;
+  margin-left: 1px;
+  color: #ff8400;
+  animation: yt-caret-blink 0.85s step-end infinite;
 }
-.yt-brand-lockup--animate .yt-brand-text {
-  animation: yt-brand-text-in 3.6s ease-in-out infinite;
+@keyframes yt-caret-blink {
+  50% {
+    opacity: 0;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
-  .yt-brand-lockup--animate .yt-brand-icon,
-  .yt-brand-lockup--animate .yt-brand-text {
+  .yt-final-mark--animate {
     animation: none;
     opacity: 1;
     transform: none;
+  }
+  .yt-tagline-caret {
+    display: none;
   }
 }
 

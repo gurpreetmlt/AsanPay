@@ -1,7 +1,5 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Animated, Easing, Image, StyleSheet, Text, View } from "react-native";
-import { BRAND } from "../theme/brand";
-import { colors } from "../theme/colors";
 
 interface BrandMarkProps {
   size?: number;
@@ -11,6 +9,11 @@ interface BrandMarkProps {
 
 const markSource = require("../assets/asan-pay-appicon-flat.png");
 const logoSource = require("../assets/asan-pay-logo.png");
+const finalLight = require("../assets/asanpay-final-light.png");
+const finalDark = require("../assets/asanpay-final-dark.png");
+
+const TAGLINE = "Payment Made Easy";
+const LOGO_LOOP_MS = 5600;
 
 /** Official AsanPay brand mark / wordmark for auth surfaces. */
 export function BrandMark({ size = 72, variant = "mark" }: BrandMarkProps) {
@@ -36,94 +39,119 @@ export function BrandMark({ size = 72, variant = "mark" }: BrandMarkProps) {
   );
 }
 
-const brandPrefix = BRAND.appName.endsWith("Pay") ? BRAND.appName.slice(0, -3) : BRAND.appName;
-const brandSuffix = BRAND.appName.endsWith("Pay") ? "Pay" : "";
+function TypeTagline({ cycle }: { cycle: number }) {
+  const [n, setN] = useState(0);
 
-interface BrandLockupProps {
-  iconSize?: number;
-  /** YouTube-style: icon from left, wordmark from right. */
-  animate?: boolean;
-  /** Dark blue header / login — white Asan + green Pay */
-  light?: boolean;
+  useEffect(() => {
+    setN(0);
+    let intervalId: ReturnType<typeof setInterval> | undefined;
+    const start = setTimeout(() => {
+      let i = 0;
+      intervalId = setInterval(() => {
+        i += 1;
+        setN(i);
+        if (i >= TAGLINE.length && intervalId) clearInterval(intervalId);
+      }, 48);
+    }, 900);
+    return () => {
+      clearTimeout(start);
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [cycle]);
+
+  return (
+    <Text style={styles.tagline} accessibilityLabel={TAGLINE}>
+      {TAGLINE.slice(0, n)}
+      {n < TAGLINE.length ? <Text style={styles.caret}>|</Text> : null}
+    </Text>
+  );
 }
 
-/** Wallet icon + AsanPay wordmark — YouTube-style meet (in-bounds, no clip). */
-export function BrandLockup({ iconSize = 40, animate = true, light = true }: BrandLockupProps) {
-  const iconX = useRef(new Animated.Value(-10)).current;
-  const textX = useRef(new Animated.Value(12)).current;
-  const iconScale = useRef(new Animated.Value(0.9)).current;
-  const opacity = useRef(new Animated.Value(0)).current;
+interface BrandLockupProps {
+  /** Logo image width (icon + AsanPay). */
+  width?: number;
+  animate?: boolean;
+  /** true = light logo (white Asan) for dark blue UI */
+  light?: boolean;
+  showTagline?: boolean;
+}
+
+/** Official Final-Logo + typed orange tagline — long still, no clip. */
+export function BrandLockup({
+  width = 168,
+  animate = true,
+  light = true,
+  showTagline = true,
+}: BrandLockupProps) {
+  const [cycle, setCycle] = useState(0);
+  const opacity = useRef(new Animated.Value(1)).current;
+  const scale = useRef(new Animated.Value(1)).current;
+  const tx = useRef(new Animated.Value(0)).current;
+  const cropH = Math.round(width * 0.205);
+  const source = light ? finalLight : finalDark;
+
+  useEffect(() => {
+    if (!animate) return;
+    const id = setInterval(() => setCycle((c) => c + 1), LOGO_LOOP_MS);
+    return () => clearInterval(id);
+  }, [animate]);
 
   useEffect(() => {
     if (!animate) {
-      iconX.setValue(0);
-      textX.setValue(0);
-      iconScale.setValue(1);
       opacity.setValue(1);
+      scale.setValue(1);
+      tx.setValue(0);
       return;
     }
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.parallel([
-          Animated.timing(opacity, { toValue: 1, duration: 320, useNativeDriver: true }),
-          Animated.timing(iconX, {
-            toValue: 0,
-            duration: 700,
+    opacity.setValue(0);
+    scale.setValue(0.94);
+    tx.setValue(-8);
+    const anim = Animated.sequence([
+      Animated.parallel([
+        Animated.timing(opacity, { toValue: 1, duration: 520, useNativeDriver: true }),
+        Animated.timing(tx, {
+          toValue: 0,
+          duration: 700,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.sequence([
+          Animated.timing(scale, {
+            toValue: 1.03,
+            duration: 420,
             easing: Easing.out(Easing.cubic),
             useNativeDriver: true,
           }),
-          Animated.timing(textX, {
-            toValue: 0,
-            duration: 700,
-            easing: Easing.out(Easing.cubic),
-            useNativeDriver: true,
-          }),
-          Animated.sequence([
-            Animated.timing(iconScale, {
-              toValue: 1.05,
-              duration: 420,
-              easing: Easing.out(Easing.cubic),
-              useNativeDriver: true,
-            }),
-            Animated.timing(iconScale, {
-              toValue: 1,
-              duration: 280,
-              useNativeDriver: true,
-            }),
-          ]),
+          Animated.timing(scale, { toValue: 1, duration: 280, useNativeDriver: true }),
         ]),
-        Animated.delay(2000),
-        Animated.parallel([
-          Animated.timing(opacity, { toValue: 0.88, duration: 280, useNativeDriver: true }),
-          Animated.timing(iconX, { toValue: -6, duration: 360, useNativeDriver: true }),
-          Animated.timing(textX, { toValue: 6, duration: 360, useNativeDriver: true }),
-          Animated.timing(iconScale, { toValue: 0.94, duration: 360, useNativeDriver: true }),
-        ]),
-        Animated.delay(120),
       ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [animate, iconX, textX, iconScale, opacity]);
-
-  const asanColor = light ? "#FFFFFF" : colors.blue;
-  const payColor = light ? "#3BE39A" : colors.green;
-  const fontSize = Math.round(iconSize * 0.55);
+      Animated.delay(3400),
+      Animated.parallel([
+        Animated.timing(opacity, { toValue: 0.92, duration: 320, useNativeDriver: true }),
+        Animated.timing(tx, { toValue: -3, duration: 320, useNativeDriver: true }),
+        Animated.timing(scale, { toValue: 0.98, duration: 320, useNativeDriver: true }),
+      ]),
+      Animated.delay(200),
+    ]);
+    anim.start();
+    return () => anim.stop();
+  }, [animate, cycle, opacity, scale, tx]);
 
   return (
     <View style={styles.lockup} accessibilityLabel="AsanPay">
       <Animated.View
-        style={{
-          opacity,
-          transform: [{ translateX: iconX }, { scale: iconScale }],
-        }}
+        style={[
+          styles.crop,
+          { width, height: cropH, opacity, transform: [{ translateX: tx }, { scale }] },
+        ]}
       >
-        <BrandMark size={iconSize} variant="mark" />
+        <Image
+          source={source}
+          style={{ width, height: Math.round(width * (340 / 1000)), position: "absolute", top: 0, left: 0 }}
+          resizeMode="contain"
+        />
       </Animated.View>
-      <Animated.View style={[styles.word, { opacity, transform: [{ translateX: textX }] }]}>
-        <Text style={[styles.asan, { color: asanColor, fontSize }]}>{brandPrefix}</Text>
-        {brandSuffix ? <Text style={[styles.pay, { color: payColor, fontSize }]}>{brandSuffix}</Text> : null}
-      </Animated.View>
+      {showTagline ? (animate ? <TypeTagline cycle={cycle} /> : <Text style={styles.tagline}>{TAGLINE}</Text>) : null}
     </View>
   );
 }
@@ -141,18 +169,24 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   lockup: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+    alignItems: "flex-start",
     overflow: "visible",
-    paddingHorizontal: 2,
-    paddingVertical: 2,
+    gap: 3,
   },
-  word: {
-    flexDirection: "row",
-    alignItems: "center",
-    flexShrink: 0,
+  crop: {
+    overflow: "hidden",
+    position: "relative",
   },
-  asan: { fontWeight: "800", letterSpacing: -0.4 },
-  pay: { fontWeight: "800", letterSpacing: -0.4 },
+  tagline: {
+    color: "#FF8400",
+    fontSize: 10,
+    fontWeight: "600",
+    letterSpacing: 1.4,
+    minHeight: 14,
+    paddingLeft: 2,
+  },
+  caret: {
+    color: "#FF8400",
+    fontWeight: "400",
+  },
 });

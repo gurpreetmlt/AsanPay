@@ -1,11 +1,24 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 const LOGO_SRC = {
   /** Blue "Asan" — light / white backgrounds */
   dark: "/brand/asanpay-logo-dark.svg",
   /** White "Asan" — blue / dark backgrounds */
   light: "/brand/asanpay-logo-light.svg",
 } as const;
+
+const FINAL_LOGO = {
+  /** White Asan + green Pay — for dark/blue sidebars */
+  light: "/brand/asanpay-final-light.svg",
+  /** Blue Asan + green Pay — for light backgrounds */
+  dark: "/brand/asanpay-final-dark.svg",
+} as const;
+
+const TAGLINE = "Payment Made Easy";
+/** Full logo loop — long still in the middle */
+const LOGO_LOOP_MS = 5600;
 
 export function AsanPayLogo({
   width = 180,
@@ -55,41 +68,94 @@ export function AsanIcon({ size = 36 }: { size?: number }) {
   );
 }
 
+function TypeTagline({ cycle }: { cycle: number }) {
+  const [n, setN] = useState(0);
+
+  useEffect(() => {
+    setN(0);
+    let intervalId: number | undefined;
+    const start = window.setTimeout(() => {
+      let i = 0;
+      intervalId = window.setInterval(() => {
+        i += 1;
+        setN(i);
+        if (i >= TAGLINE.length && intervalId !== undefined) window.clearInterval(intervalId);
+      }, 48);
+    }, 900);
+    return () => {
+      window.clearTimeout(start);
+      if (intervalId !== undefined) window.clearInterval(intervalId);
+    };
+  }, [cycle]);
+
+  return (
+    <span className="yt-tagline" aria-label={TAGLINE}>
+      {TAGLINE.slice(0, n)}
+      {n < TAGLINE.length ? <span className="yt-tagline-caret">|</span> : null}
+    </span>
+  );
+}
+
 /**
- * YouTube-style lockup: wallet icon slides from left, "AsanPay" from right, meet/overlap.
- * Use on dashboard sidebar / branded headers.
+ * Official Final-Logo lockup (light/dark) + typed tagline.
+ * YouTube-style soft entrance, long still, no clip.
  */
 export function AsanPayLockup({
-  iconSize = 44,
+  width = 168,
   wordmark = true,
   light = true,
   animate = true,
+  showTagline = true,
   className = "",
 }: {
-  iconSize?: number;
+  width?: number;
   wordmark?: boolean;
-  /** White + green Pay on dark sidebar */
+  /** true = final light logo (white Asan) for dark/blue UI */
   light?: boolean;
   animate?: boolean;
+  showTagline?: boolean;
   className?: string;
 }) {
-  const asanColor = light ? "#FFFFFF" : "#0B2A9A";
-  const payColor = light ? "#3BE39A" : "#24CC82";
-  const fontSize = Math.round(iconSize * 0.52);
+  const [cycle, setCycle] = useState(0);
+  const src = light ? FINAL_LOGO.light : FINAL_LOGO.dark;
+  // Crop baked-in SVG tagline; we type it separately below.
+  const cropH = Math.round(width * 0.205);
+
+  useEffect(() => {
+    if (!animate) return;
+    const id = window.setInterval(() => setCycle((c) => c + 1), LOGO_LOOP_MS);
+    return () => window.clearInterval(id);
+  }, [animate]);
+
+  if (!wordmark) {
+    return (
+      <span className={`yt-final-lockup ${className}`.trim()} aria-label="AsanPay">
+        <span className={animate ? "yt-final-mark yt-final-mark--animate" : "yt-final-mark"}>
+          <AsanIcon size={Math.round(width * 0.26)} />
+        </span>
+      </span>
+    );
+  }
 
   return (
-    <span
-      className={`yt-brand-lockup ${animate ? "yt-brand-lockup--animate" : ""} ${className}`.trim()}
-      aria-label="AsanPay"
-    >
-      <span className="yt-brand-icon">
-        <AsanIcon size={iconSize} />
+    <span className={`yt-final-lockup ${className}`.trim()} aria-label="AsanPay">
+      <span
+        className={animate ? "yt-final-crop yt-final-mark--animate" : "yt-final-crop"}
+        style={{ width, height: cropH }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          key={cycle}
+          src={src}
+          alt=""
+          width={width}
+          draggable={false}
+          className="yt-final-img"
+          style={{ width, height: "auto" }}
+        />
       </span>
-      {wordmark ? (
-        <span className="yt-brand-text" style={{ fontSize, lineHeight: 1 }}>
-          <span style={{ color: asanColor, fontWeight: 800 }}>Asan</span>
-          <span style={{ color: payColor, fontWeight: 800 }}>Pay</span>
-        </span>
+      {showTagline ? (
+        animate ? <TypeTagline cycle={cycle} /> : <span className="yt-tagline">{TAGLINE}</span>
       ) : null}
     </span>
   );
