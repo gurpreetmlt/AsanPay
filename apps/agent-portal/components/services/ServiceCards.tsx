@@ -104,7 +104,7 @@ function ServiceIconCard({
       </button>
       <button
         type="button"
-        className="svc-tile-press flex w-full flex-col items-center justify-start gap-1.5 text-center disabled:opacity-45"
+        className="svc-tile-press flex w-full cursor-pointer flex-col items-center justify-start gap-1.5 text-center disabled:opacity-45"
         onClick={() => (onOpen ? onOpen() : toast(`${svc.name} — coming soon on web`))}
       >
         {/* Fixed badge row so AePS (no badge) lines up with NEW / Flat badges outside */}

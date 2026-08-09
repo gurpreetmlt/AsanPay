@@ -8,6 +8,7 @@ import { useLongPress } from "../lib/useLongPress";
 import { colors } from "../theme/colors";
 import { useTheme } from "../theme/ThemeContext";
 import { showAlert } from "./AppAlert";
+import { AEPS_ANIMATED_ICON_BY_CODE } from "./AePSAnimatedIcons";
 
 interface Props {
   code: string;
@@ -44,6 +45,7 @@ export function ServiceTile({
   const tile = designTileColors(index, scheme === "dark");
   // Catalog filename → bundled SVG. Missing / pending art → blank box (same as web).
   const iconXml = icon ? (SERVICE_ICON_XML[icon] ?? null) : null;
+  const AnimatedIcon = AEPS_ANIMATED_ICON_BY_CODE[code];
 
   useEffect(() => {
     if (!homeEditMode || !wiggle) {
@@ -113,8 +115,17 @@ export function ServiceTile({
             </Text>
           </View>
         ) : null}
-        <View style={[styles.iconBox, { backgroundColor: iconXml ? "transparent" : tile.bg }]}>
-          {iconXml ? <SvgXml xml={iconXml} width={36} height={36} /> : null}
+        <View
+          style={[
+            styles.iconBox,
+            { backgroundColor: AnimatedIcon || iconXml ? "transparent" : tile.bg },
+          ]}
+        >
+          {AnimatedIcon ? (
+            <AnimatedIcon size={36} />
+          ) : iconXml ? (
+            <SvgXml xml={iconXml} width={36} height={36} />
+          ) : null}
         </View>
         <Text style={[styles.name, { color: tokens.txt2 }]} numberOfLines={2}>
           {name}
