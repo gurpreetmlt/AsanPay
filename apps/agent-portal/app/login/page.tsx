@@ -338,7 +338,7 @@ export default function LoginPage() {
       >
         <div className="login-panel-animate w-full max-w-[480px]">
           <div className="mb-7">
-            <AsanPayLockup width={320} light={false} animate showTagline />
+            <AsanPayLockup width={250} light={false} animate showTagline />
           </div>
 
           {unlockMode && remembered ? (

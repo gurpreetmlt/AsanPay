@@ -52,6 +52,8 @@ interface BrandLockupProps {
   animate?: boolean;
   light?: boolean;
   showTagline?: boolean;
+  /** Splash: play Y→A once and hold (no reverse loop). */
+  playOnce?: boolean;
 }
 
 /**
@@ -65,6 +67,7 @@ export function BrandLockup({
   animate = true,
   light = true,
   showTagline = true,
+  playOnce = false,
 }: BrandLockupProps) {
   const size = iconSize ?? (width ? Math.round(width * 0.29) : 44);
   const wordW = Math.round(size * 2.55);
@@ -74,70 +77,104 @@ export function BrandLockup({
 
   const iconX = useRef(new Animated.Value(travel)).current;
   const textX = useRef(new Animated.Value(-wordW)).current;
+  const fadeIn = useRef(new Animated.Value(0)).current;
   const loopRef = useRef<Animated.CompositeAnimation | null>(null);
 
   useEffect(() => {
     if (!animate) {
       iconX.setValue(0);
       textX.setValue(0);
+      fadeIn.setValue(1);
       return;
     }
 
     const ease = Easing.bezier(0.45, 0.05, 0.25, 1);
     const moveMs = 1600;
     const holdMs = 3800;
+    let cancelled = false;
+    let raf1 = 0;
+    let raf2 = 0;
 
+    // Defer first paint so cold start doesn't flash wallet at Y
+    fadeIn.setValue(0);
     iconX.setValue(travel);
     textX.setValue(-wordW);
 
-    const loop = Animated.loop(
-      Animated.sequence([
-        // Y → A + text reveal (left → right under mask)
-        Animated.parallel([
-          Animated.timing(iconX, {
-            toValue: 0,
-            duration: moveMs,
-            easing: ease,
-            useNativeDriver: true,
-          }),
-          Animated.timing(textX, {
-            toValue: 0,
-            duration: moveMs,
-            easing: ease,
-            useNativeDriver: true,
-          }),
-        ]),
-        Animated.delay(holdMs),
-        // A → Y reverse (smooth, no fade blink)
-        Animated.parallel([
-          Animated.timing(iconX, {
-            toValue: travel,
-            duration: moveMs,
-            easing: ease,
-            useNativeDriver: true,
-          }),
-          Animated.timing(textX, {
-            toValue: -wordW,
-            duration: moveMs,
-            easing: ease,
-            useNativeDriver: true,
-          }),
-        ]),
-        Animated.delay(200),
-      ]),
-    );
+    raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        if (cancelled) return;
 
-    loopRef.current = loop;
-    loop.start();
+        const forward = Animated.parallel([
+          Animated.timing(iconX, {
+            toValue: 0,
+            duration: moveMs,
+            easing: ease,
+            useNativeDriver: true,
+          }),
+          Animated.timing(textX, {
+            toValue: 0,
+            duration: moveMs,
+            easing: ease,
+            useNativeDriver: true,
+          }),
+        ]);
+
+        const show = Animated.timing(fadeIn, {
+          toValue: 1,
+          duration: 180,
+          useNativeDriver: true,
+        });
+
+        if (playOnce) {
+          const once = Animated.parallel([show, forward]);
+          loopRef.current = once;
+          once.start();
+          return;
+        }
+
+        const loop = Animated.loop(
+          Animated.sequence([
+            forward,
+            Animated.delay(holdMs),
+            Animated.parallel([
+              Animated.timing(iconX, {
+                toValue: travel,
+                duration: moveMs,
+                easing: ease,
+                useNativeDriver: true,
+              }),
+              Animated.timing(textX, {
+                toValue: -wordW,
+                duration: moveMs,
+                easing: ease,
+                useNativeDriver: true,
+              }),
+            ]),
+            Animated.delay(200),
+          ]),
+        );
+
+        // Fade in while first Y→A starts (avoids cold-start Y flash)
+        show.start();
+        loopRef.current = loop;
+        loop.start();
+      });
+    });
 
     return () => {
-      loop.stop();
+      cancelled = true;
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+      loopRef.current?.stop();
       loopRef.current = null;
     };
-  }, [animate, iconX, textX, wordW, travel]);
+  }, [animate, playOnce, iconX, textX, fadeIn, wordW, travel]);
 
   return (
-    <View style={styles.lockup} accessibilityLabel="AsanPay — Payment Made Easy">
+    <Animated.View
+      style={[styles.lockup, { opacity: fadeIn }]}
+      accessibilityLabel="AsanPay — Payment Made Easy"
+    >
       <Animated.View
         style={[
           styles.iconWrap,
@@ -149,7 +186,6 @@ export function BrandLockup({
         <BrandMark size={size} variant="mark" light={light} />
       </Animated.View>
 
-      {/* Fixed mask width — text slides inside (no width anim = no Android blink) */}
       <View style={[styles.mask, { width: wordW, height: visibleH }]}>
         <Animated.View style={{ transform: [{ translateX: textX }] }}>
           <Image
@@ -159,7 +195,7 @@ export function BrandLockup({
           />
         </Animated.View>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
