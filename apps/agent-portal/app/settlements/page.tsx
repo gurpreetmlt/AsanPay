@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Landmark, Plus, RefreshCcw } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { AppShell } from "@/components/layout/AppShell";
+import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { createAttemptKeyHolder } from "@/lib/idempotencyKey";
@@ -164,15 +165,17 @@ export default function SettlementsPage() {
               <Landmark size={18} />
               Settlement banks
             </h2>
-            <button
+            <PrimaryButton
               type="button"
+              variant="primary"
+              size="sm"
+              loopGlow
               onClick={() => setShowBankForm((v) => !v)}
-              className="inline-flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-bold text-white"
-              style={{ background: B.badgeGrad }}
+              className="!w-auto"
             >
               <Plus size={14} />
               Add bank
-            </button>
+            </PrimaryButton>
           </div>
 
           {showBankForm ? (
@@ -201,14 +204,16 @@ export default function SettlementsPage() {
                 onChange={(e) => setHolderName(e.target.value)}
                 required
               />
-              <button
+              <PrimaryButton
                 type="submit"
+                variant="primary"
+                loopGlow
                 disabled={saving}
-                className="rounded-xl px-4 py-2 text-sm font-bold text-white md:col-span-3 disabled:opacity-60"
-                style={{ background: B.badgeGrad }}
+                loading={saving}
+                className="md:col-span-3"
               >
-                {saving ? "Saving…" : "Submit for verification"}
-              </button>
+                Submit for verification
+              </PrimaryButton>
             </form>
           ) : null}
 
@@ -252,15 +257,17 @@ export default function SettlementsPage() {
             <h2 className="text-base font-bold" style={{ color: B.blue }}>
               Withdraw to bank
             </h2>
-            <button
+            <PrimaryButton
               type="button"
+              variant="primary"
+              size="sm"
+              loopGlow
               disabled={!hasActiveBank}
               onClick={() => setShowSettleForm((v) => !v)}
-              className="rounded-xl px-3 py-2 text-sm font-bold text-white disabled:opacity-50"
-              style={{ background: B.badgeGrad }}
+              className="!w-auto"
             >
               Request settlement
-            </button>
+            </PrimaryButton>
           </div>
           {!hasActiveBank ? (
             <p className="mb-3 text-sm" style={{ color: B.muted }}>
@@ -296,14 +303,17 @@ export default function SettlementsPage() {
                   <option value="rtgs">RTGS</option>
                 </select>
               </label>
-              <button
+              <PrimaryButton
                 type="submit"
+                variant="primary"
+                size="sm"
+                loopGlow
                 disabled={saving}
-                className="rounded-xl px-4 py-2 text-sm font-bold text-white disabled:opacity-60"
-                style={{ background: B.badgeGrad }}
+                loading={saving}
+                className="!w-auto"
               >
-                {saving ? "Submitting…" : "Submit"}
-              </button>
+                Submit
+              </PrimaryButton>
             </form>
           ) : null}
 

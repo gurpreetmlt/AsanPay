@@ -948,8 +948,7 @@ export default function DmtPage() {
 
               <PrimaryButton
                 type="button"
-                variant="action"
-                showArrow={false}
+                variant="primary"
                 loopGlow
                 disabled={!canScan}
                 loading={agentAuthScanning}

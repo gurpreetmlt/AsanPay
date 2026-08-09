@@ -119,9 +119,8 @@ export function PullForm({ target, onClose, onSuccess }: PullFormProps) {
           </div>
           <PrimaryButton
             type="submit"
-            variant="action"
+            variant="primary"
             loopGlow
-            showArrow={false}
             disabled={loading || !amount}
             loading={loading}
           >
@@ -168,9 +167,8 @@ export function PullForm({ target, onClose, onSuccess }: PullFormProps) {
           </div>
           <PrimaryButton
             type="submit"
-            variant="action"
+            variant="primary"
             loopGlow
-            showArrow={false}
             disabled={loading || otp.length !== 6 || txnPin.length !== 4}
             loading={loading}
           >

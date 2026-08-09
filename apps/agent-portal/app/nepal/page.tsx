@@ -1233,8 +1233,7 @@ export default function NepalPage() {
 
               <PrimaryButton
                 type="button"
-                variant="action"
-                showArrow={false}
+                variant="primary"
                 loopGlow
                 disabled={!canScan}
                 loading={agentAuthScanning}

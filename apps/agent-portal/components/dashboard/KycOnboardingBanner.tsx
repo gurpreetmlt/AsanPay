@@ -138,9 +138,8 @@ export function KycOnboardingBanner({
       {cta ? (
         <PrimaryButton
           type="button"
-          variant="action"
+          variant="primary"
           size="sm"
-          showArrow={false}
           loopGlow
           onClick={() => router.push(href)}
           className="!w-auto shrink-0"

@@ -287,7 +287,7 @@ export default function WalletPage() {
                         <div className="flex flex-wrap items-center justify-end gap-2">
                           <PrimaryButton
                             type="button"
-                            variant="action"
+                            variant="primary"
                             size="sm"
                             showArrow={false}
                             disabled={!d.isActive}

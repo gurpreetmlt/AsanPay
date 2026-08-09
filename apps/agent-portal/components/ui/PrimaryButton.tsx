@@ -7,17 +7,18 @@ import { B } from "@/lib/brand";
 type Props = {
   children: ReactNode;
   loading?: boolean;
-  /** Soft looping glow + shimmer */
+  /** Soft looping glow + shimmer — same as login Unlock with MPIN */
   loopGlow?: boolean;
   showArrow?: boolean;
-  /** primary = blue login CTA; action = green→blue Scan Finger; secondary = outline */
+  /** primary = blue login CTA (Unlock with MPIN); secondary = outline */
   variant?: "primary" | "secondary" | "action";
   size?: "md" | "sm";
   className?: string;
 } & Omit<ButtonHTMLAttributes<HTMLButtonElement>, "className" | "children">;
 
 /**
- * Shared CTA — same rounded-2xl shape as original login buttons (not capsule).
+ * Shared CTA — login "Unlock with MPIN" look: blue gradient, soft glow, rounded-xl (not capsule).
+ * `action` is kept as an alias of `primary` for older call sites.
  */
 export function PrimaryButton({
   children,
@@ -32,10 +33,11 @@ export function PrimaryButton({
   ...rest
 }: Props) {
   const isDisabled = Boolean(disabled || loading);
-  const arrow = showArrow ?? variant === "primary";
+  const isOutline = variant === "secondary";
+  const arrow = showArrow ?? !isOutline;
   const sizeClass = size === "sm" ? "btn-pill--sm" : "";
 
-  if (variant === "secondary") {
+  if (isOutline) {
     return (
       <button
         type={type}
@@ -52,16 +54,13 @@ export function PrimaryButton({
     );
   }
 
-  const toneClass = variant === "action" ? "btn-pill--action" : "btn-pill--primary";
-  const bg = variant === "action" ? B.actionGrad : B.btnGrad;
-
   return (
     <button
       type={type}
       disabled={isDisabled}
-      className={`btn-pill ${toneClass} ${sizeClass} ${loopGlow && !loading ? "btn-pill--glow" : ""} ${className}`.trim()}
+      className={`btn-pill btn-pill--primary ${sizeClass} ${loopGlow && !loading ? "btn-pill--glow" : ""} ${className}`.trim()}
       style={{
-        background: bg,
+        background: B.btnGrad,
         opacity: isDisabled ? 0.45 : 1,
       }}
       {...rest}

@@ -18,6 +18,7 @@ import {
   Building2,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
+import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { B, brand } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
@@ -216,15 +217,17 @@ export default function SupportPage() {
                 WhatsApp
               </a>
             ) : null}
-            <button
+            <PrimaryButton
               type="button"
+              variant="primary"
+              size="sm"
+              loopGlow
               onClick={focusTicketForm}
-              className="inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-bold text-white shadow-sm"
-              style={{ background: B.badgeGrad }}
+              className="!w-auto"
             >
               <Plus size={16} />
               Raise a ticket
-            </button>
+            </PrimaryButton>
           </div>
         </div>
 
@@ -355,15 +358,16 @@ export default function SupportPage() {
                   placeholder="What happened? Include amount, UTR / txn id, and time if useful."
                 />
               </label>
-              <button
+              <PrimaryButton
                 type="button"
+                variant="primary"
+                loopGlow
                 disabled={submitting}
+                loading={submitting}
                 onClick={() => void submit()}
-                className="w-full rounded-xl py-3 text-sm font-bold text-white disabled:opacity-50"
-                style={{ background: B.badgeGrad }}
               >
-                {submitting ? "Submitting…" : "Submit ticket"}
-              </button>
+                Submit ticket
+              </PrimaryButton>
             </div>
 
             <div className="mt-6 border-t pt-4" style={{ borderColor: B.border }}>

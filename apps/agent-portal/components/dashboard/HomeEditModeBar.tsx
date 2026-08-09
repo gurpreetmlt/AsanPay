@@ -18,16 +18,16 @@ export function HomeEditModeBar({ active, onDone }: Props) {
       <p className="text-[12px] font-semibold" style={{ color: "#5A6DA8" }}>
         − remove · ★ add to Favourites
       </p>
-      <PrimaryButton
-        type="button"
-        variant="action"
-        size="sm"
-        showArrow={false}
-        onClick={onDone}
-        className="!w-auto"
-      >
-        Done
-      </PrimaryButton>
+        <PrimaryButton
+          type="button"
+          variant="primary"
+          size="sm"
+          loopGlow
+          onClick={onDone}
+          className="!w-auto"
+        >
+          Done
+        </PrimaryButton>
     </div>
   );
 }

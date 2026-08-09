@@ -21,6 +21,8 @@ import {
 import { toast } from "react-hot-toast";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import { AppShell } from "@/components/layout/AppShell";
+import { KycOnboardingBanner } from "@/components/dashboard/KycOnboardingBanner";
+import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { EmailVerifyField } from "@/components/EmailVerifyField";
 import { BiometricDevices } from "@/components/settings/BiometricDevices";
 import { DeviceRepairRequests } from "@/components/settings/DeviceRepairRequests";
@@ -356,13 +358,9 @@ export default function SettingsPage() {
                     />
                   </div>
                 </div>
-                <button
-                  type="button"
-                  className="rounded-xl px-6 py-2.5 text-sm font-semibold text-white"
-                  style={{ background: B.badgeGrad }}
-                >
+                <PrimaryButton type="button" variant="primary" size="sm" loopGlow className="!w-auto">
                   Save Changes
-                </button>
+                </PrimaryButton>
               </div>
             )}
 
@@ -410,15 +408,18 @@ export default function SettingsPage() {
                         </div>
                       </div>
                     ))}
-                    <button
+                    <PrimaryButton
                       type="button"
+                      variant="primary"
+                      size="sm"
+                      loopGlow
                       disabled={passwordBusy}
+                      loading={passwordBusy}
                       onClick={() => void handleChangePassword()}
-                      className="rounded-xl px-5 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                      style={{ background: B.badgeGrad }}
+                      className="!w-auto"
                     >
-                      {passwordBusy ? "Updating…" : "Update Password"}
-                    </button>
+                      Update Password
+                    </PrimaryButton>
                   </div>
                   <div className="rounded-xl border p-4" style={{ borderColor: B.border }}>
                     <div className="mb-1 text-sm font-semibold" style={{ color: B.blue }}>
@@ -429,14 +430,16 @@ export default function SettingsPage() {
                         ? "PIN is set — update or reset from onboarding"
                         : "Set a PIN required for balance transfers"}
                     </div>
-                    <button
+                    <PrimaryButton
                       type="button"
+                      variant="primary"
+                      size="sm"
+                      loopGlow
                       onClick={() => router.push("/onboarding/pin")}
-                      className="rounded-xl px-5 py-2 text-sm font-semibold text-white"
-                      style={{ background: B.badgeGrad }}
+                      className="!w-auto"
                     >
                       {user?.hasTxnPin ? "Manage PIN" : "Set PIN"}
-                    </button>
+                    </PrimaryButton>
                   </div>
                   <div className="rounded-xl border p-4" style={{ borderColor: B.border }}>
                     <div className="mb-1 text-sm font-semibold" style={{ color: B.blue }}>
@@ -445,15 +448,18 @@ export default function SettingsPage() {
                     <div className="mb-3 text-xs" style={{ color: B.muted }}>
                       Use Touch ID / Windows Hello to refresh your session on this device
                     </div>
-                    <button
+                    <PrimaryButton
                       type="button"
+                      variant="primary"
+                      size="sm"
+                      loopGlow
                       disabled={bioLoading || !isWebAuthnAvailable()}
+                      loading={bioLoading}
                       onClick={() => void handleEnableBiometric()}
-                      className="rounded-xl px-5 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                      style={{ background: B.walletGrad }}
+                      className="!w-auto"
                     >
-                      {bioLoading ? "Enabling…" : "Enable biometric"}
-                    </button>
+                      Enable biometric
+                    </PrimaryButton>
                   </div>
                   <div className="rounded-xl border p-4" style={{ borderColor: B.border }}>
                     <div className="mb-1 text-sm font-semibold" style={{ color: B.blue }}>
@@ -535,7 +541,8 @@ export default function SettingsPage() {
                   <h2 className="text-lg font-bold" style={{ color: B.blue }}>
                     KYC & Transaction Limits
                   </h2>
-                  {!needsSignupKycCompletion(user) ? (
+                  {!needsSignupKycCompletion(user) &&
+                  (kycProfile?.panMasked || kycProfile?.aadhaarMasked || kycProfileLoading) ? (
                     <span
                       className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold"
                       style={{
@@ -548,6 +555,17 @@ export default function SettingsPage() {
                     </span>
                   ) : null}
                 </div>
+
+                {needsSignupKycCompletion(user) ? (
+                  <KycOnboardingBanner />
+                ) : null}
+
+                {!kycProfileLoading &&
+                !needsSignupKycCompletion(user) &&
+                !kycProfile?.panMasked &&
+                !kycProfile?.aadhaarMasked ? (
+                  <KycOnboardingBanner profileIncomplete />
+                ) : null}
 
                 {needsSignupKycCompletion(user) ? (
                   <>
@@ -587,15 +605,14 @@ export default function SettingsPage() {
                         );
                       })}
                     </ul>
-                    <button
+                    <PrimaryButton
                       type="button"
+                      variant="primary"
+                      loopGlow
                       onClick={() => router.push("/signup?from=settings")}
-                      className="flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-white"
-                      style={{ background: B.badgeGrad }}
                     >
                       {user?.kycStatus === "rejected" ? "Resubmit KYC" : "Continue KYC"}
-                      <ArrowRight size={16} />
-                    </button>
+                    </PrimaryButton>
                   </>
                 ) : (
                   <>
@@ -699,12 +716,6 @@ export default function SettingsPage() {
                               </div>
                             ))}
                           </div>
-                        ) : null}
-
-                        {!kycProfile?.panMasked && !kycProfile?.aadhaarMasked ? (
-                          <p className="mt-2 text-[11px]" style={{ color: "#B45309" }}>
-                            PAN / Aadhaar missing on file — redeploy backend or resubmit KYC.
-                          </p>
                         ) : null}
                       </div>
                     )}

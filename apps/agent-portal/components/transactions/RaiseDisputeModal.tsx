@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { toast } from "react-hot-toast";
 import { X } from "lucide-react";
+import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { B } from "@/lib/brand";
 import api from "@/lib/api";
 import { extractApiError } from "@/lib/onboarding";
@@ -100,15 +101,16 @@ export function RaiseDisputeModal({ transactionId, txnRef, onClose, onRaised }: 
             />
           </div>
 
-          <button
+          <PrimaryButton
             type="button"
+            variant="primary"
+            loopGlow
             disabled={busy}
+            loading={busy}
             onClick={() => void submit()}
-            className="w-full rounded-lg py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-            style={{ background: B.badgeGrad }}
           >
-            {busy ? "Submitting…" : "Submit dispute"}
-          </button>
+            Submit dispute
+          </PrimaryButton>
         </div>
       </div>
     </div>

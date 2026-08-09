@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { toast } from "react-hot-toast";
 import api from "@/lib/api";
 import { Modal } from "@/components/ui/Modal";
+import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import type { UserRole } from "@asanpay/shared-types";
 
 interface OnboardFormProps {
@@ -84,13 +85,9 @@ export function OnboardForm({ childRole, childRoleLabel, onClose, onSuccess }: O
             className="w-full rounded-lg border border-border-subtle px-3 py-2 text-sm uppercase outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
           />
         </div>
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60"
-        >
-          {loading ? "Onboarding..." : `Onboard ${childRoleLabel}`}
-        </button>
+        <PrimaryButton type="submit" variant="primary" loopGlow disabled={loading} loading={loading}>
+          {`Onboard ${childRoleLabel}`}
+        </PrimaryButton>
       </form>
     </Modal>
   );

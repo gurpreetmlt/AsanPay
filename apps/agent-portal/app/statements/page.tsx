@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Download } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { AppShell } from "@/components/layout/AppShell";
+import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { extractApiError } from "@/lib/onboarding";
@@ -67,14 +68,16 @@ export default function StatementsPage() {
               Balance ledger / passbook
             </p>
           </div>
-          <button
+          <PrimaryButton
             type="button"
-            className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
-            style={{ background: B.badgeGrad }}
+            variant="primary"
+            size="sm"
+            loopGlow
+            className="!w-auto"
             onClick={() => toast("PDF download coming soon")}
           >
             <Download size={15} /> Download
-          </button>
+          </PrimaryButton>
         </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">

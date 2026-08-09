@@ -870,8 +870,7 @@ function AepsPageInner() {
 
               <PrimaryButton
                 type="button"
-                variant="action"
-                showArrow={false}
+                variant="primary"
                 loopGlow
                 disabled={!canScan}
                 loading={agentAuthScanning}
@@ -1369,8 +1368,7 @@ function AepsPageInner() {
               </div>
               <PrimaryButton
                 type="button"
-                variant="action"
-                showArrow={false}
+                variant="primary"
                 loopGlow
                 disabled={scanning || (authMode === "fingerprint" && rdStatus !== "ready")}
                 loading={scanning}

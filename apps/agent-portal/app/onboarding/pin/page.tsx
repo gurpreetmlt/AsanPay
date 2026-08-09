@@ -6,6 +6,7 @@ import { toast } from "react-hot-toast";
 import { Eye, EyeOff, Fingerprint, Lock, Shield } from "lucide-react";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import { AppShell } from "@/components/layout/AppShell";
+import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import api from "@/lib/api";
 import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
@@ -153,14 +154,9 @@ export default function SetPinPage() {
                 style={{ borderColor: B.border, color: B.blue }}
               />
             </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full rounded-2xl py-3.5 text-sm font-bold text-white disabled:opacity-60"
-              style={{ background: B.walletGrad }}
-            >
-              {loading ? "Saving…" : "Save PIN"}
-            </button>
+            <PrimaryButton type="submit" variant="primary" loopGlow disabled={loading} loading={loading}>
+              Save PIN
+            </PrimaryButton>
           </form>
         ) : (
           <div className="space-y-4 rounded-2xl border bg-white p-6" style={{ borderColor: B.border }}>
@@ -175,14 +171,9 @@ export default function SetPinPage() {
                 </div>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={enableBio}
-              className="w-full rounded-2xl py-3.5 text-sm font-bold text-white"
-              style={{ background: B.badgeGrad }}
-            >
+            <PrimaryButton type="button" variant="primary" loopGlow onClick={enableBio}>
               Enable fingerprint
-            </button>
+            </PrimaryButton>
             <button type="button" onClick={() => router.replace("/dashboard")} className="w-full text-sm font-medium" style={{ color: B.muted }}>
               Skip for now
             </button>

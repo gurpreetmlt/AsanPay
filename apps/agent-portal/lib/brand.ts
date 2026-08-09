@@ -25,10 +25,10 @@ export const B = {
   secondary: "#E8EEFB",
   border: "rgba(11,42,154,0.1)",
   badgeGrad: "linear-gradient(135deg, #2A5CDD 0%, #0B2A9A 100%)",
-  /** Primary pill — horizontal blue → navy (login). */
+  /** Primary CTA — horizontal blue → navy (login Unlock with MPIN). */
   btnGrad: "linear-gradient(90deg, #3B6EF5 0%, #2A5CDD 42%, #0B2A9A 100%)",
-  /** Action pill — bright green → blue (Add Money / Scan Finger). */
-  actionGrad: "linear-gradient(90deg, #22C55E 0%, #16A34A 32%, #2563EB 72%, #1D4ED8 100%)",
+  /** @deprecated Alias of btnGrad — dashboard CTAs use blue primary only. */
+  actionGrad: "linear-gradient(90deg, #3B6EF5 0%, #2A5CDD 42%, #0B2A9A 100%)",
   walletGrad: "linear-gradient(135deg, #24CC82 0%, #11A362 100%)",
 } as const;
 

@@ -120,8 +120,7 @@ export function RetailerDashboard() {
           </div>
           <PrimaryButton
             type="button"
-            variant="action"
-            showArrow={false}
+            variant="primary"
             loopGlow
             onClick={() => router.push("/fund-request")}
             size="sm"
@@ -268,7 +267,7 @@ export function RetailerDashboard() {
                 {!user?.hasKycDocs || user?.kycStatus === "rejected" ? (
                   <PrimaryButton
                     type="button"
-                    variant="action"
+                    variant="primary"
                     size="sm"
                     loopGlow
                     className="mt-3"
