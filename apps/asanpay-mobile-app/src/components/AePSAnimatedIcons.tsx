@@ -3,7 +3,7 @@ import React, { useEffect, useRef } from "react";
 import { AccessibilityInfo, Animated, StyleSheet, View } from "react-native";
 import { SvgXml } from "react-native-svg";
 
-const LOOP = 2800;
+const LOOP = 3800;
 
 type LayerStyle = {
   opacity: Animated.Value;
@@ -51,16 +51,16 @@ function useFpLayer(delayMs: number, reduce: boolean): LayerStyle {
         Animated.sequence([
           Animated.timing(opacity, { toValue: 0, duration: D * 0.02, useNativeDriver: true }),
           Animated.timing(opacity, { toValue: 1, duration: D * 0.1, useNativeDriver: true }),
-          Animated.delay(D * 0.76),
-          Animated.timing(opacity, { toValue: 0, duration: D * 0.08, useNativeDriver: true }),
-          Animated.delay(D * 0.04),
+          Animated.delay(D * 0.78),
+          Animated.timing(opacity, { toValue: 0, duration: D * 0.07, useNativeDriver: true }),
+          Animated.delay(D * 0.03),
         ]),
         Animated.sequence([
           Animated.timing(translateY, { toValue: 3, duration: D * 0.02, useNativeDriver: true }),
           Animated.timing(translateY, { toValue: 0, duration: D * 0.1, useNativeDriver: true }),
-          Animated.delay(D * 0.76),
-          Animated.timing(translateY, { toValue: -1, duration: D * 0.08, useNativeDriver: true }),
-          Animated.delay(D * 0.04),
+          Animated.delay(D * 0.78),
+          Animated.timing(translateY, { toValue: -1, duration: D * 0.07, useNativeDriver: true }),
+          Animated.delay(D * 0.03),
         ]),
       ]),
     );
@@ -83,16 +83,16 @@ function useHandLayer(reduce: boolean): LayerStyle {
         Animated.sequence([
           Animated.timing(opacity, { toValue: 0, duration: D * 0.12, useNativeDriver: true }),
           Animated.timing(opacity, { toValue: 1, duration: D * 0.16, useNativeDriver: true }),
-          Animated.delay(D * 0.6),
-          Animated.timing(opacity, { toValue: 0, duration: D * 0.08, useNativeDriver: true }),
-          Animated.delay(D * 0.04),
+          Animated.delay(D * 0.62),
+          Animated.timing(opacity, { toValue: 0, duration: D * 0.07, useNativeDriver: true }),
+          Animated.delay(D * 0.03),
         ]),
         Animated.sequence([
           Animated.timing(translateY, { toValue: 14, duration: D * 0.12, useNativeDriver: true }),
           Animated.timing(translateY, { toValue: 0, duration: D * 0.16, useNativeDriver: true }),
-          Animated.delay(D * 0.6),
-          Animated.timing(translateY, { toValue: 14, duration: D * 0.08, useNativeDriver: true }),
-          Animated.delay(D * 0.04),
+          Animated.delay(D * 0.62),
+          Animated.timing(translateY, { toValue: 14, duration: D * 0.07, useNativeDriver: true }),
+          Animated.delay(D * 0.03),
         ]),
       ]),
     );
@@ -117,23 +117,23 @@ function useHoldLayer(reduce: boolean): LayerStyle {
         Animated.sequence([
           Animated.timing(opacity, { toValue: 0, duration: D * 0.08, useNativeDriver: true }),
           Animated.timing(opacity, { toValue: 1, duration: D * 0.1, useNativeDriver: true }),
-          Animated.delay(D * 0.7),
-          Animated.timing(opacity, { toValue: 0, duration: D * 0.08, useNativeDriver: true }),
-          Animated.delay(D * 0.04),
+          Animated.delay(D * 0.72),
+          Animated.timing(opacity, { toValue: 0, duration: D * 0.07, useNativeDriver: true }),
+          Animated.delay(D * 0.03),
         ]),
         Animated.sequence([
           Animated.timing(translateY, { toValue: 4, duration: D * 0.08, useNativeDriver: true }),
           Animated.timing(translateY, { toValue: 0, duration: D * 0.1, useNativeDriver: true }),
-          Animated.delay(D * 0.7),
-          Animated.timing(translateY, { toValue: -2, duration: D * 0.08, useNativeDriver: true }),
-          Animated.delay(D * 0.04),
+          Animated.delay(D * 0.72),
+          Animated.timing(translateY, { toValue: -2, duration: D * 0.07, useNativeDriver: true }),
+          Animated.delay(D * 0.03),
         ]),
         Animated.sequence([
           Animated.timing(scale, { toValue: 0.96, duration: D * 0.08, useNativeDriver: true }),
           Animated.timing(scale, { toValue: 1, duration: D * 0.1, useNativeDriver: true }),
-          Animated.delay(D * 0.7),
-          Animated.timing(scale, { toValue: 0.98, duration: D * 0.08, useNativeDriver: true }),
-          Animated.delay(D * 0.04),
+          Animated.delay(D * 0.72),
+          Animated.timing(scale, { toValue: 0.98, duration: D * 0.07, useNativeDriver: true }),
+          Animated.delay(D * 0.03),
         ]),
       ]),
     );
@@ -156,16 +156,16 @@ function useLinesLayer(reduce: boolean): LayerStyle {
         Animated.sequence([
           Animated.timing(opacity, { toValue: 0, duration: D * 0.1, useNativeDriver: true }),
           Animated.timing(opacity, { toValue: 1, duration: D * 0.12, useNativeDriver: true }),
-          Animated.delay(D * 0.66),
-          Animated.timing(opacity, { toValue: 0, duration: D * 0.08, useNativeDriver: true }),
-          Animated.delay(D * 0.04),
+          Animated.delay(D * 0.68),
+          Animated.timing(opacity, { toValue: 0, duration: D * 0.07, useNativeDriver: true }),
+          Animated.delay(D * 0.03),
         ]),
         Animated.sequence([
           Animated.timing(translateY, { toValue: 4, duration: D * 0.1, useNativeDriver: true }),
           Animated.timing(translateY, { toValue: 0, duration: D * 0.12, useNativeDriver: true }),
-          Animated.delay(D * 0.66),
-          Animated.timing(translateY, { toValue: -2, duration: D * 0.08, useNativeDriver: true }),
-          Animated.delay(D * 0.04),
+          Animated.delay(D * 0.68),
+          Animated.timing(translateY, { toValue: -2, duration: D * 0.07, useNativeDriver: true }),
+          Animated.delay(D * 0.03),
         ]),
       ]),
     );
@@ -189,17 +189,17 @@ function useRupeeLayer(reduce: boolean): LayerStyle {
         Animated.sequence([
           Animated.timing(opacity, { toValue: 0, duration: D * 0.18, useNativeDriver: true }),
           Animated.timing(opacity, { toValue: 1, duration: D * 0.1, useNativeDriver: true }),
-          Animated.delay(D * 0.6),
-          Animated.timing(opacity, { toValue: 0, duration: D * 0.08, useNativeDriver: true }),
-          Animated.delay(D * 0.04),
+          Animated.delay(D * 0.62),
+          Animated.timing(opacity, { toValue: 0, duration: D * 0.07, useNativeDriver: true }),
+          Animated.delay(D * 0.03),
         ]),
         Animated.sequence([
           Animated.timing(scale, { toValue: 0.85, duration: D * 0.18, useNativeDriver: true }),
           Animated.timing(scale, { toValue: 1.06, duration: D * 0.1, useNativeDriver: true }),
           Animated.timing(scale, { toValue: 1, duration: D * 0.08, useNativeDriver: true }),
-          Animated.delay(D * 0.52),
-          Animated.timing(scale, { toValue: 0.9, duration: D * 0.08, useNativeDriver: true }),
-          Animated.delay(D * 0.04),
+          Animated.delay(D * 0.54),
+          Animated.timing(scale, { toValue: 0.9, duration: D * 0.07, useNativeDriver: true }),
+          Animated.delay(D * 0.03),
         ]),
       ]),
     );
@@ -222,16 +222,16 @@ function useCashDropLayer(reduce: boolean): LayerStyle {
         Animated.sequence([
           Animated.timing(opacity, { toValue: 0, duration: D * 0.08, useNativeDriver: true }),
           Animated.timing(opacity, { toValue: 1, duration: D * 0.2, useNativeDriver: true }),
-          Animated.delay(D * 0.6),
-          Animated.timing(opacity, { toValue: 0, duration: D * 0.08, useNativeDriver: true }),
-          Animated.delay(D * 0.04),
+          Animated.delay(D * 0.62),
+          Animated.timing(opacity, { toValue: 0, duration: D * 0.07, useNativeDriver: true }),
+          Animated.delay(D * 0.03),
         ]),
         Animated.sequence([
           Animated.timing(translateY, { toValue: -14, duration: D * 0.08, useNativeDriver: true }),
           Animated.timing(translateY, { toValue: 0, duration: D * 0.2, useNativeDriver: true }),
-          Animated.delay(D * 0.6),
-          Animated.timing(translateY, { toValue: 6, duration: D * 0.08, useNativeDriver: true }),
-          Animated.delay(D * 0.04),
+          Animated.delay(D * 0.62),
+          Animated.timing(translateY, { toValue: 6, duration: D * 0.07, useNativeDriver: true }),
+          Animated.delay(D * 0.03),
         ]),
       ]),
     );
@@ -256,23 +256,23 @@ function useTiltLayer(reduce: boolean): LayerStyle {
         Animated.sequence([
           Animated.timing(opacity, { toValue: 0, duration: D * 0.06, useNativeDriver: true }),
           Animated.timing(opacity, { toValue: 1, duration: D * 0.16, useNativeDriver: true }),
-          Animated.delay(D * 0.66),
-          Animated.timing(opacity, { toValue: 0, duration: D * 0.08, useNativeDriver: true }),
-          Animated.delay(D * 0.04),
+          Animated.delay(D * 0.68),
+          Animated.timing(opacity, { toValue: 0, duration: D * 0.07, useNativeDriver: true }),
+          Animated.delay(D * 0.03),
         ]),
         Animated.sequence([
           Animated.timing(translateY, { toValue: 6, duration: D * 0.06, useNativeDriver: true }),
           Animated.timing(translateY, { toValue: 0, duration: D * 0.16, useNativeDriver: true }),
-          Animated.delay(D * 0.66),
-          Animated.timing(translateY, { toValue: 4, duration: D * 0.08, useNativeDriver: true }),
-          Animated.delay(D * 0.04),
+          Animated.delay(D * 0.68),
+          Animated.timing(translateY, { toValue: 4, duration: D * 0.07, useNativeDriver: true }),
+          Animated.delay(D * 0.03),
         ]),
         Animated.sequence([
           Animated.timing(rotate, { toValue: -6, duration: D * 0.06, useNativeDriver: true }),
           Animated.timing(rotate, { toValue: 0, duration: D * 0.16, useNativeDriver: true }),
-          Animated.delay(D * 0.66),
-          Animated.timing(rotate, { toValue: 4, duration: D * 0.08, useNativeDriver: true }),
-          Animated.delay(D * 0.04),
+          Animated.delay(D * 0.68),
+          Animated.timing(rotate, { toValue: 4, duration: D * 0.07, useNativeDriver: true }),
+          Animated.delay(D * 0.03),
         ]),
       ]),
     );
