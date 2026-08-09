@@ -6,6 +6,7 @@ import { Landmark, Plus, RefreshCcw } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { AppShell } from "@/components/layout/AppShell";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
+import { StatusBadge, toneFromStatus } from "@/components/ui/StatusBadge";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { createAttemptKeyHolder } from "@/lib/idempotencyKey";
@@ -236,15 +237,17 @@ export default function SettlementsPage() {
                       {b.ifsc}
                     </div>
                   </div>
-                  <span
-                    className="rounded-lg px-2 py-1 text-xs font-semibold"
-                    style={{
-                      background: b.verified && b.isActive ? "#ecfdf5" : "#fff7ed",
-                      color: b.verified && b.isActive ? "#047857" : "#c2410c",
-                    }}
+                  <StatusBadge
+                    tone={
+                      b.verified && b.isActive
+                        ? "success"
+                        : b.verified
+                          ? "info"
+                          : "pending"
+                    }
                   >
                     {b.verified ? (b.isActive ? "Active" : "Verified") : "Pending verification"}
-                  </span>
+                  </StatusBadge>
                 </li>
               ))}
             </ul>
@@ -341,7 +344,11 @@ export default function SettlementsPage() {
                         {formatInr(r.amount)}
                       </td>
                       <td className="py-2.5 pr-3 uppercase">{r.mode}</td>
-                      <td className="py-2.5 pr-3">{r.status}</td>
+                      <td className="py-2.5 pr-3">
+                        <StatusBadge tone={toneFromStatus(r.status)}>
+                          {r.status.replace(/_/g, " ")}
+                        </StatusBadge>
+                      </td>
                       <td className="py-2.5 text-xs" style={{ color: B.muted }}>
                         {r.bankUtr || r.failureReason || "—"}
                       </td>

@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { api, fetchApi } from "../../lib/api";
 import { formatINR } from "../../lib/format";
 import { showAlert } from "../../components/AppAlert";
+import { StatusBadge, toneFromStatus } from "../../components/StatusBadge";
 import { useTheme } from "../../theme/ThemeContext";
 import { colors } from "../../theme/colors";
 
@@ -154,9 +155,13 @@ export function SettlementsModal({ visible, onClose }: { visible: boolean; onClo
                 <Text style={{ color: tokens.txt, fontWeight: "700" }}>
                   {b.holderName} · ****{b.accountNumberLast4}
                 </Text>
-                <Text style={{ color: tokens.mute, fontSize: 12, marginTop: 4 }}>
-                  {b.ifsc} · {b.verified && b.isActive ? "Active" : b.verified ? "Verified" : "Pending"}
-                </Text>
+                <Text style={{ color: tokens.mute, fontSize: 12, marginTop: 4 }}>{b.ifsc}</Text>
+                <StatusBadge
+                  tone={b.verified && b.isActive ? "success" : b.verified ? "info" : "pending"}
+                  style={{ marginTop: 6 }}
+                >
+                  {b.verified ? (b.isActive ? "Active" : "Verified") : "Pending verification"}
+                </StatusBadge>
               </View>
             ))}
             <Pressable
@@ -227,9 +232,10 @@ export function SettlementsModal({ visible, onClose }: { visible: boolean; onClo
                   key={r.requestId}
                   style={[styles.card, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
                 >
-                  <Text style={{ color: tokens.txt, fontWeight: "700" }}>
-                    {formatINR(r.amount)} · {r.status}
-                  </Text>
+                  <Text style={{ color: tokens.txt, fontWeight: "700" }}>{formatINR(r.amount)}</Text>
+                  <StatusBadge tone={toneFromStatus(r.status)} style={{ marginTop: 6 }}>
+                    {r.status.replace(/_/g, " ")}
+                  </StatusBadge>
                   <Text style={{ color: tokens.mute, fontSize: 12, marginTop: 4 }}>
                     {r.mode.toUpperCase()} · {r.bankUtr || r.failureReason || "—"}
                   </Text>

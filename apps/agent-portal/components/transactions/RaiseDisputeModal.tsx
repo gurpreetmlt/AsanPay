@@ -104,7 +104,6 @@ export function RaiseDisputeModal({ transactionId, txnRef, onClose, onRaised }: 
           <PrimaryButton
             type="button"
             variant="primary"
-            loopGlow
             disabled={busy}
             loading={busy}
             onClick={() => void submit()}

@@ -140,7 +140,6 @@ export function KycOnboardingBanner({
           type="button"
           variant="primary"
           size="sm"
-          loopGlow
           onClick={() => router.push(href)}
           className="!w-auto shrink-0"
         >

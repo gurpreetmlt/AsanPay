@@ -22,7 +22,6 @@ export function HomeEditModeBar({ active, onDone }: Props) {
           type="button"
           variant="primary"
           size="sm"
-          loopGlow
           onClick={onDone}
           className="!w-auto"
         >

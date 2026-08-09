@@ -121,7 +121,6 @@ export function RetailerDashboard() {
           <PrimaryButton
             type="button"
             variant="primary"
-            loopGlow
             onClick={() => router.push("/fund-request")}
             size="sm"
           >
@@ -269,7 +268,6 @@ export function RetailerDashboard() {
                     type="button"
                     variant="primary"
                     size="sm"
-                    loopGlow
                     className="mt-3"
                     onClick={() => router.push("/signup")}
                   >

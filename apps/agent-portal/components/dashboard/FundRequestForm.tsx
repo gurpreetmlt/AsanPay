@@ -636,7 +636,6 @@ export function FundRequestForm({
                       type="button"
                       variant="primary"
                       size="sm"
-                      loopGlow
                       onClick={() => switchTab("bank")}
                       className="mt-4 !w-auto mx-auto"
                     >
@@ -825,7 +824,6 @@ export function FundRequestForm({
                 <PrimaryButton
                   type="button"
                   variant="primary"
-                  loopGlow
                   disabled={submitting || banks.length === 0}
                   loading={submitting}
                   onClick={() => void handleSubmit()}

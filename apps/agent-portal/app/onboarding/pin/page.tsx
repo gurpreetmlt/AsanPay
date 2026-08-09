@@ -154,7 +154,7 @@ export default function SetPinPage() {
                 style={{ borderColor: B.border, color: B.blue }}
               />
             </div>
-            <PrimaryButton type="submit" variant="primary" loopGlow disabled={loading} loading={loading}>
+            <PrimaryButton type="submit" variant="primary" disabled={loading} loading={loading}>
               Save PIN
             </PrimaryButton>
           </form>
@@ -171,7 +171,7 @@ export default function SetPinPage() {
                 </div>
               </div>
             </div>
-            <PrimaryButton type="button" variant="primary" loopGlow onClick={enableBio}>
+            <PrimaryButton type="button" variant="primary" onClick={enableBio}>
               Enable fingerprint
             </PrimaryButton>
             <button type="button" onClick={() => router.replace("/dashboard")} className="w-full text-sm font-medium" style={{ color: B.muted }}>

@@ -221,7 +221,6 @@ export default function SupportPage() {
               type="button"
               variant="primary"
               size="sm"
-              loopGlow
               onClick={focusTicketForm}
               className="!w-auto"
             >
@@ -361,7 +360,6 @@ export default function SupportPage() {
               <PrimaryButton
                 type="button"
                 variant="primary"
-                loopGlow
                 disabled={submitting}
                 loading={submitting}
                 onClick={() => void submit()}

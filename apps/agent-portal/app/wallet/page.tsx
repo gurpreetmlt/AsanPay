@@ -23,6 +23,7 @@ import type { DownlineUser, LedgerEntry, WalletBalance } from "@/lib/types";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 import { formatInr, walletDisplayName } from "@/lib/walletLabels";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 
 export default function WalletPage() {
   const router = useRouter();
@@ -272,16 +273,9 @@ export default function WalletPage() {
                         {formatInr(d.mainBalance)}
                       </td>
                       <td className="px-5 py-3">
-                        <span
-                          className="rounded-full px-2 py-0.5 text-xs font-semibold"
-                          style={
-                            d.isActive
-                              ? { background: `${B.green}18`, color: B.green }
-                              : { background: "#DC262618", color: "#DC2626" }
-                          }
-                        >
+                        <StatusBadge tone={d.isActive ? "success" : "danger"}>
                           {d.isActive ? "Active" : "Inactive"}
-                        </span>
+                        </StatusBadge>
                       </td>
                       <td className="px-5 py-3 text-right">
                         <div className="flex flex-wrap items-center justify-end gap-2">

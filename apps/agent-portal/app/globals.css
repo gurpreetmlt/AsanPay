@@ -157,26 +157,41 @@ body {
 
 .btn-pill--primary {
   color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  box-shadow: 0 2px 8px rgba(11, 42, 154, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: none;
+}
+
+.btn-pill--primary:focus-visible {
+  outline: 2px solid rgba(11, 42, 154, 0.35);
+  outline-offset: 2px;
 }
 
 .btn-pill--primary:hover:not(:disabled) {
   filter: brightness(1.04);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(11, 42, 154, 0.22);
+  box-shadow: 0 1px 4px rgba(11, 42, 154, 0.12);
 }
 
 .btn-pill--primary:active:not(:disabled) {
   transform: translateY(0) scale(0.99);
 }
 
+/* Glow/shimmer only on login panel — not dashboard/settings */
 .btn-pill--glow {
-  animation: btn-pill-glow 2.4s ease-in-out infinite;
+  animation: none;
 }
 
 .btn-pill--glow::after {
+  display: none;
+}
+
+.login-panel-animate .btn-pill--glow {
+  animation: btn-pill-glow 2.4s ease-in-out infinite;
+}
+
+.login-panel-animate .btn-pill--glow::after {
   content: "";
+  display: block;
   pointer-events: none;
   position: absolute;
   inset: 0;

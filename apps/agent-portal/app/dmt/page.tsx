@@ -949,7 +949,6 @@ export default function DmtPage() {
               <PrimaryButton
                 type="button"
                 variant="primary"
-                loopGlow
                 disabled={!canScan}
                 loading={agentAuthScanning}
                 onClick={() => void verifyDailyAgentAuth()}

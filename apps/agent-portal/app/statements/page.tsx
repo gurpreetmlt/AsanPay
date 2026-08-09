@@ -70,9 +70,8 @@ export default function StatementsPage() {
           </div>
           <PrimaryButton
             type="button"
-            variant="primary"
+            variant="secondary"
             size="sm"
-            loopGlow
             className="!w-auto"
             onClick={() => toast("PDF download coming soon")}
           >

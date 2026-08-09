@@ -1234,7 +1234,6 @@ export default function NepalPage() {
               <PrimaryButton
                 type="button"
                 variant="primary"
-                loopGlow
                 disabled={!canScan}
                 loading={agentAuthScanning}
                 onClick={() => void verifyDailyAgentAuth()}

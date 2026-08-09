@@ -358,7 +358,7 @@ export default function SettingsPage() {
                     />
                   </div>
                 </div>
-                <PrimaryButton type="button" variant="primary" size="sm" loopGlow className="!w-auto">
+                <PrimaryButton type="button" variant="primary" size="sm" className="!w-auto">
                   Save Changes
                 </PrimaryButton>
               </div>
@@ -412,7 +412,6 @@ export default function SettingsPage() {
                       type="button"
                       variant="primary"
                       size="sm"
-                      loopGlow
                       disabled={passwordBusy}
                       loading={passwordBusy}
                       onClick={() => void handleChangePassword()}
@@ -434,7 +433,6 @@ export default function SettingsPage() {
                       type="button"
                       variant="primary"
                       size="sm"
-                      loopGlow
                       onClick={() => router.push("/onboarding/pin")}
                       className="!w-auto"
                     >
@@ -452,7 +450,6 @@ export default function SettingsPage() {
                       type="button"
                       variant="primary"
                       size="sm"
-                      loopGlow
                       disabled={bioLoading || !isWebAuthnAvailable()}
                       loading={bioLoading}
                       onClick={() => void handleEnableBiometric()}
@@ -608,7 +605,6 @@ export default function SettingsPage() {
                     <PrimaryButton
                       type="button"
                       variant="primary"
-                      loopGlow
                       onClick={() => router.push("/signup?from=settings")}
                     >
                       {user?.kycStatus === "rejected" ? "Resubmit KYC" : "Continue KYC"}

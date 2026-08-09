@@ -90,7 +90,6 @@ export function FundForm({ target, onClose, onSuccess }: FundFormProps) {
         <PrimaryButton
           type="submit"
           variant="primary"
-          loopGlow
           disabled={loading || txnPin.length !== 4}
           loading={loading}
         >

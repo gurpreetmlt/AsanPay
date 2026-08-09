@@ -871,7 +871,6 @@ function AepsPageInner() {
               <PrimaryButton
                 type="button"
                 variant="primary"
-                loopGlow
                 disabled={!canScan}
                 loading={agentAuthScanning}
                 onClick={() => void verifyDailyAgentAuth()}
@@ -1369,7 +1368,6 @@ function AepsPageInner() {
               <PrimaryButton
                 type="button"
                 variant="primary"
-                loopGlow
                 disabled={scanning || (authMode === "fingerprint" && rdStatus !== "ready")}
                 loading={scanning}
                 onClick={handleScan}
