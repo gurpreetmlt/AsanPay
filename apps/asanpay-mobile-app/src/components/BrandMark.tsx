@@ -47,48 +47,64 @@ interface BrandLockupProps {
   light?: boolean;
 }
 
-/** Wallet icon + AsanPay wordmark — YouTube-style meet animation. */
+/** Wallet icon + AsanPay wordmark — YouTube-style meet (in-bounds, no clip). */
 export function BrandLockup({ iconSize = 40, animate = true, light = true }: BrandLockupProps) {
-  const iconX = useRef(new Animated.Value(-32)).current;
-  const textX = useRef(new Animated.Value(36)).current;
+  const iconX = useRef(new Animated.Value(-10)).current;
+  const textX = useRef(new Animated.Value(12)).current;
+  const iconScale = useRef(new Animated.Value(0.9)).current;
   const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (!animate) {
       iconX.setValue(0);
       textX.setValue(0);
+      iconScale.setValue(1);
       opacity.setValue(1);
       return;
     }
     const loop = Animated.loop(
       Animated.sequence([
         Animated.parallel([
-          Animated.timing(opacity, { toValue: 1, duration: 380, useNativeDriver: true }),
+          Animated.timing(opacity, { toValue: 1, duration: 320, useNativeDriver: true }),
           Animated.timing(iconX, {
             toValue: 0,
-            duration: 780,
+            duration: 700,
             easing: Easing.out(Easing.cubic),
             useNativeDriver: true,
           }),
           Animated.timing(textX, {
             toValue: 0,
-            duration: 780,
+            duration: 700,
             easing: Easing.out(Easing.cubic),
             useNativeDriver: true,
           }),
+          Animated.sequence([
+            Animated.timing(iconScale, {
+              toValue: 1.05,
+              duration: 420,
+              easing: Easing.out(Easing.cubic),
+              useNativeDriver: true,
+            }),
+            Animated.timing(iconScale, {
+              toValue: 1,
+              duration: 280,
+              useNativeDriver: true,
+            }),
+          ]),
         ]),
-        Animated.delay(1600),
+        Animated.delay(2000),
         Animated.parallel([
-          Animated.timing(opacity, { toValue: 0.5, duration: 320, useNativeDriver: true }),
-          Animated.timing(iconX, { toValue: -16, duration: 420, useNativeDriver: true }),
-          Animated.timing(textX, { toValue: 18, duration: 420, useNativeDriver: true }),
+          Animated.timing(opacity, { toValue: 0.88, duration: 280, useNativeDriver: true }),
+          Animated.timing(iconX, { toValue: -6, duration: 360, useNativeDriver: true }),
+          Animated.timing(textX, { toValue: 6, duration: 360, useNativeDriver: true }),
+          Animated.timing(iconScale, { toValue: 0.94, duration: 360, useNativeDriver: true }),
         ]),
-        Animated.delay(160),
+        Animated.delay(120),
       ]),
     );
     loop.start();
     return () => loop.stop();
-  }, [animate, iconX, textX, opacity]);
+  }, [animate, iconX, textX, iconScale, opacity]);
 
   const asanColor = light ? "#FFFFFF" : colors.blue;
   const payColor = light ? "#3BE39A" : colors.green;
@@ -96,7 +112,12 @@ export function BrandLockup({ iconSize = 40, animate = true, light = true }: Bra
 
   return (
     <View style={styles.lockup} accessibilityLabel="AsanPay">
-      <Animated.View style={{ opacity, transform: [{ translateX: iconX }] }}>
+      <Animated.View
+        style={{
+          opacity,
+          transform: [{ translateX: iconX }, { scale: iconScale }],
+        }}
+      >
         <BrandMark size={iconSize} variant="mark" />
       </Animated.View>
       <Animated.View style={[styles.word, { opacity, transform: [{ translateX: textX }] }]}>
@@ -123,12 +144,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    overflow: "hidden",
+    overflow: "visible",
+    paddingHorizontal: 2,
+    paddingVertical: 2,
   },
   word: {
     flexDirection: "row",
     alignItems: "center",
-    marginLeft: -2,
+    flexShrink: 0,
   },
   asan: { fontWeight: "800", letterSpacing: -0.4 },
   pay: { fontWeight: "800", letterSpacing: -0.4 },

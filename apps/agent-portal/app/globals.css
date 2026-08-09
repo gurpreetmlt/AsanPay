@@ -255,53 +255,70 @@ body {
   box-shadow: 0 14px 36px rgba(11, 42, 154, 0.12);
 }
 
-/* YouTube-style brand: wallet icon ← left, AsanPay text ← right, meet */
+/* YouTube-style brand: soft meet — stays in-bounds (no clip) */
 @keyframes yt-brand-icon-in {
   0%,
-  6% {
+  5% {
     opacity: 0;
-    transform: translateX(-36px) scale(0.86);
+    transform: translateX(-10px) scale(0.88);
   }
-  22%,
-  68% {
+  18% {
+    opacity: 1;
+    transform: translateX(0) scale(1.04);
+  }
+  28%,
+  78% {
     opacity: 1;
     transform: translateX(0) scale(1);
   }
-  86%,
+  90% {
+    opacity: 1;
+    transform: translateX(-4px) scale(0.97);
+  }
   100% {
-    opacity: 0.55;
-    transform: translateX(-18px) scale(0.94);
+    opacity: 0.85;
+    transform: translateX(-8px) scale(0.92);
   }
 }
 @keyframes yt-brand-text-in {
   0%,
-  6% {
+  5% {
     opacity: 0;
-    transform: translateX(40px);
+    transform: translateX(12px);
   }
-  22%,
-  68% {
+  18% {
+    opacity: 1;
+    transform: translateX(-2px);
+  }
+  28%,
+  78% {
     opacity: 1;
     transform: translateX(0);
   }
-  86%,
+  90% {
+    opacity: 1;
+    transform: translateX(4px);
+  }
   100% {
-    opacity: 0.55;
-    transform: translateX(22px);
+    opacity: 0.85;
+    transform: translateX(8px);
   }
 }
 .yt-brand-lockup {
   display: inline-flex;
   align-items: center;
-  gap: 0.55rem;
-  overflow: hidden;
-  max-width: 100%;
+  gap: 0.5rem;
+  overflow: visible;
+  padding: 2px 4px;
+  max-width: none;
 }
 .yt-brand-icon {
   display: inline-flex;
   flex-shrink: 0;
   position: relative;
   z-index: 1;
+  transform-origin: center center;
+  will-change: transform, opacity;
 }
 .yt-brand-text {
   display: inline-flex;
@@ -309,13 +326,14 @@ body {
   white-space: nowrap;
   position: relative;
   z-index: 2;
-  margin-left: -0.15rem;
+  flex-shrink: 0;
+  will-change: transform, opacity;
 }
 .yt-brand-lockup--animate .yt-brand-icon {
-  animation: yt-brand-icon-in 3.4s ease-in-out infinite;
+  animation: yt-brand-icon-in 3.6s ease-in-out infinite;
 }
 .yt-brand-lockup--animate .yt-brand-text {
-  animation: yt-brand-text-in 3.4s ease-in-out infinite;
+  animation: yt-brand-text-in 3.6s ease-in-out infinite;
 }
 @media (prefers-reduced-motion: reduce) {
   .yt-brand-lockup--animate .yt-brand-icon,

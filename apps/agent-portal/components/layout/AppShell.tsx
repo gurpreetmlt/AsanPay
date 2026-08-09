@@ -210,14 +210,14 @@ function SidebarContent({
   return (
     <>
       <div
-        className="flex items-center gap-2 overflow-hidden border-b border-white/10 px-4 py-4"
-        style={{ minHeight: 68 }}
+        className="flex items-center gap-2 border-b border-white/10 px-4 py-4"
+        style={{ minHeight: 76 }}
       >
-        <Link href="/dashboard" className="flex items-center overflow-hidden">
+        <Link href="/dashboard" className="flex min-w-0 flex-1 items-center py-0.5">
           {open ? (
-            <AsanPayLockup iconSize={44} light animate />
+            <AsanPayLockup iconSize={42} light animate />
           ) : (
-            <AsanPayLockup iconSize={44} wordmark={false} light animate />
+            <AsanPayLockup iconSize={42} wordmark={false} light animate />
           )}
         </Link>
         {onClose ? (
