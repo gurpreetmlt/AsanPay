@@ -26,10 +26,10 @@ const SIZE_CLASS: Record<Size, string> = {
 };
 
 /**
- * Shared CTA — soft 12px corners, radial fills.
- * - primary = radial blue (light focus → navy)
- * - secondary / wallet-cta = radial white → soft blue tint
- * - destructive = radial white → soft red tint
+ * Shared CTA — soft 12px corners.
+ * - primary = radial blue gradient (buttons only; sidebar uses badgeGrad linear)
+ * - secondary / wallet-cta = solid white (use wallet-cta on dark surfaces)
+ * - destructive = solid white + red border
  * Glow only with loopGlow inside login panel.
  */
 export function PrimaryButton({

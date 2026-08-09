@@ -241,20 +241,20 @@ body {
 
 .btn-pill--secondary {
   color: var(--color-brand-700);
-  background: radial-gradient(ellipse 120% 100% at 25% 20%, #ffffff 0%, #eef3ff 100%);
+  background: #fff;
   border: 1.5px solid rgba(11, 42, 154, 0.22);
   box-shadow: none;
 }
 
 .btn-pill--secondary:hover:not(:disabled) {
   border-color: rgba(11, 42, 154, 0.4);
-  background: radial-gradient(ellipse 120% 100% at 25% 20%, #ffffff 0%, #e4ecff 100%);
+  background: #f8faff;
   transform: translateY(-1px);
 }
 
-/* White CTA on blue/green wallet cards — soft radial white */
+/* White CTA on dark / colored surfaces (wallet cards, etc.) */
 .btn-pill--wallet-cta {
-  background: radial-gradient(ellipse 120% 100% at 28% 18%, #ffffff 0%, #eef3ff 100%) !important;
+  background: #ffffff !important;
   color: #0b2a9a !important;
   border: 1px solid rgba(255, 255, 255, 0.95) !important;
   box-shadow: none !important;
@@ -268,7 +268,7 @@ body {
 }
 
 .btn-pill--wallet-cta:hover:not(:disabled) {
-  background: radial-gradient(ellipse 120% 100% at 28% 18%, #ffffff 0%, #e4ecff 100%) !important;
+  background: #f8faff !important;
   border-color: #ffffff !important;
   box-shadow: none !important;
   filter: none !important;
@@ -283,13 +283,13 @@ body {
 
 .btn-pill--destructive {
   color: #b91c1c;
-  background: radial-gradient(ellipse 120% 100% at 25% 20%, #ffffff 0%, #fff1f1 100%);
+  background: #fff;
   border: 1.5px solid rgba(185, 28, 28, 0.35);
   box-shadow: none;
 }
 
 .btn-pill--destructive:hover:not(:disabled) {
-  background: radial-gradient(ellipse 120% 100% at 25% 20%, #ffffff 0%, #ffe4e4 100%);
+  background: #fef2f2;
   border-color: rgba(185, 28, 28, 0.55);
   transform: translateY(-1px);
 }
