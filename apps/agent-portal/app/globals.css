@@ -270,16 +270,16 @@ body {
 /* Cash Withdraw layered idle — fingerprint rings + hand (not Lottie) */
 @keyframes cw-fp-reveal {
   0%,
-  4% {
+  2% {
     opacity: 0;
     transform: translateY(3px);
   }
-  14%,
-  58% {
+  12%,
+  78% {
     opacity: 1;
     transform: translateY(0);
   }
-  72%,
+  90%,
   100% {
     opacity: 0;
     transform: translateY(-1px);
@@ -288,19 +288,19 @@ body {
 
 @keyframes cw-hand-rise {
   0%,
-  18% {
+  12% {
     opacity: 0;
-    transform: translateY(16px);
+    transform: translateY(14px);
   }
-  38%,
-  62% {
+  28%,
+  78% {
     opacity: 1;
     transform: translateY(0);
   }
-  78%,
+  90%,
   100% {
     opacity: 0;
-    transform: translateY(16px);
+    transform: translateY(14px);
   }
 }
 
@@ -313,27 +313,27 @@ body {
   opacity: 0;
   transform-box: fill-box;
   transform-origin: center;
-  animation: cw-fp-reveal 4s ease-in-out infinite;
+  animation: cw-fp-reveal 2.4s ease-in-out infinite;
 }
 
 .cw-fp--1 {
   animation-delay: 0s;
 }
 .cw-fp--2 {
-  animation-delay: 0.28s;
+  animation-delay: 0.12s;
 }
 .cw-fp--3 {
-  animation-delay: 0.56s;
+  animation-delay: 0.24s;
 }
 .cw-fp--4 {
-  animation-delay: 0.84s;
+  animation-delay: 0.36s;
 }
 
 .cw-hand {
   opacity: 0;
   transform-box: fill-box;
   transform-origin: center bottom;
-  animation: cw-hand-rise 4s ease-in-out infinite;
+  animation: cw-hand-rise 2.4s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
