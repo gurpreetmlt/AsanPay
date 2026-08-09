@@ -13,13 +13,12 @@ import {
   Bell,
   ShieldCheck,
   PlusCircle,
-  Eye,
-  EyeOff,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { fetchApi } from "@/lib/api";
 import { B, roleFromUserRole } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
+import { maskBalance, useBalanceVisibility } from "@/lib/balanceVisibility";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -27,8 +26,6 @@ import { SectionHeader } from "@/components/ui/SectionHeader";
 import { ServiceCards } from "@/components/services/ServiceCards";
 import { formatInr, walletDisplayName } from "@/lib/walletLabels";
 import type { TxnRow, WalletBalance } from "@/lib/types";
-
-const BALANCE_VISIBLE_KEY = "asanpay_balance_visible";
 
 interface RetailerStats {
   role: "retailer";
@@ -64,33 +61,7 @@ export function RetailerDashboard() {
   const [recent, setRecent] = useState<TxnRow[]>([]);
   const [stats, setStats] = useState<RetailerStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [balanceVisible, setBalanceVisible] = useState(true);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(BALANCE_VISIBLE_KEY);
-      if (raw === "0") setBalanceVisible(false);
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
-  function toggleBalanceVisible() {
-    setBalanceVisible((v) => {
-      const next = !v;
-      try {
-        localStorage.setItem(BALANCE_VISIBLE_KEY, next ? "1" : "0");
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
-  }
-
-  function maskAmount(value: string) {
-    return balanceVisible ? formatInr(value) : "₹ ••••••";
-  }
-
+  const balanceVisible = useBalanceVisibility((s) => s.visible);
 
   useEffect(() => {
     let alive = true;
@@ -129,35 +100,25 @@ export function RetailerDashboard() {
   const kycDone = user?.kycStatus === "verified";
 
   return (
-    <div className="dash-page-animate space-y-5">
+    <div className="dash-page-animate space-y-4">
       {/* Wallet Summary */}
-      <div className="dash-stagger grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="dash-stagger grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
         {/* Main Wallet */}
         <div
-          className="dash-card-hover relative overflow-hidden rounded-2xl p-5 text-white"
-          style={{ background: role.gradient, boxShadow: `0 4px 16px ${role.color}28` }}
+          className="dash-card-hover relative overflow-hidden rounded-2xl p-3.5 text-white"
+          style={{ background: role.gradient, boxShadow: `0 2px 10px ${role.color}22` }}
         >
-          <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white opacity-10" />
-          <div className="mb-1 flex items-center justify-between gap-2 text-xs font-medium uppercase tracking-wider text-white/70">
-            <span className="inline-flex items-center gap-2">
-              <Wallet size={14} />
-              {primary ? walletDisplayName(primary.walletType) : "Main"}
-            </span>
-            <button
-              type="button"
-              onClick={toggleBalanceVisible}
-              className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/15 text-white hover:bg-white/25"
-              aria-label={balanceVisible ? "Hide balances" : "Show balances"}
-            >
-              {balanceVisible ? <EyeOff size={15} /> : <Eye size={15} />}
-            </button>
+          <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white opacity-10" />
+          <div className="mb-0.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-white/70">
+            <Wallet size={12} />
+            {primary ? walletDisplayName(primary.walletType) : "Main"}
           </div>
-          <div className="mb-3 text-3xl font-bold leading-none">
-            {loading ? "…" : maskAmount(primary?.balance ?? "0")}
+          <div className="mb-2 text-2xl font-bold leading-none tracking-tight">
+            {loading ? "…" : maskBalance(balanceVisible, formatInr(primary?.balance ?? "0"))}
           </div>
-          <div className="mb-3 flex items-center gap-1.5 border-t border-white/15 pt-3">
-            <TrendingUp size={12} style={{ color: B.greenLight }} />
-            <span className="text-xs font-semibold" style={{ color: B.greenLight }}>
+          <div className="mb-2 flex items-center gap-1.5 border-t border-white/15 pt-2">
+            <TrendingUp size={11} style={{ color: B.greenLight }} />
+            <span className="text-[11px] font-semibold" style={{ color: B.greenLight }}>
               Today: {balanceVisible ? formatInr(stats?.today.commissionEarned ?? "0") : "••••"} earned
             </span>
           </div>
@@ -167,7 +128,7 @@ export function RetailerDashboard() {
             onClick={() => router.push("/fund-request")}
             size="sm"
             showArrow={false}
-            className="!w-auto"
+            className="!w-auto !shadow-none"
           >
             <PlusCircle size={14} />
             Add Money
@@ -177,34 +138,24 @@ export function RetailerDashboard() {
         {/* AEPS Wallet */}
         {secondary && (
           <div
-            className="dash-card-hover relative overflow-hidden rounded-2xl p-5 text-white"
-            style={{ background: B.green, boxShadow: `0 4px 16px ${B.green}28` }}
+            className="dash-card-hover relative overflow-hidden rounded-2xl p-3.5 text-white"
+            style={{ background: B.green, boxShadow: `0 2px 10px ${B.green}22` }}
           >
-            <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white opacity-10" />
-            <div className="mb-1 flex items-center justify-between gap-2 text-xs font-medium uppercase tracking-wider text-white/70">
-              <span className="inline-flex items-center gap-2">
-                <Wallet size={14} />
-                {walletDisplayName(secondary.walletType)}
-              </span>
-              <button
-                type="button"
-                onClick={toggleBalanceVisible}
-                className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/15 text-white hover:bg-white/25"
-                aria-label={balanceVisible ? "Hide balances" : "Show balances"}
-              >
-                {balanceVisible ? <EyeOff size={15} /> : <Eye size={15} />}
-              </button>
+            <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white opacity-10" />
+            <div className="mb-0.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-white/70">
+              <Wallet size={12} />
+              {walletDisplayName(secondary.walletType)}
             </div>
-            <div className="mb-3 text-3xl font-bold leading-none">
-              {loading ? "…" : maskAmount(secondary.balance)}
+            <div className="mb-2 text-2xl font-bold leading-none tracking-tight">
+              {loading ? "…" : maskBalance(balanceVisible, formatInr(secondary.balance))}
             </div>
-            <div className="mb-3 flex items-center gap-1.5 border-t border-white/15 pt-3">
-              <Activity size={12} className="text-white/80" />
-              <span className="text-xs text-white/90">
+            <div className="mb-2 flex items-center gap-1.5 border-t border-white/15 pt-2">
+              <Activity size={11} className="text-white/80" />
+              <span className="text-[11px] text-white/90">
                 Pending: {balanceVisible ? formatInr(totalPending) : "••••"}
               </span>
             </div>
-            <p className="rounded-2xl bg-white/15 px-3 py-2 text-center text-[11px] font-semibold leading-snug text-white/95">
+            <p className="rounded-xl bg-white/15 px-2.5 py-1.5 text-center text-[10px] font-semibold leading-snug text-white/95">
               Credits from AePS cash-out only — no Add Money here
             </p>
           </div>
@@ -424,13 +375,13 @@ function StatCard({ icon, label, value, sub, accent }: {
   icon: React.ReactNode; label: string; value: string; sub: string; accent: string;
 }) {
   return (
-    <div className="ui-card dash-card-hover p-5">
-      <div className="mb-2 flex items-center gap-2">
+    <div className="ui-card dash-card-hover p-3.5">
+      <div className="mb-1 flex items-center gap-2">
         <span style={{ color: accent }}>{icon}</span>
-        <span className="text-xs font-medium uppercase tracking-wider" style={{ color: B.muted }}>{label}</span>
+        <span className="text-[11px] font-medium uppercase tracking-wider" style={{ color: B.muted }}>{label}</span>
       </div>
-      <div className="text-2xl font-bold" style={{ color: B.blue }}>{value}</div>
-      <div className="mt-1 text-xs font-medium" style={{ color: B.muted }}>{sub}</div>
+      <div className="text-xl font-bold leading-tight" style={{ color: B.blue }}>{value}</div>
+      <div className="mt-0.5 text-[11px] font-medium" style={{ color: B.muted }}>{sub}</div>
     </div>
   );
 }

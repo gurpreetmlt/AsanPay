@@ -1,4 +1,6 @@
 import type { Response } from "express";
+import path from "node:path";
+import fs from "node:fs";
 import PDFDocument from "pdfkit";
 import { eq } from "drizzle-orm";
 import { db } from "../../db/postgres";
@@ -6,6 +8,8 @@ import { services, transactions, users } from "../../db/postgres/schema";
 import { HttpError } from "../../utils/httpError";
 import { BRAND_DEFAULTS } from "@asanpay/shared-types";
 import type { UserRole } from "@asanpay/shared-types";
+import { resolveTenantId } from "../fund-requests/tenant";
+import { getSupportContacts } from "../tenants/tenantSettings.service";
 
 type Actor = { id: string; role: UserRole };
 
@@ -53,6 +57,9 @@ const PALETTE = {
   pendingBg: "#FCF3DC",
   failed: "#D0342C",
   failedBg: "#FCE9E8",
+  fb: "#1877F2",
+  ig: "#E1306C",
+  yt: "#FF0000",
 };
 
 const STATUS_STYLE: Record<string, { fg: string; bg: string; label: string }> = {
@@ -64,6 +71,44 @@ const STATUS_STYLE: Record<string, { fg: string; bg: string; label: string }> = 
   refunded: { fg: PALETTE.pending, bg: PALETTE.pendingBg, label: "REFUNDED" },
 };
 
+/** Light logo for blue header — PNG lives in apps/backend/assets/brand. */
+function lightLogoPath(): string | null {
+  const candidates = [
+    path.join(__dirname, "../../../assets/brand/AsanPay-Light-Icon.png"),
+    path.join(process.cwd(), "assets/brand/AsanPay-Light-Icon.png"),
+    path.join(process.cwd(), "apps/backend/assets/brand/AsanPay-Light-Icon.png"),
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
+}
+
+function brandContactFromAdmin(contacts: {
+  supportWebsite: string;
+  supportEmail: string;
+  supportPhone: string;
+}) {
+  const website = (contacts.supportWebsite || "https://asanpay.in").replace(/\/$/, "");
+  let slug = "asanpay";
+  try {
+    const host = new URL(website).hostname.replace(/^www\./, "");
+    const base = host.split(".")[0];
+    if (base) slug = base.toLowerCase().replace(/[^a-z0-9]/g, "") || "asanpay";
+  } catch {
+    /* keep default */
+  }
+  return {
+    website,
+    email: contacts.supportEmail || "help@asanpay.in",
+    phone: contacts.supportPhone || "",
+    socialHandle: slug,
+    facebook: `https://facebook.com/${slug}`,
+    instagram: `https://instagram.com/${slug}`,
+    youtube: `https://youtube.com/@${slug}`,
+  };
+}
+
 function metadataCustomerLine(metadata: unknown): string | null {
   if (!metadata || typeof metadata !== "object") return null;
   const m = metadata as Record<string, unknown>;
@@ -71,8 +116,29 @@ function metadataCustomerLine(metadata: unknown): string | null {
   return typeof mobile === "string" ? mobile : null;
 }
 
+function drawSocialChip(
+  doc: PDFKit.PDFDocument,
+  x: number,
+  y: number,
+  label: string,
+  fill: string,
+): number {
+  const w = 22;
+  const h = 22;
+  doc.roundedRect(x, y, w, h, 6).fill(fill);
+  doc
+    .fillColor("#FFFFFF")
+    .font("Helvetica-Bold")
+    .fontSize(label.length > 2 ? 7 : 8)
+    .text(label, x, y + (label.length > 2 ? 7 : 6), { width: w, align: "center" });
+  return w + 6;
+}
+
 export async function streamTxnReceiptPdf(actor: Actor, txnRef: string, res: Response): Promise<void> {
   const row = await getReceiptForPdf(actor, txnRef);
+  const tenantId = await resolveTenantId();
+  const adminContacts = await getSupportContacts(tenantId);
+  const contact = brandContactFromAdmin(adminContacts);
 
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="receipt-${row.txnRef}.pdf"`);
@@ -88,22 +154,25 @@ export async function streamTxnReceiptPdf(actor: Actor, txnRef: string, res: Res
 
   // ── Header band ─────────────────────────────────────────────────────────
   doc.rect(0, 0, pageW, 100).fill(PALETTE.navy);
-  // Faint decorative circle for a bit of visual polish, clipped by the header band.
   doc.save();
   doc.rect(0, 0, pageW, 100).clip();
   doc.circle(pageW - 20, 100, 70).fillOpacity(0.06).fill("#FFFFFF");
   doc.restore();
 
-  // Logo mark: white rounded badge with a navy rupee glyph, next to the wordmark.
-  const logoSize = 34;
+  const logoSize = 36;
   const logoX = marginX;
-  const logoY = 24;
-  doc.roundedRect(logoX, logoY, logoSize, logoSize, 9).fill("#FFFFFF");
-  doc
-    .fillColor(PALETTE.navy)
-    .font("Helvetica-Bold")
-    .fontSize(19)
-    .text("Rs", logoX, logoY + 8, { width: logoSize, align: "center" });
+  const logoY = 22;
+  const logoFile = lightLogoPath();
+  if (logoFile) {
+    doc.image(logoFile, logoX, logoY, { width: logoSize, height: logoSize });
+  } else {
+    doc.roundedRect(logoX, logoY, logoSize, logoSize, 9).fill("#FFFFFF");
+    doc
+      .fillColor(PALETTE.navy)
+      .font("Helvetica-Bold")
+      .fontSize(19)
+      .text("Rs", logoX, logoY + 8, { width: logoSize, align: "center" });
+  }
 
   doc.fontSize(20).fillColor("#FFFFFF").font("Helvetica-Bold").text(brandName, logoX + logoSize + 12, 28);
   doc
@@ -112,7 +181,6 @@ export async function streamTxnReceiptPdf(actor: Actor, txnRef: string, res: Res
     .font("Helvetica")
     .text("TRANSACTION RECEIPT", logoX + logoSize + 12, 60, { characterSpacing: 1.2 });
 
-  // Status pill, top-right of header
   const pillLabel = style.label;
   doc.font("Helvetica-Bold").fontSize(10);
   const pillTextW = doc.widthOfString(pillLabel);
@@ -134,7 +202,7 @@ export async function streamTxnReceiptPdf(actor: Actor, txnRef: string, res: Res
     .font("Helvetica-Bold")
     .fontSize(26)
     .text(`Rs. ${row.amount}`, marginX + 20, y + 28);
-  y += amountCardH + 22;
+  y += amountCardH + 18;
 
   // ── Detail table ────────────────────────────────────────────────────────
   const rows: [string, string][] = [
@@ -157,11 +225,10 @@ export async function streamTxnReceiptPdf(actor: Actor, txnRef: string, res: Res
   const tableX = marginX;
   const tableW = pageW - marginX * 2;
   const labelColW = 150;
-  const rowH = 28;
+  const rowH = 26;
   const tableTop = y;
   const tableBottom = tableTop + rowH * rows.length;
 
-  // Outer border + label-column shading (clip so the shaded column respects rounded corners)
   doc.save();
   doc.roundedRect(tableX, tableTop, tableW, tableBottom - tableTop, 8).clip();
   doc.rect(tableX, tableTop, labelColW, tableBottom - tableTop).fill(PALETTE.panel);
@@ -171,7 +238,6 @@ export async function streamTxnReceiptPdf(actor: Actor, txnRef: string, res: Res
     .strokeColor(PALETTE.border)
     .lineWidth(1)
     .stroke();
-  // Vertical divider between label and value columns
   doc
     .moveTo(tableX + labelColW, tableTop)
     .lineTo(tableX + labelColW, tableBottom)
@@ -191,33 +257,89 @@ export async function streamTxnReceiptPdf(actor: Actor, txnRef: string, res: Res
     doc
       .fillColor(PALETTE.muted)
       .font("Helvetica")
-      .text(label, tableX + 10, rowY + 9, { width: labelColW - 18 });
+      .text(label, tableX + 10, rowY + 8, { width: labelColW - 18 });
     doc
       .fillColor(PALETTE.ink)
       .font("Helvetica-Bold")
-      .text(value, tableX + labelColW + 10, rowY + 9, { width: tableW - labelColW - 18 });
+      .text(value, tableX + labelColW + 10, rowY + 8, { width: tableW - labelColW - 18 });
   });
 
-  y = tableBottom + 22;
+  y = tableBottom + 16;
+
+  // ── Contact + social ────────────────────────────────────────────────────
+  const contactBlockH = 78;
+  const contactTop = Math.min(y, pageH - contactBlockH - 52);
+  doc.roundedRect(marginX, contactTop, pageW - marginX * 2, contactBlockH, 8).fill(PALETTE.panel);
+
+  const cx = marginX + 12;
+  let cy = contactTop + 10;
+  doc.fillColor(PALETTE.muted).font("Helvetica").fontSize(8).text("Website", cx, cy);
+  doc
+    .fillColor(PALETTE.navy)
+    .font("Helvetica-Bold")
+    .fontSize(9)
+    .text(contact.website.replace(/^https?:\/\//, ""), cx + 52, cy, {
+      link: contact.website,
+      underline: false,
+    });
+  cy += 14;
+  doc.fillColor(PALETTE.muted).font("Helvetica").fontSize(8).text("Email", cx, cy);
+  doc
+    .fillColor(PALETTE.navy)
+    .font("Helvetica-Bold")
+    .fontSize(9)
+    .text(contact.email, cx + 52, cy, { link: `mailto:${contact.email}` });
+  cy += 14;
+  doc.fillColor(PALETTE.muted).font("Helvetica").fontSize(8).text("Contact", cx, cy);
+  if (contact.phone) {
+    doc
+      .fillColor(PALETTE.ink)
+      .font("Helvetica-Bold")
+      .fontSize(9)
+      .text(contact.phone, cx + 52, cy, {
+        link: `tel:${contact.phone.replace(/\s/g, "")}`,
+      });
+  } else {
+    doc.fillColor(PALETTE.faint).font("Helvetica").fontSize(9).text("—", cx + 52, cy);
+  }
+  cy += 16;
+
+  doc.fillColor(PALETTE.muted).font("Helvetica").fontSize(8).text("Social", cx, cy + 4);
+  let sx = cx + 52;
+  const chipY = cy;
+  sx += drawSocialChip(doc, sx, chipY, "f", PALETTE.fb);
+  sx += drawSocialChip(doc, sx, chipY, "IG", PALETTE.ig);
+  sx += drawSocialChip(doc, sx, chipY, "YT", PALETTE.yt);
+  doc
+    .fillColor(PALETTE.ink)
+    .font("Helvetica")
+    .fontSize(8)
+    .text(`@${contact.socialHandle}`, sx + 2, chipY + 6, {
+      link: contact.instagram,
+    });
+  // Invisible link targets for FB / YT (PDF tap zones on chips)
+  doc.link(cx + 52, chipY, 22, 22, contact.facebook);
+  doc.link(cx + 52 + 28, chipY, 22, 22, contact.instagram);
+  doc.link(cx + 52 + 56, chipY, 22, 22, contact.youtube);
 
   // ── Footer ──────────────────────────────────────────────────────────────
-  const footerY = Math.max(y, pageH - 70);
+  const footerY = pageH - 42;
   const dividerW = 40;
   doc
-    .moveTo(pageW / 2 - dividerW / 2, footerY - 14)
-    .lineTo(pageW / 2 + dividerW / 2, footerY - 14)
+    .moveTo(pageW / 2 - dividerW / 2, footerY - 12)
+    .lineTo(pageW / 2 + dividerW / 2, footerY - 12)
     .strokeColor(PALETTE.navy)
     .lineWidth(2)
     .stroke();
   doc
-    .fontSize(8)
+    .fontSize(7.5)
     .fillColor(PALETTE.faint)
     .font("Helvetica")
     .text("This is a system-generated receipt and does not require a signature.", marginX, footerY, {
       width: pageW - marginX * 2,
       align: "center",
     });
-  doc.text(`${brandName} — Payment Made Easy`, marginX, footerY + 14, {
+  doc.text(`${brandName} — Payment Made Easy`, marginX, footerY + 12, {
     width: pageW - marginX * 2,
     align: "center",
   });

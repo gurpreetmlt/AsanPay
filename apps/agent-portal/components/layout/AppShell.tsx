@@ -32,6 +32,8 @@ import {
   Banknote,
   MapPin,
   History,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import type { UserRole } from "@asanpay/shared-types";
@@ -42,6 +44,7 @@ import { useAuthStore } from "@/lib/store";
 import type { WalletBalance } from "@/lib/types";
 import { useOnboardingGate } from "@/lib/useOnboardingGate";
 import { formatInr, walletDisplayName } from "@/lib/walletLabels";
+import { maskBalance, useBalanceVisibility } from "@/lib/balanceVisibility";
 import { CHILD_ROLE, ROLE_LABEL, isRetailerRole } from "@/lib/roles";
 
 type LucideIcon = ComponentType<{ size?: number; className?: string; strokeWidth?: number }>;
@@ -400,6 +403,8 @@ function WalletPill({
     else toast("Ask your upline to fund your balance, or use Collect on Balance");
   };
 
+  const balanceVisible = useBalanceVisibility((s) => s.visible);
+
   // Same actions on Main and AEPS — Add Money (fund request) credits Main; keep entry points consistent.
   const actions = [
     { icon: PlusCircle, label: "Add Money", action: goAddMoney },
@@ -426,7 +431,7 @@ function WalletPill({
           {walletDisplayName(wallet.walletType)}
         </span>
         <span className="text-sm font-bold tabular-nums" style={{ color: B.blue }}>
-          {formatInr(wallet.balance)}
+          {maskBalance(balanceVisible, formatInr(wallet.balance))}
         </span>
         <ChevronDown size={13} style={{ color: B.muted }} className={open ? "rotate-180 transition-transform" : "transition-transform"} />
       </button>
@@ -471,6 +476,8 @@ function HeaderWalletBalances({
     if (b.walletType === "main") return 1;
     return a.walletType.localeCompare(b.walletType);
   });
+  const balanceVisible = useBalanceVisibility((s) => s.visible);
+  const toggleBalance = useBalanceVisibility((s) => s.toggle);
 
   if (!loading && ordered.length === 0) return null;
 
@@ -486,6 +493,16 @@ function HeaderWalletBalances({
       ) : (
         ordered.map((w) => <WalletPill key={w.id} wallet={w} onRefresh={onRefresh} loading={loading} />)
       )}
+      <button
+        type="button"
+        onClick={toggleBalance}
+        className="flex h-9 w-9 items-center justify-center rounded-2xl"
+        style={{ background: B.bg, color: B.blue }}
+        aria-label={balanceVisible ? "Hide balances" : "Show balances"}
+        title={balanceVisible ? "Hide balances" : "Show balances"}
+      >
+        {balanceVisible ? <EyeOff size={15} /> : <Eye size={15} />}
+      </button>
       <button
         type="button"
         onClick={onRefresh}
@@ -513,6 +530,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const name = user?.name ?? "Agent";
   const uid = user?.uid ?? "—";
   const av = initials(name);
+  const balanceVisible = useBalanceVisibility((s) => s.visible);
+  const toggleBalance = useBalanceVisibility((s) => s.toggle);
 
   const loadWallets = useCallback(async () => {
     if (!accessToken) return;
@@ -658,27 +677,38 @@ export function AppShell({ children }: { children: ReactNode }) {
                 Loading balances…
               </span>
             ) : (
-              [...wallets]
-                .sort((a, b) => {
-                  if (a.walletType === "main") return -1;
-                  if (b.walletType === "main") return 1;
-                  return a.walletType.localeCompare(b.walletType);
-                })
-                .map((w) => (
-                  <Link
-                    key={w.id}
-                    href="/wallet"
-                    className="flex shrink-0 items-center gap-2 rounded-2xl border px-3 py-1.5"
-                    style={{ borderColor: B.border, background: B.bg }}
-                  >
-                    <span className="text-[12px] font-bold uppercase" style={{ color: B.muted }}>
-                      {walletDisplayName(w.walletType)}
-                    </span>
-                    <span className="text-sm font-bold tabular-nums" style={{ color: B.blue }}>
-                      {formatInr(w.balance)}
-                    </span>
-                  </Link>
-                ))
+              <>
+                {[...wallets]
+                  .sort((a, b) => {
+                    if (a.walletType === "main") return -1;
+                    if (b.walletType === "main") return 1;
+                    return a.walletType.localeCompare(b.walletType);
+                  })
+                  .map((w) => (
+                    <Link
+                      key={w.id}
+                      href="/wallet"
+                      className="flex shrink-0 items-center gap-2 rounded-2xl border px-3 py-1.5"
+                      style={{ borderColor: B.border, background: B.bg }}
+                    >
+                      <span className="text-[12px] font-bold uppercase" style={{ color: B.muted }}>
+                        {walletDisplayName(w.walletType)}
+                      </span>
+                      <span className="text-sm font-bold tabular-nums" style={{ color: B.blue }}>
+                        {maskBalance(balanceVisible, formatInr(w.balance))}
+                      </span>
+                    </Link>
+                  ))}
+                <button
+                  type="button"
+                  onClick={toggleBalance}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl"
+                  style={{ background: B.bg, color: B.blue }}
+                  aria-label={balanceVisible ? "Hide balances" : "Show balances"}
+                >
+                  {balanceVisible ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </>
             )}
           </div>
         )}
