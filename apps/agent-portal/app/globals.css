@@ -255,6 +255,70 @@ body {
   box-shadow: 0 14px 36px rgba(11, 42, 154, 0.12);
 }
 
+/* Wallet card — icon from left, amount from right, meet/overlap */
+@keyframes wallet-icon-from-left {
+  0%,
+  8% {
+    opacity: 0;
+    transform: translateX(-48px);
+  }
+  28%,
+  72% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  88%,
+  100% {
+    opacity: 0.4;
+    transform: translateX(-28px);
+  }
+}
+@keyframes wallet-text-from-right {
+  0%,
+  8% {
+    opacity: 0;
+    transform: translateX(48px);
+  }
+  28%,
+  72% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  88%,
+  100% {
+    opacity: 0.4;
+    transform: translateX(28px);
+  }
+}
+.wallet-meet {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.5rem;
+  min-height: 2.75rem;
+}
+.wallet-meet-icon {
+  position: relative;
+  z-index: 1;
+  animation: wallet-icon-from-left 3.6s ease-in-out infinite;
+}
+.wallet-meet-text {
+  position: relative;
+  z-index: 2;
+  margin-left: -0.35rem;
+  animation: wallet-text-from-right 3.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wallet-meet-icon,
+  .wallet-meet-text {
+    animation: none;
+    opacity: 1;
+    transform: none;
+    margin-left: 0;
+  }
+}
+
 /* Brand logo idle — soft breathe (sidebar / dashboard) */
 @keyframes brand-logo-breathe {
   0%,

@@ -1,5 +1,5 @@
-import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useRef } from "react";
+import { Animated, Easing, Pressable, StyleSheet, Text, View } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import { Fingerprint, Wallet } from "lucide-react-native";
 import { formatINR } from "../lib/format";
@@ -14,10 +14,51 @@ interface Props {
   onReports?: () => void;
 }
 
+function useMeetSlide() {
+  const iconX = useRef(new Animated.Value(-40)).current;
+  const textX = useRef(new Animated.Value(40)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(opacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+          Animated.timing(iconX, {
+            toValue: 0,
+            duration: 900,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          Animated.timing(textX, {
+            toValue: 0,
+            duration: 900,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.delay(1800),
+        Animated.parallel([
+          Animated.timing(opacity, { toValue: 0.35, duration: 350, useNativeDriver: true }),
+          Animated.timing(iconX, { toValue: -28, duration: 450, useNativeDriver: true }),
+          Animated.timing(textX, { toValue: 28, duration: 450, useNativeDriver: true }),
+        ]),
+        Animated.delay(200),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [iconX, textX, opacity]);
+
+  return { iconX, textX, opacity };
+}
+
 /** Retailer-style twin wallet cards + Add Money / Reports — shared by home headers. */
 export function WalletBar({ wallets, onWalletPress, onAddMoney, onReports }: Props) {
   const main = wallets.find((w) => w.walletType === "main");
   const aeps = wallets.find((w) => w.walletType === "aeps");
+  const mainSlide = useMeetSlide();
+  const aepsSlide = useMeetSlide();
 
   function openWallet() {
     if (onWalletPress) {
@@ -31,13 +72,28 @@ export function WalletBar({ wallets, onWalletPress, onAddMoney, onReports }: Pro
     <View>
       <View style={styles.walletRow}>
         <Pressable style={styles.walletCard} onPress={openWallet}>
-          <View style={styles.walletCardTopRow}>
-            <View style={styles.walletCardIconLight}>
-              <Wallet size={12} color={colors.blue} strokeWidth={2.4} />
-            </View>
-            <Text style={styles.walletCardLabel}>Main</Text>
+          <View style={styles.meetRow}>
+            <Animated.View
+              style={[
+                styles.walletCardTopRow,
+                { opacity: mainSlide.opacity, transform: [{ translateX: mainSlide.iconX }] },
+              ]}
+            >
+              <View style={styles.walletCardIconLight}>
+                <Wallet size={12} color={colors.blue} strokeWidth={2.4} />
+              </View>
+              <Text style={styles.walletCardLabel}>Main</Text>
+            </Animated.View>
+            <Animated.Text
+              style={[
+                styles.walletCardAmount,
+                styles.meetAmount,
+                { opacity: mainSlide.opacity, transform: [{ translateX: mainSlide.textX }] },
+              ]}
+            >
+              {formatINR(main?.balance ?? "0")}
+            </Animated.Text>
           </View>
-          <Text style={styles.walletCardAmount}>{formatINR(main?.balance ?? "0")}</Text>
           <Text style={styles.walletCardDelta}>▲ Today</Text>
         </Pressable>
 
@@ -46,13 +102,28 @@ export function WalletBar({ wallets, onWalletPress, onAddMoney, onReports }: Pro
             colors={["rgba(36,204,130,.28)", "rgba(17,163,98,.16)"]}
             style={[styles.walletCard, styles.walletCardAeps]}
           >
-            <View style={styles.walletCardTopRow}>
-              <View style={styles.walletCardIconGreen}>
-                <Fingerprint size={12} color="#fff" strokeWidth={2.4} />
-              </View>
-              <Text style={styles.walletCardLabelGreen}>AEPS</Text>
+            <View style={styles.meetRow}>
+              <Animated.View
+                style={[
+                  styles.walletCardTopRow,
+                  { opacity: aepsSlide.opacity, transform: [{ translateX: aepsSlide.iconX }] },
+                ]}
+              >
+                <View style={styles.walletCardIconGreen}>
+                  <Fingerprint size={12} color="#fff" strokeWidth={2.4} />
+                </View>
+                <Text style={styles.walletCardLabelGreen}>AEPS</Text>
+              </Animated.View>
+              <Animated.Text
+                style={[
+                  styles.walletCardAmount,
+                  styles.meetAmount,
+                  { opacity: aepsSlide.opacity, transform: [{ translateX: aepsSlide.textX }] },
+                ]}
+              >
+                {formatINR(aeps?.balance ?? "0")}
+              </Animated.Text>
             </View>
-            <Text style={styles.walletCardAmount}>{formatINR(aeps?.balance ?? "0")}</Text>
             <Text style={styles.walletCardNoteGreen}>Settlement pending</Text>
           </LinearGradient>
         </Pressable>
@@ -87,8 +158,17 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,.18)",
     borderRadius: 18,
     padding: 14,
+    overflow: "hidden",
   },
   walletCardAeps: { borderColor: "rgba(59,227,154,.35)" },
+  meetRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 4,
+    minHeight: 36,
+  },
+  meetAmount: { marginLeft: -4, marginTop: 0 },
   walletCardTopRow: { flexDirection: "row", alignItems: "center", gap: 7 },
   walletCardIconLight: {
     width: 22,
@@ -111,13 +191,12 @@ const styles = StyleSheet.create({
   walletCardAmount: {
     fontFamily: "System",
     fontWeight: "800",
-    fontSize: 24,
+    fontSize: 22,
     color: "#fff",
-    marginTop: 9,
     letterSpacing: -0.4,
   },
-  walletCardDelta: { fontSize: 11, color: "#3BE39A", fontWeight: "700", marginTop: 2 },
-  walletCardNoteGreen: { fontSize: 11, color: "#BFF3D9", fontWeight: "700", marginTop: 2 },
+  walletCardDelta: { fontSize: 11, color: "#3BE39A", fontWeight: "700", marginTop: 6 },
+  walletCardNoteGreen: { fontSize: 11, color: "#BFF3D9", fontWeight: "700", marginTop: 6 },
   quickRow: { flexDirection: "row", gap: 9, marginTop: 11 },
   quickBtnPress: { flex: 1, borderRadius: 12, overflow: "hidden" },
   quickBtnFill: {

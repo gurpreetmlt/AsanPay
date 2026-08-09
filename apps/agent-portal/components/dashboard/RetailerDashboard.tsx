@@ -105,12 +105,14 @@ export function RetailerDashboard() {
           style={{ background: role.gradient, boxShadow: `0 8px 32px ${role.color}40` }}
         >
           <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white opacity-10" />
-          <div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-white/70">
-            <Wallet size={14} />
-            {primary ? walletDisplayName(primary.walletType) : "Main"}
-          </div>
-          <div className="mb-3 text-3xl font-bold leading-none">
-            {loading ? "…" : formatInr(primary?.balance ?? "0")}
+          <div className="wallet-meet mb-3">
+            <div className="wallet-meet-icon flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-white/70">
+              <Wallet size={16} />
+              {primary ? walletDisplayName(primary.walletType) : "Main"}
+            </div>
+            <div className="wallet-meet-text text-3xl font-bold leading-none">
+              {loading ? "…" : formatInr(primary?.balance ?? "0")}
+            </div>
           </div>
           <div className="mb-3 flex items-center gap-1.5 border-t border-white/15 pt-3">
             <TrendingUp size={12} style={{ color: B.greenLight }} />
@@ -137,12 +139,14 @@ export function RetailerDashboard() {
             style={{ background: B.green, boxShadow: `0 8px 32px ${B.green}40` }}
           >
             <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white opacity-10" />
-            <div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-white/70">
-              <Wallet size={14} />
-              {walletDisplayName(secondary.walletType)}
-            </div>
-            <div className="mb-3 text-3xl font-bold leading-none">
-              {loading ? "…" : formatInr(secondary.balance)}
+            <div className="wallet-meet mb-3">
+              <div className="wallet-meet-icon flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-white/70">
+                <Wallet size={16} />
+                {walletDisplayName(secondary.walletType)}
+              </div>
+              <div className="wallet-meet-text text-3xl font-bold leading-none">
+                {loading ? "…" : formatInr(secondary.balance)}
+              </div>
             </div>
             <div className="mb-3 flex items-center gap-1.5 border-t border-white/15 pt-3">
               <Activity size={12} className="text-white/80" />
