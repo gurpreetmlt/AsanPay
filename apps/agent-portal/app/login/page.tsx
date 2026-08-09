@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
@@ -61,6 +61,7 @@ export default function LoginPage() {
   // Gate first paint until the localStorage check below runs, so the page never flashes the
   // full OTP form for a moment before flipping to Welcome-back (or vice versa) right after logout.
   const [checkedRemembered, setCheckedRemembered] = useState(false);
+  const lastOtpSentKey = useRef<string | null>(null);
 
   useEffect(() => {
     const saved = getRememberedLogin();
@@ -70,6 +71,22 @@ export default function LoginPage() {
     }
     setCheckedRemembered(true);
   }, []);
+
+  // OTP tab: 10-digit mobile → send OTP automatically (no Send OTP tap).
+  useEffect(() => {
+    if (unlockMode || method !== "otp" || otpStep !== "mobile" || mobile.length !== 10 || loading) return;
+    const key = mobile;
+    if (lastOtpSentKey.current === key) return;
+    const t = window.setTimeout(() => {
+      void requestOtp(undefined, { auto: true });
+    }, 350);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mobile, method, otpStep, unlockMode, loading]);
+
+  useEffect(() => {
+    if (mobile.length < 10) lastOtpSentKey.current = null;
+  }, [mobile]);
 
   function finishLogin(data: LoginResponseData) {
     setAuth(data.user, { accessToken: data.accessToken, refreshToken: data.refreshToken });
@@ -179,10 +196,11 @@ export default function LoginPage() {
     }
   }
 
-  async function requestOtp(e?: FormEvent) {
+  async function requestOtp(e?: FormEvent, opts?: { auto?: boolean }) {
     e?.preventDefault();
+    if (e) lastOtpSentKey.current = null;
     if (!mobile || mobile.length !== 10) {
-      toast.error("Enter a valid 10-digit mobile");
+      if (!opts?.auto) toast.error("Enter a valid 10-digit mobile");
       return;
     }
     setLoading(true);
@@ -192,10 +210,12 @@ export default function LoginPage() {
         portal: "agent",
       });
       if (!data.success) throw new Error(data.message);
+      lastOtpSentKey.current = mobile;
       setOtpStep("otp");
       setDevOtp(data.data.otp ?? null);
       toast.success(data.data.otp ? `Dev OTP: ${data.data.otp}` : "OTP sent");
     } catch (err) {
+      lastOtpSentKey.current = mobile;
       toast.error(extractApiError(err, "OTP request failed"));
     } finally {
       setLoading(false);
@@ -561,8 +581,14 @@ export default function LoginPage() {
               )}
               <SubmitBtn
                 loading={loading}
-                label={otpStep === "otp" ? "Verify OTP" : "Send OTP"}
+                disabled={otpStep === "mobile" && mobile.length !== 10}
+                label={otpStep === "otp" ? "Verify OTP" : mobile.length === 10 ? "Resend OTP" : "Enter mobile for OTP"}
               />
+              {otpStep === "mobile" && mobile.length < 10 ? (
+                <p className="text-center text-xs" style={{ color: B.muted }}>
+                  Enter 10-digit mobile — OTP sends automatically
+                </p>
+              ) : null}
               {otpStep === "otp" && (
                 <button
                   type="button"
@@ -572,6 +598,7 @@ export default function LoginPage() {
                     setOtpStep("mobile");
                     setOtp("");
                     setDevOtp(null);
+                    lastOtpSentKey.current = null;
                   }}
                 >
                   Change mobile
@@ -647,9 +674,9 @@ function MobileField({
   );
 }
 
-function SubmitBtn({ loading, label }: { loading: boolean; label: string }) {
+function SubmitBtn({ loading, label, disabled }: { loading: boolean; label: string; disabled?: boolean }) {
   return (
-    <PrimaryButton type="submit" loading={loading} loopGlow>
+    <PrimaryButton type="submit" loading={loading} disabled={disabled} loopGlow>
       {label}
     </PrimaryButton>
   );

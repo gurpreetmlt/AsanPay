@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -100,6 +100,7 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
   const [otpStep, setOtpStep] = useState<"mobile" | "otp">("mobile");
   const [otp, setOtp] = useState("");
   const [devOtp, setDevOtp] = useState<string | null>(null);
+  const lastOtpSentKey = useRef<string | null>(null);
 
   function commitLogin(session: PendingSession) {
     setAuthHeader(session.accessToken);
@@ -128,9 +129,9 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
     ]);
   }
 
-  async function requestOtp() {
+  async function requestOtp(opts?: { auto?: boolean }) {
     if (mobile.length !== 10) {
-      showAlert("Invalid mobile", "Enter a valid 10-digit mobile number");
+      if (!opts?.auto) showAlert("Invalid mobile", "Enter a valid 10-digit mobile number");
       return;
     }
     setLoading(true);
@@ -140,17 +141,23 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
         { mobile, portal: "agent", role },
       );
       if (!data.success) throw new Error(data.message);
+      lastOtpSentKey.current = `${mobile}:${role}`;
       setDevOtp(data.data.otp ?? null);
       setOtp(data.data.otp ?? "");
       setOtpStep("otp");
     } catch (err) {
+      // Mark attempted so auto-send does not loop; user can tap Resend.
+      lastOtpSentKey.current = `${mobile}:${role}`;
       const msg = apiError(err, "Could not send OTP");
       const suggested = roleFromMismatchMessage(msg);
       if (suggested && suggested !== role) {
+        lastOtpSentKey.current = null;
         setRole(suggested);
-        showAlert("Wrong role selected", `${msg}\n\nCorrect role auto-selected: ${ROLE_CHIPS.find((r) => r.key === suggested)?.short}. Tap Continue again.`, [
-          { text: "OK", style: "primary" },
-        ]);
+        showAlert(
+          "Wrong role selected",
+          `${msg}\n\nCorrect role auto-selected: ${ROLE_CHIPS.find((r) => r.key === suggested)?.short}. OTP will send again.`,
+          [{ text: "OK", style: "primary" }],
+        );
       } else {
         showAlert("OTP failed", msg);
       }
@@ -158,6 +165,22 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
       setLoading(false);
     }
   }
+
+  // OTP tab: full 10-digit mobile → send OTP automatically (no Continue tap).
+  useEffect(() => {
+    if (method !== "otp" || otpStep !== "mobile" || mobile.length !== 10 || loading) return;
+    const key = `${mobile}:${role}`;
+    if (lastOtpSentKey.current === key) return;
+    const t = setTimeout(() => {
+      void requestOtp({ auto: true });
+    }, 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mobile, method, otpStep, role]);
+
+  useEffect(() => {
+    if (mobile.length < 10) lastOtpSentKey.current = null;
+  }, [mobile]);
 
   async function verifyOtp() {
     if (otp.length !== 6) return;
@@ -234,7 +257,7 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
   }
 
 
-  const canSubmit = mobile.length === 10 && !loading;
+
 
   if (pendingSession) {
     return (
@@ -350,7 +373,54 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
                   })}
                 </View>
 
-                <Text style={styles.label}>MOBILE NUMBER</Text>
+                {!(method === "otp" && otpStep === "otp") ? (
+                  <>
+                    <Text style={[styles.label, styles.labelSpaced]}>CONTINUE AS</Text>
+                    <View style={styles.chipRow}>
+                      {ROLE_CHIPS.map((r) => {
+                        const active = role === r.key;
+                        const Icon = r.Icon;
+                        return (
+                          <Pressable
+                            key={r.key}
+                            onPress={() => {
+                              // Switching role manually starts a fresh login — clear the number so the
+                              // previous role's mobile isn't accidentally submitted under the new role.
+                              // (The auto-correction path in requestOtp deliberately keeps the number.)
+                              if (r.key !== role) {
+                                setMobile("");
+                                lastOtpSentKey.current = null;
+                              }
+                              setRole(r.key);
+                            }}
+                            style={[styles.chip, active && styles.chipActive]}
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: active }}
+                          >
+                            <Icon
+                              size={16}
+                              color={active ? "#3BE39A" : "rgba(255,255,255,0.75)"}
+                              strokeWidth={2.2}
+                            />
+                            <Text style={[styles.chipTitle, active && styles.chipTitleActive]}>{r.short}</Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                    <View style={styles.selectedBanner}>
+                      <Text style={styles.selectedBannerText}>
+                        Signing in as{" "}
+                        <Text style={styles.selectedBannerBold}>
+                          {ROLE_CHIPS.find((r) => r.key === role)?.short}
+                        </Text>
+                      </Text>
+                    </View>
+                  </>
+                ) : null}
+
+                <Text style={[styles.label, !(method === "otp" && otpStep === "otp") ? styles.labelSpaced : undefined]}>
+                  MOBILE NUMBER
+                </Text>
                 <View style={styles.inputRow}>
                   <Text style={styles.prefix}>+91</Text>
                   <View style={styles.divider} />
@@ -403,6 +473,7 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
                         setOtpStep("mobile");
                         setOtp("");
                         setDevOtp(null);
+                        lastOtpSentKey.current = null;
                       }}
                       style={styles.signupRow}
                     >
@@ -451,66 +522,32 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
                     </Pressable>
                   </>
                 ) : (
-                  <>
-                    <Text style={[styles.label, styles.labelSpaced]}>CONTINUE AS</Text>
-                    <View style={styles.chipRow}>
-                      {ROLE_CHIPS.map((r) => {
-                        const active = role === r.key;
-                        const Icon = r.Icon;
-                        return (
-                          <Pressable
-                            key={r.key}
-                            onPress={() => {
-                              // Switching role manually starts a fresh login — clear the number so the
-                              // previous role's mobile isn't accidentally submitted under the new role.
-                              // (The auto-correction path in requestOtp deliberately keeps the number.)
-                              if (r.key !== role) setMobile("");
-                              setRole(r.key);
-                            }}
-                            style={[styles.chip, active && styles.chipActive]}
-                            accessibilityRole="button"
-                            accessibilityState={{ selected: active }}
-                          >
-                            <Icon
-                              size={16}
-                              color={active ? "#3BE39A" : "rgba(255,255,255,0.75)"}
-                              strokeWidth={2.2}
-                            />
-                            <Text style={[styles.chipTitle, active && styles.chipTitleActive]}>{r.short}</Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                    <View style={styles.selectedBanner}>
-                      <Text style={styles.selectedBannerText}>
-                        Signing in as{" "}
-                        <Text style={styles.selectedBannerBold}>
-                          {ROLE_CHIPS.find((r) => r.key === role)?.short}
-                        </Text>
-                      </Text>
-                    </View>
-
-                    <Pressable onPress={() => void requestOtp()} disabled={!canSubmit} style={styles.buttonPress}>
-                      <LinearGradient
-                        colors={[...colors.gradientButton]}
-                        style={[styles.button, !canSubmit && styles.buttonDisabled]}
+                  <View style={{ marginTop: 14, alignItems: "center", gap: 10 }}>
+                    {loading ? (
+                      <>
+                        <ActivityIndicator color="#3BE39A" />
+                        <Text style={styles.signupText}>Sending OTP…</Text>
+                      </>
+                    ) : mobile.length === 10 ? (
+                      <Pressable
+                        onPress={() => {
+                          lastOtpSentKey.current = null;
+                          void requestOtp();
+                        }}
+                        style={styles.signupRow}
                       >
-                        {loading ? (
-                          <ActivityIndicator color="#fff" />
-                        ) : (
-                          <Text style={styles.buttonText}>Continue as {roleSignupLabel(role)}  →</Text>
-                        )}
-                      </LinearGradient>
-                    </Pressable>
-                  </>
+                        <Text style={styles.signupLink}>Resend OTP</Text>
+                      </Pressable>
+                    ) : (
+                      <Text style={styles.signupText}>Enter 10-digit mobile — OTP sends automatically</Text>
+                    )}
+                  </View>
                 )}
               </>
           </View>
 
           <Pressable onPress={() => onSignup(role)} style={styles.signupRow}>
-            <Text style={styles.signupText}>
-              New agent? <Text style={styles.signupLink}>Sign up as {roleSignupLabel(role)}</Text>
-            </Text>
+            <Text style={styles.signupLink}>Sign up as {roleSignupLabel(role)}</Text>
           </Pressable>
 
           {__DEV__ ? <Text style={styles.devHint}>Dev API: {API_BASE}</Text> : null}
