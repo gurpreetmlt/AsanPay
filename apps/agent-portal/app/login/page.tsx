@@ -598,8 +598,12 @@ export default function LoginPage() {
 
           <p className="text-center text-xs" style={{ color: B.muted }}>
             New agent?{" "}
-            <Link href="/signup" className="font-semibold" style={{ color: role.color }}>
-              Sign up with OTP
+            <Link
+              href={`/signup?role=${role.id === "super" ? "super_distributor" : role.id}`}
+              className="font-semibold"
+              style={{ color: role.color }}
+            >
+              Sign up as {role.label}
             </Link>
           </p>
           </>

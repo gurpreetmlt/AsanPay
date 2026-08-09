@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { ArrowLeft, CheckCircle2, Eye, EyeOff } from "lucide-react";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
@@ -256,6 +256,7 @@ function LivePhotoCapture({
 
 export default function SignupPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const setAuth = useAuthStore((s) => s.setAuth);
   const accessToken = useAuthStore((s) => s.accessToken);
   const user = useAuthStore((s) => s.user);
@@ -367,6 +368,17 @@ export default function SignupPage() {
         setDraft({ ...existing, stepIndex: 2 });
       } else if (existing.signupToken && existing.stepIndex < 1 && !existing.accountCreated) {
         setDraft({ ...existing, stepIndex: 1 });
+      }
+    } else {
+      const q = (searchParams.get("role") || "").trim();
+      const fromLogin: SignupRole | null =
+        q === "retailer" || q === "distributor" || q === "super_distributor" || q === "direct_retailer"
+          ? q
+          : q === "super"
+            ? "super_distributor"
+            : null;
+      if (fromLogin) {
+        setDraft({ ...EMPTY_SIGNUP_DRAFT, role: fromLogin });
       }
     }
     setDraftReady(true);
