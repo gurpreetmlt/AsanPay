@@ -18,7 +18,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
-import { AsanPayLogo } from "@/components/brand/Logo";
+import { AsanPayLockup } from "@/components/brand/Logo";
 import { PromoSlider } from "@/components/promos/PromoSlider";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import api from "@/lib/api";
@@ -338,7 +338,7 @@ export default function LoginPage() {
       >
         <div className="login-panel-animate w-full max-w-[480px]">
           <div className="mb-7">
-            <AsanPayLogo width={350} variant="dark" />
+            <AsanPayLockup width={280} light={false} animate showTagline />
           </div>
 
           {unlockMode && remembered ? (

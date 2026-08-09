@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { ArrowLeft, CheckCircle2, Eye, EyeOff } from "lucide-react";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
-import { AsanPayLogo } from "@/components/brand/Logo";
+import { AsanPayLockup } from "@/components/brand/Logo";
 import { EmailVerifyField } from "@/components/EmailVerifyField";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { SignupStepper, SIGNUP_STEPS } from "@/components/signup/SignupStepper";
@@ -1055,7 +1055,7 @@ function SignupPageInner() {
             <ArrowLeft size={18} />
           </button>
           <div className="min-w-0 flex-1">
-            <AsanPayLogo width={140} />
+            <AsanPayLockup width={200} light={false} animate showTagline />
             <h1 className="mt-2 text-xl font-bold" style={{ color: B.blue }}>
               Sign Up
             </h1>

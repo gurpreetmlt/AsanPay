@@ -1,29 +1,31 @@
 import React, { useEffect, useRef } from "react";
-import { Animated, Easing, Image, StyleSheet, Text, View } from "react-native";
-import { BRAND } from "../theme/brand";
+import { Animated, Easing, Image, StyleSheet, View } from "react-native";
 
 interface BrandMarkProps {
   size?: number;
-  /** `mark` = square app icon. `logo` = full wordmark logo. */
+  /** `mark` = square wallet icon. `logo` = full Final Logo. */
   variant?: "mark" | "logo";
+  /** true = light wordmark (white Asan) for dark/blue UI */
+  light?: boolean;
 }
 
-const markSource = require("../assets/asan-pay-appicon-flat.png");
-const logoSource = require("../assets/asan-pay-logo.png");
-
-const TAGLINE = "Payment Made Easy";
-
-const brandPrefix = BRAND.appName.endsWith("Pay") ? BRAND.appName.slice(0, -3) : BRAND.appName;
-const brandSuffix = BRAND.appName.endsWith("Pay") ? "Pay" : "";
+const iconLight = require("../assets/AsanPay-Light-Icon.png");
+const iconDark = require("../assets/AsanPay-Dark-Icon.png");
+const wordmarkLight = require("../assets/AsanPay-Light-Wordmark.png");
+const wordmarkDark = require("../assets/AsanPay-Dark-Wordmark.png");
 
 /** Official AsanPay brand mark / wordmark for auth surfaces. */
-export function BrandMark({ size = 72, variant = "mark" }: BrandMarkProps) {
+export function BrandMark({ size = 72, variant = "mark", light = true }: BrandMarkProps) {
   if (variant === "logo") {
     const height = size;
-    const width = Math.round(size * 3.2);
+    const width = Math.round(size * 2.94);
     return (
       <View style={[styles.logoWrap, { height, width }]}>
-        <Image source={logoSource} style={{ width, height }} resizeMode="contain" />
+        <Image
+          source={light ? wordmarkLight : wordmarkDark}
+          style={{ width, height }}
+          resizeMode="contain"
+        />
       </View>
     );
   }
@@ -32,9 +34,9 @@ export function BrandMark({ size = 72, variant = "mark" }: BrandMarkProps) {
   return (
     <View style={[styles.shadow, { borderRadius: radius, width: size, height: size }]}>
       <Image
-        source={markSource}
+        source={light ? iconLight : iconDark}
         style={{ width: size, height: size, borderRadius: radius }}
-        resizeMode="cover"
+        resizeMode="contain"
       />
     </View>
   );
@@ -50,8 +52,8 @@ interface BrandLockupProps {
 }
 
 /**
- * YouTube-style: wallet holds; AsanPay + tagline slide out from under the icon.
- * No typing — full tagline. Long still.
+ * YouTube-style mask reveal: wallet holds; exact Final Logo wordmark
+ * (AsanPay + tagline) slides out from under the icon.
  */
 export function BrandLockup({
   iconSize,
@@ -61,24 +63,21 @@ export function BrandLockup({
   showTagline = true,
 }: BrandLockupProps) {
   const size = iconSize ?? (width ? Math.round(width * 0.24) : 40);
+  const wordW = Math.round(size * 3.05);
+  const wordH = Math.round((wordW * 155) / 560);
+  const visibleH = showTagline ? wordH : Math.round(wordH * 0.62);
   const cycle = useRef(0);
   const iconScale = useRef(new Animated.Value(1)).current;
   const iconOpacity = useRef(new Animated.Value(1)).current;
-  const textX = useRef(new Animated.Value(0)).current;
-  const textOpacity = useRef(new Animated.Value(1)).current;
-  const textScaleX = useRef(new Animated.Value(1)).current;
-
-  const asanColor = light ? "#FFFFFF" : "#0B2A9A";
-  const payColor = light ? "#3BE39A" : "#18B26E";
-  const fontSize = Math.round(size * 0.5);
+  const revealX = useRef(new Animated.Value(0)).current;
+  const revealOpacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     if (!animate) {
       iconScale.setValue(1);
       iconOpacity.setValue(1);
-      textX.setValue(0);
-      textOpacity.setValue(1);
-      textScaleX.setValue(1);
+      revealX.setValue(0);
+      revealOpacity.setValue(1);
       return;
     }
 
@@ -89,19 +88,17 @@ export function BrandLockup({
       if (!alive) return;
       cycle.current += 1;
 
-      iconOpacity.setValue(0.65);
+      iconOpacity.setValue(0.7);
       iconScale.setValue(0.9);
-      textOpacity.setValue(0);
-      textX.setValue(-16);
-      textScaleX.setValue(0.92);
+      revealOpacity.setValue(0);
+      revealX.setValue(-wordW);
 
       const anim = Animated.sequence([
-        // Icon pops first
         Animated.parallel([
           Animated.timing(iconOpacity, { toValue: 1, duration: 380, useNativeDriver: true }),
           Animated.sequence([
             Animated.timing(iconScale, {
-              toValue: 1.07,
+              toValue: 1.06,
               duration: 320,
               easing: Easing.out(Easing.cubic),
               useNativeDriver: true,
@@ -109,28 +106,23 @@ export function BrandLockup({
             Animated.timing(iconScale, { toValue: 1, duration: 220, useNativeDriver: true }),
           ]),
         ]),
-        // Text slides out from under wallet
         Animated.parallel([
-          Animated.timing(textOpacity, { toValue: 1, duration: 520, useNativeDriver: true }),
-          Animated.timing(textX, {
+          Animated.timing(revealOpacity, { toValue: 1, duration: 420, useNativeDriver: true }),
+          Animated.timing(revealX, {
             toValue: 0,
-            duration: 620,
-            easing: Easing.out(Easing.cubic),
-            useNativeDriver: true,
-          }),
-          Animated.timing(textScaleX, {
-            toValue: 1,
-            duration: 620,
+            duration: 680,
             easing: Easing.out(Easing.cubic),
             useNativeDriver: true,
           }),
         ]),
-        // Long still
         Animated.delay(3400),
-        // Soft tuck back under icon
         Animated.parallel([
-          Animated.timing(textOpacity, { toValue: 0.75, duration: 360, useNativeDriver: true }),
-          Animated.timing(textX, { toValue: -8, duration: 360, useNativeDriver: true }),
+          Animated.timing(revealOpacity, { toValue: 0.9, duration: 360, useNativeDriver: true }),
+          Animated.timing(revealX, {
+            toValue: -Math.round(wordW * 0.12),
+            duration: 360,
+            useNativeDriver: true,
+          }),
           Animated.timing(iconScale, { toValue: 0.97, duration: 360, useNativeDriver: true }),
         ]),
         Animated.delay(200),
@@ -147,39 +139,33 @@ export function BrandLockup({
       alive = false;
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [animate, iconScale, iconOpacity, textX, textOpacity, textScaleX]);
+  }, [animate, iconScale, iconOpacity, revealX, revealOpacity, wordW]);
 
   return (
-    <View style={styles.lockup} accessibilityLabel="AsanPay">
+    <View style={styles.lockup} accessibilityLabel="AsanPay — Payment Made Easy">
       <Animated.View
         style={[
           styles.iconWrap,
           { opacity: iconOpacity, transform: [{ scale: iconScale }] },
         ]}
       >
-        <BrandMark size={size} variant="mark" />
+        <BrandMark size={size} variant="mark" light={light} />
       </Animated.View>
 
-      <Animated.View
-        style={[
-          styles.reveal,
-          {
-            opacity: textOpacity,
-            transform: [{ translateX: textX }, { scaleX: textScaleX }],
-          },
-        ]}
-      >
-        <Text style={[styles.wordRow, { fontSize }]} numberOfLines={1}>
-          <Text style={[styles.asan, { color: asanColor }]}>{brandPrefix}</Text>
-          {brandSuffix ? <Text style={[styles.pay, { color: payColor }]}>{brandSuffix}</Text> : null}
-        </Text>
-        {showTagline ? (
-          <View style={styles.tagBlock}>
-            <View style={styles.tagRule} />
-            <Text style={styles.tagline}>{TAGLINE}</Text>
-          </View>
-        ) : null}
-      </Animated.View>
+      <View style={[styles.mask, { width: wordW, height: visibleH }]}>
+        <Animated.View
+          style={{
+            opacity: revealOpacity,
+            transform: [{ translateX: revealX }],
+          }}
+        >
+          <Image
+            source={light ? wordmarkLight : wordmarkDark}
+            style={{ width: wordW, height: wordH }}
+            resizeMode="contain"
+          />
+        </Animated.View>
+      </View>
     </View>
   );
 }
@@ -198,39 +184,16 @@ const styles = StyleSheet.create({
   },
   lockup: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     overflow: "visible",
     paddingVertical: 2,
   },
   iconWrap: {
     zIndex: 2,
   },
-  reveal: {
-    marginLeft: 6,
-    paddingTop: 2,
+  mask: {
+    marginLeft: -2,
     zIndex: 1,
-  },
-  wordRow: {
-    fontWeight: "800",
-    letterSpacing: -0.5,
-  },
-  asan: { fontWeight: "800" },
-  pay: { fontWeight: "800" },
-  tagBlock: {
-    marginTop: 5,
-    gap: 3,
-  },
-  tagRule: {
-    height: 1.5,
-    width: 128,
-    borderRadius: 1,
-    backgroundColor: "#5B8CFF",
-  },
-  tagline: {
-    color: "#FF8400",
-    fontSize: 10,
-    fontWeight: "600",
-    letterSpacing: 0.9,
-    lineHeight: 13,
+    overflow: "hidden",
   },
 });

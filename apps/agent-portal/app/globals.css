@@ -308,7 +308,7 @@ body {
 }
 .yt-lockup {
   display: inline-flex;
-  align-items: flex-start;
+  align-items: center;
   overflow: visible;
   max-width: 100%;
 }
@@ -324,45 +324,20 @@ body {
   transform-origin: center center;
 }
 .yt-lockup-reveal {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  display: block;
   min-width: 0;
-  padding-top: 0.12rem;
+  overflow: hidden;
   position: relative;
   z-index: 1;
-  /* tuck under icon slightly so reveal feels like sliding out from wallet */
-  margin-left: -0.15rem;
+  /* tuck under icon so reveal slides out from wallet */
+  margin-left: -0.2rem;
+  align-self: center;
 }
-.yt-lockup-word {
-  display: inline-flex;
-  letter-spacing: -0.04em;
-  line-height: 1.05;
-  white-space: nowrap;
-}
-.yt-lockup-tag {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.22rem;
-  margin-top: 0.3rem;
-  width: max-content;
-}
-.yt-lockup-rule {
-  display: block;
-  width: 100%;
-  min-width: 7.8rem;
-  height: 1.5px;
-  border-radius: 1px;
-  background: linear-gradient(90deg, #5b8cff 0%, #2a5cdd 75%, transparent 100%);
-}
-.yt-lockup-tagline {
-  font-size: 0.62rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  color: #ff8400;
-  white-space: nowrap;
-  line-height: 1.25;
+.yt-lockup-wordmark {
+  max-width: 100%;
+  height: auto;
+  pointer-events: none;
+  user-select: none;
 }
 .yt-lockup--anim .yt-lockup-icon {
   animation: yt-icon-pulse 5.8s ease-in-out infinite;
