@@ -7,21 +7,22 @@ import { B } from "@/lib/brand";
 type Props = {
   children: ReactNode;
   loading?: boolean;
-  /** Soft looping glow — main login / primary CTA */
+  /** Soft looping glow + shimmer */
   loopGlow?: boolean;
   showArrow?: boolean;
-  variant?: "primary" | "secondary";
+  /** primary = blue login CTA; action = green→blue Scan Finger; secondary = outline */
+  variant?: "primary" | "secondary" | "action";
   className?: string;
 } & Omit<ButtonHTMLAttributes<HTMLButtonElement>, "className" | "children">;
 
 /**
- * Shared pill CTA — matches login Send OTP (full rounded, blue gradient, soft shadow).
+ * Shared pill CTA — login Send OTP / dashboard Scan Finger look.
  */
 export function PrimaryButton({
   children,
   loading = false,
   loopGlow = false,
-  showArrow = true,
+  showArrow,
   variant = "primary",
   className = "",
   disabled,
@@ -29,6 +30,7 @@ export function PrimaryButton({
   ...rest
 }: Props) {
   const isDisabled = Boolean(disabled || loading);
+  const arrow = showArrow ?? variant === "primary";
 
   if (variant === "secondary") {
     return (
@@ -47,14 +49,17 @@ export function PrimaryButton({
     );
   }
 
+  const toneClass = variant === "action" ? "btn-pill--action" : "btn-pill--primary";
+  const bg = variant === "action" ? B.actionGrad : B.btnGrad;
+
   return (
     <button
       type={type}
       disabled={isDisabled}
-      className={`btn-pill btn-pill--primary ${loopGlow && !loading ? "btn-pill--glow" : ""} ${className}`.trim()}
+      className={`btn-pill ${toneClass} ${loopGlow && !loading ? "btn-pill--glow" : ""} ${className}`.trim()}
       style={{
-        background: B.btnGrad,
-        opacity: isDisabled ? 0.8 : 1,
+        background: bg,
+        opacity: isDisabled ? 0.45 : 1,
       }}
       {...rest}
     >
@@ -62,8 +67,8 @@ export function PrimaryButton({
         <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
       ) : (
         <>
-          <span>{children}</span>
-          {showArrow ? <ArrowRight size={16} strokeWidth={2.5} className="shrink-0" /> : null}
+          <span className="inline-flex items-center gap-2">{children}</span>
+          {arrow ? <ArrowRight size={16} strokeWidth={2.5} className="shrink-0" /> : null}
         </>
       )}
     </button>

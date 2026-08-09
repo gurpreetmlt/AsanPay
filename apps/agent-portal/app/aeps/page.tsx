@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
+import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { B } from "@/lib/brand";
 import api from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
@@ -867,20 +868,18 @@ function AepsPageInner() {
                 </button>
               </div>
 
-              <button
+              <PrimaryButton
                 type="button"
-                onClick={() => void verifyDailyAgentAuth()}
+                variant="action"
+                showArrow={false}
+                loopGlow
                 disabled={!canScan}
-                className="flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-sm font-bold text-white shadow-md transition disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
-                style={{ background: `linear-gradient(135deg, ${B.green}, ${B.blue})` }}
+                loading={agentAuthScanning}
+                onClick={() => void verifyDailyAgentAuth()}
               >
-                {agentAuthScanning ? (
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-                ) : (
-                  <Fingerprint size={18} />
-                )}
-                {agentAuthScanning ? "Place finger on scanner…" : "Scan Finger"}
-              </button>
+                <Fingerprint size={18} />
+                Scan Finger
+              </PrimaryButton>
             </div>
           </div>
 
@@ -1368,26 +1367,25 @@ function AepsPageInner() {
                   </button>
                 </div>
               </div>
-              <button
+              <PrimaryButton
                 type="button"
+                variant="action"
+                showArrow={false}
+                loopGlow
                 disabled={scanning || (authMode === "fingerprint" && rdStatus !== "ready")}
+                loading={scanning}
                 onClick={handleScan}
-                className={clsx(
-                  "rounded-xl px-8 py-3 text-sm font-bold text-white shadow-lg transition",
-                  scanning || (authMode === "fingerprint" && rdStatus !== "ready")
-                    ? "cursor-not-allowed opacity-50"
-                    : "hover:opacity-90",
-                )}
-                style={{
-                  background: `linear-gradient(135deg, ${B.green} 0%, #0F9E5C 100%)`,
-                }}
+                className="min-w-[200px]"
               >
-                {scanning
-                  ? "Place finger on scanner…"
-                  : authMode === "fingerprint"
-                    ? "Scan Finger"
-                    : "Scan Iris"}
-              </button>
+                {authMode === "fingerprint" ? (
+                  <>
+                    <Fingerprint size={18} />
+                    Scan Finger
+                  </>
+                ) : (
+                  "Scan Iris"
+                )}
+              </PrimaryButton>
             </div>
           </div>
 

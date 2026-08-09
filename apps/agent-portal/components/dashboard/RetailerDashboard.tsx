@@ -19,6 +19,7 @@ import { fetchApi } from "@/lib/api";
 import { B, roleFromUserRole } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { ServiceCards } from "@/components/services/ServiceCards";
 import { formatInr, walletDisplayName } from "@/lib/walletLabels";
 import type { TxnRow, WalletBalance } from "@/lib/types";
@@ -95,12 +96,12 @@ export function RetailerDashboard() {
   const kycDone = user?.kycStatus === "verified";
 
   return (
-    <div className="space-y-5">
+    <div className="dash-page-animate space-y-5">
       {/* Wallet Summary */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="dash-stagger grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         {/* Main Wallet */}
         <div
-          className="relative overflow-hidden rounded-2xl p-5 text-white"
+          className="dash-card-hover relative overflow-hidden rounded-2xl p-5 text-white"
           style={{ background: role.gradient, boxShadow: `0 8px 32px ${role.color}40` }}
         >
           <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white opacity-10" />
@@ -117,20 +118,23 @@ export function RetailerDashboard() {
               Today: {formatInr(stats?.today.commissionEarned ?? "0")} earned
             </span>
           </div>
-          <button
+          <PrimaryButton
             type="button"
+            variant="action"
+            showArrow={false}
+            loopGlow
             onClick={() => router.push("/fund-request")}
-            className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/20 bg-white/15 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/25"
+            className="!py-2 text-xs"
           >
             <PlusCircle size={14} />
             Add Money
-          </button>
+          </PrimaryButton>
         </div>
 
         {/* AEPS Wallet */}
         {secondary && (
           <div
-            className="relative overflow-hidden rounded-2xl p-5 text-white"
+            className="dash-card-hover relative overflow-hidden rounded-2xl p-5 text-white"
             style={{ background: B.green, boxShadow: `0 8px 32px ${B.green}40` }}
           >
             <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white opacity-10" />
@@ -145,14 +149,16 @@ export function RetailerDashboard() {
               <Activity size={12} className="text-white/80" />
               <span className="text-xs text-white/90">Pending: {formatInr(totalPending)}</span>
             </div>
-            <button
+            <PrimaryButton
               type="button"
+              variant="action"
+              showArrow={false}
               onClick={() => router.push("/fund-request")}
-              className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/20 bg-white/15 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/25"
+              className="!py-2 text-xs"
             >
               <PlusCircle size={14} />
               Add Money
-            </button>
+            </PrimaryButton>
           </div>
         )}
 
@@ -201,7 +207,7 @@ export function RetailerDashboard() {
         </div>
 
         {/* KYC Status */}
-        <div className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
+        <div className="dash-card-hover rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
           <div className="mb-3 flex items-center gap-2">
             <ShieldCheck size={16} style={{ color: kycDone ? B.green : "#D97706" }} />
             <h3 className="text-sm font-bold" style={{ color: B.blue }}>KYC Status</h3>
@@ -267,14 +273,15 @@ export function RetailerDashboard() {
                     : "Complete signup KYC to submit for approval."}
                 </p>
                 {!user?.hasKycDocs || user?.kycStatus === "rejected" ? (
-                  <button
+                  <PrimaryButton
                     type="button"
-                    className="mt-2 text-xs font-semibold underline"
-                    style={{ color: B.blue }}
+                    variant="action"
+                    loopGlow
+                    className="mt-3 !py-2.5 text-xs"
                     onClick={() => router.push("/signup")}
                   >
-                    Complete KYC →
-                  </button>
+                    Complete KYC
+                  </PrimaryButton>
                 ) : null}
               </div>
             </div>
@@ -283,7 +290,7 @@ export function RetailerDashboard() {
       </div>
 
       {/* Recent Transactions */}
-      <div className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
+      <div className="dash-card-hover rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-bold" style={{ color: B.blue }}>Recent Transactions</h2>
           <button
@@ -336,7 +343,7 @@ function StatCard({ icon, label, value, sub, accent }: {
   icon: React.ReactNode; label: string; value: string; sub: string; accent: string;
 }) {
   return (
-    <div className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
+    <div className="dash-card-hover rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
       <div className="mb-2 flex items-center gap-2">
         <span style={{ color: accent }}>{icon}</span>
         <span className="text-xs font-medium uppercase tracking-wider" style={{ color: B.muted }}>{label}</span>

@@ -152,12 +152,20 @@ body {
   box-shadow: 0 8px 24px rgba(11, 42, 154, 0.35);
 }
 
-.btn-pill--primary:hover:not(:disabled) {
+.btn-pill--action {
+  color: #fff;
+  border: none;
+  box-shadow: 0 8px 24px rgba(18, 183, 106, 0.28);
+}
+
+.btn-pill--primary:hover:not(:disabled),
+.btn-pill--action:hover:not(:disabled) {
   filter: brightness(1.05);
   transform: translateY(-1px);
 }
 
-.btn-pill--primary:active:not(:disabled) {
+.btn-pill--primary:active:not(:disabled),
+.btn-pill--action:active:not(:disabled) {
   transform: translateY(0) scale(0.99);
 }
 
@@ -194,4 +202,64 @@ body {
 
 .login-panel-animate {
   animation: login-rise 0.55s ease-out both;
+}
+
+/* Dashboard page motion */
+@keyframes dash-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dash-page-animate {
+  animation: dash-rise 0.45s ease-out both;
+}
+
+.dash-stagger > * {
+  animation: dash-rise 0.5s ease-out both;
+}
+.dash-stagger > *:nth-child(1) {
+  animation-delay: 0.02s;
+}
+.dash-stagger > *:nth-child(2) {
+  animation-delay: 0.07s;
+}
+.dash-stagger > *:nth-child(3) {
+  animation-delay: 0.12s;
+}
+.dash-stagger > *:nth-child(4) {
+  animation-delay: 0.17s;
+}
+.dash-stagger > *:nth-child(5) {
+  animation-delay: 0.22s;
+}
+.dash-stagger > *:nth-child(6) {
+  animation-delay: 0.27s;
+}
+
+.dash-card-hover {
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
+}
+.dash-card-hover:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 36px rgba(11, 42, 154, 0.12);
+}
+
+.svc-tile-press {
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+.svc-tile-press:hover {
+  transform: translateY(-2px);
+}
+.svc-tile-press:active {
+  transform: scale(0.97);
 }

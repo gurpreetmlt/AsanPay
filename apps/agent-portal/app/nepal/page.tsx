@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
+import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { B } from "@/lib/brand";
 import api from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
@@ -1230,20 +1231,18 @@ export default function NepalPage() {
                 </button>
               </div>
 
-              <button
+              <PrimaryButton
                 type="button"
-                onClick={() => void verifyDailyAgentAuth()}
+                variant="action"
+                showArrow={false}
+                loopGlow
                 disabled={!canScan}
-                className="flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-sm font-bold text-white shadow-md transition disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
-                style={{ background: `linear-gradient(135deg, ${B.green}, ${B.blue})` }}
+                loading={agentAuthScanning}
+                onClick={() => void verifyDailyAgentAuth()}
               >
-                {agentAuthScanning ? (
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-                ) : (
-                  <Fingerprint size={18} />
-                )}
-                {agentAuthScanning ? "Place finger on scanner…" : "Scan Finger"}
-              </button>
+                <Fingerprint size={18} />
+                Scan Finger
+              </PrimaryButton>
             </div>
           </div>
 
