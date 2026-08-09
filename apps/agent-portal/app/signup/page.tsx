@@ -1057,20 +1057,22 @@ function SignupPageInner() {
           <button
             type="button"
             onClick={back}
-            className="flex h-10 w-10 items-center justify-center rounded-xl border"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border"
             style={{ borderColor: B.border, color: B.blue }}
             aria-label="Back"
           >
             <ArrowLeft size={18} />
           </button>
           <div className="min-w-0 flex-1">
-            <AsanPayLockup width={240} light={false} animate showTagline />
-            <h1 className="mt-2 text-xl font-bold" style={{ color: B.blue }}>
+            <h1 className="text-xl font-bold leading-tight" style={{ color: B.blue }}>
               Sign Up
             </h1>
-            <p className="text-sm" style={{ color: B.muted }}>
+            <p className="text-sm leading-tight" style={{ color: B.muted }}>
               {subtitle}
             </p>
+          </div>
+          <div className="shrink-0">
+            <AsanPayLockup width={112} light={false} animate showTagline={false} />
           </div>
         </div>
 
@@ -1356,27 +1358,24 @@ function SignupPageInner() {
                     </p>
                   </Field>
                 </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <Field label="Father Name *">
-                    <input
-                      value={draft.fatherName}
-                      onChange={(e) => patch({ fatherName: e.target.value })}
-                      className={inputCls}
-                      style={inputStyle}
-                      placeholder="As per PAN"
-                    />
-                  </Field>
-                  <FileUpload
-                    label="PAN Card Image (optional)"
-                    meta={draft.panImage}
-                    previewUrl={previews.panImage}
-                    emptyHint="Tap to upload PAN"
-                    onPick={(f) => pickFile("panImage", f)}
-                    onClear={() => clearFile("panImage")}
-                    error={stepErrorKey === "panImage"}
-                    compact
+                <Field label="Father Name *">
+                  <input
+                    value={draft.fatherName}
+                    onChange={(e) => patch({ fatherName: e.target.value })}
+                    className={inputCls}
+                    style={inputStyle}
+                    placeholder="As per PAN"
                   />
-                </div>
+                </Field>
+                <FileUpload
+                  label="PAN Card Image (optional)"
+                  meta={draft.panImage}
+                  previewUrl={previews.panImage}
+                  emptyHint="Tap to upload PAN card"
+                  onPick={(f) => pickFile("panImage", f)}
+                  onClear={() => clearFile("panImage")}
+                  error={stepErrorKey === "panImage"}
+                />
               </>
             )}
 

@@ -22,8 +22,8 @@ import { apiError } from "../../utils/apiError";
 import { useAuthStore } from "../../store/auth";
 import { useTheme } from "../../theme/ThemeContext";
 import { colors } from "../../theme/colors";
-import { BRAND } from "../../theme/brand";
 import { showAlert } from "../../components/AppAlert";
+import { BrandMark } from "../../components/BrandMark";
 import { MobileSignupStepper, MOBILE_SIGNUP_STEPS } from "../../components/MobileSignupStepper";
 import {
   clearMobileSignupDraft,
@@ -103,7 +103,7 @@ function dateToIso(date: Date): string {
 }
 
 export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
-  const { tokens } = useTheme();
+  const { tokens, scheme } = useTheme();
   const setAuth = useAuthStore((s) => s.setAuth);
   const updateUser = useAuthStore((s) => s.updateUser);
   const setSignupContinue = useAuthStore((s) => s.setSignupContinue);
@@ -1051,11 +1051,15 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
           <Pressable onPress={back} style={[styles.backBtn, { borderColor: tokens.cardBorder, backgroundColor: tokens.card }]}>
             <ArrowLeft size={18} color={colors.blueFlat} />
           </Pressable>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.brandMark, { color: colors.blue }]}>{BRAND.appName}</Text>
-            <Text style={[styles.title, { color: tokens.txt }]}>Sign up as {signupRoleLabel(draft.role)}</Text>
-            <Text style={[styles.sub, { color: tokens.sub }]}>{subtitle}</Text>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={[styles.title, { color: tokens.txt }]} numberOfLines={1}>
+              Sign Up
+            </Text>
+            <Text style={[styles.sub, { color: tokens.sub }]} numberOfLines={1}>
+              {subtitle}
+            </Text>
           </View>
+          <BrandMark size={40} variant="mark" light={scheme === "dark"} />
         </View>
 
         <View style={{ paddingHorizontal: 16 }}>
@@ -1377,28 +1381,21 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                       <Text style={{ color: colors.blue, fontWeight: "800", fontSize: 13 }}>Done</Text>
                     </Pressable>
                   ) : null}
-                  <View style={styles.fieldRow}>
-                    <View style={styles.fieldHalf}>
-                      <FieldLabel text="Father Name *" color={tokens.mute} />
-                      <TextInput
-                        value={draft.fatherName}
-                        onChangeText={(t) => patch({ fatherName: t })}
-                        placeholder="As per PAN"
-                        placeholderTextColor={tokens.mute}
-                        style={inputStyle}
-                      />
-                    </View>
-                    <View style={styles.fieldHalf}>
-                      <UploadRow
-                        label="PAN Image (optional)"
-                        done={Boolean(draft.panImage)}
-                        name={draft.panImage?.name}
-                        onPress={() => markUpload("panImage", "pan")}
-                        tokens={tokens}
-                        compact
-                      />
-                    </View>
-                  </View>
+                  <FieldLabel text="Father Name *" color={tokens.mute} />
+                  <TextInput
+                    value={draft.fatherName}
+                    onChangeText={(t) => patch({ fatherName: t })}
+                    placeholder="As per PAN"
+                    placeholderTextColor={tokens.mute}
+                    style={inputStyle}
+                  />
+                  <UploadRow
+                    label="PAN Card Image (optional)"
+                    done={Boolean(draft.panImage)}
+                    name={draft.panImage?.name}
+                    onPress={() => markUpload("panImage", "pan")}
+                    tokens={tokens}
+                  />
                 </>
               )}
 
@@ -1993,9 +1990,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  brandMark: { fontSize: 13, fontWeight: "800", letterSpacing: 0.2 },
-  title: { fontSize: 22, fontWeight: "800", marginTop: 2 },
-  sub: { fontSize: 13, marginTop: 2 },
+  title: { fontSize: 18, fontWeight: "800", marginTop: 0 },
+  sub: { fontSize: 12, marginTop: 1 },
   content: { padding: 16, paddingBottom: 40 },
   card: {
     borderWidth: 1,
