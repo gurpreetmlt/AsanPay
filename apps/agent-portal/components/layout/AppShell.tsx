@@ -214,7 +214,7 @@ function SidebarContent({
         style={{ minHeight: 68 }}
       >
         <Link href="/dashboard" className="flex items-center">
-          {open ? <AsanPayLogo width={152} variant="light" /> : <AsanIcon size={36} />}
+          {open ? <AsanPayLogo width={188} variant="light" animate /> : <AsanIcon size={44} animate />}
         </Link>
         {onClose ? (
           <button

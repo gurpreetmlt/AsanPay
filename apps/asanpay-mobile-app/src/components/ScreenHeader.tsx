@@ -9,6 +9,8 @@ interface Props {
   subtitle?: string;
   variant?: "default" | "profile";
   avatarLetter?: string;
+  /** Replaces letter avatar when set (e.g. animated BrandMark). */
+  leading?: React.ReactNode;
   /** Optional icon row rendered top-right, alongside the title/avatar block. */
   topRight?: React.ReactNode;
   children?: React.ReactNode;
@@ -21,6 +23,7 @@ export function ScreenHeader({
   subtitle,
   variant = "default",
   avatarLetter,
+  leading,
   topRight,
   children,
   style,
@@ -37,9 +40,11 @@ export function ScreenHeader({
 
       {variant === "profile" ? (
         <View style={styles.profile}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{avatarLetter ?? "?"}</Text>
-          </View>
+          {leading ?? (
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{avatarLetter ?? "?"}</Text>
+            </View>
+          )}
           <View style={styles.profileText}>
             {eyebrow ? (
               <Text style={styles.eyebrow} numberOfLines={1}>

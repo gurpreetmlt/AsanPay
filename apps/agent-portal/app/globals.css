@@ -255,6 +255,28 @@ body {
   box-shadow: 0 14px 36px rgba(11, 42, 154, 0.12);
 }
 
+/* Brand logo idle — soft breathe (sidebar / dashboard) */
+@keyframes brand-logo-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0 rgba(36, 204, 130, 0));
+  }
+  45% {
+    transform: scale(1.06);
+    filter: drop-shadow(0 0 10px rgba(36, 204, 130, 0.45));
+  }
+}
+.brand-logo-breathe {
+  transform-origin: center center;
+  animation: brand-logo-breathe 2.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .brand-logo-breathe {
+    animation: none;
+  }
+}
+
 .svc-tile-press {
   cursor: pointer;
   transition:
