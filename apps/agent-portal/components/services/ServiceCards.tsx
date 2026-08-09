@@ -69,6 +69,8 @@ function ServiceIconCard({
   const showAsset = Boolean(assetSrc) && !assetFailed;
   const starColor = favorite ? B.green : B.muted;
   const designKey = serviceCodeToDesignKey(svc.code);
+  /** Phase 1 demo: only Cash Withdraw (first AePS tile) idles. */
+  const iconAnimClass = svc.code === "CASH_WITHDRAW" ? "svc-icon-anim--bounce" : "";
 
   return (
     <div
@@ -108,12 +110,12 @@ function ServiceIconCard({
           <img
             src={assetSrc!}
             alt=""
-            className="mx-auto block h-12 w-12 object-contain transition duration-150 ease-out group-hover:scale-110 group-hover:drop-shadow-md"
+            className={`mx-auto block h-12 w-12 object-contain transition duration-150 ease-out group-hover:scale-110 group-hover:drop-shadow-md ${iconAnimClass}`.trim()}
             onError={() => setAssetFailed(true)}
           />
         ) : (
           <div
-            className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl transition duration-150 ease-out group-hover:scale-110"
+            className={`mx-auto flex h-12 w-12 items-center justify-center rounded-xl transition duration-150 ease-out group-hover:scale-110 ${iconAnimClass}`.trim()}
             style={{ background: tile.bg }}
           >
             <DesignIcon name={designKey} size={26} color={tile.fg} />
