@@ -12,7 +12,6 @@ import {
   Lock,
   Eye,
   EyeOff,
-  ArrowRight,
   Fingerprint,
   Check,
   KeyRound,
@@ -21,6 +20,7 @@ import {
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import { AsanPayLogo } from "@/components/brand/Logo";
 import { PromoSlider } from "@/components/promos/PromoSlider";
+import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import api from "@/lib/api";
 import { B, ROLES, type Role } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
@@ -316,7 +316,7 @@ export default function LoginPage() {
         className="flex min-h-screen w-full flex-shrink-0 items-center justify-center px-5 py-8 sm:px-8 lg:w-[560px] xl:w-[600px]"
         style={{ background: "#fff" }}
       >
-        <div className="w-full max-w-[480px]">
+        <div className="login-panel-animate w-full max-w-[480px]">
           <div className="mb-7">
             <AsanPayLogo width={350} variant="dark" />
           </div>
@@ -342,21 +342,20 @@ export default function LoginPage() {
                 style={{ borderColor: B.border, color: B.blue }}
                 placeholder="••••"
               />
-              <SubmitBtn loading={loading} label="Unlock with MPIN" color={role.color} gradient={role.gradient} />
-              {getBiometricStore() && (
-                <button
+              <SubmitBtn loading={loading} label="Unlock with MPIN" />
+              {getBiometricStore() ? (
+                <PrimaryButton
                   type="button"
+                  variant="secondary"
+                  showArrow={false}
                   disabled={loading}
                   onClick={handleBiometric}
-                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border-2 bg-white py-3 disabled:opacity-60"
-                  style={{ borderColor: B.border }}
+                  className="mt-3 gap-2"
                 >
-                  <Fingerprint size={18} style={{ color: role.color }} />
-                  <span className="text-sm font-semibold" style={{ color: B.blue }}>
-                    Use Fingerprint / Face instead
-                  </span>
-                </button>
-              )}
+                  <Fingerprint size={18} style={{ color: B.blue }} />
+                  Use Fingerprint / Face instead
+                </PrimaryButton>
+              ) : null}
               <button
                 type="button"
                 className="mt-4 w-full text-xs font-medium"
@@ -485,7 +484,7 @@ export default function LoginPage() {
                 <Sparkles size={14} />
                 Forgot your password? OTP is the faster way in.
               </div>
-              <SubmitBtn loading={loading} label={`Login as ${role.label}`} color={role.color} gradient={role.gradient} />
+              <SubmitBtn loading={loading} label={`Login as ${role.label}`} />
             </form>
           ) : otpStep === "pin" && pending ? (
             <form onSubmit={verifyPin} className="mb-6 space-y-4">
@@ -514,7 +513,7 @@ export default function LoginPage() {
                 style={{ borderColor: B.border, color: B.blue }}
                 placeholder="••••"
               />
-              <SubmitBtn loading={loading} label="Unlock with PIN" color={role.color} gradient={role.gradient} />
+              <SubmitBtn loading={loading} label="Unlock with PIN" />
               <button
                 type="button"
                 className="w-full text-sm font-medium"
@@ -563,8 +562,6 @@ export default function LoginPage() {
               <SubmitBtn
                 loading={loading}
                 label={otpStep === "otp" ? "Verify OTP" : "Send OTP"}
-                color={role.color}
-                gradient={role.gradient}
               />
               {otpStep === "otp" && (
                 <button
@@ -583,18 +580,17 @@ export default function LoginPage() {
             </form>
           )}
 
-          <button
+          <PrimaryButton
             type="button"
+            variant="secondary"
+            showArrow={false}
             disabled={loading}
             onClick={handleBiometric}
-            className="mb-4 flex w-full items-center justify-center gap-2 rounded-2xl border-2 bg-white py-3 disabled:opacity-60"
-            style={{ borderColor: B.border }}
+            className="mb-4 gap-2"
           >
-            <Fingerprint size={20} style={{ color: role.color }} />
-            <span className="text-sm font-semibold" style={{ color: B.blue }}>
-              Biometric Login
-            </span>
-          </button>
+            <Fingerprint size={20} style={{ color: B.blue }} />
+            Biometric Login
+          </PrimaryButton>
 
           <p className="text-center text-xs" style={{ color: B.muted }}>
             <Link
@@ -651,31 +647,10 @@ function MobileField({
   );
 }
 
-function SubmitBtn({
-  loading,
-  label,
-  color,
-  gradient,
-}: {
-  loading: boolean;
-  label: string;
-  color: string;
-  gradient: string;
-}) {
+function SubmitBtn({ loading, label }: { loading: boolean; label: string }) {
   return (
-    <button
-      type="submit"
-      disabled={loading}
-      className="flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 text-base font-bold text-white"
-      style={{ background: gradient, boxShadow: `0 8px 24px ${color}40`, opacity: loading ? 0.8 : 1 }}
-    >
-      {loading ? (
-        <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-      ) : (
-        <>
-          {label} <ArrowRight size={16} />
-        </>
-      )}
-    </button>
+    <PrimaryButton type="submit" loading={loading} loopGlow>
+      {label}
+    </PrimaryButton>
   );
 }

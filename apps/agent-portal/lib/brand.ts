@@ -25,6 +25,8 @@ export const B = {
   secondary: "#E8EEFB",
   border: "rgba(11,42,154,0.1)",
   badgeGrad: "linear-gradient(135deg, #2A5CDD 0%, #0B2A9A 100%)",
+  /** Primary pill buttons — horizontal blue → navy (login Send OTP look). */
+  btnGrad: "linear-gradient(90deg, #3B6EF5 0%, #2A5CDD 42%, #0B2A9A 100%)",
   walletGrad: "linear-gradient(135deg, #24CC82 0%, #11A362 100%)",
 } as const;
 

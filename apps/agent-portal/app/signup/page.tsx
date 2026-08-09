@@ -8,6 +8,7 @@ import { ArrowLeft, CheckCircle2, Eye, EyeOff } from "lucide-react";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import { AsanPayLogo } from "@/components/brand/Logo";
 import { EmailVerifyField } from "@/components/EmailVerifyField";
+import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { SignupStepper, SIGNUP_STEPS } from "@/components/signup/SignupStepper";
 import {
   LocationPermissionModal,
@@ -1737,15 +1738,15 @@ function SignupPageInner() {
               </>
             )}
 
-            <button
+            <PrimaryButton
               type="button"
               onClick={next}
-              disabled={loading || Boolean(mobileError) || (stepIndex === 0 && otpSent && otp.length !== 6)}
-              className="w-full rounded-2xl py-3.5 text-sm font-bold text-white disabled:opacity-50"
-              style={{ background: B.badgeGrad }}
+              loading={loading}
+              disabled={Boolean(mobileError) || (stepIndex === 0 && otpSent && otp.length !== 6)}
+              loopGlow={stepIndex === 0}
             >
               {primaryLabel}
-            </button>
+            </PrimaryButton>
 
             {stepIndex === 0 ? (
               <p className="text-center text-sm" style={{ color: B.muted }}>

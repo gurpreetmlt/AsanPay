@@ -85,3 +85,113 @@ body {
   width: 0;
   height: 0;
 }
+
+/* ── Shared pill buttons (login Send OTP look) ── */
+@keyframes btn-pill-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 8px 22px rgba(11, 42, 154, 0.32),
+      0 0 0 0 rgba(42, 92, 221, 0.35);
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    box-shadow:
+      0 12px 32px rgba(11, 42, 154, 0.45),
+      0 0 0 6px rgba(42, 92, 221, 0.12);
+    transform: translateY(-1px) scale(1.01);
+  }
+}
+
+@keyframes btn-pill-shimmer {
+  0% {
+    transform: translateX(-120%) skewX(-16deg);
+  }
+  100% {
+    transform: translateX(220%) skewX(-16deg);
+  }
+}
+
+@keyframes login-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.btn-pill {
+  position: relative;
+  display: inline-flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  overflow: hidden;
+  border-radius: 9999px;
+  padding: 0.875rem 1.25rem;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.25;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.btn-pill:disabled {
+  cursor: not-allowed;
+}
+
+.btn-pill--primary {
+  color: #fff;
+  border: none;
+  box-shadow: 0 8px 24px rgba(11, 42, 154, 0.35);
+}
+
+.btn-pill--primary:hover:not(:disabled) {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+}
+
+.btn-pill--primary:active:not(:disabled) {
+  transform: translateY(0) scale(0.99);
+}
+
+.btn-pill--glow {
+  animation: btn-pill-glow 2.4s ease-in-out infinite;
+}
+
+.btn-pill--glow::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.28) 50%,
+    transparent 65%
+  );
+  animation: btn-pill-shimmer 2.8s ease-in-out infinite;
+}
+
+.btn-pill--secondary {
+  color: var(--color-brand-700);
+  background: #fff;
+  border: 2px solid rgba(11, 42, 154, 0.18);
+  box-shadow: 0 4px 14px rgba(11, 42, 154, 0.08);
+}
+
+.btn-pill--secondary:hover:not(:disabled) {
+  border-color: rgba(11, 42, 154, 0.35);
+  background: #f8faff;
+  transform: translateY(-1px);
+}
+
+.login-panel-animate {
+  animation: login-rise 0.55s ease-out both;
+}
