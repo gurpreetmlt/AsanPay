@@ -1292,32 +1292,40 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                   <Text style={[styles.hint, { color: tokens.mute }]}>
                     PAN number and personal details as on the PAN card.
                   </Text>
-                  <FieldLabel text="PAN Number *" color={tokens.mute} />
-                  <TextInput
-                    value={draft.pan}
-                    onChangeText={(t) => patch({ pan: t.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10) })}
-                    autoCapitalize="characters"
-                    placeholder="ABCDE1234F"
-                    placeholderTextColor={tokens.mute}
-                    style={inputStyle}
-                  />
-                  <FieldLabel text="Gender *" color={tokens.mute} />
-                  <View style={styles.roleRow}>
-                    {["Male", "Female", "Other"].map((g) => (
-                      <Pressable
-                        key={g}
-                        onPress={() => patch({ gender: g })}
-                        style={[
-                          styles.roleChip,
-                          {
-                            borderColor: draft.gender === g ? colors.blue : tokens.cardBorder,
-                            backgroundColor: draft.gender === g ? `${colors.blue}14` : tokens.card,
-                          },
-                        ]}
-                      >
-                        <Text style={{ color: tokens.txt2, fontWeight: "700", fontSize: 12 }}>{g}</Text>
-                      </Pressable>
-                    ))}
+                  <View style={styles.fieldRow}>
+                    <View style={styles.fieldHalf}>
+                      <FieldLabel text="PAN Number *" color={tokens.mute} />
+                      <TextInput
+                        value={draft.pan}
+                        onChangeText={(t) =>
+                          patch({ pan: t.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10) })
+                        }
+                        autoCapitalize="characters"
+                        placeholder="ABCDE1234F"
+                        placeholderTextColor={tokens.mute}
+                        style={inputStyle}
+                      />
+                    </View>
+                    <View style={styles.fieldHalf}>
+                      <FieldLabel text="Gender *" color={tokens.mute} />
+                      <View style={styles.roleRow}>
+                        {["Male", "Female", "Other"].map((g) => (
+                          <Pressable
+                            key={g}
+                            onPress={() => patch({ gender: g })}
+                            style={[
+                              styles.roleChip,
+                              {
+                                borderColor: draft.gender === g ? colors.blue : tokens.cardBorder,
+                                backgroundColor: draft.gender === g ? `${colors.blue}14` : tokens.card,
+                              },
+                            ]}
+                          >
+                            <Text style={{ color: tokens.txt2, fontWeight: "700", fontSize: 11 }}>{g}</Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    </View>
                   </View>
                   <FieldLabel text="Date of Birth *" color={tokens.mute} />
                   <Pressable
@@ -1369,21 +1377,28 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                       <Text style={{ color: colors.blue, fontWeight: "800", fontSize: 13 }}>Done</Text>
                     </Pressable>
                   ) : null}
-                  <FieldLabel text="Father Name *" color={tokens.mute} />
-                  <TextInput
-                    value={draft.fatherName}
-                    onChangeText={(t) => patch({ fatherName: t })}
-                    placeholder="As per PAN"
-                    placeholderTextColor={tokens.mute}
-                    style={inputStyle}
-                  />
-                  <UploadRow
-                    label="PAN Card Image (optional)"
-                    done={Boolean(draft.panImage)}
-                    name={draft.panImage?.name}
-                    onPress={() => markUpload("panImage", "pan")}
-                    tokens={tokens}
-                  />
+                  <View style={styles.fieldRow}>
+                    <View style={styles.fieldHalf}>
+                      <FieldLabel text="Father Name *" color={tokens.mute} />
+                      <TextInput
+                        value={draft.fatherName}
+                        onChangeText={(t) => patch({ fatherName: t })}
+                        placeholder="As per PAN"
+                        placeholderTextColor={tokens.mute}
+                        style={inputStyle}
+                      />
+                    </View>
+                    <View style={styles.fieldHalf}>
+                      <UploadRow
+                        label="PAN Image (optional)"
+                        done={Boolean(draft.panImage)}
+                        name={draft.panImage?.name}
+                        onPress={() => markUpload("panImage", "pan")}
+                        tokens={tokens}
+                        compact
+                      />
+                    </View>
+                  </View>
                 </>
               )}
 
@@ -1402,20 +1417,28 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                     placeholderTextColor={tokens.mute}
                     style={inputStyle}
                   />
-                  <UploadRow
-                    label="Aadhaar Front (optional)"
-                    done={Boolean(draft.aadhaarFront)}
-                    name={draft.aadhaarFront?.name}
-                    onPress={() => markUpload("aadhaarFront", "aadhaar-front")}
-                    tokens={tokens}
-                  />
-                  <UploadRow
-                    label="Aadhaar Back (optional)"
-                    done={Boolean(draft.aadhaarBack)}
-                    name={draft.aadhaarBack?.name}
-                    onPress={() => markUpload("aadhaarBack", "aadhaar-back")}
-                    tokens={tokens}
-                  />
+                  <View style={styles.fieldRow}>
+                    <View style={styles.fieldHalf}>
+                      <UploadRow
+                        label="Aadhaar Front"
+                        done={Boolean(draft.aadhaarFront)}
+                        name={draft.aadhaarFront?.name}
+                        onPress={() => markUpload("aadhaarFront", "aadhaar-front")}
+                        tokens={tokens}
+                        compact
+                      />
+                    </View>
+                    <View style={styles.fieldHalf}>
+                      <UploadRow
+                        label="Aadhaar Back"
+                        done={Boolean(draft.aadhaarBack)}
+                        name={draft.aadhaarBack?.name}
+                        onPress={() => markUpload("aadhaarBack", "aadhaar-back")}
+                        tokens={tokens}
+                        compact
+                      />
+                    </View>
+                  </View>
                 </>
               )}
 
@@ -1474,21 +1497,27 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                   <Text style={[styles.hint, { color: tokens.mute, marginBottom: 8 }]}>
                     Fills address, pincode, district and state from your location.
                   </Text>
-                  <FieldLabel text="Pincode *" color={tokens.mute} />
-                  <TextInput
-                    value={draft.pincode}
-                    onChangeText={(t) => patch({ pincode: t.replace(/\D/g, "").slice(0, 6) })}
-                    keyboardType="number-pad"
-                    placeholderTextColor={tokens.mute}
-                    style={inputStyle}
-                  />
-                  <FieldLabel text="District *" color={tokens.mute} />
-                  <TextInput
-                    value={draft.district}
-                    onChangeText={(t) => patch({ district: t })}
-                    placeholderTextColor={tokens.mute}
-                    style={inputStyle}
-                  />
+                  <View style={styles.fieldRow}>
+                    <View style={styles.fieldHalf}>
+                      <FieldLabel text="Pincode *" color={tokens.mute} />
+                      <TextInput
+                        value={draft.pincode}
+                        onChangeText={(t) => patch({ pincode: t.replace(/\D/g, "").slice(0, 6) })}
+                        keyboardType="number-pad"
+                        placeholderTextColor={tokens.mute}
+                        style={inputStyle}
+                      />
+                    </View>
+                    <View style={styles.fieldHalf}>
+                      <FieldLabel text="District *" color={tokens.mute} />
+                      <TextInput
+                        value={draft.district}
+                        onChangeText={(t) => patch({ district: t })}
+                        placeholderTextColor={tokens.mute}
+                        style={inputStyle}
+                      />
+                    </View>
+                  </View>
                   <FieldLabel text="State *" color={tokens.mute} />
                   <TextInput
                     value={draft.state}
@@ -1569,21 +1598,27 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                       Fetch from location, or copy residential from Details.
                     </Text>
                   )}
-                  <FieldLabel text="Pincode *" color={tokens.mute} />
-                  <TextInput
-                    value={draft.businessPincode}
-                    onChangeText={(t) => patch({ businessPincode: t.replace(/\D/g, "").slice(0, 6) })}
-                    keyboardType="number-pad"
-                    placeholderTextColor={tokens.mute}
-                    style={inputStyle}
-                  />
-                  <FieldLabel text="District *" color={tokens.mute} />
-                  <TextInput
-                    value={draft.businessDistrict}
-                    onChangeText={(t) => patch({ businessDistrict: t })}
-                    placeholderTextColor={tokens.mute}
-                    style={inputStyle}
-                  />
+                  <View style={styles.fieldRow}>
+                    <View style={styles.fieldHalf}>
+                      <FieldLabel text="Pincode *" color={tokens.mute} />
+                      <TextInput
+                        value={draft.businessPincode}
+                        onChangeText={(t) => patch({ businessPincode: t.replace(/\D/g, "").slice(0, 6) })}
+                        keyboardType="number-pad"
+                        placeholderTextColor={tokens.mute}
+                        style={inputStyle}
+                      />
+                    </View>
+                    <View style={styles.fieldHalf}>
+                      <FieldLabel text="District *" color={tokens.mute} />
+                      <TextInput
+                        value={draft.businessDistrict}
+                        onChangeText={(t) => patch({ businessDistrict: t })}
+                        placeholderTextColor={tokens.mute}
+                        style={inputStyle}
+                      />
+                    </View>
+                  </View>
                   <FieldLabel text="State *" color={tokens.mute} />
                   <TextInput
                     value={draft.businessState}
@@ -1598,24 +1633,30 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                 <>
                   <Text style={styles.sectionTitle}>Bank Details</Text>
                   <Text style={[styles.hint, { color: tokens.mute }]}>Account for settlements and payouts.</Text>
-                  <FieldLabel text="IFSC *" color={tokens.mute} />
-                  <TextInput
-                    value={draft.ifsc}
-                    onChangeText={(t) =>
-                      patch({ ifsc: t.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11) })
-                    }
-                    autoCapitalize="characters"
-                    placeholder="HDFC0001209"
-                    placeholderTextColor={tokens.mute}
-                    style={inputStyle}
-                  />
-                  <FieldLabel text="Bank Name *" color={tokens.mute} />
-                  <TextInput
-                    value={draft.bankName}
-                    onChangeText={(t) => patch({ bankName: t })}
-                    placeholderTextColor={tokens.mute}
-                    style={inputStyle}
-                  />
+                  <View style={styles.fieldRow}>
+                    <View style={styles.fieldHalf}>
+                      <FieldLabel text="IFSC *" color={tokens.mute} />
+                      <TextInput
+                        value={draft.ifsc}
+                        onChangeText={(t) =>
+                          patch({ ifsc: t.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11) })
+                        }
+                        autoCapitalize="characters"
+                        placeholder="HDFC0001209"
+                        placeholderTextColor={tokens.mute}
+                        style={inputStyle}
+                      />
+                    </View>
+                    <View style={styles.fieldHalf}>
+                      <FieldLabel text="Bank Name *" color={tokens.mute} />
+                      <TextInput
+                        value={draft.bankName}
+                        onChangeText={(t) => patch({ bankName: t })}
+                        placeholderTextColor={tokens.mute}
+                        style={inputStyle}
+                      />
+                    </View>
+                  </View>
                   <FieldLabel text="Branch" color={tokens.mute} />
                   <TextInput
                     value={draft.bankBranch}
@@ -1623,22 +1664,30 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                     placeholderTextColor={tokens.mute}
                     style={inputStyle}
                   />
-                  <FieldLabel text="Account Number *" color={tokens.mute} />
-                  <TextInput
-                    value={draft.accountNumber}
-                    onChangeText={(t) => patch({ accountNumber: t.replace(/\D/g, "").slice(0, 30) })}
-                    keyboardType="number-pad"
-                    placeholderTextColor={tokens.mute}
-                    style={inputStyle}
-                  />
-                  <FieldLabel text="Confirm Account Number *" color={tokens.mute} />
-                  <TextInput
-                    value={draft.accountNumberConfirm}
-                    onChangeText={(t) => patch({ accountNumberConfirm: t.replace(/\D/g, "").slice(0, 30) })}
-                    keyboardType="number-pad"
-                    placeholderTextColor={tokens.mute}
-                    style={inputStyle}
-                  />
+                  <View style={styles.fieldRow}>
+                    <View style={styles.fieldHalf}>
+                      <FieldLabel text="Account Number *" color={tokens.mute} />
+                      <TextInput
+                        value={draft.accountNumber}
+                        onChangeText={(t) => patch({ accountNumber: t.replace(/\D/g, "").slice(0, 30) })}
+                        keyboardType="number-pad"
+                        placeholderTextColor={tokens.mute}
+                        style={inputStyle}
+                      />
+                    </View>
+                    <View style={styles.fieldHalf}>
+                      <FieldLabel text="Confirm A/C *" color={tokens.mute} />
+                      <TextInput
+                        value={draft.accountNumberConfirm}
+                        onChangeText={(t) =>
+                          patch({ accountNumberConfirm: t.replace(/\D/g, "").slice(0, 30) })
+                        }
+                        keyboardType="number-pad"
+                        placeholderTextColor={tokens.mute}
+                        style={inputStyle}
+                      />
+                    </View>
+                  </View>
                   <FieldLabel text="Account Holder Name *" color={tokens.mute} />
                   <TextInput
                     value={draft.accountName}
@@ -1662,34 +1711,42 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                   <Text style={[styles.hint, { color: tokens.mute }]}>
                     Live camera capture only. Latitude and longitude are saved with each photo.
                   </Text>
-                  <UploadRow
-                    label="Personal Photo *"
-                    done={Boolean(draft.personalPhoto?.latitude && draft.personalPhoto?.longitude)}
-                    name={
-                      draft.personalPhoto
-                        ? `${draft.personalPhoto.name} · ${Number(draft.personalPhoto.latitude).toFixed(5)}, ${Number(draft.personalPhoto.longitude).toFixed(5)}`
-                        : undefined
-                    }
-                    onPress={() => {
-                      if (!photoCaptureBusy) void captureLivePhoto("personalPhoto");
-                    }}
-                    tokens={tokens}
-                    actionLabel={photoCaptureBusy ? "Capturing…" : "Open camera"}
-                  />
-                  <UploadRow
-                    label="Shop Photo *"
-                    done={Boolean(draft.shopPhoto?.latitude && draft.shopPhoto?.longitude)}
-                    name={
-                      draft.shopPhoto
-                        ? `${draft.shopPhoto.name} · ${Number(draft.shopPhoto.latitude).toFixed(5)}, ${Number(draft.shopPhoto.longitude).toFixed(5)}`
-                        : undefined
-                    }
-                    onPress={() => {
-                      if (!photoCaptureBusy) void captureLivePhoto("shopPhoto");
-                    }}
-                    tokens={tokens}
-                    actionLabel={photoCaptureBusy ? "Capturing…" : "Open camera"}
-                  />
+                  <View style={styles.fieldRow}>
+                    <View style={styles.fieldHalf}>
+                      <UploadRow
+                        label="Personal Photo *"
+                        done={Boolean(draft.personalPhoto?.latitude && draft.personalPhoto?.longitude)}
+                        name={
+                          draft.personalPhoto
+                            ? `${draft.personalPhoto.name} · ${Number(draft.personalPhoto.latitude).toFixed(5)}, ${Number(draft.personalPhoto.longitude).toFixed(5)}`
+                            : undefined
+                        }
+                        onPress={() => {
+                          if (!photoCaptureBusy) void captureLivePhoto("personalPhoto");
+                        }}
+                        tokens={tokens}
+                        actionLabel={photoCaptureBusy ? "Capturing…" : "Camera"}
+                        compact
+                      />
+                    </View>
+                    <View style={styles.fieldHalf}>
+                      <UploadRow
+                        label="Shop Photo *"
+                        done={Boolean(draft.shopPhoto?.latitude && draft.shopPhoto?.longitude)}
+                        name={
+                          draft.shopPhoto
+                            ? `${draft.shopPhoto.name} · ${Number(draft.shopPhoto.latitude).toFixed(5)}, ${Number(draft.shopPhoto.longitude).toFixed(5)}`
+                            : undefined
+                        }
+                        onPress={() => {
+                          if (!photoCaptureBusy) void captureLivePhoto("shopPhoto");
+                        }}
+                        tokens={tokens}
+                        actionLabel={photoCaptureBusy ? "Capturing…" : "Camera"}
+                        compact
+                      />
+                    </View>
+                  </View>
                 </>
               )}
 
@@ -1846,6 +1903,7 @@ function UploadRow({
   onPress,
   tokens,
   actionLabel,
+  compact,
 }: {
   label: string;
   done: boolean;
@@ -1853,21 +1911,32 @@ function UploadRow({
   onPress: () => void;
   tokens: { mute: string; card: string; cardBorder: string; txt2: string };
   actionLabel?: string;
+  compact?: boolean;
 }) {
   return (
-    <View style={{ marginBottom: 10 }}>
+    <View style={{ marginBottom: compact ? 4 : 10 }}>
       <FieldLabel text={label} color={tokens.mute} />
       <Pressable
         onPress={onPress}
         style={[
           styles.upload,
+          compact ? styles.uploadCompact : null,
           {
             backgroundColor: tokens.card,
             borderColor: done ? colors.green : tokens.cardBorder,
           },
         ]}
       >
-        <Text style={{ color: tokens.txt2, fontWeight: "700", flex: 1, paddingRight: 8 }}>
+        <Text
+          style={{
+            color: tokens.txt2,
+            fontWeight: "700",
+            flex: 1,
+            paddingRight: 8,
+            fontSize: compact ? 11 : 14,
+          }}
+          numberOfLines={compact ? 2 : 1}
+        >
           {done ? name || "Uploaded" : actionLabel || "Tap to upload"}
         </Text>
         <Text style={{ color: done ? colors.greenDark : tokens.mute, fontWeight: "800" }}>{done ? "✓" : "+"}</Text>
@@ -1982,6 +2051,8 @@ const styles = StyleSheet.create({
   roleRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 6 },
   roleChip: { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 },
   emailRow: { flexDirection: "row", gap: 8, alignItems: "center" },
+  fieldRow: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
+  fieldHalf: { flex: 1, minWidth: 0 },
   verifyBtn: {
     backgroundColor: colors.blue,
     borderRadius: 12,
@@ -1998,6 +2069,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
+  uploadCompact: { padding: 10, minHeight: 52 },
   agreeBox: { borderWidth: 1, borderRadius: 14, padding: 14, marginBottom: 8 },
   agreeTitle: { fontWeight: "800", marginBottom: 6 },
   cta: {

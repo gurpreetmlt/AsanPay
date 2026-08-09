@@ -123,6 +123,7 @@ function FileUpload({
   onPick,
   onClear,
   error,
+  compact,
 }: {
   label: string;
   meta: SignupFileMeta | null;
@@ -132,12 +133,16 @@ function FileUpload({
   onPick: (file: File) => void;
   onClear: () => void;
   error?: boolean;
+  /** Tighter box for 2-up grids */
+  compact?: boolean;
 }) {
   return (
-    <div>
+    <div className="min-w-0">
       <Label>{label}</Label>
       <label
-        className="flex cursor-pointer flex-col gap-2 rounded-2xl border-2 border-dashed px-4 py-4 transition"
+        className={`flex h-full cursor-pointer flex-col gap-1.5 rounded-2xl border-2 border-dashed transition ${
+          compact ? "px-3 py-3" : "gap-2 px-4 py-4"
+        }`}
         style={{
           borderColor: error ? "#DC2626" : meta ? B.green : B.border,
           background: error ? "#FEF2F2" : B.bg,
@@ -155,13 +160,17 @@ function FileUpload({
         />
         {previewUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={previewUrl} alt="" className="max-h-28 rounded-xl object-contain" />
+          <img
+            src={previewUrl}
+            alt=""
+            className={`rounded-xl object-contain ${compact ? "max-h-20" : "max-h-28"}`}
+          />
         ) : null}
-        <span className="text-sm font-semibold" style={{ color: error ? "#DC2626" : B.blue }}>
+        <span className={`font-semibold ${compact ? "text-xs" : "text-sm"}`} style={{ color: error ? "#DC2626" : B.blue }}>
           {meta ? meta.name : emptyHint}
         </span>
-        <span className="text-xs" style={{ color: B.muted }}>
-          JPG, PNG, WEBP, HEIC or PDF · max 2 MB
+        <span className="text-[11px] leading-snug" style={{ color: B.muted }}>
+          {compact ? "JPG / PNG / PDF · 2 MB" : "JPG, PNG, WEBP, HEIC or PDF · max 2 MB"}
         </span>
       </label>
       {error && !meta ? (
@@ -1299,70 +1308,75 @@ function SignupPageInner() {
                 <p className="text-xs" style={{ color: B.muted }}>
                   PAN number and personal details as on the PAN card.
                 </p>
-                <Field label="PAN Number *">
-                  <input
-                    value={draft.pan}
-                    onChange={(e) => patch({ pan: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10) })}
-                    className={`${inputCls} font-mono`}
-                    style={inputStyle}
-                    placeholder="ABCDE1234F"
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Field label="PAN Number *">
+                    <input
+                      value={draft.pan}
+                      onChange={(e) => patch({ pan: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10) })}
+                      className={`${inputCls} font-mono`}
+                      style={inputStyle}
+                      placeholder="ABCDE1234F"
+                    />
+                  </Field>
+                  <Field label="Gender *">
+                    <select
+                      value={draft.gender}
+                      onChange={(e) => patch({ gender: e.target.value })}
+                      className={inputCls}
+                      style={inputStyle}
+                    >
+                      <option value="">Select</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </Field>
+                  <Field label="Date of Birth *">
+                    <input
+                      type="date"
+                      value={draft.dob}
+                      onChange={(e) => patch({ dob: e.target.value })}
+                      className={inputCls}
+                      style={inputStyle}
+                    />
+                    <p className="mt-1 text-xs" style={{ color: B.muted }}>
+                      As on PAN card
+                    </p>
+                  </Field>
+                  <Field label="Anniversary Date">
+                    <input
+                      type="date"
+                      value={draft.anniversaryDate}
+                      onChange={(e) => patch({ anniversaryDate: e.target.value })}
+                      className={inputCls}
+                      style={inputStyle}
+                    />
+                    <p className="mt-1 text-xs" style={{ color: B.muted }}>
+                      Optional
+                    </p>
+                  </Field>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Field label="Father Name *">
+                    <input
+                      value={draft.fatherName}
+                      onChange={(e) => patch({ fatherName: e.target.value })}
+                      className={inputCls}
+                      style={inputStyle}
+                      placeholder="As per PAN"
+                    />
+                  </Field>
+                  <FileUpload
+                    label="PAN Card Image (optional)"
+                    meta={draft.panImage}
+                    previewUrl={previews.panImage}
+                    emptyHint="Tap to upload PAN"
+                    onPick={(f) => pickFile("panImage", f)}
+                    onClear={() => clearFile("panImage")}
+                    error={stepErrorKey === "panImage"}
+                    compact
                   />
-                </Field>
-                <Field label="Gender *">
-                  <select
-                    value={draft.gender}
-                    onChange={(e) => patch({ gender: e.target.value })}
-                    className={inputCls}
-                    style={inputStyle}
-                  >
-                    <option value="">Select</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </Field>
-                <Field label="Date of Birth *">
-                  <input
-                    type="date"
-                    value={draft.dob}
-                    onChange={(e) => patch({ dob: e.target.value })}
-                    className={inputCls}
-                    style={inputStyle}
-                  />
-                  <p className="mt-1 text-xs" style={{ color: B.muted }}>
-                    As on PAN card (browser may show DD/MM/YYYY).
-                  </p>
-                </Field>
-                <Field label="Anniversary Date">
-                  <input
-                    type="date"
-                    value={draft.anniversaryDate}
-                    onChange={(e) => patch({ anniversaryDate: e.target.value })}
-                    className={inputCls}
-                    style={inputStyle}
-                  />
-                  <p className="mt-1 text-xs" style={{ color: B.muted }}>
-                    Optional — wedding / business anniversary.
-                  </p>
-                </Field>
-                <Field label="Father Name *">
-                  <input
-                    value={draft.fatherName}
-                    onChange={(e) => patch({ fatherName: e.target.value })}
-                    className={inputCls}
-                    style={inputStyle}
-                    placeholder="As per PAN"
-                  />
-                </Field>
-                <FileUpload
-                  label="PAN Card Image (optional)"
-                  meta={draft.panImage}
-                  previewUrl={previews.panImage}
-                  emptyHint="Tap to upload PAN card"
-                  onPick={(f) => pickFile("panImage", f)}
-                  onClear={() => clearFile("panImage")}
-                  error={stepErrorKey === "panImage"}
-                />
+                </div>
               </>
             )}
 
@@ -1384,24 +1398,28 @@ function SignupPageInner() {
                 <p className="text-xs" style={{ color: B.muted }}>
                   Enter the Aadhaar linked to your mobile number. Upload clear front and back images.
                 </p>
-                <FileUpload
-                  label="Aadhaar Front (optional)"
-                  meta={draft.aadhaarFront}
-                  previewUrl={previews.aadhaarFront}
-                  emptyHint="Tap to upload Aadhaar front"
-                  onPick={(f) => pickFile("aadhaarFront", f)}
-                  onClear={() => clearFile("aadhaarFront")}
-                  error={stepErrorKey === "aadhaarFront"}
-                />
-                <FileUpload
-                  label="Aadhaar Back (optional)"
-                  meta={draft.aadhaarBack}
-                  previewUrl={previews.aadhaarBack}
-                  emptyHint="Tap to upload Aadhaar back"
-                  onPick={(f) => pickFile("aadhaarBack", f)}
-                  onClear={() => clearFile("aadhaarBack")}
-                  error={stepErrorKey === "aadhaarBack"}
-                />
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <FileUpload
+                    label="Aadhaar Front (optional)"
+                    meta={draft.aadhaarFront}
+                    previewUrl={previews.aadhaarFront}
+                    emptyHint="Tap to upload front"
+                    onPick={(f) => pickFile("aadhaarFront", f)}
+                    onClear={() => clearFile("aadhaarFront")}
+                    error={stepErrorKey === "aadhaarFront"}
+                    compact
+                  />
+                  <FileUpload
+                    label="Aadhaar Back (optional)"
+                    meta={draft.aadhaarBack}
+                    previewUrl={previews.aadhaarBack}
+                    emptyHint="Tap to upload back"
+                    onPick={(f) => pickFile("aadhaarBack", f)}
+                    onClear={() => clearFile("aadhaarBack")}
+                    error={stepErrorKey === "aadhaarBack"}
+                    compact
+                  />
+                </div>
               </>
             )}
 
@@ -1445,17 +1463,17 @@ function SignupPageInner() {
                     Uses your location to fill address, pincode, district and state.
                   </p>
                 </Field>
-                <Field label="Pincode *">
-                  <input
-                    value={draft.pincode}
-                    onChange={(e) => patch({ pincode: e.target.value.replace(/\D/g, "").slice(0, 6) })}
-                    className={inputCls}
-                    style={inputStyle}
-                    inputMode="numeric"
-                    placeholder={pinBusy ? "Looking up…" : "6-digit"}
-                  />
-                </Field>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Field label="Pincode *">
+                    <input
+                      value={draft.pincode}
+                      onChange={(e) => patch({ pincode: e.target.value.replace(/\D/g, "").slice(0, 6) })}
+                      className={inputCls}
+                      style={inputStyle}
+                      inputMode="numeric"
+                      placeholder={pinBusy ? "Looking up…" : "6-digit"}
+                    />
+                  </Field>
                   <Field label="District *">
                     <input
                       value={draft.district}
@@ -1464,15 +1482,15 @@ function SignupPageInner() {
                       style={inputStyle}
                     />
                   </Field>
-                  <Field label="State *">
-                    <input
-                      value={draft.state}
-                      onChange={(e) => patch({ state: e.target.value })}
-                      className={inputCls}
-                      style={inputStyle}
-                    />
-                  </Field>
                 </div>
+                <Field label="State *">
+                  <input
+                    value={draft.state}
+                    onChange={(e) => patch({ state: e.target.value })}
+                    className={inputCls}
+                    style={inputStyle}
+                  />
+                </Field>
               </>
             )}
 
@@ -1486,66 +1504,68 @@ function SignupPageInner() {
                     style={inputStyle}
                   />
                 </Field>
-                <Field label="Business Type *">
-                  <select
-                    value={draft.businessType}
-                    onChange={(e) => patch({ businessType: e.target.value })}
-                    className={inputCls}
-                    style={inputStyle}
-                  >
-                    <option value="">Select</option>
-                    {BUSINESS_TYPES.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Business Category *">
-                  <select
-                    value={draft.businessCategory}
-                    onChange={(e) => patch({ businessCategory: e.target.value })}
-                    className={inputCls}
-                    style={inputStyle}
-                  >
-                    <option value="">Select</option>
-                    {BUSINESS_CATEGORIES.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Monthly Turnover *">
-                  <select
-                    value={draft.monthlyTurnover}
-                    onChange={(e) => patch({ monthlyTurnover: e.target.value })}
-                    className={inputCls}
-                    style={inputStyle}
-                  >
-                    <option value="">Select</option>
-                    {TURNOVERS.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Business Proof *">
-                  <select
-                    value={draft.businessProof}
-                    onChange={(e) => patch({ businessProof: e.target.value })}
-                    className={inputCls}
-                    style={inputStyle}
-                  >
-                    <option value="">Select</option>
-                    {BUSINESS_PROOFS.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Field label="Business Type *">
+                    <select
+                      value={draft.businessType}
+                      onChange={(e) => patch({ businessType: e.target.value })}
+                      className={inputCls}
+                      style={inputStyle}
+                    >
+                      <option value="">Select</option>
+                      {BUSINESS_TYPES.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Business Category *">
+                    <select
+                      value={draft.businessCategory}
+                      onChange={(e) => patch({ businessCategory: e.target.value })}
+                      className={inputCls}
+                      style={inputStyle}
+                    >
+                      <option value="">Select</option>
+                      {BUSINESS_CATEGORIES.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Monthly Turnover *">
+                    <select
+                      value={draft.monthlyTurnover}
+                      onChange={(e) => patch({ monthlyTurnover: e.target.value })}
+                      className={inputCls}
+                      style={inputStyle}
+                    >
+                      <option value="">Select</option>
+                      {TURNOVERS.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Business Proof *">
+                    <select
+                      value={draft.businessProof}
+                      onChange={(e) => patch({ businessProof: e.target.value })}
+                      className={inputCls}
+                      style={inputStyle}
+                    >
+                      <option value="">Select</option>
+                      {BUSINESS_PROOFS.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
                 <Field label="Business Address *">
                   <div className="flex gap-2">
                     <input
@@ -1583,19 +1603,19 @@ function SignupPageInner() {
                     </p>
                   )}
                 </Field>
-                <Field label="Pincode *">
-                  <input
-                    value={draft.businessPincode}
-                    onChange={(e) =>
-                      patch({ businessPincode: e.target.value.replace(/\D/g, "").slice(0, 6) })
-                    }
-                    className={inputCls}
-                    style={inputStyle}
-                    inputMode="numeric"
-                    placeholder={bizPinBusy ? "Looking up…" : "6-digit"}
-                  />
-                </Field>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Field label="Pincode *">
+                    <input
+                      value={draft.businessPincode}
+                      onChange={(e) =>
+                        patch({ businessPincode: e.target.value.replace(/\D/g, "").slice(0, 6) })
+                      }
+                      className={inputCls}
+                      style={inputStyle}
+                      inputMode="numeric"
+                      placeholder={bizPinBusy ? "Looking up…" : "6-digit"}
+                    />
+                  </Field>
                   <Field label="District *">
                     <input
                       value={draft.businessDistrict}
@@ -1604,42 +1624,44 @@ function SignupPageInner() {
                       style={inputStyle}
                     />
                   </Field>
-                  <Field label="State *">
-                    <input
-                      value={draft.businessState}
-                      onChange={(e) => patch({ businessState: e.target.value })}
-                      className={inputCls}
-                      style={inputStyle}
-                    />
-                  </Field>
                 </div>
+                <Field label="State *">
+                  <input
+                    value={draft.businessState}
+                    onChange={(e) => patch({ businessState: e.target.value })}
+                    className={inputCls}
+                    style={inputStyle}
+                  />
+                </Field>
               </>
             )}
 
             {stepIndex === 6 && (
               <>
-                <Field label="IFSC *">
-                  <input
-                    value={draft.ifsc}
-                    onChange={(e) =>
-                      patch({ ifsc: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11) })
-                    }
-                    className={`${inputCls} font-mono`}
-                    style={inputStyle}
-                    placeholder="e.g. HDFC0001209"
-                  />
-                  <p className="mt-1 text-xs" style={{ color: B.muted }}>
-                    {draft.ifsc.length}/11 {ifscBusy ? "· Looking up…" : ""}
-                  </p>
-                </Field>
-                <Field label="Bank Name *">
-                  <input
-                    value={draft.bankName}
-                    onChange={(e) => patch({ bankName: e.target.value })}
-                    className={inputCls}
-                    style={inputStyle}
-                  />
-                </Field>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Field label="IFSC *">
+                    <input
+                      value={draft.ifsc}
+                      onChange={(e) =>
+                        patch({ ifsc: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11) })
+                      }
+                      className={`${inputCls} font-mono`}
+                      style={inputStyle}
+                      placeholder="e.g. HDFC0001209"
+                    />
+                    <p className="mt-1 text-xs" style={{ color: B.muted }}>
+                      {draft.ifsc.length}/11 {ifscBusy ? "· Looking up…" : ""}
+                    </p>
+                  </Field>
+                  <Field label="Bank Name *">
+                    <input
+                      value={draft.bankName}
+                      onChange={(e) => patch({ bankName: e.target.value })}
+                      className={inputCls}
+                      style={inputStyle}
+                    />
+                  </Field>
+                </div>
                 <Field label="Branch">
                   <input
                     value={draft.bankBranch}
@@ -1648,26 +1670,28 @@ function SignupPageInner() {
                     style={inputStyle}
                   />
                 </Field>
-                <Field label="Account Number *">
-                  <input
-                    value={draft.accountNumber}
-                    onChange={(e) => patch({ accountNumber: e.target.value.replace(/\D/g, "").slice(0, 30) })}
-                    className={inputCls}
-                    style={inputStyle}
-                    inputMode="numeric"
-                  />
-                </Field>
-                <Field label="Confirm Account Number *">
-                  <input
-                    value={draft.accountNumberConfirm}
-                    onChange={(e) =>
-                      patch({ accountNumberConfirm: e.target.value.replace(/\D/g, "").slice(0, 30) })
-                    }
-                    className={inputCls}
-                    style={inputStyle}
-                    inputMode="numeric"
-                  />
-                </Field>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Field label="Account Number *">
+                    <input
+                      value={draft.accountNumber}
+                      onChange={(e) => patch({ accountNumber: e.target.value.replace(/\D/g, "").slice(0, 30) })}
+                      className={inputCls}
+                      style={inputStyle}
+                      inputMode="numeric"
+                    />
+                  </Field>
+                  <Field label="Confirm Account Number *">
+                    <input
+                      value={draft.accountNumberConfirm}
+                      onChange={(e) =>
+                        patch({ accountNumberConfirm: e.target.value.replace(/\D/g, "").slice(0, 30) })
+                      }
+                      className={inputCls}
+                      style={inputStyle}
+                      inputMode="numeric"
+                    />
+                  </Field>
+                </div>
                 <Field label="Account Holder Name *">
                   <input
                     value={draft.accountName}
@@ -1693,26 +1717,28 @@ function SignupPageInner() {
                 <p className="text-xs" style={{ color: B.muted }}>
                   Capture both photos live with the camera. Location (lat/lng) is saved with each photo.
                 </p>
-                <LivePhotoCapture
-                  label="Personal Photo *"
-                  facing="user"
-                  meta={draft.personalPhoto}
-                  previewUrl={previews.personalPhoto}
-                  busy={photoCaptureBusy}
-                  onPick={(f) => void captureLivePhoto("personalPhoto", f)}
-                  onClear={() => clearFile("personalPhoto")}
-                  error={stepErrorKey === "personalPhoto"}
-                />
-                <LivePhotoCapture
-                  label="Shop Photo *"
-                  facing="environment"
-                  meta={draft.shopPhoto}
-                  previewUrl={previews.shopPhoto}
-                  busy={photoCaptureBusy}
-                  onPick={(f) => void captureLivePhoto("shopPhoto", f)}
-                  onClear={() => clearFile("shopPhoto")}
-                  error={stepErrorKey === "shopPhoto"}
-                />
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <LivePhotoCapture
+                    label="Personal Photo *"
+                    facing="user"
+                    meta={draft.personalPhoto}
+                    previewUrl={previews.personalPhoto}
+                    busy={photoCaptureBusy}
+                    onPick={(f) => void captureLivePhoto("personalPhoto", f)}
+                    onClear={() => clearFile("personalPhoto")}
+                    error={stepErrorKey === "personalPhoto"}
+                  />
+                  <LivePhotoCapture
+                    label="Shop Photo *"
+                    facing="environment"
+                    meta={draft.shopPhoto}
+                    previewUrl={previews.shopPhoto}
+                    busy={photoCaptureBusy}
+                    onPick={(f) => void captureLivePhoto("shopPhoto", f)}
+                    onClear={() => clearFile("shopPhoto")}
+                    error={stepErrorKey === "shopPhoto"}
+                  />
+                </div>
               </div>
             )}
 
