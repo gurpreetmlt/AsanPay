@@ -7,8 +7,14 @@ import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import api, { fetchApi } from "@/lib/api";
+import {
+  bankCardGradient,
+  bankCodeFromIfsc,
+  bankLogoUrl,
+  formatSettlementBankCopy,
+} from "@/lib/bankLogo";
 import { B } from "@/lib/brand";
-import { bankLogoUrl, formatSettlementBankCopy } from "@/lib/bankLogo";
+import { lookupIndianIfsc, type IfscPlace } from "@/lib/ifsc";
 import { extractApiError } from "@/lib/onboarding";
 
 export interface SettlementBank {
@@ -21,7 +27,7 @@ export interface SettlementBank {
   effectiveFrom?: string;
 }
 
-type RevealedMap = Record<string, string>;
+type PlaceMap = Record<string, IfscPlace>;
 
 function BankLogo({ ifsc }: { ifsc: string }) {
   const [failed, setFailed] = useState(false);
@@ -42,7 +48,7 @@ function BankLogo({ ifsc }: { ifsc: string }) {
       alt=""
       width={40}
       height={40}
-      className="h-10 w-10 rounded-xl object-contain bg-white p-1"
+      className="h-10 w-10 rounded-xl bg-white object-contain p-1 shadow-sm"
       style={{ border: `1px solid ${B.border}` }}
       onError={() => setFailed(true)}
     />
@@ -51,12 +57,14 @@ function BankLogo({ ifsc }: { ifsc: string }) {
 
 function SettlementBankCard({
   bank,
+  place,
   revealed,
   revealing,
   onToggleReveal,
   onCopy,
 }: {
   bank: SettlementBank;
+  place?: IfscPlace;
   revealed: string | undefined;
   revealing: boolean;
   onToggleReveal: () => void;
@@ -69,16 +77,10 @@ function SettlementBankCard({
     <div
       className="relative overflow-hidden rounded-2xl border p-4 shadow-sm"
       style={{
-        borderColor: active ? `${B.blueLight}66` : B.border,
-        background: active
-          ? `linear-gradient(145deg, ${B.blueLight}14 0%, #fff 45%, #fff 100%)`
-          : "#fff",
+        borderColor: active ? `${B.blueLight}55` : B.border,
+        background: bankCardGradient(bank.ifsc),
       }}
     >
-      <div
-        className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full opacity-20"
-        style={{ background: B.badgeGrad }}
-      />
       <div className="relative flex items-start justify-between gap-2">
         <BankLogo ifsc={bank.ifsc} />
         <StatusBadge tone={active ? "success" : bank.verified ? "info" : "pending"}>
@@ -100,7 +102,7 @@ function SettlementBankCard({
             type="button"
             onClick={onToggleReveal}
             disabled={revealing}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border bg-white/80"
             style={{ borderColor: B.border, color: B.blueLight, opacity: revealing ? 0.6 : 1 }}
             aria-label={showFull ? "Hide account number" : "Show account number"}
             title={showFull ? "Hide" : "Show"}
@@ -111,9 +113,9 @@ function SettlementBankCard({
             type="button"
             onClick={onCopy}
             disabled={revealing}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border bg-white/80"
             style={{ borderColor: B.border, color: B.blueLight, opacity: revealing ? 0.6 : 1 }}
-            aria-label="Copy bank details"
+            aria-label="Copy all bank details"
             title="Copy all details"
           >
             <Copy size={16} />
@@ -127,11 +129,17 @@ function SettlementBankCard({
       <p className="relative mt-1 font-mono text-xs" style={{ color: B.muted }}>
         IFSC · {bank.ifsc}
       </p>
+      {place?.bank ? (
+        <p className="relative mt-0.5 truncate text-[11px]" style={{ color: B.muted }}>
+          {place.bank}
+          {place.branch ? ` · ${place.branch}` : ""}
+        </p>
+      ) : null}
     </div>
   );
 }
 
-/** Credit-card style settlement bank cards + optional add form. */
+/** Compact settlement bank cards + KYC-style IFSC add form. */
 export function SettlementBanksPanel({
   showAddFormDefault = false,
   compact = false,
@@ -149,8 +157,11 @@ export function SettlementBanksPanel({
   const [accountNumber, setAccountNumber] = useState("");
   const [ifsc, setIfsc] = useState("");
   const [holderName, setHolderName] = useState("");
+  const [fetchedPlace, setFetchedPlace] = useState<IfscPlace | null>(null);
+  const [ifscBusy, setIfscBusy] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [revealed, setRevealed] = useState<RevealedMap>({});
+  const [revealed, setRevealed] = useState<Record<string, string>>({});
+  const [places, setPlaces] = useState<PlaceMap>({});
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -170,12 +181,58 @@ export function SettlementBanksPanel({
     void load();
   }, [load]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const next: PlaceMap = {};
+      await Promise.all(
+        banks.map(async (b) => {
+          const place = await lookupIndianIfsc(b.ifsc);
+          if (place) next[b.id] = place;
+        }),
+      );
+      if (!cancelled) setPlaces(next);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [banks]);
+
+  useEffect(() => {
+    const code = ifsc.trim().toUpperCase();
+    if (code.length !== 11) {
+      setFetchedPlace(null);
+      return;
+    }
+    let cancelled = false;
+    setIfscBusy(true);
+    void lookupIndianIfsc(code).then((place) => {
+      if (cancelled) return;
+      setIfscBusy(false);
+      if (!place) {
+        setFetchedPlace(null);
+        toast.error("IFSC not found. Check the code and try again.");
+        return;
+      }
+      setFetchedPlace(place);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [ifsc]);
+
   async function fetchReveal(bankId: string): Promise<string> {
-    const cached = revealed[bankId];
-    if (cached) return cached;
+    if (revealed[bankId]) return revealed[bankId];
     const data = await fetchApi<{ accountNumber: string }>(`/settlements/banks/${bankId}/reveal`);
     setRevealed((prev) => ({ ...prev, [bankId]: data.accountNumber }));
     return data.accountNumber;
+  }
+
+  async function resolvePlace(bank: SettlementBank): Promise<IfscPlace | null> {
+    if (places[bank.id]) return places[bank.id];
+    const place = await lookupIndianIfsc(bank.ifsc);
+    if (place) setPlaces((prev) => ({ ...prev, [bank.id]: place }));
+    return place;
   }
 
   async function toggleReveal(bank: SettlementBank) {
@@ -200,15 +257,21 @@ export function SettlementBanksPanel({
   async function copyBank(bank: SettlementBank) {
     setBusyId(bank.id);
     try {
-      const accountNumber = await fetchReveal(bank.id);
+      const [accountNumberFull, place] = await Promise.all([
+        fetchReveal(bank.id),
+        resolvePlace(bank),
+      ]);
       await navigator.clipboard.writeText(
         formatSettlementBankCopy({
+          bankName: place?.bank || bankCodeFromIfsc(bank.ifsc),
+          branch: place?.branch,
+          city: place?.city,
           holderName: bank.holderName,
-          accountNumber,
+          accountNumber: accountNumberFull,
           ifsc: bank.ifsc,
         }),
       );
-      toast.success("Bank details copied");
+      toast.success("All bank details copied");
     } catch (err) {
       toast.error(extractApiError(err, "Could not copy bank details"));
     } finally {
@@ -216,20 +279,34 @@ export function SettlementBanksPanel({
     }
   }
 
+  function resetForm() {
+    setAccountNumber("");
+    setIfsc("");
+    setHolderName("");
+    setFetchedPlace(null);
+  }
+
   async function registerBank(e: FormEvent) {
     e.preventDefault();
+    const code = ifsc.trim().toUpperCase();
+    if (code.length !== 11) {
+      toast.error("Enter a valid 11-character IFSC");
+      return;
+    }
+    if (!fetchedPlace?.bank) {
+      toast.error("Wait for bank details to load from IFSC, or check the code");
+      return;
+    }
     setSaving(true);
     try {
       await api.post("/settlements/banks", {
         accountNumber: accountNumber.trim(),
-        ifsc: ifsc.trim().toUpperCase(),
+        ifsc: code,
         holderName: holderName.trim(),
       });
       toast.success("Bank submitted — awaiting admin verification");
       setShowBankForm(false);
-      setAccountNumber("");
-      setIfsc("");
-      setHolderName("");
+      resetForm();
       await load();
     } catch (err) {
       toast.error(extractApiError(err, "Could not register bank"));
@@ -259,7 +336,10 @@ export function SettlementBanksPanel({
             variant="secondary"
             size="sm"
             showArrow={false}
-            onClick={() => setShowBankForm((v) => !v)}
+            onClick={() => {
+              setShowBankForm((v) => !v);
+              if (showBankForm) resetForm();
+            }}
             className="!w-auto"
           >
             <Plus size={14} />
@@ -271,39 +351,94 @@ export function SettlementBanksPanel({
       {allowAdd && showBankForm ? (
         <form
           onSubmit={registerBank}
-          className="grid gap-3 rounded-2xl border p-4 md:grid-cols-3"
+          className="grid gap-3 rounded-2xl border p-4 md:grid-cols-2"
           style={{ borderColor: B.border, background: B.bg }}
         >
-          <input
-            className="rounded-xl border px-3 py-2.5 text-sm outline-none"
-            style={{ borderColor: B.border, background: "#fff" }}
-            placeholder="Account number"
-            value={accountNumber}
-            onChange={(e) => setAccountNumber(e.target.value)}
-            required
-          />
-          <input
-            className="rounded-xl border px-3 py-2.5 text-sm uppercase outline-none"
-            style={{ borderColor: B.border, background: "#fff" }}
-            placeholder="IFSC"
-            value={ifsc}
-            onChange={(e) => setIfsc(e.target.value)}
-            required
-          />
-          <input
-            className="rounded-xl border px-3 py-2.5 text-sm outline-none"
-            style={{ borderColor: B.border, background: "#fff" }}
-            placeholder="Account holder name"
-            value={holderName}
-            onChange={(e) => setHolderName(e.target.value)}
-            required
-          />
+          <label className="block text-sm md:col-span-1">
+            <span className="mb-1 block text-xs font-semibold uppercase" style={{ color: B.muted }}>
+              IFSC *
+            </span>
+            <input
+              className="w-full rounded-xl border px-3 py-2.5 font-mono text-sm outline-none"
+              style={{ borderColor: B.border, background: "#fff" }}
+              placeholder="e.g. SBIN0001234"
+              value={ifsc}
+              onChange={(e) =>
+                setIfsc(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11))
+              }
+              required
+            />
+            <span className="mt-1 block text-xs" style={{ color: B.muted }}>
+              {ifsc.length}/11 {ifscBusy ? "· Looking up…" : ""}
+            </span>
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-xs font-semibold uppercase" style={{ color: B.muted }}>
+              Bank name
+            </span>
+            <input
+              className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
+              style={{ borderColor: B.border, background: "#F8FAFC", color: B.blue }}
+              value={fetchedPlace?.bank || ""}
+              readOnly
+              placeholder={ifscBusy ? "Looking up…" : "Auto from IFSC"}
+            />
+          </label>
+          <label className="block text-sm md:col-span-2">
+            <span className="mb-1 block text-xs font-semibold uppercase" style={{ color: B.muted }}>
+              Branch
+            </span>
+            <input
+              className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
+              style={{ borderColor: B.border, background: "#F8FAFC", color: B.blue }}
+              value={
+                fetchedPlace
+                  ? [fetchedPlace.branch, fetchedPlace.city].filter(Boolean).join(", ")
+                  : ""
+              }
+              readOnly
+              placeholder={ifscBusy ? "Looking up…" : "Auto from IFSC"}
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-xs font-semibold uppercase" style={{ color: B.muted }}>
+              Account number *
+            </span>
+            <input
+              className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
+              style={{ borderColor: B.border, background: "#fff" }}
+              placeholder="Account number"
+              value={accountNumber}
+              onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, "").slice(0, 18))}
+              required
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-xs font-semibold uppercase" style={{ color: B.muted }}>
+              Account holder *
+            </span>
+            <input
+              className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
+              style={{ borderColor: B.border, background: "#fff" }}
+              placeholder="Account holder name"
+              value={holderName}
+              onChange={(e) => setHolderName(e.target.value)}
+              required
+            />
+          </label>
           <PrimaryButton
             type="submit"
             variant="primary"
-            disabled={saving || !accountNumber.trim() || !ifsc.trim() || !holderName.trim()}
+            disabled={
+              saving ||
+              ifscBusy ||
+              !fetchedPlace?.bank ||
+              !accountNumber.trim() ||
+              ifsc.trim().length !== 11 ||
+              !holderName.trim()
+            }
             loading={saving}
-            className="md:col-span-3"
+            className="md:col-span-2"
           >
             Submit for verification
           </PrimaryButton>
@@ -341,6 +476,7 @@ export function SettlementBanksPanel({
             <SettlementBankCard
               key={b.id}
               bank={b}
+              place={places[b.id]}
               revealed={revealed[b.id]}
               revealing={busyId === b.id}
               onToggleReveal={() => void toggleReveal(b)}
