@@ -16,6 +16,7 @@ import {
   ArrowRight,
   FileText,
   Info,
+  Landmark,
   LifeBuoy,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
@@ -26,6 +27,7 @@ import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { EmailVerifyField } from "@/components/EmailVerifyField";
 import { BiometricDevices } from "@/components/settings/BiometricDevices";
 import { DeviceRepairRequests } from "@/components/settings/DeviceRepairRequests";
+import { SettlementBanksPanel } from "@/components/settlements/SettlementBanksPanel";
 import { FaqSection } from "@/components/support/FaqSection";
 import { B, initials, roleFromUserRole } from "@/lib/brand";
 import api from "@/lib/api";
@@ -39,6 +41,7 @@ import { enableBiometricLogin, isWebAuthnAvailable } from "@/lib/webauthn";
 const SECTIONS = [
   { id: "profile", icon: User, label: "Profile" },
   { id: "security", icon: Lock, label: "Security" },
+  { id: "banks", icon: Landmark, label: "Settlement banks" },
   { id: "notify", icon: Bell, label: "Notifications" },
   { id: "kyc", icon: Shield, label: "KYC & Limits" },
   { id: "devices", icon: Smartphone, label: "Devices" },
@@ -478,6 +481,12 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {active === "banks" && (
+              <div className="rounded-2xl border bg-white p-6" style={{ borderColor: B.border }}>
+                <SettlementBanksPanel />
               </div>
             )}
 

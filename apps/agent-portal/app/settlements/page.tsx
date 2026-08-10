@@ -1,8 +1,9 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Landmark, Plus, RefreshCcw, Inbox } from "lucide-react";
+import { RefreshCcw, Inbox, Landmark } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { AppShell } from "@/components/layout/AppShell";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
@@ -23,7 +24,6 @@ interface SettlementBank {
   holderName: string;
   isActive: boolean;
   verified: boolean;
-  effectiveFrom: string;
 }
 
 interface SettlementRequest {
@@ -53,11 +53,7 @@ export default function SettlementsPage() {
   const [banks, setBanks] = useState<SettlementBank[]>([]);
   const [requests, setRequests] = useState<SettlementRequest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showBankForm, setShowBankForm] = useState(false);
   const [showSettleForm, setShowSettleForm] = useState(false);
-  const [accountNumber, setAccountNumber] = useState("");
-  const [ifsc, setIfsc] = useState("");
-  const [holderName, setHolderName] = useState("");
   const [amount, setAmount] = useState("");
   const [mode, setMode] = useState<"imps" | "neft" | "rtgs">("imps");
   const [saving, setSaving] = useState(false);
@@ -92,28 +88,6 @@ export default function SettlementsPage() {
     void load();
   }, [hydrated, accessToken, role, router, load]);
 
-  async function registerBank(e: FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      await api.post("/settlements/banks", {
-        accountNumber: accountNumber.trim(),
-        ifsc: ifsc.trim().toUpperCase(),
-        holderName: holderName.trim(),
-      });
-      toast.success("Bank submitted — awaiting admin verification");
-      setShowBankForm(false);
-      setAccountNumber("");
-      setIfsc("");
-      setHolderName("");
-      await load();
-    } catch (err) {
-      toast.error(extractApiError(err, "Could not register bank"));
-    } finally {
-      setSaving(false);
-    }
-  }
-
   async function submitSettlement(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
@@ -137,7 +111,8 @@ export default function SettlementsPage() {
 
   if (!hydrated || !accessToken) return null;
 
-  const hasActiveBank = banks.some((b) => b.isActive && b.verified);
+  const activeBank = banks.find((b) => b.isActive && b.verified);
+  const hasActiveBank = Boolean(activeBank);
 
   return (
     <AppShell>
@@ -148,7 +123,7 @@ export default function SettlementsPage() {
               Settlements
             </h1>
             <p className="mt-0.5 text-sm" style={{ color: B.muted }}>
-              Register a bank account, then withdraw settleable balance to your account
+              Withdraw settleable balance to your verified bank
             </p>
           </div>
           <button
@@ -162,125 +137,37 @@ export default function SettlementsPage() {
           </button>
         </div>
 
-        <div className="ui-card p-5">
-          <SectionHeader
-            title={
-              <span className="inline-flex items-center gap-2">
-                <Landmark size={18} />
-                Settlement banks
-              </span>
-            }
-            subtitle="Verified accounts for withdrawals"
-            action={
-              <PrimaryButton
-                type="button"
-                variant="secondary"
-                size="sm"
-                showArrow={false}
-                onClick={() => setShowBankForm((v) => !v)}
-                className="!w-auto"
-              >
-                <Plus size={14} />
-                Add bank
-              </PrimaryButton>
-            }
-          />
-
-          {showBankForm ? (
-            <form onSubmit={registerBank} className="mb-4 grid gap-3 rounded-xl border p-4 md:grid-cols-3" style={{ borderColor: B.border }}>
-              <input
-                className="rounded-xl border px-3 py-2 text-sm"
-                style={{ borderColor: B.border }}
-                placeholder="Account number"
-                value={accountNumber}
-                onChange={(e) => setAccountNumber(e.target.value)}
-                required
-              />
-              <input
-                className="rounded-xl border px-3 py-2 text-sm uppercase"
-                style={{ borderColor: B.border }}
-                placeholder="IFSC"
-                value={ifsc}
-                onChange={(e) => setIfsc(e.target.value)}
-                required
-              />
-              <input
-                className="rounded-xl border px-3 py-2 text-sm"
-                style={{ borderColor: B.border }}
-                placeholder="Account holder name"
-                value={holderName}
-                onChange={(e) => setHolderName(e.target.value)}
-                required
-              />
-              <PrimaryButton
-                type="submit"
-                variant="primary"
-                disabled={
-                  saving ||
-                  !accountNumber.trim() ||
-                  !ifsc.trim() ||
-                  !holderName.trim()
-                }
-                loading={saving}
-                className="md:col-span-3"
-              >
-                Submit for verification
-              </PrimaryButton>
-            </form>
-          ) : null}
-
-          {loading ? (
-            <p className="text-sm" style={{ color: B.muted }}>Loading…</p>
-          ) : banks.length === 0 ? (
-            <EmptyState
-              icon={<Landmark size={22} strokeWidth={1.75} />}
-              title="No settlement banks yet"
-              description="Add a bank account to withdraw funds."
-              action={
-                <PrimaryButton
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  showArrow={false}
-                  className="!w-auto"
-                  onClick={() => setShowBankForm(true)}
-                >
-                  <Plus size={14} />
-                  Add bank
-                </PrimaryButton>
-              }
-            />
-          ) : (
-            <ul className="space-y-2">
-              {banks.map((b) => (
-                <li
-                  key={b.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-sm"
-                  style={{ borderColor: B.border }}
-                >
-                  <div>
-                    <div className="font-semibold" style={{ color: B.blue }}>
-                      {b.holderName} · ****{b.accountNumberLast4}
-                    </div>
-                    <div className="text-xs" style={{ color: B.muted }}>
-                      {b.ifsc}
-                    </div>
-                  </div>
-                  <StatusBadge
-                    tone={
-                      b.verified && b.isActive
-                        ? "success"
-                        : b.verified
-                          ? "info"
-                          : "pending"
-                    }
-                  >
-                    {b.verified ? (b.isActive ? "Active" : "Verified") : "Pending verification"}
-                  </StatusBadge>
-                </li>
-              ))}
-            </ul>
-          )}
+        <div
+          className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3"
+          style={{ borderColor: B.border, background: "#fff" }}
+        >
+          <div className="flex items-start gap-3">
+            <div
+              className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-xl"
+              style={{ background: `${B.blueLight}18`, color: B.blueLight }}
+            >
+              <Landmark size={16} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold" style={{ color: B.blue }}>
+                {hasActiveBank
+                  ? `${activeBank!.holderName} · ****${activeBank!.accountNumberLast4}`
+                  : "No active settlement bank"}
+              </p>
+              <p className="text-xs" style={{ color: B.muted }}>
+                {hasActiveBank
+                  ? `IFSC ${activeBank!.ifsc} · Manage banks in Settings`
+                  : "Add a bank in Settings before withdrawing"}
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/settings?tab=banks"
+            className="text-sm font-semibold underline-offset-2 hover:underline"
+            style={{ color: B.blueLight }}
+          >
+            {hasActiveBank ? "Manage banks" : "Add bank in Settings"}
+          </Link>
         </div>
 
         <div className="ui-card p-5">
@@ -303,14 +190,24 @@ export default function SettlementsPage() {
           />
           {!hasActiveBank ? (
             <p className="mb-3 text-sm" style={{ color: B.muted }}>
-              You need an active verified bank before requesting a settlement.
+              You need an active verified bank in{" "}
+              <Link href="/settings?tab=banks" className="font-semibold underline" style={{ color: B.blueLight }}>
+                Settings → Settlement banks
+              </Link>{" "}
+              before requesting a withdrawal.
             </p>
           ) : null}
 
           {showSettleForm ? (
-            <form onSubmit={submitSettlement} className="mb-4 flex flex-wrap items-end gap-3 rounded-xl border p-4" style={{ borderColor: B.border }}>
+            <form
+              onSubmit={submitSettlement}
+              className="mb-4 flex flex-wrap items-end gap-3 rounded-xl border p-4"
+              style={{ borderColor: B.border }}
+            >
               <label className="text-sm">
-                <span className="mb-1 block font-medium" style={{ color: B.muted }}>Amount (₹)</span>
+                <span className="mb-1 block font-medium" style={{ color: B.muted }}>
+                  Amount (₹)
+                </span>
                 <input
                   className="rounded-xl border px-3 py-2 text-sm"
                   style={{ borderColor: B.border }}
@@ -323,7 +220,9 @@ export default function SettlementsPage() {
                 />
               </label>
               <label className="text-sm">
-                <span className="mb-1 block font-medium" style={{ color: B.muted }}>Mode</span>
+                <span className="mb-1 block font-medium" style={{ color: B.muted }}>
+                  Mode
+                </span>
                 <select
                   className="rounded-xl border px-3 py-2 text-sm"
                   style={{ borderColor: B.border }}
@@ -349,7 +248,9 @@ export default function SettlementsPage() {
           ) : null}
 
           {loading ? (
-            <p className="text-sm" style={{ color: B.muted }}>Loading…</p>
+            <p className="text-sm" style={{ color: B.muted }}>
+              Loading…
+            </p>
           ) : requests.length === 0 ? (
             <EmptyState
               icon={<Inbox size={22} strokeWidth={1.75} />}
@@ -380,9 +281,7 @@ export default function SettlementsPage() {
                       </td>
                       <td className="py-2.5 pr-3 uppercase">{r.mode}</td>
                       <td className="py-2.5 pr-3">
-                        <StatusBadge tone={toneFromStatus(r.status)}>
-                          {r.status.replace(/_/g, " ")}
-                        </StatusBadge>
+                        <StatusBadge tone={toneFromStatus(r.status)}>{r.status.replace(/_/g, " ")}</StatusBadge>
                       </td>
                       <td className="py-2.5 text-xs" style={{ color: B.muted }}>
                         {r.bankUtr || r.failureReason || "—"}

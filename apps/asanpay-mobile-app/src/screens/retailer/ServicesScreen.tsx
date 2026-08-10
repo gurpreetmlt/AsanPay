@@ -151,6 +151,15 @@ export function ServicesScreen() {
         avatarLetter={initials || firstName.charAt(0).toUpperCase()}
         eyebrow={greetingName(user.name)}
         title={user.name}
+        subtitle={
+          user.kycStatus === "verified"
+            ? "KYC Verified"
+            : user.kycStatus === "rejected"
+              ? "KYC Rejected"
+              : user.hasKycDocs
+                ? "KYC Under Review"
+                : "KYC Pending"
+        }
         topRight={
           <View style={styles.headerIconRow}>
             <Pressable style={styles.headerIconBtn} onPress={() => showAlert("Coming soon", "QR scan")}>

@@ -172,15 +172,9 @@ export function AccountScreen() {
   const [showBioKyc, setShowBioKyc] = useState(false);
 
   const isRetailer = user.role === "retailer";
-  const hasWalletTab = isRetailer; // only RetailerTabs has a "Balance" tab today
 
   function goManageWallet() {
-    if (hasWalletTab) {
-      navigation.navigate("Balance" as never);
-    } else {
-      // SD/Distributor tabs have no dedicated wallet screen — money movement lives here instead.
-      setShowSettlements(true);
-    }
+    navigation.navigate("Balance" as never);
   }
 
   function goMyEarnings() {
@@ -252,12 +246,18 @@ export function AccountScreen() {
     { label: "Status", value: user.isActive ? "Active" : "Inactive" },
   ];
 
-  const QUICK_ACTIONS = [
-    { icon: Wallet, label: "Manage\nWallet", action: goManageWallet },
-    { icon: Landmark, label: "Bank\nSettlement", action: () => setShowSettlements(true) },
-    { icon: KeyRound, label: "Request\nFunds", action: goRequestFunds },
-    { icon: ShieldCheck, label: "My\nEarnings", action: goMyEarnings },
-  ];
+  const QUICK_ACTIONS = isRetailer
+    ? [
+        { icon: Wallet, label: "Manage\nWallet", action: goManageWallet },
+        { icon: Landmark, label: "Bank\nSettlement", action: () => setShowSettlements(true) },
+        { icon: KeyRound, label: "Request\nFunds", action: goRequestFunds },
+        { icon: ShieldCheck, label: "My\nEarnings", action: goMyEarnings },
+      ]
+    : [
+        { icon: Wallet, label: "Manage\nWallet", action: goManageWallet },
+        { icon: Landmark, label: "Bank\nSettlement", action: () => setShowSettlements(true) },
+        { icon: ShieldCheck, label: "My\nEarnings", action: goMyEarnings },
+      ];
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bg }]} edges={["top"]}>

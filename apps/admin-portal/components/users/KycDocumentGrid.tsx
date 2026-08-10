@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "react-hot-toast";
 import { DocumentPreviewModal } from "./DocumentPreviewModal";
 import { B } from "@/lib/brand";
 import { FileImage } from "lucide-react";
@@ -54,8 +55,8 @@ export function KycDocumentGrid({
   return (
     <>
       <p className="mb-3 text-xs" style={{ color: B.muted }}>
-        Photos show after the agent submits KYC with a real gallery/camera upload (new app build).
-        Filename-only older submits cannot show a preview.
+        Tap a card to preview. Older submits only saved the filename — agent must re-submit KYC with
+        the new app/web upload so the photo can open here.
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
         {items.map(([key, url]) => {
@@ -68,10 +69,16 @@ export function KycDocumentGrid({
               key={key}
               type="button"
               onClick={() => {
-                if (real) setPreview({ title, url: src });
+                if (real) {
+                  setPreview({ title, url: src });
+                  return;
+                }
+                toast.error(
+                  `${title}: photo was not saved (filename only${fileName ? `: ${fileName}` : ""}). Ask the agent to re-submit KYC with gallery/camera upload.`,
+                  { duration: 5000 },
+                );
               }}
-              disabled={!real}
-              className="overflow-hidden rounded-xl border text-left transition hover:opacity-95 disabled:cursor-default disabled:hover:opacity-100"
+              className="cursor-pointer overflow-hidden rounded-xl border text-left transition hover:opacity-95"
               style={{ borderColor: B.border, background: B.card }}
             >
               {real ? (
@@ -104,7 +111,7 @@ export function KycDocumentGrid({
                       {fileName || "On file"}
                     </p>
                     <p className="mt-1 text-[11px]" style={{ color: B.muted }}>
-                      No photo bytes stored — ask agent to re-upload KYC.
+                      No photo to open — tap for details · agent must re-upload
                     </p>
                   </div>
                 </div>

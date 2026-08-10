@@ -163,22 +163,18 @@ export function WalletScreen() {
               <Pressable style={styles.heroBtn} onPress={() => setShowFund(true)}>
                 <Text style={styles.heroBtnText}>+ Add Money</Text>
               </Pressable>
-            ) : (
-              <Pressable style={styles.heroBtn} onPress={() => setShowSettle(true)}>
-                <Text style={styles.heroBtnText}>Settlements</Text>
-              </Pressable>
-            )}
+            ) : null}
             <Pressable style={[styles.heroBtn, styles.heroBtnOutline]} onPress={() => void load(true)}>
               <Text style={styles.heroBtnText}>Refresh</Text>
             </Pressable>
           </View>
         </LinearGradient>
 
-        {active === "aeps" || user.role === "retailer" ? (
-          <Pressable
-            style={[styles.settleBanner, { backgroundColor: tokens.card, borderColor: colors.greenLight }]}
-            onPress={() => setShowSettle(true)}
-          >
+        {/* One withdraw entry on Balance — partners & retailers; Account also has Bank Settlement */}
+        <Pressable
+          style={[styles.settleBanner, { backgroundColor: tokens.card, borderColor: colors.greenLight }]}
+          onPress={() => setShowSettle(true)}
+        >
             <View style={styles.settleIcon}>
               <Landmark size={18} color="#fff" strokeWidth={2} />
             </View>
@@ -192,7 +188,6 @@ export function WalletScreen() {
               <Text style={styles.settleBtnText}>Settle</Text>
             </View>
           </Pressable>
-        ) : null}
 
         <View style={styles.statsRow}>
           <View style={[styles.statCard, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>

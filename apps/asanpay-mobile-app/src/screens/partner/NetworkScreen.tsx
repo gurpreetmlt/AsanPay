@@ -92,7 +92,15 @@ export function NetworkScreen() {
         avatarLetter={initials || user.name.charAt(0).toUpperCase()}
         eyebrow={greetingName(user.name)}
         title={user.name}
-        subtitle={`${ROLE_LABEL[user.role]} · ${user.uid}`}
+        subtitle={`${ROLE_LABEL[user.role]} · ${user.uid}${
+          user.kycStatus === "verified"
+            ? " · Verified"
+            : user.kycStatus === "rejected"
+              ? " · KYC Rejected"
+              : user.hasKycDocs
+                ? " · Under Review"
+                : " · KYC Pending"
+        }`}
         topRight={
           <View style={styles.headerIconRow}>
             <Pressable style={styles.headerIconBtn} onPress={() => showAlert("Coming soon", "QR scan")}>
