@@ -1,7 +1,11 @@
 import type { Response } from "express";
 import path from "node:path";
 import fs from "node:fs";
+import { fileURLToPath } from "node:url";
 import PDFDocument from "pdfkit";
+
+/** ESM has no `__dirname` — backend is `"type": "module"`. */
+const RECEIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 import { eq } from "drizzle-orm";
 import { db } from "../../db/postgres";
 import { services, transactions, users } from "../../db/postgres/schema";
@@ -74,7 +78,7 @@ const STATUS_STYLE: Record<string, { fg: string; bg: string; label: string }> = 
 /** Light logo for blue header — PNG lives in apps/backend/assets/brand. */
 function lightLogoBuffer(): Buffer | null {
   const candidates = [
-    path.join(__dirname, "../../../assets/brand/AsanPay-Light-Icon.png"),
+    path.join(RECEIPT_DIR, "../../../assets/brand/AsanPay-Light-Icon.png"),
     path.join(process.cwd(), "assets/brand/AsanPay-Light-Icon.png"),
     path.join(process.cwd(), "apps/backend/assets/brand/AsanPay-Light-Icon.png"),
   ];
