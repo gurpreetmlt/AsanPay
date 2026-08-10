@@ -234,7 +234,7 @@ export function AdminHeader({ onOpenMobileNav }: { onOpenMobileNav?: () => void 
                 className="block w-full px-4 py-2.5 text-left text-sm"
                 style={{ color: textPrimary }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = `${B.blue}12`;
+                  e.currentTarget.style.background = `${B.blueLight}12`;
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.background = "transparent";
@@ -400,8 +400,7 @@ export function AdminHeader({ onOpenMobileNav }: { onOpenMobileNav?: () => void 
                       setNotifOpen(false);
                       router.push("/kyc");
                     }}
-                    className="w-full rounded-xl py-2.5 text-sm font-semibold text-white"
-                    style={{ background: B.badgeGrad }}
+                    className="admin-btn-primary w-full rounded-xl py-2.5 text-sm font-semibold"
                   >
                     Open KYC Queue ({badges.kycPending})
                   </button>

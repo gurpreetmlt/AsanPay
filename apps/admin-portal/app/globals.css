@@ -139,6 +139,30 @@ body::before {
   opacity: 0.85;
 }
 
+/**
+ * Primary CTAs — solid brand fill + white label.
+ * Use this class on every filled primary button so dark mode never
+ * remaps the fill to a light text color (white-on-white bug).
+ */
+.admin-btn-primary {
+  background-color: #2a5cdd !important;
+  background-image: linear-gradient(135deg, #2a5cdd 0%, #0b2a9a 100%) !important;
+  color: #ffffff !important;
+  border-color: transparent !important;
+}
+
+.admin-btn-success {
+  background: #12b76a !important;
+  color: #ffffff !important;
+  border-color: transparent !important;
+}
+
+.admin-btn-danger {
+  background: #dc2626 !important;
+  color: #ffffff !important;
+  border-color: transparent !important;
+}
+
 /* Dark mode: flip hard-coded white / surface utilities */
 html.dark .bg-white {
   background-color: var(--admin-card) !important;
@@ -155,6 +179,32 @@ html.dark select.bg-white {
 html.dark .bg-surface,
 html.dark .bg-card {
   background-color: var(--admin-card) !important;
+}
+
+/* Keep primary CTAs readable even if someone also put bg-white on them */
+html.dark .admin-btn-primary,
+html.dark .admin-btn-success,
+html.dark .admin-btn-danger {
+  color: #ffffff !important;
+}
+
+html.dark .admin-btn-primary {
+  background-color: #2a5cdd !important;
+  background-image: linear-gradient(135deg, #2a5cdd 0%, #0b2a9a 100%) !important;
+}
+
+/* Form controls that still use Tailwind white */
+html.dark select:not([class*="admin-"]),
+html.dark input[type="text"]:not([class*="admin-"]),
+html.dark input[type="number"]:not([class*="admin-"]),
+html.dark input[type="search"]:not([class*="admin-"]),
+html.dark textarea:not([class*="admin-"]) {
+  color: var(--admin-text);
+}
+
+html.dark ::placeholder {
+  color: var(--admin-muted);
+  opacity: 0.85;
 }
 
 /* Smooth loop: slow Y→A + text reveal → hold → slow A→Y. No opacity fade (no blink). */

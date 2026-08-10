@@ -374,8 +374,7 @@ export default function AgentDetailPage() {
                           type="button"
                           disabled={busy || !agent.hasKycDocs}
                           onClick={() => void decideKyc("verified")}
-                          className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-                          style={{ background: B.green }}
+                          className="admin-btn-success w-full rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
                         >
                           Approve KYC
                         </button>
@@ -400,8 +399,7 @@ export default function AgentDetailPage() {
                         type="button"
                         disabled={busy}
                         onClick={() => void setRestriction("none")}
-                        className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-                        style={{ background: B.badgeGrad }}
+                        className="admin-btn-primary w-full rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
                       >
                         Unfreeze agent
                       </button>
@@ -462,8 +460,7 @@ export default function AgentDetailPage() {
                       type="button"
                       disabled={busy}
                       onClick={() => void reassignParent()}
-                      className="w-full rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
-                      style={{ background: B.badgeGrad, color: "#ffffff" }}
+                      className="admin-btn-primary w-full rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
                     >
                       Reassign parent
                     </button>
@@ -532,12 +529,7 @@ export default function AgentDetailPage() {
                       type="button"
                       disabled={busy}
                       onClick={() => void reactivateAeps()}
-                      className="w-full rounded-xl border-2 px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
-                      style={{
-                        borderColor: B.blueLight,
-                        color: B.blueLight,
-                        background: "var(--admin-bg)",
-                      }}
+                      className="admin-btn-primary w-full rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
                     >
                       Reactivate AePS
                     </button>

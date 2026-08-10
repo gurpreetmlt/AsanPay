@@ -10,13 +10,21 @@ export const brand = {
 
 /**
  * Themeable tokens follow `html.dark` CSS vars — dark mode works automatically.
- * Keep badgeGrad / solid accents for CTAs.
+ *
+ * CRITICAL: `blue` is TEXT color only (flips light↔dark). Never use it as a
+ * button/chip background with white text — that becomes unreadable in dark mode.
+ * Use `cta` / `badgeGrad` / `admin-btn-primary` for filled CTAs.
  */
 export const B = {
-  /** Heading / primary text — follows light/dark */
+  /** Heading / primary text — follows light/dark. TEXT ONLY. */
   blue: "var(--admin-text)",
   blueMid: "var(--brand-blue-mid)",
+  /** Solid brand blue — safe for fills, borders, alpha suffixes (#2A5CDD22) */
   blueLight: "#2A5CDD",
+  /** Primary CTA fill (never theme-flipped) */
+  cta: "#2A5CDD",
+  ctaDark: "#0B2A9A",
+  ctaText: "#ffffff",
   green: "#12B76A",
   greenDark: "#0F9E5C",
   muted: "var(--admin-muted)",

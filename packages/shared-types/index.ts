@@ -154,3 +154,5 @@ export const BRAND_DEFAULTS = {
   name: "AsanPay",
   tagline: "Payment Made Easy",
 } as const;
+
+export { TERMS_BODY, PRIVACY_BODY, buildLegalDownloadText } from "./legalCopy";

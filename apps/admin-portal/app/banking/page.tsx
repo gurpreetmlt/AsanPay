@@ -307,8 +307,8 @@ export default function AdminBankingPage() {
               onClick={() => setTab(t.key)}
               className="rounded-xl px-3 py-2 text-sm font-semibold"
               style={{
-                background: tab === t.key ? B.badgeGrad : "#fff",
-                color: tab === t.key ? "#fff" : B.muted,
+                background: tab === t.key ? B.badgeGrad : "var(--admin-card)",
+                color: tab === t.key ? B.ctaText : "var(--admin-muted)",
                 border: `1px solid ${B.border}`,
               }}
             >

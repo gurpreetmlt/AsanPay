@@ -359,7 +359,7 @@ export function UsersPanel({ lockedRole = "" }: Props) {
                 disabled={bulkDeleting || selectedUsers.length === 0}
                 title="Delete selected"
                 className="inline-flex h-9 w-9 items-center justify-center rounded-xl border text-red-600 transition hover:bg-red-50 disabled:opacity-40"
-                style={{ borderColor: B.border, background: "#fff" }}
+                style={{ borderColor: B.border, background: "var(--admin-card)" }}
               >
                 <Trash2 size={16} />
               </button>

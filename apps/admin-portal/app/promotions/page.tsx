@@ -251,8 +251,7 @@ export default function PromotionsPage() {
             type="button"
             onClick={() => void save()}
             disabled={saving || loading}
-            className="rounded-xl px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
-            style={{ background: B.badgeGrad }}
+            className="admin-btn-primary rounded-xl px-4 py-2.5 text-sm font-bold disabled:opacity-50"
           >
             {saving ? "Saving…" : "Save"}
           </button>
@@ -273,8 +272,8 @@ export default function PromotionsPage() {
                     className="flex w-full items-center justify-between border-b px-4 py-3.5 text-left transition-all last:border-b-0"
                     style={{
                       borderColor: B.border,
-                      background: active ? `${B.blue}0A` : "transparent",
-                      borderLeft: active ? `3px solid ${B.blue}` : "3px solid transparent",
+                      background: active ? `${B.blueLight}0A` : "transparent",
+                      borderLeft: active ? `3px solid ${B.blueLight}` : "3px solid transparent",
                     }}
                   >
                     <div className="flex items-center gap-3">
@@ -307,7 +306,7 @@ export default function PromotionsPage() {
               </p>
               <div
                 className="mt-3 rounded-xl border px-3 py-2.5 text-sm"
-                style={{ borderColor: B.border, background: `${B.blue}08`, color: B.muted }}
+                style={{ borderColor: B.border, background: `${B.blueLight}08`, color: B.muted }}
               >
                 <span className="font-semibold" style={{ color: B.blue }}>
                   Image size:
@@ -448,7 +447,7 @@ export default function PromotionsPage() {
                   onClick={addSlide}
                   disabled={slides.length >= MAX}
                   className="inline-flex min-h-[72px] items-center justify-center gap-2 rounded-xl border border-dashed px-4 py-4 text-sm font-bold disabled:opacity-40 md:col-span-2"
-                  style={{ borderColor: B.border, color: B.blue, background: "#fff" }}
+                  style={{ borderColor: B.border, color: "var(--admin-text)", background: "var(--admin-card)" }}
                 >
                   <Plus size={16} />
                   Add slide ({slides.length}/{MAX})

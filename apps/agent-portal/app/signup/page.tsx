@@ -1252,7 +1252,7 @@ function SignupPageInner() {
                         setShowTermsModal(true);
                       }}
                     >
-                      Terms and Conditions
+                      Terms &amp; Privacy Policy
                     </button>
                   </span>
                 </label>

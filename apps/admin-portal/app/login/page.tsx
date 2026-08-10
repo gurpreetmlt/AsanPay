@@ -74,7 +74,7 @@ export default function AdminLoginPage() {
       <div
         className="pointer-events-none absolute inset-0"
         style={{
-          background: `radial-gradient(ellipse 80% 50% at 20% 0%, ${B.blue}18, transparent), radial-gradient(ellipse 60% 40% at 90% 100%, ${B.green}14, transparent)`,
+          background: `radial-gradient(ellipse 80% 50% at 20% 0%, ${B.blueLight}18, transparent), radial-gradient(ellipse 60% 40% at 90% 100%, ${B.green}14, transparent)`,
         }}
       />
 

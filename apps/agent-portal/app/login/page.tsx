@@ -225,9 +225,12 @@ export default function LoginPage() {
       const msg = extractApiError(err, "OTP request failed");
       const suggested = roleFromMismatchMessage(msg);
       if (suggested && suggested.id !== role.id) {
-        lastOtpSentKey.current = null;
+        // Backend already stored OTP before ROLE_MISMATCH — switch chip and show OTP field.
+        lastOtpSentKey.current = mobile;
         setRole(suggested);
-        toast.error(`${msg} — role updated. Tap Continue again.`);
+        setOtpStep("otp");
+        setOtp("");
+        toast.error(`${msg} — role updated. Enter the OTP now.`);
       } else {
         toast.error(msg);
       }

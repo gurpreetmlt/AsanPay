@@ -143,11 +143,14 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
       const msg = apiError(err, "Could not send OTP");
       const suggested = roleFromMismatchMessage(msg);
       if (suggested && suggested !== role) {
-        lastOtpSentKey.current = null;
+        // OTP already issued server-side before ROLE_MISMATCH.
         setRole(suggested);
+        setOtpStep("otp");
+        setOtp("");
+        setDevOtp(null);
         showAlert(
           "Wrong role selected",
-          `${msg}\n\nCorrect role selected: ${ROLE_CHIPS.find((r) => r.key === suggested)?.short}. Tap Continue to send OTP.`,
+          `${msg}\n\nCorrect role selected: ${ROLE_CHIPS.find((r) => r.key === suggested)?.short}. Enter OTP now.`,
           [{ text: "OK", style: "primary" }],
         );
       } else {

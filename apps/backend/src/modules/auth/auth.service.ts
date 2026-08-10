@@ -439,15 +439,9 @@ export async function requestLoginOtp(
   if (!row || !row.isActive || isAdminRole(row.role)) {
     return { ...GENERIC_OTP_SENT };
   }
-  // Wrong role chip — clear message so UI can auto-correct (not a silent fake send).
-  if (input.role && row.role !== input.role) {
-    const label = ROLE_LABELS[row.role] ?? row.role;
-    throw new HttpError(
-      401,
-      `This mobile is registered as ${label}. Select the correct role and try again.`,
-      "ROLE_MISMATCH",
-    );
-  }
+  // Role chip is checked on /otp/verify only — always issue OTP here so a wrong
+  // Retailer/Distributor selection cannot leave the UI on "Verify" with no DB OTP
+  // (that used to look like "OTP expired / not requested").
 
   const exposeOtp = shouldExposeOtpInResponse();
   // Whitelisted test numbers get a fixed OTP (no SMS provider yet); everyone else random.
@@ -461,6 +455,15 @@ export async function requestLoginOtp(
     expiresAt: new Date(Date.now() + OTP_TTL_MS),
   });
 
+  // Wrong role: OTP is already live — tell UI to switch chip; user can Verify after fixing.
+  if (input.role && row.role !== input.role) {
+    const label = ROLE_LABELS[row.role] ?? row.role;
+    throw new HttpError(
+      401,
+      `This mobile is registered as ${label}. Select the correct role and try again.`,
+      "ROLE_MISMATCH",
+    );
+  }
   await insertAuditLog({
     userId: row.id,
     action: "auth.otp_requested",

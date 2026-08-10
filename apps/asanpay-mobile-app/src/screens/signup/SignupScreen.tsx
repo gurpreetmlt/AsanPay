@@ -24,6 +24,7 @@ import { colors } from "../../theme/colors";
 import { showAlert } from "../../components/AppAlert";
 import { BrandMark } from "../../components/BrandMark";
 import { MobileSignupStepper, MOBILE_SIGNUP_STEPS } from "../../components/MobileSignupStepper";
+import { TermsAcceptModal } from "../../components/TermsAcceptModal";
 import {
   clearMobileSignupDraft,
   EMPTY_MOBILE_SIGNUP_DRAFT,
@@ -1513,7 +1514,9 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                     </View>
                     <Text style={{ color: tokens.txt2, flex: 1, fontSize: 13, lineHeight: 18 }}>
                       I agree to the{" "}
-                      <Text style={{ color: colors.blueFlat, fontWeight: "800" }}>Terms and Conditions</Text>
+                      <Text style={{ color: colors.blueFlat, fontWeight: "800" }}>
+                        Terms & Privacy Policy
+                      </Text>
                     </Text>
                   </Pressable>
                   {!otpSent ? (
@@ -2158,50 +2161,23 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         </View>
       </Modal>
 
-      <Modal visible={showTermsModal} transparent animationType="fade">
-        <View style={styles.modalBackdrop}>
-          <View style={[styles.modalCard, { backgroundColor: tokens.card, maxHeight: "85%" }]}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8 }}>
-              <Text style={[styles.modalTitle, { color: tokens.txt }]}>Terms & Conditions</Text>
-              <Pressable onPress={() => setShowTermsModal(false)}>
-                <X size={18} color={tokens.mute} />
-              </Pressable>
-            </View>
-            <ScrollView style={{ maxHeight: 280 }}>
-              <Text style={{ color: tokens.txt2, fontSize: 13, lineHeight: 20 }}>
-                By registering as an AsanPay agent you agree to provide accurate KYC information, use services
-                only for lawful retail transactions, keep credentials confidential, and comply with applicable
-                RBI / UIDAI / NPCI guidelines. Location captured at registration is used for outlet geofencing
-                and compliance. AsanPay may suspend access for fraud or policy violations.
-              </Text>
-            </ScrollView>
-            <Text style={{ color: tokens.mute, fontSize: 11, marginTop: 10 }}>
-              Latitude: {draft.latitude || "—"}
-            </Text>
-            <Text style={{ color: tokens.mute, fontSize: 11, marginBottom: 12 }}>
-              Longitude: {draft.longitude || "—"}
-            </Text>
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              <Pressable
-                onPress={() => setShowTermsModal(false)}
-                style={[styles.modalSecondary, { flex: 1, borderColor: colors.green }]}
-              >
-                <Text style={{ color: colors.greenDark, fontWeight: "700", textAlign: "center" }}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  patch({ termsAccepted: true });
-                  setShowTermsModal(false);
-                }}
-                disabled={!hasLocation}
-                style={[styles.cta, { flex: 1, opacity: hasLocation ? 1 : 0.5 }]}
-              >
-                <Text style={styles.ctaText}>Accept</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <TermsAcceptModal
+        visible={showTermsModal}
+        latitude={draft.latitude}
+        longitude={draft.longitude}
+        tokens={{
+          card: tokens.card,
+          cardBorder: tokens.cardBorder,
+          txt: tokens.txt,
+          txt2: tokens.txt2,
+          mute: tokens.mute,
+        }}
+        onCancel={() => setShowTermsModal(false)}
+        onAccept={() => {
+          patch({ termsAccepted: true });
+          setShowTermsModal(false);
+        }}
+      />
     </SafeAreaView>
   );
 }
