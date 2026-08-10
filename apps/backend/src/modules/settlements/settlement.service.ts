@@ -206,6 +206,18 @@ async function consumeSettlementBankOtp(userId: string, otp: string): Promise<vo
     .limit(1);
   if (!user) throw new HttpError(404, "User not found", "USER_NOT_FOUND");
 
+  const code = otp.trim();
+  const override = getTestOtpOverride(user.mobile);
+  // Pre-SMS: fixed TEST_OTP_OVERRIDES code is accepted for settlement bank change.
+  if (override && override === code) {
+    const activeOverride = await findLatestActiveOtp({
+      mobile: user.mobile,
+      purpose: "settlement_bank",
+    });
+    if (activeOverride) await markOtpConsumed(activeOverride.id);
+    return;
+  }
+
   const activeOtp = await findLatestActiveOtp({ mobile: user.mobile, purpose: "settlement_bank" });
   if (!activeOtp) {
     throw new HttpError(
@@ -217,9 +229,9 @@ async function consumeSettlementBankOtp(userId: string, otp: string): Promise<vo
   if (activeOtp.attempts >= MAX_OTP_ATTEMPTS) {
     throw new HttpError(422, "Too many incorrect OTP attempts. Request a new OTP.", "OTP_LOCKED");
   }
-  if (!otpHashesEqual(activeOtp.otpHash, otp)) {
+  if (!otpHashesEqual(activeOtp.otpHash, code)) {
     await incrementOtpAttempts(activeOtp.id);
-    throw new HttpError(422, "Incorrect OTP", "OTP_INVALID");
+    throw new HttpError(422, "Incorrect OTP. Check the code and try again.", "OTP_INVALID");
   }
   await markOtpConsumed(activeOtp.id);
 }

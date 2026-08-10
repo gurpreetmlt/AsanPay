@@ -300,9 +300,19 @@ export function SettlementBanksPanel({
   async function sendOtp() {
     setOtpSending(true);
     try {
-      await api.post("/settlements/banks/otp");
+      const { data } = await api.post<{
+        success: boolean;
+        data?: { expiresInSec: number; otp?: string };
+        message?: string;
+      }>("/settlements/banks/otp");
       setOtpSent(true);
-      toast.success("OTP sent to your registered mobile");
+      const testOtp = data.data?.otp;
+      if (testOtp) {
+        setOtp(testOtp);
+        toast.success(`OTP ready: ${testOtp}`);
+      } else {
+        toast.success("OTP sent to your registered mobile");
+      }
     } catch (err) {
       toast.error(extractApiError(err, "Could not send OTP"));
     } finally {

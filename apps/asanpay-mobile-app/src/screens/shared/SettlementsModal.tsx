@@ -89,9 +89,19 @@ export function SettlementsModal({ visible, onClose }: { visible: boolean; onClo
   async function sendOtp() {
     setOtpSending(true);
     try {
-      await api.post("/settlements/banks/otp");
+      const res = await api.post<{
+        success: boolean;
+        data?: { expiresInSec: number; otp?: string };
+        message?: string;
+      }>("/settlements/banks/otp");
       setOtpSent(true);
-      showAlert("OTP sent", "Check your registered mobile for the 6-digit code");
+      const testOtp = res.data?.data?.otp;
+      if (testOtp) {
+        setOtp(testOtp);
+        showAlert("OTP ready", `Use code ${testOtp}`);
+      } else {
+        showAlert("OTP sent", "Check your registered mobile for the 6-digit code");
+      }
     } catch (err) {
       showAlert(
         "Error",
