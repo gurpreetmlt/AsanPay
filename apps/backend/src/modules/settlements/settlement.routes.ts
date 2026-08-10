@@ -11,6 +11,7 @@ import {
   registerSettlementBank,
   verifySettlementBank,
   listSettlementBanks,
+  revealSettlementBank,
   requestSettlement,
   markPayoutSuccess,
   markPayoutFailed,
@@ -48,6 +49,17 @@ settlementRouter.get("/banks", requireRole(...AGENT_ROLES), async (req, res) => 
   const tenantId = await resolveTenantId();
   const banks = await listSettlementBanks({ tenantId, userId: req.auth.sub });
   sendSuccess(res, banks);
+});
+
+settlementRouter.get("/banks/:id/reveal", requireRole(...AGENT_ROLES), walletTxnLimiter, async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const tenantId = await resolveTenantId();
+  const data = await revealSettlementBank({
+    tenantId,
+    userId: req.auth.sub,
+    settlementAccountId: parseBankRowId(paramId(req.params.id)),
+  });
+  sendSuccess(res, data);
 });
 
 settlementRouter.post(

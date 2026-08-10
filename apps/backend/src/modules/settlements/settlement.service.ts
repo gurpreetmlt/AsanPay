@@ -17,7 +17,7 @@ import {
   type Tx,
 } from "../../core/ledger";
 import { ensureHierarchyAccount } from "../wallet/ledgerAccounts";
-import { encryptPII } from "../../utils/aes";
+import { decryptPII, encryptPII } from "../../utils/aes";
 import { HttpError } from "../../utils/httpError";
 import { paiseToRupees, rupeesToPaise, type Paise } from "../../core/money";
 import { randomInt, timingSafeEqual } from "node:crypto";
@@ -371,6 +371,56 @@ export async function listSettlementBanks(params: {
     verified: r.verifiedAt != null,
     effectiveFrom: r.effectiveFrom.toISOString(),
   }));
+}
+
+/** Owner-only reveal of full account number (encrypted at rest). */
+export async function revealSettlementBank(params: {
+  tenantId: string;
+  userId: string;
+  settlementAccountId: bigint;
+}): Promise<{
+  id: string;
+  accountNumber: string;
+  accountNumberLast4: string;
+  ifsc: string;
+  holderName: string;
+}> {
+  const [row] = await db
+    .select({
+      id: agentSettlementAccounts.id,
+      accountNumberEnc: agentSettlementAccounts.accountNumberEnc,
+      accountNumberLast4: agentSettlementAccounts.accountNumberLast4,
+      ifsc: agentSettlementAccounts.ifsc,
+      holderName: agentSettlementAccounts.holderName,
+    })
+    .from(agentSettlementAccounts)
+    .where(
+      and(
+        eq(agentSettlementAccounts.id, params.settlementAccountId),
+        eq(agentSettlementAccounts.tenantId, params.tenantId),
+        eq(agentSettlementAccounts.userId, params.userId),
+      ),
+    )
+    .limit(1);
+
+  if (!row) {
+    throw new HttpError(404, "Settlement bank account not found", "NOT_FOUND");
+  }
+
+  let accountNumber: string;
+  try {
+    accountNumber = decryptPII(row.accountNumberEnc);
+  } catch {
+    throw new HttpError(500, "Could not decrypt account number", "DECRYPT_FAILED");
+  }
+
+  return {
+    id: String(row.id),
+    accountNumber,
+    accountNumberLast4: row.accountNumberLast4,
+    ifsc: row.ifsc,
+    holderName: row.holderName,
+  };
 }
 
 // ---------------------------------------------------------------------------------------

@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Clipboard,
+  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -10,8 +12,9 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Banknote } from "lucide-react-native";
+import { Copy, Eye, EyeOff, Landmark } from "lucide-react-native";
 import { api, fetchApi } from "../../lib/api";
+import { bankLogoUrl, formatSettlementBankCopy } from "../../lib/bankLogo";
 import { formatINR } from "../../lib/format";
 import { showAlert } from "../../components/AppAlert";
 import { StatusBadge, toneFromStatus } from "../../components/StatusBadge";
@@ -41,6 +44,25 @@ function newIdemKey() {
   return `settle-mobile-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`.slice(0, 100);
 }
 
+function BankLogo({ ifsc }: { ifsc: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <View style={[styles.bankIconWrap, { backgroundColor: `${colors.blueFlat}14` }]}>
+        <Landmark size={16} color={colors.blueFlat} />
+      </View>
+    );
+  }
+  return (
+    <Image
+      source={{ uri: bankLogoUrl(ifsc) }}
+      style={styles.bankLogo}
+      resizeMode="contain"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 export function SettlementsModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const { tokens } = useTheme();
   const [banks, setBanks] = useState<SettlementBank[]>([]);
@@ -52,6 +74,8 @@ export function SettlementsModal({ visible, onClose }: { visible: boolean; onClo
   const [accountNumber, setAccountNumber] = useState("");
   const [ifsc, setIfsc] = useState("");
   const [holderName, setHolderName] = useState("");
+  const [revealed, setRevealed] = useState<Record<string, string>>({});
+  const [busyId, setBusyId] = useState<string | null>(null);
   const idemRef = useRef(newIdemKey());
 
   const load = useCallback(async () => {
@@ -71,10 +95,66 @@ export function SettlementsModal({ visible, onClose }: { visible: boolean; onClo
   }, []);
 
   useEffect(() => {
-    if (visible) void load();
+    if (visible) {
+      setRevealed({});
+      void load();
+    }
   }, [visible, load]);
 
   const hasActiveBank = banks.some((b) => b.isActive && b.verified);
+
+  async function fetchReveal(bankId: string): Promise<string> {
+    if (revealed[bankId]) return revealed[bankId];
+    const data = await fetchApi<{ accountNumber: string }>(`/settlements/banks/${bankId}/reveal`);
+    setRevealed((prev) => ({ ...prev, [bankId]: data.accountNumber }));
+    return data.accountNumber;
+  }
+
+  async function toggleReveal(bank: SettlementBank) {
+    if (revealed[bank.id]) {
+      setRevealed((prev) => {
+        const next = { ...prev };
+        delete next[bank.id];
+        return next;
+      });
+      return;
+    }
+    setBusyId(bank.id);
+    try {
+      await fetchReveal(bank.id);
+    } catch (err) {
+      showAlert(
+        "Error",
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+          "Could not show account number",
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function copyBank(bank: SettlementBank) {
+    setBusyId(bank.id);
+    try {
+      const full = await fetchReveal(bank.id);
+      Clipboard.setString(
+        formatSettlementBankCopy({
+          holderName: bank.holderName,
+          accountNumber: full,
+          ifsc: bank.ifsc,
+        }),
+      );
+      showAlert("Copied", "Bank details copied");
+    } catch (err) {
+      showAlert(
+        "Error",
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+          "Could not copy bank details",
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   async function registerBank() {
     setSaving(true);
@@ -170,6 +250,8 @@ export function SettlementsModal({ visible, onClose }: { visible: boolean; onClo
             >
               {banks.map((b) => {
                 const active = b.verified && b.isActive;
+                const full = revealed[b.id];
+                const busy = busyId === b.id;
                 return (
                   <View
                     key={b.id}
@@ -182,17 +264,37 @@ export function SettlementsModal({ visible, onClose }: { visible: boolean; onClo
                     ]}
                   >
                     <View style={styles.bankCardHeader}>
-                      <View style={[styles.bankIconWrap, { backgroundColor: `${colors.blueFlat}14` }]}>
-                        <Banknote size={16} color={colors.blueFlat} />
-                      </View>
-                      <StatusBadge
-                        tone={active ? "success" : b.verified ? "info" : "pending"}
-                      >
+                      <BankLogo ifsc={b.ifsc} />
+                      <StatusBadge tone={active ? "success" : b.verified ? "info" : "pending"}>
                         {b.verified ? (b.isActive ? "Active" : "Verified") : "Pending"}
                       </StatusBadge>
                     </View>
                     <Text style={[styles.acctLabel, { color: tokens.mute }]}>Account</Text>
-                    <Text style={[styles.acctNum, { color: tokens.txt }]}>**** {b.accountNumberLast4}</Text>
+                    <View style={styles.acctRow}>
+                      <Text style={[styles.acctNum, { color: tokens.txt, flex: 1 }]} numberOfLines={1}>
+                        {full ?? `**** ${b.accountNumberLast4}`}
+                      </Text>
+                      <Pressable
+                        onPress={() => void toggleReveal(b)}
+                        disabled={busy}
+                        hitSlop={8}
+                        style={styles.iconBtn}
+                      >
+                        {full ? (
+                          <EyeOff size={16} color={colors.blueFlat} />
+                        ) : (
+                          <Eye size={16} color={colors.blueFlat} />
+                        )}
+                      </Pressable>
+                      <Pressable
+                        onPress={() => void copyBank(b)}
+                        disabled={busy}
+                        hitSlop={8}
+                        style={styles.iconBtn}
+                      >
+                        <Copy size={16} color={colors.blueFlat} />
+                      </Pressable>
+                    </View>
                     <Text style={[styles.holder, { color: tokens.txt }]} numberOfLines={1}>
                       {b.holderName}
                     </Text>
@@ -321,7 +423,7 @@ const styles = StyleSheet.create({
   section: { fontSize: 16, fontWeight: "800", marginBottom: 10 },
   hint: { fontSize: 12, marginBottom: 10, lineHeight: 16 },
   bankCard: {
-    width: 240,
+    width: 260,
     borderRadius: 18,
     borderWidth: 1.5,
     padding: 16,
@@ -333,14 +435,22 @@ const styles = StyleSheet.create({
   },
   bankCardHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   bankIconWrap: {
-    width: 30,
-    height: 30,
+    width: 36,
+    height: 36,
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
   },
+  bankLogo: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "#fff",
+  },
   acctLabel: { fontSize: 10.5, fontWeight: "700", textTransform: "uppercase", marginTop: 14 },
-  acctNum: { fontSize: 18, fontWeight: "800", letterSpacing: 1.5, marginTop: 4, fontVariant: ["tabular-nums"] },
+  acctRow: { flexDirection: "row", alignItems: "center", marginTop: 4, gap: 4 },
+  acctNum: { fontSize: 16, fontWeight: "800", letterSpacing: 1, fontVariant: ["tabular-nums"] },
+  iconBtn: { width: 28, height: 28, alignItems: "center", justifyContent: "center" },
   holder: { fontSize: 14, fontWeight: "700", marginTop: 12 },
   ifsc: { fontSize: 12, fontWeight: "600", marginTop: 4 },
   histCard: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 8 },
