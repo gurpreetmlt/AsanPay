@@ -468,7 +468,12 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
       <div className="flex min-h-screen flex-col overflow-x-hidden pb-20 md:ml-64 md:pb-0">
         <AdminHeader onOpenMobileNav={() => setDrawer(true)} />
-        <main className="flex-1 overflow-x-hidden">{children}</main>
+        <main
+          key={pathname}
+          className="dash-page-animate flex-1 overflow-x-hidden"
+        >
+          {children}
+        </main>
       </div>
 
       <MobileAdminNav />

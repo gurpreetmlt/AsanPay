@@ -12,6 +12,7 @@ import { useTheme } from "../../theme/ThemeContext";
 import { colors, gradientDirection } from "../../theme/colors";
 import { FundRequestModal } from "./FundRequestScreen";
 import { SettlementsModal } from "./SettlementsModal";
+import { PageEnter } from "../../components/PageEnter";
 
 type WalletKind = "main" | "aeps";
 const BALANCE_VISIBLE_KEY = "asanpay_balance_visible";
@@ -89,6 +90,7 @@ export function WalletScreen() {
   }, [activeEntries, today]);
 
   return (
+    <PageEnter>
     <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bg }]} edges={["top"]}>
       <LinearGradient
         colors={[colors.blueLight, colors.blue]}
@@ -237,6 +239,7 @@ export function WalletScreen() {
       <FundRequestModal visible={showFund} onClose={() => setShowFund(false)} />
       <SettlementsModal visible={showSettle} onClose={() => setShowSettle(false)} />
     </SafeAreaView>
+    </PageEnter>
   );
 }
 

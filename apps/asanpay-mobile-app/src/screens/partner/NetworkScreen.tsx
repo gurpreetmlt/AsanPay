@@ -8,6 +8,7 @@ import { DownlineCard } from "../../components/DownlineCard";
 import { ModalSheet } from "../../components/ModalSheet";
 import { ScreenHeader } from "../../components/ScreenHeader";
 import { WalletBar } from "../../components/WalletBar";
+import { PageEnter } from "../../components/PageEnter";
 import { api, fetchApi } from "../../lib/api";
 import { createAttemptKeyHolder } from "../../lib/idempotencyKey";
 import { CHILD_ROLE, ROLE_LABEL } from "../../lib/roles";
@@ -86,6 +87,7 @@ export function NetworkScreen() {
     .join("");
 
   return (
+    <PageEnter>
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <ScreenHeader
         variant="profile"
@@ -215,6 +217,7 @@ export function NetworkScreen() {
         />
       )}
     </SafeAreaView>
+    </PageEnter>
   );
 }
 

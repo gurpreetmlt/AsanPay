@@ -354,7 +354,20 @@ body {
   animation: login-rise 0.55s ease-out both;
 }
 
-/* Dashboard page motion */
+/* Dashboard / page load motion — soft shade-in (revert-friendly) */
+@keyframes page-shade-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+    filter: brightness(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: brightness(1);
+  }
+}
+
 @keyframes dash-rise {
   from {
     opacity: 0;
@@ -367,11 +380,40 @@ body {
 }
 
 .dash-page-animate {
-  animation: dash-rise 0.45s ease-out both;
+  animation: page-shade-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Stagger top-level blocks so sections appear one after another */
+.dash-page-stagger > * {
+  animation: page-shade-in 0.48s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.dash-page-stagger > *:nth-child(1) {
+  animation-delay: 0.02s;
+}
+.dash-page-stagger > *:nth-child(2) {
+  animation-delay: 0.08s;
+}
+.dash-page-stagger > *:nth-child(3) {
+  animation-delay: 0.14s;
+}
+.dash-page-stagger > *:nth-child(4) {
+  animation-delay: 0.2s;
+}
+.dash-page-stagger > *:nth-child(5) {
+  animation-delay: 0.26s;
+}
+.dash-page-stagger > *:nth-child(6) {
+  animation-delay: 0.32s;
+}
+.dash-page-stagger > *:nth-child(7) {
+  animation-delay: 0.38s;
+}
+.dash-page-stagger > *:nth-child(8) {
+  animation-delay: 0.44s;
 }
 
 .dash-stagger > * {
-  animation: dash-rise 0.5s ease-out both;
+  animation: page-shade-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 .dash-stagger > *:nth-child(1) {
   animation-delay: 0.02s;
@@ -390,6 +432,17 @@ body {
 }
 .dash-stagger > *:nth-child(6) {
   animation-delay: 0.27s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dash-page-animate,
+  .dash-page-stagger > *,
+  .dash-stagger > * {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+  }
 }
 
 .dash-card-hover {

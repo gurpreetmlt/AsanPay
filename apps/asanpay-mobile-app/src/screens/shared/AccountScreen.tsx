@@ -22,6 +22,7 @@ import {
 } from "lucide-react-native";
 import { ROLE_LABELS, type ApiResponse, type AuthUser } from "@asanpay/shared-types";
 import { BrandMark } from "../../components/BrandMark";
+import { PageEnter } from "../../components/PageEnter";
 import { ModalSheet } from "../../components/ModalSheet";
 import { PinInput } from "../../components/PinInput";
 import { api } from "../../lib/api";
@@ -251,6 +252,7 @@ export function AccountScreen() {
       ];
 
   return (
+    <PageEnter>
     <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bg }]} edges={["top"]}>
       <LinearGradient
         colors={[...colors.gradient]}
@@ -491,6 +493,7 @@ export function AccountScreen() {
       <RegisterOutletModal visible={showRegisterOutlet} onClose={() => setShowRegisterOutlet(false)} />
       <BioKycModal visible={showBioKyc} onClose={() => setShowBioKyc(false)} />
     </SafeAreaView>
+    </PageEnter>
   );
 }
 

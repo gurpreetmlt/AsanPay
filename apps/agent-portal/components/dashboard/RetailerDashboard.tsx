@@ -100,7 +100,7 @@ export function RetailerDashboard() {
   const kycDone = user?.kycStatus === "verified";
 
   return (
-    <div className="dash-page-animate space-y-4">
+    <div className="dash-page-stagger space-y-4">
       {/* Wallet Summary */}
       <div className="dash-stagger grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
         {/* Main Wallet */}

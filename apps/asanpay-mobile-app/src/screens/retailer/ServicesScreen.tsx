@@ -23,6 +23,7 @@ import { UpiCashPointScreen } from "./UpiCashPointScreen";
 import { FundRequestModal } from "../shared/FundRequestScreen";
 import { showAlert } from "../../components/AppAlert";
 import { BrandLockup } from "../../components/BrandMark";
+import { PageEnter } from "../../components/PageEnter";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 
@@ -149,6 +150,7 @@ export function ServicesScreen() {
   const firstName = user.name.split(" ")[0] ?? user.name;
 
   return (
+    <PageEnter>
     <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bg }]} edges={["top"]}>
       <ScreenHeader
         variant="profile"
@@ -373,6 +375,7 @@ export function ServicesScreen() {
       </ScrollView>
       <FundRequestModal visible={showFund} onClose={() => setShowFund(false)} />
     </SafeAreaView>
+    </PageEnter>
   );
 }
 

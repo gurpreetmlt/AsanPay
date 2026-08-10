@@ -713,7 +713,12 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         )}
 
-        <main className="dash-page-animate flex-1 overflow-y-auto overflow-x-hidden">{children}</main>
+        <main
+          key={pathname}
+          className="dash-page-animate flex-1 overflow-y-auto overflow-x-hidden"
+        >
+          {children}
+        </main>
       </div>
 
       {/* Bottom tabs — mobile pattern */}

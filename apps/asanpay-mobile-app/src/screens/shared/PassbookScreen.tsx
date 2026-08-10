@@ -7,6 +7,7 @@ import { formatDate, formatINR } from "../../lib/format";
 import type { LedgerEntry } from "../../lib/types";
 import { useTheme } from "../../theme/ThemeContext";
 import { colors, gradientDirection } from "../../theme/colors";
+import { PageEnter } from "../../components/PageEnter";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -66,6 +67,7 @@ export function PassbookScreen() {
   }, [entries]);
 
   return (
+    <PageEnter>
     <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bg }]} edges={["top"]}>
       <LinearGradient
         colors={[colors.blueLight, colors.blue]}
@@ -176,6 +178,7 @@ export function PassbookScreen() {
         )}
       </ScrollView>
     </SafeAreaView>
+    </PageEnter>
   );
 }
 
