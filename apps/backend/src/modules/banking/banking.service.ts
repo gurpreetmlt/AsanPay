@@ -9,7 +9,6 @@ import { encryptPII } from "../../utils/aes";
 import { HttpError } from "../../utils/httpError";
 import { env } from "../../config/env";
 import type { Paise } from "../../core/money";
-import { getTenantSettings } from "../tenants/tenantSettings.service";
 
 const SUSPENSE = "TREASURY_SUSPENSE_UNIDENTIFIED";
 const COMPANY = "COMPANY_001";
@@ -340,15 +339,8 @@ export async function deleteBankAccount(params: {
   tenantId: string;
   bankAccountId: bigint;
 }): Promise<void> {
-  const settings = await getTenantSettings(params.tenantId);
-  if (!settings.allowCompanyBankDelete) {
-    throw new HttpError(
-      403,
-      "Permanent bank delete is disabled. Enable it in Platform Settings, or disable the account instead.",
-      "BANK_DELETE_DISABLED",
-    );
-  }
-
+  // UI gate: Admin Developer → Safety → Enable row delete (browser-local).
+  // API still requires the account to be disabled first.
   const [row] = await db
     .select({ id: bankAccounts.id, isActive: bankAccounts.isActive })
     .from(bankAccounts)

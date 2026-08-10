@@ -12,6 +12,7 @@ import {
 } from "@/components/banking/IfscBankDetailsFields";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
+import { useDevOptionsStore } from "@/lib/devOptionsStore";
 import { createAttemptKeyHolder } from "@/lib/idempotencyKey";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
@@ -78,6 +79,7 @@ export default function AdminBankingPage() {
   const router = useRouter();
   const hydrated = useAuthHydrated();
   const accessToken = useAuthStore((s) => s.accessToken);
+  const rowDeleteEnabled = useDevOptionsStore((s) => s.rowDeleteEnabled);
 
   const [tab, setTab] = useState<Tab>("accounts");
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
@@ -88,7 +90,6 @@ export default function AdminBankingPage() {
   const [bankDetails, setBankDetails] = useState<IfscBankDetailsValue>(emptyIfscBankDetails);
   const [purpose, setPurpose] = useState<Purpose>("collection");
   const [supportsVan, setSupportsVan] = useState(false);
-  const [allowCompanyBankDelete, setAllowCompanyBankDelete] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [importBankId, setImportBankId] = useState("");
@@ -115,7 +116,7 @@ export default function AdminBankingPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [rows, count, vans, meta] = await Promise.all([
+      const [rows, count, vans] = await Promise.all([
         fetchApi<BankAccount[]>("/banking/accounts", { purpose: "all" }),
         fetchApi<{ count: number }>("/banking/unmatched-count"),
         fetchApi<
@@ -128,14 +129,10 @@ export default function AdminBankingPage() {
             ownerCode: string;
           }>
         >("/banking/van"),
-        fetchApi<{ allowCompanyBankDelete: boolean }>("/banking/accounts-meta").catch(() => ({
-          allowCompanyBankDelete: false,
-        })),
       ]);
       setAccounts(rows);
       setUnmatched(count.count);
       setVanRows(vans);
-      setAllowCompanyBankDelete(meta.allowCompanyBankDelete === true);
       if (!importBankId && rows[0]) setImportBankId(rows[0].id);
       const vanBank = rows.find((r) => r.supportsVan && r.isActive);
       if (!vanBankId && vanBank) setVanBankId(vanBank.id);
@@ -239,8 +236,8 @@ export default function AdminBankingPage() {
   }
 
   async function removeBank(a: BankAccount) {
-    if (!allowCompanyBankDelete) {
-      toast.error("Permanent delete is disabled in Platform Settings");
+    if (!rowDeleteEnabled) {
+      toast.error("Turn on Developer → Safety → Enable row delete to show delete actions");
       return;
     }
     if (a.isActive) {
@@ -545,10 +542,10 @@ export default function AdminBankingPage() {
                             >
                               <Power size={16} />
                             </button>
-                            {allowCompanyBankDelete ? (
+                            {rowDeleteEnabled ? (
                               <button
                                 type="button"
-                                title="Delete"
+                                title={a.isActive ? "Disable the bank first, then delete" : "Delete"}
                                 onClick={() => void removeBank(a)}
                                 disabled={saving || a.isActive}
                                 className="rounded-lg p-2 disabled:opacity-40"

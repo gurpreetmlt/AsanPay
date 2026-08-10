@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Image, Dimensions, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import Clipboard from "@react-native-clipboard/clipboard";
 import { Check, Copy, Eye, EyeOff, Landmark } from "lucide-react-native";
@@ -75,6 +75,9 @@ export function BankDetailCard({
   bankName,
   branch,
   unavailable = false,
+  /** Explicit width for horizontal pickers (avoids screen-edge clipping). */
+  cardWidth,
+  style,
 }: {
   ifsc: string;
   holderName: string;
@@ -92,6 +95,8 @@ export function BankDetailCard({
   bankName?: string;
   branch?: string;
   unavailable?: boolean;
+  cardWidth?: number;
+  style?: StyleProp<ViewStyle>;
 }) {
   const { tokens } = useTheme();
   const showFull = revealed && Boolean(accountFull);
@@ -166,21 +171,18 @@ export function BankDetailCard({
   );
 
   const isPicker = Boolean(onSelect);
-  const screenW = Dimensions.get("window").width;
-  /** Almost full width with a small peek of the next card — avoids right-edge cut-off. */
-  const pickerWidth = Math.round(Math.min(300, screenW - 56));
   const shellStyle = [
     styles.card,
     {
-      width: isPicker ? pickerWidth : 280,
+      width: cardWidth ?? (isPicker ? 280 : 280),
       borderColor: selected ? `${tint}55` : corners.border,
       opacity: unavailable ? 0.55 : 1,
       shadowColor: glow,
-      shadowOpacity: selected ? 0.22 : 0.12,
-      shadowRadius: selected ? 14 : 10,
-      elevation: selected ? 4 : 2,
-      ...(isPicker && selected ? { transform: [{ scale: 1.02 }] } : null),
+      shadowOpacity: selected ? 0.18 : 0.1,
+      shadowRadius: selected ? 12 : 8,
+      elevation: selected ? 3 : 2,
     },
+    style,
   ];
 
   const gradient = (
@@ -212,7 +214,7 @@ const styles = StyleSheet.create({
     width: 280,
     borderRadius: 18,
     borderWidth: 1,
-    marginRight: 12,
+    marginRight: 0,
     overflow: "hidden",
     shadowOffset: { width: 0, height: 6 },
     backgroundColor: "#fff",

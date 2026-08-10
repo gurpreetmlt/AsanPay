@@ -59,13 +59,13 @@ export default function DeveloperSafetyPage() {
                   Enable row delete
                 </h2>
                 <p className="mt-1 text-sm leading-relaxed" style={{ color: B.muted }}>
-                  When on, Delete / Trash icons appear on All Agents and other admin tables
-                  (commission rules, service charges, shared action buttons). When off, those
-                  icons are hidden.
+                  When on, Delete / Trash icons appear on All Agents, Banking (company banks),
+                  commission rules, service charges, and other shared admin action buttons. When
+                  off, those icons are hidden.
                 </p>
                 <p className="mt-2 text-xs font-semibold" style={{ color: "#B45309" }}>
-                  This only affects this browser. Keep off unless you are intentionally cleaning
-                  data.
+                  This only affects this browser. Company banks must be Disabled before delete.
+                  Keep off unless you are intentionally cleaning data.
                 </p>
               </div>
             </div>

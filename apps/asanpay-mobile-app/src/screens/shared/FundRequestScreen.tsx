@@ -402,57 +402,73 @@ function BankCardSlider({
   onSelect: (id: string) => void;
 }) {
   const [revealedIds, setRevealedIds] = useState<Record<string, boolean>>({});
+  const [trackW, setTrackW] = useState(0);
+  /** Full card stays inside screen; ~22px peek of the next bank. */
+  const GAP = 12;
+  const SIDE_PAD = 16;
+  const PEEK = 22;
+  const cardWidth = trackW > 0 ? Math.round(trackW - SIDE_PAD - PEEK) : undefined;
 
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      decelerationRate="fast"
-      contentContainerStyle={{ paddingLeft: 2, paddingRight: 20, paddingVertical: 10 }}
+    <View
+      style={{ marginHorizontal: -16 }}
+      onLayout={(e) => setTrackW(e.nativeEvent.layout.width)}
     >
-      {banks.map((b) => {
-        const isSelected = selected === b.id;
-        const isMine = myVan?.bankAccountId === b.id && Boolean(myVan?.vanNumber);
-        const fullAccount = isMine && myVan?.vanNumber ? myVan.vanNumber : `****${b.accountNumberLast4}`;
-        const masked =
-          isMine && myVan?.vanNumber ? maskTail(myVan.vanNumber) : `**** ${b.accountNumberLast4}`;
-        const canReveal = isMine && Boolean(myVan?.vanNumber);
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        decelerationRate="fast"
+        snapToInterval={cardWidth ? cardWidth + GAP : undefined}
+        snapToAlignment="start"
+        disableIntervalMomentum
+        contentContainerStyle={{ paddingHorizontal: SIDE_PAD, paddingVertical: 12 }}
+      >
+        {banks.map((b) => {
+          const isSelected = selected === b.id;
+          const isMine = myVan?.bankAccountId === b.id && Boolean(myVan?.vanNumber);
+          const fullAccount = isMine && myVan?.vanNumber ? myVan.vanNumber : `****${b.accountNumberLast4}`;
+          const masked =
+            isMine && myVan?.vanNumber ? maskTail(myVan.vanNumber) : `**** ${b.accountNumberLast4}`;
+          const canReveal = isMine && Boolean(myVan?.vanNumber);
 
-        return (
-          <BankDetailCard
-            key={b.id}
-            ifsc={b.ifsc}
-            holderName="AsanPay"
-            bankName={b.bankName}
-            accountMasked={masked}
-            accountFull={canReveal ? fullAccount : undefined}
-            revealed={Boolean(revealedIds[b.id])}
-            onToggleReveal={
-              canReveal
-                ? () => setRevealedIds((prev) => ({ ...prev, [b.id]: !prev[b.id] }))
-                : undefined
-            }
-            onCopy={() => {
-              Clipboard.setString(
-                formatSettlementBankCopy({
-                  bankName: b.bankName,
-                  holderName: "AsanPay",
-                  accountNumber: fullAccount.replace(/\s/g, ""),
-                  ifsc: b.ifsc,
-                }),
-              );
-              showAlert("Copied", "Bank details copied");
-            }}
-            statusTone={isSelected ? "success" : b.isActive ? "info" : "pending"}
-            statusLabel={isSelected ? "Selected" : b.isActive ? "Available" : "Unavailable"}
-            selected={isSelected}
-            onSelect={() => onSelect(b.id)}
-            unavailable={!b.isActive}
-            note={isMine ? "Your dedicated account" : undefined}
-          />
-        );
-      })}
-    </ScrollView>
+          return (
+            <BankDetailCard
+              key={b.id}
+              ifsc={b.ifsc}
+              holderName="AsanPay"
+              bankName={b.bankName}
+              accountMasked={masked}
+              accountFull={canReveal ? fullAccount : undefined}
+              revealed={Boolean(revealedIds[b.id])}
+              onToggleReveal={
+                canReveal
+                  ? () => setRevealedIds((prev) => ({ ...prev, [b.id]: !prev[b.id] }))
+                  : undefined
+              }
+              onCopy={() => {
+                Clipboard.setString(
+                  formatSettlementBankCopy({
+                    bankName: b.bankName,
+                    holderName: "AsanPay",
+                    accountNumber: fullAccount.replace(/\s/g, ""),
+                    ifsc: b.ifsc,
+                  }),
+                );
+                showAlert("Copied", "Bank details copied");
+              }}
+              statusTone={isSelected ? "success" : b.isActive ? "info" : "pending"}
+              statusLabel={isSelected ? "Selected" : b.isActive ? "Available" : "Unavailable"}
+              selected={isSelected}
+              onSelect={() => onSelect(b.id)}
+              unavailable={!b.isActive}
+              note={isMine ? "Your dedicated account" : undefined}
+              cardWidth={cardWidth}
+              style={{ marginRight: GAP }}
+            />
+          );
+        })}
+      </ScrollView>
+    </View>
   );
 }
 

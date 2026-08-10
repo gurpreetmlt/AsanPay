@@ -36,7 +36,6 @@ import {
   assignVanSchema,
 } from "./banking.validators";
 import { normalizeVanWebhookPayload } from "./vanAdapters";
-import { getTenantSettings } from "../tenants/tenantSettings.service";
 
 export const bankingRouter = Router();
 
@@ -212,9 +211,7 @@ bankingRouter.delete("/accounts/:id", requireRole("admin"), async (req, res) => 
 });
 
 bankingRouter.get("/accounts-meta", requireRole("admin"), async (_req, res) => {
-  const tenantId = await resolveTenantId();
-  const settings = await getTenantSettings(tenantId);
-  sendSuccess(res, { allowCompanyBankDelete: settings.allowCompanyBankDelete === true });
+  sendSuccess(res, { ok: true });
 });
 
 bankingRouter.post(
