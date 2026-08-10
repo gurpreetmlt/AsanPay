@@ -50,6 +50,8 @@ export const bankAccounts = pgTable(
     purpose: bankPurposeEnum("purpose").notNull(),
     supportsVan: boolean("supports_van").notNull().default(false),
     isActive: boolean("is_active").notNull().default(true),
+    /** Soft-delete — hard DELETE fails when VANs / statements / fund requests reference the row. */
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

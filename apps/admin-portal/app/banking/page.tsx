@@ -10,6 +10,7 @@ import {
   IfscBankDetailsFields,
   type IfscBankDetailsValue,
 } from "@/components/banking/IfscBankDetailsFields";
+import { DangerConfirmModal } from "@/components/ui/DangerConfirmModal";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { useDevOptionsStore } from "@/lib/devOptionsStore";
@@ -98,6 +99,7 @@ export default function AdminBankingPage() {
   const [vanUserId, setVanUserId] = useState("");
   const [vanBankId, setVanBankId] = useState("");
   const [vanNumber, setVanNumber] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<BankAccount | null>(null);
   const [vpa, setVpa] = useState("");
   const [vanRows, setVanRows] = useState<
     Array<{
@@ -240,15 +242,17 @@ export default function AdminBankingPage() {
       toast.error("Turn on Developer → Safety → Enable row delete to show delete actions");
       return;
     }
-    if (a.isActive) {
-      toast.error("Disable the bank account before deleting it");
-      return;
-    }
-    if (!window.confirm(`Permanently delete ${a.bankName} ****${a.accountNumberLast4}?`)) return;
+    setDeleteTarget(a);
+  }
+
+  async function confirmRemoveBank() {
+    if (!deleteTarget) return;
+    const a = deleteTarget;
     setSaving(true);
     try {
       await api.delete(`/banking/accounts/${a.id}`);
       toast.success("Bank account deleted");
+      setDeleteTarget(null);
       if (editingId === a.id) cancelEdit();
       await load();
     } catch (err) {
@@ -545,9 +549,9 @@ export default function AdminBankingPage() {
                             {rowDeleteEnabled ? (
                               <button
                                 type="button"
-                                title={a.isActive ? "Disable the bank first, then delete" : "Delete"}
+                                title="Delete bank"
                                 onClick={() => void removeBank(a)}
-                                disabled={saving || a.isActive}
+                                disabled={saving}
                                 className="rounded-lg p-2 disabled:opacity-40"
                                 style={{ color: "#DC2626" }}
                               >
@@ -734,6 +738,34 @@ export default function AdminBankingPage() {
           </div>
         )}
       </div>
+
+      {deleteTarget ? (
+        <DangerConfirmModal
+          title="Delete this bank?"
+          message={
+            <>
+              <p>
+                You are about to remove{" "}
+                <span className="font-semibold" style={{ color: B.blue }}>
+                  {deleteTarget.bankName} ****{deleteTarget.accountNumberLast4}
+                </span>{" "}
+                ({deleteTarget.ifsc}).
+              </p>
+              <p className="mt-2">
+                It will disappear from Banking and Add Money. Linked history stays in the database.
+                This cannot be undone from the admin UI.
+              </p>
+            </>
+          }
+          confirmLabel="Yes, delete bank"
+          cancelLabel="Cancel"
+          busy={saving}
+          onConfirm={() => void confirmRemoveBank()}
+          onClose={() => {
+            if (!saving) setDeleteTarget(null);
+          }}
+        />
+      ) : null}
     </AdminShell>
   );
 }

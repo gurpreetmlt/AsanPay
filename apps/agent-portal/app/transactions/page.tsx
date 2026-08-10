@@ -46,6 +46,44 @@ export default function TransactionsPage() {
   const [txns, setTxns] = useState<TxnRow[]>([]);
   const [disputeTxn, setDisputeTxn] = useState<TxnRow | null>(null);
   const [loading, setLoading] = useState(true);
+  const [downloadingRef, setDownloadingRef] = useState<string | null>(null);
+
+  async function downloadReceiptPdf(txnRef: string) {
+    setDownloadingRef(txnRef);
+    try {
+      const res = await fetch(`/api/proxy/txn/${encodeURIComponent(txnRef)}/receipt/pdf`, {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      });
+      const contentType = res.headers.get("content-type") || "";
+      if (!res.ok || !contentType.includes("pdf")) {
+        let message = "Could not download receipt PDF";
+        try {
+          const json = (await res.json()) as { message?: string };
+          if (json?.message) message = json.message;
+        } catch {
+          /* keep default */
+        }
+        toast.error(message);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `receipt-${txnRef}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success("Receipt downloaded");
+    } catch (err) {
+      toast.error(extractApiError(err, "Could not download receipt PDF"));
+    } finally {
+      setDownloadingRef(null);
+    }
+  }
 
   useEffect(() => {
     if (hydrated && !accessToken) router.replace("/login");
@@ -231,15 +269,16 @@ export default function TransactionsPage() {
                       })}
                     </td>
                     <td className="px-4 py-3">
-                      <a
-                        href={`/api/proxy/txn/${t.txnRef}/receipt/pdf`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs font-semibold hover:underline"
+                      <button
+                        type="button"
+                        onClick={() => void downloadReceiptPdf(t.txnRef)}
+                        disabled={downloadingRef === t.txnRef}
+                        className="inline-flex items-center gap-1 text-xs font-semibold hover:underline disabled:opacity-50"
                         style={{ color: B.blue }}
                       >
-                        <Download size={12} /> PDF
-                      </a>
+                        <Download size={12} />
+                        {downloadingRef === t.txnRef ? "…" : "PDF"}
+                      </button>
                     </td>
                     <td className="px-4 py-3">
                       <button

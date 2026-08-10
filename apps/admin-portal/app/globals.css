@@ -340,3 +340,86 @@ html.dark ::placeholder {
     filter: none !important;
   }
 }
+
+/* Danger confirm modal (bank delete etc.) */
+@keyframes danger-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes danger-panel-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.88) translateY(18px);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(1.03) translateY(0);
+  }
+  70% {
+    transform: scale(0.99) translateY(0) rotate(-0.6deg);
+  }
+  85% {
+    transform: scale(1.01) translateY(0) rotate(0.5deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0) rotate(0);
+  }
+}
+
+@keyframes danger-icon-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.45);
+  }
+  50% {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 12px rgba(220, 38, 38, 0);
+  }
+}
+
+@keyframes danger-btn-glow {
+  0%,
+  100% {
+    filter: brightness(1);
+    box-shadow: 0 8px 20px rgba(220, 38, 38, 0.28);
+  }
+  50% {
+    filter: brightness(1.08);
+    box-shadow: 0 10px 28px rgba(220, 38, 38, 0.42);
+  }
+}
+
+.danger-confirm-backdrop {
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(4px);
+  animation: danger-backdrop-in 0.28s ease-out both;
+}
+
+.danger-confirm-panel {
+  animation: danger-panel-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.danger-confirm-icon {
+  background: #fee2e2;
+  animation: danger-icon-pulse 1.4s ease-in-out infinite;
+}
+
+.danger-confirm-btn {
+  animation: danger-btn-glow 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .danger-confirm-backdrop,
+  .danger-confirm-panel,
+  .danger-confirm-icon,
+  .danger-confirm-btn {
+    animation: none !important;
+  }
+}

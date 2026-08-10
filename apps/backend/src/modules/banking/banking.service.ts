@@ -1,5 +1,5 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
-import { and, eq, lt, or, sql, desc } from "drizzle-orm";
+import { and, eq, isNull, lt, or, sql, desc } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "../../db/postgres";
 import { accounts, bankAccounts, bankStatementLines, virtualAccounts } from "../../db/postgres/schema";
@@ -246,7 +246,7 @@ export async function listBankAccounts(
     isActive: boolean;
   }>
 > {
-  const conditions = [eq(bankAccounts.tenantId, tenantId)];
+  const conditions = [eq(bankAccounts.tenantId, tenantId), isNull(bankAccounts.deletedAt)];
   if (opts?.purpose) conditions.push(eq(bankAccounts.purpose, opts.purpose));
   if (opts?.activeOnly !== false) conditions.push(eq(bankAccounts.isActive, true));
 
@@ -286,7 +286,13 @@ export async function updateBankAccount(params: {
   const [row] = await db
     .select({ id: bankAccounts.id })
     .from(bankAccounts)
-    .where(and(eq(bankAccounts.id, params.bankAccountId), eq(bankAccounts.tenantId, params.tenantId)))
+    .where(
+      and(
+        eq(bankAccounts.id, params.bankAccountId),
+        eq(bankAccounts.tenantId, params.tenantId),
+        isNull(bankAccounts.deletedAt),
+      ),
+    )
     .limit(1);
   if (!row) throw new HttpError(404, "Bank account not found", "NOT_FOUND");
 
@@ -310,7 +316,13 @@ export async function updateBankAccount(params: {
   await db
     .update(bankAccounts)
     .set(patch)
-    .where(and(eq(bankAccounts.id, params.bankAccountId), eq(bankAccounts.tenantId, params.tenantId)));
+    .where(
+      and(
+        eq(bankAccounts.id, params.bankAccountId),
+        eq(bankAccounts.tenantId, params.tenantId),
+        isNull(bankAccounts.deletedAt),
+      ),
+    );
 
   return { id: String(params.bankAccountId) };
 }
@@ -323,14 +335,26 @@ export async function setBankAccountActive(params: {
   const [row] = await db
     .select({ id: bankAccounts.id })
     .from(bankAccounts)
-    .where(and(eq(bankAccounts.id, params.bankAccountId), eq(bankAccounts.tenantId, params.tenantId)))
+    .where(
+      and(
+        eq(bankAccounts.id, params.bankAccountId),
+        eq(bankAccounts.tenantId, params.tenantId),
+        isNull(bankAccounts.deletedAt),
+      ),
+    )
     .limit(1);
   if (!row) throw new HttpError(404, "Bank account not found", "NOT_FOUND");
 
   await db
     .update(bankAccounts)
     .set({ isActive: params.isActive })
-    .where(and(eq(bankAccounts.id, params.bankAccountId), eq(bankAccounts.tenantId, params.tenantId)));
+    .where(
+      and(
+        eq(bankAccounts.id, params.bankAccountId),
+        eq(bankAccounts.tenantId, params.tenantId),
+        isNull(bankAccounts.deletedAt),
+      ),
+    );
 
   return { id: String(params.bankAccountId), isActive: params.isActive };
 }
@@ -340,32 +364,19 @@ export async function deleteBankAccount(params: {
   bankAccountId: bigint;
 }): Promise<void> {
   // UI gate: Admin Developer → Safety → Enable row delete (browser-local).
-  // API still requires the account to be disabled first.
+  // Soft-delete only — hard DELETE fails when VANs / statements / fund requests reference the row.
   const [row] = await db
-    .select({ id: bankAccounts.id, isActive: bankAccounts.isActive })
+    .select({ id: bankAccounts.id, deletedAt: bankAccounts.deletedAt })
     .from(bankAccounts)
     .where(and(eq(bankAccounts.id, params.bankAccountId), eq(bankAccounts.tenantId, params.tenantId)))
     .limit(1);
   if (!row) throw new HttpError(404, "Bank account not found", "NOT_FOUND");
-  if (row.isActive) {
-    throw new HttpError(
-      422,
-      "Disable the bank account before permanently deleting it",
-      "BANK_STILL_ACTIVE",
-    );
-  }
+  if (row.deletedAt) throw new HttpError(404, "Bank account not found", "NOT_FOUND");
 
-  try {
-    await db
-      .delete(bankAccounts)
-      .where(and(eq(bankAccounts.id, params.bankAccountId), eq(bankAccounts.tenantId, params.tenantId)));
-  } catch {
-    throw new HttpError(
-      422,
-      "Cannot delete this bank — it still has linked VANs or statement history. Keep it disabled instead.",
-      "BANK_IN_USE",
-    );
-  }
+  await db
+    .update(bankAccounts)
+    .set({ isActive: false, deletedAt: new Date() })
+    .where(and(eq(bankAccounts.id, params.bankAccountId), eq(bankAccounts.tenantId, params.tenantId)));
 }
 
 /** Canonical string signed by the bank: bankTxnId|vanNumber|vpa|amount */
@@ -692,6 +703,7 @@ async function resolveBankForUnmatched(
           eq(bankAccounts.accountNumberLast4, last4),
           eq(bankAccounts.purpose, "collection"),
           eq(bankAccounts.isActive, true),
+          isNull(bankAccounts.deletedAt),
         ),
       )
       .limit(1);
@@ -719,6 +731,7 @@ async function resolveBankForUnmatched(
         eq(bankAccounts.purpose, "collection"),
         eq(bankAccounts.supportsVan, true),
         eq(bankAccounts.isActive, true),
+        isNull(bankAccounts.deletedAt),
       ),
     )
     .limit(2);
@@ -755,12 +768,13 @@ export async function assignVirtualAccount(params: {
         supportsVan: bankAccounts.supportsVan,
         isActive: bankAccounts.isActive,
         purpose: bankAccounts.purpose,
+        deletedAt: bankAccounts.deletedAt,
       })
       .from(bankAccounts)
       .where(and(eq(bankAccounts.id, params.bankAccountId), eq(bankAccounts.tenantId, params.tenantId)))
       .for("update");
 
-    if (!bank) throw new HttpError(404, "Bank account not found", "BANK_NOT_FOUND");
+    if (!bank || bank.deletedAt) throw new HttpError(404, "Bank account not found", "BANK_NOT_FOUND");
     if (!bank.isActive) {
       throw new HttpError(422, "Bank account is inactive", "BANK_INACTIVE");
     }

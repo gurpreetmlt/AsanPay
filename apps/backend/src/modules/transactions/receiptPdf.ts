@@ -1,11 +1,7 @@
 import type { Response } from "express";
 import path from "node:path";
 import fs from "node:fs";
-import { fileURLToPath } from "node:url";
 import PDFDocument from "pdfkit";
-
-/** ESM has no `__dirname` — backend is `"type": "module"`. */
-const RECEIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 import { eq } from "drizzle-orm";
 import { db } from "../../db/postgres";
 import { services, transactions, users } from "../../db/postgres/schema";
@@ -77,8 +73,8 @@ const STATUS_STYLE: Record<string, { fg: string; bg: string; label: string }> = 
 
 /** Light logo for blue header — PNG lives in apps/backend/assets/brand. */
 function lightLogoBuffer(): Buffer | null {
+  // ESM: never use `__dirname`. Coolify cwd is typically the backend app root.
   const candidates = [
-    path.join(RECEIPT_DIR, "../../../assets/brand/AsanPay-Light-Icon.png"),
     path.join(process.cwd(), "assets/brand/AsanPay-Light-Icon.png"),
     path.join(process.cwd(), "apps/backend/assets/brand/AsanPay-Light-Icon.png"),
   ];
@@ -89,7 +85,7 @@ function lightLogoBuffer(): Buffer | null {
       // Reject empty / tiny garbage so PDFKit never throws after headers are sent.
       if (buf.length > 64) return buf;
     } catch {
-      /* try next path */
+      /* try next path — missing logo must not block the PDF */
     }
   }
   return null;
@@ -148,19 +144,19 @@ function drawSocialChip(
 export async function streamTxnReceiptPdf(actor: Actor, txnRef: string, res: Response): Promise<void> {
   let row: Awaited<ReturnType<typeof getReceiptForPdf>>;
   let contact: ReturnType<typeof brandContactFromAdmin>;
-  let logoBuf: Buffer | null;
   try {
     row = await getReceiptForPdf(actor, txnRef);
     const tenantId = await resolveTenantId();
     const adminContacts = await getSupportContacts(tenantId);
     contact = brandContactFromAdmin(adminContacts);
-    // Resolve assets + construct PDF BEFORE headers — late throws become opaque 500s at the proxy.
-    logoBuf = lightLogoBuffer();
   } catch (err) {
     if (err instanceof HttpError) throw err;
     const detail = err instanceof Error ? err.message : "unknown error";
     throw new HttpError(500, `Receipt lookup failed: ${detail}`, "RECEIPT_PDF_LOOKUP");
   }
+
+  // Logo is optional — never fail the receipt if the PNG path is missing.
+  const logoBuf = lightLogoBuffer();
 
   let doc: PDFKit.PDFDocument;
   try {
@@ -175,7 +171,7 @@ export async function streamTxnReceiptPdf(actor: Actor, txnRef: string, res: Res
   }
 
   res.setHeader("Content-Type", "application/pdf");
-  res.setHeader("Content-Disposition", `inline; filename="receipt-${row.txnRef}.pdf"`);
+  res.setHeader("Content-Disposition", `attachment; filename="receipt-${row.txnRef}.pdf"`);
 
   await new Promise<void>((resolve, reject) => {
     let settled = false;
