@@ -282,21 +282,49 @@ body {
 }
 
 .btn-pill--destructive {
-  color: #b91c1c;
-  background: #fff;
-  border: 1.5px solid rgba(185, 28, 28, 0.35);
+  color: #ffffff;
+  background: #dc2626;
+  border: 1.5px solid #b91c1c;
   box-shadow: none;
 }
 
 .btn-pill--destructive:hover:not(:disabled) {
-  background: #fef2f2;
-  border-color: rgba(185, 28, 28, 0.55);
+  background: #b91c1c;
+  border-color: #991b1b;
   transform: translateY(-1px);
 }
 
 .btn-pill--destructive:focus-visible {
-  outline: 2px solid rgba(185, 28, 28, 0.45);
+  outline: 2px solid rgba(220, 38, 38, 0.45);
   outline-offset: 2px;
+}
+
+.btn-pill--destructive:active:not(:disabled) {
+  transform: translateY(0) scale(0.985);
+  filter: brightness(0.95);
+}
+
+/* Add / create / positive confirm — green */
+.btn-pill--success {
+  color: #ffffff;
+  background: linear-gradient(135deg, #24cc82 0%, #12b76a 45%, #0f9e5c 100%);
+  border: 1.5px solid rgba(15, 158, 92, 0.55);
+  box-shadow: none;
+}
+
+.btn-pill--success:hover:not(:disabled) {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+}
+
+.btn-pill--success:focus-visible {
+  outline: 2px solid rgba(18, 183, 106, 0.45);
+  outline-offset: 2px;
+}
+
+.btn-pill--success:active:not(:disabled) {
+  transform: translateY(0) scale(0.985);
+  filter: brightness(0.97);
 }
 
 .btn-pill--ghost {

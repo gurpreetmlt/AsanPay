@@ -98,7 +98,7 @@ export function KycOnboardingBanner({
     title = "KYC under review";
     body = "Onboarding in progress. Services stay locked until admin approval.";
     cta = "View KYC status";
-    href = "/settings?tab=kyc";
+    href = "/settings?tab=profile";
     tone = "green";
   } else if (needsComplete) {
     title = "Complete your KYC for Onboarding";

@@ -1,13 +1,15 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { Copy, Eye, EyeOff, Landmark, Plus } from "lucide-react";
+import { Copy, Eye, EyeOff, Landmark, Plus, X } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import api, { fetchApi } from "@/lib/api";
 import {
+  bankBrandTint,
+  bankCardGlow,
   bankCardGradient,
   bankCodeFromIfsc,
   bankLogoUrl,
@@ -72,13 +74,15 @@ function SettlementBankCard({
 }) {
   const active = bank.verified && bank.isActive;
   const showFull = Boolean(revealed);
+  const tint = bankBrandTint(bank.ifsc);
 
   return (
     <div
-      className="relative overflow-hidden rounded-2xl border p-4 shadow-sm"
+      className="relative overflow-hidden rounded-2xl border p-4"
       style={{
-        borderColor: active ? `${B.blueLight}55` : B.border,
+        borderColor: active ? `${tint}66` : B.border,
         background: bankCardGradient(bank.ifsc),
+        boxShadow: bankCardGlow(bank.ifsc, active),
       }}
     >
       <div className="relative flex items-start justify-between gap-2">
@@ -358,7 +362,7 @@ export function SettlementBanksPanel({
         {allowAdd ? (
           <PrimaryButton
             type="button"
-            variant="secondary"
+            variant={showBankForm ? "destructive" : "success"}
             size="sm"
             showArrow={false}
             onClick={() => {
@@ -367,7 +371,7 @@ export function SettlementBanksPanel({
             }}
             className="!w-auto"
           >
-            <Plus size={14} />
+            {showBankForm ? <X size={14} /> : <Plus size={14} />}
             {showBankForm ? "Cancel" : "Add bank"}
           </PrimaryButton>
         ) : null}
@@ -535,7 +539,7 @@ export function SettlementBanksPanel({
             allowAdd ? (
               <PrimaryButton
                 type="button"
-                variant="secondary"
+                variant="success"
                 size="sm"
                 showArrow={false}
                 className="!w-auto"

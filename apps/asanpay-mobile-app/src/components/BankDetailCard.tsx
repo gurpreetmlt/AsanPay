@@ -1,8 +1,16 @@
 import React, { useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import LinearGradient from "react-native-linear-gradient";
 import Clipboard from "@react-native-clipboard/clipboard";
 import { Check, Copy, Eye, EyeOff, Landmark } from "lucide-react-native";
-import { bankBrandTint, bankLogoUrl, bankNameFromIfsc, formatSettlementBankCopy } from "../lib/bankLogo";
+import {
+  bankBrandTint,
+  bankCardFillColors,
+  bankCardGlowColor,
+  bankLogoUrl,
+  bankNameFromIfsc,
+  formatSettlementBankCopy,
+} from "../lib/bankLogo";
 import { showAlert } from "./AppAlert";
 import { StatusBadge } from "./StatusBadge";
 import { useTheme } from "../theme/ThemeContext";
@@ -91,6 +99,8 @@ export function BankDetailCard({
   const resolvedBank = bankName || bankNameFromIfsc(ifsc);
   const bankLine = [resolvedBank, branch].filter(Boolean).join(" · ");
   const tint = bankBrandTint(ifsc);
+  const glow = bankCardGlowColor(ifsc);
+  const fillColors = bankCardFillColors(ifsc);
 
   function handleCopy() {
     if (onCopy) {
@@ -145,7 +155,7 @@ export function BankDetailCard({
           <Copy size={17} color={colors.blueFlat} strokeWidth={2.25} />
         </ActionBtn>
         {selected ? (
-          <View style={styles.selectedDot}>
+          <View style={[styles.selectedDot, { backgroundColor: tint }]}>
             <Check size={11} color="#fff" />
           </View>
         ) : null}
@@ -153,24 +163,35 @@ export function BankDetailCard({
     </View>
   );
 
-  const cardStyle = [
+  const isPicker = Boolean(onSelect);
+  const shellStyle = [
     styles.card,
     {
-      borderColor: selected ? colors.blueFlat : `${tint}44`,
-      backgroundColor: `${tint}14`,
+      width: isPicker ? (selected ? 292 : 268) : 280,
+      borderColor: selected ? tint : `${tint}66`,
       opacity: unavailable ? 0.55 : 1,
-      shadowOpacity: selected ? 0.14 : 0.08,
+      shadowColor: glow,
+      shadowOpacity: selected ? 0.55 : 0.38,
+      shadowRadius: selected ? 22 : 16,
+      elevation: selected ? 8 : 5,
+      ...(isPicker ? { transform: [{ scale: selected ? 1.03 : 0.96 }] } : null),
     },
   ];
 
+  const gradient = (
+    <LinearGradient colors={fillColors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.gradient}>
+      {body}
+    </LinearGradient>
+  );
+
   if (onSelect) {
     return (
-      <Pressable onPress={onSelect} style={cardStyle}>
-        {body}
+      <Pressable onPress={onSelect} style={shellStyle}>
+        {gradient}
       </Pressable>
     );
   }
-  return <View style={cardStyle}>{body}</View>;
+  return <View style={shellStyle}>{gradient}</View>;
 }
 
 const styles = StyleSheet.create({
@@ -178,12 +199,14 @@ const styles = StyleSheet.create({
     width: 280,
     borderRadius: 22,
     borderWidth: 1.5,
-    padding: 18,
     marginRight: 12,
-    shadowColor: "#0B2A9A",
+    overflow: "hidden",
     shadowOffset: { width: 0, height: 8 },
-    shadowRadius: 16,
-    elevation: 3,
+    backgroundColor: "#fff",
+  },
+  gradient: {
+    padding: 18,
+    borderRadius: 22,
   },
   row: { flexDirection: "row", gap: 10 },
   main: { flex: 1, minWidth: 0 },
@@ -236,7 +259,6 @@ const styles = StyleSheet.create({
     width: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: colors.blueFlat,
     alignItems: "center",
     justifyContent: "center",
     alignSelf: "center",

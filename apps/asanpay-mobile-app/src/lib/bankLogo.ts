@@ -8,6 +8,33 @@ export function bankLogoUrl(ifsc: string): string {
   return `https://cdn.razorpay.com/bank/${bankCodeFromIfsc(ifsc)}.gif`;
 }
 
+/** Logo-inspired brand pair: primary = glow / accent, secondary = gradient blend. */
+type BankBrand = { primary: string; secondary: string };
+
+const BANK_BRAND: Record<string, BankBrand> = {
+  SBIN: { primary: "#1A237E", secondary: "#42A5F5" },
+  HDFC: { primary: "#004C8F", secondary: "#ED1C24" },
+  ICIC: { primary: "#F57C00", secondary: "#BF360C" },
+  AXIS: { primary: "#97144D", secondary: "#E91E63" },
+  UTIB: { primary: "#97144D", secondary: "#E91E63" },
+  PUNB: { primary: "#C62828", secondary: "#FFC107" },
+  BARB: { primary: "#F57C00", secondary: "#0D47A1" },
+  CNRB: { primary: "#00695C", secondary: "#FF8F00" },
+  UBIN: { primary: "#E65100", secondary: "#1565C0" },
+  IDIB: { primary: "#00838F", secondary: "#004D40" },
+  IOBA: { primary: "#283593", secondary: "#5C6BC0" },
+  KKBK: { primary: "#C62828", secondary: "#EF5350" },
+  YESB: { primary: "#0066B3", secondary: "#00BCD4" },
+  FDRL: { primary: "#1565C0", secondary: "#42A5F5" },
+  INDB: { primary: "#7B1FA2", secondary: "#C2185B" },
+  BKID: { primary: "#1565C0", secondary: "#FF6F00" },
+  CBIN: { primary: "#2E7D32", secondary: "#81C784" },
+  MAHB: { primary: "#6A1B9A", secondary: "#AB47BC" },
+  IDFB: { primary: "#9C1D3D", secondary: "#AD1457" },
+  RATN: { primary: "#EF6C00", secondary: "#FF8A65" },
+  AIRP: { primary: "#E53935", secondary: "#0277BD" },
+};
+
 const BANK_NAMES: Record<string, string> = {
   SBIN: "State Bank of India",
   HDFC: "HDFC Bank",
@@ -32,28 +59,35 @@ const BANK_NAMES: Record<string, string> = {
   AIRP: "Airtel Payments Bank",
 };
 
-const BANK_TINT: Record<string, string> = {
-  SBIN: "#1E88E5",
-  HDFC: "#1565C0",
-  ICIC: "#F57C00",
-  AXIS: "#97144D",
-  UTIB: "#97144D",
-  PUNB: "#FFC107",
-  BARB: "#0D47A1",
-  CNRB: "#00695C",
-  UBIN: "#E65100",
-  IDIB: "#00838F",
-  IOBA: "#283593",
-  KKBK: "#C62828",
-  YESB: "#0066B3",
-};
+const DEFAULT_BRAND: BankBrand = { primary: "#2A5CDD", secondary: "#0B2A9A" };
+
+export function bankBrandColors(ifsc: string): BankBrand {
+  return BANK_BRAND[bankCodeFromIfsc(ifsc)] || DEFAULT_BRAND;
+}
+
+export function bankBrandTint(ifsc: string): string {
+  return bankBrandColors(ifsc).primary;
+}
 
 export function bankNameFromIfsc(ifsc: string): string | undefined {
   return BANK_NAMES[bankCodeFromIfsc(ifsc)];
 }
 
-export function bankBrandTint(ifsc: string): string {
-  return BANK_TINT[bankCodeFromIfsc(ifsc)] || "#2A5CDD";
+function hexAlpha(hex: string, alphaHex: string): string {
+  const h = hex.replace("#", "");
+  if (h.length !== 6) return hex;
+  return `#${h}${alphaHex}`;
+}
+
+/** Soft card fill colors for RN (no CSS gradient string). */
+export function bankCardFillColors(ifsc: string): [string, string, string] {
+  const { primary, secondary } = bankBrandColors(ifsc);
+  return ["#ffffff", hexAlpha(primary, "22"), hexAlpha(secondary, "36")];
+}
+
+/** Glow shadow color = primary brand. */
+export function bankCardGlowColor(ifsc: string): string {
+  return bankBrandColors(ifsc).primary;
 }
 
 export function formatSettlementBankCopy(details: {

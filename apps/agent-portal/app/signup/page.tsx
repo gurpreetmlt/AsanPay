@@ -1017,7 +1017,7 @@ function SignupPageInner() {
       const fromSettings =
         typeof window !== "undefined" &&
         new URLSearchParams(window.location.search).get("from") === "settings";
-      router.replace(fromSettings ? "/settings?tab=kyc" : "/dashboard");
+      router.replace(fromSettings ? "/settings?tab=profile" : "/dashboard");
     } catch (err) {
       toast.error(extractApiError(err, "Submit failed"));
     } finally {

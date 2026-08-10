@@ -331,7 +331,7 @@ export function AccountScreen() {
         <SectionCard tokens={tokens}>
           <MenuRow
             icon={UserCircle}
-            label="Profile"
+            label="Profile & KYC"
             subtitle="view your personal details"
             tokens={tokens}
             onPress={() => setShowProfile(true)}
@@ -502,8 +502,8 @@ function ProfileModal({
 }) {
   const { tokens } = useTheme();
   return (
-    <ModalSheet visible={visible} title="Profile" onClose={onClose}>
-      <Text style={styles.pinSub}>View your personal details. Contact support to update them.</Text>
+    <ModalSheet visible={visible} title="Profile & KYC" onClose={onClose}>
+      <Text style={styles.pinSub}>Account details and KYC status. Contact support to update personal fields.</Text>
       <View style={[styles.card, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
         {rows.map((r, i) => (
           <View

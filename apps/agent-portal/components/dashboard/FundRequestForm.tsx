@@ -174,7 +174,7 @@ function BankCardSlider({
   const [revealedIds, setRevealedIds] = useState<Record<string, boolean>>({});
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    <div className="grid items-center gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {banks.map((b) => {
         const isSelected = selected === b.id;
         const isActive = b.isActive !== false;

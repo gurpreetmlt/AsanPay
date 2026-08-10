@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, type MouseEvent, type ReactNode } from "react";
+import { useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { Check, Copy, Eye, EyeOff, Landmark } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { B } from "@/lib/brand";
 import {
+  bankBrandTint,
+  bankCardGlow,
   bankCardGradient,
   bankLogoUrl,
   bankNameFromIfsc,
@@ -218,15 +220,22 @@ export function BankDetailCard({
     </div>
   );
 
+  const tint = bankBrandTint(ifsc);
+  const isPicker = Boolean(onSelect);
   const shellClass = `relative overflow-hidden rounded-[22px] border p-5 text-left ${className}`;
-  const shellStyle = {
-    borderColor: selected ? B.blueLight : unavailable ? B.border : "rgba(42,92,221,0.22)",
+  const shellStyle: CSSProperties = {
+    borderColor: selected ? tint : unavailable ? B.border : `${tint}55`,
     background: bankCardGradient(ifsc),
     opacity: unavailable ? 0.55 : 1,
-    boxShadow: selected
-      ? `0 0 0 3px ${B.blue}18, 0 10px 28px rgba(11,42,154,0.1)`
-      : "0 8px 24px rgba(11,42,154,0.07)",
-  } as const;
+    boxShadow: bankCardGlow(ifsc, selected),
+    ...(isPicker
+      ? {
+          transform: selected ? "scale(1.04)" : "scale(0.94)",
+          zIndex: selected ? 2 : 1,
+          transformOrigin: "center center",
+        }
+      : {}),
+  };
 
   if (onSelect) {
     return (
@@ -240,7 +249,7 @@ export function BankDetailCard({
             onSelect();
           }
         }}
-        className={`${shellClass} w-full cursor-pointer transition-shadow hover:shadow-md`}
+        className={`${shellClass} w-full cursor-pointer transition-[transform,box-shadow] duration-200 hover:brightness-[1.02]`}
         style={shellStyle}
       >
         {body}

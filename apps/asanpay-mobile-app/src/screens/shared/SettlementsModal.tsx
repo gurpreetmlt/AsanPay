@@ -237,7 +237,13 @@ export function SettlementsModal({ visible, onClose }: { visible: boolean; onClo
             <View style={styles.sectionRow}>
               <Text style={[styles.section, { color: tokens.txt, marginBottom: 0 }]}>Settlement banks</Text>
               <Pressable onPress={() => setShowBank((v) => !v)}>
-                <Text style={{ color: colors.blueFlat, fontWeight: "800", fontSize: 13 }}>
+                <Text
+                  style={{
+                    color: showBank ? colors.danger : colors.green,
+                    fontWeight: "800",
+                    fontSize: 13,
+                  }}
+                >
                   {showBank ? "Cancel" : "+ Add bank"}
                 </Text>
               </Pressable>

@@ -1,0 +1,25 @@
+---
+description: Global CTA button colors — Add green, Cancel red, Submit blue
+alwaysApply: true
+---
+
+# Button color semantics (AsanPay)
+
+Use `PrimaryButton` variants (agent-portal `globals.css` `.btn-pill--*`):
+
+| Intent | Variant | Color |
+|--------|---------|--------|
+| Submit / Continue / Save / Verify / Request | `primary` | **Blue** |
+| Add / Create / New / Enable (positive create) | `success` | **Green** |
+| Cancel / Close form / Remove / Delete / Reject | `destructive` | **Red** |
+| Neutral chrome (Resend, secondary options) | `secondary` / `ghost` | White / muted |
+
+## Rules
+
+- Do **not** use `secondary` for Cancel or Add — use `destructive` / `success`.
+- Login and main money CTAs stay `primary` (blue).
+- Mobile: same meaning — green add, red cancel, blue submit (theme `colors.green` / `colors.danger` / `colors.blue`).
+- Admin portal: match the same red / green / blue intent when touching CTAs.
+---
+name: button-color-semantics
+---

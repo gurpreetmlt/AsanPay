@@ -134,7 +134,7 @@ export function DeviceRepairRequests() {
             type="button"
             onClick={() => setShowForm(true)}
             className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-white"
-            style={{ background: B.blue }}
+            style={{ background: "#12b76a" }}
           >
             <Plus size={14} />
             New request
@@ -196,7 +196,7 @@ export function DeviceRepairRequests() {
               Create repair request
             </p>
             <button type="button" onClick={resetForm} aria-label="Cancel">
-              <X size={16} style={{ color: B.muted }} />
+              <X size={16} style={{ color: "#dc2626" }} />
             </button>
           </div>
 

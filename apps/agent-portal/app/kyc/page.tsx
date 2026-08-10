@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 import { useAuthStore } from "@/lib/store";
 
-/** Legacy /kyc URL → Settings → KYC & Limits (single entrypoint). */
+/** Legacy /kyc URL → Settings → Profile & KYC (single entrypoint). */
 export default function KycPage() {
   const router = useRouter();
   const hydrated = useAuthHydrated();
@@ -17,7 +17,7 @@ export default function KycPage() {
       router.replace("/login");
       return;
     }
-    router.replace("/settings?tab=kyc");
+    router.replace("/settings?tab=profile");
   }, [hydrated, accessToken, router]);
 
   return null;

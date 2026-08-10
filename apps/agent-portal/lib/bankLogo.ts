@@ -11,29 +11,31 @@ export function bankLogoUrl(ifsc: string): string {
   return `https://cdn.razorpay.com/bank/${bankCodeFromIfsc(ifsc)}.gif`;
 }
 
-/** Soft brand tint for card gradients (logo-inspired sky tones). */
-const BANK_TINT: Record<string, string> = {
-  SBIN: "#1E88E5",
-  HDFC: "#1565C0",
-  ICIC: "#F57C00",
-  AXIS: "#97144D",
-  PUNB: "#FFC107",
-  BARB: "#0D47A1",
-  CNRB: "#00695C",
-  UBIN: "#E65100",
-  IDIB: "#00838F",
-  IOBA: "#283593",
-  KKBK: "#C62828",
-  YESB: "#0066B3",
-  FDRL: "#1565C0",
-  INDB: "#00695C",
-  UTIB: "#97144D",
-  BKID: "#1565C0",
-  CBIN: "#2E7D32",
-  MAHB: "#6A1B9A",
-  IDFB: "#AD1457",
-  RATN: "#EF6C00",
-  AIRP: "#0277BD",
+/** Logo-inspired brand pair: primary = glow / accent, secondary = gradient blend. */
+type BankBrand = { primary: string; secondary: string };
+
+const BANK_BRAND: Record<string, BankBrand> = {
+  SBIN: { primary: "#1A237E", secondary: "#42A5F5" }, // navy + SBI blue
+  HDFC: { primary: "#004C8F", secondary: "#ED1C24" }, // navy + HDFC red
+  ICIC: { primary: "#F57C00", secondary: "#BF360C" }, // orange
+  AXIS: { primary: "#97144D", secondary: "#E91E63" }, // burgundy / magenta
+  UTIB: { primary: "#97144D", secondary: "#E91E63" },
+  PUNB: { primary: "#C62828", secondary: "#FFC107" }, // PNB red + gold
+  BARB: { primary: "#F57C00", secondary: "#0D47A1" }, // BoB orange + blue
+  CNRB: { primary: "#00695C", secondary: "#FF8F00" }, // teal + gold
+  UBIN: { primary: "#E65100", secondary: "#1565C0" },
+  IDIB: { primary: "#00838F", secondary: "#004D40" },
+  IOBA: { primary: "#283593", secondary: "#5C6BC0" },
+  KKBK: { primary: "#C62828", secondary: "#EF5350" }, // Kotak red
+  YESB: { primary: "#0066B3", secondary: "#00BCD4" },
+  FDRL: { primary: "#1565C0", secondary: "#42A5F5" },
+  INDB: { primary: "#7B1FA2", secondary: "#C2185B" }, // IndusInd purple/magenta
+  BKID: { primary: "#1565C0", secondary: "#FF6F00" },
+  CBIN: { primary: "#2E7D32", secondary: "#81C784" },
+  MAHB: { primary: "#6A1B9A", secondary: "#AB47BC" },
+  IDFB: { primary: "#9C1D3D", secondary: "#AD1457" }, // IDFC maroon
+  RATN: { primary: "#EF6C00", secondary: "#FF8A65" },
+  AIRP: { primary: "#E53935", secondary: "#0277BD" }, // Airtel red + blue
 };
 
 const BANK_NAMES: Record<string, string> = {
@@ -60,18 +62,51 @@ const BANK_NAMES: Record<string, string> = {
   AIRP: "Airtel Payments Bank",
 };
 
+const DEFAULT_BRAND: BankBrand = { primary: "#2A5CDD", secondary: "#0B2A9A" };
+
+export function bankBrandColors(ifsc: string): BankBrand {
+  return BANK_BRAND[bankCodeFromIfsc(ifsc)] || DEFAULT_BRAND;
+}
+
+/** Primary brand tint (glow / border accent). */
 export function bankBrandTint(ifsc: string): string {
-  return BANK_TINT[bankCodeFromIfsc(ifsc)] || "#2A5CDD";
+  return bankBrandColors(ifsc).primary;
 }
 
 export function bankNameFromIfsc(ifsc: string): string | undefined {
   return BANK_NAMES[bankCodeFromIfsc(ifsc)];
 }
 
-/** White → soft sky tint from bank brand (card background). */
+function hexAlpha(hex: string, alphaHex: string): string {
+  const h = hex.replace("#", "");
+  if (h.length !== 6) return hex;
+  return `#${h}${alphaHex}`;
+}
+
+/**
+ * White → soft primary wash → secondary logo accent (matches bank logo colors).
+ */
 export function bankCardGradient(ifsc: string): string {
-  const tint = bankBrandTint(ifsc);
-  return `linear-gradient(152deg, #ffffff 0%, #f7fbff 42%, ${tint}22 100%)`;
+  const { primary, secondary } = bankBrandColors(ifsc);
+  return `linear-gradient(145deg, #ffffff 0%, ${hexAlpha(primary, "18")} 48%, ${hexAlpha(secondary, "2E")} 100%)`;
+}
+
+/** Soft outer glow using bank primary (+ secondary bloom when selected). */
+export function bankCardGlow(ifsc: string, selected = false): string {
+  const { primary, secondary } = bankBrandColors(ifsc);
+  if (selected) {
+    return [
+      `0 0 0 2px ${hexAlpha(primary, "55")}`,
+      `0 0 28px ${hexAlpha(primary, "55")}`,
+      `0 0 48px ${hexAlpha(secondary, "40")}`,
+      `0 12px 28px ${hexAlpha(primary, "28")}`,
+    ].join(", ");
+  }
+  return [
+    `0 0 20px ${hexAlpha(primary, "38")}`,
+    `0 0 36px ${hexAlpha(secondary, "22")}`,
+    `0 10px 24px ${hexAlpha(primary, "18")}`,
+  ].join(", ");
 }
 
 export function formatSettlementBankCopy(details: {
