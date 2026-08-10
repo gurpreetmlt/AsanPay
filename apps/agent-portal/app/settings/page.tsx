@@ -631,8 +631,8 @@ export default function SettingsPage() {
                         Loading KYC details…
                       </p>
                     ) : (
-                      <div className="rounded-xl border p-3" style={{ borderColor: B.border }}>
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
+                      <div className="rounded-xl border p-4" style={{ borderColor: B.border }}>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-3.5 sm:grid-cols-4">
                           {(
                             [
                               {
@@ -653,13 +653,13 @@ export default function SettingsPage() {
                           ).map((row) => (
                             <div key={row.label} className="min-w-0">
                               <div
-                                className="text-[9px] font-bold uppercase tracking-wider"
+                                className="text-xs font-bold uppercase tracking-wide"
                                 style={{ color: B.muted }}
                               >
                                 {row.label}
                               </div>
                               <div
-                                className="truncate text-xs font-bold"
+                                className="mt-0.5 truncate text-sm font-bold"
                                 style={{ color: row.value === "—" ? B.muted : B.blue }}
                                 title={row.value}
                               >
@@ -672,18 +672,18 @@ export default function SettingsPage() {
                         <button
                           type="button"
                           onClick={() => setKycMoreOpen((v) => !v)}
-                          className="mt-2.5 flex w-full items-center justify-center gap-1 rounded-lg py-1.5 text-[11px] font-semibold"
+                          className="mt-3 flex w-full items-center justify-center gap-1 rounded-lg py-2 text-sm font-semibold"
                           style={{ background: B.secondary, color: B.blueMid }}
                         >
                           {kycMoreOpen ? "Hide extra details" : "Show address, bank & business"}
                           <ChevronRight
-                            size={14}
+                            size={16}
                             className={`transition-transform ${kycMoreOpen ? "rotate-90" : ""}`}
                           />
                         </button>
 
                         {kycMoreOpen ? (
-                          <div className="mt-2 grid gap-2 border-t pt-2 sm:grid-cols-2" style={{ borderColor: B.border }}>
+                          <div className="mt-3 grid gap-2.5 border-t pt-3 sm:grid-cols-2" style={{ borderColor: B.border }}>
                             {(
                               [
                                 { label: "Gender", value: kycProfile?.gender || "—" },
@@ -714,11 +714,13 @@ export default function SettingsPage() {
                             ).map((row) => (
                               <div
                                 key={row.label}
-                                className="flex items-baseline justify-between gap-2 text-xs"
+                                className="flex items-baseline justify-between gap-3 text-sm"
                               >
-                                <span style={{ color: B.muted }}>{row.label}</span>
+                                <span className="shrink-0 font-medium" style={{ color: B.muted }}>
+                                  {row.label}
+                                </span>
                                 <span
-                                  className="max-w-[60%] text-right font-semibold break-all"
+                                  className="max-w-[65%] text-right font-semibold break-all"
                                   style={{ color: row.value === "—" ? B.muted : B.blue }}
                                 >
                                   {row.value}
@@ -743,7 +745,7 @@ export default function SettingsPage() {
                             <div className="text-sm font-bold" style={{ color: B.blue }}>
                               Register outlet
                             </div>
-                            <div className="text-[11px]" style={{ color: B.muted }}>
+                            <div className="text-xs" style={{ color: B.muted }}>
                               InstantPay Min-KYC
                             </div>
                           </div>
@@ -765,7 +767,7 @@ export default function SettingsPage() {
                             <div className="text-sm font-bold" style={{ color: B.blue }}>
                               Biometric KYC
                             </div>
-                            <div className="text-[11px]" style={{ color: B.muted }}>
+                            <div className="text-xs" style={{ color: B.muted }}>
                               Fingerprint eKYC for AePS / DMT
                             </div>
                           </div>
@@ -782,26 +784,26 @@ export default function SettingsPage() {
                       ].map((l) => (
                         <div
                           key={l.label}
-                          className="rounded-xl border px-3 py-2.5"
+                          className="rounded-xl border px-3.5 py-3"
                           style={{ borderColor: B.border }}
                         >
                           <div className="flex items-center justify-between gap-1">
-                            <span className="text-[11px] font-semibold" style={{ color: B.muted }}>
+                            <span className="text-sm font-semibold" style={{ color: B.muted }}>
                               {l.label}
                             </span>
-                            <span className="text-[10px] font-bold tabular-nums" style={{ color: B.blue }}>
+                            <span className="text-xs font-bold tabular-nums" style={{ color: B.blue }}>
                               {l.pct}%
                             </span>
                           </div>
-                          <div className="mt-1 text-xs font-bold tabular-nums" style={{ color: B.blue }}>
+                          <div className="mt-1.5 text-sm font-bold tabular-nums" style={{ color: B.blue }}>
                             {l.used}
                           </div>
-                          <div className="text-[10px]" style={{ color: B.muted }}>
+                          <div className="text-xs" style={{ color: B.muted }}>
                             of {l.value}
                           </div>
-                          <div className="mt-1.5 h-1.5 rounded-full bg-gray-100">
+                          <div className="mt-2 h-2.5 rounded-full bg-gray-100">
                             <div
-                              className="h-1.5 rounded-full"
+                              className="h-2.5 rounded-full"
                               style={{
                                 width: `${l.pct}%`,
                                 background: l.pct > 80 ? "#DC2626" : B.green,
