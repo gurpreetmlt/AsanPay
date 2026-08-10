@@ -1218,7 +1218,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                   <Text style={styles.sectionTitle}>Role Identification</Text>
                   <Text style={[styles.hint, { color: tokens.mute }]}>Choose your role and create login credentials.</Text>
                   <FieldLabel text="Role *" color={tokens.mute} />
-                  <View style={styles.roleRow}>
+                  <View style={styles.chipGrid}>
                     {ROLE_OPTIONS.map((r) => (
                       <Pressable
                         key={r.value}
@@ -1226,14 +1226,19 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                           patch({ role: r.value, sponsorMobile: "", sponsorUid: "", sponsorName: "" })
                         }
                         style={[
-                          styles.roleChip,
+                          styles.chipCell,
                           {
                             borderColor: draft.role === r.value ? colors.blue : tokens.cardBorder,
                             backgroundColor: draft.role === r.value ? `${colors.blue}14` : tokens.card,
                           },
                         ]}
                       >
-                        <Text style={{ color: tokens.txt2, fontWeight: "700", fontSize: 12 }}>{r.label}</Text>
+                        <Text
+                          style={{ color: tokens.txt2, fontWeight: "700", fontSize: 12, textAlign: "center" }}
+                          numberOfLines={1}
+                        >
+                          {r.label}
+                        </Text>
                       </Pressable>
                     ))}
                   </View>
@@ -1296,40 +1301,39 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                   <Text style={[styles.hint, { color: tokens.mute }]}>
                     PAN number and personal details as on the PAN card.
                   </Text>
-                  <View style={styles.fieldRow}>
-                    <View style={styles.fieldHalf}>
-                      <FieldLabel text="PAN Number *" color={tokens.mute} />
-                      <TextInput
-                        value={draft.pan}
-                        onChangeText={(t) =>
-                          patch({ pan: t.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10) })
-                        }
-                        autoCapitalize="characters"
-                        placeholder="ABCDE1234F"
-                        placeholderTextColor={tokens.mute}
-                        style={inputStyle}
-                      />
-                    </View>
-                    <View style={styles.fieldHalf}>
-                      <FieldLabel text="Gender *" color={tokens.mute} />
-                      <View style={styles.roleRow}>
-                        {["Male", "Female", "Other"].map((g) => (
-                          <Pressable
-                            key={g}
-                            onPress={() => patch({ gender: g })}
-                            style={[
-                              styles.roleChip,
-                              {
-                                borderColor: draft.gender === g ? colors.blue : tokens.cardBorder,
-                                backgroundColor: draft.gender === g ? `${colors.blue}14` : tokens.card,
-                              },
-                            ]}
-                          >
-                            <Text style={{ color: tokens.txt2, fontWeight: "700", fontSize: 11 }}>{g}</Text>
-                          </Pressable>
-                        ))}
-                      </View>
-                    </View>
+                  <FieldLabel text="PAN Number *" color={tokens.mute} />
+                  <TextInput
+                    value={draft.pan}
+                    onChangeText={(t) =>
+                      patch({ pan: t.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10) })
+                    }
+                    autoCapitalize="characters"
+                    placeholder="ABCDE1234F"
+                    placeholderTextColor={tokens.mute}
+                    style={inputStyle}
+                  />
+                  <FieldLabel text="Gender *" color={tokens.mute} />
+                  <View style={styles.chipRow}>
+                    {["Male", "Female", "Other"].map((g) => (
+                      <Pressable
+                        key={g}
+                        onPress={() => patch({ gender: g })}
+                        style={[
+                          styles.chipFlex,
+                          {
+                            borderColor: draft.gender === g ? colors.blue : tokens.cardBorder,
+                            backgroundColor: draft.gender === g ? `${colors.blue}14` : tokens.card,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={{ color: tokens.txt2, fontWeight: "700", fontSize: 12, textAlign: "center" }}
+                          numberOfLines={1}
+                        >
+                          {g}
+                        </Text>
+                      </Pressable>
+                    ))}
                   </View>
                   <FieldLabel text="Date of Birth *" color={tokens.mute} />
                   <Pressable
@@ -1958,20 +1962,25 @@ function SelectRow({
   return (
     <View style={{ marginBottom: 8 }}>
       <FieldLabel text={label} color={tokens.mute} />
-      <View style={styles.roleRow}>
+      <View style={styles.chipGrid}>
         {options.map((o) => (
           <Pressable
             key={o}
             onPress={() => onChange(o)}
             style={[
-              styles.roleChip,
+              styles.chipCell,
               {
                 borderColor: value === o ? colors.blue : tokens.cardBorder,
                 backgroundColor: value === o ? `${colors.blue}14` : tokens.card,
               },
             ]}
           >
-            <Text style={{ color: tokens.txt2, fontWeight: "700", fontSize: 11 }}>{o}</Text>
+            <Text
+              style={{ color: tokens.txt2, fontWeight: "700", fontSize: 11, textAlign: "center" }}
+              numberOfLines={2}
+            >
+              {o}
+            </Text>
           </Pressable>
         ))}
       </View>
@@ -2044,8 +2053,31 @@ const styles = StyleSheet.create({
   prepTitle: { fontWeight: "800", marginBottom: 6 },
   prepItem: { fontSize: 12, marginTop: 2 },
   prepFoot: { fontSize: 11, marginTop: 10 },
-  roleRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 6 },
-  roleChip: { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 },
+  /** 2-column equal chips — Role, Business selects */
+  chipGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 },
+  chipCell: {
+    width: "47%",
+    flexGrow: 1,
+    borderWidth: 1.5,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 40,
+  },
+  /** Single row equal chips — Gender (3) */
+  chipRow: { flexDirection: "row", gap: 8, marginBottom: 8 },
+  chipFlex: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderRadius: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 40,
+  },
   emailRow: { flexDirection: "row", gap: 8, alignItems: "center" },
   fieldRow: { flexDirection: "row", gap: 14, alignItems: "flex-start", marginBottom: 4 },
   fieldHalf: { flex: 1, minWidth: 0 },
