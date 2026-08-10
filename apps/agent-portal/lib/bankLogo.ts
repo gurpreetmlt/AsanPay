@@ -84,30 +84,37 @@ function hexAlpha(hex: string, alphaHex: string): string {
 }
 
 /**
- * White → soft primary wash → secondary logo accent (matches bank logo colors).
+ * Soft white card wash tinted by bank logo colors (not a heavy color fill).
  */
 export function bankCardGradient(ifsc: string): string {
   const { primary, secondary } = bankBrandColors(ifsc);
-  return `linear-gradient(145deg, #ffffff 0%, ${hexAlpha(primary, "18")} 48%, ${hexAlpha(secondary, "2E")} 100%)`;
+  return `linear-gradient(155deg, #ffffff 0%, #fbfcfe 38%, ${hexAlpha(primary, "10")} 72%, ${hexAlpha(secondary, "14")} 100%)`;
 }
 
-/** Soft outer glow using bank primary (+ secondary bloom when selected). */
+/** Light elevation only — no thick colored outer halo. */
 export function bankCardGlow(ifsc: string, selected = false): string {
-  const { primary, secondary } = bankBrandColors(ifsc);
+  const { primary } = bankBrandColors(ifsc);
   if (selected) {
-    return [
-      `0 0 0 2px ${hexAlpha(primary, "55")}`,
-      `0 0 28px ${hexAlpha(primary, "55")}`,
-      `0 0 48px ${hexAlpha(secondary, "40")}`,
-      `0 12px 28px ${hexAlpha(primary, "28")}`,
-    ].join(", ");
+    return `0 1px 2px ${hexAlpha(primary, "14")}, 0 10px 28px ${hexAlpha(primary, "18")}`;
   }
-  return [
-    `0 0 20px ${hexAlpha(primary, "38")}`,
-    `0 0 36px ${hexAlpha(secondary, "22")}`,
-    `0 10px 24px ${hexAlpha(primary, "18")}`,
-  ].join(", ");
+  return `0 1px 2px rgba(15,23,42,0.04), 0 8px 20px ${hexAlpha(primary, "10")}`;
 }
+
+/** Inner corner glows (wallet-card style), logo-matched. */
+export function bankCardCornerGlows(ifsc: string): {
+  topRight: string;
+  bottomLeft: string;
+  border: string;
+} {
+  const { primary, secondary } = bankBrandColors(ifsc);
+  return {
+    topRight: `radial-gradient(circle at 100% 0%, ${hexAlpha(secondary, "55")} 0%, ${hexAlpha(primary, "22")} 35%, transparent 68%)`,
+    bottomLeft: `radial-gradient(circle at 0% 100%, ${hexAlpha(primary, "28")} 0%, transparent 62%)`,
+    border: hexAlpha(primary, "22"),
+  };
+}
+
+export { hexAlpha };
 
 export function formatSettlementBankCopy(details: {
   bankName?: string;

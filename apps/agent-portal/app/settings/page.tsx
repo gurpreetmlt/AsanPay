@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -55,6 +55,47 @@ function formatKycDate(value: string | null | undefined): string {
   return raw;
 }
 
+function VerifiedPill() {
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold"
+      style={{ background: `${B.green}18`, color: B.green }}
+    >
+      <Check size={10} strokeWidth={3} />
+      Verified
+    </span>
+  );
+}
+
+function ProfileReadField({
+  label,
+  value,
+  badge,
+}: {
+  label: string;
+  value: string;
+  badge?: ReactNode;
+}) {
+  const empty = !value || value === "—";
+  return (
+    <div className="min-w-0">
+      <div className="mb-1 flex flex-wrap items-center gap-1.5">
+        <span className="text-xs font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+          {label}
+        </span>
+        {badge}
+      </div>
+      <div
+        className="text-sm font-bold break-words"
+        style={{ color: empty ? B.muted : B.blue }}
+        title={value}
+      >
+        {value || "—"}
+      </div>
+    </div>
+  );
+}
+
 function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   return (
     <button
@@ -107,7 +148,6 @@ export default function SettingsPage() {
     submittedAt: string | null;
   } | null>(null);
   const [kycProfileLoading, setKycProfileLoading] = useState(false);
-  const [kycMoreOpen, setKycMoreOpen] = useState(false);
   const [showPin, setShowPin] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -339,64 +379,12 @@ export default function SettingsPage() {
                       <div className="text-sm" style={{ color: B.muted }}>
                         {role.label} · ID: {uid}
                       </div>
-                      <button type="button" className="mt-1 text-xs font-semibold" style={{ color: B.green }}>
-                        Change Photo
-                      </button>
                     </div>
                   </div>
 
-                  <div>
-                    <h3 className="mb-3 text-sm font-bold uppercase tracking-wide" style={{ color: B.muted }}>
-                      Account
-                    </h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      {[
-                        { label: "Full Name", value: name, type: "text" },
-                        { label: "Mobile", value: mobile, type: "tel" },
-                        { label: "UID", value: uid, type: "text", readOnly: true },
-                        { label: "Role", value: role.label, type: "text", readOnly: true },
-                        {
-                          label: "Account Status",
-                          value: user?.isActive ? "Active" : "Inactive",
-                          type: "text",
-                          readOnly: true,
-                        },
-                      ].map((f) => (
-                        <div key={f.label}>
-                          <label
-                            className="mb-1.5 block text-xs font-semibold uppercase tracking-wider"
-                            style={{ color: B.muted }}
-                          >
-                            {f.label}
-                          </label>
-                          <input
-                            type={f.type}
-                            defaultValue={f.value}
-                            readOnly={"readOnly" in f ? f.readOnly : false}
-                            className="w-full rounded-xl border px-4 py-2.5 text-sm focus:outline-none"
-                            style={{ borderColor: B.border, background: B.bg, color: B.blue }}
-                          />
-                        </div>
-                      ))}
-                      <div className="col-span-2">
-                        <EmailVerifyField
-                          email={email}
-                          onChange={setEmail}
-                          inputClassName="w-full rounded-xl border px-4 py-2.5 text-sm focus:outline-none"
-                          inputStyle={{ borderColor: B.border, background: B.bg, color: B.blue }}
-                        />
-                      </div>
-                    </div>
-                    <PrimaryButton type="button" variant="primary" size="sm" className="mt-4 !w-auto">
-                      Save Changes
-                    </PrimaryButton>
-                  </div>
-                </div>
-
-                <div className="space-y-3 rounded-2xl border bg-white p-4 sm:p-5" style={{ borderColor: B.border }}>
-                  <h3 className="text-base font-bold" style={{ color: B.blue }}>
-                    Identity & limits
-                  </h3>
+                  <p className="text-xs" style={{ color: B.muted }}>
+                    KYC details cannot be edited here. Contact support to update verified identity.
+                  </p>
 
                   {needsSignupKycCompletion(user) ? <KycOnboardingBanner /> : null}
 
@@ -455,15 +443,50 @@ export default function SettingsPage() {
                     </>
                   ) : (
                     <>
-                      {kycProfileLoading ? (
-                        <p className="text-sm" style={{ color: B.muted }}>
-                          Loading KYC details…
-                        </p>
-                      ) : (
-                        <div className="rounded-xl border p-4" style={{ borderColor: B.border }}>
-                          <div className="grid grid-cols-2 gap-x-4 gap-y-3.5 sm:grid-cols-4">
+                      <div>
+                        <h3 className="mb-3 text-sm font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+                          Contact
+                        </h3>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <ProfileReadField label="Mobile" value={mobile || "—"} badge={<VerifiedPill />} />
+                          {user?.emailVerifiedAt &&
+                          (user.email ?? "").toLowerCase() === email.trim().toLowerCase() &&
+                          email.trim() ? (
+                            <ProfileReadField label="Email" value={email} badge={<VerifiedPill />} />
+                          ) : (
+                            <div className="sm:col-span-2">
+                              <EmailVerifyField
+                                email={email}
+                                onChange={setEmail}
+                                inputClassName="w-full rounded-xl border px-4 py-2.5 text-sm focus:outline-none"
+                                inputStyle={{ borderColor: B.border, background: B.bg, color: B.blue }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div>
+                        <h3 className="mb-3 text-sm font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+                          Account & identity
+                        </h3>
+                        {kycProfileLoading ? (
+                          <p className="text-sm" style={{ color: B.muted }}>
+                            Loading KYC details…
+                          </p>
+                        ) : (
+                          <div
+                            className="grid grid-cols-2 gap-x-4 gap-y-3.5 sm:grid-cols-3 lg:grid-cols-4"
+                          >
                             {(
                               [
+                                { label: "Full name", value: name || "—" },
+                                { label: "UID", value: uid || "—" },
+                                { label: "Role", value: role.label },
+                                {
+                                  label: "Account status",
+                                  value: user?.isActive ? "Active" : "Inactive",
+                                },
                                 { label: "PAN No.", value: kycProfile?.panMasked || "—" },
                                 { label: "Aadhaar No.", value: kycProfile?.aadhaarMasked || "—" },
                                 { label: "DOB", value: formatKycDate(kycProfile?.dob) },
@@ -471,91 +494,40 @@ export default function SettingsPage() {
                                   label: "Anniversary",
                                   value: formatKycDate(kycProfile?.anniversaryDate),
                                 },
+                                { label: "Gender", value: kycProfile?.gender || "—" },
+                                { label: "Father name", value: kycProfile?.fatherName || "—" },
+                                {
+                                  label: "Address",
+                                  value:
+                                    [
+                                      kycProfile?.address,
+                                      kycProfile?.city || kycProfile?.district,
+                                      kycProfile?.state,
+                                      kycProfile?.pincode,
+                                    ]
+                                      .filter(Boolean)
+                                      .join(", ") || "—",
+                                },
+                                { label: "Business", value: kycProfile?.businessName || "—" },
+                                { label: "Business type", value: kycProfile?.businessType || "—" },
+                                { label: "Bank", value: kycProfile?.bankName || "—" },
+                                { label: "Branch", value: kycProfile?.bankBranch || "—" },
+                                { label: "IFSC", value: kycProfile?.bankIfsc || "—" },
+                                {
+                                  label: "Account holder",
+                                  value: kycProfile?.bankAccountName || "—",
+                                },
+                                {
+                                  label: "Account",
+                                  value: kycProfile?.bankAccountMasked || "—",
+                                },
                               ] as { label: string; value: string }[]
                             ).map((row) => (
-                              <div key={row.label} className="min-w-0">
-                                <div
-                                  className="text-xs font-bold uppercase tracking-wide"
-                                  style={{ color: B.muted }}
-                                >
-                                  {row.label}
-                                </div>
-                                <div
-                                  className="mt-0.5 truncate text-sm font-bold"
-                                  style={{ color: row.value === "—" ? B.muted : B.blue }}
-                                  title={row.value}
-                                >
-                                  {row.value}
-                                </div>
-                              </div>
+                              <ProfileReadField key={row.label} label={row.label} value={row.value} />
                             ))}
                           </div>
-
-                          <button
-                            type="button"
-                            onClick={() => setKycMoreOpen((v) => !v)}
-                            className="mt-3 flex w-full items-center justify-center gap-1 rounded-lg py-2 text-sm font-semibold"
-                            style={{ background: B.secondary, color: B.blueMid }}
-                          >
-                            {kycMoreOpen ? "Hide extra details" : "Show address, bank & business"}
-                            <ChevronRight
-                              size={16}
-                              className={`transition-transform ${kycMoreOpen ? "rotate-90" : ""}`}
-                            />
-                          </button>
-
-                          {kycMoreOpen ? (
-                            <div
-                              className="mt-3 grid gap-2.5 border-t pt-3 sm:grid-cols-2"
-                              style={{ borderColor: B.border }}
-                            >
-                              {(
-                                [
-                                  { label: "Gender", value: kycProfile?.gender || "—" },
-                                  { label: "Father name", value: kycProfile?.fatherName || "—" },
-                                  {
-                                    label: "Address",
-                                    value:
-                                      [
-                                        kycProfile?.address,
-                                        kycProfile?.city || kycProfile?.district,
-                                        kycProfile?.state,
-                                        kycProfile?.pincode,
-                                      ]
-                                        .filter(Boolean)
-                                        .join(", ") || "—",
-                                  },
-                                  { label: "Business", value: kycProfile?.businessName || "—" },
-                                  { label: "Business type", value: kycProfile?.businessType || "—" },
-                                  { label: "Bank", value: kycProfile?.bankName || "—" },
-                                  { label: "Branch", value: kycProfile?.bankBranch || "—" },
-                                  { label: "IFSC", value: kycProfile?.bankIfsc || "—" },
-                                  { label: "Account holder", value: kycProfile?.bankAccountName || "—" },
-                                  {
-                                    label: "Account",
-                                    value: kycProfile?.bankAccountMasked || "—",
-                                  },
-                                ] as { label: string; value: string }[]
-                              ).map((row) => (
-                                <div
-                                  key={row.label}
-                                  className="flex items-baseline justify-between gap-3 text-sm"
-                                >
-                                  <span className="shrink-0 font-medium" style={{ color: B.muted }}>
-                                    {row.label}
-                                  </span>
-                                  <span
-                                    className="max-w-[65%] text-right font-semibold break-all"
-                                    style={{ color: row.value === "—" ? B.muted : B.blue }}
-                                  >
-                                    {row.value}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          ) : null}
-                        </div>
-                      )}
+                        )}
+                      </div>
 
                       {user?.role === "retailer" && user.hasInstantpayOutlet !== true ? (
                         <button
@@ -601,42 +573,47 @@ export default function SettingsPage() {
                         </button>
                       ) : null}
 
-                      <div className="grid gap-2 sm:grid-cols-3">
-                        {[
-                          { label: "Daily limit", value: "₹2,00,000", used: "₹1,82,400", pct: 91 },
-                          { label: "Monthly limit", value: "₹50,00,000", used: "₹8,40,000", pct: 17 },
-                          { label: "Max single", value: "₹50,000", used: "₹25,000", pct: 50 },
-                        ].map((l) => (
-                          <div
-                            key={l.label}
-                            className="rounded-xl border px-3.5 py-3"
-                            style={{ borderColor: B.border }}
-                          >
-                            <div className="flex items-center justify-between gap-1">
-                              <span className="text-sm font-semibold" style={{ color: B.muted }}>
-                                {l.label}
-                              </span>
-                              <span className="text-xs font-bold tabular-nums" style={{ color: B.blue }}>
-                                {l.pct}%
-                              </span>
+                      <div>
+                        <h3 className="mb-3 text-sm font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+                          Transaction limits
+                        </h3>
+                        <div className="grid gap-2 sm:grid-cols-3">
+                          {[
+                            { label: "Daily limit", value: "₹2,00,000", used: "₹1,82,400", pct: 91 },
+                            { label: "Monthly limit", value: "₹50,00,000", used: "₹8,40,000", pct: 17 },
+                            { label: "Max single", value: "₹50,000", used: "₹25,000", pct: 50 },
+                          ].map((l) => (
+                            <div
+                              key={l.label}
+                              className="rounded-xl border px-3.5 py-3"
+                              style={{ borderColor: B.border }}
+                            >
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="text-sm font-semibold" style={{ color: B.muted }}>
+                                  {l.label}
+                                </span>
+                                <span className="text-xs font-bold tabular-nums" style={{ color: B.blue }}>
+                                  {l.pct}%
+                                </span>
+                              </div>
+                              <div className="mt-1.5 text-sm font-bold tabular-nums" style={{ color: B.blue }}>
+                                {l.used}
+                              </div>
+                              <div className="text-xs" style={{ color: B.muted }}>
+                                of {l.value}
+                              </div>
+                              <div className="mt-2 h-2.5 rounded-full bg-gray-100">
+                                <div
+                                  className="h-2.5 rounded-full"
+                                  style={{
+                                    width: `${l.pct}%`,
+                                    background: l.pct > 80 ? "#DC2626" : B.green,
+                                  }}
+                                />
+                              </div>
                             </div>
-                            <div className="mt-1.5 text-sm font-bold tabular-nums" style={{ color: B.blue }}>
-                              {l.used}
-                            </div>
-                            <div className="text-xs" style={{ color: B.muted }}>
-                              of {l.value}
-                            </div>
-                            <div className="mt-2 h-2.5 rounded-full bg-gray-100">
-                              <div
-                                className="h-2.5 rounded-full"
-                                style={{
-                                  width: `${l.pct}%`,
-                                  background: l.pct > 80 ? "#DC2626" : B.green,
-                                }}
-                              />
-                            </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
                     </>
                   )}

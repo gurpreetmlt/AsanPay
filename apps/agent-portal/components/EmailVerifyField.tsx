@@ -202,11 +202,14 @@ export function EmailVerifyField({
             required={required}
             value={email}
             onChange={(e) => onChange(e.target.value)}
+            readOnly={verified}
             placeholder="email@example.com"
             className={`min-w-0 flex-1 ${inputClassName}`}
             style={{
               ...inputStyle,
               borderColor: emailError ? "#DC2626" : inputStyle.borderColor,
+              opacity: verified ? 0.85 : 1,
+              cursor: verified ? "default" : undefined,
             }}
             autoComplete="email"
           />

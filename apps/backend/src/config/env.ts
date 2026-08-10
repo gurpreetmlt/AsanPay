@@ -253,15 +253,24 @@ function parseOtpOverrides(raw: string, mobile: string): string | null {
   // Coolify / docker often leave wrapping quotes or spaces on the value.
   const cleaned = raw.trim().replace(/^["']|["']$/g, "");
   if (!cleaned) return null;
+  // Allow bare "232323" (no *: prefix) — common Coolify misconfig.
+  if (/^\d{6}$/.test(cleaned)) return cleaned;
+
+  const mobileDigits = mobile.replace(/\D/g, "");
+  const mobile10 = mobileDigits.slice(-10);
   let wildcard: string | null = null;
   for (const pair of cleaned.split(",")) {
     const trimmed = pair.trim().replace(/^["']|["']$/g, "");
     const colon = trimmed.indexOf(":");
-    if (colon <= 0) continue;
+    if (colon <= 0) {
+      // Tolerate stray bare OTPs inside a comma list.
+      if (/^\d{6}$/.test(trimmed)) wildcard = trimmed;
+      continue;
+    }
     const num = trimmed.slice(0, colon).trim().replace(/^["']|["']$/g, "");
     const otp = trimmed.slice(colon + 1).trim().replace(/^["']|["']$/g, "");
     if (!otp || !/^\d{6}$/.test(otp)) continue;
-    if (num === mobile) return otp;
+    if (num === mobile || num === mobileDigits || num === mobile10) return otp;
     if (num === "*") wildcard = otp;
   }
   return wildcard;

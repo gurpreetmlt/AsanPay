@@ -5,6 +5,7 @@ import Clipboard from "@react-native-clipboard/clipboard";
 import { Check, Copy, Eye, EyeOff, Landmark } from "lucide-react-native";
 import {
   bankBrandTint,
+  bankCardCornerTint,
   bankCardFillColors,
   bankCardGlowColor,
   bankLogoUrl,
@@ -101,6 +102,7 @@ export function BankDetailCard({
   const tint = bankBrandTint(ifsc);
   const glow = bankCardGlowColor(ifsc);
   const fillColors = bankCardFillColors(ifsc);
+  const corners = bankCardCornerTint(ifsc);
 
   function handleCopy() {
     if (onCopy) {
@@ -168,19 +170,27 @@ export function BankDetailCard({
     styles.card,
     {
       width: isPicker ? (selected ? 292 : 268) : 280,
-      borderColor: selected ? tint : `${tint}66`,
+      borderColor: selected ? `${tint}55` : corners.border,
       opacity: unavailable ? 0.55 : 1,
       shadowColor: glow,
-      shadowOpacity: selected ? 0.55 : 0.38,
-      shadowRadius: selected ? 22 : 16,
-      elevation: selected ? 8 : 5,
+      shadowOpacity: selected ? 0.22 : 0.12,
+      shadowRadius: selected ? 14 : 10,
+      elevation: selected ? 4 : 2,
       ...(isPicker ? { transform: [{ scale: selected ? 1.03 : 0.96 }] } : null),
     },
   ];
 
   const gradient = (
     <LinearGradient colors={fillColors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.gradient}>
-      {body}
+      <View
+        pointerEvents="none"
+        style={[styles.glowTopRight, { backgroundColor: corners.topRight }]}
+      />
+      <View
+        pointerEvents="none"
+        style={[styles.glowBottomLeft, { backgroundColor: corners.bottomLeft }]}
+      />
+      <View style={styles.bodyWrap}>{body}</View>
     </LinearGradient>
   );
 
@@ -197,16 +207,36 @@ export function BankDetailCard({
 const styles = StyleSheet.create({
   card: {
     width: 280,
-    borderRadius: 22,
-    borderWidth: 1.5,
+    borderRadius: 18,
+    borderWidth: 1,
     marginRight: 12,
     overflow: "hidden",
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 6 },
     backgroundColor: "#fff",
   },
   gradient: {
     padding: 18,
-    borderRadius: 22,
+    borderRadius: 18,
+    overflow: "hidden",
+  },
+  bodyWrap: { position: "relative", zIndex: 1 },
+  glowTopRight: {
+    position: "absolute",
+    top: -36,
+    right: -28,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    opacity: 0.55,
+  },
+  glowBottomLeft: {
+    position: "absolute",
+    bottom: -40,
+    left: -32,
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    opacity: 0.4,
   },
   row: { flexDirection: "row", gap: 10 },
   main: { flex: 1, minWidth: 0 },

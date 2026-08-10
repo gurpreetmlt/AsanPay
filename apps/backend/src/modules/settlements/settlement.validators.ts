@@ -19,7 +19,14 @@ export const registerSettlementBankSchema = z.object({
     .trim()
     .regex(/^\d{6,18}$/, "Account number must be 6–18 digits"),
   ifsc: ifscSchema,
-  holderName: z.string().trim().min(2, "Holder name is required").max(160),
+  holderName: z
+    .string()
+    .trim()
+    .min(2, "Account holder name is required")
+    .max(160)
+    .refine((v) => /[A-Za-z]/.test(v), {
+      message: "Account holder must be a name (letters), not the account number",
+    }),
   /** Required when replacing an already-active settlement bank (24h cooling applies after verify). */
   otp: z
     .string()

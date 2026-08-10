@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import api, { fetchApi } from "@/lib/api";
 import {
   bankBrandTint,
+  bankCardCornerGlows,
   bankCardGlow,
   bankCardGradient,
   bankCodeFromIfsc,
@@ -75,24 +76,36 @@ function SettlementBankCard({
   const active = bank.verified && bank.isActive;
   const showFull = Boolean(revealed);
   const tint = bankBrandTint(bank.ifsc);
+  const corners = bankCardCornerGlows(bank.ifsc);
 
   return (
     <div
       className="relative overflow-hidden rounded-2xl border p-4"
       style={{
-        borderColor: active ? `${tint}66` : B.border,
+        borderWidth: 1,
+        borderColor: active ? `${tint}55` : corners.border,
         background: bankCardGradient(bank.ifsc),
         boxShadow: bankCardGlow(bank.ifsc, active),
       }}
     >
-      <div className="relative flex items-start justify-between gap-2">
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{ background: corners.topRight }}
+      />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{ background: corners.bottomLeft }}
+      />
+      <div className="relative z-[1] flex items-start justify-between gap-2">
         <BankLogo ifsc={bank.ifsc} />
         <StatusBadge tone={active ? "success" : bank.verified ? "info" : "pending"}>
           {bank.verified ? (bank.isActive ? "Active" : "Verified") : "Pending"}
         </StatusBadge>
       </div>
 
-      <div className="relative mt-4 flex items-end justify-between gap-2">
+      <div className="relative z-[1] mt-4 flex items-end justify-between gap-2">
         <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: B.muted }}>
             Account
@@ -348,7 +361,9 @@ export function SettlementBanksPanel({
       resetForm();
       await load();
     } catch (err) {
-      toast.error(extractApiError(err, "Could not register bank"));
+      const msg = extractApiError(err, "Could not register bank");
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      toast.error(status ? `${msg} (${status})` : msg);
     } finally {
       setSaving(false);
     }

@@ -237,15 +237,6 @@ export function AccountScreen() {
     ]);
   }
 
-  const rows = [
-    { label: "Name", value: user.name },
-    { label: "Mobile", value: user.mobile },
-    { label: "UID", value: user.uid },
-    { label: "Role", value: ROLE_LABELS[user.role] },
-    { label: "KYC", value: user.kycStatus },
-    { label: "Status", value: user.isActive ? "Active" : "Inactive" },
-  ];
-
   const QUICK_ACTIONS = isRetailer
     ? [
         { icon: Wallet, label: "Manage\nWallet", action: goManageWallet },
@@ -481,7 +472,19 @@ export function AccountScreen() {
           setShowDeviceRepair(true);
         }}
       />
-      <ProfileModal visible={showProfile} onClose={() => setShowProfile(false)} rows={rows} />
+      <ProfileModal
+        visible={showProfile}
+        onClose={() => setShowProfile(false)}
+        user={user}
+        onBioKyc={() => {
+          setShowProfile(false);
+          setShowBioKyc(true);
+        }}
+        onRegisterOutlet={() => {
+          setShowProfile(false);
+          setShowRegisterOutlet(true);
+        }}
+      />
       <SupportModal visible={showSupport} onClose={() => setShowSupport(false)} />
       <SettlementsModal visible={showSettlements} onClose={() => setShowSettlements(false)} />
       <FundRequestModal visible={showFund} onClose={() => setShowFund(false)} />
@@ -491,30 +494,261 @@ export function AccountScreen() {
   );
 }
 
+function formatKycDate(value: string | null | undefined): string {
+  if (!value || !String(value).trim()) return "—";
+  const raw = String(value).trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  return raw;
+}
+
+type KycMeProfile = {
+  uid: string;
+  mobile: string;
+  fullName: string | null;
+  email: string | null;
+  dob: string | null;
+  anniversaryDate: string | null;
+  gender: string | null;
+  fatherName: string | null;
+  address: string | null;
+  city: string | null;
+  district: string | null;
+  state: string | null;
+  pincode: string | null;
+  aadhaarMasked: string | null;
+  panMasked: string | null;
+  bankAccountName: string | null;
+  bankAccountMasked: string | null;
+  bankIfsc: string | null;
+  bankName: string | null;
+  bankBranch: string | null;
+  businessName: string | null;
+  businessType: string | null;
+};
+
+function ProfileDetailRow({
+  label,
+  value,
+  last,
+  tokens,
+  badge,
+}: {
+  label: string;
+  value: string;
+  last?: boolean;
+  tokens: ReturnType<typeof useTheme>["tokens"];
+  badge?: React.ReactNode;
+}) {
+  const empty = !value || value === "—";
+  return (
+    <View
+      style={[
+        styles.row,
+        !last && { borderBottomWidth: 1, borderBottomColor: tokens.cardBorder },
+      ]}
+    >
+      <View style={{ flex: 1, paddingRight: 8 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
+          <Text style={[styles.rowLabel, { color: tokens.sub }]}>{label}</Text>
+          {badge}
+        </View>
+        <Text
+          style={[styles.rowValueLeft, { color: empty ? tokens.mute : tokens.txt }]}
+          numberOfLines={4}
+        >
+          {value || "—"}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function LimitCard({
+  label,
+  used,
+  total,
+  pct,
+  tokens,
+}: {
+  label: string;
+  used: string;
+  total: string;
+  pct: number;
+  tokens: ReturnType<typeof useTheme>["tokens"];
+}) {
+  const barColor = pct >= 80 ? colors.danger : colors.green;
+  return (
+    <View style={[styles.limitCard, { borderColor: tokens.cardBorder, backgroundColor: tokens.card }]}>
+      <View style={styles.limitTop}>
+        <Text style={[styles.limitLabel, { color: tokens.sub }]}>{label}</Text>
+        <Text style={[styles.limitPct, { color: tokens.txt }]}>{pct}%</Text>
+      </View>
+      <Text style={[styles.limitUsed, { color: tokens.txt }]}>{used}</Text>
+      <Text style={[styles.limitOf, { color: tokens.mute }]}>of {total}</Text>
+      <View style={[styles.limitTrack, { backgroundColor: tokens.segTrack }]}>
+        <View style={[styles.limitFill, { width: `${Math.min(100, pct)}%`, backgroundColor: barColor }]} />
+      </View>
+    </View>
+  );
+}
+
 function ProfileModal({
   visible,
   onClose,
-  rows,
+  user,
+  onBioKyc,
+  onRegisterOutlet,
 }: {
   visible: boolean;
   onClose: () => void;
-  rows: { label: string; value: string }[];
+  user: AuthUser;
+  onBioKyc: () => void;
+  onRegisterOutlet: () => void;
 }) {
   const { tokens } = useTheme();
+  const [loading, setLoading] = useState(false);
+  const [profile, setProfile] = useState<KycMeProfile | null>(null);
+
+  useEffect(() => {
+    if (!visible) return;
+    let cancelled = false;
+    setLoading(true);
+    void (async () => {
+      try {
+        const { data } = await api.get<
+          ApiResponse<{ profile: KycMeProfile & { kycStatus: string; hasKycDocs: boolean } }>
+        >("/kyc/me");
+        if (cancelled) return;
+        if (data.success) setProfile(data.data.profile);
+        else setProfile(null);
+      } catch {
+        if (!cancelled) setProfile(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [visible]);
+
+  const emailValue = profile?.email || user.email || "—";
+  const emailVerified =
+    Boolean(user.emailVerifiedAt) &&
+    Boolean(user.email) &&
+    (user.email ?? "").toLowerCase() === String(emailValue).toLowerCase();
+
+  const addressLine =
+    [profile?.address, profile?.city || profile?.district, profile?.state, profile?.pincode]
+      .filter(Boolean)
+      .join(", ") || "—";
+
+  const verifiedBadge = (
+    <View style={styles.verifiedPill}>
+      <Text style={styles.verifiedPillText}>Verified</Text>
+    </View>
+  );
+
+  const allRows: { label: string; value: string; badge?: React.ReactNode }[] = [
+    { label: "Mobile", value: user.mobile, badge: verifiedBadge },
+    {
+      label: "Email",
+      value: emailValue,
+      badge: emailVerified ? verifiedBadge : undefined,
+    },
+    { label: "Full name", value: user.name },
+    { label: "UID", value: user.uid },
+    { label: "Role", value: ROLE_LABELS[user.role] },
+    { label: "Account status", value: user.isActive ? "Active" : "Inactive" },
+    { label: "KYC status", value: user.kycStatus },
+    { label: "PAN No.", value: profile?.panMasked || "—" },
+    { label: "Aadhaar No.", value: profile?.aadhaarMasked || "—" },
+    { label: "DOB", value: formatKycDate(profile?.dob) },
+    { label: "Anniversary", value: formatKycDate(profile?.anniversaryDate) },
+    { label: "Gender", value: profile?.gender || "—" },
+    { label: "Father name", value: profile?.fatherName || "—" },
+    { label: "Address", value: addressLine },
+    { label: "Business", value: profile?.businessName || "—" },
+    { label: "Business type", value: profile?.businessType || "—" },
+    { label: "Bank", value: profile?.bankName || "—" },
+    { label: "Branch", value: profile?.bankBranch || "—" },
+    { label: "IFSC", value: profile?.bankIfsc || "—" },
+    { label: "Account holder", value: profile?.bankAccountName || "—" },
+    { label: "Account", value: profile?.bankAccountMasked || "—" },
+  ];
+
+  const limits = [
+    { label: "Daily limit", used: "₹1,82,400", total: "₹2,00,000", pct: 91 },
+    { label: "Monthly limit", used: "₹8,40,000", total: "₹50,00,000", pct: 17 },
+    { label: "Max single", used: "₹25,000", total: "₹50,000", pct: 50 },
+  ];
+
   return (
     <ModalSheet visible={visible} title="Profile & KYC" onClose={onClose}>
-      <Text style={styles.pinSub}>Account details and KYC status. Contact support to update personal fields.</Text>
-      <View style={[styles.card, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
-        {rows.map((r, i) => (
-          <View
-            key={r.label}
-            style={[styles.row, i < rows.length - 1 && { borderBottomWidth: 1, borderBottomColor: tokens.cardBorder }]}
-          >
-            <Text style={[styles.rowLabel, { color: tokens.sub }]}>{r.label}</Text>
-            <Text style={[styles.rowValue, { color: tokens.txt }]}>{r.value}</Text>
+      <ScrollView
+        style={{ maxHeight: 520 }}
+        contentContainerStyle={{ paddingBottom: 24 }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Text style={[styles.pinSub, { color: tokens.sub }]}>
+          KYC details cannot be edited here. Contact support to update verified identity.
+        </Text>
+
+        {loading ? (
+          <ActivityIndicator color={colors.blueFlat} style={{ marginVertical: 16 }} />
+        ) : (
+          <View style={[styles.card, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
+            {allRows.map((r, i) => (
+              <ProfileDetailRow
+                key={r.label}
+                label={r.label}
+                value={r.value}
+                badge={r.badge}
+                last={i === allRows.length - 1}
+                tokens={tokens}
+              />
+            ))}
           </View>
-        ))}
-      </View>
+        )}
+
+        {user.role === "retailer" && !user.hasInstantpayOutlet ? (
+          <Pressable
+            onPress={onRegisterOutlet}
+            style={[styles.linkRow, { borderColor: tokens.cardBorder, backgroundColor: tokens.card }]}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.linkTitle, { color: tokens.txt }]}>Register outlet</Text>
+              <Text style={{ color: tokens.mute, fontSize: 12 }}>InstantPay Min-KYC</Text>
+            </View>
+            <ChevronRight size={16} color={colors.blueFlat} />
+          </Pressable>
+        ) : null}
+
+        {user.role === "retailer" && user.hasInstantpayOutlet ? (
+          <Pressable
+            onPress={onBioKyc}
+            style={[styles.linkRow, { borderColor: tokens.cardBorder, backgroundColor: tokens.card }]}
+          >
+            <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <Fingerprint size={18} color={colors.blueFlat} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.linkTitle, { color: tokens.txt }]}>Biometric KYC</Text>
+                <Text style={{ color: tokens.mute, fontSize: 12 }}>Fingerprint eKYC for AePS / DMT</Text>
+              </View>
+            </View>
+            <ChevronRight size={16} color={colors.blueFlat} />
+          </Pressable>
+        ) : null}
+
+        <Text style={[styles.sectionTiny, { color: tokens.sub, marginTop: 8 }]}>Transaction limits</Text>
+        <View style={styles.limitsWrap}>
+          {limits.map((l) => (
+            <LimitCard key={l.label} {...l} tokens={tokens} />
+          ))}
+        </View>
+      </ScrollView>
     </ModalSheet>
   );
 }
@@ -963,6 +1197,56 @@ const styles = StyleSheet.create({
   rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
   rowLabel: { fontSize: 13, color: colors.textMuted },
   rowValue: { fontSize: 13, fontWeight: "700", color: colors.text, maxWidth: "58%", textAlign: "right" },
+  rowValueLeft: { fontSize: 14, fontWeight: "700", marginTop: 4 },
+  verifiedPill: {
+    backgroundColor: "rgba(18,183,106,0.14)",
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  verifiedPillText: { color: colors.green, fontSize: 10, fontWeight: "800" },
+  sectionTiny: {
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  moreBtn: {
+    marginHorizontal: 12,
+    marginVertical: 10,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+  },
+  linkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
+    gap: 8,
+  },
+  linkTitle: { fontSize: 14, fontWeight: "800" },
+  limitsWrap: { gap: 10, marginTop: 4 },
+  limitCard: {
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  limitTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  limitLabel: { fontSize: 13, fontWeight: "600" },
+  limitPct: { fontSize: 12, fontWeight: "800" },
+  limitUsed: { fontSize: 14, fontWeight: "800", marginTop: 6 },
+  limitOf: { fontSize: 11, marginTop: 2 },
+  limitTrack: { height: 8, borderRadius: 999, marginTop: 10, overflow: "hidden" },
+  limitFill: { height: "100%", borderRadius: 999 },
   menuItem: {
     flexDirection: "row",
     alignItems: "center",

@@ -82,12 +82,22 @@ function hexAlpha(hex: string, alphaHex: string): string {
 /** Soft card fill colors for RN (no CSS gradient string). */
 export function bankCardFillColors(ifsc: string): [string, string, string] {
   const { primary, secondary } = bankBrandColors(ifsc);
-  return ["#ffffff", hexAlpha(primary, "22"), hexAlpha(secondary, "36")];
+  return ["#ffffff", hexAlpha(primary, "12"), hexAlpha(secondary, "16")];
 }
 
-/** Glow shadow color = primary brand. */
+/** Soft elevation shadow color. */
 export function bankCardGlowColor(ifsc: string): string {
   return bankBrandColors(ifsc).primary;
+}
+
+/** Inner corner glow blobs (wallet-style), logo-matched. */
+export function bankCardCornerTint(ifsc: string): { topRight: string; bottomLeft: string; border: string } {
+  const { primary, secondary } = bankBrandColors(ifsc);
+  return {
+    topRight: hexAlpha(secondary, "40"),
+    bottomLeft: hexAlpha(primary, "28"),
+    border: hexAlpha(primary, "22"),
+  };
 }
 
 export function formatSettlementBankCopy(details: {

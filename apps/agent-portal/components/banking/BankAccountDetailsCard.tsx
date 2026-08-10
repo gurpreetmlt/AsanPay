@@ -7,6 +7,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { B } from "@/lib/brand";
 import {
   bankBrandTint,
+  bankCardCornerGlows,
   bankCardGlow,
   bankCardGradient,
   bankLogoUrl,
@@ -221,10 +222,12 @@ export function BankDetailCard({
   );
 
   const tint = bankBrandTint(ifsc);
+  const corners = bankCardCornerGlows(ifsc);
   const isPicker = Boolean(onSelect);
-  const shellClass = `relative overflow-hidden rounded-[22px] border p-5 text-left ${className}`;
+  const shellClass = `relative overflow-hidden rounded-2xl border p-5 text-left ${className}`;
   const shellStyle: CSSProperties = {
-    borderColor: selected ? tint : unavailable ? B.border : `${tint}55`,
+    borderWidth: 1,
+    borderColor: selected ? `${tint}66` : unavailable ? B.border : corners.border,
     background: bankCardGradient(ifsc),
     opacity: unavailable ? 0.55 : 1,
     boxShadow: bankCardGlow(ifsc, selected),
@@ -236,6 +239,22 @@ export function BankDetailCard({
         }
       : {}),
   };
+
+  const chrome = (
+    <>
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{ background: corners.topRight }}
+      />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{ background: corners.bottomLeft }}
+      />
+      <div className="relative z-[1]">{body}</div>
+    </>
+  );
 
   if (onSelect) {
     return (
@@ -252,14 +271,14 @@ export function BankDetailCard({
         className={`${shellClass} w-full cursor-pointer transition-[transform,box-shadow] duration-200 hover:brightness-[1.02]`}
         style={shellStyle}
       >
-        {body}
+        {chrome}
       </div>
     );
   }
 
   return (
     <div className={shellClass} style={shellStyle}>
-      {body}
+      {chrome}
     </div>
   );
 }
