@@ -11,9 +11,12 @@ COPY apps/backend ./apps/backend
 
 WORKDIR /app/apps/backend
 
-# Coolify may inject NODE_ENV=production at build time, which skips devDeps (tsx, etc.).
+# Runtime only needs production deps + tsx (start/migrate). Installing full
+# devDependencies pulls eslint/typescript-eslint, which can break Coolify builds
+# when a meta-package publishes before its subpackages (ETARGET on scope-manager).
 RUN npm pkg set dependencies.@asanpay/shared-types="file:../../packages/shared-types" \
-  && NODE_ENV=development npm install --include=dev --omit=optional
+  && node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('package.json','utf8')); p.dependencies=p.dependencies||{}; const d=p.devDependencies||{}; if (d.tsx) p.dependencies.tsx=d.tsx; delete p.devDependencies; fs.writeFileSync('package.json', JSON.stringify(p, null, 2));" \
+  && npm install --omit=optional
 
 ENV NODE_ENV=production
 ENV PORT=4000
