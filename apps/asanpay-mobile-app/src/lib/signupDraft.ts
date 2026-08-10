@@ -27,6 +27,7 @@ export type MobileSignupDraft = {
   pan: string;
   gender: string;
   dob: string;
+  anniversaryDate: string;
   fatherName: string;
   panImage: SignupFileMeta | null;
   aadhaar: string;
@@ -76,6 +77,7 @@ export const EMPTY_MOBILE_SIGNUP_DRAFT: MobileSignupDraft = {
   pan: "",
   gender: "",
   dob: "",
+  anniversaryDate: "",
   fatherName: "",
   panImage: null,
   aadhaar: "",

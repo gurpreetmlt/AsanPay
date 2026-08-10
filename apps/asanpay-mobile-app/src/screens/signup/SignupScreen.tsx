@@ -13,7 +13,10 @@ import {
   View,
 } from "react-native";
 import Geolocation from "@react-native-community/geolocation";
-import DateTimePicker, { type DateTimePickerEvent } from "@react-native-community/datetimepicker";
+import DateTimePicker, {
+  DateTimePickerAndroid,
+  type DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, Calendar, CheckCircle2, Eye, EyeOff, MapPin, X } from "lucide-react-native";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
@@ -90,7 +93,8 @@ function isoToDisplayDob(iso: string): string {
 function isoToDate(iso: string): Date {
   if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
     const [y, m, d] = iso.split("-").map(Number);
-    return new Date(y, m - 1, d);
+    const dt = new Date(y, m - 1, d);
+    if (!Number.isNaN(dt.getTime())) return dt;
   }
   return new Date(1995, 0, 1);
 }
@@ -100,6 +104,28 @@ function dateToIso(date: Date): string {
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
+}
+
+/** Android: imperative dialog (avoids declarative picker crash). iOS: returns false → show inline. */
+function openAndroidDatePicker(opts: {
+  valueIso: string;
+  maximumDate?: Date;
+  minimumDate?: Date;
+  onSelect: (iso: string) => void;
+}): boolean {
+  if (Platform.OS !== "android") return false;
+  DateTimePickerAndroid.open({
+    value: isoToDate(opts.valueIso),
+    mode: "date",
+    display: "default",
+    maximumDate: opts.maximumDate,
+    minimumDate: opts.minimumDate,
+    onChange: (event, date) => {
+      if (event.type === "dismissed" || !date) return;
+      opts.onSelect(dateToIso(date));
+    },
+  });
+  return true;
 }
 
 export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
@@ -128,6 +154,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
   const [addressFetchBusy, setAddressFetchBusy] = useState(false);
   const [photoCaptureBusy, setPhotoCaptureBusy] = useState(false);
   const [showDobPicker, setShowDobPicker] = useState(false);
+  const [showAnniversaryPicker, setShowAnniversaryPicker] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
 
   const stepIndex = draft.stepIndex;
@@ -926,6 +953,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         gender: draft.gender,
         fatherName: draft.fatherName.trim(),
         dob: draft.dob,
+        anniversaryDate: draft.anniversaryDate || undefined,
         district: draft.district.trim(),
         state: draft.state.trim(),
         businessName: draft.businessName.trim(),
@@ -1337,7 +1365,15 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                   </View>
                   <FieldLabel text="Date of Birth *" color={tokens.mute} />
                   <Pressable
-                    onPress={() => setShowDobPicker(true)}
+                    onPress={() => {
+                      const opened = openAndroidDatePicker({
+                        valueIso: draft.dob,
+                        maximumDate: new Date(),
+                        minimumDate: new Date(1940, 0, 1),
+                        onSelect: (iso) => patch({ dob: iso }),
+                      });
+                      if (!opened) setShowDobPicker(true);
+                    }}
                     style={[
                       inputStyle,
                       {
@@ -1361,29 +1397,77 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                   <Text style={[styles.hint, { color: tokens.mute }]}>
                     As on PAN card. Tap to open calendar.
                   </Text>
-                  {showDobPicker ? (
-                    <DateTimePicker
-                      value={isoToDate(draft.dob)}
-                      mode="date"
-                      display={Platform.OS === "ios" ? "spinner" : "default"}
-                      maximumDate={new Date()}
-                      minimumDate={new Date(1940, 0, 1)}
-                      onChange={(event: DateTimePickerEvent, date?: Date) => {
-                        if (Platform.OS === "android") {
-                          setShowDobPicker(false);
-                        }
-                        if (event.type === "dismissed") return;
-                        if (date) patch({ dob: dateToIso(date) });
-                        if (Platform.OS === "ios" && event.type === "set") {
-                          setShowDobPicker(false);
-                        }
-                      }}
-                    />
-                  ) : null}
                   {Platform.OS === "ios" && showDobPicker ? (
-                    <Pressable onPress={() => setShowDobPicker(false)} style={{ marginBottom: 8 }}>
-                      <Text style={{ color: colors.blue, fontWeight: "800", fontSize: 13 }}>Done</Text>
-                    </Pressable>
+                    <>
+                      <DateTimePicker
+                        value={isoToDate(draft.dob)}
+                        mode="date"
+                        display="spinner"
+                        maximumDate={new Date()}
+                        minimumDate={new Date(1940, 0, 1)}
+                        onChange={(event: DateTimePickerEvent, date?: Date) => {
+                          if (event.type === "dismissed") return;
+                          if (date) patch({ dob: dateToIso(date) });
+                          if (event.type === "set") setShowDobPicker(false);
+                        }}
+                      />
+                      <Pressable onPress={() => setShowDobPicker(false)} style={{ marginBottom: 8 }}>
+                        <Text style={{ color: colors.blue, fontWeight: "800", fontSize: 13 }}>Done</Text>
+                      </Pressable>
+                    </>
+                  ) : null}
+                  <FieldLabel text="Anniversary Date" color={tokens.mute} />
+                  <Pressable
+                    onPress={() => {
+                      const opened = openAndroidDatePicker({
+                        valueIso: draft.anniversaryDate || draft.dob || "2015-01-01",
+                        maximumDate: new Date(),
+                        minimumDate: new Date(1950, 0, 1),
+                        onSelect: (iso) => patch({ anniversaryDate: iso }),
+                      });
+                      if (!opened) setShowAnniversaryPicker(true);
+                    }}
+                    style={[
+                      inputStyle,
+                      {
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={{
+                        color: isoToDisplayDob(draft.anniversaryDate) ? tokens.txt2 : tokens.mute,
+                        fontSize: 14,
+                        fontWeight: "600",
+                      }}
+                    >
+                      {isoToDisplayDob(draft.anniversaryDate) || "DD/MM/YYYY (optional)"}
+                    </Text>
+                    <Calendar size={18} color={tokens.mute} />
+                  </Pressable>
+                  <Text style={[styles.hint, { color: tokens.mute }]}>
+                    Optional — wedding / business anniversary.
+                  </Text>
+                  {Platform.OS === "ios" && showAnniversaryPicker ? (
+                    <>
+                      <DateTimePicker
+                        value={isoToDate(draft.anniversaryDate || "2015-01-01")}
+                        mode="date"
+                        display="spinner"
+                        maximumDate={new Date()}
+                        minimumDate={new Date(1950, 0, 1)}
+                        onChange={(event: DateTimePickerEvent, date?: Date) => {
+                          if (event.type === "dismissed") return;
+                          if (date) patch({ anniversaryDate: dateToIso(date) });
+                          if (event.type === "set") setShowAnniversaryPicker(false);
+                        }}
+                      />
+                      <Pressable onPress={() => setShowAnniversaryPicker(false)} style={{ marginBottom: 8 }}>
+                        <Text style={{ color: colors.blue, fontWeight: "800", fontSize: 13 }}>Done</Text>
+                      </Pressable>
+                    </>
                   ) : null}
                   <FieldLabel text="Father Name *" color={tokens.mute} />
                   <TextInput
