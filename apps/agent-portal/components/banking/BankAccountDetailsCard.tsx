@@ -126,6 +126,9 @@ export function BankDetailCard({
   const canReveal = Boolean(onToggleReveal);
   const resolvedBank = bankName || bankNameFromIfsc(ifsc);
   const bankLine = [resolvedBank, branch].filter(Boolean).join(" · ");
+  const tint = bankBrandTint(ifsc);
+  const corners = bankCardCornerGlows(ifsc);
+  const ink = "#0F172A";
 
   async function handleCopy(e: MouseEvent) {
     e.stopPropagation();
@@ -150,9 +153,9 @@ export function BankDetailCard({
   }
 
   const body = (
-    <div className="relative flex gap-3">
+    <div className="relative flex gap-2.5">
       <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center justify-between gap-2">
           <BankLogoMark ifsc={ifsc} />
           <StatusBadge tone={unavailable ? "pending" : statusTone}>
             {unavailable ? "Unavailable" : statusLabel}
@@ -160,36 +163,36 @@ export function BankDetailCard({
         </div>
 
         <p
-          className="mt-5 text-[11px] font-bold uppercase tracking-[0.14em]"
+          className="mt-4 text-[11px] font-extrabold uppercase tracking-[0.12em]"
           style={{ color: B.muted }}
         >
           Account
         </p>
         <p
-          className="mt-1 font-mono text-[1.35rem] font-extrabold leading-none tracking-wider"
-          style={{ color: B.blue }}
+          className="mt-1 font-mono text-[1.25rem] font-extrabold leading-none tracking-wider tabular-nums"
+          style={{ color: ink }}
         >
           {accountShown}
         </p>
-        <p className="mt-3 text-[15px] font-bold leading-snug" style={{ color: B.blue }}>
+        <p className="mt-3 text-[15px] font-bold leading-snug" style={{ color: ink }}>
           {holderName}
         </p>
-        <p className="mt-2 font-mono text-[13px] font-semibold" style={{ color: B.blueMid }}>
+        <p className="mt-2 text-[13px] font-bold" style={{ color: B.blueLight }}>
           IFSC · {ifsc}
         </p>
         {bankLine ? (
-          <p className="mt-1.5 text-[12px] font-medium leading-snug" style={{ color: B.muted }}>
+          <p className="mt-1 text-[12px] font-medium leading-snug" style={{ color: B.muted }}>
             {bankLine}
           </p>
         ) : null}
         {note ? (
-          <p className="mt-2 text-xs font-bold" style={{ color: B.green }}>
+          <p className="mt-2 text-[11px] font-extrabold" style={{ color: B.green }}>
             {note}
           </p>
         ) : null}
       </div>
 
-      <div className="flex shrink-0 flex-col gap-2.5 self-center">
+      <div className="flex shrink-0 flex-col justify-center gap-2.5 pt-1">
         {canReveal ? (
           <ActionBtn
             label={showFull ? "Hide account number" : "Show account number"}
@@ -211,26 +214,25 @@ export function BankDetailCard({
         </ActionBtn>
         {selected && onSelect ? (
           <span
-            className="mx-auto flex h-5 w-5 items-center justify-center rounded-full"
-            style={{ background: B.blue }}
+            className="mx-auto flex h-[18px] w-[18px] items-center justify-center rounded-full"
+            style={{ background: tint }}
           >
-            <Check size={12} color="#fff" />
+            <Check size={11} color="#fff" />
           </span>
         ) : null}
       </div>
     </div>
   );
 
-  const tint = bankBrandTint(ifsc);
-  const corners = bankCardCornerGlows(ifsc);
   const isPicker = Boolean(onSelect);
-  const shellClass = `relative overflow-hidden rounded-2xl border p-5 text-left ${className}`;
+  const shellClass = `relative overflow-hidden rounded-[18px] border text-left ${className}`;
   const shellStyle: CSSProperties = {
     borderWidth: 1,
-    borderColor: selected ? `${tint}66` : unavailable ? B.border : corners.border,
+    borderColor: selected ? `${tint}55` : unavailable ? B.border : corners.border,
     background: bankCardGradient(ifsc),
     opacity: unavailable ? 0.55 : 1,
     boxShadow: bankCardGlow(ifsc, selected),
+    padding: 18,
     ...(isPicker
       ? {
           transform: selected ? "scale(1.02)" : "scale(1)",
@@ -242,15 +244,16 @@ export function BankDetailCard({
 
   const chrome = (
     <>
+      {/* Mobile ditto: discrete corner circles from bank logo colors */}
       <span
         aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{ background: corners.topRight }}
+        className="pointer-events-none absolute -right-7 -top-9 h-[120px] w-[120px] rounded-full"
+        style={{ background: corners.topRight, opacity: 0.55 }}
       />
       <span
         aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{ background: corners.bottomLeft }}
+        className="pointer-events-none absolute -bottom-10 -left-8 h-[110px] w-[110px] rounded-full"
+        style={{ background: corners.bottomLeft, opacity: 0.4 }}
       />
       <div className="relative z-[1]">{body}</div>
     </>

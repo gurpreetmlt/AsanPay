@@ -1,10 +1,10 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { Copy, Eye, EyeOff, Landmark, Plus, X } from "lucide-react";
+import { Landmark, Plus, X } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { BankDetailCard } from "@/components/banking/BankAccountDetailsCard";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
-import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import {
   emptyIfscBankDetails,
@@ -12,15 +12,7 @@ import {
   type IfscBankDetailsValue,
 } from "@/components/banking/IfscBankDetailsFields";
 import api, { fetchApi } from "@/lib/api";
-import {
-  bankBrandTint,
-  bankCardCornerGlows,
-  bankCardGlow,
-  bankCardGradient,
-  bankCodeFromIfsc,
-  bankLogoUrl,
-  formatSettlementBankCopy,
-} from "@/lib/bankLogo";
+import { bankNameFromIfsc, formatSettlementBankCopy } from "@/lib/bankLogo";
 import { B } from "@/lib/brand";
 import { lookupIndianIfsc, type IfscPlace } from "@/lib/ifsc";
 import { extractApiError } from "@/lib/onboarding";
@@ -36,130 +28,6 @@ export interface SettlementBank {
 }
 
 type PlaceMap = Record<string, IfscPlace>;
-
-function BankLogo({ ifsc }: { ifsc: string }) {
-  const [failed, setFailed] = useState(false);
-  if (failed) {
-    return (
-      <div
-        className="flex h-10 w-10 items-center justify-center rounded-xl"
-        style={{ background: `${B.blueLight}18`, color: B.blueLight }}
-      >
-        <Landmark size={18} />
-      </div>
-    );
-  }
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={bankLogoUrl(ifsc)}
-      alt=""
-      width={40}
-      height={40}
-      className="h-10 w-10 rounded-xl bg-white object-contain p-1 shadow-sm"
-      style={{ border: `1px solid ${B.border}` }}
-      onError={() => setFailed(true)}
-    />
-  );
-}
-
-function SettlementBankCard({
-  bank,
-  place,
-  revealed,
-  revealing,
-  onToggleReveal,
-  onCopy,
-}: {
-  bank: SettlementBank;
-  place?: IfscPlace;
-  revealed: string | undefined;
-  revealing: boolean;
-  onToggleReveal: () => void;
-  onCopy: () => void;
-}) {
-  const active = bank.verified && bank.isActive;
-  const showFull = Boolean(revealed);
-  const tint = bankBrandTint(bank.ifsc);
-  const corners = bankCardCornerGlows(bank.ifsc);
-
-  return (
-    <div
-      className="relative overflow-hidden rounded-2xl border p-4"
-      style={{
-        borderWidth: 1,
-        borderColor: active ? `${tint}55` : corners.border,
-        background: bankCardGradient(bank.ifsc),
-        boxShadow: bankCardGlow(bank.ifsc, active),
-      }}
-    >
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{ background: corners.topRight }}
-      />
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{ background: corners.bottomLeft }}
-      />
-      <div className="relative z-[1] flex items-start justify-between gap-2">
-        <BankLogo ifsc={bank.ifsc} />
-        <StatusBadge tone={active ? "success" : bank.verified ? "info" : "pending"}>
-          {bank.verified ? (bank.isActive ? "Active" : "Verified") : "Pending"}
-        </StatusBadge>
-      </div>
-
-      <div className="relative z-[1] mt-4 flex items-end justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: B.muted }}>
-            Account
-          </p>
-          <p className="mt-0.5 font-mono text-lg font-bold tracking-wider" style={{ color: B.blue }}>
-            {showFull ? revealed : `**** ${bank.accountNumberLast4}`}
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <button
-            type="button"
-            onClick={onToggleReveal}
-            disabled={revealing}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border bg-white/80"
-            style={{ borderColor: B.border, color: B.blueLight, opacity: revealing ? 0.6 : 1 }}
-            aria-label={showFull ? "Hide account number" : "Show account number"}
-            title={showFull ? "Hide" : "Show"}
-          >
-            {showFull ? <EyeOff size={16} /> : <Eye size={16} />}
-          </button>
-          <button
-            type="button"
-            onClick={onCopy}
-            disabled={revealing}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border bg-white/80"
-            style={{ borderColor: B.border, color: B.blueLight, opacity: revealing ? 0.6 : 1 }}
-            aria-label="Copy all bank details"
-            title="Copy all details"
-          >
-            <Copy size={16} />
-          </button>
-        </div>
-      </div>
-
-      <p className="relative mt-3 text-sm font-semibold" style={{ color: B.blue }}>
-        {bank.holderName}
-      </p>
-      <p className="relative mt-1 font-mono text-xs" style={{ color: B.muted }}>
-        IFSC · {bank.ifsc}
-      </p>
-      {place?.bank ? (
-        <p className="relative mt-0.5 truncate text-[11px]" style={{ color: B.muted }}>
-          {place.bank}
-          {place.branch ? ` · ${place.branch}` : ""}
-        </p>
-      ) : null}
-    </div>
-  );
-}
 
 /** Compact settlement bank cards + KYC-style IFSC add form. */
 export function SettlementBanksPanel({
@@ -263,7 +131,7 @@ export function SettlementBanksPanel({
       ]);
       await navigator.clipboard.writeText(
         formatSettlementBankCopy({
-          bankName: place?.bank || bankCodeFromIfsc(bank.ifsc),
+          bankName: place?.bank || bankNameFromIfsc(bank.ifsc),
           branch: place?.branch,
           city: place?.city,
           holderName: bank.holderName,
@@ -528,17 +396,27 @@ export function SettlementBanksPanel({
         />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {banks.map((b) => (
-            <SettlementBankCard
-              key={b.id}
-              bank={b}
-              place={places[b.id]}
-              revealed={revealed[b.id]}
-              revealing={busyId === b.id}
-              onToggleReveal={() => void toggleReveal(b)}
-              onCopy={() => void copyBank(b)}
-            />
-          ))}
+          {banks.map((b) => {
+            const place = places[b.id];
+            const active = b.verified && b.isActive;
+            return (
+              <BankDetailCard
+                key={b.id}
+                ifsc={b.ifsc}
+                holderName={b.holderName}
+                accountMasked={`**** ${b.accountNumberLast4}`}
+                accountFull={revealed[b.id]}
+                revealed={Boolean(revealed[b.id])}
+                revealing={busyId === b.id}
+                onToggleReveal={() => void toggleReveal(b)}
+                onCopy={() => void copyBank(b)}
+                statusTone={active ? "success" : b.verified ? "info" : "pending"}
+                statusLabel={b.verified ? (b.isActive ? "Active" : "Verified") : "Pending"}
+                bankName={place?.bank}
+                branch={place?.branch}
+              />
+            );
+          })}
         </div>
       )}
     </div>
