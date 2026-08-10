@@ -39,6 +39,22 @@ type OtpStep = "mobile" | "otp" | "pin";
 
 const ROLE_ICONS = { super: Crown, distributor: Network, retailer: Store } as const;
 
+function apiRoleFromUi(r: Role): "retailer" | "distributor" | "super_distributor" {
+  if (r.id === "super") return "super_distributor";
+  if (r.id === "distributor") return "distributor";
+  return "retailer";
+}
+
+function roleFromMismatchMessage(msg: string): Role | null {
+  const m = msg.match(/registered as\s+([^./]+)/i);
+  if (!m?.[1]) return null;
+  const label = m[1].trim().toLowerCase();
+  if (label.includes("super")) return ROLES.find((r) => r.id === "super") ?? null;
+  if (label.includes("distributor")) return ROLES.find((r) => r.id === "distributor") ?? null;
+  if (label.includes("retailer")) return ROLES.find((r) => r.id === "retailer") ?? null;
+  return null;
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const setAuth = useAuthStore((s) => s.setAuth);
@@ -197,15 +213,24 @@ export default function LoginPage() {
       const { data } = await api.post<ApiResponse<{ otp?: string; message: string }>>("/auth/otp/request", {
         mobile,
         portal: "agent",
+        role: apiRoleFromUi(role),
       });
       if (!data.success) throw new Error(data.message);
       lastOtpSentKey.current = mobile;
       setOtpStep("otp");
       setDevOtp(data.data.otp ?? null);
-      toast.success(data.data.otp ? `Dev OTP: ${data.data.otp}` : "OTP sent");
+      toast.success(data.data.otp ? `Dev OTP: ${data.data.otp}` : "OTP sent — enter the 6-digit code");
     } catch (err) {
       lastOtpSentKey.current = mobile;
-      toast.error(extractApiError(err, "OTP request failed"));
+      const msg = extractApiError(err, "OTP request failed");
+      const suggested = roleFromMismatchMessage(msg);
+      if (suggested && suggested.id !== role.id) {
+        lastOtpSentKey.current = null;
+        setRole(suggested);
+        toast.error(`${msg} — role updated. Tap Continue again.`);
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -220,6 +245,7 @@ export default function LoginPage() {
         mobile,
         otp,
         portal: "agent",
+        role: apiRoleFromUi(role),
         deviceId: getDeviceId(),
         deviceLabel: getDeviceLabel(),
       });
@@ -234,7 +260,16 @@ export default function LoginPage() {
         finishLogin(data.data);
       }
     } catch (err) {
-      toast.error(extractApiError(err, "Incorrect OTP"));
+      const msg = extractApiError(err, "Incorrect OTP");
+      const suggested = roleFromMismatchMessage(msg);
+      if (suggested && suggested.id !== role.id) {
+        setRole(suggested);
+        setOtpStep("mobile");
+        setOtp("");
+        toast.error(`${msg} — role updated. Tap Continue to send a new OTP.`);
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -565,6 +600,9 @@ export default function LoginPage() {
                       style={{ borderColor: B.border, color: B.blue }}
                       placeholder="••••••"
                     />
+                    <p className="mt-2 text-center text-xs" style={{ color: B.muted }}>
+                      No SMS yet? Use Password login, or ask admin for the shared test OTP.
+                    </p>
                   </div>
                 </>
               )}

@@ -38,6 +38,11 @@ import { HttpError } from "../../utils/httpError";
 import { decryptPII } from "../../utils/aes";
 import { env } from "../../config/env";
 import { sendSlackAlert } from "../../utils/alert";
+import {
+  hasStoredKycPhoto,
+  loadKycPhotoBytes,
+  KYC_DOC_KEY_TO_SLOT,
+} from "../kyc/kycDocuments.service";
 import { kycDecisionEmailTemplate, notifyUserEmail } from "../../utils/mailer";
 import { findLatestAuditLog, insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import type { UserRole, KycStatus, TransactionStatus } from "@asanpay/shared-types";
@@ -61,79 +66,9 @@ function maskAadhaar(aadhaar: string) {
   return `XXXX XXXX ${digits.slice(-4)}`;
 }
 
-function escapeXml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
-
-/** SVG ID-card style preview so admins always see documents when numbers / uploads exist. */
-function docSvgDataUrl(opts: {
-  title: string;
-  line1: string;
-  line2: string;
-  accent: string;
-  footer?: string;
-}): string {
-  const title = escapeXml(opts.title.slice(0, 40));
-  const line1 = escapeXml(opts.line1.slice(0, 28));
-  const line2 = escapeXml(opts.line2.slice(0, 36));
-  const accent = escapeXml(opts.accent);
-  const footer = escapeXml((opts.footer || "Tap to zoom · Admin preview").slice(0, 48));
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="400" viewBox="0 0 640 400">
-  <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="${accent}"/>
-      <stop offset="100%" stop-color="#0B2A9A"/>
-    </linearGradient>
-  </defs>
-  <rect width="640" height="400" rx="28" fill="#0f1b3d"/>
-  <rect x="16" y="16" width="608" height="368" rx="22" fill="url(#g)" opacity="0.22"/>
-  <rect x="16" y="16" width="608" height="368" rx="22" fill="none" stroke="#ffffff33" stroke-width="2"/>
-  <text x="48" y="72" fill="#ffffff" font-family="Poppins,Arial,sans-serif" font-size="28" font-weight="700">${title}</text>
-  <text x="48" y="118" fill="#a8b8e0" font-family="Poppins,Arial,sans-serif" font-size="16">AsanPay · KYC Document</text>
-  <rect x="48" y="160" width="120" height="140" rx="16" fill="#ffffff22"/>
-  <circle cx="108" cy="210" r="28" fill="#ffffff44"/>
-  <rect x="72" y="255" width="72" height="18" rx="9" fill="#ffffff33"/>
-  <text x="200" y="210" fill="#e8eef9" font-family="Poppins,Arial,sans-serif" font-size="22" font-weight="600">${line1}</text>
-  <text x="200" y="250" fill="#c5d2f5" font-family="ui-monospace,monospace" font-size="18" letter-spacing="1">${line2}</text>
-  <text x="48" y="350" fill="#8b9bc4" font-family="Poppins,Arial,sans-serif" font-size="13">${footer}</text>
-</svg>`;
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-}
-
 function metaFileName(meta: Record<string, unknown>, key: string): string | null {
   const v = meta[key];
   return typeof v === "string" && v.trim().length > 0 ? v.trim() : null;
-}
-
-function addDocCard(
-  documents: Record<string, string>,
-  key: string,
-  opts: {
-    title: string;
-    line1: string;
-    line2: string;
-    accent: string;
-    fileName?: string | null;
-    required?: boolean;
-  },
-) {
-  const uploaded = Boolean(opts.fileName);
-  if (!uploaded && !opts.required) return;
-  if (!uploaded && !opts.line2) return;
-  documents[key] = docSvgDataUrl({
-    title: opts.title,
-    line1: opts.line1,
-    line2: uploaded ? opts.fileName! : opts.line2,
-    accent: opts.accent,
-    footer: uploaded
-      ? `Uploaded · ${opts.fileName}`
-      : "Number on file · image upload pending",
-  });
 }
 
 export async function getAdminUserDetail(userId: string) {
@@ -203,63 +138,42 @@ export async function getAdminUserDetail(userId: string) {
 
   const meta = (kycAudit?.metadata ?? {}) as Record<string, unknown>;
 
-  const panFile = metaFileName(meta, "panImageFileName");
-  const aadhaarFrontFile = metaFileName(meta, "aadhaarFrontFileName");
-  const aadhaarBackFile = metaFileName(meta, "aadhaarBackFileName");
-  const chequeFile = metaFileName(meta, "cancelledChequeFileName");
-  const personalFile = metaFileName(meta, "personalPhotoFileName");
-  const shopFile = metaFileName(meta, "shopPhotoFileName");
-
   const documents: Record<string, string> = {};
-  addDocCard(documents, "panCard", {
-    title: "PAN Card",
-    line1: row.name,
-    line2: panMasked ?? panFull ?? "",
-    accent: "#2A5CDD",
-    fileName: panFile,
-    required: Boolean(panFull || panFile),
-  });
-  addDocCard(documents, "aadhaarFront", {
-    title: "Aadhaar Front",
-    line1: row.name,
-    line2: aadhaarMasked ?? aadhaarFull ?? "",
-    accent: "#12B76A",
-    fileName: aadhaarFrontFile,
-    required: Boolean(aadhaarFull || aadhaarFrontFile),
-  });
-  // Back only when agent uploaded it (do not invent a 2nd card from Aadhaar number alone).
-  addDocCard(documents, "aadhaarBack", {
-    title: "Aadhaar Back",
-    line1: row.name,
-    line2: aadhaarMasked ?? "",
-    accent: "#0F9E5C",
-    fileName: aadhaarBackFile,
-    required: Boolean(aadhaarBackFile),
-  });
-  addDocCard(documents, "chequeOrPassbook", {
-    title: "Cancelled Cheque",
-    line1: row.name,
-    line2: typeof meta.bankName === "string" ? meta.bankName : "Bank proof",
-    accent: "#D97706",
-    fileName: chequeFile,
-    required: Boolean(chequeFile),
-  });
-  addDocCard(documents, "personalPhoto", {
-    title: "Personal Photo",
-    line1: row.name,
-    line2: "Live capture",
-    accent: "#7C3AED",
-    fileName: personalFile,
-    required: Boolean(personalFile),
-  });
-  addDocCard(documents, "shopPhoto", {
-    title: "Shop Photo",
-    line1: row.name,
-    line2: "Live capture",
-    accent: "#0891B2",
-    fileName: shopFile,
-    required: Boolean(shopFile),
-  });
+  const documentFiles: Record<string, string | null> = {
+    panCard: metaFileName(meta, "panImageFileName"),
+    aadhaarFront: metaFileName(meta, "aadhaarFrontFileName"),
+    aadhaarBack: metaFileName(meta, "aadhaarBackFileName"),
+    chequeOrPassbook: metaFileName(meta, "cancelledChequeFileName"),
+    personalPhoto: metaFileName(meta, "personalPhotoFileName"),
+    shopPhoto: metaFileName(meta, "shopPhotoFileName"),
+  };
+
+  const dataSlots: { docKey: string; slot: "panImage" | "aadhaarFront" | "aadhaarBack" | "cancelledCheque" | "personalPhoto" | "shopPhoto" }[] = [
+    { docKey: "panCard", slot: "panImage" },
+    { docKey: "aadhaarFront", slot: "aadhaarFront" },
+    { docKey: "aadhaarBack", slot: "aadhaarBack" },
+    { docKey: "chequeOrPassbook", slot: "cancelledCheque" },
+    { docKey: "personalPhoto", slot: "personalPhoto" },
+    { docKey: "shopPhoto", slot: "shopPhoto" },
+  ];
+
+  for (const s of dataSlots) {
+    // Proxy URL (not embedded base64) — keeps user-detail JSON small; bytes via GET …/kyc-documents/:key
+    if (hasStoredKycPhoto(meta, s.slot)) {
+      documents[s.docKey] = `/admin/users/${userId}/kyc-documents/${s.docKey}`;
+    }
+  }
+
+  // Filename / number-only slots — placeholder marker (UI shows stub card).
+  const putStub = (docKey: string) => {
+    if (!documents[docKey]) documents[docKey] = "stub";
+  };
+  if (panFull || documentFiles.panCard) putStub("panCard");
+  if (aadhaarFull || documentFiles.aadhaarFront) putStub("aadhaarFront");
+  if (documentFiles.aadhaarBack) putStub("aadhaarBack");
+  if (documentFiles.chequeOrPassbook) putStub("chequeOrPassbook");
+  if (documentFiles.personalPhoto) putStub("personalPhoto");
+  if (documentFiles.shopPhoto) putStub("shopPhoto");
 
   const {
     panNumberEncrypted: _p,
@@ -285,14 +199,7 @@ export async function getAdminUserDetail(userId: string) {
       submittedAt: kycAudit?.createdAt ?? null,
     },
     documents,
-    documentFiles: {
-      panCard: panFile,
-      aadhaarFront: aadhaarFrontFile,
-      aadhaarBack: aadhaarBackFile,
-      chequeOrPassbook: chequeFile,
-      personalPhoto: personalFile,
-      shopPhoto: shopFile,
-    },
+    documentFiles,
     wallets: walletRows.map((w) => ({
       walletType: w.walletType,
       balance: String(w.balance),
@@ -306,6 +213,38 @@ export async function getAdminUserDetail(userId: string) {
         }
       : null,
   };
+}
+
+/** Stream KYC photo bytes for admin preview (auth required via admin router). */
+export async function getAdminKycDocument(
+  userId: string,
+  docKey: string,
+): Promise<{ contentType: string; buffer: Buffer }> {
+  const slot = KYC_DOC_KEY_TO_SLOT[docKey];
+  if (!slot) {
+    throw new HttpError(404, "KYC document not found", "KYC_DOC_NOT_FOUND");
+  }
+
+  const [row] = await db
+    .select({ id: users.id, role: users.role })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  if (!row || row.role === "admin") {
+    throw new HttpError(404, "User not found", "USER_NOT_FOUND");
+  }
+
+  const kycAudit = await findLatestAuditLog({ userId, action: "kyc.submit" });
+  const meta = (kycAudit?.metadata ?? {}) as Record<string, unknown>;
+  const loaded = await loadKycPhotoBytes(meta, slot);
+  if (!loaded) {
+    throw new HttpError(
+      404,
+      "Photo bytes not on file — agent must re-submit KYC with gallery upload",
+      "KYC_PHOTO_MISSING",
+    );
+  }
+  return loaded;
 }
 
 export async function getAdminStats() {

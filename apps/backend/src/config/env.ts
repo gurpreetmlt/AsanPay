@@ -250,9 +250,16 @@ export function getTestSignupOtpOverride(mobile: string): string | null {
 
 function parseOtpOverrides(raw: string, mobile: string): string | null {
   if (!raw) return null;
+  // Coolify / docker often leave wrapping quotes or spaces on the value.
+  const cleaned = raw.trim().replace(/^["']|["']$/g, "");
+  if (!cleaned) return null;
   let wildcard: string | null = null;
-  for (const pair of raw.split(",")) {
-    const [num, otp] = pair.trim().split(":");
+  for (const pair of cleaned.split(",")) {
+    const trimmed = pair.trim().replace(/^["']|["']$/g, "");
+    const colon = trimmed.indexOf(":");
+    if (colon <= 0) continue;
+    const num = trimmed.slice(0, colon).trim().replace(/^["']|["']$/g, "");
+    const otp = trimmed.slice(colon + 1).trim().replace(/^["']|["']$/g, "");
     if (!otp || !/^\d{6}$/.test(otp)) continue;
     if (num === mobile) return otp;
     if (num === "*") wildcard = otp;

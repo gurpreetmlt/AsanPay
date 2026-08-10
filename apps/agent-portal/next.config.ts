@@ -13,6 +13,9 @@ const nextConfig: NextConfig = {
     webpackMemoryOptimizations: true,
     // Sequential static generation — parallel workers kill Coolify (exit 255).
     staticGenerationMaxConcurrency: 1,
+    // KYC submit may include several base64 images through the proxy.
+    serverActions: { bodySizeLimit: "12mb" },
+    middlewareClientMaxBodySize: "12mb",
   },
   turbopack: {
     root: monorepoRoot,

@@ -4,6 +4,8 @@ import { sendSuccess } from "../../utils/apiResponse";
 import { HttpError } from "../../utils/httpError";
 import { kycSubmitSchema } from "../auth/auth.validators";
 import { getMyKycProfile, submitKyc } from "./kyc.service";
+import { isKycDocSlot, saveKycDocumentDataUrl } from "./kycDocuments.service";
+import { z } from "zod";
 
 export const kycRouter = Router();
 
@@ -13,6 +15,21 @@ kycRouter.get("/me", async (req, res) => {
   if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
   const profile = await getMyKycProfile(req.auth.sub);
   sendSuccess(res, { profile });
+});
+
+kycRouter.post("/documents/upload", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const body = z
+    .object({
+      slot: z.string().trim(),
+      dataUrl: z.string().min(32).max(2_000_000),
+    })
+    .parse(req.body);
+  if (!isKycDocSlot(body.slot)) {
+    throw new HttpError(422, "Invalid document slot", "INVALID_KYC_SLOT");
+  }
+  const saved = await saveKycDocumentDataUrl(req.auth.sub, body.slot, body.dataUrl);
+  sendSuccess(res, saved, "Document uploaded");
 });
 
 kycRouter.get("/ifsc/:code", async (req, res) => {

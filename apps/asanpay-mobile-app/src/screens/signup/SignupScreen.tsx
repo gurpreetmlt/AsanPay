@@ -845,15 +845,22 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
           didCancel?: boolean;
           errorCode?: string;
           errorMessage?: string;
-          assets?: Array<{ fileName?: string; uri?: string; fileSize?: number; type?: string }>;
+          assets?: Array<{
+            fileName?: string;
+            uri?: string;
+            fileSize?: number;
+            type?: string;
+            base64?: string;
+          }>;
         }>;
       };
       const result = await launchImageLibrary({
         mediaType: "photo",
         selectionLimit: 1,
-        quality: 0.8,
-        maxWidth: 2000,
-        maxHeight: 2000,
+        quality: 0.7,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        includeBase64: true,
       });
       if (result.didCancel) return;
       if (result.errorCode) {
@@ -873,13 +880,15 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         showAlert("Upload failed", "No image selected");
         return;
       }
-      if (asset.fileSize && asset.fileSize > 2 * 1024 * 1024) {
-        showAlert("File too large", "Image must be under 2 MB");
+      if (asset.fileSize && asset.fileSize > 1.5 * 1024 * 1024) {
+        showAlert("File too large", "Image must be under 1.5 MB");
         return;
       }
       const name = asset.fileName || `${label}.jpg`;
-      patch({ [key]: { name, uri: asset.uri } });
-      showAlert("Uploaded", `${name} selected`);
+      const mime = asset.type || "image/jpeg";
+      const dataUrl = asset.base64 ? `data:${mime};base64,${asset.base64}` : undefined;
+      patch({ [key]: { name, uri: asset.uri, dataUrl } });
+      showAlert("Uploaded", dataUrl ? `${name} ready for KYC submit` : `${name} selected`);
     } catch (err) {
       showAlert("Upload failed", err instanceof Error ? err.message : "Could not pick image");
     }
@@ -938,6 +947,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         quality: 0.7,
         maxWidth: 1600,
         maxHeight: 1600,
+        includeBase64: true,
       });
       if (result.didCancel) return;
       if (result.errorCode) {
@@ -947,13 +957,19 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         );
         return;
       }
-      const asset = result.assets?.[0];
+      const asset = result.assets?.[0] as
+        | { fileName?: string; uri?: string; type?: string; base64?: string }
+        | undefined;
       const name =
         asset?.fileName ||
         (kind === "personalPhoto" ? "personal-live.jpg" : "shop-live.jpg");
+      const mime = asset?.type || "image/jpeg";
+      const dataUrl = asset?.base64 ? `data:${mime};base64,${asset.base64}` : undefined;
       patch({
         [kind]: {
           name,
+          uri: asset?.uri,
+          dataUrl,
           latitude: useLat,
           longitude: useLng,
           capturedAt: new Date().toISOString(),
@@ -1239,6 +1255,12 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         aadhaarBackFileName: draft.aadhaarBack?.name,
         personalPhotoFileName: draft.personalPhoto?.name,
         shopPhotoFileName: draft.shopPhoto?.name,
+        panImageDataUrl: draft.panImage?.dataUrl,
+        aadhaarFrontDataUrl: draft.aadhaarFront?.dataUrl,
+        aadhaarBackDataUrl: draft.aadhaarBack?.dataUrl,
+        cancelledChequeDataUrl: draft.cancelledCheque?.dataUrl,
+        personalPhotoDataUrl: draft.personalPhoto?.dataUrl,
+        shopPhotoDataUrl: draft.shopPhoto?.dataUrl,
         personalPhotoLatitude: draft.personalPhoto?.latitude,
         personalPhotoLongitude: draft.personalPhoto?.longitude,
         shopPhotoLatitude: draft.shopPhoto?.latitude,

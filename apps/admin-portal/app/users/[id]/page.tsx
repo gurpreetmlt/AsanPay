@@ -451,15 +451,19 @@ export default function AgentDetailPage() {
                       value={newParentUid}
                       onChange={(e) => setNewParentUid(e.target.value)}
                       placeholder="New parent UID"
-                      className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
-                      style={{ borderColor: B.border, color: B.blue }}
+                      className="admin-input w-full rounded-xl border px-3 py-2 text-sm outline-none"
+                      style={{
+                        borderColor: B.border,
+                        color: "var(--admin-text)",
+                        background: "var(--admin-bg)",
+                      }}
                     />
                     <button
                       type="button"
                       disabled={busy}
                       onClick={() => void reassignParent()}
-                      className="w-full rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-                      style={{ background: B.blue }}
+                      className="w-full rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
+                      style={{ background: B.badgeGrad, color: "#ffffff" }}
                     >
                       Reassign parent
                     </button>
@@ -489,10 +493,17 @@ export default function AgentDetailPage() {
                           type="button"
                           disabled={busy}
                           onClick={() => void setRestriction(lvl)}
-                          className="rounded-xl border-2 bg-white px-3 py-2 text-xs font-bold capitalize disabled:opacity-50"
+                          className="rounded-xl border-2 px-3 py-2 text-xs font-bold capitalize disabled:opacity-50"
                           style={{
-                            borderColor: lvl === "freeze" ? "#DC2626" : lvl === "none" ? B.green : B.border,
-                            color: lvl === "freeze" ? "#DC2626" : lvl === "none" ? B.greenDark : B.blue,
+                            borderColor:
+                              lvl === "freeze" ? B.danger : lvl === "none" ? B.green : B.border,
+                            color:
+                              lvl === "freeze"
+                                ? B.danger
+                                : lvl === "none"
+                                  ? B.green
+                                  : "var(--admin-text)",
+                            background: "var(--admin-bg)",
                           }}
                         >
                           {lvl === "none" ? "Lift all" : lvl}
@@ -521,8 +532,12 @@ export default function AgentDetailPage() {
                       type="button"
                       disabled={busy}
                       onClick={() => void reactivateAeps()}
-                      className="w-full rounded-xl border-2 bg-white px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
-                      style={{ borderColor: B.blue, color: B.blue }}
+                      className="w-full rounded-xl border-2 px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
+                      style={{
+                        borderColor: B.blueLight,
+                        color: B.blueLight,
+                        background: "var(--admin-bg)",
+                      }}
                     >
                       Reactivate AePS
                     </button>

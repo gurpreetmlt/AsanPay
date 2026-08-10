@@ -252,7 +252,7 @@ export default function PromotionsPage() {
             onClick={() => void save()}
             disabled={saving || loading}
             className="rounded-xl px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
-            style={{ background: B.blue }}
+            style={{ background: B.badgeGrad }}
           >
             {saving ? "Saving…" : "Save"}
           </button>

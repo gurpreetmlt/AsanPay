@@ -303,6 +303,13 @@ export const kycSubmitSchema = z.object({
   aadhaarBackFileName: z.string().trim().max(200).optional(),
   personalPhotoFileName: z.string().trim().max(200).optional(),
   shopPhotoFileName: z.string().trim().max(200).optional(),
+  /** Optional base64 data-URLs so admin can preview uploads (max ~2MB string each). */
+  panImageDataUrl: z.string().max(2_000_000).optional(),
+  aadhaarFrontDataUrl: z.string().max(2_000_000).optional(),
+  aadhaarBackDataUrl: z.string().max(2_000_000).optional(),
+  cancelledChequeDataUrl: z.string().max(2_000_000).optional(),
+  personalPhotoDataUrl: z.string().max(2_000_000).optional(),
+  shopPhotoDataUrl: z.string().max(2_000_000).optional(),
   personalPhotoLatitude: geoCoordSchema.optional(),
   personalPhotoLongitude: geoCoordSchema.optional(),
   shopPhotoLatitude: geoCoordSchema.optional(),

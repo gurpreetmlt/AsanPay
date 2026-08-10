@@ -7,6 +7,13 @@ import { findLatestAuditLog, insertAuditLog } from "../../db/postgres/repositori
 import { kycSubmittedEmailTemplate, notifyUserEmail } from "../../utils/mailer";
 import type { AuthUser } from "@asanpay/shared-types";
 import type { KycSubmitInput } from "../auth/auth.validators";
+import {
+  metaDataUrlKey,
+  metaFileNameKey,
+  metaPublicPathKey,
+  saveKycDocumentDataUrl,
+  type KycDocSlot,
+} from "./kycDocuments.service";
 
 function toAuthUser(row: typeof users.$inferSelect): AuthUser {
   return {
@@ -170,6 +177,38 @@ export async function submitKyc(userId: string, input: KycSubmitInput): Promise<
 
   if (!updated) throw new HttpError(500, "Failed to save KYC");
 
+  const docMeta: Record<string, string | null> = {
+    cancelledChequeFileName: input.cancelledChequeFileName ?? null,
+    panImageFileName: input.panImageFileName ?? null,
+    aadhaarFrontFileName: input.aadhaarFrontFileName ?? null,
+    aadhaarBackFileName: input.aadhaarBackFileName ?? null,
+    personalPhotoFileName: input.personalPhotoFileName ?? null,
+    shopPhotoFileName: input.shopPhotoFileName ?? null,
+  };
+
+  const dataUrlInputs: Partial<Record<KycDocSlot, string | undefined>> = {
+    panImage: input.panImageDataUrl,
+    aadhaarFront: input.aadhaarFrontDataUrl,
+    aadhaarBack: input.aadhaarBackDataUrl,
+    cancelledCheque: input.cancelledChequeDataUrl,
+    personalPhoto: input.personalPhotoDataUrl,
+    shopPhoto: input.shopPhotoDataUrl,
+  };
+
+  for (const slot of Object.keys(dataUrlInputs) as KycDocSlot[]) {
+    const raw = dataUrlInputs[slot]?.trim();
+    if (!raw || !raw.startsWith("data:image")) continue;
+    try {
+      const saved = await saveKycDocumentDataUrl(userId, slot, raw);
+      docMeta[metaFileNameKey(slot)] = saved.fileName;
+      docMeta[metaDataUrlKey(slot)] = saved.dataUrl;
+      docMeta[metaPublicPathKey(slot)] = saved.publicPath;
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
+      throw new HttpError(422, `Could not save ${slot} image`, "KYC_IMAGE_SAVE_FAILED");
+    }
+  }
+
   await insertAuditLog({
     userId,
     action: "kyc.submit",
@@ -185,7 +224,6 @@ export async function submitKyc(userId: string, input: KycSubmitInput): Promise<
       bankIfsc: input.bankIfsc ?? null,
       bankName: input.bankName ?? null,
       bankBranch: input.bankBranch ?? null,
-      cancelledChequeFileName: input.cancelledChequeFileName ?? null,
       gender: input.gender ?? null,
       fatherName: input.fatherName ?? null,
       dob: input.dob ?? null,
@@ -201,17 +239,13 @@ export async function submitKyc(userId: string, input: KycSubmitInput): Promise<
       businessPincode: input.businessPincode ?? null,
       businessDistrict: input.businessDistrict ?? null,
       businessState: input.businessState ?? null,
-      panImageFileName: input.panImageFileName ?? null,
-      aadhaarFrontFileName: input.aadhaarFrontFileName ?? null,
-      aadhaarBackFileName: input.aadhaarBackFileName ?? null,
-      personalPhotoFileName: input.personalPhotoFileName ?? null,
-      shopPhotoFileName: input.shopPhotoFileName ?? null,
       personalPhotoLatitude: input.personalPhotoLatitude ?? null,
       personalPhotoLongitude: input.personalPhotoLongitude ?? null,
       shopPhotoLatitude: input.shopPhotoLatitude ?? null,
       shopPhotoLongitude: input.shopPhotoLongitude ?? null,
       latitude,
       longitude,
+      ...docMeta,
     },
   });
 

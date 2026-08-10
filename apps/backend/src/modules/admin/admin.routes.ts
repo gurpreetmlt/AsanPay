@@ -10,6 +10,7 @@ import {
   getAdminAlerts,
   listAdminUsers,
   getAdminUserDetail,
+  getAdminKycDocument,
   getAdminUserCommissions,
   upsertAdminUserCommissions,
   setUserActive,
@@ -66,6 +67,13 @@ adminRouter.get("/users", async (req, res) => {
 adminRouter.get("/users/:id", async (req, res) => {
   const detail = await getAdminUserDetail(req.params.id);
   sendSuccess(res, detail);
+});
+
+adminRouter.get("/users/:id/kyc-documents/:docKey", async (req, res) => {
+  const doc = await getAdminKycDocument(req.params.id, req.params.docKey);
+  res.setHeader("Content-Type", doc.contentType);
+  res.setHeader("Cache-Control", "private, max-age=120");
+  res.send(doc.buffer);
 });
 
 adminRouter.get("/users/:id/ancestors", async (req, res) => {

@@ -429,6 +429,9 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
                         placeholderTextColor="rgba(255,255,255,0.4)"
                       />
                     </View>
+                    <Text style={styles.otpHint}>
+                      No SMS yet? Use Password, or ask admin for the shared test OTP.
+                    </Text>
 
                     <Pressable
                       onPress={() => void verifyOtp()}
@@ -649,6 +652,13 @@ const styles = StyleSheet.create({
   devOtpText: { fontSize: 12, fontWeight: "700", color: "#3BE39A" },
   label: { fontSize: 11.5, fontWeight: "700", color: "#B9C6F2", letterSpacing: 0.3 },
   labelSpaced: { marginTop: 18, marginBottom: 6 },
+  otpHint: {
+    marginTop: 10,
+    textAlign: "center",
+    fontSize: 12,
+    color: "rgba(255,255,255,0.55)",
+    lineHeight: 16,
+  },
   inputRow: {
     marginTop: 8,
     flexDirection: "row",

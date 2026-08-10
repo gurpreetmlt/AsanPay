@@ -99,11 +99,40 @@ const inputCls =
   "w-full rounded-2xl border-2 bg-white px-4 py-3 text-sm outline-none";
 const inputStyle = { borderColor: B.border, color: B.blue } as const;
 
-function fileMeta(file: File, geo?: { latitude: string; longitude: string }): SignupFileMeta {
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") resolve(reader.result);
+      else reject(new Error("Could not read image"));
+    };
+    reader.onerror = () => reject(new Error("Could not read image"));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function fileMeta(
+  file: File,
+  geo?: { latitude: string; longitude: string },
+): Promise<SignupFileMeta> {
+  const isImage =
+    file.type.startsWith("image/") ||
+    /\.(jpe?g|png|webp|heic|heif)$/i.test(file.name);
+  let dataUrl: string | undefined;
+  if (isImage) {
+    try {
+      const raw = await readFileAsDataUrl(file);
+      // Keep under backend Zod max (~2MB string)
+      if (raw.length <= 1_900_000) dataUrl = raw;
+    } catch {
+      dataUrl = undefined;
+    }
+  }
   return {
     name: file.name,
     mime: file.type,
     size: file.size,
+    dataUrl,
     ...(geo
       ? {
           latitude: geo.latitude,
@@ -601,7 +630,7 @@ function SignupPageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft.ifsc, draft.accountCreated]);
 
-  function pickFile(
+  async function pickFile(
     key: keyof Pick<
       SignupDraft,
       "panImage" | "aadhaarFront" | "aadhaarBack" | "cancelledCheque" | "shopPhoto" | "personalPhoto"
@@ -621,7 +650,8 @@ function SignupPageInner() {
       toast.error("File must be under 2 MB");
       return;
     }
-    patch({ [key]: fileMeta(file, geo) });
+    const meta = await fileMeta(file, geo);
+    patch({ [key]: meta });
     setStepErrorKey(null);
     if (file.type.startsWith("image/") || ["jpg", "jpeg", "png", "webp", "heic", "heif"].includes(ext)) {
       const url = URL.createObjectURL(file);
@@ -633,7 +663,9 @@ function SignupPageInner() {
     toast.success(
       geo
         ? `${file.name} captured · ${Number(geo.latitude).toFixed(5)}, ${Number(geo.longitude).toFixed(5)}`
-        : `${file.name} selected`,
+        : meta.dataUrl
+          ? `${file.name} ready for KYC submit`
+          : `${file.name} selected`,
     );
   }
 
@@ -965,6 +997,12 @@ function SignupPageInner() {
         aadhaarBackFileName: draft.aadhaarBack?.name,
         personalPhotoFileName: draft.personalPhoto?.name,
         shopPhotoFileName: draft.shopPhoto?.name,
+        panImageDataUrl: draft.panImage?.dataUrl,
+        aadhaarFrontDataUrl: draft.aadhaarFront?.dataUrl,
+        aadhaarBackDataUrl: draft.aadhaarBack?.dataUrl,
+        cancelledChequeDataUrl: draft.cancelledCheque?.dataUrl,
+        personalPhotoDataUrl: draft.personalPhoto?.dataUrl,
+        shopPhotoDataUrl: draft.shopPhoto?.dataUrl,
         personalPhotoLatitude: draft.personalPhoto?.latitude,
         personalPhotoLongitude: draft.personalPhoto?.longitude,
         shopPhotoLatitude: draft.shopPhoto?.latitude,

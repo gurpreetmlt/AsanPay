@@ -15,6 +15,7 @@ import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import {
   MAX_OTP_ATTEMPTS,
   findLatestActiveOtp,
+  findLatestOtpAny,
   incrementOtpAttempts,
   insertOtpRequest,
   markOtpConsumed,
@@ -39,7 +40,7 @@ import {
   releaseEmailIfUnused,
 } from "./emailVerify.service";
 import type { AuthPortal, AuthUser, UserRole } from "@asanpay/shared-types";
-import { isAdminRole, isAgentPortalRole } from "@asanpay/shared-types";
+import { isAdminRole, isAgentPortalRole, ROLE_LABELS } from "@asanpay/shared-types";
 import type {
   RegisterInput,
   LoginInput,
@@ -407,13 +408,17 @@ const OTP_TTL_MS = 15 * 60 * 1000;
 function assertExpectedLoginRole(accountRole: UserRole, expected?: UserRole) {
   if (!expected) return;
   if (accountRole === expected) return;
-  // Generic message — do not name the real role (enumeration oracle).
-  throw new HttpError(401, "Invalid credentials", "INVALID_CREDENTIALS");
+  const label = ROLE_LABELS[accountRole] ?? accountRole;
+  throw new HttpError(
+    401,
+    `This mobile is registered as ${label}. Select the correct role and try again.`,
+    "ROLE_MISMATCH",
+  );
 }
 
 const GENERIC_OTP_SENT = {
   message: "If this number is registered, an OTP has been sent",
-  expiresInSeconds: (5 * 60 * 1000) / 1000,
+  expiresInSeconds: OTP_TTL_MS / 1000,
 };
 
 export async function requestLoginOtp(
@@ -430,16 +435,23 @@ export async function requestLoginOtp(
     .from(users)
     .where(eq(users.mobile, input.mobile));
 
-  // Admin / inactive / role mismatch: silent generic response (no OTP, no leak).
+  // Admin / inactive: silent generic response (no OTP, no leak).
   if (!row || !row.isActive || isAdminRole(row.role)) {
     return { ...GENERIC_OTP_SENT };
   }
+  // Wrong role chip — clear message so UI can auto-correct (not a silent fake send).
   if (input.role && row.role !== input.role) {
-    return { ...GENERIC_OTP_SENT };
+    const label = ROLE_LABELS[row.role] ?? row.role;
+    throw new HttpError(
+      401,
+      `This mobile is registered as ${label}. Select the correct role and try again.`,
+      "ROLE_MISMATCH",
+    );
   }
 
   const exposeOtp = shouldExposeOtpInResponse();
   // Whitelisted test numbers get a fixed OTP (no SMS provider yet); everyone else random.
+  // Use TEST_OTP_OVERRIDES=*:232323 once for ALL numbers until SMS is live.
   const otp = getTestOtpOverride(input.mobile) ?? randomInt(100000, 1000000).toString();
 
   await insertOtpRequest({
@@ -480,9 +492,24 @@ export async function verifyLoginOtp(
   const record = await findLatestActiveOtp({ mobile: input.mobile, purpose: "login" });
 
   if (!record) {
+    const latest = await findLatestOtpAny({ mobile: input.mobile, purpose: "login" });
+    if (!latest) {
+      throw new HttpError(
+        401,
+        "No OTP was requested for this number. Tap Continue to send a new OTP.",
+        "OTP_NOT_REQUESTED",
+      );
+    }
+    if (latest.consumedAt) {
+      throw new HttpError(
+        401,
+        "This OTP was already used. Tap Continue to request a new OTP.",
+        "OTP_ALREADY_USED",
+      );
+    }
     throw new HttpError(
       401,
-      "OTP has expired or was not requested. Please request a new OTP.",
+      "OTP has expired. Tap Continue to request a new OTP.",
       "OTP_EXPIRED",
     );
   }
@@ -493,7 +520,7 @@ export async function verifyLoginOtp(
 
   if (!otpHashesEqual(record.otpHash, input.otp)) {
     await incrementOtpAttempts(record.id);
-    throw new HttpError(401, "Incorrect OTP", "OTP_INCORRECT");
+    throw new HttpError(401, "Incorrect OTP. Check the code and try again.", "OTP_INCORRECT");
   }
 
   const [row] = await db.select().from(users).where(eq(users.mobile, input.mobile));

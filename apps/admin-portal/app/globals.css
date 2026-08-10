@@ -134,9 +134,22 @@ body::before {
   color: var(--admin-text);
 }
 
+.admin-input::placeholder {
+  color: var(--admin-muted);
+  opacity: 0.85;
+}
+
 /* Dark mode: flip hard-coded white / surface utilities */
 html.dark .bg-white {
   background-color: var(--admin-card) !important;
+  color: var(--admin-text);
+}
+
+html.dark input.bg-white,
+html.dark textarea.bg-white,
+html.dark select.bg-white {
+  color: var(--admin-text) !important;
+  background-color: var(--admin-bg) !important;
 }
 
 html.dark .bg-surface,

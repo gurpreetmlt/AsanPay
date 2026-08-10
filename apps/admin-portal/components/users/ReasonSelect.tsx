@@ -51,8 +51,8 @@ export function ReasonSelect({
           }
           onChange(next);
         }}
-        className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
-        style={{ borderColor: B.border, color: B.blue, background: "var(--admin-card)" }}
+        className="w-full rounded-xl border px-3 py-2 text-sm outline-none admin-input"
+        style={{ borderColor: B.border, color: "var(--admin-text)", background: "var(--admin-bg)" }}
       >
         <option value="">{placeholder}</option>
         {presets.map((p) => (
@@ -68,8 +68,8 @@ export function ReasonSelect({
           value={presets.includes(value) ? "" : value}
           onChange={(e) => onChange(e.target.value)}
           placeholder="Enter custom reason (min 8 characters)"
-          className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
-          style={{ borderColor: B.border, color: B.blue, background: "var(--admin-card)" }}
+          className="w-full rounded-xl border px-3 py-2 text-sm outline-none admin-input"
+          style={{ borderColor: B.border, color: "var(--admin-text)", background: "var(--admin-bg)" }}
         />
       ) : null}
     </div>

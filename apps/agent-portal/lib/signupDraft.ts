@@ -4,6 +4,8 @@ export type SignupFileMeta = {
   name: string;
   mime: string;
   size: number;
+  /** data:image/...;base64,... for admin KYC preview */
+  dataUrl?: string;
   /** Set when photo is live-captured with GPS. */
   latitude?: string;
   longitude?: string;

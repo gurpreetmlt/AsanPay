@@ -32,8 +32,11 @@ Users must instantly know **what failed** and **how to fix it**. Never ship vagu
 | Upline not found | `Distributor / Super Distributor not found for this mobile. Use an active upline number.` |
 | Mobile already registered | `This mobile number is already registered. Please log in instead.` |
 | Location | `Allow location access before continuing` |
-| OTP wrong | `Incorrect OTP` |
-| OTP expired | `OTP has expired or was not requested. Please request a new OTP.` |
+| OTP wrong | `Incorrect OTP. Check the code and try again.` |
+| OTP not requested | `No OTP was requested for this number. Tap Continue to send a new OTP.` |
+| OTP expired | `OTP has expired. Tap Continue to request a new OTP.` |
+| OTP already used | `This OTP was already used. Tap Continue to request a new OTP.` |
+| Login role mismatch | `This mobile is registered as {Role}. Select the correct role and try again.` |
 | Signup OTP (test env) | If `TEST_SIGNUP_OTP_OVERRIDES` is set, UI/dev copy may say fixed OTP e.g. `242424` — never guess; read env/docs |
 
 ## Where to apply

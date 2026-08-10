@@ -116,9 +116,9 @@ export default function DisputesPage() {
               onClick={() => setTab(t)}
               className="shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold capitalize"
               style={{
-                borderColor: tab === t ? B.blue : B.border,
-                background: tab === t ? B.blue : "white",
-                color: tab === t ? "white" : B.muted,
+                borderColor: tab === t ? B.blueLight : B.border,
+                background: tab === t ? B.badgeGrad : "var(--admin-card)",
+                color: tab === t ? "#ffffff" : "var(--admin-muted)",
               }}
             >
               {t.replace(/_/g, " ")}

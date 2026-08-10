@@ -5,6 +5,8 @@ export type SignupRole = "super_distributor" | "distributor" | "retailer" | "dir
 export type SignupFileMeta = {
   name: string;
   uri?: string;
+  /** data:image/...;base64,... for KYC submit preview on admin */
+  dataUrl?: string;
   latitude?: string;
   longitude?: string;
   capturedAt?: string;

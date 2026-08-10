@@ -74,6 +74,28 @@ export async function findLatestActiveOtp(filter: {
   return row ?? null;
 }
 
+/** Latest OTP row for clearer verify errors (expired / already used / never sent). */
+export async function findLatestOtpAny(filter: {
+  mobile: string;
+  purpose: OtpPurpose;
+}): Promise<{
+  id: string;
+  consumedAt: Date | null;
+  expiresAt: Date;
+} | null> {
+  const [row] = await db
+    .select({
+      id: otpRequests.id,
+      consumedAt: otpRequests.consumedAt,
+      expiresAt: otpRequests.expiresAt,
+    })
+    .from(otpRequests)
+    .where(and(eq(otpRequests.mobile, filter.mobile), eq(otpRequests.purpose, filter.purpose)))
+    .orderBy(desc(otpRequests.createdAt))
+    .limit(1);
+  return row ?? null;
+}
+
 export async function incrementOtpAttempts(id: string): Promise<void> {
   await db
     .update(otpRequests)
