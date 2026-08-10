@@ -70,17 +70,19 @@ function escapeXml(value: string) {
     .replace(/'/g, "&apos;");
 }
 
-/** SVG ID-card style preview so admins always see documents when numbers exist. */
+/** SVG ID-card style preview so admins always see documents when numbers / uploads exist. */
 function docSvgDataUrl(opts: {
   title: string;
   line1: string;
   line2: string;
   accent: string;
+  footer?: string;
 }): string {
   const title = escapeXml(opts.title.slice(0, 40));
   const line1 = escapeXml(opts.line1.slice(0, 28));
-  const line2 = escapeXml(opts.line2.slice(0, 28));
+  const line2 = escapeXml(opts.line2.slice(0, 36));
   const accent = escapeXml(opts.accent);
+  const footer = escapeXml((opts.footer || "Tap to zoom · Admin preview").slice(0, 48));
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="400" viewBox="0 0 640 400">
   <defs>
     <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
@@ -97,10 +99,41 @@ function docSvgDataUrl(opts: {
   <circle cx="108" cy="210" r="28" fill="#ffffff44"/>
   <rect x="72" y="255" width="72" height="18" rx="9" fill="#ffffff33"/>
   <text x="200" y="210" fill="#e8eef9" font-family="Poppins,Arial,sans-serif" font-size="22" font-weight="600">${line1}</text>
-  <text x="200" y="250" fill="#c5d2f5" font-family="ui-monospace,monospace" font-size="20" letter-spacing="2">${line2}</text>
-  <text x="48" y="350" fill="#8b9bc4" font-family="Poppins,Arial,sans-serif" font-size="13">Tap to zoom · Admin preview</text>
+  <text x="200" y="250" fill="#c5d2f5" font-family="ui-monospace,monospace" font-size="18" letter-spacing="1">${line2}</text>
+  <text x="48" y="350" fill="#8b9bc4" font-family="Poppins,Arial,sans-serif" font-size="13">${footer}</text>
 </svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+function metaFileName(meta: Record<string, unknown>, key: string): string | null {
+  const v = meta[key];
+  return typeof v === "string" && v.trim().length > 0 ? v.trim() : null;
+}
+
+function addDocCard(
+  documents: Record<string, string>,
+  key: string,
+  opts: {
+    title: string;
+    line1: string;
+    line2: string;
+    accent: string;
+    fileName?: string | null;
+    required?: boolean;
+  },
+) {
+  const uploaded = Boolean(opts.fileName);
+  if (!uploaded && !opts.required) return;
+  if (!uploaded && !opts.line2) return;
+  documents[key] = docSvgDataUrl({
+    title: opts.title,
+    line1: opts.line1,
+    line2: uploaded ? opts.fileName! : opts.line2,
+    accent: opts.accent,
+    footer: uploaded
+      ? `Uploaded · ${opts.fileName}`
+      : "Number on file · image upload pending",
+  });
 }
 
 export async function getAdminUserDetail(userId: string) {
@@ -170,29 +203,63 @@ export async function getAdminUserDetail(userId: string) {
 
   const meta = (kycAudit?.metadata ?? {}) as Record<string, unknown>;
 
+  const panFile = metaFileName(meta, "panImageFileName");
+  const aadhaarFrontFile = metaFileName(meta, "aadhaarFrontFileName");
+  const aadhaarBackFile = metaFileName(meta, "aadhaarBackFileName");
+  const chequeFile = metaFileName(meta, "cancelledChequeFileName");
+  const personalFile = metaFileName(meta, "personalPhotoFileName");
+  const shopFile = metaFileName(meta, "shopPhotoFileName");
+
   const documents: Record<string, string> = {};
-  if (panFull) {
-    documents.panCard = docSvgDataUrl({
-      title: "PAN Card",
-      line1: row.name,
-      line2: panMasked ?? panFull,
-      accent: "#2A5CDD",
-    });
-  }
-  if (aadhaarFull) {
-    documents.aadhaarFront = docSvgDataUrl({
-      title: "Aadhaar Front",
-      line1: row.name,
-      line2: aadhaarMasked ?? aadhaarFull,
-      accent: "#12B76A",
-    });
-    documents.aadhaarBack = docSvgDataUrl({
-      title: "Aadhaar Back",
-      line1: "Address / QR",
-      line2: aadhaarMasked ?? aadhaarFull,
-      accent: "#0F9E5C",
-    });
-  }
+  addDocCard(documents, "panCard", {
+    title: "PAN Card",
+    line1: row.name,
+    line2: panMasked ?? panFull ?? "",
+    accent: "#2A5CDD",
+    fileName: panFile,
+    required: Boolean(panFull || panFile),
+  });
+  addDocCard(documents, "aadhaarFront", {
+    title: "Aadhaar Front",
+    line1: row.name,
+    line2: aadhaarMasked ?? aadhaarFull ?? "",
+    accent: "#12B76A",
+    fileName: aadhaarFrontFile,
+    required: Boolean(aadhaarFull || aadhaarFrontFile),
+  });
+  // Back only when agent uploaded it (do not invent a 2nd card from Aadhaar number alone).
+  addDocCard(documents, "aadhaarBack", {
+    title: "Aadhaar Back",
+    line1: row.name,
+    line2: aadhaarMasked ?? "",
+    accent: "#0F9E5C",
+    fileName: aadhaarBackFile,
+    required: Boolean(aadhaarBackFile),
+  });
+  addDocCard(documents, "chequeOrPassbook", {
+    title: "Cancelled Cheque",
+    line1: row.name,
+    line2: typeof meta.bankName === "string" ? meta.bankName : "Bank proof",
+    accent: "#D97706",
+    fileName: chequeFile,
+    required: Boolean(chequeFile),
+  });
+  addDocCard(documents, "personalPhoto", {
+    title: "Personal Photo",
+    line1: row.name,
+    line2: "Live capture",
+    accent: "#7C3AED",
+    fileName: personalFile,
+    required: Boolean(personalFile),
+  });
+  addDocCard(documents, "shopPhoto", {
+    title: "Shop Photo",
+    line1: row.name,
+    line2: "Live capture",
+    accent: "#0891B2",
+    fileName: shopFile,
+    required: Boolean(shopFile),
+  });
 
   const {
     panNumberEncrypted: _p,
@@ -218,6 +285,14 @@ export async function getAdminUserDetail(userId: string) {
       submittedAt: kycAudit?.createdAt ?? null,
     },
     documents,
+    documentFiles: {
+      panCard: panFile,
+      aadhaarFront: aadhaarFrontFile,
+      aadhaarBack: aadhaarBackFile,
+      chequeOrPassbook: chequeFile,
+      personalPhoto: personalFile,
+      shopPhoto: shopFile,
+    },
     wallets: walletRows.map((w) => ({
       walletType: w.walletType,
       balance: String(w.balance),
@@ -278,6 +353,115 @@ export async function getAdminStats() {
       pending: (txns.pending ?? 0) + (txns.initiated ?? 0),
       total: Object.values(txns).reduce((a, b) => a + b, 0),
     },
+  };
+}
+
+/** Sidebar badges + header notification cards for admin ops queue. */
+export async function getAdminAlerts() {
+  const pendingKycByRoleRows = await db
+    .select({ role: users.role, total: count() })
+    .from(users)
+    .where(and(eq(users.kycStatus, "pending"), sql`${users.role} <> 'admin'`))
+    .groupBy(users.role);
+
+  const byRole = {
+    super_distributor: 0,
+    distributor: 0,
+    retailer: 0,
+  };
+  for (const r of pendingKycByRoleRows) {
+    if (r.role === "super_distributor" || r.role === "distributor" || r.role === "retailer") {
+      byRole[r.role] = Number(r.total);
+    }
+  }
+  const kycPending = byRole.super_distributor + byRole.distributor + byRole.retailer;
+
+  const recentPendingKyc = await db
+    .select({
+      id: users.id,
+      uid: users.uid,
+      name: users.name,
+      mobile: users.mobile,
+      role: users.role,
+      updatedAt: users.updatedAt,
+      createdAt: users.createdAt,
+    })
+    .from(users)
+    .where(and(eq(users.kycStatus, "pending"), sql`${users.role} <> 'admin'`))
+    .orderBy(desc(users.updatedAt))
+    .limit(25);
+
+  const [fundRow] = await db
+    .select({ total: count() })
+    .from(fundRequests)
+    .where(sql`${fundRequests.status} IN ('submitted', 'pending_match')`);
+
+  const [ticketRow] = await db
+    .select({ total: count() })
+    .from(supportTickets)
+    .where(eq(supportTickets.status, "open"));
+
+  const fundRequestsPending = Number(fundRow?.total ?? 0);
+  const supportTicketsOpen = Number(ticketRow?.total ?? 0);
+
+  const ROLE_LABEL: Record<string, string> = {
+    retailer: "Retailer",
+    distributor: "Distributor",
+    super_distributor: "Super Distributor",
+  };
+
+  const notifications = [
+    ...recentPendingKyc.map((u) => {
+      const roleLabel = ROLE_LABEL[u.role] ?? u.role;
+      return {
+        id: `kyc:${u.id}`,
+        type: "kyc_pending" as const,
+        title: `New ${roleLabel.toLowerCase()} pending KYC`,
+        body: `${u.name} · ${u.mobile} · ${u.uid}`,
+        href: `/users/${u.id}`,
+        createdAt:
+          (u.updatedAt ?? u.createdAt) instanceof Date
+            ? (u.updatedAt ?? u.createdAt)!.toISOString()
+            : String(u.updatedAt ?? u.createdAt ?? new Date().toISOString()),
+        meta: { role: u.role, userId: u.id },
+      };
+    }),
+    ...(fundRequestsPending > 0
+      ? [
+          {
+            id: "fund-requests",
+            type: "fund_request" as const,
+            title: "Fund requests awaiting review",
+            body: `${fundRequestsPending} request${fundRequestsPending === 1 ? "" : "s"} need admin action`,
+            href: "/fund-requests",
+            createdAt: new Date().toISOString(),
+            meta: { count: fundRequestsPending },
+          },
+        ]
+      : []),
+    ...(supportTicketsOpen > 0
+      ? [
+          {
+            id: "support-tickets",
+            type: "support_ticket" as const,
+            title: "Open support tickets",
+            body: `${supportTicketsOpen} ticket${supportTicketsOpen === 1 ? "" : "s"} still open`,
+            href: "/support-tickets",
+            createdAt: new Date().toISOString(),
+            meta: { count: supportTicketsOpen },
+          },
+        ]
+      : []),
+  ];
+
+  return {
+    badges: {
+      kycPending,
+      kycPendingByRole: byRole,
+      fundRequestsPending,
+      supportTicketsOpen,
+    },
+    notifications,
   };
 }
 

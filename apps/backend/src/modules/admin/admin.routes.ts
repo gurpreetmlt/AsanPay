@@ -7,6 +7,7 @@ import { HttpError } from "../../utils/httpError";
 import { KYC_STATUSES, TRANSACTION_STATUSES, USER_ROLES } from "@asanpay/shared-types";
 import {
   getAdminStats,
+  getAdminAlerts,
   listAdminUsers,
   getAdminUserDetail,
   getAdminUserCommissions,
@@ -41,6 +42,10 @@ adminRouter.use(requireAuth, requireRole("admin"));
 
 adminRouter.get("/stats", async (_req, res) => {
   sendSuccess(res, await getAdminStats());
+});
+
+adminRouter.get("/alerts", async (_req, res) => {
+  sendSuccess(res, await getAdminAlerts());
 });
 
 adminRouter.get("/users", async (req, res) => {

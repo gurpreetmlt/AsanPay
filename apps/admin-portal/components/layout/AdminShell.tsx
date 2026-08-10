@@ -12,6 +12,8 @@ import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { AdminHeader } from "@/components/layout/AdminHeader";
 import { MobileAdminNav } from "@/components/layout/MobileAdminNav";
+import { AlertCountBadge } from "@/components/layout/AlertCountBadge";
+import { AdminAlertsProvider, useAdminAlerts } from "@/components/layout/AdminAlertsProvider";
 import { useAdminTheme } from "@/components/theme/AdminThemeProvider";
 import { cn } from "@/lib/utils";
 
@@ -124,11 +126,13 @@ function NavLink({
   href,
   label,
   icon,
+  badgeCount = 0,
   onNavigate,
 }: {
   href: string;
   label: string;
   icon: NavIconDef;
+  badgeCount?: number;
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
@@ -153,7 +157,8 @@ function NavLink({
       }}
     >
       <AnimatedNavIcon def={icon} active={active} size={18} className={active ? "opacity-100" : "opacity-70"} />
-      <span className="text-sm font-medium">{label}</span>
+      <span className="min-w-0 flex-1 truncate text-sm font-medium">{label}</span>
+      <AlertCountBadge count={badgeCount} />
     </Link>
   );
 }
@@ -163,11 +168,15 @@ function NavDropdown({
   expanded,
   onToggle,
   onNavigate,
+  groupBadge = 0,
+  childBadge,
 }: {
   item: Extract<NavItem, { type: "group" }>;
   expanded: boolean;
   onToggle: () => void;
   onNavigate?: () => void;
+  groupBadge?: number;
+  childBadge?: (href: string) => number;
 }) {
   const pathname = usePathname();
   const active = groupActive(pathname, item.children);
@@ -185,7 +194,8 @@ function NavDropdown({
         }}
       >
         <AnimatedNavIcon def={item.icon} active={active} size={18} className={active ? "opacity-100" : "opacity-70"} />
-        <span className="flex-1 text-left text-sm font-medium">{item.label}</span>
+        <span className="min-w-0 flex-1 truncate text-left text-sm font-medium">{item.label}</span>
+        <AlertCountBadge count={groupBadge} />
         <ChevronDown
           size={14}
           className={cn("shrink-0 transition-transform duration-200", expanded && "rotate-180")}
@@ -197,6 +207,7 @@ function NavDropdown({
         <div className="ml-3 space-y-0.5 border-l pl-2" style={{ borderColor: "var(--admin-sidebar-border)" }}>
           {item.children.map((child) => {
             const childActive = pathActive(pathname, child.href);
+            const count = childBadge?.(child.href) ?? 0;
             return (
               <Link
                 key={child.href}
@@ -211,7 +222,8 @@ function NavDropdown({
                 }}
               >
                 <AnimatedNavIcon def={child.icon} active={childActive} size={15} />
-                {child.label}
+                <span className="min-w-0 flex-1 truncate">{child.label}</span>
+                <AlertCountBadge count={count} />
               </Link>
             );
           })}
@@ -219,6 +231,48 @@ function NavDropdown({
       )}
     </div>
   );
+}
+
+function badgeForHref(
+  href: string,
+  badges: {
+    kycPending: number;
+    kycPendingByRole: { super_distributor: number; distributor: number; retailer: number };
+    fundRequestsPending: number;
+    supportTicketsOpen: number;
+  },
+): number {
+  switch (href) {
+    case "/kyc":
+    case "/users":
+      return badges.kycPending;
+    case "/users/super-distributors":
+      return badges.kycPendingByRole.super_distributor;
+    case "/users/distributors":
+      return badges.kycPendingByRole.distributor;
+    case "/users/retailers":
+      return badges.kycPendingByRole.retailer;
+    case "/fund-requests":
+      return badges.fundRequestsPending;
+    case "/support-tickets":
+      return badges.supportTicketsOpen;
+    default:
+      return 0;
+  }
+}
+
+function groupBadgeFor(
+  id: string,
+  badges: {
+    kycPending: number;
+    fundRequestsPending: number;
+    supportTicketsOpen: number;
+  },
+): number {
+  if (id === "agents") return badges.kycPending;
+  if (id === "treasury") return badges.fundRequestsPending;
+  if (id === "site") return badges.supportTicketsOpen;
+  return 0;
 }
 
 function SidebarNav({
@@ -230,6 +284,8 @@ function SidebarNav({
   onToggleGroup: (id: string) => void;
   onNavigate?: () => void;
 }) {
+  const { badges } = useAdminAlerts();
+
   return (
     <nav className="flex-1 space-y-4 overflow-y-auto px-2 py-3">
       {(
@@ -252,7 +308,12 @@ function SidebarNav({
           <div className="space-y-0.5">
             {section.items.map((item) =>
               item.type === "link" ? (
-                <NavLink key={item.href} {...item} onNavigate={onNavigate} />
+                <NavLink
+                  key={item.href}
+                  {...item}
+                  badgeCount={badgeForHref(item.href, badges)}
+                  onNavigate={onNavigate}
+                />
               ) : (
                 <NavDropdown
                   key={item.id}
@@ -260,6 +321,8 @@ function SidebarNav({
                   expanded={!!openGroups[item.id]}
                   onToggle={() => onToggleGroup(item.id)}
                   onNavigate={onNavigate}
+                  groupBadge={groupBadgeFor(item.id, badges)}
+                  childBadge={(href) => badgeForHref(href, badges)}
                 />
               ),
             )}
@@ -374,6 +437,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
   );
 
   return (
+    <AdminAlertsProvider>
     <div className="min-h-screen overflow-x-hidden font-sans" style={{ background: B.bg }}>
       <div className="fixed left-0 top-0 z-40 hidden h-screen md:block">
         <SidebarPanel
@@ -409,5 +473,6 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
       <MobileAdminNav />
     </div>
+    </AdminAlertsProvider>
   );
 }

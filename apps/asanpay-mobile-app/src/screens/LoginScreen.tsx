@@ -122,9 +122,9 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
     ]);
   }
 
-  async function requestOtp(opts?: { auto?: boolean }) {
+  async function requestOtp() {
     if (mobile.length !== 10) {
-      if (!opts?.auto) showAlert("Invalid mobile", "Enter a valid 10-digit mobile number");
+      showAlert("Invalid mobile", "Enter a valid 10-digit mobile number");
       return;
     }
     setLoading(true);
@@ -139,7 +139,6 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
       setOtp(data.data.otp ?? "");
       setOtpStep("otp");
     } catch (err) {
-      // Mark attempted so auto-send does not loop; user can tap Resend.
       lastOtpSentKey.current = `${mobile}:${role}`;
       const msg = apiError(err, "Could not send OTP");
       const suggested = roleFromMismatchMessage(msg);
@@ -148,7 +147,7 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
         setRole(suggested);
         showAlert(
           "Wrong role selected",
-          `${msg}\n\nCorrect role auto-selected: ${ROLE_CHIPS.find((r) => r.key === suggested)?.short}. OTP will send again.`,
+          `${msg}\n\nCorrect role selected: ${ROLE_CHIPS.find((r) => r.key === suggested)?.short}. Tap Continue to send OTP.`,
           [{ text: "OK", style: "primary" }],
         );
       } else {
@@ -158,18 +157,6 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
       setLoading(false);
     }
   }
-
-  // OTP tab: full 10-digit mobile → send OTP automatically (no Continue tap).
-  useEffect(() => {
-    if (method !== "otp" || otpStep !== "mobile" || mobile.length !== 10 || loading) return;
-    const key = `${mobile}:${role}`;
-    if (lastOtpSentKey.current === key) return;
-    const t = setTimeout(() => {
-      void requestOtp({ auto: true });
-    }, 350);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mobile, method, otpStep, role]);
 
   useEffect(() => {
     if (mobile.length < 10) lastOtpSentKey.current = null;
@@ -466,6 +453,16 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
                     >
                       <Text style={styles.signupText}>Change mobile</Text>
                     </Pressable>
+                    <Pressable
+                      onPress={() => {
+                        lastOtpSentKey.current = null;
+                        void requestOtp();
+                      }}
+                      disabled={loading}
+                      style={styles.signupRow}
+                    >
+                      <Text style={styles.signupLink}>Resend OTP</Text>
+                    </Pressable>
                   </>
                 ) : method === "password" ? (
                   <>
@@ -509,25 +506,31 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
                     </Pressable>
                   </>
                 ) : (
-                  <View style={{ marginTop: 14, alignItems: "center", gap: 10 }}>
-                    {loading ? (
-                      <>
-                        <ActivityIndicator color="#3BE39A" />
-                        <Text style={styles.signupText}>Sending OTP…</Text>
-                      </>
-                    ) : mobile.length === 10 ? (
-                      <Pressable
-                        onPress={() => {
-                          lastOtpSentKey.current = null;
-                          void requestOtp();
-                        }}
-                        style={styles.signupRow}
+                  <View style={{ marginTop: 14 }}>
+                    <Pressable
+                      onPress={() => void requestOtp()}
+                      disabled={mobile.length !== 10 || loading}
+                      style={styles.buttonPress}
+                    >
+                      <LinearGradient
+                        colors={[...colors.gradientButton]}
+                        style={[
+                          styles.button,
+                          (mobile.length !== 10 || loading) && styles.buttonDisabled,
+                        ]}
                       >
-                        <Text style={styles.signupLink}>Resend OTP</Text>
-                      </Pressable>
-                    ) : (
-                      <Text style={styles.signupText}>Enter 10-digit mobile — OTP sends automatically</Text>
-                    )}
+                        {loading ? (
+                          <ActivityIndicator color="#fff" />
+                        ) : (
+                          <Text style={styles.buttonText}>Continue  →</Text>
+                        )}
+                      </LinearGradient>
+                    </Pressable>
+                    {mobile.length < 10 ? (
+                      <Text style={[styles.signupText, { textAlign: "center", marginTop: 10 }]}>
+                        Enter 10-digit mobile, then tap Continue to send OTP
+                      </Text>
+                    ) : null}
                   </View>
                 )}
               </>

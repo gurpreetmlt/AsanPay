@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import Geolocation from "@react-native-community/geolocation";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ArrowLeft, CheckCircle2, Eye, EyeOff, MapPin, X } from "lucide-react-native";
+import { ArrowLeft, Calendar, CheckCircle2, Eye, EyeOff, MapPin, X } from "lucide-react-native";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import { api } from "../../lib/api";
 import { apiError } from "../../utils/apiError";
@@ -114,6 +114,18 @@ function displayToIso(display: string): string | null {
   return dateToIso(dt);
 }
 
+function isoToDate(iso: string, fallback: Date): Date {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    const [y, m, d] = iso.split("-").map(Number);
+    const dt = new Date(y, m - 1, d);
+    if (!Number.isNaN(dt.getTime())) return dt;
+  }
+  return fallback;
+}
+
+const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** Text field + calendar icon. Calendar is a JS modal (no native DateTimePicker — avoids Android crash). */
 function DateTextField({
   label,
   isoValue,
@@ -122,42 +134,188 @@ function DateTextField({
   hint,
   tokens,
   inputStyle,
+  optional,
 }: {
   label: string;
   isoValue: string;
   onIsoChange: (iso: string) => void;
   placeholder: string;
   hint: string;
-  tokens: { mute: string; txt2: string };
+  tokens: { mute: string; card: string; cardBorder: string; txt2: string };
   inputStyle: object | object[];
+  optional?: boolean;
 }) {
   const [text, setText] = useState(() => isoToDisplayDob(isoValue));
+  const [calOpen, setCalOpen] = useState(false);
+  const seed = isoToDate(isoValue, optional ? new Date() : new Date(1995, 0, 1));
+  const [viewYear, setViewYear] = useState(seed.getFullYear());
+  const [viewMonth, setViewMonth] = useState(seed.getMonth());
 
   useEffect(() => {
     if (isoValue) setText(isoToDisplayDob(isoValue));
-  }, [isoValue]);
+    else if (!calOpen) setText("");
+  }, [isoValue, calOpen]);
+
+  function openCalendar() {
+    const d = isoToDate(isoValue, optional ? new Date() : new Date(1995, 0, 1));
+    setViewYear(d.getFullYear());
+    setViewMonth(d.getMonth());
+    setCalOpen(true);
+  }
+
+  function pickDay(day: number) {
+    const dt = new Date(viewYear, viewMonth, day);
+    if (dt.getTime() > Date.now()) return;
+    const iso = dateToIso(dt);
+    onIsoChange(iso);
+    setText(isoToDisplayDob(iso));
+    setCalOpen(false);
+  }
+
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const startWeekday = new Date(viewYear, viewMonth, 1).getDay();
+  const selectedDay =
+    isoValue &&
+    isoValue.startsWith(
+      `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-`,
+    )
+      ? Number(isoValue.slice(8, 10))
+      : 0;
+  const maxYear = new Date().getFullYear();
 
   return (
     <>
       <FieldLabel text={label} color={tokens.mute} />
-      <TextInput
-        value={text}
-        onChangeText={(raw) => {
-          const formatted = formatDateDigits(raw);
-          setText(formatted);
-          if (formatted.length === 10) {
-            onIsoChange(displayToIso(formatted) ?? "");
-          } else if (isoValue) {
-            onIsoChange("");
-          }
-        }}
-        keyboardType="number-pad"
-        maxLength={10}
-        placeholder={placeholder}
-        placeholderTextColor={tokens.mute}
-        style={inputStyle}
-      />
+      <View style={styles.dateRow}>
+        <TextInput
+          value={text}
+          onChangeText={(raw) => {
+            const formatted = formatDateDigits(raw);
+            setText(formatted);
+            if (formatted.length === 10) {
+              onIsoChange(displayToIso(formatted) ?? "");
+            } else if (isoValue) {
+              onIsoChange("");
+            }
+          }}
+          keyboardType="number-pad"
+          maxLength={10}
+          placeholder={placeholder}
+          placeholderTextColor={tokens.mute}
+          style={[inputStyle, styles.dateInput]}
+        />
+        <Pressable
+          onPress={openCalendar}
+          accessibilityLabel="Open calendar"
+          style={[
+            styles.calBtn,
+            { backgroundColor: tokens.card, borderColor: tokens.cardBorder },
+          ]}
+        >
+          <Calendar size={20} color={colors.blue} />
+        </Pressable>
+      </View>
       <Text style={[styles.hint, { color: tokens.mute }]}>{hint}</Text>
+
+      <Modal visible={calOpen} transparent animationType="fade" onRequestClose={() => setCalOpen(false)}>
+        <Pressable style={styles.calBackdrop} onPress={() => setCalOpen(false)}>
+          <Pressable
+            style={[styles.calSheet, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.calHeader}>
+              <Pressable
+                onPress={() => {
+                  if (viewMonth === 0) {
+                    if (viewYear <= 1940) return;
+                    setViewYear((y) => y - 1);
+                    setViewMonth(11);
+                  } else setViewMonth((m) => m - 1);
+                }}
+                hitSlop={8}
+              >
+                <Text style={{ color: colors.blue, fontWeight: "800", fontSize: 18 }}>‹</Text>
+              </Pressable>
+              <Text style={{ color: tokens.txt2, fontWeight: "800", fontSize: 15 }}>
+                {MONTH_LABELS[viewMonth]} {viewYear}
+              </Text>
+              <Pressable
+                onPress={() => {
+                  if (viewMonth === 11) {
+                    if (viewYear >= maxYear) return;
+                    setViewYear((y) => y + 1);
+                    setViewMonth(0);
+                  } else {
+                    if (viewYear === maxYear && viewMonth >= new Date().getMonth()) return;
+                    setViewMonth((m) => m + 1);
+                  }
+                }}
+                hitSlop={8}
+              >
+                <Text style={{ color: colors.blue, fontWeight: "800", fontSize: 18 }}>›</Text>
+              </Pressable>
+            </View>
+            <View style={styles.calWeekRow}>
+              {["S", "M", "T", "W", "T", "F", "S"].map((w, i) => (
+                <Text key={`${w}-${i}`} style={[styles.calWeekDay, { color: tokens.mute }]}>
+                  {w}
+                </Text>
+              ))}
+            </View>
+            <View style={styles.calGrid}>
+              {Array.from({ length: startWeekday }, (_, i) => (
+                <View key={`e-${i}`} style={styles.calCell} />
+              ))}
+              {Array.from({ length: daysInMonth }, (_, i) => {
+                const day = i + 1;
+                const dt = new Date(viewYear, viewMonth, day);
+                const disabled = dt.getTime() > Date.now();
+                const selected = selectedDay === day;
+                return (
+                  <Pressable
+                    key={day}
+                    disabled={disabled}
+                    onPress={() => pickDay(day)}
+                    style={[
+                      styles.calCell,
+                      selected && { backgroundColor: colors.blue, borderRadius: 10 },
+                      disabled && { opacity: 0.35 },
+                    ]}
+                  >
+                    <Text
+                      style={{
+                        color: selected ? "#fff" : tokens.txt2,
+                        fontWeight: selected ? "800" : "600",
+                        fontSize: 13,
+                      }}
+                    >
+                      {day}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <View style={styles.calFooter}>
+              {optional ? (
+                <Pressable
+                  onPress={() => {
+                    onIsoChange("");
+                    setText("");
+                    setCalOpen(false);
+                  }}
+                >
+                  <Text style={{ color: tokens.mute, fontWeight: "700" }}>Clear</Text>
+                </Pressable>
+              ) : (
+                <View />
+              )}
+              <Pressable onPress={() => setCalOpen(false)}>
+                <Text style={{ color: colors.blue, fontWeight: "800" }}>Close</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </>
   );
 }
@@ -319,25 +477,18 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
       }
       const data = (await res.json()) as { display_name?: string; address?: Record<string, string> };
       const a = data.address ?? {};
-      let district = (
-        a.city ||
-        a.town ||
-        a.municipality ||
-        a.state_district ||
-        a.county ||
-        a.suburb ||
-        ""
-      ).trim();
+      let city = (a.city || a.town || a.municipality || a.village || a.hamlet || a.suburb || "").trim();
+      let district = (a.state_district || a.county || a.city_district || city || "").trim();
       let state = (a.state || "").trim();
       const pincode = (a.postcode || "").replace(/\D/g, "").slice(0, 6);
       const displayName = (data.display_name || "").trim();
       // Full OSM display_name — rural areas often have no road name.
       const addressLine =
         displayName ||
-        [a.house_number, a.road || a.pedestrian, a.village || a.suburb, district, state, pincode]
+        [a.house_number, a.road || a.pedestrian, a.village || a.suburb, city || district, state, pincode]
           .filter(Boolean)
           .join(", ");
-      if (!addressLine && !pincode && !district && !state) {
+      if (!addressLine && !pincode && !city && !district && !state) {
         showAlert("Fetch failed", "Could not fetch address from location. Enter address manually.");
         return;
       }
@@ -349,6 +500,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
           const block = Array.isArray(raw) ? raw[0] : raw;
           const po = block?.PostOffice?.[0];
           if (po) {
+            city = (po.Name || po.Block || city || "").trim();
             district = po.District || district;
             state = po.State || state;
           }
@@ -360,6 +512,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         patch({
           businessAddress: addressLine || draft.businessAddress,
           businessPincode: pincode || draft.businessPincode,
+          businessCity: city || draft.businessCity,
           businessDistrict: district || draft.businessDistrict,
           businessState: state || draft.businessState,
         });
@@ -367,11 +520,12 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         patch({
           address: addressLine || draft.address,
           pincode: pincode || draft.pincode,
+          city: city || draft.city,
           district: district || draft.district,
           state: state || draft.state,
         });
       }
-      showAlert("Address fetched", "Address, pincode, district and state filled from location.");
+      showAlert("Address fetched", "Address, pincode, city, district and state filled from location.");
     } catch {
       showAlert("Location required", "Allow location access to fetch address");
     } finally {
@@ -387,6 +541,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
     patch({
       businessAddress: draft.address.trim(),
       businessPincode: draft.pincode,
+      businessCity: draft.city.trim(),
       businessDistrict: draft.district.trim(),
       businessState: draft.state.trim(),
     });
@@ -587,7 +742,11 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         const block = Array.isArray(raw) ? raw[0] : raw;
         const po = block?.PostOffice?.[0];
         if (!po) return;
-        patch({ district: po.District || draft.district, state: po.State || draft.state });
+        patch({
+          city: (po.Name || po.Block || draft.city || "").trim() || draft.city,
+          district: po.District || draft.district,
+          state: po.State || draft.state,
+        });
       })
       .catch(() => undefined);
     return () => {
@@ -604,6 +763,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         ...d,
         businessAddress: d.address.trim(),
         businessPincode: d.pincode || d.businessPincode,
+        businessCity: d.city.trim() || d.businessCity,
         businessDistrict: d.district.trim() || d.businessDistrict,
         businessState: d.state.trim() || d.businessState,
       };
@@ -621,6 +781,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         const po = block?.PostOffice?.[0];
         if (!po) return;
         patch({
+          businessCity: (po.Name || po.Block || draft.businessCity || "").trim() || draft.businessCity,
           businessDistrict: po.District || draft.businessDistrict,
           businessState: po.State || draft.businessState,
         });
@@ -648,8 +809,80 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft.ifsc, draft.accountCreated]);
 
-  function markUpload(key: keyof MobileSignupDraft, label: string) {
-    patch({ [key]: { name: `${label}.jpg` } } as Partial<MobileSignupDraft>);
+  async function pickDocImage(
+    key: "panImage" | "aadhaarFront" | "aadhaarBack" | "cancelledCheque",
+    label: string,
+  ) {
+    try {
+      // Android 13+ uses the system photo picker (no READ_MEDIA permission).
+      // Older Android may need READ_EXTERNAL_STORAGE (maxSdk 32 in the manifest).
+      if (Platform.OS === "android") {
+        const apiLevel =
+          typeof Platform.Version === "number" ? Platform.Version : Number(Platform.Version);
+        if (apiLevel < 33) {
+          const storage = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
+            {
+              title: "Storage Permission",
+              message: "AsanPay needs storage access to upload KYC documents.",
+              buttonPositive: "Allow",
+              buttonNegative: "Deny",
+            },
+          );
+          if (storage !== PermissionsAndroid.RESULTS.GRANTED) {
+            showAlert(
+              "Storage required",
+              "Allow storage access in phone Settings → Apps → AsanPay → Permissions, then try again.",
+            );
+            return;
+          }
+        }
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { launchImageLibrary } = require("react-native-image-picker") as {
+        launchImageLibrary: (opts: Record<string, unknown>) => Promise<{
+          didCancel?: boolean;
+          errorCode?: string;
+          errorMessage?: string;
+          assets?: Array<{ fileName?: string; uri?: string; fileSize?: number; type?: string }>;
+        }>;
+      };
+      const result = await launchImageLibrary({
+        mediaType: "photo",
+        selectionLimit: 1,
+        quality: 0.8,
+        maxWidth: 2000,
+        maxHeight: 2000,
+      });
+      if (result.didCancel) return;
+      if (result.errorCode) {
+        const permissionDenied =
+          result.errorCode === "permission" ||
+          /permission/i.test(result.errorMessage || "");
+        showAlert(
+          permissionDenied ? "Photos required" : "Upload failed",
+          permissionDenied
+            ? "Allow photo access in phone Settings → Apps → AsanPay → Permissions, then try again."
+            : result.errorMessage || "Could not open gallery. Try again.",
+        );
+        return;
+      }
+      const asset = result.assets?.[0];
+      if (!asset?.uri) {
+        showAlert("Upload failed", "No image selected");
+        return;
+      }
+      if (asset.fileSize && asset.fileSize > 2 * 1024 * 1024) {
+        showAlert("File too large", "Image must be under 2 MB");
+        return;
+      }
+      const name = asset.fileName || `${label}.jpg`;
+      patch({ [key]: { name, uri: asset.uri } });
+      showAlert("Uploaded", `${name} selected`);
+    } catch (err) {
+      showAlert("Upload failed", err instanceof Error ? err.message : "Could not pick image");
+    }
   }
 
   async function captureLivePhoto(kind: "personalPhoto" | "shopPhoto") {
@@ -768,7 +1001,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         return "Enter date of birth as DD/MM/YYYY";
       }
       if (!draft.fatherName.trim()) return "Father name is required";
-      // Document uploads optional until S3 is wired — filename stubs only today.
+      // Document images optional — gallery pick stores filename for KYC meta.
     }
     if (stepIndex === 3) {
       if (draft.aadhaar.replace(/\D/g, "").length !== 12) return "Enter valid 12-digit Aadhaar";
@@ -779,6 +1012,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
       if (!draft.emailVerified) return "Verify your email";
       if (!draft.address.trim()) return "Address is required";
       if (draft.pincode.length !== 6) return "Valid pincode required";
+      if (!draft.city.trim()) return "City is required";
       if (!draft.district.trim() || !draft.state.trim()) return "District and state required";
     }
     if (stepIndex === 5) {
@@ -787,6 +1021,8 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         return "Fill all business fields";
       }
       if (!draft.businessAddress.trim() || draft.businessPincode.length !== 6) return "Business address/pincode required";
+      if (!draft.businessCity.trim()) return "Business city is required";
+      if (!draft.businessDistrict.trim() || !draft.businessState.trim()) return "Business district and state required";
     }
     if (stepIndex === 6) {
       if (draft.ifsc.length !== 11 || !draft.bankName.trim()) return "IFSC and bank name required";
@@ -975,7 +1211,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         aadhaarNumber: draft.aadhaar.replace(/\D/g, ""),
         email: draft.email.trim().toLowerCase(),
         address: draft.address.trim(),
-        city: draft.district.trim(),
+        city: draft.city.trim(),
         pincode: draft.pincode,
         bankAccountName: draft.accountName.trim(),
         bankAccountNumber: draft.accountNumber,
@@ -1400,7 +1636,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                     isoValue={draft.dob}
                     onIsoChange={(iso) => patch({ dob: iso })}
                     placeholder="DD/MM/YYYY"
-                    hint="As on PAN card. Type date as DD/MM/YYYY."
+                    hint="As on PAN card. Type or tap the calendar icon."
                     tokens={tokens}
                     inputStyle={inputStyle}
                   />
@@ -1409,9 +1645,10 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                     isoValue={draft.anniversaryDate}
                     onIsoChange={(iso) => patch({ anniversaryDate: iso })}
                     placeholder="DD/MM/YYYY (optional)"
-                    hint="Optional — wedding / business anniversary."
+                    hint="Optional — wedding / business anniversary. Tap calendar to pick."
                     tokens={tokens}
                     inputStyle={inputStyle}
+                    optional
                   />
                   <FieldLabel text="Father Name *" color={tokens.mute} />
                   <TextInput
@@ -1425,7 +1662,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                     label="PAN Card Image (optional)"
                     done={Boolean(draft.panImage)}
                     name={draft.panImage?.name}
-                    onPress={() => markUpload("panImage", "pan")}
+                    onPress={() => void pickDocImage("panImage", "pan")}
                     tokens={tokens}
                   />
                 </>
@@ -1452,7 +1689,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                         label="Aadhaar Front"
                         done={Boolean(draft.aadhaarFront)}
                         name={draft.aadhaarFront?.name}
-                        onPress={() => markUpload("aadhaarFront", "aadhaar-front")}
+                        onPress={() => void pickDocImage("aadhaarFront", "aadhaar-front")}
                         tokens={tokens}
                         compact
                       />
@@ -1462,7 +1699,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                         label="Aadhaar Back"
                         done={Boolean(draft.aadhaarBack)}
                         name={draft.aadhaarBack?.name}
-                        onPress={() => markUpload("aadhaarBack", "aadhaar-back")}
+                        onPress={() => void pickDocImage("aadhaarBack", "aadhaar-back")}
                         tokens={tokens}
                         compact
                       />
@@ -1524,7 +1761,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                     </Pressable>
                   </View>
                   <Text style={[styles.hint, { color: tokens.mute, marginBottom: 8 }]}>
-                    Fills address, pincode, district and state from your location.
+                    Fills address, pincode, city, district and state from your location.
                   </Text>
                   <View style={styles.fieldRow}>
                     <View style={styles.fieldHalf}>
@@ -1538,6 +1775,17 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                       />
                     </View>
                     <View style={styles.fieldHalf}>
+                      <FieldLabel text="City *" color={tokens.mute} />
+                      <TextInput
+                        value={draft.city}
+                        onChangeText={(t) => patch({ city: t })}
+                        placeholderTextColor={tokens.mute}
+                        style={inputStyle}
+                      />
+                    </View>
+                  </View>
+                  <View style={styles.fieldRow}>
+                    <View style={styles.fieldHalf}>
                       <FieldLabel text="District *" color={tokens.mute} />
                       <TextInput
                         value={draft.district}
@@ -1546,14 +1794,16 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                         style={inputStyle}
                       />
                     </View>
+                    <View style={styles.fieldHalf}>
+                      <FieldLabel text="State *" color={tokens.mute} />
+                      <TextInput
+                        value={draft.state}
+                        onChangeText={(t) => patch({ state: t })}
+                        placeholderTextColor={tokens.mute}
+                        style={inputStyle}
+                      />
+                    </View>
                   </View>
-                  <FieldLabel text="State *" color={tokens.mute} />
-                  <TextInput
-                    value={draft.state}
-                    onChangeText={(t) => patch({ state: t })}
-                    placeholderTextColor={tokens.mute}
-                    style={inputStyle}
-                  />
                 </>
               )}
 
@@ -1639,6 +1889,17 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                       />
                     </View>
                     <View style={styles.fieldHalf}>
+                      <FieldLabel text="City *" color={tokens.mute} />
+                      <TextInput
+                        value={draft.businessCity}
+                        onChangeText={(t) => patch({ businessCity: t })}
+                        placeholderTextColor={tokens.mute}
+                        style={inputStyle}
+                      />
+                    </View>
+                  </View>
+                  <View style={styles.fieldRow}>
+                    <View style={styles.fieldHalf}>
                       <FieldLabel text="District *" color={tokens.mute} />
                       <TextInput
                         value={draft.businessDistrict}
@@ -1647,14 +1908,16 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                         style={inputStyle}
                       />
                     </View>
+                    <View style={styles.fieldHalf}>
+                      <FieldLabel text="State *" color={tokens.mute} />
+                      <TextInput
+                        value={draft.businessState}
+                        onChangeText={(t) => patch({ businessState: t })}
+                        placeholderTextColor={tokens.mute}
+                        style={inputStyle}
+                      />
+                    </View>
                   </View>
-                  <FieldLabel text="State *" color={tokens.mute} />
-                  <TextInput
-                    value={draft.businessState}
-                    onChangeText={(t) => patch({ businessState: t })}
-                    placeholderTextColor={tokens.mute}
-                    style={inputStyle}
-                  />
                 </>
               )}
 
@@ -1728,7 +1991,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                     label="Cancelled Cheque (optional)"
                     done={Boolean(draft.cancelledCheque)}
                     name={draft.cancelledCheque?.name}
-                    onPress={() => markUpload("cancelledCheque", "cheque")}
+                    onPress={() => void pickDocImage("cancelledCheque", "cheque")}
                     tokens={tokens}
                   />
                 </>
@@ -2066,6 +2329,48 @@ const styles = StyleSheet.create({
   label: { fontSize: 11, fontWeight: "700", letterSpacing: 0.4, marginTop: 6, marginBottom: 4 },
   input: { borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14 },
   hint: { fontSize: 12, marginBottom: 6 },
+  dateRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
+  dateInput: { flex: 1, marginBottom: 0 },
+  calBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  calBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.45)",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+  },
+  calSheet: {
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 16,
+  },
+  calHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  calWeekRow: { flexDirection: "row", marginBottom: 4 },
+  calWeekDay: { width: "14.28%" as const, textAlign: "center", fontSize: 11, fontWeight: "700" },
+  calGrid: { flexDirection: "row", flexWrap: "wrap" },
+  calCell: {
+    width: "14.28%" as const,
+    aspectRatio: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  calFooter: {
+    marginTop: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   checkRow: { flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 10 },
   check: {
     width: 22,

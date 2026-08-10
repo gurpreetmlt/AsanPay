@@ -2,11 +2,27 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, ChevronDown, ShieldCheck, LogOut, Bell, Menu, AlertTriangle } from "lucide-react";
+import {
+  Search,
+  ChevronDown,
+  ShieldCheck,
+  LogOut,
+  Bell,
+  Menu,
+  AlertTriangle,
+  UserCheck,
+  IndianRupee,
+  LifeBuoy,
+} from "lucide-react";
 import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { ThemeTabs } from "@/components/theme/ThemeTabs";
 import { fetchApi } from "@/lib/api";
+import {
+  useAdminAlerts,
+  type AdminAlertNotification,
+} from "@/components/layout/AdminAlertsProvider";
+import { AlertCountBadge } from "@/components/layout/AlertCountBadge";
 
 interface UnhealthyProvider {
   categoryName: string;
@@ -63,10 +79,29 @@ function initials(name: string) {
     .toUpperCase();
 }
 
+function notifIcon(type: AdminAlertNotification["type"]) {
+  if (type === "kyc_pending") return UserCheck;
+  if (type === "fund_request") return IndianRupee;
+  return LifeBuoy;
+}
+
+function formatRelativeTime(iso: string) {
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return "";
+  const diff = Date.now() - t;
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
 export function AdminHeader({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
-  const logout = useAuthStore((s) => s.logout);
+  const { badges, notifications, refresh } = useAdminAlerts();
 
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -79,13 +114,20 @@ export function AdminHeader({ onOpenMobileNav }: { onOpenMobileNav?: () => void 
   const checkHealth = useCallback(async () => {
     try {
       const data = await fetchApi<{
-        categories: { categoryName: string; providers: { providerName: string; isActive: boolean; successRate: number | null }[] }[];
+        categories: {
+          categoryName: string;
+          providers: { providerName: string; isActive: boolean; successRate: number | null }[];
+        }[];
       }>("/admin/providers");
       const alerts: UnhealthyProvider[] = [];
       for (const cat of data.categories) {
         for (const p of cat.providers) {
           if (p.isActive && p.successRate !== null && p.successRate < HEALTH_ALERT_THRESHOLD) {
-            alerts.push({ categoryName: cat.categoryName, providerName: p.providerName, successRate: p.successRate });
+            alerts.push({
+              categoryName: cat.categoryName,
+              providerName: p.providerName,
+              successRate: p.successRate,
+            });
           }
         }
       }
@@ -134,6 +176,12 @@ export function AdminHeader({ onOpenMobileNav }: { onOpenMobileNav?: () => void 
   const searchBg = "var(--admin-bg)";
   const border = "var(--admin-border)";
 
+  const bellCount =
+    badges.kycPending +
+    badges.fundRequestsPending +
+    badges.supportTicketsOpen +
+    unhealthy.length;
+
   return (
     <header
       className="sticky top-0 z-30 flex flex-shrink-0 items-center gap-3 border-b px-4 md:gap-4 md:px-6"
@@ -172,7 +220,10 @@ export function AdminHeader({ onOpenMobileNav }: { onOpenMobileNav?: () => void 
             className="absolute left-0 right-0 top-full z-50 mt-1 max-h-[70vh] overflow-y-auto rounded-xl border shadow-lg"
             style={{ borderColor: border, background: headerBg }}
           >
-            <p className="px-4 pt-2.5 text-[11px] font-bold uppercase tracking-wider" style={{ color: textMuted }}>
+            <p
+              className="px-4 pt-2.5 text-[11px] font-bold uppercase tracking-wider"
+              style={{ color: textMuted }}
+            >
               Pages
             </p>
             {matches.map((m) => (
@@ -207,62 +258,155 @@ export function AdminHeader({ onOpenMobileNav }: { onOpenMobileNav?: () => void 
         <div className="relative" ref={notifRef}>
           <button
             type="button"
-            onClick={() => setNotifOpen((v) => !v)}
-            className="flex h-9 w-9 items-center justify-center rounded-xl"
+            onClick={() => {
+              setNotifOpen((v) => !v);
+              if (!notifOpen) void refresh();
+            }}
+            className="relative flex h-9 w-9 items-center justify-center rounded-xl"
             style={{ background: searchBg }}
             aria-label="Notifications"
           >
             <Bell size={17} style={{ color: textPrimary }} />
+            {bellCount > 0 ? (
+              <span className="pointer-events-none absolute -right-1 -top-1 flex">
+                <AlertCountBadge count={bellCount} />
+              </span>
+            ) : (
+              <span className="absolute right-1 top-1 h-2 w-2 rounded-full" style={{ background: B.green }} />
+            )}
           </button>
-          {unhealthy.length > 0 ? (
-            <span
-              className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full text-[11px] font-bold text-white"
-              style={{ background: "#dc2626" }}
-            >
-              {unhealthy.length}
-            </span>
-          ) : (
-            <span className="absolute right-1 top-1 h-2 w-2 rounded-full" style={{ background: B.green }} />
-          )}
 
           {notifOpen && (
             <div
-              className="absolute right-0 top-full z-50 mt-2 w-80 rounded-xl border shadow-lg"
+              className="absolute right-0 top-full z-50 mt-2 w-[min(100vw-2rem,24rem)] overflow-hidden rounded-2xl border shadow-xl"
               style={{ borderColor: border, background: headerBg }}
             >
-              <p className="border-b px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider" style={{ borderColor: border, color: textMuted }}>
-                Provider Health Alerts
-              </p>
-              {unhealthy.length === 0 ? (
-                <p className="px-4 py-6 text-center text-sm" style={{ color: textMuted }}>
-                  All providers healthy
-                </p>
-              ) : (
-                <div className="max-h-72 overflow-y-auto">
-                  {unhealthy.map((u, i) => (
+              <div
+                className="flex items-center justify-between border-b px-4 py-3"
+                style={{ borderColor: border }}
+              >
+                <div>
+                  <p className="text-sm font-bold" style={{ color: textPrimary }}>
+                    Notifications
+                  </p>
+                  <p className="text-[11px]" style={{ color: textMuted }}>
+                    Pending KYC, funds and tickets
+                  </p>
+                </div>
+                {bellCount > 0 ? <AlertCountBadge count={bellCount} /> : null}
+              </div>
+
+              <div className="max-h-[min(70vh,28rem)] space-y-2 overflow-y-auto p-3">
+                {notifications.length === 0 && unhealthy.length === 0 ? (
+                  <p className="px-2 py-8 text-center text-sm" style={{ color: textMuted }}>
+                    No pending alerts
+                  </p>
+                ) : null}
+
+                {notifications.map((n) => {
+                  const Icon = notifIcon(n.type);
+                  return (
                     <button
-                      key={i}
+                      key={n.id}
                       type="button"
                       onMouseDown={() => {
                         setNotifOpen(false);
-                        router.push("/developer-options/providers");
+                        router.push(n.href);
                       }}
-                      className="flex w-full items-start gap-2 border-b px-4 py-2.5 text-left last:border-0"
-                      style={{ borderColor: border }}
+                      className="flex w-full gap-3 rounded-xl border p-3 text-left transition hover:opacity-95"
+                      style={{
+                        borderColor: border,
+                        background: "var(--admin-bg)",
+                      }}
                     >
-                      <AlertTriangle size={14} className="mt-0.5 shrink-0" style={{ color: "#dc2626" }} />
-                      <div className="min-w-0">
-                        <div className="text-sm font-medium" style={{ color: textPrimary }}>
-                          {u.providerName} — {u.categoryName}
+                      <div
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                        style={{
+                          background:
+                            n.type === "kyc_pending"
+                              ? "rgba(220,38,38,0.12)"
+                              : n.type === "fund_request"
+                                ? "rgba(217,119,6,0.14)"
+                                : "rgba(42,92,221,0.12)",
+                          color:
+                            n.type === "kyc_pending"
+                              ? "#DC2626"
+                              : n.type === "fund_request"
+                                ? "#D97706"
+                                : B.blueLight,
+                        }}
+                      >
+                        <Icon size={18} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-sm font-semibold leading-snug" style={{ color: textPrimary }}>
+                            {n.title}
+                          </p>
+                          <span className="shrink-0 text-[10px] font-medium" style={{ color: textMuted }}>
+                            {formatRelativeTime(n.createdAt)}
+                          </span>
                         </div>
-                        <div className="text-xs" style={{ color: textMuted }}>
-                          Success rate {u.successRate}% (below {HEALTH_ALERT_THRESHOLD}%)
-                        </div>
+                        <p className="mt-0.5 text-xs leading-snug" style={{ color: textMuted }}>
+                          {n.body}
+                        </p>
+                        {n.type === "kyc_pending" ? (
+                          <span
+                            className="mt-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                            style={{ background: "rgba(220,38,38,0.12)", color: "#DC2626" }}
+                          >
+                            Pending KYC
+                          </span>
+                        ) : null}
                       </div>
                     </button>
-                  ))}
+                  );
+                })}
+
+                {unhealthy.map((u, i) => (
+                  <button
+                    key={`health-${i}`}
+                    type="button"
+                    onMouseDown={() => {
+                      setNotifOpen(false);
+                      router.push("/developer-options/providers");
+                    }}
+                    className="flex w-full gap-3 rounded-xl border p-3 text-left"
+                    style={{ borderColor: border, background: "var(--admin-bg)" }}
+                  >
+                    <div
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                      style={{ background: "rgba(220,38,38,0.12)", color: "#DC2626" }}
+                    >
+                      <AlertTriangle size={18} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold" style={{ color: textPrimary }}>
+                        Provider health alert
+                      </p>
+                      <p className="mt-0.5 text-xs" style={{ color: textMuted }}>
+                        {u.providerName} — {u.categoryName} · {u.successRate}% success
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {badges.kycPending > 0 ? (
+                <div className="border-t p-3" style={{ borderColor: border }}>
+                  <button
+                    type="button"
+                    onMouseDown={() => {
+                      setNotifOpen(false);
+                      router.push("/kyc");
+                    }}
+                    className="w-full rounded-xl py-2.5 text-sm font-semibold text-white"
+                    style={{ background: B.badgeGrad }}
+                  >
+                    Open KYC Queue ({badges.kycPending})
+                  </button>
                 </div>
-              )}
+              ) : null}
             </div>
           )}
         </div>

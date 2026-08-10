@@ -1,7 +1,10 @@
 /** Free India Post PIN lookup — https://api.postalpincode.in (no API key). */
 
 export type PincodePlace = {
+  /** Locality / post-office name (use for City). */
   city: string;
+  /** Administrative district. */
+  district: string;
   state: string;
   region: string;
 };
@@ -33,8 +36,10 @@ export async function lookupIndianPincode(pin: string): Promise<PincodePlace | n
   if (!block || block.Status !== "Success" || !block.PostOffice?.length) return null;
 
   const po = block.PostOffice[0];
+  const district = (po.District || "").trim();
   return {
-    city: (po.District || po.Block || "").trim(),
+    city: (po.Name || po.Block || district || "").trim(),
+    district,
     state: (po.State || "").trim(),
     region: (po.Region || po.Name || "").trim(),
   };

@@ -18,6 +18,11 @@ import { AdminShell } from "@/components/layout/AdminShell";
 import { Badge } from "@/components/ui/Badge";
 import { DetailSection, InfoRow } from "@/components/users/DetailSection";
 import { KycDocumentGrid } from "@/components/users/KycDocumentGrid";
+import {
+  ReasonSelect,
+  RESTRICT_REASON_PRESETS,
+  AEPS_REACTIVATE_REASON_PRESETS,
+} from "@/components/users/ReasonSelect";
 import { AgentCommissionPanel } from "@/components/users/AgentCommissionPanel";
 import api, { fetchApi } from "@/lib/api";
 import { B, ROLE_LABEL } from "@/lib/brand";
@@ -59,6 +64,12 @@ interface AgentDetail {
     submittedAt: string | null;
   };
   documents: Record<string, string>;
+  documentFiles?: Partial<
+    Record<
+      "panCard" | "aadhaarFront" | "aadhaarBack" | "chequeOrPassbook" | "personalPhoto" | "shopPhoto",
+      string | null
+    >
+  >;
   wallets: { walletType: string; balance: string }[];
   parent: { id: string; uid: string | null; name: string | null; role: string | null } | null;
 }
@@ -103,6 +114,12 @@ export default function AgentDetailPage() {
 
   async function decideKyc(decision: "verified" | "rejected") {
     if (!agent) return;
+    if (decision === "verified" && !agent.hasKycDocs) {
+      toast.error(
+        "Cannot verify KYC without PAN and Aadhaar on file. Agent must finish signup KYC (PAN + Aadhaar numbers) first.",
+      );
+      return;
+    }
     setBusy(true);
     try {
       await api.post(`/admin/kyc/${agent.id}/decide`, { decision });
@@ -124,7 +141,7 @@ export default function AgentDetailPage() {
     if (!agent) return;
     const reason = restrictReason.trim();
     if (level !== "none" && reason.length < 8) {
-      toast.error("Write a reason — at least 8 characters");
+      toast.error("Select or enter a reason — at least 8 characters");
       return;
     }
     if (level === "freeze" && !confirm("Freeze blocks login AND settlement. Confirmed fraud only. Continue?")) {
@@ -152,7 +169,7 @@ export default function AgentDetailPage() {
     if (!agent) return;
     const reason = aepsReason.trim();
     if (reason.length < 8) {
-      toast.error("Write a reason — at least 8 characters");
+      toast.error("Select or enter a reason — at least 8 characters");
       return;
     }
     setBusy(true);
@@ -355,13 +372,18 @@ export default function AgentDetailPage() {
                       <>
                         <button
                           type="button"
-                          disabled={busy}
+                          disabled={busy || !agent.hasKycDocs}
                           onClick={() => void decideKyc("verified")}
                           className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
                           style={{ background: B.green }}
                         >
                           Approve KYC
                         </button>
+                        {!agent.hasKycDocs ? (
+                          <p className="text-xs" style={{ color: B.muted }}>
+                            PAN and Aadhaar numbers missing — agent must complete signup KYC first.
+                          </p>
+                        ) : null}
                         <button
                           type="button"
                           disabled={busy}
@@ -454,13 +476,11 @@ export default function AgentDetailPage() {
                       top-ups. Both keep login, balance and settlement working. Freeze stops
                       everything — confirmed fraud only.
                     </p>
-                    <input
-                      type="text"
+                    <ReasonSelect
                       value={restrictReason}
-                      onChange={(e) => setRestrictReason(e.target.value)}
-                      placeholder="Reason (min 8 characters)"
-                      className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
-                      style={{ borderColor: B.border, color: B.blue }}
+                      onChange={setRestrictReason}
+                      presets={RESTRICT_REASON_PRESETS}
+                      placeholder="Select restriction reason"
                     />
                     <div className="grid grid-cols-2 gap-2">
                       {(["soft", "hard", "freeze", "none"] as const).map((lvl) => (
@@ -491,13 +511,11 @@ export default function AgentDetailPage() {
                       Clears an AePS block and restarts the dormancy clock. KYC must be verified
                       first.
                     </p>
-                    <input
-                      type="text"
+                    <ReasonSelect
                       value={aepsReason}
-                      onChange={(e) => setAepsReason(e.target.value)}
-                      placeholder="Reason (min 8 characters)"
-                      className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
-                      style={{ borderColor: B.border, color: B.blue }}
+                      onChange={setAepsReason}
+                      presets={AEPS_REACTIVATE_REASON_PRESETS}
+                      placeholder="Select reactivation reason"
                     />
                     <button
                       type="button"
@@ -513,7 +531,7 @@ export default function AgentDetailPage() {
               </DetailSection>
 
               <DetailSection title="KYC Documents" icon={Banknote}>
-                <KycDocumentGrid documents={agent.documents} />
+                <KycDocumentGrid documents={agent.documents} documentFiles={agent.documentFiles} />
               </DetailSection>
             </div>
           </div>

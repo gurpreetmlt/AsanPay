@@ -35,3 +35,4 @@ alwaysApply: true
 | “Mac pe prod migrate chalao” | EC2 SSH pe migrate |
 | Agent SSH / git pull for app release | User pushes git; Coolify builds/deploys |
 | “EC2 setup pending” | Hosting already Coolify→EC2; SSH = migrate/ops only |
+| Disk full → only `docker prune` / blame `/var/lib/docker` | See **coolify-disk-cleanup** — real bloat is often `/var/lib/containerd` + BuildKit leases |

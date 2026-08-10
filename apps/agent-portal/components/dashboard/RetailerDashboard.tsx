@@ -124,7 +124,7 @@ export function RetailerDashboard() {
           </div>
           <PrimaryButton
             type="button"
-            variant="primary"
+            variant="secondary"
             onClick={() => router.push("/fund-request")}
             size="sm"
             showArrow={false}

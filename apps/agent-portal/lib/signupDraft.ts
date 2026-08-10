@@ -38,6 +38,7 @@ export type SignupDraft = {
   email: string;
   address: string;
   pincode: string;
+  city: string;
   district: string;
   state: string;
   businessName: string;
@@ -47,6 +48,7 @@ export type SignupDraft = {
   businessProof: string;
   businessAddress: string;
   businessPincode: string;
+  businessCity: string;
   businessDistrict: string;
   businessState: string;
   bankName: string;
@@ -87,6 +89,7 @@ export const EMPTY_SIGNUP_DRAFT: SignupDraft = {
   email: "",
   address: "",
   pincode: "",
+  city: "",
   district: "",
   state: "",
   businessName: "",
@@ -96,6 +99,7 @@ export const EMPTY_SIGNUP_DRAFT: SignupDraft = {
   businessProof: "",
   businessAddress: "",
   businessPincode: "",
+  businessCity: "",
   businessDistrict: "",
   businessState: "",
   bankName: "",

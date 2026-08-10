@@ -1,5 +1,5 @@
 import { randomInt, timingSafeEqual } from "node:crypto";
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, isNull, ne, or, sql } from "drizzle-orm";
 import { db } from "../../db/postgres";
 import { users } from "../../db/postgres/schema";
 import { hashToken } from "../../utils/uid";
@@ -21,6 +21,44 @@ import {
   insertOtpRequest,
   markOtpConsumed,
 } from "../../db/postgres/repositories/otpRequest";
+
+/**
+ * Free email for reuse: inactive rows + abandoned claims (email set but never verified).
+ * Case-insensitive. Does not steal a verified email from another active account.
+ */
+export async function releaseEmailIfUnused(email: string, exceptUserId: string): Promise<void> {
+  const normalized = email.trim().toLowerCase();
+  await db
+    .update(users)
+    .set({ email: null, emailVerifiedAt: null })
+    .where(
+      and(
+        sql`lower(${users.email}) = ${normalized}`,
+        ne(users.id, exceptUserId),
+        or(eq(users.isActive, false), isNull(users.emailVerifiedAt)),
+      ),
+    );
+}
+
+/** Active account that still owns this verified email (blocks signup reuse). */
+export async function findActiveVerifiedEmailHolder(
+  email: string,
+  exceptUserId: string,
+): Promise<{ id: string; uid: string; mobile: string } | null> {
+  const normalized = email.trim().toLowerCase();
+  const [row] = await db
+    .select({ id: users.id, uid: users.uid, mobile: users.mobile })
+    .from(users)
+    .where(
+      and(
+        sql`lower(${users.email}) = ${normalized}`,
+        eq(users.isActive, true),
+        ne(users.id, exceptUserId),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
 
 /** Shorter than the login/signup window — the user is already on the dashboard. */
 const EMAIL_OTP_TTL_MS = 10 * 60 * 1000;
@@ -63,18 +101,11 @@ export async function requestEmailVerifyOtp(input: {
     throw new HttpError(409, "This email is already verified", "EMAIL_ALREADY_VERIFIED");
   }
 
-  // users.email is unique — only active accounts block; free inactive holders.
-  const [taken] = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(and(eq(users.email, email), eq(users.isActive, true), ne(users.id, input.userId)));
+  await releaseEmailIfUnused(email, input.userId);
+  const taken = await findActiveVerifiedEmailHolder(email, input.userId);
   if (taken) {
     throw new HttpError(409, "This email is already in use", "EMAIL_TAKEN");
   }
-  await db
-    .update(users)
-    .set({ email: null, emailVerifiedAt: null })
-    .where(and(eq(users.email, email), eq(users.isActive, false)));
 
   const otp = randomInt(100000, 1000000).toString();
 
@@ -160,6 +191,12 @@ export async function verifyEmailOtp(input: {
   await markOtpConsumed(record.id);
 
   const verifiedAt = new Date();
+  await releaseEmailIfUnused(email, row.id);
+  const taken = await findActiveVerifiedEmailHolder(email, row.id);
+  if (taken) {
+    throw new HttpError(409, "This email is already in use", "EMAIL_TAKEN");
+  }
+
   await db
     .update(users)
     .set({ email, emailVerifiedAt: verifiedAt })

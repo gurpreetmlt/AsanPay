@@ -1,0 +1,59 @@
+---
+description: Coolify EC2 disk full — safe cleanup vs what must never be removed
+alwaysApply: true
+---
+
+# Coolify EC2 disk cleanup
+
+Alert ~80%+ → **EC2 SSH**. Prefer **safe** steps first. Full lease wipe = last resort (can take all apps down).
+
+## Where space is
+
+| Path | Notes |
+|------|--------|
+| `/var/lib/containerd` | Usually the real bloat (snapshots / BuildKit) |
+| `/var/lib/docker` | Often tiny here — don’t assume it’s the dump |
+| `/data/coolify` | Config + app defs — **never wipe** |
+
+## NEVER remove / never touch
+
+| Don’t | Why |
+|-------|-----|
+| `/data/coolify` (any of it) | Coolify + app config, env, proxy, SSH keys |
+| `docker volume prune` / delete named volumes | App + Coolify DB data |
+| Running containers (`coolify*`, app UUIDs) while cleaning | Breaks prod |
+| **All** `ctr -n moby leases` as a routine step | GC can delete **live RWLayers** → `RWLayer unexpectedly nil` → every app dead |
+| Coolify UI: delete unused volumes / disable image retention casually | Data loss risk |
+
+## Safe cleanup (default — do this first)
+
+1. `df -h / && sudo docker system df`
+2. `sudo docker image prune -af` → unused images only
+3. Coolify UI → Servers → localhost → **Docker Cleanup** (Force + cron `0 */6 * * *`)
+4. Optional: `sudo docker builder prune -af` / `sudo docker buildx prune -af` (often **0B** on this host — OK)
+
+Stop here if disk is under ~70–75%.
+
+## Last resort only (maintenance window)
+
+Only if containerd still huge **and** user accepts **downtime + Coolify UI redeploy of every app**:
+
+```bash
+# Deletes BuildKit leases; may break running container layers
+for id in $(sudo ctr -n moby leases ls -q); do sudo ctr -n moby leases delete "$id"; done
+sudo systemctl restart docker
+```
+
+If `RWLayer unexpectedly nil`:
+
+```bash
+sudo bash -c 'cd /data/coolify/source && docker compose --env-file .env -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate'
+```
+
+Then Coolify UI → **Deploy/Confirm** each application (containers were removed; volumes usually OK).
+
+## Agent must tell the user
+
+- Safe prune ≠ full lease delete.
+- Full lease delete → warn: apps may die; need Coolify recreate + per-app redeploy.
+- Never suggest wiping `/data` or volumes for “disk full”.

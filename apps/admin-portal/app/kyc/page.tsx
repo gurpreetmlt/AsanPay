@@ -62,6 +62,13 @@ export default function KycPage() {
   }, [hydrated, accessToken, router, load]);
 
   async function decide(id: string, decision: "verified" | "rejected") {
+    const row = rows.find((r) => r.id === id);
+    if (decision === "verified" && row && !row.hasKycDocs) {
+      toast.error(
+        "Cannot verify KYC without PAN and Aadhaar on file. Agent must finish signup KYC (PAN + Aadhaar numbers) first.",
+      );
+      return;
+    }
     setActing(id);
     try {
       await api.post(`/admin/kyc/${id}/decide`, { decision });
@@ -171,7 +178,11 @@ export default function KycPage() {
                         {tab === "pending" ? (
                           <TableActionButtons
                             viewHref={`/users/${r.id}`}
-                            onApprove={acting === r.id ? undefined : () => void decide(r.id, "verified")}
+                            onApprove={
+                              acting === r.id || !r.hasKycDocs
+                                ? undefined
+                                : () => void decide(r.id, "verified")
+                            }
                             onBan={acting === r.id ? undefined : () => void decide(r.id, "rejected")}
                           />
                         ) : (
@@ -234,7 +245,11 @@ export default function KycPage() {
                   {tab === "pending" ? (
                     <TableActionButtons
                       viewHref={`/users/${r.id}`}
-                      onApprove={acting === r.id ? undefined : () => void decide(r.id, "verified")}
+                      onApprove={
+                        acting === r.id || !r.hasKycDocs
+                          ? undefined
+                          : () => void decide(r.id, "verified")
+                      }
                       onBan={acting === r.id ? undefined : () => void decide(r.id, "rejected")}
                     />
                   ) : (

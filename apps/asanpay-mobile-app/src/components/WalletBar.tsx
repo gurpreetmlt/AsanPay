@@ -105,11 +105,9 @@ export function WalletBar({ wallets, onWalletPress, onAddMoney, onReports }: Pro
       <View style={styles.quickRow}>
         <Pressable
           onPress={onAddMoney ?? (() => showAlert("Coming soon", "Add money / load balance"))}
-          style={styles.quickBtnPress}
+          style={styles.quickBtnWhite}
         >
-          <LinearGradient colors={[colors.blueLight, colors.blue]} style={styles.quickBtnFill}>
-            <Text style={styles.quickBtnText}>+ Add Money</Text>
-          </LinearGradient>
+          <Text style={styles.quickBtnTextDark}>+ Add Money</Text>
         </Pressable>
         <Pressable
           onPress={onReports ?? (() => showAlert("Coming soon", "Reports"))}
@@ -171,6 +169,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  quickBtnWhite: {
+    flex: 1,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   quickBtnOutline: {
     flex: 1,
     height: 40,
@@ -182,4 +188,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   quickBtnText: { color: "#fff", fontFamily: "System", fontWeight: "700", fontSize: 13.5 },
+  quickBtnTextDark: { color: colors.blue, fontFamily: "System", fontWeight: "700", fontSize: 13.5 },
 });

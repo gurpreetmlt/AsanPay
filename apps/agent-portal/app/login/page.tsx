@@ -72,18 +72,7 @@ export default function LoginPage() {
     setCheckedRemembered(true);
   }, []);
 
-  // OTP tab: 10-digit mobile → send OTP automatically (no Send OTP tap).
-  useEffect(() => {
-    if (unlockMode || method !== "otp" || otpStep !== "mobile" || mobile.length !== 10 || loading) return;
-    const key = mobile;
-    if (lastOtpSentKey.current === key) return;
-    const t = window.setTimeout(() => {
-      void requestOtp(undefined, { auto: true });
-    }, 350);
-    return () => window.clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mobile, method, otpStep, unlockMode, loading]);
-
+  // lastOtpSentKey cleared when mobile shortened — used to avoid stale resend state.
   useEffect(() => {
     if (mobile.length < 10) lastOtpSentKey.current = null;
   }, [mobile]);
@@ -196,11 +185,11 @@ export default function LoginPage() {
     }
   }
 
-  async function requestOtp(e?: FormEvent, opts?: { auto?: boolean }) {
+  async function requestOtp(e?: FormEvent) {
     e?.preventDefault();
     if (e) lastOtpSentKey.current = null;
     if (!mobile || mobile.length !== 10) {
-      if (!opts?.auto) toast.error("Enter a valid 10-digit mobile");
+      toast.error("Enter a valid 10-digit mobile");
       return;
     }
     setLoading(true);
@@ -582,11 +571,11 @@ export default function LoginPage() {
               <SubmitBtn
                 loading={loading}
                 disabled={otpStep === "mobile" && mobile.length !== 10}
-                label={otpStep === "otp" ? "Verify OTP" : mobile.length === 10 ? "Resend OTP" : "Enter mobile for OTP"}
+                label={otpStep === "otp" ? "Verify OTP" : "Continue"}
               />
               {otpStep === "mobile" && mobile.length < 10 ? (
                 <p className="text-center text-xs" style={{ color: B.muted }}>
-                  Enter 10-digit mobile — OTP sends automatically
+                  Enter 10-digit mobile, then tap Continue to send OTP
                 </p>
               ) : null}
               {otpStep === "otp" && (

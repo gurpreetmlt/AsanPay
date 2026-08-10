@@ -4,6 +4,7 @@ export type SignupRole = "super_distributor" | "distributor" | "retailer" | "dir
 
 export type SignupFileMeta = {
   name: string;
+  uri?: string;
   latitude?: string;
   longitude?: string;
   capturedAt?: string;
@@ -37,6 +38,7 @@ export type MobileSignupDraft = {
   emailVerified: boolean;
   address: string;
   pincode: string;
+  city: string;
   district: string;
   state: string;
   businessName: string;
@@ -46,6 +48,7 @@ export type MobileSignupDraft = {
   businessProof: string;
   businessAddress: string;
   businessPincode: string;
+  businessCity: string;
   businessDistrict: string;
   businessState: string;
   bankName: string;
@@ -87,6 +90,7 @@ export const EMPTY_MOBILE_SIGNUP_DRAFT: MobileSignupDraft = {
   emailVerified: false,
   address: "",
   pincode: "",
+  city: "",
   district: "",
   state: "",
   businessName: "",
@@ -96,6 +100,7 @@ export const EMPTY_MOBILE_SIGNUP_DRAFT: MobileSignupDraft = {
   businessProof: "",
   businessAddress: "",
   businessPincode: "",
+  businessCity: "",
   businessDistrict: "",
   businessState: "",
   bankName: "",

@@ -63,6 +63,7 @@ export type ReverseGeocodeResult = {
   displayName: string;
   addressLine: string;
   pincode: string;
+  city: string;
   district: string;
   state: string;
 };
@@ -90,15 +91,16 @@ export async function reverseGeocodeDetails(
       a.suburb || a.neighbourhood || a.quarter,
       a.village || a.hamlet || a.locality,
     ].filter(Boolean);
-    const district = (
+    const city = (
       a.city ||
       a.town ||
       a.municipality ||
-      a.state_district ||
-      a.county ||
+      a.village ||
+      a.hamlet ||
       a.suburb ||
       ""
     ).trim();
+    const district = (a.state_district || a.county || a.city_district || city || "").trim();
     const state = (a.state || "").trim();
     const pincode = (a.postcode || "").replace(/\D/g, "").slice(0, 6);
     const displayName = (data.display_name || "").trim();
@@ -107,12 +109,13 @@ export async function reverseGeocodeDetails(
     const addressLine =
       displayName ||
       shortLine ||
-      [district, state, pincode].filter(Boolean).join(", ");
-    if (!addressLine && !pincode && !district && !state) return null;
+      [city || district, state, pincode].filter(Boolean).join(", ");
+    if (!addressLine && !pincode && !city && !district && !state) return null;
     return {
       displayName: displayName || addressLine,
       addressLine,
       pincode,
+      city,
       district,
       state,
     };

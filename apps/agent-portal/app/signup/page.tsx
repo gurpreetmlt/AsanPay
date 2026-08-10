@@ -528,7 +528,11 @@ function SignupPageInner() {
     void lookupIndianPincode(pin)
       .then((place) => {
         if (cancelled || !place) return;
-        patch({ district: place.city || draft.district, state: place.state || draft.state });
+        patch({
+          city: place.city || draft.city,
+          district: place.district || draft.district,
+          state: place.state || draft.state,
+        });
       })
       .finally(() => {
         if (!cancelled) setPinBusy(false);
@@ -548,6 +552,7 @@ function SignupPageInner() {
         ...d,
         businessAddress: d.address.trim(),
         businessPincode: d.pincode || d.businessPincode,
+        businessCity: d.city.trim() || d.businessCity,
         businessDistrict: d.district.trim() || d.businessDistrict,
         businessState: d.state.trim() || d.businessState,
       };
@@ -563,7 +568,8 @@ function SignupPageInner() {
       .then((place) => {
         if (cancelled || !place) return;
         patch({
-          businessDistrict: place.city || draft.businessDistrict,
+          businessCity: place.city || draft.businessCity,
+          businessDistrict: place.district || draft.businessDistrict,
           businessState: place.state || draft.businessState,
         });
       })
@@ -711,6 +717,7 @@ function SignupPageInner() {
       }
       if (!draft.address.trim()) return "Address is required";
       if (draft.pincode.length !== 6) return "Enter a valid pincode";
+      if (!draft.city.trim()) return "City is required";
       if (!draft.district.trim()) return "District is required";
       if (!draft.state.trim()) return "State is required";
     }
@@ -722,6 +729,9 @@ function SignupPageInner() {
       if (!draft.businessProof) return "Business proof is required";
       if (!draft.businessAddress.trim()) return "Business address is required";
       if (draft.businessPincode.length !== 6) return "Enter business pincode";
+      if (!draft.businessCity.trim()) return "Business city is required";
+      if (!draft.businessDistrict.trim()) return "Business district is required";
+      if (!draft.businessState.trim()) return "Business state is required";
     }
     if (stepIndex === 6) {
       if (draft.ifsc.length !== 11) return "Enter a valid IFSC";
@@ -867,12 +877,14 @@ function SignupPageInner() {
         return;
       }
       setLocationLabel(details.displayName);
+      let city = details.city;
       let district = details.district;
       let state = details.state;
       if (details.pincode.length === 6) {
         const place = await lookupIndianPincode(details.pincode);
         if (place) {
-          district = place.city || district;
+          city = place.city || city;
+          district = place.district || district;
           state = place.state || state;
         }
       }
@@ -880,6 +892,7 @@ function SignupPageInner() {
         patch({
           businessAddress: details.addressLine || draft.businessAddress,
           businessPincode: details.pincode || draft.businessPincode,
+          businessCity: city || draft.businessCity,
           businessDistrict: district || draft.businessDistrict,
           businessState: state || draft.businessState,
         });
@@ -887,6 +900,7 @@ function SignupPageInner() {
         patch({
           address: details.addressLine || draft.address,
           pincode: details.pincode || draft.pincode,
+          city: city || draft.city,
           district: district || draft.district,
           state: state || draft.state,
         });
@@ -907,6 +921,7 @@ function SignupPageInner() {
     patch({
       businessAddress: draft.address.trim(),
       businessPincode: draft.pincode,
+      businessCity: draft.city.trim(),
       businessDistrict: draft.district.trim(),
       businessState: draft.state.trim(),
     });
@@ -922,7 +937,7 @@ function SignupPageInner() {
         aadhaarNumber: draft.aadhaar.replace(/\D/g, ""),
         email: draft.email.trim().toLowerCase(),
         address: draft.address.trim(),
-        city: draft.district.trim(),
+        city: draft.city.trim(),
         pincode: draft.pincode,
         bankAccountName: draft.accountName.trim(),
         bankAccountNumber: draft.accountNumber,
@@ -1462,7 +1477,7 @@ function SignupPageInner() {
                     </button>
                   </div>
                   <p className="mt-1 text-xs" style={{ color: B.muted }}>
-                    Uses your location to fill address, pincode, district and state.
+                    Uses your location to fill address, pincode, city, district and state.
                   </p>
                 </Field>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -1476,6 +1491,14 @@ function SignupPageInner() {
                       placeholder={pinBusy ? "Looking up…" : "6-digit"}
                     />
                   </Field>
+                  <Field label="City *">
+                    <input
+                      value={draft.city}
+                      onChange={(e) => patch({ city: e.target.value })}
+                      className={inputCls}
+                      style={inputStyle}
+                    />
+                  </Field>
                   <Field label="District *">
                     <input
                       value={draft.district}
@@ -1484,15 +1507,15 @@ function SignupPageInner() {
                       style={inputStyle}
                     />
                   </Field>
+                  <Field label="State *">
+                    <input
+                      value={draft.state}
+                      onChange={(e) => patch({ state: e.target.value })}
+                      className={inputCls}
+                      style={inputStyle}
+                    />
+                  </Field>
                 </div>
-                <Field label="State *">
-                  <input
-                    value={draft.state}
-                    onChange={(e) => patch({ state: e.target.value })}
-                    className={inputCls}
-                    style={inputStyle}
-                  />
-                </Field>
               </>
             )}
 
@@ -1618,6 +1641,14 @@ function SignupPageInner() {
                       placeholder={bizPinBusy ? "Looking up…" : "6-digit"}
                     />
                   </Field>
+                  <Field label="City *">
+                    <input
+                      value={draft.businessCity}
+                      onChange={(e) => patch({ businessCity: e.target.value })}
+                      className={inputCls}
+                      style={inputStyle}
+                    />
+                  </Field>
                   <Field label="District *">
                     <input
                       value={draft.businessDistrict}
@@ -1626,15 +1657,15 @@ function SignupPageInner() {
                       style={inputStyle}
                     />
                   </Field>
+                  <Field label="State *">
+                    <input
+                      value={draft.businessState}
+                      onChange={(e) => patch({ businessState: e.target.value })}
+                      className={inputCls}
+                      style={inputStyle}
+                    />
+                  </Field>
                 </div>
-                <Field label="State *">
-                  <input
-                    value={draft.businessState}
-                    onChange={(e) => patch({ businessState: e.target.value })}
-                    className={inputCls}
-                    style={inputStyle}
-                  />
-                </Field>
               </>
             )}
 

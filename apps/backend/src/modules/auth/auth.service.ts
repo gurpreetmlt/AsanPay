@@ -34,6 +34,10 @@ import {
   notifyMpinChanged,
   notifyNewDeviceLogin,
 } from "../notifications/userEmail.service";
+import {
+  findActiveVerifiedEmailHolder,
+  releaseEmailIfUnused,
+} from "./emailVerify.service";
 import type { AuthPortal, AuthUser, UserRole } from "@asanpay/shared-types";
 import { isAdminRole, isAgentPortalRole } from "@asanpay/shared-types";
 import type {
@@ -131,16 +135,14 @@ export async function registerUser(
   }
 
   if (input.email) {
-    const [existingEmail] = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(and(eq(users.email, input.email), eq(users.isActive, true)));
+    const normalized = input.email.trim().toLowerCase();
+    // No current user yet — free inactive/unverified holders only.
+    await releaseEmailIfUnused(normalized, "00000000-0000-0000-0000-000000000000");
+    const existingEmail = await findActiveVerifiedEmailHolder(
+      normalized,
+      "00000000-0000-0000-0000-000000000000",
+    );
     if (existingEmail) throw new HttpError(409, "Email is already registered", "EMAIL_TAKEN");
-    // Inactive / deleted-but-retained rows must not block reuse
-    await db
-      .update(users)
-      .set({ email: null, emailVerifiedAt: null })
-      .where(and(eq(users.email, input.email), eq(users.isActive, false)));
   }
 
   const passwordHash = await hashPassword(input.password);
@@ -1031,27 +1033,21 @@ export async function checkSignupMobileAvailable(
   return { available: true };
 }
 
-/** Live check — email free, or already owned by the current user. Inactive rows do not block. */
+/** Live check — email free, or already owned by the current user. Inactive / unverified rows do not block. */
 export async function checkSignupEmailAvailable(
   email: string,
   currentUserId: string,
 ): Promise<{ available: true } | { available: false; message: string; code: "EMAIL_TAKEN" }> {
   const normalized = email.trim().toLowerCase();
-  const [existing] = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(and(eq(users.email, normalized), eq(users.isActive, true)));
-  if (existing && existing.id !== currentUserId) {
+  await releaseEmailIfUnused(normalized, currentUserId);
+  const existing = await findActiveVerifiedEmailHolder(normalized, currentUserId);
+  if (existing) {
     return {
       available: false,
       message: "This email is already registered. Use a different email.",
       code: "EMAIL_TAKEN",
     };
   }
-  await db
-    .update(users)
-    .set({ email: null, emailVerifiedAt: null })
-    .where(and(eq(users.email, normalized), eq(users.isActive, false)));
   return { available: true };
 }
 
