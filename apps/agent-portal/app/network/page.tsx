@@ -4,7 +4,6 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
   Users,
-  ArrowUpRight,
   UserCheck,
   Search,
   ChevronRight,
@@ -15,20 +14,23 @@ import {
   ArrowDownToLine,
   ArrowUpFromLine,
   History,
+  Power,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { AppShell } from "@/components/layout/AppShell";
 import { FundForm } from "@/components/dashboard/FundForm";
 import { PullForm } from "@/components/dashboard/PullForm";
 import { Modal } from "@/components/ui/Modal";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import api, { fetchApi } from "@/lib/api";
-import { B, initials, roleFromUserRole } from "@/lib/brand";
+import { B, initials } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { extractApiError } from "@/lib/onboarding";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 import { formatInr } from "@/lib/walletLabels";
 import type { DownlineUser, LedgerEntry } from "@/lib/types";
 import type { UserRole } from "@asanpay/shared-types";
+import Link from "next/link";
 
 interface DownlineItem {
   id: string;
@@ -298,7 +300,6 @@ export default function NetworkPage() {
   if (!hydrated || !accessToken || !user) return null;
 
   const ui = ROLE_UI[user.role] ?? ROLE_UI.retailer;
-  const role = roleFromUserRole(user.role);
 
   function flattenTree(nodes: TreeNode[]): DownlineItem[] {
     const result: DownlineItem[] = [];
@@ -325,7 +326,7 @@ export default function NetworkPage() {
 
   return (
     <AppShell>
-      <div className="mx-auto w-full max-w-[1600px] space-y-5 px-4 py-5 sm:px-6 lg:px-8">
+      <div className="dash-page-stagger mx-auto w-full max-w-[1600px] space-y-5 px-4 py-5 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold" style={{ color: B.blue }}>Network</h1>
@@ -333,46 +334,28 @@ export default function NetworkPage() {
           </div>
         </div>
 
-        {data?.upline && (
-          <div className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
-            <div className="mb-3 flex items-center gap-2">
-              <ArrowUpRight size={18} style={{ color: B.blue }} />
-              <h2 className="font-bold" style={{ color: B.blue }}>Your Upline</h2>
-            </div>
-            <div className="flex items-center gap-4 rounded-xl p-4" style={{ background: B.secondary }}>
-              <div
-                className="flex h-12 w-12 items-center justify-center rounded-full text-sm font-bold text-white"
-                style={{ background: B.blue }}
-              >
-                {initials(data.upline.name)}
-              </div>
-              <div className="flex-1">
-                <p className="text-base font-semibold" style={{ color: B.blue }}>{data.upline.name}</p>
-                <p className="text-sm" style={{ color: B.muted }}>{data.upline.mobile}</p>
-              </div>
-              <span
-                className="rounded-full px-3 py-1 text-xs font-semibold text-white"
-                style={{ background: role.color }}
-              >
-                {roleLabel(data.upline.role)}
-              </span>
-            </div>
-          </div>
-        )}
-
         {user.role !== "retailer" && (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
+          <div className="dash-stagger grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div
+              className="dash-card-hover rounded-2xl border bg-white p-5"
+              style={{ borderColor: B.border }}
+            >
               <p className="text-xs font-medium uppercase tracking-wider" style={{ color: B.muted }}>
                 Direct {ui.downlineLabel}
               </p>
               <p className="mt-1 text-3xl font-bold" style={{ color: B.blue }}>{totalDirect}</p>
             </div>
-            <div className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
+            <div
+              className="dash-card-hover rounded-2xl border bg-white p-5"
+              style={{ borderColor: B.border }}
+            >
               <p className="text-xs font-medium uppercase tracking-wider" style={{ color: B.muted }}>Total Network</p>
               <p className="mt-1 text-3xl font-bold" style={{ color: B.green }}>{totalAll}</p>
             </div>
-            <div className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
+            <div
+              className="dash-card-hover rounded-2xl border bg-white p-5"
+              style={{ borderColor: B.border }}
+            >
               <p className="text-xs font-medium uppercase tracking-wider" style={{ color: B.muted }}>Active (Direct)</p>
               <p className="mt-1 text-3xl font-bold" style={{ color: activeCount > 0 ? B.green : "#ef4444" }}>
                 {activeCount} / {totalDirect}
@@ -382,8 +365,8 @@ export default function NetworkPage() {
         )}
 
         {user.role !== "retailer" && (
-          <div className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="overflow-hidden rounded-2xl border bg-white shadow-sm" style={{ borderColor: B.border }}>
+            <div className="flex flex-col gap-3 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: B.border }}>
               <div className="flex items-center gap-2">
                 <Users size={18} style={{ color: B.blue }} />
                 <h2 className="font-bold" style={{ color: B.blue }}>
@@ -397,11 +380,11 @@ export default function NetworkPage() {
               </div>
               <div className="flex items-center gap-3">
                 {isSuperDist ? (
-                  <div className="flex rounded-lg border" style={{ borderColor: B.border }}>
+                  <div className="flex overflow-hidden rounded-xl border" style={{ borderColor: B.border }}>
                     <button
                       type="button"
                       onClick={() => setView("tree")}
-                      className="rounded-l-lg px-3 py-1.5 text-xs font-semibold"
+                      className="px-3 py-1.5 text-xs font-semibold"
                       style={{ background: effectiveView === "tree" ? B.blue : "transparent", color: effectiveView === "tree" ? "#fff" : B.muted }}
                     >
                       Tree
@@ -409,7 +392,7 @@ export default function NetworkPage() {
                     <button
                       type="button"
                       onClick={() => setView("table")}
-                      className="rounded-r-lg px-3 py-1.5 text-xs font-semibold"
+                      className="px-3 py-1.5 text-xs font-semibold"
                       style={{ background: effectiveView === "table" ? B.blue : "transparent", color: effectiveView === "table" ? "#fff" : B.muted }}
                     >
                       Table
@@ -421,17 +404,18 @@ export default function NetworkPage() {
                     <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: B.muted }} />
                     <input
                       type="text"
-                      placeholder="Search..."
+                      placeholder="Search name, mobile, UID…"
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
-                      className="w-full rounded-lg border py-1.5 pl-9 pr-3 text-sm outline-none sm:w-56"
-                      style={{ borderColor: B.border, color: B.blue }}
+                      className="w-full rounded-xl border py-2 pl-9 pr-3 text-sm outline-none sm:w-60"
+                      style={{ borderColor: B.border, color: B.blue, background: B.bg }}
                     />
                   </div>
                 )}
               </div>
             </div>
 
+            <div className="p-0 sm:p-0">
             {loading ? (
               <p className="py-10 text-center text-sm" style={{ color: B.muted }}>Loading…</p>
             ) : effectiveView === "tree" ? (
@@ -441,7 +425,7 @@ export default function NetworkPage() {
                   <p className="text-sm" style={{ color: B.muted }}>{ui.emptyMsg}</p>
                 </div>
               ) : (
-                <div className="divide-y" style={{ borderColor: B.border }}>
+                <div className="divide-y px-2 py-2" style={{ borderColor: B.border }}>
                   {data!.tree.map((node) => (
                     <TreeItem
                       key={node.id}
@@ -461,9 +445,12 @@ export default function NetworkPage() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[920px] text-sm">
+                <table className="w-full min-w-[920px] text-left text-sm">
                   <thead>
-                    <tr className="border-b" style={{ borderColor: B.border, background: "#334155" }}>
+                    <tr
+                      className="border-b text-xs uppercase tracking-wider"
+                      style={{ borderColor: B.border, background: B.secondary, color: B.muted }}
+                    >
                       {[
                         "Party",
                         "Main",
@@ -476,7 +463,7 @@ export default function NetworkPage() {
                       ].map((h) => (
                         <th
                           key={h}
-                          className="whitespace-nowrap px-3 py-2.5 text-left text-[12px] font-semibold uppercase tracking-wider text-white"
+                          className="whitespace-nowrap px-4 py-3 font-semibold"
                         >
                           {h}
                         </th>
@@ -484,50 +471,47 @@ export default function NetworkPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map((m, idx) => {
+                    {filtered.map((m) => {
                       const isDirect = directIds.has(m.id);
                       const moneyOk = canMoneyActions && isDirect && m.isActive;
                       const collectOk = moneyOk && Number(m.mainBalance) > 0;
                       return (
                         <tr
                           key={m.id}
-                          className="border-b transition-colors hover:bg-blue-50/40"
-                          style={{
-                            borderColor: B.border,
-                            background: idx % 2 === 0 ? "#FFFEF8" : "#fff",
-                          }}
+                          className="border-b last:border-0 transition-colors hover:bg-blue-50/50"
+                          style={{ borderColor: B.border }}
                         >
-                          <td className="px-3 py-3">
-                            <p className="text-sm font-bold uppercase tracking-wide" style={{ color: B.blue }}>
+                          <td className="px-4 py-3.5">
+                            <p className="text-sm font-bold" style={{ color: B.blue }}>
                               {m.name}
                             </p>
                             <p className="text-xs font-medium" style={{ color: B.muted }}>
                               {m.mobile}
                             </p>
-                            <p className="font-mono text-[12px]" style={{ color: B.muted }}>
+                            <p className="mt-0.5 font-mono text-[11px]" style={{ color: B.muted }}>
                               {m.uid} · {roleLabel(m.role)}
                             </p>
                           </td>
-                          <td className="px-3 py-3 font-semibold tabular-nums" style={{ color: B.blue }}>
+                          <td className="px-4 py-3.5 font-semibold tabular-nums" style={{ color: B.blue }}>
                             {formatInr(m.mainBalance)}
                           </td>
-                          <td className="px-3 py-3 font-semibold tabular-nums" style={{ color: B.blue }}>
+                          <td className="px-4 py-3.5 font-semibold tabular-nums" style={{ color: B.blue }}>
                             {formatInr(m.aepsBalance ?? "0")}
                           </td>
-                          <td className="px-3 py-3 text-xs" style={{ color: B.muted }}>
+                          <td className="px-4 py-3.5 text-xs" style={{ color: B.muted }}>
                             —
                           </td>
-                          <td className="px-3 py-3">
+                          <td className="px-4 py-3.5">
                             <IconAction
                               title="Top up — send funds"
                               disabled={!moneyOk}
-                              color="#DC2626"
+                              color={B.green}
                               onClick={() => setFundTarget(toDownlineUser(m))}
                             >
                               <ArrowDownToLine size={16} />
                             </IconAction>
                           </td>
-                          <td className="px-3 py-3">
+                          <td className="px-4 py-3.5">
                             <IconAction
                               title="Reverse — pull funds from partner"
                               disabled={!collectOk}
@@ -537,7 +521,7 @@ export default function NetworkPage() {
                               <ArrowUpFromLine size={16} />
                             </IconAction>
                           </td>
-                          <td className="px-3 py-3">
+                          <td className="px-4 py-3.5">
                             <IconAction
                               title="History"
                               disabled={false}
@@ -547,25 +531,28 @@ export default function NetworkPage() {
                               <History size={16} />
                             </IconAction>
                           </td>
-                          <td className="px-3 py-3">
-                            {canToggleChildren && isDirect ? (
-                              <button
-                                type="button"
-                                disabled={togglingId === m.id}
-                                onClick={() => void toggleChild(m.id, !m.isActive)}
-                                className="rounded-lg border px-2.5 py-1 text-[12px] font-semibold disabled:opacity-50"
-                                style={{
-                                  borderColor: m.isActive ? "#fca5a5" : B.green,
-                                  color: m.isActive ? "#b91c1c" : B.green,
-                                }}
-                              >
-                                {togglingId === m.id ? "…" : m.isActive ? "Inactive" : "Active"}
-                              </button>
-                            ) : (
-                              <span className="text-xs" style={{ color: m.isActive ? B.green : B.muted }}>
+                          <td className="px-4 py-3.5">
+                            <div className="flex items-center gap-2">
+                              <StatusBadge tone={m.isActive ? "success" : "danger"}>
                                 {m.isActive ? "Active" : "Inactive"}
-                              </span>
-                            )}
+                              </StatusBadge>
+                              {canToggleChildren && isDirect ? (
+                                <button
+                                  type="button"
+                                  title={m.isActive ? "Disable agent" : "Enable agent"}
+                                  disabled={togglingId === m.id}
+                                  onClick={() => void toggleChild(m.id, !m.isActive)}
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border disabled:opacity-50"
+                                  style={{
+                                    borderColor: B.border,
+                                    color: m.isActive ? "#B45309" : B.green,
+                                    background: "#fff",
+                                  }}
+                                >
+                                  <Power size={15} />
+                                </button>
+                              ) : null}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -574,14 +561,27 @@ export default function NetworkPage() {
                 </table>
               </div>
             )}
+            </div>
           </div>
         )}
 
-        {user.role === "retailer" && !data?.upline && !loading && (
+        {user.role === "retailer" && !loading && (
           <div className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
-            <div className="flex flex-col items-center py-10">
+            <div className="flex flex-col items-center py-10 text-center">
               <UserCheck size={40} className="mb-3 opacity-30" style={{ color: B.muted }} />
-              <p className="text-sm" style={{ color: B.muted }}>No upline info available</p>
+              <p className="text-sm font-semibold" style={{ color: B.blue }}>
+                Upline contacts are on Support
+              </p>
+              <p className="mt-1 max-w-sm text-sm" style={{ color: B.muted }}>
+                Call or message your distributor from the Support page.
+              </p>
+              <Link
+                href="/support"
+                className="mt-4 rounded-xl px-4 py-2 text-sm font-bold text-white"
+                style={{ background: B.badgeGrad }}
+              >
+                Open Support
+              </Link>
             </div>
           </div>
         )}
@@ -653,7 +653,7 @@ function IconAction({
       aria-label={title}
       disabled={disabled}
       onClick={onClick}
-      className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
+      className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-white shadow-sm transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-40"
       style={{ background: color }}
     >
       {children}

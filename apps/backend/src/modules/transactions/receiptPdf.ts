@@ -142,231 +142,296 @@ function drawSocialChip(
 }
 
 export async function streamTxnReceiptPdf(actor: Actor, txnRef: string, res: Response): Promise<void> {
-  const row = await getReceiptForPdf(actor, txnRef);
-  const tenantId = await resolveTenantId();
-  const adminContacts = await getSupportContacts(tenantId);
-  const contact = brandContactFromAdmin(adminContacts);
-  // Resolve assets BEFORE writing headers — a late throw mid-stream becomes a 502 at the proxy.
-  const logoBuf = lightLogoBuffer();
+  let row: Awaited<ReturnType<typeof getReceiptForPdf>>;
+  let contact: ReturnType<typeof brandContactFromAdmin>;
+  let logoBuf: Buffer | null;
+  try {
+    row = await getReceiptForPdf(actor, txnRef);
+    const tenantId = await resolveTenantId();
+    const adminContacts = await getSupportContacts(tenantId);
+    contact = brandContactFromAdmin(adminContacts);
+    // Resolve assets + construct PDF BEFORE headers — late throws become opaque 500s at the proxy.
+    logoBuf = lightLogoBuffer();
+  } catch (err) {
+    if (err instanceof HttpError) throw err;
+    const detail = err instanceof Error ? err.message : "unknown error";
+    throw new HttpError(500, `Receipt lookup failed: ${detail}`, "RECEIPT_PDF_LOOKUP");
+  }
+
+  let doc: PDFKit.PDFDocument;
+  try {
+    doc = new PDFDocument({ size: "A5", margin: 0, autoFirstPage: true });
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : "unknown error";
+    throw new HttpError(
+      500,
+      `Could not start receipt PDF (${detail}). Redeploy backend if pdfkit fonts are missing.`,
+      "RECEIPT_PDF_INIT",
+    );
+  }
 
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `inline; filename="receipt-${row.txnRef}.pdf"`);
 
-  const doc = new PDFDocument({ size: "A5", margin: 0 });
-  doc.on("error", (err) => {
-    if (!res.headersSent) {
-      res.status(500).json({ success: false, message: "Could not generate receipt PDF" });
-      return;
-    }
-    res.destroy(err);
-  });
-  doc.pipe(res);
+  await new Promise<void>((resolve, reject) => {
+    let settled = false;
+    const fail = (err: unknown) => {
+      if (settled) return;
+      settled = true;
+      reject(err instanceof Error ? err : new Error(String(err)));
+    };
+    const ok = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
 
-  const brandName = process.env.BRAND_NAME || BRAND_DEFAULTS.name;
-  const pageW = doc.page.width;
-  const pageH = doc.page.height;
-  const marginX = 32;
-  const style = STATUS_STYLE[row.status] ?? { fg: PALETTE.ink, bg: PALETTE.panel, label: row.status.toUpperCase() };
+    doc.on("error", fail);
+    res.on("error", fail);
+    doc.on("end", ok);
+    doc.pipe(res);
 
-  // ── Header band ─────────────────────────────────────────────────────────
-  doc.rect(0, 0, pageW, 100).fill(PALETTE.navy);
-  doc.save();
-  doc.rect(0, 0, pageW, 100).clip();
-  doc.circle(pageW - 20, 100, 70).fillOpacity(0.06).fill("#FFFFFF");
-  doc.restore();
-
-  const logoSize = 36;
-  const logoX = marginX;
-  const logoY = 22;
-  if (logoBuf) {
     try {
-      doc.image(logoBuf, logoX, logoY, { width: logoSize, height: logoSize });
-    } catch {
-      doc.roundedRect(logoX, logoY, logoSize, logoSize, 9).fill("#FFFFFF");
+      const brandName = process.env.BRAND_NAME || BRAND_DEFAULTS.name;
+      const pageW = doc.page.width;
+      const pageH = doc.page.height;
+      const marginX = 32;
+      const style =
+        STATUS_STYLE[row.status] ?? { fg: PALETTE.ink, bg: PALETTE.panel, label: String(row.status).toUpperCase() };
+
+      const money = (v: unknown) => {
+        const n = Number(v);
+        return Number.isFinite(n) ? n.toFixed(2) : String(v ?? "0");
+      };
+
+      // ── Header band ─────────────────────────────────────────────────────────
+      doc.rect(0, 0, pageW, 100).fill(PALETTE.navy);
+      doc.save();
+      doc.rect(0, 0, pageW, 100).clip();
+      doc.circle(pageW - 20, 100, 70).fillOpacity(0.06).fill("#FFFFFF");
+      doc.restore();
+      doc.fillOpacity(1);
+
+      const logoSize = 36;
+      const logoX = marginX;
+      const logoY = 22;
+      if (logoBuf) {
+        try {
+          doc.image(logoBuf, logoX, logoY, { width: logoSize, height: logoSize });
+        } catch {
+          doc.roundedRect(logoX, logoY, logoSize, logoSize, 9).fill("#FFFFFF");
+          doc
+            .fillColor(PALETTE.navy)
+            .font("Helvetica-Bold")
+            .fontSize(19)
+            .text("Rs", logoX, logoY + 8, { width: logoSize, align: "center" });
+        }
+      } else {
+        doc.roundedRect(logoX, logoY, logoSize, logoSize, 9).fill("#FFFFFF");
+        doc
+          .fillColor(PALETTE.navy)
+          .font("Helvetica-Bold")
+          .fontSize(19)
+          .text("Rs", logoX, logoY + 8, { width: logoSize, align: "center" });
+      }
+
+      doc.fontSize(20).fillColor("#FFFFFF").font("Helvetica-Bold").text(brandName, logoX + logoSize + 12, 28);
+      doc
+        .fontSize(9)
+        .fillColor("#C9D6F5")
+        .font("Helvetica")
+        .text("TRANSACTION RECEIPT", logoX + logoSize + 12, 60);
+
+      const pillLabel = style.label;
+      doc.font("Helvetica-Bold").fontSize(10);
+      const pillTextW = doc.widthOfString(pillLabel);
+      const pillW = pillTextW + 24;
+      const pillX = pageW - marginX - pillW;
+      const pillY = 33;
+      doc.roundedRect(pillX, pillY, pillW, 24, 12).fill("#FFFFFF");
+      doc.fillColor(style.fg).text(pillLabel, pillX + 12, pillY + 7);
+
+      let y = 126;
+
+      // ── Amount card ─────────────────────────────────────────────────────────
+      const amountCardH = 66;
+      doc.roundedRect(marginX, y, pageW - marginX * 2, amountCardH, 10).fill(PALETTE.panel);
+      doc.rect(marginX, y, 4, amountCardH).fill(style.fg);
+      doc.fillColor(PALETTE.muted).font("Helvetica").fontSize(9).text("AMOUNT", marginX + 20, y + 14);
+      doc
+        .fillColor(PALETTE.ink)
+        .font("Helvetica-Bold")
+        .fontSize(26)
+        .text(`Rs. ${money(row.amount)}`, marginX + 20, y + 28);
+      y += amountCardH + 18;
+
+      // ── Detail table ────────────────────────────────────────────────────────
+      const rows: [string, string][] = [
+        ["Reference No.", String(row.txnRef)],
+        ["Service", String(row.serviceName ?? "")],
+      ];
+      if (Number(row.customerFee) > 0) rows.push(["Fee", `Rs. ${money(row.customerFee)}`]);
+      const customerMobile = metadataCustomerLine(row.metadata);
+      if (customerMobile) rows.push(["Customer Mobile", customerMobile]);
+      if (row.providerTxnId) rows.push(["Provider Ref.", String(row.providerTxnId)]);
+      if (row.walletType) {
+        const balanceLabel =
+          row.walletType === "main" ? "Main" : row.walletType === "aeps" ? "AEPS" : String(row.walletType);
+        rows.push(["Balance", balanceLabel]);
+      }
+      const when = row.completedAt ?? row.initiatedAt;
+      rows.push([
+        "Date & Time",
+        when ? new Date(when).toLocaleString("en-IN") : "—",
+      ]);
+      rows.push(["Retailer", `${row.retailerName} (${row.retailerMobile})`]);
+      if (row.status === "failed" && row.failureReason) {
+        rows.push(["Reason", String(row.failureReason)]);
+      }
+
+      const tableX = marginX;
+      const tableW = pageW - marginX * 2;
+      const labelColW = 150;
+      const rowH = 26;
+      const tableTop = y;
+      const tableBottom = tableTop + rowH * rows.length;
+
+      doc.save();
+      doc.roundedRect(tableX, tableTop, tableW, tableBottom - tableTop, 8).clip();
+      doc.rect(tableX, tableTop, labelColW, tableBottom - tableTop).fill(PALETTE.panel);
+      doc.restore();
+      doc
+        .roundedRect(tableX, tableTop, tableW, tableBottom - tableTop, 8)
+        .strokeColor(PALETTE.border)
+        .lineWidth(1)
+        .stroke();
+      doc
+        .moveTo(tableX + labelColW, tableTop)
+        .lineTo(tableX + labelColW, tableBottom)
+        .strokeColor(PALETTE.border)
+        .stroke();
+
+      doc.fontSize(10);
+      rows.forEach(([label, value], i) => {
+        const rowY = tableTop + i * rowH;
+        if (i > 0) {
+          doc
+            .moveTo(tableX, rowY)
+            .lineTo(tableX + tableW, rowY)
+            .strokeColor(PALETTE.border)
+            .stroke();
+        }
+        doc
+          .fillColor(PALETTE.muted)
+          .font("Helvetica")
+          .text(label, tableX + 10, rowY + 8, { width: labelColW - 18 });
+        doc
+          .fillColor(PALETTE.ink)
+          .font("Helvetica-Bold")
+          .text(value, tableX + labelColW + 10, rowY + 8, { width: tableW - labelColW - 18 });
+      });
+
+      y = tableBottom + 16;
+
+      // ── Contact + social ────────────────────────────────────────────────────
+      const contactBlockH = 78;
+      const contactTop = Math.min(y, pageH - contactBlockH - 52);
+      doc.roundedRect(marginX, contactTop, pageW - marginX * 2, contactBlockH, 8).fill(PALETTE.panel);
+
+      const cx = marginX + 12;
+      let cy = contactTop + 10;
+      doc.fillColor(PALETTE.muted).font("Helvetica").fontSize(8).text("Website", cx, cy);
       doc
         .fillColor(PALETTE.navy)
         .font("Helvetica-Bold")
-        .fontSize(19)
-        .text("Rs", logoX, logoY + 8, { width: logoSize, align: "center" });
-    }
-  } else {
-    doc.roundedRect(logoX, logoY, logoSize, logoSize, 9).fill("#FFFFFF");
-    doc
-      .fillColor(PALETTE.navy)
-      .font("Helvetica-Bold")
-      .fontSize(19)
-      .text("Rs", logoX, logoY + 8, { width: logoSize, align: "center" });
-  }
-
-  doc.fontSize(20).fillColor("#FFFFFF").font("Helvetica-Bold").text(brandName, logoX + logoSize + 12, 28);
-  doc
-    .fontSize(9)
-    .fillColor("#C9D6F5")
-    .font("Helvetica")
-    .text("TRANSACTION RECEIPT", logoX + logoSize + 12, 60, { characterSpacing: 1.2 });
-
-  const pillLabel = style.label;
-  doc.font("Helvetica-Bold").fontSize(10);
-  const pillTextW = doc.widthOfString(pillLabel);
-  const pillW = pillTextW + 24;
-  const pillX = pageW - marginX - pillW;
-  const pillY = 33;
-  doc.roundedRect(pillX, pillY, pillW, 24, 12).fill("#FFFFFF");
-  doc.fillColor(style.fg).text(pillLabel, pillX + 12, pillY + 7);
-
-  let y = 126;
-
-  // ── Amount card ─────────────────────────────────────────────────────────
-  const amountCardH = 66;
-  doc.roundedRect(marginX, y, pageW - marginX * 2, amountCardH, 10).fill(PALETTE.panel);
-  doc.rect(marginX, y, 4, amountCardH).fill(style.fg);
-  doc.fillColor(PALETTE.muted).font("Helvetica").fontSize(9).text("AMOUNT", marginX + 20, y + 14);
-  doc
-    .fillColor(PALETTE.ink)
-    .font("Helvetica-Bold")
-    .fontSize(26)
-    .text(`Rs. ${row.amount}`, marginX + 20, y + 28);
-  y += amountCardH + 18;
-
-  // ── Detail table ────────────────────────────────────────────────────────
-  const rows: [string, string][] = [
-    ["Reference No.", row.txnRef],
-    ["Service", row.serviceName],
-  ];
-  if (Number(row.customerFee) > 0) rows.push(["Fee", `Rs. ${row.customerFee}`]);
-  const customerMobile = metadataCustomerLine(row.metadata);
-  if (customerMobile) rows.push(["Customer Mobile", customerMobile]);
-  if (row.providerTxnId) rows.push(["Provider Ref.", row.providerTxnId]);
-  if (row.walletType) {
-    const balanceLabel =
-      row.walletType === "main" ? "Main" : row.walletType === "aeps" ? "AEPS" : row.walletType;
-    rows.push(["Balance", balanceLabel]);
-  }
-  rows.push(["Date & Time", new Date(row.completedAt ?? row.initiatedAt).toLocaleString("en-IN")]);
-  rows.push(["Retailer", `${row.retailerName} (${row.retailerMobile})`]);
-  if (row.status === "failed" && row.failureReason) rows.push(["Reason", row.failureReason]);
-
-  const tableX = marginX;
-  const tableW = pageW - marginX * 2;
-  const labelColW = 150;
-  const rowH = 26;
-  const tableTop = y;
-  const tableBottom = tableTop + rowH * rows.length;
-
-  doc.save();
-  doc.roundedRect(tableX, tableTop, tableW, tableBottom - tableTop, 8).clip();
-  doc.rect(tableX, tableTop, labelColW, tableBottom - tableTop).fill(PALETTE.panel);
-  doc.restore();
-  doc
-    .roundedRect(tableX, tableTop, tableW, tableBottom - tableTop, 8)
-    .strokeColor(PALETTE.border)
-    .lineWidth(1)
-    .stroke();
-  doc
-    .moveTo(tableX + labelColW, tableTop)
-    .lineTo(tableX + labelColW, tableBottom)
-    .strokeColor(PALETTE.border)
-    .stroke();
-
-  doc.fontSize(10);
-  rows.forEach(([label, value], i) => {
-    const rowY = tableTop + i * rowH;
-    if (i > 0) {
+        .fontSize(9)
+        .text(contact.website.replace(/^https?:\/\//, ""), cx + 52, cy, {
+          link: contact.website,
+          underline: false,
+        });
+      cy += 14;
+      doc.fillColor(PALETTE.muted).font("Helvetica").fontSize(8).text("Email", cx, cy);
       doc
-        .moveTo(tableX, rowY)
-        .lineTo(tableX + tableW, rowY)
-        .strokeColor(PALETTE.border)
+        .fillColor(PALETTE.navy)
+        .font("Helvetica-Bold")
+        .fontSize(9)
+        .text(contact.email, cx + 52, cy, { link: `mailto:${contact.email}` });
+      cy += 14;
+      doc.fillColor(PALETTE.muted).font("Helvetica").fontSize(8).text("Contact", cx, cy);
+      if (contact.phone) {
+        doc
+          .fillColor(PALETTE.ink)
+          .font("Helvetica-Bold")
+          .fontSize(9)
+          .text(contact.phone, cx + 52, cy, {
+            link: `tel:${contact.phone.replace(/\s/g, "")}`,
+          });
+      } else {
+        doc.fillColor(PALETTE.faint).font("Helvetica").fontSize(9).text("—", cx + 52, cy);
+      }
+      cy += 16;
+
+      doc.fillColor(PALETTE.muted).font("Helvetica").fontSize(8).text("Social", cx, cy + 4);
+      let sx = cx + 52;
+      const chipY = cy;
+      sx += drawSocialChip(doc, sx, chipY, "f", PALETTE.fb);
+      sx += drawSocialChip(doc, sx, chipY, "IG", PALETTE.ig);
+      sx += drawSocialChip(doc, sx, chipY, "YT", PALETTE.yt);
+      doc
+        .fillColor(PALETTE.ink)
+        .font("Helvetica")
+        .fontSize(8)
+        .text(`@${contact.socialHandle}`, sx + 2, chipY + 6, {
+          link: contact.instagram,
+        });
+      try {
+        doc.link(cx + 52, chipY, 22, 22, contact.facebook);
+        doc.link(cx + 52 + 28, chipY, 22, 22, contact.instagram);
+        doc.link(cx + 52 + 56, chipY, 22, 22, contact.youtube);
+      } catch {
+        /* link targets are optional */
+      }
+
+      // ── Footer ──────────────────────────────────────────────────────────────
+      const footerY = pageH - 42;
+      const dividerW = 40;
+      doc
+        .moveTo(pageW / 2 - dividerW / 2, footerY - 12)
+        .lineTo(pageW / 2 + dividerW / 2, footerY - 12)
+        .strokeColor(PALETTE.navy)
+        .lineWidth(2)
         .stroke();
-    }
-    doc
-      .fillColor(PALETTE.muted)
-      .font("Helvetica")
-      .text(label, tableX + 10, rowY + 8, { width: labelColW - 18 });
-    doc
-      .fillColor(PALETTE.ink)
-      .font("Helvetica-Bold")
-      .text(value, tableX + labelColW + 10, rowY + 8, { width: tableW - labelColW - 18 });
-  });
-
-  y = tableBottom + 16;
-
-  // ── Contact + social ────────────────────────────────────────────────────
-  const contactBlockH = 78;
-  const contactTop = Math.min(y, pageH - contactBlockH - 52);
-  doc.roundedRect(marginX, contactTop, pageW - marginX * 2, contactBlockH, 8).fill(PALETTE.panel);
-
-  const cx = marginX + 12;
-  let cy = contactTop + 10;
-  doc.fillColor(PALETTE.muted).font("Helvetica").fontSize(8).text("Website", cx, cy);
-  doc
-    .fillColor(PALETTE.navy)
-    .font("Helvetica-Bold")
-    .fontSize(9)
-    .text(contact.website.replace(/^https?:\/\//, ""), cx + 52, cy, {
-      link: contact.website,
-      underline: false,
-    });
-  cy += 14;
-  doc.fillColor(PALETTE.muted).font("Helvetica").fontSize(8).text("Email", cx, cy);
-  doc
-    .fillColor(PALETTE.navy)
-    .font("Helvetica-Bold")
-    .fontSize(9)
-    .text(contact.email, cx + 52, cy, { link: `mailto:${contact.email}` });
-  cy += 14;
-  doc.fillColor(PALETTE.muted).font("Helvetica").fontSize(8).text("Contact", cx, cy);
-  if (contact.phone) {
-    doc
-      .fillColor(PALETTE.ink)
-      .font("Helvetica-Bold")
-      .fontSize(9)
-      .text(contact.phone, cx + 52, cy, {
-        link: `tel:${contact.phone.replace(/\s/g, "")}`,
+      doc
+        .fontSize(7.5)
+        .fillColor(PALETTE.faint)
+        .font("Helvetica")
+        .text("This is a system-generated receipt and does not require a signature.", marginX, footerY, {
+          width: pageW - marginX * 2,
+          align: "center",
+        });
+      doc.text(`${brandName} — Payment Made Easy`, marginX, footerY + 12, {
+        width: pageW - marginX * 2,
+        align: "center",
       });
-  } else {
-    doc.fillColor(PALETTE.faint).font("Helvetica").fontSize(9).text("—", cx + 52, cy);
-  }
-  cy += 16;
 
-  doc.fillColor(PALETTE.muted).font("Helvetica").fontSize(8).text("Social", cx, cy + 4);
-  let sx = cx + 52;
-  const chipY = cy;
-  sx += drawSocialChip(doc, sx, chipY, "f", PALETTE.fb);
-  sx += drawSocialChip(doc, sx, chipY, "IG", PALETTE.ig);
-  sx += drawSocialChip(doc, sx, chipY, "YT", PALETTE.yt);
-  doc
-    .fillColor(PALETTE.ink)
-    .font("Helvetica")
-    .fontSize(8)
-    .text(`@${contact.socialHandle}`, sx + 2, chipY + 6, {
-      link: contact.instagram,
-    });
-  // Invisible link targets for FB / YT (PDF tap zones on chips)
-  doc.link(cx + 52, chipY, 22, 22, contact.facebook);
-  doc.link(cx + 52 + 28, chipY, 22, 22, contact.instagram);
-  doc.link(cx + 52 + 56, chipY, 22, 22, contact.youtube);
-
-  // ── Footer ──────────────────────────────────────────────────────────────
-  const footerY = pageH - 42;
-  const dividerW = 40;
-  doc
-    .moveTo(pageW / 2 - dividerW / 2, footerY - 12)
-    .lineTo(pageW / 2 + dividerW / 2, footerY - 12)
-    .strokeColor(PALETTE.navy)
-    .lineWidth(2)
-    .stroke();
-  doc
-    .fontSize(7.5)
-    .fillColor(PALETTE.faint)
-    .font("Helvetica")
-    .text("This is a system-generated receipt and does not require a signature.", marginX, footerY, {
-      width: pageW - marginX * 2,
-      align: "center",
-    });
-  doc.text(`${brandName} — Payment Made Easy`, marginX, footerY + 12, {
-    width: pageW - marginX * 2,
-    align: "center",
+      doc.end();
+    } catch (err) {
+      fail(err);
+      try {
+        doc.end();
+      } catch {
+        /* ignore */
+      }
+    }
+  }).catch((err) => {
+    if (!res.headersSent) {
+      const detail = err instanceof Error ? err.message : "unknown error";
+      throw new HttpError(500, `Could not generate receipt PDF: ${detail}`, "RECEIPT_PDF_FAILED");
+    }
+    try {
+      res.destroy(err instanceof Error ? err : undefined);
+    } catch {
+      /* ignore */
+    }
   });
-
-  doc.end();
 }

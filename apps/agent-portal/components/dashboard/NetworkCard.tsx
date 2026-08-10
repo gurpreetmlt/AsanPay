@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Users, ArrowUpRight, UserCheck } from "lucide-react";
+import Link from "next/link";
+import { Users, UserCheck, Headphones } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { fetchApi } from "@/lib/api";
 import { B, initials } from "@/lib/brand";
@@ -40,13 +41,6 @@ const ROLE_UI: Record<string, { downlineTitle: string; emptyMsg: string }> = {
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
-}
-
-function roleLabel(role: string) {
-  if (role === "super_distributor") return "Super Distributor";
-  if (role === "distributor") return "Distributor";
-  if (role === "retailer") return "Retailer";
-  return role;
 }
 
 export function NetworkCard() {
@@ -92,33 +86,19 @@ export function NetworkCard() {
     return (
       <div className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
         <div className="mb-4 flex items-center gap-2">
-          <ArrowUpRight size={18} style={{ color: B.blue }} />
+          <Headphones size={18} style={{ color: B.blue }} />
           <h2 className="font-bold" style={{ color: B.blue }}>Your Network</h2>
         </div>
-        {data?.upline ? (
-          <div className="flex items-center gap-3 rounded-xl p-3" style={{ background: B.secondary }}>
-            <div
-              className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold text-white"
-              style={{ background: B.blue }}
-            >
-              {initials(data.upline.name)}
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-semibold" style={{ color: B.blue }}>{data.upline.name}</p>
-              <p className="text-xs" style={{ color: B.muted }}>{data.upline.mobile}</p>
-            </div>
-            <span
-              className="rounded-full px-2 py-0.5 text-xs font-medium text-white"
-              style={{ background: B.blueLight }}
-            >
-              {roleLabel(data.upline.role)}
-            </span>
-          </div>
-        ) : (
-          <p className="py-4 text-center text-sm" style={{ color: B.muted }}>
-            No upline info available
-          </p>
-        )}
+        <p className="text-sm" style={{ color: B.muted }}>
+          Upline contacts are on Support.
+        </p>
+        <Link
+          href="/support"
+          className="mt-3 inline-flex rounded-xl px-3 py-2 text-xs font-bold text-white"
+          style={{ background: B.badgeGrad }}
+        >
+          Open Support
+        </Link>
       </div>
     );
   }
