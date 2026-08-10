@@ -157,12 +157,17 @@ export function SettlementBanksPanel({
   const [accountNumber, setAccountNumber] = useState("");
   const [ifsc, setIfsc] = useState("");
   const [holderName, setHolderName] = useState("");
+  const [otp, setOtp] = useState("");
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
   const [fetchedPlace, setFetchedPlace] = useState<IfscPlace | null>(null);
   const [ifscBusy, setIfscBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [revealed, setRevealed] = useState<Record<string, string>>({});
   const [places, setPlaces] = useState<PlaceMap>({});
   const [busyId, setBusyId] = useState<string | null>(null);
+
+  const needsOtp = banks.some((b) => b.isActive && b.verified);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -283,7 +288,22 @@ export function SettlementBanksPanel({
     setAccountNumber("");
     setIfsc("");
     setHolderName("");
+    setOtp("");
+    setOtpSent(false);
     setFetchedPlace(null);
+  }
+
+  async function sendOtp() {
+    setOtpSending(true);
+    try {
+      await api.post("/settlements/banks/otp");
+      setOtpSent(true);
+      toast.success("OTP sent to your registered mobile");
+    } catch (err) {
+      toast.error(extractApiError(err, "Could not send OTP"));
+    } finally {
+      setOtpSending(false);
+    }
   }
 
   async function registerBank(e: FormEvent) {
@@ -297,12 +317,17 @@ export function SettlementBanksPanel({
       toast.error("Wait for bank details to load from IFSC, or check the code");
       return;
     }
+    if (needsOtp && !/^\d{6}$/.test(otp.trim())) {
+      toast.error("Enter the 6-digit OTP sent to your mobile");
+      return;
+    }
     setSaving(true);
     try {
       await api.post("/settlements/banks", {
         accountNumber: accountNumber.trim(),
         ifsc: code,
         holderName: holderName.trim(),
+        ...(needsOtp ? { otp: otp.trim() } : {}),
       });
       toast.success("Bank submitted — awaiting admin verification");
       setShowBankForm(false);
@@ -351,10 +376,10 @@ export function SettlementBanksPanel({
       {allowAdd && showBankForm ? (
         <form
           onSubmit={registerBank}
-          className="grid gap-3 rounded-2xl border p-4 md:grid-cols-2"
+          className="grid gap-3 rounded-2xl border p-4 sm:grid-cols-2 lg:grid-cols-3"
           style={{ borderColor: B.border, background: B.bg }}
         >
-          <label className="block text-sm md:col-span-1">
+          <label className="block text-sm">
             <span className="mb-1 block text-xs font-semibold uppercase" style={{ color: B.muted }}>
               IFSC *
             </span>
@@ -384,7 +409,7 @@ export function SettlementBanksPanel({
               placeholder={ifscBusy ? "Looking up…" : "Auto from IFSC"}
             />
           </label>
-          <label className="block text-sm md:col-span-2">
+          <label className="block text-sm">
             <span className="mb-1 block text-xs font-semibold uppercase" style={{ color: B.muted }}>
               Branch
             </span>
@@ -398,6 +423,11 @@ export function SettlementBanksPanel({
               }
               readOnly
               placeholder={ifscBusy ? "Looking up…" : "Auto from IFSC"}
+              title={
+                fetchedPlace
+                  ? [fetchedPlace.branch, fetchedPlace.city].filter(Boolean).join(", ")
+                  : undefined
+              }
             />
           </label>
           <label className="block text-sm">
@@ -413,7 +443,7 @@ export function SettlementBanksPanel({
               required
             />
           </label>
-          <label className="block text-sm">
+          <label className="block text-sm lg:col-span-2">
             <span className="mb-1 block text-xs font-semibold uppercase" style={{ color: B.muted }}>
               Account holder *
             </span>
@@ -426,6 +456,52 @@ export function SettlementBanksPanel({
               required
             />
           </label>
+
+          {needsOtp ? (
+            <div
+              className="rounded-xl border px-3 py-3 sm:col-span-2 lg:col-span-3"
+              style={{ borderColor: "#FDBA74", background: "#FFF7ED" }}
+            >
+              <p className="text-sm font-semibold" style={{ color: "#C2410C" }}>
+                You already have an active settlement bank. Changing it requires a mobile OTP.
+              </p>
+              <div className="mt-3 flex flex-wrap items-end gap-3">
+                <label className="min-w-[160px] flex-1 text-sm">
+                  <span className="mb-1 block text-xs font-semibold uppercase" style={{ color: B.muted }}>
+                    OTP *
+                  </span>
+                  <input
+                    className="w-full rounded-xl border px-3 py-2.5 font-mono text-sm outline-none"
+                    style={{ borderColor: B.border, background: "#fff" }}
+                    placeholder="6-digit OTP"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    required
+                  />
+                </label>
+                <PrimaryButton
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  showArrow={false}
+                  loading={otpSending}
+                  disabled={otpSending}
+                  onClick={() => void sendOtp()}
+                  className="!w-auto"
+                >
+                  {otpSent ? "Resend OTP" : "Send OTP"}
+                </PrimaryButton>
+              </div>
+              {otpSent ? (
+                <p className="mt-2 text-xs" style={{ color: B.muted }}>
+                  OTP sent to your registered mobile. Enter it above, then submit.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
           <PrimaryButton
             type="submit"
             variant="primary"
@@ -435,10 +511,11 @@ export function SettlementBanksPanel({
               !fetchedPlace?.bank ||
               !accountNumber.trim() ||
               ifsc.trim().length !== 11 ||
-              !holderName.trim()
+              !holderName.trim() ||
+              (needsOtp && !/^\d{6}$/.test(otp.trim()))
             }
             loading={saving}
-            className="md:col-span-2"
+            className="sm:col-span-2 lg:col-span-3"
           >
             Submit for verification
           </PrimaryButton>

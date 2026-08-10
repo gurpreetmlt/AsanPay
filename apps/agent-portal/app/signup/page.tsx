@@ -1709,7 +1709,7 @@ function SignupPageInner() {
 
             {stepIndex === 6 && (
               <>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   <Field label="IFSC *">
                     <input
                       value={draft.ifsc}
@@ -1732,15 +1732,16 @@ function SignupPageInner() {
                       style={inputStyle}
                     />
                   </Field>
+                  <Field label="Branch">
+                    <input
+                      value={draft.bankBranch}
+                      onChange={(e) => patch({ bankBranch: e.target.value })}
+                      className={inputCls}
+                      style={inputStyle}
+                      title={draft.bankBranch}
+                    />
+                  </Field>
                 </div>
-                <Field label="Branch">
-                  <input
-                    value={draft.bankBranch}
-                    onChange={(e) => patch({ bankBranch: e.target.value })}
-                    className={inputCls}
-                    style={inputStyle}
-                  />
-                </Field>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <Field label="Account Number *">
                     <input

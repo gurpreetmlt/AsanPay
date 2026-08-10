@@ -20,11 +20,8 @@ import RawQRCode from "react-native-qrcode-svg";
 const QRCode = RawQRCode as unknown as React.ComponentType<{ value: string; size: number }>;
 import {
   ArrowLeft,
-  Banknote,
   Building2,
-  Check,
   ChevronRight,
-  Copy,
   CreditCard,
   HelpCircle,
   Info,
@@ -34,8 +31,10 @@ import {
   Zap,
 } from "lucide-react-native";
 import { api, fetchApi } from "../../lib/api";
+import { formatSettlementBankCopy } from "../../lib/bankLogo";
 import { formatINR } from "../../lib/format";
 import { showAlert } from "../../components/AppAlert";
+import { BankDetailCard } from "../../components/BankDetailCard";
 import { useTheme } from "../../theme/ThemeContext";
 import { colors } from "../../theme/colors";
 
@@ -384,30 +383,11 @@ function UpiStep({
   );
 }
 
-/** Company bank accounts as a horizontal "credit card" slider — shared by Bank Transfer and the Cash Deposit confirm step. */
-function CopyField({ label, value }: { label: string; value: string }) {
-  const { tokens } = useTheme();
-  const [copied, setCopied] = useState(false);
-
-  function copy() {
-    Clipboard.setString(value);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  }
-
-  return (
-    <View style={cardStyles.fieldRow}>
-      <View style={{ flex: 1 }}>
-        <Text style={[cardStyles.fieldLabel, { color: tokens.sub }]}>{label}</Text>
-        <Text selectable style={[cardStyles.fieldValue, { color: tokens.txt }]}>
-          {value}
-        </Text>
-      </View>
-      <Pressable onPress={copy} hitSlop={8} style={cardStyles.copyBtn}>
-        {copied ? <Check size={15} color={colors.green} /> : <Copy size={15} color={colors.blueFlat} />}
-      </Pressable>
-    </View>
-  );
+/** Company bank accounts — same card design as settlement / web Add Money. */
+function maskTail(value: string): string {
+  const digits = value.replace(/\s/g, "");
+  if (digits.length <= 4) return `**** ${digits}`;
+  return `**** ${digits.slice(-4)}`;
 }
 
 function BankCardSlider({
@@ -421,53 +401,54 @@ function BankCardSlider({
   selected: string;
   onSelect: (id: string) => void;
 }) {
-  const { tokens } = useTheme();
+  const [revealedIds, setRevealedIds] = useState<Record<string, boolean>>({});
+
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 16, paddingVertical: 4 }}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={{ paddingRight: 16, paddingVertical: 4 }}
+    >
       {banks.map((b) => {
-        const active = selected === b.id;
-        const isMine = myVan?.bankAccountId === b.id;
+        const isSelected = selected === b.id;
+        const isMine = myVan?.bankAccountId === b.id && Boolean(myVan?.vanNumber);
+        const fullAccount = isMine && myVan?.vanNumber ? myVan.vanNumber : `****${b.accountNumberLast4}`;
+        const masked =
+          isMine && myVan?.vanNumber ? maskTail(myVan.vanNumber) : `**** ${b.accountNumberLast4}`;
+        const canReveal = isMine && Boolean(myVan?.vanNumber);
+
         return (
-          <Pressable
+          <BankDetailCard
             key={b.id}
-            onPress={() => onSelect(b.id)}
-            style={[
-              cardStyles.bankCard,
-              {
-                borderColor: active ? colors.blueFlat : tokens.cardBorder,
-                backgroundColor: active ? `${colors.blueFlat}0D` : tokens.card,
-                opacity: b.isActive ? 1 : 0.5,
-                shadowOpacity: active ? 0.12 : 0.05,
-              },
-            ]}
-          >
-            <View style={cardStyles.bankCardHeader}>
-              <View style={[cardStyles.bankIconWrap, { backgroundColor: `${colors.blueFlat}14` }]}>
-                <Banknote size={16} color={colors.blueFlat} />
-              </View>
-              <Text style={[cardStyles.bankName, { color: tokens.txt }]} numberOfLines={1}>
-                {b.bankName}
-              </Text>
-              {active ? (
-                <View style={cardStyles.selectedBadge}>
-                  <Check size={11} color="#fff" />
-                </View>
-              ) : null}
-            </View>
-            {!b.isActive ? (
-              <Text style={cardStyles.downNote}>Currently unavailable</Text>
-            ) : (
-              <View style={{ marginTop: 4 }}>
-                {isMine && myVan?.vanNumber ? (
-                  <CopyField label="Your Virtual A/C No." value={myVan.vanNumber} />
-                ) : (
-                  <CopyField label="A/C No. (last 4)" value={`****${b.accountNumberLast4}`} />
-                )}
-                <View style={[cardStyles.fieldDivider, { backgroundColor: tokens.cardBorder }]} />
-                <CopyField label="IFSC Code" value={b.ifsc} />
-              </View>
-            )}
-          </Pressable>
+            ifsc={b.ifsc}
+            holderName="AsanPay"
+            bankName={b.bankName}
+            accountMasked={masked}
+            accountFull={canReveal ? fullAccount : undefined}
+            revealed={Boolean(revealedIds[b.id])}
+            onToggleReveal={
+              canReveal
+                ? () => setRevealedIds((prev) => ({ ...prev, [b.id]: !prev[b.id] }))
+                : undefined
+            }
+            onCopy={() => {
+              Clipboard.setString(
+                formatSettlementBankCopy({
+                  bankName: b.bankName,
+                  holderName: "AsanPay",
+                  accountNumber: fullAccount.replace(/\s/g, ""),
+                  ifsc: b.ifsc,
+                }),
+              );
+              showAlert("Copied", "Bank details copied");
+            }}
+            statusTone={isSelected ? "success" : b.isActive ? "info" : "pending"}
+            statusLabel={isSelected ? "Selected" : b.isActive ? "Available" : "Unavailable"}
+            selected={isSelected}
+            onSelect={() => onSelect(b.id)}
+            unavailable={!b.isActive}
+            note={isMine ? "Your dedicated account" : undefined}
+          />
         );
       })}
     </ScrollView>
@@ -511,37 +492,6 @@ function BankStep({
     </ScrollView>
   );
 }
-
-const cardStyles = StyleSheet.create({
-  bankCard: {
-    width: 260,
-    borderRadius: 18,
-    borderWidth: 1.5,
-    padding: 16,
-    marginRight: 12,
-    shadowColor: "#0B2A9A",
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  bankCardHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
-  bankIconWrap: { width: 30, height: 30, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  bankName: { fontSize: 14.5, fontWeight: "800", flex: 1 },
-  selectedBadge: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: colors.blueFlat,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  fieldRow: { flexDirection: "row", alignItems: "center", paddingVertical: 6 },
-  fieldDivider: { height: 1, marginVertical: 2 },
-  copyBtn: { width: 28, height: 28, alignItems: "center", justifyContent: "center" },
-  fieldLabel: { fontSize: 10.5, fontWeight: "700", textTransform: "uppercase" },
-  fieldValue: { fontSize: 13.5, fontWeight: "700", marginTop: 2 },
-  downNote: { fontSize: 12.5, fontWeight: "700", color: colors.danger, marginTop: 4 },
-});
 
 function CashSelectStep({
   onBack,

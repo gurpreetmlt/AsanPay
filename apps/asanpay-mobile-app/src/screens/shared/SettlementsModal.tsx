@@ -1,8 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Clipboard,
-  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -12,14 +10,15 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Copy, Eye, EyeOff, Landmark } from "lucide-react-native";
 import { api, fetchApi } from "../../lib/api";
-import { bankLogoUrl, formatSettlementBankCopy } from "../../lib/bankLogo";
+import { formatSettlementBankCopy } from "../../lib/bankLogo";
 import { formatINR } from "../../lib/format";
 import { showAlert } from "../../components/AppAlert";
+import { BankDetailCard } from "../../components/BankDetailCard";
 import { StatusBadge, toneFromStatus } from "../../components/StatusBadge";
 import { useTheme } from "../../theme/ThemeContext";
 import { colors } from "../../theme/colors";
+import Clipboard from "@react-native-clipboard/clipboard";
 
 interface SettlementBank {
   id: string;
@@ -44,25 +43,6 @@ function newIdemKey() {
   return `settle-mobile-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`.slice(0, 100);
 }
 
-function BankLogo({ ifsc }: { ifsc: string }) {
-  const [failed, setFailed] = useState(false);
-  if (failed) {
-    return (
-      <View style={[styles.bankIconWrap, { backgroundColor: `${colors.blueFlat}14` }]}>
-        <Landmark size={16} color={colors.blueFlat} />
-      </View>
-    );
-  }
-  return (
-    <Image
-      source={{ uri: bankLogoUrl(ifsc) }}
-      style={styles.bankLogo}
-      resizeMode="contain"
-      onError={() => setFailed(true)}
-    />
-  );
-}
-
 export function SettlementsModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const { tokens } = useTheme();
   const [banks, setBanks] = useState<SettlementBank[]>([]);
@@ -74,6 +54,9 @@ export function SettlementsModal({ visible, onClose }: { visible: boolean; onClo
   const [accountNumber, setAccountNumber] = useState("");
   const [ifsc, setIfsc] = useState("");
   const [holderName, setHolderName] = useState("");
+  const [otp, setOtp] = useState("");
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
   const [revealed, setRevealed] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const idemRef = useRef(newIdemKey());
@@ -102,6 +85,23 @@ export function SettlementsModal({ visible, onClose }: { visible: boolean; onClo
   }, [visible, load]);
 
   const hasActiveBank = banks.some((b) => b.isActive && b.verified);
+
+  async function sendOtp() {
+    setOtpSending(true);
+    try {
+      await api.post("/settlements/banks/otp");
+      setOtpSent(true);
+      showAlert("OTP sent", "Check your registered mobile for the 6-digit code");
+    } catch (err) {
+      showAlert(
+        "Error",
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+          "Could not send OTP",
+      );
+    } finally {
+      setOtpSending(false);
+    }
+  }
 
   async function fetchReveal(bankId: string): Promise<string> {
     if (revealed[bankId]) return revealed[bankId];
@@ -157,18 +157,25 @@ export function SettlementsModal({ visible, onClose }: { visible: boolean; onClo
   }
 
   async function registerBank() {
+    if (hasActiveBank && !/^\d{6}$/.test(otp.trim())) {
+      showAlert("OTP required", "Send OTP, then enter the 6-digit code to change your bank");
+      return;
+    }
     setSaving(true);
     try {
       await api.post("/settlements/banks", {
         accountNumber: accountNumber.trim(),
         ifsc: ifsc.trim().toUpperCase(),
         holderName: holderName.trim(),
+        ...(hasActiveBank ? { otp: otp.trim() } : {}),
       });
       showAlert("Submitted", "Bank awaiting admin verification");
       setShowBank(false);
       setAccountNumber("");
       setIfsc("");
       setHolderName("");
+      setOtp("");
+      setOtpSent(false);
       await load();
     } catch (err) {
       showAlert(
@@ -250,56 +257,20 @@ export function SettlementsModal({ visible, onClose }: { visible: boolean; onClo
             >
               {banks.map((b) => {
                 const active = b.verified && b.isActive;
-                const full = revealed[b.id];
-                const busy = busyId === b.id;
                 return (
-                  <View
+                  <BankDetailCard
                     key={b.id}
-                    style={[
-                      styles.bankCard,
-                      {
-                        borderColor: active ? colors.blueFlat : tokens.cardBorder,
-                        backgroundColor: active ? `${colors.blueFlat}0D` : tokens.card,
-                      },
-                    ]}
-                  >
-                    <View style={styles.bankCardHeader}>
-                      <BankLogo ifsc={b.ifsc} />
-                      <StatusBadge tone={active ? "success" : b.verified ? "info" : "pending"}>
-                        {b.verified ? (b.isActive ? "Active" : "Verified") : "Pending"}
-                      </StatusBadge>
-                    </View>
-                    <Text style={[styles.acctLabel, { color: tokens.mute }]}>Account</Text>
-                    <View style={styles.acctRow}>
-                      <Text style={[styles.acctNum, { color: tokens.txt, flex: 1 }]} numberOfLines={1}>
-                        {full ?? `**** ${b.accountNumberLast4}`}
-                      </Text>
-                      <Pressable
-                        onPress={() => void toggleReveal(b)}
-                        disabled={busy}
-                        hitSlop={8}
-                        style={styles.iconBtn}
-                      >
-                        {full ? (
-                          <EyeOff size={16} color={colors.blueFlat} />
-                        ) : (
-                          <Eye size={16} color={colors.blueFlat} />
-                        )}
-                      </Pressable>
-                      <Pressable
-                        onPress={() => void copyBank(b)}
-                        disabled={busy}
-                        hitSlop={8}
-                        style={styles.iconBtn}
-                      >
-                        <Copy size={16} color={colors.blueFlat} />
-                      </Pressable>
-                    </View>
-                    <Text style={[styles.holder, { color: tokens.txt }]} numberOfLines={1}>
-                      {b.holderName}
-                    </Text>
-                    <Text style={[styles.ifsc, { color: tokens.mute }]}>IFSC · {b.ifsc}</Text>
-                  </View>
+                    ifsc={b.ifsc}
+                    holderName={b.holderName}
+                    accountMasked={`**** ${b.accountNumberLast4}`}
+                    accountFull={revealed[b.id]}
+                    revealed={Boolean(revealed[b.id])}
+                    revealing={busyId === b.id}
+                    onToggleReveal={() => void toggleReveal(b)}
+                    onCopy={() => void copyBank(b)}
+                    statusTone={active ? "success" : b.verified ? "info" : "pending"}
+                    statusLabel={b.verified ? (b.isActive ? "Active" : "Verified") : "Pending"}
+                  />
                 );
               })}
             </ScrollView>
@@ -338,6 +309,34 @@ export function SettlementsModal({ visible, onClose }: { visible: boolean; onClo
                   value={holderName}
                   onChangeText={setHolderName}
                 />
+                {hasActiveBank ? (
+                  <View style={[styles.otpBox, { borderColor: "#FDBA74", backgroundColor: "#FFF7ED" }]}>
+                    <Text style={styles.otpHint}>
+                      Active bank change needs OTP. Tap Send OTP, then enter the code.
+                    </Text>
+                    <TextInput
+                      style={[
+                        styles.input,
+                        { backgroundColor: tokens.card, borderColor: tokens.cardBorder, color: tokens.txt, marginBottom: 8 },
+                      ]}
+                      placeholder="6-digit OTP"
+                      placeholderTextColor={tokens.mute}
+                      keyboardType="number-pad"
+                      maxLength={6}
+                      value={otp}
+                      onChangeText={(v) => setOtp(v.replace(/\D/g, "").slice(0, 6))}
+                    />
+                    <Pressable
+                      style={[styles.secondaryBtn, { borderColor: colors.blueFlat, opacity: otpSending ? 0.6 : 1 }]}
+                      onPress={() => void sendOtp()}
+                      disabled={otpSending}
+                    >
+                      <Text style={{ color: colors.blueFlat, fontWeight: "800" }}>
+                        {otpSent ? "Resend OTP" : "Send OTP"}
+                      </Text>
+                    </Pressable>
+                  </View>
+                ) : null}
                 <Pressable
                   style={[styles.submit, { opacity: saving ? 0.6 : 1 }]}
                   onPress={() => void registerBank()}
@@ -422,38 +421,16 @@ const styles = StyleSheet.create({
   },
   section: { fontSize: 16, fontWeight: "800", marginBottom: 10 },
   hint: { fontSize: 12, marginBottom: 10, lineHeight: 16 },
-  bankCard: {
-    width: 260,
-    borderRadius: 18,
-    borderWidth: 1.5,
-    padding: 16,
-    marginRight: 12,
-    shadowColor: "#0B2A9A",
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  bankCardHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  bankIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  bankLogo: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: "#fff",
-  },
-  acctLabel: { fontSize: 10.5, fontWeight: "700", textTransform: "uppercase", marginTop: 14 },
-  acctRow: { flexDirection: "row", alignItems: "center", marginTop: 4, gap: 4 },
-  acctNum: { fontSize: 16, fontWeight: "800", letterSpacing: 1, fontVariant: ["tabular-nums"] },
-  iconBtn: { width: 28, height: 28, alignItems: "center", justifyContent: "center" },
-  holder: { fontSize: 14, fontWeight: "700", marginTop: 12 },
-  ifsc: { fontSize: 12, fontWeight: "600", marginTop: 4 },
   histCard: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 8 },
+  otpBox: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 8 },
+  otpHint: { fontSize: 13, fontWeight: "600", color: "#C2410C", marginBottom: 8, lineHeight: 18 },
+  secondaryBtn: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: "center",
+    marginBottom: 4,
+  },
   input: {
     borderWidth: 1,
     borderRadius: 12,

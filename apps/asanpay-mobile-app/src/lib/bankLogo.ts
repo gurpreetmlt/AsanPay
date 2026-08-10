@@ -8,11 +8,36 @@ export function bankLogoUrl(ifsc: string): string {
   return `https://cdn.razorpay.com/bank/${bankCodeFromIfsc(ifsc)}.gif`;
 }
 
+const BANK_NAMES: Record<string, string> = {
+  SBIN: "State Bank of India",
+  HDFC: "HDFC Bank",
+  ICIC: "ICICI Bank",
+  AXIS: "Axis Bank",
+  UTIB: "Axis Bank",
+  PUNB: "Punjab National Bank",
+  BARB: "Bank of Baroda",
+  CNRB: "Canara Bank",
+  UBIN: "Union Bank of India",
+  IDIB: "Indian Bank",
+  IOBA: "Indian Overseas Bank",
+  KKBK: "Kotak Mahindra Bank",
+  YESB: "Yes Bank",
+  FDRL: "Federal Bank",
+  INDB: "IndusInd Bank",
+  BKID: "Bank of India",
+  CBIN: "Central Bank of India",
+  MAHB: "Bank of Maharashtra",
+  IDFB: "IDFC FIRST Bank",
+  RATN: "RBL Bank",
+  AIRP: "Airtel Payments Bank",
+};
+
 const BANK_TINT: Record<string, string> = {
   SBIN: "#1E88E5",
   HDFC: "#1565C0",
   ICIC: "#F57C00",
   AXIS: "#97144D",
+  UTIB: "#97144D",
   PUNB: "#FFC107",
   BARB: "#0D47A1",
   CNRB: "#00695C",
@@ -21,16 +46,11 @@ const BANK_TINT: Record<string, string> = {
   IOBA: "#283593",
   KKBK: "#C62828",
   YESB: "#0066B3",
-  FDRL: "#1565C0",
-  INDB: "#00695C",
-  UTIB: "#97144D",
-  BKID: "#1565C0",
-  CBIN: "#2E7D32",
-  MAHB: "#6A1B9A",
-  IDFB: "#AD1457",
-  RATN: "#EF6C00",
-  AIRP: "#0277BD",
 };
+
+export function bankNameFromIfsc(ifsc: string): string | undefined {
+  return BANK_NAMES[bankCodeFromIfsc(ifsc)];
+}
 
 export function bankBrandTint(ifsc: string): string {
   return BANK_TINT[bankCodeFromIfsc(ifsc)] || "#2A5CDD";

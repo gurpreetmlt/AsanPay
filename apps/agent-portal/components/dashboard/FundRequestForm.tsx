@@ -1,12 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  Banknote,
   Building2,
-  Check,
   ClipboardList,
-  Copy,
   FileUp,
   Info,
   Landmark,
@@ -16,10 +13,14 @@ import {
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "react-hot-toast";
+import {
+  BankDetailCard,
+} from "@/components/banking/BankAccountDetailsCard";
 import api, { fetchApi } from "@/lib/api";
 import { extractApiError } from "@/lib/onboarding";
 import { createAttemptKeyHolder } from "@/lib/idempotencyKey";
 import { B } from "@/lib/brand";
+import { formatSettlementBankCopy } from "@/lib/bankLogo";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 
 interface BankAccount {
@@ -153,43 +154,10 @@ function FieldLabel({ children, hint }: { children: ReactNode; hint?: string }) 
   );
 }
 
-function CopyField({ label, value }: { label: string; value: string }) {
-  const [copied, setCopied] = useState(false);
-
-  async function copy(e: MouseEvent) {
-    e.stopPropagation();
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(true);
-      toast.success(`${label} copied`);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      /* ignore */
-    }
-  }
-
-  return (
-    <div className="flex items-center justify-between gap-3 border-b py-3 last:border-0" style={{ borderColor: B.border }}>
-      <div className="min-w-0">
-        <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: B.muted }}>
-          {label}
-        </p>
-        <p className="mt-0.5 truncate font-mono text-sm font-bold" style={{ color: B.blue }}>
-          {value}
-        </p>
-      </div>
-      <button
-        type="button"
-        onClick={copy}
-        className="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold"
-        style={{ background: copied ? `${B.green}18` : `${B.blue}10`, color: copied ? B.green : B.blue }}
-        aria-label={`Copy ${label}`}
-      >
-        {copied ? <Check size={13} /> : <Copy size={13} />}
-        {copied ? "Copied" : "Copy"}
-      </button>
-    </div>
-  );
+function maskTail(value: string): string {
+  const digits = value.replace(/\s/g, "");
+  if (digits.length <= 4) return `**** ${digits}`;
+  return `**** ${digits.slice(-4)}`;
 }
 
 function BankCardSlider({
@@ -203,93 +171,54 @@ function BankCardSlider({
   selected: string;
   onSelect: (id: string) => void;
 }) {
+  const [revealedIds, setRevealedIds] = useState<Record<string, boolean>>({});
+
   return (
-    <div className="flex gap-3 overflow-x-auto pb-1">
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {banks.map((b) => {
-        const active = selected === b.id;
+        const isSelected = selected === b.id;
         const isActive = b.isActive !== false;
+        const isMine = myVan?.bankAccountId === b.id && Boolean(myVan?.vanNumber);
+        const fullAccount = isMine && myVan?.vanNumber ? myVan.vanNumber : `****${b.accountNumberLast4}`;
+        const masked = isMine && myVan?.vanNumber ? maskTail(myVan.vanNumber) : `**** ${b.accountNumberLast4}`;
+        const canReveal = isMine && Boolean(myVan?.vanNumber);
+
         return (
-          <button
+          <BankDetailCard
             key={b.id}
-            type="button"
-            onClick={() => onSelect(b.id)}
-            className="w-[220px] shrink-0 rounded-2xl border-2 p-4 text-left transition-all"
-            style={{
-              borderColor: active ? B.blue : B.border,
-              background: active ? `${B.blue}0A` : "#fff",
-              boxShadow: active ? `0 0 0 3px ${B.blue}14` : undefined,
-              opacity: isActive ? 1 : 0.55,
+            ifsc={b.ifsc}
+            holderName="AsanPay"
+            bankName={b.bankName}
+            accountMasked={masked}
+            accountFull={canReveal ? fullAccount : undefined}
+            revealed={Boolean(revealedIds[b.id])}
+            onToggleReveal={
+              canReveal
+                ? () => setRevealedIds((prev) => ({ ...prev, [b.id]: !prev[b.id] }))
+                : undefined
+            }
+            onCopy={() => {
+              void navigator.clipboard
+                .writeText(
+                  formatSettlementBankCopy({
+                    bankName: b.bankName,
+                    holderName: "AsanPay",
+                    accountNumber: fullAccount.replace(/\s/g, ""),
+                    ifsc: b.ifsc,
+                  }),
+                )
+                .then(() => toast.success("Bank details copied"))
+                .catch(() => toast.error("Could not copy bank details"));
             }}
-          >
-            <div className="flex items-start gap-2">
-              <div
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
-                style={{ background: active ? B.badgeGrad : `${B.blue}12` }}
-              >
-                <Banknote size={16} color={active ? "#fff" : B.blue} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="truncate text-sm font-extrabold" style={{ color: B.blue }}>
-                    {b.bankName}
-                  </span>
-                  {active ? (
-                    <span
-                      className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full"
-                      style={{ background: B.blue }}
-                    >
-                      <Check size={10} color="#fff" />
-                    </span>
-                  ) : null}
-                </div>
-                {!isActive ? (
-                  <p className="mt-1 text-xs font-bold" style={{ color: "#DC2626" }}>
-                    Unavailable
-                  </p>
-                ) : (
-                  <p className="mt-1 text-xs font-medium" style={{ color: B.muted }}>
-                    ****{b.accountNumberLast4}
-                  </p>
-                )}
-                {myVan?.bankAccountId === b.id && myVan.vanNumber ? (
-                  <p className="mt-1 text-[11px] font-bold" style={{ color: B.green }}>
-                    Your dedicated account
-                  </p>
-                ) : null}
-              </div>
-            </div>
-          </button>
+            statusTone={isSelected ? "success" : isActive ? "info" : "pending"}
+            statusLabel={isSelected ? "Selected" : isActive ? "Available" : "Unavailable"}
+            selected={isSelected}
+            onSelect={() => onSelect(b.id)}
+            unavailable={!isActive}
+            note={isMine ? "Your dedicated account" : undefined}
+          />
         );
       })}
-    </div>
-  );
-}
-
-function SelectedBankDetails({ bank, myVan }: { bank: BankAccount | undefined; myVan: MyVan | null }) {
-  if (!bank) return null;
-  const isMine = myVan?.bankAccountId === bank.id;
-
-  return (
-    <div
-      className="mt-4 rounded-2xl border-2 p-4 sm:p-5"
-      style={{ borderColor: `${B.blue}35`, background: `linear-gradient(180deg, ${B.blue}08, #fff)` }}
-    >
-      <div className="mb-1 flex items-center gap-2">
-        <Landmark size={16} style={{ color: B.blue }} />
-        <p className="text-sm font-bold" style={{ color: B.blue }}>
-          {bank.bankName} — full details
-        </p>
-      </div>
-      <p className="mb-2 text-xs" style={{ color: B.muted }}>
-        Copy these details into your banking app, then return here to submit the request.
-      </p>
-      {isMine && myVan?.vanNumber ? (
-        <CopyField label="Your Virtual A/C No." value={myVan.vanNumber} />
-      ) : (
-        <CopyField label="Account number (last 4)" value={`****${bank.accountNumberLast4}`} />
-      )}
-      <CopyField label="IFSC code" value={bank.ifsc} />
-      <CopyField label="Account holder" value="AsanPay" />
     </div>
   );
 }
@@ -366,7 +295,6 @@ export function FundRequestForm({
   }, []);
 
   const tab = TABS.find((t) => t.id === activeTab)!;
-  const selectedBank = banks.find((b) => b.id === bankAccountId);
   const upiUri = myVan?.vpa && amount ? `upi://pay?pa=${myVan.vpa}&pn=AsanPay&am=${amount}&cu=INR` : null;
   const pendingCount = rows.filter((r) => {
     const s = `${r.status} ${r.displayStatus}`.toLowerCase();
@@ -699,18 +627,15 @@ export function FundRequestForm({
                       No collection accounts available right now.
                     </p>
                   ) : (
-                    <>
-                      <BankCardSlider
-                        banks={banks}
-                        myVan={myVan}
-                        selected={bankAccountId}
-                        onSelect={(id) => {
-                          setBankAccountId(id);
-                          attemptKey.current.clear();
-                        }}
-                      />
-                      <SelectedBankDetails bank={selectedBank} myVan={myVan} />
-                    </>
+                    <BankCardSlider
+                      banks={banks}
+                      myVan={myVan}
+                      selected={bankAccountId}
+                      onSelect={(id) => {
+                        setBankAccountId(id);
+                        attemptKey.current.clear();
+                      }}
+                    />
                   )}
                 </div>
               )}

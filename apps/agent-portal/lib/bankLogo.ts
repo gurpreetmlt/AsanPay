@@ -36,14 +36,42 @@ const BANK_TINT: Record<string, string> = {
   AIRP: "#0277BD",
 };
 
+const BANK_NAMES: Record<string, string> = {
+  SBIN: "State Bank of India",
+  HDFC: "HDFC Bank",
+  ICIC: "ICICI Bank",
+  AXIS: "Axis Bank",
+  UTIB: "Axis Bank",
+  PUNB: "Punjab National Bank",
+  BARB: "Bank of Baroda",
+  CNRB: "Canara Bank",
+  UBIN: "Union Bank of India",
+  IDIB: "Indian Bank",
+  IOBA: "Indian Overseas Bank",
+  KKBK: "Kotak Mahindra Bank",
+  YESB: "Yes Bank",
+  FDRL: "Federal Bank",
+  INDB: "IndusInd Bank",
+  BKID: "Bank of India",
+  CBIN: "Central Bank of India",
+  MAHB: "Bank of Maharashtra",
+  IDFB: "IDFC FIRST Bank",
+  RATN: "RBL Bank",
+  AIRP: "Airtel Payments Bank",
+};
+
 export function bankBrandTint(ifsc: string): string {
   return BANK_TINT[bankCodeFromIfsc(ifsc)] || "#2A5CDD";
 }
 
-/** White → light sky tint from bank brand (card background). */
+export function bankNameFromIfsc(ifsc: string): string | undefined {
+  return BANK_NAMES[bankCodeFromIfsc(ifsc)];
+}
+
+/** White → soft sky tint from bank brand (card background). */
 export function bankCardGradient(ifsc: string): string {
   const tint = bankBrandTint(ifsc);
-  return `linear-gradient(145deg, #ffffff 0%, ${tint}18 48%, ${tint}28 100%)`;
+  return `linear-gradient(152deg, #ffffff 0%, #f7fbff 42%, ${tint}22 100%)`;
 }
 
 export function formatSettlementBankCopy(details: {
