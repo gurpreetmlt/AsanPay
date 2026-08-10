@@ -116,23 +116,25 @@ export function RetailerDashboard() {
           <div className="mb-2 text-2xl font-bold leading-none tracking-tight">
             {loading ? "…" : maskBalance(balanceVisible, formatInr(primary?.balance ?? "0"))}
           </div>
-          <div className="mb-2 flex items-center gap-1.5 border-t border-white/15 pt-2">
+          <div className="relative z-10 mb-2 flex items-center gap-1.5 border-t border-white/15 pt-2">
             <TrendingUp size={11} style={{ color: B.greenLight }} />
             <span className="text-[11px] font-semibold" style={{ color: B.greenLight }}>
               Today: {balanceVisible ? formatInr(stats?.today.commissionEarned ?? "0") : "••••"} earned
             </span>
           </div>
-          <PrimaryButton
-            type="button"
-            variant="secondary"
-            onClick={() => router.push("/fund-request")}
-            size="sm"
-            showArrow={false}
-            className="btn-pill--wallet-cta !w-auto"
-          >
-            <PlusCircle size={14} />
-            Add Money
-          </PrimaryButton>
+          <div className="relative z-10">
+            <PrimaryButton
+              type="button"
+              variant="secondary"
+              onClick={() => router.push("/fund-request")}
+              size="sm"
+              showArrow={false}
+              className="btn-pill--wallet-cta !w-auto"
+            >
+              <PlusCircle size={14} />
+              Add Money
+            </PrimaryButton>
+          </div>
         </div>
 
         {/* AEPS Wallet */}

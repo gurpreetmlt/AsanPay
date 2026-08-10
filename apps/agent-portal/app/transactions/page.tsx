@@ -232,7 +232,7 @@ export default function TransactionsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <a
-                        href={`/api/proxy/txn/${t.txnRef}/receipt.pdf`}
+                        href={`/api/proxy/txn/${t.txnRef}/receipt/pdf`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 text-xs font-semibold hover:underline"

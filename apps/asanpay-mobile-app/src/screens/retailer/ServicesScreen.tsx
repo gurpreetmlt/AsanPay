@@ -20,8 +20,11 @@ import { AepsScreen } from "./AepsScreen";
 import { DmtScreen } from "./DmtScreen";
 import { NepalScreen } from "./NepalScreen";
 import { UpiCashPointScreen } from "./UpiCashPointScreen";
+import { FundRequestModal } from "../shared/FundRequestScreen";
 import { showAlert } from "../../components/AppAlert";
 import { BrandLockup } from "../../components/BrandMark";
+import { useNavigation } from "@react-navigation/native";
+import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 
 function isKycServicesUnlocked(user: { kycStatus: string }) {
   return user.kycStatus === "verified";
@@ -54,6 +57,7 @@ function greetingName(name: string): string {
 export function ServicesScreen() {
   const user = useAuthStore((s) => s.user)!;
   const setSignupContinue = useAuthStore((s) => s.setSignupContinue);
+  const navigation = useNavigation<BottomTabNavigationProp<Record<string, undefined>>>();
   const { tokens } = useTheme();
   const servicesUnlocked = isKycServicesUnlocked(user);
   const [categories, setCategories] = useState<CatalogCategoryView[]>([]);
@@ -61,6 +65,7 @@ export function ServicesScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [homeEditMode, setHomeEditMode] = useState(false);
+  const [showFund, setShowFund] = useState(false);
   const [activeScreen, setActiveScreen] = useState<"home" | "aeps" | "dmt" | "nepal" | "upi_cp">("home");
   const [aepsServiceCode, setAepsServiceCode] = useState<string | undefined>();
 
@@ -172,7 +177,12 @@ export function ServicesScreen() {
           </View>
         }
       >
-        <WalletBar wallets={wallets} />
+        <WalletBar
+          wallets={wallets}
+          onAddMoney={() => setShowFund(true)}
+          onWalletPress={() => navigation.navigate("Balance")}
+          onReports={() => navigation.navigate("History")}
+        />
       </ScreenHeader>
 
       {user.kycStatus !== "verified" ? (
@@ -361,6 +371,7 @@ export function ServicesScreen() {
           )}
         </View>
       </ScrollView>
+      <FundRequestModal visible={showFund} onClose={() => setShowFund(false)} />
     </SafeAreaView>
   );
 }

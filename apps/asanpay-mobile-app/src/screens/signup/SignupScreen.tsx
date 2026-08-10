@@ -23,6 +23,7 @@ import { useTheme } from "../../theme/ThemeContext";
 import { colors } from "../../theme/colors";
 import { showAlert } from "../../components/AppAlert";
 import { BrandMark } from "../../components/BrandMark";
+import { IfscBankDetailsFields } from "../../components/IfscBankDetailsFields";
 import { MobileSignupStepper, MOBILE_SIGNUP_STEPS } from "../../components/MobileSignupStepper";
 import { TermsAcceptModal } from "../../components/TermsAcceptModal";
 import {
@@ -793,22 +794,6 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft.businessPincode]);
-
-  useEffect(() => {
-    if (draft.ifsc.length !== 11 || !draft.accountCreated) return;
-    let cancelled = false;
-    void api
-      .get<ApiResponse<{ bank: string; branch: string }>>(`/kyc/ifsc/${draft.ifsc}`)
-      .then(({ data }) => {
-        if (cancelled || !data.success) return;
-        patch({ bankName: data.data.bank || draft.bankName, bankBranch: data.data.branch || draft.bankBranch });
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft.ifsc, draft.accountCreated]);
 
   async function pickDocImage(
     key: "panImage" | "aadhaarFront" | "aadhaarBack" | "cancelledCheque",
@@ -1950,67 +1935,35 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                 <>
                   <Text style={styles.sectionTitle}>Bank Details</Text>
                   <Text style={[styles.hint, { color: tokens.mute }]}>Account for settlements and payouts.</Text>
-                  <View style={styles.fieldRow}>
-                    <View style={styles.fieldHalf}>
-                      <FieldLabel text="IFSC *" color={tokens.mute} />
-                      <TextInput
-                        value={draft.ifsc}
-                        onChangeText={(t) =>
-                          patch({ ifsc: t.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11) })
-                        }
-                        autoCapitalize="characters"
-                        placeholder="HDFC0001209"
-                        placeholderTextColor={tokens.mute}
-                        style={inputStyle}
-                      />
-                    </View>
-                    <View style={styles.fieldHalf}>
-                      <FieldLabel text="Bank Name *" color={tokens.mute} />
-                      <TextInput
-                        value={draft.bankName}
-                        onChangeText={(t) => patch({ bankName: t })}
-                        placeholderTextColor={tokens.mute}
-                        style={inputStyle}
-                      />
-                    </View>
-                  </View>
-                  <FieldLabel text="Branch" color={tokens.mute} />
-                  <TextInput
-                    value={draft.bankBranch}
-                    onChangeText={(t) => patch({ bankBranch: t })}
-                    placeholderTextColor={tokens.mute}
-                    style={inputStyle}
-                  />
-                  <View style={styles.fieldRow}>
-                    <View style={styles.fieldHalf}>
-                      <FieldLabel text="Account Number *" color={tokens.mute} />
-                      <TextInput
-                        value={draft.accountNumber}
-                        onChangeText={(t) => patch({ accountNumber: t.replace(/\D/g, "").slice(0, 30) })}
-                        keyboardType="number-pad"
-                        placeholderTextColor={tokens.mute}
-                        style={inputStyle}
-                      />
-                    </View>
-                    <View style={styles.fieldHalf}>
-                      <FieldLabel text="Confirm A/C *" color={tokens.mute} />
-                      <TextInput
-                        value={draft.accountNumberConfirm}
-                        onChangeText={(t) =>
-                          patch({ accountNumberConfirm: t.replace(/\D/g, "").slice(0, 30) })
-                        }
-                        keyboardType="number-pad"
-                        placeholderTextColor={tokens.mute}
-                        style={inputStyle}
-                      />
-                    </View>
-                  </View>
-                  <FieldLabel text="Account Holder Name *" color={tokens.mute} />
-                  <TextInput
-                    value={draft.accountName}
-                    onChangeText={(t) => patch({ accountName: t })}
-                    placeholderTextColor={tokens.mute}
-                    style={inputStyle}
+                  <IfscBankDetailsFields
+                    value={{
+                      ifsc: draft.ifsc,
+                      bankName: draft.bankName,
+                      branch: draft.bankBranch,
+                      city: "",
+                      accountNumber: draft.accountNumber,
+                      holderName: draft.accountName,
+                      accountNumberConfirm: draft.accountNumberConfirm,
+                    }}
+                    onChange={(p) => {
+                      const next: Partial<MobileSignupDraft> = {};
+                      if (p.ifsc !== undefined) next.ifsc = p.ifsc;
+                      if (p.bankName !== undefined) next.bankName = p.bankName;
+                      if (p.branch !== undefined || p.city !== undefined) {
+                        const branch = p.branch !== undefined ? p.branch : draft.bankBranch;
+                        const city = p.city ?? "";
+                        next.bankBranch = [branch, city].filter(Boolean).join(", ");
+                      }
+                      if (p.accountNumber !== undefined) next.accountNumber = p.accountNumber;
+                      if (p.holderName !== undefined) next.accountName = p.holderName;
+                      if (p.accountNumberConfirm !== undefined) {
+                        next.accountNumberConfirm = p.accountNumberConfirm;
+                      }
+                      patch(next);
+                    }}
+                    tokens={tokens}
+                    showHolder
+                    showConfirmAccount
                   />
                   <UploadRow
                     label="Cancelled Cheque (optional)"

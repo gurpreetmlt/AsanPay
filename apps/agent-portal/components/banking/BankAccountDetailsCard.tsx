@@ -233,7 +233,7 @@ export function BankDetailCard({
     boxShadow: bankCardGlow(ifsc, selected),
     ...(isPicker
       ? {
-          transform: selected ? "scale(1.04)" : "scale(0.94)",
+          transform: selected ? "scale(1.02)" : "scale(1)",
           zIndex: selected ? 2 : 1,
           transformOrigin: "center center",
         }

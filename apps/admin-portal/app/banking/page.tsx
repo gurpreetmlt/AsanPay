@@ -3,8 +3,13 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { Building2 } from "lucide-react";
+import { Building2, Pencil, Power, Trash2 } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
+import {
+  emptyIfscBankDetails,
+  IfscBankDetailsFields,
+  type IfscBankDetailsValue,
+} from "@/components/banking/IfscBankDetailsFields";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { createAttemptKeyHolder } from "@/lib/idempotencyKey";
@@ -80,11 +85,11 @@ export default function AdminBankingPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const [bankName, setBankName] = useState("");
-  const [accountNumber, setAccountNumber] = useState("");
-  const [ifsc, setIfsc] = useState("");
+  const [bankDetails, setBankDetails] = useState<IfscBankDetailsValue>(emptyIfscBankDetails);
   const [purpose, setPurpose] = useState<Purpose>("collection");
   const [supportsVan, setSupportsVan] = useState(false);
+  const [allowCompanyBankDelete, setAllowCompanyBankDelete] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const [importBankId, setImportBankId] = useState("");
   const [csvText, setCsvText] = useState("");
@@ -110,7 +115,7 @@ export default function AdminBankingPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [rows, count, vans] = await Promise.all([
+      const [rows, count, vans, meta] = await Promise.all([
         fetchApi<BankAccount[]>("/banking/accounts", { purpose: "all" }),
         fetchApi<{ count: number }>("/banking/unmatched-count"),
         fetchApi<
@@ -123,10 +128,14 @@ export default function AdminBankingPage() {
             ownerCode: string;
           }>
         >("/banking/van"),
+        fetchApi<{ allowCompanyBankDelete: boolean }>("/banking/accounts-meta").catch(() => ({
+          allowCompanyBankDelete: false,
+        })),
       ]);
       setAccounts(rows);
       setUnmatched(count.count);
       setVanRows(vans);
+      setAllowCompanyBankDelete(meta.allowCompanyBankDelete === true);
       if (!importBankId && rows[0]) setImportBankId(rows[0].id);
       const vanBank = rows.find((r) => r.supportsVan && r.isActive);
       if (!vanBankId && vanBank) setVanBankId(vanBank.id);
@@ -149,23 +158,104 @@ export default function AdminBankingPage() {
 
   async function registerBank(e: FormEvent) {
     e.preventDefault();
+    const ifsc = bankDetails.ifsc.trim().toUpperCase();
+    if (ifsc.length !== 11 || !bankDetails.bankName.trim()) {
+      toast.error("Enter a valid IFSC and wait for bank name to load");
+      return;
+    }
+    if (!editingId && !/^\d{6,18}$/.test(bankDetails.accountNumber.trim())) {
+      toast.error("Account number must be 6–18 digits");
+      return;
+    }
+    if (editingId && bankDetails.accountNumber.trim() && !/^\d{6,18}$/.test(bankDetails.accountNumber.trim())) {
+      toast.error("Account number must be 6–18 digits");
+      return;
+    }
     setSaving(true);
     try {
-      await api.post("/banking/accounts", {
-        bankName: bankName.trim(),
-        accountNumber: accountNumber.trim(),
-        ifsc: ifsc.trim().toUpperCase(),
-        purpose,
-        supportsVan,
-      });
-      toast.success("Bank account registered");
-      setBankName("");
-      setAccountNumber("");
-      setIfsc("");
+      if (editingId) {
+        await api.patch(`/banking/accounts/${editingId}`, {
+          bankName: bankDetails.bankName.trim(),
+          ...(bankDetails.accountNumber.trim()
+            ? { accountNumber: bankDetails.accountNumber.trim() }
+            : {}),
+          ifsc,
+          purpose,
+          supportsVan,
+        });
+        toast.success("Bank account updated");
+      } else {
+        await api.post("/banking/accounts", {
+          bankName: bankDetails.bankName.trim(),
+          accountNumber: bankDetails.accountNumber.trim(),
+          ifsc,
+          purpose,
+          supportsVan,
+        });
+        toast.success("Bank account registered");
+      }
+      setBankDetails(emptyIfscBankDetails());
       setSupportsVan(false);
+      setEditingId(null);
       await load();
     } catch (err) {
-      toast.error(errMessage(err, "Could not register bank"));
+      toast.error(errMessage(err, editingId ? "Could not update bank" : "Could not register bank"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function startEdit(a: BankAccount) {
+    setEditingId(a.id);
+    setBankDetails({
+      ...emptyIfscBankDetails(),
+      ifsc: a.ifsc,
+      bankName: a.bankName,
+      accountNumber: "",
+    });
+    setPurpose(a.purpose);
+    setSupportsVan(a.supportsVan);
+    setTab("accounts");
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setBankDetails(emptyIfscBankDetails());
+    setPurpose("collection");
+    setSupportsVan(false);
+  }
+
+  async function toggleActive(a: BankAccount) {
+    setSaving(true);
+    try {
+      await api.post(`/banking/accounts/${a.id}/active`, { isActive: !a.isActive });
+      toast.success(a.isActive ? "Bank account disabled" : "Bank account enabled");
+      await load();
+    } catch (err) {
+      toast.error(errMessage(err, "Could not update bank status"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeBank(a: BankAccount) {
+    if (!allowCompanyBankDelete) {
+      toast.error("Permanent delete is disabled in Platform Settings");
+      return;
+    }
+    if (a.isActive) {
+      toast.error("Disable the bank account before deleting it");
+      return;
+    }
+    if (!window.confirm(`Permanently delete ${a.bankName} ****${a.accountNumberLast4}?`)) return;
+    setSaving(true);
+    try {
+      await api.delete(`/banking/accounts/${a.id}`);
+      toast.success("Bank account deleted");
+      if (editingId === a.id) cancelEdit();
+      await load();
+    } catch (err) {
+      toast.error(errMessage(err, "Could not delete bank"));
     } finally {
       setSaving(false);
     }
@@ -325,62 +415,83 @@ export default function AdminBankingPage() {
           <div className="space-y-5">
             <form
               onSubmit={registerBank}
-              className="grid gap-3 rounded-2xl border bg-white p-5 md:grid-cols-2"
+              className="space-y-3 rounded-2xl border bg-[var(--admin-card)] p-5"
               style={{ borderColor: B.border }}
             >
-              <h2 className="md:col-span-2 text-base font-bold" style={{ color: B.blue }}>
-                Register bank account
-              </h2>
-              <input
-                className="rounded-xl border px-3 py-2 text-sm"
-                style={{ borderColor: B.border }}
-                placeholder="Bank name"
-                value={bankName}
-                onChange={(e) => setBankName(e.target.value)}
-                required
-              />
-              <input
-                className="rounded-xl border px-3 py-2 text-sm"
-                style={{ borderColor: B.border }}
-                placeholder="Account number"
-                value={accountNumber}
-                onChange={(e) => setAccountNumber(e.target.value)}
-                required
-              />
-              <input
-                className="rounded-xl border px-3 py-2 text-sm uppercase"
-                style={{ borderColor: B.border }}
-                placeholder="IFSC"
-                value={ifsc}
-                onChange={(e) => setIfsc(e.target.value)}
-                required
-              />
-              <select
-                className="rounded-xl border px-3 py-2 text-sm"
-                style={{ borderColor: B.border }}
-                value={purpose}
-                onChange={(e) => setPurpose(e.target.value as Purpose)}
-              >
-                <option value="collection">Collection</option>
-                <option value="payout">Payout</option>
-                <option value="ops">Ops</option>
-              </select>
-              <label className="flex items-center gap-2 text-sm md:col-span-2" style={{ color: B.muted }}>
-                <input
-                  type="checkbox"
-                  checked={supportsVan}
-                  onChange={(e) => setSupportsVan(e.target.checked)}
-                />
-                Supports VAN
-              </label>
-              <button
-                type="submit"
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-base font-bold" style={{ color: B.blue }}>
+                  {editingId ? "Edit bank account" : "Register bank account"}
+                </h2>
+                {editingId ? (
+                  <button
+                    type="button"
+                    onClick={cancelEdit}
+                    className="rounded-lg px-3 py-1.5 text-xs font-semibold"
+                    style={{ color: "#DC2626", border: `1px solid ${B.border}` }}
+                  >
+                    Cancel edit
+                  </button>
+                ) : null}
+              </div>
+              <IfscBankDetailsFields
+                value={bankDetails}
+                onChange={(patch) => setBankDetails((prev) => ({ ...prev, ...patch }))}
+                showHolder={false}
+                accountRequired={!editingId}
+                accountPlaceholder={
+                  editingId ? "Account number (leave blank to keep)" : "Account number"
+                }
                 disabled={saving}
-                className="rounded-xl px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60 md:col-span-2"
-                style={{ background: B.badgeGrad }}
-              >
-                {saving ? "Saving…" : "Register account"}
-              </button>
+                footer={
+                  <>
+                    <label className="block text-sm">
+                      <span
+                        className="mb-1 block text-xs font-semibold uppercase"
+                        style={{ color: B.muted }}
+                      >
+                        Purpose
+                      </span>
+                      <select
+                        className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
+                        style={{
+                          borderColor: B.border,
+                          background: "var(--admin-card)",
+                          color: "var(--admin-text)",
+                        }}
+                        value={purpose}
+                        onChange={(e) => setPurpose(e.target.value as Purpose)}
+                        disabled={saving}
+                      >
+                        <option value="collection">Collection</option>
+                        <option value="payout">Payout</option>
+                        <option value="ops">Ops</option>
+                      </select>
+                    </label>
+                    <label
+                      className="flex items-center gap-2 self-end pb-2 text-sm sm:col-span-2 lg:col-span-2"
+                      style={{ color: B.muted }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={supportsVan}
+                        onChange={(e) => setSupportsVan(e.target.checked)}
+                        disabled={saving}
+                      />
+                      Supports VAN
+                    </label>
+                  </>
+                }
+              />
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={saving || !bankDetails.bankName.trim() || bankDetails.ifsc.length !== 11}
+                  className="rounded-xl px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60"
+                  style={{ background: B.badgeGrad }}
+                >
+                  {saving ? "Saving…" : editingId ? "Save changes" : "Register account"}
+                </button>
+              </div>
             </form>
 
             {accounts.length === 0 ? (
@@ -389,7 +500,7 @@ export default function AdminBankingPage() {
               </p>
             ) : (
               <div className="overflow-x-auto rounded-2xl border bg-white" style={{ borderColor: B.border }}>
-                <table className="w-full min-w-[640px] text-left text-sm">
+                <table className="w-full min-w-[720px] text-left text-sm">
                   <thead>
                     <tr className="border-b text-xs uppercase" style={{ borderColor: B.border, color: B.muted }}>
                       <th className="px-4 py-3">Bank</th>
@@ -397,6 +508,7 @@ export default function AdminBankingPage() {
                       <th className="px-4 py-3">IFSC</th>
                       <th className="px-4 py-3">Purpose</th>
                       <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -412,6 +524,41 @@ export default function AdminBankingPage() {
                         <td className="px-4 py-3">{a.ifsc}</td>
                         <td className="px-4 py-3 capitalize">{a.purpose}</td>
                         <td className="px-4 py-3">{a.isActive ? "Active" : "Inactive"}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              title="Edit"
+                              onClick={() => startEdit(a)}
+                              className="rounded-lg p-2"
+                              style={{ color: B.blueLight }}
+                            >
+                              <Pencil size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              title={a.isActive ? "Disable" : "Enable"}
+                              onClick={() => void toggleActive(a)}
+                              disabled={saving}
+                              className="rounded-lg p-2 disabled:opacity-50"
+                              style={{ color: a.isActive ? "#B45309" : "#059669" }}
+                            >
+                              <Power size={16} />
+                            </button>
+                            {allowCompanyBankDelete ? (
+                              <button
+                                type="button"
+                                title="Delete"
+                                onClick={() => void removeBank(a)}
+                                disabled={saving || a.isActive}
+                                className="rounded-lg p-2 disabled:opacity-40"
+                                style={{ color: "#DC2626" }}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            ) : null}
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

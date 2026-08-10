@@ -72,14 +72,21 @@ const STATUS_STYLE: Record<string, { fg: string; bg: string; label: string }> = 
 };
 
 /** Light logo for blue header — PNG lives in apps/backend/assets/brand. */
-function lightLogoPath(): string | null {
+function lightLogoBuffer(): Buffer | null {
   const candidates = [
     path.join(__dirname, "../../../assets/brand/AsanPay-Light-Icon.png"),
     path.join(process.cwd(), "assets/brand/AsanPay-Light-Icon.png"),
     path.join(process.cwd(), "apps/backend/assets/brand/AsanPay-Light-Icon.png"),
   ];
   for (const p of candidates) {
-    if (fs.existsSync(p)) return p;
+    try {
+      if (!fs.existsSync(p)) continue;
+      const buf = fs.readFileSync(p);
+      // Reject empty / tiny garbage so PDFKit never throws after headers are sent.
+      if (buf.length > 64) return buf;
+    } catch {
+      /* try next path */
+    }
   }
   return null;
 }
@@ -139,11 +146,20 @@ export async function streamTxnReceiptPdf(actor: Actor, txnRef: string, res: Res
   const tenantId = await resolveTenantId();
   const adminContacts = await getSupportContacts(tenantId);
   const contact = brandContactFromAdmin(adminContacts);
+  // Resolve assets BEFORE writing headers — a late throw mid-stream becomes a 502 at the proxy.
+  const logoBuf = lightLogoBuffer();
 
   res.setHeader("Content-Type", "application/pdf");
-  res.setHeader("Content-Disposition", `attachment; filename="receipt-${row.txnRef}.pdf"`);
+  res.setHeader("Content-Disposition", `inline; filename="receipt-${row.txnRef}.pdf"`);
 
   const doc = new PDFDocument({ size: "A5", margin: 0 });
+  doc.on("error", (err) => {
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, message: "Could not generate receipt PDF" });
+      return;
+    }
+    res.destroy(err);
+  });
   doc.pipe(res);
 
   const brandName = process.env.BRAND_NAME || BRAND_DEFAULTS.name;
@@ -162,9 +178,17 @@ export async function streamTxnReceiptPdf(actor: Actor, txnRef: string, res: Res
   const logoSize = 36;
   const logoX = marginX;
   const logoY = 22;
-  const logoFile = lightLogoPath();
-  if (logoFile) {
-    doc.image(logoFile, logoX, logoY, { width: logoSize, height: logoSize });
+  if (logoBuf) {
+    try {
+      doc.image(logoBuf, logoX, logoY, { width: logoSize, height: logoSize });
+    } catch {
+      doc.roundedRect(logoX, logoY, logoSize, logoSize, 9).fill("#FFFFFF");
+      doc
+        .fillColor(PALETTE.navy)
+        .font("Helvetica-Bold")
+        .fontSize(19)
+        .text("Rs", logoX, logoY + 8, { width: logoSize, align: "center" });
+    }
   } else {
     doc.roundedRect(logoX, logoY, logoSize, logoSize, 9).fill("#FFFFFF");
     doc

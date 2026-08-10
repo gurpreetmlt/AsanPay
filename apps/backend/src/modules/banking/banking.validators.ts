@@ -17,6 +17,24 @@ export const registerBankAccountSchema = z.object({
 });
 export type RegisterBankAccountBody = z.infer<typeof registerBankAccountSchema>;
 
+export const updateBankAccountSchema = z.object({
+  bankName: z.string().trim().min(2).max(120).optional(),
+  accountNumber: z.string().trim().min(6).max(40).optional(),
+  ifsc: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z]{4}0[A-Za-z0-9]{6}$/, "Enter a valid 11-character IFSC")
+    .optional(),
+  purpose: z.enum(["collection", "payout", "ops"]).optional(),
+  supportsVan: z.boolean().optional(),
+});
+export type UpdateBankAccountBody = z.infer<typeof updateBankAccountSchema>;
+
+export const setBankAccountActiveSchema = z.object({
+  isActive: z.boolean(),
+});
+export type SetBankAccountActiveBody = z.infer<typeof setBankAccountActiveSchema>;
+
 export const importStatementSchema = z.object({
   bankAccountId: z.string().regex(/^\d+$/, "bankAccountId must be a numeric id"),
   lines: z

@@ -218,6 +218,7 @@ txnRouter.post("/aeps/deposit", retailerOnly, walletTxnLimiter, validateBody(aep
 txnRouter.post("/aeps/aadhaar-pay", retailerOnly, walletTxnLimiter, validateBody(aadhaarPaySchema), aadhaarPay);
 
 txnRouter.get("/", history);
+txnRouter.get("/:txnRef/receipt/pdf", receiptPdf);
 txnRouter.get("/:txnRef/receipt.pdf", receiptPdf);
 txnRouter.get("/:txnRef/receipt.escpos", receiptEscPos);
 txnRouter.get("/:txnRef", receipt);

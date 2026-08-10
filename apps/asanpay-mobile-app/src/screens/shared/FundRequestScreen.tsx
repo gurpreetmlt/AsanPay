@@ -407,7 +407,8 @@ function BankCardSlider({
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      contentContainerStyle={{ paddingRight: 16, paddingVertical: 4 }}
+      decelerationRate="fast"
+      contentContainerStyle={{ paddingLeft: 2, paddingRight: 20, paddingVertical: 10 }}
     >
       {banks.map((b) => {
         const isSelected = selected === b.id;

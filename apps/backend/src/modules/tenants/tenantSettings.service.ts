@@ -23,6 +23,11 @@ export interface TenantSettings {
   promoSlides?: unknown[];
   /** Promo image payloads keyed by asset id (data: URLs). Survives Coolify disk wipe. */
   promoAssets?: Record<string, string>;
+  /**
+   * Admin Banking: show Delete on company bank rows and allow hard-delete.
+   * Default false — disable/deactivate only until explicitly enabled.
+   */
+  allowCompanyBankDelete?: boolean;
 }
 
 export type SupportContacts = {
@@ -77,6 +82,7 @@ function mergeWithDefaults(s: TenantSettings): Required<Omit<TenantSettings, "pr
     nodalEmail: strField(s.nodalEmail, 150),
     nodalPhone: strField(s.nodalPhone, 40),
     nodalAddress: strField(s.nodalAddress, 500),
+    allowCompanyBankDelete: s.allowCompanyBankDelete === true,
   };
 }
 
@@ -179,6 +185,9 @@ export async function patchTenantSettings(
       ...(patch.nodalEmail !== undefined ? { nodalEmail: strField(patch.nodalEmail, 150) } : {}),
       ...(patch.nodalPhone !== undefined ? { nodalPhone: strField(patch.nodalPhone, 40) } : {}),
       ...(patch.nodalAddress !== undefined ? { nodalAddress: strField(patch.nodalAddress, 500) } : {}),
+      ...(patch.allowCompanyBankDelete !== undefined
+        ? { allowCompanyBankDelete: patch.allowCompanyBankDelete === true }
+        : {}),
     };
 
     await tx

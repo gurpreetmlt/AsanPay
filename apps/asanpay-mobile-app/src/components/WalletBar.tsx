@@ -74,7 +74,7 @@ export function WalletBar({ wallets, onWalletPress, onAddMoney, onReports }: Pro
           <Text style={styles.walletCardDelta}>▲ Today</Text>
         </Pressable>
 
-        <Pressable style={{ flex: 1 }} onPress={openWallet}>
+        <Pressable style={{ flex: 1, minWidth: 0 }} onPress={openWallet}>
           <LinearGradient
             colors={["rgba(36,204,130,.28)", "rgba(17,163,98,.16)"]}
             style={[styles.walletCard, styles.walletCardAeps]}
@@ -121,16 +121,17 @@ export function WalletBar({ wallets, onWalletPress, onAddMoney, onReports }: Pro
 }
 
 const styles = StyleSheet.create({
-  walletRow: { flexDirection: "row", gap: 11, marginTop: 6 },
+  walletRow: { flexDirection: "row", gap: 11, marginTop: 6, width: "100%" },
   walletCard: {
     flex: 1,
+    minWidth: 0,
     backgroundColor: "rgba(255,255,255,.13)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,.18)",
     borderRadius: 18,
     padding: 14,
   },
-  walletCardAeps: { borderColor: "rgba(59,227,154,.35)" },
+  walletCardAeps: { borderColor: "rgba(59,227,154,.35)", minWidth: 0 },
   walletCardTopRow: { flexDirection: "row", alignItems: "center", gap: 7 },
   eyeBtn: { marginLeft: "auto", padding: 2 },
   walletCardIconLight: {

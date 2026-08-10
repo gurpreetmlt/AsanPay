@@ -665,6 +665,7 @@ adminRouter.patch("/tenant-settings", async (req, res) => {
       nodalEmail: z.string().max(150).optional(),
       nodalPhone: z.string().max(40).optional(),
       nodalAddress: z.string().max(500).optional(),
+      allowCompanyBankDelete: z.boolean().optional(),
     })
     .parse(req.body);
   const { patchTenantSettings } = await import("../tenants/tenantSettings.service");

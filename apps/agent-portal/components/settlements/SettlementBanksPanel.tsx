@@ -6,6 +6,11 @@ import { toast } from "react-hot-toast";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
+import {
+  emptyIfscBankDetails,
+  IfscBankDetailsFields,
+  type IfscBankDetailsValue,
+} from "@/components/banking/IfscBankDetailsFields";
 import api, { fetchApi } from "@/lib/api";
 import {
   bankBrandTint,
@@ -171,14 +176,10 @@ export function SettlementBanksPanel({
   const [banks, setBanks] = useState<SettlementBank[]>([]);
   const [loading, setLoading] = useState(true);
   const [showBankForm, setShowBankForm] = useState(showAddFormDefault && allowAdd);
-  const [accountNumber, setAccountNumber] = useState("");
-  const [ifsc, setIfsc] = useState("");
-  const [holderName, setHolderName] = useState("");
+  const [bankDetails, setBankDetails] = useState<IfscBankDetailsValue>(emptyIfscBankDetails);
   const [otp, setOtp] = useState("");
   const [otpSending, setOtpSending] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
-  const [fetchedPlace, setFetchedPlace] = useState<IfscPlace | null>(null);
-  const [ifscBusy, setIfscBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [revealed, setRevealed] = useState<Record<string, string>>({});
   const [places, setPlaces] = useState<PlaceMap>({});
@@ -219,29 +220,6 @@ export function SettlementBanksPanel({
       cancelled = true;
     };
   }, [banks]);
-
-  useEffect(() => {
-    const code = ifsc.trim().toUpperCase();
-    if (code.length !== 11) {
-      setFetchedPlace(null);
-      return;
-    }
-    let cancelled = false;
-    setIfscBusy(true);
-    void lookupIndianIfsc(code).then((place) => {
-      if (cancelled) return;
-      setIfscBusy(false);
-      if (!place) {
-        setFetchedPlace(null);
-        toast.error("IFSC not found. Check the code and try again.");
-        return;
-      }
-      setFetchedPlace(place);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [ifsc]);
 
   async function fetchReveal(bankId: string): Promise<string> {
     if (revealed[bankId]) return revealed[bankId];
@@ -302,15 +280,24 @@ export function SettlementBanksPanel({
   }
 
   function resetForm() {
-    setAccountNumber("");
-    setIfsc("");
-    setHolderName("");
+    setBankDetails(emptyIfscBankDetails());
     setOtp("");
     setOtpSent(false);
-    setFetchedPlace(null);
   }
 
   async function sendOtp() {
+    if (bankDetails.ifsc.trim().length !== 11 || !bankDetails.bankName.trim()) {
+      toast.error("Enter a valid IFSC and wait for bank details to load");
+      return;
+    }
+    if (!/^\d{6,18}$/.test(bankDetails.accountNumber.trim())) {
+      toast.error("Account number must be 6–18 digits");
+      return;
+    }
+    if (!bankDetails.holderName.trim() || !/[A-Za-z]/.test(bankDetails.holderName)) {
+      toast.error("Account holder must be a name (letters), not the account number");
+      return;
+    }
     setOtpSending(true);
     try {
       const { data } = await api.post<{
@@ -335,12 +322,12 @@ export function SettlementBanksPanel({
 
   async function registerBank(e: FormEvent) {
     e.preventDefault();
-    const code = ifsc.trim().toUpperCase();
+    const code = bankDetails.ifsc.trim().toUpperCase();
     if (code.length !== 11) {
       toast.error("Enter a valid 11-character IFSC");
       return;
     }
-    if (!fetchedPlace?.bank) {
+    if (!bankDetails.bankName.trim()) {
       toast.error("Wait for bank details to load from IFSC, or check the code");
       return;
     }
@@ -351,9 +338,9 @@ export function SettlementBanksPanel({
     setSaving(true);
     try {
       await api.post("/settlements/banks", {
-        accountNumber: accountNumber.trim(),
+        accountNumber: bankDetails.accountNumber.trim(),
         ifsc: code,
-        holderName: holderName.trim(),
+        holderName: bankDetails.holderName.trim(),
         ...(needsOtp ? { otp: otp.trim() } : {}),
       });
       toast.success("Bank submitted — awaiting admin verification");
@@ -405,149 +392,112 @@ export function SettlementBanksPanel({
       {allowAdd && showBankForm ? (
         <form
           onSubmit={registerBank}
-          className="grid gap-3 rounded-2xl border p-4 sm:grid-cols-2 lg:grid-cols-3"
+          className="space-y-3 rounded-2xl border p-4"
           style={{ borderColor: B.border, background: B.bg }}
         >
-          <label className="block text-sm">
-            <span className="mb-1 block text-xs font-semibold uppercase" style={{ color: B.muted }}>
-              IFSC *
-            </span>
-            <input
-              className="w-full rounded-xl border px-3 py-2.5 font-mono text-sm outline-none"
-              style={{ borderColor: B.border, background: "#fff" }}
-              placeholder="e.g. SBIN0001234"
-              value={ifsc}
-              onChange={(e) =>
-                setIfsc(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11))
-              }
-              required
-            />
-            <span className="mt-1 block text-xs" style={{ color: B.muted }}>
-              {ifsc.length}/11 {ifscBusy ? "· Looking up…" : ""}
-            </span>
-          </label>
-          <label className="block text-sm">
-            <span className="mb-1 block text-xs font-semibold uppercase" style={{ color: B.muted }}>
-              Bank name
-            </span>
-            <input
-              className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
-              style={{ borderColor: B.border, background: "#F8FAFC", color: B.blue }}
-              value={fetchedPlace?.bank || ""}
-              readOnly
-              placeholder={ifscBusy ? "Looking up…" : "Auto from IFSC"}
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="mb-1 block text-xs font-semibold uppercase" style={{ color: B.muted }}>
-              Branch
-            </span>
-            <input
-              className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
-              style={{ borderColor: B.border, background: "#F8FAFC", color: B.blue }}
-              value={
-                fetchedPlace
-                  ? [fetchedPlace.branch, fetchedPlace.city].filter(Boolean).join(", ")
-                  : ""
-              }
-              readOnly
-              placeholder={ifscBusy ? "Looking up…" : "Auto from IFSC"}
-              title={
-                fetchedPlace
-                  ? [fetchedPlace.branch, fetchedPlace.city].filter(Boolean).join(", ")
-                  : undefined
-              }
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="mb-1 block text-xs font-semibold uppercase" style={{ color: B.muted }}>
-              Account number *
-            </span>
-            <input
-              className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
-              style={{ borderColor: B.border, background: "#fff" }}
-              placeholder="Account number"
-              value={accountNumber}
-              onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, "").slice(0, 18))}
-              required
-            />
-          </label>
-          <label className="block text-sm lg:col-span-2">
-            <span className="mb-1 block text-xs font-semibold uppercase" style={{ color: B.muted }}>
-              Account holder *
-            </span>
-            <input
-              className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
-              style={{ borderColor: B.border, background: "#fff" }}
-              placeholder="Account holder name"
-              value={holderName}
-              onChange={(e) => setHolderName(e.target.value)}
-              required
-            />
-          </label>
-
-          {needsOtp ? (
-            <div
-              className="rounded-xl border px-3 py-3 sm:col-span-2 lg:col-span-3"
-              style={{ borderColor: "#FDBA74", background: "#FFF7ED" }}
-            >
-              <p className="text-sm font-semibold" style={{ color: "#C2410C" }}>
-                You already have an active settlement bank. Changing it requires a mobile OTP.
-              </p>
-              <div className="mt-3 flex flex-wrap items-end gap-3">
-                <label className="min-w-[160px] flex-1 text-sm">
-                  <span className="mb-1 block text-xs font-semibold uppercase" style={{ color: B.muted }}>
-                    OTP *
-                  </span>
-                  <input
-                    className="w-full rounded-xl border px-3 py-2.5 font-mono text-sm outline-none"
-                    style={{ borderColor: B.border, background: "#fff" }}
-                    placeholder="6-digit OTP"
-                    inputMode="numeric"
-                    maxLength={6}
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                    required
-                  />
-                </label>
-                <PrimaryButton
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  showArrow={false}
-                  loading={otpSending}
-                  disabled={otpSending}
-                  onClick={() => void sendOtp()}
-                  className="!w-auto"
+          <IfscBankDetailsFields
+            value={bankDetails}
+            onChange={(patch) => setBankDetails((prev) => ({ ...prev, ...patch }))}
+            showHolder
+            disabled={saving || otpSending}
+            footer={
+              needsOtp ? (
+                <div
+                  className="rounded-xl border px-3 py-3 sm:col-span-2 lg:col-span-3"
+                  style={{ borderColor: "#FDBA74", background: "#FFF7ED" }}
                 >
-                  {otpSent ? "Resend OTP" : "Send OTP"}
-                </PrimaryButton>
-              </div>
-              {otpSent ? (
-                <p className="mt-2 text-xs" style={{ color: B.muted }}>
-                  OTP sent to your registered mobile. Enter it above, then submit.
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-
-          <PrimaryButton
-            type="submit"
-            variant="primary"
-            disabled={
-              saving ||
-              ifscBusy ||
-              !fetchedPlace?.bank ||
-              !accountNumber.trim() ||
-              ifsc.trim().length !== 11 ||
-              !holderName.trim() ||
-              (needsOtp && !/^\d{6}$/.test(otp.trim()))
+                  <p className="text-sm font-semibold" style={{ color: "#C2410C" }}>
+                    You already have an active settlement bank. Changing it requires a mobile OTP after
+                    you confirm the bank details.
+                  </p>
+                  {otpSent ? (
+                    <div className="mt-3 flex flex-wrap items-end gap-3">
+                      <label className="min-w-[160px] flex-1 text-sm">
+                        <span
+                          className="mb-1 block text-xs font-semibold uppercase"
+                          style={{ color: B.muted }}
+                        >
+                          OTP *
+                        </span>
+                        <input
+                          className="w-full rounded-xl border px-3 py-2.5 font-mono text-sm outline-none"
+                          style={{ borderColor: B.border, background: "#fff" }}
+                          placeholder="6-digit OTP"
+                          inputMode="numeric"
+                          maxLength={6}
+                          value={otp}
+                          onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                          required
+                        />
+                      </label>
+                      <PrimaryButton
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        showArrow={false}
+                        loading={otpSending}
+                        disabled={otpSending}
+                        onClick={() => void sendOtp()}
+                        className="!w-auto"
+                      >
+                        Resend OTP
+                      </PrimaryButton>
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-xs" style={{ color: B.muted }}>
+                      Fill IFSC, account number, and holder name, then tap Verify &amp; send OTP.
+                    </p>
+                  )}
+                  {otpSent ? (
+                    <p className="mt-2 text-xs" style={{ color: B.muted }}>
+                      OTP sent to your registered mobile. Enter it above, then submit.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null
             }
-            loading={saving}
-            className="sm:col-span-2 lg:col-span-3"
-          >
-            Submit for verification
-          </PrimaryButton>
+          />
+
+          {needsOtp && !otpSent ? (
+            <div className="flex justify-end">
+              <PrimaryButton
+                type="button"
+                variant="primary"
+                disabled={
+                  otpSending ||
+                  !bankDetails.bankName.trim() ||
+                  !bankDetails.accountNumber.trim() ||
+                  bankDetails.ifsc.trim().length !== 11 ||
+                  !bankDetails.holderName.trim() ||
+                  !/[A-Za-z]/.test(bankDetails.holderName)
+                }
+                loading={otpSending}
+                onClick={() => void sendOtp()}
+                className="!w-auto"
+              >
+                Verify &amp; send OTP
+              </PrimaryButton>
+            </div>
+          ) : (
+            <div className="flex justify-end">
+              <PrimaryButton
+                type="submit"
+                variant="primary"
+                disabled={
+                  saving ||
+                  !bankDetails.bankName.trim() ||
+                  !bankDetails.accountNumber.trim() ||
+                  bankDetails.ifsc.trim().length !== 11 ||
+                  !bankDetails.holderName.trim() ||
+                  (needsOtp && !/^\d{6}$/.test(otp.trim()))
+                }
+                loading={saving}
+                className="!w-auto"
+              >
+                Submit for verification
+              </PrimaryButton>
+            </div>
+          )}
         </form>
       ) : null}
 

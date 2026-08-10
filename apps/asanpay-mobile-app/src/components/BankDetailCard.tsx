@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Dimensions, Pressable, StyleSheet, Text, View } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import Clipboard from "@react-native-clipboard/clipboard";
 import { Check, Copy, Eye, EyeOff, Landmark } from "lucide-react-native";
@@ -166,17 +166,20 @@ export function BankDetailCard({
   );
 
   const isPicker = Boolean(onSelect);
+  const screenW = Dimensions.get("window").width;
+  /** Almost full width with a small peek of the next card — avoids right-edge cut-off. */
+  const pickerWidth = Math.round(Math.min(300, screenW - 56));
   const shellStyle = [
     styles.card,
     {
-      width: isPicker ? (selected ? 292 : 268) : 280,
+      width: isPicker ? pickerWidth : 280,
       borderColor: selected ? `${tint}55` : corners.border,
       opacity: unavailable ? 0.55 : 1,
       shadowColor: glow,
       shadowOpacity: selected ? 0.22 : 0.12,
       shadowRadius: selected ? 14 : 10,
       elevation: selected ? 4 : 2,
-      ...(isPicker ? { transform: [{ scale: selected ? 1.03 : 0.96 }] } : null),
+      ...(isPicker && selected ? { transform: [{ scale: 1.02 }] } : null),
     },
   ];
 

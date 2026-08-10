@@ -20,9 +20,11 @@ import {
 import api from "@/lib/api";
 import { formatAadhaar, stripAadhaar } from "@/lib/aadhaar";
 import { B } from "@/lib/brand";
-import { lookupIndianIfsc } from "@/lib/ifsc";
 import { extractApiError } from "@/lib/onboarding";
 import { lookupIndianPincode } from "@/lib/pincode";
+import {
+  IfscBankDetailsFields,
+} from "@/components/banking/IfscBankDetailsFields";
 import {
   clearSignupDraft,
   EMPTY_SIGNUP_DRAFT,
@@ -325,7 +327,6 @@ function SignupPageInner() {
   const [sponsorStatus, setSponsorStatus] = useState<"idle" | "loading" | "ok" | "empty" | "error">("idle");
   const [draftReady, setDraftReady] = useState(false);
   const [previews, setPreviews] = useState<Record<string, string>>({});
-  const [ifscBusy, setIfscBusy] = useState(false);
   const [pinBusy, setPinBusy] = useState(false);
   const [bizPinBusy, setBizPinBusy] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
@@ -610,25 +611,6 @@ function SignupPageInner() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft.businessPincode]);
-
-  useEffect(() => {
-    const ifsc = draft.ifsc;
-    if (ifsc.length !== 11 || !draft.accountCreated) return;
-    let cancelled = false;
-    setIfscBusy(true);
-    void lookupIndianIfsc(ifsc)
-      .then((place) => {
-        if (cancelled || !place) return;
-        patch({ bankName: place.bank || draft.bankName, bankBranch: place.branch || draft.bankBranch });
-      })
-      .finally(() => {
-        if (!cancelled) setIfscBusy(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft.ifsc, draft.accountCreated]);
 
   async function pickFile(
     key: keyof Pick<
@@ -1709,69 +1691,35 @@ function SignupPageInner() {
 
             {stepIndex === 6 && (
               <>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  <Field label="IFSC *">
-                    <input
-                      value={draft.ifsc}
-                      onChange={(e) =>
-                        patch({ ifsc: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11) })
-                      }
-                      className={`${inputCls} font-mono`}
-                      style={inputStyle}
-                      placeholder="e.g. HDFC0001209"
-                    />
-                    <p className="mt-1 text-xs" style={{ color: B.muted }}>
-                      {draft.ifsc.length}/11 {ifscBusy ? "· Looking up…" : ""}
-                    </p>
-                  </Field>
-                  <Field label="Bank Name *">
-                    <input
-                      value={draft.bankName}
-                      onChange={(e) => patch({ bankName: e.target.value })}
-                      className={inputCls}
-                      style={inputStyle}
-                    />
-                  </Field>
-                  <Field label="Branch">
-                    <input
-                      value={draft.bankBranch}
-                      onChange={(e) => patch({ bankBranch: e.target.value })}
-                      className={inputCls}
-                      style={inputStyle}
-                      title={draft.bankBranch}
-                    />
-                  </Field>
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <Field label="Account Number *">
-                    <input
-                      value={draft.accountNumber}
-                      onChange={(e) => patch({ accountNumber: e.target.value.replace(/\D/g, "").slice(0, 30) })}
-                      className={inputCls}
-                      style={inputStyle}
-                      inputMode="numeric"
-                    />
-                  </Field>
-                  <Field label="Confirm Account Number *">
-                    <input
-                      value={draft.accountNumberConfirm}
-                      onChange={(e) =>
-                        patch({ accountNumberConfirm: e.target.value.replace(/\D/g, "").slice(0, 30) })
-                      }
-                      className={inputCls}
-                      style={inputStyle}
-                      inputMode="numeric"
-                    />
-                  </Field>
-                </div>
-                <Field label="Account Holder Name *">
-                  <input
-                    value={draft.accountName}
-                    onChange={(e) => patch({ accountName: e.target.value })}
-                    className={inputCls}
-                    style={inputStyle}
-                  />
-                </Field>
+                <IfscBankDetailsFields
+                  value={{
+                    ifsc: draft.ifsc,
+                    bankName: draft.bankName,
+                    branch: draft.bankBranch,
+                    city: "",
+                    accountNumber: draft.accountNumber,
+                    holderName: draft.accountName,
+                    accountNumberConfirm: draft.accountNumberConfirm,
+                  }}
+                  onChange={(p) => {
+                    const next: Partial<SignupDraft> = {};
+                    if (p.ifsc !== undefined) next.ifsc = p.ifsc;
+                    if (p.bankName !== undefined) next.bankName = p.bankName;
+                    if (p.branch !== undefined || p.city !== undefined) {
+                      const branch = p.branch !== undefined ? p.branch : draft.bankBranch;
+                      const city = p.city ?? "";
+                      next.bankBranch = [branch, city].filter(Boolean).join(", ");
+                    }
+                    if (p.accountNumber !== undefined) next.accountNumber = p.accountNumber;
+                    if (p.holderName !== undefined) next.accountName = p.holderName;
+                    if (p.accountNumberConfirm !== undefined) {
+                      next.accountNumberConfirm = p.accountNumberConfirm;
+                    }
+                    patch(next);
+                  }}
+                  showHolder
+                  showConfirmAccount
+                />
                 <FileUpload
                   label="Cancelled Cheque (optional)"
                   meta={draft.cancelledCheque}

@@ -15,6 +15,11 @@ import { formatSettlementBankCopy } from "../../lib/bankLogo";
 import { formatINR } from "../../lib/format";
 import { showAlert } from "../../components/AppAlert";
 import { BankDetailCard } from "../../components/BankDetailCard";
+import {
+  emptyIfscBankDetails,
+  IfscBankDetailsFields,
+  type IfscBankDetailsValue,
+} from "../../components/IfscBankDetailsFields";
 import { StatusBadge, toneFromStatus } from "../../components/StatusBadge";
 import { useTheme } from "../../theme/ThemeContext";
 import { colors } from "../../theme/colors";
@@ -51,9 +56,7 @@ export function SettlementsModal({ visible, onClose }: { visible: boolean; onClo
   const [amount, setAmount] = useState("");
   const [saving, setSaving] = useState(false);
   const [showBank, setShowBank] = useState(false);
-  const [accountNumber, setAccountNumber] = useState("");
-  const [ifsc, setIfsc] = useState("");
-  const [holderName, setHolderName] = useState("");
+  const [bankDetails, setBankDetails] = useState<IfscBankDetailsValue>(emptyIfscBankDetails());
   const [otp, setOtp] = useState("");
   const [otpSending, setOtpSending] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
@@ -87,6 +90,18 @@ export function SettlementsModal({ visible, onClose }: { visible: boolean; onClo
   const hasActiveBank = banks.some((b) => b.isActive && b.verified);
 
   async function sendOtp() {
+    if (!/^\d{6,18}$/.test(bankDetails.accountNumber.trim())) {
+      showAlert("Invalid account", "Account number must be 6–18 digits");
+      return;
+    }
+    if (bankDetails.ifsc.trim().length !== 11 || !bankDetails.bankName.trim()) {
+      showAlert("Invalid IFSC", "Enter a valid IFSC and wait for bank name to load");
+      return;
+    }
+    if (!bankDetails.holderName.trim() || !/[A-Za-z]/.test(bankDetails.holderName)) {
+      showAlert("Invalid holder", "Account holder must be a name (letters), not the account number");
+      return;
+    }
     setOtpSending(true);
     try {
       const res = await api.post<{
@@ -171,19 +186,21 @@ export function SettlementsModal({ visible, onClose }: { visible: boolean; onClo
       showAlert("OTP required", "Send OTP, then enter the 6-digit code to change your bank");
       return;
     }
+    if (bankDetails.ifsc.trim().length !== 11 || !bankDetails.bankName.trim()) {
+      showAlert("Invalid IFSC", "Enter a valid IFSC and wait for bank name to load");
+      return;
+    }
     setSaving(true);
     try {
       await api.post("/settlements/banks", {
-        accountNumber: accountNumber.trim(),
-        ifsc: ifsc.trim().toUpperCase(),
-        holderName: holderName.trim(),
+        accountNumber: bankDetails.accountNumber.trim(),
+        ifsc: bankDetails.ifsc.trim().toUpperCase(),
+        holderName: bankDetails.holderName.trim(),
         ...(hasActiveBank ? { otp: otp.trim() } : {}),
       });
       showAlert("Submitted", "Bank awaiting admin verification");
       setShowBank(false);
-      setAccountNumber("");
-      setIfsc("");
-      setHolderName("");
+      setBankDetails(emptyIfscBankDetails());
       setOtp("");
       setOtpSent(false);
       await load();
@@ -246,7 +263,18 @@ export function SettlementsModal({ visible, onClose }: { visible: boolean; onClo
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
             <View style={styles.sectionRow}>
               <Text style={[styles.section, { color: tokens.txt, marginBottom: 0 }]}>Settlement banks</Text>
-              <Pressable onPress={() => setShowBank((v) => !v)}>
+              <Pressable
+                onPress={() => {
+                  setShowBank((v) => {
+                    if (v) {
+                      setBankDetails(emptyIfscBankDetails());
+                      setOtp("");
+                      setOtpSent(false);
+                    }
+                    return !v;
+                  });
+                }}
+              >
                 <Text
                   style={{
                     color: showBank ? colors.danger : colors.green,
@@ -293,73 +321,73 @@ export function SettlementsModal({ visible, onClose }: { visible: boolean; onClo
 
             {showBank ? (
               <View style={{ marginTop: 8 }}>
-                <TextInput
-                  style={[
-                    styles.input,
-                    { backgroundColor: tokens.card, borderColor: tokens.cardBorder, color: tokens.txt },
-                  ]}
-                  placeholder="Account number"
-                  placeholderTextColor={tokens.mute}
-                  value={accountNumber}
-                  onChangeText={setAccountNumber}
-                  keyboardType="number-pad"
-                />
-                <TextInput
-                  style={[
-                    styles.input,
-                    { backgroundColor: tokens.card, borderColor: tokens.cardBorder, color: tokens.txt },
-                  ]}
-                  placeholder="IFSC"
-                  placeholderTextColor={tokens.mute}
-                  autoCapitalize="characters"
-                  value={ifsc}
-                  onChangeText={setIfsc}
-                />
-                <TextInput
-                  style={[
-                    styles.input,
-                    { backgroundColor: tokens.card, borderColor: tokens.cardBorder, color: tokens.txt },
-                  ]}
-                  placeholder="Holder name"
-                  placeholderTextColor={tokens.mute}
-                  value={holderName}
-                  onChangeText={setHolderName}
+                <IfscBankDetailsFields
+                  value={bankDetails}
+                  onChange={(patch) => setBankDetails((prev) => ({ ...prev, ...patch }))}
+                  tokens={tokens}
+                  showHolder
                 />
                 {hasActiveBank ? (
                   <View style={[styles.otpBox, { borderColor: "#FDBA74", backgroundColor: "#FFF7ED" }]}>
                     <Text style={styles.otpHint}>
-                      Active bank change needs OTP. Tap Send OTP, then enter the code.
+                      Active bank change needs OTP after you confirm the bank details.
                     </Text>
-                    <TextInput
-                      style={[
-                        styles.input,
-                        { backgroundColor: tokens.card, borderColor: tokens.cardBorder, color: tokens.txt, marginBottom: 8 },
-                      ]}
-                      placeholder="6-digit OTP"
-                      placeholderTextColor={tokens.mute}
-                      keyboardType="number-pad"
-                      maxLength={6}
-                      value={otp}
-                      onChangeText={(v) => setOtp(v.replace(/\D/g, "").slice(0, 6))}
-                    />
-                    <Pressable
-                      style={[styles.secondaryBtn, { borderColor: colors.blueFlat, opacity: otpSending ? 0.6 : 1 }]}
-                      onPress={() => void sendOtp()}
-                      disabled={otpSending}
-                    >
-                      <Text style={{ color: colors.blueFlat, fontWeight: "800" }}>
-                        {otpSent ? "Resend OTP" : "Send OTP"}
+                    {otpSent ? (
+                      <>
+                        <TextInput
+                          style={[
+                            styles.input,
+                            {
+                              backgroundColor: tokens.card,
+                              borderColor: tokens.cardBorder,
+                              color: tokens.txt,
+                              marginBottom: 8,
+                            },
+                          ]}
+                          placeholder="6-digit OTP"
+                          placeholderTextColor={tokens.mute}
+                          keyboardType="number-pad"
+                          maxLength={6}
+                          value={otp}
+                          onChangeText={(v) => setOtp(v.replace(/\D/g, "").slice(0, 6))}
+                        />
+                        <Pressable
+                          style={[
+                            styles.secondaryBtn,
+                            { borderColor: colors.blueFlat, opacity: otpSending ? 0.6 : 1 },
+                          ]}
+                          onPress={() => void sendOtp()}
+                          disabled={otpSending}
+                        >
+                          <Text style={{ color: colors.blueFlat, fontWeight: "800" }}>Resend OTP</Text>
+                        </Pressable>
+                      </>
+                    ) : (
+                      <Text style={{ color: "#9A3412", fontSize: 12, marginTop: 6 }}>
+                        Fill account, IFSC, and holder name, then tap Verify & send OTP.
                       </Text>
-                    </Pressable>
+                    )}
                   </View>
                 ) : null}
-                <Pressable
-                  style={[styles.submit, { opacity: saving ? 0.6 : 1 }]}
-                  onPress={() => void registerBank()}
-                  disabled={saving}
-                >
-                  <Text style={styles.submitText}>Submit for verification</Text>
-                </Pressable>
+                {hasActiveBank && !otpSent ? (
+                  <Pressable
+                    style={[styles.submit, { opacity: otpSending ? 0.6 : 1 }]}
+                    onPress={() => void sendOtp()}
+                    disabled={otpSending}
+                  >
+                    <Text style={styles.submitText}>
+                      {otpSending ? "Sending…" : "Verify & send OTP"}
+                    </Text>
+                  </Pressable>
+                ) : (
+                  <Pressable
+                    style={[styles.submit, { opacity: saving ? 0.6 : 1 }]}
+                    onPress={() => void registerBank()}
+                    disabled={saving}
+                  >
+                    <Text style={styles.submitText}>Submit for verification</Text>
+                  </Pressable>
+                )}
               </View>
             ) : null}
 

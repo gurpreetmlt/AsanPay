@@ -18,6 +18,7 @@ type SupportForm = {
   nodalEmail: string;
   nodalPhone: string;
   nodalAddress: string;
+  allowCompanyBankDelete: boolean;
 };
 
 const EMPTY: SupportForm = {
@@ -28,6 +29,7 @@ const EMPTY: SupportForm = {
   nodalEmail: "",
   nodalPhone: "",
   nodalAddress: "",
+  allowCompanyBankDelete: false,
 };
 
 export default function PlatformSettingsPage() {
@@ -51,6 +53,7 @@ export default function PlatformSettingsPage() {
         nodalEmail: settings.nodalEmail ?? "",
         nodalPhone: settings.nodalPhone ?? "",
         nodalAddress: settings.nodalAddress ?? "",
+        allowCompanyBankDelete: settings.allowCompanyBankDelete === true,
       });
     } catch {
       toast.error("Failed to load platform settings");
@@ -83,6 +86,7 @@ export default function PlatformSettingsPage() {
         nodalEmail: form.nodalEmail.trim(),
         nodalPhone: form.nodalPhone.trim(),
         nodalAddress: form.nodalAddress.trim(),
+        allowCompanyBankDelete: form.allowCompanyBankDelete,
       });
       toast.success("Platform care settings saved");
       await load();
@@ -199,6 +203,32 @@ export default function PlatformSettingsPage() {
               Distributor / upline phone and email come from each agent’s linked parent account — not
               from this page.
             </p>
+
+            <section
+              className="space-y-3 rounded-2xl border bg-white p-5"
+              style={{ borderColor: B.border }}
+            >
+              <h2 className="text-sm font-bold" style={{ color: B.blue }}>
+                Banking safety
+              </h2>
+              <label className="flex items-start gap-3 text-sm" style={{ color: B.blue }}>
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={form.allowCompanyBankDelete}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, allowCompanyBankDelete: e.target.checked }))
+                  }
+                />
+                <span>
+                  <span className="font-semibold">Allow permanent delete of company bank accounts</span>
+                  <span className="mt-1 block text-xs" style={{ color: B.muted }}>
+                    Off by default. When off, Banking only shows Disable. Delete requires this flag
+                    and the account must already be disabled.
+                  </span>
+                </span>
+              </label>
+            </section>
 
             <button
               type="button"

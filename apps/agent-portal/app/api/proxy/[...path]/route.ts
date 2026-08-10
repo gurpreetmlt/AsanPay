@@ -53,16 +53,21 @@ async function forward(req: NextRequest, path: string[], accessToken: string | n
   const body = req.method === "GET" || req.method === "HEAD" ? undefined : await req.text();
 
   const idempotencyKey = req.headers.get("idempotency-key");
+  const contentType = req.headers.get("content-type");
+  const isReceiptPdf = path[path.length - 1] === "pdf" && path[path.length - 2] === "receipt";
   return fetch(url, {
     method: req.method,
     headers: {
-      "Content-Type": req.headers.get("content-type") || "application/json",
+      // Do not force application/json on GET/binary (breaks some gateways / PDF streams).
+      ...(contentType ? { "Content-Type": contentType } : {}),
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
       ...clientIpHeaders(req),
     },
     body,
     cache: "no-store",
+    // Receipt PDF can take longer than a normal JSON call.
+    signal: AbortSignal.timeout(isReceiptPdf ? 60_000 : 30_000),
   });
 }
 
@@ -75,63 +80,71 @@ function authSessionPayload(json: { data?: { user?: unknown } }) {
 }
 
 async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }): Promise<NextResponse> {
-  const { path } = await ctx.params;
-  const isAuth = path[0] === "auth";
-  const { accessToken, refreshToken } = await getAuthCookies();
+  try {
+    const { path } = await ctx.params;
+    const isAuth = path[0] === "auth";
+    const { accessToken, refreshToken } = await getAuthCookies();
 
-  let upstream = await forward(req, path, accessToken);
+    let upstream = await forward(req, path, accessToken);
 
-  // Credential-entry endpoints (login/otp/mpin/signup) are always POST and a 401 there means
-  // "wrong credentials", not "expired access token" — never retry those. GET auth endpoints
-  // (e.g. /auth/me) only ever fail 401 because the access cookie expired, so they need the same
-  // silent-refresh treatment as everything else.
-  const canRetry = !isAuth || req.method === "GET";
-  if (canRetry && upstream.status === 401 && refreshToken) {
-    const refreshed = await refreshOnce(refreshToken);
+    // Credential-entry endpoints (login/otp/mpin/signup) are always POST and a 401 there means
+    // "wrong credentials", not "expired access token" — never retry those. GET auth endpoints
+    // (e.g. /auth/me) only ever fail 401 because the access cookie expired, so they need the same
+    // silent-refresh treatment as everything else.
+    const canRetry = !isAuth || req.method === "GET";
+    if (canRetry && upstream.status === 401 && refreshToken) {
+      const refreshed = await refreshOnce(refreshToken);
 
-    if (refreshed) {
-      await setAuthCookies(refreshed.accessToken, refreshed.refreshToken);
-      upstream = await forward(req, path, refreshed.accessToken);
-    } else {
-      await clearAuthCookies();
+      if (refreshed) {
+        await setAuthCookies(refreshed.accessToken, refreshed.refreshToken);
+        upstream = await forward(req, path, refreshed.accessToken);
+      } else {
+        await clearAuthCookies();
+      }
     }
+
+    if (isAuth) {
+      const json = await upstream.json().catch(() => null);
+
+      if (path[1] === "logout") {
+        await clearAuthCookies();
+      }
+
+      if (
+        upstream.ok &&
+        json?.success &&
+        typeof json?.data?.accessToken === "string" &&
+        typeof json?.data?.refreshToken === "string"
+      ) {
+        await setAuthCookies(json.data.accessToken, json.data.refreshToken);
+        return NextResponse.json(
+          {
+            success: true,
+            message: json.message,
+            data: authSessionPayload(json),
+          },
+          { status: upstream.status },
+        );
+      }
+
+      return NextResponse.json(json ?? { success: false, message: "Request failed" }, { status: upstream.status });
+    }
+
+    // Use arrayBuffer (not text) so binary responses like PDF receipts pass through unmangled.
+    const data = await upstream.arrayBuffer();
+    const headers: Record<string, string> = {
+      "Content-Type": upstream.headers.get("content-type") || "application/json",
+    };
+    const disposition = upstream.headers.get("content-disposition");
+    if (disposition) headers["Content-Disposition"] = disposition;
+    return new NextResponse(data, { status: upstream.status, headers });
+  } catch (err) {
+    const message =
+      err instanceof Error && /aborted|timeout/i.test(err.message)
+        ? "Receipt request timed out. Try again."
+        : "Could not reach the API. Try again in a moment.";
+    return NextResponse.json({ success: false, message }, { status: 502 });
   }
-
-  if (isAuth) {
-    const json = await upstream.json().catch(() => null);
-
-    if (path[1] === "logout") {
-      await clearAuthCookies();
-    }
-
-    if (
-      upstream.ok &&
-      json?.success &&
-      typeof json?.data?.accessToken === "string" &&
-      typeof json?.data?.refreshToken === "string"
-    ) {
-      await setAuthCookies(json.data.accessToken, json.data.refreshToken);
-      return NextResponse.json(
-        {
-          success: true,
-          message: json.message,
-          data: authSessionPayload(json),
-        },
-        { status: upstream.status },
-      );
-    }
-
-    return NextResponse.json(json ?? { success: false, message: "Request failed" }, { status: upstream.status });
-  }
-
-  // Use arrayBuffer (not text) so binary responses like PDF receipts pass through unmangled.
-  const data = await upstream.arrayBuffer();
-  const headers: Record<string, string> = {
-    "Content-Type": upstream.headers.get("content-type") || "application/json",
-  };
-  const disposition = upstream.headers.get("content-disposition");
-  if (disposition) headers["Content-Disposition"] = disposition;
-  return new NextResponse(data, { status: upstream.status, headers });
 }
 
 export { handle as GET, handle as POST, handle as PUT, handle as PATCH, handle as DELETE };

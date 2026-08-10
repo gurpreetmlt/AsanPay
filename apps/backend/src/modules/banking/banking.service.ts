@@ -9,6 +9,7 @@ import { encryptPII } from "../../utils/aes";
 import { HttpError } from "../../utils/httpError";
 import { env } from "../../config/env";
 import type { Paise } from "../../core/money";
+import { getTenantSettings } from "../tenants/tenantSettings.service";
 
 const SUSPENSE = "TREASURY_SUSPENSE_UNIDENTIFIED";
 const COMPANY = "COMPANY_001";
@@ -272,6 +273,107 @@ export async function listBankAccounts(
     supportsVan: r.supportsVan,
     isActive: r.isActive,
   }));
+}
+
+export async function updateBankAccount(params: {
+  tenantId: string;
+  bankAccountId: bigint;
+  bankName?: string;
+  ifsc?: string;
+  purpose?: "collection" | "payout" | "ops";
+  supportsVan?: boolean;
+  accountNumber?: string;
+}): Promise<{ id: string }> {
+  const [row] = await db
+    .select({ id: bankAccounts.id })
+    .from(bankAccounts)
+    .where(and(eq(bankAccounts.id, params.bankAccountId), eq(bankAccounts.tenantId, params.tenantId)))
+    .limit(1);
+  if (!row) throw new HttpError(404, "Bank account not found", "NOT_FOUND");
+
+  const patch: Partial<typeof bankAccounts.$inferInsert> = {};
+  if (params.bankName !== undefined) patch.bankName = params.bankName.trim();
+  if (params.ifsc !== undefined) patch.ifsc = params.ifsc.trim().toUpperCase();
+  if (params.purpose !== undefined) patch.purpose = params.purpose;
+  if (params.supportsVan !== undefined) patch.supportsVan = params.supportsVan;
+  if (params.accountNumber !== undefined) {
+    const digits = params.accountNumber.replace(/\s/g, "");
+    if (digits.length < 6) {
+      throw new HttpError(422, "Account number looks invalid", "INVALID_ACCOUNT_NUMBER");
+    }
+    patch.accountNumberEnc = encryptPII(digits);
+    patch.accountNumberLast4 = digits.slice(-4);
+  }
+  if (Object.keys(patch).length === 0) {
+    throw new HttpError(422, "No fields to update", "EMPTY_PATCH");
+  }
+
+  await db
+    .update(bankAccounts)
+    .set(patch)
+    .where(and(eq(bankAccounts.id, params.bankAccountId), eq(bankAccounts.tenantId, params.tenantId)));
+
+  return { id: String(params.bankAccountId) };
+}
+
+export async function setBankAccountActive(params: {
+  tenantId: string;
+  bankAccountId: bigint;
+  isActive: boolean;
+}): Promise<{ id: string; isActive: boolean }> {
+  const [row] = await db
+    .select({ id: bankAccounts.id })
+    .from(bankAccounts)
+    .where(and(eq(bankAccounts.id, params.bankAccountId), eq(bankAccounts.tenantId, params.tenantId)))
+    .limit(1);
+  if (!row) throw new HttpError(404, "Bank account not found", "NOT_FOUND");
+
+  await db
+    .update(bankAccounts)
+    .set({ isActive: params.isActive })
+    .where(and(eq(bankAccounts.id, params.bankAccountId), eq(bankAccounts.tenantId, params.tenantId)));
+
+  return { id: String(params.bankAccountId), isActive: params.isActive };
+}
+
+export async function deleteBankAccount(params: {
+  tenantId: string;
+  bankAccountId: bigint;
+}): Promise<void> {
+  const settings = await getTenantSettings(params.tenantId);
+  if (!settings.allowCompanyBankDelete) {
+    throw new HttpError(
+      403,
+      "Permanent bank delete is disabled. Enable it in Platform Settings, or disable the account instead.",
+      "BANK_DELETE_DISABLED",
+    );
+  }
+
+  const [row] = await db
+    .select({ id: bankAccounts.id, isActive: bankAccounts.isActive })
+    .from(bankAccounts)
+    .where(and(eq(bankAccounts.id, params.bankAccountId), eq(bankAccounts.tenantId, params.tenantId)))
+    .limit(1);
+  if (!row) throw new HttpError(404, "Bank account not found", "NOT_FOUND");
+  if (row.isActive) {
+    throw new HttpError(
+      422,
+      "Disable the bank account before permanently deleting it",
+      "BANK_STILL_ACTIVE",
+    );
+  }
+
+  try {
+    await db
+      .delete(bankAccounts)
+      .where(and(eq(bankAccounts.id, params.bankAccountId), eq(bankAccounts.tenantId, params.tenantId)));
+  } catch {
+    throw new HttpError(
+      422,
+      "Cannot delete this bank — it still has linked VANs or statement history. Keep it disabled instead.",
+      "BANK_IN_USE",
+    );
+  }
 }
 
 /** Canonical string signed by the bank: bankTxnId|vanNumber|vpa|amount */

@@ -17,6 +17,9 @@ import {
   parkUnmatchedCreditsInSuspense,
   unmatchedCreditCount,
   listBankAccounts,
+  updateBankAccount,
+  setBankAccountActive,
+  deleteBankAccount,
   assertVanWebhookSignature,
   vanWebhookCanonical,
   processVanWebhookCredit,
@@ -25,12 +28,15 @@ import {
 } from "./banking.service";
 import {
   registerBankAccountSchema,
+  updateBankAccountSchema,
+  setBankAccountActiveSchema,
   importStatementSchema,
   parkSuspenseSchema,
   vanWebhookSchema,
   assignVanSchema,
 } from "./banking.validators";
 import { normalizeVanWebhookPayload } from "./vanAdapters";
+import { getTenantSettings } from "../tenants/tenantSettings.service";
 
 export const bankingRouter = Router();
 
@@ -156,6 +162,60 @@ bankingRouter.post(
     );
   },
 );
+
+bankingRouter.patch(
+  "/accounts/:id",
+  requireRole("admin"),
+  validateBody(updateBankAccountSchema),
+  async (req, res) => {
+    const body = req.body as ReturnType<typeof updateBankAccountSchema.parse>;
+    const tenantId = await resolveTenantId();
+    const id = String(req.params.id || "");
+    if (!/^\d+$/.test(id)) throw new HttpError(422, "Invalid bank account id", "INVALID_ID");
+    const result = await updateBankAccount({
+      tenantId,
+      bankAccountId: BigInt(id),
+      bankName: body.bankName,
+      accountNumber: body.accountNumber,
+      ifsc: body.ifsc,
+      purpose: body.purpose,
+      supportsVan: body.supportsVan,
+    });
+    sendSuccess(res, result, "Bank account updated");
+  },
+);
+
+bankingRouter.post(
+  "/accounts/:id/active",
+  requireRole("admin"),
+  validateBody(setBankAccountActiveSchema),
+  async (req, res) => {
+    const body = req.body as ReturnType<typeof setBankAccountActiveSchema.parse>;
+    const tenantId = await resolveTenantId();
+    const id = String(req.params.id || "");
+    if (!/^\d+$/.test(id)) throw new HttpError(422, "Invalid bank account id", "INVALID_ID");
+    const result = await setBankAccountActive({
+      tenantId,
+      bankAccountId: BigInt(id),
+      isActive: body.isActive,
+    });
+    sendSuccess(res, result, body.isActive ? "Bank account enabled" : "Bank account disabled");
+  },
+);
+
+bankingRouter.delete("/accounts/:id", requireRole("admin"), async (req, res) => {
+  const tenantId = await resolveTenantId();
+  const id = String(req.params.id || "");
+  if (!/^\d+$/.test(id)) throw new HttpError(422, "Invalid bank account id", "INVALID_ID");
+  await deleteBankAccount({ tenantId, bankAccountId: BigInt(id) });
+  sendSuccess(res, { id }, "Bank account deleted");
+});
+
+bankingRouter.get("/accounts-meta", requireRole("admin"), async (_req, res) => {
+  const tenantId = await resolveTenantId();
+  const settings = await getTenantSettings(tenantId);
+  sendSuccess(res, { allowCompanyBankDelete: settings.allowCompanyBankDelete === true });
+});
 
 bankingRouter.post(
   "/statements/import",
