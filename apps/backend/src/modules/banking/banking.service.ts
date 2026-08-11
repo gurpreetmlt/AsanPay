@@ -71,22 +71,72 @@ export async function registerBankAccount(params: {
       throw new HttpError(500, `Ledger account ${code} was not created`, "ACCOUNT_CREATE_FAILED");
     }
 
-    const [row] = await tx
-      .insert(bankAccounts)
-      .values({
-        tenantId,
-        ledgerAccountId: ledger.id,
-        bankName,
-        accountNumberEnc: encryptPII(digits),
-        accountNumberLast4: digits.slice(-4),
-        ifsc: ifsc.toUpperCase(),
-        purpose,
-        supportsVan: params.supportsVan ?? false,
+    // One ledger account ↔ one bank_accounts row (unique). Soft-delete keeps the row, so
+    // re-registering the same bankName+purpose must restore instead of inserting again.
+    const [existing] = await tx
+      .select({
+        id: bankAccounts.id,
+        deletedAt: bankAccounts.deletedAt,
+        isActive: bankAccounts.isActive,
       })
-      .returning({ id: bankAccounts.id });
+      .from(bankAccounts)
+      .where(and(eq(bankAccounts.tenantId, tenantId), eq(bankAccounts.ledgerAccountId, ledger.id)))
+      .limit(1);
 
-    if (!row) throw new HttpError(500, "Could not register bank account", "BANK_CREATE_FAILED");
-    return { bankAccountId: row.id, code };
+    if (existing && !existing.deletedAt) {
+      throw new HttpError(
+        422,
+        `A ${purpose} account for ${bankName} is already registered. Edit or disable the existing bank instead of adding a duplicate.`,
+        "BANK_ALREADY_EXISTS",
+      );
+    }
+
+    if (existing?.deletedAt) {
+      await tx
+        .update(bankAccounts)
+        .set({
+          bankName,
+          accountNumberEnc: encryptPII(digits),
+          accountNumberLast4: digits.slice(-4),
+          ifsc: ifsc.toUpperCase(),
+          purpose,
+          supportsVan: params.supportsVan ?? false,
+          isActive: true,
+          deletedAt: null,
+        })
+        .where(eq(bankAccounts.id, existing.id));
+      return { bankAccountId: existing.id, code };
+    }
+
+    try {
+      const [row] = await tx
+        .insert(bankAccounts)
+        .values({
+          tenantId,
+          ledgerAccountId: ledger.id,
+          bankName,
+          accountNumberEnc: encryptPII(digits),
+          accountNumberLast4: digits.slice(-4),
+          ifsc: ifsc.toUpperCase(),
+          purpose,
+          supportsVan: params.supportsVan ?? false,
+        })
+        .returning({ id: bankAccounts.id });
+
+      if (!row) throw new HttpError(500, "Could not register bank account", "BANK_CREATE_FAILED");
+      return { bankAccountId: row.id, code };
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/bank_accounts_ledger_uidx|duplicate key/i.test(msg)) {
+        throw new HttpError(
+          422,
+          `A ${purpose} account for ${bankName} is already registered. Edit the existing bank instead.`,
+          "BANK_ALREADY_EXISTS",
+        );
+      }
+      throw err;
+    }
   });
 }
 
