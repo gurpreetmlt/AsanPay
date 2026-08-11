@@ -172,7 +172,7 @@ function FileUpload({
     <div className="min-w-0">
       <Label>{label}</Label>
       <label
-        className={`flex h-full cursor-pointer flex-col rounded-2xl border-2 border-dashed transition ${
+        className={`flex cursor-pointer flex-col rounded-2xl border-2 border-dashed transition ${
           compact ? "min-h-[5.5rem] gap-1 px-3 py-3" : "min-h-[6.5rem] gap-2 px-4 py-4"
         }`}
         style={{
@@ -1641,8 +1641,7 @@ function SignupPageInner() {
                   Enter the Aadhaar linked to your mobile number. Upload clear front and back images.
                 </p>
                 <div
-                  className="mb-1 grid grid-cols-1 sm:grid-cols-2"
-                  style={{ gap: 20, columnGap: 20, rowGap: 16 }}
+                  className="mb-2 grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5"
                 >
                   <FileUpload
                     label="Aadhaar Front (optional)"
@@ -1995,7 +1994,7 @@ function SignupPageInner() {
               </>
             )}
 
-            <div className="flex gap-3">
+            <div className="mt-2 flex w-full items-stretch gap-3 pt-2">
               <PrimaryButton
                 type="button"
                 variant="destructive"
@@ -2012,7 +2011,7 @@ function SignupPageInner() {
                 loading={loading}
                 disabled={Boolean(mobileError) || (stepIndex === 0 && otpSent && otp.length !== 6)}
                 loopGlow={stepIndex === 0}
-                className="flex-[2]"
+                className="!w-auto min-w-0 flex-[2]"
               >
                 {primaryLabel}
               </PrimaryButton>
