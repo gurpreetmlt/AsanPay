@@ -695,7 +695,7 @@ function ProfileModal({
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={[styles.pinSub, { color: tokens.sub }]}>
+        <Text style={[styles.pinSub, { color: tokens.sub, marginBottom: 10 }]}>
           KYC details cannot be edited here. Contact support to update verified identity.
         </Text>
 
@@ -1194,13 +1194,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
   },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
-  rowLabel: { fontSize: 13, color: colors.textMuted },
+  rowLabel: { fontSize: 11, color: colors.textMuted, fontWeight: "700", textTransform: "uppercase" },
   rowValue: { fontSize: 13, fontWeight: "700", color: colors.text, maxWidth: "58%", textAlign: "right" },
-  rowValueLeft: { fontSize: 14, fontWeight: "700", marginTop: 4 },
+  rowValueLeft: { fontSize: 13, fontWeight: "700", marginTop: 2 },
   verifiedPill: {
     backgroundColor: "rgba(18,183,106,0.14)",
     borderRadius: 999,

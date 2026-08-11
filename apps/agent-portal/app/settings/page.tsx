@@ -82,17 +82,17 @@ function ProfileReadField({
   const empty = !value || value === "—";
   return (
     <div
-      className={`min-w-0 rounded-xl border px-3.5 py-3 ${wide ? "sm:col-span-2 lg:col-span-3" : ""}`}
+      className={`min-w-0 rounded-lg border px-3 py-2 ${wide ? "sm:col-span-2 lg:col-span-3" : ""}`}
       style={{ borderColor: B.border, background: "#fff" }}
     >
-      <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
-        <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+      <div className="mb-0.5 flex flex-wrap items-center gap-1.5">
+        <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
           {label}
         </span>
         {badge}
       </div>
       <div
-        className="text-sm font-bold leading-snug break-words"
+        className="text-[13px] font-bold leading-snug break-words"
         style={{ color: empty ? B.muted : B.blue }}
         title={value}
       >
@@ -110,9 +110,9 @@ function ProfileSection({
   children: ReactNode;
 }) {
   return (
-    <section className="w-full rounded-2xl border p-4 sm:p-5" style={{ borderColor: B.border, background: B.bg }}>
+    <section className="w-full rounded-xl border p-3" style={{ borderColor: B.border, background: B.bg }}>
       <h3
-        className="mb-3 border-b pb-2 text-xs font-bold uppercase tracking-wider"
+        className="mb-2 border-b pb-1.5 text-[11px] font-bold uppercase tracking-wider"
         style={{ color: B.muted, borderColor: B.border }}
       >
         {title}
@@ -474,9 +474,9 @@ export default function SettingsPage() {
                       </PrimaryButton>
                     </>
                   ) : (
-                    <div className="w-full space-y-4">
+                    <div className="w-full space-y-3">
                       <ProfileSection title="Contact">
-                        <div className="grid w-full gap-3 sm:grid-cols-2">
+                        <div className="grid w-full gap-2 sm:grid-cols-2">
                           <ProfileReadField label="Mobile" value={mobile || "—"} badge={<VerifiedPill />} />
                           {user?.emailVerifiedAt &&
                           (user.email ?? "").toLowerCase() === email.trim().toLowerCase() &&
@@ -504,7 +504,7 @@ export default function SettingsPage() {
                       ) : (
                         <>
                           <ProfileSection title="Account">
-                            <div className="grid w-full gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                            <div className="grid w-full gap-2 sm:grid-cols-2 lg:grid-cols-4">
                               <ProfileReadField label="Full name" value={name || "—"} />
                               <ProfileReadField label="UID" value={uid || "—"} />
                               <ProfileReadField label="Role" value={role.label} />
@@ -516,7 +516,7 @@ export default function SettingsPage() {
                           </ProfileSection>
 
                           <ProfileSection title="Identity">
-                            <div className="grid w-full gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                            <div className="grid w-full gap-2 sm:grid-cols-2 lg:grid-cols-3">
                               <ProfileReadField label="PAN No." value={kycProfile?.panMasked || "—"} />
                               <ProfileReadField
                                 label="Aadhaar No."
@@ -550,7 +550,7 @@ export default function SettingsPage() {
                           </ProfileSection>
 
                           <ProfileSection title="Business">
-                            <div className="grid w-full gap-3 sm:grid-cols-2">
+                            <div className="grid w-full gap-2 sm:grid-cols-2">
                               <ProfileReadField
                                 label="Business name"
                                 value={kycProfile?.businessName || "—"}
@@ -563,7 +563,7 @@ export default function SettingsPage() {
                           </ProfileSection>
 
                           <ProfileSection title="Bank">
-                            <div className="grid w-full gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                            <div className="grid w-full gap-2 sm:grid-cols-2 lg:grid-cols-3">
                               <ProfileReadField label="Bank" value={kycProfile?.bankName || "—"} />
                               <ProfileReadField label="Branch" value={kycProfile?.bankBranch || "—"} />
                               <ProfileReadField label="IFSC" value={kycProfile?.bankIfsc || "—"} />
