@@ -139,12 +139,12 @@ export function BankDetailCard({
   const statusTagStyle: CSSProperties = (() => {
     const tone = unavailable ? "pending" : statusTone;
     if (tone === "success") {
-      return { background: "rgba(16, 185, 129, 0.1)", color: "#34D399", border: "1px solid rgba(16, 185, 129, 0.18)" };
+      return { background: "#D1FAE5", color: "#047857", border: "1px solid #6EE7B7" };
     }
     if (tone === "info") {
-      return { background: "rgba(59, 130, 246, 0.08)", color: "#60A5FA", border: "1px solid rgba(59, 130, 246, 0.16)" };
+      return { background: "#DBEAFE", color: "#1D4ED8", border: "1px solid #93C5FD" };
     }
-    return { background: "rgba(148, 163, 184, 0.12)", color: "#94A3B8", border: "1px solid rgba(148, 163, 184, 0.2)" };
+    return { background: "#F1F5F9", color: "#475569", border: "1px solid #CBD5E1" };
   })();
 
   async function handleCopy(e: MouseEvent) {
@@ -212,7 +212,7 @@ export function BankDetailCard({
 
       <div className="flex shrink-0 flex-col items-center justify-center gap-2.5 pt-1">
         <span
-          className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+          className="inline-flex rounded-lg px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide"
           style={statusTagStyle}
         >
           {unavailable ? "Unavailable" : statusLabel}

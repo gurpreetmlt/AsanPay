@@ -115,10 +115,10 @@ export function BankDetailCard({
   const resolvedStatusTone = unavailable ? "pending" : statusTone;
   const statusTagStyle =
     resolvedStatusTone === "success"
-      ? { backgroundColor: "rgba(16, 185, 129, 0.1)", color: "#34D399", borderColor: "rgba(16, 185, 129, 0.18)" }
+      ? { backgroundColor: "#D1FAE5", color: "#047857", borderColor: "#6EE7B7" }
       : resolvedStatusTone === "info"
-        ? { backgroundColor: "rgba(59, 130, 246, 0.08)", color: "#60A5FA", borderColor: "rgba(59, 130, 246, 0.16)" }
-        : { backgroundColor: "rgba(148, 163, 184, 0.12)", color: "#94A3B8", borderColor: "rgba(148, 163, 184, 0.2)" };
+        ? { backgroundColor: "#DBEAFE", color: "#1D4ED8", borderColor: "#93C5FD" }
+        : { backgroundColor: "#F1F5F9", color: "#475569", borderColor: "#CBD5E1" };
 
   function handleCopy() {
     if (onCopy) {
@@ -263,13 +263,13 @@ const styles = StyleSheet.create({
   main: { flex: 1, minWidth: 0 },
   header: { flexDirection: "row", alignItems: "center" },
   statusTag: {
-    fontSize: 10,
-    fontWeight: "600",
+    fontSize: 11,
+    fontWeight: "700",
     textTransform: "uppercase",
     letterSpacing: 0.6,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
     borderWidth: 1,
     overflow: "hidden",
     textAlign: "center",
