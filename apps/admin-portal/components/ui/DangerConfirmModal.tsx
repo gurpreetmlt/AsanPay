@@ -14,7 +14,7 @@ interface DangerConfirmModalProps {
   onClose: () => void;
 }
 
-/** Animated warning confirm — used before destructive admin actions (e.g. bank delete). */
+/** Animated warning confirm — light + dark (html.dark) readable. */
 export function DangerConfirmModal({
   title,
   message,
@@ -36,16 +36,19 @@ export function DangerConfirmModal({
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="danger-confirm-title"
-        className="danger-confirm-panel w-full max-w-md overflow-hidden rounded-2xl border bg-white shadow-2xl"
-        style={{ borderColor: "#FECACA" }}
+        className="danger-confirm-panel w-full max-w-md overflow-hidden rounded-2xl border shadow-2xl"
+        style={{
+          borderColor: "var(--danger-confirm-border)",
+          background: "var(--admin-card)",
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         <div
           className="relative flex items-start gap-3 px-5 pb-3 pt-5"
-          style={{ background: "linear-gradient(180deg, #FEF2F2 0%, #FFFFFF 100%)" }}
+          style={{ background: "var(--danger-confirm-header-bg)" }}
         >
           <div className="danger-confirm-icon flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl">
-            <AlertTriangle size={26} strokeWidth={2.25} style={{ color: "#DC2626" }} />
+            <AlertTriangle size={26} strokeWidth={2.25} style={{ color: B.danger }} />
           </div>
           <div className="min-w-0 flex-1 pt-0.5">
             <h2
@@ -64,19 +67,27 @@ export function DangerConfirmModal({
             aria-label="Close"
             disabled={busy}
             onClick={onClose}
-            className="rounded-lg p-1.5 text-gray-400 transition hover:bg-red-50 hover:text-gray-700 disabled:opacity-40"
+            className="rounded-lg p-1.5 transition disabled:opacity-40"
+            style={{ color: B.muted }}
           >
             <X size={18} />
           </button>
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t px-5 py-4" style={{ borderColor: B.border }}>
+        <div
+          className="flex items-center justify-end gap-2 border-t px-5 py-4"
+          style={{ borderColor: B.border, background: "var(--admin-card)" }}
+        >
           <button
             type="button"
             disabled={busy}
             onClick={onClose}
             className="rounded-xl border px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
-            style={{ borderColor: B.border, color: "#B91C1C", background: "#fff" }}
+            style={{
+              borderColor: B.border,
+              color: B.danger,
+              background: "var(--admin-secondary)",
+            }}
           >
             {cancelLabel}
           </button>
@@ -85,7 +96,7 @@ export function DangerConfirmModal({
             disabled={busy}
             onClick={onConfirm}
             className="danger-confirm-btn rounded-xl px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60"
-            style={{ background: "#DC2626" }}
+            style={{ background: B.danger }}
           >
             {busy ? "Deleting…" : confirmLabel}
           </button>
