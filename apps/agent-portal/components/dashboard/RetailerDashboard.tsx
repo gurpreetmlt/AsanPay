@@ -261,33 +261,31 @@ export function RetailerDashboard() {
           </PrimaryButton>
         </div>
       ) : null}
-      <div className="dash-stagger grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
+      <div className="dash-stagger grid grid-cols-1 items-start gap-3 md:grid-cols-2 lg:grid-cols-4">
         {/* Main Wallet */}
         <div
           className="dash-card-hover relative overflow-hidden rounded-2xl p-3.5 text-white"
           style={{ background: role.gradient, boxShadow: `0 2px 10px ${role.color}22` }}
         >
           <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white opacity-10" />
-          <div className="mb-0.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-white/70">
+          <div className="mb-1 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-white/70">
             <Wallet size={12} />
             {primary ? walletDisplayName(primary.walletType) : "Main"}
           </div>
-          <div className="mb-2 text-2xl font-bold leading-none tracking-tight">
+          <div className="mb-2.5 text-2xl font-bold leading-none tracking-tight">
             {loading ? "…" : maskBalance(balanceVisible, formatInr(primary?.balance ?? "0"))}
           </div>
-          <div className="relative z-10">
-            <PrimaryButton
-              type="button"
-              variant="success"
-              onClick={() => router.push("/fund-request")}
-              size="sm"
-              showArrow={false}
-              className="btn-pill--wallet-cta !w-auto"
-            >
-              <PlusCircle size={14} />
-              Add Money
-            </PrimaryButton>
-          </div>
+          <PrimaryButton
+            type="button"
+            variant="success"
+            onClick={() => router.push("/fund-request")}
+            size="sm"
+            showArrow={false}
+            className="btn-pill--wallet-cta relative z-10 !w-auto"
+          >
+            <PlusCircle size={14} />
+            Add Money
+          </PrimaryButton>
         </div>
 
         {/* AEPS Wallet */}
@@ -297,25 +295,21 @@ export function RetailerDashboard() {
             style={{ background: B.green, boxShadow: `0 2px 10px ${B.green}22` }}
           >
             <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white opacity-10" />
-            <div className="mb-0.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-white/70">
+            <div className="mb-1 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-white/70">
               <Wallet size={12} />
               {walletDisplayName(secondary.walletType)}
             </div>
-            <div className="mb-2 text-2xl font-bold leading-none tracking-tight">
+            <div className="mb-2.5 text-2xl font-bold leading-none tracking-tight">
               {loading ? "…" : maskBalance(balanceVisible, formatInr(secondary.balance))}
             </div>
-            <div className="mb-2 flex items-center gap-1.5 border-t border-white/15 pt-2">
+            <div className="flex items-center gap-1.5 border-t border-white/15 pt-2">
               <Activity size={11} className="text-white/80" />
               <span className="text-[11px] text-white/90">
                 Pending: {balanceVisible ? formatInr(totalPending) : "••••"}
               </span>
             </div>
-            <p className="rounded-xl bg-white/15 px-2.5 py-1.5 text-center text-[10px] font-semibold leading-snug text-white/95">
-              Credits from AePS cash-out only — no Add Money here
-            </p>
           </div>
         )}
-
 
         {/* Today's Stats Cards */}
         <StatCard
