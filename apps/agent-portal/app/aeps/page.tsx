@@ -410,6 +410,9 @@ function AepsPageInner() {
   const [selectedBank, setSelectedBank] = useState<Bank | null>(null);
   const [insertSlot, setInsertSlot] = useState(0);
   const [selectedInsertAt, setSelectedInsertAt] = useState(0);
+  /** How many bank chips fit in the web strip viewport (mobile keeps fixed 4). */
+  const [visibleSlotCount, setVisibleSlotCount] = useState(14);
+  const visibleSlotCountRef = useRef(14);
   const bankStripRef = useRef<HTMLDivElement>(null);
   const bankDragRef = useRef({
     active: false,
@@ -669,12 +672,15 @@ function AepsPageInner() {
     const favs = favBanks
       .map((id) => byId.get(id))
       .filter((b): b is Bank => Boolean(b));
-    const base = favs.length > 0 ? favs : BANKS.slice(0, 12);
+    const slots = Math.max(4, visibleSlotCount);
+    // Favourites drive the strip length; with no favs, fill roughly one viewport.
+    const base = favs.length > 0 ? favs : BANKS.slice(0, Math.max(slots, 12));
     if (!selectedBank) return base;
     if (base.some((b) => b.id === selectedBank.id)) return base;
-    const slot = Math.min(selectedInsertAt % 4, base.length);
+    // View-All pick: insert at rotating index across visible width (not locked to 0–3).
+    const slot = Math.min(selectedInsertAt % slots, base.length);
     return [...base.slice(0, slot), selectedBank, ...base.slice(slot)];
-  }, [favBanks, selectedBank, selectedInsertAt]);
+  }, [favBanks, selectedBank, selectedInsertAt, visibleSlotCount]);
 
   const selectBank = useCallback(
     (bank: Bank, fromViewAll: boolean) => {
@@ -685,13 +691,35 @@ function AepsPageInner() {
       const base = favs.length > 0 ? favs : BANKS;
       const already = base.some((b) => b.id === bank.id);
       if (fromViewAll && !already) {
-        setSelectedInsertAt(insertSlot);
-        setInsertSlot((s) => (s + 1) % 4);
+        const mod = Math.max(4, visibleSlotCountRef.current);
+        setSelectedInsertAt(insertSlot % mod);
+        setInsertSlot((s) => (s + 1) % mod);
       }
       setSelectedBank(bank);
     },
     [favBanks, insertSlot],
   );
+
+  const measureVisibleSlots = useCallback(() => {
+    const el = bankStripRef.current;
+    if (!el) return;
+    const first = el.querySelector("[data-bank-id]") as HTMLElement | null;
+    const gap = 8; // gap-2
+    const stride = first ? first.offsetWidth + gap : 80;
+    if (stride <= 0) return;
+    const n = Math.max(4, Math.floor(el.clientWidth / stride));
+    visibleSlotCountRef.current = n;
+    setVisibleSlotCount((prev) => (prev === n ? prev : n));
+  }, []);
+
+  useEffect(() => {
+    const el = bankStripRef.current;
+    if (!el) return;
+    measureVisibleSlots();
+    const ro = new ResizeObserver(() => measureVisibleSlots());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [measureVisibleSlots, stripBanks.length, agentAuthReady]);
 
   const scrollSelectedIntoView = useCallback(() => {
     const root = bankStripRef.current;
@@ -996,7 +1024,7 @@ function AepsPageInner() {
               ))}
             </div>
 
-            {/* Bank selector — scrollable; selected icon always kept visible (slot 1–4 floats) */}
+            {/* Bank selector — web: visible slot count from viewport; selected can land on any fav index */}
             <div className="rounded-2xl border bg-white p-4" style={{ borderColor: B.border }}>
               <div className="mb-3 flex items-center justify-between gap-2">
                 <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Select bank</p>
