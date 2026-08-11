@@ -77,6 +77,8 @@ export function BankDetailCard({
   /** Explicit width for horizontal pickers (avoids screen-edge clipping). */
   cardWidth,
   style,
+  onActivate,
+  activateLabel = "Set as active",
 }: {
   ifsc: string;
   holderName: string;
@@ -96,6 +98,8 @@ export function BankDetailCard({
   unavailable?: boolean;
   cardWidth?: number;
   style?: StyleProp<ViewStyle>;
+  onActivate?: () => void;
+  activateLabel?: string;
 }) {
   const { tokens } = useTheme();
   const showFull = revealed && Boolean(accountFull);
@@ -168,6 +172,11 @@ export function BankDetailCard({
         <ActionBtn onPress={handleCopy} disabled={revealing || unavailable}>
           <Copy size={17} color={colors.blueFlat} strokeWidth={2.25} />
         </ActionBtn>
+        {onActivate ? (
+          <ActionBtn onPress={onActivate} disabled={revealing || unavailable}>
+            <Check size={17} color={colors.green} strokeWidth={2.5} />
+          </ActionBtn>
+        ) : null}
         {selected ? (
           <View style={[styles.selectedDot, { backgroundColor: tint }]}>
             <Check size={11} color="#fff" />

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
-import { Check, CircleArrowUp, Copy, Eye, EyeOff, Landmark } from "lucide-react";
+import { Check, Copy, Eye, EyeOff, Landmark } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { B } from "@/lib/brand";
 import {
@@ -244,7 +244,7 @@ export function BankDetailCard({
               onActivate();
             }}
           >
-            <CircleArrowUp size={17} strokeWidth={2.25} style={{ color: B.green }} />
+            <Check size={17} strokeWidth={2.5} style={{ color: B.green }} />
           </ActionBtn>
         ) : null}
         {selected && onSelect ? (

@@ -356,25 +356,8 @@ export function SettlementsModal({ visible, onClose }: { visible: boolean; onClo
                         active ? "Active" : b.verified ? "Verified" : "Pending verification"
                       }
                       note={!b.verified ? "Waiting for admin verification" : undefined}
+                      onActivate={b.verified && !b.isActive ? () => requestActivate(b) : undefined}
                     />
-                    {b.verified && !b.isActive ? (
-                      <Pressable
-                        onPress={() => requestActivate(b)}
-                        disabled={busyId === b.id}
-                        style={{
-                          marginTop: 8,
-                          borderRadius: 12,
-                          paddingVertical: 10,
-                          alignItems: "center",
-                          backgroundColor: colors.green,
-                          opacity: busyId === b.id ? 0.6 : 1,
-                        }}
-                      >
-                        <Text style={{ color: "#fff", fontWeight: "800", fontSize: 13 }}>
-                          Set as active
-                        </Text>
-                      </Pressable>
-                    ) : null}
                   </View>
                 );
               })}
