@@ -86,3 +86,6 @@ app-env-backup.txt
 coolify-*.env
 uploads/
 apps/backend/uploads/
+
+# Large marketing assets (local only)
+Slider/

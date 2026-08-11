@@ -230,6 +230,10 @@ export function SettlementBanksPanel({
       toast.error("Wait for bank details to load from IFSC, or check the code");
       return;
     }
+    if (bankDetails.accountNumber !== (bankDetails.accountNumberConfirm ?? "")) {
+      toast.error("Account numbers do not match");
+      return;
+    }
     if (needsOtp && !/^\d{6}$/.test(otp.trim())) {
       toast.error("Enter the 6-digit OTP sent to your mobile");
       return;
@@ -298,6 +302,7 @@ export function SettlementBanksPanel({
             value={bankDetails}
             onChange={(patch) => setBankDetails((prev) => ({ ...prev, ...patch }))}
             showHolder
+            showConfirmAccount
             disabled={saving || otpSending}
             footer={
               needsOtp ? (
@@ -454,19 +459,8 @@ export function SettlementBanksPanel({
                     </span>
                   ) : undefined
                 }
-                footer={
-                  b.verified && !b.isActive ? (
-                    <PrimaryButton
-                      type="button"
-                      variant="success"
-                      size="sm"
-                      showArrow={false}
-                      className="!w-full"
-                      onClick={() => setActivateTarget(b)}
-                    >
-                      Set as active
-                    </PrimaryButton>
-                  ) : undefined
+                onActivate={
+                  b.verified && !b.isActive ? () => setActivateTarget(b) : undefined
                 }
               />
             );

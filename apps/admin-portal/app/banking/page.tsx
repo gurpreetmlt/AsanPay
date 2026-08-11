@@ -167,6 +167,10 @@ export default function AdminBankingPage() {
       toast.error("Account number must be 6–18 digits");
       return;
     }
+    if (!editingId && bankDetails.accountNumber !== (bankDetails.accountNumberConfirm ?? "")) {
+      toast.error("Account numbers do not match");
+      return;
+    }
     if (editingId && bankDetails.accountNumber.trim() && !/^\d{6,18}$/.test(bankDetails.accountNumber.trim())) {
       toast.error("Account number must be 6–18 digits");
       return;
@@ -439,6 +443,7 @@ export default function AdminBankingPage() {
                 value={bankDetails}
                 onChange={(patch) => setBankDetails((prev) => ({ ...prev, ...patch }))}
                 showHolder={false}
+                showConfirmAccount={!editingId}
                 accountRequired={!editingId}
                 accountPlaceholder={
                   editingId ? "Account number (leave blank to keep)" : "Account number"

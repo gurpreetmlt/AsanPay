@@ -225,6 +225,10 @@ export function SettlementsModal({ visible, onClose }: { visible: boolean; onClo
       showAlert("Invalid IFSC", "Enter a valid IFSC and wait for bank name to load");
       return;
     }
+    if (bankDetails.accountNumber !== (bankDetails.accountNumberConfirm ?? "")) {
+      showAlert("Mismatch", "Account numbers do not match");
+      return;
+    }
     setSaving(true);
     try {
       await api.post("/settlements/banks", {
@@ -383,6 +387,7 @@ export function SettlementsModal({ visible, onClose }: { visible: boolean; onClo
                   onChange={(patch) => setBankDetails((prev) => ({ ...prev, ...patch }))}
                   tokens={tokens}
                   showHolder
+                  showConfirmAccount
                 />
                 {hasActiveBank ? (
                   <View style={[styles.otpBox, { borderColor: "#FDBA74", backgroundColor: "#FFF7ED" }]}>

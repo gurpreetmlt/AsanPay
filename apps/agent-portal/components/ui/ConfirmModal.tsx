@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertTriangle, X } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { B } from "@/lib/brand";
 
@@ -39,11 +39,18 @@ export function ConfirmModal({
 }: ConfirmModalProps) {
   const btn = TONE_BTN[tone];
   const [mounted, setMounted] = useState(false);
+  const [visible, setVisible] = useState(false);
+  const backdropRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setMounted(true);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    // Trigger enter animation on next frame
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => setVisible(true));
+    });
     return () => {
       document.body.style.overflow = prev;
     };
@@ -53,19 +60,31 @@ export function ConfirmModal({
 
   return createPortal(
     <div
+      ref={backdropRef}
       className="fixed inset-0 z-[200] flex items-center justify-center px-4"
-      style={{ background: "rgba(15, 23, 42, 0.55)", backdropFilter: "blur(4px)" }}
+      style={{
+        background: "rgba(15, 23, 42, 0.55)",
+        backdropFilter: "blur(4px)",
+        opacity: visible ? 1 : 0,
+        transition: "opacity 0.25s ease-out",
+      }}
       role="presentation"
       onClick={() => {
         if (!busy) onClose();
       }}
     >
       <div
+        ref={cardRef}
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="confirm-modal-title"
         className="w-full max-w-md overflow-hidden rounded-2xl border bg-white shadow-2xl"
-        style={{ borderColor: tone === "danger" ? "#FECACA" : B.border }}
+        style={{
+          borderColor: tone === "danger" ? "#FECACA" : B.border,
+          opacity: visible ? 1 : 0,
+          transform: visible ? "scale(1) translateY(0)" : "scale(0.92) translateY(12px)",
+          transition: "opacity 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)",
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         <div
@@ -77,7 +96,10 @@ export function ConfirmModal({
         >
           <div
             className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl"
-            style={{ background: tone === "danger" ? "#FEE2E2" : `${btn}22` }}
+            style={{
+              background: tone === "danger" ? "#FEE2E2" : `${btn}22`,
+              animation: visible ? "confirm-icon-pop 0.4s ease-out 0.15s both" : "none",
+            }}
           >
             <AlertTriangle size={26} strokeWidth={2.25} style={{ color: btn }} />
           </div>
@@ -113,7 +135,7 @@ export function ConfirmModal({
             type="button"
             disabled={busy}
             onClick={onClose}
-            className="rounded-xl border px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
+            className="rounded-xl border px-4 py-2.5 text-sm font-semibold transition-transform active:scale-95 disabled:opacity-50"
             style={{
               borderColor: B.border,
               color: tone === "danger" ? "#B91C1C" : B.blue,
@@ -126,13 +148,22 @@ export function ConfirmModal({
             type="button"
             disabled={busy}
             onClick={onConfirm}
-            className="rounded-xl px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60"
+            className="rounded-xl px-4 py-2.5 text-sm font-bold text-white transition-transform active:scale-95 disabled:opacity-60"
             style={{ background: btn }}
           >
             {busy ? busyLabel : confirmLabel}
           </button>
         </div>
       </div>
+
+      {/* Inline keyframes for icon bounce */}
+      <style>{`
+        @keyframes confirm-icon-pop {
+          0% { transform: scale(0.5) rotate(-8deg); opacity: 0; }
+          50% { transform: scale(1.15) rotate(3deg); opacity: 1; }
+          100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+      `}</style>
     </div>,
     document.body,
   );

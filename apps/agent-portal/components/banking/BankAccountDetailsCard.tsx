@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
-import { Check, Copy, Eye, EyeOff, Landmark } from "lucide-react";
+import { Check, CircleArrowUp, Copy, Eye, EyeOff, Landmark } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { B } from "@/lib/brand";
@@ -102,6 +102,8 @@ export function BankDetailCard({
   unavailable = false,
   className = "",
   footer,
+  onActivate,
+  activateLabel = "Set as active",
 }: {
   ifsc: string;
   holderName: string;
@@ -122,6 +124,9 @@ export function BankDetailCard({
   unavailable?: boolean;
   className?: string;
   footer?: ReactNode;
+  /** Icon button in the action stack — replaces a full-width footer button. */
+  onActivate?: () => void;
+  activateLabel?: string;
 }) {
   const showFull = revealed && Boolean(accountFull);
   const accountShown = showFull ? (accountFull as string) : accountMasked;
@@ -218,6 +223,17 @@ export function BankDetailCard({
         >
           <Copy size={17} strokeWidth={2.25} />
         </ActionBtn>
+        {onActivate ? (
+          <ActionBtn
+            label={activateLabel}
+            onClick={(e) => {
+              e.stopPropagation();
+              onActivate();
+            }}
+          >
+            <CircleArrowUp size={17} strokeWidth={2.25} style={{ color: B.green }} />
+          </ActionBtn>
+        ) : null}
         {selected && onSelect ? (
           <span
             className="mx-auto flex h-[18px] w-[18px] items-center justify-center rounded-full"
