@@ -71,28 +71,54 @@ function ProfileReadField({
   label,
   value,
   badge,
+  wide,
 }: {
   label: string;
   value: string;
   badge?: ReactNode;
+  /** Span full row in a grid */
+  wide?: boolean;
 }) {
   const empty = !value || value === "—";
   return (
-    <div className="min-w-0">
-      <div className="mb-1 flex flex-wrap items-center gap-1.5">
-        <span className="text-xs font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+    <div
+      className={`min-w-0 rounded-xl border px-3.5 py-3 ${wide ? "sm:col-span-2 lg:col-span-3" : ""}`}
+      style={{ borderColor: B.border, background: "#fff" }}
+    >
+      <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+        <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
           {label}
         </span>
         {badge}
       </div>
       <div
-        className="text-sm font-bold break-words"
+        className="text-sm font-bold leading-snug break-words"
         style={{ color: empty ? B.muted : B.blue }}
         title={value}
       >
         {value || "—"}
       </div>
     </div>
+  );
+}
+
+function ProfileSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="w-full rounded-2xl border p-4 sm:p-5" style={{ borderColor: B.border, background: B.bg }}>
+      <h3
+        className="mb-3 border-b pb-2 text-xs font-bold uppercase tracking-wider"
+        style={{ color: B.muted, borderColor: B.border }}
+      >
+        {title}
+      </h3>
+      {children}
+    </section>
   );
 }
 
@@ -448,19 +474,16 @@ export default function SettingsPage() {
                       </PrimaryButton>
                     </>
                   ) : (
-                    <>
-                      <div>
-                        <h3 className="mb-3 text-sm font-bold uppercase tracking-wide" style={{ color: B.muted }}>
-                          Contact
-                        </h3>
-                        <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="w-full space-y-4">
+                      <ProfileSection title="Contact">
+                        <div className="grid w-full gap-3 sm:grid-cols-2">
                           <ProfileReadField label="Mobile" value={mobile || "—"} badge={<VerifiedPill />} />
                           {user?.emailVerifiedAt &&
                           (user.email ?? "").toLowerCase() === email.trim().toLowerCase() &&
                           email.trim() ? (
                             <ProfileReadField label="Email" value={email} badge={<VerifiedPill />} />
                           ) : (
-                            <div className="sm:col-span-2">
+                            <div className="min-w-0 sm:col-span-2">
                               <EmailVerifyField
                                 email={email}
                                 onChange={setEmail}
@@ -470,70 +493,92 @@ export default function SettingsPage() {
                             </div>
                           )}
                         </div>
-                      </div>
+                      </ProfileSection>
 
-                      <div>
-                        <h3 className="mb-3 text-sm font-bold uppercase tracking-wide" style={{ color: B.muted }}>
-                          Account & identity
-                        </h3>
-                        {kycProfileLoading ? (
+                      {kycProfileLoading ? (
+                        <ProfileSection title="Account & identity">
                           <p className="text-sm" style={{ color: B.muted }}>
                             Loading KYC details…
                           </p>
-                        ) : (
-                          <div
-                            className="grid grid-cols-2 gap-x-4 gap-y-3.5 sm:grid-cols-3 lg:grid-cols-4"
-                          >
-                            {(
-                              [
-                                { label: "Full name", value: name || "—" },
-                                { label: "UID", value: uid || "—" },
-                                { label: "Role", value: role.label },
-                                {
-                                  label: "Account status",
-                                  value: user?.isActive ? "Active" : "Inactive",
-                                },
-                                { label: "PAN No.", value: kycProfile?.panMasked || "—" },
-                                { label: "Aadhaar No.", value: kycProfile?.aadhaarMasked || "—" },
-                                { label: "DOB", value: formatKycDate(kycProfile?.dob) },
-                                {
-                                  label: "Anniversary",
-                                  value: formatKycDate(kycProfile?.anniversaryDate),
-                                },
-                                { label: "Gender", value: kycProfile?.gender || "—" },
-                                { label: "Father name", value: kycProfile?.fatherName || "—" },
-                                {
-                                  label: "Address",
-                                  value:
-                                    [
-                                      kycProfile?.address,
-                                      kycProfile?.city || kycProfile?.district,
-                                      kycProfile?.state,
-                                      kycProfile?.pincode,
-                                    ]
-                                      .filter(Boolean)
-                                      .join(", ") || "—",
-                                },
-                                { label: "Business", value: kycProfile?.businessName || "—" },
-                                { label: "Business type", value: kycProfile?.businessType || "—" },
-                                { label: "Bank", value: kycProfile?.bankName || "—" },
-                                { label: "Branch", value: kycProfile?.bankBranch || "—" },
-                                { label: "IFSC", value: kycProfile?.bankIfsc || "—" },
-                                {
-                                  label: "Account holder",
-                                  value: kycProfile?.bankAccountName || "—",
-                                },
-                                {
-                                  label: "Account",
-                                  value: kycProfile?.bankAccountMasked || "—",
-                                },
-                              ] as { label: string; value: string }[]
-                            ).map((row) => (
-                              <ProfileReadField key={row.label} label={row.label} value={row.value} />
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                        </ProfileSection>
+                      ) : (
+                        <>
+                          <ProfileSection title="Account">
+                            <div className="grid w-full gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                              <ProfileReadField label="Full name" value={name || "—"} />
+                              <ProfileReadField label="UID" value={uid || "—"} />
+                              <ProfileReadField label="Role" value={role.label} />
+                              <ProfileReadField
+                                label="Account status"
+                                value={user?.isActive ? "Active" : "Inactive"}
+                              />
+                            </div>
+                          </ProfileSection>
+
+                          <ProfileSection title="Identity">
+                            <div className="grid w-full gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                              <ProfileReadField label="PAN No." value={kycProfile?.panMasked || "—"} />
+                              <ProfileReadField
+                                label="Aadhaar No."
+                                value={kycProfile?.aadhaarMasked || "—"}
+                              />
+                              <ProfileReadField label="DOB" value={formatKycDate(kycProfile?.dob)} />
+                              <ProfileReadField
+                                label="Anniversary"
+                                value={formatKycDate(kycProfile?.anniversaryDate)}
+                              />
+                              <ProfileReadField label="Gender" value={kycProfile?.gender || "—"} />
+                              <ProfileReadField
+                                label="Father name"
+                                value={kycProfile?.fatherName || "—"}
+                              />
+                              <ProfileReadField
+                                wide
+                                label="Address"
+                                value={
+                                  [
+                                    kycProfile?.address,
+                                    kycProfile?.city || kycProfile?.district,
+                                    kycProfile?.state,
+                                    kycProfile?.pincode,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(", ") || "—"
+                                }
+                              />
+                            </div>
+                          </ProfileSection>
+
+                          <ProfileSection title="Business">
+                            <div className="grid w-full gap-3 sm:grid-cols-2">
+                              <ProfileReadField
+                                label="Business name"
+                                value={kycProfile?.businessName || "—"}
+                              />
+                              <ProfileReadField
+                                label="Business type"
+                                value={kycProfile?.businessType || "—"}
+                              />
+                            </div>
+                          </ProfileSection>
+
+                          <ProfileSection title="Bank">
+                            <div className="grid w-full gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                              <ProfileReadField label="Bank" value={kycProfile?.bankName || "—"} />
+                              <ProfileReadField label="Branch" value={kycProfile?.bankBranch || "—"} />
+                              <ProfileReadField label="IFSC" value={kycProfile?.bankIfsc || "—"} />
+                              <ProfileReadField
+                                label="Account holder"
+                                value={kycProfile?.bankAccountName || "—"}
+                              />
+                              <ProfileReadField
+                                label="Account"
+                                value={kycProfile?.bankAccountMasked || "—"}
+                              />
+                            </div>
+                          </ProfileSection>
+                        </>
+                      )}
 
                       {user?.role === "retailer" && user.hasInstantpayOutlet !== true ? (
                         <button
@@ -621,7 +666,7 @@ export default function SettingsPage() {
                           ))}
                         </div>
                       </div>
-                    </>
+                    </div>
                   )}
                 </div>
               </div>
