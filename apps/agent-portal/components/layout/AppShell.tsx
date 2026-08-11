@@ -707,7 +707,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <div className="flex min-h-screen flex-col overflow-x-hidden pb-20 md:ml-[248px] md:pb-0">
         <header
-          className="sticky top-0 z-30 flex flex-shrink-0 items-center gap-3 border-b bg-white px-4 md:gap-4 md:px-6"
+          className="sticky top-0 z-30 flex flex-shrink-0 items-center gap-3 overflow-visible border-b bg-white px-4 md:gap-4 md:px-6"
           style={{ height: 68, borderColor: B.border }}
         >
           <button

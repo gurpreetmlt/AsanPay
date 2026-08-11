@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 export function IconTooltip({
   label,
   children,
-  side = "top",
+  side = "bottom",
   className = "",
 }: {
   label: string;
