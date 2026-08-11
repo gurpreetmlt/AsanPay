@@ -552,11 +552,11 @@ html.dark .danger-confirm-icon {
   left: 50%;
   bottom: calc(100% + 8px);
   transform: translateX(-50%) translateY(4px);
-  padding: 5px 9px;
-  border-radius: 8px;
+  padding: 4px 7px;
+  border-radius: 7px;
   background: #0f172a;
   color: #fff;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   line-height: 1.2;
   white-space: nowrap;
@@ -570,14 +570,38 @@ html.dark .danger-confirm-icon {
   top: calc(100% + 8px);
   transform: translateX(-50%) translateY(-4px);
 }
+.icon-tooltip[data-tooltip-align="end"]::after {
+  left: auto;
+  right: 0;
+  transform: translateX(0) translateY(4px);
+}
+.icon-tooltip[data-tooltip-align="end"][data-tooltip-side="bottom"]::after {
+  transform: translateX(0) translateY(-4px);
+}
+.icon-tooltip[data-tooltip-align="start"]::after {
+  left: 0;
+  transform: translateX(0) translateY(4px);
+}
 .icon-tooltip:hover::after,
 .icon-tooltip:focus-visible::after {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
+.icon-tooltip[data-tooltip-align="end"]:hover::after,
+.icon-tooltip[data-tooltip-align="end"]:focus-visible::after {
+  transform: translateX(0) translateY(0);
+}
+.icon-tooltip[data-tooltip-align="start"]:hover::after,
+.icon-tooltip[data-tooltip-align="start"]:focus-visible::after {
+  transform: translateX(0) translateY(0);
+}
 .icon-tooltip[data-tooltip-side="bottom"]:hover::after,
 .icon-tooltip[data-tooltip-side="bottom"]:focus-visible::after {
   transform: translateX(-50%) translateY(0);
+}
+.icon-tooltip[data-tooltip-align="end"][data-tooltip-side="bottom"]:hover::after,
+.icon-tooltip[data-tooltip-align="end"][data-tooltip-side="bottom"]:focus-visible::after {
+  transform: translateX(0) translateY(0);
 }
 @media (prefers-reduced-motion: reduce) {
   .icon-tooltip::after {

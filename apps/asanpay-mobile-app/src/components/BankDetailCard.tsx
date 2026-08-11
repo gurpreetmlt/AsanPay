@@ -166,7 +166,7 @@ export function BankDetailCard({
         </Text>
         {canReveal ? (
           <ActionBtn
-            label={showFull ? "Hide account number" : "Show account number"}
+            label={showFull ? "Hide number" : "Show number"}
             onPress={() => onToggleReveal?.()}
             disabled={revealing || unavailable}
           >
@@ -178,7 +178,7 @@ export function BankDetailCard({
           </ActionBtn>
         ) : null}
         <ActionBtn
-          label="Copy bank details"
+          label="Copy details"
           onPress={handleCopy}
           disabled={revealing || unavailable}
         >
@@ -186,7 +186,7 @@ export function BankDetailCard({
         </ActionBtn>
         {onActivate ? (
           <ActionBtn
-            label={activateLabel}
+            label={activateLabel === "Set as active" ? "Set active" : activateLabel}
             onPress={onActivate}
             disabled={revealing || unavailable}
           >

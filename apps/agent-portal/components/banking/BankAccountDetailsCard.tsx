@@ -67,6 +67,7 @@ function ActionBtn({
       disabled={disabled}
       aria-label={label}
       data-tooltip={label}
+      data-tooltip-align="end"
       className="icon-tooltip inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white transition-transform hover:scale-[1.03] active:scale-[0.98]"
       style={{
         color: B.blueLight,
@@ -219,7 +220,7 @@ export function BankDetailCard({
         </span>
         {canReveal ? (
           <ActionBtn
-            label={showFull ? "Hide account number" : "Show account number"}
+            label={showFull ? "Hide number" : "Show number"}
             disabled={revealing || unavailable}
             onClick={(e) => {
               e.stopPropagation();
@@ -230,7 +231,7 @@ export function BankDetailCard({
           </ActionBtn>
         ) : null}
         <ActionBtn
-          label="Copy bank details"
+          label="Copy details"
           disabled={revealing || unavailable}
           onClick={handleCopy}
         >
@@ -238,7 +239,7 @@ export function BankDetailCard({
         </ActionBtn>
         {onActivate ? (
           <ActionBtn
-            label={activateLabel}
+            label={activateLabel === "Set as active" ? "Set active" : activateLabel}
             onClick={(e) => {
               e.stopPropagation();
               onActivate();
@@ -256,6 +257,7 @@ export function BankDetailCard({
             }}
             aria-label="Selected"
             data-tooltip="Selected"
+            data-tooltip-align="end"
           >
             <Check size={17} strokeWidth={2.5} color="#fff" />
           </span>
