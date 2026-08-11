@@ -15,6 +15,8 @@ export type SignupFileMeta = {
 
 export type MobileSignupDraft = {
   stepIndex: number;
+  /** Highest step reached — never decreases on Back. */
+  maxStepReached: number;
   accountCreated: boolean;
   termsAccepted: boolean;
   latitude: string;
@@ -67,6 +69,7 @@ export type MobileSignupDraft = {
 
 export const EMPTY_MOBILE_SIGNUP_DRAFT: MobileSignupDraft = {
   stepIndex: 0,
+  maxStepReached: 0,
   accountCreated: false,
   termsAccepted: false,
   latitude: "",
@@ -121,11 +124,25 @@ function keyFor(id: string) {
   return `asanpay:mobile-signup-draft:${id}`;
 }
 
+export function getSignupResumeStep(
+  draft: Pick<MobileSignupDraft, "stepIndex" | "maxStepReached">,
+  min = 0,
+): number {
+  return Math.max(min, draft.maxStepReached ?? 0, draft.stepIndex ?? 0);
+}
+
 export async function loadMobileSignupDraft(id: string): Promise<MobileSignupDraft | null> {
   try {
     const raw = await AsyncStorage.getItem(keyFor(id));
     if (!raw) return null;
-    return { ...EMPTY_MOBILE_SIGNUP_DRAFT, ...(JSON.parse(raw) as Partial<MobileSignupDraft>) };
+    const parsed = JSON.parse(raw) as Partial<MobileSignupDraft>;
+    const merged = { ...EMPTY_MOBILE_SIGNUP_DRAFT, ...parsed };
+    merged.maxStepReached = Math.max(
+      merged.maxStepReached ?? 0,
+      merged.stepIndex ?? 0,
+      parsed.maxStepReached ?? 0,
+    );
+    return merged;
   } catch {
     return null;
   }

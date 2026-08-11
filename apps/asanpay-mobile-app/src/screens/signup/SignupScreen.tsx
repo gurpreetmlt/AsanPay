@@ -29,6 +29,7 @@ import { TermsAcceptModal } from "../../components/TermsAcceptModal";
 import {
   clearMobileSignupDraft,
   EMPTY_MOBILE_SIGNUP_DRAFT,
+  getSignupResumeStep,
   loadMobileSignupDraft,
   saveMobileSignupDraft,
   type MobileSignupDraft,
@@ -351,6 +352,11 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
 
   const stepIndex = draft.stepIndex;
   const needsUpline = draft.role !== "super_distributor" && draft.role !== "direct_retailer";
+  const canEditIdentity =
+    !draft.accountCreated ||
+    (authUser
+      ? authUser.kycStatus === "rejected" || !authUser.hasKycDocs
+      : false);
   const sponsorRole =
     draft.role === "direct_retailer"
       ? "admin"
@@ -359,7 +365,12 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
   const hasLocation = Boolean(draft.latitude && draft.longitude);
 
   function patch(p: Partial<MobileSignupDraft>) {
-    setDraft((d) => ({ ...d, ...p }));
+    setDraft((d) => {
+      const next = { ...d, ...p };
+      const prevMax = Math.max(d.maxStepReached ?? 0, d.stepIndex ?? 0);
+      next.maxStepReached = Math.max(prevMax, next.maxStepReached ?? 0, next.stepIndex ?? 0);
+      return next;
+    });
   }
 
   function readPosition(highAccuracy: boolean, timeoutMs: number) {
@@ -576,6 +587,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
           return;
         }
         const base = existing ? { ...EMPTY_MOBILE_SIGNUP_DRAFT, ...existing } : { ...EMPTY_MOBILE_SIGNUP_DRAFT };
+        const resumeAt = getSignupResumeStep(base, 2);
         setDraft({
           ...base,
           mobile: phone || base.mobile.replace(/\D/g, "").slice(0, 10),
@@ -583,7 +595,8 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
           signupToken: "",
           name: base.name.trim() || authUser.name || "",
           role: (authUser.role as SignupRole) || base.role,
-          stepIndex: Math.max(base.stepIndex, 2),
+          maxStepReached: resumeAt,
+          stepIndex: resumeAt,
         });
         setDraftReady(true);
         return;
@@ -660,6 +673,13 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
       setMobileError(null);
       return;
     }
+    if (draft.accountCreated && authUser?.mobile) {
+      const mine = authUser.mobile.replace(/\D/g, "").slice(0, 10);
+      if (phone === mine) {
+        setMobileError(null);
+        return;
+      }
+    }
     let cancelled = false;
     const t = setTimeout(async () => {
       try {
@@ -667,6 +687,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
           ApiResponse<{ available: boolean; message?: string }>
         >("/auth/signup/mobile-check", { params: { mobile: phone } });
         if (cancelled) return;
+        if (!data.success) return;
         if (data.data.available === false) {
           setMobileError(
             data.data.message || "This mobile number is already registered. Please log in instead.",
@@ -684,7 +705,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [draft.mobile, draftReady, stepIndex, otpSent, phase]);
+  }, [draft.mobile, draftReady, stepIndex, otpSent, phase, draft.accountCreated, authUser?.mobile]);
 
   useEffect(() => {
     if (!draftReady || stepIndex !== 4 || phase !== "steps" || draft.emailVerified) {
@@ -1133,7 +1154,40 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
     }
   }
 
+  async function continueKycFromRoleStep() {
+    if (draft.name.trim().length < 2) {
+      showAlert("Name required", "Full name is required");
+      return;
+    }
+    setLoading(true);
+    try {
+      if (authUser) {
+        const { data } = await api.patch<{
+          success: boolean;
+          data?: { user: AuthUser };
+          message?: string;
+        }>("/auth/profile/pre-kyc", { name: draft.name.trim() });
+        if (data.success && data.data?.user) {
+          useAuthStore.getState().updateUser(data.data.user);
+        }
+      }
+      patch({
+        accountCreated: true,
+        signupToken: "",
+        stepIndex: Math.max(2, draft.maxStepReached ?? 2),
+      });
+    } catch (err) {
+      showAlert("Error", apiError(err, "Could not save name"));
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function completeAccount() {
+    if (draft.accountCreated || authUser) {
+      await continueKycFromRoleStep();
+      return;
+    }
     if (!draft.signupToken) {
       showAlert("Verify mobile", "Verify mobile OTP before continuing");
       patch({ stepIndex: 0 });
@@ -1169,7 +1223,13 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         return;
       }
       const session = data.data as LoginResponse;
-      const nextDraft = { ...draft, accountCreated: true, signupToken: "", stepIndex: 2 };
+      const nextDraft = {
+        ...draft,
+        accountCreated: true,
+        signupToken: "",
+        stepIndex: 2,
+        maxStepReached: Math.max(draft.maxStepReached ?? 0, 2),
+      };
       setDraft(nextDraft);
       await saveMobileSignupDraft(session.user.id, nextDraft);
       setAuth(session.user, {
@@ -1177,8 +1237,9 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         refreshToken: session.refreshToken,
       });
       setSignupContinue(true);
+      showAlert("Account created", "Continue onboarding");
     } catch (err) {
-      showAlert("Signup failed", apiError(err, "Could not create account"));
+      showAlert("Error", apiError(err, "Could not create account"));
     } finally {
       setLoading(false);
     }
@@ -1313,35 +1374,6 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
       return;
     }
     if (stepIndex === 1) {
-      if (draft.accountCreated) {
-        void (async () => {
-          if (draft.name.trim().length < 2) {
-            showAlert("Name required", "Full name is required");
-            return;
-          }
-          setLoading(true);
-          try {
-            const { data } = await api.patch<{
-              success: boolean;
-              data?: { user: AuthUser };
-              message?: string;
-            }>("/auth/profile/pre-kyc", { name: draft.name.trim() });
-            if (data.success && data.data?.user) {
-              useAuthStore.getState().updateUser(data.data.user);
-            }
-            patch({ stepIndex: Math.min(stepIndex + 1, 8) });
-          } catch (err) {
-            showAlert(
-              "Error",
-              (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
-                "Could not save name",
-            );
-          } finally {
-            setLoading(false);
-          }
-        })();
-        return;
-      }
       void completeAccount();
       return;
     }
@@ -1482,7 +1514,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                   <TextInput
                     value={draft.mobile}
                     onChangeText={(t) => {
-                      if (draft.accountCreated) return;
+                      if (!canEditIdentity) return;
                       patch({ mobile: t.replace(/\D/g, "").slice(0, 10), signupToken: "" });
                       setOtpSent(false);
                       setOtp("");
@@ -1492,16 +1524,21 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                     keyboardType="number-pad"
                     placeholder="10-digit mobile"
                     placeholderTextColor={tokens.mute}
-                    editable={hasLocation && !otpSent && !draft.accountCreated}
+                    editable={hasLocation && !otpSent && canEditIdentity}
                     style={[
                       inputStyle,
-                      ((!hasLocation || otpSent) || draft.accountCreated) && { opacity: 0.5 },
+                      ((!hasLocation || otpSent) || !canEditIdentity) && { opacity: 0.5 },
                       mobileError ? { borderColor: "#DC2626" } : null,
                     ]}
                   />
-                  {draft.accountCreated ? (
+                  {draft.accountCreated && canEditIdentity ? (
                     <Text style={[styles.hint, { color: tokens.mute }]}>
-                      Signed-in mobile is locked. Continue KYC from where you left off.
+                      You can change mobile until KYC is submitted. Changing it requires OTP on the new number.
+                    </Text>
+                  ) : null}
+                  {draft.accountCreated && !canEditIdentity ? (
+                    <Text style={[styles.hint, { color: tokens.mute }]}>
+                      Signed-in mobile is locked after KYC submit.
                     </Text>
                   ) : null}
                   {mobileError ? (
@@ -1618,13 +1655,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                     <>
                       <FieldLabel text={`${UPLINE_LABEL[draft.role as "retailer" | "distributor"]} *`} color={tokens.mute} />
                       <TextInput
-                        value={
-                          draft.accountCreated
-                            ? draft.sponsorName
-                              ? `${draft.sponsorName} · ${draft.sponsorMobile}`
-                              : draft.sponsorMobile
-                            : draft.sponsorMobile
-                        }
+                        value={draft.sponsorMobile}
                         onChangeText={(t) => {
                           if (draft.accountCreated) return;
                           patch({ sponsorMobile: t.replace(/\D/g, "").slice(0, 10) });
@@ -1633,11 +1664,12 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                         keyboardType="number-pad"
                         placeholder="10-digit upline mobile"
                         placeholderTextColor={tokens.mute}
-                        style={inputStyle}
+                        style={[inputStyle, draft.accountCreated ? { opacity: 0.75 } : null]}
                       />
-                      {!draft.accountCreated && sponsorOk ? (
+                      {sponsorOk || draft.sponsorName ? (
                         <Text style={{ color: colors.greenDark, fontSize: 12, fontWeight: "700", marginTop: 4 }}>
                           ✓ {draft.sponsorName}
+                          {draft.sponsorUid ? ` · ${draft.sponsorUid}` : ""}
                         </Text>
                       ) : null}
                       {draft.accountCreated ? (
@@ -1646,35 +1678,46 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                         </Text>
                       ) : null}
                     </>
-                  ) : null}
-                  {!draft.accountCreated ? (
-                    <>
-                      <FieldLabel text="Password *" color={tokens.mute} />
-                      <View style={styles.passwordWrap}>
-                        <TextInput
-                          value={draft.password}
-                          onChangeText={(t) => patch({ password: t })}
-                          secureTextEntry={!showPassword}
-                          placeholder="e.g. Test1234"
-                          placeholderTextColor={tokens.mute}
-                          style={[inputStyle, { paddingRight: 44 }]}
-                          autoCapitalize="none"
-                          autoCorrect={false}
-                        />
-                        <Pressable
-                          onPress={() => setShowPassword((v) => !v)}
-                          style={styles.eyeBtn}
-                          hitSlop={10}
-                          accessibilityLabel={showPassword ? "Hide password" : "Show password"}
-                        >
-                          {showPassword ? <EyeOff size={18} color={tokens.mute} /> : <Eye size={18} color={tokens.mute} />}
-                        </Pressable>
-                      </View>
-                      <Text style={[styles.hint, { color: tokens.mute }]}>
-                        Min 8 characters · include a letter and a number (e.g. Test1234)
-                      </Text>
-                    </>
-                  ) : null}
+                  ) : (
+                    <Text style={[styles.hint, { color: tokens.mute, marginBottom: 8 }]}>
+                      No upline required for this role.
+                    </Text>
+                  )}
+                  <FieldLabel
+                    text={draft.accountCreated ? "Password" : "Password *"}
+                    color={tokens.mute}
+                  />
+                  <View style={styles.passwordWrap}>
+                    <TextInput
+                      value={draft.accountCreated ? "********" : draft.password}
+                      onChangeText={(t) => {
+                        if (draft.accountCreated) return;
+                        patch({ password: t });
+                      }}
+                      editable={!draft.accountCreated}
+                      secureTextEntry={!showPassword && !draft.accountCreated}
+                      placeholder="e.g. Test1234"
+                      placeholderTextColor={tokens.mute}
+                      style={[inputStyle, { paddingRight: 44 }, draft.accountCreated ? { opacity: 0.75 } : null]}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                    {!draft.accountCreated ? (
+                      <Pressable
+                        onPress={() => setShowPassword((v) => !v)}
+                        style={styles.eyeBtn}
+                        hitSlop={10}
+                        accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+                      >
+                        {showPassword ? <EyeOff size={18} color={tokens.mute} /> : <Eye size={18} color={tokens.mute} />}
+                      </Pressable>
+                    ) : null}
+                  </View>
+                  <Text style={[styles.hint, { color: tokens.mute }]}>
+                    {draft.accountCreated
+                      ? "Password already set. Change it later from Account → Security."
+                      : "Min 8 characters · include a letter and a number (e.g. Test1234)"}
+                  </Text>
                 </>
               )}
 

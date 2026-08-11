@@ -28,6 +28,7 @@ import {
 import {
   clearSignupDraft,
   EMPTY_SIGNUP_DRAFT,
+  getSignupResumeStep,
   loadSignupDraft,
   saveSignupDraft,
   type SignupDraft,
@@ -314,6 +315,7 @@ export default function SignupPage() {
 function SignupPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const stepParam = searchParams.get("step");
   const setAuth = useAuthStore((s) => s.setAuth);
   const accessToken = useAuthStore((s) => s.accessToken);
   const user = useAuthStore((s) => s.user);
@@ -354,7 +356,12 @@ function SignupPageInner() {
   const canEditIdentity = !loggedInContinue || needsSignupKycCompletion(user);
 
   function patch(p: Partial<SignupDraft>) {
-    setDraft((d) => ({ ...d, ...p }));
+    setDraft((d) => {
+      const next = { ...d, ...p };
+      const prevMax = Math.max(d.maxStepReached ?? 0, d.stepIndex ?? 0);
+      next.maxStepReached = Math.max(prevMax, next.maxStepReached ?? 0, next.stepIndex ?? 0);
+      return next;
+    });
   }
 
   async function ensureLocation() {
@@ -403,18 +410,21 @@ function SignupPageInner() {
       }
 
       const base = existing ? { ...EMPTY_SIGNUP_DRAFT, ...existing } : { ...EMPTY_SIGNUP_DRAFT };
-      const stepQ = Number(searchParams.get("step"));
+      const stepQ = Number(stepParam);
       const requested =
         Number.isFinite(stepQ) && stepQ >= 0 && stepQ <= 8 ? Math.floor(stepQ) : null;
+      const resumeAt = getSignupResumeStep(base, 2);
       const next: SignupDraft = {
         ...base,
         mobile: phone || base.mobile.replace(/\D/g, "").slice(0, 10),
         accountCreated: true,
         signupToken: "",
         name: base.name.trim() || user.name || "",
+        // Never change role on Continue KYC — keep the existing account role.
         role: (user.role as SignupRole) || base.role,
-        // Logged-in resume: default PAN step, or deep-link ?step=
-        stepIndex: requested ?? Math.max(base.stepIndex, 2),
+        maxStepReached: Math.max(resumeAt, requested ?? 0),
+        // Logged-in resume: deep-link ?step= or furthest step reached.
+        stepIndex: requested ?? resumeAt,
       };
       setDraft(next);
       if (phone) clearSignupDraft("anon");
@@ -444,6 +454,22 @@ function SignupPageInner() {
     setDraftReady(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, user?.mobile]);
+
+  // Settings / stepper deep-link: jump to ?step= without resetting the whole draft.
+  useEffect(() => {
+    if (!draftReady || !loggedInContinue || stepParam == null) return;
+    const stepQ = Number(stepParam);
+    if (!Number.isFinite(stepQ) || stepQ < 0 || stepQ > 8) return;
+    const s = Math.floor(stepQ);
+    setDraft((d) => {
+      if (d.stepIndex === s) return d;
+      return {
+        ...d,
+        stepIndex: s,
+        maxStepReached: Math.max(d.maxStepReached ?? 0, s),
+      };
+    });
+  }, [stepParam, draftReady, loggedInContinue]);
 
   useEffect(() => {
     if (!draftReady) return;
@@ -504,6 +530,15 @@ function SignupPageInner() {
       setMobileChecking(false);
       return;
     }
+    // Own number while logged in (Continue KYC) is never "taken".
+    if (loggedInContinue) {
+      const mine = (user?.mobile || "").replace(/\D/g, "").slice(0, 10);
+      if (phone === mine) {
+        setMobileError(null);
+        setMobileChecking(false);
+        return;
+      }
+    }
     let cancelled = false;
     setMobileChecking(true);
     const timer = setTimeout(async () => {
@@ -537,7 +572,7 @@ function SignupPageInner() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [draft.mobile, draftReady, stepIndex, otpSent]);
+  }, [draft.mobile, draftReady, stepIndex, otpSent, loggedInContinue, user?.mobile]);
 
   useEffect(() => {
     if (!draft.latitude || !draft.longitude || locationLabel) return;
@@ -873,7 +908,41 @@ function SignupPageInner() {
     }
   }
 
+  async function continueKycFromRoleStep() {
+    if (draft.name.trim().length < 2) {
+      toast.error("Full name is required");
+      return;
+    }
+    setLoading(true);
+    try {
+      if (accessToken) {
+        const { data } = await api.patch<ApiResponse<{ user: AuthUser }>>("/auth/profile/pre-kyc", {
+          name: draft.name.trim(),
+        });
+        if (!data.success) throw new Error(data.message);
+        if (data.data?.user) {
+          useAuthStore.getState().setUser(data.data.user);
+        }
+      }
+      patch({
+        accountCreated: true,
+        signupToken: "",
+        // After editing Role/Name, return to furthest KYC step (not always PAN).
+        stepIndex: Math.max(2, draft.maxStepReached ?? 2),
+      });
+    } catch (err) {
+      toast.error(extractApiError(err, "Could not save name"));
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function completeAccount() {
+    // Already logged in / account exists — never bounce back to mobile OTP.
+    if (loggedInContinue || draft.accountCreated || accessToken) {
+      await continueKycFromRoleStep();
+      return;
+    }
     if (!draft.signupToken) {
       toast.error("Verify mobile OTP before continuing");
       patch({ stepIndex: 0 });
@@ -906,7 +975,13 @@ function SignupPageInner() {
         accessToken: session.accessToken,
         refreshToken: session.refreshToken,
       });
-      const nextDraft = { ...draft, accountCreated: true, signupToken: "", stepIndex: 2 };
+      const nextDraft = {
+        ...draft,
+        accountCreated: true,
+        signupToken: "",
+        stepIndex: 2,
+        maxStepReached: Math.max(draft.maxStepReached ?? 0, 2),
+      };
       setDraft(nextDraft);
       saveSignupDraft(session.user.id, nextDraft);
       clearSignupDraft(draft.mobile.replace(/\D/g, ""));
@@ -1131,28 +1206,8 @@ function SignupPageInner() {
       return;
     }
     if (stepIndex === 1) {
-      if (draft.accountCreated || loggedInContinue) {
-        void (async () => {
-          if (draft.name.trim().length < 2) {
-            toast.error("Full name is required");
-            return;
-          }
-          setLoading(true);
-          try {
-            const { data } = await api.patch<ApiResponse<{ user: AuthUser }>>("/auth/profile/pre-kyc", {
-              name: draft.name.trim(),
-            });
-            if (!data.success) throw new Error(data.message);
-            if (data.data?.user) {
-              useAuthStore.getState().setUser(data.data.user);
-            }
-            patch({ stepIndex: Math.min(stepIndex + 1, 8) });
-          } catch (err) {
-            toast.error(extractApiError(err, "Could not save name"));
-          } finally {
-            setLoading(false);
-          }
-        })();
+      if (draft.accountCreated || loggedInContinue || accessToken) {
+        void continueKycFromRoleStep();
         return;
       }
       void completeAccount();
@@ -1414,17 +1469,9 @@ function SignupPageInner() {
                   />
                 </Field>
                 {needsUpline ? (
-                  <Field
-                    label={`${UPLINE_LABEL[draft.role as "retailer" | "distributor"]} *`}
-                  >
+                  <Field label={`${UPLINE_LABEL[draft.role as "retailer" | "distributor"]} *`}>
                     <input
-                      value={
-                        draft.accountCreated || loggedInContinue
-                          ? draft.sponsorName
-                            ? `${draft.sponsorName} · ${draft.sponsorMobile}`
-                            : draft.sponsorMobile
-                          : draft.sponsorMobile
-                      }
+                      value={draft.sponsorMobile}
                       onChange={(e) => {
                         if (draft.accountCreated || loggedInContinue) return;
                         patch({
@@ -1438,12 +1485,11 @@ function SignupPageInner() {
                       disabled={draft.accountCreated || loggedInContinue}
                       placeholder="10-digit upline mobile"
                     />
-                    {!(draft.accountCreated || loggedInContinue) &&
-                    sponsorStatus === "ok" &&
-                    sponsor ? (
+                    {(sponsorStatus === "ok" && sponsor) || draft.sponsorName ? (
                       <p className="mt-1 text-xs font-semibold" style={{ color: B.green }}>
                         <CheckCircle2 size={12} className="mr-1 inline" />
-                        {sponsor.name}
+                        {sponsor?.name || draft.sponsorName}
+                        {draft.sponsorUid ? ` · ${draft.sponsorUid}` : ""}
                       </p>
                     ) : null}
                     {draft.accountCreated || loggedInContinue ? (
@@ -1458,18 +1504,26 @@ function SignupPageInner() {
                       </p>
                     ) : null}
                   </Field>
+                ) : draft.role === "super_distributor" || draft.role === "direct_retailer" ? (
+                  <p className="rounded-xl px-3 py-2 text-xs" style={{ background: B.secondary, color: B.muted }}>
+                    No upline required for this role.
+                  </p>
                 ) : null}
-                {draft.accountCreated || loggedInContinue ? null : (
-                <Field label="Password *">
+                <Field label={draft.accountCreated || loggedInContinue ? "Password" : "Password *"}>
                   <div className="relative">
                     <input
                       type={showPassword ? "text" : "password"}
-                      value={draft.password}
-                      onChange={(e) => patch({ password: e.target.value })}
+                      value={draft.accountCreated || loggedInContinue ? "********" : draft.password}
+                      onChange={(e) => {
+                        if (draft.accountCreated || loggedInContinue) return;
+                        patch({ password: e.target.value });
+                      }}
                       className={`${inputCls} pr-12`}
                       style={inputStyle}
                       placeholder="e.g. Test1234"
                       autoComplete="new-password"
+                      readOnly={draft.accountCreated || loggedInContinue}
+                      disabled={draft.accountCreated || loggedInContinue}
                     />
                     <button
                       type="button"
@@ -1477,15 +1531,17 @@ function SignupPageInner() {
                       className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1"
                       style={{ color: B.muted }}
                       aria-label={showPassword ? "Hide password" : "Show password"}
+                      disabled={draft.accountCreated || loggedInContinue}
                     >
                       {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
                   </div>
                   <p className="mt-1 text-xs" style={{ color: B.muted }}>
-                    Min 8 characters · include a letter and a number (e.g. Test1234)
+                    {draft.accountCreated || loggedInContinue
+                      ? "Password already set for this account. Change it later from Settings → Security."
+                      : "Min 8 characters · include a letter and a number (e.g. Test1234)"}
                   </p>
                 </Field>
-                )}
               </>
             )}
 

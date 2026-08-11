@@ -33,7 +33,7 @@ import { B, initials, roleFromUserRole } from "@/lib/brand";
 import api from "@/lib/api";
 import { SignupStepper, SIGNUP_STEPS } from "@/components/signup/SignupStepper";
 import { extractApiError, needsSignupKycCompletion } from "@/lib/onboarding";
-import { loadSignupDraft } from "@/lib/signupDraft";
+import { getSignupResumeStep, loadSignupDraft } from "@/lib/signupDraft";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 import { enableBiometricLogin, isWebAuthnAvailable } from "@/lib/webauthn";
@@ -182,7 +182,7 @@ export default function SettingsPage() {
     if (!user) return;
     const phone = (user.mobile || "").replace(/\D/g, "").slice(0, 10);
     const draft = (user.id && loadSignupDraft(user.id)) || (phone ? loadSignupDraft(phone) : null);
-    const idx = draft?.stepIndex ?? 2;
+    const idx = draft ? getSignupResumeStep(draft, 2) : 2;
     setSignupStepIndex(Math.max(2, Math.min(idx, SIGNUP_STEPS.length - 1)));
   }, [user, active]);
 
@@ -440,7 +440,9 @@ export default function SettingsPage() {
                       <PrimaryButton
                         type="button"
                         variant="primary"
-                        onClick={() => router.push("/signup?from=settings")}
+                        onClick={() =>
+                          router.push(`/signup?from=settings&step=${signupStepIndex}`)
+                        }
                       >
                         {user?.kycStatus === "rejected" ? "Resubmit KYC" : "Continue KYC"}
                       </PrimaryButton>

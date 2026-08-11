@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, Clock3, ShieldAlert } from "lucide-react";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { needsSignupKycCompletion } from "@/lib/onboarding";
+import { getSignupResumeStep, loadSignupDraft } from "@/lib/signupDraft";
 import { useAuthStore } from "@/lib/store";
 
 type BannerTone = "red" | "orange" | "green";
@@ -53,6 +54,13 @@ const TONE: Record<
   },
 };
 
+function continueKycHref(userId?: string, mobile?: string): string {
+  const phone = (mobile || "").replace(/\D/g, "").slice(0, 10);
+  const draft = (userId && loadSignupDraft(userId)) || (phone ? loadSignupDraft(phone) : null);
+  const step = draft ? getSignupResumeStep(draft, 2) : 2;
+  return `/signup?from=settings&step=${step}`;
+}
+
 /**
  * Same KYC states as new signup for every role:
  * incomplete → Complete KYC | submitted → under review | rejected → Resubmit.
@@ -72,14 +80,14 @@ export function KycOnboardingBanner() {
   let title = "Complete your KYC for Onboarding";
   let body = "Finish signup KYC to unlock services after admin approval.";
   let cta = "Complete KYC";
-  let href = "/signup?from=settings";
+  let href = continueKycHref(user.id, user.mobile);
   let tone: BannerTone = "orange";
 
   if (rejected) {
     title = "KYC rejected — please resubmit";
     body = "Update your details and submit again to continue onboarding.";
     cta = "Resubmit KYC";
-    href = "/signup?from=settings";
+    href = continueKycHref(user.id, user.mobile);
     tone = "red";
   } else if (pendingReview) {
     title = "KYC under review";
@@ -91,7 +99,7 @@ export function KycOnboardingBanner() {
     title = "Complete your KYC for Onboarding";
     body = "Continue where you left off to submit documents for approval.";
     cta = "Complete KYC";
-    href = "/signup?from=settings";
+    href = continueKycHref(user.id, user.mobile);
     tone = "orange";
   }
 

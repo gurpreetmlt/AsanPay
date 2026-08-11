@@ -14,7 +14,10 @@ export type SignupFileMeta = {
 
 
 export type SignupDraft = {
+  /** Current step being viewed / edited (may go backward). */
   stepIndex: number;
+  /** Highest step reached — never decreases on Back (resume + Settings progress). */
+  maxStepReached: number;
   accountCreated: boolean;
   termsAccepted: boolean;
   latitude: string;
@@ -67,6 +70,7 @@ export type SignupDraft = {
 
 export const EMPTY_SIGNUP_DRAFT: SignupDraft = {
   stepIndex: 0,
+  maxStepReached: 0,
   accountCreated: false,
   termsAccepted: false,
   latitude: "",
@@ -120,12 +124,27 @@ function draftKey(mobileOrUserId: string) {
   return `asanpay:signup-draft:${mobileOrUserId}`;
 }
 
+/** Resume / Settings progress — ignores temporary Back navigation. */
+export function getSignupResumeStep(
+  draft: Pick<SignupDraft, "stepIndex" | "maxStepReached">,
+  min = 0,
+): number {
+  return Math.max(min, draft.maxStepReached ?? 0, draft.stepIndex ?? 0);
+}
+
 export function loadSignupDraft(key: string): SignupDraft | null {
   if (typeof window === "undefined" || !key) return null;
   try {
     const raw = localStorage.getItem(draftKey(key));
     if (!raw) return null;
-    return { ...EMPTY_SIGNUP_DRAFT, ...(JSON.parse(raw) as Partial<SignupDraft>) };
+    const parsed = JSON.parse(raw) as Partial<SignupDraft>;
+    const merged = { ...EMPTY_SIGNUP_DRAFT, ...parsed };
+    merged.maxStepReached = Math.max(
+      merged.maxStepReached ?? 0,
+      merged.stepIndex ?? 0,
+      parsed.maxStepReached ?? 0,
+    );
+    return merged;
   } catch {
     return null;
   }
