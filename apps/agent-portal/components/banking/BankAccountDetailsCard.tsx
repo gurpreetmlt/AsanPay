@@ -196,7 +196,6 @@ export function BankDetailCard({
             <div className="mt-2">{note}</div>
           )
         ) : null}
-        {footer ? <div className="mt-3">{footer}</div> : null}
       </div>
 
       <div className="flex shrink-0 flex-col justify-center gap-2.5 pt-1">
@@ -263,6 +262,11 @@ export function BankDetailCard({
         style={{ background: corners.bottomLeft, opacity: 0.4 }}
       />
       <div className="relative z-[1]">{body}</div>
+      {footer ? (
+        <div className="relative z-[1] mt-3 border-t pt-3" style={{ borderColor: `${tint}22` }}>
+          {footer}
+        </div>
+      ) : null}
     </>
   );
 
