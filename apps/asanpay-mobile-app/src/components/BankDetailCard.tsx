@@ -202,17 +202,23 @@ export function BankDetailCard({
     </View>
   );
 
+  const isActiveBank =
+    !unavailable &&
+    (statusLabel.toLowerCase() === "active" ||
+      (statusTone === "success" && statusLabel.toLowerCase().includes("active")));
+
   const isPicker = Boolean(onSelect);
   const shellStyle = [
     styles.card,
     {
       width: cardWidth ?? (isPicker ? 280 : 280),
-      borderColor: selected ? `${tint}55` : corners.border,
+      borderColor: isActiveBank ? colors.green : selected ? `${tint}55` : corners.border,
+      borderWidth: isActiveBank ? 2 : 1,
       opacity: unavailable ? 0.55 : 1,
-      shadowColor: glow,
-      shadowOpacity: selected ? 0.18 : 0.1,
-      shadowRadius: selected ? 12 : 8,
-      elevation: selected ? 3 : 2,
+      shadowColor: isActiveBank ? colors.green : glow,
+      shadowOpacity: isActiveBank || selected ? 0.2 : 0.1,
+      shadowRadius: isActiveBank || selected ? 12 : 8,
+      elevation: isActiveBank || selected ? 3 : 2,
     },
     style,
   ];

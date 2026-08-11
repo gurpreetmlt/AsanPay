@@ -10,6 +10,7 @@ import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { StatusBadge, toneFromStatus } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SectionHeader } from "@/components/ui/SectionHeader";
+import { SettlementStatusTimeline } from "@/components/settlements/SettlementStatusTimeline";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { createAttemptKeyHolder } from "@/lib/idempotencyKey";
@@ -285,6 +286,10 @@ export default function SettlementsPage() {
                       <td className="py-2.5 pr-3 uppercase">{r.mode}</td>
                       <td className="py-2.5 pr-3">
                         <StatusBadge tone={toneFromStatus(r.status)}>{r.status.replace(/_/g, " ")}</StatusBadge>
+                        <SettlementStatusTimeline
+                          status={r.status}
+                          note={r.bankUtr ? `UTR ${r.bankUtr}` : r.failureReason}
+                        />
                       </td>
                       <td className="py-2.5 text-xs" style={{ color: B.muted }}>
                         {r.bankUtr || r.failureReason || "—"}

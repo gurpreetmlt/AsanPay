@@ -186,17 +186,41 @@ export default function AdminSettlementsPage() {
               Settlements
             </h1>
             <p className="text-sm" style={{ color: B.muted }}>
-              Sidebar → Settlements → Pending banks tab to verify agent settlement accounts
+              Agent bank verify inbox + open payouts. Start here when retailers submit settlement banks.
             </p>
           </div>
         </div>
+
+        {pendingCount > 0 ? (
+          <div
+            className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3"
+            style={{ borderColor: "#FDBA74", background: "#FFF7ED" }}
+          >
+            <div>
+              <p className="text-sm font-bold" style={{ color: "#C2410C" }}>
+                {pendingCount} agent bank{pendingCount === 1 ? "" : "s"} awaiting verification
+              </p>
+              <p className="text-xs" style={{ color: "#9A3412" }}>
+                Verify only = mark verified. Verify & activate = retailer can withdraw immediately.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setTab("banks")}
+              className="rounded-xl px-3 py-2 text-sm font-bold text-white"
+              style={{ background: "#12B76A" }}
+            >
+              Open bank inbox
+            </button>
+          </div>
+        ) : null}
 
         <div className="flex gap-2">
           {(
             [
               {
                 key: "banks" as const,
-                label: pendingCount > 0 ? `Pending banks (${pendingCount})` : "Pending banks",
+                label: pendingCount > 0 ? `Bank inbox (${pendingCount})` : "Bank inbox",
               },
               { key: "open" as const, label: "Open payouts" },
             ] as const

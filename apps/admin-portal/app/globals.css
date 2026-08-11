@@ -542,7 +542,7 @@ html.dark .danger-confirm-icon {
 }
 
 /* Icon-only control tooltips */
-.icon-tooltip {
+.icon-tooltip:where(:not(.absolute):not(.fixed):not(.sticky)) {
   position: relative;
 }
 .icon-tooltip::after {

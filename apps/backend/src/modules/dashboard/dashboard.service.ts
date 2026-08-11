@@ -98,6 +98,7 @@ async function getDistributorStats(userId: string) {
 
   let todayVolume = "0";
   let todayCommission = "0";
+  let monthCommission = "0";
   interface TopRetailer { id: string; name: string; volume: string }
   let topRetailers: TopRetailer[] = [];
 
@@ -119,6 +120,12 @@ async function getDistributorStats(userId: string) {
       .from(commissionLedger)
       .where(and(eq(commissionLedger.beneficiaryUserId, userId), gte(commissionLedger.createdAt, today)));
     todayCommission = comm?.total ?? "0";
+
+    const [commMonth] = await db
+      .select({ total: sql<string>`coalesce(sum(${commissionLedger.amount}), '0')` })
+      .from(commissionLedger)
+      .where(and(eq(commissionLedger.beneficiaryUserId, userId), gte(commissionLedger.createdAt, monthStart)));
+    monthCommission = commMonth?.total ?? "0";
 
     const topRows = await db
       .select({
@@ -164,6 +171,7 @@ async function getDistributorStats(userId: string) {
       inactive: noActivityThisMonth,
     },
     today: { volume: todayVolume, commission: todayCommission },
+    month: { commission: monthCommission },
     topRetailers,
     activityHistory,
   };
@@ -278,6 +286,18 @@ async function getSuperDistributorStats(userId: string) {
     .where(and(eq(commissionLedger.beneficiaryUserId, userId), gte(commissionLedger.createdAt, today)));
   const todayCommission = comm?.total ?? "0";
 
+  const monthStartSd = (() => {
+    const d = new Date();
+    d.setDate(1);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  })();
+  const [commMonth] = await db
+    .select({ total: sql<string>`coalesce(sum(${commissionLedger.amount}), '0')` })
+    .from(commissionLedger)
+    .where(and(eq(commissionLedger.beneficiaryUserId, userId), gte(commissionLedger.createdAt, monthStartSd)));
+  const monthCommission = commMonth?.total ?? "0";
+
   // Distributor performance (volume per distributor today)
   interface DistPerf { id: string; name: string; retailerCount: number; volume: string }
   let distPerformance: DistPerf[] = [];
@@ -304,6 +324,7 @@ async function getSuperDistributorStats(userId: string) {
     role: "super_distributor" as const,
     network: {
       distributors: distributors.length,
+      inactiveDistributors: distributors.filter((d) => !d.isActive).length,
       retailers: retailerRows.length,
       activeRetailers: retailerRows.filter((r) => r.isActive).length,
     },
@@ -311,6 +332,7 @@ async function getSuperDistributorStats(userId: string) {
       todayVolume,
       yesterdayVolume,
       todayCommission,
+      monthCommission,
     },
     distributorPerformance: distPerformance,
   };

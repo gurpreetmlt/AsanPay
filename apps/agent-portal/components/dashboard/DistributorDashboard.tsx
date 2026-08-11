@@ -33,6 +33,7 @@ interface DistributorStats {
   role: "distributor";
   retailers: { total: number; active: number; inactive: number };
   today: { volume: string; commission: string };
+  month?: { commission: string };
   topRetailers: { id: string; name: string; volume: string }[];
   activityHistory?: ActivityMonth[];
 }
@@ -206,13 +207,29 @@ export function DistributorDashboard() {
                 icon={<BarChart3 size={11} />}
               />
               <StatChip
-                label="Commission"
+                label="Commission Today"
                 value={loading ? "…" : formatInr(stats?.today.commission ?? "0")}
+                tone="good"
+                icon={<IndianRupee size={11} />}
+              />
+              <StatChip
+                label="Commission MTD"
+                value={loading ? "…" : formatInr(stats?.month?.commission ?? "0")}
                 tone="good"
                 icon={<IndianRupee size={11} />}
                 className="col-span-2 sm:col-span-1"
               />
             </div>
+            {(stats?.retailers.inactive ?? 0) > 0 ? (
+              <button
+                type="button"
+                onClick={() => router.push("/network")}
+                className="mt-3 w-full rounded-xl border px-3 py-2.5 text-left text-sm font-semibold"
+                style={{ borderColor: "#FECACA", background: "#FEF2F2", color: "#B91C1C" }}
+              >
+                {stats?.retailers.inactive} retailer{stats?.retailers.inactive === 1 ? "" : "s"} with no activity this month — open Network
+              </button>
+            ) : null}
           </div>
         </div>
       </div>

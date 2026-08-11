@@ -25,8 +25,18 @@ import type { WalletBalance } from "@/lib/types";
 
 interface SDStats {
   role: "super_distributor";
-  network: { distributors: number; retailers: number; activeRetailers: number };
-  revenue: { todayVolume: string; yesterdayVolume: string; todayCommission: string };
+  network: {
+    distributors: number;
+    inactiveDistributors?: number;
+    retailers: number;
+    activeRetailers: number;
+  };
+  revenue: {
+    todayVolume: string;
+    yesterdayVolume: string;
+    todayCommission: string;
+    monthCommission?: string;
+  };
   distributorPerformance: { id: string; name: string; retailerCount: number; volume: string }[];
 }
 
@@ -110,7 +120,7 @@ export function SuperDistributorDashboard() {
       </div>
 
       {/* Revenue Summary */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
           <div className="mb-2 text-xs font-medium uppercase tracking-wider" style={{ color: B.muted }}>
             Today's Volume
@@ -143,7 +153,36 @@ export function SuperDistributorDashboard() {
             <IndianRupee size={12} /> Your earnings
           </div>
         </div>
+        <div className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
+          <div className="mb-2 text-xs font-medium uppercase tracking-wider" style={{ color: B.muted }}>
+            Commission MTD
+          </div>
+          <div className="text-3xl font-bold" style={{ color: B.green }}>
+            {loading ? "…" : formatInr(stats?.revenue.monthCommission ?? "0")}
+          </div>
+          <div className="mt-2 text-xs" style={{ color: B.muted }}>This calendar month</div>
+        </div>
       </div>
+
+      {(stats?.network.inactiveDistributors ?? 0) > 0 || inactiveRetailers > 0 ? (
+        <button
+          type="button"
+          onClick={() => router.push("/network")}
+          className="w-full rounded-2xl border px-4 py-3 text-left"
+          style={{ borderColor: "#FECACA", background: "#FEF2F2" }}
+        >
+          <p className="text-sm font-bold" style={{ color: "#B91C1C" }}>
+            Downline attention
+          </p>
+          <p className="mt-0.5 text-xs" style={{ color: "#991B1B" }}>
+            {(stats?.network.inactiveDistributors ?? 0) > 0
+              ? `${stats?.network.inactiveDistributors} inactive distributor(s). `
+              : ""}
+            {inactiveRetailers > 0 ? `${inactiveRetailers} inactive retailer(s) in network. ` : ""}
+            Open Network →
+          </p>
+        </button>
+      ) : null}
 
       {/* Distributor Performance + Alerts */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">

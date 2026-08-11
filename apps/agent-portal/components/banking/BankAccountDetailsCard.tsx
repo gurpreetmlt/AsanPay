@@ -266,14 +266,27 @@ export function BankDetailCard({
     </div>
   );
 
+  const isActiveBank =
+    !unavailable &&
+    (statusLabel.toLowerCase() === "active" ||
+      (statusTone === "success" && statusLabel.toLowerCase().includes("active")));
+
   const isPicker = Boolean(onSelect);
   const shellClass = `relative overflow-hidden rounded-[18px] border text-left ${className}`;
   const shellStyle: CSSProperties = {
-    borderWidth: 1,
-    borderColor: selected ? `${tint}55` : unavailable ? B.border : corners.border,
+    borderWidth: isActiveBank ? 2 : 1,
+    borderColor: isActiveBank
+      ? `${B.green}99`
+      : selected
+        ? `${tint}55`
+        : unavailable
+          ? B.border
+          : corners.border,
     background: bankCardGradient(ifsc),
     opacity: unavailable ? 0.55 : 1,
-    boxShadow: bankCardGlow(ifsc, selected),
+    boxShadow: isActiveBank
+      ? `0 0 0 3px ${B.green}22, ${bankCardGlow(ifsc, true)}`
+      : bankCardGlow(ifsc, selected),
     padding: 18,
     ...(isPicker
       ? {

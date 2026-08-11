@@ -560,7 +560,14 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
               title={CATEGORY_NAME_OVERRIDES.BILL_PAYMENT_BBPS}
               titleIcon={<Receipt size={21} strokeWidth={2.2} color="#7A56D6" aria-hidden />}
               action={
-                layout.bbps.length > BBPS_PREVIEW ? (
+                <div className="flex items-center gap-2">
+                  <span
+                    className="rounded-lg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                    style={{ background: "#F1F5F9", color: "#64748B" }}
+                  >
+                    Coming soon
+                  </span>
+                  {layout.bbps.length > BBPS_PREVIEW ? (
                   <button
                     type="button"
                     onClick={() => setBbpsOpen((v) => !v)}
@@ -576,7 +583,8 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
                       }}
                     />
                   </button>
-                ) : null
+                  ) : null}
+                </div>
               }
             >
               <ServiceRow

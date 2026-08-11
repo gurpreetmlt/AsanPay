@@ -13,6 +13,7 @@ import {
   Bell,
   ShieldCheck,
   PlusCircle,
+  Share2,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { fetchApi } from "@/lib/api";
@@ -98,10 +99,65 @@ export function RetailerDashboard() {
   );
 
   const kycDone = user?.kycStatus === "verified";
+  const mainBal = parseFloat(primary?.balance ?? "0") || 0;
+  const lowBalance = !loading && mainBal < 500;
+
+  function shareReceipt(t: TxnRow) {
+    const lines = [
+      "AsanPay receipt",
+      `Service: ${t.serviceName}`,
+      `Amount: ${formatInr(t.amount)}`,
+      `Status: ${t.status}`,
+      `When: ${new Date(t.createdAt).toLocaleString("en-IN")}`,
+      t.txnRef ? `Ref: ${t.txnRef}` : null,
+    ].filter(Boolean);
+    const text = lines.join("\n");
+    void (async () => {
+      try {
+        if (navigator.share) {
+          await navigator.share({ title: "AsanPay receipt", text });
+          return;
+        }
+      } catch {
+        /* fall through to copy */
+      }
+      try {
+        await navigator.clipboard.writeText(text);
+        toast.success("Receipt copied");
+      } catch {
+        toast.error("Could not share receipt");
+      }
+    })();
+  }
 
   return (
     <div className="dash-page-stagger space-y-4">
-      {/* Wallet Summary */}
+      {lowBalance ? (
+        <div
+          className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3"
+          style={{ borderColor: "#FDBA74", background: "#FFF7ED" }}
+        >
+          <div>
+            <p className="text-sm font-bold" style={{ color: "#C2410C" }}>
+              Low Main balance
+            </p>
+            <p className="text-xs" style={{ color: "#9A3412" }}>
+              Balance is under ₹500. Add Money so services are not interrupted.
+            </p>
+          </div>
+          <PrimaryButton
+            type="button"
+            variant="success"
+            size="sm"
+            showArrow={false}
+            className="!w-auto"
+            onClick={() => router.push("/fund-request")}
+          >
+            <PlusCircle size={14} />
+            Add Money
+          </PrimaryButton>
+        </div>
+      ) : null}
       <div className="dash-stagger grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
         {/* Main Wallet */}
         <div
@@ -360,9 +416,19 @@ export function RetailerDashboard() {
                     <p className="text-xs" style={{ color: B.muted }}>{timeAgo(t.createdAt)}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <span className="text-sm font-bold" style={{ color: B.blue }}>{formatInr(t.amount)}</span>
                   <StatusBadge status={badgeStatus(t.status)} />
+                  <button
+                    type="button"
+                    className="icon-tooltip rounded-lg p-1.5"
+                    style={{ color: B.blueLight, background: "#fff" }}
+                    aria-label="Share receipt"
+                    data-tooltip="Share receipt"
+                    onClick={() => shareReceipt(t)}
+                  >
+                    <Share2 size={14} strokeWidth={2.25} />
+                  </button>
                 </div>
               </div>
             ))}
