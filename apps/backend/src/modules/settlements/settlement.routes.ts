@@ -10,6 +10,7 @@ import { resolveTenantId } from "../fund-requests/tenant";
 import {
   registerSettlementBank,
   verifySettlementBank,
+  activateSettlementBank,
   listSettlementBanks,
   revealSettlementBank,
   requestSettlement,
@@ -126,6 +127,32 @@ settlementRouter.post(
         coolingUntil: result.coolingUntil?.toISOString() ?? null,
       },
       "Settlement bank account verified",
+    );
+  },
+);
+
+settlementRouter.post(
+  "/banks/:id/activate",
+  requireRole(...AGENT_ROLES),
+  walletTxnLimiter,
+  async (req, res) => {
+    if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+    const tenantId = await resolveTenantId();
+    const result = await activateSettlementBank({
+      tenantId,
+      userId: req.auth.sub,
+      settlementAccountId: parseBankRowId(paramId(req.params.id)),
+    });
+    sendSuccess(
+      res,
+      {
+        settlementAccountId: String(result.settlementAccountId),
+        isActive: result.isActive,
+        coolingUntil: result.coolingUntil?.toISOString() ?? null,
+      },
+      result.coolingUntil && result.coolingUntil.getTime() > Date.now()
+        ? "Bank activated — withdrawals pause for 24 hours after the change"
+        : "Settlement bank activated",
     );
   },
 );

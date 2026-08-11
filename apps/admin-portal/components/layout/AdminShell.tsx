@@ -56,7 +56,7 @@ const TREASURY: NavItem[] = [
     children: [
       { href: "/wallet", label: "Company balance", icon: { lib: "md", name: "MdAccountBalanceWallet" } },
       { href: "/fund-requests", label: "Fund requests", icon: { lib: "lucide", icon: IndianRupee } },
-      { href: "/settlements", label: "Settlements", icon: { lib: "lucide", icon: Landmark } },
+      { href: "/settlements", label: "Settlements / banks", icon: { lib: "lucide", icon: Landmark } },
       { href: "/banking", label: "Banking", icon: { lib: "lucide", icon: Building2 } },
       { href: "/float", label: "Float", icon: { lib: "lucide", icon: ArrowLeftRight } },
       { href: "/ledger-reports", label: "Ledger reports", icon: { lib: "lucide", icon: Scale } },

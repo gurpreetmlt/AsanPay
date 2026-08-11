@@ -40,8 +40,7 @@ export function NetworkScreen() {
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const childRole = CHILD_ROLE[user.role];
-  const needsKyc =
-    user.kycStatus !== "verified" && (user.kycStatus === "rejected" || !user.hasKycDocs);
+  const needsKyc = user.kycStatus === "rejected" || !user.hasKycDocs;
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);

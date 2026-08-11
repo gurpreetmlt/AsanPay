@@ -32,8 +32,8 @@ function isKycServicesUnlocked(user: { kycStatus: string }) {
 }
 
 function needsSignupKycCompletion(user: { kycStatus: string; hasKycDocs: boolean }) {
-  if (user.kycStatus === "verified") return false;
   if (user.kycStatus === "rejected") return true;
+  if (user.kycStatus === "verified" && user.hasKycDocs) return false;
   return !user.hasKycDocs;
 }
 

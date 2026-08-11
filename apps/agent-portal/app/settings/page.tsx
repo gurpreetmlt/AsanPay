@@ -386,13 +386,9 @@ export default function SettingsPage() {
                     KYC details cannot be edited here. Contact support to update verified identity.
                   </p>
 
-                  {needsSignupKycCompletion(user) ? <KycOnboardingBanner /> : null}
-
-                  {!kycProfileLoading &&
-                  !needsSignupKycCompletion(user) &&
-                  !kycProfile?.panMasked &&
-                  !kycProfile?.aadhaarMasked ? (
-                    <KycOnboardingBanner profileIncomplete />
+                  {needsSignupKycCompletion(user) ||
+                  (user?.hasKycDocs && user.kycStatus !== "verified" && user.kycStatus !== "rejected") ? (
+                    <KycOnboardingBanner />
                   ) : null}
 
                   {needsSignupKycCompletion(user) ? (

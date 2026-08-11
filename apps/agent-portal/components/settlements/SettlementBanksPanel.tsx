@@ -5,6 +5,7 @@ import { Landmark, Plus, X } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { BankDetailCard } from "@/components/banking/BankAccountDetailsCard";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { EmptyState } from "@/components/ui/EmptyState";
 import {
   emptyIfscBankDetails,
@@ -25,6 +26,7 @@ export interface SettlementBank {
   isActive: boolean;
   verified: boolean;
   effectiveFrom?: string;
+  coolingUntil?: string | null;
 }
 
 type PlaceMap = Record<string, IfscPlace>;
@@ -52,6 +54,8 @@ export function SettlementBanksPanel({
   const [revealed, setRevealed] = useState<Record<string, string>>({});
   const [places, setPlaces] = useState<PlaceMap>({});
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [activateTarget, setActivateTarget] = useState<SettlementBank | null>(null);
+  const [activating, setActivating] = useState(false);
 
   const needsOtp = banks.some((b) => b.isActive && b.verified);
 
@@ -144,6 +148,33 @@ export function SettlementBanksPanel({
       toast.error(extractApiError(err, "Could not copy bank details"));
     } finally {
       setBusyId(null);
+    }
+  }
+
+  async function confirmActivate() {
+    if (!activateTarget) return;
+    setActivating(true);
+    try {
+      const res = await api.post<{
+        success: boolean;
+        message?: string;
+        data?: { coolingUntil: string | null };
+      }>(`/settlements/banks/${activateTarget.id}/activate`);
+      const cooling = res.data?.data?.coolingUntil;
+      if (cooling && new Date(cooling).getTime() > Date.now()) {
+        toast.success(
+          res.data?.message ||
+            "Bank activated — withdrawals pause for 24 hours after the change",
+        );
+      } else {
+        toast.success(res.data?.message || "Settlement bank activated");
+      }
+      setActivateTarget(null);
+      await load();
+    } catch (err) {
+      toast.error(extractApiError(err, "Could not activate bank"));
+    } finally {
+      setActivating(false);
     }
   }
 
@@ -411,14 +442,61 @@ export function SettlementBanksPanel({
                 onToggleReveal={() => void toggleReveal(b)}
                 onCopy={() => void copyBank(b)}
                 statusTone={active ? "success" : b.verified ? "info" : "pending"}
-                statusLabel={b.verified ? (b.isActive ? "Active" : "Verified") : "Pending"}
+                statusLabel={
+                  active ? "Active" : b.verified ? "Verified" : "Pending verification"
+                }
                 bankName={place?.bank}
                 branch={place?.branch}
+                note={
+                  !b.verified ? (
+                    <span className="text-[11px] font-semibold" style={{ color: B.muted }}>
+                      Waiting for admin verification
+                    </span>
+                  ) : undefined
+                }
+                footer={
+                  b.verified && !b.isActive ? (
+                    <PrimaryButton
+                      type="button"
+                      variant="success"
+                      size="sm"
+                      showArrow={false}
+                      className="!w-full"
+                      onClick={() => setActivateTarget(b)}
+                    >
+                      Set as active
+                    </PrimaryButton>
+                  ) : undefined
+                }
               />
             );
           })}
         </div>
       )}
+
+      {activateTarget ? (
+        <ConfirmModal
+          title="Switch active bank?"
+          tone="warning"
+          confirmLabel="Set as active"
+          busy={activating}
+          busyLabel="Activating…"
+          message={
+            <>
+              Switch active settlement bank to{" "}
+              <strong>
+                {bankNameFromIfsc(activateTarget.ifsc) || "Bank"} ****
+                {activateTarget.accountNumberLast4}
+              </strong>
+              ? Withdrawals pause for 24 hours after the change.
+            </>
+          }
+          onClose={() => {
+            if (!activating) setActivateTarget(null);
+          }}
+          onConfirm={() => void confirmActivate()}
+        />
+      ) : null}
     </div>
   );
 }

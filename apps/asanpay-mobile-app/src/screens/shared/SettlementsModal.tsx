@@ -181,6 +181,41 @@ export function SettlementsModal({ visible, onClose }: { visible: boolean; onClo
     }
   }
 
+  function requestActivate(bank: SettlementBank) {
+    showAlert(
+      "Switch active bank?",
+      `Switch active settlement bank to **** ${bank.accountNumberLast4}? Withdrawals pause for 24 hours after the change.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Set as active",
+          style: "primary",
+          onPress: () => {
+            void (async () => {
+              setBusyId(bank.id);
+              try {
+                const res = await api.post<{
+                  success: boolean;
+                  message?: string;
+                }>(`/settlements/banks/${bank.id}/activate`);
+                showAlert("Done", res.data?.message || "Settlement bank activated");
+                await load();
+              } catch (err) {
+                showAlert(
+                  "Error",
+                  (err as { response?: { data?: { message?: string } } })?.response?.data
+                    ?.message || "Could not activate bank",
+                );
+              } finally {
+                setBusyId(null);
+              }
+            })();
+          },
+        },
+      ],
+    );
+  }
+
   async function registerBank() {
     if (hasActiveBank && !/^\d{6}$/.test(otp.trim())) {
       showAlert("OTP required", "Send OTP, then enter the 6-digit code to change your bank");
@@ -302,19 +337,41 @@ export function SettlementsModal({ visible, onClose }: { visible: boolean; onClo
               {banks.map((b) => {
                 const active = b.verified && b.isActive;
                 return (
-                  <BankDetailCard
-                    key={b.id}
-                    ifsc={b.ifsc}
-                    holderName={b.holderName}
-                    accountMasked={`**** ${b.accountNumberLast4}`}
-                    accountFull={revealed[b.id]}
-                    revealed={Boolean(revealed[b.id])}
-                    revealing={busyId === b.id}
-                    onToggleReveal={() => void toggleReveal(b)}
-                    onCopy={() => void copyBank(b)}
-                    statusTone={active ? "success" : b.verified ? "info" : "pending"}
-                    statusLabel={b.verified ? (b.isActive ? "Active" : "Verified") : "Pending"}
-                  />
+                  <View key={b.id} style={{ marginRight: 12 }}>
+                    <BankDetailCard
+                      ifsc={b.ifsc}
+                      holderName={b.holderName}
+                      accountMasked={`**** ${b.accountNumberLast4}`}
+                      accountFull={revealed[b.id]}
+                      revealed={Boolean(revealed[b.id])}
+                      revealing={busyId === b.id}
+                      onToggleReveal={() => void toggleReveal(b)}
+                      onCopy={() => void copyBank(b)}
+                      statusTone={active ? "success" : b.verified ? "info" : "pending"}
+                      statusLabel={
+                        active ? "Active" : b.verified ? "Verified" : "Pending verification"
+                      }
+                      note={!b.verified ? "Waiting for admin verification" : undefined}
+                    />
+                    {b.verified && !b.isActive ? (
+                      <Pressable
+                        onPress={() => requestActivate(b)}
+                        disabled={busyId === b.id}
+                        style={{
+                          marginTop: 8,
+                          borderRadius: 12,
+                          paddingVertical: 10,
+                          alignItems: "center",
+                          backgroundColor: colors.green,
+                          opacity: busyId === b.id ? 0.6 : 1,
+                        }}
+                      >
+                        <Text style={{ color: "#fff", fontWeight: "800", fontSize: 13 }}>
+                          Set as active
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
                 );
               })}
             </ScrollView>

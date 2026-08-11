@@ -88,6 +88,12 @@ function otpHashesEqual(storedHash: string, candidateOtp: string): boolean {
 }
 
 function toAuthUser(row: typeof users.$inferSelect): AuthUser {
+  const hasKycDocs = Boolean(row.panNumberEncrypted && row.aadhaarNumberEncrypted);
+  // Runtime guard: never treat agents as verified without PAN+Aadhaar (signup parity).
+  const kycStatus =
+    row.role !== "admin" && row.kycStatus === "verified" && !hasKycDocs
+      ? "pending"
+      : row.kycStatus;
   return {
     id: row.id,
     uid: row.uid,
@@ -98,19 +104,30 @@ function toAuthUser(row: typeof users.$inferSelect): AuthUser {
     emailVerifiedAt: row.emailVerifiedAt ? row.emailVerifiedAt.toISOString() : null,
     emailMarketingOptIn: Boolean(row.emailMarketingOptIn),
     parentId: row.parentId,
-    kycStatus: row.kycStatus,
+    kycStatus,
     isActive: row.isActive,
-    hasKycDocs: Boolean(row.panNumberEncrypted && row.aadhaarNumberEncrypted),
+    hasKycDocs,
     hasInstantpayOutlet: Boolean(row.instantpayOutletId),
     hasTxnPin: Boolean(row.txnPinHash),
     hasLoginMpin: Boolean(row.loginMpinHash),
   };
 }
 
+/** Persist demotion so DB matches signup KYC rules (not only API response). */
+async function healIncompleteVerifiedKyc(
+  row: typeof users.$inferSelect,
+): Promise<typeof users.$inferSelect> {
+  if (row.role === "admin") return row;
+  const hasDocs = Boolean(row.panNumberEncrypted && row.aadhaarNumberEncrypted);
+  if (row.kycStatus !== "verified" || hasDocs) return row;
+  await db.update(users).set({ kycStatus: "pending" }).where(eq(users.id, row.id));
+  return { ...row, kycStatus: "pending" };
+}
+
 export async function getAuthMe(userId: string): Promise<AuthUser> {
   const [row] = await db.select().from(users).where(eq(users.id, userId));
   if (!row || !row.isActive) throw new HttpError(401, "Account is inactive", "ACCOUNT_INACTIVE");
-  return toAuthUser(row);
+  return toAuthUser(await healIncompleteVerifiedKyc(row));
 }
 
 export async function registerUser(
@@ -232,11 +249,12 @@ async function issueSession(
   context: AuthContext,
   method: "password" | "otp" | "mpin",
 ): Promise<{ user: AuthUser; accessToken: string; refreshToken: string }> {
-  const accessToken = signAccessToken({ id: row.id, uid: row.uid, role: row.role });
-  const { token: refreshToken } = signRefreshToken(row.id);
+  const healed = await healIncompleteVerifiedKyc(row);
+  const accessToken = signAccessToken({ id: healed.id, uid: healed.uid, role: healed.role });
+  const { token: refreshToken } = signRefreshToken(healed.id);
 
   await db.insert(refreshTokens).values({
-    userId: row.id,
+    userId: healed.id,
     tokenHash: hashToken(refreshToken),
     deviceInfo: context.userAgent,
     ipAddress: context.ipAddress,
@@ -244,16 +262,16 @@ async function issueSession(
   });
 
   await insertAuditLog({
-    userId: row.id,
+    userId: healed.id,
     action: "auth.login",
     entityType: "user",
-    entityId: row.id,
+    entityId: healed.id,
     ipAddress: context.ipAddress,
     userAgent: context.userAgent,
     metadata: { method },
   });
 
-  return { user: toAuthUser(row), accessToken, refreshToken };
+  return { user: toAuthUser(healed), accessToken, refreshToken };
 }
 
 async function findRootAdmin() {

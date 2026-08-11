@@ -16,65 +16,58 @@ const TONE: Record<
     title: string;
     body: string;
     icon: string;
-    button: string;
     badgeBg: string;
     badgeText: string;
     badge: string;
   }
 > = {
-  /** Rejected */
   red: {
     border: "#FECACA",
     background: "#FEF2F2",
     title: "#991B1B",
     body: "#B91C1C",
     icon: "#DC2626",
-    button: "linear-gradient(135deg,#DC2626,#B91C1C)",
     badgeBg: "#FEE2E2",
     badgeText: "#991B1B",
     badge: "REJECTED",
   },
-  /** Complete KYC — action needed */
   orange: {
     border: "#FDBA74",
     background: "#FFF7ED",
     title: "#9A3412",
     body: "#C2410C",
     icon: "#EA580C",
-    button: "linear-gradient(135deg,#F97316,#EA580C)",
     badgeBg: "#FFEDD5",
     badgeText: "#9A3412",
     badge: "ACTION NEEDED",
   },
-  /** Under review — submitted, waiting for admin */
   green: {
     border: "#86EFAC",
     background: "#F0FDF4",
     title: "#14532D",
     body: "#15803D",
     icon: "#16A34A",
-    button: "linear-gradient(135deg,#22C55E,#16A34A)",
     badgeBg: "#DCFCE7",
     badgeText: "#166534",
     badge: "UNDER REVIEW",
   },
 };
 
-/** Hanging banner under page header / above wallet — KYC onboarding status. */
-export function KycOnboardingBanner({
-  /** Verified badge but PAN/Aadhaar missing — still show action card (Settings KYC tab). */
-  profileIncomplete = false,
-}: {
-  profileIncomplete?: boolean;
-} = {}) {
+/**
+ * Same KYC states as new signup for every role:
+ * incomplete → Complete KYC | submitted → under review | rejected → Resubmit.
+ */
+export function KycOnboardingBanner() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   if (!user) return null;
-  if (user.kycStatus === "verified" && !profileIncomplete) return null;
+  if (user.kycStatus === "verified" && user.hasKycDocs) return null;
+  if (!needsSignupKycCompletion(user) && !(user.hasKycDocs && user.kycStatus !== "rejected")) {
+    return null;
+  }
 
-  const needsComplete = needsSignupKycCompletion(user) || profileIncomplete;
   const rejected = user.kycStatus === "rejected";
-  const pendingReview = !rejected && !profileIncomplete && user.hasKycDocs;
+  const pendingReview = !rejected && user.hasKycDocs && user.kycStatus !== "verified";
 
   let title = "Complete your KYC for Onboarding";
   let body = "Finish signup KYC to unlock services after admin approval.";
@@ -82,13 +75,7 @@ export function KycOnboardingBanner({
   let href = "/signup?from=settings";
   let tone: BannerTone = "orange";
 
-  if (profileIncomplete && user.kycStatus === "verified") {
-    title = "KYC details incomplete";
-    body = "PAN / Aadhaar are missing on file. Resubmit KYC so your profile is complete.";
-    cta = "Resubmit KYC";
-    href = "/signup?from=settings";
-    tone = "orange";
-  } else if (rejected) {
+  if (rejected) {
     title = "KYC rejected — please resubmit";
     body = "Update your details and submit again to continue onboarding.";
     cta = "Resubmit KYC";
@@ -100,9 +87,10 @@ export function KycOnboardingBanner({
     cta = "View KYC status";
     href = "/settings?tab=profile";
     tone = "green";
-  } else if (needsComplete) {
+  } else {
     title = "Complete your KYC for Onboarding";
     body = "Continue where you left off to submit documents for approval.";
+    cta = "Complete KYC";
     href = "/signup?from=settings";
     tone = "orange";
   }
@@ -135,17 +123,15 @@ export function KycOnboardingBanner({
           </p>
         </div>
       </div>
-      {cta ? (
-        <PrimaryButton
-          type="button"
-          variant="primary"
-          size="sm"
-          onClick={() => router.push(href)}
-          className="!w-auto shrink-0"
-        >
-          {cta}
-        </PrimaryButton>
-      ) : null}
+      <PrimaryButton
+        type="button"
+        variant="primary"
+        size="sm"
+        onClick={() => router.push(href)}
+        className="!w-auto shrink-0"
+      >
+        {cta}
+      </PrimaryButton>
     </div>
   );
 }

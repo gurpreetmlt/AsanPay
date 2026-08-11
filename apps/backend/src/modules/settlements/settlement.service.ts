@@ -341,6 +341,100 @@ export async function verifySettlementBank(params: {
   });
 }
 
+/**
+ * Agent switches which verified bank is Active (one at a time).
+ * Prior active → inactive; 24h cooling when replacing an already-active bank.
+ */
+export async function activateSettlementBank(params: {
+  tenantId: string;
+  userId: string;
+  settlementAccountId: bigint;
+}): Promise<{
+  settlementAccountId: bigint;
+  isActive: boolean;
+  coolingUntil: Date | null;
+}> {
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(agentSettlementAccounts)
+      .where(
+        and(
+          eq(agentSettlementAccounts.id, params.settlementAccountId),
+          eq(agentSettlementAccounts.tenantId, params.tenantId),
+          eq(agentSettlementAccounts.userId, params.userId),
+        ),
+      )
+      .for("update");
+
+    if (!row) throw new HttpError(404, "Settlement bank account not found", "NOT_FOUND");
+    if (!row.verifiedAt) {
+      throw new HttpError(
+        422,
+        "This bank is pending verification. Wait for admin approval before activating.",
+        "BANK_NOT_VERIFIED",
+      );
+    }
+    if (row.isActive) {
+      return {
+        settlementAccountId: row.id,
+        isActive: true,
+        coolingUntil: row.coolingUntil,
+      };
+    }
+
+    const prior = await tx
+      .select({ id: agentSettlementAccounts.id })
+      .from(agentSettlementAccounts)
+      .where(
+        and(
+          eq(agentSettlementAccounts.userId, row.userId),
+          eq(agentSettlementAccounts.isActive, true),
+        ),
+      )
+      .limit(1);
+    const hadPriorActive = prior.length > 0;
+    const now = new Date();
+    const coolingUntil = hadPriorActive
+      ? new Date(now.getTime() + 24 * 60 * 60 * 1000)
+      : row.coolingUntil;
+
+    await tx
+      .update(agentSettlementAccounts)
+      .set({ isActive: false })
+      .where(
+        and(
+          eq(agentSettlementAccounts.userId, row.userId),
+          eq(agentSettlementAccounts.isActive, true),
+        ),
+      );
+
+    const [updated] = await tx
+      .update(agentSettlementAccounts)
+      .set({
+        isActive: true,
+        effectiveFrom: now,
+        coolingUntil,
+      })
+      .where(eq(agentSettlementAccounts.id, row.id))
+      .returning({
+        id: agentSettlementAccounts.id,
+        isActive: agentSettlementAccounts.isActive,
+        coolingUntil: agentSettlementAccounts.coolingUntil,
+      });
+
+    if (!updated) {
+      throw new HttpError(500, "Could not activate settlement bank", "ACTIVATE_FAILED");
+    }
+
+    return {
+      settlementAccountId: updated.id,
+      isActive: updated.isActive,
+      coolingUntil: updated.coolingUntil,
+    };
+  });
+}
+
 export async function listSettlementBanks(params: {
   tenantId: string;
   userId: string;
@@ -353,6 +447,7 @@ export async function listSettlementBanks(params: {
     isActive: boolean;
     verified: boolean;
     effectiveFrom: string;
+    coolingUntil: string | null;
   }[]
 > {
   const rows = await db
@@ -364,6 +459,7 @@ export async function listSettlementBanks(params: {
       isActive: agentSettlementAccounts.isActive,
       verifiedAt: agentSettlementAccounts.verifiedAt,
       effectiveFrom: agentSettlementAccounts.effectiveFrom,
+      coolingUntil: agentSettlementAccounts.coolingUntil,
     })
     .from(agentSettlementAccounts)
     .where(
@@ -382,6 +478,7 @@ export async function listSettlementBanks(params: {
     isActive: r.isActive,
     verified: r.verifiedAt != null,
     effectiveFrom: r.effectiveFrom.toISOString(),
+    coolingUntil: r.coolingUntil ? r.coolingUntil.toISOString() : null,
   }));
 }
 

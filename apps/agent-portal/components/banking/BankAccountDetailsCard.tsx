@@ -101,6 +101,7 @@ export function BankDetailCard({
   branch,
   unavailable = false,
   className = "",
+  footer,
 }: {
   ifsc: string;
   holderName: string;
@@ -120,6 +121,7 @@ export function BankDetailCard({
   branch?: string;
   unavailable?: boolean;
   className?: string;
+  footer?: ReactNode;
 }) {
   const showFull = revealed && Boolean(accountFull);
   const accountShown = showFull ? (accountFull as string) : accountMasked;
@@ -186,10 +188,15 @@ export function BankDetailCard({
           </p>
         ) : null}
         {note ? (
-          <p className="mt-2 text-[11px] font-extrabold" style={{ color: B.green }}>
-            {note}
-          </p>
+          typeof note === "string" ? (
+            <p className="mt-2 text-[11px] font-extrabold" style={{ color: B.green }}>
+              {note}
+            </p>
+          ) : (
+            <div className="mt-2">{note}</div>
+          )
         ) : null}
+        {footer ? <div className="mt-3">{footer}</div> : null}
       </div>
 
       <div className="flex shrink-0 flex-col justify-center gap-2.5 pt-1">

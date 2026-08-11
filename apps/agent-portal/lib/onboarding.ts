@@ -10,14 +10,15 @@ export function nextOnboardingPath(user: AuthUser | null | undefined): string | 
 }
 
 export function isKycServicesUnlocked(user: AuthUser | null | undefined): boolean {
-  return user?.kycStatus === "verified";
+  return user?.kycStatus === "verified" && Boolean(user.hasKycDocs);
 }
 
 /** Incomplete signup wizard (account exists but PAN/Aadhaar KYC not submitted). */
 export function needsSignupKycCompletion(user: AuthUser | null | undefined): boolean {
   if (!user) return false;
-  if (user.kycStatus === "verified") return false;
   if (user.kycStatus === "rejected") return true;
+  // Verified only counts when PAN+Aadhaar are on file (same as new signup).
+  if (user.kycStatus === "verified" && user.hasKycDocs) return false;
   return !user.hasKycDocs;
 }
 

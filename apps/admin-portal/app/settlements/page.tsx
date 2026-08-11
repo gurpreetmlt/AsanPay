@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { Landmark } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { createAttemptKeyHolder } from "@/lib/idempotencyKey";
@@ -57,11 +58,15 @@ export default function AdminSettlementsPage() {
   const hydrated = useAuthHydrated();
   const accessToken = useAuthStore((s) => s.accessToken);
 
-  const [tab, setTab] = useState<Tab>("open");
+  const [tab, setTab] = useState<Tab>("banks");
   const [openRows, setOpenRows] = useState<OpenSettlement[]>([]);
   const [banks, setBanks] = useState<PendingBank[]>([]);
+  const [pendingCount, setPendingCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
+  const [verifyTarget, setVerifyTarget] = useState<{ bank: PendingBank; activate: boolean } | null>(
+    null,
+  );
   const [successFor, setSuccessFor] = useState<OpenSettlement | null>(null);
   const [bankUtr, setBankUtr] = useState("");
   const [failFor, setFailFor] = useState<OpenSettlement | null>(null);
@@ -72,10 +77,12 @@ export default function AdminSettlementsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      const pending = await fetchApi<PendingBank[]>("/settlements/banks/pending");
+      setPendingCount(pending.length);
       if (tab === "open") {
         setOpenRows(await fetchApi<OpenSettlement[]>("/settlements/requests/open"));
       } else {
-        setBanks(await fetchApi<PendingBank[]>("/settlements/banks/pending"));
+        setBanks(pending);
       }
     } catch (err) {
       toast.error(errMessage(err, "Failed to load settlements"));
@@ -93,11 +100,19 @@ export default function AdminSettlementsPage() {
     void load();
   }, [hydrated, accessToken, router, load]);
 
-  async function verifyBank(id: string) {
-    setActing(id);
+  async function confirmVerify() {
+    if (!verifyTarget) return;
+    setActing(verifyTarget.bank.id);
     try {
-      await api.post(`/settlements/banks/${id}/verify`, { activate: true });
-      toast.success("Bank verified and activated");
+      await api.post(`/settlements/banks/${verifyTarget.bank.id}/verify`, {
+        activate: verifyTarget.activate,
+      });
+      toast.success(
+        verifyTarget.activate
+          ? "Bank verified and activated"
+          : "Bank verified — agent can Set as active later",
+      );
+      setVerifyTarget(null);
       await load();
     } catch (err) {
       toast.error(errMessage(err, "Verify failed"));
@@ -171,7 +186,7 @@ export default function AdminSettlementsPage() {
               Settlements
             </h1>
             <p className="text-sm" style={{ color: B.muted }}>
-              Verify agent banks and confirm bank payouts
+              Sidebar → Settlements → Pending banks tab to verify agent settlement accounts
             </p>
           </div>
         </div>
@@ -179,8 +194,11 @@ export default function AdminSettlementsPage() {
         <div className="flex gap-2">
           {(
             [
+              {
+                key: "banks" as const,
+                label: pendingCount > 0 ? `Pending banks (${pendingCount})` : "Pending banks",
+              },
               { key: "open" as const, label: "Open payouts" },
-              { key: "banks" as const, label: "Pending banks" },
             ] as const
           ).map((t) => (
             <button
@@ -220,15 +238,26 @@ export default function AdminSettlementsPage() {
                       {b.ifsc} · {b.userName} ({b.userUid}) · {b.userMobile}
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    disabled={acting === b.id}
-                    onClick={() => void verifyBank(b.id)}
-                    className="rounded-xl px-3 py-2 text-sm font-bold text-white disabled:opacity-50"
-                    style={{ background: B.badgeGrad }}
-                  >
-                    {acting === b.id ? "Verifying…" : "Verify & activate"}
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={acting === b.id}
+                      onClick={() => setVerifyTarget({ bank: b, activate: false })}
+                      className="rounded-xl border px-3 py-2 text-sm font-bold disabled:opacity-50"
+                      style={{ borderColor: B.border, color: B.blue }}
+                    >
+                      Verify only
+                    </button>
+                    <button
+                      type="button"
+                      disabled={acting === b.id}
+                      onClick={() => setVerifyTarget({ bank: b, activate: true })}
+                      className="rounded-xl px-3 py-2 text-sm font-bold text-white disabled:opacity-50"
+                      style={{ background: "#12B76A" }}
+                    >
+                      Verify & activate
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -356,6 +385,32 @@ export default function AdminSettlementsPage() {
               </div>
             </div>
           </div>
+        ) : null}
+
+        {verifyTarget ? (
+          <ConfirmModal
+            title={verifyTarget.activate ? "Verify & activate bank?" : "Verify bank only?"}
+            tone="warning"
+            confirmLabel={verifyTarget.activate ? "Verify & activate" : "Verify only"}
+            busy={acting === verifyTarget.bank.id}
+            busyLabel="Verifying…"
+            message={
+              <>
+                Confirm verification for{" "}
+                <strong>
+                  {verifyTarget.bank.holderName} ****{verifyTarget.bank.accountNumberLast4}
+                </strong>{" "}
+                ({verifyTarget.bank.userName}).
+                {verifyTarget.activate
+                  ? " This becomes the agent’s active settlement bank."
+                  : " Agent can Set as active later from their portal."}
+              </>
+            }
+            onClose={() => {
+              if (acting !== verifyTarget.bank.id) setVerifyTarget(null);
+            }}
+            onConfirm={() => void confirmVerify()}
+          />
         ) : null}
       </div>
     </AdminShell>
