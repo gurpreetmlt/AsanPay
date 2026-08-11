@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { X, ZoomIn } from "lucide-react";
 import { B } from "@/lib/brand";
 
@@ -15,6 +16,12 @@ export function DocumentPreviewModal({
   url: string;
   onClose: () => void;
 }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -29,9 +36,9 @@ export function DocumentPreviewModal({
     };
   }, [open, onClose]);
 
-  if (!open || !url) return null;
+  if (!mounted || !open || !url) return null;
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
       onClick={onClose}
@@ -76,6 +83,7 @@ export function DocumentPreviewModal({
           />
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
