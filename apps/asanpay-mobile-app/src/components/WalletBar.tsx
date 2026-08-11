@@ -105,9 +105,9 @@ export function WalletBar({ wallets, onWalletPress, onAddMoney, onReports }: Pro
       <View style={styles.quickRow}>
         <Pressable
           onPress={onAddMoney ?? (() => showAlert("Coming soon", "Add money / load balance"))}
-          style={styles.quickBtnWhite}
+          style={[styles.quickBtnWhite, { backgroundColor: colors.green }]}
         >
-          <Text style={styles.quickBtnTextDark}>+ Add Money</Text>
+          <Text style={[styles.quickBtnTextDark, { color: "#fff" }]}>+ Add Money</Text>
         </Pressable>
         <Pressable
           onPress={onReports ?? (() => showAlert("Coming soon", "Reports"))}

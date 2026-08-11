@@ -178,8 +178,8 @@ export function BankDetailCard({
           </ActionBtn>
         ) : null}
         {selected ? (
-          <View style={[styles.selectedDot, { backgroundColor: tint }]}>
-            <Check size={11} color="#fff" />
+          <View style={[styles.selectedBtn, { backgroundColor: tint }]}>
+            <Check size={17} color="#fff" strokeWidth={2.5} />
           </View>
         ) : null}
       </View>
@@ -318,12 +318,16 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
-  selectedDot: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+  selectedBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    alignSelf: "center",
+    shadowColor: "#0B2A9A",
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
 });

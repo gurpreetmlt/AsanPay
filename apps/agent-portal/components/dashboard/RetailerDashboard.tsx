@@ -125,7 +125,7 @@ export function RetailerDashboard() {
           <div className="relative z-10">
             <PrimaryButton
               type="button"
-              variant="secondary"
+              variant="success"
               onClick={() => router.push("/fund-request")}
               size="sm"
               showArrow={false}
@@ -287,7 +287,7 @@ export function RetailerDashboard() {
                 {!user?.hasKycDocs || user?.kycStatus === "rejected" ? (
                   <PrimaryButton
                     type="button"
-                    variant="secondary"
+                    variant="primary"
                     size="sm"
                     showArrow={false}
                     className="mt-3 !w-auto"

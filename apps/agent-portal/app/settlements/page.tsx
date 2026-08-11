@@ -161,13 +161,16 @@ export default function SettlementsPage() {
               </p>
             </div>
           </div>
-          <Link
-            href="/settings?tab=banks"
-            className="text-sm font-semibold underline-offset-2 hover:underline"
-            style={{ color: B.blueLight }}
+          <PrimaryButton
+            type="button"
+            variant={hasActiveBank ? "secondary" : "success"}
+            size="sm"
+            showArrow={false}
+            className="!w-auto"
+            onClick={() => router.push("/settings?tab=banks")}
           >
             {hasActiveBank ? "Manage banks" : "Add bank in Settings"}
-          </Link>
+          </PrimaryButton>
         </div>
 
         <div className="ui-card p-5">
@@ -177,14 +180,14 @@ export default function SettlementsPage() {
             action={
               <PrimaryButton
                 type="button"
-                variant="secondary"
+                variant={showSettleForm ? "destructive" : "primary"}
                 size="sm"
                 showArrow={false}
-                disabled={!hasActiveBank}
+                disabled={!hasActiveBank && !showSettleForm}
                 onClick={() => setShowSettleForm((v) => !v)}
                 className="!w-auto"
               >
-                Request settlement
+                {showSettleForm ? "Cancel" : "Request settlement"}
               </PrimaryButton>
             }
           />

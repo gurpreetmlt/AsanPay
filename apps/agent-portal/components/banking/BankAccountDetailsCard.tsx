@@ -249,10 +249,15 @@ export function BankDetailCard({
         ) : null}
         {selected && onSelect ? (
           <span
-            className="mx-auto flex h-[18px] w-[18px] items-center justify-center rounded-full"
-            style={{ background: tint }}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-xl"
+            style={{
+              background: tint,
+              boxShadow: "0 2px 10px rgba(11,42,154,0.12)",
+            }}
+            aria-label="Selected"
+            title="Selected"
           >
-            <Check size={11} color="#fff" />
+            <Check size={17} strokeWidth={2.5} color="#fff" />
           </span>
         ) : null}
       </div>

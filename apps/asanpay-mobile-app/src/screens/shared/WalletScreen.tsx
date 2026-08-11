@@ -162,7 +162,10 @@ export function WalletScreen() {
           </Text>
           <View style={styles.heroActions}>
             {user.role === "retailer" ? (
-              <Pressable style={styles.heroBtn} onPress={() => setShowFund(true)}>
+              <Pressable
+                style={[styles.heroBtn, { backgroundColor: colors.green }]}
+                onPress={() => setShowFund(true)}
+              >
                 <Text style={styles.heroBtnText}>+ Add Money</Text>
               </Pressable>
             ) : null}
