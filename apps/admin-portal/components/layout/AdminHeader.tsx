@@ -146,12 +146,20 @@ export function AdminHeader({ onOpenMobileNav }: { onOpenMobileNav?: () => void 
   const name = displayName(user?.name);
   const av = initials(name);
 
-  const matches = query.trim()
-    ? QUICK_ROUTES.filter(
-        (r) =>
-          r.q.includes(query.toLowerCase()) ||
-          r.label.toLowerCase().includes(query.toLowerCase()),
-      )
+  const qTrim = query.trim();
+  const matches = qTrim
+    ? [
+        {
+          href: `/users?q=${encodeURIComponent(qTrim)}`,
+          label: `Search agents: ${qTrim}`,
+          q: "uid mobile name email agents users",
+        },
+        ...QUICK_ROUTES.filter(
+          (r) =>
+            r.q.includes(qTrim.toLowerCase()) ||
+            r.label.toLowerCase().includes(qTrim.toLowerCase()),
+        ),
+      ]
     : [];
 
   useEffect(() => {
@@ -180,6 +188,7 @@ export function AdminHeader({ onOpenMobileNav }: { onOpenMobileNav?: () => void 
     badges.kycPending +
     badges.fundRequestsPending +
     badges.supportTicketsOpen +
+    (badges.settlementBanksPending ?? 0) +
     unhealthy.length;
 
   return (
@@ -211,7 +220,7 @@ export function AdminHeader({ onOpenMobileNav }: { onOpenMobileNav?: () => void 
             }}
             onFocus={() => setSearchOpen(true)}
             onBlur={() => setTimeout(() => setSearchOpen(false), 150)}
-            placeholder="Search pages, users…"
+            placeholder="Search pages · UID, mobile, name…"
             className="flex-1 bg-transparent text-sm outline-none"
             style={{ color: textPrimary }}
           />
@@ -292,7 +301,7 @@ export function AdminHeader({ onOpenMobileNav }: { onOpenMobileNav?: () => void 
                     Notifications
                   </p>
                   <p className="text-[11px]" style={{ color: textMuted }}>
-                    Pending KYC, funds and tickets
+                    Pending KYC, funds, banks and tickets
                   </p>
                 </div>
                 {bellCount > 0 ? <AlertCountBadge count={bellCount} /> : null}

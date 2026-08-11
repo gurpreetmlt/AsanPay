@@ -6,6 +6,7 @@ import {
   commissionLedger,
   userHierarchy,
   wallets,
+  walletLedgerEntries,
   agentSettlementAccounts,
 } from "../../db/postgres/schema";
 import { HttpError } from "../../utils/httpError";
@@ -134,8 +135,27 @@ async function getDistributorStats(userId: string) {
   let todayVolume = "0";
   let todayCommission = "0";
   let monthCommission = "0";
+  let todayCashIn = "0";
+  let todayPayouts = "0";
   interface TopRetailer { id: string; name: string; volume: string }
   let topRetailers: TopRetailer[] = [];
+
+  const [ownMain] = await db
+    .select({ id: wallets.id })
+    .from(wallets)
+    .where(and(eq(wallets.userId, userId), eq(wallets.walletType, "main")))
+    .limit(1);
+  if (ownMain) {
+    const [flow] = await db
+      .select({
+        cashIn: sql<string>`coalesce(sum(${walletLedgerEntries.amount}) filter (where ${walletLedgerEntries.entryType} = 'credit'), '0')`,
+        payouts: sql<string>`coalesce(sum(${walletLedgerEntries.amount}) filter (where ${walletLedgerEntries.entryType} = 'debit'), '0')`,
+      })
+      .from(walletLedgerEntries)
+      .where(and(eq(walletLedgerEntries.walletId, ownMain.id), gte(walletLedgerEntries.createdAt, today)));
+    todayCashIn = flow?.cashIn ?? "0";
+    todayPayouts = flow?.payouts ?? "0";
+  }
 
   if (retailerIds.length > 0) {
     const [vol] = await db
@@ -210,7 +230,12 @@ async function getDistributorStats(userId: string) {
       noBank,
       neverTxn,
     },
-    today: { volume: todayVolume, commission: todayCommission },
+    today: {
+      volume: todayVolume,
+      commission: todayCommission,
+      cashIn: todayCashIn,
+      payouts: todayPayouts,
+    },
     month: { commission: monthCommission },
     topRetailers,
     activityHistory,
@@ -405,6 +430,56 @@ async function getSuperDistributorStats(userId: string) {
   const inactiveRetailerPct =
     retailerRows.length > 0 ? Math.round((inactiveRetailers / retailerRows.length) * 1000) / 10 : 0;
 
+  // SD commission MTD broken down by direct distributor (via txn actor → parent dist)
+  interface CommByDist { id: string; name: string; amount: string }
+  let commissionMtdByDist: CommByDist[] = [];
+  if (distIds.length > 0) {
+    const ledgerRows = await db
+      .select({
+        amount: commissionLedger.amount,
+        txnUserId: transactions.userId,
+      })
+      .from(commissionLedger)
+      .innerJoin(transactions, eq(transactions.id, commissionLedger.transactionId))
+      .where(
+        and(
+          eq(commissionLedger.beneficiaryUserId, userId),
+          gte(commissionLedger.createdAt, monthStartSd),
+        ),
+      );
+
+    if (ledgerRows.length > 0) {
+      const txnUserIds = [...new Set(ledgerRows.map((r) => r.txnUserId))];
+      const actors = await db
+        .select({ id: users.id, parentId: users.parentId, role: users.role })
+        .from(users)
+        .where(inArray(users.id, txnUserIds));
+      const actorMap = Object.fromEntries(actors.map((a) => [a.id, a]));
+      const distNameMap = Object.fromEntries(distributors.map((d) => [d.id, d.name]));
+      const sums = new Map<string, number>();
+      for (const row of ledgerRows) {
+        const actor = actorMap[row.txnUserId];
+        if (!actor) continue;
+        let distId: string | null = null;
+        if (actor.role === "distributor" && distIds.includes(actor.id)) {
+          distId = actor.id;
+        } else if (actor.parentId && distIds.includes(actor.parentId)) {
+          distId = actor.parentId;
+        }
+        if (!distId) continue;
+        sums.set(distId, (sums.get(distId) ?? 0) + Number(row.amount));
+      }
+      commissionMtdByDist = [...sums.entries()]
+        .map(([id, amount]) => ({
+          id,
+          name: distNameMap[id] ?? "Distributor",
+          amount: amount.toFixed(2),
+        }))
+        .sort((a, b) => Number(b.amount) - Number(a.amount))
+        .slice(0, 5);
+    }
+  }
+
   return {
     role: "super_distributor" as const,
     network: {
@@ -423,6 +498,7 @@ async function getSuperDistributorStats(userId: string) {
     },
     distributorPerformance: distPerformance,
     topDistributorsMtd: distPerformance.slice(0, 5),
+    commissionMtdByDist,
   };
 }
 

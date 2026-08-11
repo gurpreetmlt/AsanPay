@@ -108,6 +108,15 @@ export function UsersPanel({ lockedRole = "" }: Props) {
     setRole(lockedRole);
   }, [lockedRole]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const fromUrl = new URLSearchParams(window.location.search).get("q")?.trim();
+    if (fromUrl) {
+      setQ(fromUrl);
+      setSearch(fromUrl);
+    }
+  }, []);
+
   const effectiveRole = lockedRole || role;
 
   const load = useCallback(async () => {

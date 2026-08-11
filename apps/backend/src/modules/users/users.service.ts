@@ -1,6 +1,6 @@
 import { eq, and, inArray } from "drizzle-orm";
 import { db } from "../../db/postgres";
-import { users, wallets } from "../../db/postgres/schema";
+import { accounts, users, wallets } from "../../db/postgres/schema";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import { HttpError } from "../../utils/httpError";
 import type { UserRole } from "@asanpay/shared-types";
@@ -90,6 +90,8 @@ export async function getDownline(actorId: string): Promise<DownlineUserView[]> 
 
 export interface DownlineTreeNode extends DownlineUserView {
   children: DownlineTreeNode[];
+  /** Admin network tree only — accounts.blockLogin (full freeze). */
+  isFrozen?: boolean;
 }
 
 export interface NetworkTreeResponse {
@@ -160,7 +162,33 @@ export async function getAdminFullNetworkTree(): Promise<DownlineTreeNode[]> {
       children,
     });
   }
-  return nodes;
+
+  // Annotate freeze status for admin tree quick actions (View / Freeze / Move).
+  const ids: string[] = [];
+  const walk = (list: DownlineTreeNode[]) => {
+    for (const n of list) {
+      ids.push(n.id);
+      if (n.children.length) walk(n.children);
+    }
+  };
+  walk(nodes);
+  const frozen = new Set<string>();
+  if (ids.length) {
+    const frozenRows = await db
+      .select({ userId: accounts.userId })
+      .from(accounts)
+      .where(and(inArray(accounts.userId, ids), eq(accounts.blockLogin, true)));
+    for (const r of frozenRows) {
+      if (r.userId) frozen.add(r.userId);
+    }
+  }
+  const annotate = (list: DownlineTreeNode[]): DownlineTreeNode[] =>
+    list.map((n) => ({
+      ...n,
+      isFrozen: frozen.has(n.id),
+      children: annotate(n.children),
+    }));
+  return annotate(nodes);
 }
 
 export async function getNetwork(actorId: string, actorRole: UserRole): Promise<NetworkTreeResponse> {

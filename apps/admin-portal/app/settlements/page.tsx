@@ -68,6 +68,9 @@ export default function AdminSettlementsPage() {
   const [verifyTarget, setVerifyTarget] = useState<{ bank: PendingBank; activate: boolean } | null>(
     null,
   );
+  const [selectedBankIds, setSelectedBankIds] = useState<Set<string>>(() => new Set());
+  const [bulkConfirm, setBulkConfirm] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
   const [successFor, setSuccessFor] = useState<OpenSettlement | null>(null);
   const [bankUtr, setBankUtr] = useState("");
   const [failFor, setFailFor] = useState<OpenSettlement | null>(null);
@@ -90,6 +93,13 @@ export default function AdminSettlementsPage() {
         setOpenRows(await fetchApi<OpenSettlement[]>("/settlements/requests/open"));
       } else {
         setBanks(pending);
+        setSelectedBankIds((prev) => {
+          const next = new Set<string>();
+          for (const id of prev) {
+            if (pending.some((b) => b.id === id)) next.add(id);
+          }
+          return next;
+        });
       }
     } catch (err) {
       toast.error(errMessage(err, "Failed to load settlements"));
@@ -126,6 +136,61 @@ export default function AdminSettlementsPage() {
     } finally {
       setActing(null);
     }
+  }
+
+  function toggleBankSelected(id: string) {
+    setSelectedBankIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAllBanks() {
+    setSelectedBankIds((prev) => {
+      if (banks.length > 0 && prev.size === banks.length) return new Set();
+      return new Set(banks.map((b) => b.id));
+    });
+  }
+
+  async function confirmBulkVerify() {
+    const targets = banks.filter((b) => selectedBankIds.has(b.id));
+    if (targets.length === 0) {
+      setBulkConfirm(false);
+      return;
+    }
+    setActing("bulk");
+    setBulkProgress({ done: 0, total: targets.length });
+    let ok = 0;
+    let fail = 0;
+    for (let i = 0; i < targets.length; i++) {
+      const bank = targets[i]!;
+      try {
+        await api.post(`/settlements/banks/${bank.id}/verify`, { activate: true });
+        ok += 1;
+      } catch (err) {
+        fail += 1;
+        toast.error(
+          errMessage(err, `Verify failed for ${bank.holderName} ****${bank.accountNumberLast4}`),
+        );
+      }
+      setBulkProgress({ done: i + 1, total: targets.length });
+    }
+    setBulkConfirm(false);
+    setActing(null);
+    setBulkProgress(null);
+    setSelectedBankIds(new Set());
+    if (ok > 0) {
+      toast.success(
+        fail > 0
+          ? `Verified & activated ${ok} of ${targets.length} banks (${fail} failed)`
+          : `Verified & activated ${ok} bank${ok === 1 ? "" : "s"}`,
+      );
+    } else if (fail > 0) {
+      toast.error("Bulk verify failed for all selected banks");
+    }
+    await load();
   }
 
   async function markSuccess() {
@@ -265,14 +330,51 @@ export default function AdminSettlementsPage() {
             <p className="text-sm" style={{ color: B.muted }}>No banks awaiting verification.</p>
           ) : (
             <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <label className="flex cursor-pointer items-center gap-2 text-sm font-medium" style={{ color: B.blue }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedBankIds.size === banks.length && banks.length > 0}
+                    onChange={toggleSelectAllBanks}
+                    className="h-4 w-4 rounded border"
+                  />
+                  Select all ({selectedBankIds.size} selected)
+                </label>
+                <button
+                  type="button"
+                  disabled={selectedBankIds.size === 0 || acting !== null}
+                  onClick={() => setBulkConfirm(true)}
+                  className="rounded-xl px-3 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+                  style={{ background: "#12B76A" }}
+                >
+                  Verify & activate selected
+                  {selectedBankIds.size > 0 ? ` (${selectedBankIds.size})` : ""}
+                </button>
+              </div>
+              {bulkProgress ? (
+                <p className="text-sm font-medium" style={{ color: B.blueMid }}>
+                  Verifying… {bulkProgress.done} of {bulkProgress.total}
+                </p>
+              ) : null}
               {banks.map((b) => (
                 <div
                   key={b.id}
                   className="rounded-2xl border bg-white p-4"
-                  style={{ borderColor: B.border }}
+                  style={{
+                    borderColor: selectedBankIds.has(b.id) ? "#12B76A" : B.border,
+                    background: selectedBankIds.has(b.id) ? "#F6FEF9" : undefined,
+                  }}
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0 space-y-1.5">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedBankIds.has(b.id)}
+                        onChange={() => toggleBankSelected(b.id)}
+                        className="mt-1 h-4 w-4 shrink-0 rounded border"
+                        aria-label={`Select ${b.holderName}`}
+                      />
+                      <div className="min-w-0 space-y-1.5">
                       <span
                         className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold"
                         style={{ background: "#FFFAEB", color: "#B54708" }}
@@ -298,11 +400,12 @@ export default function AdminSettlementsPage() {
                       >
                         Open agent profile →
                       </Link>
+                      </div>
                     </div>
                     <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[200px]">
                       <button
                         type="button"
-                        disabled={acting === b.id}
+                        disabled={acting === b.id || acting === "bulk"}
                         onClick={() => setVerifyTarget({ bank: b, activate: true })}
                         className="rounded-xl px-3 py-2.5 text-sm font-bold text-white disabled:opacity-50"
                         style={{ background: "#12B76A" }}
@@ -311,7 +414,7 @@ export default function AdminSettlementsPage() {
                       </button>
                       <button
                         type="button"
-                        disabled={acting === b.id}
+                        disabled={acting === b.id || acting === "bulk"}
                         onClick={() => setVerifyTarget({ bank: b, activate: false })}
                         className="rounded-xl border px-3 py-2 text-sm font-semibold disabled:opacity-50"
                         style={{ borderColor: B.border, color: B.blue }}
@@ -476,6 +579,32 @@ export default function AdminSettlementsPage() {
               if (acting !== verifyTarget.bank.id) setVerifyTarget(null);
             }}
             onConfirm={() => void confirmVerify()}
+          />
+        ) : null}
+
+        {bulkConfirm ? (
+          <ConfirmModal
+            title="Verify & activate selected banks?"
+            tone="warning"
+            confirmLabel={`Verify & activate (${selectedBankIds.size})`}
+            busy={acting === "bulk"}
+            busyLabel={
+              bulkProgress
+                ? `Verifying… ${bulkProgress.done}/${bulkProgress.total}`
+                : "Verifying…"
+            }
+            message={
+              <>
+                You are about to verify and activate{" "}
+                <strong>{selectedBankIds.size}</strong> pending settlement bank
+                {selectedBankIds.size === 1 ? "" : "s"}. Each becomes that agent’s active payout
+                bank.
+              </>
+            }
+            onClose={() => {
+              if (acting !== "bulk") setBulkConfirm(false);
+            }}
+            onConfirm={() => void confirmBulkVerify()}
           />
         ) : null}
       </div>

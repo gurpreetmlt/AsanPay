@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Inbox } from "lucide-react";
 import { B } from "@/lib/brand";
 
-/** Quiet empty state — short line + optional outline CTA. */
+/** Quiet empty state — short line + one clear CTA when provided. */
 export function EmptyState({
   icon,
   title,
@@ -32,7 +32,7 @@ export function EmptyState({
           {description}
         </p>
       ) : null}
-      {action ? <div className="mt-4">{action}</div> : null}
+      {action ? <div className="mt-5 flex flex-wrap items-center justify-center gap-2">{action}</div> : null}
     </div>
   );
 }

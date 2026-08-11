@@ -13,6 +13,7 @@ import {
   Wallet,
   Network,
   History,
+  Landmark,
 } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { Badge } from "@/components/ui/Badge";
@@ -46,6 +47,15 @@ interface RecentTxn {
   status: string;
   serviceName: string;
   createdAt: string;
+}
+
+interface SettlementBankBrief {
+  id: string;
+  accountNumberLast4: string;
+  ifsc: string;
+  holderName: string;
+  isActive: boolean;
+  verified: boolean;
 }
 
 interface AgentDetail {
@@ -98,17 +108,25 @@ export default function AgentDetailPage() {
   const [aepsReason, setAepsReason] = useState("");
   const [restrictReason, setRestrictReason] = useState("");
   const [recentTxns, setRecentTxns] = useState<RecentTxn[]>([]);
+  const [activeBank, setActiveBank] = useState<SettlementBankBrief | null>(null);
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     try {
-      setAgent(await fetchApi<AgentDetail>(`/admin/users/${id}`));
-      setRecentTxns(await fetchApi<RecentTxn[]>("/admin/transactions", { userId: id, limit: "10" }));
+      const [detail, txns, banks] = await Promise.all([
+        fetchApi<AgentDetail>(`/admin/users/${id}`),
+        fetchApi<RecentTxn[]>("/admin/transactions", { userId: id, limit: "10" }),
+        fetchApi<SettlementBankBrief[]>(`/settlements/banks/by-user/${id}`).catch(() => []),
+      ]);
+      setAgent(detail);
+      setRecentTxns(txns);
+      setActiveBank(banks.find((b) => b.isActive) ?? null);
     } catch {
       toast.error("Failed to load agent details");
       setAgent(null);
+      setActiveBank(null);
     } finally {
       setLoading(false);
     }
@@ -280,6 +298,94 @@ export default function AgentDetailPage() {
             </div>
           ) : null}
         </div>
+
+        {!loading && agent ? (
+          <div
+            className="grid gap-2 rounded-2xl border p-3 sm:grid-cols-2 lg:grid-cols-4"
+            style={{ borderColor: B.border, background: B.card }}
+          >
+            {(() => {
+              const mainBal = agent.wallets.find((w) => w.walletType === "main")?.balance;
+              const last = recentTxns[0];
+              const chips: {
+                key: string;
+                label: string;
+                value: string;
+                sub?: string;
+                icon: typeof ShieldCheck;
+              }[] = [
+                {
+                  key: "kyc",
+                  label: "KYC",
+                  value: agent.kycStatus
+                    .split("_")
+                    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                    .join(" "),
+                  icon: ShieldCheck,
+                },
+                {
+                  key: "bank",
+                  label: "Active settlement bank",
+                  value: activeBank
+                    ? `${activeBank.holderName} · ****${activeBank.accountNumberLast4}`
+                    : "None active",
+                  sub: activeBank ? activeBank.ifsc : undefined,
+                  icon: Landmark,
+                },
+                {
+                  key: "balance",
+                  label: "Main balance",
+                  value:
+                    mainBal != null
+                      ? `₹${Number(mainBal).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`
+                      : "—",
+                  icon: Wallet,
+                },
+                {
+                  key: "txn",
+                  label: "Last txn",
+                  value: last
+                    ? `₹${Number(last.amount).toLocaleString("en-IN", { minimumFractionDigits: 2 })} · ${last.status}`
+                    : "No transactions",
+                  sub: last
+                    ? `${last.serviceName} · ${new Date(last.createdAt).toLocaleString("en-IN")}`
+                    : undefined,
+                  icon: History,
+                },
+              ];
+              return chips.map((c) => {
+                const Icon = c.icon;
+                return (
+                  <div
+                    key={c.key}
+                    className="flex min-w-0 items-start gap-2.5 rounded-xl border px-3 py-2.5"
+                    style={{ borderColor: B.border, background: B.bg }}
+                  >
+                    <div
+                      className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+                      style={{ background: "rgba(42,92,221,0.1)", color: B.blueLight }}
+                    >
+                      <Icon size={15} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-medium uppercase tracking-wide" style={{ color: B.muted }}>
+                        {c.label}
+                      </p>
+                      <p className="truncate text-sm font-semibold" style={{ color: B.blue }}>
+                        {c.value}
+                      </p>
+                      {c.sub ? (
+                        <p className="truncate text-[11px]" style={{ color: B.muted }}>
+                          {c.sub}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              });
+            })()}
+          </div>
+        ) : null}
 
         {!loading && agent ? (
           <div className="grid gap-6 lg:grid-cols-3">

@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import LinearGradient from "react-native-linear-gradient";
 import { Bell, Scan } from "lucide-react-native";
@@ -10,7 +10,7 @@ import { ScreenHeader } from "../../components/ScreenHeader";
 import { WalletBar } from "../../components/WalletBar";
 import { PageEnter } from "../../components/PageEnter";
 import { api, fetchApi } from "../../lib/api";
-import { createAttemptKeyHolder } from "../../lib/idempotencyKey";
+import { createAttemptKeyHolder, newIdempotencyKey } from "../../lib/idempotencyKey";
 import { CHILD_ROLE, ROLE_LABEL } from "../../lib/roles";
 import { formatINR } from "../../lib/format";
 import type { DownlineUser, WalletBalance } from "../../lib/types";
@@ -18,6 +18,8 @@ import { useAuthStore } from "../../store/auth";
 import { useTxnPin } from "../../hooks/useTxnPin";
 import { colors } from "../../theme/colors";
 import { showAlert } from "../../components/AppAlert";
+
+const LOW_FLOAT_THRESHOLD = 10000;
 
 function greetingName(name: string): string {
   const first = name.split(" ")[0] ?? name;
@@ -38,19 +40,29 @@ export function NetworkScreen() {
   const [fundTarget, setFundTarget] = useState<DownlineUser | null>(null);
   const [pullTarget, setPullTarget] = useState<DownlineUser | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set());
+  const [showBulkFund, setShowBulkFund] = useState(false);
+  const [inactiveMonth, setInactiveMonth] = useState(0);
 
   const childRole = CHILD_ROLE[user.role];
   const needsKyc = user.kycStatus === "rejected" || !user.hasKycDocs;
+  const isSd = user.role === "super_distributor";
+  const isDist = user.role === "distributor";
+  const mainBal = parseFloat(wallets.find((w) => w.walletType === "main")?.balance ?? "0") || 0;
+  const lowFloat = !loading && mainBal < LOW_FLOAT_THRESHOLD;
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     try {
-      const [wal, down] = await Promise.all([
+      const [wal, down, dash] = await Promise.all([
         fetchApi<WalletBalance[]>("/wallet/me"),
         fetchApi<DownlineUser[]>("/users/downline"),
+        fetchApi<{ retailers?: { inactive?: number } }>("/dashboard/stats").catch(() => null),
       ]);
       setWallets(wal);
       setDownline(down);
+      if (dash?.retailers?.inactive != null) setInactiveMonth(dash.retailers.inactive);
     } catch {
       /* retry on pull */
     } finally {
@@ -77,6 +89,31 @@ export function NetworkScreen() {
       setTogglingId(null);
     }
   }
+
+  function toggleBulk(id: string) {
+    setBulkSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function shareInactiveWhatsApp() {
+    const loginUrl = "https://asanpay.in/login";
+    const text = [
+      `Hi, this is ${user.name} from AsanPay.`,
+      `${inactiveMonth} retailer${inactiveMonth === 1 ? "" : "s"} in my network have no successful transactions this month.`,
+      `Please log in and start serving customers: ${loginUrl}`,
+      `Need help? Reply on WhatsApp or open Support in the AsanPay app.`,
+    ].join("\n\n");
+    void Linking.openURL(`https://wa.me/?text=${encodeURIComponent(text)}`);
+  }
+
+  const bulkTargets = useMemo(
+    () => downline.filter((d) => bulkSelected.has(d.id) && d.isActive),
+    [downline, bulkSelected],
+  );
 
   const initials = user.name
     .split(" ")
@@ -147,6 +184,49 @@ export function NetworkScreen() {
         </Pressable>
       ) : null}
 
+      {lowFloat ? (
+        <View
+          style={{
+            marginHorizontal: 16,
+            marginTop: 10,
+            borderRadius: 14,
+            borderWidth: 1,
+            borderColor: "#FDBA74",
+            backgroundColor: "#FFF7ED",
+            padding: 12,
+          }}
+        >
+          <Text style={{ color: "#C2410C", fontWeight: "800", fontSize: 13 }}>
+            Low float — Add Money / transfer carefully
+          </Text>
+          <Text style={{ color: "#9A3412", fontSize: 11, marginTop: 2 }}>
+            Main balance is under {formatINR(LOW_FLOAT_THRESHOLD)}. Top up before large funding.
+          </Text>
+        </View>
+      ) : null}
+
+      {isDist && inactiveMonth > 0 ? (
+        <Pressable
+          onPress={shareInactiveWhatsApp}
+          style={{
+            marginHorizontal: 16,
+            marginTop: 10,
+            borderRadius: 14,
+            borderWidth: 1,
+            borderColor: "#86EFAC",
+            backgroundColor: "#F0FDF4",
+            padding: 12,
+          }}
+        >
+          <Text style={{ color: "#166534", fontWeight: "800", fontSize: 13 }}>
+            WhatsApp nudge · {inactiveMonth} inactive retailer{inactiveMonth === 1 ? "" : "s"}
+          </Text>
+          <Text style={{ color: "#15803D", fontSize: 11, marginTop: 2 }}>
+            Share login reminder with English template
+          </Text>
+        </Pressable>
+      ) : null}
+
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={
@@ -161,14 +241,48 @@ export function NetworkScreen() {
           <Text style={styles.sectionTitle}>
             My Downline {childRole ? `(${ROLE_LABEL[childRole]}s)` : ""}
           </Text>
-          {childRole && (
-            <Pressable onPress={() => setShowOnboard(true)}>
-              <LinearGradient colors={[...colors.gradient]} style={styles.addBtn}>
-                <Text style={styles.addBtnText}>+ Onboard</Text>
-              </LinearGradient>
-            </Pressable>
-          )}
+          <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+            {isSd ? (
+              <Pressable
+                onPress={() => {
+                  setBulkMode((v) => {
+                    if (v) setBulkSelected(new Set());
+                    return !v;
+                  });
+                }}
+              >
+                <Text style={{ color: colors.blueFlat, fontWeight: "800", fontSize: 12 }}>
+                  {bulkMode ? "Cancel bulk" : "Bulk fund"}
+                </Text>
+              </Pressable>
+            ) : null}
+            {childRole && (
+              <Pressable onPress={() => setShowOnboard(true)}>
+                <LinearGradient colors={[...colors.gradient]} style={styles.addBtn}>
+                  <Text style={styles.addBtnText}>+ Onboard</Text>
+                </LinearGradient>
+              </Pressable>
+            )}
+          </View>
         </View>
+
+        {bulkMode && isSd ? (
+          <Pressable
+            disabled={bulkTargets.length === 0}
+            onPress={() => setShowBulkFund(true)}
+            style={{
+              marginBottom: 12,
+              borderRadius: 12,
+              backgroundColor: bulkTargets.length ? colors.blueFlat : "#CBD5E1",
+              paddingVertical: 10,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: "#fff", fontWeight: "800", fontSize: 13 }}>
+              Transfer to {bulkTargets.length} selected
+            </Text>
+          </Pressable>
+        ) : null}
 
         {loading ? (
           <ActivityIndicator color={colors.blueFlat} style={{ marginTop: 24 }} />
@@ -176,14 +290,39 @@ export function NetworkScreen() {
           <Text style={styles.empty}>No downline yet. Tap Onboard to add.</Text>
         ) : (
           downline.map((u) => (
-            <DownlineCard
-              key={u.id}
-              user={u}
-              onFund={setFundTarget}
-              onReverse={setPullTarget}
-              onToggleActive={(target) => void toggleActive(target)}
-              toggling={togglingId === u.id}
-            />
+            <View key={u.id}>
+              {bulkMode && isSd ? (
+                <Pressable
+                  onPress={() => u.isActive && toggleBulk(u.id)}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 8,
+                    marginBottom: 4,
+                    opacity: u.isActive ? 1 : 0.5,
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: 4,
+                      borderWidth: 2,
+                      borderColor: colors.blueFlat,
+                      backgroundColor: bulkSelected.has(u.id) ? colors.blueFlat : "transparent",
+                    }}
+                  />
+                  <Text style={{ color: colors.blueFlat, fontWeight: "700", fontSize: 12 }}>Select</Text>
+                </Pressable>
+              ) : null}
+              <DownlineCard
+                user={u}
+                onFund={setFundTarget}
+                onReverse={setPullTarget}
+                onToggleActive={(target) => void toggleActive(target)}
+                toggling={togglingId === u.id}
+              />
+            </View>
           ))
         )}
       </ScrollView>
@@ -215,6 +354,19 @@ export function NetworkScreen() {
           onSuccess={() => void load(true)}
         />
       )}
+
+      {showBulkFund ? (
+        <BulkFundModal
+          visible={showBulkFund}
+          targets={bulkTargets}
+          onClose={() => setShowBulkFund(false)}
+          onSuccess={() => {
+            setBulkMode(false);
+            setBulkSelected(new Set());
+            void load(true);
+          }}
+        />
+      ) : null}
     </SafeAreaView>
     </PageEnter>
   );
@@ -337,6 +489,97 @@ function FundModal({
       </Pressable>
     </ModalSheet>
     <TxnPinPrompt />
+    </>
+  );
+}
+
+function BulkFundModal({
+  visible,
+  targets,
+  onClose,
+  onSuccess,
+}: {
+  visible: boolean;
+  targets: DownlineUser[];
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [amount, setAmount] = useState("");
+  const [loading, setLoading] = useState(false);
+  const { promptPin, TxnPinPrompt } = useTxnPin();
+  const batchRef = useRef(newIdempotencyKey("bulk"));
+
+  async function submit() {
+    if (loading) return;
+    if (targets.length === 0) {
+      showAlert("Select partners", "Select at least one active distributor.");
+      return;
+    }
+    if (!amount || parseFloat(amount) <= 0) {
+      showAlert("Invalid amount", "Enter a valid amount.");
+      return;
+    }
+    let txnAuth: string;
+    try {
+      txnAuth = await promptPin();
+    } catch {
+      return;
+    }
+    setLoading(true);
+    const batch = batchRef.current;
+    let ok = 0;
+    let failed = 0;
+    try {
+      for (const target of targets) {
+        try {
+          await api.post("/wallet/transfer", {
+            targetUserId: target.id,
+            walletType: "main",
+            amount,
+            txnAuth,
+            idempotencyKey: `${batch}-${target.id}`.slice(0, 100),
+            description: "Bulk transfer",
+          });
+          ok += 1;
+        } catch {
+          failed += 1;
+        }
+      }
+      if (ok > 0 && failed === 0) {
+        showAlert("Success", `Sent ₹${amount} to ${ok} partner${ok === 1 ? "" : "s"}`);
+        onSuccess();
+        onClose();
+      } else if (ok > 0) {
+        showAlert("Partial", `Transferred to ${ok}; failed for ${failed}.`);
+        onSuccess();
+      } else {
+        showAlert("Error", "All transfers failed. Check PIN, balance, and partner status.");
+      }
+    } finally {
+      setLoading(false);
+      batchRef.current = newIdempotencyKey("bulk");
+    }
+  }
+
+  return (
+    <>
+      <ModalSheet visible={visible} title={`Bulk transfer (${targets.length})`} onClose={onClose}>
+        <Text style={{ color: "#64748B", fontSize: 12, marginBottom: 10 }}>
+          Same amount to each selected partner
+        </Text>
+        <Field
+          label="Amount each (₹)"
+          value={amount}
+          onChangeText={(t) => setAmount(t.replace(/[^\d.]/g, ""))}
+          keyboardType="decimal-pad"
+        />
+        <Pressable onPress={submit} disabled={loading}>
+          <LinearGradient colors={[...colors.gradient]} style={styles.submit}>
+            <Text style={styles.submitText}>{loading ? "Sending..." : "Confirm bulk transfer"}</Text>
+          </LinearGradient>
+        </Pressable>
+      </ModalSheet>
+      <TxnPinPrompt />
     </>
   );
 }

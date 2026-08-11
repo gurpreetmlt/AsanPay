@@ -83,18 +83,21 @@ export function ServicesScreen() {
   }, []);
 
   const [hasActiveBank, setHasActiveBank] = useState(true);
+  const [todayCommission, setTodayCommission] = useState("0");
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     try {
-      const [cat, wal, banks] = await Promise.all([
+      const [cat, wal, banks, dash] = await Promise.all([
         fetchApi<CatalogCategoryView[]>("/catalog"),
         fetchApi<WalletBalance[]>("/wallet/me"),
         fetchApi<{ isActive: boolean; verified: boolean }[]>("/settlements/banks").catch(() => []),
+        fetchApi<{ today?: { commissionEarned?: string } }>("/dashboard/stats").catch(() => null),
       ]);
       setCategories(cat);
       setWallets(wal);
       setHasActiveBank(banks.some((b) => b.verified && b.isActive));
+      if (dash?.today?.commissionEarned != null) setTodayCommission(dash.today.commissionEarned);
     } catch {
       /* silent — pull to retry */
     } finally {
@@ -219,6 +222,7 @@ export function ServicesScreen() {
           onAddMoney={() => setShowFund(true)}
           onWalletPress={() => navigation.navigate("Balance")}
           onReports={() => navigation.navigate("History")}
+          todayCommission={todayCommission}
         />
       </ScreenHeader>
 

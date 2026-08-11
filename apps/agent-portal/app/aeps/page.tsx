@@ -23,6 +23,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { B } from "@/lib/brand";
 import api from "@/lib/api";
+import { aepsBankLogoUrl } from "@/lib/bankLogo";
 import { useAuthStore } from "@/lib/store";
 import type { ApiResponse } from "@asanpay/shared-types";
 import {
@@ -192,6 +193,29 @@ function DeviceSidebar({
 /* ── Bank icon component ───────────────────────────────────────────── */
 
 function BankIcon({ bank, size = 48 }: { bank: Bank; size?: number }) {
+  const [failed, setFailed] = useState(false);
+  const logoUrl = aepsBankLogoUrl(bank);
+
+  if (logoUrl && !failed) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- Razorpay CDN bank gif
+      <img
+        src={logoUrl}
+        alt=""
+        width={size}
+        height={size}
+        className="shrink-0 rounded-full object-contain bg-white"
+        style={{
+          width: size,
+          height: size,
+          padding: size * 0.14,
+          border: "1px solid rgba(15,23,42,0.08)",
+        }}
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+
   return (
     <div
       className="flex items-center justify-center rounded-full text-white font-bold shrink-0"

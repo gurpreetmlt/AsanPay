@@ -14,6 +14,7 @@ import {
 import { toast } from "react-hot-toast";
 import { AppShell } from "@/components/layout/AppShell";
 import { FundForm } from "@/components/dashboard/FundForm";
+import { BulkFundForm } from "@/components/dashboard/BulkFundForm";
 import { PullForm } from "@/components/dashboard/PullForm";
 import { fetchApi } from "@/lib/api";
 import { B, initials, roleFromUserRole } from "@/lib/brand";
@@ -41,7 +42,11 @@ export default function WalletPage() {
   const [downline, setDownline] = useState<DownlineUser[]>([]);
   const [fundTarget, setFundTarget] = useState<DownlineUser | null>(null);
   const [pullTarget, setPullTarget] = useState<DownlineUser | null>(null);
+  const [showBulk, setShowBulk] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [ledgerPartner, setLedgerPartner] = useState("all");
+  const [ledgerFrom, setLedgerFrom] = useState("");
+  const [ledgerTo, setLedgerTo] = useState("");
   const balanceVisible = useBalanceVisibility((s) => s.visible);
 
 
@@ -80,8 +85,27 @@ export default function WalletPage() {
 
   const main = wallets.find((w) => w.walletType === "main");
   const aeps = wallets.find((w) => w.walletType === "aeps");
-  const credits = ledger.filter((e) => e.entryType === "credit").reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
-  const debits = ledger.filter((e) => e.entryType === "debit").reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
+  const filteredLedger = ledger.filter((e) => {
+    if (ledgerPartner !== "all") {
+      const partner = downline.find((d) => d.id === ledgerPartner);
+      if (!partner) return false;
+      const hay = `${e.description ?? ""} ${e.referenceId ?? ""}`.toLowerCase();
+      if (!hay.includes(partner.name.toLowerCase()) && e.referenceId !== partner.id) return false;
+    }
+    if (ledgerFrom) {
+      const from = new Date(ledgerFrom);
+      from.setHours(0, 0, 0, 0);
+      if (new Date(e.createdAt) < from) return false;
+    }
+    if (ledgerTo) {
+      const to = new Date(ledgerTo);
+      to.setHours(23, 59, 59, 999);
+      if (new Date(e.createdAt) > to) return false;
+    }
+    return true;
+  });
+  const credits = filteredLedger.filter((e) => e.entryType === "credit").reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
+  const debits = filteredLedger.filter((e) => e.entryType === "debit").reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
   const pendingTotal = wallets.reduce((s, w) => s + (parseFloat(w.pendingBalance ?? "0") || 0), 0);
 
   return (
@@ -222,13 +246,27 @@ export default function WalletPage() {
 
         {canFund && (
           <div className="overflow-hidden rounded-2xl border bg-white" style={{ borderColor: B.border }}>
-            <div className="border-b px-5 py-4" style={{ borderColor: B.border }}>
-              <h2 className="font-bold" style={{ color: B.blue }}>
-                Downline — Fund / Reverse
-              </h2>
-              <p className="mt-0.5 text-xs" style={{ color: B.muted }}>
-                Fund needs your PIN. Reverse sends OTP to partner phone, then you enter OTP + PIN.
-              </p>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-4" style={{ borderColor: B.border }}>
+              <div>
+                <h2 className="font-bold" style={{ color: B.blue }}>
+                  Downline — Fund / Reverse
+                </h2>
+                <p className="mt-0.5 text-xs" style={{ color: B.muted }}>
+                  Fund needs your PIN. Reverse sends OTP to partner phone, then you enter OTP + PIN.
+                </p>
+              </div>
+              {user?.role === "super_distributor" || user?.role === "distributor" ? (
+                <PrimaryButton
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  showArrow={false}
+                  className="!w-auto"
+                  onClick={() => setShowBulk(true)}
+                >
+                  Bulk transfer
+                </PrimaryButton>
+              ) : null}
             </div>
             {downline.length === 0 ? (
               <p className="px-5 py-8 text-sm" style={{ color: B.muted }}>
@@ -319,14 +357,60 @@ export default function WalletPage() {
             <h2 className="font-bold" style={{ color: B.blue }}>
               Ledger
             </h2>
+            {canFund ? (
+              <div className="mt-3 flex flex-wrap items-end gap-3">
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide" style={{ color: B.muted }}>
+                    Partner
+                  </label>
+                  <select
+                    value={ledgerPartner}
+                    onChange={(e) => setLedgerPartner(e.target.value)}
+                    className="rounded-lg border px-3 py-2 text-sm"
+                    style={{ borderColor: B.border, color: B.blue }}
+                  >
+                    <option value="all">All partners</option>
+                    {downline.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide" style={{ color: B.muted }}>
+                    From
+                  </label>
+                  <input
+                    type="date"
+                    value={ledgerFrom}
+                    onChange={(e) => setLedgerFrom(e.target.value)}
+                    className="rounded-lg border px-3 py-2 text-sm"
+                    style={{ borderColor: B.border, color: B.blue }}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide" style={{ color: B.muted }}>
+                    To
+                  </label>
+                  <input
+                    type="date"
+                    value={ledgerTo}
+                    onChange={(e) => setLedgerTo(e.target.value)}
+                    className="rounded-lg border px-3 py-2 text-sm"
+                    style={{ borderColor: B.border, color: B.blue }}
+                  />
+                </div>
+              </div>
+            ) : null}
           </div>
           {loading && ledger.length === 0 ? (
             <p className="px-5 py-8 text-sm" style={{ color: B.muted }}>
               Loading…
             </p>
-          ) : ledger.length === 0 ? (
+          ) : filteredLedger.length === 0 ? (
             <p className="px-5 py-8 text-sm" style={{ color: B.muted }}>
-              No ledger entries yet
+              {ledger.length === 0 ? "No ledger entries yet" : "No entries match these filters"}
             </p>
           ) : (
             <table className="w-full text-sm">
@@ -346,7 +430,7 @@ export default function WalletPage() {
                 </tr>
               </thead>
               <tbody>
-                {ledger.map((l) => (
+                {filteredLedger.map((l) => (
                   <tr key={l.id} className="border-b transition-colors hover:bg-secondary/30" style={{ borderColor: B.border }}>
                     <td className="px-5 py-3 text-sm" style={{ color: B.muted }}>
                       {new Date(l.createdAt).toLocaleString("en-IN", {
@@ -399,6 +483,14 @@ export default function WalletPage() {
           onSuccess={() => void load()}
         />
       )}
+      {showBulk ? (
+        <BulkFundForm
+          targets={downline}
+          title="Bulk transfer"
+          onClose={() => setShowBulk(false)}
+          onSuccess={() => void load()}
+        />
+      ) : null}
       {pullTarget && (
         <PullForm
           target={pullTarget}

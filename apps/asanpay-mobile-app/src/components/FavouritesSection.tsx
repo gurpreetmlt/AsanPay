@@ -13,7 +13,7 @@ import { ServiceTile } from "./ServiceTile";
 import { DesignIcon } from "../lib/designIcons";
 import { flattenCatalogServices } from "../lib/catalog";
 import type { CatalogCategoryView } from "../lib/types";
-import { selectFavoriteCodes, useFavoritesStore } from "../store/favorites";
+import { selectFavoriteCodes, useFavoritesStore, MAX_FAVORITES } from "../store/favorites";
 import { colors } from "../theme/colors";
 import { useTheme } from "../theme/ThemeContext";
 
@@ -81,7 +81,9 @@ export function FavouritesSection({ userId, categories, homeEditMode, onEnterEdi
         <View style={styles.titleRow}>
           <DesignIcon name="star" size={18} color={colors.green} />
           <Text style={[styles.title, { color: tokens.txt }]}>Favourites</Text>
-          <Text style={styles.countBadge}>{services.length}</Text>
+          <Text style={styles.countBadge}>
+            {services.length}/{MAX_FAVORITES}
+          </Text>
         </View>
         {!homeEditMode ? (
           open ? (

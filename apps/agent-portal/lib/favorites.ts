@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 
-export const MAX_FAVORITES = 8;
+export const MAX_FAVORITES = 3;
 const EMPTY_CODES: string[] = [];
 const STORAGE_KEY = "adhikari-service-favorites";
 

@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Users,
   TrendingUp,
   TrendingDown,
   Wallet,
@@ -15,13 +14,18 @@ import {
   AlertTriangle,
   IndianRupee,
   Building2,
+  Layers,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { fetchApi } from "@/lib/api";
 import { B, roleFromUserRole, initials } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { formatInr } from "@/lib/walletLabels";
-import type { WalletBalance } from "@/lib/types";
+import type { DownlineUser, WalletBalance } from "@/lib/types";
+import { BulkFundForm } from "@/components/dashboard/BulkFundForm";
+import { PrimaryButton } from "@/components/ui/PrimaryButton";
+
+const LOW_FLOAT_THRESHOLD = 10000;
 
 interface SDStats {
   role: "super_distributor";
@@ -41,6 +45,7 @@ interface SDStats {
   };
   distributorPerformance: { id: string; name: string; retailerCount: number; volume: string }[];
   topDistributorsMtd?: { id: string; name: string; retailerCount: number; volume: string }[];
+  commissionMtdByDist?: { id: string; name: string; amount: string }[];
 }
 
 export function SuperDistributorDashboard() {
@@ -50,30 +55,35 @@ export function SuperDistributorDashboard() {
 
   const [wallets, setWallets] = useState<WalletBalance[]>([]);
   const [stats, setStats] = useState<SDStats | null>(null);
+  const [downline, setDownline] = useState<DownlineUser[]>([]);
+  const [showBulk, setShowBulk] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      setLoading(true);
-      try {
-        const [walletRows, dashStats] = await Promise.all([
-          fetchApi<WalletBalance[]>("/wallet/me"),
-          fetchApi<SDStats>("/dashboard/stats"),
-        ]);
-        if (!alive) return;
-        setWallets(walletRows);
-        setStats(dashStats);
-      } catch {
-        if (alive) toast.error("Failed to load dashboard");
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-    return () => { alive = false; };
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [walletRows, dashStats, kids] = await Promise.all([
+        fetchApi<WalletBalance[]>("/wallet/me"),
+        fetchApi<SDStats>("/dashboard/stats"),
+        fetchApi<DownlineUser[]>("/users/downline"),
+      ]);
+      setWallets(walletRows);
+      setStats(dashStats);
+      setDownline(kids.filter((k) => k.role === "distributor"));
+    } catch {
+      toast.error("Failed to load dashboard");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    void load();
+  }, [load]);
+
   const primary = wallets.find((w) => w.walletType === "main");
+  const mainBal = parseFloat(primary?.balance ?? "0") || 0;
+  const lowFloat = !loading && mainBal < LOW_FLOAT_THRESHOLD;
 
   const todayVol = parseFloat(stats?.revenue.todayVolume ?? "0");
   const yestVol = parseFloat(stats?.revenue.yesterdayVolume ?? "0");
@@ -85,9 +95,36 @@ export function SuperDistributorDashboard() {
     (stats?.network.retailers ?? 0) - (stats?.network.activeRetailers ?? 0);
   const inactivePct = stats?.network.inactiveRetailerPct ?? 0;
   const topDists = stats?.topDistributorsMtd ?? stats?.distributorPerformance?.slice(0, 5) ?? [];
+  const commissionByDist = stats?.commissionMtdByDist ?? [];
 
   return (
     <div className="space-y-5">
+      {lowFloat ? (
+        <div
+          className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3"
+          style={{ borderColor: "#FDBA74", background: "#FFF7ED" }}
+        >
+          <div>
+            <p className="text-sm font-bold" style={{ color: "#C2410C" }}>
+              Low float — Add Money / transfer carefully
+            </p>
+            <p className="text-xs" style={{ color: "#9A3412" }}>
+              Main balance is under {formatInr(LOW_FLOAT_THRESHOLD)}. Top up before large distributor funding.
+            </p>
+          </div>
+          <PrimaryButton
+            type="button"
+            variant="success"
+            size="sm"
+            showArrow={false}
+            className="!w-auto"
+            onClick={() => router.push("/fund-request")}
+          >
+            Add Money
+          </PrimaryButton>
+        </div>
+      ) : null}
+
       {/* Top: Wallet + Network Overview */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
         {/* Wallet */}
@@ -233,6 +270,50 @@ export function SuperDistributorDashboard() {
         </div>
       </div>
 
+      <div className="rounded-2xl border bg-white p-4" style={{ borderColor: B.border }}>
+        <div className="mb-3 flex items-center gap-2">
+          <IndianRupee size={16} style={{ color: B.green }} />
+          <div>
+            <h3 className="text-sm font-bold" style={{ color: B.blue }}>
+              Commission break-up (MTD)
+            </h3>
+            <p className="text-xs" style={{ color: B.muted }}>
+              Your commission this month by distributor (top 5)
+            </p>
+          </div>
+        </div>
+        {loading ? (
+          <p className="text-sm" style={{ color: B.muted }}>Loading…</p>
+        ) : commissionByDist.length === 0 ? (
+          <p className="text-sm" style={{ color: B.muted }}>No commission attributed yet this month</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b" style={{ borderColor: B.border }}>
+                  <th className="py-2 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: B.muted }}>
+                    Distributor
+                  </th>
+                  <th className="py-2 text-right text-xs font-semibold uppercase tracking-wider" style={{ color: B.muted }}>
+                    Commission
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {commissionByDist.map((row) => (
+                  <tr key={row.id} className="border-b last:border-0" style={{ borderColor: B.border }}>
+                    <td className="py-2.5 font-medium" style={{ color: B.blue }}>{row.name}</td>
+                    <td className="py-2.5 text-right font-bold tabular-nums" style={{ color: B.green }}>
+                      {formatInr(row.amount)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       {(stats?.network.inactiveDistributors ?? 0) > 0 || inactiveRetailers > 0 ? (
         <button
           type="button"
@@ -345,7 +426,7 @@ export function SuperDistributorDashboard() {
       {/* Quick Actions */}
       <div className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
         <h3 className="mb-4 text-sm font-bold" style={{ color: B.blue }}>Quick Actions</h3>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <QuickAction
             icon={<UserPlus size={18} />}
             label="Add Distributor"
@@ -359,6 +440,12 @@ export function SuperDistributorDashboard() {
             onClick={() => router.push("/wallet")}
           />
           <QuickAction
+            icon={<Layers size={18} />}
+            label="Bulk transfer"
+            desc="Fund multiple distributors"
+            onClick={() => setShowBulk(true)}
+          />
+          <QuickAction
             icon={<Network size={18} />}
             label="Network Tree"
             desc="View full hierarchy"
@@ -366,6 +453,15 @@ export function SuperDistributorDashboard() {
           />
         </div>
       </div>
+
+      {showBulk ? (
+        <BulkFundForm
+          targets={downline}
+          title="Bulk transfer to distributors"
+          onClose={() => setShowBulk(false)}
+          onSuccess={() => void load()}
+        />
+      ) : null}
     </div>
   );
 }

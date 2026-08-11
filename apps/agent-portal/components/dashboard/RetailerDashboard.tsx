@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  TrendingUp,
   ChevronRight,
   Wallet,
   Activity,
@@ -14,6 +13,9 @@ import {
   ShieldCheck,
   PlusCircle,
   Share2,
+  RotateCcw,
+  LifeBuoy,
+  Star,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { fetchApi } from "@/lib/api";
@@ -26,6 +28,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { ServiceCards } from "@/components/services/ServiceCards";
 import { formatInr, walletDisplayName } from "@/lib/walletLabels";
+import { MAX_FAVORITES } from "@/lib/favorites";
 import type { TxnRow, WalletBalance } from "@/lib/types";
 
 interface RetailerStats {
@@ -36,6 +39,23 @@ interface RetailerStats {
     successRate: number;
     commissionEarned: string;
   };
+}
+
+const AEPS_TAB_MAP: Record<string, string> = {
+  CASH_WITHDRAW: "Withdraw",
+  MINI_STATEMENT: "Mini Statement",
+  CASH_DEPOSIT: "Deposit",
+  BALANCE_ENQUIRY: "Balance Enquiry",
+  AADHAAR_PAY: "Withdraw",
+};
+
+function resolveServiceRoute(code: string): string | null {
+  const aepsTab = AEPS_TAB_MAP[code];
+  if (aepsTab) return `/aeps?tab=${encodeURIComponent(aepsTab)}`;
+  if (code === "UPI_CASH_POINT") return "/upi-cash-point";
+  if (code === "MONEY_TRANSFER" || code === "DMT") return "/dmt";
+  if (code === "NEPAL" || code === "NEPAL_REMITTANCE") return "/nepal";
+  return null;
 }
 
 function timeAgo(iso: string) {
@@ -51,6 +71,31 @@ function badgeStatus(status: string) {
   if (status === "success") return "success" as const;
   if (status === "pending" || status === "initiated") return "pending" as const;
   return "failed" as const;
+}
+
+function openPrintableReceipt(t: TxnRow) {
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>AsanPay receipt</title>
+<style>
+  body{font-family:system-ui,sans-serif;padding:24px;color:#0f172a;max-width:420px;margin:0 auto}
+  h1{font-size:18px;margin:0 0 4px} .muted{color:#64748b;font-size:12px}
+  .row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #e2e8f0;font-size:14px}
+  .amt{font-size:22px;font-weight:700;margin:16px 0}
+  @media print{button{display:none}}
+</style></head><body>
+  <h1>AsanPay receipt</h1>
+  <p class="muted">${new Date(t.createdAt).toLocaleString("en-IN")}</p>
+  <div class="amt">${formatInr(t.amount)}</div>
+  <div class="row"><span>Service</span><strong>${t.serviceName}</strong></div>
+  <div class="row"><span>Status</span><strong>${t.status}</strong></div>
+  ${t.txnRef ? `<div class="row"><span>Ref</span><strong>${t.txnRef}</strong></div>` : ""}
+  <p class="muted" style="margin-top:24px">Thank you for using AsanPay.</p>
+  <button onclick="window.print()" style="margin-top:16px;padding:8px 14px;border-radius:8px;border:1px solid #cbd5e1;background:#fff;cursor:pointer">Print / Save PDF</button>
+  <script>setTimeout(function(){window.print()},400)</script>
+</body></html>`;
+  const blob = new Blob([html], { type: "text/html" });
+  const url = URL.createObjectURL(blob);
+  window.open(url, "_blank", "noopener,noreferrer");
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 export function RetailerDashboard() {
@@ -79,7 +124,7 @@ export function RetailerDashboard() {
         setWallets(walletRows);
         setRecent(txns);
         setStats(dashStats);
-      } catch (err: unknown) {
+      } catch {
         if (alive) toast.error("Failed to load dashboard");
       } finally {
         if (alive) setLoading(false);
@@ -118,6 +163,7 @@ export function RetailerDashboard() {
   const kycDone = user?.kycStatus === "verified";
   const mainBal = parseFloat(primary?.balance ?? "0") || 0;
   const lowBalance = !loading && mainBal < 500;
+  const todayEarn = stats?.today.commissionEarned ?? "0";
 
   const doNext: { id: string; label: string; href: string }[] = [];
   if (!loading) {
@@ -137,6 +183,7 @@ export function RetailerDashboard() {
       t.txnRef ? `Ref: ${t.txnRef}` : null,
     ].filter(Boolean);
     const text = lines.join("\n");
+    openPrintableReceipt(t);
     void (async () => {
       try {
         if (navigator.share) {
@@ -148,11 +195,20 @@ export function RetailerDashboard() {
       }
       try {
         await navigator.clipboard.writeText(text);
-        toast.success("Receipt copied");
+        toast.success("Receipt opened · text copied");
       } catch {
-        toast.error("Could not share receipt");
+        toast.success("Printable receipt opened");
       }
     })();
+  }
+
+  function retryOrSupport(t: TxnRow) {
+    const route = resolveServiceRoute(t.serviceCode);
+    if (route) {
+      router.push(route);
+      return;
+    }
+    router.push("/support");
   }
 
   return (
@@ -221,11 +277,12 @@ export function RetailerDashboard() {
           <div className="mb-2 text-2xl font-bold leading-none tracking-tight">
             {loading ? "…" : maskBalance(balanceVisible, formatInr(primary?.balance ?? "0"))}
           </div>
-          <div className="relative z-10 mb-2 flex items-center gap-1.5 border-t border-white/15 pt-2">
-            <TrendingUp size={11} style={{ color: B.greenLight }} />
-            <span className="text-[11px] font-semibold" style={{ color: B.greenLight }}>
-              Today: {balanceVisible ? formatInr(stats?.today.commissionEarned ?? "0") : "••••"} earned
-            </span>
+          <div
+            className="relative z-10 mb-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold"
+            style={{ background: "rgba(255,255,255,0.2)", color: "#fff" }}
+          >
+            <IndianRupee size={11} />
+            Today earned {balanceVisible ? formatInr(todayEarn) : "••••"}
           </div>
           <div className="relative z-10">
             <PrimaryButton
@@ -286,15 +343,45 @@ export function RetailerDashboard() {
         />
       </div>
 
-      {/* Quick Services */}
-      <ServiceCards title="Quick Services" />
+      <div
+        className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border px-4 py-3"
+        style={{ borderColor: `${B.green}55`, background: `${B.green}10` }}
+      >
+        <div className="flex items-center gap-2">
+          <span
+            className="flex h-9 w-9 items-center justify-center rounded-xl"
+            style={{ background: `${B.green}22`, color: B.green }}
+          >
+            <IndianRupee size={18} />
+          </span>
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+              Daily earnings
+            </p>
+            <p className="text-lg font-bold tabular-nums" style={{ color: B.green }}>
+              {loading ? "…" : formatInr(todayEarn)}
+            </p>
+          </div>
+        </div>
+        <p className="text-xs" style={{ color: B.muted }}>
+          Commission earned today
+        </p>
+      </div>
+
+      {/* Quick Services — pin up to MAX_FAVORITES via star on tiles */}
+      <div>
+        <p className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+          <Star size={12} /> Pin up to {MAX_FAVORITES} favourite services
+        </p>
+        <ServiceCards title="Quick Services" />
+      </div>
 
       {/* Today's Summary */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <MiniStat label="Txns Today" value={String(stats?.today.txnCount ?? 0)} />
         <MiniStat label="Volume" value={formatInr(stats?.today.volume ?? "0")} />
         <MiniStat label="Success" value={`${stats?.today.successRate ?? 0}%`} />
-        <MiniStat label="Commission" value={formatInr(stats?.today.commissionEarned ?? "0")} highlight />
+        <MiniStat label="Commission" value={formatInr(todayEarn)} highlight />
       </div>
 
       {/* Announcements + KYC row */}
@@ -447,40 +534,58 @@ export function RetailerDashboard() {
           />
         ) : (
           <div className="space-y-2">
-            {recent.map((t) => (
-              <div
-                key={t.id}
-                className="flex items-center justify-between rounded-xl p-3 transition-colors hover:bg-slate-50"
-                style={{ background: B.secondary }}
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className="flex h-9 w-9 items-center justify-center rounded-lg"
-                    style={{ background: `${B.blue}12` }}
-                  >
-                    <IndianRupee size={16} style={{ color: B.blue }} />
+            {recent.map((t) => {
+              const failed = !["success", "pending", "initiated"].includes(t.status);
+              const canRetry = !!resolveServiceRoute(t.serviceCode);
+              return (
+                <div
+                  key={t.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl p-3 transition-colors hover:bg-slate-50"
+                  style={{ background: B.secondary }}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="flex h-9 w-9 items-center justify-center rounded-lg"
+                      style={{ background: `${B.blue}12` }}
+                    >
+                      <IndianRupee size={16} style={{ color: B.blue }} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold" style={{ color: B.blue }}>{t.serviceName}</p>
+                      <p className="text-xs" style={{ color: B.muted }}>{timeAgo(t.createdAt)}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold" style={{ color: B.blue }}>{t.serviceName}</p>
-                    <p className="text-xs" style={{ color: B.muted }}>{timeAgo(t.createdAt)}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-bold" style={{ color: B.blue }}>{formatInr(t.amount)}</span>
+                    <StatusBadge status={badgeStatus(t.status)} />
+                    {failed ? (
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold"
+                        style={{
+                          color: canRetry ? B.blue : "#B45309",
+                          background: canRetry ? "#fff" : "#FFFBEB",
+                        }}
+                        onClick={() => retryOrSupport(t)}
+                      >
+                        {canRetry ? <RotateCcw size={12} /> : <LifeBuoy size={12} />}
+                        {canRetry ? "Retry" : "Support"}
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="icon-tooltip rounded-lg p-1.5"
+                      style={{ color: B.blueLight, background: "#fff" }}
+                      aria-label="Share receipt"
+                      data-tooltip="Share / print receipt"
+                      onClick={() => shareReceipt(t)}
+                    >
+                      <Share2 size={14} strokeWidth={2.25} />
+                    </button>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold" style={{ color: B.blue }}>{formatInr(t.amount)}</span>
-                  <StatusBadge status={badgeStatus(t.status)} />
-                  <button
-                    type="button"
-                    className="icon-tooltip rounded-lg p-1.5"
-                    style={{ color: B.blueLight, background: "#fff" }}
-                    aria-label="Share receipt"
-                    data-tooltip="Share receipt"
-                    onClick={() => shareReceipt(t)}
-                  >
-                    <Share2 size={14} strokeWidth={2.25} />
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

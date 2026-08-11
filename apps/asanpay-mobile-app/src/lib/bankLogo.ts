@@ -75,6 +75,48 @@ export function bankNameFromIfsc(ifsc: string): string | undefined {
   return BANK_NAMES[bankCodeFromIfsc(ifsc)];
 }
 
+/** AePS favourite / list bank `id` → Razorpay CDN bank code (IFSC prefix). */
+const AEPS_BANK_LOGO_CODE: Record<string, string> = {
+  bob: "BARB",
+  pnb: "PUNB",
+  sbi: "SBIN",
+  hdfc: "HDFC",
+  airtel: "AIRP",
+  icici: "ICIC",
+  boi: "BKID",
+  canara: "CNRB",
+  indian: "IDIB",
+  union: "UBIN",
+  kotak: "KKBK",
+  axis: "UTIB",
+  iob: "IOBA",
+  central: "CBIN",
+  bom: "MAHB",
+  idbi: "IBKL",
+  yes: "YESB",
+  uco: "UCBA",
+  indusind: "INDB",
+  idfc: "IDFB",
+  federal: "FDRL",
+  rbl: "RATN",
+};
+
+/**
+ * Logo URL for AePS bank picker. Same Razorpay CDN as settlement IFSC logos.
+ */
+export function aepsBankLogoUrl(bank: { id: string; name?: string }): string | null {
+  const byId = AEPS_BANK_LOGO_CODE[bank.id.toLowerCase()];
+  if (byId) return bankLogoUrl(`${byId}0000000`);
+  const name = (bank.name || "").toLowerCase();
+  for (const [code, label] of Object.entries(BANK_NAMES)) {
+    const needle = label.toLowerCase().replace(/ bank$/i, "");
+    if (needle.length >= 4 && name.includes(needle.slice(0, Math.min(12, needle.length)))) {
+      return bankLogoUrl(`${code}0000000`);
+    }
+  }
+  return null;
+}
+
 function hexAlpha(hex: string, alphaHex: string): string {
   const h = hex.replace("#", "");
   if (h.length !== 6) return hex;

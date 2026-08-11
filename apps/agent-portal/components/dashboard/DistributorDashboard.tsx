@@ -13,6 +13,9 @@ import {
   Clock,
   IndianRupee,
   CalendarDays,
+  MessageCircle,
+  ArrowDownLeft,
+  ArrowUpRight,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { fetchApi } from "@/lib/api";
@@ -33,7 +36,7 @@ interface DistributorStats {
   role: "distributor";
   retailers: { total: number; active: number; inactive: number };
   onboarding?: { pendingKyc: number; noBank: number; neverTxn: number };
-  today: { volume: string; commission: string };
+  today: { volume: string; commission: string; cashIn?: string; payouts?: string };
   month?: { commission: string };
   topRetailers: { id: string; name: string; volume: string }[];
   activityHistory?: ActivityMonth[];
@@ -84,6 +87,20 @@ export function DistributorDashboard() {
   const selected =
     history.find((h) => h.month === selectedMonth) ?? history[history.length - 1] ?? null;
   const recentMonths = history.slice(-4);
+
+  function shareInactiveWhatsApp() {
+    const inactive = stats?.retailers.inactive ?? 0;
+    const loginUrl =
+      process.env.NEXT_PUBLIC_AGENT_APP_URL?.replace(/\/$/, "") ||
+      (typeof window !== "undefined" ? `${window.location.origin}/login` : "https://asanpay.in/login");
+    const text = [
+      `Hi, this is ${user?.name ?? "your distributor"} from AsanPay.`,
+      `${inactive} retailer${inactive === 1 ? "" : "s"} in my network have no successful transactions this month.`,
+      `Please log in and start serving customers: ${loginUrl}`,
+      `Need help? Reply on WhatsApp or open Support in the AsanPay app.`,
+    ].join("\n\n");
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
+  }
 
   return (
     <div className="space-y-4">
@@ -222,16 +239,57 @@ export function DistributorDashboard() {
               />
             </div>
             {(stats?.retailers.inactive ?? 0) > 0 ? (
-              <button
-                type="button"
-                onClick={() => router.push("/network")}
-                className="mt-3 w-full rounded-xl border px-3 py-2.5 text-left text-sm font-semibold"
-                style={{ borderColor: "#FECACA", background: "#FEF2F2", color: "#B91C1C" }}
-              >
-                {stats?.retailers.inactive} retailer{stats?.retailers.inactive === 1 ? "" : "s"} with no activity this month — open Network
-              </button>
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={() => router.push("/network")}
+                  className="flex-1 rounded-xl border px-3 py-2.5 text-left text-sm font-semibold"
+                  style={{ borderColor: "#FECACA", background: "#FEF2F2", color: "#B91C1C" }}
+                >
+                  {stats?.retailers.inactive} retailer{stats?.retailers.inactive === 1 ? "" : "s"} with no activity this month — open Network
+                </button>
+                <button
+                  type="button"
+                  onClick={shareInactiveWhatsApp}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-semibold"
+                  style={{ borderColor: "#86EFAC", background: "#F0FDF4", color: "#166534" }}
+                >
+                  <MessageCircle size={16} />
+                  WhatsApp nudge
+                </button>
+              </div>
             ) : null}
           </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border bg-white p-4" style={{ borderColor: B.border }}>
+          <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide" style={{ color: B.muted }}>
+            <BarChart3 size={12} /> Today&apos;s collection
+          </div>
+          <div className="text-xl font-bold tabular-nums" style={{ color: B.blue }}>
+            {loading ? "…" : formatInr(stats?.today.volume ?? "0")}
+          </div>
+          <p className="mt-0.5 text-xs" style={{ color: B.muted }}>Retailer success volume today</p>
+        </div>
+        <div className="rounded-2xl border bg-white p-4" style={{ borderColor: B.border }}>
+          <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide" style={{ color: B.muted }}>
+            <ArrowDownLeft size={12} /> Cash-in today
+          </div>
+          <div className="text-xl font-bold tabular-nums" style={{ color: B.green }}>
+            {loading ? "…" : formatInr(stats?.today.cashIn ?? "0")}
+          </div>
+          <p className="mt-0.5 text-xs" style={{ color: B.muted }}>Credits to your Main wallet</p>
+        </div>
+        <div className="rounded-2xl border bg-white p-4" style={{ borderColor: B.border }}>
+          <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide" style={{ color: B.muted }}>
+            <ArrowUpRight size={12} /> Payouts today
+          </div>
+          <div className="text-xl font-bold tabular-nums" style={{ color: "#DC2626" }}>
+            {loading ? "…" : formatInr(stats?.today.payouts ?? "0")}
+          </div>
+          <p className="mt-0.5 text-xs" style={{ color: B.muted }}>Debits from your Main wallet</p>
         </div>
       </div>
 
@@ -297,7 +355,7 @@ export function DistributorDashboard() {
           <div className="mb-4 flex items-center gap-2">
             <TrendingUp size={16} style={{ color: B.blue }} />
             <h3 className="text-sm font-bold" style={{ color: B.blue }}>
-              Top Retailers (Today)
+              Hot retailers today
             </h3>
           </div>
           {!stats || stats.topRetailers.length === 0 ? (

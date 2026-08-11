@@ -1,12 +1,24 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { toast } from "react-hot-toast";
-import { ChevronDown, ChevronRight, Crown, Network as NetworkIcon, Store, Move, Search } from "lucide-react";
-import { fetchApi } from "@/lib/api";
+import {
+  ChevronDown,
+  ChevronRight,
+  Crown,
+  Network as NetworkIcon,
+  Store,
+  Move,
+  Search,
+  Eye,
+  Power,
+} from "lucide-react";
+import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { ActionIconButton } from "@/components/ui/TableActionButtons";
 import { MoveAgentModal } from "@/components/users/MoveAgentModal";
+import { PromptModal } from "@/components/ui/PromptModal";
 
 interface TreeNode {
   id: string;
@@ -15,6 +27,7 @@ interface TreeNode {
   mobile: string;
   role: "super_distributor" | "distributor" | "retailer";
   isActive: boolean;
+  isFrozen?: boolean;
   mainBalance: string;
   children: TreeNode[];
 }
@@ -37,22 +50,35 @@ function flatten(nodes: TreeNode[]): TreeNode[] {
   return out;
 }
 
+function patchFrozen(nodes: TreeNode[], id: string, isFrozen: boolean): TreeNode[] {
+  return nodes.map((n) => {
+    if (n.id === id) return { ...n, isFrozen };
+    if (!n.children.length) return n;
+    return { ...n, children: patchFrozen(n.children, id, isFrozen) };
+  });
+}
+
 function TreeRow({
   node,
   depth,
   expanded,
+  freezingId,
   onToggle,
   onMove,
+  onFreezeToggle,
 }: {
   node: TreeNode;
   depth: number;
   expanded: Record<string, boolean>;
+  freezingId: string | null;
   onToggle: (id: string) => void;
   onMove: (node: TreeNode) => void;
+  onFreezeToggle: (node: TreeNode) => void;
 }) {
   const isOpen = expanded[node.id] !== false; // default expanded
   const Icon = ROLE_ICON[node.role];
   const hasChildren = node.children.length > 0;
+  const frozen = Boolean(node.isFrozen);
 
   return (
     <div>
@@ -78,11 +104,15 @@ function TreeRow({
         <span
           className="rounded-full px-2 py-0.5 text-xs font-medium"
           style={{
-            background: node.isActive ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
-            color: node.isActive ? "#16a34a" : "#dc2626",
+            background: frozen
+              ? "rgba(239,68,68,0.12)"
+              : node.isActive
+                ? "rgba(34,197,94,0.12)"
+                : "rgba(239,68,68,0.12)",
+            color: frozen || !node.isActive ? "#dc2626" : "#16a34a",
           }}
         >
-          {node.isActive ? "Active" : "Inactive"}
+          {frozen ? "Frozen" : node.isActive ? "Active" : "Inactive"}
         </span>
         <span className="text-xs" style={{ color: B.muted }}>
           ₹{node.mainBalance}
@@ -92,21 +122,44 @@ function TreeRow({
             ({node.children.length})
           </span>
         )}
-        {MOVABLE_ROLES.has(node.role) && (
-          <ActionIconButton
-            title="Move"
-            tone="violet"
-            className="ml-auto"
-            onClick={() => onMove(node)}
+        <div className="ml-auto flex shrink-0 items-center gap-1" onClick={(e) => e.stopPropagation()}>
+          <Link
+            href={`/users/${node.id}`}
+            aria-label="View"
+            data-tooltip="View"
+            className="icon-tooltip inline-flex h-8 w-8 items-center justify-center rounded-xl border text-[#2A5CDD] transition hover:scale-110 hover:border-[#2A5CDD]/45 hover:bg-[#2A5CDD]/10 active:scale-95"
+            style={{ borderColor: "var(--admin-border)", background: "var(--admin-card)" }}
           >
-            <Move size={14} strokeWidth={2.25} />
+            <Eye size={14} strokeWidth={2.25} />
+          </Link>
+          <ActionIconButton
+            title={frozen ? "Unfreeze" : "Freeze"}
+            tone={frozen ? "green" : "red"}
+            disabled={freezingId === node.id}
+            onClick={() => onFreezeToggle(node)}
+          >
+            <Power size={14} strokeWidth={2.25} />
           </ActionIconButton>
-        )}
+          {MOVABLE_ROLES.has(node.role) ? (
+            <ActionIconButton title="Move" tone="violet" onClick={() => onMove(node)}>
+              <Move size={14} strokeWidth={2.25} />
+            </ActionIconButton>
+          ) : null}
+        </div>
       </div>
       {isOpen && hasChildren && (
         <div>
           {node.children.map((child) => (
-            <TreeRow key={child.id} node={child} depth={depth + 1} expanded={expanded} onToggle={onToggle} onMove={onMove} />
+            <TreeRow
+              key={child.id}
+              node={child}
+              depth={depth + 1}
+              expanded={expanded}
+              freezingId={freezingId}
+              onToggle={onToggle}
+              onMove={onMove}
+              onFreezeToggle={onFreezeToggle}
+            />
           ))}
         </div>
       )}
@@ -124,6 +177,8 @@ export function NetworkTreeView() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [search, setSearch] = useState("");
   const [moveTarget, setMoveTarget] = useState<TreeNode | null>(null);
+  const [freezeTarget, setFreezeTarget] = useState<TreeNode | null>(null);
+  const [freezingId, setFreezingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -145,6 +200,32 @@ export function NetworkTreeView() {
     setExpanded((prev) => ({ ...prev, [id]: prev[id] === false ? true : false }));
   }
 
+  async function executeFreeze(node: TreeNode, reason: string) {
+    const nextFrozen = !Boolean(node.isFrozen);
+    setFreezingId(node.id);
+    setFreezeTarget(null);
+    try {
+      await api.post(`/admin/users/${node.id}/restrict`, {
+        level: nextFrozen ? "freeze" : "none",
+        reason,
+      });
+      toast.success(nextFrozen ? "Account frozen" : "Restrictions lifted");
+      setTree((prev) => patchFrozen(prev, node.id, nextFrozen));
+    } catch (err) {
+      toast.error(errMessage(err, "Update failed"));
+    } finally {
+      setFreezingId(null);
+    }
+  }
+
+  function onFreezeToggle(node: TreeNode) {
+    if (node.isFrozen) {
+      void executeFreeze(node, "");
+      return;
+    }
+    setFreezeTarget(node);
+  }
+
   const allNodes = flatten(tree);
   const searchMatches = search.trim()
     ? allNodes.filter((n) => {
@@ -153,11 +234,19 @@ export function NetworkTreeView() {
       })
     : [];
 
+  const rowProps = {
+    expanded,
+    freezingId,
+    onToggle: toggle,
+    onMove: setMoveTarget,
+    onFreezeToggle,
+  };
+
   return (
     <>
       <p className="text-sm" style={{ color: B.muted }}>
-        Full org hierarchy from every Super Distributor down. Move a single Distributor or
-        Retailer to a different parent.
+        Full org hierarchy from every Super Distributor down. View, freeze, or move a Distributor /
+        Retailer from each row.
       </p>
 
       <div className="mt-3 flex items-center gap-2 rounded-xl border px-3 py-2" style={{ borderColor: B.border, background: B.card }}>
@@ -183,14 +272,16 @@ export function NetworkTreeView() {
               No match
             </div>
           ) : (
-            searchMatches.map((n) => <TreeRow key={n.id} node={{ ...n, children: [] }} depth={0} expanded={expanded} onToggle={toggle} onMove={setMoveTarget} />)
+            searchMatches.map((n) => (
+              <TreeRow key={n.id} node={{ ...n, children: [] }} depth={0} {...rowProps} />
+            ))
           )
         ) : tree.length === 0 ? (
           <div className="py-8 text-center text-sm" style={{ color: B.muted }}>
             No Super Distributors yet.
           </div>
         ) : (
-          tree.map((n) => <TreeRow key={n.id} node={n} depth={0} expanded={expanded} onToggle={toggle} onMove={setMoveTarget} />)
+          tree.map((n) => <TreeRow key={n.id} node={n} depth={0} {...rowProps} />)
         )}
       </div>
 
@@ -208,6 +299,24 @@ export function NetworkTreeView() {
           onMoved={() => void load()}
         />
       )}
+
+      {freezeTarget ? (
+        <PromptModal
+          title="Freeze account?"
+          message="This blocks login until restrictions are lifted."
+          label="Freeze reason"
+          placeholder="Why is this account being frozen?"
+          minLength={8}
+          multiline
+          tone="danger"
+          busy={freezingId === freezeTarget.id}
+          confirmLabel="Freeze"
+          onConfirm={(reason) => void executeFreeze(freezeTarget, reason)}
+          onClose={() => {
+            if (!freezingId) setFreezeTarget(null);
+          }}
+        />
+      ) : null}
     </>
   );
 }

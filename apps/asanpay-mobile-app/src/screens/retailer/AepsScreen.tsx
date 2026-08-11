@@ -5,6 +5,7 @@ import {
   Animated,
   Dimensions,
   Easing,
+  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -34,6 +35,7 @@ import type { ApiResponse } from "@asanpay/shared-types";
 import { api, fetchApi } from "../../lib/api";
 import { apiError } from "../../utils/apiError";
 import { formatINR } from "../../lib/format";
+import { aepsBankLogoUrl } from "../../lib/bankLogo";
 import { createAttemptKeyHolder } from "../../lib/idempotencyKey";
 import { captureFingerprint, listInstalledRdPackages } from "../../lib/rdServiceFingerprint";
 import { getAepsGeoTag } from "../../lib/geoCapture";
@@ -270,6 +272,34 @@ const dm = StyleSheet.create({
 /* ── Bank icon ─────────────────────────────────────────────────────── */
 
 function BankIcon({ bank, size = 44 }: { bank: Bank; size?: number }) {
+  const [failed, setFailed] = useState(false);
+  const logoUrl = aepsBankLogoUrl(bank);
+
+  if (logoUrl && !failed) {
+    return (
+      <View
+        style={{
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: "#fff",
+          alignItems: "center",
+          justifyContent: "center",
+          overflow: "hidden",
+          borderWidth: 1,
+          borderColor: "rgba(15,23,42,0.08)",
+        }}
+      >
+        <Image
+          source={{ uri: logoUrl }}
+          style={{ width: size * 0.72, height: size * 0.72 }}
+          resizeMode="contain"
+          onError={() => setFailed(true)}
+        />
+      </View>
+    );
+  }
+
   return (
     <View
       style={{

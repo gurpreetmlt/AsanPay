@@ -23,6 +23,8 @@ import { PullForm } from "@/components/dashboard/PullForm";
 import { Modal } from "@/components/ui/Modal";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ActionIconButton } from "@/components/ui/ActionIconButton";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import api, { fetchApi } from "@/lib/api";
 import { B, initials } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
@@ -222,6 +224,15 @@ export default function NetworkPage() {
   const effectiveView: "tree" | "table" = isSuperDist ? view : "table";
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const fromUrl = new URLSearchParams(window.location.search).get("q")?.trim();
+    if (fromUrl) {
+      setSearch(fromUrl);
+      if (isSuperDist) setView("table");
+    }
+  }, [isSuperDist]);
+
+  useEffect(() => {
     if (!isSuperDist && view !== "table") setView("table");
   }, [isSuperDist, view]);
 
@@ -417,10 +428,23 @@ export default function NetworkPage() {
               <p className="py-10 text-center text-sm" style={{ color: B.muted }}>Loading…</p>
             ) : effectiveView === "tree" ? (
               (data?.tree ?? []).length === 0 ? (
-                <div className="flex flex-col items-center py-12">
-                  <UserCheck size={40} className="mb-3 opacity-30" style={{ color: B.muted }} />
-                  <p className="text-sm" style={{ color: B.muted }}>{ui.emptyMsg}</p>
-                </div>
+                <EmptyState
+                  icon={<UserCheck size={22} strokeWidth={1.75} />}
+                  title={ui.emptyMsg}
+                  description="Onboard your first partner to grow the network."
+                  action={
+                    <PrimaryButton
+                      type="button"
+                      variant="success"
+                      size="sm"
+                      showArrow={false}
+                      className="!w-auto"
+                      onClick={() => router.push("/onboarding/outlet")}
+                    >
+                      Onboard partner
+                    </PrimaryButton>
+                  }
+                />
               ) : (
                 <div className="divide-y px-2 py-2" style={{ borderColor: B.border }}>
                   {data!.tree.map((node) => (
@@ -436,10 +460,40 @@ export default function NetworkPage() {
                 </div>
               )
             ) : filtered.length === 0 ? (
-              <div className="flex flex-col items-center py-12">
-                <UserCheck size={40} className="mb-3 opacity-30" style={{ color: B.muted }} />
-                <p className="text-sm" style={{ color: B.muted }}>{search ? "No results" : ui.emptyMsg}</p>
-              </div>
+              <EmptyState
+                icon={<UserCheck size={22} strokeWidth={1.75} />}
+                title={search ? "No results" : ui.emptyMsg}
+                description={
+                  search
+                    ? "Try another UID, mobile, or name."
+                    : "Onboard your first partner to grow the network."
+                }
+                action={
+                  search ? (
+                    <PrimaryButton
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      showArrow={false}
+                      className="!w-auto"
+                      onClick={() => setSearch("")}
+                    >
+                      Clear search
+                    </PrimaryButton>
+                  ) : (
+                    <PrimaryButton
+                      type="button"
+                      variant="success"
+                      size="sm"
+                      showArrow={false}
+                      className="!w-auto"
+                      onClick={() => router.push("/onboarding/outlet")}
+                    >
+                      Onboard partner
+                    </PrimaryButton>
+                  )
+                }
+              />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[920px] text-left text-sm">

@@ -8,6 +8,7 @@ import { toast } from "react-hot-toast";
 import { AppShell } from "@/components/layout/AppShell";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { extractApiError } from "@/lib/onboarding";
@@ -47,6 +48,12 @@ export default function TransactionsPage() {
   const [disputeTxn, setDisputeTxn] = useState<TxnRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [downloadingRef, setDownloadingRef] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const fromUrl = new URLSearchParams(window.location.search).get("q")?.trim();
+    if (fromUrl) setSearch(fromUrl);
+  }, []);
 
   async function downloadReceiptPdf(txnRef: string) {
     setDownloadingRef(txnRef);
@@ -298,8 +305,20 @@ export default function TransactionsPage() {
           {!loading && shown.length === 0 && (
             <EmptyState
               title="No transactions found"
-              description="Try another filter, or check back after your next transfer."
+              description="Try another filter, or start a service from the dashboard."
               className="!py-10"
+              action={
+                <PrimaryButton
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  showArrow={false}
+                  className="!w-auto"
+                  onClick={() => router.push("/dashboard")}
+                >
+                  Go to dashboard
+                </PrimaryButton>
+              }
             />
           )}
         </div>

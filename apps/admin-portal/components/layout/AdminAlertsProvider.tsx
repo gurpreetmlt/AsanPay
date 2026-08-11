@@ -80,7 +80,18 @@ export function AdminAlertsProvider({ children }: { children: ReactNode }) {
         ...(data.badges ?? EMPTY_BADGES),
         settlementBanksPending: bankCount,
       });
-      setNotifications(data.notifications ?? []);
+      const base = [...(data.notifications ?? [])];
+      if (bankCount > 0 && !base.some((n) => n.href.includes("settlements"))) {
+        base.unshift({
+          id: "settlement-banks-pending",
+          type: "fund_request",
+          title: "Settlement banks pending",
+          body: `${bankCount} agent bank${bankCount === 1 ? "" : "s"} awaiting verification`,
+          href: "/settlements?tab=banks",
+          createdAt: new Date().toISOString(),
+        });
+      }
+      setNotifications(base);
     } catch {
       /* keep last good snapshot */
     } finally {

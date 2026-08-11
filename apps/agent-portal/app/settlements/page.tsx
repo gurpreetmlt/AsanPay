@@ -259,8 +259,20 @@ export default function SettlementsPage() {
             <EmptyState
               icon={<Inbox size={22} strokeWidth={1.75} />}
               title="No settlement requests yet"
-              description="When you withdraw, history will appear here."
+              description="Add a verified bank, then withdraw settleable balance."
               className="!py-6"
+              action={
+                <PrimaryButton
+                  type="button"
+                  variant="success"
+                  size="sm"
+                  showArrow={false}
+                  className="!w-auto"
+                  onClick={() => router.push("/settings?tab=banks")}
+                >
+                  Add bank in Settings
+                </PrimaryButton>
+              }
             />
           ) : (
             <div className="overflow-x-auto">

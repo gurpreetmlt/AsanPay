@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type ComponentType } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type ComponentType } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -523,7 +523,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [drawer, setDrawer] = useState(false);
   const [wallets, setWallets] = useState<WalletBalance[]>([]);
   const [walletsLoading, setWalletsLoading] = useState(false);
+  const [headerSearch, setHeaderSearch] = useState("");
+  const [notifOpen, setNotifOpen] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
+  const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const accessToken = useAuthStore((s) => s.accessToken);
   const logout = useAuthStore((s) => s.logout);
@@ -533,6 +537,25 @@ export function AppShell({ children }: { children: ReactNode }) {
   const av = initials(name);
   const balanceVisible = useBalanceVisibility((s) => s.visible);
   const toggleBalance = useBalanceVisibility((s) => s.toggle);
+
+  const alertItems = useMemo(() => {
+    const r = user?.role;
+    if (r === "retailer") {
+      return [
+        { href: "/settings", title: "KYC & profile", body: "Complete KYC, bank, and MPIN" },
+        { href: "/fund-request", title: "Add money", body: "Top up main wallet for services" },
+        { href: "/settlements", title: "Settlement banks", body: "Add or check bank for withdrawals" },
+        { href: "/support", title: "Support", body: "Open a ticket if a txn failed" },
+      ];
+    }
+    return [
+      { href: "/network", title: "Network", body: "Review downline activity and KYC" },
+      { href: "/onboarding/outlet", title: "Onboard partner", body: "Add a new distributor or retailer" },
+      { href: "/wallet", title: "Fund transfer", body: "Send float to your network" },
+      { href: "/fund-request", title: "Add money", body: "Request float for your wallet" },
+      { href: "/settlements", title: "Settlements", body: "Bank verify and withdrawals" },
+    ];
+  }, [user?.role]);
 
   const loadWallets = useCallback(async () => {
     if (!accessToken) return;
@@ -549,7 +572,16 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setDrawer(false);
+    setNotifOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (!notifRef.current?.contains(e.target as Node)) setNotifOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
 
   useEffect(() => {
     void loadWallets();
@@ -559,6 +591,19 @@ export function AppShell({ children }: { children: ReactNode }) {
     // where a balance needs to be re-checked mid-session.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadWallets]);
+
+  function submitHeaderSearch(e: FormEvent) {
+    e.preventDefault();
+    const q = headerSearch.trim();
+    if (!q) return;
+    const isPartner = user?.role === "super_distributor" || user?.role === "distributor";
+    router.push(
+      isPartner
+        ? `/network?q=${encodeURIComponent(q)}`
+        : `/transactions?q=${encodeURIComponent(q)}`,
+    );
+    setHeaderSearch("");
+  }
 
   async function handleLogout() {
     const { logoutEverywhere } = await import("@/lib/logout");
@@ -626,29 +671,68 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Menu size={18} />
           </button>
 
-          <div
+          <form
+            onSubmit={submitHeaderSearch}
             className="hidden flex-1 items-center gap-3 rounded-xl px-4 py-2 lg:flex"
             style={{ background: B.bg, maxWidth: 320 }}
           >
             <Search size={15} style={{ color: B.muted }} />
             <input
-              placeholder="Search transactions, customers…"
+              value={headerSearch}
+              onChange={(e) => setHeaderSearch(e.target.value)}
+              placeholder="Search UID, mobile, name…"
               className="flex-1 bg-transparent text-sm outline-none"
               style={{ color: B.blue }}
+              aria-label="Search UID, mobile, or name"
             />
-          </div>
+          </form>
 
           <div className="ml-auto flex items-center gap-3">
             <HeaderWalletBalances wallets={wallets} loading={walletsLoading} onRefresh={() => void loadWallets()} />
-            <div className="relative">
+            <div className="relative" ref={notifRef}>
               <button
                 type="button"
-                className="flex h-9 w-9 items-center justify-center rounded-xl"
+                onClick={() => setNotifOpen((v) => !v)}
+                className="relative flex h-9 w-9 items-center justify-center rounded-xl"
                 style={{ background: B.bg }}
+                aria-label="Notifications"
               >
                 <Bell size={17} style={{ color: B.blue }} />
+                <span className="absolute right-1 top-1 h-2 w-2 rounded-full" style={{ background: B.green }} />
               </button>
-              <span className="absolute right-1 top-1 h-2 w-2 rounded-full" style={{ background: B.green }} />
+              {notifOpen ? (
+                <div
+                  className="absolute right-0 top-full z-50 mt-2 w-[min(100vw-2rem,22rem)] overflow-hidden rounded-2xl border bg-white shadow-xl"
+                  style={{ borderColor: B.border }}
+                >
+                  <div className="border-b px-4 py-3" style={{ borderColor: B.border }}>
+                    <p className="text-sm font-bold" style={{ color: B.blue }}>
+                      Alerts
+                    </p>
+                    <p className="text-[11px]" style={{ color: B.muted }}>
+                      KYC, bank, fund and settlement shortcuts
+                    </p>
+                  </div>
+                  <ul className="max-h-80 overflow-y-auto py-1">
+                    {alertItems.map((item) => (
+                      <li key={item.href + item.title}>
+                        <Link
+                          href={item.href}
+                          onClick={() => setNotifOpen(false)}
+                          className="block px-4 py-2.5 hover:bg-slate-50"
+                        >
+                          <p className="text-sm font-semibold" style={{ color: B.blue }}>
+                            {item.title}
+                          </p>
+                          <p className="text-[11px]" style={{ color: B.muted }}>
+                            {item.body}
+                          </p>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </div>
             <div className="flex items-center gap-2 border-l pl-3" style={{ borderColor: B.border }}>
               <div
