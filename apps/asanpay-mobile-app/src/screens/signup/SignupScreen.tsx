@@ -981,6 +981,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         maxWidth: 1600,
         maxHeight: 1600,
         includeBase64: true,
+        presentationStyle: "fullScreen",
       });
       if (result.didCancel) return;
       if (result.errorCode) {
@@ -2099,7 +2100,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                 <>
                   <Text style={styles.sectionTitle}>Business Images</Text>
                   <Text style={[styles.hint, { color: tokens.mute }]}>
-                    Live camera capture only. Latitude and longitude are saved with each photo.
+                    Personal photo opens front camera; shop photo opens rear camera. Location is saved with each photo.
                   </Text>
                   <View style={styles.fieldRow}>
                     <View style={styles.fieldHalf}>
@@ -2115,7 +2116,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                           if (!photoCaptureBusy) void captureLivePhoto("personalPhoto");
                         }}
                         tokens={tokens}
-                        actionLabel={photoCaptureBusy ? "Capturing…" : "Camera"}
+                        actionLabel={photoCaptureBusy ? "Capturing…" : "Front camera"}
                         compact
                       />
                     </View>
@@ -2132,7 +2133,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                           if (!photoCaptureBusy) void captureLivePhoto("shopPhoto");
                         }}
                         tokens={tokens}
-                        actionLabel={photoCaptureBusy ? "Capturing…" : "Camera"}
+                        actionLabel={photoCaptureBusy ? "Capturing…" : "Rear camera"}
                         compact
                       />
                     </View>

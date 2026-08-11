@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { Suspense, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "react-hot-toast";
@@ -239,6 +239,115 @@ function LivePhotoCapture({
   error?: boolean;
 }) {
   const inputId = `live-photo-${facing}-${label.replace(/\W+/g, "-").toLowerCase()}`;
+  const inputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [camOpen, setCamOpen] = useState(false);
+  const [camBusy, setCamBusy] = useState(false);
+  const [camError, setCamError] = useState<string | null>(null);
+  const facingLabel = facing === "user" ? "Front camera" : "Rear camera";
+
+  function stopStream() {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+  }
+
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    // Force facing mode — React/browsers often ignore capture="user" otherwise.
+    el.setAttribute("capture", facing);
+  }, [facing]);
+
+  useEffect(() => {
+    return () => stopStream();
+  }, []);
+
+  useEffect(() => {
+    if (!camOpen || !streamRef.current || !videoRef.current) return;
+    videoRef.current.srcObject = streamRef.current;
+    void videoRef.current.play().catch(() => undefined);
+  }, [camOpen]);
+
+  async function openLiveCamera() {
+    if (busy || camBusy) return;
+    setCamError(null);
+    setCamBusy(true);
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        inputRef.current?.click();
+        return;
+      }
+      stopStream();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          facingMode: { exact: facing },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      }).catch(() =>
+        navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            facingMode: { ideal: facing },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+        }),
+      );
+      streamRef.current = stream;
+      setCamOpen(true);
+    } catch {
+      setCamError(`Could not open ${facingLabel.toLowerCase()}. Falling back to device picker.`);
+      inputRef.current?.click();
+    } finally {
+      setCamBusy(false);
+    }
+  }
+
+  function closeLiveCamera() {
+    stopStream();
+    setCamOpen(false);
+  }
+
+  function snapPhoto() {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth) {
+      setCamError("Camera not ready — wait a moment and try again");
+      return;
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    // Mirror selfie so it matches what the user sees
+    if (facing === "user") {
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+    }
+    ctx.drawImage(video, 0, 0);
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          setCamError("Could not capture photo");
+          return;
+        }
+        const file = new File(
+          [blob],
+          facing === "user" ? "personal-live.jpg" : "shop-live.jpg",
+          { type: "image/jpeg" },
+        );
+        closeLiveCamera();
+        onPick(file);
+      },
+      "image/jpeg",
+      0.85,
+    );
+  }
+
   return (
     <div>
       <Label>{label}</Label>
@@ -254,6 +363,7 @@ function LivePhotoCapture({
           <img src={previewUrl} alt="" className="max-h-36 rounded-xl object-contain" />
         ) : null}
         <input
+          ref={inputRef}
           id={inputId}
           type="file"
           accept="image/*"
@@ -266,16 +376,29 @@ function LivePhotoCapture({
             e.target.value = "";
           }}
         />
-        <label
-          htmlFor={inputId}
-          className="cursor-pointer text-sm font-semibold"
-          style={{ color: error ? "#DC2626" : B.blue, opacity: busy ? 0.6 : 1 }}
+        <button
+          type="button"
+          disabled={busy || camBusy}
+          onClick={() => void openLiveCamera()}
+          className="cursor-pointer text-left text-sm font-semibold"
+          style={{ color: error ? "#DC2626" : B.blue, opacity: busy || camBusy ? 0.6 : 1 }}
         >
-          {busy ? "Getting location…" : meta ? "Retake live photo" : "Open camera — live capture"}
-        </label>
+          {busy || camBusy
+            ? busy
+              ? "Getting location…"
+              : "Opening camera…"
+            : meta
+              ? "Retake live photo"
+              : "Open camera — live capture"}
+        </button>
         <span className="text-xs" style={{ color: B.muted }}>
-          Camera only · geotagged with latitude &amp; longitude · max 2 MB
+          {facingLabel} · geotagged with latitude &amp; longitude · max 2 MB
         </span>
+        {camError ? (
+          <span className="text-xs font-semibold" style={{ color: "#B45309" }}>
+            {camError}
+          </span>
+        ) : null}
         {meta?.latitude && meta?.longitude ? (
           <span className="text-xs font-semibold" style={{ color: B.green }}>
             Geo: {Number(meta.latitude).toFixed(5)}, {Number(meta.longitude).toFixed(5)}
@@ -291,6 +414,50 @@ function LivePhotoCapture({
         <button type="button" className="mt-1 text-xs font-semibold underline" style={{ color: B.muted }} onClick={onClear}>
           Remove
         </button>
+      ) : null}
+
+      {camOpen ? (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label={facingLabel}
+        >
+          <div
+            className="w-full max-w-md overflow-hidden rounded-3xl border bg-white shadow-xl"
+            style={{ borderColor: B.border }}
+          >
+            <div className="px-4 py-3">
+              <p className="text-sm font-bold" style={{ color: B.blue }}>
+                {label.replace(/\s*\*.*$/, "")} · {facingLabel}
+              </p>
+            </div>
+            <div className="bg-black">
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className="max-h-[60vh] w-full object-cover"
+                style={facing === "user" ? { transform: "scaleX(-1)" } : undefined}
+              />
+            </div>
+            <div className="flex gap-3 p-4">
+              <PrimaryButton
+                type="button"
+                variant="destructive"
+                showArrow={false}
+                onClick={closeLiveCamera}
+                className="!w-auto flex-1"
+              >
+                Cancel
+              </PrimaryButton>
+              <PrimaryButton type="button" onClick={snapPhoto} className="!w-auto flex-[2]">
+                Capture photo
+              </PrimaryButton>
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   );
