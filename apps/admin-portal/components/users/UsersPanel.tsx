@@ -542,7 +542,7 @@ export function UsersPanel({ lockedRole = "" }: Props) {
                   />
                 </th>
                 <th className="px-4 py-3 font-semibold">Name / Email</th>
-                <th className="px-4 py-3 font-semibold">UID / Mobile</th>
+                <th className="px-4 py-3 font-semibold">Mobile / UID</th>
                 {!lockedRole && <th className="px-4 py-3 font-semibold">Role</th>}
                 <th className="px-4 py-3 font-semibold">KYC</th>
                 <th className="px-4 py-3 font-semibold">Status</th>
@@ -591,11 +591,14 @@ export function UsersPanel({ lockedRole = "" }: Props) {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="font-mono text-xs" style={{ color: B.muted }}>
-                        {u.uid}
-                      </div>
-                      <div className="mt-0.5" style={{ color: B.blueMid }}>
+                      <div className="text-sm font-semibold tabular-nums" style={{ color: B.blueMid }}>
                         {u.mobile}
+                      </div>
+                      <div
+                        className="mt-1 font-mono text-[9px] uppercase tracking-[0.08em]"
+                        style={{ color: B.muted, opacity: 0.85 }}
+                      >
+                        UID · {u.uid}
                       </div>
                     </td>
                     {!lockedRole && (
@@ -667,11 +670,14 @@ export function UsersPanel({ lockedRole = "" }: Props) {
                   <p className="truncate text-xs" style={{ color: B.muted }}>
                     {u.email?.trim() || "—"}
                   </p>
-                  <p className="mt-1 font-mono text-[11px]" style={{ color: B.muted }}>
-                    {u.uid}
-                  </p>
-                  <p className="text-sm" style={{ color: B.blueMid }}>
+                  <p className="mt-1 text-sm font-semibold tabular-nums" style={{ color: B.blueMid }}>
                     {u.mobile}
+                  </p>
+                  <p
+                    className="mt-1 font-mono text-[9px] uppercase tracking-[0.08em]"
+                    style={{ color: B.muted, opacity: 0.85 }}
+                  >
+                    UID · {u.uid}
                   </p>
                 </div>
                 <TableActionButtons

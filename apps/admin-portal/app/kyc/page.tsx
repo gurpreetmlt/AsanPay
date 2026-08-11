@@ -128,7 +128,7 @@ export default function KycPage() {
                   style={{ borderColor: B.border, background: B.secondary, color: B.muted }}
                 >
                   <th className="px-4 py-3 font-semibold">Name</th>
-                  <th className="px-4 py-3 font-semibold">UID / Mobile</th>
+                  <th className="px-4 py-3 font-semibold">Mobile / UID</th>
                   <th className="px-4 py-3 font-semibold">Role</th>
                   <th className="px-4 py-3 font-semibold">Docs</th>
                   <th className="px-4 py-3 font-semibold">Updated</th>
@@ -161,9 +161,16 @@ export default function KycPage() {
                       <td className="px-4 py-3 font-medium" style={{ color: B.blue }}>
                         {r.name}
                       </td>
-                      <td className="px-4 py-3 text-xs" style={{ color: B.muted }}>
-                        <div className="font-mono">{r.uid}</div>
-                        <div>{r.mobile}</div>
+                      <td className="px-4 py-3">
+                        <div className="text-sm font-semibold tabular-nums" style={{ color: B.blueMid }}>
+                          {r.mobile}
+                        </div>
+                        <div
+                          className="mt-1 font-mono text-[9px] uppercase tracking-[0.08em]"
+                          style={{ color: B.muted, opacity: 0.85 }}
+                        >
+                          UID · {r.uid}
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <Badge status={r.role} />
@@ -235,11 +242,17 @@ export default function KycPage() {
                     <h3 className="truncate font-semibold" style={{ color: B.blue }}>
                       {r.name}
                     </h3>
-                    <p className="text-sm" style={{ color: B.muted }}>
-                      {r.mobile} · {ROLE_LABEL[r.role] ?? r.role}
+                    <p className="text-sm font-semibold tabular-nums" style={{ color: B.blueMid }}>
+                      {r.mobile}
                     </p>
-                    <p className="mt-0.5 font-mono text-[11px]" style={{ color: B.muted }}>
-                      {r.uid}
+                    <p className="mt-0.5 text-xs" style={{ color: B.muted }}>
+                      {ROLE_LABEL[r.role] ?? r.role}
+                    </p>
+                    <p
+                      className="mt-1 font-mono text-[9px] uppercase tracking-[0.08em]"
+                      style={{ color: B.muted, opacity: 0.85 }}
+                    >
+                      UID · {r.uid}
                     </p>
                   </div>
                   {tab === "pending" ? (
