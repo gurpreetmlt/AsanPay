@@ -24,12 +24,14 @@ const BANK_BRAND: Record<string, BankBrand> = {
   BARB: { primary: "#F57C00", secondary: "#0D47A1" }, // BoB orange + blue
   CNRB: { primary: "#00695C", secondary: "#FF8F00" }, // teal + gold
   UBIN: { primary: "#E65100", secondary: "#1565C0" },
-  IDIB: { primary: "#00838F", secondary: "#004D40" },
+  // Indian Bank logo: navy wordmark + golden tri-curve mark (not teal).
+  IDIB: { primary: "#005DA9", secondary: "#FDB913" },
   IOBA: { primary: "#283593", secondary: "#5C6BC0" },
   KKBK: { primary: "#C62828", secondary: "#EF5350" }, // Kotak red
   YESB: { primary: "#0066B3", secondary: "#00BCD4" },
   FDRL: { primary: "#1565C0", secondary: "#42A5F5" },
-  INDB: { primary: "#7B1FA2", secondary: "#C2185B" }, // IndusInd purple/magenta
+  // IndusInd logo: red / magenta family
+  INDB: { primary: "#B71C1C", secondary: "#E53935" },
   BKID: { primary: "#1565C0", secondary: "#FF6F00" },
   CBIN: { primary: "#2E7D32", secondary: "#81C784" },
   MAHB: { primary: "#6A1B9A", secondary: "#AB47BC" },

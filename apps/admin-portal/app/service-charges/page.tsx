@@ -3,12 +3,12 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { IndianRupee, Pencil, Plus, Trash2 } from "lucide-react";
+import { IndianRupee, Pencil, Plus } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
+import { TableActionButtons } from "@/components/ui/TableActionButtons";
 import { B } from "@/lib/brand";
 import api, { fetchApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
-import { useDevOptionsStore } from "@/lib/devOptionsStore";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 
 type SchemeRole = "retailer" | "distributor" | "super_distributor";
@@ -94,7 +94,6 @@ export default function ServiceChargesPage() {
   const router = useRouter();
   const hydrated = useAuthHydrated();
   const accessToken = useAuthStore((s) => s.accessToken);
-  const rowDeleteEnabled = useDevOptionsStore((s) => s.rowDeleteEnabled);
 
   const [rows, setRows] = useState<ServiceCharge[]>([]);
   const [catalog, setCatalog] = useState<CatalogCategory[]>([]);
@@ -522,28 +521,10 @@ export default function ServiceChargesPage() {
                         </button>
                       </td>
                       <td className="py-3 text-right">
-                        <div className="inline-flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => startEdit(row)}
-                            className="rounded-lg border p-1.5"
-                            style={{ borderColor: B.border, color: B.blue }}
-                            title="Edit"
-                          >
-                            <Pencil size={14} />
-                          </button>
-                          {rowDeleteEnabled ? (
-                            <button
-                              type="button"
-                              onClick={() => void removeRow(row)}
-                              className="rounded-lg border p-1.5"
-                              style={{ borderColor: B.border, color: "#b91c1c" }}
-                              title="Delete"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          ) : null}
-                        </div>
+                        <TableActionButtons
+                          onEdit={() => startEdit(row)}
+                          onDelete={() => void removeRow(row)}
+                        />
                       </td>
                     </tr>
                   ))}

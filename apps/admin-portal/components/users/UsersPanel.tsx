@@ -7,7 +7,7 @@ import { Search, Table2, GitBranch, Trash2 } from "lucide-react";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { Badge } from "@/components/ui/Badge";
-import { TableActionButtons } from "@/components/ui/TableActionButtons";
+import { ActionIconButton, TableActionButtons } from "@/components/ui/TableActionButtons";
 import { NetworkTreeView } from "@/components/users/NetworkTreeView";
 import { MoveAgentModal } from "@/components/users/MoveAgentModal";
 import { useDevOptionsStore } from "@/lib/devOptionsStore";
@@ -353,16 +353,14 @@ export function UsersPanel({ lockedRole = "" }: Props) {
           </span>
           <div className="flex items-center gap-2">
             {rowDeleteEnabled ? (
-              <button
-                type="button"
-                onClick={() => void deleteSelected()}
-                disabled={bulkDeleting || selectedUsers.length === 0}
+              <ActionIconButton
                 title="Delete selected"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border text-red-600 transition hover:bg-red-50 disabled:opacity-40"
-                style={{ borderColor: B.border, background: "var(--admin-card)" }}
+                tone="red"
+                disabled={bulkDeleting || selectedUsers.length === 0}
+                onClick={() => void deleteSelected()}
               >
-                <Trash2 size={16} />
-              </button>
+                <Trash2 size={16} strokeWidth={2.25} />
+              </ActionIconButton>
             ) : null}
             <button
               type="button"

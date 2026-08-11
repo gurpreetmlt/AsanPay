@@ -1,19 +1,58 @@
 "use client";
 
 import Link from "next/link";
+import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { Eye, Pencil, Trash2, Ban, CheckCircle, Power, Move } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDevOptionsStore } from "@/lib/devOptionsStore";
 
-const btn =
-  "flex h-9 w-9 items-center justify-center rounded-xl border transition hover:scale-110 active:scale-95 disabled:opacity-40 disabled:hover:scale-100";
+export type ActionIconTone = "blue" | "amber" | "green" | "red" | "violet" | "navy";
 
-const btnStyle = {
+const TONE: Record<ActionIconTone, string> = {
+  blue: "text-[#2A5CDD] hover:border-[#2A5CDD]/45 hover:bg-[#2A5CDD]/10",
+  amber: "text-[#D97706] hover:border-amber-500/45 hover:bg-amber-500/10",
+  green: "text-[#059669] hover:border-emerald-500/45 hover:bg-emerald-500/10",
+  red: "text-[#DC2626] hover:border-red-500/45 hover:bg-red-500/10",
+  violet: "text-violet-500 hover:border-violet-500/45 hover:bg-violet-500/10",
+  navy: "text-[#0B2A9A] hover:border-[#0B2A9A]/40 hover:bg-[#0B2A9A]/10",
+};
+
+const shell =
+  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition hover:scale-110 active:scale-95 disabled:opacity-40 disabled:hover:scale-100";
+
+const shellStyle = {
   borderColor: "var(--admin-border)",
   background: "var(--admin-card)",
 } as const;
 
-/** AsanPay-style table action icon buttons (blue accent). */
+/** Single table/row action chip — white card, thin border, colored outline icon. */
+export function ActionIconButton({
+  tone = "blue",
+  title,
+  className,
+  children,
+  ...rest
+}: {
+  tone?: ActionIconTone;
+  title: string;
+  children: ReactNode;
+  className?: string;
+} & ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      className={cn(shell, TONE[tone], className)}
+      style={shellStyle}
+      {...rest}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** AsanPay table action icon row (Edit / Details / Power / Delete / …). */
 export function TableActionButtons({
   viewHref,
   onEdit,
@@ -21,6 +60,8 @@ export function TableActionButtons({
   onBan,
   onApprove,
   onToggleActive,
+  toggleActiveTitle,
+  toggleActiveTone = "navy",
   onMove,
   deleting,
   className,
@@ -31,6 +72,8 @@ export function TableActionButtons({
   onBan?: () => void;
   onApprove?: () => void;
   onToggleActive?: () => void;
+  toggleActiveTitle?: string;
+  toggleActiveTone?: ActionIconTone;
   onMove?: () => void;
   deleting?: boolean;
   className?: string;
@@ -46,79 +89,47 @@ export function TableActionButtons({
       {viewHref ? (
         <Link
           href={viewHref}
-          title="View"
-          className={cn(btn, "text-blue-500 hover:border-blue-500/40 hover:bg-blue-500/10")}
-          style={btnStyle}
+          title="Details"
+          aria-label="Details"
+          className={cn(shell, TONE.blue)}
+          style={shellStyle}
         >
-          <Eye className="h-4 w-4" />
+          <Eye className="h-4 w-4" strokeWidth={2.25} />
         </Link>
       ) : null}
       {onEdit ? (
-        <button
-          type="button"
-          onClick={onEdit}
-          title="Edit"
-          className={cn(btn, "text-[#2A5CDD] hover:border-[#2A5CDD]/40 hover:bg-[#2A5CDD]/10")}
-          style={btnStyle}
-        >
-          <Pencil className="h-4 w-4" />
-        </button>
+        <ActionIconButton title="Edit" tone="blue" onClick={onEdit}>
+          <Pencil className="h-4 w-4" strokeWidth={2.25} />
+        </ActionIconButton>
       ) : null}
       {onApprove ? (
-        <button
-          type="button"
-          onClick={onApprove}
-          title="Approve"
-          className={cn(btn, "text-emerald-500 hover:border-emerald-500/40 hover:bg-emerald-500/10")}
-          style={btnStyle}
-        >
-          <CheckCircle className="h-4 w-4" />
-        </button>
+        <ActionIconButton title="Approve" tone="green" onClick={onApprove}>
+          <CheckCircle className="h-4 w-4" strokeWidth={2.25} />
+        </ActionIconButton>
       ) : null}
       {onToggleActive ? (
-        <button
-          type="button"
+        <ActionIconButton
+          title={toggleActiveTitle ?? "Toggle active"}
+          tone={toggleActiveTone}
           onClick={onToggleActive}
-          title="Activate"
-          className={cn(btn, "text-[#0B2A9A] hover:border-[#0B2A9A]/40 hover:bg-[#0B2A9A]/10")}
-          style={btnStyle}
         >
-          <Power className="h-4 w-4" />
-        </button>
+          <Power className="h-4 w-4" strokeWidth={2.25} />
+        </ActionIconButton>
       ) : null}
       {onMove ? (
-        <button
-          type="button"
-          onClick={onMove}
-          title="Move to different parent"
-          className={cn(btn, "text-violet-500 hover:border-violet-500/40 hover:bg-violet-500/10")}
-          style={btnStyle}
-        >
-          <Move className="h-4 w-4" />
-        </button>
+        <ActionIconButton title="Move to different parent" tone="violet" onClick={onMove}>
+          <Move className="h-4 w-4" strokeWidth={2.25} />
+        </ActionIconButton>
       ) : null}
       {onBan ? (
-        <button
-          type="button"
-          onClick={onBan}
-          title="Suspend"
-          className={cn(btn, "text-amber-500 hover:border-amber-500/40 hover:bg-amber-500/10")}
-          style={btnStyle}
-        >
-          <Ban className="h-4 w-4" />
-        </button>
+        <ActionIconButton title="Suspend" tone="amber" onClick={onBan}>
+          <Ban className="h-4 w-4" strokeWidth={2.25} />
+        </ActionIconButton>
       ) : null}
       {showDelete ? (
-        <button
-          type="button"
-          onClick={onDelete}
-          disabled={deleting}
-          title="Delete"
-          className={cn(btn, "text-red-500 hover:border-red-500/40 hover:bg-red-500/10")}
-          style={btnStyle}
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        <ActionIconButton title="Delete" tone="red" onClick={onDelete} disabled={deleting}>
+          <Trash2 className="h-4 w-4" strokeWidth={2.25} />
+        </ActionIconButton>
       ) : null}
     </div>
   );

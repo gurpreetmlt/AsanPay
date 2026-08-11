@@ -1301,6 +1301,15 @@ const styles = StyleSheet.create({
   },
   quickChipText: { color: colors.blueFlat, fontWeight: "700", fontSize: 12 },
   rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  iconBtn: { padding: 8 },
+  iconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(11,42,154,0.12)",
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   bankChip: { borderWidth: 1, borderRadius: 10, padding: 10, marginBottom: 6 },
 });

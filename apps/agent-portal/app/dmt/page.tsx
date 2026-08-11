@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
+import { ActionIconButton } from "@/components/ui/ActionIconButton";
 import { B } from "@/lib/brand";
 import api from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
@@ -1437,15 +1438,14 @@ export default function DmtPage() {
                           {b.account} · {b.ifsc} · {b.bank}
                         </p>
                       </div>
-                      <button
-                        type="button"
+                      <ActionIconButton
+                        title="Delete"
+                        tone="red"
                         disabled={deleteBusy}
                         onClick={() => void startDeleteBeneficiary(b)}
-                        className="rounded-lg p-2 text-red-600 hover:bg-red-50"
-                        title="Delete"
                       >
-                        <Trash2 size={16} />
-                      </button>
+                        <Trash2 size={16} strokeWidth={2.25} />
+                      </ActionIconButton>
                     </div>
                   ))}
                 </div>

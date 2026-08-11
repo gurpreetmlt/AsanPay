@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { Building2, Pencil, Power, Trash2 } from "lucide-react";
+import { Building2 } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
 import {
   emptyIfscBankDetails,
@@ -11,6 +11,7 @@ import {
   type IfscBankDetailsValue,
 } from "@/components/banking/IfscBankDetailsFields";
 import { DangerConfirmModal } from "@/components/ui/DangerConfirmModal";
+import { TableActionButtons } from "@/components/ui/TableActionButtons";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { useDevOptionsStore } from "@/lib/devOptionsStore";
@@ -542,55 +543,14 @@ export default function AdminBankingPage() {
                           )}
                         </td>
                         <td className="px-4 py-3">
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              type="button"
-                              title="Edit"
-                              onClick={() => startEdit(a)}
-                              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border transition hover:scale-110 hover:border-[#2A5CDD]/40 hover:bg-[#2A5CDD]/10 active:scale-95"
-                              style={{
-                                borderColor: B.border,
-                                background: B.card,
-                                color: B.blueLight,
-                              }}
-                            >
-                              <Pencil size={16} strokeWidth={2.25} />
-                            </button>
-                            <button
-                              type="button"
-                              title={a.isActive ? "Disable" : "Enable"}
-                              onClick={() => void toggleActive(a)}
-                              disabled={saving}
-                              className={`inline-flex h-9 w-9 items-center justify-center rounded-xl border transition hover:scale-110 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 ${
-                                a.isActive
-                                  ? "hover:border-amber-500/40 hover:bg-amber-500/10"
-                                  : "hover:border-emerald-500/40 hover:bg-emerald-500/10"
-                              }`}
-                              style={{
-                                borderColor: B.border,
-                                background: B.card,
-                                color: a.isActive ? "#D97706" : "#059669",
-                              }}
-                            >
-                              <Power size={16} strokeWidth={2.25} />
-                            </button>
-                            {rowDeleteEnabled ? (
-                              <button
-                                type="button"
-                                title="Delete bank"
-                                onClick={() => void removeBank(a)}
-                                disabled={saving}
-                                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border transition hover:scale-110 hover:border-red-500/40 hover:bg-red-500/10 active:scale-95 disabled:opacity-40 disabled:hover:scale-100"
-                                style={{
-                                  borderColor: B.border,
-                                  background: B.card,
-                                  color: B.danger,
-                                }}
-                              >
-                                <Trash2 size={16} strokeWidth={2.25} />
-                              </button>
-                            ) : null}
-                          </div>
+                          <TableActionButtons
+                            onEdit={() => startEdit(a)}
+                            onToggleActive={() => void toggleActive(a)}
+                            toggleActiveTitle={a.isActive ? "Disable" : "Enable"}
+                            toggleActiveTone={a.isActive ? "amber" : "green"}
+                            onDelete={() => void removeBank(a)}
+                            deleting={saving}
+                          />
                         </td>
                       </tr>
                     ))}

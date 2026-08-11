@@ -5,6 +5,7 @@ import { toast } from "react-hot-toast";
 import { ChevronDown, ChevronRight, Crown, Network as NetworkIcon, Store, Move, Search } from "lucide-react";
 import { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
+import { ActionIconButton } from "@/components/ui/TableActionButtons";
 import { MoveAgentModal } from "@/components/users/MoveAgentModal";
 
 interface TreeNode {
@@ -92,15 +93,14 @@ function TreeRow({
           </span>
         )}
         {MOVABLE_ROLES.has(node.role) && (
-          <button
-            type="button"
+          <ActionIconButton
+            title="Move"
+            tone="violet"
+            className="ml-auto"
             onClick={() => onMove(node)}
-            className="ml-auto flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-medium"
-            style={{ borderColor: B.border, color: B.blueLight }}
           >
-            <Move size={12} />
-            Move
-          </button>
+            <Move size={14} strokeWidth={2.25} />
+          </ActionIconButton>
         )}
       </div>
       {isOpen && hasChildren && (

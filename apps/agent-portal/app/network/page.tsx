@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Users,
@@ -22,6 +22,7 @@ import { FundForm } from "@/components/dashboard/FundForm";
 import { PullForm } from "@/components/dashboard/PullForm";
 import { Modal } from "@/components/ui/Modal";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { ActionIconButton } from "@/components/ui/ActionIconButton";
 import api, { fetchApi } from "@/lib/api";
 import { B, initials } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
@@ -165,18 +166,14 @@ function TreeItem({
         </button>
 
         {canToggle && depth === 0 ? (
-          <button
-            type="button"
+          <ActionIconButton
+            title={node.isActive ? "Disable agent" : "Enable agent"}
+            tone={node.isActive ? "amber" : "green"}
             disabled={busy}
             onClick={() => onToggle(node.id, !node.isActive)}
-            className="shrink-0 rounded-lg border px-2.5 py-1 text-[12px] font-semibold disabled:opacity-50"
-            style={{
-              borderColor: node.isActive ? "#fca5a5" : B.green,
-              color: node.isActive ? "#b91c1c" : B.green,
-            }}
           >
-            {busy ? "…" : node.isActive ? "Inactive" : "Active"}
-          </button>
+            <Power size={15} strokeWidth={2.25} />
+          </ActionIconButton>
         ) : null}
       </div>
 
@@ -502,34 +499,33 @@ export default function NetworkPage() {
                             —
                           </td>
                           <td className="px-4 py-3.5">
-                            <IconAction
+                            <ActionIconButton
                               title="Top up — send funds"
+                              tone="green"
                               disabled={!moneyOk}
-                              color={B.green}
                               onClick={() => setFundTarget(toDownlineUser(m))}
                             >
-                              <ArrowDownToLine size={16} />
-                            </IconAction>
+                              <ArrowDownToLine size={16} strokeWidth={2.25} />
+                            </ActionIconButton>
                           </td>
                           <td className="px-4 py-3.5">
-                            <IconAction
+                            <ActionIconButton
                               title="Reverse — pull funds from partner"
+                              tone="red"
                               disabled={!collectOk}
-                              color="#DC2626"
                               onClick={() => setPullTarget(toDownlineUser(m))}
                             >
-                              <ArrowUpFromLine size={16} />
-                            </IconAction>
+                              <ArrowUpFromLine size={16} strokeWidth={2.25} />
+                            </ActionIconButton>
                           </td>
                           <td className="px-4 py-3.5">
-                            <IconAction
+                            <ActionIconButton
                               title="History"
-                              disabled={false}
-                              color="#F59E0B"
+                              tone="amber"
                               onClick={() => void openHistory(m)}
                             >
-                              <History size={16} />
-                            </IconAction>
+                              <History size={16} strokeWidth={2.25} />
+                            </ActionIconButton>
                           </td>
                           <td className="px-4 py-3.5">
                             <div className="flex items-center gap-2">
@@ -537,20 +533,14 @@ export default function NetworkPage() {
                                 {m.isActive ? "Active" : "Inactive"}
                               </StatusBadge>
                               {canToggleChildren && isDirect ? (
-                                <button
-                                  type="button"
+                                <ActionIconButton
                                   title={m.isActive ? "Disable agent" : "Enable agent"}
+                                  tone={m.isActive ? "amber" : "green"}
                                   disabled={togglingId === m.id}
                                   onClick={() => void toggleChild(m.id, !m.isActive)}
-                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border disabled:opacity-50"
-                                  style={{
-                                    borderColor: B.border,
-                                    color: m.isActive ? "#B45309" : B.green,
-                                    background: "#fff",
-                                  }}
                                 >
-                                  <Power size={15} />
-                                </button>
+                                  <Power size={15} strokeWidth={2.25} />
+                                </ActionIconButton>
                               ) : null}
                             </div>
                           </td>
@@ -630,33 +620,5 @@ export default function NetworkPage() {
         </Modal>
       )}
     </AppShell>
-  );
-}
-
-function IconAction({
-  title,
-  disabled,
-  color,
-  onClick,
-  children,
-}: {
-  title: string;
-  disabled: boolean;
-  color: string;
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      title={title}
-      aria-label={title}
-      disabled={disabled}
-      onClick={onClick}
-      className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-white shadow-sm transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-40"
-      style={{ background: color }}
-    >
-      {children}
-    </button>
   );
 }

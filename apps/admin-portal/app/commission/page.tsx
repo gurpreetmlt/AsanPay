@@ -3,12 +3,12 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { Calculator, Percent, Plus, ScrollText, Trash2 } from "lucide-react";
+import { Calculator, Percent, Plus, ScrollText } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
+import { TableActionButtons } from "@/components/ui/TableActionButtons";
 import { B } from "@/lib/brand";
 import api, { fetchApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
-import { useDevOptionsStore } from "@/lib/devOptionsStore";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 
 type SchemeRole = "retailer" | "distributor" | "super_distributor";
@@ -121,7 +121,6 @@ export default function CommissionSchemesPage() {
   const router = useRouter();
   const hydrated = useAuthHydrated();
   const accessToken = useAuthStore((s) => s.accessToken);
-  const rowDeleteEnabled = useDevOptionsStore((s) => s.rowDeleteEnabled);
 
   const [tab, setTab] = useState<PageTab>("schemes");
   const [rules, setRules] = useState<CommissionRule[]>([]);
@@ -763,16 +762,7 @@ export default function CommissionSchemesPage() {
                         </button>
                       </td>
                       <td className="py-3">
-                        {rowDeleteEnabled ? (
-                          <button
-                            type="button"
-                            onClick={() => void removeRule(rule)}
-                            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-50"
-                          >
-                            <Trash2 size={14} />
-                            Delete
-                          </button>
-                        ) : null}
+                        <TableActionButtons onDelete={() => void removeRule(rule)} />
                       </td>
                     </tr>
                   ))}
