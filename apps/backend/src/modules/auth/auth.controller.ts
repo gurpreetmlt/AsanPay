@@ -49,6 +49,7 @@ import {
   lookupSponsorByUid,
   searchSponsorsByMobile,
   getAuthMe,
+  getMyUpline,
   listUserDevices,
   revokeUserDevice,
 } from "./auth.service";
@@ -111,6 +112,12 @@ export async function me(req: Request, res: Response): Promise<void> {
   if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
   const user = await getAuthMe(req.auth.sub);
   sendSuccess(res, { user }, "OK");
+}
+
+export async function myUpline(req: Request, res: Response): Promise<void> {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const upline = await getMyUpline(req.auth.sub);
+  sendSuccess(res, { upline }, "OK");
 }
 
 export async function requestOtp(req: Request, res: Response): Promise<void> {

@@ -617,6 +617,32 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
     void saveMobileSignupDraft(storageKey, draft);
   }, [draft, draftReady, storageKey]);
 
+  useEffect(() => {
+    if (!draftReady || !draft.accountCreated || !needsUpline) return;
+    if (draft.sponsorUid && draft.sponsorMobile) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { data } = await api.get<
+          ApiResponse<{ upline: { uid: string; name: string; mobile: string } | null }>
+        >("/auth/upline");
+        if (cancelled || !data.success || !data.data?.upline) return;
+        const u = data.data.upline;
+        patch({
+          sponsorUid: u.uid,
+          sponsorName: u.name,
+          sponsorMobile: u.mobile.replace(/\D/g, "").slice(0, 10),
+        });
+      } catch {
+        /* optional */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftReady, draft.accountCreated, needsUpline, authUser?.id]);
+
   // Show location modal on step 1 — do NOT auto-request (system dialog was hidden behind modal → stuck "Requesting…").
   useEffect(() => {
     if (!draftReady || stepIndex !== 0 || phase !== "steps") return;
@@ -985,14 +1011,16 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
     }
     if (stepIndex === 1) {
       if (draft.name.trim().length < 2) return "Full name is required";
-      if (!draft.password || draft.password.length < 8) return "Password must be at least 8 characters";
-      if (!/[A-Za-z]/.test(draft.password)) return "Password must contain a letter";
-      if (!/\d/.test(draft.password)) return "Password must contain a number";
-      if (needsUpline) {
-        const phone = draft.sponsorMobile.replace(/\D/g, "");
-        if (phone.length !== 10) return "Enter a valid 10-digit upline mobile";
-        if (!sponsorOk || !draft.sponsorUid) {
-          return "Distributor / Super Distributor not found for this mobile. Use an active upline number.";
+      if (!draft.accountCreated) {
+        if (!draft.password || draft.password.length < 8) return "Password must be at least 8 characters";
+        if (!/[A-Za-z]/.test(draft.password)) return "Password must contain a letter";
+        if (!/\d/.test(draft.password)) return "Password must contain a number";
+        if (needsUpline) {
+          const phone = draft.sponsorMobile.replace(/\D/g, "");
+          if (phone.length !== 10) return "Enter a valid 10-digit upline mobile";
+          if (!sponsorOk || !draft.sponsorUid) {
+            return "Distributor / Super Distributor not found for this mobile. Use an active upline number.";
+          }
         }
       }
     }
@@ -1556,6 +1584,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                     {ROLE_OPTIONS.map((r) => (
                       <Pressable
                         key={r.value}
+                        disabled={draft.accountCreated}
                         onPress={() =>
                           patch({ role: r.value, sponsorMobile: "", sponsorUid: "", sponsorName: "" })
                         }
@@ -1564,6 +1593,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                           {
                             borderColor: draft.role === r.value ? colors.blue : tokens.cardBorder,
                             backgroundColor: draft.role === r.value ? `${colors.blue}14` : tokens.card,
+                            opacity: draft.accountCreated ? 0.7 : 1,
                           },
                         ]}
                       >
@@ -1588,44 +1618,63 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                     <>
                       <FieldLabel text={`${UPLINE_LABEL[draft.role as "retailer" | "distributor"]} *`} color={tokens.mute} />
                       <TextInput
-                        value={draft.sponsorMobile}
-                        onChangeText={(t) => patch({ sponsorMobile: t.replace(/\D/g, "").slice(0, 10) })}
+                        value={
+                          draft.accountCreated
+                            ? draft.sponsorName
+                              ? `${draft.sponsorName} · ${draft.sponsorMobile}`
+                              : draft.sponsorMobile
+                            : draft.sponsorMobile
+                        }
+                        onChangeText={(t) => {
+                          if (draft.accountCreated) return;
+                          patch({ sponsorMobile: t.replace(/\D/g, "").slice(0, 10) });
+                        }}
+                        editable={!draft.accountCreated}
                         keyboardType="number-pad"
                         placeholder="10-digit upline mobile"
                         placeholderTextColor={tokens.mute}
                         style={inputStyle}
                       />
-                      {sponsorOk ? (
+                      {!draft.accountCreated && sponsorOk ? (
                         <Text style={{ color: colors.greenDark, fontSize: 12, fontWeight: "700", marginTop: 4 }}>
                           ✓ {draft.sponsorName}
                         </Text>
                       ) : null}
+                      {draft.accountCreated ? (
+                        <Text style={[styles.hint, { color: tokens.mute }]}>
+                          Upline is locked after account create.
+                        </Text>
+                      ) : null}
                     </>
                   ) : null}
-                  <FieldLabel text="Password *" color={tokens.mute} />
-                  <View style={styles.passwordWrap}>
-                    <TextInput
-                      value={draft.password}
-                      onChangeText={(t) => patch({ password: t })}
-                      secureTextEntry={!showPassword}
-                      placeholder="e.g. Test1234"
-                      placeholderTextColor={tokens.mute}
-                      style={[inputStyle, { paddingRight: 44 }]}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                    />
-                    <Pressable
-                      onPress={() => setShowPassword((v) => !v)}
-                      style={styles.eyeBtn}
-                      hitSlop={10}
-                      accessibilityLabel={showPassword ? "Hide password" : "Show password"}
-                    >
-                      {showPassword ? <EyeOff size={18} color={tokens.mute} /> : <Eye size={18} color={tokens.mute} />}
-                    </Pressable>
-                  </View>
-                  <Text style={[styles.hint, { color: tokens.mute }]}>
-                    Min 8 characters · include a letter and a number (e.g. Test1234)
-                  </Text>
+                  {!draft.accountCreated ? (
+                    <>
+                      <FieldLabel text="Password *" color={tokens.mute} />
+                      <View style={styles.passwordWrap}>
+                        <TextInput
+                          value={draft.password}
+                          onChangeText={(t) => patch({ password: t })}
+                          secureTextEntry={!showPassword}
+                          placeholder="e.g. Test1234"
+                          placeholderTextColor={tokens.mute}
+                          style={[inputStyle, { paddingRight: 44 }]}
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                        />
+                        <Pressable
+                          onPress={() => setShowPassword((v) => !v)}
+                          style={styles.eyeBtn}
+                          hitSlop={10}
+                          accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+                        >
+                          {showPassword ? <EyeOff size={18} color={tokens.mute} /> : <Eye size={18} color={tokens.mute} />}
+                        </Pressable>
+                      </View>
+                      <Text style={[styles.hint, { color: tokens.mute }]}>
+                        Min 8 characters · include a letter and a number (e.g. Test1234)
+                      </Text>
+                    </>
+                  ) : null}
                 </>
               )}
 

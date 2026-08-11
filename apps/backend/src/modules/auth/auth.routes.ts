@@ -5,6 +5,7 @@ import {
   refresh,
   logout,
   me,
+  myUpline,
   requestOtp,
   verifyOtp,
   mpinLogin,
@@ -43,6 +44,7 @@ authRouter.post("/login", authLimiter, login);
 authRouter.post("/refresh", authLimiter, refresh);
 authRouter.post("/logout", logout);
 authRouter.get("/me", requireAuth, me);
+authRouter.get("/upline", requireAuth, myUpline);
 
 authRouter.post("/otp/request", otpRequestLimiter, requestOtp);
 authRouter.post("/otp/verify", authLimiter, verifyOtp);

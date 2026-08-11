@@ -1182,6 +1182,41 @@ export async function lookupSponsorByUid(uidRaw: string): Promise<{
   };
 }
 
+/** Logged-in agent: immediate upline (parent) for Continue KYC display. */
+export async function getMyUpline(userId: string): Promise<{
+  uid: string;
+  name: string;
+  mobile: string;
+  role: string;
+} | null> {
+  const [me] = await db
+    .select({ parentId: users.parentId })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  if (!me?.parentId) return null;
+
+  const [parent] = await db
+    .select({
+      uid: users.uid,
+      name: users.name,
+      mobile: users.mobile,
+      role: users.role,
+      isActive: users.isActive,
+    })
+    .from(users)
+    .where(eq(users.id, me.parentId))
+    .limit(1);
+
+  if (!parent?.isActive) return null;
+  return {
+    uid: parent.uid,
+    name: parent.name,
+    mobile: parent.mobile,
+    role: parent.role,
+  };
+}
+
 /** Public search: active upline by mobile prefix + expected parent role. */
 export async function searchSponsorsByMobile(
   mobileRaw: string,

@@ -451,6 +451,41 @@ function SignupPageInner() {
   }, [draft, draftReady, storageKey]);
 
   useEffect(() => {
+    if (!draftReady || !loggedInContinue || !needsUpline) return;
+    if (draft.sponsorUid && draft.sponsorMobile) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { data } = await api.get<
+          ApiResponse<{
+            upline: { uid: string; name: string; mobile: string; role: string } | null;
+          }>
+        >("/auth/upline");
+        if (cancelled || !data.success || !data.data.upline) return;
+        const u = data.data.upline;
+        patch({
+          sponsorUid: u.uid,
+          sponsorName: u.name,
+          sponsorMobile: u.mobile.replace(/\D/g, "").slice(0, 10),
+        });
+        setSponsor({
+          uid: u.uid,
+          name: u.name,
+          mobile: u.mobile,
+          role: u.role as SponsorRole,
+        });
+        setSponsorStatus("ok");
+      } catch {
+        /* optional display */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftReady, loggedInContinue, needsUpline, user?.id]);
+
+  useEffect(() => {
     if (!draftReady || stepIndex !== 0) return;
     if (draft.latitude && draft.longitude) {
       setShowLocationModal(false);
@@ -713,10 +748,15 @@ function SignupPageInner() {
     }
     if (stepIndex === 1) {
       if (draft.name.trim().length < 2) return "Full name is required";
-      if (!draft.password || draft.password.length < 8) return "Password must be at least 8 characters";
-      if (!/[A-Za-z]/.test(draft.password)) return "Password must contain a letter";
-      if (!/\d/.test(draft.password)) return "Password must contain a number";
-      if (needsUpline && !sponsor) return "Distributor / Super Distributor not found for this mobile. Use an active upline number.";
+      // Account already exists (Continue KYC) — password / upline already set.
+      if (!(draft.accountCreated || loggedInContinue)) {
+        if (!draft.password || draft.password.length < 8) return "Password must be at least 8 characters";
+        if (!/[A-Za-z]/.test(draft.password)) return "Password must contain a letter";
+        if (!/\d/.test(draft.password)) return "Password must contain a number";
+        if (needsUpline && !sponsor) {
+          return "Distributor / Super Distributor not found for this mobile. Use an active upline number.";
+        }
+      }
     }
     if (stepIndex === 2) {
       if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(draft.pan)) return "Enter a valid PAN";
@@ -1373,22 +1413,46 @@ function SignupPageInner() {
                     placeholder="As per PAN"
                   />
                 </Field>
-                {needsUpline && !(draft.accountCreated || loggedInContinue) ? (
-                  <Field label={`${UPLINE_LABEL[draft.role as "retailer" | "distributor"]} *`}>
+                {needsUpline ? (
+                  <Field
+                    label={`${UPLINE_LABEL[draft.role as "retailer" | "distributor"]} *`}
+                  >
                     <input
-                      value={draft.sponsorMobile}
-                      onChange={(e) => patch({ sponsorMobile: e.target.value.replace(/\D/g, "").slice(0, 10) })}
+                      value={
+                        draft.accountCreated || loggedInContinue
+                          ? draft.sponsorName
+                            ? `${draft.sponsorName} · ${draft.sponsorMobile}`
+                            : draft.sponsorMobile
+                          : draft.sponsorMobile
+                      }
+                      onChange={(e) => {
+                        if (draft.accountCreated || loggedInContinue) return;
+                        patch({
+                          sponsorMobile: e.target.value.replace(/\D/g, "").slice(0, 10),
+                        });
+                      }}
                       className={inputCls}
                       style={inputStyle}
                       inputMode="numeric"
+                      readOnly={draft.accountCreated || loggedInContinue}
+                      disabled={draft.accountCreated || loggedInContinue}
+                      placeholder="10-digit upline mobile"
                     />
-                    {sponsorStatus === "ok" && sponsor ? (
+                    {!(draft.accountCreated || loggedInContinue) &&
+                    sponsorStatus === "ok" &&
+                    sponsor ? (
                       <p className="mt-1 text-xs font-semibold" style={{ color: B.green }}>
                         <CheckCircle2 size={12} className="mr-1 inline" />
                         {sponsor.name}
                       </p>
                     ) : null}
-                    {sponsorStatus === "empty" || sponsorStatus === "error" ? (
+                    {draft.accountCreated || loggedInContinue ? (
+                      <p className="mt-1 text-xs" style={{ color: B.muted }}>
+                        Upline is locked after account create.
+                      </p>
+                    ) : null}
+                    {!(draft.accountCreated || loggedInContinue) &&
+                    (sponsorStatus === "empty" || sponsorStatus === "error") ? (
                       <p className="mt-1 text-xs" style={{ color: "#B45309" }}>
                         Upline not found
                       </p>
