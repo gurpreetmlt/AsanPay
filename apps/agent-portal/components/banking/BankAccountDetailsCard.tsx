@@ -170,28 +170,36 @@ export function BankDetailCard({
     }
   }
 
+  const pendingTwoLine = /^pending\s+verification$/i.test(statusLabel.trim());
+  const statusBadge = (
+    <span
+      className={`inline-flex w-10 shrink-0 items-center justify-center rounded-lg px-0.5 py-1 text-center font-bold uppercase leading-[1.1] tracking-wide ${
+        pendingTwoLine || unavailable ? "text-[9px]" : "text-[8px]"
+      }`}
+      style={statusTagStyle}
+    >
+      {unavailable ? (
+        <>
+          Not
+          <br />
+          available
+        </>
+      ) : pendingTwoLine ? (
+        <>
+          Pending
+          <br />
+          verification
+        </>
+      ) : (
+        statusLabel
+      )}
+    </span>
+  );
+
   const body = (
     <div className="relative flex gap-2.5">
       <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-2">
-          <BankLogoMark ifsc={ifsc} />
-          <span
-            className="inline-flex max-w-[5.75rem] shrink-0 items-center justify-center rounded-lg px-2 py-1 text-center text-[10px] font-bold uppercase leading-[1.15] tracking-wide"
-            style={statusTagStyle}
-          >
-            {unavailable ? (
-              "Unavailable"
-            ) : /^pending\s+verification$/i.test(statusLabel.trim()) ? (
-              <>
-                Pending
-                <br />
-                verification
-              </>
-            ) : (
-              statusLabel
-            )}
-          </span>
-        </div>
+        <BankLogoMark ifsc={ifsc} />
 
         <p
           className="mt-4 text-[11px] font-extrabold uppercase tracking-[0.12em]"
@@ -227,7 +235,8 @@ export function BankDetailCard({
         ) : null}
       </div>
 
-      <div className="flex shrink-0 flex-col items-center justify-center gap-2.5 pt-1">
+      <div className="flex w-10 shrink-0 flex-col items-center gap-2.5 self-stretch">
+        {statusBadge}
         {canReveal ? (
           <ActionBtn
             label={showFull ? "Hide number" : "Show number"}

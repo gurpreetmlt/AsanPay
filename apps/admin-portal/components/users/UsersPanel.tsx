@@ -40,6 +40,7 @@ interface AdminUser {
   id: string;
   uid: string;
   name: string;
+  email: string | null;
   mobile: string;
   role: string;
   kycStatus: string;
@@ -337,7 +338,7 @@ export function UsersPanel({ lockedRole = "" }: Props) {
   const canMoveSelected = selectedMovable.length > 0 && !mixedRoles && selectedMovable.length === selectedUsers.length;
 
   const meta = TITLES[lockedRole || ""] ?? TITLES[""];
-  const colSpan = lockedRole ? 7 : 8;
+  const colSpan = lockedRole ? 6 : 7;
   const showBankBanner =
     pendingBanks.length > 0 && (lockedRole === "retailer" || lockedRole === "" || !lockedRole);
 
@@ -455,7 +456,7 @@ export function UsersPanel({ lockedRole = "" }: Props) {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search name, UID, mobile…"
+            placeholder="Search name, email, UID, mobile…"
             className="w-full rounded-xl border-2 bg-white py-2.5 pl-9 pr-3 text-sm outline-none"
             style={{ borderColor: B.border, color: B.blue }}
           />
@@ -540,9 +541,8 @@ export function UsersPanel({ lockedRole = "" }: Props) {
                     aria-label="Select all"
                   />
                 </th>
-                <th className="px-4 py-3 font-semibold">Name</th>
-                <th className="px-4 py-3 font-semibold">UID</th>
-                <th className="px-4 py-3 font-semibold">Mobile</th>
+                <th className="px-4 py-3 font-semibold">Name / Email</th>
+                <th className="px-4 py-3 font-semibold">UID / Mobile</th>
                 {!lockedRole && <th className="px-4 py-3 font-semibold">Role</th>}
                 <th className="px-4 py-3 font-semibold">KYC</th>
                 <th className="px-4 py-3 font-semibold">Status</th>
@@ -582,14 +582,21 @@ export function UsersPanel({ lockedRole = "" }: Props) {
                         />
                       )}
                     </td>
-                    <td className="px-4 py-3 font-medium" style={{ color: B.blue }}>
-                      {u.name}
+                    <td className="px-4 py-3">
+                      <div className="font-medium" style={{ color: B.blue }}>
+                        {u.name}
+                      </div>
+                      <div className="mt-0.5 truncate text-xs" style={{ color: B.muted }}>
+                        {u.email?.trim() || "—"}
+                      </div>
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs" style={{ color: B.muted }}>
-                      {u.uid}
-                    </td>
-                    <td className="px-4 py-3" style={{ color: B.blueMid }}>
-                      {u.mobile}
+                    <td className="px-4 py-3">
+                      <div className="font-mono text-xs" style={{ color: B.muted }}>
+                        {u.uid}
+                      </div>
+                      <div className="mt-0.5" style={{ color: B.blueMid }}>
+                        {u.mobile}
+                      </div>
                     </td>
                     {!lockedRole && (
                       <td className="px-4 py-3">
@@ -657,11 +664,14 @@ export function UsersPanel({ lockedRole = "" }: Props) {
                   <h3 className="truncate font-semibold" style={{ color: B.blue }}>
                     {u.name}
                   </h3>
-                  <p className="text-sm" style={{ color: B.muted }}>
-                    {u.mobile}
+                  <p className="truncate text-xs" style={{ color: B.muted }}>
+                    {u.email?.trim() || "—"}
                   </p>
-                  <p className="mt-0.5 font-mono text-[11px]" style={{ color: B.muted }}>
+                  <p className="mt-1 font-mono text-[11px]" style={{ color: B.muted }}>
                     {u.uid}
+                  </p>
+                  <p className="text-sm" style={{ color: B.blueMid }}>
+                    {u.mobile}
                   </p>
                 </div>
                 <TableActionButtons

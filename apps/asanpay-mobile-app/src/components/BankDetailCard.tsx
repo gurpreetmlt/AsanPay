@@ -144,24 +144,25 @@ export function BankDetailCard({
   const statusText = unavailable ? "Unavailable" : statusLabel;
   const pendingTwoLine = /^pending\s+verification$/i.test(statusText.trim());
 
+  const statusBadge = (
+    <View style={[styles.statusTag, statusTagStyle]}>
+      {pendingTwoLine ? (
+        <>
+          <Text style={[styles.statusTagText, { color: statusTagStyle.color }]}>Pending</Text>
+          <Text style={[styles.statusTagText, { color: statusTagStyle.color }]}>verification</Text>
+        </>
+      ) : (
+        <Text style={[styles.statusTagText, { color: statusTagStyle.color }]} numberOfLines={2}>
+          {unavailable ? "—" : statusText}
+        </Text>
+      )}
+    </View>
+  );
+
   const body = (
     <View style={styles.row}>
       <View style={styles.main}>
-        <View style={styles.header}>
-          <BankLogo ifsc={ifsc} />
-          <View style={[styles.statusTag, statusTagStyle]}>
-            {pendingTwoLine ? (
-              <>
-                <Text style={[styles.statusTagText, { color: statusTagStyle.color }]}>Pending</Text>
-                <Text style={[styles.statusTagText, { color: statusTagStyle.color }]}>
-                  verification
-                </Text>
-              </>
-            ) : (
-              <Text style={[styles.statusTagText, { color: statusTagStyle.color }]}>{statusText}</Text>
-            )}
-          </View>
-        </View>
+        <BankLogo ifsc={ifsc} />
 
         <Text style={[styles.acctLabel, { color: tokens.mute }]}>Account</Text>
         <Text style={[styles.acctNum, { color: tokens.txt }]} numberOfLines={1}>
@@ -176,6 +177,7 @@ export function BankDetailCard({
       </View>
 
       <View style={styles.actions}>
+        {statusBadge}
         {canReveal ? (
           <ActionBtn
             label={showFull ? "Hide number" : "Show number"}
@@ -302,8 +304,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   statusTag: {
-    maxWidth: 92,
-    paddingHorizontal: 8,
+    width: 40,
+    minHeight: 40,
+    paddingHorizontal: 2,
     paddingVertical: 4,
     borderRadius: 8,
     borderWidth: 1,
@@ -311,12 +314,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   statusTagText: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "700",
     textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
     textAlign: "center",
-    lineHeight: 12,
+    lineHeight: 11,
   },
   logo: {
     width: 44,
@@ -348,7 +351,7 @@ const styles = StyleSheet.create({
   ifsc: { fontSize: 13, fontWeight: "700", marginTop: 8 },
   bankLine: { fontSize: 12, fontWeight: "500", marginTop: 4 },
   note: { fontSize: 11, fontWeight: "800", color: colors.green, marginTop: 8 },
-  actions: { alignItems: "center", justifyContent: "center", gap: 10, paddingTop: 4 },
+  actions: { width: 40, alignItems: "center", gap: 10 },
   actionBtn: {
     width: 40,
     height: 40,

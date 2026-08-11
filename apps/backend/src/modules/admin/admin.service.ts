@@ -416,7 +416,9 @@ export async function listAdminUsers(opts: {
   if (opts.kycStatus) conditions.push(eq(users.kycStatus, opts.kycStatus));
   if (opts.q?.trim()) {
     const q = `%${opts.q.trim()}%`;
-    conditions.push(or(ilike(users.name, q), ilike(users.mobile, q), ilike(users.uid, q))!);
+    conditions.push(
+      or(ilike(users.name, q), ilike(users.mobile, q), ilike(users.uid, q), ilike(users.email, q))!,
+    );
   }
 
   return db
@@ -424,6 +426,7 @@ export async function listAdminUsers(opts: {
       id: users.id,
       uid: users.uid,
       name: users.name,
+      email: users.email,
       mobile: users.mobile,
       role: users.role,
       kycStatus: users.kycStatus,
@@ -442,6 +445,7 @@ export async function listAdminUsers(opts: {
       users.id,
       users.uid,
       users.name,
+      users.email,
       users.mobile,
       users.role,
       users.kycStatus,
