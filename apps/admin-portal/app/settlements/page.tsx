@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { Landmark } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
@@ -56,12 +56,10 @@ function errMessage(err: unknown, fallback: string) {
 
 export default function AdminSettlementsPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const hydrated = useAuthHydrated();
   const accessToken = useAuthStore((s) => s.accessToken);
 
-  const tabFromUrl = searchParams.get("tab") === "open" ? "open" : "banks";
-  const [tab, setTab] = useState<Tab>(tabFromUrl);
+  const [tab, setTab] = useState<Tab>("banks");
   const [openRows, setOpenRows] = useState<OpenSettlement[]>([]);
   const [banks, setBanks] = useState<PendingBank[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
@@ -78,8 +76,10 @@ export default function AdminSettlementsPage() {
   const failKey = useRef(createAttemptKeyHolder("settle-fail"));
 
   useEffect(() => {
-    setTab(tabFromUrl);
-  }, [tabFromUrl]);
+    if (typeof window === "undefined") return;
+    const q = new URLSearchParams(window.location.search).get("tab");
+    setTab(q === "open" ? "open" : "banks");
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
