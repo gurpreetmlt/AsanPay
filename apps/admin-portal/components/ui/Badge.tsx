@@ -11,10 +11,10 @@ const colors: Record<string, string> = {
   inactive: "border border-slate-300 bg-slate-200 text-slate-900",
   success: "border border-emerald-300 bg-emerald-100 text-emerald-950",
   failed: "border border-red-300 bg-red-100 text-red-950",
-  super_distributor: "border border-indigo-300 bg-indigo-100 text-indigo-950",
-  distributor: "border border-blue-300 bg-blue-100 text-blue-950",
-  retailer: "border border-teal-300 bg-teal-100 text-teal-950",
-  admin: "border border-sky-300 bg-sky-100 text-sky-950",
+  super_distributor: "border border-violet-400 bg-violet-200 text-violet-950",
+  distributor: "border border-sky-400 bg-sky-100 text-sky-950",
+  retailer: "border border-emerald-400 bg-emerald-100 text-emerald-950",
+  admin: "border border-slate-400 bg-slate-200 text-slate-950",
 };
 
 export function Badge({ status, className }: { status: string; className?: string }) {
