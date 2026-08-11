@@ -141,11 +141,26 @@ export function BankDetailCard({
     showAlert("Copied", "Bank details copied");
   }
 
+  const statusText = unavailable ? "Unavailable" : statusLabel;
+  const pendingTwoLine = /^pending\s+verification$/i.test(statusText.trim());
+
   const body = (
     <View style={styles.row}>
       <View style={styles.main}>
         <View style={styles.header}>
           <BankLogo ifsc={ifsc} />
+          <View style={[styles.statusTag, statusTagStyle]}>
+            {pendingTwoLine ? (
+              <>
+                <Text style={[styles.statusTagText, { color: statusTagStyle.color }]}>Pending</Text>
+                <Text style={[styles.statusTagText, { color: statusTagStyle.color }]}>
+                  verification
+                </Text>
+              </>
+            ) : (
+              <Text style={[styles.statusTagText, { color: statusTagStyle.color }]}>{statusText}</Text>
+            )}
+          </View>
         </View>
 
         <Text style={[styles.acctLabel, { color: tokens.mute }]}>Account</Text>
@@ -161,9 +176,6 @@ export function BankDetailCard({
       </View>
 
       <View style={styles.actions}>
-        <Text style={[styles.statusTag, statusTagStyle]}>
-          {unavailable ? "Unavailable" : statusLabel}
-        </Text>
         {canReveal ? (
           <ActionBtn
             label={showFull ? "Hide number" : "Show number"}
@@ -283,18 +295,28 @@ const styles = StyleSheet.create({
   },
   row: { flexDirection: "row", gap: 10 },
   main: { flex: 1, minWidth: 0 },
-  header: { flexDirection: "row", alignItems: "center" },
+  header: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 8,
+  },
   statusTag: {
-    fontSize: 11,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-    paddingHorizontal: 10,
+    maxWidth: 92,
+    paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
     borderWidth: 1,
-    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statusTagText: {
+    fontSize: 10,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
     textAlign: "center",
+    lineHeight: 12,
   },
   logo: {
     width: 44,
