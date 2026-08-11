@@ -176,6 +176,17 @@ settlementRouter.get("/banks/pending", requireRole("admin"), async (_req, res) =
   sendSuccess(res, data);
 });
 
+/** Admin: all settlement banks for one agent (detail page). */
+settlementRouter.get("/banks/by-user/:userId", requireRole("admin"), async (req, res) => {
+  const userId = paramId(req.params.userId);
+  if (!userId) {
+    throw new HttpError(400, "User id is required", "VALIDATION_ERROR");
+  }
+  const tenantId = await resolveTenantId();
+  const banks = await listSettlementBanks({ tenantId, userId });
+  sendSuccess(res, banks);
+});
+
 settlementRouter.post(
   "/requests",
   requireRole(...AGENT_ROLES),

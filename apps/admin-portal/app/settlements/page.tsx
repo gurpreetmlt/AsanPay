@@ -268,36 +268,61 @@ export default function AdminSettlementsPage() {
               {banks.map((b) => (
                 <div
                   key={b.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-white p-4"
+                  className="rounded-2xl border bg-white p-4"
                   style={{ borderColor: B.border }}
                 >
-                  <div>
-                    <div className="font-semibold" style={{ color: B.blue }}>
-                      {b.holderName} · ****{b.accountNumberLast4}
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 space-y-1.5">
+                      <span
+                        className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold"
+                        style={{ background: "#FFFAEB", color: "#B54708" }}
+                      >
+                        Needs verification
+                      </span>
+                      <div className="font-semibold" style={{ color: B.blue }}>
+                        {b.holderName} · ****{b.accountNumberLast4}
+                      </div>
+                      <div className="text-sm" style={{ color: B.blueMid }}>
+                        IFSC {b.ifsc}
+                      </div>
+                      <div className="text-xs" style={{ color: B.muted }}>
+                        {b.userName} ({b.userUid}) · {b.userMobile}
+                      </div>
+                      <div className="text-xs" style={{ color: B.muted }}>
+                        Added {new Date(b.createdAt).toLocaleString("en-IN")}
+                      </div>
+                      <Link
+                        href={`/users/${b.userId}`}
+                        className="inline-block text-xs font-semibold underline-offset-2 hover:underline"
+                        style={{ color: B.blueMid }}
+                      >
+                        Open agent profile →
+                      </Link>
                     </div>
-                    <div className="text-xs" style={{ color: B.muted }}>
-                      {b.ifsc} · {b.userName} ({b.userUid}) · {b.userMobile}
+                    <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[200px]">
+                      <button
+                        type="button"
+                        disabled={acting === b.id}
+                        onClick={() => setVerifyTarget({ bank: b, activate: true })}
+                        className="rounded-xl px-3 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+                        style={{ background: "#12B76A" }}
+                      >
+                        Verify & activate
+                      </button>
+                      <button
+                        type="button"
+                        disabled={acting === b.id}
+                        onClick={() => setVerifyTarget({ bank: b, activate: false })}
+                        className="rounded-xl border px-3 py-2 text-sm font-semibold disabled:opacity-50"
+                        style={{ borderColor: B.border, color: B.blue }}
+                      >
+                        Verify only
+                      </button>
+                      <p className="text-[11px] leading-snug" style={{ color: B.muted }}>
+                        Use <span className="font-semibold">Verify & activate</span> for the first
+                        bank so the agent can withdraw.
+                      </p>
                     </div>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      disabled={acting === b.id}
-                      onClick={() => setVerifyTarget({ bank: b, activate: false })}
-                      className="rounded-xl border px-3 py-2 text-sm font-bold disabled:opacity-50"
-                      style={{ borderColor: B.border, color: B.blue }}
-                    >
-                      Verify only
-                    </button>
-                    <button
-                      type="button"
-                      disabled={acting === b.id}
-                      onClick={() => setVerifyTarget({ bank: b, activate: true })}
-                      className="rounded-xl px-3 py-2 text-sm font-bold text-white disabled:opacity-50"
-                      style={{ background: "#12B76A" }}
-                    >
-                      Verify & activate
-                    </button>
                   </div>
                 </div>
               ))}

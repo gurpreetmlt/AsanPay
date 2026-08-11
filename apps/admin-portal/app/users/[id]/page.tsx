@@ -18,6 +18,7 @@ import { AdminShell } from "@/components/layout/AdminShell";
 import { Badge } from "@/components/ui/Badge";
 import { ConfirmModal, type ConfirmTone } from "@/components/ui/ConfirmModal";
 import { DetailSection, InfoRow } from "@/components/users/DetailSection";
+import { AgentSettlementBanksCard } from "@/components/users/AgentSettlementBanksCard";
 import { KycDocumentGrid } from "@/components/users/KycDocumentGrid";
 import {
   ReasonSelect,
@@ -313,14 +314,19 @@ export default function AgentDetailPage() {
                 </div>
               </DetailSection>
 
-              <DetailSection title="Address / Bank" icon={MapPin}>
+              <DetailSection title="KYC address & bank" icon={MapPin}>
+                <p className="mb-4 text-sm" style={{ color: B.muted }}>
+                  From KYC submission (identity). Withdrawal banks are verified in the next section.
+                </p>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <InfoRow label="City" value={agent.kyc.city} />
                   <InfoRow label="Pincode" value={agent.kyc.pincode} />
-                  <InfoRow label="Bank" value={agent.kyc.bankName} />
+                  <InfoRow label="Bank (KYC)" value={agent.kyc.bankName} />
                   <InfoRow label="Bank on file" value={agent.kyc.hasBank ? "Yes" : "No"} />
                 </div>
               </DetailSection>
+
+              <AgentSettlementBanksCard userId={agent.id} />
 
               <DetailSection title="Balances" icon={Wallet}>
                 {agent.wallets.length === 0 ? (
