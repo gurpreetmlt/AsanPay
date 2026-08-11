@@ -518,25 +518,40 @@ function HeaderWalletBalances({
   );
 }
 
+const HEADER_SEARCH_SERVICES = [
+  { label: "AePS Cash Withdraw", href: "/aeps?tab=Withdraw", q: "aeps withdraw cash banking" },
+  { label: "AePS Deposit", href: "/aeps?tab=Deposit", q: "aeps deposit banking" },
+  { label: "AePS Balance Enquiry", href: "/aeps?tab=Balance%20Enquiry", q: "aeps balance enquiry banking" },
+  { label: "AePS Mini Statement", href: "/aeps?tab=Mini%20Statement", q: "aeps mini statement banking" },
+  { label: "DMT Money Transfer", href: "/dmt", q: "dmt money transfer remittance" },
+  { label: "Nepal Remittance", href: "/nepal", q: "nepal remittance" },
+  { label: "UPI Cash Point", href: "/upi-cash-point", q: "upi cash point" },
+  { label: "Add Money", href: "/fund-request", q: "fund add money wallet" },
+  { label: "Settlements", href: "/settlements", q: "settlement bank withdraw" },
+  { label: "Reports", href: "/reports", q: "reports earnings commission" },
+] as const;
+
 export function AppShell({ children }: { children: ReactNode }) {
   useOnboardingGate();
   const [drawer, setDrawer] = useState(false);
   const [wallets, setWallets] = useState<WalletBalance[]>([]);
   const [walletsLoading, setWalletsLoading] = useState(false);
   const [headerSearch, setHeaderSearch] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const accessToken = useAuthStore((s) => s.accessToken);
-  const logout = useAuthStore((s) => s.logout);
   const role = roleFromUserRole(user?.role);
   const name = user?.name ?? "Agent";
   const uid = user?.uid ?? "—";
   const av = initials(name);
   const balanceVisible = useBalanceVisibility((s) => s.visible);
   const toggleBalance = useBalanceVisibility((s) => s.toggle);
+  const isPartner = user?.role === "super_distributor" || user?.role === "distributor";
 
   const alertItems = useMemo(() => {
     const r = user?.role;
@@ -557,6 +572,31 @@ export function AppShell({ children }: { children: ReactNode }) {
     ];
   }, [user?.role]);
 
+  const searchMatches = useMemo(() => {
+    const q = headerSearch.trim().toLowerCase();
+    const items: { href: string; label: string; group: string }[] = [];
+    if (!q) return items;
+
+    for (const s of HEADER_SEARCH_SERVICES) {
+      if (s.label.toLowerCase().includes(q) || s.q.includes(q)) {
+        items.push({ href: s.href, label: s.label, group: "Services" });
+      }
+    }
+    items.push({
+      href: `/transactions?q=${encodeURIComponent(headerSearch.trim())}`,
+      label: `Transactions matching “${headerSearch.trim()}”`,
+      group: "Transactions",
+    });
+    if (isPartner) {
+      items.push({
+        href: `/network?q=${encodeURIComponent(headerSearch.trim())}`,
+        label: `Retailers / partners matching “${headerSearch.trim()}”`,
+        group: "Network",
+      });
+    }
+    return items.slice(0, 12);
+  }, [headerSearch, isPartner]);
+
   const loadWallets = useCallback(async () => {
     if (!accessToken) return;
     setWalletsLoading(true);
@@ -573,11 +613,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     setDrawer(false);
     setNotifOpen(false);
+    setSearchOpen(false);
   }, [pathname]);
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
       if (!notifRef.current?.contains(e.target as Node)) setNotifOpen(false);
+      if (!searchRef.current?.contains(e.target as Node)) setSearchOpen(false);
     }
     document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
@@ -592,17 +634,25 @@ export function AppShell({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadWallets]);
 
+  function goSearch(href: string) {
+    setHeaderSearch("");
+    setSearchOpen(false);
+    router.push(href);
+  }
+
   function submitHeaderSearch(e: FormEvent) {
     e.preventDefault();
     const q = headerSearch.trim();
     if (!q) return;
-    const isPartner = user?.role === "super_distributor" || user?.role === "distributor";
-    router.push(
+    if (searchMatches[0]) {
+      goSearch(searchMatches[0].href);
+      return;
+    }
+    goSearch(
       isPartner
         ? `/network?q=${encodeURIComponent(q)}`
         : `/transactions?q=${encodeURIComponent(q)}`,
     );
-    setHeaderSearch("");
   }
 
   async function handleLogout() {
@@ -671,21 +721,53 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Menu size={18} />
           </button>
 
-          <form
-            onSubmit={submitHeaderSearch}
-            className="hidden flex-1 items-center gap-3 rounded-xl px-4 py-2 lg:flex"
-            style={{ background: B.bg, maxWidth: 320 }}
-          >
-            <Search size={15} style={{ color: B.muted }} />
-            <input
-              value={headerSearch}
-              onChange={(e) => setHeaderSearch(e.target.value)}
-              placeholder="Search UID, mobile, name…"
-              className="flex-1 bg-transparent text-sm outline-none"
-              style={{ color: B.blue }}
-              aria-label="Search UID, mobile, or name"
-            />
-          </form>
+          <div className="relative hidden max-w-[360px] flex-1 lg:block" ref={searchRef}>
+            <form
+              onSubmit={submitHeaderSearch}
+              className="flex items-center gap-3 rounded-xl px-4 py-2"
+              style={{ background: B.bg }}
+            >
+              <Search size={15} style={{ color: B.muted }} />
+              <input
+                value={headerSearch}
+                onChange={(e) => {
+                  setHeaderSearch(e.target.value);
+                  setSearchOpen(true);
+                }}
+                onFocus={() => setSearchOpen(true)}
+                placeholder={
+                  isPartner
+                    ? "Search services, transactions, retailers…"
+                    : "Search services or transactions…"
+                }
+                className="flex-1 bg-transparent text-sm outline-none"
+                style={{ color: B.blue }}
+                aria-label="Search services, transactions, or retailers"
+              />
+            </form>
+            {searchOpen && headerSearch.trim() && searchMatches.length > 0 ? (
+              <div
+                className="absolute left-0 right-0 top-full z-50 mt-1 max-h-80 overflow-y-auto rounded-xl border bg-white shadow-lg"
+                style={{ borderColor: B.border }}
+              >
+                {searchMatches.map((m) => (
+                  <button
+                    key={m.href + m.label}
+                    type="button"
+                    onClick={() => goSearch(m.href)}
+                    className="flex w-full flex-col items-start px-4 py-2.5 text-left hover:bg-slate-50"
+                  >
+                    <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+                      {m.group}
+                    </span>
+                    <span className="text-sm font-semibold" style={{ color: B.blue }}>
+                      {m.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
 
           <div className="ml-auto flex items-center gap-3">
             <HeaderWalletBalances wallets={wallets} loading={walletsLoading} onRefresh={() => void loadWallets()} />

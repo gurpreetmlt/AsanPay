@@ -4,7 +4,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import LinearGradient from "react-native-linear-gradient";
 import { Bell, Gift, Scan } from "lucide-react-native";
 import { CategorySection } from "../../components/CategorySection";
-import { FavouritesSection } from "../../components/FavouritesSection";
 import { HomeEditModeBar } from "../../components/HomeEditModeBar";
 import { ScreenHeader } from "../../components/ScreenHeader";
 import { WalletBar } from "../../components/WalletBar";
@@ -83,21 +82,18 @@ export function ServicesScreen() {
   }, []);
 
   const [hasActiveBank, setHasActiveBank] = useState(true);
-  const [todayCommission, setTodayCommission] = useState("0");
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     try {
-      const [cat, wal, banks, dash] = await Promise.all([
+      const [cat, wal, banks] = await Promise.all([
         fetchApi<CatalogCategoryView[]>("/catalog"),
         fetchApi<WalletBalance[]>("/wallet/me"),
         fetchApi<{ isActive: boolean; verified: boolean }[]>("/settlements/banks").catch(() => []),
-        fetchApi<{ today?: { commissionEarned?: string } }>("/dashboard/stats").catch(() => null),
       ]);
       setCategories(cat);
       setWallets(wal);
       setHasActiveBank(banks.some((b) => b.verified && b.isActive));
-      if (dash?.today?.commissionEarned != null) setTodayCommission(dash.today.commissionEarned);
     } catch {
       /* silent — pull to retry */
     } finally {
@@ -222,7 +218,6 @@ export function ServicesScreen() {
           onAddMoney={() => setShowFund(true)}
           onWalletPress={() => navigation.navigate("Balance")}
           onReports={() => navigation.navigate("History")}
-          todayCommission={todayCommission}
         />
       </ScreenHeader>
 
@@ -353,13 +348,6 @@ export function ServicesScreen() {
           <ActivityIndicator size="large" color={colors.blueFlat} style={styles.loader} />
         ) : (
           <>
-            <FavouritesSection
-              userId={user.id}
-              categories={categories}
-              homeEditMode={homeEditMode}
-              onEnterEditMode={enterHomeEditMode}
-              onOpenService={handleOpenService}
-            />
             {categories.map((c) => (
               <CategorySection
                 key={c.id}

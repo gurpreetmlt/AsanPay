@@ -16,12 +16,17 @@ export function PassbookScreen() {
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [todayEarn, setTodayEarn] = useState("0");
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     try {
-      const data = await fetchApi<LedgerEntry[]>("/wallet/ledger", { limit: 100 });
+      const [data, dash] = await Promise.all([
+        fetchApi<LedgerEntry[]>("/wallet/ledger", { limit: 100 }),
+        fetchApi<{ today?: { commissionEarned?: string } }>("/dashboard/stats").catch(() => null),
+      ]);
       setEntries(data);
+      if (dash?.today?.commissionEarned != null) setTodayEarn(dash.today.commissionEarned);
     } catch {
       setEntries([]);
     } finally {
@@ -84,6 +89,17 @@ export function PassbookScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} colors={[colors.blueLight, colors.green]} />
         }
       >
+        <View
+          style={[
+            styles.earnCard,
+            { backgroundColor: "rgba(36,204,130,0.12)", borderColor: "rgba(36,204,130,0.35)" },
+          ]}
+        >
+          <Text style={[styles.kpiLabel, { color: tokens.sub }]}>Daily earnings</Text>
+          <Text style={[styles.kpiValue, { color: colors.greenDark }]}>{formatINR(todayEarn)}</Text>
+          <Text style={{ fontSize: 11, color: tokens.sub, marginTop: 2 }}>Commission earned today</Text>
+        </View>
+
         <View style={styles.kpiRow}>
           <View style={[styles.kpiCard, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
             <Text style={[styles.kpiLabel, { color: tokens.sub }]}>Total In</Text>
@@ -187,6 +203,7 @@ const styles = StyleSheet.create({
   header: { paddingTop: 58, paddingHorizontal: 20, paddingBottom: 24, borderBottomLeftRadius: 26, borderBottomRightRadius: 26 },
   headerTitle: { fontFamily: "System", fontWeight: "700", fontSize: 18, color: "#fff" },
   content: { padding: 20, paddingBottom: 30 },
+  earnCard: { borderWidth: 1, borderRadius: 16, padding: 15, marginBottom: 12 },
   kpiRow: { flexDirection: "row", gap: 11 },
   kpiCard: { flex: 1, borderWidth: 1, borderRadius: 16, padding: 15 },
   kpiLabel: { fontSize: 11.5, fontWeight: "600" },

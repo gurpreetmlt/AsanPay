@@ -15,12 +15,10 @@ interface Props {
   onWalletPress?: () => void;
   onAddMoney?: () => void;
   onReports?: () => void;
-  /** Today commission earned (retailer) — shown under Main balance */
-  todayCommission?: string;
 }
 
 /** Retailer-style twin wallet cards + Add Money / Reports — shared by home headers. */
-export function WalletBar({ wallets, onWalletPress, onAddMoney, onReports, todayCommission }: Props) {
+export function WalletBar({ wallets, onWalletPress, onAddMoney, onReports }: Props) {
   const main = wallets.find((w) => w.walletType === "main");
   const aeps = wallets.find((w) => w.walletType === "aeps");
   const [visible, setVisible] = useState(true);
@@ -73,11 +71,7 @@ export function WalletBar({ wallets, onWalletPress, onAddMoney, onReports, today
             </Pressable>
           </View>
           <Text style={styles.walletCardAmount}>{amount(main?.balance)}</Text>
-          <Text style={styles.walletCardDelta}>
-            {todayCommission != null
-              ? `▲ Today earned ${visible ? formatINR(todayCommission) : "••••"}`
-              : "▲ Today"}
-          </Text>
+          <Text style={styles.walletCardDelta}>Main wallet</Text>
         </Pressable>
 
         <Pressable style={{ flex: 1, minWidth: 0 }} onPress={openWallet}>

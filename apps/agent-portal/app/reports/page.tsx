@@ -36,6 +36,7 @@ export default function ReportsPage() {
   const [txns, setTxns] = useState<TxnRow[]>([]);
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [todayEarn, setTodayEarn] = useState("0");
 
   useEffect(() => {
     if (hydrated && !accessToken) router.replace("/login");
@@ -47,13 +48,15 @@ export default function ReportsPage() {
     (async () => {
       setLoading(true);
       try {
-        const [t, l] = await Promise.all([
+        const [t, l, dash] = await Promise.all([
           fetchApi<TxnRow[]>("/txn", { limit: 100, offset: 0 }),
           fetchApi<LedgerEntry[]>("/wallet/ledger", { limit: 100, offset: 0 }),
+          fetchApi<{ today?: { commissionEarned?: string } }>("/dashboard/stats").catch(() => null),
         ]);
         if (!alive) return;
         setTxns(t);
         setLedger(l);
+        if (dash?.today?.commissionEarned != null) setTodayEarn(dash.today.commissionEarned);
       } catch (err) {
         toast.error(extractApiError(err, "Failed to load reports"));
       } finally {
@@ -117,6 +120,23 @@ export default function ReportsPage() {
           </p>
         ) : (
           <>
+            <div
+              className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-4"
+              style={{ borderColor: `${B.green}55`, background: `${B.green}10` }}
+            >
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+                  Daily earnings
+                </p>
+                <p className="text-2xl font-bold tabular-nums" style={{ color: B.green }}>
+                  {formatInr(Number(todayEarn) || 0)}
+                </p>
+                <p className="mt-0.5 text-xs" style={{ color: B.muted }}>
+                  Commission earned today
+                </p>
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
               {[
                 { label: "Txn Volume", value: formatInr(stats.volume) },

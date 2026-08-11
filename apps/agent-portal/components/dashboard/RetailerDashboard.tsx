@@ -15,7 +15,6 @@ import {
   Share2,
   RotateCcw,
   LifeBuoy,
-  Star,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { fetchApi } from "@/lib/api";
@@ -28,7 +27,6 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { ServiceCards } from "@/components/services/ServiceCards";
 import { formatInr, walletDisplayName } from "@/lib/walletLabels";
-import { MAX_FAVORITES } from "@/lib/favorites";
 import type { TxnRow, WalletBalance } from "@/lib/types";
 
 interface RetailerStats {
@@ -277,13 +275,6 @@ export function RetailerDashboard() {
           <div className="mb-2 text-2xl font-bold leading-none tracking-tight">
             {loading ? "…" : maskBalance(balanceVisible, formatInr(primary?.balance ?? "0"))}
           </div>
-          <div
-            className="relative z-10 mb-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold"
-            style={{ background: "rgba(255,255,255,0.2)", color: "#fff" }}
-          >
-            <IndianRupee size={11} />
-            Today earned {balanceVisible ? formatInr(todayEarn) : "••••"}
-          </div>
           <div className="relative z-10">
             <PrimaryButton
               type="button"
@@ -343,50 +334,34 @@ export function RetailerDashboard() {
         />
       </div>
 
-      <div
-        className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border px-4 py-3"
-        style={{ borderColor: `${B.green}55`, background: `${B.green}10` }}
-      >
-        <div className="flex items-center gap-2">
-          <span
-            className="flex h-9 w-9 items-center justify-center rounded-xl"
-            style={{ background: `${B.green}22`, color: B.green }}
-          >
-            <IndianRupee size={18} />
-          </span>
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
-              Daily earnings
-            </p>
-            <p className="text-lg font-bold tabular-nums" style={{ color: B.green }}>
-              {loading ? "…" : formatInr(todayEarn)}
-            </p>
-          </div>
-        </div>
-        <p className="text-xs" style={{ color: B.muted }}>
-          Commission earned today
-        </p>
-      </div>
-
-      {/* Quick Services — pin up to MAX_FAVORITES via star on tiles */}
-      <div>
-        <p className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide" style={{ color: B.muted }}>
-          <Star size={12} /> Pin up to {MAX_FAVORITES} favourite services
-        </p>
-        <ServiceCards title="Quick Services" />
-      </div>
+      {/* All services — favourites pin removed from home */}
+      <ServiceCards title="All Services" enableFavorites={false} />
 
       {/* Today's Summary */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <MiniStat label="Txns Today" value={String(stats?.today.txnCount ?? 0)} />
         <MiniStat label="Volume" value={formatInr(stats?.today.volume ?? "0")} />
         <MiniStat label="Success" value={`${stats?.today.successRate ?? 0}%`} />
-        <MiniStat label="Commission" value={formatInr(todayEarn)} highlight />
+        <MiniStat
+          label="Commission"
+          value={formatInr(todayEarn)}
+          highlight
+        />
       </div>
+      <p className="text-center text-[11px]" style={{ color: B.muted }}>
+        Daily earnings detail is on{" "}
+        <button
+          type="button"
+          className="font-semibold underline"
+          style={{ color: B.blue }}
+          onClick={() => router.push("/reports")}
+        >
+          Reports
+        </button>
+      </p>
 
       {/* Announcements + KYC row */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {/* Announcements */}
         <div className="ui-card dash-card-hover p-5">
           <SectionHeader
             title={
@@ -404,7 +379,6 @@ export function RetailerDashboard() {
           />
         </div>
 
-        {/* KYC Status */}
         <div className="ui-card dash-card-hover p-5">
           <SectionHeader
             title={

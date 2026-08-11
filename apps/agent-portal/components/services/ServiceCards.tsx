@@ -62,12 +62,14 @@ function ServiceIconCard({
   favorite,
   onToggleFav,
   onOpen,
+  showFavoriteToggle = true,
 }: {
   svc: Svc;
   index: number;
   favorite: boolean;
   onToggleFav: () => void;
   onOpen?: () => void;
+  showFavoriteToggle?: boolean;
 }) {
   const tile = designTileColors(index, false);
   const assetSrc = serviceIconPath(svc.icon);
@@ -91,18 +93,20 @@ function ServiceIconCard({
       className="group relative mx-auto flex w-full max-w-[6.75rem] flex-col items-center"
       style={{ "--tile-accent": tile.fg } as React.CSSProperties}
     >
-      <button
-        type="button"
-        aria-label={favorite ? "Remove favourite" : "Add favourite"}
-        data-tooltip={favorite ? "Remove favourite" : "Add favourite"}
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggleFav();
-        }}
-        className="icon-tooltip absolute right-0 top-0 z-10 rounded-md p-0.5 opacity-0 transition group-hover:opacity-100"
-      >
-        <Star size={11} strokeWidth={2.2} color={starColor} fill={favorite ? starColor : "none"} />
-      </button>
+      {showFavoriteToggle ? (
+        <button
+          type="button"
+          aria-label={favorite ? "Remove favourite" : "Add favourite"}
+          data-tooltip={favorite ? "Remove favourite" : "Add favourite"}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleFav();
+          }}
+          className="icon-tooltip absolute right-0 top-0 z-10 rounded-md p-0.5 opacity-0 transition group-hover:opacity-100"
+        >
+          <Star size={11} strokeWidth={2.2} color={starColor} fill={favorite ? starColor : "none"} />
+        </button>
+      ) : null}
       <button
         type="button"
         className="svc-tile-press flex w-full cursor-pointer flex-col items-center justify-start gap-1.5 text-center disabled:opacity-45"
@@ -161,6 +165,7 @@ function ServiceRow({
   nowrap,
   /** Fixed columns — Recharges & Bills collapsed = 2 rows × 7. */
   columns,
+  showFavoriteToggle = true,
 }: {
   services: Svc[];
   codes: string[];
@@ -168,6 +173,7 @@ function ServiceRow({
   onOpen: (code: string) => void;
   nowrap?: boolean;
   columns?: 7;
+  showFavoriteToggle?: boolean;
 }) {
   const layoutClass = columns
     ? SERVICE_GRID
@@ -185,6 +191,7 @@ function ServiceRow({
             favorite={codes.includes(svc.code)}
             onToggleFav={() => onToggle(svc.code)}
             onOpen={() => onOpen(svc.code)}
+            showFavoriteToggle={showFavoriteToggle}
           />
         );
         return (
@@ -257,6 +264,7 @@ function BankingCard({
   codes,
   onToggle,
   onOpen,
+  showFavoriteToggle = true,
 }: {
   aeps: Svc[];
   topRest: Svc[];
@@ -264,6 +272,7 @@ function BankingCard({
   codes: string[];
   onToggle: (code: string) => void;
   onOpen: (code: string) => void;
+  showFavoriteToggle?: boolean;
 }) {
   const topRow = [...aeps, ...topRest];
 
@@ -276,6 +285,7 @@ function BankingCard({
           favorite={codes.includes(svc.code)}
           onToggleFav={() => onToggle(svc.code)}
           onOpen={() => onOpen(svc.code)}
+          showFavoriteToggle={showFavoriteToggle}
         />
       </div>
     );
@@ -345,7 +355,14 @@ function DashboardAdBox() {
   );
 }
 
-export function ServiceCards({ title = "All Services" }: { title?: string }) {
+export function ServiceCards({
+  title = "All Services",
+  enableFavorites = true,
+}: {
+  title?: string;
+  /** Home pin / Favourites strip — off when parent wants full catalog only */
+  enableFavorites?: boolean;
+}) {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const userId = user?.id;
@@ -514,7 +531,7 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
 
   return (
     <div className="min-w-0 space-y-3">
-      {favorites.length > 0 ? (
+      {enableFavorites && favorites.length > 0 ? (
         <CardShell
           title="Favourites"
           titleIcon={<Star size={21} strokeWidth={2.2} color={B.green} aria-hidden />}
@@ -533,6 +550,7 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
             onToggle={handleToggle}
             onOpen={openService}
             nowrap
+            showFavoriteToggle={enableFavorites}
           />
         </CardShell>
       ) : null}
@@ -552,6 +570,7 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
               codes={codes}
               onToggle={handleToggle}
               onOpen={openService}
+              showFavoriteToggle={enableFavorites}
             />
           )}
 
@@ -593,6 +612,7 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
                 onToggle={handleToggle}
                 onOpen={openService}
                 columns={7}
+                showFavoriteToggle={enableFavorites}
               />
             </CardShell>
           )}
@@ -610,6 +630,7 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
                     onToggle={handleToggle}
                     onOpen={openService}
                     nowrap
+                    showFavoriteToggle={enableFavorites}
                   />
                 </CardShell>
               )}
@@ -624,6 +645,7 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
                     onToggle={handleToggle}
                     onOpen={openService}
                     nowrap
+                    showFavoriteToggle={enableFavorites}
                   />
                 </CardShell>
               )}
@@ -641,6 +663,7 @@ export function ServiceCards({ title = "All Services" }: { title?: string }) {
                 codes={codes}
                 onToggle={handleToggle}
                 onOpen={openService}
+                showFavoriteToggle={enableFavorites}
               />
             </CardShell>
           ))}
