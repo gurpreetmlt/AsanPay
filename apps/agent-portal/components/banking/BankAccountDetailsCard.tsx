@@ -145,7 +145,7 @@ export function BankDetailCard({
     if (tone === "info") {
       return { background: "#DBEAFE", color: "#1D4ED8", border: "1px solid #93C5FD" };
     }
-    return { background: "#F1F5F9", color: "#475569", border: "1px solid #CBD5E1" };
+    return { background: "#FFFAEB", color: "#B54708", border: "1px solid #FEC84B" };
   })();
 
   async function handleCopy(e: MouseEvent) {
@@ -173,9 +173,7 @@ export function BankDetailCard({
   const pendingTwoLine = /^pending\s+verification$/i.test(statusLabel.trim());
   const statusBadge = (
     <span
-      className={`inline-flex w-10 shrink-0 items-center justify-center rounded-lg px-0.5 py-1 text-center font-bold uppercase leading-[1.1] tracking-wide ${
-        pendingTwoLine || unavailable ? "text-[9px]" : "text-[8px]"
-      }`}
+      className="inline-flex w-full shrink-0 flex-col items-center justify-center rounded-xl px-1.5 py-1.5 text-center text-[10px] font-extrabold uppercase leading-[1.2] tracking-wide"
       style={statusTagStyle}
     >
       {unavailable ? (
@@ -235,7 +233,7 @@ export function BankDetailCard({
         ) : null}
       </div>
 
-      <div className="flex w-10 shrink-0 flex-col items-center gap-2.5 self-stretch">
+      <div className="flex w-[4.75rem] shrink-0 flex-col items-center gap-2 self-start">
         {statusBadge}
         {canReveal ? (
           <ActionBtn

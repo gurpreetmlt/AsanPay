@@ -122,7 +122,7 @@ export function BankDetailCard({
       ? { backgroundColor: "#D1FAE5", color: "#047857", borderColor: "#6EE7B7" }
       : resolvedStatusTone === "info"
         ? { backgroundColor: "#DBEAFE", color: "#1D4ED8", borderColor: "#93C5FD" }
-        : { backgroundColor: "#F1F5F9", color: "#475569", borderColor: "#CBD5E1" };
+        : { backgroundColor: "#FFFAEB", color: "#B54708", borderColor: "#FEC84B" };
 
   function handleCopy() {
     if (onCopy) {
@@ -146,14 +146,19 @@ export function BankDetailCard({
 
   const statusBadge = (
     <View style={[styles.statusTag, statusTagStyle]}>
-      {pendingTwoLine ? (
+      {unavailable ? (
+        <>
+          <Text style={[styles.statusTagText, { color: statusTagStyle.color }]}>Not</Text>
+          <Text style={[styles.statusTagText, { color: statusTagStyle.color }]}>available</Text>
+        </>
+      ) : pendingTwoLine ? (
         <>
           <Text style={[styles.statusTagText, { color: statusTagStyle.color }]}>Pending</Text>
           <Text style={[styles.statusTagText, { color: statusTagStyle.color }]}>verification</Text>
         </>
       ) : (
-        <Text style={[styles.statusTagText, { color: statusTagStyle.color }]} numberOfLines={2}>
-          {unavailable ? "—" : statusText}
+        <Text style={[styles.statusTagText, { color: statusTagStyle.color }]} numberOfLines={1}>
+          {statusText}
         </Text>
       )}
     </View>
@@ -304,22 +309,22 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   statusTag: {
-    width: 40,
+    width: "100%",
     minHeight: 40,
-    paddingHorizontal: 2,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+    borderRadius: 12,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
   statusTagText: {
-    fontSize: 9,
-    fontWeight: "700",
+    fontSize: 10,
+    fontWeight: "800",
     textTransform: "uppercase",
     letterSpacing: 0.3,
     textAlign: "center",
-    lineHeight: 11,
+    lineHeight: 12,
   },
   logo: {
     width: 44,
@@ -351,7 +356,7 @@ const styles = StyleSheet.create({
   ifsc: { fontSize: 13, fontWeight: "700", marginTop: 8 },
   bankLine: { fontSize: 12, fontWeight: "500", marginTop: 4 },
   note: { fontSize: 11, fontWeight: "800", color: colors.green, marginTop: 8 },
-  actions: { width: 40, alignItems: "center", gap: 10 },
+  actions: { width: 76, alignItems: "center", gap: 8 },
   actionBtn: {
     width: 40,
     height: 40,
