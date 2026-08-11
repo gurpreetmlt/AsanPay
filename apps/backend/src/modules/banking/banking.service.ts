@@ -80,7 +80,12 @@ export async function registerBankAccount(params: {
         isActive: bankAccounts.isActive,
       })
       .from(bankAccounts)
-      .where(and(eq(bankAccounts.tenantId, tenantId), eq(bankAccounts.ledgerAccountId, ledger.id)))
+      .where(
+        and(
+          eq(bankAccounts.tenantId, tenantId),
+          sql`${bankAccounts.ledgerAccountId} = ${ledger.id}`,
+        ),
+      )
       .limit(1);
 
     if (existing && !existing.deletedAt) {
@@ -127,17 +132,57 @@ export async function registerBankAccount(params: {
       return { bankAccountId: row.id, code };
     } catch (err) {
       if (err instanceof HttpError) throw err;
-      const msg = err instanceof Error ? err.message : String(err);
-      if (/bank_accounts_ledger_uidx|duplicate key/i.test(msg)) {
-        throw new HttpError(
-          422,
-          `A ${purpose} account for ${bankName} is already registered. Edit the existing bank instead.`,
-          "BANK_ALREADY_EXISTS",
-        );
+      const msg = collectPgErrorText(err);
+      if (!/bank_accounts_ledger_uidx|duplicate key/i.test(msg)) throw err;
+
+      // Select may miss (bigint coercions); recover by restoring the conflicting soft-deleted row.
+      const [conflict] = await tx
+        .select({
+          id: bankAccounts.id,
+          deletedAt: bankAccounts.deletedAt,
+        })
+        .from(bankAccounts)
+        .where(sql`${bankAccounts.ledgerAccountId} = ${ledger.id}`)
+        .limit(1);
+
+      if (conflict?.deletedAt) {
+        await tx
+          .update(bankAccounts)
+          .set({
+            bankName,
+            accountNumberEnc: encryptPII(digits),
+            accountNumberLast4: digits.slice(-4),
+            ifsc: ifsc.toUpperCase(),
+            purpose,
+            supportsVan: params.supportsVan ?? false,
+            isActive: true,
+            deletedAt: null,
+          })
+          .where(eq(bankAccounts.id, conflict.id));
+        return { bankAccountId: conflict.id, code };
       }
-      throw err;
+
+      throw new HttpError(
+        422,
+        `A ${purpose} account for ${bankName} is already registered. Edit the existing bank instead.`,
+        "BANK_ALREADY_EXISTS",
+      );
     }
   });
+}
+
+function collectPgErrorText(err: unknown): string {
+  const parts: string[] = [];
+  let cur: unknown = err;
+  for (let i = 0; cur && i < 6; i += 1) {
+    if (cur instanceof Error) {
+      parts.push(cur.message);
+      cur = cur.cause;
+      continue;
+    }
+    break;
+  }
+  return parts.join(" | ");
 }
 
 export interface StatementLineInput {
