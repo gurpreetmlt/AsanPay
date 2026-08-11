@@ -594,11 +594,8 @@ export function UsersPanel({ lockedRole = "" }: Props) {
                       <div className="text-sm font-semibold tabular-nums" style={{ color: B.blueMid }}>
                         {u.mobile}
                       </div>
-                      <div
-                        className="mt-1 font-mono text-[9px] uppercase tracking-[0.08em]"
-                        style={{ color: B.muted, opacity: 0.85 }}
-                      >
-                        UID · {u.uid}
+                      <div className="mt-0.5 font-mono text-xs" style={{ color: B.muted }}>
+                        {u.uid}
                       </div>
                     </td>
                     {!lockedRole && (
@@ -673,11 +670,8 @@ export function UsersPanel({ lockedRole = "" }: Props) {
                   <p className="mt-1 text-sm font-semibold tabular-nums" style={{ color: B.blueMid }}>
                     {u.mobile}
                   </p>
-                  <p
-                    className="mt-1 font-mono text-[9px] uppercase tracking-[0.08em]"
-                    style={{ color: B.muted, opacity: 0.85 }}
-                  >
-                    UID · {u.uid}
+                  <p className="mt-0.5 font-mono text-xs" style={{ color: B.muted }}>
+                    {u.uid}
                   </p>
                 </div>
                 <TableActionButtons

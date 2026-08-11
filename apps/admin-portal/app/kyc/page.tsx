@@ -165,11 +165,8 @@ export default function KycPage() {
                         <div className="text-sm font-semibold tabular-nums" style={{ color: B.blueMid }}>
                           {r.mobile}
                         </div>
-                        <div
-                          className="mt-1 font-mono text-[9px] uppercase tracking-[0.08em]"
-                          style={{ color: B.muted, opacity: 0.85 }}
-                        >
-                          UID · {r.uid}
+                        <div className="mt-0.5 font-mono text-xs" style={{ color: B.muted }}>
+                          {r.uid}
                         </div>
                       </td>
                       <td className="px-4 py-3">
@@ -248,11 +245,8 @@ export default function KycPage() {
                     <p className="mt-0.5 text-xs" style={{ color: B.muted }}>
                       {ROLE_LABEL[r.role] ?? r.role}
                     </p>
-                    <p
-                      className="mt-1 font-mono text-[9px] uppercase tracking-[0.08em]"
-                      style={{ color: B.muted, opacity: 0.85 }}
-                    >
-                      UID · {r.uid}
+                    <p className="mt-0.5 font-mono text-xs" style={{ color: B.muted }}>
+                      {r.uid}
                     </p>
                   </div>
                   {tab === "pending" ? (
