@@ -1,16 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { Search, Table2, GitBranch, Trash2 } from "lucide-react";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { Badge } from "@/components/ui/Badge";
+import { ConfirmModal, type ConfirmTone } from "@/components/ui/ConfirmModal";
 import { ActionIconButton, TableActionButtons } from "@/components/ui/TableActionButtons";
 import { NetworkTreeView } from "@/components/users/NetworkTreeView";
 import { MoveAgentModal } from "@/components/users/MoveAgentModal";
 import { useDevOptionsStore } from "@/lib/devOptionsStore";
+
+type PendingConfirm = {
+  title: string;
+  message: ReactNode;
+  confirmLabel: string;
+  tone: ConfirmTone;
+  action: () => void | Promise<void>;
+};
 
 export type RoleFilter = "" | "super_distributor" | "distributor" | "retailer";
 type KycFilter = "" | "pending" | "verified" | "rejected";
@@ -66,6 +75,7 @@ export function UsersPanel({ lockedRole = "" }: Props) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
   const rowDeleteEnabled = useDevOptionsStore((s) => s.rowDeleteEnabled);
 
   useEffect(() => {
@@ -128,14 +138,7 @@ export function UsersPanel({ lockedRole = "" }: Props) {
     }
   }
 
-  async function deleteUser(u: AdminUser) {
-    if (
-      !window.confirm(
-        `Permanently delete ${u.name} (${u.mobile})?\n\nThis cannot be undone. Delete retailers before distributors / super distributors if they are linked.`,
-      )
-    ) {
-      return;
-    }
+  async function executeDeleteUser(u: AdminUser) {
     setDeletingId(u.id);
     try {
       await api.delete(`/admin/users/${u.id}`);
@@ -146,6 +149,7 @@ export function UsersPanel({ lockedRole = "" }: Props) {
         next.delete(u.id);
         return next;
       });
+      setPendingConfirm(null);
     } catch (err) {
       toast.error(
         (err as { response?: { data?: { message?: string } } }).response?.data?.message ??
@@ -156,22 +160,39 @@ export function UsersPanel({ lockedRole = "" }: Props) {
     }
   }
 
-  async function deleteSelected() {
-    if (selectedUsers.length === 0) return;
-    if (
-      !window.confirm(
-        `Permanently delete ${selectedUsers.length} selected agent(s)?\n\nThis cannot be undone. Retailers are deleted first, then distributors, then super distributors.`,
-      )
-    ) {
-      return;
-    }
+  function deleteUser(u: AdminUser) {
+    setPendingConfirm({
+      title: "Delete user?",
+      message: (
+        <>
+          <p>
+            Permanently delete{" "}
+            <span className="font-semibold" style={{ color: B.blue }}>
+              {u.name}
+            </span>{" "}
+            ({u.mobile})?
+          </p>
+          <p className="mt-2">
+            This cannot be undone. Delete retailers before distributors / super distributors if they
+            are linked.
+          </p>
+        </>
+      ),
+      confirmLabel: "Delete user",
+      tone: "danger",
+      action: () => void executeDeleteUser(u),
+    });
+  }
+
+  async function executeDeleteSelected(targets: AdminUser[]) {
+    if (targets.length === 0) return;
 
     const roleOrder: Record<string, number> = {
       retailer: 0,
       distributor: 1,
       super_distributor: 2,
     };
-    const ordered = [...selectedUsers].sort(
+    const ordered = [...targets].sort(
       (a, b) => (roleOrder[a.role] ?? 9) - (roleOrder[b.role] ?? 9),
     );
 
@@ -200,9 +221,36 @@ export function UsersPanel({ lockedRole = "" }: Props) {
       if (failed.length > 0) {
         toast.error(failed.slice(0, 3).join(" · ") + (failed.length > 3 ? "…" : ""));
       }
+      setPendingConfirm(null);
     } finally {
       setBulkDeleting(false);
     }
+  }
+
+  function deleteSelected() {
+    if (selectedUsers.length === 0) return;
+    const targets = [...selectedUsers];
+    setPendingConfirm({
+      title: "Delete selected agents?",
+      message: (
+        <>
+          <p>
+            Permanently delete{" "}
+            <span className="font-semibold" style={{ color: B.blue }}>
+              {targets.length}
+            </span>{" "}
+            selected agent(s)?
+          </p>
+          <p className="mt-2">
+            This cannot be undone. Retailers are deleted first, then distributors, then super
+            distributors.
+          </p>
+        </>
+      ),
+      confirmLabel: "Delete selected",
+      tone: "danger",
+      action: () => void executeDeleteSelected(targets),
+    });
   }
 
   function isMovable(u: AdminUser) {
@@ -565,6 +613,20 @@ export function UsersPanel({ lockedRole = "" }: Props) {
           }}
         />
       )}
+
+      {pendingConfirm ? (
+        <ConfirmModal
+          title={pendingConfirm.title}
+          message={pendingConfirm.message}
+          confirmLabel={pendingConfirm.confirmLabel}
+          tone={pendingConfirm.tone}
+          busy={deletingId !== null || bulkDeleting}
+          onConfirm={() => void pendingConfirm.action()}
+          onClose={() => {
+            if (!deletingId && !bulkDeleting) setPendingConfirm(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

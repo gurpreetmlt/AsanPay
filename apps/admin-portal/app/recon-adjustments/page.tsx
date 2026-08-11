@@ -1,14 +1,23 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { Scale, Check, X } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
+import { ConfirmModal, type ConfirmTone } from "@/components/ui/ConfirmModal";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
+
+type PendingConfirm = {
+  title: string;
+  message: ReactNode;
+  confirmLabel: string;
+  tone: ConfirmTone;
+  action: () => void | Promise<void>;
+};
 
 type AdjStatus = "requested" | "approved" | "rejected";
 
@@ -74,6 +83,7 @@ export default function ReconAdjustmentsPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [statusFilter, setStatusFilter] = useState<"" | AdjStatus>("requested");
   const [decidingId, setDecidingId] = useState<string | null>(null);
+  const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
 
   useEffect(() => {
     if (hydrated && !accessToken) router.replace("/login");
@@ -134,24 +144,44 @@ export default function ReconAdjustmentsPage() {
     }
   }
 
-  async function approve(row: ReconAdjustment) {
-    if (me?.id && row.requestedBy === me.id) {
-      toast.error("You cannot approve your own adjustment");
-      return;
-    }
-    if (!window.confirm(`Approve ₹${row.amount} DR ${row.debitCode} / CR ${row.creditCode}?`)) {
-      return;
-    }
+  async function executeApprove(row: ReconAdjustment) {
     setDecidingId(row.id);
     try {
       await api.post(`/admin/recon-adjustments/${row.id}/approve`, {});
       toast.success("Adjustment approved and posted to the ledger");
+      setPendingConfirm(null);
       await load();
     } catch (err) {
       toast.error(errMessage(err, "Could not approve adjustment"));
     } finally {
       setDecidingId(null);
     }
+  }
+
+  function approve(row: ReconAdjustment) {
+    if (me?.id && row.requestedBy === me.id) {
+      toast.error("You cannot approve your own adjustment");
+      return;
+    }
+    setPendingConfirm({
+      title: "Approve recon adjustment?",
+      message: (
+        <>
+          Approve ₹{row.amount} DR{" "}
+          <span className="font-mono font-semibold" style={{ color: B.blue }}>
+            {row.debitCode}
+          </span>{" "}
+          / CR{" "}
+          <span className="font-mono font-semibold" style={{ color: B.blue }}>
+            {row.creditCode}
+          </span>
+          ?
+        </>
+      ),
+      confirmLabel: "Approve",
+      tone: "info",
+      action: () => void executeApprove(row),
+    });
   }
 
   async function reject(row: ReconAdjustment) {
@@ -448,6 +478,20 @@ export default function ReconAdjustmentsPage() {
           )}
         </div>
       </div>
+
+      {pendingConfirm ? (
+        <ConfirmModal
+          title={pendingConfirm.title}
+          message={pendingConfirm.message}
+          confirmLabel={pendingConfirm.confirmLabel}
+          tone={pendingConfirm.tone}
+          busy={decidingId !== null}
+          onConfirm={() => void pendingConfirm.action()}
+          onClose={() => {
+            if (!decidingId) setPendingConfirm(null);
+          }}
+        />
+      ) : null}
     </AdminShell>
   );
 }

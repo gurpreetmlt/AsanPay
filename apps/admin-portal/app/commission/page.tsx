@@ -1,15 +1,24 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { Calculator, Percent, Plus, ScrollText } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
+import { ConfirmModal, type ConfirmTone } from "@/components/ui/ConfirmModal";
 import { TableActionButtons } from "@/components/ui/TableActionButtons";
 import { B } from "@/lib/brand";
 import api, { fetchApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
+
+type PendingConfirm = {
+  title: string;
+  message: ReactNode;
+  confirmLabel: string;
+  tone: ConfirmTone;
+  action: () => void | Promise<void>;
+};
 
 type SchemeRole = "retailer" | "distributor" | "super_distributor";
 type RuleType = "flat" | "percentage";
@@ -140,6 +149,8 @@ export default function CommissionSchemesPage() {
   const [payoutQ, setPayoutQ] = useState("");
   const [payoutSince, setPayoutSince] = useState("");
   const [payoutUntil, setPayoutUntil] = useState("");
+  const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
 
   useEffect(() => {
     if (hydrated && !accessToken) router.replace("/login");
@@ -255,15 +266,36 @@ export default function CommissionSchemesPage() {
     }
   }
 
-  async function removeRule(rule: CommissionRule) {
-    if (!window.confirm(`Delete ${ROLE_LABEL[rule.role]} rule for ${rule.serviceName}?`)) return;
+  async function executeRemoveRule(rule: CommissionRule) {
+    setConfirmBusy(true);
     try {
       await api.delete(`/admin/commission/rules/${rule.id}`);
       toast.success("Commission rule deleted");
       setRules((prev) => prev.filter((r) => r.id !== rule.id));
+      setPendingConfirm(null);
     } catch (err) {
       toast.error(errMessage(err, "Could not delete rule"));
+    } finally {
+      setConfirmBusy(false);
     }
+  }
+
+  function removeRule(rule: CommissionRule) {
+    setPendingConfirm({
+      title: "Delete commission rule?",
+      message: (
+        <>
+          Delete {ROLE_LABEL[rule.role]} rule for{" "}
+          <span className="font-semibold" style={{ color: B.blue }}>
+            {rule.serviceName}
+          </span>
+          ?
+        </>
+      ),
+      confirmLabel: "Delete rule",
+      tone: "danger",
+      action: () => void executeRemoveRule(rule),
+    });
   }
 
   async function runPreview() {
@@ -774,6 +806,20 @@ export default function CommissionSchemesPage() {
           </>
         )}
       </div>
+
+      {pendingConfirm ? (
+        <ConfirmModal
+          title={pendingConfirm.title}
+          message={pendingConfirm.message}
+          confirmLabel={pendingConfirm.confirmLabel}
+          tone={pendingConfirm.tone}
+          busy={confirmBusy}
+          onConfirm={() => void pendingConfirm.action()}
+          onClose={() => {
+            if (!confirmBusy) setPendingConfirm(null);
+          }}
+        />
+      ) : null}
     </AdminShell>
   );
 }

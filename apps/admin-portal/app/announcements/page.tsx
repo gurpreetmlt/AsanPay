@@ -1,14 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { Megaphone } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
+import { ConfirmModal, type ConfirmTone } from "@/components/ui/ConfirmModal";
 import api from "@/lib/api";
 import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
+
+type PendingConfirm = {
+  title: string;
+  message: ReactNode;
+  confirmLabel: string;
+  tone: ConfirmTone;
+  action: () => void | Promise<void>;
+};
 
 /**
  * Composer for POST /admin/emails/product-update (modules/notifications/userEmail.service.ts).
@@ -27,6 +36,7 @@ export default function AnnouncementsPage() {
   const [headline, setHeadline] = useState("");
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
+  const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
 
   if (hydrated && !accessToken) {
     router.replace("/login");
@@ -34,18 +44,7 @@ export default function AnnouncementsPage() {
   }
   if (!hydrated || !accessToken) return null;
 
-  async function send() {
-    if (subject.trim().length < 3 || headline.trim().length < 3 || body.trim().length < 10) {
-      toast.error("Fill subject, headline and body first");
-      return;
-    }
-    if (
-      !window.confirm(
-        "This emails every opted-in, verified user on the platform right now. This cannot be undone. Send?",
-      )
-    ) {
-      return;
-    }
+  async function executeSend() {
     setSending(true);
     try {
       const { data } = await api.post<{ data: { sent: number } }>("/admin/emails/product-update", {
@@ -57,6 +56,7 @@ export default function AnnouncementsPage() {
       setSubject("");
       setHeadline("");
       setBody("");
+      setPendingConfirm(null);
     } catch (err) {
       toast.error(
         (err as { response?: { data?: { message?: string } } }).response?.data?.message ??
@@ -65,6 +65,21 @@ export default function AnnouncementsPage() {
     } finally {
       setSending(false);
     }
+  }
+
+  function send() {
+    if (subject.trim().length < 3 || headline.trim().length < 3 || body.trim().length < 10) {
+      toast.error("Fill subject, headline and body first");
+      return;
+    }
+    setPendingConfirm({
+      title: "Send announcement email?",
+      message:
+        "This emails every opted-in, verified user on the platform right now. This cannot be undone.",
+      confirmLabel: "Send email",
+      tone: "info",
+      action: () => void executeSend(),
+    });
   }
 
   return (
@@ -141,6 +156,20 @@ export default function AnnouncementsPage() {
           </button>
         </div>
       </div>
+
+      {pendingConfirm ? (
+        <ConfirmModal
+          title={pendingConfirm.title}
+          message={pendingConfirm.message}
+          confirmLabel={pendingConfirm.confirmLabel}
+          tone={pendingConfirm.tone}
+          busy={sending}
+          onConfirm={() => void pendingConfirm.action()}
+          onClose={() => {
+            if (!sending) setPendingConfirm(null);
+          }}
+        />
+      ) : null}
     </AdminShell>
   );
 }

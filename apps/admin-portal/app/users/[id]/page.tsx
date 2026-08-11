@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { Badge } from "@/components/ui/Badge";
+import { ConfirmModal, type ConfirmTone } from "@/components/ui/ConfirmModal";
 import { DetailSection, InfoRow } from "@/components/users/DetailSection";
 import { KycDocumentGrid } from "@/components/users/KycDocumentGrid";
 import {
@@ -28,6 +29,14 @@ import api, { fetchApi } from "@/lib/api";
 import { B, ROLE_LABEL } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
+
+type PendingConfirm = {
+  title: string;
+  message: ReactNode;
+  confirmLabel: string;
+  tone: ConfirmTone;
+  action: () => void | Promise<void>;
+};
 
 interface RecentTxn {
   id: string;
@@ -88,6 +97,7 @@ export default function AgentDetailPage() {
   const [aepsReason, setAepsReason] = useState("");
   const [restrictReason, setRestrictReason] = useState("");
   const [recentTxns, setRecentTxns] = useState<RecentTxn[]>([]);
+  const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -137,21 +147,15 @@ export default function AgentDetailPage() {
 
   // Graded restriction instead of deactivating the account. Soft and hard leave login, balance,
   // support and settlement working — a wrongly-suspected agent stays reachable.
-  async function setRestriction(level: "none" | "soft" | "hard" | "freeze") {
+  async function applyRestriction(level: "none" | "soft" | "hard" | "freeze") {
     if (!agent) return;
     const reason = restrictReason.trim();
-    if (level !== "none" && reason.length < 8) {
-      toast.error("Select or enter a reason — at least 8 characters");
-      return;
-    }
-    if (level === "freeze" && !confirm("Freeze blocks login AND settlement. Confirmed fraud only. Continue?")) {
-      return;
-    }
     setBusy(true);
     try {
       await api.post(`/admin/users/${agent.id}/restrict`, { level, reason });
       toast.success(level === "none" ? "Restrictions lifted" : `Restriction set to ${level}`);
       setRestrictReason("");
+      setPendingConfirm(null);
       await load();
     } catch (err) {
       toast.error(
@@ -161,6 +165,27 @@ export default function AgentDetailPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function setRestriction(level: "none" | "soft" | "hard" | "freeze") {
+    if (!agent) return;
+    const reason = restrictReason.trim();
+    if (level !== "none" && reason.length < 8) {
+      toast.error("Select or enter a reason — at least 8 characters");
+      return;
+    }
+    if (level === "freeze") {
+      setPendingConfirm({
+        title: "Freeze this account?",
+        message:
+          "Freeze blocks login AND settlement. Confirmed fraud only. Continue?",
+        confirmLabel: "Freeze account",
+        tone: "warning",
+        action: () => void applyRestriction("freeze"),
+      });
+      return;
+    }
+    void applyRestriction(level);
   }
 
   // The only way out of an AePS block or dormancy. Requires KYC to be verified first — that is
@@ -544,6 +569,20 @@ export default function AgentDetailPage() {
           </div>
         ) : null}
       </div>
+
+      {pendingConfirm ? (
+        <ConfirmModal
+          title={pendingConfirm.title}
+          message={pendingConfirm.message}
+          confirmLabel={pendingConfirm.confirmLabel}
+          tone={pendingConfirm.tone}
+          busy={busy}
+          onConfirm={() => void pendingConfirm.action()}
+          onClose={() => {
+            if (!busy) setPendingConfirm(null);
+          }}
+        />
+      ) : null}
     </AdminShell>
   );
 }

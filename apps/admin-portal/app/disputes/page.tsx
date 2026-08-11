@@ -1,15 +1,26 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { AdminShell } from "@/components/layout/AdminShell";
+import { ConfirmModal, type ConfirmTone } from "@/components/ui/ConfirmModal";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
+
+type PendingConfirm = {
+  title: string;
+  message: ReactNode;
+  confirmLabel: string;
+  cancelLabel?: string;
+  tone: ConfirmTone;
+  onConfirm: () => void | Promise<void>;
+  onCancel: () => void | Promise<void>;
+};
 
 interface DisputeRow {
   id: string;
@@ -40,6 +51,7 @@ export default function DisputesPage() {
   const [rows, setRows] = useState<DisputeRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -73,17 +85,14 @@ export default function DisputesPage() {
     }
   }
 
-  async function resolve(id: string, outcome: "resolved" | "rejected") {
-    const resolutionNote = window.prompt(
-      outcome === "resolved" ? "Resolution note" : "Rejection reason",
-    );
-    if (!resolutionNote) return;
-    const refund =
-      outcome === "resolved" &&
-      window.confirm(
-        "Refund the customer? This reverses the original transaction's journal via a REVERSAL — never a fresh credit.",
-      );
+  async function executeResolve(
+    id: string,
+    outcome: "resolved" | "rejected",
+    resolutionNote: string,
+    refund: boolean,
+  ) {
     setBusyId(id);
+    setPendingConfirm(null);
     try {
       await api.post(`/admin/disputes/${id}/resolve`, { outcome, resolutionNote, refund });
       toast.success(`Dispute ${outcome}${refund ? " and refunded" : ""}`);
@@ -96,6 +105,27 @@ export default function DisputesPage() {
     } finally {
       setBusyId(null);
     }
+  }
+
+  function resolve(id: string, outcome: "resolved" | "rejected") {
+    const resolutionNote = window.prompt(
+      outcome === "resolved" ? "Resolution note" : "Rejection reason",
+    );
+    if (!resolutionNote) return;
+    if (outcome === "resolved") {
+      setPendingConfirm({
+        title: "Refund the customer?",
+        message:
+          "This reverses the original transaction's journal via a REVERSAL — never a fresh credit.",
+        confirmLabel: "Refund & resolve",
+        cancelLabel: "Resolve without refund",
+        tone: "warning",
+        onConfirm: () => void executeResolve(id, outcome, resolutionNote, true),
+        onCancel: () => void executeResolve(id, outcome, resolutionNote, false),
+      });
+      return;
+    }
+    void executeResolve(id, outcome, resolutionNote, false);
   }
 
   return (
@@ -215,6 +245,22 @@ export default function DisputesPage() {
             })}
         </div>
       </div>
+
+      {pendingConfirm ? (
+        <ConfirmModal
+          title={pendingConfirm.title}
+          message={pendingConfirm.message}
+          confirmLabel={pendingConfirm.confirmLabel}
+          cancelLabel={pendingConfirm.cancelLabel}
+          tone={pendingConfirm.tone}
+          busy={busyId !== null}
+          onConfirm={() => void pendingConfirm.onConfirm()}
+          onClose={() => {
+            if (busyId) return;
+            void pendingConfirm.onCancel();
+          }}
+        />
+      ) : null}
     </AdminShell>
   );
 }

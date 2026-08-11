@@ -1,15 +1,24 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { IndianRupee, Pencil, Plus } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
+import { ConfirmModal, type ConfirmTone } from "@/components/ui/ConfirmModal";
 import { TableActionButtons } from "@/components/ui/TableActionButtons";
 import { B } from "@/lib/brand";
 import api, { fetchApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
+
+type PendingConfirm = {
+  title: string;
+  message: ReactNode;
+  confirmLabel: string;
+  tone: ConfirmTone;
+  action: () => void | Promise<void>;
+};
 
 type SchemeRole = "retailer" | "distributor" | "super_distributor";
 type RuleType = "flat" | "percentage";
@@ -103,6 +112,8 @@ export default function ServiceChargesPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [roleFilter, setRoleFilter] = useState<"" | SchemeRole | "all">("");
   const [activeOnly, setActiveOnly] = useState(false);
+  const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
 
   useEffect(() => {
     if (hydrated && !accessToken) router.replace("/login");
@@ -219,16 +230,37 @@ export default function ServiceChargesPage() {
     }
   }
 
-  async function removeRow(row: ServiceCharge) {
-    if (!window.confirm(`Delete charge for ${row.serviceName} (${roleLabel(row.role)})?`)) return;
+  async function executeRemoveRow(row: ServiceCharge) {
+    setConfirmBusy(true);
     try {
       await api.delete(`/admin/service-charges/${row.id}`);
       toast.success("Service charge deleted");
       setRows((prev) => prev.filter((r) => r.id !== row.id));
       if (editId === row.id) cancelEdit();
+      setPendingConfirm(null);
     } catch (err) {
       toast.error(errMessage(err, "Could not delete charge"));
+    } finally {
+      setConfirmBusy(false);
     }
+  }
+
+  function removeRow(row: ServiceCharge) {
+    setPendingConfirm({
+      title: "Delete service charge?",
+      message: (
+        <>
+          Delete charge for{" "}
+          <span className="font-semibold" style={{ color: B.blue }}>
+            {row.serviceName}
+          </span>{" "}
+          ({roleLabel(row.role)})?
+        </>
+      ),
+      confirmLabel: "Delete charge",
+      tone: "danger",
+      action: () => void executeRemoveRow(row),
+    });
   }
 
   if (!hydrated || !accessToken) return null;
@@ -534,6 +566,20 @@ export default function ServiceChargesPage() {
           )}
         </div>
       </div>
+
+      {pendingConfirm ? (
+        <ConfirmModal
+          title={pendingConfirm.title}
+          message={pendingConfirm.message}
+          confirmLabel={pendingConfirm.confirmLabel}
+          tone={pendingConfirm.tone}
+          busy={confirmBusy}
+          onConfirm={() => void pendingConfirm.action()}
+          onClose={() => {
+            if (!confirmBusy) setPendingConfirm(null);
+          }}
+        />
+      ) : null}
     </AdminShell>
   );
 }
