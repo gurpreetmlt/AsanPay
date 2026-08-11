@@ -13,7 +13,6 @@ import {
   formatSettlementBankCopy,
 } from "../lib/bankLogo";
 import { showAlert } from "./AppAlert";
-import { StatusBadge } from "./StatusBadge";
 import { useTheme } from "../theme/ThemeContext";
 import { colors } from "../theme/colors";
 
@@ -109,6 +108,14 @@ export function BankDetailCard({
   const fillColors = bankCardFillColors(ifsc);
   const corners = bankCardCornerTint(ifsc);
 
+  const resolvedStatusTone = unavailable ? "pending" : statusTone;
+  const statusTagStyle =
+    resolvedStatusTone === "success"
+      ? { backgroundColor: "rgba(16, 185, 129, 0.1)", color: "#34D399", borderColor: "rgba(16, 185, 129, 0.18)" }
+      : resolvedStatusTone === "info"
+        ? { backgroundColor: "rgba(59, 130, 246, 0.08)", color: "#60A5FA", borderColor: "rgba(59, 130, 246, 0.16)" }
+        : { backgroundColor: "rgba(148, 163, 184, 0.12)", color: "#94A3B8", borderColor: "rgba(148, 163, 184, 0.2)" };
+
   function handleCopy() {
     if (onCopy) {
       onCopy();
@@ -131,9 +138,6 @@ export function BankDetailCard({
       <View style={styles.main}>
         <View style={styles.header}>
           <BankLogo ifsc={ifsc} />
-          <StatusBadge tone={unavailable ? "pending" : statusTone}>
-            {unavailable ? "Unavailable" : statusLabel}
-          </StatusBadge>
         </View>
 
         <Text style={[styles.acctLabel, { color: tokens.mute }]}>Account</Text>
@@ -149,6 +153,9 @@ export function BankDetailCard({
       </View>
 
       <View style={styles.actions}>
+        <Text style={[styles.statusTag, statusTagStyle]}>
+          {unavailable ? "Unavailable" : statusLabel}
+        </Text>
         {canReveal ? (
           <ActionBtn onPress={() => onToggleReveal?.()} disabled={revealing || unavailable}>
             {showFull ? (
@@ -245,7 +252,19 @@ const styles = StyleSheet.create({
   },
   row: { flexDirection: "row", gap: 10 },
   main: { flex: 1, minWidth: 0 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  header: { flexDirection: "row", alignItems: "center" },
+  statusTag: {
+    fontSize: 10,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    borderWidth: 1,
+    overflow: "hidden",
+    textAlign: "center",
+  },
   logo: {
     width: 44,
     height: 44,
@@ -276,7 +295,7 @@ const styles = StyleSheet.create({
   ifsc: { fontSize: 13, fontWeight: "700", marginTop: 8 },
   bankLine: { fontSize: 12, fontWeight: "500", marginTop: 4 },
   note: { fontSize: 11, fontWeight: "800", color: colors.green, marginTop: 8 },
-  actions: { justifyContent: "center", gap: 10, paddingTop: 4 },
+  actions: { alignItems: "center", justifyContent: "center", gap: 10, paddingTop: 4 },
   actionBtn: {
     width: 40,
     height: 40,

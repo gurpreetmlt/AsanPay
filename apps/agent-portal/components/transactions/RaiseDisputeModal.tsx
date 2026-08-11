@@ -52,8 +52,8 @@ export function RaiseDisputeModal({ transactionId, txnRef, onClose, onRaised }: 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
-      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-lg">
+    <div className="confirm-modal-backdrop fixed inset-0 z-50 flex items-center justify-center px-4">
+      <div className="confirm-modal-panel w-full max-w-md rounded-2xl bg-white p-6 shadow-lg">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h2 className="text-base font-semibold" style={{ color: B.blue }}>

@@ -3,7 +3,6 @@
 import { useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { Check, CircleArrowUp, Copy, Eye, EyeOff, Landmark } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { StatusBadge } from "@/components/ui/StatusBadge";
 import { B } from "@/lib/brand";
 import {
   bankBrandTint,
@@ -137,6 +136,17 @@ export function BankDetailCard({
   const corners = bankCardCornerGlows(ifsc);
   const ink = "#0F172A";
 
+  const statusTagStyle: CSSProperties = (() => {
+    const tone = unavailable ? "pending" : statusTone;
+    if (tone === "success") {
+      return { background: "rgba(16, 185, 129, 0.1)", color: "#34D399", border: "1px solid rgba(16, 185, 129, 0.18)" };
+    }
+    if (tone === "info") {
+      return { background: "rgba(59, 130, 246, 0.08)", color: "#60A5FA", border: "1px solid rgba(59, 130, 246, 0.16)" };
+    }
+    return { background: "rgba(148, 163, 184, 0.12)", color: "#94A3B8", border: "1px solid rgba(148, 163, 184, 0.2)" };
+  })();
+
   async function handleCopy(e: MouseEvent) {
     e.stopPropagation();
     if (onCopy) {
@@ -162,11 +172,8 @@ export function BankDetailCard({
   const body = (
     <div className="relative flex gap-2.5">
       <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
           <BankLogoMark ifsc={ifsc} />
-          <StatusBadge tone={unavailable ? "pending" : statusTone}>
-            {unavailable ? "Unavailable" : statusLabel}
-          </StatusBadge>
         </div>
 
         <p
@@ -203,7 +210,13 @@ export function BankDetailCard({
         ) : null}
       </div>
 
-      <div className="flex shrink-0 flex-col justify-center gap-2.5 pt-1">
+      <div className="flex shrink-0 flex-col items-center justify-center gap-2.5 pt-1">
+        <span
+          className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+          style={statusTagStyle}
+        >
+          {unavailable ? "Unavailable" : statusLabel}
+        </span>
         {canReveal ? (
           <ActionBtn
             label={showFull ? "Hide account number" : "Show account number"}

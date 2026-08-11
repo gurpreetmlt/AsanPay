@@ -902,3 +902,85 @@ body {
 .bs-alert--out {
   animation: bs-alert-out 0.2s ease-in both;
 }
+
+/* Confirm / prompt modal animations (delete popup parity) */
+@keyframes confirm-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes confirm-panel-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.88) translateY(18px);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(1.03) translateY(0);
+  }
+  70% {
+    transform: scale(0.99) translateY(0) rotate(-0.6deg);
+  }
+  85% {
+    transform: scale(1.01) translateY(0) rotate(0.5deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0) rotate(0);
+  }
+}
+
+@keyframes confirm-icon-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--confirm-accent, #dc2626) 45%, transparent);
+  }
+  50% {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 12px color-mix(in srgb, var(--confirm-accent, #dc2626) 0%, transparent);
+  }
+}
+
+@keyframes confirm-action-glow {
+  0%,
+  100% {
+    filter: brightness(1);
+    box-shadow: 0 8px 20px color-mix(in srgb, var(--confirm-accent, #dc2626) 28%, transparent);
+  }
+  50% {
+    filter: brightness(1.08);
+    box-shadow: 0 10px 28px color-mix(in srgb, var(--confirm-accent, #dc2626) 42%, transparent);
+  }
+}
+
+.confirm-modal-backdrop {
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(4px);
+  animation: confirm-backdrop-in 0.28s ease-out both;
+}
+
+.confirm-modal-panel {
+  animation: confirm-panel-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.confirm-modal-icon {
+  animation: confirm-icon-pulse 1.4s ease-in-out infinite;
+}
+
+.confirm-modal-action-btn {
+  animation: confirm-action-glow 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .confirm-modal-backdrop,
+  .confirm-modal-panel,
+  .confirm-modal-icon,
+  .confirm-modal-action-btn {
+    animation: none !important;
+  }
+}

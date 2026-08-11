@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertTriangle, X } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { B } from "@/lib/brand";
 import type { ConfirmTone } from "./ConfirmModal";
@@ -80,6 +80,8 @@ export function PromptModal({
 
   if (!mounted) return null;
 
+  const accentStyle = { "--confirm-accent": btn } as CSSProperties;
+
   return createPortal(
     <div
       className="danger-confirm-backdrop fixed inset-0 z-[200] flex items-center justify-center px-4"
@@ -94,6 +96,7 @@ export function PromptModal({
         aria-labelledby="prompt-modal-title"
         className="danger-confirm-panel w-full max-w-md overflow-hidden rounded-2xl border shadow-2xl"
         style={{
+          ...accentStyle,
           borderColor: tone === "danger" ? "var(--danger-confirm-border)" : B.border,
           background: "var(--admin-card)",
           color: "var(--admin-text)",
@@ -109,7 +112,7 @@ export function PromptModal({
         >
           <div
             className="danger-confirm-icon flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl"
-            style={tone !== "danger" ? { background: `${btn}22`, animation: "none" } : undefined}
+            style={tone !== "danger" ? { background: `${btn}22` } : undefined}
           >
             <AlertTriangle size={26} strokeWidth={2.25} style={{ color: btn }} />
           </div>
@@ -213,7 +216,7 @@ export function PromptModal({
             disabled={busy}
             onClick={submit}
             className="danger-confirm-btn rounded-xl px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60"
-            style={{ background: btn }}
+            style={{ ...accentStyle, background: btn }}
           >
             {busy ? busyLabel : confirmLabel}
           </button>

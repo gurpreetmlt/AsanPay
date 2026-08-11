@@ -40,7 +40,7 @@ export function DocumentPreviewModal({
       aria-label={title}
     >
       <div
-        className="relative max-h-[92vh] w-full max-w-4xl overflow-hidden rounded-2xl border shadow-2xl"
+        className="danger-confirm-panel relative max-h-[92vh] w-full max-w-4xl overflow-hidden rounded-2xl border shadow-2xl"
         style={{ borderColor: B.border, background: B.card }}
         onClick={(e) => e.stopPropagation()}
       >
