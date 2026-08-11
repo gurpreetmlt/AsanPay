@@ -87,6 +87,8 @@ export interface OtpMeta {
   email?: string;
   /** Settlement bank change OTP */
   userId?: string;
+  /** Pre-KYC submit mobile change — authenticated user id */
+  preKycMobileChangeUserId?: string;
 }
 
 // Login/signup OTPs. No native TTL in Postgres — rows are filtered by expiresAt on

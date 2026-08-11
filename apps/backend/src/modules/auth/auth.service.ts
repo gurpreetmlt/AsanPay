@@ -790,6 +790,161 @@ export async function changePassword(
   return getAuthMe(userId);
 }
 
+function assertAgentPreKycEditable(row: typeof users.$inferSelect): void {
+  if (!row.isActive) {
+    throw new HttpError(403, "Account is not active", "ACCOUNT_INACTIVE");
+  }
+  if (row.role === "admin") {
+    throw new HttpError(403, "Admins cannot use this endpoint", "FORBIDDEN");
+  }
+  if (row.kycStatus === "verified") {
+    throw new HttpError(
+      409,
+      "KYC is verified. Contact support to update name or mobile.",
+      "KYC_LOCKED",
+    );
+  }
+  const hasDocs = Boolean(row.panNumberEncrypted && row.aadhaarNumberEncrypted);
+  if (hasDocs && row.kycStatus !== "rejected") {
+    throw new HttpError(
+      409,
+      "KYC is already submitted. Contact support to update name or mobile.",
+      "KYC_SUBMITTED",
+    );
+  }
+}
+
+/** Update display name before KYC submit (or after reject for resubmit). */
+export async function updatePreKycProfile(
+  userId: string,
+  input: { name: string },
+): Promise<AuthUser> {
+  const [row] = await db.select().from(users).where(eq(users.id, userId));
+  if (!row) throw new HttpError(404, "User not found", "NOT_FOUND");
+  assertAgentPreKycEditable(row);
+
+  await db
+    .update(users)
+    .set({ name: input.name.trim(), updatedAt: new Date() })
+    .where(eq(users.id, userId));
+
+  await insertAuditLog({
+    userId,
+    action: "auth.pre_kyc_profile_updated",
+    entityType: "user",
+    entityId: userId,
+    ipAddress: null,
+    userAgent: null,
+    metadata: { name: input.name.trim() },
+  });
+
+  return getAuthMe(userId);
+}
+
+/** OTP to a new mobile while onboarding (pre KYC submit). */
+export async function requestPreKycMobileChangeOtp(
+  userId: string,
+  input: { mobile: string; latitude?: string; longitude?: string },
+  context: AuthContext,
+): Promise<{ message: string; otp?: string; expiresInSeconds: number }> {
+  const [row] = await db.select().from(users).where(eq(users.id, userId));
+  if (!row) throw new HttpError(404, "User not found", "NOT_FOUND");
+  assertAgentPreKycEditable(row);
+
+  if (input.mobile === row.mobile) {
+    throw new HttpError(422, "Enter a different mobile number to change", "MOBILE_UNCHANGED");
+  }
+
+  const [taken] = await db
+    .select({ id: users.id, isActive: users.isActive })
+    .from(users)
+    .where(eq(users.mobile, input.mobile));
+  if (taken?.isActive && taken.id !== userId) {
+    throw new HttpError(
+      422,
+      "This mobile number is already registered. Please log in instead.",
+      "MOBILE_TAKEN",
+    );
+  }
+
+  const otp = getTestSignupOtpOverride(input.mobile) ?? randomInt(100000, 1000000).toString();
+  await insertOtpRequest({
+    mobile: input.mobile,
+    otpHash: hashToken(otp),
+    purpose: "signup",
+    expiresAt: new Date(Date.now() + OTP_TTL_MS),
+    meta: {
+      preKycMobileChangeUserId: userId,
+      latitude: input.latitude,
+      longitude: input.longitude,
+    },
+  });
+
+  await insertAuditLog({
+    userId,
+    action: "auth.pre_kyc_mobile_otp",
+    entityType: "user",
+    entityId: userId,
+    ipAddress: context.ipAddress,
+    userAgent: context.userAgent,
+    metadata: { mobile: input.mobile },
+  });
+
+  const exposeOtp = shouldExposeOtpInResponse();
+  return {
+    message: "OTP sent to the new mobile number",
+    expiresInSeconds: OTP_TTL_MS / 1000,
+    ...(exposeOtp ? { otp } : {}),
+  };
+}
+
+export async function confirmPreKycMobileChange(
+  userId: string,
+  input: { mobile: string; otp: string },
+  context: AuthContext,
+): Promise<AuthUser> {
+  const [row] = await db.select().from(users).where(eq(users.id, userId));
+  if (!row) throw new HttpError(404, "User not found", "NOT_FOUND");
+  assertAgentPreKycEditable(row);
+
+  const record = await findLatestActiveOtp({ mobile: input.mobile, purpose: "signup" });
+  if (!record) {
+    throw new HttpError(
+      401,
+      "OTP has expired or was not requested. Please request a new OTP.",
+      "OTP_EXPIRED",
+    );
+  }
+  if (record.meta?.preKycMobileChangeUserId !== userId) {
+    throw new HttpError(401, "OTP was not requested for this account", "OTP_MISMATCH");
+  }
+  if (record.attempts >= MAX_OTP_ATTEMPTS) {
+    throw new HttpError(422, "Too many incorrect OTP attempts. Request a new OTP.", "OTP_LOCKED");
+  }
+  if (!otpHashesEqual(record.otpHash, input.otp)) {
+    await incrementOtpAttempts(record.id);
+    throw new HttpError(422, "Incorrect OTP. Check the code and try again.", "OTP_INVALID");
+  }
+  await markOtpConsumed(record.id);
+
+  await db
+    .update(users)
+    .set({ mobile: input.mobile, updatedAt: new Date() })
+    .where(eq(users.id, userId));
+
+  await insertAuditLog({
+    userId,
+    action: "auth.pre_kyc_mobile_changed",
+    entityType: "user",
+    entityId: userId,
+    ipAddress: context.ipAddress,
+    userAgent: context.userAgent,
+    metadata: { from: row.mobile, to: input.mobile },
+  });
+
+  return getAuthMe(userId);
+}
+
 export async function setEmailMarketingOptIn(
   userId: string,
   emailMarketingOptIn: boolean,

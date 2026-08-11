@@ -401,15 +401,22 @@ export default function SettingsPage() {
                         {SIGNUP_STEPS.map((step, i) => {
                           const done = i < signupStepIndex;
                           const current = i === signupStepIndex;
+                          const reachable = i <= signupStepIndex;
                           return (
-                            <li
-                              key={step.id}
-                              className="flex items-center gap-3 rounded-xl border px-3 py-2.5"
-                              style={{
-                                borderColor: current ? B.blue : B.border,
-                                background: current ? `${B.blue}08` : "#fff",
-                              }}
-                            >
+                            <li key={step.id}>
+                              <button
+                                type="button"
+                                disabled={!reachable}
+                                onClick={() =>
+                                  router.push(`/signup?from=settings&step=${i}`)
+                                }
+                                className="flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left disabled:cursor-default"
+                                style={{
+                                  borderColor: current ? B.blue : B.border,
+                                  background: current ? `${B.blue}08` : "#fff",
+                                  opacity: reachable ? 1 : 0.7,
+                                }}
+                              >
                               <span
                                 className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold"
                                 style={{
@@ -425,6 +432,7 @@ export default function SettingsPage() {
                               >
                                 {step.label}
                               </span>
+                              </button>
                             </li>
                           );
                         })}

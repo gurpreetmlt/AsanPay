@@ -114,6 +114,25 @@ export const changePasswordSchema = z.object({
 });
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 
+/** Pre-KYC-submit identity edits (name / mobile) while onboarding. */
+export const preKycProfileSchema = z.object({
+  name: z.string().trim().min(2, "Full name is required").max(120),
+});
+export type PreKycProfileInput = z.infer<typeof preKycProfileSchema>;
+
+export const preKycMobileOtpSchema = z.object({
+  mobile: z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit mobile"),
+  latitude: z.string().trim().min(1).max(32).optional(),
+  longitude: z.string().trim().min(1).max(32).optional(),
+});
+export type PreKycMobileOtpInput = z.infer<typeof preKycMobileOtpSchema>;
+
+export const preKycMobileConfirmSchema = z.object({
+  mobile: z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit mobile"),
+  otp: z.string().regex(/^\d{6}$/, "OTP must be 6 digits"),
+});
+export type PreKycMobileConfirmInput = z.infer<typeof preKycMobileConfirmSchema>;
+
 export const emailVerifyRequestSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
 });

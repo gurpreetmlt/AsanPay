@@ -10,6 +10,9 @@ import {
   mpinLogin,
   setMpin,
   changePasswordHandler,
+  updatePreKycProfileHandler,
+  requestPreKycMobileOtpHandler,
+  confirmPreKycMobileHandler,
   requestEmailOtp,
   verifyEmailOtpHandler,
   updateEmailPreferences,
@@ -48,6 +51,9 @@ authRouter.post("/mpin/login", authLimiter, mpinLogin);
 authRouter.post("/mpin/set", requireAuth, setMpin);
 
 authRouter.post("/password", requireAuth, authLimiter, changePasswordHandler);
+authRouter.patch("/profile/pre-kyc", requireAuth, authLimiter, updatePreKycProfileHandler);
+authRouter.post("/profile/pre-kyc/mobile/otp", requireAuth, otpRequestLimiter, requestPreKycMobileOtpHandler);
+authRouter.post("/profile/pre-kyc/mobile/confirm", requireAuth, authLimiter, confirmPreKycMobileHandler);
 
 authRouter.post("/email/otp/request", requireAuth, otpRequestLimiter, requestEmailOtp);
 authRouter.post("/email/otp/verify", requireAuth, authLimiter, verifyEmailOtpHandler);

@@ -17,6 +17,9 @@ import {
   mpinLoginSchema,
   setLoginMpinSchema,
   changePasswordSchema,
+  preKycProfileSchema,
+  preKycMobileOtpSchema,
+  preKycMobileConfirmSchema,
   emailVerifyRequestSchema,
   emailVerifyConfirmSchema,
   emailPreferencesSchema,
@@ -32,6 +35,9 @@ import {
   loginWithMpin,
   setLoginMpin,
   changePassword,
+  updatePreKycProfile,
+  requestPreKycMobileChangeOtp,
+  confirmPreKycMobileChange,
   setEmailMarketingOptIn,
   getAepsFavouriteBanks,
   setAepsFavouriteBanks,
@@ -146,6 +152,33 @@ export async function changePasswordHandler(req: Request, res: Response): Promis
   const input = changePasswordSchema.parse(req.body);
   const user = await changePassword(req.auth.sub, input);
   sendSuccess(res, { user }, "Password changed successfully");
+}
+
+export async function updatePreKycProfileHandler(req: Request, res: Response): Promise<void> {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const input = preKycProfileSchema.parse(req.body);
+  const user = await updatePreKycProfile(req.auth.sub, input);
+  sendSuccess(res, { user }, "Name updated");
+}
+
+export async function requestPreKycMobileOtpHandler(req: Request, res: Response): Promise<void> {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const input = preKycMobileOtpSchema.parse(req.body);
+  const result = await requestPreKycMobileChangeOtp(req.auth.sub, input, {
+    ipAddress: req.ip ?? null,
+    userAgent: req.headers["user-agent"] ?? null,
+  });
+  sendSuccess(res, result, result.message);
+}
+
+export async function confirmPreKycMobileHandler(req: Request, res: Response): Promise<void> {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const input = preKycMobileConfirmSchema.parse(req.body);
+  const user = await confirmPreKycMobileChange(req.auth.sub, input, {
+    ipAddress: req.ip ?? null,
+    userAgent: req.headers["user-agent"] ?? null,
+  });
+  sendSuccess(res, { user }, "Mobile number updated");
 }
 
 export async function requestEmailOtp(req: Request, res: Response): Promise<void> {

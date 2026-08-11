@@ -20,7 +20,7 @@ import {
 import api from "@/lib/api";
 import { formatAadhaar, stripAadhaar } from "@/lib/aadhaar";
 import { B } from "@/lib/brand";
-import { extractApiError } from "@/lib/onboarding";
+import { extractApiError, needsSignupKycCompletion } from "@/lib/onboarding";
 import { lookupIndianPincode } from "@/lib/pincode";
 import {
   IfscBankDetailsFields,
@@ -351,6 +351,7 @@ function SignupPageInner() {
       : draft.mobile.replace(/\D/g, "") || "anon";
   const hasLocation = Boolean(draft.latitude && draft.longitude);
   const loggedInContinue = Boolean(user?.id && accessToken);
+  const canEditIdentity = !loggedInContinue || needsSignupKycCompletion(user);
 
   function patch(p: Partial<SignupDraft>) {
     setDraft((d) => ({ ...d, ...p }));
@@ -402,6 +403,9 @@ function SignupPageInner() {
       }
 
       const base = existing ? { ...EMPTY_SIGNUP_DRAFT, ...existing } : { ...EMPTY_SIGNUP_DRAFT };
+      const stepQ = Number(searchParams.get("step"));
+      const requested =
+        Number.isFinite(stepQ) && stepQ >= 0 && stepQ <= 8 ? Math.floor(stepQ) : null;
       const next: SignupDraft = {
         ...base,
         mobile: phone || base.mobile.replace(/\D/g, "").slice(0, 10),
@@ -409,8 +413,8 @@ function SignupPageInner() {
         signupToken: "",
         name: base.name.trim() || user.name || "",
         role: (user.role as SignupRole) || base.role,
-        // Skip mobile OTP + account create — user is already logged in.
-        stepIndex: Math.max(base.stepIndex, 2),
+        // Logged-in resume: default PAN step, or deep-link ?step=
+        stepIndex: requested ?? Math.max(base.stepIndex, 2),
       };
       setDraft(next);
       if (phone) clearSignupDraft("anon");
@@ -1026,6 +1030,59 @@ function SignupPageInner() {
         toast.error(mobileError);
         return;
       }
+      if (loggedInContinue && canEditIdentity) {
+        const phone = draft.mobile.replace(/\D/g, "").slice(0, 10);
+        const current = (user?.mobile || "").replace(/\D/g, "").slice(0, 10);
+        if (phone === current) {
+          patch({ stepIndex: 1 });
+          return;
+        }
+        if (!otpSent) {
+          void (async () => {
+            setLoading(true);
+            try {
+              const { data } = await api.post<ApiResponse<{ otp?: string; message?: string }>>(
+                "/auth/profile/pre-kyc/mobile/otp",
+                {
+                  mobile: phone,
+                  latitude: draft.latitude || undefined,
+                  longitude: draft.longitude || undefined,
+                },
+              );
+              if (!data.success) throw new Error(data.message);
+              setOtpSent(true);
+              if (data.data?.otp) setDevOtp(data.data.otp);
+              toast.success(data.message || "OTP sent to the new mobile number");
+            } catch (err) {
+              toast.error(extractApiError(err, "Could not send OTP"));
+            } finally {
+              setLoading(false);
+            }
+          })();
+          return;
+        }
+        void (async () => {
+          setLoading(true);
+          try {
+            const { data } = await api.post<ApiResponse<{ user: AuthUser }>>(
+              "/auth/profile/pre-kyc/mobile/confirm",
+              { mobile: phone, otp },
+            );
+            if (!data.success) throw new Error(data.message);
+            if (data.data?.user) useAuthStore.getState().setUser(data.data.user);
+            setOtpSent(false);
+            setOtp("");
+            setDevOtp(null);
+            patch({ stepIndex: 1 });
+            toast.success("Mobile number updated");
+          } catch (err) {
+            toast.error(extractApiError(err, "Incorrect OTP"));
+          } finally {
+            setLoading(false);
+          }
+        })();
+        return;
+      }
       if (!otpSent) {
         void requestOtp();
         return;
@@ -1034,6 +1091,30 @@ function SignupPageInner() {
       return;
     }
     if (stepIndex === 1) {
+      if (draft.accountCreated || loggedInContinue) {
+        void (async () => {
+          if (draft.name.trim().length < 2) {
+            toast.error("Full name is required");
+            return;
+          }
+          setLoading(true);
+          try {
+            const { data } = await api.patch<ApiResponse<{ user: AuthUser }>>("/auth/profile/pre-kyc", {
+              name: draft.name.trim(),
+            });
+            if (!data.success) throw new Error(data.message);
+            if (data.data?.user) {
+              useAuthStore.getState().setUser(data.data.user);
+            }
+            patch({ stepIndex: Math.min(stepIndex + 1, 8) });
+          } catch (err) {
+            toast.error(extractApiError(err, "Could not save name"));
+          } finally {
+            setLoading(false);
+          }
+        })();
+        return;
+      }
       void completeAccount();
       return;
     }
@@ -1052,17 +1133,14 @@ function SignupPageInner() {
       return;
     }
     if (stepIndex === 0) {
+      if (loggedInContinue) {
+        router.push(searchParams.get("from") === "settings" ? "/settings?tab=profile" : "/dashboard");
+        return;
+      }
       router.push("/login");
       return;
     }
-    if (stepIndex === 2 && draft.accountCreated) {
-      toast("Account already created — continue KYC steps");
-      return;
-    }
-    if (stepIndex === 1 && draft.signupToken) {
-      toast("Mobile already verified — continue with role details");
-      return;
-    }
+    // Until KYC is submitted, allow revisiting every prior step to edit.
     patch({ stepIndex: Math.max(stepIndex - 1, 0) });
   }
 
@@ -1077,7 +1155,9 @@ function SignupPageInner() {
           ? "Verify OTP"
           : "Send OTP"
         : stepIndex === 1
-          ? "Create account"
+          ? draft.accountCreated || loggedInContinue
+            ? "Continue"
+            : "Create account"
           : stepIndex === 8
             ? "Submit"
             : "Continue";
@@ -1131,7 +1211,7 @@ function SignupPageInner() {
                   <input
                     value={draft.mobile}
                     onChange={(e) => {
-                      if (loggedInContinue) return;
+                      if (!canEditIdentity) return;
                       patch({ mobile: e.target.value.replace(/\D/g, "").slice(0, 10), signupToken: "" });
                       setOtpSent(false);
                       setOtp("");
@@ -1146,13 +1226,18 @@ function SignupPageInner() {
                     }}
                     inputMode="numeric"
                     placeholder="10-digit mobile"
-                    disabled={!hasLocation || otpSent || loggedInContinue}
-                    readOnly={loggedInContinue}
+                    disabled={!hasLocation || otpSent || !canEditIdentity}
+                    readOnly={!canEditIdentity}
                   />
                 </Field>
-                {loggedInContinue ? (
+                {loggedInContinue && canEditIdentity ? (
                   <p className="text-xs" style={{ color: B.muted }}>
-                    Signed-in mobile is locked. Continue KYC from where you left off.
+                    You can change mobile until KYC is submitted. Changing it requires OTP on the new number.
+                  </p>
+                ) : null}
+                {loggedInContinue && !canEditIdentity ? (
+                  <p className="text-xs" style={{ color: B.muted }}>
+                    Signed-in mobile is locked after KYC submit.
                   </p>
                 ) : null}
                 {mobileChecking && !mobileError ? (
@@ -1270,6 +1355,7 @@ function SignupPageInner() {
                     }
                     className={inputCls}
                     style={inputStyle}
+                    disabled={draft.accountCreated || loggedInContinue}
                   >
                     {ROLE_OPTIONS.map((r) => (
                       <option key={r.value} value={r.value}>
@@ -1287,7 +1373,7 @@ function SignupPageInner() {
                     placeholder="As per PAN"
                   />
                 </Field>
-                {needsUpline ? (
+                {needsUpline && !(draft.accountCreated || loggedInContinue) ? (
                   <Field label={`${UPLINE_LABEL[draft.role as "retailer" | "distributor"]} *`}>
                     <input
                       value={draft.sponsorMobile}
@@ -1309,6 +1395,7 @@ function SignupPageInner() {
                     ) : null}
                   </Field>
                 ) : null}
+                {draft.accountCreated || loggedInContinue ? null : (
                 <Field label="Password *">
                   <div className="relative">
                     <input
@@ -1334,6 +1421,7 @@ function SignupPageInner() {
                     Min 8 characters · include a letter and a number (e.g. Test1234)
                   </p>
                 </Field>
+                )}
               </>
             )}
 
@@ -1787,15 +1875,28 @@ function SignupPageInner() {
               </>
             )}
 
-            <PrimaryButton
-              type="button"
-              onClick={next}
-              loading={loading}
-              disabled={Boolean(mobileError) || (stepIndex === 0 && otpSent && otp.length !== 6)}
-              loopGlow={stepIndex === 0}
-            >
-              {primaryLabel}
-            </PrimaryButton>
+            <div className="flex gap-3">
+              <PrimaryButton
+                type="button"
+                variant="destructive"
+                showArrow={false}
+                onClick={back}
+                disabled={loading}
+                className="!w-auto min-w-[7.5rem] flex-1 sm:flex-none"
+              >
+                Back
+              </PrimaryButton>
+              <PrimaryButton
+                type="button"
+                onClick={next}
+                loading={loading}
+                disabled={Boolean(mobileError) || (stepIndex === 0 && otpSent && otp.length !== 6)}
+                loopGlow={stepIndex === 0}
+                className="flex-[2]"
+              >
+                {primaryLabel}
+              </PrimaryButton>
+            </div>
 
             {stepIndex === 0 ? (
               <p className="text-center text-sm" style={{ color: B.muted }}>

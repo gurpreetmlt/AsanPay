@@ -1285,6 +1285,35 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
       return;
     }
     if (stepIndex === 1) {
+      if (draft.accountCreated) {
+        void (async () => {
+          if (draft.name.trim().length < 2) {
+            showAlert("Name required", "Full name is required");
+            return;
+          }
+          setLoading(true);
+          try {
+            const { data } = await api.patch<{
+              success: boolean;
+              data?: { user: AuthUser };
+              message?: string;
+            }>("/auth/profile/pre-kyc", { name: draft.name.trim() });
+            if (data.success && data.data?.user) {
+              useAuthStore.getState().updateUser(data.data.user);
+            }
+            patch({ stepIndex: Math.min(stepIndex + 1, 8) });
+          } catch (err) {
+            showAlert(
+              "Error",
+              (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+                "Could not save name",
+            );
+          } finally {
+            setLoading(false);
+          }
+        })();
+        return;
+      }
       void completeAccount();
       return;
     }
@@ -1306,7 +1335,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
       setDevOtp("");
       return;
     }
-    if (stepIndex === 0 || (stepIndex === 2 && draft.accountCreated)) {
+    if (stepIndex === 0) {
       if (draft.accountCreated) {
         setSignupContinue(false);
         return;
@@ -1314,10 +1343,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
       onBack();
       return;
     }
-    if (stepIndex === 1 && draft.signupToken) {
-      showAlert("Mobile verified", "Continue with role details");
-      return;
-    }
+    // Until KYC is submitted, allow revisiting every prior step to edit.
     patch({ stepIndex: Math.max(stepIndex - 1, 0) });
   }
 
@@ -1338,7 +1364,9 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         ? "Verify OTP"
         : "Send OTP"
       : stepIndex === 1
-        ? "Create account"
+        ? draft.accountCreated
+          ? "Continue"
+          : "Create account"
         : stepIndex === 8
           ? "Submit application"
           : "Continue";
@@ -2044,21 +2072,31 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                 </>
               )}
 
-              <Pressable
-                onPress={next}
-                disabled={loading || Boolean(mobileError) || (stepIndex === 0 && otpSent && otp.length !== 6)}
-                style={[
-                  styles.cta,
-                  {
-                    opacity:
-                      loading || Boolean(mobileError) || (stepIndex === 0 && otpSent && otp.length !== 6)
-                        ? 0.6
-                        : 1,
-                  },
-                ]}
-              >
-                <Text style={styles.ctaText}>{primaryLabel}</Text>
-              </Pressable>
+              <View style={styles.footerRow}>
+                <Pressable
+                  onPress={back}
+                  disabled={loading}
+                  style={[styles.backCta, { opacity: loading ? 0.6 : 1 }]}
+                >
+                  <Text style={styles.backCtaText}>Back</Text>
+                </Pressable>
+                <Pressable
+                  onPress={next}
+                  disabled={loading || Boolean(mobileError) || (stepIndex === 0 && otpSent && otp.length !== 6)}
+                  style={[
+                    styles.cta,
+                    styles.ctaFlex,
+                    {
+                      opacity:
+                        loading || Boolean(mobileError) || (stepIndex === 0 && otpSent && otp.length !== 6)
+                          ? 0.6
+                          : 1,
+                    },
+                  ]}
+                >
+                  <Text style={styles.ctaText}>{primaryLabel}</Text>
+                </Pressable>
+              </View>
 
               {stepIndex === 0 ? (
                 <Pressable onPress={onBack} style={{ marginTop: 14, alignItems: "center" }}>
@@ -2392,6 +2430,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  footerRow: {
+    marginTop: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  backCta: {
+    flex: 1,
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.danger,
+  },
+  backCtaText: { color: "#fff", fontWeight: "800", fontSize: 15 },
+  ctaFlex: { flex: 2, marginTop: 0 },
   ctaGreen: { backgroundColor: colors.green },
   ctaText: { color: "#fff", fontWeight: "800", fontSize: 15 },
   devOtp: { color: colors.blueFlat, fontWeight: "700", marginBottom: 8 },
