@@ -31,6 +31,8 @@ Users must instantly know **what failed** and **how to fix it**. Never ship vagu
 | Upline missing | `Enter a valid 10-digit upline mobile` |
 | Upline not found | `Distributor / Super Distributor not found for this mobile. Use an active upline number.` |
 | Mobile already registered | `This mobile number is already registered. Please log in instead.` |
+| Mobile not registered (login) | `This mobile number is not registered. Sign up to create an account.` |
+| Account inactive | `This account is inactive. Contact support.` |
 | Location | `Allow location access before continuing` |
 | OTP wrong | `Incorrect OTP. Check the code and try again.` |
 | OTP not requested | `No OTP was requested for this number. Tap Continue to send a new OTP.` |

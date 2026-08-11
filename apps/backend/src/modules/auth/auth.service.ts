@@ -375,19 +375,43 @@ export async function loginUser(
   const [found] = await db.select().from(users).where(eq(users.mobile, input.mobile!));
   const row = found ?? null;
 
-  const passwordMatches = row ? await comparePassword(input.password, row.passwordHash) : false;
-
-  if (!row || !passwordMatches || !row.isActive) {
+  if (!row) {
     await insertAuditLog({
-      userId: row?.id ?? null,
+      userId: null,
       action: "auth.login_failed",
       entityType: "user",
-      entityId: row?.id ?? null,
+      entityId: null,
       ipAddress: context.ipAddress,
       userAgent: context.userAgent,
-      metadata: { method: "password", portal: input.portal },
+      metadata: { method: "password", portal: input.portal, reason: "mobile_not_registered" },
     });
-    throw new HttpError(401, "Invalid mobile number or password", "INVALID_CREDENTIALS");
+    throw new HttpError(
+      404,
+      "This mobile number is not registered. Sign up to create an account.",
+      "MOBILE_NOT_REGISTERED",
+    );
+  }
+
+  const passwordMatches = await comparePassword(input.password, row.passwordHash);
+
+  if (!passwordMatches || !row.isActive) {
+    await insertAuditLog({
+      userId: row.id,
+      action: "auth.login_failed",
+      entityType: "user",
+      entityId: row.id,
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent,
+      metadata: {
+        method: "password",
+        portal: input.portal,
+        reason: !row.isActive ? "inactive" : "bad_password",
+      },
+    });
+    if (!row.isActive) {
+      throw new HttpError(403, "This account is inactive. Contact support.", "ACCOUNT_INACTIVE");
+    }
+    throw new HttpError(401, "Incorrect password. Try again or use OTP login.", "INVALID_CREDENTIALS");
   }
 
   assertPortalAccess(row.role, input.portal);
@@ -453,9 +477,27 @@ export async function requestLoginOtp(
     .from(users)
     .where(eq(users.mobile, input.mobile));
 
-  // Admin / inactive: silent generic response (no OTP, no leak).
-  if (!row || !row.isActive || isAdminRole(row.role)) {
-    return { ...GENERIC_OTP_SENT };
+  // Clear product errors (not silent "OTP sent") — no OTP row is written when we reject.
+  if (!row) {
+    throw new HttpError(
+      404,
+      "This mobile number is not registered. Sign up to create an account.",
+      "MOBILE_NOT_REGISTERED",
+    );
+  }
+  if (!row.isActive) {
+    throw new HttpError(
+      403,
+      "This account is inactive. Contact support.",
+      "ACCOUNT_INACTIVE",
+    );
+  }
+  if (isAdminRole(row.role)) {
+    throw new HttpError(
+      401,
+      "This mobile cannot sign in on the agent portal. Use the admin portal.",
+      "WRONG_PORTAL",
+    );
   }
   // Role chip is checked on /otp/verify only — always issue OTP here so a wrong
   // Retailer/Distributor selection cannot leave the UI on "Verify" with no DB OTP
