@@ -30,6 +30,8 @@ interface SDStats {
     inactiveDistributors?: number;
     retailers: number;
     activeRetailers: number;
+    inactiveRetailers?: number;
+    inactiveRetailerPct?: number;
   };
   revenue: {
     todayVolume: string;
@@ -38,6 +40,7 @@ interface SDStats {
     monthCommission?: string;
   };
   distributorPerformance: { id: string; name: string; retailerCount: number; volume: string }[];
+  topDistributorsMtd?: { id: string; name: string; retailerCount: number; volume: string }[];
 }
 
 export function SuperDistributorDashboard() {
@@ -77,7 +80,11 @@ export function SuperDistributorDashboard() {
   const volChange = yestVol > 0 ? Math.round(((todayVol - yestVol) / yestVol) * 100) : 0;
   const volUp = volChange >= 0;
 
-  const inactiveRetailers = (stats?.network.retailers ?? 0) - (stats?.network.activeRetailers ?? 0);
+  const inactiveRetailers =
+    stats?.network.inactiveRetailers ??
+    (stats?.network.retailers ?? 0) - (stats?.network.activeRetailers ?? 0);
+  const inactivePct = stats?.network.inactiveRetailerPct ?? 0;
+  const topDists = stats?.topDistributorsMtd ?? stats?.distributorPerformance?.slice(0, 5) ?? [];
 
   return (
     <div className="space-y-5">
@@ -111,12 +118,74 @@ export function SuperDistributorDashboard() {
           accent={B.green}
         />
         <NetworkStatCard
-          icon={<Users size={20} />}
-          label="Active Retailers"
-          value={stats?.network.activeRetailers ?? 0}
+          icon={<AlertTriangle size={20} />}
+          label="Inactive retailers %"
+          value={loading ? "…" : `${inactivePct}%`}
           loading={loading}
-          accent="#10B981"
+          accent="#D97706"
         />
+      </div>
+
+      <div className="rounded-2xl border bg-white p-4" style={{ borderColor: B.border }}>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="text-sm font-bold" style={{ color: B.blue }}>
+              Top distributors (MTD volume)
+            </h3>
+            <p className="text-xs" style={{ color: B.muted }}>
+              This month · tap to open Network
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => router.push("/network")}
+            className="text-xs font-bold"
+            style={{ color: B.blueMid }}
+          >
+            View network →
+          </button>
+        </div>
+        {loading ? (
+          <p className="text-sm" style={{ color: B.muted }}>
+            Loading…
+          </p>
+        ) : topDists.length === 0 ? (
+          <p className="text-sm" style={{ color: B.muted }}>
+            No distributors yet
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {topDists.map((d, i) => (
+              <button
+                key={d.id}
+                type="button"
+                onClick={() => router.push("/network")}
+                className="flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left transition hover:shadow-sm"
+                style={{ borderColor: B.border }}
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <span
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold"
+                    style={{ background: B.secondary, color: B.blue }}
+                  >
+                    {i + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold" style={{ color: B.blue }}>
+                      {d.name}
+                    </p>
+                    <p className="text-[11px]" style={{ color: B.muted }}>
+                      {d.retailerCount} retailers
+                    </p>
+                  </div>
+                </div>
+                <p className="shrink-0 text-sm font-bold tabular-nums" style={{ color: B.green }}>
+                  {formatInr(d.volume)}
+                </p>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Revenue Summary */}
@@ -302,7 +371,7 @@ export function SuperDistributorDashboard() {
 }
 
 function NetworkStatCard({ icon, label, value, loading, accent }: {
-  icon: React.ReactNode; label: string; value: number; loading: boolean; accent: string;
+  icon: React.ReactNode; label: string; value: number | string; loading: boolean; accent: string;
 }) {
   return (
     <div className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>

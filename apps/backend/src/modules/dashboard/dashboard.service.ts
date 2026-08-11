@@ -1,6 +1,13 @@
-import { and, count, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, count, eq, gte, inArray, isNotNull, sql } from "drizzle-orm";
 import { db } from "../../db/postgres";
-import { users, transactions, commissionLedger, userHierarchy, wallets } from "../../db/postgres/schema";
+import {
+  users,
+  transactions,
+  commissionLedger,
+  userHierarchy,
+  wallets,
+  agentSettlementAccounts,
+} from "../../db/postgres/schema";
 import { HttpError } from "../../utils/httpError";
 import type { UserRole } from "@asanpay/shared-types";
 
@@ -72,11 +79,39 @@ async function getDistributorStats(userId: string) {
 
   // Direct retailers under this distributor
   const retailers = await db
-    .select({ id: users.id, createdAt: users.createdAt })
+    .select({ id: users.id, createdAt: users.createdAt, kycStatus: users.kycStatus })
     .from(users)
     .where(and(eq(users.parentId, userId), eq(users.role, "retailer")));
 
   const retailerIds = retailers.map((r) => r.id);
+
+  const pendingKyc = retailers.filter(
+    (r) => r.kycStatus === "pending" || r.kycStatus === "rejected",
+  ).length;
+
+  let noBank = 0;
+  let neverTxn = retailers.length;
+  if (retailerIds.length > 0) {
+    const bankRows = await db
+      .select({ userId: agentSettlementAccounts.userId })
+      .from(agentSettlementAccounts)
+      .where(
+        and(
+          inArray(agentSettlementAccounts.userId, retailerIds),
+          isNotNull(agentSettlementAccounts.verifiedAt),
+        ),
+      )
+      .groupBy(agentSettlementAccounts.userId);
+    const withBank = new Set(bankRows.map((b) => b.userId));
+    noBank = retailerIds.filter((id) => !withBank.has(id)).length;
+
+    const txnUsers = await db
+      .select({ userId: transactions.userId })
+      .from(transactions)
+      .where(and(inArray(transactions.userId, retailerIds), eq(transactions.status, "success")))
+      .groupBy(transactions.userId);
+    neverTxn = Math.max(0, retailers.length - txnUsers.length);
+  }
 
   /** Distinct retailers with ≥1 successful txn in the current calendar month. */
   let transactedThisMonth = 0;
@@ -169,6 +204,11 @@ async function getDistributorStats(userId: string) {
       active: transactedThisMonth,
       /** Zero successful txns this calendar month */
       inactive: noActivityThisMonth,
+    },
+    onboarding: {
+      pendingKyc,
+      noBank,
+      neverTxn,
     },
     today: { volume: todayVolume, commission: todayCommission },
     month: { commission: monthCommission },
@@ -298,8 +338,13 @@ async function getSuperDistributorStats(userId: string) {
     .where(and(eq(commissionLedger.beneficiaryUserId, userId), gte(commissionLedger.createdAt, monthStartSd)));
   const monthCommission = commMonth?.total ?? "0";
 
-  // Distributor performance (volume per distributor today)
-  interface DistPerf { id: string; name: string; retailerCount: number; volume: string }
+  // Distributor performance — volume this calendar month (MTD) per distributor
+  interface DistPerf {
+    id: string;
+    name: string;
+    retailerCount: number;
+    volume: string;
+  }
   let distPerformance: DistPerf[] = [];
   if (distIds.length > 0) {
     const distRetailers = await db
@@ -312,13 +357,53 @@ async function getSuperDistributorStats(userId: string) {
       distRetailers.map((r) => [r.parentId ?? "", Number(r.cnt)]),
     );
 
-    distPerformance = distributors.map((d) => ({
-      id: d.id,
-      name: d.name,
-      retailerCount: retailerCountMap[d.id] ?? 0,
-      volume: "0",
-    }));
+    const retailersUnderDist = await db
+      .select({ id: users.id, parentId: users.parentId })
+      .from(users)
+      .where(and(inArray(users.parentId, distIds), eq(users.role, "retailer")));
+
+    const volumeByDist = new Map<string, number>();
+    for (const d of distIds) volumeByDist.set(d, 0);
+
+    const retailersByDist = new Map<string, string[]>();
+    for (const r of retailersUnderDist) {
+      if (!r.parentId) continue;
+      const list = retailersByDist.get(r.parentId) ?? [];
+      list.push(r.id);
+      retailersByDist.set(r.parentId, list);
+    }
+
+    await Promise.all(
+      distIds.map(async (distId) => {
+        const rids = retailersByDist.get(distId) ?? [];
+        if (rids.length === 0) return;
+        const [vol] = await db
+          .select({ total: sql<string>`coalesce(sum(${transactions.amount}), '0')` })
+          .from(transactions)
+          .where(
+            and(
+              inArray(transactions.userId, rids),
+              eq(transactions.status, "success"),
+              gte(transactions.createdAt, monthStartSd),
+            ),
+          );
+        volumeByDist.set(distId, Number(vol?.total ?? 0));
+      }),
+    );
+
+    distPerformance = distributors
+      .map((d) => ({
+        id: d.id,
+        name: d.name,
+        retailerCount: retailerCountMap[d.id] ?? 0,
+        volume: String(volumeByDist.get(d.id) ?? 0),
+      }))
+      .sort((a, b) => Number(b.volume) - Number(a.volume));
   }
+
+  const inactiveRetailers = retailerRows.filter((r) => !r.isActive).length;
+  const inactiveRetailerPct =
+    retailerRows.length > 0 ? Math.round((inactiveRetailers / retailerRows.length) * 1000) / 10 : 0;
 
   return {
     role: "super_distributor" as const,
@@ -327,6 +412,8 @@ async function getSuperDistributorStats(userId: string) {
       inactiveDistributors: distributors.filter((d) => !d.isActive).length,
       retailers: retailerRows.length,
       activeRetailers: retailerRows.filter((r) => r.isActive).length,
+      inactiveRetailers,
+      inactiveRetailerPct,
     },
     revenue: {
       todayVolume,
@@ -335,6 +422,7 @@ async function getSuperDistributorStats(userId: string) {
       monthCommission,
     },
     distributorPerformance: distPerformance,
+    topDistributorsMtd: distPerformance.slice(0, 5),
   };
 }
 

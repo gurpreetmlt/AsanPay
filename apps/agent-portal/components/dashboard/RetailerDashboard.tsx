@@ -62,6 +62,7 @@ export function RetailerDashboard() {
   const [recent, setRecent] = useState<TxnRow[]>([]);
   const [stats, setStats] = useState<RetailerStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [hasActiveBank, setHasActiveBank] = useState(true);
   const balanceVisible = useBalanceVisibility((s) => s.visible);
 
   useEffect(() => {
@@ -87,6 +88,22 @@ export function RetailerDashboard() {
     return () => { alive = false; };
   }, []);
 
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const banks = await fetchApi<{ isActive: boolean; verified: boolean }[]>("/settlements/banks");
+        if (!alive) return;
+        setHasActiveBank(banks.some((b) => b.verified && b.isActive));
+      } catch {
+        if (alive) setHasActiveBank(true);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const orderedWallets = [...wallets].sort((a, b) => {
     if (a.walletType === "main") return -1;
     if (b.walletType === "main") return 1;
@@ -101,6 +118,14 @@ export function RetailerDashboard() {
   const kycDone = user?.kycStatus === "verified";
   const mainBal = parseFloat(primary?.balance ?? "0") || 0;
   const lowBalance = !loading && mainBal < 500;
+
+  const doNext: { id: string; label: string; href: string }[] = [];
+  if (!loading) {
+    if (!kycDone) doNext.push({ id: "kyc", label: "Complete KYC", href: "/settings?tab=profile" });
+    if (!hasActiveBank) doNext.push({ id: "bank", label: "Add settlement bank", href: "/settings?tab=banks" });
+    if (mainBal < 500) doNext.push({ id: "money", label: "Add Money", href: "/fund-request" });
+    if (user && !user.hasLoginMpin) doNext.push({ id: "mpin", label: "Set login MPIN", href: "/settings?tab=security" });
+  }
 
   function shareReceipt(t: TxnRow) {
     const lines = [
@@ -132,6 +157,30 @@ export function RetailerDashboard() {
 
   return (
     <div className="dash-page-stagger space-y-4">
+      {doNext.length > 0 ? (
+        <div
+          className="rounded-2xl border px-4 py-3"
+          style={{ borderColor: B.border, background: "#fff" }}
+        >
+          <p className="mb-2 text-xs font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+            Do next
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {doNext.map((step) => (
+              <button
+                key={step.id}
+                type="button"
+                onClick={() => router.push(step.href)}
+                className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold transition hover:opacity-90"
+                style={{ borderColor: B.border, color: B.blue, background: B.secondary }}
+              >
+                {step.label}
+                <ChevronRight size={14} />
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
       {lowBalance ? (
         <div
           className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3"

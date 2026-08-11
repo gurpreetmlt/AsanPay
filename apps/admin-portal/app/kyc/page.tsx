@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
+import { Eye } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { Badge } from "@/components/ui/Badge";
 import { TableActionButtons } from "@/components/ui/TableActionButtons";
+import { DocumentPreviewModal } from "@/components/users/DocumentPreviewModal";
 import api, { fetchApi } from "@/lib/api";
 import { B, ROLE_LABEL } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
@@ -25,6 +27,13 @@ interface KycRow {
   createdAt: string;
 }
 
+function resolvePreviewSrc(url: string) {
+  if (url.startsWith("data:")) return url;
+  if (url.startsWith("/api/proxy/")) return url;
+  if (url.startsWith("/admin/")) return `/api/proxy${url}`;
+  return url;
+}
+
 const TABS: { key: KycTab; label: string }[] = [
   { key: "pending", label: "Pending" },
   { key: "verified", label: "Verified" },
@@ -40,6 +49,8 @@ export default function KycPage() {
   const [rows, setRows] = useState<KycRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ title: string; url: string } | null>(null);
+  const [previewBusy, setPreviewBusy] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -60,6 +71,40 @@ export default function KycPage() {
     }
     void load();
   }, [hydrated, accessToken, router, load]);
+
+  async function openDocsPreview(row: KycRow) {
+    if (!row.hasKycDocs) {
+      toast.error(
+        "No KYC photo on file for this agent. Ask them to re-submit KYC with gallery/camera upload.",
+      );
+      return;
+    }
+    setPreviewBusy(row.id);
+    try {
+      const detail = await fetchApi<{
+        documents: Record<string, string>;
+      }>(`/admin/users/${row.id}`);
+      const preferred = ["personalPhoto", "aadhaarFront", "panCard", "aadhaarBack", "shopPhoto"];
+      const key = preferred.find((k) => {
+        const u = detail.documents?.[k];
+        return typeof u === "string" && u.includes("/kyc-documents/");
+      });
+      if (!key) {
+        toast.error(
+          "KYC numbers are on file but no photo to preview. Open the agent profile for details.",
+        );
+        return;
+      }
+      setPreview({
+        title: `${row.name} · ${key}`,
+        url: resolvePreviewSrc(detail.documents[key]!),
+      });
+    } catch {
+      toast.error("Failed to load KYC documents");
+    } finally {
+      setPreviewBusy(null);
+    }
+  }
 
   async function decide(id: string, decision: "verified" | "rejected") {
     const row = rows.find((r) => r.id === id);
@@ -173,7 +218,23 @@ export default function KycPage() {
                         <Badge status={r.role} />
                       </td>
                       <td className="px-4 py-3 text-xs" style={{ color: B.muted }}>
-                        {r.hasKycDocs ? "On file" : "Missing"}
+                        {r.hasKycDocs ? (
+                          <button
+                            type="button"
+                            disabled={previewBusy === r.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void openDocsPreview(r);
+                            }}
+                            className="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-bold disabled:opacity-50"
+                            style={{ borderColor: B.border, color: B.blueMid, background: "#fff" }}
+                          >
+                            <Eye size={14} />
+                            {previewBusy === r.id ? "Loading…" : "View"}
+                          </button>
+                        ) : (
+                          "Missing"
+                        )}
                       </td>
                       <td className="px-4 py-3 text-xs whitespace-nowrap" style={{ color: B.muted }}>
                         {new Date(r.updatedAt).toLocaleString("en-IN")}
@@ -267,13 +328,34 @@ export default function KycPage() {
                   )}
                 </div>
                 <p className="mt-2 text-xs" style={{ color: B.muted }}>
-                  {r.hasKycDocs ? "Docs on file" : "Missing docs"} · Updated{" "}
-                  {new Date(r.updatedAt).toLocaleString("en-IN")}
+                  {r.hasKycDocs ? (
+                    <button
+                      type="button"
+                      disabled={previewBusy === r.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void openDocsPreview(r);
+                      }}
+                      className="font-bold underline-offset-2 hover:underline"
+                      style={{ color: B.blueMid }}
+                    >
+                      {previewBusy === r.id ? "Loading docs…" : "View docs"}
+                    </button>
+                  ) : (
+                    "Missing docs"
+                  )}{" "}
+                  · Updated {new Date(r.updatedAt).toLocaleString("en-IN")}
                 </p>
               </div>
             ))}
         </div>
       </div>
+      <DocumentPreviewModal
+        open={Boolean(preview)}
+        title={preview?.title || ""}
+        url={preview?.url || ""}
+        onClose={() => setPreview(null)}
+      />
     </AdminShell>
   );
 }

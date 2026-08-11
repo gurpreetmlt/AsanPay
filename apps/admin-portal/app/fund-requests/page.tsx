@@ -50,6 +50,16 @@ function formatInr(amount: string) {
   return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 }
 
+/** Open queue aging: 24h+ amber, 48h+ red. */
+function fundAging(submittedAt: string): { label: string; bg: string; color: string } | null {
+  const hours = (Date.now() - new Date(submittedAt).getTime()) / 3_600_000;
+  if (!Number.isFinite(hours) || hours < 24) return null;
+  if (hours >= 48) {
+    return { label: `Aging ${Math.floor(hours)}h`, bg: "#FEE2E2", color: "#991B1B" };
+  }
+  return { label: `Aging ${Math.floor(hours)}h`, bg: "#FEF3C7", color: "#92400E" };
+}
+
 export default function FundRequestsPage() {
   const router = useRouter();
   const hydrated = useAuthHydrated();
@@ -257,6 +267,20 @@ export default function FundRequestsPage() {
                           {r.status}
                         </span>
                         <div style={{ color: B.muted }}>{r.displayStatus}</div>
+                        {tab === "open"
+                          ? (() => {
+                              const age = fundAging(r.submittedAt);
+                              if (!age) return null;
+                              return (
+                                <span
+                                  className="mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold"
+                                  style={{ background: age.bg, color: age.color }}
+                                >
+                                  {age.label}
+                                </span>
+                              );
+                            })()
+                          : null}
                       </td>
                       <td className="px-4 py-3 text-xs whitespace-nowrap" style={{ color: B.muted }}>
                         {new Date(r.submittedAt).toLocaleString("en-IN")}

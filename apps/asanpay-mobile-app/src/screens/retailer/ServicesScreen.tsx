@@ -82,15 +82,19 @@ export function ServicesScreen() {
     setHomeEditMode(false);
   }, []);
 
+  const [hasActiveBank, setHasActiveBank] = useState(true);
+
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     try {
-      const [cat, wal] = await Promise.all([
+      const [cat, wal, banks] = await Promise.all([
         fetchApi<CatalogCategoryView[]>("/catalog"),
         fetchApi<WalletBalance[]>("/wallet/me"),
+        fetchApi<{ isActive: boolean; verified: boolean }[]>("/settlements/banks").catch(() => []),
       ]);
       setCategories(cat);
       setWallets(wal);
+      setHasActiveBank(banks.some((b) => b.verified && b.isActive));
     } catch {
       /* silent — pull to retry */
     } finally {
@@ -148,6 +152,37 @@ export function ServicesScreen() {
     .map((p) => p[0]?.toUpperCase() ?? "")
     .join("");
   const firstName = user.name.split(" ")[0] ?? user.name;
+  const mainBal = parseFloat(wallets.find((w) => w.walletType === "main")?.balance ?? "0") || 0;
+  const doNext: { id: string; label: string; onPress: () => void }[] = [];
+  if (!loading) {
+    if (user.kycStatus !== "verified") {
+      doNext.push({
+        id: "kyc",
+        label: "Complete KYC",
+        onPress: () => {
+          if (needsSignupKycCompletion(user) || user.kycStatus === "rejected") setSignupContinue(true);
+          else navigation.navigate("Account");
+        },
+      });
+    }
+    if (!hasActiveBank) {
+      doNext.push({
+        id: "bank",
+        label: "Add bank",
+        onPress: () => navigation.navigate("Account"),
+      });
+    }
+    if (mainBal < 500) {
+      doNext.push({ id: "money", label: "Add Money", onPress: () => setShowFund(true) });
+    }
+    if (!user.hasLoginMpin) {
+      doNext.push({
+        id: "mpin",
+        label: "Set MPIN",
+        onPress: () => navigation.navigate("Account"),
+      });
+    }
+  }
 
   return (
     <PageEnter>
@@ -186,6 +221,23 @@ export function ServicesScreen() {
           onReports={() => navigation.navigate("History")}
         />
       </ScreenHeader>
+
+      {doNext.length > 0 ? (
+        <View style={[styles.doNextWrap, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
+          <Text style={[styles.doNextTitle, { color: tokens.mute }]}>Do next</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+            {doNext.map((step) => (
+              <Pressable
+                key={step.id}
+                onPress={step.onPress}
+                style={[styles.doNextChip, { borderColor: tokens.cardBorder, backgroundColor: tokens.bg }]}
+              >
+                <Text style={[styles.doNextChipText, { color: colors.blueFlat }]}>{step.label}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      ) : null}
 
       {user.kycStatus !== "verified" ? (
         <Pressable
@@ -398,6 +450,28 @@ const styles = StyleSheet.create({
   },
   kycBannerTitle: { fontSize: 13, fontWeight: "800" },
   kycBannerBody: { fontSize: 11, marginTop: 2, lineHeight: 15 },
+  doNextWrap: {
+    marginHorizontal: 16,
+    marginTop: 10,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  doNextTitle: {
+    fontSize: 10,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    marginBottom: 8,
+  },
+  doNextChip: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  doNextChipText: { fontSize: 12, fontWeight: "800" },
   headerIconRow: { flexDirection: "row", gap: 9, marginTop: 2 },
   headerIconBtn: {
     width: 38,

@@ -32,6 +32,7 @@ interface ActivityMonth {
 interface DistributorStats {
   role: "distributor";
   retailers: { total: number; active: number; inactive: number };
+  onboarding?: { pendingKyc: number; noBank: number; neverTxn: number };
   today: { volume: string; commission: string };
   month?: { commission: string };
   topRetailers: { id: string; name: string; volume: string }[];
@@ -234,6 +235,37 @@ export function DistributorDashboard() {
         </div>
       </div>
 
+      {!loading &&
+      ((stats?.onboarding?.pendingKyc ?? 0) > 0 ||
+        (stats?.onboarding?.noBank ?? 0) > 0 ||
+        (stats?.onboarding?.neverTxn ?? 0) > 0) ? (
+        <div className="rounded-2xl border bg-white p-4" style={{ borderColor: B.border }}>
+          <h3 className="mb-1 text-sm font-bold" style={{ color: B.blue }}>
+            Retailer onboarding
+          </h3>
+          <p className="mb-3 text-xs" style={{ color: B.muted }}>
+            Counts that need your follow-up. Open Network to act.
+          </p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <FunnelChip
+              label="Pending KYC"
+              count={stats?.onboarding?.pendingKyc ?? 0}
+              onClick={() => router.push("/network")}
+            />
+            <FunnelChip
+              label="No verified bank"
+              count={stats?.onboarding?.noBank ?? 0}
+              onClick={() => router.push("/network")}
+            />
+            <FunnelChip
+              label="Never transacted"
+              count={stats?.onboarding?.neverTxn ?? 0}
+              onClick={() => router.push("/network")}
+            />
+          </div>
+        </div>
+      ) : null}
+
       <div className="rounded-2xl border bg-white p-4" style={{ borderColor: B.border }}>
         <h3 className="mb-3 text-sm font-bold" style={{ color: B.blue }}>
           Quick Actions
@@ -357,6 +389,36 @@ function StatChip({
         {value}
       </div>
     </div>
+  );
+}
+
+function FunnelChip({
+  label,
+  count,
+  onClick,
+}: {
+  label: string;
+  count: number;
+  onClick: () => void;
+}) {
+  const hot = count > 0;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-xl border px-3 py-3 text-left transition hover:shadow-sm"
+      style={{
+        borderColor: hot ? "#FDBA74" : B.border,
+        background: hot ? "#FFF7ED" : B.secondary,
+      }}
+    >
+      <div className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: B.muted }}>
+        {label}
+      </div>
+      <div className="mt-0.5 text-xl font-bold tabular-nums" style={{ color: hot ? "#C2410C" : B.blue }}>
+        {count}
+      </div>
+    </button>
   );
 }
 
