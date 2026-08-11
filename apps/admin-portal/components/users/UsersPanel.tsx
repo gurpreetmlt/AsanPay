@@ -8,6 +8,7 @@ import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { Badge } from "@/components/ui/Badge";
 import { ConfirmModal, type ConfirmTone } from "@/components/ui/ConfirmModal";
+import { PromptModal } from "@/components/ui/PromptModal";
 import { ActionIconButton, TableActionButtons } from "@/components/ui/TableActionButtons";
 import { NetworkTreeView } from "@/components/users/NetworkTreeView";
 import { MoveAgentModal } from "@/components/users/MoveAgentModal";
@@ -19,6 +20,17 @@ type PendingConfirm = {
   confirmLabel: string;
   tone: ConfirmTone;
   action: () => void | Promise<void>;
+};
+
+type PendingPrompt = {
+  title: string;
+  message?: ReactNode;
+  label?: string;
+  placeholder?: string;
+  minLength?: number;
+  multiline?: boolean;
+  tone?: ConfirmTone;
+  onConfirm: (value: string) => void;
 };
 
 export type RoleFilter = "" | "super_distributor" | "distributor" | "retailer";
@@ -76,6 +88,7 @@ export function UsersPanel({ lockedRole = "" }: Props) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
+  const [pendingPrompt, setPendingPrompt] = useState<PendingPrompt | null>(null);
   const rowDeleteEnabled = useDevOptionsStore((s) => s.rowDeleteEnabled);
 
   useEffect(() => {
@@ -111,17 +124,9 @@ export function UsersPanel({ lockedRole = "" }: Props) {
   // Routes through the graded restriction endpoint rather than users.isActive directly — a
   // straight deactivate also kills login, which is the one lever spec §6.4 says to hold back
   // for confirmed fraud. "Ban" here means freeze; unban lifts every restriction level.
-  async function toggleActive(u: AdminUser) {
-    let reason = "";
-    if (!u.isFrozen) {
-      const input = window.prompt("Reason for freezing this account (min 8 characters)");
-      if (!input || input.trim().length < 8) {
-        if (input !== null) toast.error("A reason of at least 8 characters is required");
-        return;
-      }
-      reason = input.trim();
-    }
+  async function executeToggleActive(u: AdminUser, reason: string) {
     setToggling(u.id);
+    setPendingPrompt(null);
     try {
       await api.post(`/admin/users/${u.id}/restrict`, {
         level: u.isFrozen ? "none" : "freeze",
@@ -136,6 +141,23 @@ export function UsersPanel({ lockedRole = "" }: Props) {
     } finally {
       setToggling(null);
     }
+  }
+
+  function toggleActive(u: AdminUser) {
+    if (!u.isFrozen) {
+      setPendingPrompt({
+        title: "Freeze account?",
+        message: "This blocks login until restrictions are lifted.",
+        label: "Freeze reason",
+        placeholder: "Why is this account being frozen?",
+        minLength: 8,
+        multiline: true,
+        tone: "danger",
+        onConfirm: (value) => void executeToggleActive(u, value),
+      });
+      return;
+    }
+    void executeToggleActive(u, "");
   }
 
   async function executeDeleteUser(u: AdminUser) {
@@ -624,6 +646,24 @@ export function UsersPanel({ lockedRole = "" }: Props) {
           onConfirm={() => void pendingConfirm.action()}
           onClose={() => {
             if (!deletingId && !bulkDeleting) setPendingConfirm(null);
+          }}
+        />
+      ) : null}
+
+      {pendingPrompt ? (
+        <PromptModal
+          title={pendingPrompt.title}
+          message={pendingPrompt.message}
+          label={pendingPrompt.label}
+          placeholder={pendingPrompt.placeholder}
+          minLength={pendingPrompt.minLength}
+          multiline={pendingPrompt.multiline}
+          tone={pendingPrompt.tone}
+          busy={toggling !== null}
+          confirmLabel="Freeze"
+          onConfirm={(v) => pendingPrompt.onConfirm(v)}
+          onClose={() => {
+            if (!toggling) setPendingPrompt(null);
           }}
         />
       ) : null}

@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "react-hot-toast";
 import { Fingerprint, Plus, X, AlertTriangle } from "lucide-react";
 import { B } from "@/lib/brand";
 import api, { fetchApi } from "@/lib/api";
 import { extractApiError } from "@/lib/onboarding";
+import { PromptModal } from "@/components/ui/PromptModal";
+import type { ConfirmTone } from "@/components/ui/ConfirmModal";
 
 interface DeviceRow {
   id: string;
@@ -15,6 +17,18 @@ interface DeviceRow {
   rdLicenseExpiry: string | null;
   registeredAt: string;
 }
+
+type PendingPrompt = {
+  title: string;
+  message?: ReactNode;
+  label?: string;
+  placeholder?: string;
+  minLength?: number;
+  multiline?: boolean;
+  tone?: ConfirmTone;
+  confirmLabel?: string;
+  onConfirm: (value: string) => void;
+};
 
 const MAX_DEVICES = 3; // mirrors backend MAX_AGENT_DEVICES default; server is the source of truth
 const VENDORS = ["Mantra", "Morpho", "Startek", "Other"] as const;
@@ -41,6 +55,7 @@ export function BiometricDevices() {
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [remarks, setRemarks] = useState("");
   const [busy, setBusy] = useState(false);
+  const [pendingPrompt, setPendingPrompt] = useState<PendingPrompt | null>(null);
 
   async function load() {
     try {
@@ -99,10 +114,9 @@ export function BiometricDevices() {
     }
   }
 
-  async function deregister(id: string) {
-    const reason = window.prompt("Why are you removing this device? (e.g. replaced, lost)");
-    if (reason === null) return;
+  async function executeDeregister(id: string, reason: string) {
     setBusy(true);
+    setPendingPrompt(null);
     try {
       await api.delete(`/devices/${id}`, { data: { reason } });
       toast.success("Device de-registered");
@@ -112,6 +126,20 @@ export function BiometricDevices() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function deregister(id: string) {
+    setPendingPrompt({
+      title: "Remove biometric device?",
+      message: "Tell us why you are removing this device.",
+      label: "Removal reason",
+      placeholder: "e.g. replaced, lost, sold",
+      minLength: 1,
+      multiline: true,
+      tone: "danger",
+      confirmLabel: "De-register",
+      onConfirm: (value) => void executeDeregister(id, value),
+    });
   }
 
   function resetForm() {
@@ -343,6 +371,24 @@ export function BiometricDevices() {
           )}
         </div>
       )}
+
+      {pendingPrompt ? (
+        <PromptModal
+          title={pendingPrompt.title}
+          message={pendingPrompt.message}
+          label={pendingPrompt.label}
+          placeholder={pendingPrompt.placeholder}
+          minLength={pendingPrompt.minLength}
+          multiline={pendingPrompt.multiline}
+          tone={pendingPrompt.tone}
+          confirmLabel={pendingPrompt.confirmLabel}
+          busy={busy}
+          onConfirm={(v) => pendingPrompt.onConfirm(v)}
+          onClose={() => {
+            if (!busy) setPendingPrompt(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

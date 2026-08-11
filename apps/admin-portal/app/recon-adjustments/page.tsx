@@ -6,6 +6,7 @@ import { toast } from "react-hot-toast";
 import { Scale, Check, X } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { ConfirmModal, type ConfirmTone } from "@/components/ui/ConfirmModal";
+import { PromptModal } from "@/components/ui/PromptModal";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
@@ -17,6 +18,18 @@ type PendingConfirm = {
   confirmLabel: string;
   tone: ConfirmTone;
   action: () => void | Promise<void>;
+};
+
+type PendingPrompt = {
+  title: string;
+  message?: ReactNode;
+  label?: string;
+  placeholder?: string;
+  minLength?: number;
+  multiline?: boolean;
+  tone?: ConfirmTone;
+  confirmLabel?: string;
+  onConfirm: (value: string) => void;
 };
 
 type AdjStatus = "requested" | "approved" | "rejected";
@@ -84,6 +97,7 @@ export default function ReconAdjustmentsPage() {
   const [statusFilter, setStatusFilter] = useState<"" | AdjStatus>("requested");
   const [decidingId, setDecidingId] = useState<string | null>(null);
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
+  const [pendingPrompt, setPendingPrompt] = useState<PendingPrompt | null>(null);
 
   useEffect(() => {
     if (hydrated && !accessToken) router.replace("/login");
@@ -184,20 +198,11 @@ export default function ReconAdjustmentsPage() {
     });
   }
 
-  async function reject(row: ReconAdjustment) {
-    if (me?.id && row.requestedBy === me.id) {
-      toast.error("You cannot reject your own adjustment");
-      return;
-    }
-    const note = window.prompt("Rejection note (required):");
-    if (note == null) return;
-    if (note.trim().length < 3) {
-      toast.error("Rejection note must be at least 3 characters");
-      return;
-    }
+  async function executeReject(row: ReconAdjustment, note: string) {
     setDecidingId(row.id);
+    setPendingPrompt(null);
     try {
-      await api.post(`/admin/recon-adjustments/${row.id}/reject`, { note: note.trim() });
+      await api.post(`/admin/recon-adjustments/${row.id}/reject`, { note });
       toast.success("Adjustment rejected");
       await load();
     } catch (err) {
@@ -205,6 +210,24 @@ export default function ReconAdjustmentsPage() {
     } finally {
       setDecidingId(null);
     }
+  }
+
+  function reject(row: ReconAdjustment) {
+    if (me?.id && row.requestedBy === me.id) {
+      toast.error("You cannot reject your own adjustment");
+      return;
+    }
+    setPendingPrompt({
+      title: "Reject recon adjustment?",
+      message: "A rejection note is required for the maker.",
+      label: "Rejection note",
+      placeholder: "Why is this adjustment being rejected?",
+      minLength: 3,
+      multiline: true,
+      tone: "danger",
+      confirmLabel: "Reject",
+      onConfirm: (value) => void executeReject(row, value),
+    });
   }
 
   if (!hydrated || !accessToken) return null;
@@ -489,6 +512,24 @@ export default function ReconAdjustmentsPage() {
           onConfirm={() => void pendingConfirm.action()}
           onClose={() => {
             if (!decidingId) setPendingConfirm(null);
+          }}
+        />
+      ) : null}
+
+      {pendingPrompt ? (
+        <PromptModal
+          title={pendingPrompt.title}
+          message={pendingPrompt.message}
+          label={pendingPrompt.label}
+          placeholder={pendingPrompt.placeholder}
+          minLength={pendingPrompt.minLength}
+          multiline={pendingPrompt.multiline}
+          tone={pendingPrompt.tone}
+          confirmLabel={pendingPrompt.confirmLabel}
+          busy={decidingId !== null}
+          onConfirm={(v) => pendingPrompt.onConfirm(v)}
+          onClose={() => {
+            if (!decidingId) setPendingPrompt(null);
           }}
         />
       ) : null}

@@ -7,6 +7,7 @@ import { AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { ConfirmModal, type ConfirmTone } from "@/components/ui/ConfirmModal";
+import { PromptModal } from "@/components/ui/PromptModal";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
@@ -20,6 +21,18 @@ type PendingConfirm = {
   tone: ConfirmTone;
   onConfirm: () => void | Promise<void>;
   onCancel: () => void | Promise<void>;
+};
+
+type PendingPrompt = {
+  title: string;
+  message?: ReactNode;
+  label?: string;
+  placeholder?: string;
+  minLength?: number;
+  multiline?: boolean;
+  tone?: ConfirmTone;
+  confirmLabel?: string;
+  onConfirm: (value: string) => void;
 };
 
 interface DisputeRow {
@@ -52,6 +65,7 @@ export default function DisputesPage() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
+  const [pendingPrompt, setPendingPrompt] = useState<PendingPrompt | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -108,24 +122,36 @@ export default function DisputesPage() {
   }
 
   function resolve(id: string, outcome: "resolved" | "rejected") {
-    const resolutionNote = window.prompt(
-      outcome === "resolved" ? "Resolution note" : "Rejection reason",
-    );
-    if (!resolutionNote) return;
-    if (outcome === "resolved") {
-      setPendingConfirm({
-        title: "Refund the customer?",
-        message:
-          "This reverses the original transaction's journal via a REVERSAL — never a fresh credit.",
-        confirmLabel: "Refund & resolve",
-        cancelLabel: "Resolve without refund",
-        tone: "warning",
-        onConfirm: () => void executeResolve(id, outcome, resolutionNote, true),
-        onCancel: () => void executeResolve(id, outcome, resolutionNote, false),
-      });
-      return;
-    }
-    void executeResolve(id, outcome, resolutionNote, false);
+    setPendingPrompt({
+      title: outcome === "resolved" ? "Resolve dispute" : "Reject dispute",
+      message:
+        outcome === "resolved"
+          ? "Add a short resolution note for the record."
+          : "Explain why this dispute is being rejected.",
+      label: outcome === "resolved" ? "Resolution note" : "Rejection reason",
+      placeholder: outcome === "resolved" ? "Describe the resolution…" : "Describe the rejection reason…",
+      minLength: 1,
+      multiline: true,
+      tone: outcome === "resolved" ? "info" : "danger",
+      confirmLabel: outcome === "resolved" ? "Continue" : "Reject",
+      onConfirm: (resolutionNote) => {
+        setPendingPrompt(null);
+        if (outcome === "resolved") {
+          setPendingConfirm({
+            title: "Refund the customer?",
+            message:
+              "This reverses the original transaction's journal via a REVERSAL — never a fresh credit.",
+            confirmLabel: "Refund & resolve",
+            cancelLabel: "Resolve without refund",
+            tone: "warning",
+            onConfirm: () => void executeResolve(id, outcome, resolutionNote, true),
+            onCancel: () => void executeResolve(id, outcome, resolutionNote, false),
+          });
+          return;
+        }
+        void executeResolve(id, outcome, resolutionNote, false);
+      },
+    });
   }
 
   return (
@@ -258,6 +284,24 @@ export default function DisputesPage() {
           onClose={() => {
             if (busyId) return;
             void pendingConfirm.onCancel();
+          }}
+        />
+      ) : null}
+
+      {pendingPrompt ? (
+        <PromptModal
+          title={pendingPrompt.title}
+          message={pendingPrompt.message}
+          label={pendingPrompt.label}
+          placeholder={pendingPrompt.placeholder}
+          minLength={pendingPrompt.minLength}
+          multiline={pendingPrompt.multiline}
+          tone={pendingPrompt.tone}
+          confirmLabel={pendingPrompt.confirmLabel}
+          busy={busyId !== null}
+          onConfirm={(v) => pendingPrompt.onConfirm(v)}
+          onClose={() => {
+            if (!busyId) setPendingPrompt(null);
           }}
         />
       ) : null}
