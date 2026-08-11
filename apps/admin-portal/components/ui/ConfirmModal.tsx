@@ -1,7 +1,8 @@
 "use client";
 
 import { AlertTriangle, X } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { B } from "@/lib/brand";
 
 export type ConfirmTone = "danger" | "warning" | "info";
@@ -31,8 +32,8 @@ const TONE_ICON: Record<ConfirmTone, string> = {
 };
 
 /**
- * Animated confirm popup — replaces window.confirm / alert on admin web.
- * Supports danger (delete), warning (freeze), info (approve/send).
+ * Animated confirm popup — replaces window.confirm on admin web.
+ * Portaled to document.body so AdminShell page-transform does not trap `position: fixed`.
  */
 export function ConfirmModal({
   title,
@@ -47,10 +48,22 @@ export function ConfirmModal({
 }: ConfirmModalProps) {
   const btn = TONE_BTN[tone];
   const icon = TONE_ICON[tone];
+  const [mounted, setMounted] = useState(false);
 
-  return (
+  useEffect(() => {
+    setMounted(true);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
+  if (!mounted) return null;
+
+  return createPortal(
     <div
-      className="danger-confirm-backdrop fixed inset-0 z-[60] flex items-center justify-center px-4"
+      className="danger-confirm-backdrop fixed inset-0 z-[200] flex items-center justify-center px-4"
       role="presentation"
       onClick={() => {
         if (!busy) onClose();
@@ -64,6 +77,7 @@ export function ConfirmModal({
         style={{
           borderColor: tone === "danger" ? "var(--danger-confirm-border)" : B.border,
           background: "var(--admin-card)",
+          color: "var(--admin-text)",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -71,18 +85,12 @@ export function ConfirmModal({
           className="relative flex items-start gap-3 px-5 pb-3 pt-5"
           style={{
             background:
-              tone === "danger"
-                ? "var(--danger-confirm-header-bg)"
-                : "var(--admin-secondary)",
+              tone === "danger" ? "var(--danger-confirm-header-bg)" : "var(--admin-secondary)",
           }}
         >
           <div
             className="danger-confirm-icon flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl"
-            style={
-              tone !== "danger"
-                ? { background: `${icon}22`, animation: "none" }
-                : undefined
-            }
+            style={tone !== "danger" ? { background: `${icon}22`, animation: "none" } : undefined}
           >
             <AlertTriangle size={26} strokeWidth={2.25} style={{ color: icon }} />
           </div>
@@ -138,7 +146,8 @@ export function ConfirmModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

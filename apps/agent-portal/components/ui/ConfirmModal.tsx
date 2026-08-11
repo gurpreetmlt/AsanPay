@@ -1,7 +1,8 @@
 "use client";
 
 import { AlertTriangle, X } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { B } from "@/lib/brand";
 
 export type ConfirmTone = "danger" | "warning" | "info";
@@ -24,9 +25,7 @@ const TONE_BTN: Record<ConfirmTone, string> = {
   info: "#2A5CDD",
 };
 
-/**
- * Animated confirm popup — replaces window.confirm on agent web.
- */
+/** Animated confirm — portaled to body so page transforms do not trap fixed layout. */
 export function ConfirmModal({
   title,
   message,
@@ -39,10 +38,22 @@ export function ConfirmModal({
   onClose,
 }: ConfirmModalProps) {
   const btn = TONE_BTN[tone];
+  const [mounted, setMounted] = useState(false);
 
-  return (
+  useEffect(() => {
+    setMounted(true);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
+  if (!mounted) return null;
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center px-4"
+      className="fixed inset-0 z-[200] flex items-center justify-center px-4"
       style={{ background: "rgba(15, 23, 42, 0.55)", backdropFilter: "blur(4px)" }}
       role="presentation"
       onClick={() => {
@@ -61,9 +72,7 @@ export function ConfirmModal({
           className="relative flex items-start gap-3 px-5 pb-3 pt-5"
           style={{
             background:
-              tone === "danger"
-                ? "linear-gradient(180deg, #FEF2F2 0%, #FFFFFF 100%)"
-                : B.secondary,
+              tone === "danger" ? "linear-gradient(180deg, #FEF2F2 0%, #FFFFFF 100%)" : B.secondary,
           }}
         >
           <div
@@ -124,6 +133,7 @@ export function ConfirmModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
