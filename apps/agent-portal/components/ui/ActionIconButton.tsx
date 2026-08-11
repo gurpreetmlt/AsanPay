@@ -34,9 +34,9 @@ export function ActionIconButton({
   return (
     <button
       type="button"
-      title={title}
       aria-label={title}
-      className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition hover:scale-110 hover:brightness-[0.98] active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100 ${className}`}
+      data-tooltip={title}
+      className={`icon-tooltip inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition hover:scale-110 hover:brightness-[0.98] active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100 ${className}`}
       style={{
         borderColor: B.border,
         background: "#ffffff",

@@ -903,6 +903,50 @@ body {
   animation: bs-alert-out 0.2s ease-in both;
 }
 
+/* Icon-only control tooltips */
+.icon-tooltip {
+  position: relative;
+}
+.icon-tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  z-index: 80;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%) translateY(4px);
+  padding: 5px 9px;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.22);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+.icon-tooltip[data-tooltip-side="bottom"]::after {
+  bottom: auto;
+  top: calc(100% + 8px);
+  transform: translateX(-50%) translateY(-4px);
+}
+.icon-tooltip:hover::after,
+.icon-tooltip:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.icon-tooltip[data-tooltip-side="bottom"]:hover::after,
+.icon-tooltip[data-tooltip-side="bottom"]:focus-visible::after {
+  transform: translateX(-50%) translateY(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .icon-tooltip::after {
+    transition: none;
+  }
+}
+
 /* Confirm / prompt modal animations (delete popup parity) */
 @keyframes confirm-backdrop-in {
   from {

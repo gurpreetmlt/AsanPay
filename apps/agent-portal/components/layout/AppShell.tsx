@@ -496,10 +496,10 @@ function HeaderWalletBalances({
       <button
         type="button"
         onClick={toggleBalance}
-        className="flex h-9 w-9 items-center justify-center rounded-2xl"
+        className="icon-tooltip flex h-9 w-9 items-center justify-center rounded-2xl"
         style={{ background: B.bg, color: B.blue }}
         aria-label={balanceVisible ? "Hide balances" : "Show balances"}
-        title={balanceVisible ? "Hide balances" : "Show balances"}
+        data-tooltip={balanceVisible ? "Hide balances" : "Show balances"}
       >
         {balanceVisible ? <EyeOff size={15} /> : <Eye size={15} />}
       </button>
@@ -507,9 +507,10 @@ function HeaderWalletBalances({
         type="button"
         onClick={onRefresh}
         disabled={loading}
-        className="flex h-9 w-9 items-center justify-center rounded-2xl disabled:opacity-50"
+        className="icon-tooltip flex h-9 w-9 items-center justify-center rounded-2xl disabled:opacity-50"
         style={{ background: B.bg, color: B.green }}
         aria-label="Refresh balances"
+        data-tooltip="Refresh balances"
       >
         <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
       </button>
@@ -589,6 +590,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             type="button"
             className="absolute inset-0 bg-black/50"
             aria-label="Close menu"
+            data-tooltip="Close menu"
             onClick={() => setDrawer(false)}
           />
           <aside
@@ -616,9 +618,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           <button
             type="button"
             onClick={() => setDrawer(true)}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl md:hidden"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl md:hidden icon-tooltip"
             style={{ background: B.bg, color: B.muted }}
             aria-label="Open menu"
+            data-tooltip="Open menu"
           >
             <Menu size={18} />
           </button>

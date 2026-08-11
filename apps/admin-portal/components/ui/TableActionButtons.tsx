@@ -41,9 +41,9 @@ export function ActionIconButton({
   return (
     <button
       type="button"
-      title={title}
       aria-label={title}
-      className={cn(shell, TONE[tone], className)}
+      data-tooltip={title}
+      className={cn("icon-tooltip", shell, TONE[tone], className)}
       style={shellStyle}
       {...rest}
     >
@@ -89,9 +89,9 @@ export function TableActionButtons({
       {viewHref ? (
         <Link
           href={viewHref}
-          title="Details"
           aria-label="Details"
-          className={cn(shell, TONE.blue)}
+          data-tooltip="Details"
+          className={cn("icon-tooltip", shell, TONE.blue)}
           style={shellStyle}
         >
           <Eye className="h-4 w-4" strokeWidth={2.25} />

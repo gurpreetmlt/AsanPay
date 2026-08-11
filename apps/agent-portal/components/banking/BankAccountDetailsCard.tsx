@@ -66,8 +66,8 @@ function ActionBtn({
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
-      title={label}
-      className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white transition-transform hover:scale-[1.03] active:scale-[0.98]"
+      data-tooltip={label}
+      className="icon-tooltip inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white transition-transform hover:scale-[1.03] active:scale-[0.98]"
       style={{
         color: B.blueLight,
         boxShadow: "0 2px 10px rgba(11,42,154,0.12)",
@@ -249,13 +249,13 @@ export function BankDetailCard({
         ) : null}
         {selected && onSelect ? (
           <span
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl"
+            className="icon-tooltip inline-flex h-10 w-10 items-center justify-center rounded-xl"
             style={{
               background: tint,
               boxShadow: "0 2px 10px rgba(11,42,154,0.12)",
             }}
             aria-label="Selected"
-            title="Selected"
+            data-tooltip="Selected"
           >
             <Check size={17} strokeWidth={2.5} color="#fff" />
           </span>

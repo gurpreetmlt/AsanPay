@@ -181,7 +181,7 @@ export function IfscBankDetailsFields({
 
       {showHolder ? (
         <label
-          className={`block text-sm ${showConfirmAccount ? "sm:col-span-2 lg:col-span-3" : "lg:col-span-2"}`}
+          className={`block text-sm ${showConfirmAccount ? "" : "lg:col-span-2"}`}
         >
           <span className={labelCls} style={{ color: "var(--admin-muted)" }}>
             Account holder *

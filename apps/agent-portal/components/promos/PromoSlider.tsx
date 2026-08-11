@@ -207,8 +207,9 @@ export function PromoSlider({
           <button
             type="button"
             aria-label="Previous slide"
+            data-tooltip="Previous slide"
             tabIndex={hovered ? 0 : -1}
-            className={`absolute left-3 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/40 p-2.5 text-white shadow-md backdrop-blur transition-all duration-300 ease-out hover:bg-black/55 ${
+            className={`icon-tooltip absolute left-3 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/40 p-2.5 text-white shadow-md backdrop-blur transition-all duration-300 ease-out hover:bg-black/55 ${
               hovered
                 ? "pointer-events-auto translate-x-0 opacity-100"
                 : "pointer-events-none -translate-x-4 opacity-0"
@@ -220,8 +221,9 @@ export function PromoSlider({
           <button
             type="button"
             aria-label="Next slide"
+            data-tooltip="Next slide"
             tabIndex={hovered ? 0 : -1}
-            className={`absolute right-3 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/40 p-2.5 text-white shadow-md backdrop-blur transition-all duration-300 ease-out hover:bg-black/55 ${
+            className={`icon-tooltip absolute right-3 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/40 p-2.5 text-white shadow-md backdrop-blur transition-all duration-300 ease-out hover:bg-black/55 ${
               hovered
                 ? "pointer-events-auto translate-x-0 opacity-100"
                 : "pointer-events-none translate-x-4 opacity-0"

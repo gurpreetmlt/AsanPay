@@ -1695,9 +1695,10 @@ function SignupPageInner() {
                     <button
                       type="button"
                       onClick={() => setShowPassword((v) => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1"
+                      className="icon-tooltip absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1"
                       style={{ color: B.muted }}
                       aria-label={showPassword ? "Hide password" : "Show password"}
+                      data-tooltip={showPassword ? "Hide password" : "Show password"}
                       disabled={draft.accountCreated || loggedInContinue}
                     >
                       {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}

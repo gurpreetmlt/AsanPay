@@ -34,8 +34,9 @@ export function WalletBar({ wallets, onRefresh, refreshing, subtitle }: Props) {
             <button
               type="button"
               onClick={() => setVisible((v) => !v)}
-              className="flex h-7 w-7 items-center justify-center rounded-lg bg-surface text-gray-500 hover:text-gray-700"
-              aria-label="Toggle balance visibility"
+              className="icon-tooltip flex h-7 w-7 items-center justify-center rounded-lg bg-surface text-gray-500 hover:text-gray-700"
+              aria-label={visible ? "Hide balance" : "Show balance"}
+              data-tooltip={visible ? "Hide balance" : "Show balance"}
             >
               {visible ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
@@ -44,8 +45,9 @@ export function WalletBar({ wallets, onRefresh, refreshing, subtitle }: Props) {
                 type="button"
                 onClick={onRefresh}
                 disabled={refreshing}
-                className="flex h-7 w-7 items-center justify-center rounded-lg bg-surface text-green-600 disabled:opacity-50"
+                className="icon-tooltip flex h-7 w-7 items-center justify-center rounded-lg bg-surface text-green-600 disabled:opacity-50"
                 aria-label="Refresh balance"
+                data-tooltip="Refresh balance"
               >
                 <RefreshCw size={15} className={refreshing ? "animate-spin" : ""} />
               </button>

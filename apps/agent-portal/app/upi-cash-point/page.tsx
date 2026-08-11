@@ -470,7 +470,9 @@ export default function UpiCashPointPage() {
                 <button
                   type="button"
                   onClick={handleCopyUpi}
-                  className="rounded p-1 hover:bg-gray-200"
+                  className="icon-tooltip rounded p-1 hover:bg-gray-200"
+                  aria-label={copied ? "Copied" : "Copy UPI ID"}
+                  data-tooltip={copied ? "Copied" : "Copy UPI ID"}
                 >
                   {copied ? (
                     <Check size={14} className="text-green-500" />

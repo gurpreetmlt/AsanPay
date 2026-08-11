@@ -26,8 +26,8 @@ export function ThemeTabs() {
       type="button"
       onClick={cycle}
       aria-label={current.title}
-      title={current.title}
-      className="flex h-9 items-center gap-1.5 rounded-xl px-3 text-xs font-bold transition"
+      data-tooltip={current.title}
+      className="icon-tooltip flex h-9 items-center gap-1.5 rounded-xl px-3 text-xs font-bold transition"
       style={{
         background: "var(--admin-bg)",
         color: "var(--admin-text)",

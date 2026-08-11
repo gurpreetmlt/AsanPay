@@ -160,10 +160,11 @@ export default function AdminLoginPage() {
               />
               <button
                 type="button"
-                className="absolute right-3 top-1/2 -translate-y-1/2"
+                className="icon-tooltip absolute right-3 top-1/2 -translate-y-1/2"
                 style={{ color: "var(--admin-muted)" }}
                 onClick={() => setShowPass((v) => !v)}
                 aria-label={showPass ? "Hide password" : "Show password"}
+                data-tooltip={showPass ? "Hide password" : "Show password"}
               >
                 {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>

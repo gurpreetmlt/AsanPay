@@ -128,44 +128,48 @@ export function IfscBankDetailsFields({
         placeholderTextColor={tokens.mute}
       />
 
-      <Text style={[styles.label, { color: tokens.mute }]}>Account number *</Text>
-      <TextInput
-        style={[styles.input, inputStyle]}
-        placeholder={accountPlaceholder}
-        placeholderTextColor={tokens.mute}
-        keyboardType="number-pad"
-        value={value.accountNumber}
-        onChangeText={(t) => onChange({ accountNumber: t.replace(/\D/g, "").slice(0, 18) })}
-      />
-
-      {showConfirmAccount ? (
-        <>
-          <Text style={[styles.label, { color: tokens.mute }]}>Confirm account number *</Text>
+      <View style={styles.accountRow}>
+        <View style={styles.accountCol}>
+          <Text style={[styles.label, styles.labelTight, { color: tokens.mute }]}>Account number *</Text>
           <TextInput
             style={[styles.input, inputStyle]}
-            placeholder="Re-enter account number"
+            placeholder={accountPlaceholder}
             placeholderTextColor={tokens.mute}
             keyboardType="number-pad"
-            value={value.accountNumberConfirm ?? ""}
-            onChangeText={(t) =>
-              onChange({ accountNumberConfirm: t.replace(/\D/g, "").slice(0, 18) })
-            }
+            value={value.accountNumber}
+            onChangeText={(t) => onChange({ accountNumber: t.replace(/\D/g, "").slice(0, 18) })}
           />
-        </>
-      ) : null}
+        </View>
 
-      {showHolder ? (
-        <>
-          <Text style={[styles.label, { color: tokens.mute }]}>Account holder *</Text>
-          <TextInput
-            style={[styles.input, inputStyle]}
-            placeholder="Account holder name"
-            placeholderTextColor={tokens.mute}
-            value={value.holderName}
-            onChangeText={(t) => onChange({ holderName: t })}
-          />
-        </>
-      ) : null}
+        {showConfirmAccount ? (
+          <View style={styles.accountCol}>
+            <Text style={[styles.label, styles.labelTight, { color: tokens.mute }]}>Confirm account *</Text>
+            <TextInput
+              style={[styles.input, inputStyle]}
+              placeholder="Re-enter"
+              placeholderTextColor={tokens.mute}
+              keyboardType="number-pad"
+              value={value.accountNumberConfirm ?? ""}
+              onChangeText={(t) =>
+                onChange({ accountNumberConfirm: t.replace(/\D/g, "").slice(0, 18) })
+              }
+            />
+          </View>
+        ) : null}
+
+        {showHolder ? (
+          <View style={styles.accountCol}>
+            <Text style={[styles.label, styles.labelTight, { color: tokens.mute }]}>Account holder *</Text>
+            <TextInput
+              style={[styles.input, inputStyle]}
+              placeholder="Account holder name"
+              placeholderTextColor={tokens.mute}
+              value={value.holderName}
+              onChangeText={(t) => onChange({ holderName: t })}
+            />
+          </View>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -184,6 +188,8 @@ export function emptyIfscBankDetails(): IfscBankDetailsValue {
 
 const styles = StyleSheet.create({
   wrap: { gap: 0 },
+  accountRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
+  accountCol: { flexGrow: 1, flexBasis: "30%", minWidth: 140 },
   label: {
     fontSize: 11,
     fontWeight: "700",
@@ -192,6 +198,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     marginTop: 10,
   },
+  labelTight: { marginTop: 6 },
   hint: { fontSize: 11, marginBottom: 4, marginTop: -4 },
   input: {
     borderWidth: 1,

@@ -94,11 +94,12 @@ function ServiceIconCard({
       <button
         type="button"
         aria-label={favorite ? "Remove favourite" : "Add favourite"}
+        data-tooltip={favorite ? "Remove favourite" : "Add favourite"}
         onClick={(e) => {
           e.stopPropagation();
           onToggleFav();
         }}
-        className="absolute right-0 top-0 z-10 rounded-md p-0.5 opacity-0 transition group-hover:opacity-100"
+        className="icon-tooltip absolute right-0 top-0 z-10 rounded-md p-0.5 opacity-0 transition group-hover:opacity-100"
       >
         <Star size={11} strokeWidth={2.2} color={starColor} fill={favorite ? starColor : "none"} />
       </button>

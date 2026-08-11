@@ -864,7 +864,9 @@ export default function DmtPage() {
                   <button
                     type="button"
                     onClick={() => setAgentAadhaarVisible((v) => !v)}
-                    className="text-gray-400 transition hover:text-gray-600"
+                    className="icon-tooltip text-gray-400 transition hover:text-gray-600"
+                    aria-label={agentAadhaarVisible ? "Hide Aadhaar" : "Show Aadhaar"}
+                    data-tooltip={agentAadhaarVisible ? "Hide Aadhaar" : "Show Aadhaar"}
                   >
                     {agentAadhaarVisible ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>

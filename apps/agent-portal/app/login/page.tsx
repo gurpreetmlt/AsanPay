@@ -519,7 +519,13 @@ export default function LoginPage() {
                     className="flex-1 bg-transparent text-sm outline-none"
                     style={{ color: B.blue }}
                   />
-                  <button type="button" onClick={() => setShowPass(!showPass)}>
+                  <button
+                    type="button"
+                    onClick={() => setShowPass(!showPass)}
+                    className="icon-tooltip"
+                    aria-label={showPass ? "Hide password" : "Show password"}
+                    data-tooltip={showPass ? "Hide password" : "Show password"}
+                  >
                     {showPass ? <EyeOff size={15} style={{ color: B.muted }} /> : <Eye size={15} style={{ color: B.muted }} />}
                   </button>
                 </div>

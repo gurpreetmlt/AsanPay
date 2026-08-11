@@ -191,9 +191,10 @@ export function AdminHeader({ onOpenMobileNav }: { onOpenMobileNav?: () => void 
         <button
           type="button"
           onClick={onOpenMobileNav}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl md:hidden"
+          className="icon-tooltip flex h-10 w-10 shrink-0 items-center justify-center rounded-xl md:hidden"
           style={{ background: searchBg, color: textMuted }}
           aria-label="Open menu"
+          data-tooltip="Open menu"
         >
           <Menu size={18} />
         </button>
@@ -262,9 +263,10 @@ export function AdminHeader({ onOpenMobileNav }: { onOpenMobileNav?: () => void 
               setNotifOpen((v) => !v);
               if (!notifOpen) void refresh();
             }}
-            className="relative flex h-9 w-9 items-center justify-center rounded-xl"
+            className="icon-tooltip relative flex h-9 w-9 items-center justify-center rounded-xl"
             style={{ background: searchBg }}
             aria-label="Notifications"
+            data-tooltip="Notifications"
           >
             <Bell size={17} style={{ color: textPrimary }} />
             {bellCount > 0 ? (

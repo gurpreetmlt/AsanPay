@@ -38,10 +38,12 @@ function BankLogo({ ifsc }: { ifsc: string }) {
 function ActionBtn({
   onPress,
   disabled,
+  label,
   children,
 }: {
   onPress: () => void;
   disabled?: boolean;
+  label: string;
   children: React.ReactNode;
 }) {
   return (
@@ -50,6 +52,8 @@ function ActionBtn({
       disabled={disabled}
       style={[styles.actionBtn, { opacity: disabled ? 0.55 : 1 }]}
       hitSlop={4}
+      accessibilityRole="button"
+      accessibilityLabel={label}
     >
       {children}
     </Pressable>
@@ -161,7 +165,11 @@ export function BankDetailCard({
           {unavailable ? "Unavailable" : statusLabel}
         </Text>
         {canReveal ? (
-          <ActionBtn onPress={() => onToggleReveal?.()} disabled={revealing || unavailable}>
+          <ActionBtn
+            label={showFull ? "Hide account number" : "Show account number"}
+            onPress={() => onToggleReveal?.()}
+            disabled={revealing || unavailable}
+          >
             {showFull ? (
               <EyeOff size={17} color={colors.blueFlat} strokeWidth={2.25} />
             ) : (
@@ -169,11 +177,19 @@ export function BankDetailCard({
             )}
           </ActionBtn>
         ) : null}
-        <ActionBtn onPress={handleCopy} disabled={revealing || unavailable}>
+        <ActionBtn
+          label="Copy bank details"
+          onPress={handleCopy}
+          disabled={revealing || unavailable}
+        >
           <Copy size={17} color={colors.blueFlat} strokeWidth={2.25} />
         </ActionBtn>
         {onActivate ? (
-          <ActionBtn onPress={onActivate} disabled={revealing || unavailable}>
+          <ActionBtn
+            label={activateLabel}
+            onPress={onActivate}
+            disabled={revealing || unavailable}
+          >
             <Check size={17} color={colors.green} strokeWidth={2.5} />
           </ActionBtn>
         ) : null}

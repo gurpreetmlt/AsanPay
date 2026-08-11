@@ -145,11 +145,7 @@ export function IfscBankDetailsFields({
         />
       </label>
 
-      <label
-        className={`block text-sm ${
-          showConfirmAccount ? "sm:col-span-2 lg:col-span-3" : showHolder ? "" : "lg:col-span-2"
-        }`}
-      >
+      <label className="block text-sm">
         <span className={labelCls} style={{ color: B.muted }}>
           Account number *
         </span>
@@ -166,7 +162,7 @@ export function IfscBankDetailsFields({
       </label>
 
       {showConfirmAccount ? (
-        <label className="block text-sm sm:col-span-2 lg:col-span-3">
+        <label className="block text-sm">
           <span className={labelCls} style={{ color: B.muted }}>
             Confirm account number *
           </span>
@@ -186,7 +182,11 @@ export function IfscBankDetailsFields({
       ) : null}
 
       {showHolder ? (
-        <label className={`block text-sm ${showConfirmAccount ? "sm:col-span-2 lg:col-span-3" : "lg:col-span-2"}`}>
+        <label
+          className={`block text-sm ${
+            showConfirmAccount ? "" : "sm:col-span-2 lg:col-span-2"
+          }`}
+        >
           <span className={labelCls} style={{ color: B.muted }}>
             Account holder *
           </span>

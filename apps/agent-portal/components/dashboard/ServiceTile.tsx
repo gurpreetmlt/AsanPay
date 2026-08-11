@@ -86,8 +86,9 @@ export function ServiceTile({
         <button
           type="button"
           onClick={onRemove}
-          className="absolute left-1 top-0 z-10 flex h-[22px] w-[22px] items-center justify-center rounded-full border-2 border-white bg-red-500 text-white shadow-sm"
+          className="icon-tooltip absolute left-1 top-0 z-10 flex h-[22px] w-[22px] items-center justify-center rounded-full border-2 border-white bg-red-500 text-white shadow-sm"
           aria-label="Remove"
+          data-tooltip="Remove"
         >
           <Minus size={11} strokeWidth={3.2} />
         </button>
@@ -97,8 +98,9 @@ export function ServiceTile({
         <button
           type="button"
           onClick={onAdd}
-          className="absolute left-1 top-0 z-10 flex h-[22px] w-[22px] items-center justify-center rounded-full border-2 border-white bg-green-500 text-white shadow-sm"
+          className="icon-tooltip absolute left-1 top-0 z-10 flex h-[22px] w-[22px] items-center justify-center rounded-full border-2 border-white bg-green-500 text-white shadow-sm"
           aria-label="Add to favourites"
+          data-tooltip="Add to favourites"
         >
           <Star size={11} fill="white" strokeWidth={2.2} />
         </button>

@@ -35,14 +35,20 @@ export function WalletHeader({ wallets, onRefresh, refreshing }: WalletHeaderPro
             <span className="text-xl font-bold text-gray-900">
               {visible ? `₹${mainWallet ? Number(mainWallet.balance).toLocaleString("en-IN") : "0"}` : "••••••"}
             </span>
-            <button onClick={() => setVisible((v) => !v)} className="text-gray-400 hover:text-gray-600" aria-label="Toggle balance visibility">
+            <button
+              onClick={() => setVisible((v) => !v)}
+              className="icon-tooltip text-gray-400 hover:text-gray-600"
+              aria-label={visible ? "Hide balance" : "Show balance"}
+              data-tooltip={visible ? "Hide balance" : "Show balance"}
+            >
               {visible ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
             <button
               onClick={onRefresh}
-              className="text-gray-400 hover:text-brand-600 disabled:opacity-50"
+              className="icon-tooltip text-gray-400 hover:text-brand-600 disabled:opacity-50"
               disabled={refreshing}
               aria-label="Refresh balance"
+              data-tooltip="Refresh balance"
             >
               <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
             </button>
