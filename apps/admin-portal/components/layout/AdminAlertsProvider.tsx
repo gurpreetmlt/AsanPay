@@ -31,6 +31,8 @@ export type AdminAlertBadges = {
   };
   fundRequestsPending: number;
   supportTicketsOpen: number;
+  /** Agent settlement banks awaiting admin verify */
+  settlementBanksPending: number;
 };
 
 type AdminAlertsState = {
@@ -45,6 +47,7 @@ const EMPTY_BADGES: AdminAlertBadges = {
   kycPendingByRole: { super_distributor: 0, distributor: 0, retailer: 0 },
   fundRequestsPending: 0,
   supportTicketsOpen: 0,
+  settlementBanksPending: 0,
 };
 
 const AdminAlertsContext = createContext<AdminAlertsState | null>(null);
@@ -65,11 +68,18 @@ export function AdminAlertsProvider({ children }: { children: ReactNode }) {
     }
     setLoading(true);
     try {
-      const data = await fetchApi<{
-        badges: AdminAlertBadges;
-        notifications: AdminAlertNotification[];
-      }>("/admin/alerts");
-      setBadges(data.badges ?? EMPTY_BADGES);
+      const [data, pendingBanks] = await Promise.all([
+        fetchApi<{
+          badges: AdminAlertBadges;
+          notifications: AdminAlertNotification[];
+        }>("/admin/alerts"),
+        fetchApi<{ id: string }[]>("/settlements/banks/pending").catch(() => [] as { id: string }[]),
+      ]);
+      const bankCount = Array.isArray(pendingBanks) ? pendingBanks.length : 0;
+      setBadges({
+        ...(data.badges ?? EMPTY_BADGES),
+        settlementBanksPending: bankCount,
+      });
       setNotifications(data.notifications ?? []);
     } catch {
       /* keep last good snapshot */

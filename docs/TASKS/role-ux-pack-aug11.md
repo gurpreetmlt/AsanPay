@@ -6,7 +6,7 @@ Revertible feature pack. **If you dislike it**, switch back to `main` (or revert
 
 1. **Active bank highlight** — green ring on Active settlement bank cards (web + mobile)
 2. **Settlement timeline** — Requested → Processing → Paid/Failed under each settlement row
-3. **Admin bank verify inbox** — banner + sidebar label “Bank verify inbox”
+3. **Admin bank verify** — primary entry on **Agents → Retailers** (banner + badge); Settlements keeps Pending banks tab for ops
 4. **Dist / SD home** — Commission MTD + inactive downline CTA
 5. **Retailer** — Low Main balance (&lt; ₹500) Add Money banner + Share receipt on recent txns
 6. **BBPS** — “Coming soon” badge (no fake unlock)

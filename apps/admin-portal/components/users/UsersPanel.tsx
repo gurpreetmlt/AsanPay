@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { Search, Table2, GitBranch, Trash2 } from "lucide-react";
+import { Landmark, Search, Table2, GitBranch, Trash2 } from "lucide-react";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { Badge } from "@/components/ui/Badge";
@@ -69,6 +69,17 @@ const TITLES: Record<string, { title: string; sub: string }> = {
   retailer: { title: "Retailers", sub: "Under Distributor — agent portal / mobile only" },
 };
 
+interface PendingBankRow {
+  id: string;
+  userId: string;
+  userName: string;
+  userUid: string;
+  userMobile: string;
+  accountNumberLast4: string;
+  ifsc: string;
+  holderName: string;
+}
+
 interface Props {
   lockedRole?: RoleFilter;
 }
@@ -89,6 +100,7 @@ export function UsersPanel({ lockedRole = "" }: Props) {
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
   const [pendingPrompt, setPendingPrompt] = useState<PendingPrompt | null>(null);
+  const [pendingBanks, setPendingBanks] = useState<PendingBankRow[]>([]);
   const rowDeleteEnabled = useDevOptionsStore((s) => s.rowDeleteEnabled);
 
   useEffect(() => {
@@ -115,6 +127,21 @@ export function UsersPanel({ lockedRole = "" }: Props) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const rows = await fetchApi<PendingBankRow[]>("/settlements/banks/pending");
+        if (alive) setPendingBanks(Array.isArray(rows) ? rows : []);
+      } catch {
+        if (alive) setPendingBanks([]);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     const t = setTimeout(() => setSearch(q), 300);
@@ -311,6 +338,8 @@ export function UsersPanel({ lockedRole = "" }: Props) {
 
   const meta = TITLES[lockedRole || ""] ?? TITLES[""];
   const colSpan = lockedRole ? 7 : 8;
+  const showBankBanner =
+    pendingBanks.length > 0 && (lockedRole === "retailer" || lockedRole === "" || !lockedRole);
 
   return (
     <div className="mx-auto w-full max-w-[1600px] space-y-5 p-4 md:p-6">
@@ -322,6 +351,43 @@ export function UsersPanel({ lockedRole = "" }: Props) {
           {meta.sub}
         </p>
       </div>
+
+      {showBankBanner ? (
+        <div
+          className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3"
+          style={{ borderColor: "#FDBA74", background: "#FFF7ED" }}
+        >
+          <div className="flex min-w-0 items-start gap-3">
+            <div
+              className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+              style={{ background: "#FFEDD5", color: "#C2410C" }}
+            >
+              <Landmark size={18} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold" style={{ color: "#C2410C" }}>
+                {pendingBanks.length} retailer bank
+                {pendingBanks.length === 1 ? "" : "s"} awaiting verification
+              </p>
+              <p className="mt-0.5 text-xs leading-snug" style={{ color: "#9A3412" }}>
+                {pendingBanks
+                  .slice(0, 3)
+                  .map((b) => `${b.userName} · ****${b.accountNumberLast4}`)
+                  .join(" · ")}
+                {pendingBanks.length > 3 ? ` · +${pendingBanks.length - 3} more` : ""}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => router.push("/settlements?tab=banks")}
+            className="rounded-xl px-3 py-2 text-sm font-bold text-white"
+            style={{ background: "#12B76A" }}
+          >
+            Verify banks
+          </button>
+        </div>
+      ) : null}
 
       {!lockedRole && (
         <div className="flex flex-wrap items-center justify-between gap-2">

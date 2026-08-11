@@ -56,7 +56,7 @@ const TREASURY: NavItem[] = [
     children: [
       { href: "/wallet", label: "Company balance", icon: { lib: "md", name: "MdAccountBalanceWallet" } },
       { href: "/fund-requests", label: "Fund requests", icon: { lib: "lucide", icon: IndianRupee } },
-      { href: "/settlements", label: "Bank verify inbox", icon: { lib: "lucide", icon: Landmark } },
+      { href: "/settlements", label: "Settlements / banks", icon: { lib: "lucide", icon: Landmark } },
       { href: "/banking", label: "Banking", icon: { lib: "lucide", icon: Building2 } },
       { href: "/float", label: "Float", icon: { lib: "lucide", icon: ArrowLeftRight } },
       { href: "/ledger-reports", label: "Ledger reports", icon: { lib: "lucide", icon: Scale } },
@@ -240,18 +240,21 @@ function badgeForHref(
     kycPendingByRole: { super_distributor: number; distributor: number; retailer: number };
     fundRequestsPending: number;
     supportTicketsOpen: number;
+    settlementBanksPending: number;
   },
 ): number {
   switch (href) {
     case "/kyc":
     case "/users":
-      return badges.kycPending;
+      return badges.kycPending + badges.settlementBanksPending;
     case "/users/super-distributors":
       return badges.kycPendingByRole.super_distributor;
     case "/users/distributors":
       return badges.kycPendingByRole.distributor;
     case "/users/retailers":
-      return badges.kycPendingByRole.retailer;
+      return badges.kycPendingByRole.retailer + badges.settlementBanksPending;
+    case "/settlements":
+      return badges.settlementBanksPending;
     case "/fund-requests":
       return badges.fundRequestsPending;
     case "/support-tickets":
@@ -267,10 +270,11 @@ function groupBadgeFor(
     kycPending: number;
     fundRequestsPending: number;
     supportTicketsOpen: number;
+    settlementBanksPending: number;
   },
 ): number {
-  if (id === "agents") return badges.kycPending;
-  if (id === "treasury") return badges.fundRequestsPending;
+  if (id === "agents") return badges.kycPending + badges.settlementBanksPending;
+  if (id === "treasury") return badges.fundRequestsPending + badges.settlementBanksPending;
   if (id === "site") return badges.supportTicketsOpen;
   return 0;
 }

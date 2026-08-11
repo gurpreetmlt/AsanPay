@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { Landmark } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
@@ -11,6 +11,7 @@ import { B } from "@/lib/brand";
 import { createAttemptKeyHolder } from "@/lib/idempotencyKey";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
+import Link from "next/link";
 
 type Tab = "open" | "banks";
 
@@ -55,10 +56,12 @@ function errMessage(err: unknown, fallback: string) {
 
 export default function AdminSettlementsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const hydrated = useAuthHydrated();
   const accessToken = useAuthStore((s) => s.accessToken);
 
-  const [tab, setTab] = useState<Tab>("banks");
+  const tabFromUrl = searchParams.get("tab") === "open" ? "open" : "banks";
+  const [tab, setTab] = useState<Tab>(tabFromUrl);
   const [openRows, setOpenRows] = useState<OpenSettlement[]>([]);
   const [banks, setBanks] = useState<PendingBank[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
@@ -73,6 +76,10 @@ export default function AdminSettlementsPage() {
   const [failReason, setFailReason] = useState("");
   const successKey = useRef(createAttemptKeyHolder("settle-ok"));
   const failKey = useRef(createAttemptKeyHolder("settle-fail"));
+
+  useEffect(() => {
+    setTab(tabFromUrl);
+  }, [tabFromUrl]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -186,7 +193,11 @@ export default function AdminSettlementsPage() {
               Settlements
             </h1>
             <p className="text-sm" style={{ color: B.muted }}>
-              Agent bank verify inbox + open payouts. Start here when retailers submit settlement banks.
+              Open payouts and pending agent banks. Retailer bank verify also starts from{" "}
+              <Link href="/users/retailers" className="font-semibold underline" style={{ color: B.blueLight }}>
+                Agents → Retailers
+              </Link>
+              .
             </p>
           </div>
         </div>
@@ -201,16 +212,19 @@ export default function AdminSettlementsPage() {
                 {pendingCount} agent bank{pendingCount === 1 ? "" : "s"} awaiting verification
               </p>
               <p className="text-xs" style={{ color: "#9A3412" }}>
-                Verify only = mark verified. Verify & activate = retailer can withdraw immediately.
+                Prefer Agents → Retailers for retailer context, or verify here for payouts ops.
               </p>
             </div>
             <button
               type="button"
-              onClick={() => setTab("banks")}
+              onClick={() => {
+                setTab("banks");
+                router.replace("/settlements?tab=banks");
+              }}
               className="rounded-xl px-3 py-2 text-sm font-bold text-white"
               style={{ background: "#12B76A" }}
             >
-              Open bank inbox
+              Open pending banks
             </button>
           </div>
         ) : null}
@@ -220,7 +234,7 @@ export default function AdminSettlementsPage() {
             [
               {
                 key: "banks" as const,
-                label: pendingCount > 0 ? `Bank inbox (${pendingCount})` : "Bank inbox",
+                label: pendingCount > 0 ? `Pending banks (${pendingCount})` : "Pending banks",
               },
               { key: "open" as const, label: "Open payouts" },
             ] as const
@@ -228,7 +242,10 @@ export default function AdminSettlementsPage() {
             <button
               key={t.key}
               type="button"
-              onClick={() => setTab(t.key)}
+              onClick={() => {
+                setTab(t.key);
+                router.replace(`/settlements?tab=${t.key}`);
+              }}
               className="rounded-xl px-3 py-2 text-sm font-semibold"
               style={{
                 background: tab === t.key ? B.badgeGrad : "var(--admin-card)",
