@@ -67,8 +67,8 @@ function ActionBtn({
       disabled={disabled}
       aria-label={label}
       data-tooltip={label}
-      data-tooltip-align="end"
-      className="icon-tooltip inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white transition-transform hover:scale-[1.03] active:scale-[0.98]"
+      data-tooltip-side="left"
+      className="icon-tooltip relative z-20 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white transition-transform hover:scale-[1.03] active:scale-[0.98]"
       style={{
         color: B.blueLight,
         boxShadow: "0 2px 10px rgba(11,42,154,0.12)",
@@ -233,7 +233,7 @@ export function BankDetailCard({
         ) : null}
       </div>
 
-      <div className="flex w-[4.75rem] shrink-0 flex-col items-center gap-2 self-start">
+      <div className="relative z-20 flex w-[4.75rem] shrink-0 flex-col items-center gap-2 self-start overflow-visible">
         {statusBadge}
         {canReveal ? (
           <ActionBtn
@@ -267,14 +267,14 @@ export function BankDetailCard({
         ) : null}
         {selected && onSelect ? (
           <span
-            className="icon-tooltip inline-flex h-10 w-10 items-center justify-center rounded-xl"
+            className="icon-tooltip relative z-20 inline-flex h-10 w-10 items-center justify-center rounded-xl"
             style={{
               background: tint,
               boxShadow: "0 2px 10px rgba(11,42,154,0.12)",
             }}
             aria-label="Selected"
             data-tooltip="Selected"
-            data-tooltip-align="end"
+            data-tooltip-side="left"
           >
             <Check size={17} strokeWidth={2.5} color="#fff" />
           </span>
@@ -289,7 +289,8 @@ export function BankDetailCard({
       (statusTone === "success" && statusLabel.toLowerCase().includes("active")));
 
   const isPicker = Boolean(onSelect);
-  const shellClass = `relative overflow-hidden rounded-[18px] border text-left ${className}`;
+  /* overflow-visible so icon tooltips are not clipped; glows clip on an inner layer */
+  const shellClass = `relative overflow-visible rounded-[18px] border text-left ${className}`;
   const shellStyle: CSSProperties = {
     borderWidth: isActiveBank ? 2 : 1,
     borderColor: isActiveBank
@@ -299,7 +300,7 @@ export function BankDetailCard({
         : unavailable
           ? B.border
           : corners.border,
-    background: bankCardGradient(ifsc),
+    background: "transparent",
     opacity: unavailable ? 0.55 : 1,
     boxShadow: isActiveBank
       ? `0 0 0 3px ${B.green}22, ${bankCardGlow(ifsc, true)}`
@@ -316,18 +317,22 @@ export function BankDetailCard({
 
   const chrome = (
     <>
-      {/* Mobile ditto: discrete corner circles from bank logo colors */}
-      <span
+      <div
         aria-hidden
-        className="pointer-events-none absolute -right-7 -top-9 h-[120px] w-[120px] rounded-full"
-        style={{ background: corners.topRight, opacity: 0.55 }}
-      />
-      <span
-        aria-hidden
-        className="pointer-events-none absolute -bottom-10 -left-8 h-[110px] w-[110px] rounded-full"
-        style={{ background: corners.bottomLeft, opacity: 0.4 }}
-      />
-      <div className="relative z-[1]">{body}</div>
+        className="pointer-events-none absolute inset-0 overflow-hidden rounded-[18px]"
+        style={{ background: bankCardGradient(ifsc) }}
+      >
+        {/* Mobile ditto: discrete corner circles from bank logo colors */}
+        <span
+          className="absolute -right-7 -top-9 h-[120px] w-[120px] rounded-full"
+          style={{ background: corners.topRight, opacity: 0.55 }}
+        />
+        <span
+          className="absolute -bottom-10 -left-8 h-[110px] w-[110px] rounded-full"
+          style={{ background: corners.bottomLeft, opacity: 0.4 }}
+        />
+      </div>
+      <div className="relative z-[1] overflow-visible">{body}</div>
       {footer ? (
         <div className="relative z-[1] mt-3 border-t pt-3" style={{ borderColor: `${tint}22` }}>
           {footer}

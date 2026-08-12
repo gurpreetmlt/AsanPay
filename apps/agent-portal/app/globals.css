@@ -939,6 +939,14 @@ body {
   top: calc(100% + 8px);
   transform: translateX(-50%) translateY(-4px);
 }
+/* Left of icon — for action stacks on the right edge of overflow-clipped cards */
+.icon-tooltip[data-tooltip-side="left"]::after {
+  left: auto;
+  right: calc(100% + 8px);
+  top: 50%;
+  bottom: auto;
+  transform: translateY(-50%) translateX(4px);
+}
 .icon-tooltip[data-tooltip-align="end"]::after {
   left: auto;
   right: 0;
@@ -985,6 +993,10 @@ body {
 .icon-tooltip[data-tooltip-align="end"][data-tooltip-side="bottom"]:hover::after,
 .icon-tooltip[data-tooltip-align="end"][data-tooltip-side="bottom"]:focus-visible::after {
   transform: translateX(0) translateY(0);
+}
+.icon-tooltip[data-tooltip-side="left"]:hover::after,
+.icon-tooltip[data-tooltip-side="left"]:focus-visible::after {
+  transform: translateY(-50%) translateX(0);
 }
 @media (prefers-reduced-motion: reduce) {
   .icon-tooltip::after {
