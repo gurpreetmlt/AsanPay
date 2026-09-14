@@ -1,5 +1,6 @@
 # AsanPay Marketing Site (Frontend) — Next.js
 # Coolify: Build Pack = Dockerfile | Dockerfile = /Frontend/Dockerfile | Context = /
+# Redeploy bump: 2026-09-14 (main / VyaparAPI)
 
 FROM node:22-bookworm-slim
 

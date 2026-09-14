@@ -1,5 +1,6 @@
 # AsanPay Admin Panel — Next.js
 # Coolify: Build Pack = Dockerfile | Dockerfile = /apps/admin-portal/Dockerfile | Context = /
+# Redeploy bump: 2026-09-14 (main / VyaparAPI)
 
 FROM node:22-bookworm-slim
 

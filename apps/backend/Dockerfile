@@ -1,5 +1,6 @@
 # AsanPay API — only backend + shared-types (no web/admin/mobile)
 # Coolify: Build Pack = Dockerfile | Dockerfile = /apps/backend/Dockerfile | Context = /
+# Redeploy bump: 2026-09-14 (main / VyaparAPI)
 
 FROM node:22-bookworm-slim
 
