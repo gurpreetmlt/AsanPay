@@ -96,12 +96,13 @@ export async function recharge(req: Request, res: Response): Promise<void> {
     direction: "debit",
     walletType: "main",
     metadata: { operatorCode: body.operatorCode, accountRef: body.accountRef },
-    invoke: (routed) =>
+    invoke: (routed, txnRef) =>
       routed.adapter.recharge({
         retailerUserId: actor(req).id,
         operatorCode: body.operatorCode,
         accountRef: body.accountRef,
         amount: body.amount,
+        clientRef: txnRef,
       }),
   });
   sendSuccess(res, { txn: outcome.txn, provider: outcome.provider });

@@ -34,6 +34,31 @@ function resolvePreviewSrc(url: string) {
   return url;
 }
 
+const DOC_LABELS: Record<string, string> = {
+  personalPhoto: "Personal Photo",
+  aadhaarFront: "Aadhaar (Front)",
+  aadhaarBack: "Aadhaar (Back)",
+  panCard: "PAN Card",
+  shopPhoto: "Shop Photo",
+  chequeOrPassbook: "Cheque / Passbook",
+};
+
+const DOC_ORDER = [
+  "personalPhoto",
+  "aadhaarFront",
+  "panCard",
+  "aadhaarBack",
+  "shopPhoto",
+  "chequeOrPassbook",
+] as const;
+
+function isPreviewableUrl(url: string) {
+  return (
+    /^data:image\/(jpeg|jpg|png|webp|heic|heif)/i.test(url) ||
+    url.includes("/kyc-documents/")
+  );
+}
+
 const TABS: { key: KycTab; label: string }[] = [
   { key: "pending", label: "Pending" },
   { key: "verified", label: "Verified" },
@@ -49,7 +74,8 @@ export default function KycPage() {
   const [rows, setRows] = useState<KycRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
-  const [preview, setPreview] = useState<{ title: string; url: string } | null>(null);
+  const [previewSlides, setPreviewSlides] = useState<{ title: string; url: string }[]>([]);
+  const [previewAgent, setPreviewAgent] = useState("");
   const [previewBusy, setPreviewBusy] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -84,21 +110,29 @@ export default function KycPage() {
       const detail = await fetchApi<{
         documents: Record<string, string>;
       }>(`/admin/users/${row.id}`);
-      const preferred = ["personalPhoto", "aadhaarFront", "panCard", "aadhaarBack", "shopPhoto"];
-      const key = preferred.find((k) => {
-        const u = detail.documents?.[k];
-        return typeof u === "string" && u.includes("/kyc-documents/");
-      });
-      if (!key) {
+      const docs = detail.documents ?? {};
+      const orderedKeys = [
+        ...DOC_ORDER.filter((k) => k in docs),
+        ...Object.keys(docs).filter((k) => !(DOC_ORDER as readonly string[]).includes(k)),
+      ];
+      const slides = orderedKeys
+        .map((key) => {
+          const raw = docs[key];
+          if (typeof raw !== "string" || !isPreviewableUrl(raw)) return null;
+          return {
+            title: DOC_LABELS[key] || key,
+            url: resolvePreviewSrc(raw),
+          };
+        })
+        .filter((s): s is { title: string; url: string } => Boolean(s));
+      if (slides.length === 0) {
         toast.error(
           "KYC numbers are on file but no photo to preview. Open the agent profile for details.",
         );
         return;
       }
-      setPreview({
-        title: `${row.name} · ${key}`,
-        url: resolvePreviewSrc(detail.documents[key]!),
-      });
+      setPreviewAgent(row.name);
+      setPreviewSlides(slides);
     } catch {
       toast.error("Failed to load KYC documents");
     } finally {
@@ -332,6 +366,9 @@ export default function KycPage() {
                     <button
                       type="button"
                       disabled={previewBusy === r.id}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") e.stopPropagation();
+                      }}
                       onClick={(e) => {
                         e.stopPropagation();
                         void openDocsPreview(r);
@@ -351,10 +388,13 @@ export default function KycPage() {
         </div>
       </div>
       <DocumentPreviewModal
-        open={Boolean(preview)}
-        title={preview?.title || ""}
-        url={preview?.url || ""}
-        onClose={() => setPreview(null)}
+        open={previewSlides.length > 0}
+        title={previewAgent ? `${previewAgent} · KYC documents` : "KYC documents"}
+        slides={previewSlides}
+        onClose={() => {
+          setPreviewSlides([]);
+          setPreviewAgent("");
+        }}
       />
     </AdminShell>
   );

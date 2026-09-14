@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "react-hot-toast";
-import { DocumentPreviewModal } from "./DocumentPreviewModal";
+import { DocumentPreviewModal, type DocPreviewSlide } from "./DocumentPreviewModal";
 import { B } from "@/lib/brand";
 import { FileImage } from "lucide-react";
 
@@ -38,11 +38,19 @@ export function KycDocumentGrid({
   documents: Record<string, string | undefined>;
   documentFiles?: Partial<Record<string, string | null | undefined>>;
 }) {
-  const [preview, setPreview] = useState<{ title: string; url: string } | null>(null);
+  const [open, setOpen] = useState(false);
+  const [startIndex, setStartIndex] = useState(0);
 
   const items = Object.entries(documents || {}).filter(
     ([, url]) => typeof url === "string" && url.length > 0,
   );
+
+  const slides: DocPreviewSlide[] = items
+    .filter(([, url]) => isRealPhotoUrl(url!))
+    .map(([key, url]) => ({
+      title: LABELS[key] || key,
+      url: resolvePreviewSrc(url!),
+    }));
 
   if (items.length === 0) {
     return (
@@ -55,8 +63,9 @@ export function KycDocumentGrid({
   return (
     <>
       <p className="mb-3 text-xs" style={{ color: B.muted }}>
-        Tap a card to preview. Older submits only saved the filename — agent must re-submit KYC with
-        the new app/web upload so the photo can open here.
+        Tap a card to preview. Use arrows in the popup to move between documents. Older submits only
+        saved the filename — agent must re-submit KYC with the new app/web upload so the photo can
+        open here.
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
         {items.map(([key, url]) => {
@@ -70,7 +79,9 @@ export function KycDocumentGrid({
               type="button"
               onClick={() => {
                 if (real) {
-                  setPreview({ title, url: src });
+                  const idx = slides.findIndex((s) => s.url === src);
+                  setStartIndex(idx >= 0 ? idx : 0);
+                  setOpen(true);
                   return;
                 }
                 toast.error(
@@ -121,10 +132,10 @@ export function KycDocumentGrid({
         })}
       </div>
       <DocumentPreviewModal
-        open={Boolean(preview)}
-        title={preview?.title || ""}
-        url={preview?.url || ""}
-        onClose={() => setPreview(null)}
+        open={open && slides.length > 0}
+        slides={slides}
+        initialIndex={startIndex}
+        onClose={() => setOpen(false)}
       />
     </>
   );

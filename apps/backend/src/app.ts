@@ -25,6 +25,7 @@ import { bankingRouter } from "./modules/banking/banking.routes";
 import { settlementRouter } from "./modules/settlements/settlement.routes";
 import { floatRouter } from "./modules/float/float.routes";
 import { promosRouter } from "./modules/promos/promos.routes";
+import { vyaparapiWebhookRouter } from "./modules/providers/vyaparapi/webhook.routes";
 
 export function createApp(): Express {
   const app = express();
@@ -100,6 +101,7 @@ export function createApp(): Express {
   app.use("/api/settlements", settlementRouter);
   app.use("/api/float", floatRouter);
   app.use("/api/promos", promosRouter);
+  app.use("/api/webhooks/vyaparapi", vyaparapiWebhookRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

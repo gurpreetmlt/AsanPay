@@ -1,6 +1,7 @@
 import { EkoAdapter } from "./adapters/eko.adapter";
 import { InstantPayAdapter } from "./adapters/instantpay.adapter";
 import { PaySprintAdapter } from "./adapters/paysprint.adapter";
+import { VyaparApiAdapter } from "./adapters/vyaparapi.adapter";
 import type { ProviderAdapter } from "./types";
 
 // Code -> adapter instance. Adding a provider = one adapter class + one entry
@@ -10,6 +11,7 @@ const adapters: Record<string, ProviderAdapter> = {
   eko: new EkoAdapter(),
   paysprint: new PaySprintAdapter(),
   instantpay: new InstantPayAdapter(),
+  vyaparapi: new VyaparApiAdapter(),
 };
 
 export function getAdapterByCode(code: string): ProviderAdapter | null {

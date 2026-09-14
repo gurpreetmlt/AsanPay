@@ -19,7 +19,11 @@ const PROVIDERS = [
   { code: "eko", name: "Eko (dummy AEPS)" },
   { code: "instantpay", name: "InstantPay" },
   { code: "paysprint", name: "PaySprint" },
+  { code: "vyaparapi", name: "VyaparAPI" },
 ] as const;
+
+/** BBPS catalog services VyaparAPI can recharge today (mobile + DTH). */
+const VYAPARAPI_RECHARGE_SERVICE_CODES = ["MOBILE_PREPAID", "DTH"] as const;
 
 // Hidden from the retailer-facing catalog (category isActive: false) — these are internal
 // operation codes for provider routing, not customer-visible tiles.
@@ -180,6 +184,29 @@ async function main() {
     bbpsCreated++;
   }
   console.log(`BBPS: ${bbpsCreated} provider_services created (${bbpsServices.length} services total)`);
+
+  // VyaparAPI on Mobile Prepaid + DTH (inactive by default — admin toggles live)
+  let vyaparCreated = 0;
+  for (const code of VYAPARAPI_RECHARGE_SERVICE_CODES) {
+    const svc = bbpsServices.find((s) => s.code === code);
+    if (!svc) {
+      console.warn(`VyaparAPI seed skipped — service ${code} missing from catalog`);
+      continue;
+    }
+    const existing = await db.select().from(providerServices).where(eq(providerServices.serviceId, svc.id));
+    if (existing.some((r) => r.providerId === providerIds.vyaparapi)) continue;
+    const maxPriority = existing.reduce((m, r) => Math.max(m, r.priority ?? 0), -1);
+    await db.insert(providerServices).values({
+      serviceId: svc.id,
+      providerId: providerIds.vyaparapi!,
+      providerServiceCode: `vyaparapi:${code}`,
+      isPrimary: false,
+      priority: maxPriority + 1,
+      isActive: false,
+    });
+    vyaparCreated++;
+  }
+  console.log(`VyaparAPI: ${vyaparCreated} provider_services created for ${VYAPARAPI_RECHARGE_SERVICE_CODES.join(", ")}`);
 
   // AEPS + DMT (migrated 2026-07-21)
   const aepsCategoryId = await upsertHiddenCategory(AEPS_CATEGORY, 900);

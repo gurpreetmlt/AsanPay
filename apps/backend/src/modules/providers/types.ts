@@ -757,6 +757,8 @@ export interface RechargeParams {
   operatorCode: string;
   accountRef: string; // mobile number / DTH subscriber id
   amount: string;
+  /** Our txnRef — sent as VyaparAPI `partnerid` (must be unique). */
+  clientRef?: string;
 }
 
 export interface CheckStatusParams {

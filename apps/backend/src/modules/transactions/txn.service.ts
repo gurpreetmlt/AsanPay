@@ -538,6 +538,41 @@ export async function recheckTxnStatus(actor: Actor, txnRef: string): Promise<Tx
   return { txn: finalized, provider: result };
 }
 
+/**
+ * Provider push callback (e.g. VyaparAPI partner callback) already knows the terminal
+ * status — settle without calling the provider again.
+ */
+export async function settleTxnFromProviderCallback(
+  txnRef: string,
+  result: ProviderResult,
+): Promise<TxnOutcome> {
+  const [txn] = await db.select().from(transactions).where(eq(transactions.txnRef, txnRef));
+  if (!txn) throw new HttpError(404, "Transaction not found for partnerid", "TXN_NOT_FOUND");
+  if (txn.status !== "pending" && txn.status !== "initiated") {
+    return { txn, provider: result };
+  }
+
+  const [service] = await db.select().from(services).where(eq(services.id, txn.serviceId));
+  if (!service) throw new HttpError(500, "Service missing for transaction", "SERVICE_MISSING");
+
+  const direction: MoneyDirection = inferDirectionFromServiceCode(service.code);
+  const walletType: WalletType =
+    (txn.walletType as WalletType | null) ?? (direction === "credit" ? "aeps" : "main");
+  const finalized = await finalizeTxn(txn, result, { direction, walletType });
+
+  await insertAuditLog({
+    userId: null,
+    action: "txn.provider_callback",
+    entityType: "transaction",
+    entityId: txn.id,
+    ipAddress: null,
+    userAgent: null,
+    metadata: { from: txn.status, to: finalized.status, providerTxnId: result.providerTxnId },
+  });
+
+  return { txn: finalized, provider: result };
+}
+
 /** Pending older than this may be auto-reconciled (provider already acknowledged). */
 export const PENDING_RECONCILE_MIN_AGE_MS = 120_000;
 

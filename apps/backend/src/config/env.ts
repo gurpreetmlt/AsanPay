@@ -175,6 +175,17 @@ const envSchema = z.object({
   DISPUTE_SLA_HOURS: z.coerce.number().int().positive().default(48),
   /** Consecutive biometric mismatches on one Aadhaar before merchant block / EDD. */
   AEPS_BIO_MISMATCH_LIMIT: z.coerce.number().int().positive().default(2),
+  /**
+   * VyaparAPI (mobile/DTH recharge). Partner `api_key` from Vyapar portal.
+   * Optional until admin enables the provider — recharge fails closed if missing when routed.
+   */
+  VYAPARAPI_API_KEY: z.string().min(8).optional(),
+  VYAPARAPI_BASE_URL: z.string().url().default("https://api.vyaparapi.com"),
+  /**
+   * Shared secret for Vyapar → AsanPay partner callback (`?token=` or `X-Vyapar-Token`).
+   * Required for the webhook to accept updates when set.
+   */
+  VYAPARAPI_CALLBACK_SECRET: z.string().min(16).optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
