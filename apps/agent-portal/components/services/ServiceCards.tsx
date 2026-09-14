@@ -52,6 +52,8 @@ function resolveServiceRoute(code: string): string | null {
   if (code === "UPI_CASH_POINT") return "/upi-cash-point";
   if (code === "MONEY_TRANSFER" || code === "DMT") return "/dmt";
   if (code === "NEPAL" || code === "NEPAL_REMITTANCE") return "/nepal";
+  if (code === "MOBILE_PREPAID") return "/recharge?service=MOBILE_PREPAID";
+  if (code === "DTH") return "/recharge?service=DTH";
   return null;
 }
 
@@ -580,12 +582,6 @@ export function ServiceCards({
               titleIcon={<Receipt size={21} strokeWidth={2.2} color="#7A56D6" aria-hidden />}
               action={
                 <div className="flex items-center gap-2">
-                  <span
-                    className="rounded-lg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
-                    style={{ background: "#F1F5F9", color: "#64748B" }}
-                  >
-                    Coming soon
-                  </span>
                   {layout.bbps.length > BBPS_PREVIEW ? (
                   <button
                     type="button"

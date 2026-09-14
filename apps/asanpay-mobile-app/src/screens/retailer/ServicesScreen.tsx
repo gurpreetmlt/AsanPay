@@ -19,6 +19,7 @@ import { AepsScreen } from "./AepsScreen";
 import { DmtScreen } from "./DmtScreen";
 import { NepalScreen } from "./NepalScreen";
 import { UpiCashPointScreen } from "./UpiCashPointScreen";
+import { RechargeScreen } from "./RechargeScreen";
 import { FundRequestModal } from "../shared/FundRequestScreen";
 import { showAlert } from "../../components/AppAlert";
 import { BrandLockup } from "../../components/BrandMark";
@@ -45,6 +46,7 @@ const AEPS_CODES = new Set(["AADHAAR_PAY", "CASH_WITHDRAW", "BALANCE_ENQUIRY", "
 const DMT_CODES = new Set(["MONEY_TRANSFER"]);
 const NEPAL_CODES = new Set(["NEPAL", "NEPAL_REMITTANCE"]);
 const UPI_CP_CODES = new Set(["UPI_CASH_POINT"]);
+const RECHARGE_CODES = new Set(["MOBILE_PREPAID", "DTH"]);
 
 function greetingName(name: string): string {
   const first = name.split(" ")[0] ?? name;
@@ -66,8 +68,9 @@ export function ServicesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [homeEditMode, setHomeEditMode] = useState(false);
   const [showFund, setShowFund] = useState(false);
-  const [activeScreen, setActiveScreen] = useState<"home" | "aeps" | "dmt" | "nepal" | "upi_cp">("home");
+  const [activeScreen, setActiveScreen] = useState<"home" | "aeps" | "dmt" | "nepal" | "upi_cp" | "recharge">("home");
   const [aepsServiceCode, setAepsServiceCode] = useState<string | undefined>();
+  const [rechargeServiceCode, setRechargeServiceCode] = useState<"MOBILE_PREPAID" | "DTH">("MOBILE_PREPAID");
 
   const { entries: recent, loading: recentLoading, reload: reloadRecent } = useRecentLedger(6);
 
@@ -129,6 +132,9 @@ export function ServicesScreen() {
       setActiveScreen("nepal");
     } else if (UPI_CP_CODES.has(code)) {
       setActiveScreen("upi_cp");
+    } else if (RECHARGE_CODES.has(code)) {
+      setRechargeServiceCode(code === "DTH" ? "DTH" : "MOBILE_PREPAID");
+      setActiveScreen("recharge");
     }
   }
 
@@ -143,6 +149,9 @@ export function ServicesScreen() {
   if (activeScreen === "dmt") return <DmtScreen onBack={backToHome} />;
   if (activeScreen === "nepal") return <NepalScreen onBack={backToHome} />;
   if (activeScreen === "upi_cp") return <UpiCashPointScreen onBack={backToHome} />;
+  if (activeScreen === "recharge") {
+    return <RechargeScreen serviceCode={rechargeServiceCode} onBack={backToHome} />;
+  }
 
   const initials = user.name
     .split(" ")

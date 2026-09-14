@@ -53,6 +53,8 @@ function resolveServiceRoute(code: string): string | null {
   if (code === "UPI_CASH_POINT") return "/upi-cash-point";
   if (code === "MONEY_TRANSFER" || code === "DMT") return "/dmt";
   if (code === "NEPAL" || code === "NEPAL_REMITTANCE") return "/nepal";
+  if (code === "MOBILE_PREPAID") return "/recharge?service=MOBILE_PREPAID";
+  if (code === "DTH") return "/recharge?service=DTH";
   return null;
 }
 
