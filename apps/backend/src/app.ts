@@ -26,6 +26,7 @@ import { settlementRouter } from "./modules/settlements/settlement.routes";
 import { floatRouter } from "./modules/float/float.routes";
 import { promosRouter } from "./modules/promos/promos.routes";
 import { vyaparapiWebhookRouter } from "./modules/providers/vyaparapi/webhook.routes";
+import { telegramWebhookRouter } from "./modules/telegram/webhook.routes";
 
 export function createApp(): Express {
   const app = express();
@@ -102,6 +103,7 @@ export function createApp(): Express {
   app.use("/api/float", floatRouter);
   app.use("/api/promos", promosRouter);
   app.use("/api/webhooks/vyaparapi", vyaparapiWebhookRouter);
+  app.use("/api/webhooks/telegram", telegramWebhookRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

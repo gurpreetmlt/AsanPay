@@ -32,6 +32,9 @@ import {
   verifyTransactionPin,
   agentAuth,
   agentAuthStatus,
+  createTelegramLinkHandler,
+  unlinkTelegramHandler,
+  telegramStatusHandler,
 } from "./auth.controller";
 import { requireAuth } from "../../middleware/auth.middleware";
 import { requireRole } from "../../middleware/rbac.middleware";
@@ -63,6 +66,10 @@ authRouter.get("/email/check", requireAuth, signupMobileCheckLimiter, signupEmai
 authRouter.patch("/email/preferences", requireAuth, updateEmailPreferences);
 authRouter.get("/aeps-favourite-banks", requireAuth, getAepsFavouriteBanksHandler);
 authRouter.put("/aeps-favourite-banks", requireAuth, putAepsFavouriteBanksHandler);
+
+authRouter.post("/telegram/link", requireAuth, createTelegramLinkHandler);
+authRouter.delete("/telegram/link", requireAuth, unlinkTelegramHandler);
+authRouter.get("/telegram/status", requireAuth, telegramStatusHandler);
 
 authRouter.get("/devices", requireAuth, listDevices);
 authRouter.post("/devices/:id/revoke", requireAuth, revokeDevice);

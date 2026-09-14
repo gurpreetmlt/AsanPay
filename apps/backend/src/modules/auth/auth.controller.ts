@@ -370,3 +370,24 @@ export async function agentAuthStatus(req: Request, res: Response): Promise<void
   // InstantPay mode: hit outletLoginStatus so UI knows LOGGEDIN vs LOGINREQUIRED before scanning.
   sendSuccess(res, await getAgentAuthStatus(req.auth.sub, { checkProvider: true, endpointIp: req.ip ?? null }));
 }
+
+export async function createTelegramLinkHandler(req: Request, res: Response): Promise<void> {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { createTelegramLinkDeepLink } = await import("../telegram/link.service");
+  const result = await createTelegramLinkDeepLink(req.auth.sub);
+  sendSuccess(res, result, "Open this link in Telegram to finish linking");
+}
+
+export async function unlinkTelegramHandler(req: Request, res: Response): Promise<void> {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { unlinkTelegram } = await import("../telegram/link.service");
+  await unlinkTelegram(req.auth.sub);
+  const user = await getAuthMe(req.auth.sub);
+  sendSuccess(res, { user }, "Telegram unlinked");
+}
+
+export async function telegramStatusHandler(req: Request, res: Response): Promise<void> {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { getTelegramLinkStatus } = await import("../telegram/link.service");
+  sendSuccess(res, await getTelegramLinkStatus(req.auth.sub));
+}

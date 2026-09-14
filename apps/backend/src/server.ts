@@ -23,6 +23,10 @@ async function main() {
     logger.info(`AsanPay backend listening on port ${env.PORT} [${env.NODE_ENV}]`);
   });
 
+  void import("./modules/telegram/client").then(({ telegramSetWebhookIfConfigured }) =>
+    telegramSetWebhookIfConfigured(),
+  );
+
   // Scheduled work runs in its own process — see src/jobs/index.ts and spec §11.1. Nothing
   // here may hold a pg connection on a timer: this pool belongs to request handlers.
 

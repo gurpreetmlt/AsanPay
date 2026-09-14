@@ -41,6 +41,7 @@ import {
 } from "./emailVerify.service";
 import type { AuthPortal, AuthUser, UserRole } from "@asanpay/shared-types";
 import { isAdminRole, isAgentPortalRole, ROLE_LABELS } from "@asanpay/shared-types";
+import { deliverLoginOtp } from "../telegram/link.service";
 import type {
   RegisterInput,
   LoginInput,
@@ -110,6 +111,7 @@ function toAuthUser(row: typeof users.$inferSelect): AuthUser {
     hasInstantpayOutlet: Boolean(row.instantpayOutletId),
     hasTxnPin: Boolean(row.txnPinHash),
     hasLoginMpin: Boolean(row.loginMpinHash),
+    telegramLinked: Boolean(row.telegramChatId),
   };
 }
 
@@ -473,7 +475,12 @@ export async function requestLoginOtp(
   }
 
   const [row] = await db
-    .select({ id: users.id, role: users.role, isActive: users.isActive })
+    .select({
+      id: users.id,
+      role: users.role,
+      isActive: users.isActive,
+      telegramChatId: users.telegramChatId,
+    })
     .from(users)
     .where(eq(users.mobile, input.mobile));
 
@@ -534,12 +541,22 @@ export async function requestLoginOtp(
     metadata: input.role ? { expectedRole: input.role } : undefined,
   });
 
+  const delivery = await deliverLoginOtp({
+    userId: row.id,
+    mobile: input.mobile,
+    otp,
+    telegramChatId: row.telegramChatId ?? null,
+  });
+
   if (exposeOtp) {
     logger.info({ mobile: input.mobile, registered: true, role: input.role }, "[OTP] generated (value not logged)");
   }
 
   return {
     ...GENERIC_OTP_SENT,
+    message: delivery.viaTelegram
+      ? "OTP sent to your linked Telegram"
+      : GENERIC_OTP_SENT.message,
     ...(exposeOtp ? { otp } : {}),
   };
 }

@@ -68,6 +68,11 @@ export const users = pgTable(
     aepsFavouriteBankIds: jsonb("aeps_favourite_bank_ids").$type<string[] | null>(),
     /** Optional per-retailer daily transaction ceiling for alerting. Null = no limit configured. */
     dailyLimitAmount: numeric("daily_limit_amount", { precision: 14, scale: 2 }),
+    /**
+     * Telegram chat id for OTP delivery (interim until SMS). Null = not linked.
+     * Unique when set so one chat cannot receive OTPs for multiple accounts.
+     */
+    telegramChatId: varchar("telegram_chat_id", { length: 64 }),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -76,6 +81,20 @@ export const users = pgTable(
     index("users_parent_id_idx").on(table.parentId),
     index("users_role_idx").on(table.role),
   ],
+);
+
+/** One-time tokens for t.me/Bot?start=link_<token> deep links. */
+export const telegramLinkTokens = pgTable(
+  "telegram_link_tokens",
+  {
+    token: varchar("token", { length: 64 }).primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("telegram_link_tokens_user_id_idx").on(table.userId)],
 );
 
 // Closure table: one row per (ancestor, descendant) pair, including depth-0 self rows.

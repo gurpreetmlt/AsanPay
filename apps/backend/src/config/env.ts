@@ -20,6 +20,36 @@ const envSchema = z.object({
    */
   EXPOSE_OTP_IN_RESPONSE: z.coerce.boolean().default(false),
   /**
+   * OTP delivery channels (comma-separated), first match wins:
+   * - telegram — send via TELEGRAM_BOT_TOKEN when user has linked chat id
+   * - sms — reserved for future SMS gateway (not implemented yet)
+   * - log — only log / optionally EXPOSE_OTP (dev)
+   * Empty = legacy behaviour (expose/test overrides only).
+   */
+  OTP_DELIVERY: z.string().default(""),
+  TELEGRAM_BOT_TOKEN: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().optional(),
+  ),
+  /** Bot username without @ — e.g. AsanPayAuthBot */
+  TELEGRAM_BOT_USERNAME: z.string().default("AsanPayAuthBot"),
+  /**
+   * Shared secret for Telegram → AsanPay webhook (`?token=`).
+   * Required when TELEGRAM_BOT_TOKEN is set in production.
+   */
+  TELEGRAM_WEBHOOK_SECRET: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().min(16).optional(),
+  ),
+  /**
+   * Public HTTPS base for setWebhook, e.g. https://api.asanpay.in
+   * Optional — ops can set webhook manually via Bot API.
+   */
+  TELEGRAM_WEBHOOK_PUBLIC_URL: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().url().optional(),
+  ),
+  /**
    * Comma-separated "mobile:otp" pairs that receive a FIXED login OTP instead of a random one
    * (e.g. "9333333333:222222,9444444444:333333"). Interim until an SMS provider is integrated,
    * and useful for Play Store review accounts. Works in production but ONLY for listed numbers —

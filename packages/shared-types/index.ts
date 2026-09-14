@@ -68,6 +68,8 @@ export interface AuthUser {
   hasTxnPin: boolean;
   /** True once login MPIN is set (mobile quick unlock). */
   hasLoginMpin: boolean;
+  /** True when Telegram chat is linked for OTP delivery. */
+  telegramLinked: boolean;
 }
 
 export interface JwtAccessPayload {

@@ -302,6 +302,13 @@
       "when": 1786100000000,
       "tag": "0042_demote_incomplete_kyc",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1789404000000,
+      "tag": "0043_telegram_otp",
+      "breakpoints": true
     }
   ]
 }

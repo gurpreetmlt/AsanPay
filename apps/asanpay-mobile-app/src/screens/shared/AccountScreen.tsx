@@ -13,6 +13,7 @@ import {
   Landmark,
   LifeBuoy,
   Lock,
+  MessageCircle,
   Moon,
   ShieldCheck,
   Smartphone,
@@ -171,8 +172,65 @@ export function AccountScreen() {
   const [showFund, setShowFund] = useState(false);
   const [showRegisterOutlet, setShowRegisterOutlet] = useState(false);
   const [showBioKyc, setShowBioKyc] = useState(false);
+  const [telegramBusy, setTelegramBusy] = useState(false);
 
   const isRetailer = user.role === "retailer";
+
+  async function linkTelegram() {
+    if (telegramBusy) return;
+    setTelegramBusy(true);
+    try {
+      const res = await api.post<ApiResponse<{ deepLink: string; expiresInSeconds: number }>>(
+        "/auth/telegram/link",
+      );
+      if (!res.data.success || !res.data.data?.deepLink) {
+        throw new Error(res.data.message || "Could not create Telegram link");
+      }
+      await Linking.openURL(res.data.data.deepLink);
+      showAlert(
+        "Finish in Telegram",
+        "Tap Start in Telegram. Then come back here and tap Refresh Telegram status.",
+      );
+    } catch (err) {
+      showAlert("Link failed", apiError(err, "Could not start Telegram link"));
+    } finally {
+      setTelegramBusy(false);
+    }
+  }
+
+  async function unlinkTelegram() {
+    if (telegramBusy) return;
+    setTelegramBusy(true);
+    try {
+      const res = await api.delete<ApiResponse<{ user: AuthUser }>>("/auth/telegram/link");
+      if (!res.data.success || !res.data.data?.user) {
+        throw new Error(res.data.message || "Could not unlink");
+      }
+      updateUser(res.data.data.user);
+      showAlert("Done", "Telegram unlinked");
+    } catch (err) {
+      showAlert("Unlink failed", apiError(err, "Could not unlink Telegram"));
+    } finally {
+      setTelegramBusy(false);
+    }
+  }
+
+  async function refreshTelegramStatus() {
+    try {
+      const res = await api.get<ApiResponse<{ user: AuthUser }>>("/auth/me");
+      if (res.data.success && res.data.data?.user) {
+        updateUser(res.data.data.user);
+        showAlert(
+          "Telegram",
+          res.data.data.user.telegramLinked
+            ? "Linked — login OTPs can be sent to Telegram."
+            : "Not linked yet. Open Telegram and tap Start, then refresh again.",
+        );
+      }
+    } catch (err) {
+      showAlert("Refresh failed", apiError(err, "Could not refresh status"));
+    }
+  }
 
   function goManageWallet() {
     navigation.navigate("Balance" as never);
@@ -372,6 +430,40 @@ export function AccountScreen() {
             tokens={tokens}
             onPress={() => setShowChangePassword(true)}
           />
+          <MenuRow
+            icon={MessageCircle}
+            label={user.telegramLinked ? "Telegram OTP (linked)" : "Link Telegram for OTP"}
+            subtitle={
+              user.telegramLinked
+                ? "login OTPs are sent to Telegram"
+                : "receive login OTPs until SMS is enabled"
+            }
+            tokens={tokens}
+            onPress={() => {
+              if (telegramBusy) return;
+              if (user.telegramLinked) {
+                showAlert("Telegram", "Choose an action", [
+                  { text: "Refresh status", onPress: () => void refreshTelegramStatus() },
+                  { text: "Unlink", style: "destructive", onPress: () => void unlinkTelegram() },
+                  { text: "Cancel", style: "cancel" },
+                ]);
+                return;
+              }
+              void linkTelegram();
+            }}
+            right={
+              telegramBusy ? <ActivityIndicator color={colors.blueFlat} /> : undefined
+            }
+          />
+          {!user.telegramLinked ? (
+            <MenuRow
+              icon={MessageCircle}
+              label="Refresh Telegram status"
+              subtitle="after you tap Start in Telegram"
+              tokens={tokens}
+              onPress={() => void refreshTelegramStatus()}
+            />
+          ) : null}
           <MenuRow
             icon={KeyRound}
             label="Transaction PIN"

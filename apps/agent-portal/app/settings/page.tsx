@@ -181,6 +181,7 @@ export default function SettingsPage() {
   const [passwordBusy, setPasswordBusy] = useState(false);
   const [bioLoading, setBioLoading] = useState(false);
   const [marketingBusy, setMarketingBusy] = useState(false);
+  const [telegramBusy, setTelegramBusy] = useState(false);
   const [email, setEmail] = useState("");
   const [notifs, setNotifs] = useState({
     sms: true,
@@ -733,6 +734,104 @@ export default function SettingsPage() {
                       Update Password
                     </PrimaryButton>
                   </div>
+
+                  <div className="rounded-xl border p-4" style={{ borderColor: B.border }}>
+                    <div className="mb-1 text-sm font-semibold" style={{ color: B.blue }}>
+                      Telegram OTP
+                    </div>
+                    <p className="mb-3 text-xs" style={{ color: B.muted }}>
+                      {user?.telegramLinked
+                        ? "Linked — login OTPs are sent to your Telegram."
+                        : "Link Telegram to receive login OTPs until SMS is enabled."}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {!user?.telegramLinked ? (
+                        <PrimaryButton
+                          type="button"
+                          variant="success"
+                          size="sm"
+                          loading={telegramBusy}
+                          disabled={telegramBusy}
+                          className="!w-auto"
+                          onClick={() => {
+                            void (async () => {
+                              setTelegramBusy(true);
+                              try {
+                                const { data } = await api.post<
+                                  ApiResponse<{ deepLink: string; expiresInSeconds: number }>
+                                >("/auth/telegram/link");
+                                if (!data.success || !data.data?.deepLink) {
+                                  throw new Error(data.message || "Could not create Telegram link");
+                                }
+                                window.open(data.data.deepLink, "_blank", "noopener,noreferrer");
+                                toast.success("Open Telegram and tap Start. Then refresh this page.");
+                              } catch (err) {
+                                toast.error(extractApiError(err, "Could not start Telegram link"));
+                              } finally {
+                                setTelegramBusy(false);
+                              }
+                            })();
+                          }}
+                        >
+                          Link Telegram
+                        </PrimaryButton>
+                      ) : (
+                        <PrimaryButton
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          loading={telegramBusy}
+                          disabled={telegramBusy}
+                          className="!w-auto"
+                          onClick={() => {
+                            void (async () => {
+                              setTelegramBusy(true);
+                              try {
+                                const { data } = await api.delete<ApiResponse<{ user: AuthUser }>>(
+                                  "/auth/telegram/link",
+                                );
+                                if (!data.success || !data.data?.user) {
+                                  throw new Error(data.message || "Could not unlink");
+                                }
+                                useAuthStore.getState().setUser(data.data.user);
+                                toast.success("Telegram unlinked");
+                              } catch (err) {
+                                toast.error(extractApiError(err, "Could not unlink Telegram"));
+                              } finally {
+                                setTelegramBusy(false);
+                              }
+                            })();
+                          }}
+                        >
+                          Unlink Telegram
+                        </PrimaryButton>
+                      )}
+                      <PrimaryButton
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="!w-auto"
+                        onClick={() => {
+                          void (async () => {
+                            try {
+                              const { data } = await api.get<ApiResponse<{ user: AuthUser }>>("/auth/me");
+                              if (data.success && data.data?.user) {
+                                useAuthStore.setState({ user: data.data.user });
+                                toast.success(
+                                  data.data.user.telegramLinked ? "Telegram linked" : "Not linked yet",
+                                );
+                              }
+                            } catch (err) {
+                              toast.error(extractApiError(err, "Could not refresh status"));
+                            }
+                          })();
+                        }}
+                      >
+                        Refresh status
+                      </PrimaryButton>
+                    </div>
+                  </div>
+
                   <div className="rounded-xl border p-4" style={{ borderColor: B.border }}>
                     <div className="mb-1 text-sm font-semibold" style={{ color: B.blue }}>
                       Transaction PIN
