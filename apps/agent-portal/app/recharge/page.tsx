@@ -2,7 +2,7 @@
 
 import { FormEvent, PointerEvent, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, Check } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { TELECOM_CIRCLES, type ApiResponse } from "@asanpay/shared-types";
 import { AppShell } from "@/components/layout/AppShell";
@@ -90,10 +90,10 @@ function PlanList({
 }) {
   if (items.length === 0) return null;
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {groupPlans(items).map((group) => (
-        <section key={group.category} className="space-y-2">
-          <div className="text-[11px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+        <section key={group.category} className="space-y-2.5">
+          <div className="px-0.5 text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: B.muted }}>
             {group.category}
           </div>
           <div className="space-y-2.5">
@@ -104,48 +104,57 @@ function PlanList({
                   key={`${group.category}-${p.amount}-${i}`}
                   type="button"
                   onClick={() => onPick(p.amount)}
-                  className="flex w-full overflow-hidden rounded-2xl border text-left shadow-sm transition hover:shadow-md"
+                  className="flex w-full overflow-hidden rounded-[20px] border text-left transition"
                   style={{
-                    borderColor: selected ? B.blue : B.border,
-                    boxShadow: selected ? `0 0 0 2px ${B.blue}33` : undefined,
-                    background: "#fff",
+                    borderColor: selected ? B.blueLight : B.border,
+                    background: selected ? "#F4F7FF" : "#fff",
+                    boxShadow: selected
+                      ? `0 0 0 3px ${B.blueLight}22, 0 8px 20px rgba(11,42,154,0.08)`
+                      : "0 1px 2px rgba(11,42,154,0.04)",
                   }}
                 >
                   <div
-                    className="flex w-[4.75rem] shrink-0 flex-col items-center justify-center px-2 py-3"
+                    className="flex w-[5.25rem] shrink-0 flex-col items-center justify-center py-3.5"
                     style={{ background: selected ? B.btnGrad : B.secondary }}
                   >
                     <span
-                      className="text-[11px] font-semibold"
-                      style={{ color: selected ? "rgba(255,255,255,0.8)" : B.muted }}
+                      className="text-[10px] font-bold tracking-wide"
+                      style={{ color: selected ? "rgba(255,255,255,0.75)" : B.muted }}
                     >
-                      ₹
+                      INR
                     </span>
                     <span
-                      className="text-lg font-extrabold leading-none"
+                      className="text-[22px] font-extrabold leading-none"
                       style={{ color: selected ? "#fff" : B.blue }}
                     >
                       {p.amount}
                     </span>
                   </div>
-                  <div className="min-w-0 flex-1 px-3 py-2.5">
+                  <div className="min-w-0 flex-1 px-3.5 py-3">
                     <div className="flex items-center justify-between gap-2">
                       <span
-                        className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
-                        style={{ background: B.secondary, color: B.blue }}
+                        className="rounded-full px-2.5 py-0.5 text-[11px] font-bold"
+                        style={{ background: selected ? "#fff" : B.secondary, color: B.blueLight }}
                       >
-                        {p.validity ? p.validity : "Tap to select"}
+                        {p.validity ? p.validity : "Validity on pack"}
                       </span>
                       {selected ? (
-                        <span className="text-[11px] font-bold" style={{ color: B.green }}>
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold" style={{ color: B.green }}>
+                          <Check size={12} strokeWidth={3} />
                           Selected
                         </span>
                       ) : null}
                     </div>
                     {p.description ? (
                       <p
-                        className="mt-1.5 text-xs leading-snug"
-                        style={{ color: B.muted, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}
+                        className="mt-1.5 text-[12px] leading-snug"
+                        style={{
+                          color: B.muted,
+                          display: "-webkit-box",
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: "vertical",
+                          overflow: "hidden",
+                        }}
                       >
                         {p.description}
                       </p>
@@ -478,12 +487,16 @@ function RechargeInner() {
 
   return (
     <AppShell>
-      <div className="flex min-h-full w-full items-stretch">
-      <div className="w-full max-w-lg shrink-0 space-y-5 px-4 py-5 sm:px-6">
+      <div
+        className={`flex min-h-full w-full items-start ${
+          panelOpen ? "justify-start gap-5 px-4 py-5 lg:px-8" : "justify-center px-4 py-8"
+        }`}
+      >
+      <div className="w-full max-w-lg shrink-0 space-y-5">
         <div className="flex items-start gap-3">
           <button
             type="button"
-            className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border bg-white"
+            className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border bg-white shadow-sm"
             style={{ borderColor: B.border, color: B.blue }}
             onClick={() => router.push("/dashboard")}
             aria-label="Back"
@@ -491,7 +504,7 @@ function RechargeInner() {
             <ArrowLeft size={18} strokeWidth={2.4} />
           </button>
           <div>
-            <h1 className="text-2xl font-bold" style={{ color: B.blue }}>
+            <h1 className="text-2xl font-bold tracking-tight" style={{ color: B.blue }}>
               {title}
             </h1>
             <p className="mt-0.5 text-[13px]" style={{ color: B.muted }}>
@@ -502,7 +515,7 @@ function RechargeInner() {
 
         <form
           onSubmit={onSubmit}
-          className="space-y-4 rounded-2xl border bg-white p-5 shadow-sm"
+          className="space-y-4 rounded-[28px] border bg-white p-5 shadow-[0_10px_40px_rgba(11,42,154,0.06)] sm:p-6"
           style={{ borderColor: B.border }}
         >
           <label className="block space-y-1.5">
@@ -518,7 +531,7 @@ function RechargeInner() {
                 markNewIntent();
                 setAccountRef(e.target.value.replace(/\D/g, ""));
               }}
-              className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
+              className="w-full rounded-2xl border bg-[#F7F9FF] px-3.5 py-3 text-sm outline-none transition focus:border-[#2A5CDD] focus:bg-white"
               style={{ borderColor: B.border }}
               placeholder={serviceCode === "DTH" ? "DTH number" : "10-digit mobile"}
             />
@@ -542,7 +555,7 @@ function RechargeInner() {
                   setPlans([]);
                   setOffers([]);
                 }}
-                className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
+                className="w-full rounded-2xl border bg-[#F7F9FF] px-3.5 py-3 text-sm outline-none transition focus:border-[#2A5CDD] focus:bg-white"
                 style={{ borderColor: B.border }}
               >
                 <option value="">Select circle/state</option>
@@ -570,7 +583,7 @@ function RechargeInner() {
                 setPlans([]);
                 setOffers([]);
               }}
-              className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
+              className="w-full rounded-2xl border bg-[#F7F9FF] px-3.5 py-3 text-sm outline-none transition focus:border-[#2A5CDD] focus:bg-white"
               style={{ borderColor: B.border }}
             >
               {operatorOptions.map((o) => (
@@ -582,20 +595,28 @@ function RechargeInner() {
           </label>
 
           {serviceCode === "MOBILE_PREPAID" ? (
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2.5">
               <button
                 type="button"
                 onClick={() => void openCatalog("plans")}
-                className="rounded-xl border px-3 py-2.5 text-sm font-semibold"
-                style={{ borderColor: B.blue, color: B.blue, background: "#fff" }}
+                className="rounded-2xl border px-3 py-2.5 text-sm font-semibold transition"
+                style={{
+                  borderColor: B.blue,
+                  color: panelOpen && panelTab === "plans" ? "#fff" : B.blue,
+                  background: panelOpen && panelTab === "plans" ? B.btnGrad : "#fff",
+                }}
               >
                 Plans
               </button>
               <button
                 type="button"
                 onClick={() => void openCatalog("offers")}
-                className="rounded-xl border px-3 py-2.5 text-sm font-semibold"
-                style={{ borderColor: B.blue, color: B.blue, background: "#fff" }}
+                className="rounded-2xl border px-3 py-2.5 text-sm font-semibold transition"
+                style={{
+                  borderColor: B.blue,
+                  color: panelOpen && panelTab === "offers" ? "#fff" : B.blue,
+                  background: panelOpen && panelTab === "offers" ? B.btnGrad : "#fff",
+                }}
               >
                 Offers
               </button>
@@ -613,7 +634,7 @@ function RechargeInner() {
                 markNewIntent();
                 setAmount(e.target.value);
               }}
-              className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
+              className="w-full rounded-2xl border bg-[#F7F9FF] px-3.5 py-3 text-sm outline-none transition focus:border-[#2A5CDD] focus:bg-white"
               style={{ borderColor: B.border }}
               placeholder="e.g. 199"
             />
@@ -629,7 +650,7 @@ function RechargeInner() {
               maxLength={4}
               value={txnPin}
               onChange={(e) => setTxnPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
-              className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none tracking-widest"
+              className="w-full rounded-2xl border bg-[#F7F9FF] px-3.5 py-3 text-sm outline-none tracking-widest transition focus:border-[#2A5CDD] focus:bg-white"
               style={{ borderColor: B.border }}
               placeholder="••••"
             />
@@ -682,42 +703,35 @@ function RechargeInner() {
       </div>
 
       {panelOpen ? (
-        <>
-          <div className="hidden w-16 shrink-0 flex-col items-center justify-center lg:flex">
-            <div className="h-20 w-px" style={{ background: B.border }} />
-            <div
-              className="my-3 flex h-11 w-11 items-center justify-center rounded-full border bg-white shadow-sm"
-              style={{ borderColor: B.blue, color: B.blue }}
-              aria-hidden
-            >
-              <ChevronRight size={22} strokeWidth={2.4} />
-            </div>
-            <div className="h-20 w-px" style={{ background: B.border }} />
-          </div>
           <aside
-            className="fixed inset-y-0 right-0 z-40 flex w-full max-w-md flex-col border-l bg-white shadow-2xl lg:static lg:z-0 lg:max-w-none lg:min-w-0 lg:flex-1 lg:shadow-none"
+            className="fixed inset-y-0 right-0 z-40 flex w-full max-w-md flex-col border-l bg-white shadow-2xl lg:static lg:z-0 lg:my-0 lg:max-h-[calc(100vh-2.5rem)] lg:rounded-[28px] lg:border lg:shadow-[0_12px_40px_rgba(11,42,154,0.08)]"
             style={{ borderColor: B.border }}
           >
-            <div className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: B.border }}>
-              <span className="text-sm font-bold" style={{ color: B.blue }}>
-                Browse packs
-              </span>
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: `1px solid ${B.border}` }}>
+              <div>
+                <p className="text-sm font-bold" style={{ color: B.blue }}>
+                  Browse packs
+                </p>
+                <p className="text-[11px]" style={{ color: B.muted }}>
+                  Tap a pack to fill amount
+                </p>
+              </div>
               <button
                 type="button"
-                className="text-sm font-semibold"
-                style={{ color: B.muted }}
+                className="rounded-full px-3 py-1.5 text-sm font-semibold"
+                style={{ color: B.muted, background: B.secondary }}
                 onClick={() => setPanelOpen(false)}
               >
                 Close
               </button>
             </div>
-            <div className="grid grid-cols-2 gap-2 px-4 py-3">
+            <div className="grid grid-cols-2 gap-2 px-5 py-3">
               <button
                 type="button"
                 onClick={() => switchCatalogTab("plans")}
-                className="rounded-xl px-3 py-2 text-sm font-semibold"
+                className="rounded-2xl px-3 py-2 text-sm font-semibold"
                 style={{
-                  background: panelTab === "plans" ? B.blue : "#fff",
+                  background: panelTab === "plans" ? B.btnGrad : "#fff",
                   color: panelTab === "plans" ? "#fff" : B.blue,
                   border: `1px solid ${B.blue}`,
                 }}
@@ -727,9 +741,9 @@ function RechargeInner() {
               <button
                 type="button"
                 onClick={() => switchCatalogTab("offers")}
-                className="rounded-xl px-3 py-2 text-sm font-semibold"
+                className="rounded-2xl px-3 py-2 text-sm font-semibold"
                 style={{
-                  background: panelTab === "offers" ? B.blue : "#fff",
+                  background: panelTab === "offers" ? B.btnGrad : "#fff",
                   color: panelTab === "offers" ? "#fff" : B.blue,
                   border: `1px solid ${B.blue}`,
                 }}
@@ -737,7 +751,7 @@ function RechargeInner() {
                 Offers
               </button>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6">
               {panelBusy ? (
                 <p className="text-sm" style={{ color: B.muted }}>
                   Loading {panelTab}…
@@ -759,7 +773,6 @@ function RechargeInner() {
               ) : null}
             </div>
           </aside>
-        </>
       ) : null}
       </div>
     </AppShell>

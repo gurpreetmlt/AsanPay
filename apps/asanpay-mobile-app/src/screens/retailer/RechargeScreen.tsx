@@ -113,7 +113,12 @@ function PlanBlock({
                   styles.planCard,
                   {
                     borderColor: selected ? colors.blue : tokens.cardBorder,
-                    backgroundColor: tokens.card,
+                    backgroundColor: selected ? `${colors.blue}0F` : tokens.card,
+                    shadowColor: "#0B2A9A",
+                    shadowOpacity: selected ? 0.12 : 0.04,
+                    shadowRadius: 8,
+                    shadowOffset: { width: 0, height: 2 },
+                    elevation: selected ? 3 : 1,
                   },
                 ]}
               >
@@ -146,9 +151,11 @@ function PlanBlock({
                     >
                       {p.validity ? p.validity : "Tap to select"}
                     </Text>
-                    {selected ? (
-                      <Text style={{ color: colors.green, fontSize: 11, fontWeight: "800" }}>Selected</Text>
-                    ) : null}
+                      {selected ? (
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                          <Text style={{ color: colors.green, fontSize: 11, fontWeight: "800" }}>Selected</Text>
+                        </View>
+                      ) : null}
                   </View>
                   {p.description ? (
                     <Text style={{ color: tokens.sub, fontSize: 12, marginTop: 6, lineHeight: 16 }} numberOfLines={2}>
@@ -722,14 +729,23 @@ const styles = StyleSheet.create({
   backBtn: { padding: 4 },
   title: { fontSize: 18, fontWeight: "700" },
   body: { padding: 16, paddingBottom: 40 },
-  formCard: { borderWidth: 1, borderRadius: 20, padding: 16 },
+  formCard: {
+    borderWidth: 1,
+    borderRadius: 24,
+    padding: 18,
+    shadowColor: "#0B2A9A",
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
+  },
   label: { fontSize: 13, fontWeight: "600", marginTop: 12, marginBottom: 6 },
-  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
+  input: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 13, fontSize: 15 },
   select: {
     borderWidth: 1,
-    borderRadius: 12,
+    borderRadius: 16,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 13,
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
@@ -745,18 +761,18 @@ const styles = StyleSheet.create({
   },
   selectOption: { paddingVertical: 12, paddingHorizontal: 8, borderRadius: 10 },
   hintRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
-  planCard: { borderWidth: 1, borderRadius: 16, marginTop: 8, flexDirection: "row", overflow: "hidden" },
-  planPrice: { width: 76, alignItems: "center", justifyContent: "center", paddingVertical: 12 },
+  planCard: { borderWidth: 1, borderRadius: 18, marginTop: 8, flexDirection: "row", overflow: "hidden" },
+  planPrice: { width: 82, alignItems: "center", justifyContent: "center", paddingVertical: 14 },
   planTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
   catalogBtnRow: { flexDirection: "row", gap: 8, marginTop: 14 },
   catalogBtn: {
     flex: 1,
     borderWidth: 1,
-    borderRadius: 12,
+    borderRadius: 16,
     paddingVertical: 12,
     alignItems: "center",
   },
-  packBox: { marginTop: 14, borderWidth: 1, borderRadius: 16, padding: 12 },
+  packBox: { marginTop: 14, borderWidth: 1, borderRadius: 18, padding: 12 },
   modalHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
   cta: { marginTop: 20, borderRadius: 14, paddingVertical: 14, alignItems: "center" },
   ctaText: { color: "#fff", fontWeight: "700", fontSize: 16 },
