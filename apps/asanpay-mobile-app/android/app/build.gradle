@@ -48,8 +48,8 @@ android {
         applicationId "com.asanpay.mobile"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode 2
+        versionName "1.0.1"
         // Pre-launch testing: allow screenshots. Set true before production release.
         buildConfigField "boolean", "ENABLE_SECURE_SCREEN", "false"
     }

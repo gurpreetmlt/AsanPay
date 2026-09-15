@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { and, eq, gt } from "drizzle-orm";
 import { db } from "../../db/postgres";
 import { telegramLinkTokens, users } from "../../db/postgres/schema";
-import { env } from "../../config/env";
+import { env, getTestOtpOverride, getTestSignupOtpOverride } from "../../config/env";
 import { HttpError } from "../../utils/httpError";
 import { logger } from "../../utils/logger";
 import { telegramBotUsername, telegramSendMessage } from "./client";
@@ -20,16 +20,17 @@ export function wantsTelegramOtp(): boolean {
   return otpDeliveryChannels().includes("telegram");
 }
 
-function hasTestOtpOverride(mobile: string): boolean {
-  return Boolean(
-    env.TEST_OTP_OVERRIDES &&
-      (env.TEST_OTP_OVERRIDES.includes("*:") || env.TEST_OTP_OVERRIDES.includes(mobile)),
-  );
+function hasFixedOtp(mobile: string, purpose: "login" | "signup"): boolean {
+  return purpose === "signup"
+    ? Boolean(getTestSignupOtpOverride(mobile))
+    : Boolean(getTestOtpOverride(mobile));
 }
 
 /**
  * Deliver login/signup OTP. Recipient is the user's own mobile (WhatsApp) or linked Telegram.
  * Channel order follows OTP_DELIVERY (first match wins; telegram skips to next if not linked).
+ * TEST_OTP_OVERRIDES / TEST_SIGNUP_OTP_OVERRIDES skip WhatsApp+Telegram so login keeps using the
+ * env fixed OTP (WhatsApp Cloud is not blocking sign-in while that channel is unfinished).
  */
 export async function deliverAuthOtp(params: {
   mobile: string;
@@ -37,6 +38,11 @@ export async function deliverAuthOtp(params: {
   purpose: "login" | "signup";
   telegramChatId?: string | null;
 }): Promise<{ via: "whatsapp" | "telegram" | "none" }> {
+  if (hasFixedOtp(params.mobile, params.purpose)) {
+    logger.info({ purpose: params.purpose }, "OTP delivery skipped (fixed TEST_OTP override)");
+    return { via: "none" };
+  }
+
   const channels = otpDeliveryChannels();
   const label = params.purpose === "signup" ? "signup" : "login";
 
@@ -62,7 +68,7 @@ export async function deliverAuthOtp(params: {
   }
 
   if (channels.includes("telegram") && !params.telegramChatId && params.purpose === "login") {
-    if (!hasTestOtpOverride(params.mobile)) {
+    if (!hasFixedOtp(params.mobile, params.purpose)) {
       throw new HttpError(
         422,
         "Telegram is not linked. Log in with password, then open Account → Link Telegram.",
