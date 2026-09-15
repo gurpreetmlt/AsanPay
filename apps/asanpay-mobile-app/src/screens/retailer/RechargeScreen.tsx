@@ -569,19 +569,6 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
             }}
           />
 
-          <Text style={[styles.label, { color: tokens.txt }]}>Amount (₹)</Text>
-          <TextInput
-            style={[styles.input, { borderColor: tokens.inputBorder, color: tokens.txt, backgroundColor: tokens.inputBg }]}
-            keyboardType="decimal-pad"
-            value={amount}
-            onChangeText={(t) => {
-              markNewIntent();
-              setAmount(t);
-            }}
-            placeholder="e.g. 199"
-            placeholderTextColor={tokens.mute}
-          />
-
           {serviceCode === "MOBILE_PREPAID" ? (
             <View style={styles.catalogBtnRow}>
               <Pressable
@@ -653,6 +640,19 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
               ) : null}
             </View>
           ) : null}
+
+          <Text style={[styles.label, { color: tokens.txt }]}>Amount (₹)</Text>
+          <TextInput
+            style={[styles.input, { borderColor: tokens.inputBorder, color: tokens.txt, backgroundColor: tokens.inputBg }]}
+            keyboardType="decimal-pad"
+            value={amount}
+            onChangeText={(t) => {
+              markNewIntent();
+              setAmount(t);
+            }}
+            placeholder="e.g. 199"
+            placeholderTextColor={tokens.mute}
+          />
 
           <Text style={[styles.label, { color: tokens.txt }]}>Transaction PIN</Text>
           <TextInput

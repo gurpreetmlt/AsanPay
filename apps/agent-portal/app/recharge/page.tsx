@@ -581,23 +581,6 @@ function RechargeInner() {
             </select>
           </label>
 
-          <label className="block space-y-1.5">
-            <span className="text-sm font-semibold" style={{ color: B.blue }}>
-              Amount (₹)
-            </span>
-            <input
-              inputMode="decimal"
-              value={amount}
-              onChange={(e) => {
-                markNewIntent();
-                setAmount(e.target.value);
-              }}
-              className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
-              style={{ borderColor: B.border }}
-              placeholder="e.g. 199"
-            />
-          </label>
-
           {serviceCode === "MOBILE_PREPAID" ? (
             <div className="grid grid-cols-2 gap-2">
               <button
@@ -618,6 +601,23 @@ function RechargeInner() {
               </button>
             </div>
           ) : null}
+
+          <label className="block space-y-1.5">
+            <span className="text-sm font-semibold" style={{ color: B.blue }}>
+              Amount (₹)
+            </span>
+            <input
+              inputMode="decimal"
+              value={amount}
+              onChange={(e) => {
+                markNewIntent();
+                setAmount(e.target.value);
+              }}
+              className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
+              style={{ borderColor: B.border }}
+              placeholder="e.g. 199"
+            />
+          </label>
 
           <label className="block space-y-1.5">
             <span className="text-sm font-semibold" style={{ color: B.blue }}>
