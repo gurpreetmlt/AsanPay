@@ -4,6 +4,7 @@ import { requireRole } from "../../middleware/rbac.middleware";
 import { validateBody } from "../../middleware/validate";
 import {
   recharge,
+  rechargeMobileInfo,
   bbpsFetchBill,
   bbpsPayBill,
   dmtAddBeneficiary,
@@ -53,6 +54,7 @@ import {
 } from "./txn.controller";
 import {
   rechargeSchema,
+  rechargeMobileInfoSchema,
   bbpsFetchBillSchema,
   bbpsPayBillSchema,
   dmtBeneficiarySchema,
@@ -100,6 +102,12 @@ txnRouter.use(requireAuth);
 const retailerOnly = requireRole("retailer");
 
 txnRouter.post("/recharge", retailerOnly, walletTxnLimiter, validateBody(rechargeSchema), recharge);
+txnRouter.post(
+  "/recharge/mobile-info",
+  retailerOnly,
+  validateBody(rechargeMobileInfoSchema),
+  rechargeMobileInfo,
+);
 
 txnRouter.post("/bbps/fetch-bill", retailerOnly, validateBody(bbpsFetchBillSchema), bbpsFetchBill);
 txnRouter.post("/bbps/pay", retailerOnly, walletTxnLimiter, validateBody(bbpsPayBillSchema), bbpsPayBill);

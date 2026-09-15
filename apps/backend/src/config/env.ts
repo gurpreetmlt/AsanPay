@@ -216,6 +216,22 @@ const envSchema = z.object({
    * Required for the webhook to accept updates when set.
    */
   VYAPARAPI_CALLBACK_SECRET: z.string().min(16).optional(),
+  /**
+   * BestAPI (Vyapar plans portal) — operator / plans / roffer for mobile recharge UI.
+   * Recharge debit still goes through VyaparAPI.
+   */
+  BESTAPI_API_KEY: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().min(8).optional(),
+  ),
+  BESTAPI_API_SECRET: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().min(8).optional(),
+  ),
+  BESTAPI_BASE_URL: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().url().default("https://bestapi.in"),
+  ),
 });
 
 const parsed = envSchema.safeParse(process.env);

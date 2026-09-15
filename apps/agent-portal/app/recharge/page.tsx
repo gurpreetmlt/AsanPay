@@ -15,6 +15,25 @@ import { useAuthHydrated } from "@/lib/useAuthHydrated";
 
 type ServiceCode = "MOBILE_PREPAID" | "DTH";
 
+type PlanItem = {
+  amount: string;
+  title: string;
+  description?: string;
+  validity?: string;
+  category?: string;
+};
+
+type MobileInfo = {
+  mobile: string;
+  operatorCode: string | null;
+  operatorName: string | null;
+  circleCode: string | null;
+  circleName: string | null;
+  plans: PlanItem[];
+  offers: PlanItem[];
+  warnings: string[];
+};
+
 const MOBILE_OPS = [
   { code: "JIO", label: "Reliance JIO" },
   { code: "AT", label: "Airtel" },
@@ -46,6 +65,53 @@ function RechargeLoading() {
   );
 }
 
+function PlanList({
+  title,
+  items,
+  onPick,
+}: {
+  title: string;
+  items: PlanItem[];
+  onPick: (amount: string) => void;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <div className="space-y-2">
+      <div className="text-sm font-semibold" style={{ color: B.blue }}>
+        {title}
+      </div>
+      <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
+        {items.map((p, i) => (
+          <button
+            key={`${p.amount}-${p.title}-${i}`}
+            type="button"
+            onClick={() => onPick(p.amount)}
+            className="w-full rounded-xl border px-3 py-2.5 text-left transition hover:bg-slate-50"
+            style={{ borderColor: B.border }}
+          >
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-sm font-bold" style={{ color: B.blue }}>
+                ₹{p.amount}
+              </span>
+              <span className="text-xs font-medium" style={{ color: B.muted }}>
+                {p.validity ? `Validity ${p.validity}` : p.category ?? "Tap to select"}
+              </span>
+            </div>
+            <div className="mt-0.5 text-xs font-semibold" style={{ color: B.blue }}>
+              {p.title}
+            </div>
+            {p.description ? (
+              <div className="mt-0.5 text-xs leading-snug" style={{ color: B.muted }}>
+                {p.description}
+              </div>
+            ) : null}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function RechargeInner() {
   const router = useRouter();
   const search = useSearchParams();
@@ -58,15 +124,23 @@ function RechargeInner() {
 
   const [accountRef, setAccountRef] = useState("");
   const [operatorCode, setOperatorCode] = useState<string>(ops[0]!.code);
+  const [circleHint, setCircleHint] = useState<string | null>(null);
+  const [plans, setPlans] = useState<PlanItem[]>([]);
+  const [offers, setOffers] = useState<PlanItem[]>([]);
+  const [lookupBusy, setLookupBusy] = useState(false);
   const [amount, setAmount] = useState("");
   const [txnPin, setTxnPin] = useState("");
   const [loading, setLoading] = useState(false);
   const [lastRef, setLastRef] = useState<string | null>(null);
   const [lastStatus, setLastStatus] = useState<string | null>(null);
   const attemptKey = useRef(createAttemptKeyHolder("recharge"));
+  const lookupSeq = useRef(0);
 
   useEffect(() => {
     setOperatorCode(ops[0]!.code);
+    setPlans([]);
+    setOffers([]);
+    setCircleHint(null);
   }, [serviceCode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -81,10 +155,65 @@ function RechargeInner() {
     }
   }, [hydrated, accessToken, user?.role, router]);
 
+  useEffect(() => {
+    if (serviceCode !== "MOBILE_PREPAID") return;
+    const mobile = accountRef.replace(/\D/g, "");
+    if (mobile.length !== 10) {
+      setPlans([]);
+      setOffers([]);
+      setCircleHint(null);
+      return;
+    }
+
+    const seq = ++lookupSeq.current;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        setLookupBusy(true);
+        try {
+          const { data } = await api.post<ApiResponse<MobileInfo>>("/txn/recharge/mobile-info", {
+            mobile,
+          });
+          if (seq !== lookupSeq.current) return;
+          if (!data.success || !data.data) {
+            throw new Error(data.message || "Could not look up this number");
+          }
+          const info = data.data;
+          if (info.operatorCode) {
+            const known = MOBILE_OPS.some((o) => o.code === info.operatorCode);
+            setOperatorCode(known ? info.operatorCode : info.operatorCode);
+          }
+          setCircleHint(
+            [info.circleName, info.circleCode].filter(Boolean).join(" · ") ||
+              info.operatorName ||
+              null,
+          );
+          setOffers(info.offers ?? []);
+          setPlans(info.plans ?? []);
+          for (const w of info.warnings ?? []) toast(w, { icon: "ℹ️" });
+        } catch (err) {
+          if (seq !== lookupSeq.current) return;
+          setPlans([]);
+          setOffers([]);
+          toast.error(extractApiError(err, "Could not detect operator. Select manually."));
+        } finally {
+          if (seq === lookupSeq.current) setLookupBusy(false);
+        }
+      })();
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [accountRef, serviceCode]);
+
   const title = useMemo(
     () => (serviceCode === "DTH" ? "DTH recharge" : "Mobile prepaid"),
     [serviceCode],
   );
+
+  const operatorOptions = useMemo(() => {
+    if (serviceCode !== "MOBILE_PREPAID") return [...ops];
+    if (MOBILE_OPS.some((o) => o.code === operatorCode)) return [...MOBILE_OPS];
+    return [{ code: operatorCode, label: operatorCode }, ...MOBILE_OPS];
+  }, [ops, operatorCode, serviceCode]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -160,7 +289,7 @@ function RechargeInner() {
             {title}
           </h1>
           <p className="mt-0.5 text-[14px]" style={{ color: B.muted }}>
-            Powered by VyaparAPI when enabled in Admin → Providers
+            Recharge via VyaparAPI · plans/offers via BestAPI
           </p>
         </div>
 
@@ -183,6 +312,16 @@ function RechargeInner() {
               style={{ borderColor: B.border }}
               placeholder={serviceCode === "DTH" ? "DTH number" : "10-digit mobile"}
             />
+            {serviceCode === "MOBILE_PREPAID" && lookupBusy ? (
+              <span className="text-xs" style={{ color: B.muted }}>
+                Detecting operator and plans…
+              </span>
+            ) : null}
+            {serviceCode === "MOBILE_PREPAID" && circleHint && !lookupBusy ? (
+              <span className="text-xs" style={{ color: B.muted }}>
+                {circleHint}
+              </span>
+            ) : null}
           </label>
 
           <label className="block space-y-1.5">
@@ -195,13 +334,20 @@ function RechargeInner() {
               className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
               style={{ borderColor: B.border }}
             >
-              {ops.map((o) => (
+              {operatorOptions.map((o) => (
                 <option key={o.code} value={o.code}>
                   {o.label} ({o.code})
                 </option>
               ))}
             </select>
           </label>
+
+          {serviceCode === "MOBILE_PREPAID" ? (
+            <>
+              <PlanList title="Special offers" items={offers} onPick={setAmount} />
+              <PlanList title="Plans" items={plans} onPick={setAmount} />
+            </>
+          ) : null}
 
           <label className="block space-y-1.5">
             <span className="text-sm font-semibold" style={{ color: B.blue }}>

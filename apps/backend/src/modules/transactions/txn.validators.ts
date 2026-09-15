@@ -32,6 +32,14 @@ export const rechargeSchema = z
   })
   .superRefine(requireTxnProof);
 
+/** BestAPI mobile operator + plans + offers lookup (prepaid only). */
+export const rechargeMobileInfoSchema = z.object({
+  mobile: z
+    .string()
+    .trim()
+    .regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit mobile"),
+});
+
 export const bbpsFetchBillSchema = z.object({
   serviceCode: z.string().min(2).max(60),
   billerCode: z.string().min(1).max(80),

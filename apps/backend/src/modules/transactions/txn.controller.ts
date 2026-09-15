@@ -18,6 +18,7 @@ import {
 import { sendSuccess } from "../../utils/apiResponse";
 import type {
   rechargeSchema,
+  rechargeMobileInfoSchema,
   bbpsFetchBillSchema,
   bbpsPayBillSchema,
   dmtBeneficiarySchema,
@@ -106,6 +107,14 @@ export async function recharge(req: Request, res: Response): Promise<void> {
       }),
   });
   sendSuccess(res, { txn: outcome.txn, provider: outcome.provider });
+}
+
+/** BestAPI: detect operator + load plans/offers for a prepaid mobile number. */
+export async function rechargeMobileInfo(req: Request, res: Response): Promise<void> {
+  const body = req.body as z.infer<typeof rechargeMobileInfoSchema>;
+  const { lookupMobileRechargeInfo } = await import("../providers/bestapi/plans.service");
+  const info = await lookupMobileRechargeInfo(body.mobile);
+  sendSuccess(res, info, "OK");
 }
 
 // ── BBPS ────────────────────────────────────────────────────────────────────
