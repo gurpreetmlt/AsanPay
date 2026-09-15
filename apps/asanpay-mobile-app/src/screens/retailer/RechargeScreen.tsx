@@ -164,7 +164,16 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
           setOffers(info.offers ?? []);
           setPlans(info.plans ?? []);
           if (info.warnings?.length) {
-            showAlert("Plans note", info.warnings.join("\n"));
+            const note = info.warnings
+              .filter(
+                (w) =>
+                  !w.startsWith("Operator detected via") &&
+                  !w.startsWith("Plans loaded via") &&
+                  !w.startsWith("Offers loaded via") &&
+                  !w.startsWith("BestAPI plans empty"),
+              )
+              .join("\n");
+            if (note) showAlert("Plans note", note);
           }
         } catch (err) {
           if (seq !== lookupSeq.current) return;
@@ -291,6 +300,14 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
           <>
             <PlanBlock title="Special offers" items={offers} tokens={tokens} onPick={setAmount} />
             <PlanBlock title="Plans" items={plans} tokens={tokens} onPick={setAmount} />
+            {!lookupBusy &&
+            accountRef.replace(/\D/g, "").length === 10 &&
+            plans.length === 0 &&
+            offers.length === 0 ? (
+              <Text style={{ color: tokens.sub, fontSize: 12 }}>
+                No plans/offers for this number yet. Enter amount manually.
+              </Text>
+            ) : null}
           </>
         ) : null}
 
