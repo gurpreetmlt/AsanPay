@@ -2,6 +2,7 @@
 
 import { FormEvent, PointerEvent, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { ArrowLeft, ChevronRight } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { TELECOM_CIRCLES, type ApiResponse } from "@asanpay/shared-types";
 import { AppShell } from "@/components/layout/AppShell";
@@ -477,29 +478,31 @@ function RechargeInner() {
 
   return (
     <AppShell>
-      <div
-        className={`mx-auto w-full max-w-lg space-y-5 px-4 py-5 sm:px-6${panelOpen ? " lg:mr-[26rem]" : ""}`}
-      >
-        <div>
+      <div className="flex min-h-full w-full items-stretch">
+      <div className="w-full max-w-lg shrink-0 space-y-5 px-4 py-5 sm:px-6">
+        <div className="flex items-start gap-3">
           <button
             type="button"
-            className="text-sm font-semibold"
-            style={{ color: B.blueLight }}
+            className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border bg-white"
+            style={{ borderColor: B.border, color: B.blue }}
             onClick={() => router.push("/dashboard")}
+            aria-label="Back"
           >
-            ← Back
+            <ArrowLeft size={18} strokeWidth={2.4} />
           </button>
-          <h1 className="mt-2 text-2xl font-bold" style={{ color: B.blue }}>
-            {title}
-          </h1>
-          <p className="mt-0.5 text-[14px]" style={{ color: B.muted }}>
-            Recharge via VyaparAPI · operator, plans and offers via BestAPI
-          </p>
+          <div>
+            <h1 className="text-2xl font-bold" style={{ color: B.blue }}>
+              {title}
+            </h1>
+            <p className="mt-0.5 text-[13px]" style={{ color: B.muted }}>
+              Recharge via VyaparAPI · operator, plans and offers via BestAPI
+            </p>
+          </div>
         </div>
 
         <form
           onSubmit={onSubmit}
-          className="space-y-4 rounded-2xl border bg-white p-5"
+          className="space-y-4 rounded-2xl border bg-white p-5 shadow-sm"
           style={{ borderColor: B.border }}
         >
           <label className="block space-y-1.5">
@@ -679,10 +682,22 @@ function RechargeInner() {
       </div>
 
       {panelOpen ? (
-        <aside
-          className="fixed inset-y-0 right-0 z-40 flex w-full max-w-md flex-col bg-white shadow-2xl"
-          style={{ borderLeft: `1px solid ${B.border}` }}
-        >
+        <>
+          <div className="hidden w-16 shrink-0 flex-col items-center justify-center lg:flex">
+            <div className="h-20 w-px" style={{ background: B.border }} />
+            <div
+              className="my-3 flex h-11 w-11 items-center justify-center rounded-full border bg-white shadow-sm"
+              style={{ borderColor: B.blue, color: B.blue }}
+              aria-hidden
+            >
+              <ChevronRight size={22} strokeWidth={2.4} />
+            </div>
+            <div className="h-20 w-px" style={{ background: B.border }} />
+          </div>
+          <aside
+            className="fixed inset-y-0 right-0 z-40 flex w-full max-w-md flex-col border-l bg-white shadow-2xl lg:static lg:z-0 lg:max-w-none lg:min-w-0 lg:flex-1 lg:shadow-none"
+            style={{ borderColor: B.border }}
+          >
             <div className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: B.border }}>
               <span className="text-sm font-bold" style={{ color: B.blue }}>
                 Browse packs
@@ -743,8 +758,10 @@ function RechargeInner() {
                 </p>
               ) : null}
             </div>
-        </aside>
+          </aside>
+        </>
       ) : null}
+      </div>
     </AppShell>
   );
 }

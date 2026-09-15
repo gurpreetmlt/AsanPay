@@ -9,7 +9,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ArrowLeft } from "lucide-react-native";
+import { ArrowLeft, ChevronRight } from "lucide-react-native";
 import { TELECOM_CIRCLES, type ApiResponse } from "@asanpay/shared-types";
 import { api } from "../../lib/api";
 import { createAttemptKeyHolder } from "../../lib/idempotencyKey";
@@ -603,6 +603,15 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
         </Pressable>
       </ScrollView>
       {panelOpen ? (
+        <View style={styles.midArrow}>
+          <View style={[styles.midLine, { backgroundColor: tokens.cardBorder }]} />
+          <View style={[styles.midArrowBtn, { borderColor: colors.blue, backgroundColor: tokens.card }]}>
+            <ChevronRight size={20} color={colors.blue} />
+          </View>
+          <View style={[styles.midLine, { backgroundColor: tokens.cardBorder }]} />
+        </View>
+      ) : null}
+      {panelOpen ? (
         <View style={[styles.sidePanel, { backgroundColor: tokens.bg, borderLeftColor: tokens.cardBorder }]}>
             <View style={styles.modalHead}>
               <Text style={{ color: tokens.txt, fontWeight: "800", fontSize: 16 }}>Browse packs</Text>
@@ -686,7 +695,18 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: "center",
   },
-  sidePanel: { width: "62%", maxWidth: 380, height: "100%", padding: 12, borderLeftWidth: 1 },
+  midArrow: { width: 36, alignItems: "center", justifyContent: "center", paddingVertical: 24 },
+  midLine: { width: 1, flex: 1, maxHeight: 72 },
+  midArrowBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginVertical: 8,
+  },
+  sidePanel: { width: "58%", maxWidth: 380, height: "100%", padding: 12, borderLeftWidth: 1 },
   modalHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   cta: { marginTop: 20, borderRadius: 14, paddingVertical: 14, alignItems: "center" },
   ctaText: { color: "#fff", fontWeight: "700", fontSize: 16 },
