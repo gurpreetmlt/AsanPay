@@ -4,7 +4,14 @@ import { FormEvent, PointerEvent, Suspense, useEffect, useMemo, useRef, useState
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Check } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { TELECOM_CIRCLES, type ApiResponse } from "@asanpay/shared-types";
+import {
+  TELECOM_CIRCLES,
+  classifyRechargePlanTab,
+  RECHARGE_PLAN_TAB_LABELS,
+  RECHARGE_PLAN_TAB_ORDER,
+  type ApiResponse,
+  type RechargePlanTabId,
+} from "@asanpay/shared-types";
 import { AppShell } from "@/components/layout/AppShell";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import api from "@/lib/api";
@@ -68,16 +75,22 @@ function RechargeLoading() {
   );
 }
 
-function groupPlans(items: PlanItem[]): { category: string; items: PlanItem[] }[] {
-  const map = new Map<string, PlanItem[]>();
+function groupPlansByTab(items: PlanItem[]): { id: RechargePlanTabId; label: string; items: PlanItem[] }[] {
+  const map = new Map<RechargePlanTabId, PlanItem[]>();
   for (const p of items) {
-    const cat = p.category?.trim() || "Packs";
-    const list = map.get(cat) ?? [];
+    const id = classifyRechargePlanTab(p);
+    const list = map.get(id) ?? [];
     list.push(p);
-    map.set(cat, list);
+    map.set(id, list);
   }
-  return [...map.entries()].map(([category, grouped]) => ({ category, items: grouped }));
+  return RECHARGE_PLAN_TAB_ORDER.filter((id) => (map.get(id)?.length ?? 0) > 0).map((id) => ({
+    id,
+    label: RECHARGE_PLAN_TAB_LABELS[id],
+    items: map.get(id)!,
+  }));
 }
+
+const PLAN_PAGE_SIZE = 5;
 
 function PlanList({
   items,
@@ -88,20 +101,52 @@ function PlanList({
   selectedAmount: string;
   onPick: (amount: string) => void;
 }) {
+  const groups = useMemo(() => groupPlansByTab(items), [items]);
+  const [tab, setTab] = useState<RechargePlanTabId>(groups[0]?.id ?? "popular");
+  const [showAll, setShowAll] = useState(false);
+
+  useEffect(() => {
+    if (!groups.some((g) => g.id === tab)) {
+      setTab(groups[0]?.id ?? "popular");
+      setShowAll(false);
+    }
+  }, [groups, tab]);
+
   if (items.length === 0) return null;
+  const active = groups.find((g) => g.id === tab) ?? groups[0];
+  if (!active) return null;
+  const visible = showAll ? active.items : active.items.slice(0, PLAN_PAGE_SIZE);
+
   return (
-    <div className="space-y-6">
-      {groupPlans(items).map((group) => (
-        <section key={group.category} className="space-y-2.5">
-          <div className="px-0.5 text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: B.muted }}>
-            {group.category}
-          </div>
-          <div className="space-y-2.5">
-            {group.items.map((p, i) => {
+    <div className="space-y-3">
+      <div className="-mx-1 flex gap-2 overflow-x-auto pb-1">
+        {groups.map((g) => {
+          const on = g.id === active.id;
+          return (
+            <button
+              key={g.id}
+              type="button"
+              onClick={() => {
+                setTab(g.id);
+                setShowAll(false);
+              }}
+              className="shrink-0 rounded-full px-3 py-1.5 text-[12px] font-semibold"
+              style={{
+                background: on ? B.btnGrad : B.secondary,
+                color: on ? "#fff" : B.blue,
+              }}
+            >
+              {g.label}
+            </button>
+          );
+        })}
+      </div>
+      <div className="space-y-2.5">
+        {visible.map((p, i) => {
               const selected = selectedAmount === p.amount;
               return (
                 <button
-                  key={`${group.category}-${p.amount}-${i}`}
+                  key={`${active.id}-${p.amount}-${i}`}
                   type="button"
                   onClick={() => onPick(p.amount)}
                   className="flex w-full overflow-hidden rounded-[20px] border text-left transition"
@@ -162,10 +207,18 @@ function PlanList({
                   </div>
                 </button>
               );
-            })}
-          </div>
-        </section>
-      ))}
+        })}
+      </div>
+      {active.items.length > PLAN_PAGE_SIZE ? (
+        <button
+          type="button"
+          onClick={() => setShowAll((v) => !v)}
+          className="w-full py-2 text-sm font-semibold"
+          style={{ color: B.blueLight }}
+        >
+          {showAll ? "Show less" : `See more (${active.items.length - PLAN_PAGE_SIZE})`}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -488,8 +541,8 @@ function RechargeInner() {
   return (
     <AppShell>
       <div
-        className={`flex min-h-full w-full items-start ${
-          panelOpen ? "justify-start gap-5 px-4 py-5 lg:px-8" : "justify-center px-4 py-8"
+        className={`mx-auto flex min-h-full w-full items-start gap-6 px-4 py-6 transition-[max-width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+          panelOpen ? "max-w-[92rem]" : "max-w-lg"
         }`}
       >
       <div className="w-full max-w-lg shrink-0 space-y-5">
@@ -702,9 +755,14 @@ function RechargeInner() {
         ) : null}
       </div>
 
-      {panelOpen ? (
+      {serviceCode === "MOBILE_PREPAID" ? (
           <aside
-            className="fixed inset-y-0 right-0 z-40 flex w-full max-w-md flex-col border-l bg-white shadow-2xl lg:static lg:z-0 lg:my-0 lg:max-h-[calc(100vh-2.5rem)] lg:rounded-[28px] lg:border lg:shadow-[0_12px_40px_rgba(11,42,154,0.08)]"
+            aria-hidden={!panelOpen}
+            className={`flex min-h-0 min-w-0 flex-col overflow-hidden bg-white transition-[opacity,transform,max-width,min-width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] max-lg:fixed max-lg:inset-y-0 max-lg:right-0 max-lg:z-40 max-lg:w-full max-lg:max-w-lg max-lg:shadow-2xl lg:static lg:h-[calc(100vh-3rem)] lg:rounded-[28px] lg:border ${
+              panelOpen
+                ? "max-lg:translate-x-0 max-lg:opacity-100 lg:min-w-[36rem] lg:max-w-[46rem] lg:flex-1 lg:translate-x-0 lg:opacity-100 lg:shadow-[0_12px_40px_rgba(11,42,154,0.08)]"
+                : "pointer-events-none max-lg:translate-x-full max-lg:opacity-0 lg:min-w-0 lg:max-w-0 lg:flex-none lg:translate-x-8 lg:border-0 lg:opacity-0 lg:shadow-none"
+            }`}
             style={{ borderColor: B.border }}
           >
             <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: `1px solid ${B.border}` }}>

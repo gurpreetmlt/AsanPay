@@ -1,17 +1,27 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  LayoutAnimation,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  UIManager,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, ChevronDown } from "lucide-react-native";
-import { TELECOM_CIRCLES, type ApiResponse } from "@asanpay/shared-types";
+import {
+  TELECOM_CIRCLES,
+  classifyRechargePlanTab,
+  RECHARGE_PLAN_TAB_LABELS,
+  RECHARGE_PLAN_TAB_ORDER,
+  type ApiResponse,
+  type RechargePlanTabId,
+} from "@asanpay/shared-types";
 import { api } from "../../lib/api";
 import { createAttemptKeyHolder } from "../../lib/idempotencyKey";
 import { apiError } from "../../utils/apiError";
@@ -64,15 +74,29 @@ type Props = {
   onBack: () => void;
 };
 
-function groupPlans(items: PlanItem[]): { category: string; items: PlanItem[] }[] {
-  const map = new Map<string, PlanItem[]>();
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+function animateLayout() {
+  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+}
+
+const PLAN_PAGE_SIZE = 5;
+
+function groupPlansByTab(items: PlanItem[]): { id: RechargePlanTabId; label: string; items: PlanItem[] }[] {
+  const map = new Map<RechargePlanTabId, PlanItem[]>();
   for (const p of items) {
-    const cat = p.category?.trim() || "Packs";
-    const list = map.get(cat) ?? [];
+    const id = classifyRechargePlanTab(p);
+    const list = map.get(id) ?? [];
     list.push(p);
-    map.set(cat, list);
+    map.set(id, list);
   }
-  return [...map.entries()].map(([category, grouped]) => ({ category, items: grouped }));
+  return RECHARGE_PLAN_TAB_ORDER.filter((id) => (map.get(id)?.length ?? 0) > 0).map((id) => ({
+    id,
+    label: RECHARGE_PLAN_TAB_LABELS[id],
+    items: map.get(id)!,
+  }));
 }
 
 function PlanBlock({
@@ -86,28 +110,49 @@ function PlanBlock({
   selectedAmount: string;
   onPick: (amount: string) => void;
 }) {
+  const groups = useMemo(() => groupPlansByTab(items), [items]);
+  const [tab, setTab] = useState<RechargePlanTabId>(groups[0]?.id ?? "popular");
+  const [showAll, setShowAll] = useState(false);
+
+  useEffect(() => {
+    if (!groups.some((g) => g.id === tab)) {
+      setTab(groups[0]?.id ?? "popular");
+      setShowAll(false);
+    }
+  }, [groups, tab]);
+
   if (items.length === 0) return null;
+  const active = groups.find((g) => g.id === tab) ?? groups[0];
+  if (!active) return null;
+  const visible = showAll ? active.items : active.items.slice(0, PLAN_PAGE_SIZE);
+
   return (
     <View>
-      {groupPlans(items).map((group) => (
-        <View key={group.category} style={{ marginBottom: 14 }}>
-          <Text
-            style={{
-              color: tokens.sub,
-              fontSize: 11,
-              fontWeight: "800",
-              letterSpacing: 0.4,
-              textTransform: "uppercase",
-              marginBottom: 8,
-            }}
-          >
-            {group.category}
-          </Text>
-          {group.items.map((p, i) => {
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabRow}>
+        {groups.map((g) => {
+          const on = g.id === active.id;
+          return (
+            <Pressable
+              key={g.id}
+              onPress={() => {
+                setTab(g.id);
+                setShowAll(false);
+              }}
+              style={[
+                styles.filterChip,
+                { backgroundColor: on ? colors.blue : `${colors.blue}12`, borderColor: colors.blue },
+              ]}
+            >
+              <Text style={{ color: on ? "#fff" : colors.blue, fontWeight: "700", fontSize: 12 }}>{g.label}</Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+      {visible.map((p, i) => {
             const selected = selectedAmount === p.amount;
             return (
               <Pressable
-                key={`${group.category}-${p.amount}-${i}`}
+                key={`${active.id}-${p.amount}-${i}`}
                 onPress={() => onPick(p.amount)}
                 style={[
                   styles.planCard,
@@ -151,11 +196,9 @@ function PlanBlock({
                     >
                       {p.validity ? p.validity : "Tap to select"}
                     </Text>
-                      {selected ? (
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                          <Text style={{ color: colors.green, fontSize: 11, fontWeight: "800" }}>Selected</Text>
-                        </View>
-                      ) : null}
+                    {selected ? (
+                      <Text style={{ color: colors.green, fontSize: 11, fontWeight: "800" }}>Selected</Text>
+                    ) : null}
                   </View>
                   {p.description ? (
                     <Text style={{ color: tokens.sub, fontSize: 12, marginTop: 6, lineHeight: 16 }} numberOfLines={2}>
@@ -166,8 +209,13 @@ function PlanBlock({
               </Pressable>
             );
           })}
-        </View>
-      ))}
+      {active.items.length > PLAN_PAGE_SIZE ? (
+        <Pressable onPress={() => setShowAll((v) => !v)} style={{ paddingVertical: 12, alignItems: "center" }}>
+          <Text style={{ color: colors.blue, fontWeight: "700", fontSize: 13 }}>
+            {showAll ? "Show less" : `See more (${active.items.length - PLAN_PAGE_SIZE})`}
+          </Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -330,6 +378,7 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
       return;
     }
     setPanelTab(tab);
+    animateLayout();
     setPanelOpen(true);
   }
 
@@ -623,7 +672,13 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
             <View style={[styles.packBox, { borderColor: tokens.cardBorder }]}>
               <View style={styles.modalHead}>
                 <Text style={{ color: tokens.txt, fontWeight: "800", fontSize: 15 }}>Browse packs</Text>
-                <Pressable onPress={() => setPanelOpen(false)} hitSlop={12}>
+                <Pressable
+                  onPress={() => {
+                    animateLayout();
+                    setPanelOpen(false);
+                  }}
+                  hitSlop={12}
+                >
                   <Text style={{ color: colors.blue, fontWeight: "700" }}>Close</Text>
                 </Pressable>
               </View>
@@ -773,6 +828,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   packBox: { marginTop: 14, borderWidth: 1, borderRadius: 18, padding: 12 },
+  tabRow: { gap: 8, paddingBottom: 10 },
+  filterChip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
   modalHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
   cta: { marginTop: 20, borderRadius: 14, paddingVertical: 14, alignItems: "center" },
   ctaText: { color: "#fff", fontWeight: "700", fontSize: 16 },

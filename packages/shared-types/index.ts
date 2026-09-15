@@ -191,4 +191,45 @@ export const TELECOM_CIRCLES: ReadonlyArray<{ code: string; name: string }> = [
   { code: "105", name: "Jharkhand" },
 ];
 
+/** PhonePe-style recharge pack filters (BestAPI category + pack text). */
+export const RECHARGE_PLAN_TAB_ORDER = [
+  "popular",
+  "unlimited",
+  "data",
+  "yearly",
+  "international",
+  "roaming",
+  "talktime",
+  "other",
+] as const;
+export type RechargePlanTabId = (typeof RECHARGE_PLAN_TAB_ORDER)[number];
+
+export const RECHARGE_PLAN_TAB_LABELS: Record<RechargePlanTabId, string> = {
+  popular: "Popular",
+  unlimited: "Truly Unlimited",
+  data: "Data",
+  yearly: "Yearly",
+  international: "International",
+  roaming: "Roaming",
+  talktime: "Talktime",
+  other: "Other",
+};
+
+export function classifyRechargePlanTab(plan: {
+  category?: string;
+  description?: string;
+  validity?: string;
+  title?: string;
+}): RechargePlanTabId {
+  const blob = `${plan.category ?? ""} ${plan.title ?? ""} ${plan.description ?? ""} ${plan.validity ?? ""}`.toLowerCase();
+  if (/isd|international|intl/.test(blob)) return "international";
+  if (/roam/.test(blob)) return "roaming";
+  if (/talk\s*time|talktime|top\s*up|topup|voucher/.test(blob)) return "talktime";
+  if (/\b(year|yearly|annual|365|360|12\s*month)/.test(blob)) return "yearly";
+  if (/unlimited/.test(blob)) return "unlimited";
+  if (/\bdata\b/.test(blob) && !/\bcall/.test(blob)) return "data";
+  if (/recommend|popular|combo/.test(blob)) return "popular";
+  return "other";
+}
+
 export { TERMS_BODY, PRIVACY_BODY, buildLegalDownloadText } from "./legalCopy";
