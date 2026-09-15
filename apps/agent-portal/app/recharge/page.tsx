@@ -145,6 +145,7 @@ function RechargeInner() {
   function markNewIntent() {
     attemptKey.current.clear();
     setBlockResubmit(false);
+    submitLockRef.current = false;
   }
 
   useEffect(() => {
@@ -239,33 +240,35 @@ function RechargeInner() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (loading || submitLockRef.current || blockResubmit) return;
-
-    const number = accountRef.replace(/\D/g, "");
-    if (serviceCode === "MOBILE_PREPAID" && number.length !== 10) {
-      toast.error("Enter a valid 10-digit mobile");
-      return;
-    }
-    if (serviceCode === "DTH" && number.length < 8) {
-      toast.error("Enter a valid DTH subscriber number");
-      return;
-    }
-    if (!operatorCode) {
-      toast.error("Select an operator");
-      return;
-    }
-    if (!/^\d+(\.\d{1,2})?$/.test(amount.trim()) || Number(amount) <= 0) {
-      toast.error("Enter a valid recharge amount");
-      return;
-    }
-    if (txnPin.length !== 4) {
-      toast.error("Enter your 4-digit transaction PIN");
-      return;
-    }
-
+    // Lock immediately — before validation — so a double-click cannot start two requests.
+    if (submitLockRef.current || blockResubmit || loading) return;
     submitLockRef.current = true;
     setLoading(true);
+    let stayBlocked = false;
+
     try {
+      const number = accountRef.replace(/\D/g, "");
+      if (serviceCode === "MOBILE_PREPAID" && number.length !== 10) {
+        toast.error("Enter a valid 10-digit mobile");
+        return;
+      }
+      if (serviceCode === "DTH" && number.length < 8) {
+        toast.error("Enter a valid DTH subscriber number");
+        return;
+      }
+      if (!operatorCode) {
+        toast.error("Select an operator");
+        return;
+      }
+      if (!/^\d+(\.\d{1,2})?$/.test(amount.trim()) || Number(amount) <= 0) {
+        toast.error("Enter a valid recharge amount");
+        return;
+      }
+      if (txnPin.length !== 4) {
+        toast.error("Enter your 4-digit transaction PIN");
+        return;
+      }
+
       const { data } = await api.post<
         ApiResponse<{ txn?: { txnRef?: string; status?: string }; provider?: { status?: string; message?: string } }>
       >("/txn/recharge", {
@@ -283,17 +286,18 @@ function RechargeInner() {
       setLastStatus(status);
       if (status === "success") {
         toast.success("Recharge successful");
+        stayBlocked = true;
         setBlockResubmit(true);
         attemptKey.current.clear();
         setTxnPin("");
       } else if (status === "failed") {
         toast.error(data.data?.provider?.message || "Recharge failed");
-        // Keep same idempotency key for a safe retry of this attempt.
         setBlockResubmit(false);
       } else {
         toast.success(
           "Recharge submitted. Status is pending — do not tap Recharge again. Check Transactions.",
         );
+        stayBlocked = true;
         setBlockResubmit(true);
         attemptKey.current.clear();
         setTxnPin("");
@@ -303,7 +307,7 @@ function RechargeInner() {
       setBlockResubmit(false);
     } finally {
       setLoading(false);
-      submitLockRef.current = false;
+      submitLockRef.current = stayBlocked;
     }
   }
 
@@ -458,7 +462,7 @@ function RechargeInner() {
             type="submit"
             variant="primary"
             loading={loading}
-            disabled={blockResubmit}
+            disabled={loading || blockResubmit}
             className="w-full"
           >
             {blockResubmit ? "Submitted — wait for status" : "Recharge"}

@@ -121,6 +121,7 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
   function markNewIntent() {
     attemptKey.current.clear();
     setBlockResubmit(false);
+    submitLockRef.current = false;
   }
 
   const title = useMemo(
@@ -200,24 +201,26 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
   }, [accountRef, serviceCode]);
 
   async function onSubmit() {
-    if (loading || submitLockRef.current || blockResubmit) return;
-    const number = accountRef.replace(/\D/g, "");
-    if (serviceCode === "MOBILE_PREPAID" && number.length !== 10) {
-      showAlert("Mobile number", "Enter a valid 10-digit mobile");
-      return;
-    }
-    if (serviceCode === "DTH" && number.length < 8) {
-      showAlert("Subscriber ID", "Enter a valid DTH subscriber number");
-      return;
-    }
-    if (!/^\d+(\.\d{1,2})?$/.test(amount.trim()) || Number(amount) <= 0) {
-      showAlert("Amount", "Enter a valid recharge amount");
-      return;
-    }
-
+    if (submitLockRef.current || blockResubmit || loading) return;
     submitLockRef.current = true;
     setLoading(true);
+    let stayBlocked = false;
+
     try {
+      const number = accountRef.replace(/\D/g, "");
+      if (serviceCode === "MOBILE_PREPAID" && number.length !== 10) {
+        showAlert("Mobile number", "Enter a valid 10-digit mobile");
+        return;
+      }
+      if (serviceCode === "DTH" && number.length < 8) {
+        showAlert("Subscriber ID", "Enter a valid DTH subscriber number");
+        return;
+      }
+      if (!/^\d+(\.\d{1,2})?$/.test(amount.trim()) || Number(amount) <= 0) {
+        showAlert("Amount", "Enter a valid recharge amount");
+        return;
+      }
+
       const txnAuth = await promptPin();
       const body: Record<string, string> = {
         serviceCode,
@@ -239,6 +242,7 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
       setLastStatus(status);
       if (status === "success") {
         attemptKey.current.clear();
+        stayBlocked = true;
         setBlockResubmit(true);
         showAlert("Recharge successful", ref ? `Ref: ${ref}` : "Done");
       } else if (status === "failed") {
@@ -246,6 +250,7 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
         showAlert("Recharge failed", data.data?.provider?.message || data.message || "Failed");
       } else {
         attemptKey.current.clear();
+        stayBlocked = true;
         setBlockResubmit(true);
         showAlert(
           "Recharge submitted",
@@ -259,7 +264,7 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
       showAlert("Recharge failed", apiError(err, "Recharge failed"));
     } finally {
       setLoading(false);
-      submitLockRef.current = false;
+      submitLockRef.current = stayBlocked;
     }
   }
 
