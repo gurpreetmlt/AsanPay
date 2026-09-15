@@ -19,6 +19,8 @@ import { sendSuccess } from "../../utils/apiResponse";
 import type {
   rechargeSchema,
   rechargeMobileInfoSchema,
+  rechargeMobilePlansSchema,
+  rechargeMobileOffersSchema,
   bbpsFetchBillSchema,
   bbpsPayBillSchema,
   dmtBeneficiarySchema,
@@ -109,12 +111,26 @@ export async function recharge(req: Request, res: Response): Promise<void> {
   sendSuccess(res, { txn: outcome.txn, provider: outcome.provider });
 }
 
-/** BestAPI: detect operator + load plans/offers for a prepaid mobile number. */
+/** BestAPI: detect operator + circle for a prepaid mobile number. */
 export async function rechargeMobileInfo(req: Request, res: Response): Promise<void> {
   const body = req.body as z.infer<typeof rechargeMobileInfoSchema>;
   const { lookupMobileRechargeInfo } = await import("../providers/bestapi/plans.service");
   const info = await lookupMobileRechargeInfo(body.mobile);
   sendSuccess(res, info, "OK");
+}
+
+export async function rechargeMobilePlans(req: Request, res: Response): Promise<void> {
+  const body = req.body as z.infer<typeof rechargeMobilePlansSchema>;
+  const { fetchMobilePlans } = await import("../providers/bestapi/plans.service");
+  const plans = await fetchMobilePlans(body);
+  sendSuccess(res, { plans }, "OK");
+}
+
+export async function rechargeMobileOffers(req: Request, res: Response): Promise<void> {
+  const body = req.body as z.infer<typeof rechargeMobileOffersSchema>;
+  const { fetchMobileOffers } = await import("../providers/bestapi/plans.service");
+  const offers = await fetchMobileOffers(body);
+  sendSuccess(res, { offers }, "OK");
 }
 
 // ── BBPS ────────────────────────────────────────────────────────────────────

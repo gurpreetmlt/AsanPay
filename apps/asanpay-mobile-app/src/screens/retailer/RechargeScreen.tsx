@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,7 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft } from "lucide-react-native";
-import type { ApiResponse } from "@asanpay/shared-types";
+import { TELECOM_CIRCLES, type ApiResponse } from "@asanpay/shared-types";
 import { api } from "../../lib/api";
 import { createAttemptKeyHolder } from "../../lib/idempotencyKey";
 import { apiError } from "../../utils/apiError";
@@ -65,38 +66,46 @@ type Props = {
 };
 
 function PlanBlock({
-  title,
   items,
   tokens,
+  selectedAmount,
   onPick,
 }: {
-  title: string;
   items: PlanItem[];
   tokens: ReturnType<typeof useTheme>["tokens"];
+  selectedAmount: string;
   onPick: (amount: string) => void;
 }) {
   if (items.length === 0) return null;
   return (
-    <View style={{ marginTop: 8 }}>
-      <Text style={[styles.label, { color: tokens.txt }]}>{title}</Text>
-      {items.map((p, i) => (
-        <Pressable
-          key={`${p.amount}-${p.title}-${i}`}
-          onPress={() => onPick(p.amount)}
-          style={[styles.planCard, { borderColor: tokens.cardBorder, backgroundColor: tokens.card }]}
-        >
-          <View style={styles.planTop}>
-            <Text style={{ color: colors.blue, fontWeight: "800", fontSize: 15 }}>₹{p.amount}</Text>
-            <Text style={{ color: tokens.sub, fontSize: 11, fontWeight: "600" }}>
-              {p.validity ? `Validity ${p.validity}` : p.category ?? "Tap to select"}
-            </Text>
-          </View>
-          <Text style={{ color: tokens.txt, fontWeight: "700", fontSize: 13, marginTop: 2 }}>{p.title}</Text>
-          {p.description ? (
-            <Text style={{ color: tokens.sub, fontSize: 12, marginTop: 2 }}>{p.description}</Text>
-          ) : null}
-        </Pressable>
-      ))}
+    <View>
+      {items.map((p, i) => {
+        const selected = selectedAmount === p.amount;
+        return (
+          <Pressable
+            key={`${p.amount}-${p.title}-${i}`}
+            onPress={() => onPick(p.amount)}
+            style={[
+              styles.planCard,
+              {
+                borderColor: selected ? colors.blue : tokens.cardBorder,
+                backgroundColor: selected ? `${colors.blue}14` : tokens.card,
+              },
+            ]}
+          >
+            <View style={styles.planTop}>
+              <Text style={{ color: colors.blue, fontWeight: "800", fontSize: 15 }}>₹{p.amount}</Text>
+              <Text style={{ color: tokens.sub, fontSize: 11, fontWeight: "600" }}>
+                {p.validity ? `Validity ${p.validity}` : p.category ?? "Tap to select"}
+              </Text>
+            </View>
+            <Text style={{ color: tokens.txt, fontWeight: "700", fontSize: 13, marginTop: 2 }}>{p.title}</Text>
+            {p.description ? (
+              <Text style={{ color: tokens.sub, fontSize: 12, marginTop: 2 }}>{p.description}</Text>
+            ) : null}
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
@@ -109,10 +118,13 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
   const [operatorCode, setOperatorCode] = useState<string>(
     serviceCode === "DTH" ? "TTV" : "JIO",
   );
-  const [circleHint, setCircleHint] = useState<string | null>(null);
+  const [circleCode, setCircleCode] = useState("");
   const [plans, setPlans] = useState<PlanItem[]>([]);
   const [offers, setOffers] = useState<PlanItem[]>([]);
   const [lookupBusy, setLookupBusy] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [panelTab, setPanelTab] = useState<"plans" | "offers">("plans");
+  const [panelBusy, setPanelBusy] = useState(false);
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
   const [blockResubmit, setBlockResubmit] = useState(false);
@@ -141,11 +153,90 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
     return [{ code: operatorCode, label: operatorCode }, ...MOBILE_OPS];
   }, [ops, operatorCode, serviceCode]);
 
+  const circleOptions = useMemo(() => {
+    const list = TELECOM_CIRCLES.map((c) => ({ code: c.code, name: c.name }));
+    if (circleCode && !list.some((c) => c.code === circleCode)) {
+      list.unshift({ code: circleCode, name: circleCode });
+    }
+    return list;
+  }, [circleCode]);
+
+  function catalogBody() {
+    return {
+      mobile: accountRef.replace(/\D/g, ""),
+      operatorCode,
+      circleCode,
+    };
+  }
+
+  async function loadPlans(): Promise<void> {
+    const { data } = await api.post<ApiResponse<{ plans: PlanItem[] }>>(
+      "/txn/recharge/mobile-plans",
+      catalogBody(),
+    );
+    if (!data.success) throw new Error(data.message || "Could not load plans");
+    setPlans(data.data?.plans ?? []);
+  }
+
+  async function loadOffers(): Promise<void> {
+    const { data } = await api.post<ApiResponse<{ offers: PlanItem[] }>>(
+      "/txn/recharge/mobile-offers",
+      catalogBody(),
+    );
+    if (!data.success) throw new Error(data.message || "Could not load offers");
+    setOffers(data.data?.offers ?? []);
+  }
+
+  async function openCatalog(tab: "plans" | "offers"): Promise<void> {
+    const mobile = accountRef.replace(/\D/g, "");
+    if (mobile.length !== 10) {
+      showAlert("Mobile number", "Enter a valid 10-digit mobile");
+      return;
+    }
+    if (!operatorCode) {
+      showAlert("Operator", "Select an operator");
+      return;
+    }
+    if (!circleCode) {
+      showAlert("Circle/State", "Select a circle/state");
+      return;
+    }
+    setPanelTab(tab);
+    setPanelOpen(true);
+    const needFetch = tab === "plans" ? plans.length === 0 : offers.length === 0;
+    if (!needFetch) return;
+    setPanelBusy(true);
+    try {
+      if (tab === "plans") await loadPlans();
+      else await loadOffers();
+    } catch (err) {
+      showAlert(tab === "plans" ? "Plans" : "Offers", apiError(err, `Could not load ${tab}`));
+    } finally {
+      setPanelBusy(false);
+    }
+  }
+
+  async function switchCatalogTab(tab: "plans" | "offers"): Promise<void> {
+    setPanelTab(tab);
+    const needFetch = tab === "plans" ? plans.length === 0 : offers.length === 0;
+    if (!needFetch) return;
+    setPanelBusy(true);
+    try {
+      if (tab === "plans") await loadPlans();
+      else await loadOffers();
+    } catch (err) {
+      showAlert(tab === "plans" ? "Plans" : "Offers", apiError(err, `Could not load ${tab}`));
+    } finally {
+      setPanelBusy(false);
+    }
+  }
+
   useEffect(() => {
     setOperatorCode(serviceCode === "DTH" ? "TTV" : "JIO");
     setPlans([]);
     setOffers([]);
-    setCircleHint(null);
+    setCircleCode("");
+    setPanelOpen(false);
     setAccountRef("");
     setAmount("");
     markNewIntent();
@@ -157,7 +248,7 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
     if (mobile.length !== 10) {
       setPlans([]);
       setOffers([]);
-      setCircleHint(null);
+      setCircleCode("");
       return;
     }
 
@@ -175,27 +266,9 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
           }
           const info = data.data;
           if (info.operatorCode) setOperatorCode(info.operatorCode);
-          setCircleHint(
-            [
-              [info.circleName, info.circleCode].filter(Boolean).join(" · "),
-              info.operatorName,
-              info.operatorSource === "bestapi" ? "via BestAPI" : null,
-            ]
-              .filter(Boolean)
-              .join(" · ") || null,
-          );
-          setOffers(info.offers ?? []);
-          setPlans(info.plans ?? []);
-          if (info.warnings?.length) {
-            const note = info.warnings
-              .filter(
-                (w) =>
-                  !w.startsWith("Operator detected via") &&
-                  !w.startsWith("BestAPI plans"),
-              )
-              .join("\n");
-            if (note) showAlert("Plans note", note);
-          }
+          if (info.circleCode) setCircleCode(info.circleCode);
+          setPlans([]);
+          setOffers([]);
         } catch (err) {
           if (seq !== lookupSeq.current) return;
           setPlans([]);
@@ -330,11 +403,41 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
         {serviceCode === "MOBILE_PREPAID" && lookupBusy ? (
           <View style={styles.hintRow}>
             <ActivityIndicator size="small" color={colors.blue} />
-            <Text style={{ color: tokens.sub, fontSize: 12 }}>Detecting operator and plans…</Text>
+            <Text style={{ color: tokens.sub, fontSize: 12 }}>Detecting operator and circle…</Text>
           </View>
         ) : null}
-        {serviceCode === "MOBILE_PREPAID" && circleHint && !lookupBusy ? (
-          <Text style={{ color: tokens.sub, fontSize: 12 }}>{circleHint}</Text>
+
+        {serviceCode === "MOBILE_PREPAID" ? (
+          <>
+            <Text style={[styles.label, { color: tokens.txt }]}>Circle/State</Text>
+            <View style={styles.opRow}>
+              {circleOptions.map((c) => {
+                const on = c.code === circleCode;
+                return (
+                  <Pressable
+                    key={c.code}
+                    onPress={() => {
+                      markNewIntent();
+                      setCircleCode(c.code);
+                      setPlans([]);
+                      setOffers([]);
+                    }}
+                    style={[
+                      styles.opChip,
+                      {
+                        borderColor: on ? colors.blue : tokens.cardBorder,
+                        backgroundColor: on ? `${colors.blue}14` : tokens.card,
+                      },
+                    ]}
+                  >
+                    <Text style={{ color: on ? colors.blue : tokens.txt, fontWeight: "600", fontSize: 13 }}>
+                      {c.name}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </>
         ) : null}
 
         <Text style={[styles.label, { color: tokens.txt }]}>Operator</Text>
@@ -347,6 +450,8 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
                 onPress={() => {
                   markNewIntent();
                   setOperatorCode(o.code);
+                  setPlans([]);
+                  setOffers([]);
                 }}
                 style={[
                   styles.opChip,
@@ -364,37 +469,6 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
           })}
         </View>
 
-        {serviceCode === "MOBILE_PREPAID" ? (
-          <>
-            <PlanBlock
-              title="Special offers"
-              items={offers}
-              tokens={tokens}
-              onPick={(a) => {
-                markNewIntent();
-                setAmount(a);
-              }}
-            />
-            <PlanBlock
-              title="Plans"
-              items={plans}
-              tokens={tokens}
-              onPick={(a) => {
-                markNewIntent();
-                setAmount(a);
-              }}
-            />
-            {!lookupBusy &&
-            accountRef.replace(/\D/g, "").length === 10 &&
-            plans.length === 0 &&
-            offers.length === 0 ? (
-              <Text style={{ color: tokens.sub, fontSize: 12 }}>
-                No plans/offers for this number yet. Enter amount manually.
-              </Text>
-            ) : null}
-          </>
-        ) : null}
-
         <Text style={[styles.label, { color: tokens.txt }]}>Amount (₹)</Text>
         <TextInput
           style={[styles.input, { borderColor: tokens.inputBorder, color: tokens.txt, backgroundColor: tokens.inputBg }]}
@@ -407,6 +481,23 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
           placeholder="e.g. 199"
           placeholderTextColor={tokens.mute}
         />
+
+        {serviceCode === "MOBILE_PREPAID" ? (
+          <View style={styles.catalogBtnRow}>
+            <Pressable
+              onPress={() => void openCatalog("plans")}
+              style={[styles.catalogBtn, { borderColor: colors.blue }]}
+            >
+              <Text style={{ color: colors.blue, fontWeight: "700" }}>Plans</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => void openCatalog("offers")}
+              style={[styles.catalogBtn, { borderColor: colors.blue }]}
+            >
+              <Text style={{ color: colors.blue, fontWeight: "700" }}>Offers</Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         {blockResubmit ? (
           <Text style={{ color: tokens.sub, fontSize: 12, marginTop: 4 }}>
@@ -450,6 +541,66 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
           )}
         </Pressable>
       </ScrollView>
+      <Modal visible={panelOpen} animationType="slide" transparent onRequestClose={() => setPanelOpen(false)}>
+        <View style={styles.modalRoot}>
+          <Pressable style={styles.modalScrim} onPress={() => setPanelOpen(false)} />
+          <View style={[styles.modalSheet, { backgroundColor: tokens.bg }]}>
+            <View style={styles.modalHead}>
+              <Text style={{ color: tokens.txt, fontWeight: "800", fontSize: 16 }}>Browse packs</Text>
+              <Pressable onPress={() => setPanelOpen(false)} hitSlop={12}>
+                <Text style={{ color: colors.blue, fontWeight: "700" }}>Close</Text>
+              </Pressable>
+            </View>
+            <View style={styles.catalogBtnRow}>
+              <Pressable
+                onPress={() => void switchCatalogTab("plans")}
+                style={[
+                  styles.catalogBtn,
+                  {
+                    borderColor: colors.blue,
+                    backgroundColor: panelTab === "plans" ? colors.blue : "transparent",
+                  },
+                ]}
+              >
+                <Text style={{ color: panelTab === "plans" ? "#fff" : colors.blue, fontWeight: "700" }}>Plans</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => void switchCatalogTab("offers")}
+                style={[
+                  styles.catalogBtn,
+                  {
+                    borderColor: colors.blue,
+                    backgroundColor: panelTab === "offers" ? colors.blue : "transparent",
+                  },
+                ]}
+              >
+                <Text style={{ color: panelTab === "offers" ? "#fff" : colors.blue, fontWeight: "700" }}>Offers</Text>
+              </Pressable>
+            </View>
+            <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+              {panelBusy ? (
+                <ActivityIndicator color={colors.blue} />
+              ) : (
+                <PlanBlock
+                  items={panelTab === "plans" ? plans : offers}
+                  tokens={tokens}
+                  selectedAmount={amount}
+                  onPick={(a) => {
+                    markNewIntent();
+                    setAmount(a);
+                    setPanelOpen(false);
+                  }}
+                />
+              )}
+              {!panelBusy && (panelTab === "plans" ? plans : offers).length === 0 ? (
+                <Text style={{ color: tokens.sub, fontSize: 12, marginTop: 8 }}>
+                  No {panelTab} for this operator and circle. Enter amount manually.
+                </Text>
+              ) : null}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
       <TxnPinPrompt />
     </SafeAreaView>
   );
@@ -468,6 +619,18 @@ const styles = StyleSheet.create({
   hintRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   planCard: { borderWidth: 1, borderRadius: 12, padding: 12, marginTop: 8 },
   planTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", gap: 8 },
+  catalogBtnRow: { flexDirection: "row", gap: 8, marginTop: 12 },
+  catalogBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  modalRoot: { flex: 1, flexDirection: "row", justifyContent: "flex-end" },
+  modalScrim: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
+  modalSheet: { width: "86%", maxWidth: 420, height: "100%", padding: 16 },
+  modalHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   cta: { marginTop: 20, borderRadius: 14, paddingVertical: 14, alignItems: "center" },
   ctaText: { color: "#fff", fontWeight: "700", fontSize: 16 },
 });

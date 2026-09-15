@@ -1,7 +1,7 @@
 import { HttpError } from "../../../utils/httpError";
 import { logger } from "../../../utils/logger";
 import { mapVyaparOperatorCode } from "../vyaparapi/status";
-import { bestApiConfigured, bestApiPost, bestApiRequest, type BestApiJson } from "./client";
+import { bestApiConfigured, bestApiPost, type BestApiJson } from "./client";
 
 const OPERATOR_PATH = "/api/gw/mobile-services/mobile-plans/mobile-operator-apis";
 const PLANS_PATH = "/api/gw/mobile-services/mobile-plans/mobile-plans-apis";
@@ -193,21 +193,64 @@ function normalizePlanRow(row: Record<string, unknown>): RechargePlanItem | null
   return { amount, title, description, validity, category };
 }
 
+function findRdata(root: unknown): Record<string, unknown> | null {
+  let found: Record<string, unknown> | null = null;
+  function walk(node: unknown, depth: number): void {
+    if (found || node == null || depth > 8) return;
+    if (Array.isArray(node)) {
+      for (const item of node) walk(item, depth + 1);
+      return;
+    }
+    const rec = asRecord(node);
+    if (!rec) return;
+    for (const [k, v] of Object.entries(rec)) {
+      if (k.toLowerCase() === "rdata") {
+        const inner = asRecord(v);
+        if (inner) {
+          found = inner;
+          return;
+        }
+      }
+      walk(v, depth + 1);
+    }
+  }
+  walk(root, 0);
+  return found;
+}
+
 function extractPlanItems(json: BestApiJson): RechargePlanItem[] {
-  const arrays = collectArrays(json);
   const items: RechargePlanItem[] = [];
   const seen = new Set<string>();
 
-  for (const arr of arrays) {
+  function addPlan(row: Record<string, unknown>, category?: string): void {
+    const plan = normalizePlanRow(row);
+    if (!plan) return;
+    if (category) {
+      plan.category = category;
+      if (plan.title === `₹${plan.amount}`) plan.title = category;
+    }
+    const key = `${plan.amount}|${plan.title}|${plan.description ?? ""}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    items.push(plan);
+  }
+
+  const rdata = findRdata(json);
+  if (rdata) {
+    for (const [category, arr] of Object.entries(rdata)) {
+      if (!Array.isArray(arr)) continue;
+      for (const raw of arr) {
+        const row = asRecord(raw);
+        if (row) addPlan(row, category);
+      }
+    }
+    if (items.length > 0) return items.slice(0, 80);
+  }
+
+  for (const arr of collectArrays(json)) {
     for (const raw of arr) {
       const row = asRecord(raw);
-      if (!row) continue;
-      const plan = normalizePlanRow(row);
-      if (!plan) continue;
-      const key = `${plan.amount}|${plan.title}|${plan.description ?? ""}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      items.push(plan);
+      if (row) addPlan(row);
     }
   }
 
@@ -276,11 +319,13 @@ function parseOperator(json: BestApiJson): OperatorHit {
   };
 }
 
-/**
- * Mobile prepaid helper: operator + plans + roffer via BestAPI only.
- * Recharge debit stays on VyaparAPI.
- */
-export async function lookupMobileRechargeInfo(mobile: string): Promise<MobileRechargeInfo> {
+export function padBestApiCircle(code: string): string {
+  const t = code.trim();
+  if (/^\d{1,2}$/.test(t)) return t.padStart(2, "0");
+  return t;
+}
+
+function assertBestApiConfigured(): void {
   if (!bestApiConfigured()) {
     throw new HttpError(
       503,
@@ -288,10 +333,83 @@ export async function lookupMobileRechargeInfo(mobile: string): Promise<MobileRe
       "BESTAPI_NOT_CONFIGURED",
     );
   }
+}
+
+function isBadGatewayPayload(sample: string): boolean {
+  return sample.includes("Bad gateway") || sample.includes("<!DOCTYPE") || sample.includes("origin_bad_gateway");
+}
+
+export async function fetchMobilePlans(input: {
+  mobile: string;
+  operatorCode: string;
+  circleCode: string;
+}): Promise<RechargePlanItem[]> {
+  assertBestApiConfigured();
+  const opcord = mapVyaparOperatorCode(input.operatorCode);
+  const circle = padBestApiCircle(input.circleCode);
+  const plansRes = await bestApiPost(PLANS_PATH, { opcord, circle });
+  const sample = JSON.stringify(plansRes.json);
+  if (plansRes.httpStatus >= 400 || isBadGatewayPayload(sample)) {
+    throw new HttpError(
+      502,
+      "BestAPI plans are temporarily unavailable. Try again in a minute.",
+      "BESTAPI_PLANS_UNAVAILABLE",
+    );
+  }
+  const plans = extractPlanItems(plansRes.json);
+  logger.info(
+    { mobile: input.mobile, opcord, circle, count: plans.length },
+    "BestAPI plans loaded",
+  );
+  return plans;
+}
+
+export async function fetchMobileOffers(input: {
+  mobile: string;
+  operatorCode: string;
+  circleCode: string;
+}): Promise<RechargePlanItem[]> {
+  assertBestApiConfigured();
+  const opcord = mapVyaparOperatorCode(input.operatorCode);
+  const circle = padBestApiCircle(input.circleCode);
+  const bodies: Record<string, string>[] = [
+    { opcord, circle, mobile: input.mobile },
+    { opcord, mobile: input.mobile },
+  ];
+  let offers: RechargePlanItem[] = [];
+  let lastStatus = 0;
+  let lastSample = "";
+  for (const body of bodies) {
+    const res = await bestApiPost(ROFFER_PATH, body);
+    lastStatus = res.httpStatus;
+    lastSample = JSON.stringify(res.json);
+    if (res.httpStatus >= 400 || isBadGatewayPayload(lastSample)) continue;
+    offers = extractPlanItems(res.json);
+    if (offers.length > 0) break;
+  }
+  if (lastStatus >= 400 || isBadGatewayPayload(lastSample)) {
+    throw new HttpError(
+      502,
+      "BestAPI offers are temporarily unavailable. Try again in a minute.",
+      "BESTAPI_OFFERS_UNAVAILABLE",
+    );
+  }
+  logger.info(
+    { mobile: input.mobile, opcord, circle, count: offers.length },
+    "BestAPI offers loaded",
+  );
+  return offers;
+}
+
+/**
+ * Mobile prepaid helper: operator + circle via BestAPI only.
+ * Plans and offers load separately when the retailer opens those tabs.
+ */
+export async function lookupMobileRechargeInfo(mobile: string): Promise<MobileRechargeInfo> {
+  assertBestApiConfigured();
 
   const warnings: string[] = [];
   let operatorSource: MobileRechargeInfo["operatorSource"] = null;
-  let plansSource: MobileRechargeInfo["plansSource"] = null;
   let op: OperatorHit = {
     operatorCode: null,
     bestOpcord: null,
@@ -332,88 +450,6 @@ export async function lookupMobileRechargeInfo(mobile: string): Promise<MobileRe
     );
   }
 
-  let plans: RechargePlanItem[] = [];
-  let offers: RechargePlanItem[] = [];
-  const opcord = op.bestOpcord || op.operatorCode;
-
-  if (bestApiConfigured()) {
-    const circleCode = op.circleCode ?? undefined;
-    // Partner contract: query params operator_code + circle_code (not JSON body).
-    const planQuery =
-      op.operatorCode && circleCode
-        ? { operator_code: op.operatorCode, circle_code: circleCode }
-        : op.operatorCode
-          ? { operator_code: op.operatorCode }
-          : null;
-
-    if (planQuery) {
-      const planCalls: Array<{ method: "GET" | "POST" }> = [{ method: "GET" }, { method: "POST" }];
-      for (const call of planCalls) {
-        if (plans.length > 0) break;
-        try {
-          const plansRes = await bestApiRequest(call.method, PLANS_PATH, {
-            query: planQuery,
-            body: call.method === "POST" ? {} : undefined,
-          });
-          if (plansRes.httpStatus >= 400) continue;
-          const sample = JSON.stringify(plansRes.json);
-          if (sample.includes("Bad gateway") || sample.includes("<!DOCTYPE")) continue;
-          plans = extractPlanItems(plansRes.json);
-          if (plans.length === 0) {
-            logger.info(
-              { mobile, method: call.method, query: planQuery, sample: sample.slice(0, 600) },
-              "BestAPI plans empty/unparsed",
-            );
-          } else {
-            plansSource = "bestapi";
-            logger.info(
-              { mobile, method: call.method, query: planQuery, count: plans.length },
-              "BestAPI plans loaded",
-            );
-          }
-        } catch (err) {
-          logger.warn({ err, mobile, method: call.method, query: planQuery }, "BestAPI plans failed");
-        }
-      }
-    }
-    if (plans.length === 0) warnings.push("BestAPI plans unavailable");
-
-    try {
-      const rofferRes = await bestApiPost(ROFFER_PATH, {
-        opcord: op.operatorCode,
-        circleCode,
-        mobile,
-      });
-      if (rofferRes.httpStatus < 400) {
-        offers = extractPlanItems(rofferRes.json);
-        if (offers.length === 0) {
-          const alt = await bestApiPost(ROFFER_PATH, {
-            opcord,
-            opcode: opcord,
-            operator: op.operatorCode,
-            circleCode,
-            mobile,
-          });
-          if (alt.httpStatus < 400) offers = extractPlanItems(alt.json);
-        }
-        if (offers.length === 0) {
-          logger.info(
-            { mobile, sample: JSON.stringify(rofferRes.json).slice(0, 600) },
-            "BestAPI roffer empty/unparsed",
-          );
-        } else if (!plansSource) {
-          plansSource = "bestapi";
-        }
-      }
-    } catch (err) {
-      logger.warn({ err, mobile }, "BestAPI roffer failed");
-    }
-  }
-
-  if (plans.length === 0 && offers.length === 0) {
-    warnings.push("No plans/offers returned. Enter amount manually.");
-  }
-
   return {
     mobile,
     operatorSource,
@@ -421,9 +457,9 @@ export async function lookupMobileRechargeInfo(mobile: string): Promise<MobileRe
     operatorName: op.operatorName,
     circleCode: op.circleCode,
     circleName: op.circleName,
-    plans,
-    offers,
-    plansSource,
+    plans: [],
+    offers: [],
+    plansSource: null,
     warnings,
   };
 }

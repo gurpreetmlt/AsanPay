@@ -157,4 +157,38 @@ export const BRAND_DEFAULTS = {
   tagline: "Payment Made Easy",
 } as const;
 
+/** BestAPI / Vyapar numeric circle codes (Punjab = 02 confirmed live). */
+export const TELECOM_CIRCLES: ReadonlyArray<{ code: string; name: string }> = [
+  { code: "10", name: "Delhi" },
+  { code: "02", name: "Punjab" },
+  { code: "03", name: "Himachal Pradesh" },
+  { code: "96", name: "Haryana" },
+  { code: "55", name: "Jammu & Kashmir" },
+  { code: "97", name: "Uttar Pradesh (West)" },
+  { code: "54", name: "Uttar Pradesh (East)" },
+  { code: "92", name: "Mumbai" },
+  { code: "90", name: "Maharashtra" },
+  { code: "98", name: "Gujarat" },
+  { code: "93", name: "Madhya Pradesh" },
+  { code: "70", name: "Rajasthan" },
+  { code: "31", name: "Kolkata" },
+  { code: "51", name: "West Bengal" },
+  { code: "53", name: "Odisha" },
+  { code: "56", name: "Assam" },
+  { code: "16", name: "North East" },
+  { code: "52", name: "Bihar" },
+  { code: "06", name: "Karnataka" },
+  { code: "40", name: "Chennai" },
+  { code: "94", name: "Tamil Nadu" },
+  { code: "95", name: "Kerala" },
+  { code: "49", name: "Andhra Pradesh" },
+  { code: "99", name: "Sikkim" },
+  { code: "100", name: "Tripura" },
+  { code: "101", name: "Chhattisgarh" },
+  { code: "102", name: "Goa" },
+  { code: "103", name: "Meghalaya" },
+  { code: "104", name: "Mizoram" },
+  { code: "105", name: "Jharkhand" },
+];
+
 export { TERMS_BODY, PRIVACY_BODY, buildLegalDownloadText } from "./legalCopy";

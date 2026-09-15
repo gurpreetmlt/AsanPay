@@ -3,7 +3,7 @@
 import { FormEvent, PointerEvent, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "react-hot-toast";
-import type { ApiResponse } from "@asanpay/shared-types";
+import { TELECOM_CIRCLES, type ApiResponse } from "@asanpay/shared-types";
 import { AppShell } from "@/components/layout/AppShell";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import api from "@/lib/api";
@@ -70,45 +70,55 @@ function RechargeLoading() {
 function PlanList({
   title,
   items,
+  selectedAmount,
   onPick,
 }: {
-  title: string;
+  title?: string;
   items: PlanItem[];
+  selectedAmount: string;
   onPick: (amount: string) => void;
 }) {
   if (items.length === 0) return null;
   return (
     <div className="space-y-2">
-      <div className="text-sm font-semibold" style={{ color: B.blue }}>
-        {title}
-      </div>
-      <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
-        {items.map((p, i) => (
-          <button
-            key={`${p.amount}-${p.title}-${i}`}
-            type="button"
-            onClick={() => onPick(p.amount)}
-            className="w-full rounded-xl border px-3 py-2.5 text-left transition hover:bg-slate-50"
-            style={{ borderColor: B.border }}
-          >
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="text-sm font-bold" style={{ color: B.blue }}>
-                ₹{p.amount}
-              </span>
-              <span className="text-xs font-medium" style={{ color: B.muted }}>
-                {p.validity ? `Validity ${p.validity}` : p.category ?? "Tap to select"}
-              </span>
-            </div>
-            <div className="mt-0.5 text-xs font-semibold" style={{ color: B.blue }}>
-              {p.title}
-            </div>
-            {p.description ? (
-              <div className="mt-0.5 text-xs leading-snug" style={{ color: B.muted }}>
-                {p.description}
+      {title ? (
+        <div className="text-sm font-semibold" style={{ color: B.blue }}>
+          {title}
+        </div>
+      ) : null}
+      <div className="space-y-2">
+        {items.map((p, i) => {
+          const selected = selectedAmount === p.amount;
+          return (
+            <button
+              key={`${p.amount}-${p.title}-${i}`}
+              type="button"
+              onClick={() => onPick(p.amount)}
+              className="w-full rounded-xl border px-3 py-2.5 text-left transition hover:bg-slate-50"
+              style={{
+                borderColor: selected ? B.blue : B.border,
+                background: selected ? `${B.blue}10` : undefined,
+              }}
+            >
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-sm font-bold" style={{ color: B.blue }}>
+                  ₹{p.amount}
+                </span>
+                <span className="text-xs font-medium" style={{ color: B.muted }}>
+                  {p.validity ? `Validity ${p.validity}` : p.category ?? "Tap to select"}
+                </span>
               </div>
-            ) : null}
-          </button>
-        ))}
+              <div className="mt-0.5 text-xs font-semibold" style={{ color: B.blue }}>
+                {p.title}
+              </div>
+              {p.description ? (
+                <div className="mt-0.5 text-xs leading-snug" style={{ color: B.muted }}>
+                  {p.description}
+                </div>
+              ) : null}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -126,10 +136,13 @@ function RechargeInner() {
 
   const [accountRef, setAccountRef] = useState("");
   const [operatorCode, setOperatorCode] = useState<string>(ops[0]!.code);
-  const [circleHint, setCircleHint] = useState<string | null>(null);
+  const [circleCode, setCircleCode] = useState("");
   const [plans, setPlans] = useState<PlanItem[]>([]);
   const [offers, setOffers] = useState<PlanItem[]>([]);
   const [lookupBusy, setLookupBusy] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [panelTab, setPanelTab] = useState<"plans" | "offers">("plans");
+  const [panelBusy, setPanelBusy] = useState(false);
   const [amount, setAmount] = useState("");
   const [txnPin, setTxnPin] = useState("");
   const [loading, setLoading] = useState(false);
@@ -177,7 +190,8 @@ function RechargeInner() {
     setOperatorCode(ops[0]!.code);
     setPlans([]);
     setOffers([]);
-    setCircleHint(null);
+    setCircleCode("");
+    setPanelOpen(false);
     markNewIntent();
   }, [serviceCode]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -199,7 +213,7 @@ function RechargeInner() {
     if (mobile.length !== 10) {
       setPlans([]);
       setOffers([]);
-      setCircleHint(null);
+      setCircleCode("");
       return;
     }
 
@@ -217,25 +231,11 @@ function RechargeInner() {
           }
           const info = data.data;
           if (info.operatorCode) {
-            const known = MOBILE_OPS.some((o) => o.code === info.operatorCode);
-            setOperatorCode(known ? info.operatorCode : info.operatorCode);
+            setOperatorCode(info.operatorCode);
           }
-          setCircleHint(
-            [
-              [info.circleName, info.circleCode].filter(Boolean).join(" · "),
-              info.operatorName,
-              info.operatorSource === "bestapi" ? "via BestAPI" : null,
-            ]
-              .filter(Boolean)
-              .join(" · ") || null,
-          );
-          setOffers(info.offers ?? []);
-          setPlans(info.plans ?? []);
-          for (const w of info.warnings ?? []) {
-            if (w.startsWith("Operator detected via")) continue;
-            if (w.startsWith("BestAPI plans")) continue;
-            toast(w, { icon: "ℹ️" });
-          }
+          if (info.circleCode) setCircleCode(info.circleCode);
+          setPlans([]);
+          setOffers([]);
         } catch (err) {
           if (seq !== lookupSeq.current) return;
           setPlans([]);
@@ -260,6 +260,84 @@ function RechargeInner() {
     if (MOBILE_OPS.some((o) => o.code === operatorCode)) return [...MOBILE_OPS];
     return [{ code: operatorCode, label: operatorCode }, ...MOBILE_OPS];
   }, [ops, operatorCode, serviceCode]);
+
+  const circleOptions = useMemo(() => {
+    const list = TELECOM_CIRCLES.map((c) => ({ code: c.code, name: c.name }));
+    if (circleCode && !list.some((c) => c.code === circleCode)) {
+      list.unshift({ code: circleCode, name: circleCode });
+    }
+    return list;
+  }, [circleCode]);
+
+  function catalogBody() {
+    return {
+      mobile: accountRef.replace(/\D/g, ""),
+      operatorCode,
+      circleCode,
+    };
+  }
+
+  async function loadPlans(): Promise<void> {
+    const { data } = await api.post<ApiResponse<{ plans: PlanItem[] }>>(
+      "/txn/recharge/mobile-plans",
+      catalogBody(),
+    );
+    if (!data.success) throw new Error(data.message || "Could not load plans");
+    setPlans(data.data?.plans ?? []);
+  }
+
+  async function loadOffers(): Promise<void> {
+    const { data } = await api.post<ApiResponse<{ offers: PlanItem[] }>>(
+      "/txn/recharge/mobile-offers",
+      catalogBody(),
+    );
+    if (!data.success) throw new Error(data.message || "Could not load offers");
+    setOffers(data.data?.offers ?? []);
+  }
+
+  async function openCatalog(tab: "plans" | "offers"): Promise<void> {
+    const mobile = accountRef.replace(/\D/g, "");
+    if (mobile.length !== 10) {
+      toast.error("Enter a valid 10-digit mobile");
+      return;
+    }
+    if (!operatorCode) {
+      toast.error("Select an operator");
+      return;
+    }
+    if (!circleCode) {
+      toast.error("Select a circle/state");
+      return;
+    }
+    setPanelTab(tab);
+    setPanelOpen(true);
+    const needFetch = tab === "plans" ? plans.length === 0 : offers.length === 0;
+    if (!needFetch) return;
+    setPanelBusy(true);
+    try {
+      if (tab === "plans") await loadPlans();
+      else await loadOffers();
+    } catch (err) {
+      toast.error(extractApiError(err, tab === "plans" ? "Could not load plans" : "Could not load offers"));
+    } finally {
+      setPanelBusy(false);
+    }
+  }
+
+  async function switchCatalogTab(tab: "plans" | "offers"): Promise<void> {
+    setPanelTab(tab);
+    const needFetch = tab === "plans" ? plans.length === 0 : offers.length === 0;
+    if (!needFetch) return;
+    setPanelBusy(true);
+    try {
+      if (tab === "plans") await loadPlans();
+      else await loadOffers();
+    } catch (err) {
+      toast.error(extractApiError(err, tab === "plans" ? "Could not load plans" : "Could not load offers"));
+    } finally {
+      setPanelBusy(false);
+    }
+  }
 
   const formReady = useMemo(() => {
     const number = accountRef.replace(/\D/g, "");
@@ -400,15 +478,36 @@ function RechargeInner() {
             />
             {serviceCode === "MOBILE_PREPAID" && lookupBusy ? (
               <span className="text-xs" style={{ color: B.muted }}>
-                Detecting operator and plans…
-              </span>
-            ) : null}
-            {serviceCode === "MOBILE_PREPAID" && circleHint && !lookupBusy ? (
-              <span className="text-xs" style={{ color: B.muted }}>
-                {circleHint}
+                Detecting operator and circle…
               </span>
             ) : null}
           </label>
+
+          {serviceCode === "MOBILE_PREPAID" ? (
+            <label className="block space-y-1.5">
+              <span className="text-sm font-semibold" style={{ color: B.blue }}>
+                Circle/State
+              </span>
+              <select
+                value={circleCode}
+                onChange={(e) => {
+                  markNewIntent();
+                  setCircleCode(e.target.value);
+                  setPlans([]);
+                  setOffers([]);
+                }}
+                className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
+                style={{ borderColor: B.border }}
+              >
+                <option value="">Select circle/state</option>
+                {circleOptions.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.name} ({c.code})
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
 
           <label className="block space-y-1.5">
             <span className="text-sm font-semibold" style={{ color: B.blue }}>
@@ -419,6 +518,8 @@ function RechargeInner() {
               onChange={(e) => {
                 markNewIntent();
                 setOperatorCode(e.target.value);
+                setPlans([]);
+                setOffers([]);
               }}
               className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
               style={{ borderColor: B.border }}
@@ -430,35 +531,6 @@ function RechargeInner() {
               ))}
             </select>
           </label>
-
-          {serviceCode === "MOBILE_PREPAID" ? (
-            <>
-              <PlanList
-                title="Special offers"
-                items={offers}
-                onPick={(a) => {
-                  markNewIntent();
-                  setAmount(a);
-                }}
-              />
-              <PlanList
-                title="Plans"
-                items={plans}
-                onPick={(a) => {
-                  markNewIntent();
-                  setAmount(a);
-                }}
-              />
-              {!lookupBusy &&
-              accountRef.replace(/\D/g, "").length === 10 &&
-              plans.length === 0 &&
-              offers.length === 0 ? (
-                <p className="text-xs" style={{ color: B.muted }}>
-                  No plans/offers for this number yet. Enter amount manually.
-                </p>
-              ) : null}
-            </>
-          ) : null}
 
           <label className="block space-y-1.5">
             <span className="text-sm font-semibold" style={{ color: B.blue }}>
@@ -476,6 +548,27 @@ function RechargeInner() {
               placeholder="e.g. 199"
             />
           </label>
+
+          {serviceCode === "MOBILE_PREPAID" ? (
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => void openCatalog("plans")}
+                className="rounded-xl border px-3 py-2.5 text-sm font-semibold"
+                style={{ borderColor: B.blue, color: B.blue, background: "#fff" }}
+              >
+                Plans
+              </button>
+              <button
+                type="button"
+                onClick={() => void openCatalog("offers")}
+                className="rounded-xl border px-3 py-2.5 text-sm font-semibold"
+                style={{ borderColor: B.blue, color: B.blue, background: "#fff" }}
+              >
+                Offers
+              </button>
+            </div>
+          ) : null}
 
           <label className="block space-y-1.5">
             <span className="text-sm font-semibold" style={{ color: B.blue }}>
@@ -538,6 +631,83 @@ function RechargeInner() {
           </div>
         ) : null}
       </div>
+
+      {panelOpen ? (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <button
+            type="button"
+            className="h-full flex-1 bg-black/40"
+            aria-label="Close plans panel"
+            onClick={() => setPanelOpen(false)}
+          />
+          <aside
+            className="flex h-full w-full max-w-md flex-col bg-white shadow-2xl"
+            style={{ borderLeft: `1px solid ${B.border}` }}
+          >
+            <div className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: B.border }}>
+              <span className="text-sm font-bold" style={{ color: B.blue }}>
+                Browse packs
+              </span>
+              <button
+                type="button"
+                className="text-sm font-semibold"
+                style={{ color: B.muted }}
+                onClick={() => setPanelOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2 px-4 py-3">
+              <button
+                type="button"
+                onClick={() => void switchCatalogTab("plans")}
+                className="rounded-xl px-3 py-2 text-sm font-semibold"
+                style={{
+                  background: panelTab === "plans" ? B.blue : "#fff",
+                  color: panelTab === "plans" ? "#fff" : B.blue,
+                  border: `1px solid ${B.blue}`,
+                }}
+              >
+                Plans
+              </button>
+              <button
+                type="button"
+                onClick={() => void switchCatalogTab("offers")}
+                className="rounded-xl px-3 py-2 text-sm font-semibold"
+                style={{
+                  background: panelTab === "offers" ? B.blue : "#fff",
+                  color: panelTab === "offers" ? "#fff" : B.blue,
+                  border: `1px solid ${B.blue}`,
+                }}
+              >
+                Offers
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
+              {panelBusy ? (
+                <p className="text-sm" style={{ color: B.muted }}>
+                  Loading {panelTab}…
+                </p>
+              ) : (
+                <PlanList
+                  items={panelTab === "plans" ? plans : offers}
+                  selectedAmount={amount}
+                  onPick={(a) => {
+                    markNewIntent();
+                    setAmount(a);
+                    setPanelOpen(false);
+                  }}
+                />
+              )}
+              {!panelBusy && (panelTab === "plans" ? plans : offers).length === 0 ? (
+                <p className="text-sm" style={{ color: B.muted }}>
+                  No {panelTab} for this operator and circle. Enter amount manually.
+                </p>
+              ) : null}
+            </div>
+          </aside>
+        </div>
+      ) : null}
     </AppShell>
   );
 }

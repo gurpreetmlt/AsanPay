@@ -5,6 +5,8 @@ import { validateBody } from "../../middleware/validate";
 import {
   recharge,
   rechargeMobileInfo,
+  rechargeMobilePlans,
+  rechargeMobileOffers,
   bbpsFetchBill,
   bbpsPayBill,
   dmtAddBeneficiary,
@@ -55,6 +57,8 @@ import {
 import {
   rechargeSchema,
   rechargeMobileInfoSchema,
+  rechargeMobilePlansSchema,
+  rechargeMobileOffersSchema,
   bbpsFetchBillSchema,
   bbpsPayBillSchema,
   dmtBeneficiarySchema,
@@ -107,6 +111,18 @@ txnRouter.post(
   retailerOnly,
   validateBody(rechargeMobileInfoSchema),
   rechargeMobileInfo,
+);
+txnRouter.post(
+  "/recharge/mobile-plans",
+  retailerOnly,
+  validateBody(rechargeMobilePlansSchema),
+  rechargeMobilePlans,
+);
+txnRouter.post(
+  "/recharge/mobile-offers",
+  retailerOnly,
+  validateBody(rechargeMobileOffersSchema),
+  rechargeMobileOffers,
 );
 
 txnRouter.post("/bbps/fetch-bill", retailerOnly, validateBody(bbpsFetchBillSchema), bbpsFetchBill);
