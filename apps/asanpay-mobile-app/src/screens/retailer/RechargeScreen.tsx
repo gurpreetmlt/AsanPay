@@ -38,7 +38,7 @@ type MobileInfo = {
   circleName: string | null;
   plans: PlanItem[];
   offers: PlanItem[];
-  plansSource?: "bestapi" | "vyaparapi" | null;
+  plansSource?: "bestapi" | null;
   warnings: string[];
 };
 
@@ -191,9 +191,7 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
               .filter(
                 (w) =>
                   !w.startsWith("Operator detected via") &&
-                  !w.startsWith("Plans loaded via") &&
-                  !w.startsWith("Offers loaded via") &&
-                  !w.startsWith("BestAPI plans empty"),
+                  !w.startsWith("BestAPI plans"),
               )
               .join("\n");
             if (note) showAlert("Plans note", note);

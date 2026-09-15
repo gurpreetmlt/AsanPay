@@ -232,6 +232,28 @@ const envSchema = z.object({
     (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
     z.string().url().default("https://bestapi.in"),
   ),
+  /**
+   * Meta WhatsApp Cloud API (test send). Token + phone-number id from Meta Developer
+   * → WhatsApp → API Setup. Optional until the test endpoint is used — fail-closed.
+   */
+  WHATSAPP_ACCESS_TOKEN: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().min(8).optional(),
+  ),
+  WHATSAPP_PHONE_NUMBER_ID: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().min(1).optional(),
+  ),
+  /** Default recipient (country code, no +) when the test body omits `to`. */
+  WHATSAPP_RECIPIENT_NUMBER: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().optional(),
+  ),
+  /** Graph API version, e.g. v26.0 (current as of July 2026). */
+  WHATSAPP_GRAPH_API_VERSION: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().default("v26.0"),
+  ),
 });
 
 const parsed = envSchema.safeParse(process.env);
