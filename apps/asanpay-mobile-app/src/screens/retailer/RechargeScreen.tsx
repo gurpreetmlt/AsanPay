@@ -31,12 +31,14 @@ type PlanItem = {
 
 type MobileInfo = {
   mobile: string;
+  operatorSource?: "bestapi" | "vyaparapi" | null;
   operatorCode: string | null;
   operatorName: string | null;
   circleCode: string | null;
   circleName: string | null;
   plans: PlanItem[];
   offers: PlanItem[];
+  plansSource?: "bestapi" | "vyaparapi" | null;
   warnings: string[];
 };
 
@@ -116,12 +118,14 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
   const [lastStatus, setLastStatus] = useState<string | null>(null);
   const attemptKey = useRef(createAttemptKeyHolder("recharge"));
   const lookupSeq = useRef(0);
-  const submitLockRef = useRef(false);
+  const busyRef = useRef(false);
+  const apiStartedRef = useRef(false);
 
   function markNewIntent() {
     attemptKey.current.clear();
     setBlockResubmit(false);
-    submitLockRef.current = false;
+    busyRef.current = false;
+    apiStartedRef.current = false;
   }
 
   const title = useMemo(
@@ -168,9 +172,13 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
           const info = data.data;
           if (info.operatorCode) setOperatorCode(info.operatorCode);
           setCircleHint(
-            [info.circleName, info.circleCode].filter(Boolean).join(" · ") ||
-              info.operatorName ||
-              null,
+            [
+              [info.circleName, info.circleCode].filter(Boolean).join(" · "),
+              info.operatorName,
+              info.operatorSource ? `via ${info.operatorSource}` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ") || null,
           );
           setOffers(info.offers ?? []);
           setPlans(info.plans ?? []);
@@ -201,8 +209,11 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
   }, [accountRef, serviceCode]);
 
   async function onSubmit() {
-    if (submitLockRef.current || blockResubmit || loading) return;
-    submitLockRef.current = true;
+    if (blockResubmit) return;
+    if (apiStartedRef.current) return;
+
+    busyRef.current = true;
+    apiStartedRef.current = true;
     setLoading(true);
     let stayBlocked = false;
 
@@ -264,7 +275,13 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
       showAlert("Recharge failed", apiError(err, "Recharge failed"));
     } finally {
       setLoading(false);
-      submitLockRef.current = stayBlocked;
+      if (stayBlocked) {
+        busyRef.current = true;
+        apiStartedRef.current = true;
+      } else {
+        busyRef.current = false;
+        apiStartedRef.current = false;
+      }
     }
   }
 
@@ -384,6 +401,11 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
         ) : null}
 
         <Pressable
+          onPressIn={() => {
+            if (busyRef.current || blockResubmit || loading || apiStartedRef.current) return;
+            busyRef.current = true;
+            setLoading(true);
+          }}
           onPress={() => void onSubmit()}
           disabled={loading || blockResubmit}
           style={[

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, PointerEvent, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "react-hot-toast";
 import type { ApiResponse } from "@asanpay/shared-types";
@@ -139,13 +139,27 @@ function RechargeInner() {
   const [blockResubmit, setBlockResubmit] = useState(false);
   const attemptKey = useRef(createAttemptKeyHolder("recharge"));
   const lookupSeq = useRef(0);
-  /** Sync lock so double-click before React re-render cannot fire two requests. */
-  const submitLockRef = useRef(false);
+  /** True from first pointerdown/submit until request finishes (or stay blocked). */
+  const busyRef = useRef(false);
+  /** True once this attempt has started the API call — blocks a second submit. */
+  const apiStartedRef = useRef(false);
 
   function markNewIntent() {
     attemptKey.current.clear();
     setBlockResubmit(false);
-    submitLockRef.current = false;
+    busyRef.current = false;
+    apiStartedRef.current = false;
+  }
+
+  function armSubmitFromPointer(e: PointerEvent<HTMLButtonElement>) {
+    if (e.button !== 0) return;
+    if (busyRef.current || blockResubmit || loading || apiStartedRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    busyRef.current = true;
+    setLoading(true);
   }
 
   useEffect(() => {
@@ -240,9 +254,12 @@ function RechargeInner() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    // Lock immediately — before validation — so a double-click cannot start two requests.
-    if (submitLockRef.current || blockResubmit || loading) return;
-    submitLockRef.current = true;
+    if (blockResubmit) return;
+    // Second form submit (extra mouse click) while first request is running.
+    if (apiStartedRef.current) return;
+
+    busyRef.current = true;
+    apiStartedRef.current = true;
     setLoading(true);
     let stayBlocked = false;
 
@@ -307,7 +324,13 @@ function RechargeInner() {
       setBlockResubmit(false);
     } finally {
       setLoading(false);
-      submitLockRef.current = stayBlocked;
+      if (stayBlocked) {
+        busyRef.current = true;
+        apiStartedRef.current = true;
+      } else {
+        busyRef.current = false;
+        apiStartedRef.current = false;
+      }
     }
   }
 
@@ -463,7 +486,8 @@ function RechargeInner() {
             variant="primary"
             loading={loading}
             disabled={loading || blockResubmit}
-            className="w-full"
+            onPointerDown={armSubmitFromPointer}
+            className={`w-full${loading || blockResubmit ? " pointer-events-none" : ""}`}
           >
             {blockResubmit ? "Submitted — wait for status" : "Recharge"}
           </PrimaryButton>
