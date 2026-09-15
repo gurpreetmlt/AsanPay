@@ -126,16 +126,26 @@ export function ServicesScreen() {
     if (AEPS_CODES.has(code)) {
       setAepsServiceCode(code);
       setActiveScreen("aeps");
-    } else if (DMT_CODES.has(code)) {
+      return;
+    }
+    if (DMT_CODES.has(code)) {
       setActiveScreen("dmt");
-    } else if (NEPAL_CODES.has(code)) {
+      return;
+    }
+    if (NEPAL_CODES.has(code)) {
       setActiveScreen("nepal");
-    } else if (UPI_CP_CODES.has(code)) {
+      return;
+    }
+    if (UPI_CP_CODES.has(code)) {
       setActiveScreen("upi_cp");
-    } else if (RECHARGE_CODES.has(code)) {
+      return;
+    }
+    if (RECHARGE_CODES.has(code) || code === "MOBILE_RECHARGE") {
       setRechargeServiceCode(code === "DTH" ? "DTH" : "MOBILE_PREPAID");
       setActiveScreen("recharge");
+      return;
     }
+    showAlert(code.replace(/_/g, " "), "This service will be available soon.");
   }
 
   function backToHome() {

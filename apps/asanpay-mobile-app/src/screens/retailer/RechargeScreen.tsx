@@ -106,7 +106,9 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
   const { promptPin, TxnPinPrompt } = useTxnPin();
   const ops = serviceCode === "DTH" ? DTH_OPS : MOBILE_OPS;
   const [accountRef, setAccountRef] = useState("");
-  const [operatorCode, setOperatorCode] = useState(ops[0]!.code);
+  const [operatorCode, setOperatorCode] = useState<string>(
+    serviceCode === "DTH" ? "TTV" : "JIO",
+  );
   const [circleHint, setCircleHint] = useState<string | null>(null);
   const [plans, setPlans] = useState<PlanItem[]>([]);
   const [offers, setOffers] = useState<PlanItem[]>([]);
@@ -140,10 +142,12 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
   }, [ops, operatorCode, serviceCode]);
 
   useEffect(() => {
-    setOperatorCode(ops[0]!.code);
+    setOperatorCode(serviceCode === "DTH" ? "TTV" : "JIO");
     setPlans([]);
     setOffers([]);
     setCircleHint(null);
+    setAccountRef("");
+    setAmount("");
     markNewIntent();
   }, [serviceCode]); // eslint-disable-line react-hooks/exhaustive-deps
 
