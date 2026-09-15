@@ -41,7 +41,7 @@ import {
 } from "./emailVerify.service";
 import type { AuthPortal, AuthUser, UserRole } from "@asanpay/shared-types";
 import { isAdminRole, isAgentPortalRole, ROLE_LABELS } from "@asanpay/shared-types";
-import { deliverLoginOtp } from "../telegram/link.service";
+import { deliverAuthOtp } from "../telegram/link.service";
 import type {
   RegisterInput,
   LoginInput,
@@ -541,10 +541,10 @@ export async function requestLoginOtp(
     metadata: input.role ? { expectedRole: input.role } : undefined,
   });
 
-  const delivery = await deliverLoginOtp({
-    userId: row.id,
+  const delivery = await deliverAuthOtp({
     mobile: input.mobile,
     otp,
+    purpose: "login",
     telegramChatId: row.telegramChatId ?? null,
   });
 
@@ -554,9 +554,12 @@ export async function requestLoginOtp(
 
   return {
     ...GENERIC_OTP_SENT,
-    message: delivery.viaTelegram
-      ? "OTP sent to your linked Telegram"
-      : GENERIC_OTP_SENT.message,
+    message:
+      delivery.via === "whatsapp"
+        ? "OTP sent to your WhatsApp"
+        : delivery.via === "telegram"
+          ? "OTP sent to your linked Telegram"
+          : GENERIC_OTP_SENT.message,
     ...(exposeOtp ? { otp } : {}),
   };
 }
@@ -949,9 +952,18 @@ export async function requestPreKycMobileChangeOtp(
     metadata: { mobile: input.mobile },
   });
 
+  const delivery = await deliverAuthOtp({
+    mobile: input.mobile,
+    otp,
+    purpose: "signup",
+  });
+
   const exposeOtp = shouldExposeOtpInResponse();
   return {
-    message: "OTP sent to the new mobile number",
+    message:
+      delivery.via === "whatsapp"
+        ? "OTP sent to your WhatsApp"
+        : "OTP sent to the new mobile number",
     expiresInSeconds: OTP_TTL_MS / 1000,
     ...(exposeOtp ? { otp } : {}),
   };
@@ -1395,13 +1407,19 @@ export async function requestSignupOtp(
     },
   });
 
+  const delivery = await deliverAuthOtp({
+    mobile: input.mobile,
+    otp,
+    purpose: "signup",
+  });
+
   const exposeOtp = shouldExposeOtpInResponse();
   if (exposeOtp) {
     logger.info({ mobile: input.mobile, purpose: "signup" }, "[OTP] generated (value not logged)");
   }
 
   return {
-    message: "OTP sent for signup",
+    message: delivery.via === "whatsapp" ? "OTP sent to your WhatsApp" : "OTP sent for signup",
     expiresInSeconds: OTP_TTL_MS / 1000,
     ...(exposeOtp ? { otp } : {}),
   };

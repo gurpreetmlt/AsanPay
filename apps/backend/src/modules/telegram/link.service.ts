@@ -6,6 +6,7 @@ import { env } from "../../config/env";
 import { HttpError } from "../../utils/httpError";
 import { logger } from "../../utils/logger";
 import { telegramBotUsername, telegramSendMessage } from "./client";
+import { sendWhatsAppOtp } from "../whatsapp/whatsapp.service";
 
 const LINK_TTL_MS = 15 * 60 * 1000;
 
@@ -17,6 +18,60 @@ export function otpDeliveryChannels(): string[] {
 
 export function wantsTelegramOtp(): boolean {
   return otpDeliveryChannels().includes("telegram");
+}
+
+function hasTestOtpOverride(mobile: string): boolean {
+  return Boolean(
+    env.TEST_OTP_OVERRIDES &&
+      (env.TEST_OTP_OVERRIDES.includes("*:") || env.TEST_OTP_OVERRIDES.includes(mobile)),
+  );
+}
+
+/**
+ * Deliver login/signup OTP. Recipient is the user's own mobile (WhatsApp) or linked Telegram.
+ * Channel order follows OTP_DELIVERY (first match wins; telegram skips to next if not linked).
+ */
+export async function deliverAuthOtp(params: {
+  mobile: string;
+  otp: string;
+  purpose: "login" | "signup";
+  telegramChatId?: string | null;
+}): Promise<{ via: "whatsapp" | "telegram" | "none" }> {
+  const channels = otpDeliveryChannels();
+  const label = params.purpose === "signup" ? "signup" : "login";
+
+  for (const ch of channels) {
+    if (ch === "whatsapp") {
+      await sendWhatsAppOtp(params.mobile, params.otp, params.purpose);
+      return { via: "whatsapp" };
+    }
+    if (ch === "telegram") {
+      if (params.telegramChatId) {
+        await telegramSendMessage(
+          params.telegramChatId,
+          `AsanPay ${label} OTP: ${params.otp}\nValid for 15 minutes. Do not share this code.`,
+        );
+        return { via: "telegram" };
+      }
+      continue;
+    }
+    if (ch === "log") {
+      logger.info({ purpose: params.purpose, mobile: params.mobile }, "OTP delivery=log (value not logged)");
+      return { via: "none" };
+    }
+  }
+
+  if (channels.includes("telegram") && !params.telegramChatId && params.purpose === "login") {
+    if (!hasTestOtpOverride(params.mobile)) {
+      throw new HttpError(
+        422,
+        "Telegram is not linked. Log in with password, then open Account → Link Telegram.",
+        "TELEGRAM_NOT_LINKED",
+      );
+    }
+  }
+
+  return { via: "none" };
 }
 
 export async function createTelegramLinkDeepLink(userId: string): Promise<{
@@ -72,45 +127,6 @@ export async function bindTelegramFromStartPayload(
 
   logger.info({ userId: row.userId, chatId }, "Telegram linked");
   return "AsanPay linked. You will receive login OTPs here. You can close this chat.";
-}
-
-/**
- * Deliver login OTP. Returns whether Telegram was used.
- * Throws TELEGRAM_NOT_LINKED when telegram channel is required and chat id missing.
- */
-export async function deliverLoginOtp(params: {
-  userId: string;
-  mobile: string;
-  otp: string;
-  telegramChatId: string | null;
-}): Promise<{ viaTelegram: boolean }> {
-  const channels = otpDeliveryChannels();
-  const preferTelegram = channels.includes("telegram");
-
-  if (preferTelegram && params.telegramChatId) {
-    await telegramSendMessage(
-      params.telegramChatId,
-      `AsanPay login OTP: ${params.otp}\nValid for 15 minutes. Do not share this code.`,
-    );
-    return { viaTelegram: true };
-  }
-
-  if (preferTelegram && !params.telegramChatId) {
-    // Still allow test overrides / expose path for listed numbers — caller handles expose.
-    const hasTestOverride = Boolean(
-      env.TEST_OTP_OVERRIDES &&
-        (env.TEST_OTP_OVERRIDES.includes("*:") || env.TEST_OTP_OVERRIDES.includes(params.mobile)),
-    );
-    if (!hasTestOverride) {
-      throw new HttpError(
-        422,
-        "Telegram is not linked. Log in with password, then open Account → Link Telegram.",
-        "TELEGRAM_NOT_LINKED",
-      );
-    }
-  }
-
-  return { viaTelegram: false };
 }
 
 export async function getTelegramLinkStatus(userId: string): Promise<{ linked: boolean }> {

@@ -21,6 +21,7 @@ const envSchema = z.object({
   EXPOSE_OTP_IN_RESPONSE: z.coerce.boolean().default(false),
   /**
    * OTP delivery channels (comma-separated), first match wins:
+   * - whatsapp — send to the user's signin/signup mobile via WhatsApp Cloud API
    * - telegram — send via TELEGRAM_BOT_TOKEN when user has linked chat id
    * - sms — reserved for future SMS gateway (not implemented yet)
    * - log — only log / optionally EXPOSE_OTP (dev)
@@ -233,8 +234,8 @@ const envSchema = z.object({
     z.string().url().default("https://bestapi.in"),
   ),
   /**
-   * Meta WhatsApp Cloud API (test send). Token + phone-number id from Meta Developer
-   * → WhatsApp → API Setup. Optional until the test endpoint is used — fail-closed.
+   * Meta WhatsApp Cloud API. Token + phone-number id from Meta Developer
+   * → WhatsApp → API Setup. Recipient is the user's signin/signup mobile — never a fixed number.
    */
   WHATSAPP_ACCESS_TOKEN: z.preprocess(
     (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
@@ -244,7 +245,7 @@ const envSchema = z.object({
     (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
     z.string().min(1).optional(),
   ),
-  /** Default recipient (country code, no +) when the test body omits `to`. */
+  /** Optional. Admin test endpoint only when body `to` is omitted. Not used for OTP. */
   WHATSAPP_RECIPIENT_NUMBER: z.preprocess(
     (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
     z.string().optional(),
@@ -253,6 +254,18 @@ const envSchema = z.object({
   WHATSAPP_GRAPH_API_VERSION: z.preprocess(
     (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
     z.string().default("v26.0"),
+  ),
+  /**
+   * Approved WhatsApp authentication template name. Required to OTP any number
+   * outside Meta's test allowlist / 24h window. Empty = send a free-form text OTP.
+   */
+  WHATSAPP_OTP_TEMPLATE_NAME: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().optional(),
+  ),
+  WHATSAPP_OTP_TEMPLATE_LANGUAGE: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().default("en"),
   ),
 });
 

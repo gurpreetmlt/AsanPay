@@ -103,7 +103,11 @@ function metaUserMessage(json: MetaSendBody, httpStatus: number): string {
   return `WhatsApp Cloud API rejected the request (HTTP ${httpStatus}). Check Phone Number ID, recipient, and token scopes.`;
 }
 
-export async function sendWhatsAppText(toRaw: string, message: string): Promise<WhatsAppSendResult> {
+async function postWhatsAppMessage(
+  toRaw: string,
+  payload: Record<string, unknown>,
+  kind: "text" | "template",
+): Promise<WhatsAppSendResult> {
   const { token, phoneNumberId } = whatsappCreds();
   const to = normalizeWhatsAppTo(toRaw);
   const version = graphVersion();
@@ -119,16 +123,10 @@ export async function sendWhatsAppText(toRaw: string, message: string): Promise<
         "Content-Type": "application/json",
         Accept: "application/json",
       },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        recipient_type: "individual",
-        to,
-        type: "text",
-        text: { preview_url: false, body: message },
-      }),
+      body: JSON.stringify({ ...payload, to }),
     });
   } catch (err) {
-    logger.error({ err, to: maskRecipient(to) }, "WhatsApp Cloud API network error");
+    logger.error({ err, to: maskRecipient(to), kind }, "WhatsApp Cloud API network error");
     throw new HttpError(502, "Could not reach WhatsApp Cloud API. Try again.", "WHATSAPP_NETWORK");
   }
 
@@ -151,6 +149,7 @@ export async function sendWhatsAppText(toRaw: string, message: string): Promise<
       graphVersion: version,
       phoneNumberId,
       to: maskRecipient(to),
+      kind,
       messageId,
       waId,
       errorCode: json.error?.code,
@@ -173,6 +172,53 @@ export async function sendWhatsAppText(toRaw: string, message: string): Promise<
     graphVersion: version,
     meta: safeMeta,
   };
+}
+
+export async function sendWhatsAppText(toRaw: string, message: string): Promise<WhatsAppSendResult> {
+  return postWhatsAppMessage(
+    toRaw,
+    {
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      type: "text",
+      text: { preview_url: false, body: message },
+    },
+    "text",
+  );
+}
+
+/** Send login/signup OTP to the user's own WhatsApp number (not a fixed env recipient). */
+export async function sendWhatsAppOtp(
+  mobile: string,
+  otp: string,
+  purpose: "login" | "signup",
+): Promise<WhatsAppSendResult> {
+  const template = env.WHATSAPP_OTP_TEMPLATE_NAME?.trim();
+  if (template) {
+    const language = (env.WHATSAPP_OTP_TEMPLATE_LANGUAGE || "en").trim();
+    return postWhatsAppMessage(
+      mobile,
+      {
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        type: "template",
+        template: {
+          name: template,
+          language: { code: language },
+          components: [
+            { type: "body", parameters: [{ type: "text", text: otp }] },
+          ],
+        },
+      },
+      "template",
+    );
+  }
+
+  const label = purpose === "signup" ? "signup" : "login";
+  return sendWhatsAppText(
+    mobile,
+    `AsanPay ${label} OTP: ${otp}\nValid for 15 minutes. Do not share this code.`,
+  );
 }
 
 export function defaultRecipient(): string | undefined {
