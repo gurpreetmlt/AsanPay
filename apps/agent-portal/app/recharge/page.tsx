@@ -153,7 +153,18 @@ function RechargeInner() {
 
   function armSubmitFromPointer(e: PointerEvent<HTMLButtonElement>) {
     if (e.button !== 0) return;
-    if (busyRef.current || blockResubmit || loading || apiStartedRef.current) {
+    const number = accountRef.replace(/\D/g, "");
+    const numberOk =
+      serviceCode === "MOBILE_PREPAID" ? number.length === 10 : number.length >= 8;
+    const amountOk = /^\d+(\.\d{1,2})?$/.test(amount.trim()) && Number(amount) > 0;
+    const formReadyNow = Boolean(numberOk && operatorCode && amountOk && txnPin.length === 4);
+    if (
+      busyRef.current ||
+      blockResubmit ||
+      loading ||
+      apiStartedRef.current ||
+      !formReadyNow
+    ) {
       e.preventDefault();
       e.stopPropagation();
       return;
@@ -252,9 +263,19 @@ function RechargeInner() {
     return [{ code: operatorCode, label: operatorCode }, ...MOBILE_OPS];
   }, [ops, operatorCode, serviceCode]);
 
+  const formReady = useMemo(() => {
+    const number = accountRef.replace(/\D/g, "");
+    const numberOk =
+      serviceCode === "MOBILE_PREPAID" ? number.length === 10 : number.length >= 8;
+    const amountOk = /^\d+(\.\d{1,2})?$/.test(amount.trim()) && Number(amount) > 0;
+    return Boolean(numberOk && operatorCode && amountOk && txnPin.length === 4);
+  }, [accountRef, amount, operatorCode, serviceCode, txnPin]);
+
+  const submitDisabled = loading || blockResubmit || !formReady;
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (blockResubmit) return;
+    if (blockResubmit || !formReady) return;
     // Second form submit (extra mouse click) while first request is running.
     if (apiStartedRef.current) return;
 
@@ -481,13 +502,19 @@ function RechargeInner() {
             </p>
           ) : null}
 
+          {!formReady && !blockResubmit ? (
+            <p className="text-xs" style={{ color: B.muted }}>
+              Fill mobile number, operator, amount, and 4-digit transaction PIN to enable Recharge.
+            </p>
+          ) : null}
+
           <PrimaryButton
             type="submit"
             variant="primary"
             loading={loading}
-            disabled={loading || blockResubmit}
+            disabled={submitDisabled}
             onPointerDown={armSubmitFromPointer}
-            className={`w-full${loading || blockResubmit ? " pointer-events-none" : ""}`}
+            className={`w-full${submitDisabled ? " pointer-events-none" : ""}`}
           >
             {blockResubmit ? "Submitted — wait for status" : "Recharge"}
           </PrimaryButton>

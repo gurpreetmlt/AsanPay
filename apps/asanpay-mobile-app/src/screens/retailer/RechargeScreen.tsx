@@ -212,8 +212,18 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
     return () => clearTimeout(timer);
   }, [accountRef, serviceCode]);
 
+  const formReady = useMemo(() => {
+    const number = accountRef.replace(/\D/g, "");
+    const numberOk =
+      serviceCode === "MOBILE_PREPAID" ? number.length === 10 : number.length >= 8;
+    const amountOk = /^\d+(\.\d{1,2})?$/.test(amount.trim()) && Number(amount) > 0;
+    return Boolean(numberOk && operatorCode && amountOk);
+  }, [accountRef, amount, operatorCode, serviceCode]);
+
+  const submitDisabled = loading || blockResubmit || !formReady;
+
   async function onSubmit() {
-    if (blockResubmit) return;
+    if (blockResubmit || !formReady) return;
     if (apiStartedRef.current) return;
 
     busyRef.current = true;
@@ -404,19 +414,27 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
           </Text>
         ) : null}
 
+        {!formReady && !blockResubmit ? (
+          <Text style={{ color: tokens.sub, fontSize: 12, marginTop: 4 }}>
+            Enter number, operator, and amount to enable Recharge.
+          </Text>
+        ) : null}
+
         <Pressable
           onPressIn={() => {
-            if (busyRef.current || blockResubmit || loading || apiStartedRef.current) return;
+            if (busyRef.current || blockResubmit || loading || apiStartedRef.current || !formReady) {
+              return;
+            }
             busyRef.current = true;
             setLoading(true);
           }}
           onPress={() => void onSubmit()}
-          disabled={loading || blockResubmit}
+          disabled={submitDisabled}
           style={[
             styles.cta,
             {
               backgroundColor: colors.blue,
-              opacity: loading || blockResubmit ? 0.7 : 1,
+              opacity: submitDisabled ? 0.45 : 1,
             },
           ]}
         >
