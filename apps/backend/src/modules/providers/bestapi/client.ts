@@ -25,28 +25,40 @@ function bestApiCreds(): { key: string; secret: string; base: string } {
   };
 }
 
-export async function bestApiPost(
+function buildUrl(base: string, path: string, query?: Record<string, string | undefined>): string {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  const url = new URL(normalized, `${base}/`);
+  if (query) {
+    for (const [k, v] of Object.entries(query)) {
+      if (v != null && String(v).trim() !== "") url.searchParams.set(k, String(v).trim());
+    }
+  }
+  return url.toString();
+}
+
+export async function bestApiRequest(
+  method: "GET" | "POST",
   path: string,
-  body: Record<string, unknown>,
+  opts?: { body?: Record<string, unknown>; query?: Record<string, string | undefined> },
 ): Promise<{ httpStatus: number; json: BestApiJson }> {
   const { key, secret, base } = bestApiCreds();
-  const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
+  const url = buildUrl(base, path, opts?.query);
   const started = Date.now();
 
   let res: Response;
   try {
     res = await fetch(url, {
-      method: "POST",
+      method,
       headers: {
-        "Content-Type": "application/json",
         Accept: "application/json",
         "X-Api-Key": key,
         "X-Api-Secret": secret,
+        ...(method === "POST" ? { "Content-Type": "application/json" } : {}),
       },
-      body: JSON.stringify(body),
+      body: method === "POST" ? JSON.stringify(opts?.body ?? {}) : undefined,
     });
   } catch (err) {
-    logger.error({ err, path }, "BestAPI network error");
+    logger.error({ err, path, method }, "BestAPI network error");
     throw new HttpError(502, "BestAPI network error. Try again.", "BESTAPI_NETWORK");
   }
 
@@ -61,6 +73,8 @@ export async function bestApiPost(
   logger.info(
     {
       path,
+      method,
+      queryKeys: opts?.query ? Object.keys(opts.query) : [],
       httpStatus: res.status,
       durationMs: Date.now() - started,
       ok: res.ok,
@@ -69,4 +83,12 @@ export async function bestApiPost(
   );
 
   return { httpStatus: res.status, json };
+}
+
+export async function bestApiPost(
+  path: string,
+  body: Record<string, unknown>,
+  query?: Record<string, string | undefined>,
+): Promise<{ httpStatus: number; json: BestApiJson }> {
+  return bestApiRequest("POST", path, { body, query });
 }

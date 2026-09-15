@@ -31,7 +31,7 @@ type PlanItem = {
 
 type MobileInfo = {
   mobile: string;
-  operatorSource?: "bestapi" | "vyaparapi" | null;
+  operatorSource?: "bestapi" | null;
   operatorCode: string | null;
   operatorName: string | null;
   circleCode: string | null;
@@ -179,7 +179,7 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
             [
               [info.circleName, info.circleCode].filter(Boolean).join(" · "),
               info.operatorName,
-              info.operatorSource ? `via ${info.operatorSource}` : null,
+              info.operatorSource === "bestapi" ? "via BestAPI" : null,
             ]
               .filter(Boolean)
               .join(" · ") || null,
@@ -305,6 +305,11 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
         </Pressable>
         <Text style={[styles.title, { color: tokens.txt }]}>{title}</Text>
       </View>
+      {serviceCode === "MOBILE_PREPAID" ? (
+        <Text style={{ color: tokens.sub, fontSize: 12, paddingHorizontal: 16, marginTop: -4 }}>
+          Operator, plans and offers via BestAPI
+        </Text>
+      ) : null}
 
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
         <Text style={[styles.label, { color: tokens.txt }]}>

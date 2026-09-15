@@ -25,7 +25,7 @@ type PlanItem = {
 
 type MobileInfo = {
   mobile: string;
-  operatorSource?: "bestapi" | "vyaparapi" | null;
+  operatorSource?: "bestapi" | null;
   operatorCode: string | null;
   operatorName: string | null;
   circleCode: string | null;
@@ -224,7 +224,7 @@ function RechargeInner() {
             [
               [info.circleName, info.circleCode].filter(Boolean).join(" · "),
               info.operatorName,
-              info.operatorSource ? `via ${info.operatorSource}` : null,
+              info.operatorSource === "bestapi" ? "via BestAPI" : null,
             ]
               .filter(Boolean)
               .join(" · ") || null,
@@ -372,7 +372,7 @@ function RechargeInner() {
             {title}
           </h1>
           <p className="mt-0.5 text-[14px]" style={{ color: B.muted }}>
-            Recharge via VyaparAPI · plans/offers via BestAPI
+            Recharge via VyaparAPI · operator, plans and offers via BestAPI
           </p>
         </div>
 
