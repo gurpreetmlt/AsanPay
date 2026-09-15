@@ -25,12 +25,14 @@ type PlanItem = {
 
 type MobileInfo = {
   mobile: string;
+  operatorSource?: "bestapi" | "vyaparapi" | null;
   operatorCode: string | null;
   operatorName: string | null;
   circleCode: string | null;
   circleName: string | null;
   plans: PlanItem[];
   offers: PlanItem[];
+  plansSource?: "bestapi" | "vyaparapi" | null;
   warnings: string[];
 };
 
@@ -133,14 +135,24 @@ function RechargeInner() {
   const [loading, setLoading] = useState(false);
   const [lastRef, setLastRef] = useState<string | null>(null);
   const [lastStatus, setLastStatus] = useState<string | null>(null);
+  /** After pending/success — block another Recharge until number/amount/operator changes. */
+  const [blockResubmit, setBlockResubmit] = useState(false);
   const attemptKey = useRef(createAttemptKeyHolder("recharge"));
   const lookupSeq = useRef(0);
+  /** Sync lock so double-click before React re-render cannot fire two requests. */
+  const submitLockRef = useRef(false);
+
+  function markNewIntent() {
+    attemptKey.current.clear();
+    setBlockResubmit(false);
+  }
 
   useEffect(() => {
     setOperatorCode(ops[0]!.code);
     setPlans([]);
     setOffers([]);
     setCircleHint(null);
+    markNewIntent();
   }, [serviceCode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -183,9 +195,13 @@ function RechargeInner() {
             setOperatorCode(known ? info.operatorCode : info.operatorCode);
           }
           setCircleHint(
-            [info.circleName, info.circleCode].filter(Boolean).join(" · ") ||
-              info.operatorName ||
-              null,
+            [
+              [info.circleName, info.circleCode].filter(Boolean).join(" · "),
+              info.operatorName,
+              info.operatorSource ? `via ${info.operatorSource}` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ") || null,
           );
           setOffers(info.offers ?? []);
           setPlans(info.plans ?? []);
@@ -223,7 +239,7 @@ function RechargeInner() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (loading) return;
+    if (loading || submitLockRef.current || blockResubmit) return;
 
     const number = accountRef.replace(/\D/g, "");
     if (serviceCode === "MOBILE_PREPAID" && number.length !== 10) {
@@ -247,6 +263,7 @@ function RechargeInner() {
       return;
     }
 
+    submitLockRef.current = true;
     setLoading(true);
     try {
       const { data } = await api.post<
@@ -261,18 +278,32 @@ function RechargeInner() {
       });
       if (!data.success) throw new Error(data.message || "Recharge failed");
       const txn = data.data?.txn;
-      const status = txn?.status ?? data.data?.provider?.status ?? "pending";
+      const status = (txn?.status ?? data.data?.provider?.status ?? "pending").toLowerCase();
       setLastRef(txn?.txnRef ?? null);
       setLastStatus(status);
-      if (status === "success") toast.success("Recharge successful");
-      else if (status === "failed") toast.error(data.data?.provider?.message || "Recharge failed");
-      else toast.success("Recharge submitted — status pending. Check Transactions shortly.");
-      attemptKey.current.clear();
-      setTxnPin("");
+      if (status === "success") {
+        toast.success("Recharge successful");
+        setBlockResubmit(true);
+        attemptKey.current.clear();
+        setTxnPin("");
+      } else if (status === "failed") {
+        toast.error(data.data?.provider?.message || "Recharge failed");
+        // Keep same idempotency key for a safe retry of this attempt.
+        setBlockResubmit(false);
+      } else {
+        toast.success(
+          "Recharge submitted. Status is pending — do not tap Recharge again. Check Transactions.",
+        );
+        setBlockResubmit(true);
+        attemptKey.current.clear();
+        setTxnPin("");
+      }
     } catch (err) {
       toast.error(extractApiError(err, "Recharge failed"));
+      setBlockResubmit(false);
     } finally {
       setLoading(false);
+      submitLockRef.current = false;
     }
   }
 
@@ -313,7 +344,10 @@ function RechargeInner() {
               autoComplete="tel"
               maxLength={serviceCode === "DTH" ? 20 : 10}
               value={accountRef}
-              onChange={(e) => setAccountRef(e.target.value.replace(/\D/g, ""))}
+              onChange={(e) => {
+                markNewIntent();
+                setAccountRef(e.target.value.replace(/\D/g, ""));
+              }}
               className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
               style={{ borderColor: B.border }}
               placeholder={serviceCode === "DTH" ? "DTH number" : "10-digit mobile"}
@@ -336,7 +370,10 @@ function RechargeInner() {
             </span>
             <select
               value={operatorCode}
-              onChange={(e) => setOperatorCode(e.target.value)}
+              onChange={(e) => {
+                markNewIntent();
+                setOperatorCode(e.target.value);
+              }}
               className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
               style={{ borderColor: B.border }}
             >
@@ -350,8 +387,22 @@ function RechargeInner() {
 
           {serviceCode === "MOBILE_PREPAID" ? (
             <>
-              <PlanList title="Special offers" items={offers} onPick={setAmount} />
-              <PlanList title="Plans" items={plans} onPick={setAmount} />
+              <PlanList
+                title="Special offers"
+                items={offers}
+                onPick={(a) => {
+                  markNewIntent();
+                  setAmount(a);
+                }}
+              />
+              <PlanList
+                title="Plans"
+                items={plans}
+                onPick={(a) => {
+                  markNewIntent();
+                  setAmount(a);
+                }}
+              />
               {!lookupBusy &&
               accountRef.replace(/\D/g, "").length === 10 &&
               plans.length === 0 &&
@@ -370,7 +421,10 @@ function RechargeInner() {
             <input
               inputMode="decimal"
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onChange={(e) => {
+                markNewIntent();
+                setAmount(e.target.value);
+              }}
               className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
               style={{ borderColor: B.border }}
               placeholder="e.g. 199"
@@ -393,8 +447,21 @@ function RechargeInner() {
             />
           </label>
 
-          <PrimaryButton type="submit" variant="primary" loading={loading} className="w-full">
-            Recharge
+          {blockResubmit ? (
+            <p className="text-xs font-medium" style={{ color: B.muted }}>
+              Do not tap Recharge again while status is pending or already submitted. Change
+              number, operator, or amount to start a new recharge — or open Transactions.
+            </p>
+          ) : null}
+
+          <PrimaryButton
+            type="submit"
+            variant="primary"
+            loading={loading}
+            disabled={blockResubmit}
+            className="w-full"
+          >
+            {blockResubmit ? "Submitted — wait for status" : "Recharge"}
           </PrimaryButton>
         </form>
 

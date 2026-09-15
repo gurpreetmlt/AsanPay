@@ -111,8 +111,17 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
   const [lookupBusy, setLookupBusy] = useState(false);
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
+  const [blockResubmit, setBlockResubmit] = useState(false);
+  const [lastRef, setLastRef] = useState<string | null>(null);
+  const [lastStatus, setLastStatus] = useState<string | null>(null);
   const attemptKey = useRef(createAttemptKeyHolder("recharge"));
   const lookupSeq = useRef(0);
+  const submitLockRef = useRef(false);
+
+  function markNewIntent() {
+    attemptKey.current.clear();
+    setBlockResubmit(false);
+  }
 
   const title = useMemo(
     () => (serviceCode === "DTH" ? "DTH recharge" : "Mobile prepaid"),
@@ -130,6 +139,7 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
     setPlans([]);
     setOffers([]);
     setCircleHint(null);
+    markNewIntent();
   }, [serviceCode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -190,7 +200,7 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
   }, [accountRef, serviceCode]);
 
   async function onSubmit() {
-    if (loading) return;
+    if (loading || submitLockRef.current || blockResubmit) return;
     const number = accountRef.replace(/\D/g, "");
     if (serviceCode === "MOBILE_PREPAID" && number.length !== 10) {
       showAlert("Mobile number", "Enter a valid 10-digit mobile");
@@ -205,6 +215,7 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
       return;
     }
 
+    submitLockRef.current = true;
     setLoading(true);
     try {
       const txnAuth = await promptPin();
@@ -222,21 +233,33 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
       >("/txn/recharge", body);
 
       if (!data.success) throw new Error(data.message || "Recharge failed");
-      const status = data.data?.txn?.status ?? "pending";
+      const status = (data.data?.txn?.status ?? "pending").toLowerCase();
       const ref = data.data?.txn?.txnRef ?? "";
-      attemptKey.current.clear();
+      setLastRef(ref || null);
+      setLastStatus(status);
       if (status === "success") {
+        attemptKey.current.clear();
+        setBlockResubmit(true);
         showAlert("Recharge successful", ref ? `Ref: ${ref}` : "Done");
       } else if (status === "failed") {
+        setBlockResubmit(false);
         showAlert("Recharge failed", data.data?.provider?.message || data.message || "Failed");
       } else {
-        showAlert("Recharge submitted", ref ? `Pending — ref ${ref}` : "Status pending. Check Transactions.");
+        attemptKey.current.clear();
+        setBlockResubmit(true);
+        showAlert(
+          "Recharge submitted",
+          ref
+            ? `Status is pending — do not tap Recharge again. Ref: ${ref}. Check Transactions.`
+            : "Status is pending — do not tap Recharge again. Check Transactions.",
+        );
       }
-      setAmount("");
     } catch (err) {
+      setBlockResubmit(false);
       showAlert("Recharge failed", apiError(err, "Recharge failed"));
     } finally {
       setLoading(false);
+      submitLockRef.current = false;
     }
   }
 
@@ -258,7 +281,10 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
           keyboardType="number-pad"
           maxLength={serviceCode === "DTH" ? 20 : 10}
           value={accountRef}
-          onChangeText={(t) => setAccountRef(t.replace(/\D/g, ""))}
+          onChangeText={(t) => {
+            markNewIntent();
+            setAccountRef(t.replace(/\D/g, ""));
+          }}
           placeholder={serviceCode === "DTH" ? "DTH number" : "10-digit mobile"}
           placeholderTextColor={tokens.mute}
         />
@@ -279,7 +305,10 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
             return (
               <Pressable
                 key={o.code}
-                onPress={() => setOperatorCode(o.code)}
+                onPress={() => {
+                  markNewIntent();
+                  setOperatorCode(o.code);
+                }}
                 style={[
                   styles.opChip,
                   {
@@ -298,8 +327,24 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
 
         {serviceCode === "MOBILE_PREPAID" ? (
           <>
-            <PlanBlock title="Special offers" items={offers} tokens={tokens} onPick={setAmount} />
-            <PlanBlock title="Plans" items={plans} tokens={tokens} onPick={setAmount} />
+            <PlanBlock
+              title="Special offers"
+              items={offers}
+              tokens={tokens}
+              onPick={(a) => {
+                markNewIntent();
+                setAmount(a);
+              }}
+            />
+            <PlanBlock
+              title="Plans"
+              items={plans}
+              tokens={tokens}
+              onPick={(a) => {
+                markNewIntent();
+                setAmount(a);
+              }}
+            />
             {!lookupBusy &&
             accountRef.replace(/\D/g, "").length === 10 &&
             plans.length === 0 &&
@@ -316,17 +361,41 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
           style={[styles.input, { borderColor: tokens.inputBorder, color: tokens.txt, backgroundColor: tokens.inputBg }]}
           keyboardType="decimal-pad"
           value={amount}
-          onChangeText={setAmount}
+          onChangeText={(t) => {
+            markNewIntent();
+            setAmount(t);
+          }}
           placeholder="e.g. 199"
           placeholderTextColor={tokens.mute}
         />
 
+        {blockResubmit ? (
+          <Text style={{ color: tokens.sub, fontSize: 12, marginTop: 4 }}>
+            Do not tap Recharge again while status is pending. Change number, operator, or amount
+            for a new recharge.
+            {lastRef ? ` Last ref: ${lastRef}` : ""}
+            {lastStatus ? ` (${lastStatus})` : ""}
+          </Text>
+        ) : null}
+
         <Pressable
           onPress={() => void onSubmit()}
-          disabled={loading}
-          style={[styles.cta, { backgroundColor: colors.blue, opacity: loading ? 0.7 : 1 }]}
+          disabled={loading || blockResubmit}
+          style={[
+            styles.cta,
+            {
+              backgroundColor: colors.blue,
+              opacity: loading || blockResubmit ? 0.7 : 1,
+            },
+          ]}
         >
-          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.ctaText}>Recharge</Text>}
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.ctaText}>
+              {blockResubmit ? "Submitted — wait for status" : "Recharge"}
+            </Text>
+          )}
         </Pressable>
       </ScrollView>
       <TxnPinPrompt />
