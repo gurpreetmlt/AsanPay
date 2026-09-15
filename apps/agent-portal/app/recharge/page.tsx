@@ -67,59 +67,95 @@ function RechargeLoading() {
   );
 }
 
+function groupPlans(items: PlanItem[]): { category: string; items: PlanItem[] }[] {
+  const map = new Map<string, PlanItem[]>();
+  for (const p of items) {
+    const cat = p.category?.trim() || "Packs";
+    const list = map.get(cat) ?? [];
+    list.push(p);
+    map.set(cat, list);
+  }
+  return [...map.entries()].map(([category, grouped]) => ({ category, items: grouped }));
+}
+
 function PlanList({
-  title,
   items,
   selectedAmount,
   onPick,
 }: {
-  title?: string;
   items: PlanItem[];
   selectedAmount: string;
   onPick: (amount: string) => void;
 }) {
   if (items.length === 0) return null;
   return (
-    <div className="space-y-2">
-      {title ? (
-        <div className="text-sm font-semibold" style={{ color: B.blue }}>
-          {title}
-        </div>
-      ) : null}
-      <div className="space-y-2">
-        {items.map((p, i) => {
-          const selected = selectedAmount === p.amount;
-          return (
-            <button
-              key={`${p.amount}-${p.title}-${i}`}
-              type="button"
-              onClick={() => onPick(p.amount)}
-              className="w-full rounded-xl border px-3 py-2.5 text-left transition hover:bg-slate-50"
-              style={{
-                borderColor: selected ? B.blue : B.border,
-                background: selected ? `${B.blue}10` : undefined,
-              }}
-            >
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="text-sm font-bold" style={{ color: B.blue }}>
-                  ₹{p.amount}
-                </span>
-                <span className="text-xs font-medium" style={{ color: B.muted }}>
-                  {p.validity ? `Validity ${p.validity}` : p.category ?? "Tap to select"}
-                </span>
-              </div>
-              <div className="mt-0.5 text-xs font-semibold" style={{ color: B.blue }}>
-                {p.title}
-              </div>
-              {p.description ? (
-                <div className="mt-0.5 text-xs leading-snug" style={{ color: B.muted }}>
-                  {p.description}
-                </div>
-              ) : null}
-            </button>
-          );
-        })}
-      </div>
+    <div className="space-y-5">
+      {groupPlans(items).map((group) => (
+        <section key={group.category} className="space-y-2">
+          <div className="text-[11px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+            {group.category}
+          </div>
+          <div className="space-y-2.5">
+            {group.items.map((p, i) => {
+              const selected = selectedAmount === p.amount;
+              return (
+                <button
+                  key={`${group.category}-${p.amount}-${i}`}
+                  type="button"
+                  onClick={() => onPick(p.amount)}
+                  className="flex w-full overflow-hidden rounded-2xl border text-left shadow-sm transition hover:shadow-md"
+                  style={{
+                    borderColor: selected ? B.blue : B.border,
+                    boxShadow: selected ? `0 0 0 2px ${B.blue}33` : undefined,
+                    background: "#fff",
+                  }}
+                >
+                  <div
+                    className="flex w-[4.75rem] shrink-0 flex-col items-center justify-center px-2 py-3"
+                    style={{ background: selected ? B.btnGrad : B.secondary }}
+                  >
+                    <span
+                      className="text-[11px] font-semibold"
+                      style={{ color: selected ? "rgba(255,255,255,0.8)" : B.muted }}
+                    >
+                      ₹
+                    </span>
+                    <span
+                      className="text-lg font-extrabold leading-none"
+                      style={{ color: selected ? "#fff" : B.blue }}
+                    >
+                      {p.amount}
+                    </span>
+                  </div>
+                  <div className="min-w-0 flex-1 px-3 py-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span
+                        className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                        style={{ background: B.secondary, color: B.blue }}
+                      >
+                        {p.validity ? p.validity : "Tap to select"}
+                      </span>
+                      {selected ? (
+                        <span className="text-[11px] font-bold" style={{ color: B.green }}>
+                          Selected
+                        </span>
+                      ) : null}
+                    </div>
+                    {p.description ? (
+                      <p
+                        className="mt-1.5 text-xs leading-snug"
+                        style={{ color: B.muted, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}
+                      >
+                        {p.description}
+                      </p>
+                    ) : null}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ))}
     </div>
   );
 }
@@ -311,33 +347,38 @@ function RechargeInner() {
     }
     setPanelTab(tab);
     setPanelOpen(true);
-    const needFetch = tab === "plans" ? plans.length === 0 : offers.length === 0;
-    if (!needFetch) return;
-    setPanelBusy(true);
-    try {
-      if (tab === "plans") await loadPlans();
-      else await loadOffers();
-    } catch (err) {
-      toast.error(extractApiError(err, tab === "plans" ? "Could not load plans" : "Could not load offers"));
-    } finally {
-      setPanelBusy(false);
-    }
   }
 
-  async function switchCatalogTab(tab: "plans" | "offers"): Promise<void> {
+  function switchCatalogTab(tab: "plans" | "offers"): void {
     setPanelTab(tab);
-    const needFetch = tab === "plans" ? plans.length === 0 : offers.length === 0;
-    if (!needFetch) return;
-    setPanelBusy(true);
-    try {
-      if (tab === "plans") await loadPlans();
-      else await loadOffers();
-    } catch (err) {
-      toast.error(extractApiError(err, tab === "plans" ? "Could not load plans" : "Could not load offers"));
-    } finally {
-      setPanelBusy(false);
-    }
   }
+
+  useEffect(() => {
+    if (!panelOpen || serviceCode !== "MOBILE_PREPAID") return;
+    const mobile = accountRef.replace(/\D/g, "");
+    if (mobile.length !== 10 || !operatorCode || !circleCode) return;
+    let cancelled = false;
+    setPanelBusy(true);
+    void (async () => {
+      try {
+        if (panelTab === "plans") await loadPlans();
+        else await loadOffers();
+      } catch (err) {
+        if (!cancelled) {
+          toast.error(
+            extractApiError(err, panelTab === "plans" ? "Could not load plans" : "Could not load offers"),
+          );
+        }
+      } finally {
+        if (!cancelled) setPanelBusy(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // loadPlans/loadOffers close over latest circle/operator/mobile
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panelOpen, panelTab, accountRef, operatorCode, circleCode, serviceCode]);
 
   const formReady = useMemo(() => {
     const number = accountRef.replace(/\D/g, "");
@@ -436,7 +477,9 @@ function RechargeInner() {
 
   return (
     <AppShell>
-      <div className="mx-auto w-full max-w-lg space-y-5 px-4 py-5 sm:px-6">
+      <div
+        className={`mx-auto w-full max-w-lg space-y-5 px-4 py-5 sm:px-6${panelOpen ? " lg:mr-[26rem]" : ""}`}
+      >
         <div>
           <button
             type="button"
@@ -502,10 +545,13 @@ function RechargeInner() {
                 <option value="">Select circle/state</option>
                 {circleOptions.map((c) => (
                   <option key={c.code} value={c.code}>
-                    {c.name} ({c.code})
+                    {c.name}
                   </option>
                 ))}
               </select>
+              <span className="text-xs" style={{ color: B.muted }}>
+                Auto-filled from the number. Change it anytime — open packs reload for the new circle.
+              </span>
             </label>
           ) : null}
 
@@ -526,7 +572,7 @@ function RechargeInner() {
             >
               {operatorOptions.map((o) => (
                 <option key={o.code} value={o.code}>
-                  {o.label} ({o.code})
+                  {o.label}
                 </option>
               ))}
             </select>
@@ -633,17 +679,10 @@ function RechargeInner() {
       </div>
 
       {panelOpen ? (
-        <div className="fixed inset-0 z-50 flex justify-end">
-          <button
-            type="button"
-            className="h-full flex-1 bg-black/40"
-            aria-label="Close plans panel"
-            onClick={() => setPanelOpen(false)}
-          />
-          <aside
-            className="flex h-full w-full max-w-md flex-col bg-white shadow-2xl"
-            style={{ borderLeft: `1px solid ${B.border}` }}
-          >
+        <aside
+          className="fixed inset-y-0 right-0 z-40 flex w-full max-w-md flex-col bg-white shadow-2xl"
+          style={{ borderLeft: `1px solid ${B.border}` }}
+        >
             <div className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: B.border }}>
               <span className="text-sm font-bold" style={{ color: B.blue }}>
                 Browse packs
@@ -660,7 +699,7 @@ function RechargeInner() {
             <div className="grid grid-cols-2 gap-2 px-4 py-3">
               <button
                 type="button"
-                onClick={() => void switchCatalogTab("plans")}
+                onClick={() => switchCatalogTab("plans")}
                 className="rounded-xl px-3 py-2 text-sm font-semibold"
                 style={{
                   background: panelTab === "plans" ? B.blue : "#fff",
@@ -672,7 +711,7 @@ function RechargeInner() {
               </button>
               <button
                 type="button"
-                onClick={() => void switchCatalogTab("offers")}
+                onClick={() => switchCatalogTab("offers")}
                 className="rounded-xl px-3 py-2 text-sm font-semibold"
                 style={{
                   background: panelTab === "offers" ? B.blue : "#fff",
@@ -695,7 +734,6 @@ function RechargeInner() {
                   onPick={(a) => {
                     markNewIntent();
                     setAmount(a);
-                    setPanelOpen(false);
                   }}
                 />
               )}
@@ -705,8 +743,7 @@ function RechargeInner() {
                 </p>
               ) : null}
             </div>
-          </aside>
-        </div>
+        </aside>
       ) : null}
     </AppShell>
   );

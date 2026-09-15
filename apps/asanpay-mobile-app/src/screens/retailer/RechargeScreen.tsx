@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -65,6 +64,17 @@ type Props = {
   onBack: () => void;
 };
 
+function groupPlans(items: PlanItem[]): { category: string; items: PlanItem[] }[] {
+  const map = new Map<string, PlanItem[]>();
+  for (const p of items) {
+    const cat = p.category?.trim() || "Packs";
+    const list = map.get(cat) ?? [];
+    list.push(p);
+    map.set(cat, list);
+  }
+  return [...map.entries()].map(([category, grouped]) => ({ category, items: grouped }));
+}
+
 function PlanBlock({
   items,
   tokens,
@@ -79,33 +89,78 @@ function PlanBlock({
   if (items.length === 0) return null;
   return (
     <View>
-      {items.map((p, i) => {
-        const selected = selectedAmount === p.amount;
-        return (
-          <Pressable
-            key={`${p.amount}-${p.title}-${i}`}
-            onPress={() => onPick(p.amount)}
-            style={[
-              styles.planCard,
-              {
-                borderColor: selected ? colors.blue : tokens.cardBorder,
-                backgroundColor: selected ? `${colors.blue}14` : tokens.card,
-              },
-            ]}
+      {groupPlans(items).map((group) => (
+        <View key={group.category} style={{ marginBottom: 14 }}>
+          <Text
+            style={{
+              color: tokens.sub,
+              fontSize: 11,
+              fontWeight: "800",
+              letterSpacing: 0.4,
+              textTransform: "uppercase",
+              marginBottom: 8,
+            }}
           >
-            <View style={styles.planTop}>
-              <Text style={{ color: colors.blue, fontWeight: "800", fontSize: 15 }}>₹{p.amount}</Text>
-              <Text style={{ color: tokens.sub, fontSize: 11, fontWeight: "600" }}>
-                {p.validity ? `Validity ${p.validity}` : p.category ?? "Tap to select"}
-              </Text>
-            </View>
-            <Text style={{ color: tokens.txt, fontWeight: "700", fontSize: 13, marginTop: 2 }}>{p.title}</Text>
-            {p.description ? (
-              <Text style={{ color: tokens.sub, fontSize: 12, marginTop: 2 }}>{p.description}</Text>
-            ) : null}
-          </Pressable>
-        );
-      })}
+            {group.category}
+          </Text>
+          {group.items.map((p, i) => {
+            const selected = selectedAmount === p.amount;
+            return (
+              <Pressable
+                key={`${group.category}-${p.amount}-${i}`}
+                onPress={() => onPick(p.amount)}
+                style={[
+                  styles.planCard,
+                  {
+                    borderColor: selected ? colors.blue : tokens.cardBorder,
+                    backgroundColor: tokens.card,
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.planPrice,
+                    { backgroundColor: selected ? colors.blue : `${colors.blue}14` },
+                  ]}
+                >
+                  <Text style={{ color: selected ? "rgba(255,255,255,0.8)" : tokens.sub, fontSize: 10, fontWeight: "700" }}>
+                    ₹
+                  </Text>
+                  <Text style={{ color: selected ? "#fff" : colors.blue, fontSize: 18, fontWeight: "800" }}>
+                    {p.amount}
+                  </Text>
+                </View>
+                <View style={{ flex: 1, paddingVertical: 10, paddingHorizontal: 12 }}>
+                  <View style={styles.planTop}>
+                    <Text
+                      style={{
+                        color: colors.blue,
+                        fontSize: 11,
+                        fontWeight: "700",
+                        backgroundColor: `${colors.blue}12`,
+                        overflow: "hidden",
+                        paddingHorizontal: 8,
+                        paddingVertical: 3,
+                        borderRadius: 999,
+                      }}
+                    >
+                      {p.validity ? p.validity : "Tap to select"}
+                    </Text>
+                    {selected ? (
+                      <Text style={{ color: colors.green, fontSize: 11, fontWeight: "800" }}>Selected</Text>
+                    ) : null}
+                  </View>
+                  {p.description ? (
+                    <Text style={{ color: tokens.sub, fontSize: 12, marginTop: 6, lineHeight: 16 }} numberOfLines={2}>
+                      {p.description}
+                    </Text>
+                  ) : null}
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      ))}
     </View>
   );
 }
@@ -203,33 +258,35 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
     }
     setPanelTab(tab);
     setPanelOpen(true);
-    const needFetch = tab === "plans" ? plans.length === 0 : offers.length === 0;
-    if (!needFetch) return;
-    setPanelBusy(true);
-    try {
-      if (tab === "plans") await loadPlans();
-      else await loadOffers();
-    } catch (err) {
-      showAlert(tab === "plans" ? "Plans" : "Offers", apiError(err, `Could not load ${tab}`));
-    } finally {
-      setPanelBusy(false);
-    }
   }
 
-  async function switchCatalogTab(tab: "plans" | "offers"): Promise<void> {
+  function switchCatalogTab(tab: "plans" | "offers"): void {
     setPanelTab(tab);
-    const needFetch = tab === "plans" ? plans.length === 0 : offers.length === 0;
-    if (!needFetch) return;
-    setPanelBusy(true);
-    try {
-      if (tab === "plans") await loadPlans();
-      else await loadOffers();
-    } catch (err) {
-      showAlert(tab === "plans" ? "Plans" : "Offers", apiError(err, `Could not load ${tab}`));
-    } finally {
-      setPanelBusy(false);
-    }
   }
+
+  useEffect(() => {
+    if (!panelOpen || serviceCode !== "MOBILE_PREPAID") return;
+    const mobile = accountRef.replace(/\D/g, "");
+    if (mobile.length !== 10 || !operatorCode || !circleCode) return;
+    let cancelled = false;
+    setPanelBusy(true);
+    void (async () => {
+      try {
+        if (panelTab === "plans") await loadPlans();
+        else await loadOffers();
+      } catch (err) {
+        if (!cancelled) {
+          showAlert(panelTab === "plans" ? "Plans" : "Offers", apiError(err, `Could not load ${panelTab}`));
+        }
+      } finally {
+        if (!cancelled) setPanelBusy(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panelOpen, panelTab, accountRef, operatorCode, circleCode, serviceCode]);
 
   useEffect(() => {
     setOperatorCode(serviceCode === "DTH" ? "TTV" : "JIO");
@@ -384,7 +441,8 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
         </Text>
       ) : null}
 
-      <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+      <View style={{ flex: 1, flexDirection: panelOpen ? "row" : "column" }}>
+      <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled" style={{ flex: 1 }}>
         <Text style={[styles.label, { color: tokens.txt }]}>
           {serviceCode === "DTH" ? "Subscriber ID" : "Mobile number"}
         </Text>
@@ -437,6 +495,9 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
                 );
               })}
             </View>
+            <Text style={{ color: tokens.sub, fontSize: 12 }}>
+              Auto-filled from the number. Change it anytime — packs reload for the new circle.
+            </Text>
           </>
         ) : null}
 
@@ -541,10 +602,8 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
           )}
         </Pressable>
       </ScrollView>
-      <Modal visible={panelOpen} animationType="slide" transparent onRequestClose={() => setPanelOpen(false)}>
-        <View style={styles.modalRoot}>
-          <Pressable style={styles.modalScrim} onPress={() => setPanelOpen(false)} />
-          <View style={[styles.modalSheet, { backgroundColor: tokens.bg }]}>
+      {panelOpen ? (
+        <View style={[styles.sidePanel, { backgroundColor: tokens.bg, borderLeftColor: tokens.cardBorder }]}>
             <View style={styles.modalHead}>
               <Text style={{ color: tokens.txt, fontWeight: "800", fontSize: 16 }}>Browse packs</Text>
               <Pressable onPress={() => setPanelOpen(false)} hitSlop={12}>
@@ -553,7 +612,7 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
             </View>
             <View style={styles.catalogBtnRow}>
               <Pressable
-                onPress={() => void switchCatalogTab("plans")}
+                onPress={() => switchCatalogTab("plans")}
                 style={[
                   styles.catalogBtn,
                   {
@@ -565,7 +624,7 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
                 <Text style={{ color: panelTab === "plans" ? "#fff" : colors.blue, fontWeight: "700" }}>Plans</Text>
               </Pressable>
               <Pressable
-                onPress={() => void switchCatalogTab("offers")}
+                onPress={() => switchCatalogTab("offers")}
                 style={[
                   styles.catalogBtn,
                   {
@@ -588,7 +647,6 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
                   onPick={(a) => {
                     markNewIntent();
                     setAmount(a);
-                    setPanelOpen(false);
                   }}
                 />
               )}
@@ -598,9 +656,9 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
                 </Text>
               ) : null}
             </ScrollView>
-          </View>
         </View>
-      </Modal>
+      ) : null}
+      </View>
       <TxnPinPrompt />
     </SafeAreaView>
   );
@@ -617,8 +675,9 @@ const styles = StyleSheet.create({
   opRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 4 },
   opChip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
   hintRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  planCard: { borderWidth: 1, borderRadius: 12, padding: 12, marginTop: 8 },
-  planTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", gap: 8 },
+  planCard: { borderWidth: 1, borderRadius: 16, marginTop: 8, flexDirection: "row", overflow: "hidden" },
+  planPrice: { width: 76, alignItems: "center", justifyContent: "center", paddingVertical: 12 },
+  planTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
   catalogBtnRow: { flexDirection: "row", gap: 8, marginTop: 12 },
   catalogBtn: {
     flex: 1,
@@ -627,9 +686,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: "center",
   },
-  modalRoot: { flex: 1, flexDirection: "row", justifyContent: "flex-end" },
-  modalScrim: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
-  modalSheet: { width: "86%", maxWidth: 420, height: "100%", padding: 16 },
+  sidePanel: { width: "62%", maxWidth: 380, height: "100%", padding: 12, borderLeftWidth: 1 },
   modalHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   cta: { marginTop: 20, borderRadius: 14, paddingVertical: 14, alignItems: "center" },
   ctaText: { color: "#fff", fontWeight: "700", fontSize: 16 },
