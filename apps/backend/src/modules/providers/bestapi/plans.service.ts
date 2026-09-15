@@ -1,6 +1,8 @@
+import { env } from "../../../config/env";
 import { HttpError } from "../../../utils/httpError";
 import { logger } from "../../../utils/logger";
 import { mapVyaparOperatorCode } from "../vyaparapi/status";
+import { vyaparGet } from "../vyaparapi/client";
 import { bestApiConfigured, bestApiPost, type BestApiJson } from "./client";
 
 const OPERATOR_PATH = "/api/gw/mobile-services/mobile-plans/mobile-operator-apis";
@@ -32,12 +34,46 @@ function asRecord(v: unknown): Record<string, unknown> | null {
 }
 
 function pickString(obj: Record<string, unknown>, keys: string[]): string | null {
+  const lower = new Map<string, unknown>();
+  for (const [k, v] of Object.entries(obj)) lower.set(k.toLowerCase(), v);
   for (const k of keys) {
-    const v = obj[k];
+    const v = lower.get(k.toLowerCase());
     if (typeof v === "string" && v.trim()) return v.trim();
     if (typeof v === "number" && Number.isFinite(v)) return String(v);
   }
   return null;
+}
+
+/** Case-insensitive deep search for the first matching string/number field. */
+function deepFindString(root: unknown, keys: string[]): string | null {
+  const want = new Set(keys.map((k) => k.toLowerCase()));
+  let found: string | null = null;
+
+  function walk(node: unknown, depth: number): void {
+    if (found || node == null || depth > 8) return;
+    if (Array.isArray(node)) {
+      for (const item of node) walk(item, depth + 1);
+      return;
+    }
+    const rec = asRecord(node);
+    if (!rec) return;
+    for (const [k, v] of Object.entries(rec)) {
+      if (want.has(k.toLowerCase())) {
+        if (typeof v === "string" && v.trim()) {
+          found = v.trim();
+          return;
+        }
+        if (typeof v === "number" && Number.isFinite(v)) {
+          found = String(v);
+          return;
+        }
+      }
+      walk(v, depth + 1);
+    }
+  }
+
+  walk(root, 0);
+  return found;
 }
 
 function firstDataObject(json: BestApiJson): Record<string, unknown> {
@@ -50,6 +86,10 @@ function firstDataObject(json: BestApiJson): Record<string, unknown> {
   if (nested) return nested;
   const result = asRecord(json.result);
   if (result) return result;
+  const response = asRecord(json.response);
+  if (response) return response;
+  const payload = asRecord(json.payload);
+  if (payload) return payload;
   return json;
 }
 
@@ -67,7 +107,7 @@ function collectArrays(root: unknown, out: unknown[][] = [], depth = 0): unknown
 }
 
 function normalizePlanRow(row: Record<string, unknown>): RechargePlanItem | null {
-  const amount =
+  const amountRaw =
     pickString(row, [
       "amount",
       "rs",
@@ -77,17 +117,46 @@ function normalizePlanRow(row: Record<string, unknown>): RechargePlanItem | null
       "rechargeAmount",
       "plan_amount",
       "planAmount",
+      "planrs",
+      "plan_rs",
+      "Amount",
+      "RS",
     ]) ?? null;
+  if (!amountRaw) return null;
+  const amount = amountRaw.replace(/[^\d.]/g, "");
   if (!amount || !/^\d+(\.\d{1,2})?$/.test(amount)) return null;
 
   const title =
-    pickString(row, ["title", "name", "plan_name", "planName", "type", "category", "pack"]) ??
-    `₹${amount}`;
+    pickString(row, [
+      "title",
+      "name",
+      "plan_name",
+      "planName",
+      "type",
+      "category",
+      "pack",
+      "plan_type",
+      "planType",
+      "offerName",
+    ]) ?? `₹${amount}`;
   const description =
-    pickString(row, ["description", "desc", "detail", "details", "benefit", "benefits", "data"]) ??
-    undefined;
-  const validity = pickString(row, ["validity", "valid", "days", "validityDays"]) ?? undefined;
-  const category = pickString(row, ["category", "type", "plan_type", "planType"]) ?? undefined;
+    pickString(row, [
+      "description",
+      "desc",
+      "detail",
+      "details",
+      "benefit",
+      "benefits",
+      "data",
+      "talkTime",
+      "talktime",
+      "Remark",
+      "remark",
+    ]) ?? undefined;
+  const validity =
+    pickString(row, ["validity", "valid", "days", "validityDays", "Validity"]) ?? undefined;
+  const category =
+    pickString(row, ["category", "type", "plan_type", "planType", "plan_name"]) ?? undefined;
 
   return { amount, title, description, validity, category };
 }
@@ -113,15 +182,22 @@ function extractPlanItems(json: BestApiJson): RechargePlanItem[] {
   return items.slice(0, 80);
 }
 
-function parseOperator(json: BestApiJson): {
+type OperatorHit = {
+  /** Vyapar recharge code (JIO, AT, …) */
   operatorCode: string | null;
+  /** Raw BestAPI opcord if different from mapped code */
+  bestOpcord: string | null;
   operatorName: string | null;
   circleCode: string | null;
   circleName: string | null;
-} {
+};
+
+function parseOperator(json: BestApiJson): OperatorHit {
   const row = firstDataObject(json);
   const operatorName =
-    pickString(row, ["operator", "operatorName", "opname", "Operator", "operator_name"]) ?? null;
+    pickString(row, ["operator", "operatorName", "opname", "Operator", "operator_name"]) ??
+    deepFindString(json, ["operator", "operatorName", "opname", "Operator", "operator_name"]);
+
   const rawCode =
     pickString(row, [
       "operatorCode",
@@ -130,15 +206,32 @@ function parseOperator(json: BestApiJson): {
       "opcode",
       "op_code",
       "OperatorCode",
+      "opCode",
+      "OpCode",
       "code",
+    ]) ??
+    deepFindString(json, [
+      "operatorCode",
+      "operator_code",
+      "opcord",
+      "opcode",
+      "op_code",
+      "OperatorCode",
+      "opCode",
+      "OpCode",
     ]) ??
     operatorName ??
     null;
-  const circleName = pickString(row, ["circle", "circleName", "circle_name", "Circle"]) ?? null;
+
+  const circleName =
+    pickString(row, ["circle", "circleName", "circle_name", "Circle"]) ??
+    deepFindString(json, ["circle", "circleName", "circle_name", "Circle"]);
   const circleCode =
-    pickString(row, ["circleCode", "circle_code", "circlecode", "CircleCode"]) ?? null;
+    pickString(row, ["circleCode", "circle_code", "circlecode", "CircleCode"]) ??
+    deepFindString(json, ["circleCode", "circle_code", "circlecode", "CircleCode"]);
 
   return {
+    bestOpcord: rawCode,
     operatorCode: rawCode ? mapVyaparOperatorCode(rawCode) : null,
     operatorName,
     circleCode,
@@ -146,46 +239,147 @@ function parseOperator(json: BestApiJson): {
   };
 }
 
-function assertBestApiOk(httpStatus: number, json: BestApiJson, label: string): void {
-  if (httpStatus === 401 || httpStatus === 403) {
-    throw new HttpError(
-      502,
-      "BestAPI rejected the API key/secret. Check Coolify BESTAPI_API_KEY and BESTAPI_API_SECRET.",
-      "BESTAPI_UNAUTHORIZED",
-    );
-  }
-  if (httpStatus >= 500) {
-    throw new HttpError(502, `BestAPI ${label} is temporarily unavailable. Try again.`, "BESTAPI_UPSTREAM");
-  }
-  const status = json.status ?? json.Status ?? json.success;
-  if (status === false || status === "false" || status === "ERROR" || status === "FAILED") {
-    const msg =
-      pickString(json, ["message", "Message", "error", "Error", "msg"]) ??
-      `BestAPI ${label} failed`;
-    throw new HttpError(422, msg, "BESTAPI_LOOKUP_FAILED");
+async function lookupOperatorViaVyapar(mobile: string): Promise<OperatorHit | null> {
+  const apiKey = env.VYAPARAPI_API_KEY?.trim();
+  if (!apiKey) return null;
+
+  try {
+    const { httpStatus, json } = await vyaparGet("/public/mobile", {
+      number: mobile,
+      api_key: apiKey,
+    });
+    if (httpStatus >= 400) {
+      logger.warn({ mobile, httpStatus }, "Vyapar mobile lookup HTTP error");
+      return null;
+    }
+    const data = asRecord(json.data) ?? asRecord(json) ?? {};
+    const operatorName = pickString(data, ["operator", "operatorName"]) ?? null;
+    const rawCode =
+      pickString(data, ["operatorCode", "operator_code", "opcode"]) ?? operatorName ?? null;
+    const circleName = pickString(data, ["circle", "circleName"]) ?? null;
+    const circleCode = pickString(data, ["circleCode", "circle_code"]) ?? null;
+    if (!rawCode) return null;
+    return {
+      bestOpcord: rawCode,
+      operatorCode: mapVyaparOperatorCode(rawCode),
+      operatorName,
+      circleCode,
+      circleName,
+    };
+  } catch (err) {
+    logger.warn({ err, mobile }, "Vyapar mobile lookup failed");
+    return null;
   }
 }
 
+async function lookupPlansViaVyapar(
+  operatorCode: string,
+  circleCode: string | null,
+  mobile: string,
+): Promise<{ plans: RechargePlanItem[]; offers: RechargePlanItem[] }> {
+  const apiKey = env.VYAPARAPI_API_KEY?.trim();
+  if (!apiKey) return { plans: [], offers: [] };
+
+  let plans: RechargePlanItem[] = [];
+  let offers: RechargePlanItem[] = [];
+
+  try {
+    const plansRes = await vyaparGet("/public/mobile/plans", {
+      operator_code: operatorCode,
+      circle_code: circleCode || undefined,
+      api_key: apiKey,
+    });
+    if (plansRes.httpStatus < 400) {
+      plans = extractPlanItems(plansRes.json as BestApiJson);
+      if (plans.length === 0) {
+        logger.info(
+          { operatorCode, sample: JSON.stringify(plansRes.json).slice(0, 600) },
+          "Vyapar plans empty/unparsed",
+        );
+      }
+    }
+  } catch (err) {
+    logger.warn({ err, operatorCode }, "Vyapar plans failed");
+  }
+
+  try {
+    const rofferRes = await vyaparGet("/public/mobile/roffer", {
+      operator_code: operatorCode,
+      mobile,
+      api_key: apiKey,
+    });
+    if (rofferRes.httpStatus < 400) {
+      offers = extractPlanItems(rofferRes.json as BestApiJson);
+      if (offers.length === 0) {
+        logger.info(
+          { operatorCode, mobile, sample: JSON.stringify(rofferRes.json).slice(0, 600) },
+          "Vyapar roffer empty/unparsed",
+        );
+      }
+    }
+  } catch (err) {
+    logger.warn({ err, operatorCode, mobile }, "Vyapar roffer failed");
+  }
+
+  return { plans, offers };
+}
+
 /**
- * Mobile prepaid helper: operator auto-detect + plans + roffer via BestAPI.
- * Soft-fails plans/offers so operator still returns when offer APIs are empty/broken.
+ * Mobile prepaid helper: operator auto-detect + plans + roffer.
+ * BestAPI first; Vyapar fallback for operator / plans when BestAPI is empty.
  */
 export async function lookupMobileRechargeInfo(mobile: string): Promise<MobileRechargeInfo> {
-  if (!bestApiConfigured()) {
+  if (!bestApiConfigured() && !env.VYAPARAPI_API_KEY?.trim()) {
     throw new HttpError(
       503,
-      "BestAPI is not configured. Set BESTAPI_API_KEY and BESTAPI_API_SECRET.",
-      "BESTAPI_NOT_CONFIGURED",
+      "Operator lookup is not configured. Set BESTAPI_API_KEY/SECRET or VYAPARAPI_API_KEY.",
+      "LOOKUP_NOT_CONFIGURED",
     );
   }
 
   const warnings: string[] = [];
-  const opRes = await bestApiPost(OPERATOR_PATH, { mobile });
-  assertBestApiOk(opRes.httpStatus, opRes.json, "operator lookup");
-  const op = parseOperator(opRes.json);
+  let op: OperatorHit = {
+    operatorCode: null,
+    bestOpcord: null,
+    operatorName: null,
+    circleCode: null,
+    circleName: null,
+  };
+
+  if (bestApiConfigured()) {
+    try {
+      const opRes = await bestApiPost(OPERATOR_PATH, { mobile });
+      logger.info(
+        {
+          mobile,
+          httpStatus: opRes.httpStatus,
+          sample: JSON.stringify(opRes.json).slice(0, 600),
+        },
+        "BestAPI operator raw",
+      );
+
+      if (opRes.httpStatus === 401 || opRes.httpStatus === 403) {
+        warnings.push("BestAPI auth failed — check BESTAPI_API_KEY / BESTAPI_API_SECRET");
+      } else if (opRes.httpStatus < 400) {
+        op = parseOperator(opRes.json);
+      } else {
+        warnings.push("BestAPI operator lookup unavailable");
+      }
+    } catch (err) {
+      logger.warn({ err, mobile }, "BestAPI operator call failed");
+      warnings.push("BestAPI operator lookup unavailable");
+    }
+  }
 
   if (!op.operatorCode) {
-    logger.warn({ mobile, jsonKeys: Object.keys(opRes.json) }, "BestAPI operator response missing code");
+    const viaVyapar = await lookupOperatorViaVyapar(mobile);
+    if (viaVyapar?.operatorCode) {
+      op = viaVyapar;
+      warnings.push("Operator detected via VyaparAPI");
+    }
+  }
+
+  if (!op.operatorCode) {
     throw new HttpError(
       422,
       "Could not detect operator for this mobile number. Select the operator manually.",
@@ -195,38 +389,73 @@ export async function lookupMobileRechargeInfo(mobile: string): Promise<MobileRe
 
   let plans: RechargePlanItem[] = [];
   let offers: RechargePlanItem[] = [];
+  const opcord = op.bestOpcord || op.operatorCode;
 
-  try {
-    // Docs say no params; also send known filters many gateways accept.
-    const plansRes = await bestApiPost(PLANS_PATH, {
-      mobile,
-      opcord: op.operatorCode,
-      operator: op.operatorCode,
-      circle: op.circleCode ?? undefined,
-    });
-    if (plansRes.httpStatus < 400) {
-      plans = extractPlanItems(plansRes.json);
-    } else {
-      warnings.push("Plans are temporarily unavailable");
+  if (bestApiConfigured()) {
+    // Docs: plans body may be {}. Also try with opcord/mobile filters.
+    const planBodies: Record<string, unknown>[] = [
+      {},
+      { mobile, opcord, operator: op.operatorCode, circle: op.circleCode ?? undefined },
+      { opcord },
+      { mobile },
+    ];
+    for (const body of planBodies) {
+      if (plans.length > 0) break;
+      try {
+        const plansRes = await bestApiPost(PLANS_PATH, body);
+        if (plansRes.httpStatus >= 400) continue;
+        plans = extractPlanItems(plansRes.json);
+        if (plans.length === 0) {
+          logger.info(
+            { mobile, body, sample: JSON.stringify(plansRes.json).slice(0, 600) },
+            "BestAPI plans empty/unparsed",
+          );
+        }
+      } catch (err) {
+        logger.warn({ err, mobile, body }, "BestAPI plans failed");
+      }
     }
-  } catch (err) {
-    logger.warn({ err, mobile }, "BestAPI plans failed");
-    warnings.push("Plans are temporarily unavailable");
+    if (plans.length === 0) warnings.push("BestAPI plans empty — trying VyaparAPI");
+
+    try {
+      const rofferRes = await bestApiPost(ROFFER_PATH, { opcord, mobile });
+      if (rofferRes.httpStatus < 400) {
+        offers = extractPlanItems(rofferRes.json);
+        if (offers.length === 0) {
+          // Alternate key names some gateways use
+          const alt = await bestApiPost(ROFFER_PATH, {
+            opcode: opcord,
+            operator: op.operatorCode,
+            mobile,
+          });
+          if (alt.httpStatus < 400) offers = extractPlanItems(alt.json);
+        }
+        if (offers.length === 0) {
+          logger.info(
+            { mobile, sample: JSON.stringify(rofferRes.json).slice(0, 600) },
+            "BestAPI roffer empty/unparsed",
+          );
+        }
+      }
+    } catch (err) {
+      logger.warn({ err, mobile }, "BestAPI roffer failed");
+    }
   }
 
-  try {
-    const rofferRes = await bestApiPost(ROFFER_PATH, {
-      opcord: op.operatorCode,
-      mobile,
-    });
-    if (rofferRes.httpStatus < 400) {
-      offers = extractPlanItems(rofferRes.json);
-    } else {
-      warnings.push("Offers are temporarily unavailable");
+  if (plans.length === 0 || offers.length === 0) {
+    const viaVyapar = await lookupPlansViaVyapar(op.operatorCode, op.circleCode, mobile);
+    if (plans.length === 0 && viaVyapar.plans.length > 0) {
+      plans = viaVyapar.plans;
+      warnings.push("Plans loaded via VyaparAPI");
     }
-  } catch (err) {
-    logger.warn({ err, mobile }, "BestAPI roffer failed");
-    warnings.push("Offers are temporarily unavailable");
+    if (offers.length === 0 && viaVyapar.offers.length > 0) {
+      offers = viaVyapar.offers;
+      warnings.push("Offers loaded via VyaparAPI");
+    }
+  }
+
+  if (plans.length === 0 && offers.length === 0) {
+    warnings.push("No plans/offers returned. Enter amount manually.");
   }
 
   return {

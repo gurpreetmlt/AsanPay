@@ -189,7 +189,13 @@ function RechargeInner() {
           );
           setOffers(info.offers ?? []);
           setPlans(info.plans ?? []);
-          for (const w of info.warnings ?? []) toast(w, { icon: "ℹ️" });
+          for (const w of info.warnings ?? []) {
+            if (w.startsWith("Operator detected via")) continue;
+            if (w.startsWith("Plans loaded via")) continue;
+            if (w.startsWith("Offers loaded via")) continue;
+            if (w.startsWith("BestAPI plans empty")) continue;
+            toast(w, { icon: "ℹ️" });
+          }
         } catch (err) {
           if (seq !== lookupSeq.current) return;
           setPlans([]);
@@ -346,6 +352,14 @@ function RechargeInner() {
             <>
               <PlanList title="Special offers" items={offers} onPick={setAmount} />
               <PlanList title="Plans" items={plans} onPick={setAmount} />
+              {!lookupBusy &&
+              accountRef.replace(/\D/g, "").length === 10 &&
+              plans.length === 0 &&
+              offers.length === 0 ? (
+                <p className="text-xs" style={{ color: B.muted }}>
+                  No plans/offers for this number yet. Enter amount manually.
+                </p>
+              ) : null}
             </>
           ) : null}
 
