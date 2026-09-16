@@ -509,6 +509,8 @@ function SignupPageInner() {
   const [locationLabel, setLocationLabel] = useState<string | null>(null);
   const [addressFetchBusy, setAddressFetchBusy] = useState(false);
   const [photoCaptureBusy, setPhotoCaptureBusy] = useState(false);
+  const [aadhaarOtp, setAadhaarOtp] = useState("");
+  const [aadhaarOtpBusy, setAadhaarOtpBusy] = useState<"send" | "verify" | null>(null);
 
   const stepIndex = draft.stepIndex;
   const needsUpline = draft.role !== "super_distributor" && draft.role !== "direct_retailer";
@@ -968,6 +970,7 @@ function SignupPageInner() {
     }
     if (stepIndex === 3) {
       if (draft.aadhaar.replace(/\D/g, "").length !== 12) return "Enter a valid 12-digit Aadhaar";
+      if (!draft.aadhaarOtpVerified) return "Verify Aadhaar OTP before continuing";
     }
     if (stepIndex === 4) {
       if (!draft.email.trim()) return "Email is required";
@@ -1226,6 +1229,68 @@ function SignupPageInner() {
       businessState: draft.state.trim(),
     });
     toast.success("Business address copied from residential");
+  }
+
+  async function sendAadhaarOtp() {
+    const digits = draft.aadhaar.replace(/\D/g, "");
+    if (digits.length !== 12) {
+      toast.error("Enter a valid 12-digit Aadhaar");
+      return;
+    }
+    if (!accessToken) {
+      toast.error("Create your account on the previous step first");
+      return;
+    }
+    setAadhaarOtpBusy("send");
+    try {
+      const { data } = await api.post<ApiResponse<{ requestId: string; message?: string }>>(
+        "/kyc/aadhaar/otp/request",
+        { aadhaarNumber: digits },
+      );
+      if (!data.success) throw new Error(data.message);
+      patch({
+        aadhaarOtpRequestId: data.data.requestId,
+        aadhaarOtpVerified: false,
+        aadhaarVerifiedName: "",
+      });
+      setAadhaarOtp("");
+      toast.success(data.message || data.data.message || "OTP sent to the mobile registered with this Aadhaar");
+    } catch (err) {
+      toast.error(extractApiError(err, "Could not send Aadhaar OTP"));
+    } finally {
+      setAadhaarOtpBusy(null);
+    }
+  }
+
+  async function verifyAadhaarOtp() {
+    if (!draft.aadhaarOtpRequestId) {
+      toast.error("Tap Send OTP first");
+      return;
+    }
+    if (aadhaarOtp.replace(/\D/g, "").length < 4) {
+      toast.error("Enter the Aadhaar OTP");
+      return;
+    }
+    setAadhaarOtpBusy("verify");
+    try {
+      const { data } = await api.post<
+        ApiResponse<{ verified: boolean; fullName: string | null; address: string | null }>
+      >("/kyc/aadhaar/otp/verify", {
+        otp: aadhaarOtp.replace(/\D/g, ""),
+        requestId: draft.aadhaarOtpRequestId,
+      });
+      if (!data.success) throw new Error(data.message);
+      patch({
+        aadhaarOtpVerified: true,
+        aadhaarVerifiedName: data.data.fullName ?? "",
+        ...(data.data.address && !draft.address.trim() ? { address: data.data.address } : {}),
+      });
+      toast.success("Aadhaar verified");
+    } catch (err) {
+      toast.error(extractApiError(err, "Incorrect Aadhaar OTP. Check the code and try again."));
+    } finally {
+      setAadhaarOtpBusy(null);
+    }
   }
 
   async function finalSubmit() {
@@ -1798,16 +1863,98 @@ function SignupPageInner() {
                 <Field label="Aadhaar Number *">
                   <input
                     value={formatAadhaar(draft.aadhaar)}
-                    onChange={(e) => patch({ aadhaar: stripAadhaar(e.target.value) })}
+                    onChange={(e) => {
+                      const next = stripAadhaar(e.target.value);
+                      patch({
+                        aadhaar: next,
+                        ...(draft.aadhaarOtpVerified || draft.aadhaarOtpRequestId
+                          ? {
+                              aadhaarOtpRequestId: "",
+                              aadhaarOtpVerified: false,
+                              aadhaarVerifiedName: "",
+                            }
+                          : {}),
+                      });
+                      setAadhaarOtp("");
+                    }}
                     className={`${inputCls} font-mono`}
                     style={inputStyle}
                     inputMode="numeric"
                     placeholder="1234 1234 1234"
+                    disabled={draft.aadhaarOtpVerified}
                   />
                 </Field>
                 <p className="text-xs" style={{ color: B.muted }}>
-                  Enter the Aadhaar linked to your mobile number. Upload clear front and back images.
+                  OTP is sent to the mobile registered with this Aadhaar (UIDAI). Verify before continuing.
+                  Front and back images are optional.
                 </p>
+                {draft.aadhaarOtpVerified ? (
+                  <div
+                    className="mb-3 flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold"
+                    style={{ borderColor: "#86EFAC", background: "#F0FDF4", color: "#166534" }}
+                  >
+                    <CheckCircle2 size={18} className="shrink-0" />
+                    <span>
+                      Aadhaar verified
+                      {draft.aadhaarVerifiedName ? ` · ${draft.aadhaarVerifiedName}` : ""}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="mb-3 space-y-3">
+                    <div className="flex flex-wrap items-stretch gap-2">
+                      <PrimaryButton
+                        type="button"
+                        variant="primary"
+                        size="sm"
+                        showArrow={false}
+                        loading={aadhaarOtpBusy === "send"}
+                        disabled={
+                          Boolean(aadhaarOtpBusy) ||
+                          draft.aadhaar.replace(/\D/g, "").length !== 12 ||
+                          !accessToken
+                        }
+                        onClick={() => void sendAadhaarOtp()}
+                        className="!w-auto"
+                      >
+                        {draft.aadhaarOtpRequestId ? "Resend OTP" : "Send OTP"}
+                      </PrimaryButton>
+                    </div>
+                    {!accessToken ? (
+                      <p className="text-xs font-semibold" style={{ color: "#C2410C" }}>
+                        Create your account on the previous step first, then send Aadhaar OTP.
+                      </p>
+                    ) : null}
+                    {draft.aadhaarOtpRequestId ? (
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                        <div className="min-w-0 flex-1">
+                          <Field label="Aadhaar OTP *">
+                            <input
+                              value={aadhaarOtp}
+                              onChange={(e) => setAadhaarOtp(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                              className={`${inputCls} font-mono tracking-widest`}
+                              style={inputStyle}
+                              inputMode="numeric"
+                              placeholder="Enter OTP"
+                              autoComplete="one-time-code"
+                            />
+                          </Field>
+                        </div>
+                        <PrimaryButton
+                          type="button"
+                          variant="primary"
+                          size="sm"
+                          showArrow={false}
+                          loading={aadhaarOtpBusy === "verify"}
+                          disabled={Boolean(aadhaarOtpBusy) || aadhaarOtp.replace(/\D/g, "").length < 4}
+                          onClick={() => void verifyAadhaarOtp()}
+                          className="!w-auto shrink-0 sm:mb-0"
+                        >
+                          Verify OTP
+                        </PrimaryButton>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
                 <div
                   className="mb-2 grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5"
                 >

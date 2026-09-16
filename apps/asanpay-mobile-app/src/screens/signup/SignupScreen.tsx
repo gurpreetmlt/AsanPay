@@ -329,6 +329,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
   const updateUser = useAuthStore((s) => s.updateUser);
   const setSignupContinue = useAuthStore((s) => s.setSignupContinue);
   const authUser = useAuthStore((s) => s.user);
+  const accessToken = useAuthStore((s) => s.accessToken);
 
   const [draft, setDraft] = useState<MobileSignupDraft>(EMPTY_MOBILE_SIGNUP_DRAFT);
   const [phase, setPhase] = useState<"steps" | "emailOtp">("steps");
@@ -349,6 +350,8 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
   const [addressFetchBusy, setAddressFetchBusy] = useState(false);
   const [photoCaptureBusy, setPhotoCaptureBusy] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [aadhaarOtp, setAadhaarOtp] = useState("");
+  const [aadhaarOtpBusy, setAadhaarOtpBusy] = useState<"send" | "verify" | null>(null);
 
   const stepIndex = draft.stepIndex;
   const needsUpline = draft.role !== "super_distributor" && draft.role !== "direct_retailer";
@@ -1056,7 +1059,8 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
       // Document images optional — gallery pick stores filename for KYC meta.
     }
     if (stepIndex === 3) {
-      if (draft.aadhaar.replace(/\D/g, "").length !== 12) return "Enter valid 12-digit Aadhaar";
+      if (draft.aadhaar.replace(/\D/g, "").length !== 12) return "Enter a valid 12-digit Aadhaar";
+      if (!draft.aadhaarOtpVerified) return "Verify Aadhaar OTP before continuing";
     }
     if (stepIndex === 4) {
       if (!draft.email.trim()) return "Email is required";
@@ -1243,6 +1247,74 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
       showAlert("Error", apiError(err, "Could not create account"));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function sendAadhaarOtp() {
+    const digits = draft.aadhaar.replace(/\D/g, "");
+    if (digits.length !== 12) {
+      showAlert("Invalid Aadhaar", "Enter a valid 12-digit Aadhaar");
+      return;
+    }
+    if (!accessToken) {
+      showAlert("Account required", "Create your account on the previous step first");
+      return;
+    }
+    setAadhaarOtpBusy("send");
+    try {
+      const { data } = await api.post<ApiResponse<{ requestId: string; message?: string }>>(
+        "/kyc/aadhaar/otp/request",
+        { aadhaarNumber: digits },
+      );
+      if (!data.success) throw new Error(data.message);
+      patch({
+        aadhaarOtpRequestId: data.data.requestId,
+        aadhaarOtpVerified: false,
+        aadhaarVerifiedName: "",
+      });
+      setAadhaarOtp("");
+      showAlert(
+        "OTP sent",
+        data.message || data.data.message || "OTP sent to the mobile registered with this Aadhaar",
+      );
+    } catch (err) {
+      showAlert("Aadhaar OTP failed", apiError(err, "Could not send Aadhaar OTP"));
+    } finally {
+      setAadhaarOtpBusy(null);
+    }
+  }
+
+  async function verifyAadhaarOtp() {
+    if (!draft.aadhaarOtpRequestId) {
+      showAlert("Send OTP first", "Tap Send OTP first");
+      return;
+    }
+    if (aadhaarOtp.replace(/\D/g, "").length < 4) {
+      showAlert("OTP required", "Enter the Aadhaar OTP");
+      return;
+    }
+    setAadhaarOtpBusy("verify");
+    try {
+      const { data } = await api.post<
+        ApiResponse<{ verified: boolean; fullName: string | null; address: string | null }>
+      >("/kyc/aadhaar/otp/verify", {
+        otp: aadhaarOtp.replace(/\D/g, ""),
+        requestId: draft.aadhaarOtpRequestId,
+      });
+      if (!data.success) throw new Error(data.message);
+      patch({
+        aadhaarOtpVerified: true,
+        aadhaarVerifiedName: data.data.fullName ?? "",
+        ...(data.data.address && !draft.address.trim() ? { address: data.data.address } : {}),
+      });
+      showAlert("Verified", "Aadhaar verified");
+    } catch (err) {
+      showAlert(
+        "Verify failed",
+        apiError(err, "Incorrect Aadhaar OTP. Check the code and try again."),
+      );
+    } finally {
+      setAadhaarOtpBusy(null);
     }
   }
 
@@ -1803,17 +1875,114 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                 <>
                   <Text style={styles.sectionTitle}>Aadhaar Verification</Text>
                   <Text style={[styles.hint, { color: tokens.mute }]}>
-                    Enter the Aadhaar linked to your mobile. Upload clear front and back images.
+                    OTP is sent to the mobile registered with this Aadhaar (UIDAI). Verify before
+                    continuing. Front and back images are optional.
                   </Text>
                   <FieldLabel text="Aadhaar Number *" color={tokens.mute} />
                   <TextInput
                     value={draft.aadhaar.replace(/(\d{4})(?=\d)/g, "$1 ").trim()}
-                    onChangeText={(t) => patch({ aadhaar: t.replace(/\D/g, "").slice(0, 12) })}
+                    onChangeText={(t) => {
+                      const next = t.replace(/\D/g, "").slice(0, 12);
+                      patch({
+                        aadhaar: next,
+                        ...(draft.aadhaarOtpVerified || draft.aadhaarOtpRequestId
+                          ? {
+                              aadhaarOtpRequestId: "",
+                              aadhaarOtpVerified: false,
+                              aadhaarVerifiedName: "",
+                            }
+                          : {}),
+                      });
+                      setAadhaarOtp("");
+                    }}
                     keyboardType="number-pad"
                     placeholder="1234 1234 1234"
                     placeholderTextColor={tokens.mute}
+                    editable={!draft.aadhaarOtpVerified}
                     style={inputStyle}
                   />
+                  {draft.aadhaarOtpVerified ? (
+                    <View
+                      style={[
+                        styles.prep,
+                        {
+                          backgroundColor: colors.greenBg,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 8,
+                          marginBottom: 10,
+                        },
+                      ]}
+                    >
+                      <CheckCircle2 size={18} color={colors.greenDark} />
+                      <Text style={{ flex: 1, color: colors.greenDark, fontWeight: "700", fontSize: 13 }}>
+                        Aadhaar verified
+                        {draft.aadhaarVerifiedName ? ` · ${draft.aadhaarVerifiedName}` : ""}
+                      </Text>
+                    </View>
+                  ) : (
+                    <>
+                      {!accessToken ? (
+                        <Text style={{ color: "#C2410C", fontSize: 12, fontWeight: "700", marginBottom: 8 }}>
+                          Create your account on the previous step first, then send Aadhaar OTP.
+                        </Text>
+                      ) : null}
+                      <Pressable
+                        onPress={() => void sendAadhaarOtp()}
+                        disabled={
+                          Boolean(aadhaarOtpBusy) ||
+                          draft.aadhaar.replace(/\D/g, "").length !== 12 ||
+                          !accessToken
+                        }
+                        style={[
+                          styles.verifyBtn,
+                          { alignSelf: "flex-start", marginBottom: 10 },
+                          (Boolean(aadhaarOtpBusy) ||
+                            draft.aadhaar.replace(/\D/g, "").length !== 12 ||
+                            !accessToken) && { opacity: 0.55 },
+                        ]}
+                      >
+                        {aadhaarOtpBusy === "send" ? (
+                          <ActivityIndicator color="#fff" />
+                        ) : (
+                          <Text style={styles.verifyBtnText}>
+                            {draft.aadhaarOtpRequestId ? "Resend OTP" : "Send OTP"}
+                          </Text>
+                        )}
+                      </Pressable>
+                      {draft.aadhaarOtpRequestId ? (
+                        <>
+                          <FieldLabel text="Aadhaar OTP *" color={tokens.mute} />
+                          <View style={styles.emailRow}>
+                            <TextInput
+                              value={aadhaarOtp}
+                              onChangeText={(t) => setAadhaarOtp(t.replace(/\D/g, "").slice(0, 8))}
+                              keyboardType="number-pad"
+                              placeholder="Enter OTP"
+                              placeholderTextColor={tokens.mute}
+                              style={[inputStyle, { flex: 1, letterSpacing: 4 }]}
+                            />
+                            <Pressable
+                              onPress={() => void verifyAadhaarOtp()}
+                              disabled={Boolean(aadhaarOtpBusy) || aadhaarOtp.replace(/\D/g, "").length < 4}
+                              style={[
+                                styles.verifyBtn,
+                                (Boolean(aadhaarOtpBusy) || aadhaarOtp.replace(/\D/g, "").length < 4) && {
+                                  opacity: 0.55,
+                                },
+                              ]}
+                            >
+                              {aadhaarOtpBusy === "verify" ? (
+                                <ActivityIndicator color="#fff" />
+                              ) : (
+                                <Text style={styles.verifyBtnText}>Verify OTP</Text>
+                              )}
+                            </Pressable>
+                          </View>
+                        </>
+                      ) : null}
+                    </>
+                  )}
                   <View style={styles.fieldRow}>
                     <View style={styles.fieldHalf}>
                       <UploadRow

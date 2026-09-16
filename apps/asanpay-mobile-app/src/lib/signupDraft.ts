@@ -38,6 +38,9 @@ export type MobileSignupDraft = {
   aadhaar: string;
   aadhaarFront: SignupFileMeta | null;
   aadhaarBack: SignupFileMeta | null;
+  aadhaarOtpRequestId: string;
+  aadhaarOtpVerified: boolean;
+  aadhaarVerifiedName: string;
   email: string;
   emailVerified: boolean;
   address: string;
@@ -91,6 +94,9 @@ export const EMPTY_MOBILE_SIGNUP_DRAFT: MobileSignupDraft = {
   aadhaar: "",
   aadhaarFront: null,
   aadhaarBack: null,
+  aadhaarOtpRequestId: "",
+  aadhaarOtpVerified: false,
+  aadhaarVerifiedName: "",
   email: "",
   emailVerified: false,
   address: "",

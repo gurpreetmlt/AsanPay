@@ -38,6 +38,7 @@
 - [x] AEPS dummy↔live switch (`AEPS_PROVIDER_MODE`) + InstantPay adapter skeleton
 - [x] AEPS compliance gates (geofence, bio-mismatch/EDD, dormancy, cash receipt)
 - [x] Email verification OTP (`/auth/email/otp/*`) + web Verify UI (KYC, outlet, settings)
+- [x] Aadhaar KYC OTP via BestAPI (`/kyc/aadhaar/otp/*`) — web + mobile signup Aadhaar step
 - [x] Fund request approve flow (admin `/fund-requests` UI + `GET /api/fund-requests` list)
 - [x] Fund request + banking HTTP (`/api/fund-requests`, `/api/banking`, Idempotency-Key on money POSTs)
 - [x] Settlements module (`/api/settlements` — debit at request, payout/reversal journals, one active bank)
@@ -155,6 +156,7 @@
 2026-08-03 — Fund request + banking HTTP: `/api/fund-requests`, `/api/banking`, Idempotency-Key on money POSTs (task 27A)
 2026-08-01 — Email notifications: statements job, commission credit, large debit, new device, MPIN change, product-update opt-in
 2026-08-01 — Branded emails: verify OTP, welcome (on first email verify), KYC submit/approve/reject
+2026-09-16 — Aadhaar KYC OTP: BestAPI send/verify on signup Aadhaar step (web + mobile); no full Aadhaar in logs
 2026-08-01 — Email verify: OTP endpoints + AuthUser email fields + web Verify UI (KYC / outlet / settings)
 2026-07-20 — Signup: role select + upline mobile (SD→Admin, Dist→SD, Retailer→Dist)
 2026-07-20 — Distributor activity metric (success txns) + monthly history; Quick Actions up; Collect/Debit → Reverse

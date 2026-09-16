@@ -40,6 +40,9 @@ export type SignupDraft = {
   aadhaar: string;
   aadhaarFront: SignupFileMeta | null;
   aadhaarBack: SignupFileMeta | null;
+  aadhaarOtpRequestId: string;
+  aadhaarOtpVerified: boolean;
+  aadhaarVerifiedName: string;
   email: string;
   address: string;
   pincode: string;
@@ -92,6 +95,9 @@ export const EMPTY_SIGNUP_DRAFT: SignupDraft = {
   aadhaar: "",
   aadhaarFront: null,
   aadhaarBack: null,
+  aadhaarOtpRequestId: "",
+  aadhaarOtpVerified: false,
+  aadhaarVerifiedName: "",
   email: "",
   address: "",
   pincode: "",

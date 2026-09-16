@@ -1,8 +1,16 @@
 import { Router } from "express";
 import { requireAuth } from "../../middleware/auth.middleware";
+import { otpRequestLimiter } from "../../middleware/rateLimiter";
+import { validateBody } from "../../middleware/validate";
 import { sendSuccess } from "../../utils/apiResponse";
 import { HttpError } from "../../utils/httpError";
 import { kycSubmitSchema } from "../auth/auth.validators";
+import {
+  aadhaarOtpRequestSchema,
+  aadhaarOtpVerifySchema,
+  sendAadhaarKycOtp,
+  verifyAadhaarKycOtp,
+} from "./aadhaarOtp.service";
 import { getMyKycProfile, submitKyc } from "./kyc.service";
 import { isKycDocSlot, saveKycDocumentDataUrl } from "./kycDocuments.service";
 import { z } from "zod";
@@ -75,6 +83,29 @@ kycRouter.get("/ifsc/:code", async (req, res) => {
     address: (data.ADDRESS || "").trim(),
   });
 });
+
+kycRouter.post(
+  "/aadhaar/otp/request",
+  otpRequestLimiter,
+  validateBody(aadhaarOtpRequestSchema),
+  async (req, res) => {
+    if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+    const body = req.body as { aadhaarNumber: string };
+    const data = await sendAadhaarKycOtp(req.auth.sub, body.aadhaarNumber);
+    sendSuccess(res, data, data.message);
+  },
+);
+
+kycRouter.post(
+  "/aadhaar/otp/verify",
+  validateBody(aadhaarOtpVerifySchema),
+  async (req, res) => {
+    if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+    const body = req.body as { otp: string; requestId: string };
+    const data = await verifyAadhaarKycOtp(req.auth.sub, body);
+    sendSuccess(res, data, "Aadhaar verified");
+  },
+);
 
 kycRouter.post("/submit", async (req, res) => {
   if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
