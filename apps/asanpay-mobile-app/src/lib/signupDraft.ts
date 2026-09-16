@@ -30,6 +30,8 @@ export type MobileSignupDraft = {
   sponsorUid: string;
   sponsorName: string;
   pan: string;
+  panVerified: boolean;
+  panVerifiedName: string;
   gender: string;
   dob: string;
   anniversaryDate: string;
@@ -86,6 +88,8 @@ export const EMPTY_MOBILE_SIGNUP_DRAFT: MobileSignupDraft = {
   sponsorUid: "",
   sponsorName: "",
   pan: "",
+  panVerified: false,
+  panVerifiedName: "",
   gender: "",
   dob: "",
   anniversaryDate: "",

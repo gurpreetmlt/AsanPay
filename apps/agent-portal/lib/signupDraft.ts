@@ -32,6 +32,8 @@ export type SignupDraft = {
   sponsorUid: string;
   sponsorName: string;
   pan: string;
+  panVerified: boolean;
+  panVerifiedName: string;
   gender: string;
   dob: string;
   anniversaryDate: string;
@@ -87,6 +89,8 @@ export const EMPTY_SIGNUP_DRAFT: SignupDraft = {
   sponsorUid: "",
   sponsorName: "",
   pan: "",
+  panVerified: false,
+  panVerifiedName: "",
   gender: "",
   dob: "",
   anniversaryDate: "",

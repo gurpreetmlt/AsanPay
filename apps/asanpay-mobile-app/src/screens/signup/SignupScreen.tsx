@@ -352,6 +352,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
   const [emailError, setEmailError] = useState<string | null>(null);
   const [aadhaarOtp, setAadhaarOtp] = useState("");
   const [aadhaarOtpBusy, setAadhaarOtpBusy] = useState<"send" | "verify" | null>(null);
+  const [panVerifyBusy, setPanVerifyBusy] = useState(false);
 
   const stepIndex = draft.stepIndex;
   const needsUpline = draft.role !== "super_distributor" && draft.role !== "direct_retailer";
@@ -1051,6 +1052,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
     }
     if (stepIndex === 2) {
       if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(draft.pan)) return "Enter a valid PAN";
+      if (!draft.panVerified) return "Verify PAN before continuing";
       if (!draft.gender) return "Select gender";
       if (!draft.dob || !/^\d{4}-\d{2}-\d{2}$/.test(draft.dob)) {
         return "Enter date of birth as DD/MM/YYYY";
@@ -1247,6 +1249,49 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
       showAlert("Error", apiError(err, "Could not create account"));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function verifyPan() {
+    const pan = draft.pan.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(pan)) {
+      showAlert("Invalid PAN", "Enter a valid PAN (e.g. ABCDE1234F)");
+      return;
+    }
+    if (!accessToken) {
+      showAlert("Account required", "Create your account on the previous step first");
+      return;
+    }
+    setPanVerifyBusy(true);
+    try {
+      const { data } = await api.post<
+        ApiResponse<{
+          verified: boolean;
+          pan: string;
+          fullName: string | null;
+          address: string | null;
+          category: string | null;
+        }>
+      >("/kyc/pan/verify", { panNumber: pan });
+      if (!data.success) throw new Error(data.message);
+      patch({
+        pan: data.data.pan || pan,
+        panVerified: true,
+        panVerifiedName: data.data.fullName ?? "",
+        ...(data.data.fullName && !draft.name.trim() ? { name: data.data.fullName } : {}),
+        ...(data.data.address && !draft.address.trim() ? { address: data.data.address } : {}),
+      });
+      showAlert(
+        "Verified",
+        data.data.fullName ? `PAN verified · ${data.data.fullName}` : "PAN verified",
+      );
+    } catch (err) {
+      showAlert(
+        "PAN verify failed",
+        apiError(err, "Could not verify PAN. Check the PAN number and try again."),
+      );
+    } finally {
+      setPanVerifyBusy(false);
     }
   }
 
@@ -1798,19 +1843,74 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                 <>
                   <Text style={styles.sectionTitle}>PAN Details</Text>
                   <Text style={[styles.hint, { color: tokens.mute }]}>
-                    PAN number and personal details as on the PAN card.
+                    Verify PAN with the number on your card, then fill personal details as on the
+                    PAN.
                   </Text>
                   <FieldLabel text="PAN Number *" color={tokens.mute} />
                   <TextInput
                     value={draft.pan}
-                    onChangeText={(t) =>
-                      patch({ pan: t.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10) })
-                    }
+                    onChangeText={(t) => {
+                      const next = t.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);
+                      patch({
+                        pan: next,
+                        ...(draft.panVerified ? { panVerified: false, panVerifiedName: "" } : {}),
+                      });
+                    }}
                     autoCapitalize="characters"
                     placeholder="ABCDE1234F"
                     placeholderTextColor={tokens.mute}
+                    editable={!draft.panVerified}
                     style={inputStyle}
                   />
+                  {draft.panVerified ? (
+                    <View
+                      style={[
+                        styles.prep,
+                        {
+                          backgroundColor: colors.greenBg,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 8,
+                          marginBottom: 10,
+                        },
+                      ]}
+                    >
+                      <CheckCircle2 size={18} color={colors.greenDark} />
+                      <Text style={{ flex: 1, color: colors.greenDark, fontWeight: "700", fontSize: 13 }}>
+                        PAN verified
+                        {draft.panVerifiedName ? ` · ${draft.panVerifiedName}` : ""}
+                      </Text>
+                    </View>
+                  ) : (
+                    <>
+                      {!accessToken ? (
+                        <Text style={{ color: "#C2410C", fontSize: 12, fontWeight: "700", marginBottom: 8 }}>
+                          Create your account on the previous step first, then verify PAN.
+                        </Text>
+                      ) : null}
+                      <Pressable
+                        onPress={() => void verifyPan()}
+                        disabled={
+                          panVerifyBusy ||
+                          !/^[A-Z]{5}\d{4}[A-Z]$/.test(draft.pan) ||
+                          !accessToken
+                        }
+                        style={[
+                          styles.verifyBtn,
+                          { alignSelf: "flex-start", marginBottom: 10 },
+                          (panVerifyBusy ||
+                            !/^[A-Z]{5}\d{4}[A-Z]$/.test(draft.pan) ||
+                            !accessToken) && { opacity: 0.55 },
+                        ]}
+                      >
+                        {panVerifyBusy ? (
+                          <ActivityIndicator color="#fff" />
+                        ) : (
+                          <Text style={styles.verifyBtnText}>Verify PAN</Text>
+                        )}
+                      </Pressable>
+                    </>
+                  )}
                   <FieldLabel text="Gender *" color={tokens.mute} />
                   <View style={styles.chipRow}>
                     {["Male", "Female", "Other"].map((g) => (

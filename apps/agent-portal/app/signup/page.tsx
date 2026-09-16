@@ -511,6 +511,7 @@ function SignupPageInner() {
   const [photoCaptureBusy, setPhotoCaptureBusy] = useState(false);
   const [aadhaarOtp, setAadhaarOtp] = useState("");
   const [aadhaarOtpBusy, setAadhaarOtpBusy] = useState<"send" | "verify" | null>(null);
+  const [panVerifyBusy, setPanVerifyBusy] = useState(false);
 
   const stepIndex = draft.stepIndex;
   const needsUpline = draft.role !== "super_distributor" && draft.role !== "direct_retailer";
@@ -964,6 +965,7 @@ function SignupPageInner() {
     }
     if (stepIndex === 2) {
       if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(draft.pan)) return "Enter a valid PAN";
+      if (!draft.panVerified) return "Verify PAN before continuing";
       if (!draft.gender) return "Select gender";
       if (!draft.dob) return "Date of birth is required";
       if (!draft.fatherName.trim()) return "Father name is required";
@@ -1229,6 +1231,45 @@ function SignupPageInner() {
       businessState: draft.state.trim(),
     });
     toast.success("Business address copied from residential");
+  }
+
+  async function verifyPan() {
+    const pan = draft.pan.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(pan)) {
+      toast.error("Enter a valid PAN (e.g. ABCDE1234F)");
+      return;
+    }
+    if (!accessToken) {
+      toast.error("Create your account on the previous step first");
+      return;
+    }
+    setPanVerifyBusy(true);
+    try {
+      const { data } = await api.post<
+        ApiResponse<{
+          verified: boolean;
+          pan: string;
+          fullName: string | null;
+          address: string | null;
+          category: string | null;
+        }>
+      >("/kyc/pan/verify", { panNumber: pan });
+      if (!data.success) throw new Error(data.message);
+      patch({
+        pan: data.data.pan || pan,
+        panVerified: true,
+        panVerifiedName: data.data.fullName ?? "",
+        ...(data.data.fullName && !draft.name.trim() ? { name: data.data.fullName } : {}),
+        ...(data.data.address && !draft.address.trim() ? { address: data.data.address } : {}),
+      });
+      toast.success(
+        data.data.fullName ? `PAN verified · ${data.data.fullName}` : "PAN verified",
+      );
+    } catch (err) {
+      toast.error(extractApiError(err, "Could not verify PAN. Check the PAN number and try again."));
+    } finally {
+      setPanVerifyBusy(false);
+    }
   }
 
   async function sendAadhaarOtp() {
@@ -1784,18 +1825,65 @@ function SignupPageInner() {
                   Step 3 of 9 · PAN Details
                 </p>
                 <p className="text-xs" style={{ color: B.muted }}>
-                  PAN number and personal details as on the PAN card.
+                  Verify PAN with the number on your card, then fill personal details as on the PAN.
                 </p>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <Field label="PAN Number *">
                     <input
                       value={draft.pan}
-                      onChange={(e) => patch({ pan: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10) })}
+                      onChange={(e) => {
+                        const next = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);
+                        patch({
+                          pan: next,
+                          ...(draft.panVerified
+                            ? { panVerified: false, panVerifiedName: "" }
+                            : {}),
+                        });
+                      }}
                       className={`${inputCls} font-mono`}
                       style={inputStyle}
                       placeholder="ABCDE1234F"
+                      disabled={draft.panVerified}
                     />
                   </Field>
+                  <div className="flex flex-col justify-end gap-2 pb-0.5">
+                    {draft.panVerified ? (
+                      <div
+                        className="flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold"
+                        style={{ borderColor: "#86EFAC", background: "#F0FDF4", color: "#166534" }}
+                      >
+                        <CheckCircle2 size={18} className="shrink-0" />
+                        <span>
+                          PAN verified
+                          {draft.panVerifiedName ? ` · ${draft.panVerifiedName}` : ""}
+                        </span>
+                      </div>
+                    ) : (
+                      <>
+                        <PrimaryButton
+                          type="button"
+                          variant="primary"
+                          size="sm"
+                          showArrow={false}
+                          loading={panVerifyBusy}
+                          disabled={
+                            panVerifyBusy ||
+                            !/^[A-Z]{5}\d{4}[A-Z]$/.test(draft.pan) ||
+                            !accessToken
+                          }
+                          onClick={() => void verifyPan()}
+                          className="!w-auto"
+                        >
+                          Verify PAN
+                        </PrimaryButton>
+                        {!accessToken ? (
+                          <p className="text-xs font-semibold" style={{ color: "#C2410C" }}>
+                            Create your account on the previous step first, then verify PAN.
+                          </p>
+                        ) : null}
+                      </>
+                    )}
+                  </div>
                   <Field label="Gender *">
                     <select
                       value={draft.gender}

@@ -11,6 +11,7 @@ import {
   sendAadhaarKycOtp,
   verifyAadhaarKycOtp,
 } from "./aadhaarOtp.service";
+import { panVerifySchema, verifyPanKyc } from "./panVerify.service";
 import { getMyKycProfile, submitKyc } from "./kyc.service";
 import { isKycDocSlot, saveKycDocumentDataUrl } from "./kycDocuments.service";
 import { z } from "zod";
@@ -83,6 +84,18 @@ kycRouter.get("/ifsc/:code", async (req, res) => {
     address: (data.ADDRESS || "").trim(),
   });
 });
+
+kycRouter.post(
+  "/pan/verify",
+  otpRequestLimiter,
+  validateBody(panVerifySchema),
+  async (req, res) => {
+    if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+    const body = req.body as { panNumber: string };
+    const data = await verifyPanKyc(req.auth.sub, body.panNumber);
+    sendSuccess(res, data, "PAN verified");
+  },
+);
 
 kycRouter.post(
   "/aadhaar/otp/request",
