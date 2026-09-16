@@ -512,6 +512,8 @@ function SignupPageInner() {
   const [aadhaarOtp, setAadhaarOtp] = useState("");
   const [aadhaarOtpBusy, setAadhaarOtpBusy] = useState<"send" | "verify" | null>(null);
   const [panVerifyBusy, setPanVerifyBusy] = useState(false);
+  const [panVerifyFailed, setPanVerifyFailed] = useState(false);
+  const panAutoAttemptRef = useRef("");
 
   const stepIndex = draft.stepIndex;
   const needsUpline = draft.role !== "super_distributor" && draft.role !== "direct_retailer";
@@ -1233,17 +1235,20 @@ function SignupPageInner() {
     toast.success("Business address copied from residential");
   }
 
-  async function verifyPan() {
+  async function verifyPan(opts?: { manual?: boolean }) {
     const pan = draft.pan.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const manual = Boolean(opts?.manual);
     if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(pan)) {
-      toast.error("Enter a valid PAN (e.g. ABCDE1234F)");
+      if (manual) toast.error("Enter a valid PAN (e.g. ABCDE1234F)");
       return;
     }
     if (!accessToken) {
-      toast.error("Create your account on the previous step first");
+      if (manual) toast.error("Create your account on the previous step first");
       return;
     }
+    if (draft.panVerified || panVerifyBusy) return;
     setPanVerifyBusy(true);
+    setPanVerifyFailed(false);
     try {
       const { data } = await api.post<
         ApiResponse<{
@@ -1266,11 +1271,31 @@ function SignupPageInner() {
         data.data.fullName ? `PAN verified · ${data.data.fullName}` : "PAN verified",
       );
     } catch (err) {
+      setPanVerifyFailed(true);
       toast.error(extractApiError(err, "Could not verify PAN. Check the PAN number and try again."));
     } finally {
       setPanVerifyBusy(false);
     }
   }
+
+  // Auto-verify when 10-char PAN is complete (debounce; one attempt per PAN until edited).
+  useEffect(() => {
+    if (stepIndex !== 2) return;
+    if (draft.panVerified || panVerifyBusy) return;
+    if (!accessToken) return;
+    const pan = draft.pan.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(pan)) {
+      if (pan.length < 10) panAutoAttemptRef.current = "";
+      return;
+    }
+    if (panAutoAttemptRef.current === pan) return;
+    const timer = window.setTimeout(() => {
+      panAutoAttemptRef.current = pan;
+      void verifyPan({ manual: false });
+    }, 450);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- verifyPan closes over latest draft
+  }, [stepIndex, draft.pan, draft.panVerified, accessToken, panVerifyBusy]);
 
   async function sendAadhaarOtp() {
     const digits = draft.aadhaar.replace(/\D/g, "");
@@ -1825,7 +1850,8 @@ function SignupPageInner() {
                   Step 3 of 9 · PAN Details
                 </p>
                 <p className="text-xs" style={{ color: B.muted }}>
-                  Verify PAN with the number on your card, then fill personal details as on the PAN.
+                  Enter your 10-character PAN — verification starts automatically. Then fill personal
+                  details as on the PAN.
                 </p>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <Field label="PAN Number *">
@@ -1833,6 +1859,8 @@ function SignupPageInner() {
                       value={draft.pan}
                       onChange={(e) => {
                         const next = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);
+                        if (next !== panAutoAttemptRef.current) panAutoAttemptRef.current = "";
+                        setPanVerifyFailed(false);
                         patch({
                           pan: next,
                           ...(draft.panVerified
@@ -1858,27 +1886,41 @@ function SignupPageInner() {
                           {draft.panVerifiedName ? ` · ${draft.panVerifiedName}` : ""}
                         </span>
                       </div>
+                    ) : panVerifyBusy ? (
+                      <div
+                        className="flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold"
+                        style={{ borderColor: B.border, background: "#F8FAFC", color: B.blue }}
+                      >
+                        Verifying PAN…
+                      </div>
                     ) : (
                       <>
-                        <PrimaryButton
-                          type="button"
-                          variant="primary"
-                          size="sm"
-                          showArrow={false}
-                          loading={panVerifyBusy}
-                          disabled={
-                            panVerifyBusy ||
-                            !/^[A-Z]{5}\d{4}[A-Z]$/.test(draft.pan) ||
-                            !accessToken
-                          }
-                          onClick={() => void verifyPan()}
-                          className="!w-auto"
-                        >
-                          Verify PAN
-                        </PrimaryButton>
+                        {panVerifyFailed &&
+                        /^[A-Z]{5}\d{4}[A-Z]$/.test(draft.pan) &&
+                        accessToken ? (
+                          <PrimaryButton
+                            type="button"
+                            variant="primary"
+                            size="sm"
+                            showArrow={false}
+                            onClick={() => {
+                              panAutoAttemptRef.current = "";
+                              void verifyPan({ manual: true });
+                            }}
+                            className="!w-auto"
+                          >
+                            Retry verify
+                          </PrimaryButton>
+                        ) : (
+                          <p className="text-xs" style={{ color: B.muted }}>
+                            {accessToken
+                              ? "Verification runs when PAN is complete"
+                              : null}
+                          </p>
+                        )}
                         {!accessToken ? (
                           <p className="text-xs font-semibold" style={{ color: "#C2410C" }}>
-                            Create your account on the previous step first, then verify PAN.
+                            Create your account on the previous step first, then enter PAN.
                           </p>
                         ) : null}
                       </>
@@ -1949,28 +1991,48 @@ function SignupPageInner() {
                   Step 4 of 9 · Aadhaar Verification
                 </p>
                 <Field label="Aadhaar Number *">
-                  <input
-                    value={formatAadhaar(draft.aadhaar)}
-                    onChange={(e) => {
-                      const next = stripAadhaar(e.target.value);
-                      patch({
-                        aadhaar: next,
-                        ...(draft.aadhaarOtpVerified || draft.aadhaarOtpRequestId
-                          ? {
-                              aadhaarOtpRequestId: "",
-                              aadhaarOtpVerified: false,
-                              aadhaarVerifiedName: "",
-                            }
-                          : {}),
-                      });
-                      setAadhaarOtp("");
-                    }}
-                    className={`${inputCls} font-mono`}
-                    style={inputStyle}
-                    inputMode="numeric"
-                    placeholder="1234 1234 1234"
-                    disabled={draft.aadhaarOtpVerified}
-                  />
+                  <div className="flex items-stretch gap-2">
+                    <input
+                      value={formatAadhaar(draft.aadhaar)}
+                      onChange={(e) => {
+                        const next = stripAadhaar(e.target.value);
+                        patch({
+                          aadhaar: next,
+                          ...(draft.aadhaarOtpVerified || draft.aadhaarOtpRequestId
+                            ? {
+                                aadhaarOtpRequestId: "",
+                                aadhaarOtpVerified: false,
+                                aadhaarVerifiedName: "",
+                              }
+                            : {}),
+                        });
+                        setAadhaarOtp("");
+                      }}
+                      className={`${inputCls} min-w-0 flex-1 font-mono`}
+                      style={inputStyle}
+                      inputMode="numeric"
+                      placeholder="1234 1234 1234"
+                      disabled={draft.aadhaarOtpVerified}
+                    />
+                    {!draft.aadhaarOtpVerified ? (
+                      <PrimaryButton
+                        type="button"
+                        variant="primary"
+                        size="sm"
+                        showArrow={false}
+                        loading={aadhaarOtpBusy === "send"}
+                        disabled={
+                          Boolean(aadhaarOtpBusy) ||
+                          draft.aadhaar.replace(/\D/g, "").length !== 12 ||
+                          !accessToken
+                        }
+                        onClick={() => void sendAadhaarOtp()}
+                        className="!w-auto shrink-0 self-stretch"
+                      >
+                        {draft.aadhaarOtpRequestId ? "Resend OTP" : "Send OTP"}
+                      </PrimaryButton>
+                    ) : null}
+                  </div>
                 </Field>
                 <p className="text-xs" style={{ color: B.muted }}>
                   OTP is sent to the mobile registered with this Aadhaar (UIDAI). Verify before continuing.
@@ -1989,24 +2051,6 @@ function SignupPageInner() {
                   </div>
                 ) : (
                   <div className="mb-3 space-y-3">
-                    <div className="flex flex-wrap items-stretch gap-2">
-                      <PrimaryButton
-                        type="button"
-                        variant="primary"
-                        size="sm"
-                        showArrow={false}
-                        loading={aadhaarOtpBusy === "send"}
-                        disabled={
-                          Boolean(aadhaarOtpBusy) ||
-                          draft.aadhaar.replace(/\D/g, "").length !== 12 ||
-                          !accessToken
-                        }
-                        onClick={() => void sendAadhaarOtp()}
-                        className="!w-auto"
-                      >
-                        {draft.aadhaarOtpRequestId ? "Resend OTP" : "Send OTP"}
-                      </PrimaryButton>
-                    </div>
                     {!accessToken ? (
                       <p className="text-xs font-semibold" style={{ color: "#C2410C" }}>
                         Create your account on the previous step first, then send Aadhaar OTP.

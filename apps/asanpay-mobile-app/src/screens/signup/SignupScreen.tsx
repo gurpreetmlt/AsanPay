@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -353,6 +353,8 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
   const [aadhaarOtp, setAadhaarOtp] = useState("");
   const [aadhaarOtpBusy, setAadhaarOtpBusy] = useState<"send" | "verify" | null>(null);
   const [panVerifyBusy, setPanVerifyBusy] = useState(false);
+  const [panVerifyFailed, setPanVerifyFailed] = useState(false);
+  const panAutoAttemptRef = useRef("");
 
   const stepIndex = draft.stepIndex;
   const needsUpline = draft.role !== "super_distributor" && draft.role !== "direct_retailer";
@@ -1252,17 +1254,20 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
     }
   }
 
-  async function verifyPan() {
+  async function verifyPan(opts?: { manual?: boolean }) {
     const pan = draft.pan.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const manual = Boolean(opts?.manual);
     if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(pan)) {
-      showAlert("Invalid PAN", "Enter a valid PAN (e.g. ABCDE1234F)");
+      if (manual) showAlert("Invalid PAN", "Enter a valid PAN (e.g. ABCDE1234F)");
       return;
     }
     if (!accessToken) {
-      showAlert("Account required", "Create your account on the previous step first");
+      if (manual) showAlert("Account required", "Create your account on the previous step first");
       return;
     }
+    if (draft.panVerified || panVerifyBusy) return;
     setPanVerifyBusy(true);
+    setPanVerifyFailed(false);
     try {
       const { data } = await api.post<
         ApiResponse<{
@@ -1281,11 +1286,14 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         ...(data.data.fullName && !draft.name.trim() ? { name: data.data.fullName } : {}),
         ...(data.data.address && !draft.address.trim() ? { address: data.data.address } : {}),
       });
-      showAlert(
-        "Verified",
-        data.data.fullName ? `PAN verified · ${data.data.fullName}` : "PAN verified",
-      );
+      if (manual) {
+        showAlert(
+          "Verified",
+          data.data.fullName ? `PAN verified · ${data.data.fullName}` : "PAN verified",
+        );
+      }
     } catch (err) {
+      setPanVerifyFailed(true);
       showAlert(
         "PAN verify failed",
         apiError(err, "Could not verify PAN. Check the PAN number and try again."),
@@ -1294,6 +1302,25 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
       setPanVerifyBusy(false);
     }
   }
+
+  // Auto-verify when 10-char PAN is complete.
+  useEffect(() => {
+    if (stepIndex !== 2) return;
+    if (draft.panVerified || panVerifyBusy) return;
+    if (!accessToken) return;
+    const pan = draft.pan.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(pan)) {
+      if (pan.length < 10) panAutoAttemptRef.current = "";
+      return;
+    }
+    if (panAutoAttemptRef.current === pan) return;
+    const timer = setTimeout(() => {
+      panAutoAttemptRef.current = pan;
+      void verifyPan({ manual: false });
+    }, 450);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stepIndex, draft.pan, draft.panVerified, accessToken, panVerifyBusy]);
 
   async function sendAadhaarOtp() {
     const digits = draft.aadhaar.replace(/\D/g, "");
@@ -1843,14 +1870,16 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                 <>
                   <Text style={styles.sectionTitle}>PAN Details</Text>
                   <Text style={[styles.hint, { color: tokens.mute }]}>
-                    Verify PAN with the number on your card, then fill personal details as on the
-                    PAN.
+                    Enter your 10-character PAN — verification starts automatically. Then fill
+                    personal details as on the PAN.
                   </Text>
                   <FieldLabel text="PAN Number *" color={tokens.mute} />
                   <TextInput
                     value={draft.pan}
                     onChangeText={(t) => {
                       const next = t.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);
+                      if (next !== panAutoAttemptRef.current) panAutoAttemptRef.current = "";
+                      setPanVerifyFailed(false);
                       patch({
                         pan: next,
                         ...(draft.panVerified ? { panVerified: false, panVerifiedName: "" } : {}),
@@ -1881,34 +1910,44 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                         {draft.panVerifiedName ? ` · ${draft.panVerifiedName}` : ""}
                       </Text>
                     </View>
+                  ) : panVerifyBusy ? (
+                    <View
+                      style={[
+                        styles.prep,
+                        {
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 8,
+                          marginBottom: 10,
+                        },
+                      ]}
+                    >
+                      <ActivityIndicator color={colors.blue} />
+                      <Text style={{ color: colors.blue, fontWeight: "700", fontSize: 13 }}>
+                        Verifying PAN…
+                      </Text>
+                    </View>
                   ) : (
                     <>
                       {!accessToken ? (
                         <Text style={{ color: "#C2410C", fontSize: 12, fontWeight: "700", marginBottom: 8 }}>
-                          Create your account on the previous step first, then verify PAN.
+                          Create your account on the previous step first, then enter PAN.
                         </Text>
-                      ) : null}
-                      <Pressable
-                        onPress={() => void verifyPan()}
-                        disabled={
-                          panVerifyBusy ||
-                          !/^[A-Z]{5}\d{4}[A-Z]$/.test(draft.pan) ||
-                          !accessToken
-                        }
-                        style={[
-                          styles.verifyBtn,
-                          { alignSelf: "flex-start", marginBottom: 10 },
-                          (panVerifyBusy ||
-                            !/^[A-Z]{5}\d{4}[A-Z]$/.test(draft.pan) ||
-                            !accessToken) && { opacity: 0.55 },
-                        ]}
-                      >
-                        {panVerifyBusy ? (
-                          <ActivityIndicator color="#fff" />
-                        ) : (
-                          <Text style={styles.verifyBtnText}>Verify PAN</Text>
-                        )}
-                      </Pressable>
+                      ) : panVerifyFailed && /^[A-Z]{5}\d{4}[A-Z]$/.test(draft.pan) ? (
+                        <Pressable
+                          onPress={() => {
+                            panAutoAttemptRef.current = "";
+                            void verifyPan({ manual: true });
+                          }}
+                          style={[styles.verifyBtn, { alignSelf: "flex-start", marginBottom: 10 }]}
+                        >
+                          <Text style={styles.verifyBtnText}>Retry verify</Text>
+                        </Pressable>
+                      ) : (
+                        <Text style={{ color: tokens.mute, fontSize: 12, marginBottom: 10 }}>
+                          Verification runs when PAN is complete
+                        </Text>
+                      )}
                     </>
                   )}
                   <FieldLabel text="Gender *" color={tokens.mute} />
@@ -1979,54 +2018,30 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                     continuing. Front and back images are optional.
                   </Text>
                   <FieldLabel text="Aadhaar Number *" color={tokens.mute} />
-                  <TextInput
-                    value={draft.aadhaar.replace(/(\d{4})(?=\d)/g, "$1 ").trim()}
-                    onChangeText={(t) => {
-                      const next = t.replace(/\D/g, "").slice(0, 12);
-                      patch({
-                        aadhaar: next,
-                        ...(draft.aadhaarOtpVerified || draft.aadhaarOtpRequestId
-                          ? {
-                              aadhaarOtpRequestId: "",
-                              aadhaarOtpVerified: false,
-                              aadhaarVerifiedName: "",
-                            }
-                          : {}),
-                      });
-                      setAadhaarOtp("");
-                    }}
-                    keyboardType="number-pad"
-                    placeholder="1234 1234 1234"
-                    placeholderTextColor={tokens.mute}
-                    editable={!draft.aadhaarOtpVerified}
-                    style={inputStyle}
-                  />
-                  {draft.aadhaarOtpVerified ? (
-                    <View
-                      style={[
-                        styles.prep,
-                        {
-                          backgroundColor: colors.greenBg,
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 8,
-                          marginBottom: 10,
-                        },
-                      ]}
-                    >
-                      <CheckCircle2 size={18} color={colors.greenDark} />
-                      <Text style={{ flex: 1, color: colors.greenDark, fontWeight: "700", fontSize: 13 }}>
-                        Aadhaar verified
-                        {draft.aadhaarVerifiedName ? ` · ${draft.aadhaarVerifiedName}` : ""}
-                      </Text>
-                    </View>
-                  ) : (
-                    <>
-                      {!accessToken ? (
-                        <Text style={{ color: "#C2410C", fontSize: 12, fontWeight: "700", marginBottom: 8 }}>
-                          Create your account on the previous step first, then send Aadhaar OTP.
-                        </Text>
-                      ) : null}
+                  <View style={styles.emailRow}>
+                    <TextInput
+                      value={draft.aadhaar.replace(/(\d{4})(?=\d)/g, "$1 ").trim()}
+                      onChangeText={(t) => {
+                        const next = t.replace(/\D/g, "").slice(0, 12);
+                        patch({
+                          aadhaar: next,
+                          ...(draft.aadhaarOtpVerified || draft.aadhaarOtpRequestId
+                            ? {
+                                aadhaarOtpRequestId: "",
+                                aadhaarOtpVerified: false,
+                                aadhaarVerifiedName: "",
+                              }
+                            : {}),
+                        });
+                        setAadhaarOtp("");
+                      }}
+                      keyboardType="number-pad"
+                      placeholder="1234 1234 1234"
+                      placeholderTextColor={tokens.mute}
+                      editable={!draft.aadhaarOtpVerified}
+                      style={[inputStyle, { flex: 1 }]}
+                    />
+                    {!draft.aadhaarOtpVerified ? (
                       <Pressable
                         onPress={() => void sendAadhaarOtp()}
                         disabled={
@@ -2036,7 +2051,6 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                         }
                         style={[
                           styles.verifyBtn,
-                          { alignSelf: "flex-start", marginBottom: 10 },
                           (Boolean(aadhaarOtpBusy) ||
                             draft.aadhaar.replace(/\D/g, "").length !== 12 ||
                             !accessToken) && { opacity: 0.55 },
@@ -2050,6 +2064,35 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                           </Text>
                         )}
                       </Pressable>
+                    ) : null}
+                  </View>
+                  {draft.aadhaarOtpVerified ? (
+                    <View
+                      style={[
+                        styles.prep,
+                        {
+                          backgroundColor: colors.greenBg,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 8,
+                          marginBottom: 10,
+                          marginTop: 8,
+                        },
+                      ]}
+                    >
+                      <CheckCircle2 size={18} color={colors.greenDark} />
+                      <Text style={{ flex: 1, color: colors.greenDark, fontWeight: "700", fontSize: 13 }}>
+                        Aadhaar verified
+                        {draft.aadhaarVerifiedName ? ` · ${draft.aadhaarVerifiedName}` : ""}
+                      </Text>
+                    </View>
+                  ) : (
+                    <>
+                      {!accessToken ? (
+                        <Text style={{ color: "#C2410C", fontSize: 12, fontWeight: "700", marginVertical: 8 }}>
+                          Create your account on the previous step first, then send Aadhaar OTP.
+                        </Text>
+                      ) : null}
                       {draft.aadhaarOtpRequestId ? (
                         <>
                           <FieldLabel text="Aadhaar OTP *" color={tokens.mute} />
