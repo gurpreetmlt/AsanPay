@@ -47,6 +47,7 @@ export async function bestApiRequest(
 
   let res: Response;
   try {
+    // Aadhaar OTP verify can wait on UIDAI; cap so Coolify/proxy don't kill a hung socket.
     res = await fetch(url, {
       method,
       headers: {
@@ -56,10 +57,20 @@ export async function bestApiRequest(
         ...(method === "POST" ? { "Content-Type": "application/json" } : {}),
       },
       body: method === "POST" ? JSON.stringify(opts?.body ?? {}) : undefined,
+      signal: AbortSignal.timeout(60_000),
     });
   } catch (err) {
-    logger.error({ err, path, method }, "BestAPI network error");
-    throw new HttpError(502, "BestAPI network error. Try again.", "BESTAPI_NETWORK");
+    const msg = err instanceof Error ? err.message : String(err);
+    const timedOut =
+      (err instanceof Error && err.name === "TimeoutError") || /aborted|timeout/i.test(msg);
+    logger.error({ err, path, method, timedOut }, "BestAPI network error");
+    throw new HttpError(
+      502,
+      timedOut
+        ? "Verification service timed out. Try again in a minute."
+        : "BestAPI network error. Try again.",
+      timedOut ? "BESTAPI_TIMEOUT" : "BESTAPI_NETWORK",
+    );
   }
 
   const text = await res.text();
@@ -77,6 +88,7 @@ export async function bestApiRequest(
       queryKeys: opts?.query ? Object.keys(opts.query) : [],
       httpStatus: res.status,
       durationMs: Date.now() - started,
+      bodyBytes: text.length,
       ok: res.ok,
     },
     "BestAPI response",

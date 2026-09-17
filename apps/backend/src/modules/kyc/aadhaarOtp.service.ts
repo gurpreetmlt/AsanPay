@@ -71,6 +71,8 @@ function deepFindString(root: unknown, keys: string[]): string | null {
     const rec = asRecord(node);
     if (!rec) return;
     for (const [k, v] of Object.entries(rec)) {
+      // Skip base64 photos / large blobs — they stall the walk and blow memory.
+      if (typeof v === "string" && v.length > 500) continue;
       if (want.has(k.toLowerCase())) {
         if (typeof v === "string" && v.trim()) {
           found = v.trim();
@@ -105,15 +107,19 @@ function isUpstreamUnreachable(message: string): boolean {
 
 function isFailurePayload(httpStatus: number, json: BestApiJson): boolean {
   if (httpStatus >= 400) return true;
-  const sample = JSON.stringify(json);
-  if (sample.includes("Bad gateway") || sample.includes("<!DOCTYPE") || sample.includes("origin_bad_gateway")) {
-    return true;
-  }
+  const rec = asRecord(json) ?? {};
+  // Do NOT JSON.stringify the whole payload — verify responses often include huge base64 photos.
+  const topBlob = [rec.message, rec.msg, rec.error, rec.title, rec.detail, rec.type]
+    .filter((v) => typeof v === "string")
+    .join(" ");
+  if (/Bad gateway|origin_bad|<!DOCTYPE/i.test(topBlob)) return true;
   const msg = providerMessage(json, "");
   if (msg && isUpstreamUnreachable(msg)) return true;
-  const rec = asRecord(json) ?? {};
   const status = (pickString(rec, ["status", "Status", "result", "Result"]) ?? "").toLowerCase();
-  if (["fail", "failed", "error", "0", "false"].includes(status)) return true;
+  if (["fail", "failed", "error", "false"].includes(status)) return true;
+  // Some gateways use numeric 0 = fail; others use 0 = success. Only treat explicit string "0" as fail
+  // when paired with a failure-looking message (avoid false positives on success status:0).
+  if (status === "0" && msg && /fail|invalid|incorrect|error|denied/i.test(msg)) return true;
   return false;
 }
 

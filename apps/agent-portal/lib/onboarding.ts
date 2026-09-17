@@ -31,5 +31,15 @@ export function extractApiError(err: unknown, fallback: string): string {
     const first = Object.values(data.errors).flat().find(Boolean);
     if (first) return first;
   }
-  return data?.message ?? fallback;
+  if (data?.message) return data.message;
+
+  const code = (err as { code?: string }).code;
+  const msg = err instanceof Error ? err.message : "";
+  if (code === "ECONNABORTED" || /timeout/i.test(msg)) {
+    return "Request timed out. Check your connection and try again.";
+  }
+  if (code === "ERR_NETWORK" || /network error/i.test(msg)) {
+    return "Could not reach the API. Try again in a moment.";
+  }
+  return fallback;
 }

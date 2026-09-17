@@ -7,14 +7,21 @@ const API_BASE = "/api/proxy";
 const api = axios.create({
   baseURL: API_BASE,
   headers: { "Content-Type": "application/json" },
-  timeout: 15000,
+  // Default short; Aadhaar OTP / long KYC calls pass a higher per-request timeout.
+  timeout: 15_000,
 });
+
+/** BestAPI → UIDAI Aadhaar OTP can exceed the default 15s axios timeout. */
+export const AADHAAR_OTP_TIMEOUT_MS = 90_000;
 
 api.interceptors.response.use(
   (res) => res,
   (error) => {
     if (error.response?.status === 401) {
-      useAuthStore.getState().logout();
+      const url = String(error.config?.url ?? "");
+      // Wrong Aadhaar/PAN OTP must not wipe the signup session.
+      const keepSession = /\/kyc\/(aadhaar\/otp|pan)/.test(url);
+      if (!keepSession) useAuthStore.getState().logout();
     }
     return Promise.reject(error);
   },

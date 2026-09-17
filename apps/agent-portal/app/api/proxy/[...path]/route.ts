@@ -142,10 +142,22 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
     if (disposition) headers["Content-Disposition"] = disposition;
     return new NextResponse(data, { status: upstream.status, headers });
   } catch (err) {
-    const message =
-      err instanceof Error && /aborted|timeout/i.test(err.message)
-        ? "Request timed out. Try again."
-        : "Could not reach the API. Try again in a moment.";
+    const name = err instanceof Error ? err.name : "";
+    const msg = err instanceof Error ? err.message : String(err);
+    const causeMsg =
+      err instanceof Error && err.cause instanceof Error
+        ? err.cause.message
+        : typeof (err as { cause?: { code?: string } })?.cause?.code === "string"
+          ? String((err as { cause: { code: string } }).cause.code)
+          : "";
+    const timedOut =
+      name === "TimeoutError" ||
+      name === "AbortError" ||
+      /aborted|timeout/i.test(msg) ||
+      /aborted|timeout/i.test(causeMsg);
+    const message = timedOut
+      ? "Request timed out. Try again."
+      : "Could not reach the API. Try again in a moment.";
     return NextResponse.json({ success: false, message }, { status: 502 });
   }
 }

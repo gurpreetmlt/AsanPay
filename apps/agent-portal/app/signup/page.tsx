@@ -17,7 +17,7 @@ import {
   reverseGeocodeAddress,
   reverseGeocodeDetails,
 } from "@/components/signup/SignupLocationTerms";
-import api from "@/lib/api";
+import api, { AADHAAR_OTP_TIMEOUT_MS } from "@/lib/api";
 import { formatAadhaar, stripAadhaar } from "@/lib/aadhaar";
 import { B } from "@/lib/brand";
 import { extractApiError, needsSignupKycCompletion } from "@/lib/onboarding";
@@ -1312,6 +1312,7 @@ function SignupPageInner() {
       const { data } = await api.post<ApiResponse<{ requestId: string; message?: string }>>(
         "/kyc/aadhaar/otp/request",
         { aadhaarNumber: digits },
+        { timeout: AADHAAR_OTP_TIMEOUT_MS },
       );
       if (!data.success) throw new Error(data.message);
       patch({
@@ -1341,10 +1342,14 @@ function SignupPageInner() {
     try {
       const { data } = await api.post<
         ApiResponse<{ verified: boolean; fullName: string | null; address: string | null }>
-      >("/kyc/aadhaar/otp/verify", {
-        otp: aadhaarOtp.replace(/\D/g, ""),
-        requestId: draft.aadhaarOtpRequestId,
-      });
+      >(
+        "/kyc/aadhaar/otp/verify",
+        {
+          otp: aadhaarOtp.replace(/\D/g, ""),
+          requestId: draft.aadhaarOtpRequestId,
+        },
+        { timeout: AADHAAR_OTP_TIMEOUT_MS },
+      );
       if (!data.success) throw new Error(data.message);
       patch({
         aadhaarOtpVerified: true,

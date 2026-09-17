@@ -10,7 +10,22 @@ EkoIndia/
   AUTH.md                ← HMAC secret-key signing
   ENDPOINTS.md           ← saari APIs (catalog from Postman)
   DMT.md                 ← Domestic Money Transfer (DMT-Fino)
-  AEPS.md                ← AePS Cashout (Fingpay)
+  AEPS.md                ← AePS Cashout overview (from Postman)
+  AEPS_INDEX.md          ← AePS official docs checklist + sequence
+  AEPS_ACTIVATE.md       ← Activate AePS Fingpay for Agent
+  AEPS_SHOP_TYPES.md     ← Get Shop Types (MCC → shop_type)
+  AEPS_STATES.md         ← Get States (state_id for addresses)
+  AEPS_EKYC_SEND_OTP.md  ← First-time eKYC Send OTP
+  AEPS_EKYC_VERIFY_OTP.md ← First-time eKYC Verify OTP
+  AEPS_EKYC_BIOMETRIC.md ← First-time eKYC Biometric (wadh required)
+  AEPS_DAILY_KYC.md      ← Daily biometric KYC (wadh empty)
+  AEPS_CASH_WITHDRAWAL_OTP.md ← CW OTP when amount > ₹5000
+  AEPS_CASH_WITHDRAWAL.md ← AePS cash withdrawal (biometric)
+  AEPS_BALANCE_ENQUIRY.md ← AePS balance enquiry (no debit)
+  AEPS_MINI_STATEMENT.md ← AePS mini statement (txn list)
+  AEPS_ADD_SETTLEMENT_ACCOUNT.md ← Register settlement bank (recipient_id)
+  AEPS_GET_SETTLEMENT_ACCOUNTS.md ← List recipients + unsettled_fund
+  AEPS_INITIATE_SETTLEMENT.md ← Settle to bank (NEFT/IMPS/RTGS)
   BBPS.md                ← Bharat Bill Payment + recharge helpers
   PAN.md                 ← PAN verification tools
   PPI.md                 ← PPI Levin + DigiKhata wallets
@@ -57,7 +72,16 @@ Agent-scoped calls often need `user_code` (Eko agent code after onboard).
 | Rail | Docs here | Backend wire | Notes |
 |------|-----------|--------------|-------|
 | DMT-Fino | Yes | Not yet | Full flow in `DMT.md` |
-| AePS Fingpay | Yes | Not yet | Activate + daily KYC + CW/BE/MS |
+| AePS Fingpay | Yes — [`AEPS_INDEX.md`](AEPS_INDEX.md) | Not yet | Activate + Daily KYC official pages saved; more pages as pasted |
+| AePS Activate | Yes — [`AEPS_ACTIVATE.md`](AEPS_ACTIVATE.md) | Not yet | Multipart form-data + docs; pending approval |
+| AePS Daily KYC | Yes — [`AEPS_DAILY_KYC.md`](AEPS_DAILY_KYC.md) | Not yet | RSA Aadhaar + empty `wadh` |
+| AePS CW OTP | Yes — [`AEPS_CASH_WITHDRAWAL_OTP.md`](AEPS_CASH_WITHDRAWAL_OTP.md) | Not yet | Amount > ₹5k only; `fp_transaction_id` → `txn_otp_request_id` |
+| AePS Cash Withdrawal | Yes — [`AEPS_CASH_WITHDRAWAL.md`](AEPS_CASH_WITHDRAWAL.md) | Not yet | Path `cash-withdrawl`; piddata XML; 1463/1464/1465/1459 |
+| AePS Balance Enquiry | Yes — [`AEPS_BALANCE_ENQUIRY.md`](AEPS_BALANCE_ENQUIRY.md) | Not yet | Same as CW minus amount; success `1466`; key = `customer_balance` |
+| AePS Mini Statement | Yes — [`AEPS_MINI_STATEMENT.md`](AEPS_MINI_STATEMENT.md) | Not yet | Same body as BE; list `mini_statement_list`; success `1527` |
+| AePS Add Settlement Acct | Yes — [`AEPS_ADD_SETTLEMENT_ACCOUNT.md`](AEPS_ADD_SETTLEMENT_ACCOUNT.md) | Not yet | `service_code=39`; max 3; returns `recipient_id` |
+| AePS Get Settlement Accts | Yes — [`AEPS_GET_SETTLEMENT_ACCOUNTS.md`](AEPS_GET_SETTLEMENT_ACCOUNTS.md) | Not yet | `unsettled_fund` + `fund_transfer_list`; type `1321` |
+| AePS Initiate Settlement | Yes — [`AEPS_INITIATE_SETTLEMENT.md`](AEPS_INITIATE_SETTLEMENT.md) | Not yet | Max ₹2L; modes 4/5/13; Mon–Fri 10–5 |
 | BBPS | Yes | Not yet | Categories → bill → pay |
 | PAN / BAV / GST | Yes | Not yet | Tools APIs |
 | InstantPay | Separate | Live rails | See `InstantPay/` — Eko alag provider |

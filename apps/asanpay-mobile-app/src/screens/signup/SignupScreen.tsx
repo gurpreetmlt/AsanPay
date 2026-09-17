@@ -16,7 +16,7 @@ import Geolocation from "@react-native-community/geolocation";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, Calendar, CheckCircle2, Eye, EyeOff, MapPin, X } from "lucide-react-native";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
-import { api } from "../../lib/api";
+import { api, AADHAAR_OTP_TIMEOUT_MS } from "../../lib/api";
 import { apiError } from "../../utils/apiError";
 import { useAuthStore } from "../../store/auth";
 import { useTheme } from "../../theme/ThemeContext";
@@ -1337,6 +1337,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
       const { data } = await api.post<ApiResponse<{ requestId: string; message?: string }>>(
         "/kyc/aadhaar/otp/request",
         { aadhaarNumber: digits },
+        { timeout: AADHAAR_OTP_TIMEOUT_MS },
       );
       if (!data.success) throw new Error(data.message);
       patch({
@@ -1369,10 +1370,14 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
     try {
       const { data } = await api.post<
         ApiResponse<{ verified: boolean; fullName: string | null; address: string | null }>
-      >("/kyc/aadhaar/otp/verify", {
-        otp: aadhaarOtp.replace(/\D/g, ""),
-        requestId: draft.aadhaarOtpRequestId,
-      });
+      >(
+        "/kyc/aadhaar/otp/verify",
+        {
+          otp: aadhaarOtp.replace(/\D/g, ""),
+          requestId: draft.aadhaarOtpRequestId,
+        },
+        { timeout: AADHAAR_OTP_TIMEOUT_MS },
+      );
       if (!data.success) throw new Error(data.message);
       patch({
         aadhaarOtpVerified: true,
