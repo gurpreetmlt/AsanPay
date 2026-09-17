@@ -55,6 +55,10 @@ async function forward(req: NextRequest, path: string[], accessToken: string | n
   const idempotencyKey = req.headers.get("idempotency-key");
   const contentType = req.headers.get("content-type");
   const isReceiptPdf = path[path.length - 1] === "pdf" && path[path.length - 2] === "receipt";
+  // Aadhaar OTP verify can wait on BestAPI → UIDAI longer than normal JSON calls.
+  const isAadhaarOtp =
+    path[0] === "kyc" && path[1] === "aadhaar" && path[2] === "otp";
+  const timeoutMs = isReceiptPdf || isAadhaarOtp ? 90_000 : 30_000;
   return fetch(url, {
     method: req.method,
     headers: {
@@ -66,8 +70,7 @@ async function forward(req: NextRequest, path: string[], accessToken: string | n
     },
     body,
     cache: "no-store",
-    // Receipt PDF can take longer than a normal JSON call.
-    signal: AbortSignal.timeout(isReceiptPdf ? 60_000 : 30_000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
 }
 
@@ -141,7 +144,7 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
   } catch (err) {
     const message =
       err instanceof Error && /aborted|timeout/i.test(err.message)
-        ? "Receipt request timed out. Try again."
+        ? "Request timed out. Try again."
         : "Could not reach the API. Try again in a moment.";
     return NextResponse.json({ success: false, message }, { status: 502 });
   }
