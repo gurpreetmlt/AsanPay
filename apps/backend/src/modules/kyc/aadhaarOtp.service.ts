@@ -93,8 +93,17 @@ function deepFindString(root: unknown, keys: string[]): string | null {
 function providerMessage(json: BestApiJson, fallback: string): string {
   const rec = asRecord(json) ?? {};
   return (
-    pickString(rec, ["message", "msg", "error", "error_message", "statusmessage", "StatusMessage"]) ??
-    deepFindString(json, ["message", "msg", "error"]) ??
+    pickString(rec, [
+      "message",
+      "msg",
+      "error",
+      "error_message",
+      "statusmessage",
+      "StatusMessage",
+      "title",
+      "detail",
+    ]) ??
+    deepFindString(json, ["message", "msg", "error", "title", "detail"]) ??
     fallback
   );
 }
@@ -308,6 +317,14 @@ export async function verifyAadhaarKycOtp(
       },
       "Aadhaar OTP verify failed at BestAPI",
     );
+    // BestAPI often returns Cloudflare HTML/JSON 502 when UIDAI origin is down.
+    if (res.httpStatus >= 500 || isUpstreamUnreachable(raw) || /bad gateway|cloudflare/i.test(raw)) {
+      throw new HttpError(
+        502,
+        "Aadhaar verification service is temporarily unavailable (provider gateway error). Tap Resend OTP and try again in a few minutes. If it keeps failing, contact BestAPI support.",
+        "AADHAAR_OTP_UPSTREAM",
+      );
+    }
     const mapped = mapVerifyFailureMessage(raw);
     throw new HttpError(mapped.status, mapped.message, mapped.code);
   }
