@@ -812,17 +812,27 @@ function RechargeInner() {
                 </label>
 
                 <label className="block space-y-1.5">
-                  <span className="flex items-center justify-between text-sm font-semibold" style={{ color: B.blue }}>
+                  <span className="text-sm font-semibold" style={{ color: B.blue }}>
                     Recharge Amount
+                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
                       onClick={() => void openCatalog("plans")}
-                      className="cursor-pointer text-[13px] font-bold"
-                      style={{ color: B.blueLight }}
+                      className="cursor-pointer rounded-full border px-2.5 py-1 text-[11px] font-bold"
+                      style={{ borderColor: B.blue, color: B.blue, background: B.secondary }}
                     >
                       View Plans
                     </button>
-                  </span>
+                    <button
+                      type="button"
+                      onClick={() => void openCatalog("offers")}
+                      className="cursor-pointer rounded-full border px-2.5 py-1 text-[11px] font-bold"
+                      style={{ borderColor: B.blue, color: B.blue, background: B.secondary }}
+                    >
+                      {serviceCode === "DTH" ? "View Info" : "View Offers"}
+                    </button>
+                  </div>
                   <div className="relative">
                     <Wallet
                       size={16}
@@ -841,14 +851,6 @@ function RechargeInner() {
                       placeholder="Enter Amount"
                     />
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => void openCatalog("offers")}
-                    className="cursor-pointer text-[13px] font-bold"
-                    style={{ color: B.blueLight }}
-                  >
-                    {serviceCode === "DTH" ? "View Info / Offers" : "View Offers"}
-                  </button>
                 </label>
 
                 <label className="block space-y-1.5">

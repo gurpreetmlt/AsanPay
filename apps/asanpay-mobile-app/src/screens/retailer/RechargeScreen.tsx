@@ -873,10 +873,21 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
               </View>
             ) : null}
 
-            <View style={styles.amountHead}>
-              <Text style={[styles.label, { color: tokens.txt, marginTop: 0 }]}>Recharge Amount</Text>
-              <Pressable onPress={() => void openCatalog("plans")} hitSlop={8}>
-                <Text style={{ color: colors.blueLight, fontWeight: "700", fontSize: 13 }}>View Plans</Text>
+            <Text style={[styles.label, { color: tokens.txt }]}>Recharge Amount</Text>
+            <View style={styles.planOfferRow}>
+              <Pressable
+                onPress={() => void openCatalog("plans")}
+                style={[styles.miniBtn, { borderColor: colors.blue, backgroundColor: `${colors.blue}10` }]}
+              >
+                <Text style={{ color: colors.blue, fontWeight: "700", fontSize: 11 }}>View Plans</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => void openCatalog("offers")}
+                style={[styles.miniBtn, { borderColor: colors.blue, backgroundColor: `${colors.blue}10` }]}
+              >
+                <Text style={{ color: colors.blue, fontWeight: "700", fontSize: 11 }}>
+                  {serviceCode === "DTH" ? "View Info" : "View Offers"}
+                </Text>
               </Pressable>
             </View>
             <View
@@ -898,17 +909,6 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
                 placeholderTextColor={tokens.mute}
               />
             </View>
-            {serviceCode === "DTH" ? (
-              <Pressable onPress={() => void openCatalog("offers")} style={{ marginTop: 8 }}>
-                <Text style={{ color: colors.blueLight, fontWeight: "700", fontSize: 13 }}>
-                  View Info / Offers
-                </Text>
-              </Pressable>
-            ) : (
-              <Pressable onPress={() => void openCatalog("offers")} style={{ marginTop: 8 }}>
-                <Text style={{ color: colors.blueLight, fontWeight: "700", fontSize: 13 }}>View Offers</Text>
-              </Pressable>
-            )}
 
             <Text style={[styles.label, { color: tokens.txt }]}>TPIN</Text>
             <View
@@ -1158,12 +1158,17 @@ const styles = StyleSheet.create({
   },
   selectOption: { paddingVertical: 12, paddingHorizontal: 8, borderRadius: 10 },
   hintRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
-  amountHead: {
-    marginTop: 12,
-    marginBottom: 6,
+  planOfferRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 8,
+    marginBottom: 8,
+  },
+  miniBtn: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
   },
   planCard: { borderWidth: 1, borderRadius: 18, marginTop: 8, flexDirection: "row", overflow: "hidden" },
   planPrice: { width: 82, alignItems: "center", justifyContent: "center", paddingVertical: 14 },
