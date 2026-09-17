@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   LayoutAnimation,
   Modal,
   Platform,
@@ -13,7 +15,15 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ArrowLeft, ChevronDown } from "lucide-react-native";
+import {
+  ArrowLeft,
+  ChevronDown,
+  Lock,
+  MapPin,
+  Smartphone,
+  Wallet,
+  X,
+} from "lucide-react-native";
 import {
   TELECOM_CIRCLES,
   classifyRechargePlanTab,
@@ -52,22 +62,29 @@ type MobileInfo = {
   warnings: string[];
 };
 
-const MOBILE_OPS = [
-  { code: "JIO", label: "Reliance JIO" },
-  { code: "AT", label: "Airtel" },
-  { code: "VI", label: "Vi" },
-  { code: "BL", label: "BSNL" },
-  { code: "JPL", label: "Jio Lite" },
-  { code: "TESTOP", label: "TestOperator" },
-] as const;
+type OperatorDef = {
+  code: string;
+  label: string;
+  color: string;
+  mark: string;
+};
 
-const DTH_OPS = [
-  { code: "TTV", label: "Tata Play" },
-  { code: "ATV", label: "Airtel Digital TV" },
-  { code: "DTV", label: "Dish TV" },
-  { code: "STV", label: "Sun Direct" },
-  { code: "VTV", label: "d2h" },
-] as const;
+const MOBILE_OPS: OperatorDef[] = [
+  { code: "AT", label: "Airtel", color: "#ED1C24", mark: "Airtel" },
+  { code: "BL", label: "BSNL", color: "#F5A623", mark: "BSNL" },
+  { code: "JIO", label: "Jio", color: "#0A2885", mark: "Jio" },
+  { code: "VI", label: "Vi", color: "#EE3124", mark: "Vi" },
+  { code: "JPL", label: "Jio Lite", color: "#1E3A8A", mark: "JL" },
+  { code: "TESTOP", label: "Test", color: "#64748B", mark: "T" },
+];
+
+const DTH_OPS: OperatorDef[] = [
+  { code: "TTV", label: "Tata Play", color: "#000000", mark: "Tata" },
+  { code: "ATV", label: "Airtel TV", color: "#ED1C24", mark: "ATV" },
+  { code: "DTV", label: "Dish TV", color: "#E31837", mark: "Dish" },
+  { code: "STV", label: "Sun Direct", color: "#F5A623", mark: "Sun" },
+  { code: "VTV", label: "d2h", color: "#00A651", mark: "d2h" },
+];
 
 type Props = {
   serviceCode: ServiceCode;
@@ -83,6 +100,7 @@ function animateLayout() {
 }
 
 const PLAN_PAGE_SIZE = 5;
+const FLIP_MS = 420;
 
 function groupPlansByTab(items: PlanItem[]): { id: RechargePlanTabId; label: string; items: PlanItem[] }[] {
   const map = new Map<RechargePlanTabId, PlanItem[]>();
@@ -97,6 +115,51 @@ function groupPlansByTab(items: PlanItem[]): { id: RechargePlanTabId; label: str
     label: RECHARGE_PLAN_TAB_LABELS[id],
     items: map.get(id)!,
   }));
+}
+
+function OperatorLogo({ op, size = 56 }: { op: OperatorDef; size?: number }) {
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: 14,
+        backgroundColor: "#fff",
+        borderWidth: 1,
+        borderColor: "rgba(11,42,154,0.08)",
+        alignItems: "center",
+        justifyContent: "center",
+        shadowColor: "#0B2A9A",
+        shadowOpacity: 0.06,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 2,
+      }}
+    >
+      <Text
+        numberOfLines={1}
+        style={{
+          color: op.color,
+          fontWeight: "900",
+          fontSize: size > 48 ? 13 : 11,
+          letterSpacing: -0.2,
+        }}
+      >
+        {op.mark}
+      </Text>
+      <View
+        style={{
+          position: "absolute",
+          top: 5,
+          right: 5,
+          width: 8,
+          height: 8,
+          borderRadius: 4,
+          backgroundColor: colors.green,
+        }}
+      />
+    </View>
+  );
 }
 
 function PlanBlock({
@@ -149,66 +212,66 @@ function PlanBlock({
         })}
       </ScrollView>
       {visible.map((p, i) => {
-            const selected = selectedAmount === p.amount;
-            return (
-              <Pressable
-                key={`${active.id}-${p.amount}-${i}`}
-                onPress={() => onPick(p.amount)}
-                style={[
-                  styles.planCard,
-                  {
-                    borderColor: selected ? colors.blue : tokens.cardBorder,
-                    backgroundColor: selected ? `${colors.blue}0F` : tokens.card,
-                    shadowColor: "#0B2A9A",
-                    shadowOpacity: selected ? 0.12 : 0.04,
-                    shadowRadius: 8,
-                    shadowOffset: { width: 0, height: 2 },
-                    elevation: selected ? 3 : 1,
-                  },
-                ]}
-              >
-                <View
-                  style={[
-                    styles.planPrice,
-                    { backgroundColor: selected ? colors.blue : `${colors.blue}14` },
-                  ]}
+        const selected = selectedAmount === p.amount;
+        return (
+          <Pressable
+            key={`${active.id}-${p.amount}-${i}`}
+            onPress={() => onPick(p.amount)}
+            style={[
+              styles.planCard,
+              {
+                borderColor: selected ? colors.blue : tokens.cardBorder,
+                backgroundColor: selected ? `${colors.blue}0F` : tokens.card,
+                shadowColor: "#0B2A9A",
+                shadowOpacity: selected ? 0.12 : 0.04,
+                shadowRadius: 8,
+                shadowOffset: { width: 0, height: 2 },
+                elevation: selected ? 3 : 1,
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.planPrice,
+                { backgroundColor: selected ? colors.blue : `${colors.blue}14` },
+              ]}
+            >
+              <Text style={{ color: selected ? "rgba(255,255,255,0.8)" : tokens.sub, fontSize: 10, fontWeight: "700" }}>
+                ₹
+              </Text>
+              <Text style={{ color: selected ? "#fff" : colors.blue, fontSize: 18, fontWeight: "800" }}>
+                {p.amount}
+              </Text>
+            </View>
+            <View style={{ flex: 1, paddingVertical: 10, paddingHorizontal: 12 }}>
+              <View style={styles.planTop}>
+                <Text
+                  style={{
+                    color: colors.blue,
+                    fontSize: 11,
+                    fontWeight: "700",
+                    backgroundColor: `${colors.blue}12`,
+                    overflow: "hidden",
+                    paddingHorizontal: 8,
+                    paddingVertical: 3,
+                    borderRadius: 999,
+                  }}
                 >
-                  <Text style={{ color: selected ? "rgba(255,255,255,0.8)" : tokens.sub, fontSize: 10, fontWeight: "700" }}>
-                    ₹
-                  </Text>
-                  <Text style={{ color: selected ? "#fff" : colors.blue, fontSize: 18, fontWeight: "800" }}>
-                    {p.amount}
-                  </Text>
-                </View>
-                <View style={{ flex: 1, paddingVertical: 10, paddingHorizontal: 12 }}>
-                  <View style={styles.planTop}>
-                    <Text
-                      style={{
-                        color: colors.blue,
-                        fontSize: 11,
-                        fontWeight: "700",
-                        backgroundColor: `${colors.blue}12`,
-                        overflow: "hidden",
-                        paddingHorizontal: 8,
-                        paddingVertical: 3,
-                        borderRadius: 999,
-                      }}
-                    >
-                      {p.validity ? p.validity : "Tap to select"}
-                    </Text>
-                    {selected ? (
-                      <Text style={{ color: colors.green, fontSize: 11, fontWeight: "800" }}>Selected</Text>
-                    ) : null}
-                  </View>
-                  {p.description ? (
-                    <Text style={{ color: tokens.sub, fontSize: 12, marginTop: 6, lineHeight: 16 }} numberOfLines={2}>
-                      {p.description}
-                    </Text>
-                  ) : null}
-                </View>
-              </Pressable>
-            );
-          })}
+                  {p.validity ? p.validity : "Tap to select"}
+                </Text>
+                {selected ? (
+                  <Text style={{ color: colors.green, fontSize: 11, fontWeight: "800" }}>Selected</Text>
+                ) : null}
+              </View>
+              {p.description ? (
+                <Text style={{ color: tokens.sub, fontSize: 12, marginTop: 6, lineHeight: 16 }} numberOfLines={2}>
+                  {p.description}
+                </Text>
+              ) : null}
+            </View>
+          </Pressable>
+        );
+      })}
       {active.items.length > PLAN_PAGE_SIZE ? (
         <Pressable onPress={() => setShowAll((v) => !v)} style={{ paddingVertical: 12, alignItems: "center" }}>
           <Text style={{ color: colors.blue, fontWeight: "700", fontSize: 13 }}>
@@ -226,6 +289,7 @@ function SelectField({
   placeholder,
   options,
   tokens,
+  icon,
   onChange,
 }: {
   label: string;
@@ -233,6 +297,7 @@ function SelectField({
   placeholder: string;
   options: { value: string; label: string }[];
   tokens: ReturnType<typeof useTheme>["tokens"];
+  icon?: React.ReactNode;
   onChange: (value: string) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -247,6 +312,7 @@ function SelectField({
           { borderColor: tokens.inputBorder, backgroundColor: tokens.inputBg },
         ]}
       >
+        {icon}
         <Text style={{ color: selected ? tokens.txt : tokens.mute, fontSize: 15, flex: 1 }}>
           {selected?.label ?? placeholder}
         </Text>
@@ -289,10 +355,9 @@ function SelectField({
 export function RechargeScreen({ serviceCode, onBack }: Props) {
   const { tokens } = useTheme();
   const ops = serviceCode === "DTH" ? DTH_OPS : MOBILE_OPS;
+  const [operatorPicked, setOperatorPicked] = useState(false);
   const [accountRef, setAccountRef] = useState("");
-  const [operatorCode, setOperatorCode] = useState<string>(
-    serviceCode === "DTH" ? "TTV" : "JIO",
-  );
+  const [operatorCode, setOperatorCode] = useState("");
   const [circleCode, setCircleCode] = useState("");
   const [plans, setPlans] = useState<PlanItem[]>([]);
   const [offers, setOffers] = useState<PlanItem[]>([]);
@@ -311,6 +376,8 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
   const lookupSeq = useRef(0);
   const busyRef = useRef(false);
   const apiStartedRef = useRef(false);
+  const flipAnim = useRef(new Animated.Value(0)).current;
+  const flippingRef = useRef(false);
 
   function markNewIntent() {
     attemptKey.current.clear();
@@ -320,15 +387,18 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
   }
 
   const title = useMemo(
-    () => (serviceCode === "DTH" ? "DTH recharge" : "Mobile prepaid"),
+    () => (serviceCode === "DTH" ? "DTH Recharge" : "Mobile Recharge"),
+    [serviceCode],
+  );
+  const subtitle = useMemo(
+    () => (serviceCode === "DTH" ? "Instant DTH top-up" : "Instant prepaid top-up"),
     [serviceCode],
   );
 
-  const operatorChips = useMemo(() => {
-    if (serviceCode !== "MOBILE_PREPAID") return [...ops];
-    if (MOBILE_OPS.some((o) => o.code === operatorCode)) return [...MOBILE_OPS];
-    return [{ code: operatorCode, label: operatorCode }, ...MOBILE_OPS];
-  }, [ops, operatorCode, serviceCode]);
+  const selectedOp = useMemo(
+    () => ops.find((o) => o.code === operatorCode) ?? null,
+    [ops, operatorCode],
+  );
 
   const circleOptions = useMemo(() => {
     const list = TELECOM_CIRCLES.map((c) => ({ code: c.code, name: c.name }));
@@ -408,12 +478,77 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
       return;
     }
     if (!circleCode) {
-      showAlert("Circle/State", "Select a circle/state");
+      showAlert("Telecom Circle", "Select a circle/state");
       return;
     }
     setPanelTab(tab);
     animateLayout();
     setPanelOpen(true);
+  }
+
+  function runFlip(toForm: boolean) {
+    if (flippingRef.current) return;
+    flippingRef.current = true;
+    if (toForm) {
+      Animated.timing(flipAnim, {
+        toValue: 0.5,
+        duration: FLIP_MS / 2,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: true,
+      }).start(() => {
+        setOperatorPicked(true);
+        Animated.timing(flipAnim, {
+          toValue: 1,
+          duration: FLIP_MS / 2,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }).start(() => {
+          flippingRef.current = false;
+        });
+      });
+      return;
+    }
+    Animated.timing(flipAnim, {
+      toValue: 0.5,
+      duration: FLIP_MS / 2,
+      easing: Easing.in(Easing.cubic),
+      useNativeDriver: true,
+    }).start(() => {
+      setOperatorPicked(false);
+      setPanelOpen(false);
+      setPlans([]);
+      setOffers([]);
+      setDthSummary([]);
+      Animated.timing(flipAnim, {
+        toValue: 0,
+        duration: FLIP_MS / 2,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start(() => {
+        flippingRef.current = false;
+      });
+    });
+  }
+
+  function selectOperator(code: string) {
+    markNewIntent();
+    setOperatorCode(code);
+    setPlans([]);
+    setOffers([]);
+    setDthSummary([]);
+    setAmount("");
+    setTxnPin("");
+    runFlip(true);
+  }
+
+  function clearOperator() {
+    markNewIntent();
+    setOperatorCode("");
+    setAccountRef("");
+    setCircleCode("");
+    setAmount("");
+    setTxnPin("");
+    runFlip(false);
   }
 
   useEffect(() => {
@@ -451,7 +586,9 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
   }, [panelOpen, panelTab, accountRef, operatorCode, circleCode, serviceCode]);
 
   useEffect(() => {
-    setOperatorCode(serviceCode === "DTH" ? "TTV" : "JIO");
+    flipAnim.setValue(0);
+    setOperatorPicked(false);
+    setOperatorCode("");
     setPlans([]);
     setOffers([]);
     setDthSummary([]);
@@ -463,12 +600,11 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
   }, [serviceCode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (serviceCode !== "MOBILE_PREPAID") return;
+    if (serviceCode !== "MOBILE_PREPAID" || !operatorPicked) return;
     const mobile = accountRef.replace(/\D/g, "");
     if (mobile.length !== 10) {
       setPlans([]);
       setOffers([]);
-      setCircleCode("");
       return;
     }
 
@@ -485,7 +621,6 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
             throw new Error(data.message || "Could not look up this number");
           }
           const info = data.data;
-          if (info.operatorCode) setOperatorCode(info.operatorCode);
           if (info.circleCode) setCircleCode(info.circleCode);
           setPlans([]);
           setOffers([]);
@@ -493,7 +628,7 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
           if (seq !== lookupSeq.current) return;
           setPlans([]);
           setOffers([]);
-          showAlert("Operator lookup", apiError(err, "Could not detect operator. Select manually."));
+          showAlert("Circle lookup", apiError(err, "Could not detect circle. Select manually."));
         } finally {
           if (seq === lookupSeq.current) setLookupBusy(false);
         }
@@ -501,15 +636,16 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
     }, 450);
 
     return () => clearTimeout(timer);
-  }, [accountRef, serviceCode]);
+  }, [accountRef, serviceCode, operatorPicked]);
 
   const formReady = useMemo(() => {
     const number = accountRef.replace(/\D/g, "");
     const numberOk =
       serviceCode === "MOBILE_PREPAID" ? number.length === 10 : number.length >= 8;
     const amountOk = /^\d+(\.\d{1,2})?$/.test(amount.trim()) && Number(amount) > 0;
-    return Boolean(numberOk && operatorCode && amountOk && txnPin.length === 4);
-  }, [accountRef, amount, operatorCode, serviceCode, txnPin]);
+    const circleOk = serviceCode !== "MOBILE_PREPAID" || Boolean(circleCode);
+    return Boolean(numberOk && operatorCode && circleOk && amountOk && txnPin.length === 4);
+  }, [accountRef, amount, circleCode, operatorCode, serviceCode, txnPin]);
 
   const submitDisabled = loading || blockResubmit || !formReady;
 
@@ -595,54 +731,109 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
     }
   }
 
+  const frontRotate = flipAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "180deg"],
+  });
+  const backRotate = flipAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["180deg", "360deg"],
+  });
+  const frontOpacity = flipAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [1, 0, 0],
+  });
+  const backOpacity = flipAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [0, 0, 1],
+  });
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bg }]} edges={["top"]}>
       <View style={styles.header}>
         <Pressable onPress={onBack} style={styles.backBtn} hitSlop={12}>
           <ArrowLeft size={22} color={colors.blue} />
         </Pressable>
+        <View style={[styles.headerIcon, { backgroundColor: `${colors.blue}14` }]}>
+          <Smartphone size={20} color={colors.blue} />
+        </View>
         <View style={{ flex: 1 }}>
           <Text style={[styles.title, { color: tokens.txt }]}>{title}</Text>
-          {serviceCode === "MOBILE_PREPAID" ? (
-            <Text style={{ color: tokens.sub, fontSize: 12, marginTop: 2 }}>
-              Recharge via VyaparAPI · operator, plans and offers via BestAPI
-            </Text>
-          ) : null}
+          <Text style={{ color: tokens.sub, fontSize: 12, marginTop: 2 }}>{subtitle}</Text>
         </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-        <View style={[styles.formCard, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
-          <Text style={[styles.label, { color: tokens.txt, marginTop: 0 }]}>
-            {serviceCode === "DTH" ? "Subscriber ID" : "Mobile number"}
-          </Text>
-          <TextInput
-            style={[styles.input, { borderColor: tokens.inputBorder, color: tokens.txt, backgroundColor: tokens.inputBg }]}
-            keyboardType="number-pad"
-            maxLength={serviceCode === "DTH" ? 20 : 10}
-            value={accountRef}
-            onChangeText={(t) => {
-              markNewIntent();
-              setAccountRef(t.replace(/\D/g, ""));
-            }}
-            placeholder={serviceCode === "DTH" ? "DTH number" : "10-digit mobile"}
-            placeholderTextColor={tokens.mute}
-          />
-          {serviceCode === "MOBILE_PREPAID" && lookupBusy ? (
-            <View style={styles.hintRow}>
-              <ActivityIndicator size="small" color={colors.blue} />
-              <Text style={{ color: tokens.sub, fontSize: 12 }}>Detecting operator and circle…</Text>
+        <View style={[styles.flipStage, operatorPicked ? { minHeight: 620 } : null]}>
+          {!operatorPicked ? (
+          <Animated.View
+            style={[
+              styles.formCard,
+              {
+                backgroundColor: tokens.card,
+                borderColor: tokens.cardBorder,
+                opacity: frontOpacity,
+                transform: [{ perspective: 1200 }, { rotateY: frontRotate }],
+              },
+            ]}
+          >
+            <Text style={{ color: tokens.sub, fontSize: 13, marginBottom: 14, fontWeight: "600" }}>
+              Select operator
+            </Text>
+            <View style={styles.logoGrid}>
+              {ops.map((op) => (
+                <Pressable
+                  key={op.code}
+                  onPress={() => selectOperator(op.code)}
+                  style={styles.logoCell}
+                >
+                  <OperatorLogo op={op} />
+                  <Text style={{ color: tokens.txt, fontSize: 12, fontWeight: "700", marginTop: 8 }} numberOfLines={1}>
+                    {op.label}
+                  </Text>
+                </Pressable>
+              ))}
             </View>
-          ) : null}
+          </Animated.View>
+          ) : (
+          <Animated.View
+            style={[
+              styles.formCard,
+              {
+                backgroundColor: tokens.card,
+                borderColor: tokens.cardBorder,
+                opacity: backOpacity,
+                transform: [{ perspective: 1200 }, { rotateY: backRotate }],
+              },
+            ]}
+          >
+            <View style={styles.formHead}>
+              <View style={styles.formHeadLeft}>
+                {selectedOp ? <OperatorLogo op={selectedOp} size={48} /> : null}
+                <View>
+                  <Text style={{ color: tokens.txt, fontWeight: "800", fontSize: 17 }}>
+                    {selectedOp?.label ?? "Operator"}
+                  </Text>
+                  <View style={[styles.prepaidPill, { backgroundColor: `${colors.green}18` }]}>
+                    <Text style={{ color: colors.green, fontSize: 11, fontWeight: "800" }}>
+                      {serviceCode === "DTH" ? "DTH" : "Prepaid"}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+              <Pressable onPress={clearOperator} style={styles.closeBtn} hitSlop={10}>
+                <X size={18} color={tokens.sub} />
+              </Pressable>
+            </View>
 
-          {serviceCode === "MOBILE_PREPAID" ? (
-            <>
+            {serviceCode === "MOBILE_PREPAID" ? (
               <SelectField
-                label="Circle/State"
+                label="Telecom Circle"
                 value={circleCode}
-                placeholder="Select circle/state"
+                placeholder="Select Circle"
                 options={circleOptions.map((c) => ({ value: c.code, label: c.name }))}
                 tokens={tokens}
+                icon={<MapPin size={16} color={colors.blue} />}
                 onChange={(code) => {
                   markNewIntent();
                   setCircleCode(code);
@@ -650,195 +841,240 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
                   setOffers([]);
                 }}
               />
-              <Text style={{ color: tokens.sub, fontSize: 12, marginTop: 6 }}>
-                Auto-filled from the number. Change it anytime — packs reload for the new circle.
-              </Text>
-            </>
-          ) : null}
+            ) : null}
 
-          <SelectField
-            label="Operator"
-            value={operatorCode}
-            placeholder="Select operator"
-            options={operatorChips.map((o) => ({ value: o.code, label: o.label }))}
-            tokens={tokens}
-            onChange={(code) => {
-              markNewIntent();
-              setOperatorCode(code);
-              setPlans([]);
-              setOffers([]);
-              setDthSummary([]);
-            }}
-          />
-
-          {serviceCode === "MOBILE_PREPAID" || serviceCode === "DTH" ? (
-            <View style={styles.catalogBtnRow}>
-              <Pressable
-                onPress={() => void openCatalog("plans")}
-                style={[
-                  styles.catalogBtn,
-                  {
-                    borderColor: colors.blue,
-                    backgroundColor: panelOpen && panelTab === "plans" ? colors.blue : tokens.card,
-                  },
-                ]}
-              >
-                <Text
-                  style={{
-                    color: panelOpen && panelTab === "plans" ? "#fff" : colors.blue,
-                    fontWeight: "700",
-                  }}
-                >
-                  Plans
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => void openCatalog("offers")}
-                style={[
-                  styles.catalogBtn,
-                  {
-                    borderColor: colors.blue,
-                    backgroundColor: panelOpen && panelTab === "offers" ? colors.blue : tokens.card,
-                  },
-                ]}
-              >
-                <Text
-                  style={{
-                    color: panelOpen && panelTab === "offers" ? "#fff" : colors.blue,
-                    fontWeight: "700",
-                  }}
-                >
-                  {serviceCode === "DTH" ? "Info" : "Offers"}
-                </Text>
-              </Pressable>
+            <Text style={[styles.label, { color: tokens.txt }]}>
+              {serviceCode === "DTH" ? "Subscriber ID" : "Mobile Number"}
+            </Text>
+            <View
+              style={[
+                styles.inputRow,
+                { borderColor: tokens.inputBorder, backgroundColor: tokens.inputBg },
+              ]}
+            >
+              <Smartphone size={16} color={colors.blue} />
+              <TextInput
+                style={[styles.inputBare, { color: tokens.txt }]}
+                keyboardType="number-pad"
+                maxLength={serviceCode === "DTH" ? 20 : 10}
+                value={accountRef}
+                onChangeText={(t) => {
+                  markNewIntent();
+                  setAccountRef(t.replace(/\D/g, ""));
+                }}
+                placeholder={serviceCode === "DTH" ? "Enter subscriber ID" : "Enter 10-digit number"}
+                placeholderTextColor={tokens.mute}
+              />
             </View>
-          ) : null}
-
-          {panelOpen && (serviceCode === "MOBILE_PREPAID" || serviceCode === "DTH") ? (
-            <View style={[styles.packBox, { borderColor: tokens.cardBorder }]}>
-              <View style={styles.modalHead}>
-                <Text style={{ color: tokens.txt, fontWeight: "800", fontSize: 15 }}>
-                  {serviceCode === "DTH" ? "DTH packs & info" : "Browse packs"}
-                </Text>
-                <Pressable
-                  onPress={() => {
-                    animateLayout();
-                    setPanelOpen(false);
-                  }}
-                  hitSlop={12}
-                >
-                  <Text style={{ color: colors.blue, fontWeight: "700" }}>Close</Text>
-                </Pressable>
+            {serviceCode === "MOBILE_PREPAID" && lookupBusy ? (
+              <View style={styles.hintRow}>
+                <ActivityIndicator size="small" color={colors.blue} />
+                <Text style={{ color: tokens.sub, fontSize: 12 }}>Detecting circle…</Text>
               </View>
-              {panelBusy ? (
-                <ActivityIndicator color={colors.blue} />
-              ) : (
-                <>
-                  {serviceCode === "DTH" && panelTab === "offers" && dthSummary.length > 0
-                    ? dthSummary.map((row) => (
-                        <View
-                          key={`${row.label}-${row.value}`}
-                          style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}
-                        >
-                          <Text style={{ color: tokens.sub, fontSize: 12, flex: 1 }}>{row.label}</Text>
-                          <Text style={{ color: tokens.txt, fontWeight: "700", fontSize: 12, flex: 1, textAlign: "right" }}>
-                            {row.value}
-                          </Text>
-                        </View>
-                      ))
-                    : null}
-                  <PlanBlock
-                    items={panelTab === "plans" ? plans : offers}
-                    tokens={tokens}
-                    selectedAmount={amount}
-                    onPick={(a) => {
-                      markNewIntent();
-                      setAmount(a);
-                    }}
-                  />
-                </>
-              )}
-              {!panelBusy && (panelTab === "plans" ? plans : offers).length === 0 ? (
-                <Text style={{ color: tokens.sub, fontSize: 12, marginTop: 8 }}>
-                  {serviceCode === "DTH"
-                    ? "No packs returned. Enter amount manually."
-                    : `No ${panelTab} for this operator and circle. Enter amount manually.`}
-                </Text>
-              ) : null}
+            ) : null}
+
+            <View style={styles.amountHead}>
+              <Text style={[styles.label, { color: tokens.txt, marginTop: 0 }]}>Recharge Amount</Text>
+              <Pressable onPress={() => void openCatalog("plans")} hitSlop={8}>
+                <Text style={{ color: colors.blueLight, fontWeight: "700", fontSize: 13 }}>View Plans</Text>
+              </Pressable>
             </View>
-          ) : null}
-
-          <Text style={[styles.label, { color: tokens.txt }]}>Amount (₹)</Text>
-          <TextInput
-            style={[styles.input, { borderColor: tokens.inputBorder, color: tokens.txt, backgroundColor: tokens.inputBg }]}
-            keyboardType="decimal-pad"
-            value={amount}
-            onChangeText={(t) => {
-              markNewIntent();
-              setAmount(t);
-            }}
-            placeholder="e.g. 199"
-            placeholderTextColor={tokens.mute}
-          />
-
-          <Text style={[styles.label, { color: tokens.txt }]}>Transaction PIN</Text>
-          <TextInput
-            style={[
-              styles.input,
-              { borderColor: tokens.inputBorder, color: tokens.txt, backgroundColor: tokens.inputBg, letterSpacing: 6 },
-            ]}
-            keyboardType="number-pad"
-            secureTextEntry
-            maxLength={4}
-            value={txnPin}
-            onChangeText={(t) => setTxnPin(t.replace(/\D/g, "").slice(0, 4))}
-            placeholder="••••"
-            placeholderTextColor={tokens.mute}
-          />
-
-          {blockResubmit ? (
-            <Text style={{ color: tokens.sub, fontSize: 12, marginTop: 8 }}>
-              Do not tap Recharge again while status is pending. Change number, operator, or amount
-              for a new recharge.
-              {lastRef ? ` Last ref: ${lastRef}` : ""}
-              {lastStatus ? ` (${lastStatus})` : ""}
-            </Text>
-          ) : null}
-
-          {!formReady && !blockResubmit ? (
-            <Text style={{ color: tokens.sub, fontSize: 12, marginTop: 8 }}>
-              Fill mobile number, operator, amount, and 4-digit transaction PIN to enable Recharge.
-            </Text>
-          ) : null}
-
-          <Pressable
-            onPressIn={() => {
-              if (busyRef.current || blockResubmit || loading || apiStartedRef.current || !formReady) {
-                return;
-              }
-              busyRef.current = true;
-              setLoading(true);
-            }}
-            onPress={() => void onSubmit()}
-            disabled={submitDisabled}
-            style={[
-              styles.cta,
-              {
-                backgroundColor: colors.blue,
-                opacity: submitDisabled ? 0.45 : 1,
-              },
-            ]}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
+            <View
+              style={[
+                styles.inputRow,
+                { borderColor: tokens.inputBorder, backgroundColor: tokens.inputBg },
+              ]}
+            >
+              <Wallet size={16} color={colors.blue} />
+              <TextInput
+                style={[styles.inputBare, { color: tokens.txt }]}
+                keyboardType="decimal-pad"
+                value={amount}
+                onChangeText={(t) => {
+                  markNewIntent();
+                  setAmount(t);
+                }}
+                placeholder="Enter Amount"
+                placeholderTextColor={tokens.mute}
+              />
+            </View>
+            {serviceCode === "DTH" ? (
+              <Pressable onPress={() => void openCatalog("offers")} style={{ marginTop: 8 }}>
+                <Text style={{ color: colors.blueLight, fontWeight: "700", fontSize: 13 }}>
+                  View Info / Offers
+                </Text>
+              </Pressable>
             ) : (
-              <Text style={styles.ctaText}>
-                {blockResubmit ? "Submitted — wait for status" : "Recharge"}
-              </Text>
+              <Pressable onPress={() => void openCatalog("offers")} style={{ marginTop: 8 }}>
+                <Text style={{ color: colors.blueLight, fontWeight: "700", fontSize: 13 }}>View Offers</Text>
+              </Pressable>
             )}
-          </Pressable>
+
+            <Text style={[styles.label, { color: tokens.txt }]}>TPIN</Text>
+            <View
+              style={[
+                styles.inputRow,
+                { borderColor: tokens.inputBorder, backgroundColor: tokens.inputBg },
+              ]}
+            >
+              <Lock size={16} color={colors.blue} />
+              <TextInput
+                style={[styles.inputBare, { color: tokens.txt, letterSpacing: 6 }]}
+                keyboardType="number-pad"
+                secureTextEntry
+                maxLength={4}
+                value={txnPin}
+                onChangeText={(t) => setTxnPin(t.replace(/\D/g, "").slice(0, 4))}
+                placeholder="Enter TPIN"
+                placeholderTextColor={tokens.mute}
+              />
+            </View>
+
+            {blockResubmit ? (
+              <Text style={{ color: tokens.sub, fontSize: 12, marginTop: 8 }}>
+                Do not tap Recharge again while status is pending. Change number or amount for a new
+                recharge.
+                {lastRef ? ` Last ref: ${lastRef}` : ""}
+                {lastStatus ? ` (${lastStatus})` : ""}
+              </Text>
+            ) : null}
+
+            {!formReady && !blockResubmit ? (
+              <Text style={{ color: tokens.sub, fontSize: 12, marginTop: 8 }}>
+                Fill circle, mobile, amount, and 4-digit TPIN to enable Recharge.
+              </Text>
+            ) : null}
+
+            <Pressable
+              onPressIn={() => {
+                if (busyRef.current || blockResubmit || loading || apiStartedRef.current || !formReady) {
+                  return;
+                }
+                busyRef.current = true;
+                setLoading(true);
+              }}
+              onPress={() => void onSubmit()}
+              disabled={submitDisabled}
+              style={[
+                styles.cta,
+                {
+                  backgroundColor: colors.blue,
+                  opacity: submitDisabled ? 0.45 : 1,
+                },
+              ]}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.ctaText}>
+                  {blockResubmit ? "Submitted — wait for status" : "Recharge Now"}
+                </Text>
+              )}
+            </Pressable>
+          </Animated.View>
+          )}
         </View>
       </ScrollView>
+
+      <Modal
+        visible={panelOpen}
+        animationType="slide"
+        onRequestClose={() => {
+          animateLayout();
+          setPanelOpen(false);
+        }}
+      >
+        <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bg }]} edges={["top"]}>
+          <View style={styles.panelHead}>
+            <View>
+              <Text style={{ color: tokens.txt, fontWeight: "800", fontSize: 17 }}>
+                {serviceCode === "DTH" ? "Plans & Info" : "Plans & Offers"}
+              </Text>
+              <Text style={{ color: tokens.sub, fontSize: 12, marginTop: 2 }}>
+                Tap a pack to fill amount
+              </Text>
+            </View>
+            <Pressable
+              onPress={() => {
+                animateLayout();
+                setPanelOpen(false);
+              }}
+              style={styles.closeBtn}
+              hitSlop={10}
+            >
+              <X size={18} color={tokens.sub} />
+            </Pressable>
+          </View>
+          <View style={styles.catalogBtnRow}>
+            <Pressable
+              onPress={() => setPanelTab("plans")}
+              style={[
+                styles.catalogBtn,
+                {
+                  borderColor: colors.blue,
+                  backgroundColor: panelTab === "plans" ? colors.blue : tokens.card,
+                },
+              ]}
+            >
+              <Text style={{ color: panelTab === "plans" ? "#fff" : colors.blue, fontWeight: "700" }}>
+                Plans
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setPanelTab("offers")}
+              style={[
+                styles.catalogBtn,
+                {
+                  borderColor: colors.blue,
+                  backgroundColor: panelTab === "offers" ? colors.blue : tokens.card,
+                },
+              ]}
+            >
+              <Text style={{ color: panelTab === "offers" ? "#fff" : colors.blue, fontWeight: "700" }}>
+                {serviceCode === "DTH" ? "Info" : "Offers"}
+              </Text>
+            </Pressable>
+          </View>
+          <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+            {panelBusy ? (
+              <ActivityIndicator color={colors.blue} />
+            ) : (
+              <>
+                {serviceCode === "DTH" && panelTab === "offers" && dthSummary.length > 0
+                  ? dthSummary.map((row) => (
+                      <View
+                        key={`${row.label}-${row.value}`}
+                        style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}
+                      >
+                        <Text style={{ color: tokens.sub, fontSize: 12, flex: 1 }}>{row.label}</Text>
+                        <Text style={{ color: tokens.txt, fontWeight: "700", fontSize: 12, flex: 1, textAlign: "right" }}>
+                          {row.value}
+                        </Text>
+                      </View>
+                    ))
+                  : null}
+                <PlanBlock
+                  items={panelTab === "plans" ? plans : offers}
+                  tokens={tokens}
+                  selectedAmount={amount}
+                  onPick={(a) => {
+                    markNewIntent();
+                    setAmount(a);
+                    setPanelOpen(false);
+                  }}
+                />
+              </>
+            )}
+            {!panelBusy && (panelTab === "plans" ? plans : offers).length === 0 ? (
+              <Text style={{ color: tokens.sub, fontSize: 12, marginTop: 8 }}>
+                {serviceCode === "DTH"
+                  ? "No packs returned. Enter amount manually."
+                  : `No ${panelTab} for this operator and circle. Enter amount manually.`}
+              </Text>
+            ) : null}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -847,8 +1083,16 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   header: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 12 },
   backBtn: { padding: 4 },
+  headerIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   title: { fontSize: 18, fontWeight: "700" },
   body: { padding: 16, paddingBottom: 40 },
+  flipStage: { minHeight: 280 },
   formCard: {
     borderWidth: 1,
     borderRadius: 24,
@@ -859,8 +1103,41 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     elevation: 3,
   },
+  logoGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
+  logoCell: { width: "31%", alignItems: "center", marginBottom: 14 },
+  formHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  formHeadLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
+  prepaidPill: {
+    alignSelf: "flex-start",
+    marginTop: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+  },
+  closeBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "rgba(11,42,154,0.06)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   label: { fontSize: 13, fontWeight: "600", marginTop: 12, marginBottom: 6 },
-  input: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 13, fontSize: 15 },
+  inputRow: {
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  inputBare: { flex: 1, fontSize: 15, padding: 0 },
   select: {
     borderWidth: 1,
     borderRadius: 16,
@@ -881,10 +1158,17 @@ const styles = StyleSheet.create({
   },
   selectOption: { paddingVertical: 12, paddingHorizontal: 8, borderRadius: 10 },
   hintRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
+  amountHead: {
+    marginTop: 12,
+    marginBottom: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   planCard: { borderWidth: 1, borderRadius: 18, marginTop: 8, flexDirection: "row", overflow: "hidden" },
   planPrice: { width: 82, alignItems: "center", justifyContent: "center", paddingVertical: 14 },
   planTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
-  catalogBtnRow: { flexDirection: "row", gap: 8, marginTop: 14 },
+  catalogBtnRow: { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingBottom: 8 },
   catalogBtn: {
     flex: 1,
     borderWidth: 1,
@@ -892,10 +1176,15 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: "center",
   },
-  packBox: { marginTop: 14, borderWidth: 1, borderRadius: 18, padding: 12 },
+  panelHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
   tabRow: { gap: 8, paddingBottom: 10 },
   filterChip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
-  modalHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
   cta: { marginTop: 20, borderRadius: 14, paddingVertical: 14, alignItems: "center" },
   ctaText: { color: "#fff", fontWeight: "700", fontSize: 16 },
 });

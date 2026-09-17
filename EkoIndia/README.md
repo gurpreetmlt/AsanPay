@@ -26,7 +26,17 @@ EkoIndia/
   AEPS_ADD_SETTLEMENT_ACCOUNT.md ← Register settlement bank (recipient_id)
   AEPS_GET_SETTLEMENT_ACCOUNTS.md ← List recipients + unsettled_fund
   AEPS_INITIATE_SETTLEMENT.md ← Settle to bank (NEFT/IMPS/RTGS)
-  BBPS.md                ← Bharat Bill Payment + recharge helpers
+  BBPS.md                ← Bharat Bill Payment overview (from Postman)
+  BBPS_INDEX.md          ← BBPS official docs checklist + sequence
+  BBPS_CATEGORIES.md     ← Get BBPS Categories (operator_category_id)
+  BBPS_LOCATIONS.md      ← Get BBPS Locations (operator_location_id string)
+  BBPS_OPERATORS.md      ← Get BBPS Operators (operator_id → phone_operator_code)
+  BBPS_OPERATOR_PARAMETERS.md ← Dynamic form fields per operator
+  BBPS_DISTRICT_DISCOME.md ← UPPCL (190) district_discome list
+  BBPS_OPERATOR_CODE_CIRCLE.md ← Mobile recharge operator + circle detect
+  BBPS_RECHARGE_PLANS.md ← Prepaid/DTH plans (req_list under dependent_params)
+  BBPS_FETCH_BILL.md     ← Fetch outstanding bill (amount → Pay Bill)
+  BBPS_PAY_BILL.md       ← Pay bill / prepaid recharge (debit)
   PAN.md                 ← PAN verification tools
   PPI.md                 ← PPI Levin + DigiKhata wallets
   AGENT.md               ← User & agent management
@@ -82,7 +92,7 @@ Agent-scoped calls often need `user_code` (Eko agent code after onboard).
 | AePS Add Settlement Acct | Yes — [`AEPS_ADD_SETTLEMENT_ACCOUNT.md`](AEPS_ADD_SETTLEMENT_ACCOUNT.md) | Not yet | `service_code=39`; max 3; returns `recipient_id` |
 | AePS Get Settlement Accts | Yes — [`AEPS_GET_SETTLEMENT_ACCOUNTS.md`](AEPS_GET_SETTLEMENT_ACCOUNTS.md) | Not yet | `unsettled_fund` + `fund_transfer_list`; type `1321` |
 | AePS Initiate Settlement | Yes — [`AEPS_INITIATE_SETTLEMENT.md`](AEPS_INITIATE_SETTLEMENT.md) | Not yet | Max ₹2L; modes 4/5/13; Mon–Fri 10–5 |
-| BBPS | Yes | Not yet | Categories → bill → pay |
+| BBPS | Yes — [`BBPS_INDEX.md`](BBPS_INDEX.md) | Partial (existing txn) | Official fetch/pay + catalogs saved |
 | PAN / BAV / GST | Yes | Not yet | Tools APIs |
 | InstantPay | Separate | Live rails | See `InstantPay/` — Eko alag provider |
 
