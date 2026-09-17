@@ -21,6 +21,8 @@ import type {
   rechargeMobileInfoSchema,
   rechargeMobilePlansSchema,
   rechargeMobileOffersSchema,
+  rechargeDthPlansSchema,
+  rechargeDthInfoSchema,
   bbpsFetchBillSchema,
   bbpsPayBillSchema,
   dmtBeneficiarySchema,
@@ -131,6 +133,20 @@ export async function rechargeMobileOffers(req: Request, res: Response): Promise
   const { fetchMobileOffers } = await import("../providers/bestapi/plans.service");
   const offers = await fetchMobileOffers(body);
   sendSuccess(res, { offers }, "OK");
+}
+
+export async function rechargeDthPlans(req: Request, res: Response): Promise<void> {
+  const body = req.body as z.infer<typeof rechargeDthPlansSchema>;
+  const { fetchDthPlans } = await import("../providers/bestapi/plans.service");
+  const plans = await fetchDthPlans(body.operatorCode);
+  sendSuccess(res, { plans }, "OK");
+}
+
+export async function rechargeDthInfo(req: Request, res: Response): Promise<void> {
+  const body = req.body as z.infer<typeof rechargeDthInfoSchema>;
+  const { fetchDthInfo } = await import("../providers/bestapi/plans.service");
+  const info = await fetchDthInfo(body);
+  sendSuccess(res, info, "OK");
 }
 
 // ── BBPS ────────────────────────────────────────────────────────────────────

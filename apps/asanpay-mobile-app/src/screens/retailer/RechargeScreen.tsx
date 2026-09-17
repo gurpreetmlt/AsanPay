@@ -296,6 +296,7 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
   const [circleCode, setCircleCode] = useState("");
   const [plans, setPlans] = useState<PlanItem[]>([]);
   const [offers, setOffers] = useState<PlanItem[]>([]);
+  const [dthSummary, setDthSummary] = useState<{ label: string; value: string }[]>([]);
   const [lookupBusy, setLookupBusy] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelTab, setPanelTab] = useState<"plans" | "offers">("plans");
@@ -346,6 +347,14 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
   }
 
   async function loadPlans(): Promise<void> {
+    if (serviceCode === "DTH") {
+      const { data } = await api.post<ApiResponse<{ plans: PlanItem[] }>>("/txn/recharge/dth-plans", {
+        operatorCode,
+      });
+      if (!data.success) throw new Error(data.message || "Could not load DTH plans");
+      setPlans(data.data?.plans ?? []);
+      return;
+    }
     const { data } = await api.post<ApiResponse<{ plans: PlanItem[] }>>(
       "/txn/recharge/mobile-plans",
       catalogBody(),
@@ -355,6 +364,16 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
   }
 
   async function loadOffers(): Promise<void> {
+    if (serviceCode === "DTH") {
+      const number = accountRef.replace(/\s+/g, "").trim();
+      const { data } = await api.post<
+        ApiResponse<{ plans: PlanItem[]; summary: { label: string; value: string }[] }>
+      >("/txn/recharge/dth-info", { operatorCode, number });
+      if (!data.success) throw new Error(data.message || "Could not load DTH info");
+      setOffers(data.data?.plans ?? []);
+      setDthSummary(data.data?.summary ?? []);
+      return;
+    }
     const { data } = await api.post<ApiResponse<{ offers: PlanItem[] }>>(
       "/txn/recharge/mobile-offers",
       catalogBody(),
@@ -364,6 +383,21 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
   }
 
   async function openCatalog(tab: "plans" | "offers"): Promise<void> {
+    if (serviceCode === "DTH") {
+      const number = accountRef.replace(/\s+/g, "").trim();
+      if (number.length < 8) {
+        showAlert("Subscriber ID", "Enter a valid DTH subscriber number");
+        return;
+      }
+      if (!operatorCode) {
+        showAlert("Operator", "Select an operator");
+        return;
+      }
+      setPanelTab(tab);
+      animateLayout();
+      setPanelOpen(true);
+      return;
+    }
     const mobile = accountRef.replace(/\D/g, "");
     if (mobile.length !== 10) {
       showAlert("Mobile number", "Enter a valid 10-digit mobile");
@@ -383,9 +417,16 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
   }
 
   useEffect(() => {
-    if (!panelOpen || serviceCode !== "MOBILE_PREPAID") return;
-    const mobile = accountRef.replace(/\D/g, "");
-    if (mobile.length !== 10 || !operatorCode || !circleCode) return;
+    if (!panelOpen) return;
+    if (serviceCode === "MOBILE_PREPAID") {
+      const mobile = accountRef.replace(/\D/g, "");
+      if (mobile.length !== 10 || !operatorCode || !circleCode) return;
+    } else if (serviceCode === "DTH") {
+      const number = accountRef.replace(/\s+/g, "").trim();
+      if (number.length < 8 || !operatorCode) return;
+    } else {
+      return;
+    }
     let cancelled = false;
     setPanelBusy(true);
     void (async () => {
@@ -394,7 +435,10 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
         else await loadOffers();
       } catch (err) {
         if (!cancelled) {
-          showAlert(panelTab === "plans" ? "Plans" : "Offers", apiError(err, `Could not load ${panelTab}`));
+          showAlert(
+            panelTab === "plans" ? "Plans" : serviceCode === "DTH" ? "Info" : "Offers",
+            apiError(err, `Could not load ${panelTab}`),
+          );
         }
       } finally {
         if (!cancelled) setPanelBusy(false);
@@ -410,6 +454,7 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
     setOperatorCode(serviceCode === "DTH" ? "TTV" : "JIO");
     setPlans([]);
     setOffers([]);
+    setDthSummary([]);
     setCircleCode("");
     setPanelOpen(false);
     setAccountRef("");
@@ -622,10 +667,11 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
               setOperatorCode(code);
               setPlans([]);
               setOffers([]);
+              setDthSummary([]);
             }}
           />
 
-          {serviceCode === "MOBILE_PREPAID" ? (
+          {serviceCode === "MOBILE_PREPAID" || serviceCode === "DTH" ? (
             <View style={styles.catalogBtnRow}>
               <Pressable
                 onPress={() => void openCatalog("plans")}
@@ -662,16 +708,18 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
                     fontWeight: "700",
                   }}
                 >
-                  Offers
+                  {serviceCode === "DTH" ? "Info" : "Offers"}
                 </Text>
               </Pressable>
             </View>
           ) : null}
 
-          {panelOpen && serviceCode === "MOBILE_PREPAID" ? (
+          {panelOpen && (serviceCode === "MOBILE_PREPAID" || serviceCode === "DTH") ? (
             <View style={[styles.packBox, { borderColor: tokens.cardBorder }]}>
               <View style={styles.modalHead}>
-                <Text style={{ color: tokens.txt, fontWeight: "800", fontSize: 15 }}>Browse packs</Text>
+                <Text style={{ color: tokens.txt, fontWeight: "800", fontSize: 15 }}>
+                  {serviceCode === "DTH" ? "DTH packs & info" : "Browse packs"}
+                </Text>
                 <Pressable
                   onPress={() => {
                     animateLayout();
@@ -685,19 +733,36 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
               {panelBusy ? (
                 <ActivityIndicator color={colors.blue} />
               ) : (
-                <PlanBlock
-                  items={panelTab === "plans" ? plans : offers}
-                  tokens={tokens}
-                  selectedAmount={amount}
-                  onPick={(a) => {
-                    markNewIntent();
-                    setAmount(a);
-                  }}
-                />
+                <>
+                  {serviceCode === "DTH" && panelTab === "offers" && dthSummary.length > 0
+                    ? dthSummary.map((row) => (
+                        <View
+                          key={`${row.label}-${row.value}`}
+                          style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}
+                        >
+                          <Text style={{ color: tokens.sub, fontSize: 12, flex: 1 }}>{row.label}</Text>
+                          <Text style={{ color: tokens.txt, fontWeight: "700", fontSize: 12, flex: 1, textAlign: "right" }}>
+                            {row.value}
+                          </Text>
+                        </View>
+                      ))
+                    : null}
+                  <PlanBlock
+                    items={panelTab === "plans" ? plans : offers}
+                    tokens={tokens}
+                    selectedAmount={amount}
+                    onPick={(a) => {
+                      markNewIntent();
+                      setAmount(a);
+                    }}
+                  />
+                </>
               )}
               {!panelBusy && (panelTab === "plans" ? plans : offers).length === 0 ? (
                 <Text style={{ color: tokens.sub, fontSize: 12, marginTop: 8 }}>
-                  No {panelTab} for this operator and circle. Enter amount manually.
+                  {serviceCode === "DTH"
+                    ? "No packs returned. Enter amount manually."
+                    : `No ${panelTab} for this operator and circle. Enter amount manually.`}
                 </Text>
               ) : null}
             </View>

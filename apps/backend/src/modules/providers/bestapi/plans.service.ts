@@ -6,6 +6,8 @@ import { bestApiConfigured, bestApiPost, type BestApiJson } from "./client";
 const OPERATOR_PATH = "/api/gw/mobile-services/mobile-plans/mobile-operator-apis";
 const PLANS_PATH = "/api/gw/mobile-services/mobile-plans/mobile-plans-apis";
 const ROFFER_PATH = "/api/gw/mobile-services/mobile-plans/mobile-roffer-apis";
+const DTH_PLAN_PATH = "/api/gw/dth-services/dth-plans/dth-plan";
+const DTH_INFO_PATH = "/api/gw/dth-services/dth-plans/dth-info-apis";
 
 export type RechargePlanItem = {
   amount: string;
@@ -462,4 +464,82 @@ export async function lookupMobileRechargeInfo(mobile: string): Promise<MobileRe
     plansSource: null,
     warnings,
   };
+}
+
+function extractSummaryRows(json: BestApiJson): { label: string; value: string }[] {
+  const row = firstDataObject(json);
+  const skip = new Set([
+    "status",
+    "success",
+    "message",
+    "msg",
+    "error",
+    "data",
+    "result",
+    "rdata",
+    "plans",
+  ]);
+  const out: { label: string; value: string }[] = [];
+  for (const [k, v] of Object.entries(row)) {
+    if (skip.has(k.toLowerCase())) continue;
+    if (typeof v === "string" && v.trim() && v.length <= 200) {
+      out.push({ label: k, value: v.trim() });
+    } else if (typeof v === "number" && Number.isFinite(v)) {
+      out.push({ label: k, value: String(v) });
+    }
+    if (out.length >= 20) break;
+  }
+  return out;
+}
+
+/** BestAPI DTH plan list for an operator (`opcord` only). */
+export async function fetchDthPlans(operatorCode: string): Promise<RechargePlanItem[]> {
+  assertBestApiConfigured();
+  const opcord = mapVyaparOperatorCode(operatorCode);
+  const res = await bestApiPost(DTH_PLAN_PATH, { opcord });
+  const sample = JSON.stringify(res.json).slice(0, 800);
+  if (res.httpStatus >= 400 || isBadGatewayPayload(sample)) {
+    throw new HttpError(
+      502,
+      "DTH plans are temporarily unavailable. Try again in a minute.",
+      "BESTAPI_DTH_PLANS_UNAVAILABLE",
+    );
+  }
+  const plans = extractPlanItems(res.json);
+  logger.info({ opcord, count: plans.length, httpStatus: res.httpStatus }, "BestAPI DTH plans loaded");
+  return plans;
+}
+
+/** BestAPI DTH customer info for operator + subscriber number. */
+export async function fetchDthInfo(input: {
+  operatorCode: string;
+  number: string;
+}): Promise<{
+  number: string;
+  operatorCode: string;
+  plans: RechargePlanItem[];
+  summary: { label: string; value: string }[];
+}> {
+  assertBestApiConfigured();
+  const opcord = mapVyaparOperatorCode(input.operatorCode);
+  const number = input.number.replace(/\s+/g, "").trim();
+  if (number.length < 8) {
+    throw new HttpError(422, "Enter a valid DTH subscriber number", "INVALID_DTH_NUMBER");
+  }
+  const res = await bestApiPost(DTH_INFO_PATH, { opcord, number });
+  const sample = JSON.stringify(res.json).slice(0, 800);
+  if (res.httpStatus >= 400 || isBadGatewayPayload(sample)) {
+    throw new HttpError(
+      502,
+      "DTH info is temporarily unavailable. Try again in a minute.",
+      "BESTAPI_DTH_INFO_UNAVAILABLE",
+    );
+  }
+  const plans = extractPlanItems(res.json);
+  const summary = extractSummaryRows(res.json);
+  logger.info(
+    { opcord, numberLen: number.length, planCount: plans.length, summaryCount: summary.length },
+    "BestAPI DTH info loaded",
+  );
+  return { number, operatorCode: opcord, plans, summary };
 }

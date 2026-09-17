@@ -51,6 +51,19 @@ export const rechargeMobilePlansSchema = z.object({
 
 export const rechargeMobileOffersSchema = rechargeMobilePlansSchema;
 
+export const rechargeDthPlansSchema = z.object({
+  operatorCode: z.string().trim().min(1, "Select a DTH operator").max(16),
+});
+
+export const rechargeDthInfoSchema = z.object({
+  operatorCode: z.string().trim().min(1, "Select a DTH operator").max(16),
+  number: z
+    .string()
+    .trim()
+    .min(8, "Enter a valid DTH subscriber number")
+    .max(20, "Enter a valid DTH subscriber number"),
+});
+
 export const bbpsFetchBillSchema = z.object({
   serviceCode: z.string().min(2).max(60),
   billerCode: z.string().min(1).max(80),

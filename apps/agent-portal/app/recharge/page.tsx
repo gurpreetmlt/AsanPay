@@ -238,6 +238,7 @@ function RechargeInner() {
   const [circleCode, setCircleCode] = useState("");
   const [plans, setPlans] = useState<PlanItem[]>([]);
   const [offers, setOffers] = useState<PlanItem[]>([]);
+  const [dthSummary, setDthSummary] = useState<{ label: string; value: string }[]>([]);
   const [lookupBusy, setLookupBusy] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelTab, setPanelTab] = useState<"plans" | "offers">("plans");
@@ -289,6 +290,7 @@ function RechargeInner() {
     setOperatorCode(ops[0]!.code);
     setPlans([]);
     setOffers([]);
+    setDthSummary([]);
     setCircleCode("");
     setPanelOpen(false);
     markNewIntent();
@@ -377,6 +379,14 @@ function RechargeInner() {
   }
 
   async function loadPlans(): Promise<void> {
+    if (serviceCode === "DTH") {
+      const { data } = await api.post<ApiResponse<{ plans: PlanItem[] }>>("/txn/recharge/dth-plans", {
+        operatorCode,
+      });
+      if (!data.success) throw new Error(data.message || "Could not load DTH plans");
+      setPlans(data.data?.plans ?? []);
+      return;
+    }
     const { data } = await api.post<ApiResponse<{ plans: PlanItem[] }>>(
       "/txn/recharge/mobile-plans",
       catalogBody(),
@@ -386,6 +396,16 @@ function RechargeInner() {
   }
 
   async function loadOffers(): Promise<void> {
+    if (serviceCode === "DTH") {
+      const number = accountRef.replace(/\s+/g, "").trim();
+      const { data } = await api.post<
+        ApiResponse<{ plans: PlanItem[]; summary: { label: string; value: string }[] }>
+      >("/txn/recharge/dth-info", { operatorCode, number });
+      if (!data.success) throw new Error(data.message || "Could not load DTH info");
+      setOffers(data.data?.plans ?? []);
+      setDthSummary(data.data?.summary ?? []);
+      return;
+    }
     const { data } = await api.post<ApiResponse<{ offers: PlanItem[] }>>(
       "/txn/recharge/mobile-offers",
       catalogBody(),
@@ -395,6 +415,20 @@ function RechargeInner() {
   }
 
   async function openCatalog(tab: "plans" | "offers"): Promise<void> {
+    if (serviceCode === "DTH") {
+      const number = accountRef.replace(/\s+/g, "").trim();
+      if (number.length < 8) {
+        toast.error("Enter a valid DTH subscriber number");
+        return;
+      }
+      if (!operatorCode) {
+        toast.error("Select an operator");
+        return;
+      }
+      setPanelTab(tab);
+      setPanelOpen(true);
+      return;
+    }
     const mobile = accountRef.replace(/\D/g, "");
     if (mobile.length !== 10) {
       toast.error("Enter a valid 10-digit mobile");
@@ -417,9 +451,14 @@ function RechargeInner() {
   }
 
   useEffect(() => {
-    if (!panelOpen || serviceCode !== "MOBILE_PREPAID") return;
-    const mobile = accountRef.replace(/\D/g, "");
-    if (mobile.length !== 10 || !operatorCode || !circleCode) return;
+    if (!panelOpen) return;
+    if (serviceCode === "MOBILE_PREPAID") {
+      const mobile = accountRef.replace(/\D/g, "");
+      if (mobile.length !== 10 || !operatorCode || !circleCode) return;
+    } else {
+      const number = accountRef.replace(/\s+/g, "").trim();
+      if (number.length < 8 || !operatorCode) return;
+    }
     let cancelled = false;
     setPanelBusy(true);
     void (async () => {
@@ -429,7 +468,14 @@ function RechargeInner() {
       } catch (err) {
         if (!cancelled) {
           toast.error(
-            extractApiError(err, panelTab === "plans" ? "Could not load plans" : "Could not load offers"),
+            extractApiError(
+              err,
+              panelTab === "plans"
+                ? "Could not load plans"
+                : serviceCode === "DTH"
+                  ? "Could not load DTH info"
+                  : "Could not load offers",
+            ),
           );
         }
       } finally {
@@ -439,7 +485,6 @@ function RechargeInner() {
     return () => {
       cancelled = true;
     };
-    // loadPlans/loadOffers close over latest circle/operator/mobile
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [panelOpen, panelTab, accountRef, operatorCode, circleCode, serviceCode]);
 
@@ -635,6 +680,7 @@ function RechargeInner() {
                 setOperatorCode(e.target.value);
                 setPlans([]);
                 setOffers([]);
+                setDthSummary([]);
               }}
               className="w-full rounded-2xl border bg-[#F7F9FF] px-3.5 py-3 text-sm outline-none transition focus:border-[#2A5CDD] focus:bg-white"
               style={{ borderColor: B.border }}
@@ -647,7 +693,7 @@ function RechargeInner() {
             </select>
           </label>
 
-          {serviceCode === "MOBILE_PREPAID" ? (
+          {serviceCode === "MOBILE_PREPAID" || serviceCode === "DTH" ? (
             <div className="grid grid-cols-2 gap-2.5">
               <button
                 type="button"
@@ -671,7 +717,7 @@ function RechargeInner() {
                   background: panelOpen && panelTab === "offers" ? B.btnGrad : "#fff",
                 }}
               >
-                Offers
+                {serviceCode === "DTH" ? "Info" : "Offers"}
               </button>
             </div>
           ) : null}
@@ -755,7 +801,7 @@ function RechargeInner() {
         ) : null}
       </div>
 
-      {serviceCode === "MOBILE_PREPAID" ? (
+      {serviceCode === "MOBILE_PREPAID" || serviceCode === "DTH" ? (
           <aside
             aria-hidden={!panelOpen}
             className={`flex min-h-0 min-w-0 flex-col overflow-hidden bg-white transition-[opacity,transform,max-width,min-width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] max-lg:fixed max-lg:inset-y-0 max-lg:right-0 max-lg:z-40 max-lg:w-full max-lg:max-w-lg max-lg:shadow-2xl lg:static lg:h-[calc(100vh-3rem)] lg:rounded-[28px] lg:border ${
@@ -768,7 +814,7 @@ function RechargeInner() {
             <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: `1px solid ${B.border}` }}>
               <div>
                 <p className="text-sm font-bold" style={{ color: B.blue }}>
-                  Browse packs
+                  {serviceCode === "DTH" ? "DTH packs & info" : "Browse packs"}
                 </p>
                 <p className="text-[11px]" style={{ color: B.muted }}>
                   Tap a pack to fill amount
@@ -806,27 +852,47 @@ function RechargeInner() {
                   border: `1px solid ${B.blue}`,
                 }}
               >
-                Offers
+                {serviceCode === "DTH" ? "Info" : "Offers"}
               </button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6">
               {panelBusy ? (
                 <p className="text-sm" style={{ color: B.muted }}>
-                  Loading {panelTab}…
+                  Loading {serviceCode === "DTH" && panelTab === "offers" ? "info" : panelTab}…
                 </p>
               ) : (
-                <PlanList
-                  items={panelTab === "plans" ? plans : offers}
-                  selectedAmount={amount}
-                  onPick={(a) => {
-                    markNewIntent();
-                    setAmount(a);
-                  }}
-                />
+                <>
+                  {serviceCode === "DTH" && panelTab === "offers" && dthSummary.length > 0 ? (
+                    <div className="mb-4 space-y-2 rounded-2xl border p-3" style={{ borderColor: B.border }}>
+                      {dthSummary.map((row) => (
+                        <div key={`${row.label}-${row.value}`} className="flex justify-between gap-3 text-sm">
+                          <span style={{ color: B.muted }}>{row.label}</span>
+                          <span className="font-semibold text-right" style={{ color: B.blue }}>
+                            {row.value}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  <PlanList
+                    items={panelTab === "plans" ? plans : offers}
+                    selectedAmount={amount}
+                    onPick={(a) => {
+                      markNewIntent();
+                      setAmount(a);
+                    }}
+                  />
+                </>
               )}
               {!panelBusy && (panelTab === "plans" ? plans : offers).length === 0 ? (
                 <p className="text-sm" style={{ color: B.muted }}>
-                  No {panelTab} for this operator and circle. Enter amount manually.
+                  {serviceCode === "DTH"
+                    ? panelTab === "plans"
+                      ? "No plans for this operator. Enter amount manually."
+                      : dthSummary.length > 0
+                        ? "No pack amounts in info. Enter amount manually if needed."
+                        : "No info for this subscriber. Enter amount manually."
+                    : `No ${panelTab} for this operator and circle. Enter amount manually.`}
                 </p>
               ) : null}
             </div>

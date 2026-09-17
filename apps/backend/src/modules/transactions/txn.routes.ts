@@ -7,6 +7,8 @@ import {
   rechargeMobileInfo,
   rechargeMobilePlans,
   rechargeMobileOffers,
+  rechargeDthPlans,
+  rechargeDthInfo,
   bbpsFetchBill,
   bbpsPayBill,
   dmtAddBeneficiary,
@@ -59,6 +61,8 @@ import {
   rechargeMobileInfoSchema,
   rechargeMobilePlansSchema,
   rechargeMobileOffersSchema,
+  rechargeDthPlansSchema,
+  rechargeDthInfoSchema,
   bbpsFetchBillSchema,
   bbpsPayBillSchema,
   dmtBeneficiarySchema,
@@ -123,6 +127,18 @@ txnRouter.post(
   retailerOnly,
   validateBody(rechargeMobileOffersSchema),
   rechargeMobileOffers,
+);
+txnRouter.post(
+  "/recharge/dth-plans",
+  retailerOnly,
+  validateBody(rechargeDthPlansSchema),
+  rechargeDthPlans,
+);
+txnRouter.post(
+  "/recharge/dth-info",
+  retailerOnly,
+  validateBody(rechargeDthInfoSchema),
+  rechargeDthInfo,
 );
 
 txnRouter.post("/bbps/fetch-bill", retailerOnly, validateBody(bbpsFetchBillSchema), bbpsFetchBill);
