@@ -285,13 +285,17 @@ export async function verifyAadhaarKycOtp(
 
   const otp = input.otp.trim();
   const providerId = pending.providerId;
-  // BestAPI sample uses { otp, Id }; also send Adhar — some gateways need both to reach UIDAI.
-  const res = await bestApiPost(VERIFY_PATH, {
-    otp,
-    Id: providerId,
-    id: providerId,
-    Adhar: pending.aadhaarDigits,
-  });
+  // Official BestAPI sample: { otp, Id }. Keep Adhar as well for gateways that require it.
+  const res = await bestApiPost(
+    VERIFY_PATH,
+    {
+      otp,
+      Id: providerId,
+      Adhar: pending.aadhaarDigits,
+    },
+    undefined,
+    25_000,
+  );
 
   if (isFailurePayload(res.httpStatus, res.json)) {
     const raw = providerMessage(res.json, "Incorrect Aadhaar OTP. Check the code and try again.");

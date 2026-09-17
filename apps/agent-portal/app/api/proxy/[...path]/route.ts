@@ -58,7 +58,7 @@ async function forward(req: NextRequest, path: string[], accessToken: string | n
   // Aadhaar OTP verify can wait on BestAPI → UIDAI longer than normal JSON calls.
   const isAadhaarOtp =
     path[0] === "kyc" && path[1] === "aadhaar" && path[2] === "otp";
-  const timeoutMs = isReceiptPdf || isAadhaarOtp ? 90_000 : 30_000;
+  const timeoutMs = isReceiptPdf || isAadhaarOtp ? 45_000 : 30_000;
   return fetch(url, {
     method: req.method,
     headers: {
@@ -156,9 +156,16 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
       /aborted|timeout/i.test(msg) ||
       /aborted|timeout/i.test(causeMsg);
     const message = timedOut
-      ? "Request timed out. Try again."
+      ? "Aadhaar verification timed out. Tap Resend OTP and try again."
       : "Could not reach the API. Try again in a moment.";
-    return NextResponse.json({ success: false, message }, { status: 502 });
+    return NextResponse.json(
+      {
+        success: false,
+        message,
+        code: timedOut ? "PROXY_TIMEOUT" : "PROXY_UNREACHABLE",
+      },
+      { status: 502 },
+    );
   }
 }
 

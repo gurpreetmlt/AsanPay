@@ -20,8 +20,8 @@ export const api = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
-/** BestAPI → UIDAI Aadhaar OTP can exceed the default mobile timeout. */
-export const AADHAAR_OTP_TIMEOUT_MS = 90_000;
+/** BestAPI → UIDAI; keep under gateway upstream limits. */
+export const AADHAAR_OTP_TIMEOUT_MS = 45_000;
 
 function isAuthEndpoint(url: string | undefined): boolean {
   if (!url) return false;

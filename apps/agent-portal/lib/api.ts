@@ -11,8 +11,8 @@ const api = axios.create({
   timeout: 15_000,
 });
 
-/** BestAPI → UIDAI Aadhaar OTP can exceed the default 15s axios timeout. */
-export const AADHAAR_OTP_TIMEOUT_MS = 90_000;
+/** BestAPI → UIDAI; keep under Coolify upstream limits (~30–60s). */
+export const AADHAAR_OTP_TIMEOUT_MS = 45_000;
 
 api.interceptors.response.use(
   (res) => res,

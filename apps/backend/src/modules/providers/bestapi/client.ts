@@ -36,18 +36,43 @@ function buildUrl(base: string, path: string, query?: Record<string, string | un
   return url.toString();
 }
 
+function stripLargeStrings(value: unknown, depth = 0): unknown {
+  if (value == null || depth > 8) return value;
+  if (typeof value === "string") {
+    return value.length > 400 ? `[omitted ${value.length} chars]` : value;
+  }
+  if (Array.isArray(value)) {
+    return value.slice(0, 40).map((item) => stripLargeStrings(item, depth + 1));
+  }
+  if (typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = stripLargeStrings(v, depth + 1);
+    }
+    return out;
+  }
+  return value;
+}
+
 export async function bestApiRequest(
   method: "GET" | "POST",
   path: string,
-  opts?: { body?: Record<string, unknown>; query?: Record<string, string | undefined> },
+  opts?: {
+    body?: Record<string, unknown>;
+    query?: Record<string, string | undefined>;
+    /** Override default 25s (must stay under Coolify/Traefik upstream kill). */
+    timeoutMs?: number;
+  },
 ): Promise<{ httpStatus: number; json: BestApiJson }> {
   const { key, secret, base } = bestApiCreds();
   const url = buildUrl(base, path, opts?.query);
   const started = Date.now();
+  // Coolify/Traefik often drops idle upstream sockets ~30–60s. Return a JSON error before that
+  // so the agent-portal proxy does not surface "Could not reach the API".
+  const timeoutMs = opts?.timeoutMs ?? 25_000;
 
   let res: Response;
   try {
-    // Aadhaar OTP verify can wait on UIDAI; cap so Coolify/proxy don't kill a hung socket.
     res = await fetch(url, {
       method,
       headers: {
@@ -57,17 +82,17 @@ export async function bestApiRequest(
         ...(method === "POST" ? { "Content-Type": "application/json" } : {}),
       },
       body: method === "POST" ? JSON.stringify(opts?.body ?? {}) : undefined,
-      signal: AbortSignal.timeout(60_000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     const timedOut =
       (err instanceof Error && err.name === "TimeoutError") || /aborted|timeout/i.test(msg);
-    logger.error({ err, path, method, timedOut }, "BestAPI network error");
+    logger.error({ err, path, method, timedOut, timeoutMs }, "BestAPI network error");
     throw new HttpError(
       502,
       timedOut
-        ? "Verification service timed out. Try again in a minute."
+        ? "Aadhaar verification is taking too long. Tap Resend OTP and try again."
         : "BestAPI network error. Try again.",
       timedOut ? "BESTAPI_TIMEOUT" : "BESTAPI_NETWORK",
     );
@@ -76,7 +101,9 @@ export async function bestApiRequest(
   const text = await res.text();
   let json: BestApiJson = {};
   try {
-    json = text ? (JSON.parse(text) as BestApiJson) : {};
+    const parsed = text ? (JSON.parse(text) as BestApiJson) : {};
+    // Aadhaar verify often returns huge base64 photos — strip before any deep walk / logging.
+    json = stripLargeStrings(parsed) as BestApiJson;
   } catch {
     json = { message: text.slice(0, 200) };
   }
@@ -101,6 +128,7 @@ export async function bestApiPost(
   path: string,
   body: Record<string, unknown>,
   query?: Record<string, string | undefined>,
+  timeoutMs?: number,
 ): Promise<{ httpStatus: number; json: BestApiJson }> {
-  return bestApiRequest("POST", path, { body, query });
+  return bestApiRequest("POST", path, { body, query, timeoutMs });
 }
