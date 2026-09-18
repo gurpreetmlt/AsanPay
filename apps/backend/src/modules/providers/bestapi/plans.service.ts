@@ -5,7 +5,7 @@ import { bestApiConfigured, bestApiPost, type BestApiJson } from "./client";
 
 const OPERATOR_PATH = "/api/gw/mobile-services/mobile-plans/mobile-operator-apis";
 const PLANS_PATH = "/api/gw/mobile-services/mobile-plans/mobile-plans-apis";
-const ROFFER_PATH = "/api/gw/mobile-services/mobile-plans/mobile-roffer-apis";
+const ROFFER_PATH = "/api/gw/mobile/information/roffer";
 const DTH_PLAN_PATH = "/api/gw/dth-services/dth-plans/dth-plan";
 const DTH_INFO_PATH = "/api/gw/dth-services/dth-plans/dth-info-apis";
 
@@ -369,35 +369,26 @@ export async function fetchMobilePlans(input: {
 export async function fetchMobileOffers(input: {
   mobile: string;
   operatorCode: string;
+  /** Kept for caller compat — Roffer docs do not send circle. */
   circleCode: string;
 }): Promise<RechargePlanItem[]> {
   assertBestApiConfigured();
+  void input.circleCode;
   const opcord = mapVyaparOperatorCode(input.operatorCode);
-  const circle = padBestApiCircle(input.circleCode);
-  const bodies: Record<string, string>[] = [
-    { opcord, circle, mobile: input.mobile },
-    { opcord, mobile: input.mobile },
-  ];
-  let offers: RechargePlanItem[] = [];
-  let lastStatus = 0;
-  let lastSample = "";
-  for (const body of bodies) {
-    const res = await bestApiPost(ROFFER_PATH, body);
-    lastStatus = res.httpStatus;
-    lastSample = JSON.stringify(res.json);
-    if (res.httpStatus >= 400 || isBadGatewayPayload(lastSample)) continue;
-    offers = extractPlanItems(res.json);
-    if (offers.length > 0) break;
-  }
-  if (lastStatus >= 400 || isBadGatewayPayload(lastSample)) {
+  const mobile = input.mobile.replace(/\D/g, "");
+  // BestAPI Roffer docs: body only { opcord, mobile } — no circle, no status gate.
+  const res = await bestApiPost(ROFFER_PATH, { opcord, mobile });
+  const sample = JSON.stringify(res.json);
+  if (isBadGatewayPayload(sample)) {
     throw new HttpError(
       502,
       "BestAPI offers are temporarily unavailable. Try again in a minute.",
       "BESTAPI_OFFERS_UNAVAILABLE",
     );
   }
+  const offers = extractPlanItems(res.json);
   logger.info(
-    { mobile: input.mobile, opcord, circle, count: offers.length },
+    { mobile, opcord, httpStatus: res.httpStatus, count: offers.length },
     "BestAPI offers loaded",
   );
   return offers;
