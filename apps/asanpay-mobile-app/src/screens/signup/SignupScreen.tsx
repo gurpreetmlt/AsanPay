@@ -1878,44 +1878,44 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                     Enter your 10-character PAN — verification starts automatically. Then fill
                     personal details as on the PAN.
                   </Text>
-                  <FieldLabel text="PAN Number *" color={tokens.mute} />
-                  <TextInput
-                    value={draft.pan}
-                    onChangeText={(t) => {
-                      const next = t.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);
-                      if (next !== panAutoAttemptRef.current) panAutoAttemptRef.current = "";
-                      setPanVerifyFailed(false);
-                      patch({
-                        pan: next,
-                        ...(draft.panVerified ? { panVerified: false, panVerifiedName: "" } : {}),
-                      });
-                    }}
-                    autoCapitalize="characters"
-                    placeholder="ABCDE1234F"
-                    placeholderTextColor={tokens.mute}
-                    editable={!draft.panVerified}
-                    style={inputStyle}
-                  />
-                  {draft.panVerified ? (
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6, marginBottom: 10 }}>
-                      <CheckCircle2 size={12} color={colors.greenDark} />
-                      <Text style={{ flex: 1, color: colors.greenDark, fontWeight: "600", fontSize: 11 }}>
-                        PAN verified
-                        {draft.panVerifiedName ? ` · ${draft.panVerifiedName}` : ""}
-                      </Text>
-                    </View>
-                  ) : panVerifyBusy ? (
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6, marginBottom: 10 }}>
-                      <ActivityIndicator size="small" color={colors.blue} />
-                      <Text style={{ color: colors.blue, fontWeight: "600", fontSize: 11 }}>
-                        Verifying PAN…
-                      </Text>
-                    </View>
-                  ) : (
-                    <>
-                      {!accessToken ? (
-                        <Text style={{ color: "#C2410C", fontSize: 11, fontWeight: "700", marginTop: 6, marginBottom: 8 }}>
-                          Create your account on the previous step first, then enter PAN.
+                  <View style={styles.fieldRow}>
+                    <View style={[styles.fieldHalf, { flex: 1.35 }]}>
+                      <FieldLabel text="PAN Number *" color={tokens.mute} />
+                      <TextInput
+                        value={draft.pan}
+                        onChangeText={(t) => {
+                          const next = t.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);
+                          if (next !== panAutoAttemptRef.current) panAutoAttemptRef.current = "";
+                          setPanVerifyFailed(false);
+                          patch({
+                            pan: next,
+                            ...(draft.panVerified ? { panVerified: false, panVerifiedName: "" } : {}),
+                          });
+                        }}
+                        autoCapitalize="characters"
+                        placeholder="ABCDE1234F"
+                        placeholderTextColor={tokens.mute}
+                        editable={!draft.panVerified}
+                        style={inputStyle}
+                      />
+                      {draft.panVerified ? (
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 }}>
+                          <CheckCircle2 size={12} color={colors.greenDark} />
+                          <Text style={{ flex: 1, color: colors.greenDark, fontWeight: "600", fontSize: 11 }}>
+                            PAN verified
+                            {draft.panVerifiedName ? ` · ${draft.panVerifiedName}` : ""}
+                          </Text>
+                        </View>
+                      ) : panVerifyBusy ? (
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 }}>
+                          <ActivityIndicator size="small" color={colors.blue} />
+                          <Text style={{ color: colors.blue, fontWeight: "600", fontSize: 11 }}>
+                            Verifying PAN…
+                          </Text>
+                        </View>
+                      ) : !accessToken ? (
+                        <Text style={{ color: "#C2410C", fontSize: 10, fontWeight: "700", marginTop: 6 }}>
+                          Create account first, then enter PAN.
                         </Text>
                       ) : panVerifyFailed && /^[A-Z]{5}\d{4}[A-Z]$/.test(draft.pan) ? (
                         <Pressable
@@ -1923,59 +1923,68 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                             panAutoAttemptRef.current = "";
                             void verifyPan({ manual: true });
                           }}
-                          style={[styles.verifyBtn, { alignSelf: "flex-start", marginTop: 6, marginBottom: 10 }]}
+                          style={[styles.verifyBtn, { alignSelf: "flex-start", marginTop: 6 }]}
                         >
                           <Text style={styles.verifyBtnText}>Retry verify</Text>
                         </Pressable>
                       ) : (
-                        <Text style={{ color: tokens.mute, fontSize: 11, marginTop: 6, marginBottom: 10 }}>
-                          Verification runs when PAN is complete
+                        <Text style={{ color: tokens.mute, fontSize: 10, marginTop: 6 }}>
+                          Auto-verifies when complete
                         </Text>
                       )}
-                    </>
-                  )}
-                  <FieldLabel text="Gender *" color={tokens.mute} />
-                  <View style={styles.chipRow}>
-                    {["Male", "Female", "Other"].map((g) => (
-                      <Pressable
-                        key={g}
-                        onPress={() => patch({ gender: g })}
-                        style={[
-                          styles.chipFlex,
-                          {
-                            borderColor: draft.gender === g ? colors.blue : tokens.cardBorder,
-                            backgroundColor: draft.gender === g ? `${colors.blue}14` : tokens.card,
-                          },
-                        ]}
-                      >
-                        <Text
-                          style={{ color: tokens.txt2, fontWeight: "700", fontSize: 12, textAlign: "center" }}
-                          numberOfLines={1}
-                        >
-                          {g}
-                        </Text>
-                      </Pressable>
-                    ))}
+                    </View>
+                    <View style={styles.fieldHalf}>
+                      <FieldLabel text="Gender *" color={tokens.mute} />
+                      <View style={{ gap: 6 }}>
+                        {["Male", "Female", "Other"].map((g) => (
+                          <Pressable
+                            key={g}
+                            onPress={() => patch({ gender: g })}
+                            style={[
+                              styles.chipFlex,
+                              {
+                                borderColor: draft.gender === g ? colors.blue : tokens.cardBorder,
+                                backgroundColor: draft.gender === g ? `${colors.blue}14` : tokens.card,
+                                marginBottom: 0,
+                              },
+                            ]}
+                          >
+                            <Text
+                              style={{ color: tokens.txt2, fontWeight: "700", fontSize: 12, textAlign: "center" }}
+                              numberOfLines={1}
+                            >
+                              {g}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    </View>
                   </View>
-                  <DateTextField
-                    label="Date of Birth *"
-                    isoValue={draft.dob}
-                    onIsoChange={(iso) => patch({ dob: iso })}
-                    placeholder="DD/MM/YYYY"
-                    hint="As on PAN card. Type or tap the calendar icon."
-                    tokens={tokens}
-                    inputStyle={inputStyle}
-                  />
-                  <DateTextField
-                    label="Anniversary Date"
-                    isoValue={draft.anniversaryDate}
-                    onIsoChange={(iso) => patch({ anniversaryDate: iso })}
-                    placeholder="DD/MM/YYYY (optional)"
-                    hint="Optional — wedding / business anniversary. Tap calendar to pick."
-                    tokens={tokens}
-                    inputStyle={inputStyle}
-                    optional
-                  />
+                  <View style={[styles.fieldRow, { marginTop: 8 }]}>
+                    <View style={styles.fieldHalf}>
+                      <DateTextField
+                        label="Date of Birth *"
+                        isoValue={draft.dob}
+                        onIsoChange={(iso) => patch({ dob: iso })}
+                        placeholder="DD/MM/YYYY"
+                        hint="As on PAN"
+                        tokens={tokens}
+                        inputStyle={inputStyle}
+                      />
+                    </View>
+                    <View style={styles.fieldHalf}>
+                      <DateTextField
+                        label="Anniversary"
+                        isoValue={draft.anniversaryDate}
+                        onIsoChange={(iso) => patch({ anniversaryDate: iso })}
+                        placeholder="Optional"
+                        hint="Optional"
+                        tokens={tokens}
+                        inputStyle={inputStyle}
+                        optional
+                      />
+                    </View>
+                  </View>
                   <FieldLabel text="Father Name *" color={tokens.mute} />
                   <TextInput
                     value={draft.fatherName}

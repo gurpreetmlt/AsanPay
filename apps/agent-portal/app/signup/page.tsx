@@ -1859,7 +1859,6 @@ function SignupPageInner() {
                   details as on the PAN.
                 </p>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="sm:col-span-2">
                   <Field label="PAN Number *">
                     <input
                       value={draft.pan}
@@ -1925,7 +1924,6 @@ function SignupPageInner() {
                       </div>
                     )}
                   </Field>
-                  </div>
                   <Field label="Gender *">
                     <select
                       value={draft.gender}
