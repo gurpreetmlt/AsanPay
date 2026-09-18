@@ -9,8 +9,9 @@ import { HttpError } from "../../utils/httpError";
 import { logger } from "../../utils/logger";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
 
-const SEND_PATH = "/api/gw/identity-verify/adhar/adhar-send-otp";
-const VERIFY_PATH = "/api/gw/identity-verify/adhar/adhar-verify-otp";
+/** BestAPI docs: Identity Verify → Adhar Send OTP / Aadhar OTP Verify */
+const SEND_PATH = "/api/gw/identity/verification/aadhar-send-otp";
+const VERIFY_PATH = "/api/gw/identity/verification/aadhar-otp-verify";
 const SESSION_TTL_MS = 10 * 60 * 1000;
 const SESSION_TTL_SEC = Math.ceil(SESSION_TTL_MS / 1000);
 const CACHE_KEY_PREFIX = "kyc:aadhaar-otp:";
@@ -294,13 +295,13 @@ export async function verifyAadhaarKycOtp(
 
   const otp = input.otp.trim();
   const providerId = pending.providerId;
-  // Official BestAPI sample: { otp, Id }. Keep Adhar as well for gateways that require it.
+  // Official BestAPI sample: { otp, id, aadhar }
   const res = await bestApiPost(
     VERIFY_PATH,
     {
       otp,
-      Id: providerId,
-      Adhar: pending.aadhaarDigits,
+      id: providerId,
+      aadhar: pending.aadhaarDigits,
     },
     undefined,
     25_000,
