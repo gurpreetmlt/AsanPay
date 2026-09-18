@@ -1897,45 +1897,24 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                     style={inputStyle}
                   />
                   {draft.panVerified ? (
-                    <View
-                      style={[
-                        styles.prep,
-                        {
-                          backgroundColor: colors.greenBg,
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 8,
-                          marginBottom: 10,
-                        },
-                      ]}
-                    >
-                      <CheckCircle2 size={18} color={colors.greenDark} />
-                      <Text style={{ flex: 1, color: colors.greenDark, fontWeight: "700", fontSize: 13 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6, marginBottom: 10 }}>
+                      <CheckCircle2 size={12} color={colors.greenDark} />
+                      <Text style={{ flex: 1, color: colors.greenDark, fontWeight: "600", fontSize: 11 }}>
                         PAN verified
                         {draft.panVerifiedName ? ` · ${draft.panVerifiedName}` : ""}
                       </Text>
                     </View>
                   ) : panVerifyBusy ? (
-                    <View
-                      style={[
-                        styles.prep,
-                        {
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 8,
-                          marginBottom: 10,
-                        },
-                      ]}
-                    >
-                      <ActivityIndicator color={colors.blue} />
-                      <Text style={{ color: colors.blue, fontWeight: "700", fontSize: 13 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6, marginBottom: 10 }}>
+                      <ActivityIndicator size="small" color={colors.blue} />
+                      <Text style={{ color: colors.blue, fontWeight: "600", fontSize: 11 }}>
                         Verifying PAN…
                       </Text>
                     </View>
                   ) : (
                     <>
                       {!accessToken ? (
-                        <Text style={{ color: "#C2410C", fontSize: 12, fontWeight: "700", marginBottom: 8 }}>
+                        <Text style={{ color: "#C2410C", fontSize: 11, fontWeight: "700", marginTop: 6, marginBottom: 8 }}>
                           Create your account on the previous step first, then enter PAN.
                         </Text>
                       ) : panVerifyFailed && /^[A-Z]{5}\d{4}[A-Z]$/.test(draft.pan) ? (
@@ -1944,12 +1923,12 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                             panAutoAttemptRef.current = "";
                             void verifyPan({ manual: true });
                           }}
-                          style={[styles.verifyBtn, { alignSelf: "flex-start", marginBottom: 10 }]}
+                          style={[styles.verifyBtn, { alignSelf: "flex-start", marginTop: 6, marginBottom: 10 }]}
                         >
                           <Text style={styles.verifyBtnText}>Retry verify</Text>
                         </Pressable>
                       ) : (
-                        <Text style={{ color: tokens.mute, fontSize: 12, marginBottom: 10 }}>
+                        <Text style={{ color: tokens.mute, fontSize: 11, marginTop: 6, marginBottom: 10 }}>
                           Verification runs when PAN is complete
                         </Text>
                       )}
@@ -2123,7 +2102,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                               {aadhaarOtpBusy === "verify" ? (
                                 <ActivityIndicator color="#fff" />
                               ) : (
-                                <Text style={styles.verifyBtnText}>Verify OTP</Text>
+                                <Text style={styles.verifyBtnText}>Verify</Text>
                               )}
                             </Pressable>
                           </View>
@@ -2810,14 +2789,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     minHeight: 40,
   },
-  emailRow: { flexDirection: "row", gap: 8, alignItems: "center" },
+  emailRow: { flexDirection: "row", gap: 8, alignItems: "stretch" },
   fieldRow: { flexDirection: "row", gap: 14, alignItems: "flex-start", marginBottom: 4 },
   fieldHalf: { flex: 1, minWidth: 0 },
   verifyBtn: {
     backgroundColor: colors.blue,
     borderRadius: 12,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    minHeight: 48,
   },
   verifyBtnText: { color: "#fff", fontWeight: "800", fontSize: 12 },
   upload: {

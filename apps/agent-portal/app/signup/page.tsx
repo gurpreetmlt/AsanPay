@@ -1859,6 +1859,7 @@ function SignupPageInner() {
                   details as on the PAN.
                 </p>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
                   <Field label="PAN Number *">
                     <input
                       value={draft.pan}
@@ -1878,28 +1879,23 @@ function SignupPageInner() {
                       placeholder="ABCDE1234F"
                       disabled={draft.panVerified}
                     />
-                  </Field>
-                  <div className="flex flex-col justify-end gap-2 pb-0.5">
                     {draft.panVerified ? (
-                      <div
-                        className="flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold"
-                        style={{ borderColor: "#86EFAC", background: "#F0FDF4", color: "#166534" }}
+                      <p
+                        className="mt-1.5 flex items-center gap-1 text-[11px] font-semibold leading-snug"
+                        style={{ color: "#166534" }}
                       >
-                        <CheckCircle2 size={18} className="shrink-0" />
+                        <CheckCircle2 size={12} className="shrink-0" strokeWidth={2.5} />
                         <span>
                           PAN verified
                           {draft.panVerifiedName ? ` · ${draft.panVerifiedName}` : ""}
                         </span>
-                      </div>
+                      </p>
                     ) : panVerifyBusy ? (
-                      <div
-                        className="flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold"
-                        style={{ borderColor: B.border, background: "#F8FAFC", color: B.blue }}
-                      >
+                      <p className="mt-1.5 text-[11px] font-medium" style={{ color: B.blue }}>
                         Verifying PAN…
-                      </div>
+                      </p>
                     ) : (
-                      <>
+                      <div className="mt-1.5 space-y-1">
                         {panVerifyFailed &&
                         /^[A-Z]{5}\d{4}[A-Z]$/.test(draft.pan) &&
                         accessToken ? (
@@ -1916,20 +1912,19 @@ function SignupPageInner() {
                           >
                             Retry verify
                           </PrimaryButton>
-                        ) : (
-                          <p className="text-xs" style={{ color: B.muted }}>
-                            {accessToken
-                              ? "Verification runs when PAN is complete"
-                              : null}
+                        ) : accessToken ? (
+                          <p className="text-[11px]" style={{ color: B.muted }}>
+                            Verification runs when PAN is complete
                           </p>
-                        )}
+                        ) : null}
                         {!accessToken ? (
-                          <p className="text-xs font-semibold" style={{ color: "#C2410C" }}>
+                          <p className="text-[11px] font-semibold" style={{ color: "#C2410C" }}>
                             Create your account on the previous step first, then enter PAN.
                           </p>
                         ) : null}
-                      </>
+                      </div>
                     )}
+                  </Field>
                   </div>
                   <Field label="Gender *">
                     <select
@@ -2062,33 +2057,31 @@ function SignupPageInner() {
                       </p>
                     ) : null}
                     {draft.aadhaarOtpRequestId ? (
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                        <div className="min-w-0 flex-1">
-                          <Field label="Aadhaar OTP *">
-                            <input
-                              value={aadhaarOtp}
-                              onChange={(e) => setAadhaarOtp(e.target.value.replace(/\D/g, "").slice(0, 8))}
-                              className={`${inputCls} font-mono tracking-widest`}
-                              style={inputStyle}
-                              inputMode="numeric"
-                              placeholder="Enter OTP"
-                              autoComplete="one-time-code"
-                            />
-                          </Field>
+                      <Field label="Aadhaar OTP *">
+                        <div className="flex items-stretch gap-2">
+                          <input
+                            value={aadhaarOtp}
+                            onChange={(e) => setAadhaarOtp(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                            className={`${inputCls} min-w-0 flex-1 font-mono tracking-widest`}
+                            style={inputStyle}
+                            inputMode="numeric"
+                            placeholder="Enter OTP"
+                            autoComplete="one-time-code"
+                          />
+                          <PrimaryButton
+                            type="button"
+                            variant="primary"
+                            size="sm"
+                            showArrow={false}
+                            loading={aadhaarOtpBusy === "verify"}
+                            disabled={Boolean(aadhaarOtpBusy) || aadhaarOtp.replace(/\D/g, "").length < 4}
+                            onClick={() => void verifyAadhaarOtp()}
+                            className="!w-auto shrink-0 self-stretch"
+                          >
+                            Verify
+                          </PrimaryButton>
                         </div>
-                        <PrimaryButton
-                          type="button"
-                          variant="primary"
-                          size="sm"
-                          showArrow={false}
-                          loading={aadhaarOtpBusy === "verify"}
-                          disabled={Boolean(aadhaarOtpBusy) || aadhaarOtp.replace(/\D/g, "").length < 4}
-                          onClick={() => void verifyAadhaarOtp()}
-                          className="!w-auto shrink-0 sm:mb-0"
-                        >
-                          Verify OTP
-                        </PrimaryButton>
-                      </div>
+                      </Field>
                     ) : null}
                   </div>
                 )}
