@@ -98,7 +98,18 @@ function maskRecipient(to: string): string {
 }
 
 function metaUserMessage(json: MetaSendBody, httpStatus: number): string {
-  const msg = json.error?.message?.trim();
+  const msg = json.error?.message?.trim() ?? "";
+  const code = json.error?.code;
+  // Meta often returns a bare "Authentication Error" for bad/expired tokens.
+  if (/authentication error/i.test(msg) || code === 190 || httpStatus === 401) {
+    return "WhatsApp login failed — access token is invalid or expired. Generate a new token in Meta Developer and update WHATSAPP_ACCESS_TOKEN in Coolify.";
+  }
+  if (code === 133010 || /not registered|phone number.*not/i.test(msg)) {
+    return "WhatsApp phone number is not registered for Cloud API. Finish Meta production phone setup.";
+  }
+  if (code === 131030 || /recipient.*not in allowed|not in allowed list/i.test(msg)) {
+    return "This mobile is not on the WhatsApp test allowlist. Add it in Meta Developer or publish the app for production.";
+  }
   if (msg) return msg;
   return `WhatsApp Cloud API rejected the request (HTTP ${httpStatus}). Check Phone Number ID, recipient, and token scopes.`;
 }

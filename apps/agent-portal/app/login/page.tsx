@@ -614,7 +614,7 @@ export default function LoginPage() {
                       placeholder="••••••"
                     />
                     <p className="mt-2 text-center text-xs" style={{ color: B.muted }}>
-                      No SMS yet? Use Password login, or ask admin for the shared test OTP.
+                      Check WhatsApp for the OTP. Not received? Use Password login, or try Resend.
                     </p>
                   </div>
                 </>

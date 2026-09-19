@@ -439,7 +439,7 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
                       />
                     </View>
                     <Text style={styles.otpHint}>
-                      No SMS yet? Use Password, or ask admin for the shared test OTP.
+                      Check WhatsApp for the OTP. Not received? Use Password, or try Resend.
                     </Text>
 
                     <Pressable
