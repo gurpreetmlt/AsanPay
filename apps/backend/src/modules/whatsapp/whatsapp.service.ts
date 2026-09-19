@@ -110,6 +110,9 @@ function metaUserMessage(json: MetaSendBody, httpStatus: number): string {
   if (code === 131030 || /recipient.*not in allowed|not in allowed list/i.test(msg)) {
     return "This mobile is not on the WhatsApp test allowlist. Add it in Meta Developer or publish the app for production.";
   }
+  if (code === 131008 || /required parameter is missing/i.test(msg)) {
+    return "WhatsApp OTP template needs the button parameter (body + Copy Code). Redeploy the latest backend or check the template in Meta.";
+  }
   if (msg) return msg;
   return `WhatsApp Cloud API rejected the request (HTTP ${httpStatus}). Check Phone Number ID, recipient, and token scopes.`;
 }
@@ -207,6 +210,7 @@ export async function sendWhatsAppOtp(
   const template = env.WHATSAPP_OTP_TEMPLATE_NAME?.trim();
   if (template) {
     const language = (env.WHATSAPP_OTP_TEMPLATE_LANGUAGE || "en").trim();
+    // Auth / copy-code templates require OTP in body AND button (Meta error 131008 if button omitted).
     return postWhatsAppMessage(
       mobile,
       {
@@ -218,6 +222,12 @@ export async function sendWhatsAppOtp(
           language: { code: language },
           components: [
             { type: "body", parameters: [{ type: "text", text: otp }] },
+            {
+              type: "button",
+              sub_type: "url",
+              index: "0",
+              parameters: [{ type: "text", text: otp }],
+            },
           ],
         },
       },
