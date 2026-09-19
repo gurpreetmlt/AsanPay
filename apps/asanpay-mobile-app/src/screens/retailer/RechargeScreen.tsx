@@ -607,6 +607,9 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
       setOffers([]);
       return;
     }
+    // Operator already chosen from logos — lookup is only for auto-filling circle.
+    // If circle is already set, skip. On failure, stay silent (no "select operator" alerts).
+    if (circleCode) return;
 
     const seq = ++lookupSeq.current;
     const timer = setTimeout(() => {
@@ -617,18 +620,13 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
             mobile,
           });
           if (seq !== lookupSeq.current) return;
-          if (!data.success || !data.data) {
-            throw new Error(data.message || "Could not look up this number");
-          }
+          if (!data.success || !data.data) return;
           const info = data.data;
           if (info.circleCode) setCircleCode(info.circleCode);
           setPlans([]);
           setOffers([]);
-        } catch (err) {
-          if (seq !== lookupSeq.current) return;
-          setPlans([]);
-          setOffers([]);
-          showAlert("Circle lookup", apiError(err, "Could not detect circle. Select manually."));
+        } catch {
+          // Operator is already selected — ignore BestAPI operator-detect errors.
         } finally {
           if (seq === lookupSeq.current) setLookupBusy(false);
         }
@@ -636,7 +634,7 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
     }, 450);
 
     return () => clearTimeout(timer);
-  }, [accountRef, serviceCode, operatorPicked]);
+  }, [accountRef, serviceCode, operatorPicked, circleCode]);
 
   const formReady = useMemo(() => {
     const number = accountRef.replace(/\D/g, "");

@@ -348,6 +348,9 @@ function RechargeInner() {
       setOffers([]);
       return;
     }
+    // Operator already chosen from logos — lookup only auto-fills circle.
+    // If circle is already set, skip. On failure, stay silent.
+    if (circleCode) return;
 
     const seq = ++lookupSeq.current;
     const timer = window.setTimeout(() => {
@@ -358,18 +361,13 @@ function RechargeInner() {
             mobile,
           });
           if (seq !== lookupSeq.current) return;
-          if (!data.success || !data.data) {
-            throw new Error(data.message || "Could not look up this number");
-          }
+          if (!data.success || !data.data) return;
           const info = data.data;
           if (info.circleCode) setCircleCode(info.circleCode);
           setPlans([]);
           setOffers([]);
-        } catch (err) {
-          if (seq !== lookupSeq.current) return;
-          setPlans([]);
-          setOffers([]);
-          toast.error(extractApiError(err, "Could not detect circle. Select manually."));
+        } catch {
+          // Operator is already selected — ignore BestAPI operator-detect errors.
         } finally {
           if (seq === lookupSeq.current) setLookupBusy(false);
         }
@@ -377,7 +375,7 @@ function RechargeInner() {
     }, 450);
 
     return () => window.clearTimeout(timer);
-  }, [accountRef, serviceCode, operatorPicked]);
+  }, [accountRef, serviceCode, operatorPicked, circleCode]);
 
   const title = useMemo(
     () => (serviceCode === "DTH" ? "DTH Recharge" : "Mobile Recharge"),
