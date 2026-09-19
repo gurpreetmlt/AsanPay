@@ -68,9 +68,9 @@ Agent portal / mobile: not required for v1 (company support desk only).
 
 ## Phase 2 — Reply (WhatsApp-like chat)
 
-1. Thread UI: bubbles, timestamps, status ticks.
-2. Send text inside 24h window; template send outside / cold outreach.
-3. Clear English errors (window closed, template required, Meta access denied).
+1. Thread UI: bubbles, timestamps, status ticks. ✅
+2. Send text inside 24h window; template send outside / cold outreach. ✅ `POST /api/whatsapp/support/conversations/:id/reply` + `WHATSAPP_SUPPORT_TEMPLATE_NAME`
+3. Clear English errors (window closed, template required, Meta access denied). ✅
 
 **Done when:** Support can chat back and forth from Admin like WhatsApp (API rules apply).
 

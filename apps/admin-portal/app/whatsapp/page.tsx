@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { MessageCircle } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
-import { fetchApi } from "@/lib/api";
+import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
@@ -13,6 +13,8 @@ import { useAuthHydrated } from "@/lib/useAuthHydrated";
 interface SupportConfig {
   enabled: boolean;
   webhookConfigured: boolean;
+  supportTemplateName: string | null;
+  supportTemplateLanguage: string;
 }
 
 interface Conversation {
@@ -28,6 +30,8 @@ interface Conversation {
   lastInboundAt: string | null;
   lastMessagePreview: string | null;
   unreadCount: number;
+  windowOpen?: boolean;
+  windowClosesAt?: string | null;
 }
 
 interface ChatMessage {
@@ -63,6 +67,11 @@ function statusTick(status: string): string {
   return "";
 }
 
+function apiErrorMessage(err: unknown): string {
+  const ax = err as { response?: { data?: { message?: string } }; message?: string };
+  return ax.response?.data?.message || ax.message || "Failed to send message";
+}
+
 export default function WhatsAppInboxPage() {
   const router = useRouter();
   const hydrated = useAuthHydrated();
@@ -75,6 +84,9 @@ export default function WhatsAppInboxPage() {
   const [selectedMeta, setSelectedMeta] = useState<Conversation | null>(null);
   const [loadingList, setLoadingList] = useState(true);
   const [loadingThread, setLoadingThread] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+  const [forceTemplate, setForceTemplate] = useState(false);
 
   const loadConfigAndList = useCallback(async () => {
     setLoadingList(true);
@@ -105,6 +117,8 @@ export default function WhatsAppInboxPage() {
 
   const openThread = useCallback(async (id: string) => {
     setSelectedId(id);
+    setDraft("");
+    setForceTemplate(false);
     setLoadingThread(true);
     try {
       const data = await fetchApi<{ conversation: Conversation; messages: ChatMessage[] }>(
@@ -122,6 +136,48 @@ export default function WhatsAppInboxPage() {
     }
   }, []);
 
+  async function sendReply() {
+    if (!selectedId || !draft.trim() || sending) return;
+    setSending(true);
+    try {
+      const { data } = await api.post<{
+        success: boolean;
+        message?: string;
+        data: {
+          message: ChatMessage;
+          usedTemplate: boolean;
+          windowOpen: boolean;
+        };
+      }>(`/whatsapp/support/conversations/${selectedId}/reply`, {
+        text: draft.trim(),
+        useTemplate: forceTemplate || undefined,
+      });
+      if (!data.success) throw new Error(data.message || "Failed to send message");
+      const msg = data.data.message;
+      setMessages((prev) => [...prev, msg]);
+      setDraft("");
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === selectedId
+            ? {
+                ...c,
+                lastMessageAt: msg.createdAt,
+                lastMessagePreview: msg.body,
+              }
+            : c,
+        ),
+      );
+      if (selectedMeta) {
+        setSelectedMeta({ ...selectedMeta, windowOpen: data.data.windowOpen });
+      }
+      toast.success(data.data.usedTemplate ? "Template message sent" : "Message sent");
+    } catch (err) {
+      toast.error(apiErrorMessage(err));
+    } finally {
+      setSending(false);
+    }
+  }
+
   if (!hydrated || !accessToken) return null;
 
   const title =
@@ -130,6 +186,11 @@ export default function WhatsAppInboxPage() {
     selectedMeta?.phoneDisplay ||
     selectedMeta?.waId ||
     "Conversation";
+
+  const windowOpen = Boolean(selectedMeta?.windowOpen);
+  const hasTemplate = Boolean(config?.supportTemplateName);
+  const willUseTemplate = forceTemplate || !windowOpen;
+  const canSend = draft.trim().length > 0 && !sending && (windowOpen || hasTemplate);
 
   return (
     <AdminShell>
@@ -159,12 +220,6 @@ export default function WhatsAppInboxPage() {
             WhatsApp Support is turned off. Set{" "}
             <code className="font-mono text-xs">WHATSAPP_SUPPORT_ENABLED=true</code> on the
             backend in Coolify, redeploy, then refresh. Login OTP keeps working either way.
-            {!config.webhookConfigured && (
-              <span className="mt-1 block">
-                Also set <code className="font-mono text-xs">WHATSAPP_WEBHOOK_VERIFY_TOKEN</code>{" "}
-                and register the Meta webhook callback URL.
-              </span>
-            )}
           </div>
         )}
 
@@ -173,9 +228,8 @@ export default function WhatsAppInboxPage() {
             className="flex min-h-0 flex-1 overflow-hidden rounded-2xl border bg-white"
             style={{ borderColor: B.border }}
           >
-            {/* Conversation list */}
             <div
-              className="flex w-full flex-col border-r md:w-[340px] md:shrink-0"
+              className={`flex w-full flex-col border-r md:w-[340px] md:shrink-0 ${selectedId ? "hidden md:flex" : "flex"}`}
               style={{ borderColor: B.border }}
             >
               <div
@@ -242,14 +296,15 @@ export default function WhatsAppInboxPage() {
               </div>
             </div>
 
-            {/* Thread */}
-            <div className="hidden min-w-0 flex-1 flex-col md:flex">
+            <div
+              className={`min-w-0 flex-1 flex-col ${selectedId ? "flex" : "hidden md:flex"}`}
+            >
               {!selectedId && (
                 <div
                   className="flex flex-1 items-center justify-center text-sm"
                   style={{ color: B.muted }}
                 >
-                  Select a chat to view messages. Reply arrives in Phase 2.
+                  Select a chat to view messages and reply.
                 </div>
               )}
               {selectedId && (
@@ -258,12 +313,33 @@ export default function WhatsAppInboxPage() {
                     className="border-b px-4 py-3"
                     style={{ borderColor: B.border, background: "#F8FAFC" }}
                   >
-                    <div className="font-semibold" style={{ color: B.blue }}>
-                      {title}
-                    </div>
-                    <div className="text-xs" style={{ color: B.muted }}>
-                      {selectedMeta?.waId}
-                      {selectedMeta?.userMobile ? ` · Agent ${selectedMeta.userMobile}` : ""}
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <button
+                          type="button"
+                          className="mb-1 text-xs font-medium md:hidden"
+                          style={{ color: B.blueMid }}
+                          onClick={() => setSelectedId(null)}
+                        >
+                          ← Chats
+                        </button>
+                        <div className="font-semibold" style={{ color: B.blue }}>
+                          {title}
+                        </div>
+                        <div className="text-xs" style={{ color: B.muted }}>
+                          {selectedMeta?.waId}
+                          {selectedMeta?.userMobile ? ` · Agent ${selectedMeta.userMobile}` : ""}
+                        </div>
+                      </div>
+                      <span
+                        className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                        style={{
+                          background: windowOpen ? "#DCFCE7" : "#FEF3C7",
+                          color: windowOpen ? "#166534" : "#92400E",
+                        }}
+                      >
+                        {windowOpen ? "24h window open" : "Window closed"}
+                      </span>
                     </div>
                   </div>
                   <div
@@ -295,7 +371,14 @@ export default function WhatsAppInboxPage() {
                                   OTP
                                 </div>
                               )}
-                              <p className="whitespace-pre-wrap text-sm">{m.body || `[${m.messageType}]`}</p>
+                              {m.messageType === "template" && !m.isOtp && (
+                                <div className="mb-0.5 text-[10px] font-semibold uppercase text-sky-700">
+                                  Template
+                                </div>
+                              )}
+                              <p className="whitespace-pre-wrap text-sm">
+                                {m.body || `[${m.messageType}]`}
+                              </p>
                               <div
                                 className="mt-1 flex items-center justify-end gap-1 text-[10px]"
                                 style={{ color: "#6B7280" }}
@@ -309,10 +392,55 @@ export default function WhatsAppInboxPage() {
                       })}
                   </div>
                   <div
-                    className="border-t px-4 py-3 text-xs"
-                    style={{ borderColor: B.border, color: B.muted, background: "#F8FAFC" }}
+                    className="space-y-2 border-t px-3 py-3"
+                    style={{ borderColor: B.border, background: "#F8FAFC" }}
                   >
-                    Reply from dashboard ships in Phase 2. Status ticks update from Meta webhooks.
+                    {!windowOpen && (
+                      <p className="text-xs" style={{ color: "#92400E" }}>
+                        {hasTemplate
+                          ? `Free text is blocked outside 24h. Reply will use template “${config?.supportTemplateName}” (body variable = your text).`
+                          : "Free text is blocked outside 24h. Set WHATSAPP_SUPPORT_TEMPLATE_NAME in Coolify to an approved template with one body variable, or wait until the customer messages again."}
+                      </p>
+                    )}
+                    {windowOpen && hasTemplate && (
+                      <label className="flex items-center gap-2 text-xs" style={{ color: B.muted }}>
+                        <input
+                          type="checkbox"
+                          checked={forceTemplate}
+                          onChange={(e) => setForceTemplate(e.target.checked)}
+                        />
+                        Send as template ({config?.supportTemplateName})
+                      </label>
+                    )}
+                    <div className="flex gap-2">
+                      <textarea
+                        value={draft}
+                        onChange={(e) => setDraft(e.target.value)}
+                        rows={2}
+                        placeholder={
+                          willUseTemplate && hasTemplate
+                            ? "Template body text…"
+                            : "Type a reply…"
+                        }
+                        className="min-h-[44px] flex-1 resize-none rounded-xl border px-3 py-2 text-sm"
+                        style={{ borderColor: B.border }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            void sendReply();
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        disabled={!canSend}
+                        onClick={() => void sendReply()}
+                        className="self-end rounded-xl px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                        style={{ background: B.blue }}
+                      >
+                        {sending ? "Sending…" : "Send"}
+                      </button>
+                    </div>
                   </div>
                 </>
               )}

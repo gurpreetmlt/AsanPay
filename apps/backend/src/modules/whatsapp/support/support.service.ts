@@ -1,5 +1,6 @@
 import { createHash } from "crypto";
 import { desc, eq, sql } from "drizzle-orm";
+import { env } from "../../../config/env";
 import { db } from "../../../db/postgres";
 import {
   users,
@@ -7,7 +8,9 @@ import {
   whatsappMessages,
   whatsappWebhookEvents,
 } from "../../../db/postgres/schema";
+import { HttpError } from "../../../utils/httpError";
 import { logger } from "../../../utils/logger";
+import { sendWhatsAppText, sendWhatsAppTemplateMessage } from "../whatsapp.service";
 
 type MetaContact = { profile?: { name?: string }; wa_id?: string };
 type MetaTextMessage = {
@@ -351,6 +354,138 @@ export async function getConversation(conversationId: string) {
     .where(eq(whatsappConversations.id, conversationId))
     .limit(1);
   return row ?? null;
+}
+
+const CUSTOMER_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+export function isCustomerWindowOpen(lastInboundAt: Date | null | undefined): boolean {
+  if (!lastInboundAt) return false;
+  return Date.now() - lastInboundAt.getTime() < CUSTOMER_WINDOW_MS;
+}
+
+export function windowClosesAt(lastInboundAt: Date | null | undefined): Date | null {
+  if (!lastInboundAt) return null;
+  return new Date(lastInboundAt.getTime() + CUSTOMER_WINDOW_MS);
+}
+
+export async function replyToConversation(opts: {
+  conversationId: string;
+  text: string;
+  /** Force approved template even inside 24h window. */
+  useTemplate?: boolean;
+  templateName?: string;
+}): Promise<{
+  message: {
+    id: string;
+    conversationId: string;
+    wamid: string | null;
+    direction: "outbound";
+    messageType: string;
+    body: string | null;
+    status: string;
+    isOtp: boolean;
+    createdAt: Date;
+  };
+  usedTemplate: boolean;
+  windowOpen: boolean;
+}> {
+  const text = opts.text.trim();
+  if (!text) {
+    throw new HttpError(422, "Message cannot be empty", "WHATSAPP_REPLY_EMPTY");
+  }
+  if (text.length > 4096) {
+    throw new HttpError(422, "Message must be at most 4096 characters", "WHATSAPP_REPLY_TOO_LONG");
+  }
+
+  const conversation = await getConversation(opts.conversationId);
+  if (!conversation) {
+    throw new HttpError(404, "Conversation not found", "WHATSAPP_CONVERSATION_NOT_FOUND");
+  }
+
+  const windowOpen = isCustomerWindowOpen(conversation.lastInboundAt);
+  const templateName =
+    opts.templateName?.trim() || env.WHATSAPP_SUPPORT_TEMPLATE_NAME?.trim() || "";
+  const wantTemplate = Boolean(opts.useTemplate) || !windowOpen;
+
+  let result: { messageId: string | null };
+  let usedTemplate = false;
+  let messageType = "text";
+
+  if (wantTemplate) {
+    if (!templateName) {
+      throw new HttpError(
+        422,
+        windowOpen
+          ? "No support template configured. Set WHATSAPP_SUPPORT_TEMPLATE_NAME or send free text."
+          : "Customer messaging window is closed (24 hours). Set WHATSAPP_SUPPORT_TEMPLATE_NAME to an approved template with one body variable, or wait until the customer messages you again.",
+        "WHATSAPP_TEMPLATE_REQUIRED",
+      );
+    }
+    result = await sendWhatsAppTemplateMessage(conversation.waId, {
+      name: templateName,
+      language: env.WHATSAPP_SUPPORT_TEMPLATE_LANGUAGE,
+      bodyParams: [text],
+    });
+    usedTemplate = true;
+    messageType = "template";
+  } else {
+    result = await sendWhatsAppText(conversation.waId, text);
+  }
+
+  const now = new Date();
+  const preview = text.length > 120 ? `${text.slice(0, 119)}…` : text;
+  await db
+    .update(whatsappConversations)
+    .set({
+      lastMessageAt: now,
+      lastMessagePreview: preview,
+      updatedAt: now,
+    })
+    .where(eq(whatsappConversations.id, conversation.id));
+
+  const [inserted] = await db
+    .insert(whatsappMessages)
+    .values({
+      conversationId: conversation.id,
+      wamid: result.messageId,
+      direction: "outbound",
+      messageType,
+      body: text,
+      status: "sent",
+      isOtp: false,
+      statusAt: now,
+    })
+    .returning({
+      id: whatsappMessages.id,
+      conversationId: whatsappMessages.conversationId,
+      wamid: whatsappMessages.wamid,
+      direction: whatsappMessages.direction,
+      messageType: whatsappMessages.messageType,
+      body: whatsappMessages.body,
+      status: whatsappMessages.status,
+      isOtp: whatsappMessages.isOtp,
+      createdAt: whatsappMessages.createdAt,
+    });
+
+  if (!inserted) {
+    throw new HttpError(500, "Failed to save outbound message", "WHATSAPP_REPLY_SAVE_FAILED");
+  }
+
+  return {
+    message: {
+      id: inserted.id,
+      conversationId: inserted.conversationId,
+      wamid: inserted.wamid,
+      direction: "outbound",
+      messageType: inserted.messageType,
+      body: inserted.body,
+      status: inserted.status,
+      isOtp: inserted.isOtp,
+      createdAt: inserted.createdAt,
+    },
+    usedTemplate,
+    windowOpen,
+  };
 }
 
 /** Stable key when Meta sends empty/odd payloads — avoid unique collisions across retries. */

@@ -116,6 +116,12 @@ function metaUserMessage(json: MetaSendBody, httpStatus: number): string {
   if (code === 131008 || /required parameter is missing/i.test(msg)) {
     return "WhatsApp OTP template needs the button parameter (body + Copy Code). Redeploy the latest backend or check the template in Meta.";
   }
+  if (
+    code === 131047 ||
+    /re-engagement|outside.*allowed window|24.?hour|messaging window/i.test(msg)
+  ) {
+    return "Customer messaging window is closed (24 hours after their last message). Send an approved template, or wait until they message you again.";
+  }
   if (msg) return msg;
   return `WhatsApp Cloud API rejected the request (HTTP ${httpStatus}). Check Phone Number ID, recipient, and token scopes.`;
 }
@@ -201,6 +207,43 @@ export async function sendWhatsAppText(toRaw: string, message: string): Promise<
       text: { preview_url: false, body: message },
     },
     "text",
+  );
+}
+
+/** Approved template with optional body text parameters (support / cold outreach). */
+export async function sendWhatsAppTemplateMessage(
+  toRaw: string,
+  opts: { name: string; language?: string; bodyParams?: string[] },
+): Promise<WhatsAppSendResult> {
+  const name = opts.name.trim();
+  if (!name) {
+    throw new HttpError(422, "Template name is required", "WHATSAPP_TEMPLATE_REQUIRED");
+  }
+  const language = (opts.language || "en").trim() || "en";
+  const bodyParams = opts.bodyParams?.filter((p) => p.trim().length > 0) ?? [];
+  const components =
+    bodyParams.length > 0
+      ? [
+          {
+            type: "body",
+            parameters: bodyParams.map((text) => ({ type: "text", text })),
+          },
+        ]
+      : undefined;
+
+  return postWhatsAppMessage(
+    toRaw,
+    {
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      type: "template",
+      template: {
+        name,
+        language: { code: language },
+        ...(components ? { components } : {}),
+      },
+    },
+    "template",
   );
 }
 

@@ -280,6 +280,18 @@ const envSchema = z.object({
     (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
     z.string().min(8).optional(),
   ),
+  /**
+   * Optional approved template for Admin Support replies outside the 24h window.
+   * Body should accept one text variable ({{1}}) = reply text. Empty = free-text only in-window.
+   */
+  WHATSAPP_SUPPORT_TEMPLATE_NAME: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().optional(),
+  ),
+  WHATSAPP_SUPPORT_TEMPLATE_LANGUAGE: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().default("en"),
+  ),
 });
 
 const parsed = envSchema.safeParse(process.env);
