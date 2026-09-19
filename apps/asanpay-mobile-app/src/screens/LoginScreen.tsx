@@ -439,7 +439,7 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
                       />
                     </View>
                     <Text style={styles.otpHint}>
-                      Check WhatsApp for the OTP. Not received? Use Password, or try Resend.
+                      OTP is sent on WhatsApp. Not received? Use Password or Resend.
                     </Text>
 
                     <Pressable

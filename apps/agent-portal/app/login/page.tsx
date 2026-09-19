@@ -614,7 +614,7 @@ export default function LoginPage() {
                       placeholder="••••••"
                     />
                     <p className="mt-2 text-center text-xs" style={{ color: B.muted }}>
-                      Check WhatsApp for the OTP. Not received? Use Password login, or try Resend.
+                      OTP is sent on WhatsApp. Not received? Use Password login or Resend.
                     </p>
                   </div>
                 </>
