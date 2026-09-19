@@ -556,7 +556,7 @@ export async function requestLoginOtp(
     ...GENERIC_OTP_SENT,
     message:
       delivery.via === "whatsapp"
-        ? "OTP sent to your WhatsApp"
+        ? "OTP has been sent on WhatsApp"
         : delivery.via === "telegram"
           ? "OTP sent to your linked Telegram"
           : GENERIC_OTP_SENT.message,
@@ -962,7 +962,7 @@ export async function requestPreKycMobileChangeOtp(
   return {
     message:
       delivery.via === "whatsapp"
-        ? "OTP sent to your WhatsApp"
+        ? "OTP has been sent on WhatsApp"
         : "OTP sent to the new mobile number",
     expiresInSeconds: OTP_TTL_MS / 1000,
     ...(exposeOtp ? { otp } : {}),
@@ -1419,7 +1419,7 @@ export async function requestSignupOtp(
   }
 
   return {
-    message: delivery.via === "whatsapp" ? "OTP sent to your WhatsApp" : "OTP sent for signup",
+    message: delivery.via === "whatsapp" ? "OTP has been sent on WhatsApp" : "OTP sent for signup",
     expiresInSeconds: OTP_TTL_MS / 1000,
     ...(exposeOtp ? { otp } : {}),
   };

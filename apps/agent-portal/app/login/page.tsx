@@ -219,7 +219,11 @@ export default function LoginPage() {
       lastOtpSentKey.current = mobile;
       setOtpStep("otp");
       setDevOtp(data.data.otp ?? null);
-      toast.success(data.data.otp ? `Dev OTP: ${data.data.otp}` : "OTP sent — enter the 6-digit code");
+      toast.success(
+        data.data.otp
+          ? `Dev OTP: ${data.data.otp}`
+          : data.data.message || data.message || "OTP has been sent on WhatsApp",
+      );
     } catch (err) {
       lastOtpSentKey.current = mobile;
       const msg = extractApiError(err, "OTP request failed");

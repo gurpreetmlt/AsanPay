@@ -1043,7 +1043,11 @@ function SignupPageInner() {
       setOtpSent(true);
       setOtp("");
       patch({ signupToken: "" });
-      toast.success(data.data.otp ? `Dev OTP: ${data.data.otp}` : "OTP sent");
+      toast.success(
+        data.data.otp
+          ? `Dev OTP: ${data.data.otp}`
+          : data.data.message || data.message || "OTP has been sent on WhatsApp",
+      );
     } catch (err) {
       const msg = extractApiError(err, "Could not send OTP");
       setMobileError(msg);

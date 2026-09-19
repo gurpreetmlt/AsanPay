@@ -1113,7 +1113,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         setShowLocationModal(true);
         return;
       }
-      const { data } = await api.post<ApiResponse<{ otp?: string }>>("/auth/signup/request", {
+      const { data } = await api.post<ApiResponse<{ otp?: string; message?: string }>>("/auth/signup/request", {
         mobile: draft.mobile.replace(/\D/g, "").slice(0, 10),
         portal: "agent",
         latitude: draft.latitude,
@@ -1128,6 +1128,12 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
       }
       setOtpSent(true);
       patch({ signupToken: "" });
+      showAlert(
+        "OTP sent",
+        data.data.otp
+          ? `Dev OTP: ${data.data.otp}`
+          : data.data.message || data.message || "OTP has been sent on WhatsApp",
+      );
     } catch (err) {
       showAlert("OTP failed", apiError(err, "Could not send OTP"));
     } finally {

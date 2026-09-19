@@ -29,8 +29,7 @@ function hasFixedOtp(mobile: string, purpose: "login" | "signup"): boolean {
 /**
  * Deliver login/signup OTP. Recipient is the user's own mobile (WhatsApp) or linked Telegram.
  * Channel order follows OTP_DELIVERY (first match wins; telegram skips to next if not linked).
- * TEST_OTP_OVERRIDES / TEST_SIGNUP_OTP_OVERRIDES skip WhatsApp+Telegram so login keeps using the
- * env fixed OTP (WhatsApp Cloud is not blocking sign-in while that channel is unfinished).
+ * TEST_OTP_* overrides only fix the OTP digits — WhatsApp/Telegram still deliver when configured.
  */
 export async function deliverAuthOtp(params: {
   mobile: string;
@@ -38,13 +37,13 @@ export async function deliverAuthOtp(params: {
   purpose: "login" | "signup";
   telegramChatId?: string | null;
 }): Promise<{ via: "whatsapp" | "telegram" | "none" }> {
-  if (hasFixedOtp(params.mobile, params.purpose)) {
-    logger.info({ purpose: params.purpose }, "OTP delivery skipped (fixed TEST_OTP override)");
-    return { via: "none" };
-  }
-
   const channels = otpDeliveryChannels();
   const label = params.purpose === "signup" ? "signup" : "login";
+
+  if (channels.length === 0) {
+    logger.info({ purpose: params.purpose }, "OTP delivery skipped (OTP_DELIVERY empty)");
+    return { via: "none" };
+  }
 
   for (const ch of channels) {
     if (ch === "whatsapp") {

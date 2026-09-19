@@ -25,9 +25,9 @@ const envSchema = z.object({
    * - telegram — send via TELEGRAM_BOT_TOKEN when user has linked chat id
    * - sms — reserved for future SMS gateway (not implemented yet)
    * - log — only log / optionally EXPOSE_OTP (dev)
-   * Empty = legacy behaviour (expose/test overrides only).
+   * Default whatsapp for login/signup while SMS is not live.
    */
-  OTP_DELIVERY: z.string().default(""),
+  OTP_DELIVERY: z.string().default("whatsapp"),
   TELEGRAM_BOT_TOKEN: z.preprocess(
     (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
     z.string().optional(),

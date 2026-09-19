@@ -138,6 +138,12 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
       setDevOtp(data.data.otp ?? null);
       setOtp(data.data.otp ?? "");
       setOtpStep("otp");
+      showAlert(
+        "OTP sent",
+        data.data.otp
+          ? `Dev OTP: ${data.data.otp}`
+          : data.data.message || data.message || "OTP has been sent on WhatsApp",
+      );
     } catch (err) {
       lastOtpSentKey.current = `${mobile}:${role}`;
       const msg = apiError(err, "Could not send OTP");
