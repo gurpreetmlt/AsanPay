@@ -23,4 +23,5 @@ export * from "./apiClients";
 export * from "./logs";
 export * from "./aepsCompliance";
 export * from "./support";
+export * from "./whatsappSupport";
 export * from "./relations";

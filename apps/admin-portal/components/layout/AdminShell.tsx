@@ -4,7 +4,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Crown, Network, Store, Tags, Percent, Plug, ScrollText, Scale, ShieldAlert, Wrench, LifeBuoy, IndianRupee, Landmark, Building2, ArrowLeftRight, Settings, Megaphone, Trash2 } from "lucide-react";
+import { ChevronDown, Crown, Network, Store, Tags, Percent, Plug, ScrollText, Scale, ShieldAlert, Wrench, LifeBuoy, IndianRupee, Landmark, Building2, ArrowLeftRight, Settings, Megaphone, Trash2, MessageCircle } from "lucide-react";
 import { AsanPayLockup } from "@/components/brand/Logo";
 import { AnimatedNavIcon } from "@/components/ui/AnimatedNavIcon";
 import type { NavIconDef } from "@/lib/iconTypes";
@@ -86,6 +86,7 @@ const SITE_CONTROL: NavItem[] = [
       { href: "/disputes", label: "Disputes", icon: { lib: "lucide", icon: ShieldAlert } },
       { href: "/recovery-workbench", label: "Recovery Workbench", icon: { lib: "lucide", icon: Wrench } },
       { href: "/support-tickets", label: "Support Tickets", icon: { lib: "lucide", icon: LifeBuoy } },
+      { href: "/whatsapp", label: "WhatsApp", icon: { lib: "lucide", icon: MessageCircle } },
     ],
   },
 ];

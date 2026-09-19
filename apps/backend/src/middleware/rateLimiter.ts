@@ -26,7 +26,11 @@ export const apiLimiter = rateLimit({
   limit: isDev ? 5000 : 3000,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => req.path === "/health" || req.path === "/api/health",
+  skip: (req) =>
+    req.path === "/health" ||
+    req.path === "/api/health" ||
+    req.path.startsWith("/api/whatsapp/webhook") ||
+    req.path.startsWith("/api/webhooks/"),
   message: { success: false, message: "Too many requests — wait a moment and retry" },
   keyGenerator: (req) => clientIp(req),
   validate: sharedValidate,

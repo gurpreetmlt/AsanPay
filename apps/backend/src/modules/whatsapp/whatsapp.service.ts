@@ -110,6 +110,9 @@ function metaUserMessage(json: MetaSendBody, httpStatus: number): string {
   if (code === 131030 || /recipient.*not in allowed|not in allowed list/i.test(msg)) {
     return "This mobile is not on the WhatsApp test allowlist. Add it in Meta Developer or publish the app for production.";
   }
+  if (code === 131005 || /^access denied$/i.test(msg)) {
+    return "WhatsApp Access denied — token has no permission for this Phone Number ID. Use a System User permanent token with whatsapp_business_messaging, and make sure Phone Number ID matches that WhatsApp account.";
+  }
   if (code === 131008 || /required parameter is missing/i.test(msg)) {
     return "WhatsApp OTP template needs the button parameter (body + Copy Code). Redeploy the latest backend or check the template in Meta.";
   }
@@ -211,7 +214,7 @@ export async function sendWhatsAppOtp(
   if (template) {
     const language = (env.WHATSAPP_OTP_TEMPLATE_LANGUAGE || "en").trim();
     // Auth / copy-code templates require OTP in body AND button (Meta error 131008 if button omitted).
-    return postWhatsAppMessage(
+    const result = await postWhatsAppMessage(
       mobile,
       {
         messaging_product: "whatsapp",
@@ -233,13 +236,34 @@ export async function sendWhatsAppOtp(
       },
       "template",
     );
+    void logOtpSend(mobile, result.messageId);
+    return result;
   }
 
   const label = purpose === "signup" ? "signup" : "login";
-  return sendWhatsAppText(
+  const result = await sendWhatsAppText(
     mobile,
     `AsanPay ${label} OTP: ${otp}\nValid for 15 minutes. Do not share this code.`,
   );
+  void logOtpSend(mobile, result.messageId);
+  return result;
+}
+
+/** Optional inbox log — never blocks OTP. Dynamic import keeps support removable. */
+async function logOtpSend(mobile: string, messageId: string | null | undefined): Promise<void> {
+  if (!env.WHATSAPP_SUPPORT_ENABLED) return;
+  try {
+    const { logOutboundWhatsAppMessage } = await import("./support/support.service");
+    await logOutboundWhatsAppMessage({
+      toMobile: mobile,
+      wamid: messageId,
+      body: "AsanPay OTP sent",
+      messageType: "template",
+      isOtp: true,
+    });
+  } catch {
+    /* ignore */
+  }
 }
 
 export function defaultRecipient(): string | undefined {

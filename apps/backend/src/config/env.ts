@@ -267,6 +267,19 @@ const envSchema = z.object({
     (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
     z.string().default("en"),
   ),
+  /**
+   * AsanPay internal WhatsApp Support (Admin Inbox). Off by default.
+   * OTP uses WHATSAPP_* above and keeps working when this is false.
+   */
+  WHATSAPP_SUPPORT_ENABLED: z.coerce.boolean().default(false),
+  /**
+   * Meta webhook verify token (Callback URL → Verify token). Required for
+   * GET /api/whatsapp/webhook hub challenge. Same string as Meta dashboard.
+   */
+  WHATSAPP_WEBHOOK_VERIFY_TOKEN: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().min(8).optional(),
+  ),
 });
 
 const parsed = envSchema.safeParse(process.env);

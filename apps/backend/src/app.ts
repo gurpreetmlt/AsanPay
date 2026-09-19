@@ -28,6 +28,8 @@ import { promosRouter } from "./modules/promos/promos.routes";
 import { vyaparapiWebhookRouter } from "./modules/providers/vyaparapi/webhook.routes";
 import { telegramWebhookRouter } from "./modules/telegram/webhook.routes";
 import { whatsappRouter } from "./modules/whatsapp/whatsapp.routes";
+import { whatsappWebhookRouter } from "./modules/whatsapp/support/webhook.routes";
+import { whatsappSupportRouter } from "./modules/whatsapp/support/support.routes";
 
 export function createApp(): Express {
   const app = express();
@@ -105,7 +107,11 @@ export function createApp(): Express {
   app.use("/api/promos", promosRouter);
   app.use("/api/webhooks/vyaparapi", vyaparapiWebhookRouter);
   app.use("/api/webhooks/telegram", telegramWebhookRouter);
+  app.use("/api/whatsapp/webhook", whatsappWebhookRouter);
   app.use("/api/whatsapp", whatsappRouter);
+  // Support APIs always registered; conversation routes 503 when flag is off.
+  // Config endpoint stays reachable so Admin can hide/show the nav.
+  app.use("/api/whatsapp/support", whatsappSupportRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
