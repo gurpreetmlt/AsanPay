@@ -863,12 +863,31 @@ function RechargeInner() {
                     }}
                   >
                     <OperatorLogo op={op} size={40} />
-                    <p className="min-w-0 flex-1 truncate text-[14px] font-extrabold" style={{ color: B.blue }}>
-                      {op.label}
-                    </p>
-                    {selected ? (
-                      <Check size={16} strokeWidth={2.6} style={{ color: B.blueLight, flexShrink: 0 }} />
-                    ) : null}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[14px] font-extrabold" style={{ color: B.blue }}>
+                        {op.label}
+                      </p>
+                      <p className="truncate text-[10px]" style={{ color: B.muted }}>
+                        {serviceCode === "DTH" ? "DTH Recharge" : "Prepaid Recharge"}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <span
+                        className="rounded-md px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide"
+                        style={{ background: "#EEF3FF", color: B.blueLight }}
+                      >
+                        Live
+                      </span>
+                      <span
+                        className="rounded-md px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide"
+                        style={{ background: "#ECFDF3", color: B.green }}
+                      >
+                        Active
+                      </span>
+                      {selected ? (
+                        <Check size={16} strokeWidth={2.6} style={{ color: B.blueLight }} />
+                      ) : null}
+                    </div>
                   </button>
                 );
               })}
