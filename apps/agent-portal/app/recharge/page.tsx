@@ -86,13 +86,15 @@ type OperatorDef = {
   label: string;
   color: string;
   mark: string;
+  /** Web: path under /operator-logos/ */
+  logo?: string;
 };
 
 const MOBILE_OPS: OperatorDef[] = [
-  { code: "AT", label: "Airtel", color: "#ED1C24", mark: "Airtel" },
-  { code: "BL", label: "BSNL", color: "#F5A623", mark: "BSNL" },
-  { code: "JIO", label: "Jio", color: "#0A2885", mark: "Jio" },
-  { code: "VI", label: "Vi", color: "#EE3124", mark: "Vi" },
+  { code: "AT", label: "Airtel", color: "#ED1C24", mark: "Airtel", logo: "/operator-logos/airtel.png" },
+  { code: "BL", label: "BSNL", color: "#F5A623", mark: "BSNL", logo: "/operator-logos/bsnl.png" },
+  { code: "JIO", label: "Jio", color: "#0A2885", mark: "Jio", logo: "/operator-logos/jio.png" },
+  { code: "VI", label: "Vi", color: "#EE3124", mark: "Vi", logo: "/operator-logos/vi.png" },
 ];
 
 const DTH_OPS: OperatorDef[] = [
@@ -136,16 +138,28 @@ function groupPlansByTab(items: PlanItem[]): { id: RechargePlanTabId; label: str
 function OperatorLogo({ op, size = 56 }: { op: OperatorDef; size?: number }) {
   return (
     <div
-      className="flex items-center justify-center rounded-[14px] border bg-white shadow-sm"
+      className="flex items-center justify-center overflow-hidden rounded-[14px] border bg-white shadow-sm"
       style={{
         width: size,
         height: size,
         borderColor: B.border,
       }}
     >
-      <span className="text-[12px] font-black tracking-tight" style={{ color: op.color }}>
-        {op.mark}
-      </span>
+      {op.logo ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={op.logo}
+          alt={op.label}
+          width={size - 8}
+          height={size - 8}
+          className="object-contain"
+          style={{ width: size - 8, height: size - 8 }}
+        />
+      ) : (
+        <span className="text-[12px] font-black tracking-tight" style={{ color: op.color }}>
+          {op.mark}
+        </span>
+      )}
     </div>
   );
 }
@@ -1199,14 +1213,14 @@ function RechargeInner() {
                 {recentTitle}
               </h2>
             </div>
-            <div className="flex flex-wrap items-end gap-2">
+            <div className="flex flex-nowrap items-end gap-2">
               <label className="text-[10px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
                 From
                 <input
                   type="date"
                   value={dateFrom}
                   onChange={(e) => setDateFrom(e.target.value)}
-                  className="mt-1 block rounded-xl border bg-[#F7F9FF] px-2.5 py-2 text-sm"
+                  className="mt-1 block w-[9.5rem] rounded-xl border bg-[#F7F9FF] px-2.5 py-2 text-sm"
                   style={{ borderColor: B.border, color: B.blue }}
                 />
               </label>
@@ -1216,7 +1230,7 @@ function RechargeInner() {
                   type="date"
                   value={dateTo}
                   onChange={(e) => setDateTo(e.target.value)}
-                  className="mt-1 block rounded-xl border bg-[#F7F9FF] px-2.5 py-2 text-sm"
+                  className="mt-1 block w-[9.5rem] rounded-xl border bg-[#F7F9FF] px-2.5 py-2 text-sm"
                   style={{ borderColor: B.border, color: B.blue }}
                 />
               </label>
@@ -1224,15 +1238,16 @@ function RechargeInner() {
                 type="button"
                 variant="primary"
                 showArrow={false}
-                className="!h-10 !min-w-0 !px-4 !text-sm"
+                size="sm"
+                className="!mb-0 !h-[38px] !w-auto !min-w-0 !shrink-0 !rounded-xl !px-3 !text-xs"
                 onClick={() => {
                   setAppliedFrom(dateFrom);
                   setAppliedTo(dateTo);
                   void loadRecentTxns();
                 }}
               >
-                <span className="inline-flex items-center gap-1.5">
-                  <Search size={14} strokeWidth={2.4} />
+                <span className="inline-flex items-center gap-1">
+                  <Search size={13} strokeWidth={2.4} />
                   View
                 </span>
               </PrimaryButton>

@@ -3,6 +3,8 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
+  Image,
+  type ImageSourcePropType,
   LayoutAnimation,
   Modal,
   Platform,
@@ -67,13 +69,38 @@ type OperatorDef = {
   label: string;
   color: string;
   mark: string;
+  logo?: ImageSourcePropType;
 };
 
 const MOBILE_OPS: OperatorDef[] = [
-  { code: "AT", label: "Airtel", color: "#ED1C24", mark: "Airtel" },
-  { code: "BL", label: "BSNL", color: "#F5A623", mark: "BSNL" },
-  { code: "JIO", label: "Jio", color: "#0A2885", mark: "Jio" },
-  { code: "VI", label: "Vi", color: "#EE3124", mark: "Vi" },
+  {
+    code: "AT",
+    label: "Airtel",
+    color: "#ED1C24",
+    mark: "Airtel",
+    logo: require("../../assets/operator-logos/airtel.png"),
+  },
+  {
+    code: "BL",
+    label: "BSNL",
+    color: "#F5A623",
+    mark: "BSNL",
+    logo: require("../../assets/operator-logos/bsnl.png"),
+  },
+  {
+    code: "JIO",
+    label: "Jio",
+    color: "#0A2885",
+    mark: "Jio",
+    logo: require("../../assets/operator-logos/jio.png"),
+  },
+  {
+    code: "VI",
+    label: "Vi",
+    color: "#EE3124",
+    mark: "Vi",
+    logo: require("../../assets/operator-logos/vi.png"),
+  },
 ];
 
 const DTH_OPS: OperatorDef[] = [
@@ -116,6 +143,7 @@ function groupPlansByTab(items: PlanItem[]): { id: RechargePlanTabId; label: str
 }
 
 function OperatorLogo({ op, size = 56 }: { op: OperatorDef; size?: number }) {
+  const pad = Math.max(4, Math.round(size * 0.12));
   return (
     <View
       style={{
@@ -132,30 +160,28 @@ function OperatorLogo({ op, size = 56 }: { op: OperatorDef; size?: number }) {
         shadowRadius: 6,
         shadowOffset: { width: 0, height: 2 },
         elevation: 2,
+        overflow: "hidden",
       }}
     >
-      <Text
-        numberOfLines={1}
-        style={{
-          color: op.color,
-          fontWeight: "900",
-          fontSize: size > 48 ? 13 : 11,
-          letterSpacing: -0.2,
-        }}
-      >
-        {op.mark}
-      </Text>
-      <View
-        style={{
-          position: "absolute",
-          top: 5,
-          right: 5,
-          width: 8,
-          height: 8,
-          borderRadius: 4,
-          backgroundColor: colors.green,
-        }}
-      />
+      {op.logo ? (
+        <Image
+          source={op.logo}
+          style={{ width: size - pad * 2, height: size - pad * 2 }}
+          resizeMode="contain"
+        />
+      ) : (
+        <Text
+          numberOfLines={1}
+          style={{
+            color: op.color,
+            fontWeight: "900",
+            fontSize: size > 48 ? 13 : 11,
+            letterSpacing: -0.2,
+          }}
+        >
+          {op.mark}
+        </Text>
+      )}
     </View>
   );
 }
