@@ -716,6 +716,9 @@ export async function listMyTransactions(actor: Actor, limit = 50, offset = 0) {
       serviceCode: services.code,
       createdAt: transactions.createdAt,
       completedAt: transactions.completedAt,
+      providerTxnId: transactions.providerTxnId,
+      failureReason: transactions.failureReason,
+      metadata: transactions.metadata,
     })
     .from(transactions)
     .innerJoin(services, eq(transactions.serviceId, services.id))

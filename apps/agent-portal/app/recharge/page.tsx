@@ -33,7 +33,7 @@ import {
 import { AppShell } from "@/components/layout/AppShell";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import api, { fetchApi } from "@/lib/api";
+import api, { fetchApi, RECHARGE_TIMEOUT_MS } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { createAttemptKeyHolder } from "@/lib/idempotencyKey";
 import { extractApiError } from "@/lib/onboarding";
@@ -110,6 +110,24 @@ const DTH_OPS: OperatorDef[] = [
 
 function parseService(raw: string | null): ServiceCode {
   return raw === "DTH" ? "DTH" : "MOBILE_PREPAID";
+}
+
+function txnAccountRef(t: TxnRow): string {
+  const m = t.metadata;
+  if (!m || typeof m !== "object") return "";
+  const ref = m.accountRef;
+  return typeof ref === "string" ? ref : "";
+}
+
+function txnOperatorLabel(t: TxnRow): string {
+  const m = t.metadata;
+  const code = m && typeof m === "object" && typeof m.operatorCode === "string" ? m.operatorCode : "";
+  if (!code) return t.serviceName;
+  const fromMobile = MOBILE_OPS.find((o) => o.code === code);
+  if (fromMobile) return fromMobile.label;
+  const fromDth = DTH_OPS.find((o) => o.code === code);
+  if (fromDth) return fromDth.label;
+  return code;
 }
 
 function RechargeLoading() {
@@ -823,18 +841,30 @@ function RechargeInner() {
       }
 
       const { data } = await api.post<
-        ApiResponse<{ txn?: { txnRef?: string; status?: string }; provider?: { status?: string; message?: string } }>
-      >("/txn/recharge", {
-        serviceCode,
-        operatorCode,
-        accountRef: number,
-        amount: amount.trim(),
-        txnPin,
-        idempotencyKey: attemptKey.current.get(),
-      });
+        ApiResponse<{
+          txn?: { txnRef?: string; status?: string; failureReason?: string | null };
+          provider?: { status?: string; message?: string };
+        }>
+      >(
+        "/txn/recharge",
+        {
+          serviceCode,
+          operatorCode,
+          accountRef: number,
+          amount: amount.trim(),
+          txnPin,
+          idempotencyKey: attemptKey.current.get(),
+        },
+        { timeout: RECHARGE_TIMEOUT_MS },
+      );
       if (!data.success) throw new Error(data.message || "Recharge failed");
       const txn = data.data?.txn;
-      const status = (txn?.status ?? data.data?.provider?.status ?? "pending").toLowerCase();
+      const provider = data.data?.provider;
+      const status = (txn?.status ?? provider?.status ?? "pending").toLowerCase();
+      const reason =
+        (provider?.message && provider.message.trim()) ||
+        (txn?.failureReason && txn.failureReason.trim()) ||
+        "";
       setLastRef(txn?.txnRef ?? null);
       setLastStatus(status);
       if (status === "success") {
@@ -845,12 +875,13 @@ function RechargeInner() {
         setTxnPin("");
         void loadRecentTxns();
       } else if (status === "failed") {
-        toast.error(data.data?.provider?.message || "Recharge failed");
+        toast.error(reason || "Recharge failed");
         setBlockResubmit(false);
         void loadRecentTxns();
       } else {
         toast.success(
-          "Recharge submitted. Status is pending — do not tap Recharge again. Check Transactions.",
+          reason ||
+            "Recharge submitted. Status is pending — do not tap Recharge again. Check Transactions.",
         );
         stayBlocked = true;
         setBlockResubmit(true);
@@ -1406,7 +1437,7 @@ function RechargeInner() {
                   {[
                     "Date & Time",
                     "Operator",
-                    "Mobile Number",
+                    serviceCode === "DTH" ? "Subscriber ID" : "Mobile Number",
                     "Txn ID",
                     "RRN / UTR",
                     "Amount (Rs.)",
@@ -1465,16 +1496,16 @@ function RechargeInner() {
                         })}
                       </td>
                       <td className="px-4 py-3 font-semibold" style={{ color: B.blue }}>
-                        {t.serviceName}
+                        {txnOperatorLabel(t)}
                       </td>
-                      <td className="px-4 py-3 text-xs" style={{ color: B.muted }}>
-                        —
+                      <td className="px-4 py-3 font-mono text-xs" style={{ color: B.muted }}>
+                        {txnAccountRef(t) || "—"}
                       </td>
                       <td className="px-4 py-3 font-mono text-xs" style={{ color: B.muted }}>
                         {t.txnRef}
                       </td>
-                      <td className="px-4 py-3 text-xs" style={{ color: B.muted }}>
-                        —
+                      <td className="px-4 py-3 font-mono text-xs" style={{ color: B.muted }}>
+                        {t.providerTxnId || "—"}
                       </td>
                       <td className="px-4 py-3 text-right font-bold" style={{ color: B.blue }}>
                         {formatInr(t.amount)}

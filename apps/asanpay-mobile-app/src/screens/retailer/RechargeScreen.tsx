@@ -737,12 +737,21 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
       };
 
       const { data } = await api.post<
-        ApiResponse<{ txn?: { txnRef?: string; status?: string }; provider?: { message?: string } }>
+        ApiResponse<{
+          txn?: { txnRef?: string; status?: string; failureReason?: string | null };
+          provider?: { status?: string; message?: string };
+        }>
       >("/txn/recharge", body);
 
       if (!data.success) throw new Error(data.message || "Recharge failed");
-      const status = (data.data?.txn?.status ?? "pending").toLowerCase();
-      const ref = data.data?.txn?.txnRef ?? "";
+      const txn = data.data?.txn;
+      const provider = data.data?.provider;
+      const status = (txn?.status ?? provider?.status ?? "pending").toLowerCase();
+      const ref = txn?.txnRef ?? "";
+      const reason =
+        (provider?.message && provider.message.trim()) ||
+        (txn?.failureReason && txn.failureReason.trim()) ||
+        "";
       setLastRef(ref || null);
       setLastStatus(status);
       if (status === "success") {
@@ -753,16 +762,17 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
         setTxnPin("");
       } else if (status === "failed") {
         setBlockResubmit(false);
-        showAlert("Recharge failed", data.data?.provider?.message || data.message || "Failed");
+        showAlert("Recharge failed", reason || data.message || "Failed");
       } else {
         attemptKey.current.clear();
         stayBlocked = true;
         setBlockResubmit(true);
         showAlert(
           "Recharge submitted",
-          ref
-            ? `Status is pending — do not tap Recharge again. Ref: ${ref}. Check Transactions.`
-            : "Status is pending — do not tap Recharge again. Check Transactions.",
+          reason ||
+            (ref
+              ? `Status is pending — do not tap Recharge again. Ref: ${ref}. Check Transactions.`
+              : "Status is pending — do not tap Recharge again. Check Transactions."),
         );
       }
     } catch (err) {

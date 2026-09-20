@@ -41,11 +41,16 @@ export function vyaparBaseUrl(): string {
 export async function vyaparGet(
   path: string,
   query: Record<string, string | undefined>,
+  opts?: { timeoutMs?: number },
 ): Promise<{ httpStatus: number; json: VyaparApiJson }> {
   const url = new URL(`${vyaparBaseUrl()}${path.startsWith("/") ? path : `/${path}`}`);
   for (const [k, v] of Object.entries(query)) {
     if (v != null && v !== "") url.searchParams.set(k, v);
   }
+
+  // Coolify/Traefik often kills idle upstream ~30–60s. Fail before that so the portal
+  // button stops spinning and the user gets a clear message (not a blank hang).
+  const timeoutMs = opts?.timeoutMs ?? 20_000;
 
   const started = Date.now();
   let res: Response;
@@ -53,10 +58,20 @@ export async function vyaparGet(
     res = await fetch(url.toString(), {
       method: "GET",
       headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (err) {
-    logger.error({ err, path }, "VyaparAPI network error");
-    throw new HttpError(502, "VyaparAPI network error. Try again or check status later.", "VYAPARAPI_NETWORK");
+    const msg = err instanceof Error ? err.message : String(err);
+    const timedOut =
+      (err instanceof Error && err.name === "TimeoutError") || /aborted|timeout/i.test(msg);
+    logger.error({ err, path, timedOut, timeoutMs }, "VyaparAPI network error");
+    throw new HttpError(
+      502,
+      timedOut
+        ? "Operator did not respond in time. Check Transactions — do not recharge again with the same details until status is clear."
+        : "VyaparAPI network error. Try again or check status later.",
+      timedOut ? "VYAPARAPI_TIMEOUT" : "VYAPARAPI_NETWORK",
+    );
   }
 
   const text = await res.text();

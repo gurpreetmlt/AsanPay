@@ -49,4 +49,7 @@ export interface TxnRow {
   serviceCode: string;
   createdAt: string;
   completedAt: string | null;
+  providerTxnId?: string | null;
+  failureReason?: string | null;
+  metadata?: Record<string, unknown> | null;
 }

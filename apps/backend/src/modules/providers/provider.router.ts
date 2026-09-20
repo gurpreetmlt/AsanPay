@@ -203,14 +203,22 @@ export async function callProvider<T extends Record<string, unknown>>(
     // Network/unexpected errors are indistinguishable from timeouts money-wise:
     // the provider may or may not have processed it. Surface as pending, never failed.
     logger.error({ err, operation, provider: routed.adapter.code }, "provider call threw");
+    const detail =
+      err instanceof HttpError
+        ? err.message
+        : err instanceof Error
+          ? err.message
+          : String(err);
     result = {
       success: false,
       status: "pending",
       providerTxnId: null,
       amount: null,
-      message: "Provider unreachable — transaction pending, recheck status",
+      message:
+        detail.trim() ||
+        "Provider unreachable — transaction pending, recheck status",
       data: {} as T,
-      raw: { error: err instanceof Error ? err.message : String(err) },
+      raw: { error: detail },
     };
   }
 

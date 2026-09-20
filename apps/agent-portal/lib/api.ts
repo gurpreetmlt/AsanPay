@@ -14,6 +14,9 @@ const api = axios.create({
 /** BestAPI → UIDAI; keep under Coolify upstream limits (~30–60s). */
 export const AADHAAR_OTP_TIMEOUT_MS = 45_000;
 
+/** Must stay above backend Vyapar timeout (20s) and under Coolify/Traefik kill. */
+export const RECHARGE_TIMEOUT_MS = 28_000;
+
 api.interceptors.response.use(
   (res) => res,
   (error) => {
