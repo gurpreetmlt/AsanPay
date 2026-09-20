@@ -2,7 +2,19 @@
 
 import { FormEvent, PointerEvent, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Check, Lock, MapPin, Smartphone, Wallet, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  History,
+  Lock,
+  MapPin,
+  RadioTower,
+  Search,
+  Smartphone,
+  UserRound,
+  Wallet,
+  X,
+} from "lucide-react";
 import { toast } from "react-hot-toast";
 import {
   TELECOM_CIRCLES,
@@ -14,12 +26,34 @@ import {
 } from "@asanpay/shared-types";
 import { AppShell } from "@/components/layout/AppShell";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
-import api from "@/lib/api";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { createAttemptKeyHolder } from "@/lib/idempotencyKey";
 import { extractApiError } from "@/lib/onboarding";
 import { useAuthStore } from "@/lib/store";
+import type { TxnRow } from "@/lib/types";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
+
+function todayInputValue(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function formatInr(value: string | number) {
+  const n = typeof value === "string" ? parseFloat(value) : value;
+  if (Number.isNaN(n)) return "₹0";
+  return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+}
+
+function badgeStatus(status: string) {
+  if (status === "success") return "success" as const;
+  if (status === "pending" || status === "initiated") return "pending" as const;
+  return "failed" as const;
+}
 
 type ServiceCode = "MOBILE_PREPAID" | "DTH";
 
@@ -262,7 +296,6 @@ function RechargeInner() {
   const ops = serviceCode === "DTH" ? DTH_OPS : MOBILE_OPS;
 
   const [operatorPicked, setOperatorPicked] = useState(false);
-  const [flipBusy, setFlipBusy] = useState(false);
   const [accountRef, setAccountRef] = useState("");
   const [operatorCode, setOperatorCode] = useState("");
   const [circleCode, setCircleCode] = useState("");
@@ -279,6 +312,12 @@ function RechargeInner() {
   const [lastRef, setLastRef] = useState<string | null>(null);
   const [lastStatus, setLastStatus] = useState<string | null>(null);
   const [blockResubmit, setBlockResubmit] = useState(false);
+  const [recentTxns, setRecentTxns] = useState<TxnRow[]>([]);
+  const [recentBusy, setRecentBusy] = useState(false);
+  const [dateFrom, setDateFrom] = useState(todayInputValue);
+  const [dateTo, setDateTo] = useState(todayInputValue);
+  const [appliedFrom, setAppliedFrom] = useState(todayInputValue);
+  const [appliedTo, setAppliedTo] = useState(todayInputValue);
   const attemptKey = useRef(createAttemptKeyHolder("recharge"));
   const lookupSeq = useRef(0);
   const busyRef = useRef(false);
@@ -316,7 +355,6 @@ function RechargeInner() {
 
   useEffect(() => {
     setOperatorPicked(false);
-    setFlipBusy(false);
     setOperatorCode("");
     setPlans([]);
     setOffers([]);
@@ -339,6 +377,25 @@ function RechargeInner() {
       router.replace("/dashboard");
     }
   }, [hydrated, accessToken, user?.role, router]);
+
+  async function loadRecentTxns() {
+    if (!accessToken) return;
+    setRecentBusy(true);
+    try {
+      const data = await fetchApi<TxnRow[]>("/txn", { limit: 100, offset: 0 });
+      setRecentTxns(data);
+    } catch (err) {
+      toast.error(extractApiError(err, "Failed to load recent recharges"));
+    } finally {
+      setRecentBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!accessToken || !hydrated) return;
+    void loadRecentTxns();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accessToken, hydrated, serviceCode]);
 
   useEffect(() => {
     if (serviceCode !== "MOBILE_PREPAID" || !operatorPicked) return;
@@ -476,39 +533,41 @@ function RechargeInner() {
   }
 
   function selectOperator(code: string) {
-    if (flipBusy) return;
     markNewIntent();
     setOperatorCode(code);
+    setOperatorPicked(true);
     setPlans([]);
     setOffers([]);
     setDthSummary([]);
     setAmount("");
     setTxnPin("");
-    setFlipBusy(true);
-    window.setTimeout(() => {
-      setOperatorPicked(true);
-      window.setTimeout(() => setFlipBusy(false), 40);
-    }, 210);
+    setPanelOpen(false);
   }
 
   function clearOperator() {
-    if (flipBusy) return;
     markNewIntent();
-    setFlipBusy(true);
     setPanelOpen(false);
     setPlans([]);
     setOffers([]);
     setDthSummary([]);
-    window.setTimeout(() => {
-      setOperatorPicked(false);
-      setOperatorCode("");
-      setAccountRef("");
-      setCircleCode("");
-      setAmount("");
-      setTxnPin("");
-      window.setTimeout(() => setFlipBusy(false), 40);
-    }, 210);
+    setOperatorPicked(false);
+    setOperatorCode("");
+    setAccountRef("");
+    setCircleCode("");
+    setAmount("");
+    setTxnPin("");
   }
+
+  const filteredRecent = useMemo(() => {
+    const from = new Date(`${appliedFrom}T00:00:00`);
+    const to = new Date(`${appliedTo}T23:59:59.999`);
+    return recentTxns.filter((t) => {
+      if (t.serviceCode !== serviceCode) return false;
+      const created = new Date(t.createdAt);
+      if (Number.isNaN(created.getTime())) return false;
+      return created >= from && created <= to;
+    });
+  }, [recentTxns, serviceCode, appliedFrom, appliedTo]);
 
   useEffect(() => {
     if (!panelOpen) return;
@@ -613,9 +672,11 @@ function RechargeInner() {
         setBlockResubmit(true);
         attemptKey.current.clear();
         setTxnPin("");
+        void loadRecentTxns();
       } else if (status === "failed") {
         toast.error(data.data?.provider?.message || "Recharge failed");
         setBlockResubmit(false);
+        void loadRecentTxns();
       } else {
         toast.success(
           "Recharge submitted. Status is pending — do not tap Recharge again. Check Transactions.",
@@ -624,6 +685,7 @@ function RechargeInner() {
         setBlockResubmit(true);
         attemptKey.current.clear();
         setTxnPin("");
+        void loadRecentTxns();
       }
     } catch (err) {
       toast.error(extractApiError(err, "Recharge failed"));
@@ -644,382 +706,607 @@ function RechargeInner() {
   if (user?.role && user.role !== "retailer") return null;
 
   const showForm = operatorPicked;
+  const recentTitle =
+    serviceCode === "DTH" ? "Recent DTH Recharges" : "Recent Mobile Recharges";
+  const serviceKindLabel = serviceCode === "DTH" ? "DTH Recharge" : "Prepaid Recharge";
 
   return (
     <AppShell>
       <div
-        className={`mx-auto flex min-h-full w-full items-start gap-6 px-4 py-6 transition-[max-width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-          panelOpen ? "max-w-[92rem]" : "max-w-lg"
+        className={`mx-auto w-full space-y-5 px-4 py-6 transition-[max-width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+          panelOpen ? "max-w-[96rem]" : "max-w-6xl"
         }`}
       >
-        <div className="w-full max-w-lg shrink-0 space-y-5">
-          <div className="flex items-start gap-3">
-            <button
-              type="button"
-              className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border bg-white shadow-sm"
-              style={{ borderColor: B.border, color: B.blue }}
-              onClick={() => router.push("/dashboard")}
-              aria-label="Back"
-            >
-              <ArrowLeft size={18} strokeWidth={2.4} />
-            </button>
-            <div
-              className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-              style={{ background: B.secondary, color: B.blue }}
-            >
-              <Smartphone size={18} strokeWidth={2.2} />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight" style={{ color: B.blue }}>
-                {title}
-              </h1>
-              <p className="mt-0.5 text-[13px]" style={{ color: B.muted }}>
-                {subtitle}
-              </p>
-            </div>
-          </div>
-
-          <div
-            className="origin-center transition-transform duration-[420ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
-            style={{
-              transform: flipBusy ? "rotateY(90deg) scale(0.96)" : "rotateY(0deg) scale(1)",
-              opacity: flipBusy ? 0.55 : 1,
-            }}
+        <div className="flex items-start gap-3">
+          <button
+            type="button"
+            className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border bg-white shadow-sm"
+            style={{ borderColor: B.border, color: B.blue }}
+            onClick={() => router.push("/dashboard")}
+            aria-label="Back"
           >
-              {!showForm ? (
-              <div
-                className="rounded-[28px] border bg-white p-5 shadow-[0_10px_40px_rgba(11,42,154,0.06)] sm:p-6"
-                style={{ borderColor: B.border }}
-              >
-                <p className="mb-4 text-sm font-semibold" style={{ color: B.muted }}>
-                  Select operator
-                </p>
-                <div className="grid grid-cols-3 gap-3">
-                  {ops.map((op) => (
-                    <button
-                      key={op.code}
-                      type="button"
-                      disabled={flipBusy}
-                      onClick={() => selectOperator(op.code)}
-                      className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl p-2 transition hover:bg-[#F4F7FF]"
-                    >
-                      <OperatorLogo op={op} />
-                      <span className="text-center text-[12px] font-bold" style={{ color: B.blue }}>
-                        {op.label}
-                      </span>
-                    </button>
-                  ))}
+            <ArrowLeft size={18} strokeWidth={2.4} />
+          </button>
+          <div
+            className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+            style={{ background: B.secondary, color: B.blue }}
+          >
+            <Smartphone size={18} strokeWidth={2.2} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight" style={{ color: B.blue }}>
+              {title}
+            </h1>
+            <p className="mt-0.5 text-[13px]" style={{ color: B.muted }}>
+              {subtitle}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-stretch">
+          {/* 1. Operators — web layout */}
+          <section
+            className="w-full shrink-0 rounded-[24px] border bg-white p-5 shadow-[0_10px_40px_rgba(11,42,154,0.06)] lg:w-[22rem]"
+            style={{ borderColor: B.border }}
+          >
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span
+                  className="flex h-9 w-9 items-center justify-center rounded-xl"
+                  style={{ background: B.secondary, color: B.blue }}
+                >
+                  <RadioTower size={18} strokeWidth={2.2} />
+                </span>
+                <div>
+                  <h2 className="text-sm font-extrabold" style={{ color: B.blue }}>
+                    1. Select {serviceCode === "DTH" ? "DTH" : "Mobile"} Operator
+                  </h2>
+                  <p className="text-[11px]" style={{ color: B.muted }}>
+                    {ops.length} Operators
+                  </p>
                 </div>
               </div>
-              ) : (
-              <form
-                onSubmit={onSubmit}
-                className="space-y-4 rounded-[28px] border bg-white p-5 shadow-[0_10px_40px_rgba(11,42,154,0.06)] sm:p-6"
-                style={{ borderColor: B.border }}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    {selectedOp ? <OperatorLogo op={selectedOp} size={48} /> : null}
-                    <div>
-                      <p className="text-lg font-extrabold" style={{ color: B.blue }}>
-                        {selectedOp?.label ?? "Operator"}
-                      </p>
-                      <span
-                        className="mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-extrabold"
-                        style={{ background: "#ECFDF3", color: B.green }}
-                      >
-                        {serviceCode === "DTH" ? "DTH" : "Prepaid"}
-                      </span>
-                    </div>
-                  </div>
+            </div>
+            <div className="space-y-2.5">
+              {ops.map((op) => {
+                const selected = operatorCode === op.code;
+                return (
                   <button
+                    key={op.code}
                     type="button"
-                    onClick={clearOperator}
-                    className="flex h-9 w-9 items-center justify-center rounded-full"
-                    style={{ background: B.secondary, color: B.muted }}
-                    aria-label="Change operator"
+                    onClick={() => selectOperator(op.code)}
+                    className="flex w-full cursor-pointer items-center gap-3 rounded-2xl border px-3 py-3 text-left transition hover:bg-[#F4F7FF]"
+                    style={{
+                      borderColor: selected ? B.blueLight : B.border,
+                      background: selected ? "#F4F7FF" : "#fff",
+                      boxShadow: selected ? `0 0 0 2px ${B.blueLight}22` : undefined,
+                    }}
                   >
-                    <X size={16} strokeWidth={2.4} />
+                    <OperatorLogo op={op} size={44} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-extrabold" style={{ color: B.blue }}>
+                        {op.label}
+                      </p>
+                      <p className="truncate text-[11px]" style={{ color: B.muted }}>
+                        {serviceKindLabel}
+                      </p>
+                    </div>
+                    <span
+                      className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide"
+                      style={{ background: "#ECFDF3", color: B.green }}
+                    >
+                      Active
+                    </span>
                   </button>
-                </div>
+                );
+              })}
+            </div>
+          </section>
 
-                {serviceCode === "MOBILE_PREPAID" ? (
+          {/* 2. Details + optional plans panel */}
+          <div className={`flex min-w-0 flex-1 gap-5 ${panelOpen ? "flex-col xl:flex-row" : ""}`}>
+            <section
+              className="min-w-0 flex-1 rounded-[24px] border bg-white p-5 shadow-[0_10px_40px_rgba(11,42,154,0.06)] sm:p-6"
+              style={{ borderColor: B.border }}
+            >
+              <div className="mb-4 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="flex h-9 w-9 items-center justify-center rounded-xl"
+                    style={{ background: B.secondary, color: B.blue }}
+                  >
+                    <UserRound size={18} strokeWidth={2.2} />
+                  </span>
+                  <h2 className="text-sm font-extrabold" style={{ color: B.blue }}>
+                    2. Recharge Details
+                  </h2>
+                </div>
+                <span className="text-[11px] font-semibold" style={{ color: B.muted }}>
+                  {showForm ? selectedOp?.label ?? "Ready" : "Waiting for operator"}
+                </span>
+              </div>
+
+              {!showForm ? (
+                <div
+                  className="flex min-h-[22rem] flex-col items-center justify-center rounded-[20px] border border-dashed px-6 py-12 text-center"
+                  style={{ borderColor: B.border, background: "#F8FAFF" }}
+                >
+                  <span
+                    className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl"
+                    style={{ background: B.secondary, color: B.blueLight }}
+                  >
+                    <Smartphone size={28} strokeWidth={1.8} />
+                  </span>
+                  <p className="text-base font-extrabold" style={{ color: B.blue }}>
+                    No Operator Selected
+                  </p>
+                  <p className="mt-2 max-w-sm text-sm" style={{ color: B.muted }}>
+                    Choose a {serviceCode === "DTH" ? "DTH" : "mobile"} operator from the list on the
+                    left to enter details, browse plans, and complete the recharge.
+                  </p>
+                </div>
+              ) : (
+                <form onSubmit={onSubmit} className="space-y-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      {selectedOp ? <OperatorLogo op={selectedOp} size={48} /> : null}
+                      <div>
+                        <p className="text-lg font-extrabold" style={{ color: B.blue }}>
+                          {selectedOp?.label ?? "Operator"}
+                        </p>
+                        <span
+                          className="mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-extrabold"
+                          style={{ background: "#ECFDF3", color: B.green }}
+                        >
+                          {serviceCode === "DTH" ? "DTH" : "Prepaid"}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={clearOperator}
+                      className="flex h-9 w-9 items-center justify-center rounded-full"
+                      style={{ background: B.secondary, color: B.muted }}
+                      aria-label="Change operator"
+                    >
+                      <X size={16} strokeWidth={2.4} />
+                    </button>
+                  </div>
+
+                  {serviceCode === "MOBILE_PREPAID" ? (
+                    <label className="block space-y-1.5">
+                      <span className="text-sm font-semibold" style={{ color: B.blue }}>
+                        Telecom Circle
+                      </span>
+                      <div className="relative">
+                        <MapPin
+                          size={16}
+                          className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2"
+                          style={{ color: B.blueLight }}
+                        />
+                        <select
+                          value={circleCode}
+                          onChange={(e) => {
+                            markNewIntent();
+                            setCircleCode(e.target.value);
+                            setPlans([]);
+                            setOffers([]);
+                          }}
+                          className="w-full appearance-none rounded-2xl border bg-[#F7F9FF] py-3 pl-10 pr-3.5 text-sm outline-none transition focus:border-[#2A5CDD] focus:bg-white"
+                          style={{ borderColor: B.border }}
+                        >
+                          <option value="">Select Circle</option>
+                          {circleOptions.map((c) => (
+                            <option key={c.code} value={c.code}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </label>
+                  ) : null}
+
                   <label className="block space-y-1.5">
                     <span className="text-sm font-semibold" style={{ color: B.blue }}>
-                      Telecom Circle
+                      {serviceCode === "DTH" ? "Subscriber ID" : "Mobile Number"}
                     </span>
                     <div className="relative">
-                      <MapPin
+                      <Smartphone
                         size={16}
                         className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2"
                         style={{ color: B.blueLight }}
                       />
-                      <select
-                        value={circleCode}
+                      <input
+                        inputMode="numeric"
+                        autoComplete="tel"
+                        maxLength={serviceCode === "DTH" ? 20 : 10}
+                        value={accountRef}
                         onChange={(e) => {
                           markNewIntent();
-                          setCircleCode(e.target.value);
-                          setPlans([]);
-                          setOffers([]);
+                          setAccountRef(e.target.value.replace(/\D/g, ""));
                         }}
-                        className="w-full appearance-none rounded-2xl border bg-[#F7F9FF] py-3 pl-10 pr-3.5 text-sm outline-none transition focus:border-[#2A5CDD] focus:bg-white"
+                        className="w-full rounded-2xl border bg-[#F7F9FF] py-3 pl-10 pr-3.5 text-sm outline-none transition focus:border-[#2A5CDD] focus:bg-white"
                         style={{ borderColor: B.border }}
+                        placeholder={
+                          serviceCode === "DTH" ? "Enter subscriber ID" : "Enter 10-digit number"
+                        }
+                      />
+                    </div>
+                    {serviceCode === "MOBILE_PREPAID" && lookupBusy ? (
+                      <span className="text-xs" style={{ color: B.muted }}>
+                        Detecting circle…
+                      </span>
+                    ) : null}
+                  </label>
+
+                  <label className="block space-y-1.5">
+                    <span className="text-sm font-semibold" style={{ color: B.blue }}>
+                      Recharge Amount
+                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void openCatalog("plans")}
+                        className="cursor-pointer rounded-full border px-2.5 py-1 text-[11px] font-bold"
+                        style={{ borderColor: B.blue, color: B.blue, background: B.secondary }}
                       >
-                        <option value="">Select Circle</option>
-                        {circleOptions.map((c) => (
-                          <option key={c.code} value={c.code}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </select>
+                        View Plans
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void openCatalog("offers")}
+                        className="cursor-pointer rounded-full border px-2.5 py-1 text-[11px] font-bold"
+                        style={{ borderColor: B.blue, color: B.blue, background: B.secondary }}
+                      >
+                        {serviceCode === "DTH" ? "View Info" : "View Offers"}
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <Wallet
+                        size={16}
+                        className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2"
+                        style={{ color: B.blueLight }}
+                      />
+                      <input
+                        inputMode="decimal"
+                        value={amount}
+                        onChange={(e) => {
+                          markNewIntent();
+                          setAmount(e.target.value);
+                        }}
+                        className="w-full rounded-2xl border bg-[#F7F9FF] py-3 pl-10 pr-3.5 text-sm outline-none transition focus:border-[#2A5CDD] focus:bg-white"
+                        style={{ borderColor: B.border }}
+                        placeholder="Enter Amount"
+                      />
                     </div>
                   </label>
-                ) : null}
 
-                <label className="block space-y-1.5">
-                  <span className="text-sm font-semibold" style={{ color: B.blue }}>
-                    {serviceCode === "DTH" ? "Subscriber ID" : "Mobile Number"}
-                  </span>
-                  <div className="relative">
-                    <Smartphone
-                      size={16}
-                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2"
-                      style={{ color: B.blueLight }}
-                    />
-                    <input
-                      inputMode="numeric"
-                      autoComplete="tel"
-                      maxLength={serviceCode === "DTH" ? 20 : 10}
-                      value={accountRef}
-                      onChange={(e) => {
-                        markNewIntent();
-                        setAccountRef(e.target.value.replace(/\D/g, ""));
-                      }}
-                      className="w-full rounded-2xl border bg-[#F7F9FF] py-3 pl-10 pr-3.5 text-sm outline-none transition focus:border-[#2A5CDD] focus:bg-white"
-                      style={{ borderColor: B.border }}
-                      placeholder={
-                        serviceCode === "DTH" ? "Enter subscriber ID" : "Enter 10-digit number"
-                      }
-                    />
-                  </div>
-                  {serviceCode === "MOBILE_PREPAID" && lookupBusy ? (
-                    <span className="text-xs" style={{ color: B.muted }}>
-                      Detecting circle…
+                  <label className="block space-y-1.5">
+                    <span className="text-sm font-semibold" style={{ color: B.blue }}>
+                      TPIN
                     </span>
+                    <div className="relative">
+                      <Lock
+                        size={16}
+                        className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2"
+                        style={{ color: B.blueLight }}
+                      />
+                      <input
+                        type="password"
+                        inputMode="numeric"
+                        maxLength={4}
+                        value={txnPin}
+                        onChange={(e) => setTxnPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                        className="w-full rounded-2xl border bg-[#F7F9FF] py-3 pl-10 pr-3.5 text-sm tracking-widest outline-none transition focus:border-[#2A5CDD] focus:bg-white"
+                        style={{ borderColor: B.border }}
+                        placeholder="Enter TPIN"
+                      />
+                    </div>
+                  </label>
+
+                  {blockResubmit ? (
+                    <p className="text-xs font-medium" style={{ color: B.muted }}>
+                      Do not tap Recharge again while status is pending. Change number or amount to
+                      start a new recharge.
+                    </p>
                   ) : null}
-                </label>
 
-                <label className="block space-y-1.5">
-                  <span className="text-sm font-semibold" style={{ color: B.blue }}>
-                    Recharge Amount
-                  </span>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => void openCatalog("plans")}
-                      className="cursor-pointer rounded-full border px-2.5 py-1 text-[11px] font-bold"
-                      style={{ borderColor: B.blue, color: B.blue, background: B.secondary }}
+                  {!formReady && !blockResubmit ? (
+                    <p className="text-xs" style={{ color: B.muted }}>
+                      Fill circle, mobile, amount, and 4-digit TPIN to enable Recharge.
+                    </p>
+                  ) : null}
+
+                  {lastRef ? (
+                    <div
+                      className="rounded-2xl border px-3 py-2.5 text-sm"
+                      style={{ borderColor: B.border, background: "#F8FAFF" }}
                     >
-                      View Plans
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void openCatalog("offers")}
-                      className="cursor-pointer rounded-full border px-2.5 py-1 text-[11px] font-bold"
-                      style={{ borderColor: B.blue, color: B.blue, background: B.secondary }}
-                    >
-                      {serviceCode === "DTH" ? "View Info" : "View Offers"}
-                    </button>
-                  </div>
-                  <div className="relative">
-                    <Wallet
-                      size={16}
-                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2"
-                      style={{ color: B.blueLight }}
-                    />
-                    <input
-                      inputMode="decimal"
-                      value={amount}
-                      onChange={(e) => {
-                        markNewIntent();
-                        setAmount(e.target.value);
-                      }}
-                      className="w-full rounded-2xl border bg-[#F7F9FF] py-3 pl-10 pr-3.5 text-sm outline-none transition focus:border-[#2A5CDD] focus:bg-white"
-                      style={{ borderColor: B.border }}
-                      placeholder="Enter Amount"
-                    />
-                  </div>
-                </label>
-
-                <label className="block space-y-1.5">
-                  <span className="text-sm font-semibold" style={{ color: B.blue }}>
-                    TPIN
-                  </span>
-                  <div className="relative">
-                    <Lock
-                      size={16}
-                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2"
-                      style={{ color: B.blueLight }}
-                    />
-                    <input
-                      type="password"
-                      inputMode="numeric"
-                      maxLength={4}
-                      value={txnPin}
-                      onChange={(e) => setTxnPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                      className="w-full rounded-2xl border bg-[#F7F9FF] py-3 pl-10 pr-3.5 text-sm tracking-widest outline-none transition focus:border-[#2A5CDD] focus:bg-white"
-                      style={{ borderColor: B.border }}
-                      placeholder="Enter TPIN"
-                    />
-                  </div>
-                </label>
-
-                {blockResubmit ? (
-                  <p className="text-xs font-medium" style={{ color: B.muted }}>
-                    Do not tap Recharge again while status is pending. Change number or amount to
-                    start a new recharge.
-                  </p>
-                ) : null}
-
-                {!formReady && !blockResubmit ? (
-                  <p className="text-xs" style={{ color: B.muted }}>
-                    Fill circle, mobile, amount, and 4-digit TPIN to enable Recharge.
-                  </p>
-                ) : null}
-
-                <PrimaryButton
-                  type="submit"
-                  variant="primary"
-                  loading={loading}
-                  disabled={submitDisabled}
-                  onPointerDown={armSubmitFromPointer}
-                  className={`w-full${submitDisabled ? " pointer-events-none" : ""}`}
-                >
-                  {blockResubmit ? "Submitted — wait for status" : "Recharge Now"}
-                </PrimaryButton>
-              </form>
-              )}
-          </div>
-
-          {lastRef ? (
-            <div className="rounded-2xl border bg-white p-4 text-sm" style={{ borderColor: B.border }}>
-              <p style={{ color: B.muted }}>Last txn</p>
-              <p className="font-semibold" style={{ color: B.blue }}>
-                {lastRef}
-              </p>
-              <p className="mt-1 capitalize" style={{ color: B.muted }}>
-                Status: {lastStatus}
-              </p>
-              <button
-                type="button"
-                className="mt-2 cursor-pointer text-sm font-bold"
-                style={{ color: B.blueLight }}
-                onClick={() => router.push("/transactions")}
-              >
-                View transactions →
-              </button>
-            </div>
-          ) : null}
-        </div>
-
-        {serviceCode === "MOBILE_PREPAID" || serviceCode === "DTH" ? (
-          <aside
-            aria-hidden={!panelOpen}
-            className={`flex min-h-0 min-w-0 flex-col overflow-hidden bg-white transition-[opacity,transform,max-width,min-width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] max-lg:fixed max-lg:inset-y-0 max-lg:right-0 max-lg:z-40 max-lg:w-full max-lg:max-w-lg max-lg:shadow-2xl lg:static lg:h-[calc(100vh-3rem)] lg:rounded-[28px] lg:border ${
-              panelOpen
-                ? "max-lg:translate-x-0 max-lg:opacity-100 lg:min-w-[36rem] lg:max-w-[46rem] lg:flex-1 lg:translate-x-0 lg:opacity-100 lg:shadow-[0_12px_40px_rgba(11,42,154,0.08)]"
-                : "pointer-events-none max-lg:translate-x-full max-lg:opacity-0 lg:min-w-0 lg:max-w-0 lg:flex-none lg:translate-x-8 lg:border-0 lg:opacity-0 lg:shadow-none"
-            }`}
-            style={{ borderColor: B.border }}
-          >
-            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: `1px solid ${B.border}` }}>
-              <div>
-                <p className="text-sm font-bold" style={{ color: B.blue }}>
-                  {serviceCode === "DTH" ? "Plans & Info" : "Plans & Offers"}
-                </p>
-                <p className="text-[11px]" style={{ color: B.muted }}>
-                  Tap a pack to fill amount
-                </p>
-              </div>
-              <button
-                type="button"
-                className="cursor-pointer rounded-full px-3 py-1.5 text-sm font-semibold"
-                style={{ color: B.muted, background: B.secondary }}
-                onClick={() => setPanelOpen(false)}
-              >
-                Close
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-2 px-5 py-3">
-              <button
-                type="button"
-                onClick={() => setPanelTab("plans")}
-                className="cursor-pointer rounded-2xl px-3 py-2 text-sm font-semibold"
-                style={{
-                  background: panelTab === "plans" ? B.btnGrad : "#fff",
-                  color: panelTab === "plans" ? "#fff" : B.blue,
-                  border: `1px solid ${B.blue}`,
-                }}
-              >
-                Plans
-              </button>
-              <button
-                type="button"
-                onClick={() => setPanelTab("offers")}
-                className="cursor-pointer rounded-2xl px-3 py-2 text-sm font-semibold"
-                style={{
-                  background: panelTab === "offers" ? B.btnGrad : "#fff",
-                  color: panelTab === "offers" ? "#fff" : B.blue,
-                  border: `1px solid ${B.blue}`,
-                }}
-              >
-                {serviceCode === "DTH" ? "Info" : "Offers"}
-              </button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6">
-              {panelBusy ? (
-                <p className="text-sm" style={{ color: B.muted }}>
-                  Loading {serviceCode === "DTH" && panelTab === "offers" ? "info" : panelTab}…
-                </p>
-              ) : (
-                <>
-                  {serviceCode === "DTH" && panelTab === "offers" && dthSummary.length > 0 ? (
-                    <div className="mb-4 space-y-2 rounded-2xl border p-3" style={{ borderColor: B.border }}>
-                      {dthSummary.map((row) => (
-                        <div key={`${row.label}-${row.value}`} className="flex justify-between gap-3 text-sm">
-                          <span style={{ color: B.muted }}>{row.label}</span>
-                          <span className="text-right font-semibold" style={{ color: B.blue }}>
-                            {row.value}
-                          </span>
-                        </div>
-                      ))}
+                      <p style={{ color: B.muted }}>Last txn</p>
+                      <p className="font-semibold" style={{ color: B.blue }}>
+                        {lastRef}
+                      </p>
+                      <p className="mt-0.5 capitalize" style={{ color: B.muted }}>
+                        Status: {lastStatus}
+                      </p>
                     </div>
                   ) : null}
-                  <PlanList
-                    items={panelTab === "plans" ? plans : offers}
-                    selectedAmount={amount}
-                    onPick={(a) => {
-                      markNewIntent();
-                      setAmount(a);
-                      setPanelOpen(false);
-                    }}
-                  />
-                </>
+
+                  <PrimaryButton
+                    type="submit"
+                    variant="primary"
+                    loading={loading}
+                    disabled={submitDisabled}
+                    onPointerDown={armSubmitFromPointer}
+                    className={`w-full${submitDisabled ? " pointer-events-none" : ""}`}
+                  >
+                    {blockResubmit ? "Submitted — wait for status" : "Recharge Now"}
+                  </PrimaryButton>
+                </form>
               )}
-              {!panelBusy && (panelTab === "plans" ? plans : offers).length === 0 ? (
-                <p className="text-sm" style={{ color: B.muted }}>
-                  {serviceCode === "DTH"
-                    ? panelTab === "plans"
-                      ? "No plans for this operator. Enter amount manually."
-                      : dthSummary.length > 0
-                        ? "No pack amounts in info. Enter amount manually if needed."
-                        : "No info for this subscriber. Enter amount manually."
-                    : `No ${panelTab} for this operator and circle. Enter amount manually.`}
-                </p>
-              ) : null}
+            </section>
+
+            {panelOpen ? (
+              <aside
+                className="flex min-h-[28rem] w-full min-w-0 flex-col overflow-hidden rounded-[24px] border bg-white shadow-[0_12px_40px_rgba(11,42,154,0.08)] xl:max-w-md xl:flex-1"
+                style={{ borderColor: B.border }}
+              >
+                <div
+                  className="flex items-center justify-between px-5 py-4"
+                  style={{ borderBottom: `1px solid ${B.border}` }}
+                >
+                  <div>
+                    <p className="text-sm font-bold" style={{ color: B.blue }}>
+                      {serviceCode === "DTH" ? "Plans & Info" : "Plans & Offers"}
+                    </p>
+                    <p className="text-[11px]" style={{ color: B.muted }}>
+                      Tap a pack to fill amount
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="cursor-pointer rounded-full px-3 py-1.5 text-sm font-semibold"
+                    style={{ color: B.muted, background: B.secondary }}
+                    onClick={() => setPanelOpen(false)}
+                  >
+                    Close
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-2 px-5 py-3">
+                  <button
+                    type="button"
+                    onClick={() => setPanelTab("plans")}
+                    className="cursor-pointer rounded-2xl px-3 py-2 text-sm font-semibold"
+                    style={{
+                      background: panelTab === "plans" ? B.btnGrad : "#fff",
+                      color: panelTab === "plans" ? "#fff" : B.blue,
+                      border: `1px solid ${B.blue}`,
+                    }}
+                  >
+                    Plans
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPanelTab("offers")}
+                    className="cursor-pointer rounded-2xl px-3 py-2 text-sm font-semibold"
+                    style={{
+                      background: panelTab === "offers" ? B.btnGrad : "#fff",
+                      color: panelTab === "offers" ? "#fff" : B.blue,
+                      border: `1px solid ${B.blue}`,
+                    }}
+                  >
+                    {serviceCode === "DTH" ? "Info" : "Offers"}
+                  </button>
+                </div>
+                <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6">
+                  {panelBusy ? (
+                    <p className="text-sm" style={{ color: B.muted }}>
+                      Loading {serviceCode === "DTH" && panelTab === "offers" ? "info" : panelTab}…
+                    </p>
+                  ) : (
+                    <>
+                      {serviceCode === "DTH" && panelTab === "offers" && dthSummary.length > 0 ? (
+                        <div
+                          className="mb-4 space-y-2 rounded-2xl border p-3"
+                          style={{ borderColor: B.border }}
+                        >
+                          {dthSummary.map((row) => (
+                            <div
+                              key={`${row.label}-${row.value}`}
+                              className="flex justify-between gap-3 text-sm"
+                            >
+                              <span style={{ color: B.muted }}>{row.label}</span>
+                              <span className="text-right font-semibold" style={{ color: B.blue }}>
+                                {row.value}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                      <PlanList
+                        items={panelTab === "plans" ? plans : offers}
+                        selectedAmount={amount}
+                        onPick={(a) => {
+                          markNewIntent();
+                          setAmount(a);
+                          setPanelOpen(false);
+                        }}
+                      />
+                    </>
+                  )}
+                  {!panelBusy && (panelTab === "plans" ? plans : offers).length === 0 ? (
+                    <p className="text-sm" style={{ color: B.muted }}>
+                      {serviceCode === "DTH"
+                        ? panelTab === "plans"
+                          ? "No plans for this operator. Enter amount manually."
+                          : dthSummary.length > 0
+                            ? "No pack amounts in info. Enter amount manually if needed."
+                            : "No info for this subscriber. Enter amount manually."
+                        : `No ${panelTab} for this operator and circle. Enter amount manually.`}
+                    </p>
+                  ) : null}
+                </div>
+              </aside>
+            ) : null}
+          </div>
+        </div>
+
+        {/* Recent recharges — web only section */}
+        <section
+          className="overflow-hidden rounded-[24px] border bg-white shadow-[0_10px_40px_rgba(11,42,154,0.06)]"
+          style={{ borderColor: B.border }}
+        >
+          <div
+            className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+            style={{ borderBottom: `1px solid ${B.border}` }}
+          >
+            <div className="flex items-center gap-2">
+              <span
+                className="flex h-9 w-9 items-center justify-center rounded-xl"
+                style={{ background: B.secondary, color: B.blue }}
+              >
+                <History size={18} strokeWidth={2.2} />
+              </span>
+              <h2 className="text-sm font-extrabold" style={{ color: B.blue }}>
+                {recentTitle}
+              </h2>
             </div>
-          </aside>
-        ) : null}
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="text-[10px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+                From
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="mt-1 block rounded-xl border bg-[#F7F9FF] px-2.5 py-2 text-sm"
+                  style={{ borderColor: B.border, color: B.blue }}
+                />
+              </label>
+              <label className="text-[10px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+                To
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="mt-1 block rounded-xl border bg-[#F7F9FF] px-2.5 py-2 text-sm"
+                  style={{ borderColor: B.border, color: B.blue }}
+                />
+              </label>
+              <PrimaryButton
+                type="button"
+                variant="primary"
+                showArrow={false}
+                className="!h-10 !min-w-0 !px-4 !text-sm"
+                onClick={() => {
+                  setAppliedFrom(dateFrom);
+                  setAppliedTo(dateTo);
+                  void loadRecentTxns();
+                }}
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  <Search size={14} strokeWidth={2.4} />
+                  View
+                </span>
+              </PrimaryButton>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] text-sm">
+              <thead style={{ background: B.secondary }}>
+                <tr>
+                  {[
+                    "Date & Time",
+                    "Operator",
+                    "Service",
+                    "Txn ID",
+                    "Amount (Rs.)",
+                    "Status",
+                    "Action",
+                  ].map((h) => (
+                    <th
+                      key={h}
+                      className={`px-4 py-3 text-[11px] font-bold uppercase tracking-wider ${
+                        h === "Amount (Rs.)" ? "text-right" : "text-left"
+                      }`}
+                      style={{ color: B.muted }}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {recentBusy && filteredRecent.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-12 text-center" style={{ color: B.muted }}>
+                      Loading…
+                    </td>
+                  </tr>
+                ) : filteredRecent.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-14 text-center">
+                      <Wallet
+                        size={28}
+                        className="mx-auto mb-2 opacity-40"
+                        style={{ color: B.muted }}
+                      />
+                      <p className="text-sm font-medium" style={{ color: B.muted }}>
+                        No recent transactions found for the selected date range.
+                      </p>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredRecent.map((t, i) => (
+                    <tr
+                      key={t.id}
+                      className="border-b"
+                      style={{
+                        borderColor: B.border,
+                        background: i % 2 === 0 ? "#fff" : "#fafbff",
+                      }}
+                    >
+                      <td className="px-4 py-3 text-xs" style={{ color: B.muted }}>
+                        {new Date(t.createdAt).toLocaleString("en-IN", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </td>
+                      <td className="px-4 py-3 font-semibold" style={{ color: B.blue }}>
+                        {t.serviceName}
+                      </td>
+                      <td className="px-4 py-3 text-xs" style={{ color: B.muted }}>
+                        {t.serviceCode}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs" style={{ color: B.muted }}>
+                        {t.txnRef}
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold" style={{ color: B.blue }}>
+                        {formatInr(t.amount)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusBadge status={badgeStatus(t.status)} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          type="button"
+                          className="text-xs font-bold hover:underline"
+                          style={{ color: B.blueLight }}
+                          onClick={() => router.push(`/transactions?q=${encodeURIComponent(t.txnRef)}`)}
+                        >
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
     </AppShell>
   );
