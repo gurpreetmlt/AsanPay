@@ -705,18 +705,13 @@ function RechargeInner() {
   if (!hydrated || !accessToken) return null;
   if (user?.role && user.role !== "retailer") return null;
 
-  const showForm = operatorPicked;
   const recentTitle =
     serviceCode === "DTH" ? "Recent DTH Recharges" : "Recent Mobile Recharges";
   const serviceKindLabel = serviceCode === "DTH" ? "DTH Recharge" : "Prepaid Recharge";
 
   return (
     <AppShell>
-      <div
-        className={`mx-auto w-full space-y-5 px-4 py-6 transition-[max-width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-          panelOpen ? "max-w-[96rem]" : "max-w-6xl"
-        }`}
-      >
+      <div className="w-full space-y-5 px-4 py-6 md:px-6">
         <div className="flex items-start gap-3">
           <button
             type="button"
@@ -746,7 +741,7 @@ function RechargeInner() {
         <div className="flex flex-col gap-5 lg:flex-row lg:items-stretch">
           {/* 1. Operators — web layout */}
           <section
-            className="w-full shrink-0 rounded-[24px] border bg-white p-5 shadow-[0_10px_40px_rgba(11,42,154,0.06)] lg:w-[22rem]"
+            className="w-full shrink-0 rounded-[24px] border bg-white p-5 shadow-[0_10px_40px_rgba(11,42,154,0.06)] lg:w-[24rem] xl:w-[26rem]"
             style={{ borderColor: B.border }}
           >
             <div className="mb-4 flex items-center justify-between gap-2">
@@ -822,55 +817,49 @@ function RechargeInner() {
                   </h2>
                 </div>
                 <span className="text-[11px] font-semibold" style={{ color: B.muted }}>
-                  {showForm ? selectedOp?.label ?? "Ready" : "Waiting for operator"}
+                  {selectedOp ? selectedOp.label : "Waiting for operator"}
                 </span>
               </div>
 
-              {!showForm ? (
-                <div
-                  className="flex min-h-[22rem] flex-col items-center justify-center rounded-[20px] border border-dashed px-6 py-12 text-center"
-                  style={{ borderColor: B.border, background: "#F8FAFF" }}
-                >
-                  <span
-                    className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl"
-                    style={{ background: B.secondary, color: B.blueLight }}
-                  >
-                    <Smartphone size={28} strokeWidth={1.8} />
-                  </span>
-                  <p className="text-base font-extrabold" style={{ color: B.blue }}>
-                    No Operator Selected
-                  </p>
-                  <p className="mt-2 max-w-sm text-sm" style={{ color: B.muted }}>
-                    Choose a {serviceCode === "DTH" ? "DTH" : "mobile"} operator from the list on the
-                    left to enter details, browse plans, and complete the recharge.
-                  </p>
-                </div>
-              ) : (
-                <form onSubmit={onSubmit} className="space-y-4">
+              <form onSubmit={onSubmit} className="space-y-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      {selectedOp ? <OperatorLogo op={selectedOp} size={48} /> : null}
+                      {selectedOp ? (
+                        <OperatorLogo op={selectedOp} size={48} />
+                      ) : (
+                        <div
+                          className="flex h-12 w-12 items-center justify-center rounded-[14px] border border-dashed bg-[#F8FAFF]"
+                          style={{ borderColor: B.border }}
+                        >
+                          <Smartphone size={20} style={{ color: B.blueLight }} />
+                        </div>
+                      )}
                       <div>
                         <p className="text-lg font-extrabold" style={{ color: B.blue }}>
-                          {selectedOp?.label ?? "Operator"}
+                          {selectedOp?.label ?? "Select an operator"}
                         </p>
                         <span
                           className="mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-extrabold"
-                          style={{ background: "#ECFDF3", color: B.green }}
+                          style={{
+                            background: selectedOp ? "#ECFDF3" : B.secondary,
+                            color: selectedOp ? B.green : B.muted,
+                          }}
                         >
                           {serviceCode === "DTH" ? "DTH" : "Prepaid"}
                         </span>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={clearOperator}
-                      className="flex h-9 w-9 items-center justify-center rounded-full"
-                      style={{ background: B.secondary, color: B.muted }}
-                      aria-label="Change operator"
-                    >
-                      <X size={16} strokeWidth={2.4} />
-                    </button>
+                    {selectedOp ? (
+                      <button
+                        type="button"
+                        onClick={clearOperator}
+                        className="flex h-9 w-9 items-center justify-center rounded-full"
+                        style={{ background: B.secondary, color: B.muted }}
+                        aria-label="Clear operator"
+                      >
+                        <X size={16} strokeWidth={2.4} />
+                      </button>
+                    ) : null}
                   </div>
 
                   {serviceCode === "MOBILE_PREPAID" ? (
@@ -1013,7 +1002,9 @@ function RechargeInner() {
 
                   {!formReady && !blockResubmit ? (
                     <p className="text-xs" style={{ color: B.muted }}>
-                      Fill circle, mobile, amount, and 4-digit TPIN to enable Recharge.
+                      {selectedOp
+                        ? "Fill circle, mobile, amount, and 4-digit TPIN to enable Recharge."
+                        : "Select an operator on the left, then fill circle, mobile, amount, and TPIN."}
                     </p>
                   ) : null}
 
@@ -1043,7 +1034,6 @@ function RechargeInner() {
                     {blockResubmit ? "Submitted — wait for status" : "Recharge Now"}
                   </PrimaryButton>
                 </form>
-              )}
             </section>
 
             {panelOpen ? (
