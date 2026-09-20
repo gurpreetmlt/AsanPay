@@ -135,7 +135,7 @@ const PLAN_PAGE_SIZE = 5;
 function OperatorLogo({ op, size = 56 }: { op: OperatorDef; size?: number }) {
   return (
     <div
-      className="relative flex items-center justify-center rounded-[14px] border bg-white shadow-sm"
+      className="flex items-center justify-center rounded-[14px] border bg-white shadow-sm"
       style={{
         width: size,
         height: size,
@@ -145,10 +145,6 @@ function OperatorLogo({ op, size = 56 }: { op: OperatorDef; size?: number }) {
       <span className="text-[12px] font-black tracking-tight" style={{ color: op.color }}>
         {op.mark}
       </span>
-      <span
-        className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full"
-        style={{ background: B.green }}
-      />
     </div>
   );
 }
@@ -726,10 +722,10 @@ function RechargeInner() {
           </h1>
         </div>
 
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch">
           {/* 1. Operators */}
           <section
-            className="w-full shrink-0 rounded-2xl border bg-white p-4 shadow-sm lg:w-[17.5rem] xl:w-[18.5rem]"
+            className="flex w-full shrink-0 flex-col rounded-2xl border bg-white p-4 shadow-sm lg:w-[17.5rem] xl:w-[18.5rem]"
             style={{ borderColor: B.border }}
           >
             <div className="mb-3 flex items-center gap-2">
@@ -748,7 +744,7 @@ function RechargeInner() {
                 </p>
               </div>
             </div>
-            <div className="space-y-1.5">
+            <div className="flex flex-1 flex-col space-y-1.5">
               {ops.map((op) => {
                 const selected = operatorCode === op.code;
                 return (
@@ -780,13 +776,14 @@ function RechargeInner() {
                   </button>
                 );
               })}
+              <div className="min-h-0 flex-1" aria-hidden />
             </div>
           </section>
 
           {/* 2. Details + plans */}
-          <div className={`flex min-w-0 flex-1 gap-4 ${panelOpen ? "flex-col xl:flex-row" : ""}`}>
+          <div className={`flex min-h-0 min-w-0 flex-1 gap-4 ${panelOpen ? "flex-col xl:flex-row" : ""}`}>
             <section
-              className="min-w-0 flex-1 rounded-2xl border bg-white p-4 shadow-sm sm:p-5"
+              className="flex min-w-0 flex-1 flex-col rounded-2xl border bg-white p-4 shadow-sm sm:p-5"
               style={{ borderColor: B.border }}
             >
               <div className="mb-3 flex items-center justify-between gap-2">
@@ -816,7 +813,7 @@ function RechargeInner() {
                 )}
               </div>
 
-              <form onSubmit={onSubmit} className="space-y-3">
+              <form onSubmit={onSubmit} className="flex flex-1 flex-col space-y-3">
                 <div
                   className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5"
                   style={{ borderColor: B.border, background: "#F8FAFF" }}
@@ -1028,7 +1025,7 @@ function RechargeInner() {
                   loading={loading}
                   disabled={submitDisabled}
                   onPointerDown={armSubmitFromPointer}
-                  className={`w-full !rounded-xl !py-3${submitDisabled ? " pointer-events-none" : ""}`}
+                  className={`mt-auto w-full !rounded-xl !py-3${submitDisabled ? " pointer-events-none" : ""}`}
                 >
                   <span className="inline-flex items-center gap-2">
                     <Zap size={16} strokeWidth={2.4} fill="currentColor" />
