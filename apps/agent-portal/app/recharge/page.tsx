@@ -4,16 +4,17 @@ import { FormEvent, PointerEvent, Suspense, useEffect, useMemo, useRef, useState
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
+  Building2,
   Check,
   History,
   Lock,
-  MapPin,
   RadioTower,
   Search,
   Smartphone,
   UserRound,
   Wallet,
   X,
+  Zap,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import {
@@ -432,15 +433,6 @@ function RechargeInner() {
     return () => window.clearTimeout(timer);
   }, [accountRef, serviceCode, operatorPicked, circleCode]);
 
-  const title = useMemo(
-    () => (serviceCode === "DTH" ? "DTH Recharge" : "Mobile Recharge"),
-    [serviceCode],
-  );
-  const subtitle = useMemo(
-    () => (serviceCode === "DTH" ? "Instant DTH top-up" : "Instant prepaid top-up"),
-    [serviceCode],
-  );
-
   const selectedOp = useMemo(
     () => ops.find((o) => o.code === operatorCode) ?? null,
     [ops, operatorCode],
@@ -706,61 +698,57 @@ function RechargeInner() {
   const recentTitle =
     serviceCode === "DTH" ? "Recent DTH Recharges" : "Recent Mobile Recharges";
   const serviceKindLabel = serviceCode === "DTH" ? "DTH Recharge" : "Prepaid Recharge";
+  const fieldClass =
+    "w-full rounded-xl border bg-white py-2.5 pl-10 pr-3 text-sm outline-none transition focus:border-[#2A5CDD]";
+  const labelClass = "text-[11px] font-bold uppercase tracking-wide";
 
   return (
     <AppShell>
-      <div className="w-full space-y-5 px-4 py-6 md:px-6">
-        <div className="flex items-start gap-3">
+      <div className="w-full space-y-4 px-4 py-5 md:px-6">
+        <div className="flex items-center gap-3">
           <button
             type="button"
-            className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border bg-white shadow-sm"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-white shadow-sm"
             style={{ borderColor: B.border, color: B.blue }}
             onClick={() => router.push("/dashboard")}
             aria-label="Back"
           >
-            <ArrowLeft size={18} strokeWidth={2.4} />
+            <ArrowLeft size={16} strokeWidth={2.4} />
           </button>
           <div
-            className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
             style={{ background: B.secondary, color: B.blue }}
           >
-            <Smartphone size={18} strokeWidth={2.2} />
+            <Smartphone size={16} strokeWidth={2.2} />
           </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight" style={{ color: B.blue }}>
-              {title}
-            </h1>
-            <p className="mt-0.5 text-[13px]" style={{ color: B.muted }}>
-              {subtitle}
-            </p>
-          </div>
+          <h1 className="text-xl font-bold tracking-tight" style={{ color: B.blue }}>
+            {serviceCode === "DTH" ? "DTH Recharge" : "Mobile Recharge (Prepaid)"}
+          </h1>
         </div>
 
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-stretch">
-          {/* 1. Operators — web layout */}
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+          {/* 1. Operators */}
           <section
-            className="w-full shrink-0 rounded-[24px] border bg-white p-5 shadow-[0_10px_40px_rgba(11,42,154,0.06)] lg:w-[24rem] xl:w-[26rem]"
+            className="w-full shrink-0 rounded-2xl border bg-white p-4 shadow-sm lg:w-[17.5rem] xl:w-[18.5rem]"
             style={{ borderColor: B.border }}
           >
-            <div className="mb-4 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <span
-                  className="flex h-9 w-9 items-center justify-center rounded-xl"
-                  style={{ background: B.secondary, color: B.blue }}
-                >
-                  <RadioTower size={18} strokeWidth={2.2} />
-                </span>
-                <div>
-                  <h2 className="text-sm font-extrabold" style={{ color: B.blue }}>
-                    1. Select {serviceCode === "DTH" ? "DTH" : "Mobile"} Operator
-                  </h2>
-                  <p className="text-[11px]" style={{ color: B.muted }}>
-                    {ops.length} Operators
-                  </p>
-                </div>
+            <div className="mb-3 flex items-center gap-2">
+              <span
+                className="flex h-8 w-8 items-center justify-center rounded-lg"
+                style={{ background: B.secondary, color: B.blue }}
+              >
+                <RadioTower size={15} strokeWidth={2.2} />
+              </span>
+              <div>
+                <h2 className="text-[13px] font-extrabold" style={{ color: B.blue }}>
+                  1. Select {serviceCode === "DTH" ? "DTH" : "Mobile"} Operator
+                </h2>
+                <p className="text-[10px]" style={{ color: B.muted }}>
+                  {ops.length} Operators
+                </p>
               </div>
             </div>
-            <div className="space-y-2.5">
+            <div className="space-y-1.5">
               {ops.map((op) => {
                 const selected = operatorCode === op.code;
                 return (
@@ -768,24 +756,23 @@ function RechargeInner() {
                     key={op.code}
                     type="button"
                     onClick={() => selectOperator(op.code)}
-                    className="flex w-full cursor-pointer items-center gap-3 rounded-2xl border px-3 py-3 text-left transition hover:bg-[#F4F7FF]"
+                    className="flex w-full cursor-pointer items-center gap-2.5 rounded-xl border px-2.5 py-2 text-left transition hover:bg-[#F4F7FF]"
                     style={{
                       borderColor: selected ? B.blueLight : B.border,
-                      background: selected ? "#F4F7FF" : "#fff",
-                      boxShadow: selected ? `0 0 0 2px ${B.blueLight}22` : undefined,
+                      background: selected ? "#EEF3FF" : "#fff",
                     }}
                   >
-                    <OperatorLogo op={op} size={44} />
+                    <OperatorLogo op={op} size={36} />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-extrabold" style={{ color: B.blue }}>
+                      <p className="truncate text-[13px] font-extrabold" style={{ color: B.blue }}>
                         {op.label}
                       </p>
-                      <p className="truncate text-[11px]" style={{ color: B.muted }}>
+                      <p className="truncate text-[10px]" style={{ color: B.muted }}>
                         {serviceKindLabel}
                       </p>
                     </div>
                     <span
-                      className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide"
+                      className="shrink-0 rounded-md px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide"
                       style={{ background: "#ECFDF3", color: B.green }}
                     >
                       Active
@@ -796,79 +783,104 @@ function RechargeInner() {
             </div>
           </section>
 
-          {/* 2. Details + optional plans panel */}
-          <div className={`flex min-w-0 flex-1 gap-5 ${panelOpen ? "flex-col xl:flex-row" : ""}`}>
+          {/* 2. Details + plans */}
+          <div className={`flex min-w-0 flex-1 gap-4 ${panelOpen ? "flex-col xl:flex-row" : ""}`}>
             <section
-              className="min-w-0 flex-1 rounded-[24px] border bg-white p-5 shadow-[0_10px_40px_rgba(11,42,154,0.06)] sm:p-6"
+              className="min-w-0 flex-1 rounded-2xl border bg-white p-4 shadow-sm sm:p-5"
               style={{ borderColor: B.border }}
             >
-              <div className="mb-4 flex items-center justify-between gap-2">
+              <div className="mb-3 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <span
-                    className="flex h-9 w-9 items-center justify-center rounded-xl"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg"
                     style={{ background: B.secondary, color: B.blue }}
                   >
-                    <UserRound size={18} strokeWidth={2.2} />
+                    <UserRound size={15} strokeWidth={2.2} />
                   </span>
-                  <h2 className="text-sm font-extrabold" style={{ color: B.blue }}>
+                  <h2 className="text-[13px] font-extrabold" style={{ color: B.blue }}>
                     2. Recharge Details
                   </h2>
                 </div>
-                <span className="text-[11px] font-semibold" style={{ color: B.muted }}>
-                  {selectedOp ? selectedOp.label : "Waiting for operator"}
-                </span>
+                {selectedOp ? (
+                  <span
+                    className="inline-flex items-center gap-1 text-[11px] font-bold"
+                    style={{ color: B.green }}
+                  >
+                    <Check size={14} strokeWidth={3} />
+                    Ready
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-semibold" style={{ color: B.muted }}>
+                    Waiting for operator
+                  </span>
+                )}
               </div>
 
-              <form onSubmit={onSubmit} className="space-y-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      {selectedOp ? (
-                        <OperatorLogo op={selectedOp} size={48} />
-                      ) : (
-                        <div
-                          className="flex h-12 w-12 items-center justify-center rounded-[14px] border border-dashed bg-[#F8FAFF]"
-                          style={{ borderColor: B.border }}
-                        >
-                          <Smartphone size={20} style={{ color: B.blueLight }} />
-                        </div>
-                      )}
-                      <div>
-                        <p className="text-lg font-extrabold" style={{ color: B.blue }}>
-                          {selectedOp?.label ?? "Select an operator"}
-                        </p>
+              <form onSubmit={onSubmit} className="space-y-3">
+                <div
+                  className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5"
+                  style={{ borderColor: B.border, background: "#F8FAFF" }}
+                >
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    {selectedOp ? (
+                      <OperatorLogo op={selectedOp} size={40} />
+                    ) : (
+                      <div
+                        className="flex h-10 w-10 items-center justify-center rounded-[12px] border border-dashed bg-white"
+                        style={{ borderColor: B.border }}
+                      >
+                        <Smartphone size={18} style={{ color: B.blueLight }} />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="truncate text-[15px] font-extrabold" style={{ color: B.blue }}>
+                        {selectedOp?.label ?? "Select an operator"}
+                      </p>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                         <span
-                          className="mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-extrabold"
-                          style={{
-                            background: selectedOp ? "#ECFDF3" : B.secondary,
-                            color: selectedOp ? B.green : B.muted,
-                          }}
+                          className="rounded-md px-1.5 py-0.5 text-[10px] font-bold"
+                          style={{ background: B.secondary, color: B.blue }}
                         >
-                          {serviceCode === "DTH" ? "DTH" : "Prepaid"}
+                          {serviceCode === "DTH" ? "DTH Operator" : "Prepaid Operator"}
                         </span>
+                        {selectedOp ? (
+                          <span
+                            className="rounded-md px-1.5 py-0.5 text-[10px] font-bold"
+                            style={{ background: "#ECFDF3", color: B.green }}
+                          >
+                            Live Gateway
+                          </span>
+                        ) : null}
                       </div>
                     </div>
-                    {selectedOp ? (
-                      <button
-                        type="button"
-                        onClick={clearOperator}
-                        className="flex h-9 w-9 items-center justify-center rounded-full"
-                        style={{ background: B.secondary, color: B.muted }}
-                        aria-label="Clear operator"
-                      >
-                        <X size={16} strokeWidth={2.4} />
-                      </button>
-                    ) : null}
                   </div>
+                  {selectedOp ? (
+                    <button
+                      type="button"
+                      onClick={clearOperator}
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+                      style={{ background: "#fff", color: B.muted, border: `1px solid ${B.border}` }}
+                      aria-label="Clear operator"
+                    >
+                      <X size={14} strokeWidth={2.4} />
+                    </button>
+                  ) : null}
+                </div>
 
+                <div
+                  className={`grid gap-3 ${
+                    serviceCode === "MOBILE_PREPAID" ? "sm:grid-cols-2" : "sm:grid-cols-2"
+                  }`}
+                >
                   {serviceCode === "MOBILE_PREPAID" ? (
-                    <label className="block space-y-1.5">
-                      <span className="text-sm font-semibold" style={{ color: B.blue }}>
+                    <label className="block space-y-1">
+                      <span className={labelClass} style={{ color: B.muted }}>
                         Telecom Circle
                       </span>
                       <div className="relative">
-                        <MapPin
-                          size={16}
-                          className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2"
+                        <Building2
+                          size={15}
+                          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
                           style={{ color: B.blueLight }}
                         />
                         <select
@@ -879,10 +891,10 @@ function RechargeInner() {
                             setPlans([]);
                             setOffers([]);
                           }}
-                          className="w-full appearance-none rounded-2xl border bg-[#F7F9FF] py-3 pl-10 pr-3.5 text-sm outline-none transition focus:border-[#2A5CDD] focus:bg-white"
+                          className={`${fieldClass} appearance-none`}
                           style={{ borderColor: B.border }}
                         >
-                          <option value="">Select Circle</option>
+                          <option value="">Select Telecom Circle</option>
                           {circleOptions.map((c) => (
                             <option key={c.code} value={c.code}>
                               {c.name}
@@ -893,14 +905,14 @@ function RechargeInner() {
                     </label>
                   ) : null}
 
-                  <label className="block space-y-1.5">
-                    <span className="text-sm font-semibold" style={{ color: B.blue }}>
+                  <label className="block space-y-1">
+                    <span className={labelClass} style={{ color: B.muted }}>
                       {serviceCode === "DTH" ? "Subscriber ID" : "Mobile Number"}
                     </span>
                     <div className="relative">
                       <Smartphone
-                        size={16}
-                        className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2"
+                        size={15}
+                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
                         style={{ color: B.blueLight }}
                       />
                       <input
@@ -912,46 +924,48 @@ function RechargeInner() {
                           markNewIntent();
                           setAccountRef(e.target.value.replace(/\D/g, ""));
                         }}
-                        className="w-full rounded-2xl border bg-[#F7F9FF] py-3 pl-10 pr-3.5 text-sm outline-none transition focus:border-[#2A5CDD] focus:bg-white"
+                        className={fieldClass}
                         style={{ borderColor: B.border }}
                         placeholder={
-                          serviceCode === "DTH" ? "Enter subscriber ID" : "Enter 10-digit number"
+                          serviceCode === "DTH" ? "Subscriber ID" : "10-digit mobile number"
                         }
                       />
                     </div>
                     {serviceCode === "MOBILE_PREPAID" && lookupBusy ? (
-                      <span className="text-xs" style={{ color: B.muted }}>
+                      <span className="text-[10px]" style={{ color: B.muted }}>
                         Detecting circle…
                       </span>
                     ) : null}
                   </label>
 
-                  <label className="block space-y-1.5">
-                    <span className="text-sm font-semibold" style={{ color: B.blue }}>
-                      Recharge Amount
-                    </span>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void openCatalog("plans")}
-                        className="cursor-pointer rounded-full border px-2.5 py-1 text-[11px] font-bold"
-                        style={{ borderColor: B.blue, color: B.blue, background: B.secondary }}
-                      >
-                        View Plans
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void openCatalog("offers")}
-                        className="cursor-pointer rounded-full border px-2.5 py-1 text-[11px] font-bold"
-                        style={{ borderColor: B.blue, color: B.blue, background: B.secondary }}
-                      >
-                        {serviceCode === "DTH" ? "View Info" : "View Offers"}
-                      </button>
+                  <label className="block space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={labelClass} style={{ color: B.muted }}>
+                        Recharge Amount (Rs.)
+                      </span>
+                      <span className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void openCatalog("plans")}
+                          className="cursor-pointer text-[11px] font-extrabold uppercase tracking-wide hover:underline"
+                          style={{ color: B.blueLight }}
+                        >
+                          View Plans
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void openCatalog("offers")}
+                          className="cursor-pointer text-[11px] font-extrabold uppercase tracking-wide hover:underline"
+                          style={{ color: B.blueLight }}
+                        >
+                          {serviceCode === "DTH" ? "View Info" : "View Offers"}
+                        </button>
+                      </span>
                     </div>
                     <div className="relative">
                       <Wallet
-                        size={16}
-                        className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2"
+                        size={15}
+                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
                         style={{ color: B.blueLight }}
                       />
                       <input
@@ -961,21 +975,21 @@ function RechargeInner() {
                           markNewIntent();
                           setAmount(e.target.value);
                         }}
-                        className="w-full rounded-2xl border bg-[#F7F9FF] py-3 pl-10 pr-3.5 text-sm outline-none transition focus:border-[#2A5CDD] focus:bg-white"
+                        className={fieldClass}
                         style={{ borderColor: B.border }}
-                        placeholder="Enter Amount"
+                        placeholder="Min. Rs. 10"
                       />
                     </div>
                   </label>
 
-                  <label className="block space-y-1.5">
-                    <span className="text-sm font-semibold" style={{ color: B.blue }}>
-                      TPIN
+                  <label className="block space-y-1">
+                    <span className={labelClass} style={{ color: B.muted }}>
+                      Transaction PIN (TPIN)
                     </span>
                     <div className="relative">
                       <Lock
-                        size={16}
-                        className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2"
+                        size={15}
+                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
                         style={{ color: B.blueLight }}
                       />
                       <input
@@ -984,54 +998,44 @@ function RechargeInner() {
                         maxLength={4}
                         value={txnPin}
                         onChange={(e) => setTxnPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                        className="w-full rounded-2xl border bg-[#F7F9FF] py-3 pl-10 pr-3.5 text-sm tracking-widest outline-none transition focus:border-[#2A5CDD] focus:bg-white"
+                        className={`${fieldClass} tracking-widest`}
                         style={{ borderColor: B.border }}
-                        placeholder="Enter TPIN"
+                        placeholder="Enter 4-digit TPIN"
                       />
                     </div>
                   </label>
+                </div>
 
-                  {blockResubmit ? (
-                    <p className="text-xs font-medium" style={{ color: B.muted }}>
-                      Do not tap Recharge again while status is pending. Change number or amount to
-                      start a new recharge.
-                    </p>
-                  ) : null}
+                {blockResubmit ? (
+                  <p className="text-xs font-medium" style={{ color: B.muted }}>
+                    Do not tap Recharge again while status is pending. Change number or amount to
+                    start a new recharge.
+                  </p>
+                ) : null}
 
-                  {!formReady && !blockResubmit ? (
-                    <p className="text-xs" style={{ color: B.muted }}>
-                      {selectedOp
-                        ? "Fill circle, mobile, amount, and 4-digit TPIN to enable Recharge."
-                        : "Select an operator on the left, then fill circle, mobile, amount, and TPIN."}
-                    </p>
-                  ) : null}
+                {lastRef ? (
+                  <p className="text-xs" style={{ color: B.muted }}>
+                    Last txn <span className="font-semibold" style={{ color: B.blue }}>{lastRef}</span>
+                    {" · "}
+                    <span className="capitalize">{lastStatus}</span>
+                  </p>
+                ) : null}
 
-                  {lastRef ? (
-                    <div
-                      className="rounded-2xl border px-3 py-2.5 text-sm"
-                      style={{ borderColor: B.border, background: "#F8FAFF" }}
-                    >
-                      <p style={{ color: B.muted }}>Last txn</p>
-                      <p className="font-semibold" style={{ color: B.blue }}>
-                        {lastRef}
-                      </p>
-                      <p className="mt-0.5 capitalize" style={{ color: B.muted }}>
-                        Status: {lastStatus}
-                      </p>
-                    </div>
-                  ) : null}
-
-                  <PrimaryButton
-                    type="submit"
-                    variant="primary"
-                    loading={loading}
-                    disabled={submitDisabled}
-                    onPointerDown={armSubmitFromPointer}
-                    className={`w-full${submitDisabled ? " pointer-events-none" : ""}`}
-                  >
+                <PrimaryButton
+                  type="submit"
+                  variant="primary"
+                  showArrow={false}
+                  loading={loading}
+                  disabled={submitDisabled}
+                  onPointerDown={armSubmitFromPointer}
+                  className={`w-full !rounded-xl !py-3${submitDisabled ? " pointer-events-none" : ""}`}
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <Zap size={16} strokeWidth={2.4} fill="currentColor" />
                     {blockResubmit ? "Submitted — wait for status" : "Recharge Now"}
-                  </PrimaryButton>
-                </form>
+                  </span>
+                </PrimaryButton>
+              </form>
             </section>
 
             {panelOpen ? (
@@ -1206,8 +1210,9 @@ function RechargeInner() {
                   {[
                     "Date & Time",
                     "Operator",
-                    "Service",
+                    "Mobile Number",
                     "Txn ID",
+                    "RRN / UTR",
                     "Amount (Rs.)",
                     "Status",
                     "Action",
@@ -1227,13 +1232,13 @@ function RechargeInner() {
               <tbody>
                 {recentBusy && filteredRecent.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-12 text-center" style={{ color: B.muted }}>
+                    <td colSpan={8} className="px-4 py-12 text-center" style={{ color: B.muted }}>
                       Loading…
                     </td>
                   </tr>
                 ) : filteredRecent.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-14 text-center">
+                    <td colSpan={8} className="px-4 py-14 text-center">
                       <Wallet
                         size={28}
                         className="mx-auto mb-2 opacity-40"
@@ -1267,10 +1272,13 @@ function RechargeInner() {
                         {t.serviceName}
                       </td>
                       <td className="px-4 py-3 text-xs" style={{ color: B.muted }}>
-                        {t.serviceCode}
+                        —
                       </td>
                       <td className="px-4 py-3 font-mono text-xs" style={{ color: B.muted }}>
                         {t.txnRef}
+                      </td>
+                      <td className="px-4 py-3 text-xs" style={{ color: B.muted }}>
+                        —
                       </td>
                       <td className="px-4 py-3 text-right font-bold" style={{ color: B.blue }}>
                         {formatInr(t.amount)}
