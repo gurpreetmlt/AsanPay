@@ -1241,6 +1241,11 @@ function RechargeInner() {
               ) : null}
 
               <div className="flex min-h-0 flex-1 flex-col px-5 pb-5 pt-3">
+                {serviceCode === "DTH" && panelTab === "offers" && dthSummary.length > 0 && offers.length === 0 ? (
+                  <p className="py-8 text-center text-sm" style={{ color: B.muted }}>
+                    Subscriber details above. Enter amount manually to recharge.
+                  </p>
+                ) : (
                 <PlanBrowseBody
                   items={panelTab === "plans" ? plans : offers}
                   selectedAmount={amount}
@@ -1260,6 +1265,7 @@ function RechargeInner() {
                     setPanelOpen(false);
                   }}
                 />
+                )}
               </div>
             </div>
           </div>

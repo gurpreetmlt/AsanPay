@@ -536,28 +536,73 @@ export async function lookupMobileRechargeInfo(mobile: string): Promise<MobileRe
 }
 
 function extractSummaryRows(json: BestApiJson): { label: string; value: string }[] {
-  const row = firstDataObject(json);
-  const skip = new Set([
+  /** Container keys — walk into them, do not show as rows. */
+  const walkOnly = new Set([
+    "status",
+    "success",
+    "data",
+    "result",
+    "response",
+    "payload",
+    "rdata",
+    "details",
+    "pricinglist",
+    "pricing",
+    "plans",
+    "info",
+  ]);
+  /** Noise labels to hide even if string. */
+  const skipLabel = new Set([
     "status",
     "success",
     "message",
     "msg",
     "error",
-    "data",
-    "result",
-    "rdata",
-    "plans",
+    "errcode",
+    "errorcode",
   ]);
   const out: { label: string; value: string }[] = [];
-  for (const [k, v] of Object.entries(row)) {
-    if (skip.has(k.toLowerCase())) continue;
-    if (typeof v === "string" && v.trim() && v.length <= 200) {
-      out.push({ label: k, value: v.trim() });
-    } else if (typeof v === "number" && Number.isFinite(v)) {
-      out.push({ label: k, value: String(v) });
-    }
-    if (out.length >= 20) break;
+  const seen = new Set<string>();
+
+  function add(label: string, value: string): void {
+    const l = label.trim();
+    const v = value.trim();
+    if (!l || !v || v.length > 240) return;
+    if (skipLabel.has(l.toLowerCase())) return;
+    if (walkOnly.has(l.toLowerCase())) return;
+    // Skip gateway status noise like ERROR=0 / STATUS=0
+    if (/^(error|status)$/i.test(l) && /^[01]$/.test(v)) return;
+    const key = `${l.toLowerCase()}|${v.toLowerCase()}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push({ label: l, value: v });
   }
+
+  function walk(node: unknown, depth: number): void {
+    if (out.length >= 24 || node == null || depth > 10) return;
+    if (Array.isArray(node)) {
+      for (const item of node) walk(item, depth + 1);
+      return;
+    }
+    const rec = asRecord(node);
+    if (!rec) return;
+    for (const [k, v] of Object.entries(rec)) {
+      const lk = k.toLowerCase();
+      if (typeof v === "string" && v.trim()) {
+        if (!walkOnly.has(lk)) add(k, v);
+        continue;
+      }
+      if (typeof v === "number" && Number.isFinite(v)) {
+        if (!walkOnly.has(lk)) add(k, String(v));
+        continue;
+      }
+      if (typeof v === "boolean") continue;
+      // Nested customer blobs (DATA / info / …)
+      walk(v, depth + 1);
+    }
+  }
+
+  walk(json, 0);
   return out;
 }
 
@@ -597,6 +642,10 @@ export async function fetchDthInfo(input: {
   }
   const res = await bestApiPost(DTH_INFO_PATH, { opcord, number });
   const sample = JSON.stringify(res.json).slice(0, 800);
+  logger.info(
+    { opcord, numberLen: number.length, httpStatus: res.httpStatus, sample },
+    "BestAPI DTH info raw",
+  );
   if (res.httpStatus >= 400 || isBadGatewayPayload(sample)) {
     throw new HttpError(
       502,
