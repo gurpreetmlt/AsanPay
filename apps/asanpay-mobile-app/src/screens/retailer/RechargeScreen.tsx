@@ -105,11 +105,41 @@ const MOBILE_OPS: OperatorDef[] = [
 ];
 
 const DTH_OPS: OperatorDef[] = [
-  { code: "ATV", label: "Airtel TV", color: "#ED1C24", mark: "ATV" },
-  { code: "TTV", label: "Tata Play", color: "#000000", mark: "Tata" },
-  { code: "STV", label: "Sun TV", color: "#F5A623", mark: "Sun" },
-  { code: "DTV", label: "Dish TV", color: "#E31837", mark: "Dish" },
-  { code: "VTV", label: "Videocon d2h", color: "#00A651", mark: "d2h" },
+  {
+    code: "ATV",
+    label: "Airtel TV",
+    color: "#ED1C24",
+    mark: "ATV",
+    logo: require("../../assets/operator-logos/dth/airtel-tv.png"),
+  },
+  {
+    code: "TTV",
+    label: "Tata Play",
+    color: "#000000",
+    mark: "Tata",
+    logo: require("../../assets/operator-logos/dth/tata-play.png"),
+  },
+  {
+    code: "STV",
+    label: "Sun TV",
+    color: "#F5A623",
+    mark: "Sun",
+    logo: require("../../assets/operator-logos/dth/sun-tv.png"),
+  },
+  {
+    code: "DTV",
+    label: "Dish TV",
+    color: "#E31837",
+    mark: "Dish",
+    logo: require("../../assets/operator-logos/dth/dish-tv.png"),
+  },
+  {
+    code: "VTV",
+    label: "Videocon d2h",
+    color: "#00A651",
+    mark: "d2h",
+    logo: require("../../assets/operator-logos/dth/videocon-d2h.png"),
+  },
 ];
 
 type Props = {
@@ -1029,12 +1059,14 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
       >
         <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bg }]} edges={["top"]}>
           <View style={styles.panelHead}>
-            <View>
-              <Text style={{ color: tokens.txt, fontWeight: "800", fontSize: 17 }}>
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text style={{ color: tokens.txt, fontWeight: "800", fontSize: 18 }}>
                 {serviceCode === "DTH" ? "Plans & Info" : "Plans & Offers"}
               </Text>
-              <Text style={{ color: tokens.sub, fontSize: 12, marginTop: 2 }}>
-                Tap a pack to fill amount
+              <Text style={{ color: tokens.sub, fontSize: 12, marginTop: 3 }}>
+                {serviceCode === "DTH" && panelTab === "offers"
+                  ? "Subscriber details for this connection"
+                  : "Tap a pack to fill amount"}
               </Text>
             </View>
             <Pressable
@@ -1056,34 +1088,33 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
                 {
                   borderColor: colors.blue,
                   backgroundColor: panelTab === "plans" ? colors.blue : tokens.card,
-                  flex: serviceCode !== "DTH" && operatorCode === "JIO" ? 1 : undefined,
                 },
               ]}
             >
-              <Text style={{ color: panelTab === "plans" ? "#fff" : colors.blue, fontWeight: "700" }}>
+              <Text style={{ color: panelTab === "plans" ? "#fff" : colors.blue, fontWeight: "700", fontSize: 14 }}>
                 Plans
               </Text>
             </Pressable>
             {serviceCode === "DTH" || operatorCode !== "JIO" ? (
-            <Pressable
-              onPress={() => setPanelTab("offers")}
-              style={[
-                styles.catalogBtn,
-                {
-                  borderColor: colors.blue,
-                  backgroundColor: panelTab === "offers" ? colors.blue : tokens.card,
-                },
-              ]}
-            >
-              <Text style={{ color: panelTab === "offers" ? "#fff" : colors.blue, fontWeight: "700" }}>
-                {serviceCode === "DTH" ? "Info" : "Offers"}
-              </Text>
-            </Pressable>
+              <Pressable
+                onPress={() => setPanelTab("offers")}
+                style={[
+                  styles.catalogBtn,
+                  {
+                    borderColor: colors.blue,
+                    backgroundColor: panelTab === "offers" ? colors.blue : tokens.card,
+                  },
+                ]}
+              >
+                <Text style={{ color: panelTab === "offers" ? "#fff" : colors.blue, fontWeight: "700", fontSize: 14 }}>
+                  {serviceCode === "DTH" ? "Info" : "Offers"}
+                </Text>
+              </Pressable>
             ) : null}
           </View>
           <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
             {panelBusy ? (
-              <ActivityIndicator color={colors.blue} />
+              <ActivityIndicator color={colors.blue} style={{ marginTop: 24 }} />
             ) : (
               <>
                 {serviceCode === "DTH" && panelTab === "offers" && dthSummary.length > 0 ? (
@@ -1091,58 +1122,59 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
                     const info = formatDthSubscriberInfo(dthSummary);
                     const opName = selectedOp?.label;
                     return (
-                      <View style={{ marginBottom: 14, gap: 10 }}>
+                      <View style={{ gap: 12 }}>
                         {opName ? (
-                          <View
-                            style={{
-                              borderRadius: 16,
-                              paddingVertical: 12,
-                              paddingHorizontal: 14,
-                              backgroundColor: colors.blue,
-                              alignItems: "center",
-                            }}
-                          >
+                          <View style={styles.dthOpBanner}>
                             <Text style={{ color: "#fff", fontSize: 15, fontWeight: "800" }}>{opName}</Text>
                           </View>
                         ) : null}
-                        <View
-                          style={{
-                            borderRadius: 16,
-                            padding: 14,
-                            backgroundColor: "#EEF3FF",
-                            borderWidth: 1,
-                            borderColor: tokens.cardBorder,
-                          }}
-                        >
-                          <Text style={{ color: tokens.sub, fontSize: 11, fontWeight: "700" }}>CUSTOMER</Text>
-                          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginTop: 4, gap: 10 }}>
+                        <View style={[styles.dthCard, { backgroundColor: "#EEF3FF", borderColor: tokens.cardBorder }]}>
+                          <Text style={{ color: tokens.sub, fontSize: 11, fontWeight: "700", letterSpacing: 0.4 }}>
+                            CUSTOMER
+                          </Text>
+                          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 6, gap: 10 }}>
                             <Text style={{ color: tokens.txt, fontSize: 17, fontWeight: "800", flex: 1 }} numberOfLines={2}>
                               {info.name ?? "Subscriber"}
                             </Text>
                             {info.balance ? (
-                              <View style={{ backgroundColor: "#fff", borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: tokens.cardBorder }}>
+                              <View style={[styles.dthBalanceChip, { borderColor: tokens.cardBorder }]}>
                                 <Text style={{ color: tokens.sub, fontSize: 10, fontWeight: "700" }}>BALANCE</Text>
-                                <Text style={{ color: colors.green, fontSize: 15, fontWeight: "800" }}>{info.balance}</Text>
+                                <Text style={{ color: colors.green, fontSize: 16, fontWeight: "800", marginTop: 2 }}>
+                                  {info.balance}
+                                </Text>
                               </View>
                             ) : null}
                           </View>
                         </View>
                         {info.account.length > 0 ? (
-                          <View style={{ borderRadius: 16, borderWidth: 1, borderColor: tokens.cardBorder, padding: 12, backgroundColor: tokens.card }}>
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                          <View style={[styles.dthCard, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
                               <Wallet size={14} color={colors.blue} strokeWidth={2.2} />
                               <Text style={{ color: tokens.txt, fontWeight: "800", fontSize: 13 }}>Account</Text>
                             </View>
-                            {info.account.map((row) => (
-                              <View key={`${row.label}-${row.value}`} style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8, gap: 10 }}>
-                                <Text style={{ color: tokens.sub, fontSize: 12, flex: 1 }}>{row.label}</Text>
-                                <Text style={{ color: tokens.txt, fontWeight: "700", fontSize: 12, flex: 1.2, textAlign: "right" }}>{row.value}</Text>
+                            {info.account.map((row, idx) => (
+                              <View
+                                key={`${row.label}-${row.value}`}
+                                style={[
+                                  styles.dthAccountRow,
+                                  idx < info.account.length - 1
+                                    ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: tokens.cardBorder }
+                                    : null,
+                                ]}
+                              >
+                                <Text style={{ color: tokens.sub, fontSize: 13, flex: 1 }}>{row.label}</Text>
+                                <Text
+                                  style={{ color: tokens.txt, fontWeight: "700", fontSize: 13, flex: 1.15, textAlign: "right" }}
+                                  numberOfLines={2}
+                                >
+                                  {row.value}
+                                </Text>
                               </View>
                             ))}
                           </View>
                         ) : null}
                         {offers.length === 0 ? (
-                          <Text style={{ color: tokens.sub, fontSize: 12, textAlign: "center" }}>
+                          <Text style={{ color: tokens.sub, fontSize: 12, textAlign: "center", lineHeight: 18, marginTop: 4 }}>
                             Use the balance and dates above, then enter the recharge amount on the form.
                           </Text>
                         ) : null}
@@ -1151,23 +1183,23 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
                   })()
                 ) : null}
                 {!(serviceCode === "DTH" && panelTab === "offers" && dthSummary.length > 0 && offers.length === 0) ? (
-                <PlanBlock
-                  items={panelTab === "plans" ? plans : offers}
-                  tokens={tokens}
-                  selectedAmount={amount}
-                  onPick={(a) => {
-                    markNewIntent();
-                    setAmount(a);
-                    setPanelOpen(false);
-                  }}
-                />
+                  <PlanBlock
+                    items={panelTab === "plans" ? plans : offers}
+                    tokens={tokens}
+                    selectedAmount={amount}
+                    onPick={(a) => {
+                      markNewIntent();
+                      setAmount(a);
+                      setPanelOpen(false);
+                    }}
+                  />
                 ) : null}
               </>
             )}
             {!panelBusy &&
             (panelTab === "plans" ? plans : offers).length === 0 &&
             !(serviceCode === "DTH" && panelTab === "offers" && dthSummary.length > 0) ? (
-              <Text style={{ color: tokens.sub, fontSize: 12, marginTop: 8 }}>
+              <Text style={{ color: tokens.sub, fontSize: 13, marginTop: 16, textAlign: "center", lineHeight: 18 }}>
                 {serviceCode === "DTH"
                   ? "No packs returned. Enter amount manually."
                   : `No ${panelTab} for this operator and circle. Enter amount manually.`}
@@ -1274,20 +1306,49 @@ const styles = StyleSheet.create({
   planCard: { borderWidth: 1, borderRadius: 18, marginTop: 8, flexDirection: "row", overflow: "hidden" },
   planPrice: { width: 82, alignItems: "center", justifyContent: "center", paddingVertical: 14 },
   planTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
-  catalogBtnRow: { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingBottom: 8 },
+  catalogBtnRow: { flexDirection: "row", gap: 10, paddingHorizontal: 16, paddingBottom: 10 },
   catalogBtn: {
     flex: 1,
-    borderWidth: 1,
-    borderRadius: 16,
+    borderWidth: 1.5,
+    borderRadius: 14,
     paddingVertical: 12,
     alignItems: "center",
+    justifyContent: "center",
   },
   panelHead: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  dthOpBanner: {
+    borderRadius: 14,
     paddingVertical: 12,
+    paddingHorizontal: 14,
+    backgroundColor: "#2A5CDD",
+    alignItems: "center",
+  },
+  dthCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14,
+  },
+  dthBalanceChip: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    minWidth: 88,
+    alignItems: "flex-end",
+  },
+  dthAccountRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 10,
   },
   tabRow: { gap: 8, paddingBottom: 10 },
   filterChip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },

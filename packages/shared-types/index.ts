@@ -291,9 +291,9 @@ function formatDthInfoValue(rawLabel: string, value: string): string {
     if (value === "0" || /^inactive$/i.test(value)) return "Inactive";
   }
   if (/date|switchof/i.test(key)) {
-    const d = new Date(value);
-    if (!Number.isNaN(d.getTime())) {
-      return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+    const parsed = parseDthDate(value);
+    if (parsed) {
+      return parsed.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
     }
   }
   if (/balance|amount|monthly/i.test(key) && /^₹?[\d,]+(\.\d+)?$/.test(value.trim().replace(/\s/g, ""))) {
@@ -303,6 +303,31 @@ function formatDthInfoValue(rawLabel: string, value: string): string {
     }
   }
   return value.trim();
+}
+
+/** BestAPI often sends US-style `10/29/2026 12:00:00 AM` — parse reliably. */
+function parseDthDate(raw: string): Date | null {
+  const t = raw.trim();
+  const d = new Date(t);
+  if (!Number.isNaN(d.getTime())) return d;
+  const m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}):(\d{2})\s*(AM|PM))?/i);
+  if (!m) return null;
+  let month = Number(m[1]) - 1;
+  let day = Number(m[2]);
+  const year = Number(m[3]);
+  // If first part > 12, treat as DD/MM/YYYY
+  if (Number(m[1]) > 12) {
+    day = Number(m[1]);
+    month = Number(m[2]) - 1;
+  }
+  let hour = m[4] != null ? Number(m[4]) : 0;
+  const minute = m[5] != null ? Number(m[5]) : 0;
+  const second = m[6] != null ? Number(m[6]) : 0;
+  const ampm = (m[7] || "").toUpperCase();
+  if (ampm === "PM" && hour < 12) hour += 12;
+  if (ampm === "AM" && hour === 12) hour = 0;
+  const out = new Date(year, month, day, hour, minute, second);
+  return Number.isNaN(out.getTime()) ? null : out;
 }
 
 /**

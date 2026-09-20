@@ -101,11 +101,11 @@ const MOBILE_OPS: OperatorDef[] = [
 ];
 
 const DTH_OPS: OperatorDef[] = [
-  { code: "ATV", label: "Airtel TV", color: "#ED1C24", mark: "ATV" },
-  { code: "TTV", label: "Tata Play", color: "#111827", mark: "Tata" },
-  { code: "STV", label: "Sun TV", color: "#F5A623", mark: "Sun" },
-  { code: "DTV", label: "Dish TV", color: "#E31837", mark: "Dish" },
-  { code: "VTV", label: "Videocon d2h", color: "#00A651", mark: "d2h" },
+  { code: "ATV", label: "Airtel TV", color: "#ED1C24", mark: "ATV", logo: "/operator-logos/dth/airtel-tv.png" },
+  { code: "TTV", label: "Tata Play", color: "#111827", mark: "Tata", logo: "/operator-logos/dth/tata-play.png" },
+  { code: "STV", label: "Sun TV", color: "#F5A623", mark: "Sun", logo: "/operator-logos/dth/sun-tv.png" },
+  { code: "DTV", label: "Dish TV", color: "#E31837", mark: "Dish", logo: "/operator-logos/dth/dish-tv.png" },
+  { code: "VTV", label: "Videocon d2h", color: "#00A651", mark: "d2h", logo: "/operator-logos/dth/videocon-d2h.png" },
 ];
 
 function parseService(raw: string | null): ServiceCode {
