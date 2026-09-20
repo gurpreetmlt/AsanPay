@@ -12,7 +12,6 @@ import {
   History,
   Layers,
   Lock,
-  MapPin,
   RadioTower,
   Search,
   Smartphone,
@@ -203,35 +202,6 @@ function DthInfoPanel({
                   {row.label}
                 </span>
                 <span className="text-right text-[13px] font-semibold" style={{ color: "#0F172A" }}>
-                  {row.value}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {info.location.length > 0 ? (
-        <div className="rounded-2xl border bg-white p-3.5" style={{ borderColor: B.border }}>
-          <div className="mb-2.5 flex items-center gap-2">
-            <MapPin size={14} strokeWidth={2.2} style={{ color: B.blueLight }} />
-            <p className="text-[12px] font-extrabold" style={{ color: B.blue }}>
-              Location
-            </p>
-          </div>
-          <div className="space-y-2.5">
-            {info.location.map((row) => (
-              <div
-                key={`${row.label}-${row.value}`}
-                className={row.label === "Address" ? "block space-y-1" : "flex items-start justify-between gap-4"}
-              >
-                <span className="text-[12px]" style={{ color: B.muted }}>
-                  {row.label}
-                </span>
-                <span
-                  className={`text-[13px] font-semibold ${row.label === "Address" ? "block leading-snug" : "text-right"}`}
-                  style={{ color: "#0F172A" }}
-                >
                   {row.value}
                 </span>
               </div>
@@ -709,6 +679,9 @@ function RechargeInner() {
       toast.error("Select an operator");
       return;
     }
+    if (tab === "offers" && operatorCode === "JIO") {
+      return;
+    }
     if (!circleCode) {
       toast.error("Select a telecom circle");
       return;
@@ -1171,14 +1144,16 @@ function RechargeInner() {
                         >
                           View Plans
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => void openCatalog("offers")}
-                          className="cursor-pointer text-[11px] font-extrabold uppercase tracking-wide hover:underline"
-                          style={{ color: B.blueLight }}
-                        >
-                          {serviceCode === "DTH" ? "View Info" : "View Offers"}
-                        </button>
+                        {serviceCode === "DTH" || operatorCode !== "JIO" ? (
+                          <button
+                            type="button"
+                            onClick={() => void openCatalog("offers")}
+                            className="cursor-pointer text-[11px] font-extrabold uppercase tracking-wide hover:underline"
+                            style={{ color: B.blueLight }}
+                          >
+                            {serviceCode === "DTH" ? "View Info" : "View Offers"}
+                          </button>
+                        ) : null}
                       </span>
                     </div>
                     <div className="relative">

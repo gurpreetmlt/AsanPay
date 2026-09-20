@@ -494,6 +494,9 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
       showAlert("Operator", "Select an operator");
       return;
     }
+    if (tab === "offers" && operatorCode === "JIO") {
+      return;
+    }
     if (!circleCode) {
       showAlert("Telecom Circle", "Select a circle/state");
       return;
@@ -919,14 +922,16 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
               >
                 <Text style={{ color: colors.blue, fontWeight: "700", fontSize: 11 }}>View Plans</Text>
               </Pressable>
-              <Pressable
-                onPress={() => void openCatalog("offers")}
-                style={[styles.miniBtn, { borderColor: colors.blue, backgroundColor: `${colors.blue}10` }]}
-              >
-                <Text style={{ color: colors.blue, fontWeight: "700", fontSize: 11 }}>
-                  {serviceCode === "DTH" ? "View Info" : "View Offers"}
-                </Text>
-              </Pressable>
+              {serviceCode === "DTH" || operatorCode !== "JIO" ? (
+                <Pressable
+                  onPress={() => void openCatalog("offers")}
+                  style={[styles.miniBtn, { borderColor: colors.blue, backgroundColor: `${colors.blue}10` }]}
+                >
+                  <Text style={{ color: colors.blue, fontWeight: "700", fontSize: 11 }}>
+                    {serviceCode === "DTH" ? "View Info" : "View Offers"}
+                  </Text>
+                </Pressable>
+              ) : null}
             </View>
             <View
               style={[
@@ -1051,6 +1056,7 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
                 {
                   borderColor: colors.blue,
                   backgroundColor: panelTab === "plans" ? colors.blue : tokens.card,
+                  flex: serviceCode !== "DTH" && operatorCode === "JIO" ? 1 : undefined,
                 },
               ]}
             >
@@ -1058,6 +1064,7 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
                 Plans
               </Text>
             </Pressable>
+            {serviceCode === "DTH" || operatorCode !== "JIO" ? (
             <Pressable
               onPress={() => setPanelTab("offers")}
               style={[
@@ -1072,6 +1079,7 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
                 {serviceCode === "DTH" ? "Info" : "Offers"}
               </Text>
             </Pressable>
+            ) : null}
           </View>
           <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
             {panelBusy ? (
@@ -1129,20 +1137,6 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
                               <View key={`${row.label}-${row.value}`} style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8, gap: 10 }}>
                                 <Text style={{ color: tokens.sub, fontSize: 12, flex: 1 }}>{row.label}</Text>
                                 <Text style={{ color: tokens.txt, fontWeight: "700", fontSize: 12, flex: 1.2, textAlign: "right" }}>{row.value}</Text>
-                              </View>
-                            ))}
-                          </View>
-                        ) : null}
-                        {info.location.length > 0 ? (
-                          <View style={{ borderRadius: 16, borderWidth: 1, borderColor: tokens.cardBorder, padding: 12, backgroundColor: tokens.card }}>
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                              <MapPin size={14} color={colors.blue} strokeWidth={2.2} />
-                              <Text style={{ color: tokens.txt, fontWeight: "800", fontSize: 13 }}>Location</Text>
-                            </View>
-                            {info.location.map((row) => (
-                              <View key={`${row.label}-${row.value}`} style={{ marginBottom: 8 }}>
-                                <Text style={{ color: tokens.sub, fontSize: 12, marginBottom: 2 }}>{row.label}</Text>
-                                <Text style={{ color: tokens.txt, fontWeight: "700", fontSize: 12 }}>{row.value}</Text>
                               </View>
                             ))}
                           </View>
