@@ -176,18 +176,11 @@ function groupPlansByTab(items: PlanItem[]): { id: RechargePlanTabId; label: str
 }
 
 function OperatorLogo({ op, size = 56 }: { op: OperatorDef; size?: number }) {
-  const radius = Math.round(size * 0.22);
-  const pad = Math.max(4, Math.round(size * 0.1));
-  const inner = size - pad * 2;
   return (
     <View
       style={{
         width: size,
         height: size,
-        borderRadius: radius,
-        backgroundColor: "#fff",
-        borderWidth: 1.5,
-        borderColor: "#2A5CDD",
         alignItems: "center",
         justifyContent: "center",
         overflow: "hidden",
@@ -196,7 +189,7 @@ function OperatorLogo({ op, size = 56 }: { op: OperatorDef; size?: number }) {
       {op.logo ? (
         <Image
           source={op.logo}
-          style={{ width: inner, height: inner }}
+          style={{ width: size, height: size }}
           resizeMode="contain"
         />
       ) : (
@@ -1230,8 +1223,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     elevation: 3,
   },
-  logoGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
-  logoCell: { width: "31%", alignItems: "center", marginBottom: 14 },
+  logoGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-start" },
+  logoCell: { width: "33.333%", alignItems: "center", marginBottom: 14, paddingHorizontal: 4 },
   formHead: {
     flexDirection: "row",
     alignItems: "center",
