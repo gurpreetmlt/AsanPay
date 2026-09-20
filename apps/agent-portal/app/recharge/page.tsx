@@ -138,22 +138,18 @@ function groupPlansByTab(items: PlanItem[]): { id: RechargePlanTabId; label: str
 function OperatorLogo({ op, size = 56 }: { op: OperatorDef; size?: number }) {
   return (
     <div
-      className="flex items-center justify-center overflow-hidden rounded-[14px] border bg-white shadow-sm"
-      style={{
-        width: size,
-        height: size,
-        borderColor: B.border,
-      }}
+      className="flex shrink-0 items-center justify-center overflow-hidden"
+      style={{ width: size, height: size }}
     >
       {op.logo ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={op.logo}
           alt={op.label}
-          width={size - 8}
-          height={size - 8}
+          width={size}
+          height={size}
           className="object-contain"
-          style={{ width: size - 8, height: size - 8 }}
+          style={{ width: size, height: size }}
         />
       ) : (
         <span className="text-[12px] font-black tracking-tight" style={{ color: op.color }}>
@@ -736,7 +732,6 @@ function RechargeInner() {
 
   const recentTitle =
     serviceCode === "DTH" ? "Recent DTH Recharges" : "Recent Mobile Recharges";
-  const serviceKindLabel = serviceCode === "DTH" ? "DTH Recharge" : "Prepaid Recharge";
   const fieldClass =
     "w-full rounded-xl border bg-white py-2.5 pl-10 pr-3 text-sm outline-none transition focus:border-[#2A5CDD]";
   const labelClass = "text-[11px] font-bold uppercase tracking-wide";
@@ -787,7 +782,7 @@ function RechargeInner() {
                 </p>
               </div>
             </div>
-            <div className="flex flex-1 flex-col space-y-1.5">
+            <div className="flex flex-1 flex-col space-y-1">
               {ops.map((op) => {
                 const selected = operatorCode === op.code;
                 return (
@@ -795,27 +790,19 @@ function RechargeInner() {
                     key={op.code}
                     type="button"
                     onClick={() => selectOperator(op.code)}
-                    className="flex w-full cursor-pointer items-center gap-2.5 rounded-xl border px-2.5 py-2 text-left transition hover:bg-[#F4F7FF]"
+                    className="flex w-full cursor-pointer items-center gap-3 rounded-xl px-2.5 py-2.5 text-left transition hover:bg-[#F4F7FF]"
                     style={{
-                      borderColor: selected ? B.blueLight : B.border,
-                      background: selected ? "#EEF3FF" : "#fff",
+                      background: selected ? "#EEF3FF" : "transparent",
+                      boxShadow: selected ? `inset 0 0 0 1.5px ${B.blueLight}` : undefined,
                     }}
                   >
-                    <OperatorLogo op={op} size={36} />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13px] font-extrabold" style={{ color: B.blue }}>
-                        {op.label}
-                      </p>
-                      <p className="truncate text-[10px]" style={{ color: B.muted }}>
-                        {serviceKindLabel}
-                      </p>
-                    </div>
-                    <span
-                      className="shrink-0 rounded-md px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide"
-                      style={{ background: "#ECFDF3", color: B.green }}
-                    >
-                      Active
-                    </span>
+                    <OperatorLogo op={op} size={40} />
+                    <p className="min-w-0 flex-1 truncate text-[14px] font-extrabold" style={{ color: B.blue }}>
+                      {op.label}
+                    </p>
+                    {selected ? (
+                      <Check size={16} strokeWidth={2.6} style={{ color: B.blueLight, flexShrink: 0 }} />
+                    ) : null}
                   </button>
                 );
               })}

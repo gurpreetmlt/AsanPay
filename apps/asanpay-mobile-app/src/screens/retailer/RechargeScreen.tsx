@@ -143,30 +143,20 @@ function groupPlansByTab(items: PlanItem[]): { id: RechargePlanTabId; label: str
 }
 
 function OperatorLogo({ op, size = 56 }: { op: OperatorDef; size?: number }) {
-  const pad = Math.max(4, Math.round(size * 0.12));
   return (
     <View
       style={{
         width: size,
         height: size,
-        borderRadius: 14,
-        backgroundColor: "#fff",
-        borderWidth: 1,
-        borderColor: "rgba(11,42,154,0.08)",
         alignItems: "center",
         justifyContent: "center",
-        shadowColor: "#0B2A9A",
-        shadowOpacity: 0.06,
-        shadowRadius: 6,
-        shadowOffset: { width: 0, height: 2 },
-        elevation: 2,
         overflow: "hidden",
       }}
     >
       {op.logo ? (
         <Image
           source={op.logo}
-          style={{ width: size - pad * 2, height: size - pad * 2 }}
+          style={{ width: size, height: size }}
           resizeMode="contain"
         />
       ) : (
@@ -812,15 +802,21 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
             <Text style={{ color: tokens.sub, fontSize: 13, marginBottom: 14, fontWeight: "600" }}>
               Select operator
             </Text>
-            <View style={styles.logoGrid}>
+            <View style={styles.opList}>
               {ops.map((op) => (
                 <Pressable
                   key={op.code}
                   onPress={() => selectOperator(op.code)}
-                  style={styles.logoCell}
+                  style={({ pressed }) => [
+                    styles.opRow,
+                    {
+                      backgroundColor: pressed ? "rgba(11,42,154,0.06)" : "transparent",
+                      borderColor: tokens.cardBorder,
+                    },
+                  ]}
                 >
-                  <OperatorLogo op={op} />
-                  <Text style={{ color: tokens.txt, fontSize: 12, fontWeight: "700", marginTop: 8 }} numberOfLines={1}>
+                  <OperatorLogo op={op} size={44} />
+                  <Text style={{ color: tokens.txt, fontSize: 15, fontWeight: "700", flex: 1 }} numberOfLines={1}>
                     {op.label}
                   </Text>
                 </Pressable>
@@ -1135,8 +1131,16 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     elevation: 3,
   },
-  logoGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
-  logoCell: { width: "31%", alignItems: "center", marginBottom: 14 },
+  opList: { gap: 6 },
+  opRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
   formHead: {
     flexDirection: "row",
     alignItems: "center",
