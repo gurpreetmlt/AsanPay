@@ -782,7 +782,7 @@ function RechargeInner() {
                 </p>
               </div>
             </div>
-            <div className="flex flex-1 flex-col space-y-1">
+            <div className="flex flex-1 flex-col gap-1.5">
               {ops.map((op) => {
                 const selected = operatorCode === op.code;
                 return (
@@ -790,10 +790,10 @@ function RechargeInner() {
                     key={op.code}
                     type="button"
                     onClick={() => selectOperator(op.code)}
-                    className="flex w-full cursor-pointer items-center gap-3 rounded-xl px-2.5 py-2.5 text-left transition hover:bg-[#F4F7FF]"
+                    className="flex w-full cursor-pointer items-center gap-3 rounded-xl border bg-white px-2.5 py-2.5 text-left transition hover:bg-[#F4F7FF]"
                     style={{
-                      background: selected ? "#EEF3FF" : "transparent",
-                      boxShadow: selected ? `inset 0 0 0 1.5px ${B.blueLight}` : undefined,
+                      borderColor: selected ? B.blueLight : B.border,
+                      background: selected ? "#EEF3FF" : "#fff",
                     }}
                   >
                     <OperatorLogo op={op} size={40} />
