@@ -452,23 +452,20 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
 
   async function openCatalog(tab: "plans" | "offers"): Promise<void> {
     if (serviceCode === "DTH") {
-      const number = accountRef.replace(/\s+/g, "").trim();
-      if (number.length < 8) {
-        showAlert("Subscriber ID", "Enter a valid DTH subscriber number");
-        return;
-      }
       if (!operatorCode) {
         showAlert("Operator", "Select an operator");
         return;
       }
+      if (tab === "offers") {
+        const number = accountRef.replace(/\s+/g, "").trim();
+        if (number.length < 8) {
+          showAlert("Subscriber ID", "Enter a valid DTH subscriber number");
+          return;
+        }
+      }
       setPanelTab(tab);
       animateLayout();
       setPanelOpen(true);
-      return;
-    }
-    const mobile = accountRef.replace(/\D/g, "");
-    if (mobile.length !== 10) {
-      showAlert("Mobile number", "Enter a valid 10-digit mobile");
       return;
     }
     if (!operatorCode) {
@@ -478,6 +475,13 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
     if (!circleCode) {
       showAlert("Telecom Circle", "Select a circle/state");
       return;
+    }
+    if (tab === "offers") {
+      const mobile = accountRef.replace(/\D/g, "");
+      if (mobile.length !== 10) {
+        showAlert("Mobile number", "Enter a valid 10-digit mobile");
+        return;
+      }
     }
     setPanelTab(tab);
     animateLayout();
@@ -552,11 +556,17 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
   useEffect(() => {
     if (!panelOpen) return;
     if (serviceCode === "MOBILE_PREPAID") {
-      const mobile = accountRef.replace(/\D/g, "");
-      if (mobile.length !== 10 || !operatorCode || !circleCode) return;
+      if (!operatorCode || !circleCode) return;
+      if (panelTab === "offers") {
+        const mobile = accountRef.replace(/\D/g, "");
+        if (mobile.length !== 10) return;
+      }
     } else if (serviceCode === "DTH") {
-      const number = accountRef.replace(/\s+/g, "").trim();
-      if (number.length < 8 || !operatorCode) return;
+      if (!operatorCode) return;
+      if (panelTab === "offers") {
+        const number = accountRef.replace(/\s+/g, "").trim();
+        if (number.length < 8) return;
+      }
     } else {
       return;
     }

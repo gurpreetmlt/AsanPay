@@ -343,7 +343,7 @@ function isBadGatewayPayload(sample: string): boolean {
 }
 
 export async function fetchMobilePlans(input: {
-  mobile: string;
+  mobile?: string;
   operatorCode: string;
   circleCode: string;
 }): Promise<RechargePlanItem[]> {
@@ -361,7 +361,7 @@ export async function fetchMobilePlans(input: {
   }
   const plans = extractPlanItems(plansRes.json);
   logger.info(
-    { mobile: input.mobile, opcord, circle, count: plans.length },
+    { mobile: input.mobile || null, opcord, circle, count: plans.length },
     "BestAPI plans loaded",
   );
   return plans;

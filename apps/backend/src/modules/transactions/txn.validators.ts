@@ -41,6 +41,12 @@ export const rechargeMobileInfoSchema = z.object({
 });
 
 export const rechargeMobilePlansSchema = z.object({
+  mobile: z.string().trim().optional(),
+  operatorCode: z.string().trim().min(1, "Select an operator").max(16),
+  circleCode: z.string().trim().min(1, "Select a circle/state").max(8),
+});
+
+export const rechargeMobileOffersSchema = z.object({
   mobile: z
     .string()
     .trim()
@@ -48,8 +54,6 @@ export const rechargeMobilePlansSchema = z.object({
   operatorCode: z.string().trim().min(1, "Select an operator").max(16),
   circleCode: z.string().trim().min(1, "Select a circle/state").max(8),
 });
-
-export const rechargeMobileOffersSchema = rechargeMobilePlansSchema;
 
 export const rechargeDthPlansSchema = z.object({
   operatorCode: z.string().trim().min(1, "Select a DTH operator").max(16),

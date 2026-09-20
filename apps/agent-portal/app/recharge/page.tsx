@@ -6,7 +6,9 @@ import {
   ArrowLeft,
   Building2,
   Check,
+  Clock3,
   History,
+  Layers,
   Lock,
   RadioTower,
   Search,
@@ -130,7 +132,6 @@ function groupPlansByTab(items: PlanItem[]): { id: RechargePlanTabId; label: str
   }));
 }
 
-const PLAN_PAGE_SIZE = 5;
 
 function OperatorLogo({ op, size = 56 }: { op: OperatorDef; size?: number }) {
   return (
@@ -149,48 +150,61 @@ function OperatorLogo({ op, size = 56 }: { op: OperatorDef; size?: number }) {
   );
 }
 
-function PlanList({
+function PlanBrowseBody({
   items,
   selectedAmount,
   onPick,
+  busy,
+  emptyText,
 }: {
   items: PlanItem[];
   selectedAmount: string;
   onPick: (amount: string) => void;
+  busy?: boolean;
+  emptyText: string;
 }) {
   const groups = useMemo(() => groupPlansByTab(items), [items]);
   const [tab, setTab] = useState<RechargePlanTabId>(groups[0]?.id ?? "popular");
-  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     if (!groups.some((g) => g.id === tab)) {
       setTab(groups[0]?.id ?? "popular");
-      setShowAll(false);
     }
   }, [groups, tab]);
 
-  if (items.length === 0) return null;
+  if (busy) {
+    return (
+      <p className="py-16 text-center text-sm" style={{ color: B.muted }}>
+        Loading…
+      </p>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <p className="py-16 text-center text-sm" style={{ color: B.muted }}>
+        {emptyText}
+      </p>
+    );
+  }
+
   const active = groups.find((g) => g.id === tab) ?? groups[0];
   if (!active) return null;
-  const visible = showAll ? active.items : active.items.slice(0, PLAN_PAGE_SIZE);
 
   return (
-    <div className="space-y-3">
-      <div className="-mx-1 flex gap-2 overflow-x-auto pb-1">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-3">
         {groups.map((g) => {
           const on = g.id === active.id;
           return (
             <button
               key={g.id}
               type="button"
-              onClick={() => {
-                setTab(g.id);
-                setShowAll(false);
-              }}
-              className="shrink-0 rounded-full px-3 py-1.5 text-[12px] font-semibold"
+              onClick={() => setTab(g.id)}
+              className="shrink-0 rounded-full px-3.5 py-1.5 text-[12px] font-semibold"
               style={{
-                background: on ? B.btnGrad : B.secondary,
-                color: on ? "#fff" : B.blue,
+                background: on ? B.blueLight : "#EEF1F6",
+                color: on ? "#fff" : "#334155",
               }}
             >
               {g.label}
@@ -198,84 +212,55 @@ function PlanList({
           );
         })}
       </div>
-      <div className="space-y-2.5">
-        {visible.map((p, i) => {
-          const selected = selectedAmount === p.amount;
-          return (
-            <button
-              key={`${active.id}-${p.amount}-${i}`}
-              type="button"
-              onClick={() => onPick(p.amount)}
-              className="flex w-full overflow-hidden rounded-[20px] border text-left transition"
-              style={{
-                borderColor: selected ? B.blueLight : B.border,
-                background: selected ? "#F4F7FF" : "#fff",
-                boxShadow: selected
-                  ? `0 0 0 3px ${B.blueLight}22, 0 8px 20px rgba(11,42,154,0.08)`
-                  : "0 1px 2px rgba(11,42,154,0.04)",
-              }}
-            >
+      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {active.items.map((p, i) => {
+            const selected = selectedAmount === p.amount;
+            return (
               <div
-                className="flex w-[5.25rem] shrink-0 flex-col items-center justify-center py-3.5"
-                style={{ background: selected ? B.btnGrad : B.secondary }}
+                key={`${active.id}-${p.amount}-${i}`}
+                className="flex flex-col rounded-2xl border bg-white p-3.5"
+                style={{
+                  borderColor: selected ? B.blueLight : B.border,
+                  boxShadow: selected ? `0 0 0 2px ${B.blueLight}22` : undefined,
+                }}
               >
-                <span
-                  className="text-[10px] font-bold tracking-wide"
-                  style={{ color: selected ? "rgba(255,255,255,0.75)" : B.muted }}
-                >
-                  INR
-                </span>
-                <span
-                  className="text-[22px] font-extrabold leading-none"
-                  style={{ color: selected ? "#fff" : B.blue }}
-                >
-                  {p.amount}
-                </span>
-              </div>
-              <div className="min-w-0 flex-1 px-3.5 py-3">
-                <div className="flex items-center justify-between gap-2">
-                  <span
-                    className="rounded-full px-2.5 py-0.5 text-[11px] font-bold"
-                    style={{ background: selected ? "#fff" : B.secondary, color: B.blueLight }}
-                  >
-                    {p.validity ? p.validity : "Validity on pack"}
-                  </span>
-                  {selected ? (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-bold" style={{ color: B.green }}>
-                      <Check size={12} strokeWidth={3} />
-                      Selected
-                    </span>
-                  ) : null}
-                </div>
-                {p.description ? (
-                  <p
-                    className="mt-1.5 text-[12px] leading-snug"
-                    style={{
-                      color: B.muted,
-                      display: "-webkit-box",
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: "vertical",
-                      overflow: "hidden",
-                    }}
-                  >
-                    {p.description}
+                <div className="mb-2 flex items-start justify-between gap-2">
+                  <p className="text-lg font-extrabold" style={{ color: "#0F172A" }}>
+                    Rs. {p.amount}
                   </p>
-                ) : null}
+                  <span
+                    className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold"
+                    style={{ background: "#E8F0FF", color: B.blueLight }}
+                  >
+                    <Clock3 size={11} strokeWidth={2.4} />
+                    {p.validity ? p.validity.replace(/days?/i, "").trim() || p.validity : "—"}
+                  </span>
+                </div>
+                <p
+                  className="mb-3 line-clamp-4 min-h-[4.5rem] flex-1 text-[12px] leading-snug"
+                  style={{ color: "#64748B" }}
+                >
+                  {p.description || p.title || "Plan details"}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onPick(p.amount)}
+                  className="mt-auto flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl border py-2 text-[12px] font-bold"
+                  style={{
+                    borderColor: B.blueLight,
+                    color: B.blueLight,
+                    background: selected ? "#EEF3FF" : "#fff",
+                  }}
+                >
+                  <Check size={14} strokeWidth={2.8} />
+                  Select Plan
+                </button>
               </div>
-            </button>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
-      {active.items.length > PLAN_PAGE_SIZE ? (
-        <button
-          type="button"
-          onClick={() => setShowAll((v) => !v)}
-          className="w-full py-2 text-sm font-semibold"
-          style={{ color: B.blueLight }}
-        >
-          {showAll ? "Show less" : `See more (${active.items.length - PLAN_PAGE_SIZE})`}
-        </button>
-      ) : null}
     </div>
   );
 }
@@ -488,22 +473,19 @@ function RechargeInner() {
 
   async function openCatalog(tab: "plans" | "offers"): Promise<void> {
     if (serviceCode === "DTH") {
-      const number = accountRef.replace(/\s+/g, "").trim();
-      if (number.length < 8) {
-        toast.error("Enter a valid DTH subscriber number");
-        return;
-      }
       if (!operatorCode) {
         toast.error("Select an operator");
         return;
       }
+      if (tab === "offers") {
+        const number = accountRef.replace(/\s+/g, "").trim();
+        if (number.length < 8) {
+          toast.error("Enter a valid DTH subscriber number");
+          return;
+        }
+      }
       setPanelTab(tab);
       setPanelOpen(true);
-      return;
-    }
-    const mobile = accountRef.replace(/\D/g, "");
-    if (mobile.length !== 10) {
-      toast.error("Enter a valid 10-digit mobile");
       return;
     }
     if (!operatorCode) {
@@ -513,6 +495,13 @@ function RechargeInner() {
     if (!circleCode) {
       toast.error("Select a telecom circle");
       return;
+    }
+    if (tab === "offers") {
+      const mobile = accountRef.replace(/\D/g, "");
+      if (mobile.length !== 10) {
+        toast.error("Enter a valid 10-digit mobile");
+        return;
+      }
     }
     setPanelTab(tab);
     setPanelOpen(true);
@@ -558,11 +547,17 @@ function RechargeInner() {
   useEffect(() => {
     if (!panelOpen) return;
     if (serviceCode === "MOBILE_PREPAID") {
-      const mobile = accountRef.replace(/\D/g, "");
-      if (mobile.length !== 10 || !operatorCode || !circleCode) return;
+      if (!operatorCode || !circleCode) return;
+      if (panelTab === "offers") {
+        const mobile = accountRef.replace(/\D/g, "");
+        if (mobile.length !== 10) return;
+      }
     } else {
-      const number = accountRef.replace(/\s+/g, "").trim();
-      if (number.length < 8 || !operatorCode) return;
+      if (!operatorCode) return;
+      if (panelTab === "offers") {
+        const number = accountRef.replace(/\s+/g, "").trim();
+        if (number.length < 8) return;
+      }
     }
     let cancelled = false;
     setPanelBusy(true);
@@ -780,12 +775,11 @@ function RechargeInner() {
             </div>
           </section>
 
-          {/* 2. Details + plans */}
-          <div className={`flex min-h-0 min-w-0 flex-1 gap-4 ${panelOpen ? "flex-col xl:flex-row" : ""}`}>
-            <section
-              className="flex min-w-0 flex-1 flex-col rounded-2xl border bg-white p-4 shadow-sm sm:p-5"
-              style={{ borderColor: B.border }}
-            >
+          {/* 2. Details */}
+          <section
+            className="flex min-w-0 flex-1 flex-col rounded-2xl border bg-white p-4 shadow-sm sm:p-5"
+            style={{ borderColor: B.border }}
+          >
               <div className="mb-3 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <span
@@ -813,25 +807,36 @@ function RechargeInner() {
                 )}
               </div>
 
+              {!selectedOp ? (
+                <div
+                  className="flex min-h-[18rem] flex-1 flex-col items-center justify-center rounded-xl border border-dashed px-6 py-10 text-center"
+                  style={{ borderColor: B.border, background: "#F8FAFF" }}
+                >
+                  <span
+                    className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl"
+                    style={{ background: B.secondary, color: B.blueLight }}
+                  >
+                    <Smartphone size={26} strokeWidth={1.8} />
+                  </span>
+                  <p className="text-base font-extrabold" style={{ color: B.blue }}>
+                    No Operator Selected
+                  </p>
+                  <p className="mt-2 max-w-sm text-sm" style={{ color: B.muted }}>
+                    Choose a {serviceCode === "DTH" ? "DTH" : "mobile"} operator from the list on the
+                    left. You can change the operator anytime after selecting.
+                  </p>
+                </div>
+              ) : (
               <form onSubmit={onSubmit} className="flex flex-1 flex-col space-y-3">
                 <div
                   className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5"
                   style={{ borderColor: B.border, background: "#F8FAFF" }}
                 >
                   <div className="flex min-w-0 items-center gap-2.5">
-                    {selectedOp ? (
                       <OperatorLogo op={selectedOp} size={40} />
-                    ) : (
-                      <div
-                        className="flex h-10 w-10 items-center justify-center rounded-[12px] border border-dashed bg-white"
-                        style={{ borderColor: B.border }}
-                      >
-                        <Smartphone size={18} style={{ color: B.blueLight }} />
-                      </div>
-                    )}
                     <div className="min-w-0">
                       <p className="truncate text-[15px] font-extrabold" style={{ color: B.blue }}>
-                        {selectedOp?.label ?? "Select an operator"}
+                        {selectedOp.label}
                       </p>
                       <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                         <span
@@ -840,28 +845,24 @@ function RechargeInner() {
                         >
                           {serviceCode === "DTH" ? "DTH Operator" : "Prepaid Operator"}
                         </span>
-                        {selectedOp ? (
                           <span
                             className="rounded-md px-1.5 py-0.5 text-[10px] font-bold"
                             style={{ background: "#ECFDF3", color: B.green }}
                           >
                             Live Gateway
                           </span>
-                        ) : null}
                       </div>
                     </div>
                   </div>
-                  {selectedOp ? (
-                    <button
-                      type="button"
-                      onClick={clearOperator}
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
-                      style={{ background: "#fff", color: B.muted, border: `1px solid ${B.border}` }}
-                      aria-label="Clear operator"
-                    >
-                      <X size={14} strokeWidth={2.4} />
-                    </button>
-                  ) : null}
+                      <button
+                        type="button"
+                        onClick={clearOperator}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+                        style={{ background: "#fff", color: B.muted, border: `1px solid ${B.border}` }}
+                        aria-label="Clear operator"
+                      >
+                        <X size={14} strokeWidth={2.4} />
+                      </button>
                 </div>
 
                 <div
@@ -1033,112 +1034,92 @@ function RechargeInner() {
                   </span>
                 </PrimaryButton>
               </form>
+              )}
             </section>
+        </div>
 
-            {panelOpen ? (
-              <aside
-                className="flex min-h-[28rem] w-full min-w-0 flex-col overflow-hidden rounded-[24px] border bg-white shadow-[0_12px_40px_rgba(11,42,154,0.08)] xl:max-w-md xl:flex-1"
-                style={{ borderColor: B.border }}
-              >
-                <div
-                  className="flex items-center justify-between px-5 py-4"
-                  style={{ borderBottom: `1px solid ${B.border}` }}
-                >
+        {panelOpen ? (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+            role="dialog"
+            aria-modal="true"
+            onClick={() => setPanelOpen(false)}
+          >
+            <div
+              className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border bg-white shadow-2xl"
+              style={{ borderColor: B.border }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-3 px-5 py-4">
+                <div className="flex items-start gap-3">
+                  <span
+                    className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-xl"
+                    style={{ background: B.secondary, color: B.blue }}
+                  >
+                    <Layers size={18} strokeWidth={2.2} />
+                  </span>
                   <div>
-                    <p className="text-sm font-bold" style={{ color: B.blue }}>
-                      {serviceCode === "DTH" ? "Plans & Info" : "Plans & Offers"}
-                    </p>
-                    <p className="text-[11px]" style={{ color: B.muted }}>
-                      Tap a pack to fill amount
+                    <h3 className="text-base font-extrabold" style={{ color: "#0F172A" }}>
+                      {panelTab === "plans"
+                        ? "Browse Recharge Plans"
+                        : serviceCode === "DTH"
+                          ? "DTH Info"
+                          : "Browse Offers"}
+                    </h3>
+                    <p className="text-[12px]" style={{ color: B.muted }}>
+                      {selectedOp?.label ?? "Operator"}
+                      {panelTab === "plans" ? " | Plans" : serviceCode === "DTH" ? " | Info" : " | Offers"}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    className="cursor-pointer rounded-full px-3 py-1.5 text-sm font-semibold"
-                    style={{ color: B.muted, background: B.secondary }}
-                    onClick={() => setPanelOpen(false)}
-                  >
-                    Close
-                  </button>
                 </div>
-                <div className="grid grid-cols-2 gap-2 px-5 py-3">
-                  <button
-                    type="button"
-                    onClick={() => setPanelTab("plans")}
-                    className="cursor-pointer rounded-2xl px-3 py-2 text-sm font-semibold"
-                    style={{
-                      background: panelTab === "plans" ? B.btnGrad : "#fff",
-                      color: panelTab === "plans" ? "#fff" : B.blue,
-                      border: `1px solid ${B.blue}`,
-                    }}
-                  >
-                    Plans
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPanelTab("offers")}
-                    className="cursor-pointer rounded-2xl px-3 py-2 text-sm font-semibold"
-                    style={{
-                      background: panelTab === "offers" ? B.btnGrad : "#fff",
-                      color: panelTab === "offers" ? "#fff" : B.blue,
-                      border: `1px solid ${B.blue}`,
-                    }}
-                  >
-                    {serviceCode === "DTH" ? "Info" : "Offers"}
-                  </button>
+                <button
+                  type="button"
+                  className="flex h-9 w-9 items-center justify-center rounded-full"
+                  style={{ background: "#F1F5F9", color: B.muted }}
+                  onClick={() => setPanelOpen(false)}
+                  aria-label="Close"
+                >
+                  <X size={16} strokeWidth={2.4} />
+                </button>
+              </div>
+
+              {serviceCode === "DTH" && panelTab === "offers" && dthSummary.length > 0 ? (
+                <div className="mx-5 mb-2 space-y-2 rounded-2xl border p-3" style={{ borderColor: B.border }}>
+                  {dthSummary.map((row) => (
+                    <div key={`${row.label}-${row.value}`} className="flex justify-between gap-3 text-sm">
+                      <span style={{ color: B.muted }}>{row.label}</span>
+                      <span className="text-right font-semibold" style={{ color: B.blue }}>
+                        {row.value}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-                <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6">
-                  {panelBusy ? (
-                    <p className="text-sm" style={{ color: B.muted }}>
-                      Loading {serviceCode === "DTH" && panelTab === "offers" ? "info" : panelTab}…
-                    </p>
-                  ) : (
-                    <>
-                      {serviceCode === "DTH" && panelTab === "offers" && dthSummary.length > 0 ? (
-                        <div
-                          className="mb-4 space-y-2 rounded-2xl border p-3"
-                          style={{ borderColor: B.border }}
-                        >
-                          {dthSummary.map((row) => (
-                            <div
-                              key={`${row.label}-${row.value}`}
-                              className="flex justify-between gap-3 text-sm"
-                            >
-                              <span style={{ color: B.muted }}>{row.label}</span>
-                              <span className="text-right font-semibold" style={{ color: B.blue }}>
-                                {row.value}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : null}
-                      <PlanList
-                        items={panelTab === "plans" ? plans : offers}
-                        selectedAmount={amount}
-                        onPick={(a) => {
-                          markNewIntent();
-                          setAmount(a);
-                          setPanelOpen(false);
-                        }}
-                      />
-                    </>
-                  )}
-                  {!panelBusy && (panelTab === "plans" ? plans : offers).length === 0 ? (
-                    <p className="text-sm" style={{ color: B.muted }}>
-                      {serviceCode === "DTH"
-                        ? panelTab === "plans"
-                          ? "No plans for this operator. Enter amount manually."
-                          : dthSummary.length > 0
-                            ? "No pack amounts in info. Enter amount manually if needed."
-                            : "No info for this subscriber. Enter amount manually."
-                        : `No ${panelTab} for this operator and circle. Enter amount manually.`}
-                    </p>
-                  ) : null}
-                </div>
-              </aside>
-            ) : null}
+              ) : null}
+
+              <div className="flex min-h-0 flex-1 flex-col px-5 pb-5">
+                <PlanBrowseBody
+                  items={panelTab === "plans" ? plans : offers}
+                  selectedAmount={amount}
+                  busy={panelBusy}
+                  emptyText={
+                    serviceCode === "DTH"
+                      ? panelTab === "plans"
+                        ? "No plans for this operator. Enter amount manually."
+                        : dthSummary.length > 0
+                          ? "No pack amounts in info. Enter amount manually if needed."
+                          : "No info for this subscriber. Enter amount manually."
+                      : `No ${panelTab} for this operator and circle. Enter amount manually.`
+                  }
+                  onPick={(a) => {
+                    markNewIntent();
+                    setAmount(a);
+                    setPanelOpen(false);
+                  }}
+                />
+              </div>
+            </div>
           </div>
-        </div>
+        ) : null}
 
         {/* Recent recharges — web only section */}
         <section
