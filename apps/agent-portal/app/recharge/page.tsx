@@ -165,6 +165,7 @@ function PlanBrowseBody({
 }) {
   const groups = useMemo(() => groupPlansByTab(items), [items]);
   const [tab, setTab] = useState<RechargePlanTabId>(groups[0]?.id ?? "popular");
+  const [contentKey, setContentKey] = useState(0);
 
   useEffect(() => {
     if (!groups.some((g) => g.id === tab)) {
@@ -172,94 +173,127 @@ function PlanBrowseBody({
     }
   }, [groups, tab]);
 
-  if (busy) {
-    return (
-      <p className="py-16 text-center text-sm" style={{ color: B.muted }}>
-        Loading…
-      </p>
-    );
-  }
+  const active = groups.find((g) => g.id === tab) ?? groups[0] ?? null;
 
-  if (items.length === 0) {
-    return (
-      <p className="py-16 text-center text-sm" style={{ color: B.muted }}>
-        {emptyText}
-      </p>
-    );
+  function switchTab(id: RechargePlanTabId) {
+    if (id === tab) return;
+    setTab(id);
+    setContentKey((k) => k + 1);
   }
-
-  const active = groups.find((g) => g.id === tab) ?? groups[0];
-  if (!active) return null;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-3">
-        {groups.map((g) => {
-          const on = g.id === active.id;
-          return (
-            <button
-              key={g.id}
-              type="button"
-              onClick={() => setTab(g.id)}
-              className="shrink-0 rounded-full px-3.5 py-1.5 text-[12px] font-semibold"
-              style={{
-                background: on ? B.blueLight : "#EEF1F6",
-                color: on ? "#fff" : "#334155",
-              }}
-            >
-              {g.label}
-            </button>
-          );
-        })}
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {active.items.map((p, i) => {
-            const selected = selectedAmount === p.amount;
-            return (
-              <div
-                key={`${active.id}-${p.amount}-${i}`}
-                className="flex flex-col rounded-2xl border bg-white p-3.5"
-                style={{
-                  borderColor: selected ? B.blueLight : B.border,
-                  boxShadow: selected ? `0 0 0 2px ${B.blueLight}22` : undefined,
-                }}
-              >
-                <div className="mb-2 flex items-start justify-between gap-2">
-                  <p className="text-lg font-extrabold" style={{ color: "#0F172A" }}>
-                    Rs. {p.amount}
-                  </p>
-                  <span
-                    className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold"
-                    style={{ background: "#E8F0FF", color: B.blueLight }}
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
+      {/* Tabs always reserved so they never jump away during load */}
+      <div
+        className="shrink-0 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:thin]"
+        style={{ WebkitOverflowScrolling: "touch" }}
+      >
+        <div className="flex w-max min-w-full gap-2">
+          {busy && groups.length === 0
+            ? ["Popular", "Unlimited", "Data", "Yearly", "Other"].map((label) => (
+                <span
+                  key={label}
+                  className="h-8 shrink-0 animate-pulse rounded-full px-4"
+                  style={{ background: "#E8EEF8", minWidth: 72 }}
+                />
+              ))
+            : groups.map((g) => {
+                const on = active?.id === g.id;
+                return (
+                  <button
+                    key={g.id}
+                    type="button"
+                    onClick={() => switchTab(g.id)}
+                    className="shrink-0 rounded-full px-4 py-2 text-[12px] font-semibold transition-all duration-200"
+                    style={{
+                      background: on ? B.blueLight : "#EEF1F6",
+                      color: on ? "#fff" : "#334155",
+                      transform: on ? "scale(1.02)" : "scale(1)",
+                      boxShadow: on ? "0 4px 12px rgba(42,92,221,0.25)" : "none",
+                    }}
                   >
-                    <Clock3 size={11} strokeWidth={2.4} />
-                    {p.validity ? p.validity.replace(/days?/i, "").trim() || p.validity : "—"}
-                  </span>
-                </div>
-                <p
-                  className="mb-3 line-clamp-4 min-h-[4.5rem] flex-1 text-[12px] leading-snug"
-                  style={{ color: "#64748B" }}
-                >
-                  {p.description || p.title || "Plan details"}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => onPick(p.amount)}
-                  className="mt-auto flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl border py-2 text-[12px] font-bold"
+                    {g.label}
+                    <span className="ml-1.5 opacity-70">({g.items.length})</span>
+                  </button>
+                );
+              })}
+        </div>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+        {busy ? (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div
+                key={i}
+                className="h-44 animate-pulse rounded-2xl border"
+                style={{ borderColor: B.border, background: "#F1F5F9" }}
+              />
+            ))}
+          </div>
+        ) : !active || active.items.length === 0 ? (
+          <p
+            className="py-16 text-center text-sm transition-opacity duration-200"
+            style={{ color: B.muted }}
+          >
+            {emptyText}
+          </p>
+        ) : (
+          <div
+            key={contentKey}
+            className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+            style={{
+              animation: "asanpayPlanFade 220ms ease-out",
+            }}
+          >
+            {active.items.map((p, i) => {
+              const selected = selectedAmount === p.amount;
+              return (
+                <div
+                  key={`${active.id}-${p.amount}-${i}`}
+                  className="flex flex-col rounded-2xl border bg-white p-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
                   style={{
-                    borderColor: B.blueLight,
-                    color: B.blueLight,
-                    background: selected ? "#EEF3FF" : "#fff",
+                    borderColor: selected ? B.blueLight : B.border,
+                    boxShadow: selected ? `0 0 0 2px ${B.blueLight}22` : undefined,
+                    animation: `asanpayPlanFade 280ms ease-out ${Math.min(i, 8) * 30}ms both`,
                   }}
                 >
-                  <Check size={14} strokeWidth={2.8} />
-                  Select Plan
-                </button>
-              </div>
-            );
-          })}
-        </div>
+                  <div className="mb-2 flex items-start justify-between gap-2">
+                    <p className="text-lg font-extrabold" style={{ color: "#0F172A" }}>
+                      Rs. {p.amount}
+                    </p>
+                    <span
+                      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold"
+                      style={{ background: "#E8F0FF", color: B.blueLight }}
+                    >
+                      <Clock3 size={11} strokeWidth={2.4} />
+                      {p.validity ? p.validity.replace(/days?/i, "").trim() || p.validity : "—"}
+                    </span>
+                  </div>
+                  <p
+                    className="mb-3 line-clamp-4 min-h-[4.5rem] flex-1 text-[12px] leading-snug"
+                    style={{ color: "#64748B" }}
+                  >
+                    {p.description || p.title || "Plan details"}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => onPick(p.amount)}
+                    className="mt-auto flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl border py-2 text-[12px] font-bold transition-colors duration-150 hover:bg-[#EEF3FF]"
+                    style={{
+                      borderColor: B.blueLight,
+                      color: B.blueLight,
+                      background: selected ? "#EEF3FF" : "#fff",
+                    }}
+                  >
+                    <Check size={14} strokeWidth={2.8} />
+                    Select Plan
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1040,17 +1074,41 @@ function RechargeInner() {
 
         {panelOpen ? (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
             role="dialog"
             aria-modal="true"
             onClick={() => setPanelOpen(false)}
+            style={{
+              background: "rgba(15, 23, 42, 0.45)",
+              animation: "asanpayModalBackdrop 200ms ease-out",
+            }}
           >
+            <style>{`
+              @keyframes asanpayModalBackdrop {
+                from { opacity: 0; }
+                to { opacity: 1; }
+              }
+              @keyframes asanpayModalPanel {
+                from { opacity: 0; transform: translateY(12px) scale(0.98); }
+                to { opacity: 1; transform: translateY(0) scale(1); }
+              }
+              @keyframes asanpayPlanFade {
+                from { opacity: 0; transform: translateY(6px); }
+                to { opacity: 1; transform: translateY(0); }
+              }
+            `}</style>
             <div
               className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border bg-white shadow-2xl"
-              style={{ borderColor: B.border }}
+              style={{
+                borderColor: B.border,
+                animation: "asanpayModalPanel 240ms cubic-bezier(0.22,1,0.36,1)",
+              }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-start justify-between gap-3 px-5 py-4">
+              <div
+                className="flex shrink-0 items-start justify-between gap-3 px-5 py-4"
+                style={{ borderBottom: `1px solid ${B.border}` }}
+              >
                 <div className="flex items-start gap-3">
                   <span
                     className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-xl"
@@ -1074,7 +1132,7 @@ function RechargeInner() {
                 </div>
                 <button
                   type="button"
-                  className="flex h-9 w-9 items-center justify-center rounded-full"
+                  className="flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-slate-200"
                   style={{ background: "#F1F5F9", color: B.muted }}
                   onClick={() => setPanelOpen(false)}
                   aria-label="Close"
@@ -1084,7 +1142,7 @@ function RechargeInner() {
               </div>
 
               {serviceCode === "DTH" && panelTab === "offers" && dthSummary.length > 0 ? (
-                <div className="mx-5 mb-2 space-y-2 rounded-2xl border p-3" style={{ borderColor: B.border }}>
+                <div className="mx-5 mt-3 space-y-2 rounded-2xl border p-3" style={{ borderColor: B.border }}>
                   {dthSummary.map((row) => (
                     <div key={`${row.label}-${row.value}`} className="flex justify-between gap-3 text-sm">
                       <span style={{ color: B.muted }}>{row.label}</span>
@@ -1096,7 +1154,7 @@ function RechargeInner() {
                 </div>
               ) : null}
 
-              <div className="flex min-h-0 flex-1 flex-col px-5 pb-5">
+              <div className="flex min-h-0 flex-1 flex-col px-5 pb-5 pt-3">
                 <PlanBrowseBody
                   items={panelTab === "plans" ? plans : offers}
                   selectedAmount={amount}
