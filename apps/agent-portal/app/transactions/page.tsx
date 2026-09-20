@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Search, Download, AlertCircle } from "lucide-react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Search, Download, AlertCircle, X } from "lucide-react";
 import { RaiseDisputeModal } from "@/components/transactions/RaiseDisputeModal";
 import { toast } from "react-hot-toast";
 import { AppShell } from "@/components/layout/AppShell";
@@ -38,22 +38,33 @@ function matchesFilter(status: string, filter: string) {
   return status === "failed" || status === "reversed" || status === "refunded";
 }
 
-export default function TransactionsPage() {
+function TransactionsInner() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const hydrated = useAuthHydrated();
   const accessToken = useAuthStore((s) => s.accessToken);
   const [filter, setFilter] = useState("All");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(() => searchParams.get("q")?.trim() ?? "");
   const [txns, setTxns] = useState<TxnRow[]>([]);
   const [disputeTxn, setDisputeTxn] = useState<TxnRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [downloadingRef, setDownloadingRef] = useState<string | null>(null);
 
+  function applySearch(value: string) {
+    setSearch(value);
+    const params = new URLSearchParams(searchParams.toString());
+    const trimmed = value.trim();
+    if (trimmed) params.set("q", trimmed);
+    else params.delete("q");
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }
+
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const fromUrl = new URLSearchParams(window.location.search).get("q")?.trim();
-    if (fromUrl) setSearch(fromUrl);
-  }, []);
+    const fromUrl = searchParams.get("q")?.trim() ?? "";
+    setSearch((prev) => (prev === fromUrl ? prev : fromUrl));
+  }, [searchParams]);
 
   async function downloadReceiptPdf(txnRef: string) {
     setDownloadingRef(txnRef);
@@ -182,11 +193,22 @@ export default function TransactionsPage() {
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: B.muted }} />
             <input
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => applySearch(e.target.value)}
               placeholder="Search by Txn ID or service..."
-              className="w-full rounded-xl border py-2 pl-9 pr-4 text-sm focus:outline-none"
+              className="w-full rounded-xl border py-2 pl-9 pr-10 text-sm focus:outline-none"
               style={{ borderColor: B.border, background: B.secondary, color: B.blue }}
             />
+            {search ? (
+              <button
+                type="button"
+                aria-label="Clear search"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-0.5"
+                style={{ color: B.muted }}
+                onClick={() => applySearch("")}
+              >
+                <X size={14} strokeWidth={2.4} />
+              </button>
+            ) : null}
           </div>
           <div className="flex gap-2">
             {FILTERS.map((f) => (
@@ -333,5 +355,21 @@ export default function TransactionsPage() {
         />
       )}
     </AppShell>
+  );
+}
+
+export default function TransactionsPage() {
+  return (
+    <Suspense
+      fallback={
+        <AppShell>
+          <div className="px-4 py-8 text-sm" style={{ color: B.muted }}>
+            Loading…
+          </div>
+        </AppShell>
+      }
+    >
+      <TransactionsInner />
+    </Suspense>
   );
 }
