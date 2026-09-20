@@ -19,7 +19,7 @@ export const transactions = pgTable(
   "transactions",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    // customer/partner-facing reference, e.g. LKP-20260702-XXXXXX
+    // customer/partner-facing reference — new: ASP+YYMMDD+agentTail+6hex (legacy LKP…)
     txnRef: varchar("txn_ref", { length: 40 }).notNull().unique(),
     // caller-supplied key — uniqueness is per-user (see uniqueIndex below)
     idempotencyKey: varchar("idempotency_key", { length: 100 }).notNull(),

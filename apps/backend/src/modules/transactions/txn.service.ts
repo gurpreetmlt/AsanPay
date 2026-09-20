@@ -236,7 +236,15 @@ export async function executeServiceTxn(input: ExecuteTxnInput): Promise<TxnOutc
       ? await resolveCustomerFee(service.id, routed.providerId, actor.role, amount, new Date())
       : "0";
 
-  const txnRef = generateTxnRef();
+  const [actorRow] = await db
+    .select({ uid: users.uid })
+    .from(users)
+    .where(eq(users.id, actor.id))
+    .limit(1);
+  if (!actorRow?.uid) {
+    throw new HttpError(404, "User not found", "USER_NOT_FOUND");
+  }
+  const txnRef = generateTxnRef(actorRow.uid);
   const needsMoney = direction !== "none" && amount != null;
   const debitTotal =
     needsMoney && direction === "debit" && amount != null

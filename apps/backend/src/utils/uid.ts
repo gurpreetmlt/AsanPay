@@ -47,10 +47,30 @@ export async function allocateUid(role: UserRole, executor: DbExecutor): Promise
   return `${prefix}${n}`;
 }
 
-export function generateTxnRef(): string {
-  const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-  const random = randomBytes(4).toString("hex").toUpperCase();
-  return `LKP${date}${random}`;
+/**
+ * Last 6 chars used in txn refs so support can spot which agent did the txn.
+ * Prefers trailing digits (ASPRT100001 → 100001); falls back to alnum tail for legacy RT… hex.
+ */
+export function agentTailFromUid(uid: string): string {
+  const digits = String(uid ?? "").replace(/\D/g, "");
+  if (digits.length >= 6) return digits.slice(-6);
+  if (digits.length > 0) return digits.padStart(6, "0");
+  const clean = String(uid ?? "")
+    .replace(/[^A-Za-z0-9]/g, "")
+    .toUpperCase();
+  if (clean.length >= 6) return clean.slice(-6);
+  return (clean || "000000").padStart(6, "0").slice(-6);
+}
+
+/**
+ * New txn refs: ASP + YYMMDD + agentTail(6) + 6 hex random.
+ * Example: ASP260920100001A1B2C3 (legacy LKP… refs unchanged in DB).
+ */
+export function generateTxnRef(agentUid: string): string {
+  const yymmdd = new Date().toISOString().slice(2, 10).replace(/-/g, "");
+  const tail = agentTailFromUid(agentUid);
+  const random = randomBytes(3).toString("hex").toUpperCase();
+  return `${UID_BRAND}${yymmdd}${tail}${random}`;
 }
 
 export function hashToken(token: string): string {

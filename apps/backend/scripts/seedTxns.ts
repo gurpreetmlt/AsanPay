@@ -179,7 +179,7 @@ async function main() {
   await assertTxnWalletTypeColumn();
 
   const [retailer] = await db
-    .select({ id: users.id, name: users.name, mobile: users.mobile, role: users.role })
+    .select({ id: users.id, uid: users.uid, name: users.name, mobile: users.mobile, role: users.role })
     .from(users)
     .where(eq(users.mobile, RETAILER_MOBILE))
     .limit(1);
@@ -238,7 +238,7 @@ async function main() {
         : null;
 
     await db.insert(transactions).values({
-      txnRef: generateTxnRef(),
+      txnRef: generateTxnRef(retailer.uid),
       idempotencyKey: seed.key,
       userId: retailer.id,
       serviceId: service.id,
