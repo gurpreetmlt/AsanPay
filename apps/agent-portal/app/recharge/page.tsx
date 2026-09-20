@@ -12,6 +12,7 @@ import {
   History,
   Layers,
   Lock,
+  MapPin,
   RadioTower,
   Search,
   Smartphone,
@@ -24,6 +25,7 @@ import { toast } from "react-hot-toast";
 import {
   TELECOM_CIRCLES,
   classifyRechargePlanTab,
+  formatDthSubscriberInfo,
   RECHARGE_PLAN_TAB_LABELS,
   RECHARGE_PLAN_TAB_ORDER,
   type ApiResponse,
@@ -134,6 +136,111 @@ function groupPlansByTab(items: PlanItem[]): { id: RechargePlanTabId; label: str
     label: RECHARGE_PLAN_TAB_LABELS[id],
     items: map.get(id)!,
   }));
+}
+
+function DthInfoPanel({
+  rows,
+  operatorName,
+}: {
+  rows: { label: string; value: string }[];
+  operatorName?: string | null;
+}) {
+  const info = useMemo(() => formatDthSubscriberInfo(rows), [rows]);
+  return (
+    <div className="mx-5 mt-3 max-h-[55vh] space-y-3 overflow-y-auto">
+      {operatorName ? (
+        <div
+          className="flex items-center justify-center rounded-2xl px-4 py-3"
+          style={{
+            background: "linear-gradient(90deg,#1E3A8A 0%,#2A5CDD 100%)",
+            boxShadow: "0 8px 20px rgba(42,92,221,0.25)",
+          }}
+        >
+          <p className="text-center text-[15px] font-extrabold tracking-wide text-white">
+            {operatorName}
+          </p>
+        </div>
+      ) : null}
+
+      <div
+        className="rounded-2xl px-4 py-4"
+        style={{ background: "linear-gradient(135deg,#EEF3FF 0%,#F8FAFF 100%)", border: `1px solid ${B.border}` }}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+              Customer
+            </p>
+            <p className="mt-1 truncate text-lg font-extrabold" style={{ color: B.blue }}>
+              {info.name ?? "Subscriber"}
+            </p>
+          </div>
+          {info.balance ? (
+            <div className="shrink-0 rounded-xl bg-white px-3 py-2 text-right shadow-sm" style={{ border: `1px solid ${B.border}` }}>
+              <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+                Balance
+              </p>
+              <p className="text-base font-extrabold" style={{ color: B.green }}>
+                {info.balance}
+              </p>
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      {info.account.length > 0 ? (
+        <div className="rounded-2xl border bg-white p-3.5" style={{ borderColor: B.border }}>
+          <div className="mb-2.5 flex items-center gap-2">
+            <Wallet size={14} strokeWidth={2.2} style={{ color: B.blueLight }} />
+            <p className="text-[12px] font-extrabold" style={{ color: B.blue }}>
+              Account
+            </p>
+          </div>
+          <div className="space-y-2.5">
+            {info.account.map((row) => (
+              <div key={`${row.label}-${row.value}`} className="flex items-start justify-between gap-4">
+                <span className="shrink-0 text-[12px]" style={{ color: B.muted }}>
+                  {row.label}
+                </span>
+                <span className="text-right text-[13px] font-semibold" style={{ color: "#0F172A" }}>
+                  {row.value}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {info.location.length > 0 ? (
+        <div className="rounded-2xl border bg-white p-3.5" style={{ borderColor: B.border }}>
+          <div className="mb-2.5 flex items-center gap-2">
+            <MapPin size={14} strokeWidth={2.2} style={{ color: B.blueLight }} />
+            <p className="text-[12px] font-extrabold" style={{ color: B.blue }}>
+              Location
+            </p>
+          </div>
+          <div className="space-y-2.5">
+            {info.location.map((row) => (
+              <div
+                key={`${row.label}-${row.value}`}
+                className={row.label === "Address" ? "block space-y-1" : "flex items-start justify-between gap-4"}
+              >
+                <span className="text-[12px]" style={{ color: B.muted }}>
+                  {row.label}
+                </span>
+                <span
+                  className={`text-[13px] font-semibold ${row.label === "Address" ? "block leading-snug" : "text-right"}`}
+                  style={{ color: "#0F172A" }}
+                >
+                  {row.value}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 
@@ -871,13 +978,7 @@ function RechargeInner() {
                         {serviceCode === "DTH" ? "DTH Recharge" : "Prepaid Recharge"}
                       </p>
                     </div>
-                    <div className="flex shrink-0 items-center gap-1">
-                      <span
-                        className="rounded-md px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide"
-                        style={{ background: "#EEF3FF", color: B.blueLight }}
-                      >
-                        Live
-                      </span>
+                    <div className="flex shrink-0 items-center gap-1.5">
                       <span
                         className="rounded-md px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide"
                         style={{ background: "#ECFDF3", color: B.green }}
@@ -1228,22 +1329,13 @@ function RechargeInner() {
               </div>
 
               {serviceCode === "DTH" && panelTab === "offers" && dthSummary.length > 0 ? (
-                <div className="mx-5 mt-3 space-y-2 rounded-2xl border p-3" style={{ borderColor: B.border }}>
-                  {dthSummary.map((row) => (
-                    <div key={`${row.label}-${row.value}`} className="flex justify-between gap-3 text-sm">
-                      <span style={{ color: B.muted }}>{row.label}</span>
-                      <span className="text-right font-semibold" style={{ color: B.blue }}>
-                        {row.value}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                <DthInfoPanel rows={dthSummary} operatorName={selectedOp?.label} />
               ) : null}
 
               <div className="flex min-h-0 flex-1 flex-col px-5 pb-5 pt-3">
                 {serviceCode === "DTH" && panelTab === "offers" && dthSummary.length > 0 && offers.length === 0 ? (
-                  <p className="py-8 text-center text-sm" style={{ color: B.muted }}>
-                    Subscriber details above. Enter amount manually to recharge.
+                  <p className="py-6 text-center text-sm" style={{ color: B.muted }}>
+                    Use the balance and dates above, then enter the recharge amount on the form.
                   </p>
                 ) : (
                 <PlanBrowseBody

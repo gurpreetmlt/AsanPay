@@ -29,6 +29,7 @@ import {
 import {
   TELECOM_CIRCLES,
   classifyRechargePlanTab,
+  formatDthSubscriberInfo,
   RECHARGE_PLAN_TAB_LABELS,
   RECHARGE_PLAN_TAB_ORDER,
   type ApiResponse,
@@ -1077,19 +1078,85 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
               <ActivityIndicator color={colors.blue} />
             ) : (
               <>
-                {serviceCode === "DTH" && panelTab === "offers" && dthSummary.length > 0
-                  ? dthSummary.map((row) => (
-                      <View
-                        key={`${row.label}-${row.value}`}
-                        style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}
-                      >
-                        <Text style={{ color: tokens.sub, fontSize: 12, flex: 1 }}>{row.label}</Text>
-                        <Text style={{ color: tokens.txt, fontWeight: "700", fontSize: 12, flex: 1, textAlign: "right" }}>
-                          {row.value}
-                        </Text>
+                {serviceCode === "DTH" && panelTab === "offers" && dthSummary.length > 0 ? (
+                  (() => {
+                    const info = formatDthSubscriberInfo(dthSummary);
+                    const opName = selectedOp?.label;
+                    return (
+                      <View style={{ marginBottom: 14, gap: 10 }}>
+                        {opName ? (
+                          <View
+                            style={{
+                              borderRadius: 16,
+                              paddingVertical: 12,
+                              paddingHorizontal: 14,
+                              backgroundColor: colors.blue,
+                              alignItems: "center",
+                            }}
+                          >
+                            <Text style={{ color: "#fff", fontSize: 15, fontWeight: "800" }}>{opName}</Text>
+                          </View>
+                        ) : null}
+                        <View
+                          style={{
+                            borderRadius: 16,
+                            padding: 14,
+                            backgroundColor: "#EEF3FF",
+                            borderWidth: 1,
+                            borderColor: tokens.cardBorder,
+                          }}
+                        >
+                          <Text style={{ color: tokens.sub, fontSize: 11, fontWeight: "700" }}>CUSTOMER</Text>
+                          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginTop: 4, gap: 10 }}>
+                            <Text style={{ color: tokens.txt, fontSize: 17, fontWeight: "800", flex: 1 }} numberOfLines={2}>
+                              {info.name ?? "Subscriber"}
+                            </Text>
+                            {info.balance ? (
+                              <View style={{ backgroundColor: "#fff", borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: tokens.cardBorder }}>
+                                <Text style={{ color: tokens.sub, fontSize: 10, fontWeight: "700" }}>BALANCE</Text>
+                                <Text style={{ color: colors.green, fontSize: 15, fontWeight: "800" }}>{info.balance}</Text>
+                              </View>
+                            ) : null}
+                          </View>
+                        </View>
+                        {info.account.length > 0 ? (
+                          <View style={{ borderRadius: 16, borderWidth: 1, borderColor: tokens.cardBorder, padding: 12, backgroundColor: tokens.card }}>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                              <Wallet size={14} color={colors.blue} strokeWidth={2.2} />
+                              <Text style={{ color: tokens.txt, fontWeight: "800", fontSize: 13 }}>Account</Text>
+                            </View>
+                            {info.account.map((row) => (
+                              <View key={`${row.label}-${row.value}`} style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8, gap: 10 }}>
+                                <Text style={{ color: tokens.sub, fontSize: 12, flex: 1 }}>{row.label}</Text>
+                                <Text style={{ color: tokens.txt, fontWeight: "700", fontSize: 12, flex: 1.2, textAlign: "right" }}>{row.value}</Text>
+                              </View>
+                            ))}
+                          </View>
+                        ) : null}
+                        {info.location.length > 0 ? (
+                          <View style={{ borderRadius: 16, borderWidth: 1, borderColor: tokens.cardBorder, padding: 12, backgroundColor: tokens.card }}>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                              <MapPin size={14} color={colors.blue} strokeWidth={2.2} />
+                              <Text style={{ color: tokens.txt, fontWeight: "800", fontSize: 13 }}>Location</Text>
+                            </View>
+                            {info.location.map((row) => (
+                              <View key={`${row.label}-${row.value}`} style={{ marginBottom: 8 }}>
+                                <Text style={{ color: tokens.sub, fontSize: 12, marginBottom: 2 }}>{row.label}</Text>
+                                <Text style={{ color: tokens.txt, fontWeight: "700", fontSize: 12 }}>{row.value}</Text>
+                              </View>
+                            ))}
+                          </View>
+                        ) : null}
+                        {offers.length === 0 ? (
+                          <Text style={{ color: tokens.sub, fontSize: 12, textAlign: "center" }}>
+                            Use the balance and dates above, then enter the recharge amount on the form.
+                          </Text>
+                        ) : null}
                       </View>
-                    ))
-                  : null}
+                    );
+                  })()
+                ) : null}
+                {!(serviceCode === "DTH" && panelTab === "offers" && dthSummary.length > 0 && offers.length === 0) ? (
                 <PlanBlock
                   items={panelTab === "plans" ? plans : offers}
                   tokens={tokens}
@@ -1100,9 +1167,12 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
                     setPanelOpen(false);
                   }}
                 />
+                ) : null}
               </>
             )}
-            {!panelBusy && (panelTab === "plans" ? plans : offers).length === 0 ? (
+            {!panelBusy &&
+            (panelTab === "plans" ? plans : offers).length === 0 &&
+            !(serviceCode === "DTH" && panelTab === "offers" && dthSummary.length > 0) ? (
               <Text style={{ color: tokens.sub, fontSize: 12, marginTop: 8 }}>
                 {serviceCode === "DTH"
                   ? "No packs returned. Enter amount manually."

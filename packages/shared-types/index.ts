@@ -232,4 +232,131 @@ export function classifyRechargePlanTab(plan: {
   return "other";
 }
 
+/** Friendly DTH customer-info rows for agent UI (BestAPI DATA fields). */
+export type DthInfoRow = { label: string; value: string };
+
+const DTH_INFO_LABELS: Record<string, string> = {
+  vc: "Subscriber ID",
+  name: "Customer name",
+  rmn: "Registered mobile",
+  balance: "Balance",
+  monthly: "Monthly amount",
+  "next recharge date": "Next recharge",
+  plan: "Current plan",
+  address: "Address",
+  city: "City",
+  district: "District",
+  state: "State",
+  "pin code": "PIN code",
+  status: "Connection status",
+  "last recharge date": "Last recharge",
+  "last recharge amount": "Last amount",
+  switchofdate: "Switch-off date",
+};
+
+const DTH_INFO_ORDER = [
+  "name",
+  "balance",
+  "vc",
+  "rmn",
+  "plan",
+  "monthly",
+  "next recharge date",
+  "switchofdate",
+  "status",
+  "last recharge date",
+  "last recharge amount",
+  "address",
+  "city",
+  "district",
+  "state",
+  "pin code",
+] as const;
+
+function isBlankDthValue(value: string): boolean {
+  const t = value.trim();
+  return !t || /^n\/?a$/i.test(t) || t === "-" || t === "—";
+}
+
+function formatDthInfoValue(rawLabel: string, value: string): string {
+  const key = rawLabel.trim().toLowerCase();
+  if (key === "status") {
+    if (value === "1" || /^active$/i.test(value)) return "Active";
+    if (value === "0" || /^inactive$/i.test(value)) return "Inactive";
+  }
+  if (/date|switchof/i.test(key)) {
+    const d = new Date(value);
+    if (!Number.isNaN(d.getTime())) {
+      return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+    }
+  }
+  if (/balance|amount|monthly/i.test(key) && /^₹?[\d,]+(\.\d+)?$/.test(value.trim().replace(/\s/g, ""))) {
+    const n = Number(value.replace(/[₹,\s]/g, ""));
+    if (Number.isFinite(n)) {
+      return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+    }
+  }
+  return value.trim();
+}
+
+/**
+ * Turns raw BestAPI summary rows into ordered, human-readable fields.
+ * Empty / N/A values are dropped.
+ */
+export function formatDthSubscriberInfo(rows: DthInfoRow[]): {
+  name: string | null;
+  balance: string | null;
+  account: DthInfoRow[];
+  location: DthInfoRow[];
+} {
+  const byKey = new Map<string, string>();
+  for (const row of rows) {
+    const key = row.label.trim().toLowerCase();
+    if (!key || isBlankDthValue(row.value)) continue;
+    byKey.set(key, formatDthInfoValue(row.label, row.value));
+  }
+
+  const name = byKey.get("name") ?? null;
+  const balance = byKey.get("balance") ?? null;
+
+  const accountKeys = new Set([
+    "vc",
+    "rmn",
+    "plan",
+    "monthly",
+    "next recharge date",
+    "switchofdate",
+    "status",
+    "last recharge date",
+    "last recharge amount",
+  ]);
+  const locationKeys = new Set(["address", "city", "district", "state", "pin code"]);
+
+  const account: DthInfoRow[] = [];
+  const location: DthInfoRow[] = [];
+
+  for (const key of DTH_INFO_ORDER) {
+    if (key === "name" || key === "balance") continue;
+    const value = byKey.get(key);
+    if (!value) continue;
+    const label = DTH_INFO_LABELS[key] ?? key;
+    if (accountKeys.has(key)) account.push({ label, value });
+    else if (locationKeys.has(key)) location.push({ label, value });
+  }
+
+  // Any leftover unknown fields
+  for (const [key, value] of byKey) {
+    if (key === "name" || key === "balance") continue;
+    if (accountKeys.has(key) || locationKeys.has(key)) continue;
+    if (DTH_INFO_ORDER.includes(key as (typeof DTH_INFO_ORDER)[number])) continue;
+    account.push({ label: DTH_INFO_LABELS[key] ?? rowLabelTitle(key), value });
+  }
+
+  return { name, balance, account, location };
+}
+
+function rowLabelTitle(key: string): string {
+  return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 export { TERMS_BODY, PRIVACY_BODY, buildLegalDownloadText } from "./legalCopy";
