@@ -167,6 +167,7 @@ function normalizePlanRow(row: Record<string, unknown>): RechargePlanItem | null
       "name",
       "plan_name",
       "planName",
+      "PlanName",
       "type",
       "category",
       "pack",
@@ -187,9 +188,19 @@ function normalizePlanRow(row: Record<string, unknown>): RechargePlanItem | null
       "talktime",
       "Remark",
       "remark",
+      "Channels",
+      "channels",
     ]) ?? undefined;
   const validity =
-    pickString(row, ["validity", "valid", "days", "validityDays", "Validity"]) ?? undefined;
+    pickString(row, [
+      "validity",
+      "valid",
+      "days",
+      "validityDays",
+      "Validity",
+      "Month",
+      "month",
+    ]) ?? undefined;
   const category =
     pickString(row, ["category", "type", "plan_type", "planType", "plan_name"]) ?? undefined;
 
@@ -221,6 +232,69 @@ function findRdata(root: unknown): Record<string, unknown> | null {
   return found;
 }
 
+/** Dish/Tata-style RDATA: { Combo: [{ Language, Details: [{ PlanName, PricingList: [{ Amount, Month }] }] }] } */
+function extractDthRdataPlans(
+  rdata: Record<string, unknown>,
+  addPlan: (row: Record<string, unknown>, category?: string) => void,
+): void {
+  for (const [category, arr] of Object.entries(rdata)) {
+    if (!Array.isArray(arr)) continue;
+    for (const raw of arr) {
+      const group = asRecord(raw);
+      if (!group) continue;
+      const language = pickString(group, ["Language", "language"]);
+      const cat = language ? `${category} · ${language}` : category;
+      const details = group.Details ?? group.details;
+      if (!Array.isArray(details) || details.length === 0) {
+        addPlan(group, category);
+        continue;
+      }
+      for (const d of details) {
+        const detail = asRecord(d);
+        if (!detail) continue;
+        const planName = pickString(detail, ["PlanName", "planName", "name", "title"]);
+        const desc = [
+          pickString(detail, ["Channels", "channels"]),
+          pickString(detail, ["PaidChannels", "paidChannels"]),
+          pickString(detail, ["HdChannels", "hdChannels"]),
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        const pricing = detail.PricingList ?? detail.pricingList ?? detail.pricing;
+        if (Array.isArray(pricing) && pricing.length > 0) {
+          for (const p of pricing) {
+            const price = asRecord(p);
+            if (!price) continue;
+            const amount =
+              pickString(price, ["Amount", "amount", "RS", "rs", "price", "mrp"]) ?? null;
+            if (!amount) continue;
+            addPlan(
+              {
+                amount,
+                Amount: amount,
+                title: planName ?? undefined,
+                planName: planName ?? undefined,
+                description: desc || undefined,
+                validity: pickString(price, ["Month", "month", "validity", "Validity"]) ?? undefined,
+              },
+              cat,
+            );
+          }
+        } else {
+          addPlan(
+            {
+              ...detail,
+              title: planName ?? undefined,
+              description: desc || undefined,
+            },
+            cat,
+          );
+        }
+      }
+    }
+  }
+}
+
 function extractPlanItems(json: BestApiJson): RechargePlanItem[] {
   const items: RechargePlanItem[] = [];
   const seen = new Set<string>();
@@ -240,14 +314,17 @@ function extractPlanItems(json: BestApiJson): RechargePlanItem[] {
 
   const rdata = findRdata(json);
   if (rdata) {
-    for (const [category, arr] of Object.entries(rdata)) {
-      if (!Array.isArray(arr)) continue;
-      for (const raw of arr) {
-        const row = asRecord(raw);
-        if (row) addPlan(row, category);
+    extractDthRdataPlans(rdata, addPlan);
+    if (items.length === 0) {
+      for (const [category, arr] of Object.entries(rdata)) {
+        if (!Array.isArray(arr)) continue;
+        for (const raw of arr) {
+          const row = asRecord(raw);
+          if (row) addPlan(row, category);
+        }
       }
     }
-    if (items.length > 0) return items.slice(0, 80);
+    if (items.length > 0) return items.slice(0, 120);
   }
 
   for (const arr of collectArrays(json)) {
@@ -257,7 +334,7 @@ function extractPlanItems(json: BestApiJson): RechargePlanItem[] {
     }
   }
 
-  return items.slice(0, 80);
+  return items.slice(0, 120);
 }
 
 type OperatorHit = {
