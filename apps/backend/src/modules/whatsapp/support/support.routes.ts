@@ -14,6 +14,12 @@ import {
   replyToConversation,
   windowClosesAt,
 } from "./support.service";
+import {
+  countBroadcastAudience,
+  createBroadcast,
+  getBroadcast,
+  listBroadcasts,
+} from "./broadcast.service";
 
 /**
  * Admin WhatsApp Support Inbox APIs.
@@ -113,3 +119,63 @@ whatsappSupportRouter.post(
     sendSuccess(res, result, "Message sent");
   },
 );
+
+const broadcastCreateSchema = z.object({
+  roles: z
+    .array(z.enum(["retailer", "distributor", "super_distributor"]))
+    .min(1, "Select at least one role for the audience"),
+  bodyText: z
+    .string()
+    .trim()
+    .min(1, "Broadcast message text cannot be empty")
+    .max(1024, "Broadcast message text must be at most 1024 characters"),
+  templateName: z.string().trim().min(1).max(120).optional(),
+});
+
+whatsappSupportRouter.get(
+  "/broadcasts/audience-count",
+  requireAuth,
+  requireRole("admin"),
+  async (req, res) => {
+    assertSupportEnabled();
+    const rolesRaw = String(req.query.roles ?? "")
+      .split(",")
+      .map((r) => r.trim())
+      .filter(Boolean);
+    sendSuccess(res, await countBroadcastAudience(rolesRaw));
+  },
+);
+
+whatsappSupportRouter.get("/broadcasts", requireAuth, requireRole("admin"), async (req, res) => {
+  assertSupportEnabled();
+  const limit = z.coerce.number().int().min(1).max(100).optional().parse(req.query.limit);
+  sendSuccess(res, await listBroadcasts(limit ?? 30));
+});
+
+whatsappSupportRouter.get(
+  "/broadcasts/:id",
+  requireAuth,
+  requireRole("admin"),
+  async (req, res) => {
+    assertSupportEnabled();
+    const id = z.string().uuid().parse(req.params.id);
+    const detail = await getBroadcast(id);
+    if (!detail) {
+      throw new HttpError(404, "Broadcast not found", "BROADCAST_NOT_FOUND");
+    }
+    sendSuccess(res, detail);
+  },
+);
+
+whatsappSupportRouter.post("/broadcasts", requireAuth, requireRole("admin"), async (req, res) => {
+  assertSupportEnabled();
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const body = broadcastCreateSchema.parse(req.body ?? {});
+  const created = await createBroadcast({
+    createdBy: req.auth.sub,
+    roles: body.roles,
+    bodyText: body.bodyText,
+    templateName: body.templateName,
+  });
+  sendSuccess(res, created, "Broadcast queued");
+});

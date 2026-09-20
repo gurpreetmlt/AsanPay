@@ -94,3 +94,70 @@ export const whatsappWebhookEvents = pgTable(
   },
   (table) => [uniqueIndex("whatsapp_webhook_events_event_key_uidx").on(table.eventKey)],
 );
+
+export const whatsappBroadcastStatusEnum = pgEnum("whatsapp_broadcast_status", [
+  "queued",
+  "sending",
+  "completed",
+  "cancelled",
+]);
+
+export const whatsappBroadcastRecipientStatusEnum = pgEnum("whatsapp_broadcast_recipient_status", [
+  "pending",
+  "sent",
+  "failed",
+  "skipped",
+]);
+
+export const whatsappBroadcasts = pgTable(
+  "whatsapp_broadcasts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    templateName: varchar("template_name", { length: 120 }).notNull(),
+    templateLanguage: varchar("template_language", { length: 16 }).notNull().default("en"),
+    /** Body variable {{1}} — same text for all recipients. */
+    bodyText: text("body_text").notNull(),
+    /** Agent roles included, e.g. ["retailer","distributor"]. */
+    roles: jsonb("roles").$type<string[]>().notNull().default([]),
+    status: whatsappBroadcastStatusEnum("status").notNull().default("queued"),
+    totalCount: integer("total_count").notNull().default(0),
+    sentCount: integer("sent_count").notNull().default(0),
+    failedCount: integer("failed_count").notNull().default(0),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("whatsapp_broadcasts_created_at_idx").on(table.createdAt),
+    index("whatsapp_broadcasts_status_idx").on(table.status),
+  ],
+);
+
+export const whatsappBroadcastRecipients = pgTable(
+  "whatsapp_broadcast_recipients",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    broadcastId: uuid("broadcast_id")
+      .notNull()
+      .references(() => whatsappBroadcasts.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    mobile: varchar("mobile", { length: 15 }).notNull(),
+    waId: varchar("wa_id", { length: 32 }).notNull(),
+    status: whatsappBroadcastRecipientStatusEnum("status").notNull().default("pending"),
+    wamid: varchar("wamid", { length: 128 }),
+    errorMessage: text("error_message"),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("whatsapp_broadcast_recipients_broadcast_idx").on(table.broadcastId, table.status),
+    uniqueIndex("whatsapp_broadcast_recipients_broadcast_user_uidx").on(
+      table.broadcastId,
+      table.userId,
+    ),
+  ],
+);

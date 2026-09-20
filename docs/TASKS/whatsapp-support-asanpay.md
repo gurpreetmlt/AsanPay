@@ -76,8 +76,10 @@ Agent portal / mobile: not required for v1 (company support desk only).
 
 ## Phase 3 — Broadcast
 
-1. Audience by role / filters.
-2. Approved templates only; queue + per-recipient status.
+1. Audience by role / filters. ✅ Admin → WhatsApp → Broadcast (retailer / distributor / SD)
+2. Approved templates only; queue + per-recipient status. ✅ `whatsapp_broadcasts` + recipients · `POST /api/whatsapp/support/broadcasts`
+
+**Done when:** Admin can queue a template broadcast and see per-recipient sent/failed.
 
 ## Explicitly out of scope (AsanPay)
 

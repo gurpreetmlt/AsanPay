@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { MessageCircle } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
+import { WhatsAppBroadcastPanel } from "@/components/whatsapp/BroadcastPanel";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
@@ -87,6 +88,7 @@ export default function WhatsAppInboxPage() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [forceTemplate, setForceTemplate] = useState(false);
+  const [tab, setTab] = useState<"inbox" | "broadcast">("inbox");
 
   const loadConfigAndList = useCallback(async () => {
     setLoadingList(true);
@@ -199,7 +201,7 @@ export default function WhatsAppInboxPage() {
           <div className="flex items-center gap-2">
             <MessageCircle size={22} style={{ color: B.blue }} />
             <h1 className="text-xl font-bold" style={{ color: B.blue }}>
-              WhatsApp Inbox
+              WhatsApp
             </h1>
           </div>
           <button
@@ -212,6 +214,31 @@ export default function WhatsAppInboxPage() {
           </button>
         </div>
 
+        {config?.enabled && (
+          <div className="flex gap-2">
+            {(
+              [
+                { id: "inbox" as const, label: "Inbox" },
+                { id: "broadcast" as const, label: "Broadcast" },
+              ] as const
+            ).map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTab(t.id)}
+                className="rounded-full px-4 py-1.5 text-sm font-semibold"
+                style={{
+                  background: tab === t.id ? B.blue : "transparent",
+                  color: tab === t.id ? "#fff" : B.blueMid,
+                  border: `1px solid ${tab === t.id ? B.blue : B.border}`,
+                }}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {config && !config.enabled && (
           <div
             className="rounded-2xl border p-4 text-sm"
@@ -223,7 +250,11 @@ export default function WhatsAppInboxPage() {
           </div>
         )}
 
-        {config?.enabled && (
+        {config?.enabled && tab === "broadcast" && (
+          <WhatsAppBroadcastPanel config={config} />
+        )}
+
+        {config?.enabled && tab === "inbox" && (
           <div
             className="flex min-h-0 flex-1 overflow-hidden rounded-2xl border bg-white"
             style={{ borderColor: B.border }}
