@@ -32,6 +32,7 @@ import {
 } from "@asanpay/shared-types";
 import { AppShell } from "@/components/layout/AppShell";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
+import { ConfirmModal, type ConfirmTone } from "@/components/ui/ConfirmModal";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import api, { fetchApi, RECHARGE_TIMEOUT_MS } from "@/lib/api";
 import { B } from "@/lib/brand";
@@ -497,6 +498,11 @@ function RechargeInner() {
   const [lastRef, setLastRef] = useState<string | null>(null);
   const [lastStatus, setLastStatus] = useState<string | null>(null);
   const [blockResubmit, setBlockResubmit] = useState(false);
+  const [resultAlert, setResultAlert] = useState<{
+    title: string;
+    message: string;
+    tone: ConfirmTone;
+  } | null>(null);
   const [recentTxns, setRecentTxns] = useState<TxnRow[]>([]);
   const [recentBusy, setRecentBusy] = useState(false);
   const [dateFrom, setDateFrom] = useState(todayInputValue);
@@ -513,6 +519,7 @@ function RechargeInner() {
     setBlockResubmit(false);
     busyRef.current = false;
     apiStartedRef.current = false;
+    setLoading(false);
   }
 
   function armSubmitFromPointer(e: PointerEvent<HTMLButtonElement>) {
@@ -534,8 +541,10 @@ function RechargeInner() {
       e.stopPropagation();
       return;
     }
+    // Only lock the ref here — do NOT setLoading(true). Setting loading on pointerdown
+    // disables the button before click/submit fires, so onSubmit never runs and the
+    // spinner sticks forever (mobile Pressable still fires onPress; HTML does not).
     busyRef.current = true;
-    setLoading(true);
   }
 
   useEffect(() => {
@@ -868,30 +877,45 @@ function RechargeInner() {
       setLastRef(txn?.txnRef ?? null);
       setLastStatus(status);
       if (status === "success") {
-        toast.success("Recharge successful");
         stayBlocked = true;
         setBlockResubmit(true);
         attemptKey.current.clear();
         setTxnPin("");
+        setResultAlert({
+          title: "Recharge successful",
+          message: txn?.txnRef ? `Ref: ${txn.txnRef}` : "Done",
+          tone: "info",
+        });
         void loadRecentTxns();
       } else if (status === "failed") {
-        toast.error(reason || "Recharge failed");
         setBlockResubmit(false);
+        setResultAlert({
+          title: "Recharge failed",
+          message: reason || "Recharge failed",
+          tone: "danger",
+        });
         void loadRecentTxns();
       } else {
-        toast.success(
-          reason ||
-            "Recharge submitted. Status is pending — do not tap Recharge again. Check Transactions.",
-        );
         stayBlocked = true;
         setBlockResubmit(true);
         attemptKey.current.clear();
         setTxnPin("");
+        setResultAlert({
+          title: "Recharge submitted",
+          message:
+            reason ||
+            "Recharge submitted. Status is pending — do not tap Recharge again. Check Transactions.",
+          tone: "info",
+        });
         void loadRecentTxns();
       }
     } catch (err) {
-      toast.error(extractApiError(err, "Recharge failed"));
       setBlockResubmit(false);
+      setResultAlert({
+        title: "Recharge failed",
+        message: extractApiError(err, "Recharge failed"),
+        tone: "danger",
+      });
     } finally {
       setLoading(false);
       if (stayBlocked) {
@@ -1531,6 +1555,25 @@ function RechargeInner() {
           </div>
         </section>
       </div>
+
+      {resultAlert ? (
+        <ConfirmModal
+          title={resultAlert.title}
+          message={
+            <div
+              className="rounded-xl px-3 py-2.5 text-sm leading-relaxed"
+              style={{ background: B.secondary, color: B.blue }}
+            >
+              {resultAlert.message}
+            </div>
+          }
+          tone={resultAlert.tone}
+          confirmLabel="Got it"
+          cancelLabel=""
+          onConfirm={() => setResultAlert(null)}
+          onClose={() => setResultAlert(null)}
+        />
+      ) : null}
     </AppShell>
   );
 }

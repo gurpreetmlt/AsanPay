@@ -11,7 +11,8 @@ interface ConfirmModalProps {
   title: string;
   message: ReactNode;
   confirmLabel?: string;
-  cancelLabel?: string;
+  /** Pass empty string or null to hide Cancel (single-action alert). */
+  cancelLabel?: string | null;
   busy?: boolean;
   busyLabel?: string;
   tone?: ConfirmTone;
@@ -39,6 +40,7 @@ export function ConfirmModal({
 }: ConfirmModalProps) {
   const btn = TONE_BTN[tone];
   const [mounted, setMounted] = useState(false);
+  const showCancel = Boolean(cancelLabel && cancelLabel.trim());
 
   useEffect(() => {
     setMounted(true);
@@ -116,24 +118,28 @@ export function ConfirmModal({
           className="flex items-center justify-end gap-2 border-t px-5 py-4"
           style={{ borderColor: B.border }}
         >
-          <button
-            type="button"
-            disabled={busy}
-            onClick={onClose}
-            className="rounded-xl border px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
-            style={{
-              borderColor: B.border,
-              color: tone === "danger" ? "#B91C1C" : B.blue,
-              background: B.secondary,
-            }}
-          >
-            {cancelLabel}
-          </button>
+          {showCancel ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onClose}
+              className="rounded-xl border px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
+              style={{
+                borderColor: B.border,
+                color: tone === "danger" ? "#B91C1C" : B.blue,
+                background: B.secondary,
+              }}
+            >
+              {cancelLabel}
+            </button>
+          ) : null}
           <button
             type="button"
             disabled={busy}
             onClick={onConfirm}
-            className="confirm-modal-action-btn rounded-xl px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60"
+            className={`confirm-modal-action-btn rounded-xl px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60${
+              showCancel ? "" : " w-full"
+            }`}
             style={{ ...accentStyle, background: btn }}
           >
             {busy ? busyLabel : confirmLabel}
