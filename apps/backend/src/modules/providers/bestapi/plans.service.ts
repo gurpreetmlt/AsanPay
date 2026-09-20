@@ -3,11 +3,12 @@ import { logger } from "../../../utils/logger";
 import { mapVyaparOperatorCode } from "../vyaparapi/status";
 import { bestApiConfigured, bestApiPost, type BestApiJson } from "./client";
 
-const OPERATOR_PATH = "/api/gw/mobile-services/mobile-plans/mobile-operator-apis";
-const PLANS_PATH = "/api/gw/mobile-services/mobile-plans/mobile-plans-apis";
+/** Paths match BestAPI portal docs (Mobile/DTH Information · Sept 2026). */
+const OPERATOR_PATH = "/api/gw/mobile/information/mobile-operators";
+const PLANS_PATH = "/api/gw/mobile/information/mobile-plans";
 const ROFFER_PATH = "/api/gw/mobile/information/roffer";
 const DTH_PLAN_PATH = "/api/gw/dth-services/dth-plans/dth-plan";
-const DTH_INFO_PATH = "/api/gw/dth-services/dth-plans/dth-info-apis";
+const DTH_INFO_PATH = "/api/gw/dth/information/customer";
 
 export type RechargePlanItem = {
   amount: string;

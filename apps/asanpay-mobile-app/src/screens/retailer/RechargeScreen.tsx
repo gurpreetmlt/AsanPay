@@ -74,8 +74,6 @@ const MOBILE_OPS: OperatorDef[] = [
   { code: "BL", label: "BSNL", color: "#F5A623", mark: "BSNL" },
   { code: "JIO", label: "Jio", color: "#0A2885", mark: "Jio" },
   { code: "VI", label: "Vi", color: "#EE3124", mark: "Vi" },
-  { code: "JPL", label: "Jio Lite", color: "#1E3A8A", mark: "JL" },
-  { code: "TESTOP", label: "Test", color: "#64748B", mark: "T" },
 ];
 
 const DTH_OPS: OperatorDef[] = [
