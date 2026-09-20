@@ -19,7 +19,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ArrowLeft,
+  Check,
   ChevronDown,
+  Clock3,
   Lock,
   MapPin,
   Smartphone,
@@ -175,25 +177,27 @@ function groupPlansByTab(items: PlanItem[]): { id: RechargePlanTabId; label: str
 
 function OperatorLogo({ op, size = 56 }: { op: OperatorDef; size?: number }) {
   const radius = Math.round(size * 0.22);
-  // Slightly scale image so thin baked-in PNG strokes (e.g. Jio) get clipped.
-  const img = Math.round(size * 1.1);
-  const offset = Math.round((size - img) / 2);
+  const pad = Math.max(4, Math.round(size * 0.1));
+  const inner = size - pad * 2;
   return (
     <View
       style={{
         width: size,
         height: size,
         borderRadius: radius,
-        overflow: "hidden",
+        backgroundColor: "#fff",
+        borderWidth: 1.5,
+        borderColor: "#2A5CDD",
         alignItems: "center",
         justifyContent: "center",
+        overflow: "hidden",
       }}
     >
       {op.logo ? (
         <Image
           source={op.logo}
-          style={{ width: img, height: img, marginLeft: offset, marginTop: offset }}
-          resizeMode="cover"
+          style={{ width: inner, height: inner }}
+          resizeMode="contain"
         />
       ) : (
         <Text
@@ -240,7 +244,7 @@ function PlanBlock({
   const visible = showAll ? active.items : active.items.slice(0, PLAN_PAGE_SIZE);
 
   return (
-    <View>
+    <View style={{ gap: 12 }}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabRow}>
         {groups.map((g) => {
           const on = g.id === active.id;
@@ -253,77 +257,68 @@ function PlanBlock({
               }}
               style={[
                 styles.filterChip,
-                { backgroundColor: on ? colors.blue : `${colors.blue}12`, borderColor: colors.blue },
+                {
+                  backgroundColor: on ? colors.blue : "#EEF1F6",
+                  borderColor: on ? colors.blue : "#EEF1F6",
+                },
               ]}
             >
-              <Text style={{ color: on ? "#fff" : colors.blue, fontWeight: "700", fontSize: 12 }}>{g.label}</Text>
+              <Text style={{ color: on ? "#fff" : "#334155", fontWeight: "700", fontSize: 12 }}>
+                {g.label}
+                <Text style={{ opacity: 0.7 }}> ({g.items.length})</Text>
+              </Text>
             </Pressable>
           );
         })}
       </ScrollView>
+
       {visible.map((p, i) => {
         const selected = selectedAmount === p.amount;
+        const validityLabel = p.validity
+          ? p.validity.replace(/days?/i, "").trim() || p.validity
+          : "—";
         return (
           <Pressable
             key={`${active.id}-${p.amount}-${i}`}
             onPress={() => onPick(p.amount)}
             style={[
-              styles.planCard,
+              styles.planCardWeb,
               {
                 borderColor: selected ? colors.blue : tokens.cardBorder,
-                backgroundColor: selected ? `${colors.blue}0F` : tokens.card,
-                shadowColor: "#0B2A9A",
-                shadowOpacity: selected ? 0.12 : 0.04,
-                shadowRadius: 8,
-                shadowOffset: { width: 0, height: 2 },
-                elevation: selected ? 3 : 1,
+                backgroundColor: tokens.card,
               },
             ]}
           >
+            <View style={styles.planCardHead}>
+              <Text style={{ color: tokens.txt, fontSize: 18, fontWeight: "800" }}>Rs. {p.amount}</Text>
+              <View style={styles.planValidityPill}>
+                <Clock3 size={11} color={colors.blue} strokeWidth={2.4} />
+                <Text style={{ color: colors.blue, fontSize: 11, fontWeight: "700" }}>{validityLabel}</Text>
+              </View>
+            </View>
+            <Text style={{ color: tokens.sub, fontSize: 12, lineHeight: 17, marginTop: 8, minHeight: 34 }} numberOfLines={3}>
+              {p.description || p.title || "Plan details"}
+            </Text>
             <View
               style={[
-                styles.planPrice,
-                { backgroundColor: selected ? colors.blue : `${colors.blue}14` },
+                styles.planSelectBtn,
+                {
+                  borderColor: colors.blue,
+                  backgroundColor: selected ? "#EEF3FF" : "#fff",
+                },
               ]}
             >
-              <Text style={{ color: selected ? "rgba(255,255,255,0.8)" : tokens.sub, fontSize: 10, fontWeight: "700" }}>
-                ₹
+              <Check size={14} color={colors.blue} strokeWidth={2.8} />
+              <Text style={{ color: colors.blue, fontSize: 12, fontWeight: "800" }}>
+                {selected ? "Selected" : "Select Plan"}
               </Text>
-              <Text style={{ color: selected ? "#fff" : colors.blue, fontSize: 18, fontWeight: "800" }}>
-                {p.amount}
-              </Text>
-            </View>
-            <View style={{ flex: 1, paddingVertical: 10, paddingHorizontal: 12 }}>
-              <View style={styles.planTop}>
-                <Text
-                  style={{
-                    color: colors.blue,
-                    fontSize: 11,
-                    fontWeight: "700",
-                    backgroundColor: `${colors.blue}12`,
-                    overflow: "hidden",
-                    paddingHorizontal: 8,
-                    paddingVertical: 3,
-                    borderRadius: 999,
-                  }}
-                >
-                  {p.validity ? p.validity : "Tap to select"}
-                </Text>
-                {selected ? (
-                  <Text style={{ color: colors.green, fontSize: 11, fontWeight: "800" }}>Selected</Text>
-                ) : null}
-              </View>
-              {p.description ? (
-                <Text style={{ color: tokens.sub, fontSize: 12, marginTop: 6, lineHeight: 16 }} numberOfLines={2}>
-                  {p.description}
-                </Text>
-              ) : null}
             </View>
           </Pressable>
         );
       })}
+
       {active.items.length > PLAN_PAGE_SIZE ? (
-        <Pressable onPress={() => setShowAll((v) => !v)} style={{ paddingVertical: 12, alignItems: "center" }}>
+        <Pressable onPress={() => setShowAll((v) => !v)} style={{ paddingVertical: 8, alignItems: "center" }}>
           <Text style={{ color: colors.blue, fontWeight: "700", fontSize: 13 }}>
             {showAll ? "Show less" : `See more (${active.items.length - PLAN_PAGE_SIZE})`}
           </Text>
@@ -1057,16 +1052,18 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
           setPanelOpen(false);
         }}
       >
-        <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bg }]} edges={["top"]}>
-          <View style={styles.panelHead}>
+        <SafeAreaView style={[styles.safe, { backgroundColor: "#F4F6FB" }]} edges={["top"]}>
+          <View style={[styles.panelHead, { backgroundColor: "#fff", borderBottomColor: tokens.cardBorder, borderBottomWidth: StyleSheet.hairlineWidth }]}>
             <View style={{ flex: 1, paddingRight: 12 }}>
               <Text style={{ color: tokens.txt, fontWeight: "800", fontSize: 18 }}>
-                {serviceCode === "DTH" ? "Plans & Info" : "Plans & Offers"}
+                {serviceCode === "DTH" ? "Browse Plans & Info" : "Browse Plans & Offers"}
               </Text>
               <Text style={{ color: tokens.sub, fontSize: 12, marginTop: 3 }}>
                 {serviceCode === "DTH" && panelTab === "offers"
                   ? "Subscriber details for this connection"
-                  : "Tap a pack to fill amount"}
+                  : selectedOp
+                    ? `${selectedOp.label} · tap a pack to fill amount`
+                    : "Tap a pack to fill amount"}
               </Text>
             </View>
             <Pressable
@@ -1074,43 +1071,40 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
                 animateLayout();
                 setPanelOpen(false);
               }}
-              style={styles.closeBtn}
+              style={[styles.closeBtn, { backgroundColor: "#F1F5F9" }]}
               hitSlop={10}
             >
               <X size={18} color={tokens.sub} />
             </Pressable>
           </View>
-          <View style={styles.catalogBtnRow}>
-            <Pressable
-              onPress={() => setPanelTab("plans")}
-              style={[
-                styles.catalogBtn,
-                {
-                  borderColor: colors.blue,
-                  backgroundColor: panelTab === "plans" ? colors.blue : tokens.card,
-                },
-              ]}
-            >
-              <Text style={{ color: panelTab === "plans" ? "#fff" : colors.blue, fontWeight: "700", fontSize: 14 }}>
-                Plans
-              </Text>
-            </Pressable>
-            {serviceCode === "DTH" || operatorCode !== "JIO" ? (
+          <View style={[styles.catalogBtnRow, { backgroundColor: "#fff", paddingTop: 10 }]}>
+            <View style={[styles.catalogSegment, { backgroundColor: "#EEF1F6", borderColor: tokens.cardBorder }]}>
               <Pressable
-                onPress={() => setPanelTab("offers")}
+                onPress={() => setPanelTab("plans")}
                 style={[
-                  styles.catalogBtn,
-                  {
-                    borderColor: colors.blue,
-                    backgroundColor: panelTab === "offers" ? colors.blue : tokens.card,
-                  },
+                  styles.catalogSegBtn,
+                  panelTab === "plans" ? { backgroundColor: colors.blue } : null,
+                  !(serviceCode === "DTH" || operatorCode !== "JIO") ? { flex: 1 } : null,
                 ]}
               >
-                <Text style={{ color: panelTab === "offers" ? "#fff" : colors.blue, fontWeight: "700", fontSize: 14 }}>
-                  {serviceCode === "DTH" ? "Info" : "Offers"}
+                <Text style={{ color: panelTab === "plans" ? "#fff" : "#334155", fontWeight: "700", fontSize: 13 }}>
+                  Plans
                 </Text>
               </Pressable>
-            ) : null}
+              {serviceCode === "DTH" || operatorCode !== "JIO" ? (
+                <Pressable
+                  onPress={() => setPanelTab("offers")}
+                  style={[
+                    styles.catalogSegBtn,
+                    panelTab === "offers" ? { backgroundColor: colors.blue } : null,
+                  ]}
+                >
+                  <Text style={{ color: panelTab === "offers" ? "#fff" : "#334155", fontWeight: "700", fontSize: 13 }}>
+                    {serviceCode === "DTH" ? "Info" : "Offers"}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
           </View>
           <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
             {panelBusy ? (
@@ -1306,7 +1300,51 @@ const styles = StyleSheet.create({
   planCard: { borderWidth: 1, borderRadius: 18, marginTop: 8, flexDirection: "row", overflow: "hidden" },
   planPrice: { width: 82, alignItems: "center", justifyContent: "center", paddingVertical: 14 },
   planTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
-  catalogBtnRow: { flexDirection: "row", gap: 10, paddingHorizontal: 16, paddingBottom: 10 },
+  planCardWeb: {
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 14,
+  },
+  planCardHead: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  planValidityPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#E8F0FF",
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  planSelectBtn: {
+    marginTop: 12,
+    borderWidth: 1.5,
+    borderRadius: 12,
+    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  catalogBtnRow: { paddingHorizontal: 16, paddingBottom: 12 },
+  catalogSegment: {
+    flexDirection: "row",
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 4,
+    gap: 4,
+  },
+  catalogSegBtn: {
+    flex: 1,
+    borderRadius: 11,
+    paddingVertical: 11,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   catalogBtn: {
     flex: 1,
     borderWidth: 1.5,
@@ -1322,6 +1360,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
+  filterChip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
+  tabRow: { gap: 8, paddingBottom: 2 },
   dthOpBanner: {
     borderRadius: 14,
     paddingVertical: 12,
@@ -1350,8 +1390,6 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingVertical: 10,
   },
-  tabRow: { gap: 8, paddingBottom: 10 },
-  filterChip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
   cta: { marginTop: 20, borderRadius: 14, paddingVertical: 14, alignItems: "center" },
   ctaText: { color: "#fff", fontWeight: "700", fontSize: 16 },
 });
