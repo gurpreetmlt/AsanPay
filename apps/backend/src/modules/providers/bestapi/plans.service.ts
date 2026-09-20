@@ -551,7 +551,7 @@ function extractSummaryRows(json: BestApiJson): { label: string; value: string }
     "plans",
     "info",
   ]);
-  /** Noise labels to hide even if string. */
+  /** Noise / PII labels to hide even if string. */
   const skipLabel = new Set([
     "status",
     "success",
@@ -560,6 +560,15 @@ function extractSummaryRows(json: BestApiJson): { label: string; value: string }
     "error",
     "errcode",
     "errorcode",
+    // Home address — do not expose to agents
+    "address",
+    "city",
+    "district",
+    "state",
+    "pin code",
+    "pincode",
+    "pin",
+    "postalcode",
   ]);
   const out: { label: string; value: string }[] = [];
   const seen = new Set<string>();

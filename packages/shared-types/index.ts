@@ -243,16 +243,26 @@ const DTH_INFO_LABELS: Record<string, string> = {
   monthly: "Monthly amount",
   "next recharge date": "Next recharge",
   plan: "Current plan",
-  address: "Address",
-  city: "City",
-  district: "District",
-  state: "State",
-  "pin code": "PIN code",
   status: "Connection status",
-  "last recharge date": "Last recharge",
-  "last recharge amount": "Last amount",
+  "last recharge date": "Last recharge date",
+  "last recharge amount": "Last recharge amount",
   switchofdate: "Switch-off date",
 };
+
+/** Address / location keys — never show in agent UI (PII). */
+const DTH_INFO_LOCATION_SKIP = new Set([
+  "address",
+  "city",
+  "district",
+  "state",
+  "pin code",
+  "pincode",
+  "pin",
+  "postalcode",
+]);
+
+/** Always show these account rows (even when BestAPI sends N/A). */
+const DTH_INFO_ALWAYS_SHOW = new Set(["last recharge date", "last recharge amount"]);
 
 const DTH_INFO_ORDER = [
   "name",
@@ -266,11 +276,6 @@ const DTH_INFO_ORDER = [
   "status",
   "last recharge date",
   "last recharge amount",
-  "address",
-  "city",
-  "district",
-  "state",
-  "pin code",
 ] as const;
 
 function isBlankDthValue(value: string): boolean {
@@ -280,6 +285,7 @@ function isBlankDthValue(value: string): boolean {
 
 function formatDthInfoValue(rawLabel: string, value: string): string {
   const key = rawLabel.trim().toLowerCase();
+  if (isBlankDthValue(value)) return "N/A";
   if (key === "status") {
     if (value === "1" || /^active$/i.test(value)) return "Active";
     if (value === "0" || /^inactive$/i.test(value)) return "Inactive";
@@ -301,19 +307,28 @@ function formatDthInfoValue(rawLabel: string, value: string): string {
 
 /**
  * Turns raw BestAPI summary rows into ordered, human-readable fields.
- * Empty / N/A values are dropped.
+ * Empty / N/A values are dropped (except last recharge date/amount).
+ * Home address fields are never returned.
  */
 export function formatDthSubscriberInfo(rows: DthInfoRow[]): {
   name: string | null;
   balance: string | null;
   account: DthInfoRow[];
+  /** Always empty — address kept out of UI for privacy. */
   location: DthInfoRow[];
 } {
   const byKey = new Map<string, string>();
   for (const row of rows) {
     const key = row.label.trim().toLowerCase();
-    if (!key || isBlankDthValue(row.value)) continue;
+    if (!key) continue;
+    if (DTH_INFO_LOCATION_SKIP.has(key)) continue;
+    if (isBlankDthValue(row.value) && !DTH_INFO_ALWAYS_SHOW.has(key)) continue;
     byKey.set(key, formatDthInfoValue(row.label, row.value));
+  }
+
+  // Ensure last-recharge rows exist even if API omitted them
+  for (const key of DTH_INFO_ALWAYS_SHOW) {
+    if (!byKey.has(key)) byKey.set(key, "N/A");
   }
 
   const name = byKey.get("name") ?? null;
@@ -330,10 +345,8 @@ export function formatDthSubscriberInfo(rows: DthInfoRow[]): {
     "last recharge date",
     "last recharge amount",
   ]);
-  const locationKeys = new Set(["address", "city", "district", "state", "pin code"]);
 
   const account: DthInfoRow[] = [];
-  const location: DthInfoRow[] = [];
 
   for (const key of DTH_INFO_ORDER) {
     if (key === "name" || key === "balance") continue;
@@ -341,18 +354,17 @@ export function formatDthSubscriberInfo(rows: DthInfoRow[]): {
     if (!value) continue;
     const label = DTH_INFO_LABELS[key] ?? key;
     if (accountKeys.has(key)) account.push({ label, value });
-    else if (locationKeys.has(key)) location.push({ label, value });
   }
 
-  // Any leftover unknown fields
   for (const [key, value] of byKey) {
     if (key === "name" || key === "balance") continue;
-    if (accountKeys.has(key) || locationKeys.has(key)) continue;
+    if (accountKeys.has(key)) continue;
+    if (DTH_INFO_LOCATION_SKIP.has(key)) continue;
     if (DTH_INFO_ORDER.includes(key as (typeof DTH_INFO_ORDER)[number])) continue;
     account.push({ label: DTH_INFO_LABELS[key] ?? rowLabelTitle(key), value });
   }
 
-  return { name, balance, account, location };
+  return { name, balance, account, location: [] };
 }
 
 function rowLabelTitle(key: string): string {
