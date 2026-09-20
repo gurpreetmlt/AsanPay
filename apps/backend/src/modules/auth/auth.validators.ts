@@ -205,7 +205,7 @@ export type SignupRequestInput = z.infer<typeof signupRequestSchema>;
 
 /** Public sponsor name lookup by UID. */
 export const sponsorUidParamSchema = z.object({
-  uid: z.string().trim().min(6).max(20),
+  uid: z.string().trim().min(6).max(24),
 });
 export type SponsorUidParam = z.infer<typeof sponsorUidParamSchema>;
 

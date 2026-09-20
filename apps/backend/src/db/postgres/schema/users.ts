@@ -18,6 +18,7 @@ export const users = pgTable(
   "users",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    // Public agent code — legacy RT/DS/MD/AD+hex; new = ASPRT/ASPD/ASPSD/ASPAD + sequential digits
     uid: varchar("uid", { length: 20 }).notNull().unique(),
     // who onboarded this user — null only for the root admin
     parentId: uuid("parent_id").references((): AnyPgColumn => users.id, { onDelete: "restrict" }),

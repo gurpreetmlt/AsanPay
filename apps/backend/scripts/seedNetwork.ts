@@ -4,7 +4,7 @@ import { db, pgPool } from "../src/db/postgres";
 import { users, userHierarchy, wallets } from "../src/db/postgres/schema";
 import { provisionWalletsForUser } from "../src/modules/wallet/wallet.service";
 import { hashPassword } from "../src/utils/password";
-import { generateUid } from "../src/utils/uid";
+import { allocateUid } from "../src/utils/uid";
 import type { UserRole } from "@asanpay/shared-types";
 
 /**
@@ -126,9 +126,9 @@ async function ensureUser(agent: AgentSeed, parentId: string): Promise<string> {
     throw new Error("SEED_NETWORK_PASSWORD env is required (min 10 characters). No hardcoded seed passwords.");
   }
   const passwordHash = await hashPassword(password);
-  const uid = generateUid(agent.role);
 
   const [created] = await db.transaction(async (tx) => {
+    const uid = await allocateUid(agent.role, tx);
     const [row] = await tx
       .insert(users)
       .values({

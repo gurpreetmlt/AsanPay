@@ -5,7 +5,7 @@ import { users, userHierarchy, refreshTokens } from "../../db/postgres/schema";
 import { provisionWalletsForUser } from "../wallet/wallet.service";
 import { hashPassword, comparePassword } from "../../utils/password";
 import { encryptPII } from "../../utils/aes";
-import { generateUid, hashToken } from "../../utils/uid";
+import { allocateUid, hashToken } from "../../utils/uid";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../../utils/jwt";
 import { HttpError } from "../../utils/httpError";
 import { env, shouldExposeOtpInResponse, getTestOtpOverride, getTestSignupOtpOverride } from "../../config/env";
@@ -166,9 +166,9 @@ export async function registerUser(
   }
 
   const passwordHash = await hashPassword(input.password);
-  const uid = generateUid(input.role);
 
   const newUser = await db.transaction(async (tx) => {
+    const uid = await allocateUid(input.role, tx);
     const [created] = await tx
       .insert(users)
       .values({
@@ -312,8 +312,8 @@ async function ensureDevAdminCredentials(
     return { ...row, passwordHash, name: "AsanPay Admin", isActive: true, kycStatus: "verified" };
   }
 
-  const uid = generateUid("admin");
   const created = await db.transaction(async (tx) => {
+    const uid = await allocateUid("admin", tx);
     const [admin] = await tx
       .insert(users)
       .values({

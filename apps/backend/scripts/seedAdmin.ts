@@ -4,7 +4,7 @@ import { db, pgPool } from "../src/db/postgres";
 import { users, userHierarchy } from "../src/db/postgres/schema";
 import { provisionWalletsForUser } from "../src/modules/wallet/wallet.service";
 import { hashPassword } from "../src/utils/password";
-import { generateUid } from "../src/utils/uid";
+import { allocateUid } from "../src/utils/uid";
 
 /** Fixed admin portal credentials — username `admin` (not mobile). OTP disabled for admin. */
 const ADMIN_LOGIN_USER = "admin";
@@ -43,9 +43,8 @@ async function main() {
     return;
   }
 
-  const uid = generateUid("admin");
-
   await db.transaction(async (tx) => {
+    const uid = await allocateUid("admin", tx);
     const [admin] = await tx
       .insert(users)
       .values({
