@@ -6,6 +6,8 @@ import {
   ArrowLeft,
   Building2,
   Check,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
   History,
   Layers,
@@ -176,12 +178,46 @@ function PlanBrowseBody({
   const groups = useMemo(() => groupPlansByTab(items), [items]);
   const [tab, setTab] = useState<RechargePlanTabId>(groups[0]?.id ?? "popular");
   const [contentKey, setContentKey] = useState(0);
+  const tabScrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
 
   useEffect(() => {
     if (!groups.some((g) => g.id === tab)) {
       setTab(groups[0]?.id ?? "popular");
     }
   }, [groups, tab]);
+
+  const updateTabScroll = () => {
+    const el = tabScrollRef.current;
+    if (!el) return;
+    const max = el.scrollWidth - el.clientWidth;
+    setCanScrollLeft(el.scrollLeft > 4);
+    setCanScrollRight(max > 4 && el.scrollLeft < max - 4);
+  };
+
+  useEffect(() => {
+    updateTabScroll();
+    const el = tabScrollRef.current;
+    if (!el) return;
+    const onScroll = () => updateTabScroll();
+    el.addEventListener("scroll", onScroll, { passive: true });
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateTabScroll) : null;
+    ro?.observe(el);
+    window.addEventListener("resize", updateTabScroll);
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      ro?.disconnect();
+      window.removeEventListener("resize", updateTabScroll);
+    };
+  }, [groups, busy]);
+
+  useEffect(() => {
+    const el = tabScrollRef.current;
+    if (!el) return;
+    const activeBtn = el.querySelector<HTMLElement>('[data-plan-tab-active="1"]');
+    activeBtn?.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" });
+  }, [tab]);
 
   const active = groups.find((g) => g.id === tab) ?? groups[0] ?? null;
 
@@ -191,43 +227,73 @@ function PlanBrowseBody({
     setContentKey((k) => k + 1);
   }
 
+  function scrollTabs(dir: -1 | 1) {
+    const el = tabScrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * Math.max(160, el.clientWidth * 0.55), behavior: "smooth" });
+  }
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
-      {/* Tabs always reserved so they never jump away during load */}
-      <div
-        className="shrink-0 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:thin]"
-        style={{ WebkitOverflowScrolling: "touch" }}
-      >
-        <div className="flex w-max min-w-full gap-2">
-          {busy && groups.length === 0
-            ? ["Popular", "Unlimited", "Data", "Yearly", "Other"].map((label) => (
-                <span
-                  key={label}
-                  className="h-8 shrink-0 animate-pulse rounded-full px-4"
-                  style={{ background: "#E8EEF8", minWidth: 72 }}
-                />
-              ))
-            : groups.map((g) => {
-                const on = active?.id === g.id;
-                return (
-                  <button
-                    key={g.id}
-                    type="button"
-                    onClick={() => switchTab(g.id)}
-                    className="shrink-0 rounded-full px-4 py-2 text-[12px] font-semibold transition-all duration-200"
-                    style={{
-                      background: on ? B.blueLight : "#EEF1F6",
-                      color: on ? "#fff" : "#334155",
-                      transform: on ? "scale(1.02)" : "scale(1)",
-                      boxShadow: on ? "0 4px 12px rgba(42,92,221,0.25)" : "none",
-                    }}
-                  >
-                    {g.label}
-                    <span className="ml-1.5 opacity-70">({g.items.length})</span>
-                  </button>
-                );
-              })}
+      {/* Tabs: arrows instead of visible scrollbar */}
+      <div className="flex shrink-0 items-center gap-1.5">
+        <button
+          type="button"
+          aria-label="Previous plan categories"
+          disabled={!canScrollLeft}
+          onClick={() => scrollTabs(-1)}
+          className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full border transition disabled:cursor-default disabled:opacity-30"
+          style={{ borderColor: B.border, color: B.blue, background: "#fff" }}
+        >
+          <ChevronLeft size={16} strokeWidth={2.4} />
+        </button>
+        <div
+          ref={tabScrollRef}
+          className="min-w-0 flex-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          style={{ WebkitOverflowScrolling: "touch" }}
+        >
+          <div className="flex w-max min-w-full gap-2 py-0.5">
+            {busy && groups.length === 0
+              ? ["Popular", "Unlimited", "Data", "Yearly", "Other"].map((label) => (
+                  <span
+                    key={label}
+                    className="h-8 shrink-0 animate-pulse rounded-full px-4"
+                    style={{ background: "#E8EEF8", minWidth: 72 }}
+                  />
+                ))
+              : groups.map((g) => {
+                  const on = active?.id === g.id;
+                  return (
+                    <button
+                      key={g.id}
+                      type="button"
+                      data-plan-tab-active={on ? "1" : "0"}
+                      onClick={() => switchTab(g.id)}
+                      className="shrink-0 cursor-pointer rounded-full px-4 py-2 text-[12px] font-semibold transition-all duration-200"
+                      style={{
+                        background: on ? B.blueLight : "#EEF1F6",
+                        color: on ? "#fff" : "#334155",
+                        transform: on ? "scale(1.02)" : "scale(1)",
+                        boxShadow: on ? "0 4px 12px rgba(42,92,221,0.25)" : "none",
+                      }}
+                    >
+                      {g.label}
+                      <span className="ml-1.5 opacity-70">({g.items.length})</span>
+                    </button>
+                  );
+                })}
+          </div>
         </div>
+        <button
+          type="button"
+          aria-label="Next plan categories"
+          disabled={!canScrollRight}
+          onClick={() => scrollTabs(1)}
+          className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full border transition disabled:cursor-default disabled:opacity-30"
+          style={{ borderColor: B.border, color: B.blue, background: "#fff" }}
+        >
+          <ChevronRight size={16} strokeWidth={2.4} />
+        </button>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto pr-1">
