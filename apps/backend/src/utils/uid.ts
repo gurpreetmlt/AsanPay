@@ -1,12 +1,12 @@
 import { createHash, randomBytes } from "node:crypto";
-import { eq, sql } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import type { PgTransaction } from "drizzle-orm/pg-core";
 import type { UserRole } from "@asanpay/shared-types";
 import { db } from "../db/postgres";
-import { uidCounters } from "../db/postgres/schema";
+import { uidCounters, users } from "../db/postgres/schema";
 import { HttpError } from "./httpError";
 
-/** Brand short + role for new public agent IDs (legacy RT/DS/MD/AD untouched). */
+/** Brand short + role for new public agent IDs (legacy RT/DS/MD/AD untouched until remapped). */
 export const UID_BRAND = "ASP";
 
 export const UID_PREFIX: Record<UserRole, string> = {
@@ -16,7 +16,53 @@ export const UID_PREFIX: Record<UserRole, string> = {
   retailer: `${UID_BRAND}RT`,
 };
 
+export const UID_SEQUENCE_START = 100_001;
+
 type DbExecutor = typeof db | PgTransaction<any, any, any>;
+
+/** Parse sequence number from an ASP* uid for a role, or null if not in new format. */
+export function parseAspSequence(uid: string, role: UserRole): number | null {
+  const prefix = UID_PREFIX[role];
+  if (!uid.startsWith(prefix)) return null;
+  const rest = uid.slice(prefix.length);
+  if (!/^\d+$/.test(rest)) return null;
+  const n = Number(rest);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/**
+ * Set next_value to max(existing ASP* seq for role) + 1, or UID_SEQUENCE_START if none.
+ * Call after user delete (dev) so the next onboard reuses a tight sequence.
+ */
+export async function resyncUidCounter(role: UserRole, executor: DbExecutor): Promise<number> {
+  const rows = await executor
+    .select({ uid: users.uid })
+    .from(users)
+    .where(eq(users.role, role));
+
+  let max = UID_SEQUENCE_START - 1;
+  for (const row of rows) {
+    const n = parseAspSequence(row.uid, role);
+    if (n != null && n > max) max = n;
+  }
+  const next = max + 1;
+
+  const [updated] = await executor
+    .update(uidCounters)
+    .set({ nextValue: next })
+    .where(eq(uidCounters.role, role))
+    .returning({ nextValue: uidCounters.nextValue });
+
+  if (!updated) {
+    throw new HttpError(
+      500,
+      `UID counter missing for role ${role}. Run DB migrate (0046_uid_counters).`,
+      "UID_COUNTER_MISSING",
+    );
+  }
+
+  return Number(updated.nextValue);
+}
 
 /**
  * Allocate next public UID for a role: e.g. ASPRT100001, ASPD100001, ASPSD100001.
@@ -45,6 +91,44 @@ export async function allocateUid(role: UserRole, executor: DbExecutor): Promise
   }
 
   return `${prefix}${n}`;
+}
+
+/**
+ * One-shot: remap every user of each role to ASP*+sequential (by createdAt), then resync counters.
+ * Intended for development when public UIDs may still change.
+ */
+export async function remapAllAgentUids(executor: DbExecutor = db): Promise<{
+  remapped: number;
+  byRole: Record<string, number>;
+}> {
+  const roles: UserRole[] = ["admin", "super_distributor", "distributor", "retailer"];
+  const byRole: Record<string, number> = {};
+  let remapped = 0;
+
+  for (const role of roles) {
+    const prefix = UID_PREFIX[role];
+    const rows = await executor
+      .select({ id: users.id, uid: users.uid })
+      .from(users)
+      .where(eq(users.role, role))
+      .orderBy(asc(users.createdAt), asc(users.id));
+
+    let seq = UID_SEQUENCE_START;
+    for (const row of rows) {
+      const nextUid = `${prefix}${seq}`;
+      seq += 1;
+      if (row.uid === nextUid) continue;
+      // Two-step update avoids unique collisions when swapping within the same role.
+      const temp = `T${row.id.replace(/-/g, "").slice(0, 18)}`;
+      await executor.update(users).set({ uid: temp }).where(eq(users.id, row.id));
+      await executor.update(users).set({ uid: nextUid }).where(eq(users.id, row.id));
+      remapped += 1;
+    }
+    byRole[role] = rows.length;
+    await resyncUidCounter(role, executor);
+  }
+
+  return { remapped, byRole };
 }
 
 /**

@@ -45,6 +45,7 @@ import {
 } from "../kyc/kycDocuments.service";
 import { kycDecisionEmailTemplate, notifyUserEmail } from "../../utils/mailer";
 import { findLatestAuditLog, insertAuditLog } from "../../db/postgres/repositories/auditLog";
+import { resyncUidCounter } from "../../utils/uid";
 import type { UserRole, KycStatus, TransactionStatus } from "@asanpay/shared-types";
 
 /** Parent role required for each child role when admin moves someone in the tree. */
@@ -610,6 +611,8 @@ export async function deleteAdminUser(adminId: string, userId: string) {
     await tx.delete(transactions).where(eq(transactions.userId, userId));
     await tx.delete(otpRequests).where(eq(otpRequests.mobile, target.mobile));
     await tx.delete(users).where(eq(users.id, userId));
+    // Dev-friendly: keep ASP* sequence tight after hard delete (no gaps from removed agents).
+    await resyncUidCounter(target.role, tx);
   });
 
   await insertAuditLog({

@@ -157,6 +157,7 @@
 2026-08-03 — Fund request + banking HTTP: `/api/fund-requests`, `/api/banking`, Idempotency-Key on money POSTs (task 27A)
 2026-08-01 — Email notifications: statements job, commission credit, large debit, new device, MPIN change, product-update opt-in
 2026-08-01 — Branded emails: verify OTP, welcome (on first email verify), KYC submit/approve/reject
+2026-09-21 — Agent UIDs: remap script `npm run remap:uids` → ASPRT/ASPD/ASPSD/ASPAD; hard-delete resyncs uid_counters
 2026-09-20 — Txn refs: new `ASP`+`YYMMDD`+agent last6+6hex (e.g. ASP260920100001A1B2C3); legacy `LKP…` unchanged
 2026-09-20 — Agent public UIDs: new accounts get `ASPRT`/`ASPD`/`ASPSD`/`ASPAD` + 6-digit seq from 100001 (migration `0046_uid_counters`); legacy RT/DS/MD unchanged
 2026-09-16 — PAN KYC verify: BestAPI pan-verify on signup PAN step (web + mobile)
