@@ -572,6 +572,153 @@ adminRouter.patch("/treasury/providers/:id/threshold", async (req, res) => {
   );
 });
 
+// ── Bank entries register (maker-checker) ────────────────────────────────────
+const bankEntryBody = z.object({
+  category: z.string().trim().min(1, "Select a category"),
+  bankAccountId: z
+    .string()
+    .trim()
+    .regex(/^\d+$/, "Select a company bank account")
+    .nullable()
+    .optional(),
+  providerId: z.string().uuid("Select an API provider").nullable().optional(),
+  amount: z
+    .string()
+    .trim()
+    .regex(/^\d+(\.\d{1,2})?$/, "Amount must be a rupee amount, e.g. 4990 or 4990.50"),
+  txnDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Enter the transaction date"),
+  mode: z.enum(["upi", "imps", "neft", "rtgs", "cheque", "cash", "other"], {
+    message: "Select the payment mode",
+  }),
+  utr: z
+    .string()
+    .trim()
+    .max(40, "UTR / reference must be 40 characters or fewer")
+    .regex(/^[A-Za-z0-9]*$/, "UTR / reference can contain only letters and numbers")
+    .nullable()
+    .optional(),
+  partyName: z.string().trim().max(120, "Name must be 120 characters or fewer").nullable().optional(),
+  partyIfsc: z
+    .string()
+    .trim()
+    .regex(/^([A-Za-z]{4}0[A-Za-z0-9]{6})?$/, "Enter a valid 11-character IFSC, e.g. HDFC0001344")
+    .nullable()
+    .optional(),
+  partyAccountLast4: z
+    .string()
+    .trim()
+    .regex(/^(\d{4})?$/, "Enter only the last 4 digits of the account number")
+    .nullable()
+    .optional(),
+  narration: z.string().trim().max(500, "Narration must be 500 characters or fewer").nullable().optional(),
+  attachmentName: z.string().trim().max(160).nullable().optional(),
+  attachmentDataUrl: z.string().max(4_500_000, "Proof file must be 3 MB or smaller").nullable().optional(),
+});
+
+function bankEntryIdParam(raw: unknown): bigint {
+  const s = String(raw);
+  if (!/^\d+$/.test(s)) throw new HttpError(422, "Bank entry id is invalid", "INVALID_ID");
+  return BigInt(s);
+}
+
+adminRouter.get("/bank-entries/categories", async (_req, res) => {
+  const { listBankEntryCategories } = await import("../treasury/bankEntry.service");
+  sendSuccess(res, listBankEntryCategories());
+});
+
+adminRouter.get("/bank-entries", async (req, res) => {
+  const { listBankEntries } = await import("../treasury/bankEntry.service");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const tenantId = await resolveTenantId();
+  const q = (k: string) => (typeof req.query[k] === "string" ? (req.query[k] as string) : undefined);
+  const statusRaw = q("status");
+  const status =
+    statusRaw === "requested" || statusRaw === "approved" || statusRaw === "rejected" ? statusRaw : undefined;
+  const isDate = (v?: string) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined);
+  sendSuccess(
+    res,
+    await listBankEntries({
+      tenantId,
+      status,
+      from: isDate(q("from")),
+      to: isDate(q("to")),
+      limit: Number(q("limit")) || 100,
+    }),
+  );
+});
+
+adminRouter.get("/bank-entries/:id/attachment", async (req, res) => {
+  const { getBankEntryAttachment } = await import("../treasury/bankEntry.service");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const tenantId = await resolveTenantId();
+  sendSuccess(res, await getBankEntryAttachment(tenantId, bankEntryIdParam(req.params.id)));
+});
+
+adminRouter.post("/bank-entries", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const parsed = bankEntryBody.safeParse(req.body);
+  if (!parsed.success) {
+    throw new HttpError(422, parsed.error.issues[0]?.message ?? "Bank entry is invalid", "VALIDATION_ERROR");
+  }
+  const body = parsed.data;
+  const { requestBankEntry, isBankEntryCategory } = await import("../treasury/bankEntry.service");
+  if (!isBankEntryCategory(body.category)) {
+    throw new HttpError(422, "Select a valid category", "INVALID_CATEGORY");
+  }
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const { rupeesToPaise } = await import("../../core/money");
+  const tenantId = await resolveTenantId();
+  const result = await requestBankEntry({
+    tenantId,
+    requestedBy: req.auth.sub,
+    category: body.category,
+    bankAccountId: body.bankAccountId || null,
+    providerId: body.providerId || null,
+    amount: rupeesToPaise(body.amount),
+    txnDate: body.txnDate,
+    mode: body.mode,
+    utr: body.utr || null,
+    partyName: body.partyName || null,
+    partyIfsc: body.partyIfsc || null,
+    partyAccountLast4: body.partyAccountLast4 || null,
+    narration: body.narration || null,
+    attachmentName: body.attachmentName || null,
+    attachmentDataUrl: body.attachmentDataUrl || null,
+  });
+  sendSuccess(res, result, "Bank entry saved — another admin must approve it");
+});
+
+adminRouter.post("/bank-entries/:id/approve", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { approveBankEntry } = await import("../treasury/bankEntry.service");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const tenantId = await resolveTenantId();
+  const result = await approveBankEntry({
+    tenantId,
+    entryId: bankEntryIdParam(req.params.id),
+    approvedBy: req.auth.sub,
+  });
+  sendSuccess(res, result, "Bank entry approved and posted to the ledger");
+});
+
+adminRouter.post("/bank-entries/:id/reject", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const note = z.object({ note: z.string().trim().min(3, "Rejection note must be at least 3 characters") }).safeParse(req.body);
+  if (!note.success) {
+    throw new HttpError(422, note.error.issues[0]?.message ?? "Rejection note is required", "VALIDATION_ERROR");
+  }
+  const { rejectBankEntry } = await import("../treasury/bankEntry.service");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const tenantId = await resolveTenantId();
+  await rejectBankEntry({
+    tenantId,
+    entryId: bankEntryIdParam(req.params.id),
+    rejectedBy: req.auth.sub,
+    note: note.data.note,
+  });
+  sendSuccess(res, { ok: true }, "Bank entry rejected");
+});
+
 adminRouter.post("/ledger/recon/run", async (_req, res) => {
   const { runAndPersistReconciliation } = await import("../reconciliation/reports");
   const { resolveTenantId } = await import("../fund-requests/tenant");

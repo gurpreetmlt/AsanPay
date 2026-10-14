@@ -1,0 +1,851 @@
+"use client";
+
+import { FormEvent, useCallback, useEffect, useState, type ReactNode } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { toast } from "react-hot-toast";
+import { ArrowLeft, Check, Download, FileText, Paperclip, ReceiptText, X } from "lucide-react";
+import { AdminShell } from "@/components/layout/AdminShell";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { PromptModal } from "@/components/ui/PromptModal";
+import api, { fetchApi } from "@/lib/api";
+import { B } from "@/lib/brand";
+import { useAuthStore } from "@/lib/store";
+import { useAuthHydrated } from "@/lib/useAuthHydrated";
+
+type EntryStatus = "requested" | "approved" | "rejected";
+type Direction = "credit" | "debit" | "none";
+
+interface Category {
+  value: string;
+  label: string;
+  direction: Direction;
+  needsProvider: boolean;
+}
+
+interface BankAccount {
+  id: string;
+  bankName: string;
+  accountNumberLast4: string;
+  purpose: string;
+  isActive: boolean;
+}
+
+interface ProviderRow {
+  id: string;
+  code: string;
+  name: string;
+}
+
+interface BankEntry {
+  id: string;
+  category: string;
+  categoryLabel: string;
+  direction: Direction;
+  amount: string;
+  txnDate: string;
+  mode: string;
+  utr: string | null;
+  partyName: string | null;
+  partyIfsc: string | null;
+  partyAccountLast4: string | null;
+  narration: string | null;
+  hasAttachment: boolean;
+  attachmentName: string | null;
+  status: EntryStatus;
+  requestedBy: string;
+  requestedByName: string;
+  approvedByName: string | null;
+  decisionNote: string | null;
+  journalId: string | null;
+  requestedAt: string;
+  decidedAt: string | null;
+  bankName: string | null;
+  bankLast4: string | null;
+  providerName: string | null;
+}
+
+const MODES = [
+  { value: "upi", label: "UPI" },
+  { value: "imps", label: "IMPS" },
+  { value: "neft", label: "NEFT" },
+  { value: "rtgs", label: "RTGS" },
+  { value: "cheque", label: "Cheque" },
+  { value: "cash", label: "Cash" },
+  { value: "other", label: "Other" },
+];
+
+const MAX_PROOF_BYTES = 3 * 1024 * 1024;
+
+const EMPTY_FORM = {
+  category: "",
+  bankAccountId: "",
+  providerId: "",
+  amount: "",
+  txnDate: "",
+  mode: "upi",
+  utr: "",
+  partyName: "",
+  partyIfsc: "",
+  partyAccountLast4: "",
+  narration: "",
+};
+
+const GREEN = "#16A34A";
+const RED = "#DC2626";
+
+function errMessage(err: unknown, fallback: string) {
+  const ax = err as { response?: { data?: { message?: string } }; message?: string };
+  return ax?.response?.data?.message || ax?.message || fallback;
+}
+
+function formatInr(amount: string) {
+  const n = Number(amount);
+  return `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function formatDate(iso: string) {
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  return `${d}/${m}/${y}`;
+}
+
+function formatWhen(iso: string) {
+  try {
+    return new Date(iso).toLocaleString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return iso;
+  }
+}
+
+function csvCell(v: string | null | undefined) {
+  const s = v ?? "";
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function downloadCsv(rows: BankEntry[], from: string, to: string) {
+  const header = [
+    "Entry ID",
+    "Txn date",
+    "Company bank",
+    "Credit / Debit",
+    "Category",
+    "Amount (INR)",
+    "Mode",
+    "UTR / Reference",
+    "Party name",
+    "Party IFSC",
+    "Party A/c last 4",
+    "API provider",
+    "Narration",
+    "Status",
+    "Entered by",
+    "Approved / rejected by",
+    "Ledger journal",
+    "Entered at",
+  ];
+  const lines = rows.map((r) =>
+    [
+      r.id,
+      formatDate(r.txnDate),
+      r.bankName ? `${r.bankName} ••${r.bankLast4 ?? ""}` : "Owner personal account",
+      r.direction === "none" ? "—" : r.direction === "credit" ? "Credit" : "Debit",
+      r.categoryLabel,
+      r.amount,
+      r.mode.toUpperCase(),
+      r.utr,
+      r.partyName,
+      r.partyIfsc,
+      r.partyAccountLast4,
+      r.providerName,
+      r.narration,
+      r.status,
+      r.requestedByName,
+      r.approvedByName,
+      r.journalId,
+      formatWhen(r.requestedAt),
+    ]
+      .map((c) => csvCell(c))
+      .join(","),
+  );
+  const blob = new Blob([`\uFEFF${[header.join(","), ...lines].join("\n")}`], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `bank-entries${from ? `-${from}` : ""}${to ? `-to-${to}` : ""}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error("Could not read the proof file"));
+    reader.readAsDataURL(file);
+  });
+}
+
+export default function BankEntriesPage() {
+  const router = useRouter();
+  const hydrated = useAuthHydrated();
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const me = useAuthStore((s) => s.user);
+
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [banks, setBanks] = useState<BankAccount[]>([]);
+  const [providers, setProviders] = useState<ProviderRow[]>([]);
+  const [rows, setRows] = useState<BankEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [proof, setProof] = useState<File | null>(null);
+  const [proofInputKey, setProofInputKey] = useState(0);
+  const [statusFilter, setStatusFilter] = useState<"" | EntryStatus>("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [decidingId, setDecidingId] = useState<string | null>(null);
+  const [approveRow, setApproveRow] = useState<BankEntry | null>(null);
+  const [rejectRow, setRejectRow] = useState<BankEntry | null>(null);
+
+  useEffect(() => {
+    if (hydrated && !accessToken) router.replace("/login");
+  }, [hydrated, accessToken, router]);
+
+  const loadLookups = useCallback(async () => {
+    try {
+      const [cats, bankList, providerList] = await Promise.all([
+        fetchApi<Category[]>("/admin/bank-entries/categories"),
+        fetchApi<BankAccount[]>("/banking/accounts", { purpose: "all" }),
+        fetchApi<ProviderRow[]>("/float/providers"),
+      ]);
+      setCategories(cats);
+      setBanks(bankList);
+      setProviders(providerList);
+    } catch (err) {
+      toast.error(errMessage(err, "Could not load bank accounts and categories"));
+    }
+  }, []);
+
+  const loadRows = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params: Record<string, string> = { limit: "2000" };
+      if (statusFilter) params.status = statusFilter;
+      if (from) params.from = from;
+      if (to) params.to = to;
+      setRows(await fetchApi<BankEntry[]>("/admin/bank-entries", params));
+    } catch (err) {
+      toast.error(errMessage(err, "Could not load bank entries"));
+    } finally {
+      setLoading(false);
+    }
+  }, [statusFilter, from, to]);
+
+  useEffect(() => {
+    if (!hydrated || !accessToken) return;
+    void loadLookups();
+  }, [hydrated, accessToken, loadLookups]);
+
+  useEffect(() => {
+    if (!hydrated || !accessToken) return;
+    void loadRows();
+  }, [hydrated, accessToken, loadRows]);
+
+  const category = categories.find((c) => c.value === form.category);
+  const noBank = category?.direction === "none";
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!category) return void toast.error("Select a category");
+    if (!noBank && !form.bankAccountId) return void toast.error("Select the company bank account");
+    if (category.needsProvider && !form.providerId) return void toast.error("Select the API provider");
+    if (!/^\d+(\.\d{1,2})?$/.test(form.amount) || Number(form.amount) <= 0) {
+      return void toast.error("Amount must be a rupee amount greater than zero, e.g. 4990");
+    }
+    if (!form.txnDate) return void toast.error("Enter the transaction date");
+    if (form.partyIfsc && !/^[A-Za-z]{4}0[A-Za-z0-9]{6}$/.test(form.partyIfsc)) {
+      return void toast.error("Enter a valid 11-character IFSC, e.g. HDFC0001344");
+    }
+    if (form.partyAccountLast4 && !/^\d{4}$/.test(form.partyAccountLast4)) {
+      return void toast.error("Enter only the last 4 digits of the account number");
+    }
+    if (proof && proof.size > MAX_PROOF_BYTES) return void toast.error("Proof file must be 3 MB or smaller");
+
+    setSaving(true);
+    try {
+      const attachmentDataUrl = proof ? await readFileAsDataUrl(proof) : null;
+      await api.post("/admin/bank-entries", {
+        category: form.category,
+        bankAccountId: noBank ? null : form.bankAccountId,
+        providerId: category.needsProvider ? form.providerId : null,
+        amount: form.amount,
+        txnDate: form.txnDate,
+        mode: form.mode,
+        utr: form.utr.trim() || null,
+        partyName: form.partyName.trim() || null,
+        partyIfsc: form.partyIfsc.trim() || null,
+        partyAccountLast4: form.partyAccountLast4.trim() || null,
+        narration: form.narration.trim() || null,
+        attachmentName: proof?.name ?? null,
+        attachmentDataUrl,
+      });
+      toast.success("Bank entry saved — another admin must approve it");
+      setForm(EMPTY_FORM);
+      setProof(null);
+      setProofInputKey((k) => k + 1);
+      await loadRows();
+    } catch (err) {
+      toast.error(errMessage(err, "Could not save the bank entry"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function approve(row: BankEntry) {
+    setDecidingId(row.id);
+    try {
+      await api.post(`/admin/bank-entries/${row.id}/approve`, {});
+      toast.success("Bank entry approved and posted to the ledger");
+      setApproveRow(null);
+      await loadRows();
+    } catch (err) {
+      toast.error(errMessage(err, "Could not approve the bank entry"));
+    } finally {
+      setDecidingId(null);
+    }
+  }
+
+  async function reject(row: BankEntry, note: string) {
+    setDecidingId(row.id);
+    try {
+      await api.post(`/admin/bank-entries/${row.id}/reject`, { note });
+      toast.success("Bank entry rejected");
+      setRejectRow(null);
+      await loadRows();
+    } catch (err) {
+      toast.error(errMessage(err, "Could not reject the bank entry"));
+    } finally {
+      setDecidingId(null);
+    }
+  }
+
+  async function viewProof(row: BankEntry) {
+    try {
+      const { dataUrl } = await fetchApi<{ name: string | null; dataUrl: string }>(
+        `/admin/bank-entries/${row.id}/attachment`,
+      );
+      const blob = await (await fetch(dataUrl)).blob();
+      window.open(URL.createObjectURL(blob), "_blank", "noopener");
+    } catch (err) {
+      toast.error(errMessage(err, "Could not open the proof file"));
+    }
+  }
+
+  if (!hydrated || !accessToken) return null;
+
+  const set = (k: keyof typeof EMPTY_FORM) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  return (
+    <AdminShell>
+      <div className="mx-auto w-full max-w-[1600px] space-y-6 p-6">
+        <div className="flex flex-wrap items-center gap-3">
+          <div
+            className="flex h-12 w-12 items-center justify-center rounded-2xl text-white"
+            style={{ background: B.badgeGrad }}
+          >
+            <ReceiptText size={22} />
+          </div>
+          <div className="flex-1">
+            <h1 className="text-2xl font-bold" style={{ color: B.blue }}>
+              Bank entries
+            </h1>
+            <p className="text-sm" style={{ color: B.muted }}>
+              Record company bank credits and debits from the statement. Another admin approves before the ledger
+              changes.
+            </p>
+          </div>
+          <Link
+            href="/treasury"
+            className="inline-flex items-center gap-1.5 rounded-xl border bg-white px-3 py-2 text-sm font-semibold"
+            style={{ borderColor: B.border, color: B.blue }}
+          >
+            <ArrowLeft size={14} /> Treasury
+          </Link>
+        </div>
+
+        <form
+          onSubmit={onSubmit}
+          className="space-y-4 rounded-2xl border bg-white p-5"
+          style={{ borderColor: B.border }}
+        >
+          <h2 className="text-base font-bold" style={{ color: B.blue }}>
+            New bank entry
+          </h2>
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <Field label="Category" required>
+              <select
+                className={inputCls}
+                style={inputStyle}
+                value={form.category}
+                onChange={(e) => set("category")(e.target.value)}
+              >
+                <option value="">Select category</option>
+                <optgroup label="Money in (credit)">
+                  {categories
+                    .filter((c) => c.direction === "credit")
+                    .map((c) => (
+                      <option key={c.value} value={c.value}>
+                        {c.label}
+                      </option>
+                    ))}
+                </optgroup>
+                <optgroup label="Money out (debit)">
+                  {categories
+                    .filter((c) => c.direction === "debit")
+                    .map((c) => (
+                      <option key={c.value} value={c.value}>
+                        {c.label}
+                      </option>
+                    ))}
+                </optgroup>
+                <optgroup label="Outside company bank">
+                  {categories
+                    .filter((c) => c.direction === "none")
+                    .map((c) => (
+                      <option key={c.value} value={c.value}>
+                        {c.label}
+                      </option>
+                    ))}
+                </optgroup>
+              </select>
+            </Field>
+
+            <Field
+              label="Company bank account"
+              required={!noBank}
+              hint={noBank ? "Not needed — paid from the owner's personal account" : undefined}
+            >
+              <select
+                className={inputCls}
+                style={inputStyle}
+                value={noBank ? "" : form.bankAccountId}
+                disabled={noBank}
+                onChange={(e) => set("bankAccountId")(e.target.value)}
+              >
+                <option value="">Select bank account</option>
+                {banks.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.bankName} ••{b.accountNumberLast4} ({b.purpose}){b.isActive ? "" : " — inactive"}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            {category?.needsProvider ? (
+              <Field label="API provider" required>
+                <select
+                  className={inputCls}
+                  style={inputStyle}
+                  value={form.providerId}
+                  onChange={(e) => set("providerId")(e.target.value)}
+                >
+                  <option value="">Select provider</option>
+                  {providers.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            ) : null}
+
+            <Field label="Amount (₹)" required>
+              <input
+                className={inputCls}
+                style={inputStyle}
+                inputMode="decimal"
+                placeholder="e.g. 4990"
+                value={form.amount}
+                onChange={(e) => set("amount")(e.target.value.replace(/[^\d.]/g, ""))}
+              />
+            </Field>
+
+            <Field label="Transaction date" required>
+              <input
+                type="date"
+                className={inputCls}
+                style={inputStyle}
+                value={form.txnDate}
+                onChange={(e) => set("txnDate")(e.target.value)}
+              />
+            </Field>
+
+            <Field label="Mode" required>
+              <select
+                className={inputCls}
+                style={inputStyle}
+                value={form.mode}
+                onChange={(e) => set("mode")(e.target.value)}
+              >
+                {MODES.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label="UTR / reference no." hint="12-digit number after UPI/ in the statement">
+              <input
+                className={`${inputCls} font-mono`}
+                style={inputStyle}
+                placeholder="e.g. 392778526720"
+                value={form.utr}
+                onChange={(e) => set("utr")(e.target.value.replace(/[^A-Za-z0-9]/g, ""))}
+              />
+            </Field>
+
+            <Field label={category?.direction === "debit" ? "Paid to (name)" : "Received from (name)"}>
+              <input
+                className={inputCls}
+                style={inputStyle}
+                placeholder="e.g. AJAY KUMAR"
+                value={form.partyName}
+                onChange={(e) => set("partyName")(e.target.value)}
+              />
+            </Field>
+
+            <Field label="Their bank IFSC">
+              <input
+                className={`${inputCls} font-mono uppercase`}
+                style={inputStyle}
+                placeholder="e.g. HDFC0001344"
+                maxLength={11}
+                value={form.partyIfsc}
+                onChange={(e) => set("partyIfsc")(e.target.value.toUpperCase())}
+              />
+            </Field>
+
+            <Field label="Their A/c last 4 digits">
+              <input
+                className={`${inputCls} font-mono`}
+                style={inputStyle}
+                placeholder="e.g. 1400"
+                inputMode="numeric"
+                maxLength={4}
+                value={form.partyAccountLast4}
+                onChange={(e) => set("partyAccountLast4")(e.target.value.replace(/\D/g, ""))}
+              />
+            </Field>
+
+            <Field label="Proof (optional)" hint="Statement screenshot or PDF, max 3 MB">
+              <input
+                key={proofInputKey}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,application/pdf"
+                className="w-full text-sm"
+                onChange={(e) => setProof(e.target.files?.[0] ?? null)}
+              />
+            </Field>
+          </div>
+
+          <Field label="Statement narration (optional)" hint="Copy the full description line from the bank statement">
+            <textarea
+              className={inputCls}
+              style={inputStyle}
+              rows={2}
+              maxLength={500}
+              placeholder="e.g. HDFC0001344/AJAY KUMAR/XXXXX71400/7837571400-2@ybl/UPI/392778526720/Payment from PhonePe"
+              value={form.narration}
+              onChange={(e) => set("narration")(e.target.value)}
+            />
+          </Field>
+
+          <button
+            type="submit"
+            disabled={saving}
+            className="rounded-xl px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60"
+            style={{ background: B.badgeGrad }}
+          >
+            {saving ? "Saving…" : "Submit for approval"}
+          </button>
+        </form>
+
+        <div className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
+          <div className="mb-4 flex flex-wrap items-end gap-3">
+            <Field label="Status">
+              <select
+                className={inputCls}
+                style={inputStyle}
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as "" | EntryStatus)}
+              >
+                <option value="">All</option>
+                <option value="requested">Pending approval</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+              </select>
+            </Field>
+            <Field label="From date">
+              <input
+                type="date"
+                className={inputCls}
+                style={inputStyle}
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+              />
+            </Field>
+            <Field label="To date">
+              <input
+                type="date"
+                className={inputCls}
+                style={inputStyle}
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+              />
+            </Field>
+            <button
+              type="button"
+              disabled={!rows.length}
+              onClick={() => downloadCsv(rows, from, to)}
+              className="inline-flex items-center gap-1.5 rounded-xl border bg-white px-3 py-2.5 text-sm font-semibold disabled:opacity-50"
+              style={{ borderColor: B.border, color: B.blue }}
+            >
+              <Download size={14} /> Export for CA (CSV)
+            </button>
+          </div>
+
+          {loading ? (
+            <p className="text-sm" style={{ color: B.muted }}>
+              Loading…
+            </p>
+          ) : !rows.length ? (
+            <p className="text-sm" style={{ color: B.muted }}>
+              No bank entries match this filter.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1100px] text-left text-sm">
+                <thead>
+                  <tr
+                    className="border-b text-xs uppercase tracking-wide"
+                    style={{ borderColor: B.border, color: B.muted }}
+                  >
+                    <th className="py-2 pr-3 font-semibold">Date</th>
+                    <th className="py-2 pr-3 font-semibold">Category</th>
+                    <th className="py-2 pr-3 font-semibold">Amount</th>
+                    <th className="py-2 pr-3 font-semibold">Bank</th>
+                    <th className="py-2 pr-3 font-semibold">Party</th>
+                    <th className="py-2 pr-3 font-semibold">UTR / mode</th>
+                    <th className="py-2 pr-3 font-semibold">Status</th>
+                    <th className="py-2 font-semibold text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => {
+                    const mine = me?.id && r.requestedBy === me.id;
+                    const busy = decidingId === r.id;
+                    return (
+                      <tr key={r.id} className="border-b align-top last:border-0" style={{ borderColor: B.border }}>
+                        <td className="py-3 pr-3 whitespace-nowrap">{formatDate(r.txnDate)}</td>
+                        <td className="py-3 pr-3">
+                          <div className="font-semibold" style={{ color: B.blue }}>
+                            {r.categoryLabel}
+                          </div>
+                          {r.providerName ? (
+                            <div className="text-xs" style={{ color: B.muted }}>
+                              {r.providerName}
+                            </div>
+                          ) : null}
+                          {r.narration ? (
+                            <div className="mt-1 max-w-[260px] break-words text-[11px]" style={{ color: B.muted }}>
+                              {r.narration}
+                            </div>
+                          ) : null}
+                        </td>
+                        <td
+                          className="py-3 pr-3 whitespace-nowrap font-bold tabular-nums"
+                          style={{ color: r.direction === "debit" ? RED : r.direction === "credit" ? GREEN : B.blue }}
+                        >
+                          {r.direction === "debit" ? "− " : r.direction === "credit" ? "+ " : ""}
+                          {formatInr(r.amount)}
+                        </td>
+                        <td className="py-3 pr-3 text-xs">
+                          {r.bankName ? `${r.bankName} ••${r.bankLast4 ?? ""}` : "Owner personal account"}
+                        </td>
+                        <td className="py-3 pr-3 text-xs">
+                          <div className="font-semibold">{r.partyName ?? "—"}</div>
+                          {r.partyIfsc || r.partyAccountLast4 ? (
+                            <div className="font-mono" style={{ color: B.muted }}>
+                              {r.partyIfsc ?? ""} {r.partyAccountLast4 ? `••${r.partyAccountLast4}` : ""}
+                            </div>
+                          ) : null}
+                        </td>
+                        <td className="py-3 pr-3 text-xs">
+                          <div className="font-mono">{r.utr ?? "—"}</div>
+                          <div style={{ color: B.muted }}>{r.mode.toUpperCase()}</div>
+                        </td>
+                        <td className="py-3 pr-3 text-xs">
+                          <StatusPill status={r.status} />
+                          <div className="mt-1" style={{ color: B.muted }}>
+                            By {r.requestedByName}
+                          </div>
+                          {r.approvedByName ? (
+                            <div style={{ color: B.muted }}>
+                              {r.status === "rejected" ? "Rejected" : "Approved"} by {r.approvedByName}
+                            </div>
+                          ) : null}
+                          {r.decisionNote ? (
+                            <div className="mt-1 max-w-[200px]" style={{ color: RED }}>
+                              {r.decisionNote}
+                            </div>
+                          ) : null}
+                          {r.journalId ? (
+                            <div className="font-mono text-[11px]" style={{ color: B.muted }}>
+                              J#{r.journalId}
+                            </div>
+                          ) : null}
+                        </td>
+                        <td className="py-3 text-right">
+                          <div className="inline-flex flex-wrap justify-end gap-2">
+                            {r.hasAttachment ? (
+                              <button
+                                type="button"
+                                onClick={() => void viewProof(r)}
+                                className="inline-flex items-center gap-1 rounded-lg border px-2 py-1.5 text-xs font-semibold"
+                                style={{ borderColor: B.border, color: B.blue }}
+                              >
+                                {r.attachmentName?.toLowerCase().endsWith(".pdf") ? (
+                                  <FileText size={13} />
+                                ) : (
+                                  <Paperclip size={13} />
+                                )}
+                                Proof
+                              </button>
+                            ) : null}
+                            {r.status === "requested" ? (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={!!mine || busy}
+                                  title={mine ? "Another admin must approve your entry" : undefined}
+                                  onClick={() => setApproveRow(r)}
+                                  className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+                                  style={{ background: GREEN }}
+                                >
+                                  <Check size={13} /> Approve
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={!!mine || busy}
+                                  title={mine ? "Another admin must decide your entry" : undefined}
+                                  onClick={() => setRejectRow(r)}
+                                  className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+                                  style={{ background: RED }}
+                                >
+                                  <X size={13} /> Reject
+                                </button>
+                              </>
+                            ) : null}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {approveRow ? (
+        <ConfirmModal
+          title="Approve bank entry?"
+          message={
+            <>
+              {approveRow.categoryLabel} of {formatInr(approveRow.amount)} on {formatDate(approveRow.txnDate)}
+              {approveRow.utr ? ` (UTR ${approveRow.utr})` : ""} will be posted to the ledger.
+            </>
+          }
+          confirmLabel="Approve"
+          tone="info"
+          busy={decidingId !== null}
+          onConfirm={() => void approve(approveRow)}
+          onClose={() => {
+            if (!decidingId) setApproveRow(null);
+          }}
+        />
+      ) : null}
+
+      {rejectRow ? (
+        <PromptModal
+          title="Reject bank entry?"
+          message="The admin who entered it will see this note."
+          label="Rejection note"
+          placeholder="e.g. Amount does not match the statement"
+          minLength={3}
+          multiline
+          tone="danger"
+          confirmLabel="Reject"
+          busy={decidingId !== null}
+          onConfirm={(v) => void reject(rejectRow, v)}
+          onClose={() => {
+            if (!decidingId) setRejectRow(null);
+          }}
+        />
+      ) : null}
+    </AdminShell>
+  );
+}
+
+const inputCls = "w-full rounded-xl border px-3 py-2.5 text-sm";
+const inputStyle = { borderColor: B.border };
+
+function Field({
+  label,
+  required,
+  hint,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  hint?: string;
+  children: ReactNode;
+}) {
+  return (
+    <label className="block text-sm">
+      <span className="mb-1 block font-medium" style={{ color: B.muted }}>
+        {label}
+        {required ? <span style={{ color: RED }}> *</span> : null}
+      </span>
+      {children}
+      {hint ? (
+        <span className="mt-1 block text-[11px]" style={{ color: B.muted }}>
+          {hint}
+        </span>
+      ) : null}
+    </label>
+  );
+}
+
+function StatusPill({ status }: { status: EntryStatus }) {
+  const style =
+    status === "approved"
+      ? { background: "rgba(22,163,74,0.12)", color: "#15803d" }
+      : status === "rejected"
+      ? { background: "rgba(185,28,28,0.1)", color: "#b91c1c" }
+      : { background: "rgba(234,179,8,0.15)", color: "#a16207" };
+  return (
+    <span className="rounded-lg px-2 py-1 text-xs font-semibold" style={style}>
+      {status === "requested" ? "Pending approval" : status === "approved" ? "Approved" : "Rejected"}
+    </span>
+  );
+}

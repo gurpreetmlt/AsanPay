@@ -6,6 +6,7 @@ export * from "./accounts";
 export * from "./ledger";
 export * from "./treasury";
 export * from "./banking";
+export * from "./bankEntries";
 export * from "./fundRequests";
 export * from "./settlements";
 export * from "./float";

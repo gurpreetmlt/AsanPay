@@ -36,6 +36,8 @@ export const TXN_TYPES = [
   "SUSPENSE_RESOLVE",
   "REVERSAL",
   "RECON_ADJUSTMENT",
+  // A company bank movement recorded from the statement (capital, loan, charges, top-up).
+  "BANK_ENTRY",
 ] as const;
 
 export type TxnType = (typeof TXN_TYPES)[number];
@@ -139,6 +141,12 @@ const FLOW_RULES: readonly FlowRule[] = [
 
   // --- Costs. ---
   { from: ["expense"], to: ["bank"], txnTypes: ["BANK_CHARGE"] },
+
+  // --- Bank register (maker-checker). Treasury-side only; never touches a hierarchy wallet. ---
+  { from: ["bank"], to: ["control", "income", "float", "suspense"], txnTypes: ["BANK_ENTRY"] },
+  { from: ["control", "expense", "float", "suspense"], to: ["bank"], txnTypes: ["BANK_ENTRY"] },
+  // Provider top-up the owner paid from a personal account: capital straight into float.
+  { from: ["float"], to: ["control"], txnTypes: ["BANK_ENTRY"] },
 
   // --- One-time migration only. See FUNDING_EXCEPTIONS and spec "Applying this to the
   //     existing codebase" step 2: give every pre-ledger rupee an origin. ---

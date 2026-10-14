@@ -4,7 +4,7 @@ import { type ReactNode, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { AlertTriangle, ChevronDown, Landmark, Plug, RefreshCcw, Scale } from "lucide-react";
+import { AlertTriangle, ChevronDown, Landmark, Plug, ReceiptText, RefreshCcw, Scale } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
@@ -129,6 +129,14 @@ export default function TreasuryPage() {
               Real money the company holds — bank accounts and API provider wallets
             </p>
           </div>
+          <Link
+            href="/treasury/bank-entries"
+            className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
+            style={{ background: "#16A34A" }}
+          >
+            <ReceiptText size={16} />
+            Add bank entry
+          </Link>
           <button
             type="button"
             onClick={() => void load()}

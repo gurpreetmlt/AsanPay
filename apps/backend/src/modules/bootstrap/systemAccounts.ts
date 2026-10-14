@@ -61,6 +61,15 @@ export const SYSTEM_ACCOUNTS: readonly SystemAccountSpec[] = [
     hidden: false,
   },
   { code: "BANK_CHARGES", name: "Bank Charges", type: "expense", cls: "expense", hidden: false },
+  { code: "OWNER_CAPITAL", name: "Owner Capital", type: "control", cls: "internal", hidden: false },
+  { code: "LOAN_PAYABLE", name: "Loans Payable", type: "control", cls: "internal", hidden: false },
+  {
+    code: "BANK_INTEREST_INCOME",
+    name: "Bank Interest Income",
+    type: "income",
+    cls: "income",
+    hidden: false,
+  },
 ];
 
 const ADVISORY_LOCK_NAMESPACE = 900000;
