@@ -4,20 +4,21 @@ import { type ReactNode, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import {
-  AlertTriangle,
-  ChevronDown,
-  Landmark,
-  Plug,
-  RefreshCcw,
-  Scale,
-} from "lucide-react";
+import { AlertTriangle, ChevronDown, Landmark, Plug, RefreshCcw, Scale } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 import { bankCardCornerGlows, bankCardGlow, bankCardGradient, bankLogoUrl } from "@/lib/bankLogo";
+import {
+  providerBrand,
+  providerCardCornerGlows,
+  providerCardGlow,
+  providerCardGradient,
+  providerInitials,
+  providerLogoUrl,
+} from "@/lib/providerBrand";
 
 interface BankCard {
   id: string;
@@ -73,7 +74,10 @@ function formatInr(amount: string | number) {
 }
 
 function errMessage(err: unknown, fallback: string) {
-  const ax = err as { response?: { data?: { message?: string } }; message?: string };
+  const ax = err as {
+    response?: { data?: { message?: string } };
+    message?: string;
+  };
   return ax?.response?.data?.message || ax?.message || fallback;
 }
 
@@ -167,7 +171,10 @@ export default function TreasuryPage() {
           />
           <div
             className="rounded-2xl border bg-white p-5"
-            style={{ borderColor: data && !data.solvent ? B.danger : B.border, boxShadow: cardShadow }}
+            style={{
+              borderColor: data && !data.solvent ? B.danger : B.border,
+              boxShadow: cardShadow,
+            }}
           >
             <div
               className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wider"
@@ -198,9 +205,7 @@ export default function TreasuryPage() {
         </div>
 
         {open === "banks" && data ? <BankList banks={data.banks} /> : null}
-        {open === "providers" && data ? (
-          <ProviderList providers={data.providers} onSaved={() => void load()} />
-        ) : null}
+        {open === "providers" && data ? <ProviderList providers={data.providers} onSaved={() => void load()} /> : null}
       </div>
     </AdminShell>
   );
@@ -243,7 +248,10 @@ function SummaryCard(props: {
       </div>
       <div
         className="flex items-center gap-1.5 border-t pt-3 text-xs"
-        style={{ borderColor: B.border, color: props.warn ? "#B45309" : B.muted }}
+        style={{
+          borderColor: B.border,
+          color: props.warn ? "#B45309" : B.muted,
+        }}
       >
         {props.warn ? <AlertTriangle size={13} /> : null}
         {props.footer}
@@ -301,7 +309,10 @@ function BankLogoMark({ ifsc }: { ifsc: string }) {
     return (
       <div
         className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white"
-        style={{ color: "#2A5CDD", boxShadow: "0 2px 8px rgba(11,42,154,0.08)" }}
+        style={{
+          color: "#2A5CDD",
+          boxShadow: "0 2px 8px rgba(11,42,154,0.08)",
+        }}
       >
         <Landmark size={18} />
       </div>
@@ -332,7 +343,11 @@ function BankTile({ bank: b }: { bank: BankCard }) {
         opacity: b.isActive ? 1 : 0.7,
       }}
     >
-      <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: bankCardGradient(b.ifsc) }}>
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{ background: bankCardGradient(b.ifsc) }}
+      >
         <span
           className="absolute -right-7 -top-9 h-[120px] w-[120px] rounded-full"
           style={{ background: corners.topRight, opacity: 0.55 }}
@@ -425,97 +440,157 @@ function ProviderTile({ provider: p, onSaved }: { provider: ProviderCard; onSave
 
   const mismatch = p.live.status === "ok" && Number(p.live.difference) !== 0;
   const dirty = limit.trim() !== (p.lowBalanceThreshold ?? "");
+  const corners = providerCardCornerGlows(p.code);
 
   return (
     <div
-      className="rounded-2xl border bg-white p-4"
-      style={{ borderColor: p.isLow || mismatch ? "#F59E0B" : B.border, boxShadow: cardShadow }}
+      className="relative overflow-hidden rounded-[18px] border p-[18px]"
+      style={{
+        borderColor: p.isLow || mismatch ? "#F59E0B" : corners.border,
+        boxShadow: providerCardGlow(p.code),
+        opacity: p.isActive ? 1 : 0.7,
+      }}
     >
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <span className="text-sm font-bold" style={{ color: B.blue }}>
-          {p.name}
-        </span>
-        {!p.isActive ? <Badge tone="amber">Inactive</Badge> : null}
-        {p.isLow ? <Badge tone="red">Low balance</Badge> : null}
-        {mismatch ? <Badge tone="red">Mismatch</Badge> : null}
-        {p.live.status === "ok" && !mismatch ? <Badge tone="green">Matched</Badge> : null}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{ background: providerCardGradient(p.code) }}
+      >
+        <span
+          className="absolute -right-7 -top-9 h-[120px] w-[120px] rounded-full"
+          style={{ background: corners.topRight, opacity: 0.55 }}
+        />
+        <span
+          className="absolute -bottom-10 -left-8 h-[110px] w-[110px] rounded-full"
+          style={{ background: corners.bottomLeft, opacity: 0.4 }}
+        />
       </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <div className="text-[11px] font-medium uppercase tracking-wider" style={{ color: B.muted }}>
-            Ledger float
-          </div>
-          <div className="text-xl font-bold tabular-nums" style={{ color: B.blue }}>
-            {formatInr(p.ledgerBalance)}
+      <div className="relative">
+        <div className="mb-3 flex items-start gap-3">
+          <ProviderLogoMark code={p.code} name={p.name} />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[15px] font-bold" style={{ color: CARD_INK }}>
+              {p.name}
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+              {!p.isActive ? <Badge tone="amber">Inactive</Badge> : null}
+              {p.isLow ? <Badge tone="red">Low balance</Badge> : null}
+              {mismatch ? <Badge tone="red">Mismatch</Badge> : null}
+              {p.live.status === "ok" && !mismatch ? <Badge tone="green">Matched</Badge> : null}
+            </div>
           </div>
         </div>
-        <div>
-          <div className="text-[11px] font-medium uppercase tracking-wider" style={{ color: B.muted }}>
-            Live balance
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <div className="text-[11px] font-extrabold uppercase tracking-[0.12em]" style={{ color: CARD_MUTED }}>
+              Ledger float
+            </div>
+            <div className="text-xl font-extrabold tabular-nums" style={{ color: CARD_INK }}>
+              {formatInr(p.ledgerBalance)}
+            </div>
           </div>
-          {p.live.status === "ok" ? (
-            <>
-              <div className="text-xl font-bold tabular-nums" style={{ color: B.blue }}>
-                {formatInr(p.live.balance)}
-              </div>
-              {p.live.hold && Number(p.live.hold) > 0 ? (
-                <div className="text-[11px]" style={{ color: B.muted }}>
-                  On hold {formatInr(p.live.hold)}
+          <div>
+            <div className="text-[11px] font-extrabold uppercase tracking-[0.12em]" style={{ color: CARD_MUTED }}>
+              Live balance
+            </div>
+            {p.live.status === "ok" ? (
+              <>
+                <div className="text-xl font-extrabold tabular-nums" style={{ color: CARD_INK }}>
+                  {formatInr(p.live.balance)}
                 </div>
-              ) : null}
-            </>
-          ) : p.live.status === "error" ? (
-            <div className="text-xs font-semibold" style={{ color: B.danger }}>
-              {p.live.message}
-            </div>
-          ) : (
-            <div className="text-xs" style={{ color: B.muted }}>
-              Not available — this provider has no balance API connected
-            </div>
-          )}
+                {p.live.hold && Number(p.live.hold) > 0 ? (
+                  <div className="text-[11px]" style={{ color: B.muted }}>
+                    On hold {formatInr(p.live.hold)}
+                  </div>
+                ) : null}
+              </>
+            ) : p.live.status === "error" ? (
+              <div className="text-xs font-semibold" style={{ color: B.danger }}>
+                {p.live.message}
+              </div>
+            ) : (
+              <div className="text-xs" style={{ color: B.muted }}>
+                Not available — this provider has no balance API connected
+              </div>
+            )}
+          </div>
         </div>
-      </div>
 
-      {mismatch && p.live.status === "ok" ? (
-        <div
-          className="mt-3 flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-bold"
-          style={{ background: "#FEE2E2", color: "#991B1B" }}
-        >
-          <AlertTriangle size={13} />
-          Live is {Number(p.live.difference) > 0 ? "higher" : "lower"} than ledger by{" "}
-          {formatInr(Math.abs(Number(p.live.difference)))}
-        </div>
-      ) : null}
-
-      <div className="mt-3 border-t pt-3" style={{ borderColor: B.border }}>
-        <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider" style={{ color: B.muted }}>
-          Low balance limit (₹)
-        </label>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            inputMode="decimal"
-            value={limit}
-            onChange={(e) => setLimit(e.target.value)}
-            placeholder="e.g. 10000 — leave empty for no warning"
-            className="min-w-0 flex-1 rounded-lg border px-2.5 py-1.5 text-sm"
-            style={{ borderColor: B.border }}
-          />
-          <button
-            type="button"
-            onClick={() => void save()}
-            disabled={saving || !dirty}
-            className="rounded-lg px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
-            style={{ background: B.badgeGrad }}
+        {mismatch && p.live.status === "ok" ? (
+          <div
+            className="mt-3 flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-bold"
+            style={{ background: "#FEE2E2", color: "#991B1B" }}
           >
-            {saving ? "Saving…" : "Save"}
-          </button>
+            <AlertTriangle size={13} />
+            Live is {Number(p.live.difference) > 0 ? "higher" : "lower"} than ledger by{" "}
+            {formatInr(Math.abs(Number(p.live.difference)))}
+          </div>
+        ) : null}
+
+        <div className="mt-3 border-t pt-3" style={{ borderColor: corners.border }}>
+          <label
+            className="mb-1 block text-[11px] font-extrabold uppercase tracking-[0.12em]"
+            style={{ color: CARD_MUTED }}
+          >
+            Low balance limit (₹)
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              inputMode="decimal"
+              value={limit}
+              onChange={(e) => setLimit(e.target.value)}
+              placeholder="e.g. 10000 — leave empty for no warning"
+              className="min-w-0 flex-1 rounded-lg border bg-white px-2.5 py-1.5 text-sm"
+              style={{ borderColor: B.border }}
+            />
+            <button
+              type="button"
+              onClick={() => void save()}
+              disabled={saving || !dirty}
+              className="rounded-lg px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+              style={{ background: B.badgeGrad }}
+            >
+              {saving ? "Saving…" : "Save"}
+            </button>
+          </div>
+          <p className="mt-1 text-[11px]" style={{ color: B.muted }}>
+            Warn when {p.live.status === "ok" ? "live" : "ledger"} balance drops below this amount.
+          </p>
         </div>
-        <p className="mt-1 text-[11px]" style={{ color: B.muted }}>
-          Warn when {p.live.status === "ok" ? "live" : "ledger"} balance drops below this amount.
-        </p>
       </div>
     </div>
+  );
+}
+
+function ProviderLogoMark({ code, name }: { code: string; name: string }) {
+  const [failed, setFailed] = useState(false);
+  const url = providerLogoUrl(code);
+  if (!url || failed) {
+    const { primary, secondary } = providerBrand(code);
+    return (
+      <div
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[15px] font-extrabold text-white"
+        style={{
+          background: `linear-gradient(135deg, ${primary}, ${secondary})`,
+          boxShadow: "0 2px 10px rgba(11,42,154,0.1)",
+        }}
+      >
+        {providerInitials(name)}
+      </div>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={url}
+      alt=""
+      width={44}
+      height={44}
+      className="h-11 w-11 shrink-0 rounded-xl bg-white object-contain p-1.5"
+      style={{ boxShadow: "0 2px 10px rgba(11,42,154,0.1)" }}
+      onError={() => setFailed(true)}
+    />
   );
 }
