@@ -129,24 +129,26 @@ export default function TreasuryPage() {
               Real money the company holds — bank accounts and API provider wallets
             </p>
           </div>
-          <Link
-            href="/treasury/bank-entries"
-            className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
-            style={{ background: "#16A34A" }}
-          >
-            <ReceiptText size={16} />
-            Add bank entry
-          </Link>
-          <button
-            type="button"
-            onClick={() => void load()}
-            disabled={loading}
-            className="flex items-center gap-1.5 rounded-xl border-2 bg-white px-4 py-2.5 text-sm font-semibold disabled:opacity-60"
-            style={{ borderColor: B.border, color: B.muted }}
-          >
-            <RefreshCcw size={16} className={loading ? "animate-spin" : undefined} />
-            Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/treasury/bank-entries"
+              className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
+              style={{ background: "#16A34A" }}
+            >
+              <ReceiptText size={16} />
+              Add bank entry
+            </Link>
+            <button
+              type="button"
+              onClick={() => void load()}
+              disabled={loading}
+              className="flex items-center gap-1.5 rounded-xl border-2 bg-white px-4 py-2.5 text-sm font-semibold disabled:opacity-60"
+              style={{ borderColor: B.border, color: B.muted }}
+            >
+              <RefreshCcw size={16} className={loading ? "animate-spin" : undefined} />
+              Refresh
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
