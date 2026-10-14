@@ -1,10 +1,10 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState, type ReactNode } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { ArrowLeft, Check, Download, FileText, Paperclip, ReceiptText, X } from "lucide-react";
+import { ArrowLeft, Check, Download, FileText, Paperclip, ReceiptText, Upload, X } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { PromptModal } from "@/components/ui/PromptModal";
@@ -212,6 +212,7 @@ export default function BankEntriesPage() {
   const [decidingId, setDecidingId] = useState<string | null>(null);
   const [approveRow, setApproveRow] = useState<BankEntry | null>(null);
   const [rejectRow, setRejectRow] = useState<BankEntry | null>(null);
+  const [canSelfApprove, setCanSelfApprove] = useState(false);
 
   useEffect(() => {
     if (hydrated && !accessToken) router.replace("/login");
@@ -219,12 +220,14 @@ export default function BankEntriesPage() {
 
   const loadLookups = useCallback(async () => {
     try {
-      const [cats, bankList, providerList] = await Promise.all([
+      const [cats, bankList, providerList, policy] = await Promise.all([
         fetchApi<Category[]>("/admin/bank-entries/categories"),
         fetchApi<BankAccount[]>("/banking/accounts", { purpose: "all" }),
         fetchApi<ProviderRow[]>("/float/providers"),
+        fetchApi<{ canSelfApprove: boolean }>("/admin/bank-entries/approval-policy"),
       ]);
       setCategories(cats);
+      setCanSelfApprove(policy.canSelfApprove);
       setBanks(bankList);
       setProviders(providerList);
     } catch (err) {
@@ -295,7 +298,7 @@ export default function BankEntriesPage() {
         attachmentName: proof?.name ?? null,
         attachmentDataUrl,
       });
-      toast.success("Bank entry saved — another admin must approve it");
+      toast.success("Bank entry saved — approve it to post to the ledger");
       setForm(EMPTY_FORM);
       setProof(null);
       setProofInputKey((k) => k + 1);
@@ -366,8 +369,8 @@ export default function BankEntriesPage() {
               Bank entries
             </h1>
             <p className="text-sm" style={{ color: B.muted }}>
-              Record company bank credits and debits from the statement. Another admin approves before the ledger
-              changes.
+              Record company bank credits and debits from the statement. Nothing reaches the ledger until the entry is
+              approved.
             </p>
           </div>
           <Link
@@ -524,7 +527,7 @@ export default function BankEntriesPage() {
 
             <Field label="Their bank IFSC">
               <input
-                className={`${inputCls} font-mono uppercase`}
+                className={`${inputCls} font-mono uppercase placeholder:normal-case`}
                 style={inputStyle}
                 placeholder="e.g. HDFC0001344"
                 maxLength={11}
@@ -545,15 +548,17 @@ export default function BankEntriesPage() {
               />
             </Field>
 
-            <Field label="Proof (optional)" hint="Statement screenshot or PDF, max 3 MB">
-              <input
-                key={proofInputKey}
-                type="file"
-                accept="image/png,image/jpeg,image/webp,application/pdf"
-                className="w-full text-sm"
-                onChange={(e) => setProof(e.target.files?.[0] ?? null)}
-              />
-            </Field>
+            <ProofPicker
+              key={proofInputKey}
+              file={proof}
+              onChange={(f) => {
+                if (f && f.size > MAX_PROOF_BYTES) {
+                  toast.error("Proof file must be 3 MB or smaller");
+                  return;
+                }
+                setProof(f);
+              }}
+            />
           </div>
 
           <Field label="Statement narration (optional)" hint="Copy the full description line from the bank statement">
@@ -650,7 +655,7 @@ export default function BankEntriesPage() {
                 </thead>
                 <tbody>
                   {rows.map((r) => {
-                    const mine = me?.id && r.requestedBy === me.id;
+                    const mine = !canSelfApprove && me?.id && r.requestedBy === me.id;
                     const busy = decidingId === r.id;
                     return (
                       <tr key={r.id} className="border-b align-top last:border-0" style={{ borderColor: B.border }}>
@@ -773,6 +778,12 @@ export default function BankEntriesPage() {
             <>
               {approveRow.categoryLabel} of {formatInr(approveRow.amount)} on {formatDate(approveRow.txnDate)}
               {approveRow.utr ? ` (UTR ${approveRow.utr})` : ""} will be posted to the ledger.
+              {me?.id && approveRow.requestedBy === me.id ? (
+                <span className="mt-2 block font-semibold" style={{ color: "#B45309" }}>
+                  You created this entry. Check the amount, date and UTR against the bank statement before approving —
+                  there is no second admin to review it.
+                </span>
+              ) : null}
             </>
           }
           confirmLabel="Approve"
@@ -833,6 +844,60 @@ function Field({
         </span>
       ) : null}
     </label>
+  );
+}
+
+// Not wrapped in <label>: a button inside a label re-triggers the file dialog on some browsers.
+function ProofPicker({ file, onChange }: { file: File | null; onChange: (f: File | null) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  return (
+    <div className="block text-sm">
+      <span className="mb-1 block font-medium" style={{ color: B.muted }}>
+        Proof (optional)
+      </span>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,application/pdf"
+        className="hidden"
+        onChange={(e) => {
+          onChange(e.target.files?.[0] ?? null);
+          e.target.value = "";
+        }}
+      />
+      {file ? (
+        <div className="flex items-center gap-2 rounded-xl border px-3 py-2" style={{ borderColor: B.border }}>
+          {file.type === "application/pdf" ? <FileText size={16} /> : <Paperclip size={16} />}
+          <span className="min-w-0 flex-1 truncate text-sm" title={file.name}>
+            {file.name}
+          </span>
+          <span className="text-[11px]" style={{ color: B.muted }}>
+            {(file.size / 1024).toFixed(0)} KB
+          </span>
+          <button
+            type="button"
+            onClick={() => onChange(null)}
+            className="rounded-lg p-1 text-white"
+            style={{ background: RED }}
+            aria-label="Remove proof"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed px-3 py-2 text-sm font-semibold"
+          style={{ borderColor: B.border, color: B.blue }}
+        >
+          <Upload size={15} /> Upload proof
+        </button>
+      )}
+      <span className="mt-1 block text-[11px]" style={{ color: B.muted }}>
+        Statement screenshot or PDF, max 3 MB
+      </span>
+    </div>
   );
 }
 

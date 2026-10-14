@@ -626,6 +626,11 @@ adminRouter.get("/bank-entries/categories", async (_req, res) => {
   sendSuccess(res, listBankEntryCategories());
 });
 
+adminRouter.get("/bank-entries/approval-policy", async (_req, res) => {
+  const { canSelfApproveBankEntries } = await import("../treasury/bankEntry.service");
+  sendSuccess(res, { canSelfApprove: await canSelfApproveBankEntries() });
+});
+
 adminRouter.get("/bank-entries", async (req, res) => {
   const { listBankEntries } = await import("../treasury/bankEntry.service");
   const { resolveTenantId } = await import("../fund-requests/tenant");
@@ -685,7 +690,7 @@ adminRouter.post("/bank-entries", async (req, res) => {
     attachmentName: body.attachmentName || null,
     attachmentDataUrl: body.attachmentDataUrl || null,
   });
-  sendSuccess(res, result, "Bank entry saved — another admin must approve it");
+  sendSuccess(res, result, "Bank entry saved — approve it to post to the ledger");
 });
 
 adminRouter.post("/bank-entries/:id/approve", async (req, res) => {

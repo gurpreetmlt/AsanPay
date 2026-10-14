@@ -351,6 +351,13 @@
       "when": 1790000000000,
       "tag": "0049_bank_entries",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1790100000000,
+      "tag": "0050_bank_entries_single_admin",
+      "breakpoints": true
     }
   ]
 }

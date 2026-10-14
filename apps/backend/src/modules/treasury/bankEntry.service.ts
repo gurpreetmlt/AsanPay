@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lte } from "drizzle-orm";
+import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "../../db/postgres";
 import { accounts, bankAccounts, bankEntries, providers, users } from "../../db/postgres/schema";
@@ -230,6 +230,25 @@ async function resolveLegs(
     : { debit: counter, credit: bank.code };
 }
 
+/** With a single admin there is nobody else to check, so the maker may decide their own entry. */
+export async function canSelfApproveBankEntries(): Promise<boolean> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(users)
+    .where(and(eq(users.role, "admin"), eq(users.isActive, true)));
+  return (row?.n ?? 0) <= 1;
+}
+
+async function assertMayDecide(requestedBy: string, actorId: string, verb: "approve" | "reject"): Promise<boolean> {
+  if (requestedBy !== actorId) return false;
+  if (await canSelfApproveBankEntries()) return true;
+  throw new HttpError(
+    403,
+    `You cannot ${verb} a bank entry you created. Ask another admin.`,
+    "MAKER_IS_CHECKER",
+  );
+}
+
 export async function approveBankEntry(params: {
   tenantId: string;
   entryId: bigint;
@@ -245,9 +264,7 @@ export async function approveBankEntry(params: {
     if (row.status !== "requested") {
       throw new HttpError(422, `Bank entry is already ${row.status}`, "ALREADY_DECIDED");
     }
-    if (row.requestedBy === params.approvedBy) {
-      throw new HttpError(403, "You cannot approve a bank entry you created. Ask another admin.", "MAKER_IS_CHECKER");
-    }
+    const selfApproved = await assertMayDecide(row.requestedBy, params.approvedBy, "approve");
 
     const legs = await resolveLegs(tx, params.tenantId, row);
     const label = isBankEntryCategory(row.category) ? BANK_ENTRY_CATEGORIES[row.category].label : row.category;
@@ -269,7 +286,7 @@ export async function approveBankEntry(params: {
       .set({ status: "approved", approvedBy: params.approvedBy, journalId: journal.id, decidedAt: new Date() })
       .where(eq(bankEntries.id, row.id));
 
-    return { journalId: String(journal.id) };
+    return { journalId: String(journal.id), selfApproved };
   });
 
   await insertAuditLog({
@@ -277,9 +294,9 @@ export async function approveBankEntry(params: {
     action: "admin.bank_entry_approve",
     entityType: "bank_entry",
     entityId: String(params.entryId),
-    metadata: { journalId: result.journalId },
+    metadata: { journalId: result.journalId, selfApproved: result.selfApproved },
   });
-  return result;
+  return { journalId: result.journalId };
 }
 
 export async function rejectBankEntry(params: {
@@ -302,9 +319,7 @@ export async function rejectBankEntry(params: {
     if (row.status !== "requested") {
       throw new HttpError(422, `Bank entry is already ${row.status}`, "ALREADY_DECIDED");
     }
-    if (row.requestedBy === params.rejectedBy) {
-      throw new HttpError(403, "You cannot reject a bank entry you created. Ask another admin.", "MAKER_IS_CHECKER");
-    }
+    await assertMayDecide(row.requestedBy, params.rejectedBy, "reject");
     await tx
       .update(bankEntries)
       .set({ status: "rejected", approvedBy: params.rejectedBy, decisionNote: note, decidedAt: new Date() })

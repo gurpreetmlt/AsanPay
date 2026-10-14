@@ -20,7 +20,8 @@ import { providers } from "./catalog";
 import { makerCheckerStatusEnum } from "./treasury";
 
 // A company bank movement recorded by hand from the statement (owner capital, loan, charges,
-// provider top-up, ...). Maker records it; a different checker posts the BANK_ENTRY journal.
+// provider top-up, ...). Maker records it; a checker posts the BANK_ENTRY journal. The checker
+// must be a different admin unless only one active admin exists (see canSelfApproveBankEntries).
 // `bank_account_id` is NULL only for a provider top-up the owner paid from a personal account.
 export const bankEntries = pgTable(
   "bank_entries",
@@ -65,10 +66,6 @@ export const bankEntries = pgTable(
       .where(sql`${table.utr} IS NOT NULL AND ${table.status} <> 'rejected'`),
     check("bank_entries_amount_positive", sql`${table.amount} > 0`),
     check("bank_entries_direction_valid", sql`${table.direction} IN ('credit', 'debit', 'none')`),
-    check(
-      "bank_entries_maker_is_not_checker",
-      sql`${table.approvedBy} IS NULL OR ${table.approvedBy} <> ${table.requestedBy}`,
-    ),
     check(
       "bank_entries_approved_has_journal",
       sql`${table.status} <> 'approved' OR ${table.journalId} IS NOT NULL`,

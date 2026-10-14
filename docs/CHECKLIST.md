@@ -60,7 +60,7 @@
 - [x] Admin banking ops UI (`/banking` — accounts, statement import, suspense)
 - [x] Float management (`/float` + `/api/float`)
 - [x] Admin Treasury page (`/treasury`): total bank / total API wallets / total treasury cards, per-bank + per-provider drill-down, VyaparAPI live balance vs ledger, per-provider low-balance limit (`providers.low_balance_threshold`, migration 0047)
-- [x] Admin Bank entries register (`/treasury/bank-entries`): owner capital / loan / interest / charges / provider top-up from the statement, maker-checker → `BANK_ENTRY` journal, UTR unique, optional proof (stored in DB), CSV export for CA (`bank_entries`, migration 0049; system accounts `OWNER_CAPITAL`, `LOAN_PAYABLE`, `BANK_INTEREST_INCOME`)
+- [x] Admin Bank entries register (`/treasury/bank-entries`): owner capital / loan / interest / charges / provider top-up from the statement, maker-checker → `BANK_ENTRY` journal (self-approve allowed only while a single active admin exists, migration 0050), UTR unique, optional proof (stored in DB), CSV export for CA (`bank_entries`, migration 0049; system accounts `OWNER_CAPITAL`, `LOAN_PAYABLE`, `BANK_INTEREST_INCOME`)
 - [x] Fund requests (company collection bank deposit) open to all agent roles — SD / Distributor / Retailer (API + web `/fund-request` + mobile Add Money / Request Funds); admin list shows requester role
 - [x] VAN assign (admin Banking tab + `POST /banking/van/assign`)
 - [x] Ledger reports (`/ledger-reports`)
