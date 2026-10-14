@@ -337,6 +337,13 @@
       "when": 1789800000000,
       "tag": "0047_provider_low_balance_threshold",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1789900000000,
+      "tag": "0048_retire_shim_providers",
+      "breakpoints": true
     }
   ]
 }

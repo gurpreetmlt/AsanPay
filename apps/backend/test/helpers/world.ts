@@ -171,8 +171,13 @@ export async function createWorld(suffix: string): Promise<World> {
   const [cat] = await db.insert(serviceCategories).values({ code: `w_${suffix}`, name: "W Cat" }).returning();
   const categoryId = cat!.id;
 
-  await db.delete(providers).where(eq(providers.code, "eko"));
-  const [prov] = await db.insert(providers).values({ code: "eko", name: "Eko (mock)" }).returning();
+  // Never delete a pre-existing "eko" row: on a shared DB that is the real provider, and its
+  // provider_services routing would cascade away with it.
+  const [existingEko] = await db.select().from(providers).where(eq(providers.code, "eko")).limit(1);
+  const ownsProvider = !existingEko;
+  const prov =
+    existingEko ??
+    (await db.insert(providers).values({ code: "eko", name: "Eko (mock)" }).returning())[0];
   const providerId = prov!.id;
 
   const serviceIds: string[] = [];
@@ -382,7 +387,7 @@ export async function createWorld(suffix: string): Promise<World> {
       await db.delete(providerServices).where(eq(providerServices.serviceId, sid));
       await db.delete(services).where(eq(services.id, sid));
     }
-    await db.delete(providers).where(eq(providers.id, providerId));
+    if (ownsProvider) await db.delete(providers).where(eq(providers.id, providerId));
     await db.delete(serviceCategories).where(eq(serviceCategories.id, categoryId));
     await db.delete(userHierarchy).where(eq(userHierarchy.descendantId, retailerId));
     await db.delete(userHierarchy).where(eq(userHierarchy.descendantId, distId));

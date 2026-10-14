@@ -536,6 +536,13 @@ async function scrubRunTransactionsAndPassbook(): Promise<void> {
   runTxnIds.length = 0;
 }
 
+// providers is not tenant-scoped: an active shim provider leaks into ASANPAY routing and the
+// admin Treasury page, so it must never outlive the run.
+async function retireShimProvider(): Promise<void> {
+  if (!providerId) return;
+  await db.update(providers).set({ isActive: false }).where(eq(providers.id, providerId));
+}
+
 async function seedServiceCatalog(): Promise<void> {
   providerCode = `SHIM${RUN}`.toUpperCase().replace(/[^A-Z0-9]+/g, "_").slice(0, 40);
   floatCode = floatAccountCode(providerCode);
@@ -1201,6 +1208,7 @@ async function main() {
   await softRetire(distId, "D");
   await softRetire(mdId, "M");
   await db.delete(userHierarchy).where(inArray(userHierarchy.descendantId, [retId, distId, mdId]));
+  await retireShimProvider();
 
   try {
     await scrubRunTransactionsAndPassbook();
@@ -1227,6 +1235,7 @@ async function main() {
 
 main().catch(async (err) => {
   console.error("Shim verification harness crashed:", err);
+  await retireShimProvider().catch(() => {});
   await pgPool.end().catch(() => {});
   process.exit(1);
 });

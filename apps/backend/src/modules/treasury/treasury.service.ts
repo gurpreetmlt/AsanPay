@@ -84,9 +84,9 @@ export async function getTreasuryBreakdown(tenantId: string): Promise<TreasuryBr
     .where(and(eq(accounts.tenantId, tenantId), eq(accounts.accountType, "float")));
   const floatByCode = new Map(floatRows.map((r) => [r.code, BigInt(r.balance)]));
 
-  // Inactive providers with no float account have nothing to show.
+  // An inactive provider only matters while it still holds our money.
   const visibleProviders = providerRows.filter(
-    (p) => p.isActive || floatByCode.has(floatAccountCode(p.code)),
+    (p) => p.isActive || (floatByCode.get(floatAccountCode(p.code)) ?? 0n) !== 0n,
   );
 
   const lives = await Promise.all(visibleProviders.map((p) => fetchProviderLiveBalance(p.code)));
