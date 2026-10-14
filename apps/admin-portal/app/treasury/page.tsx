@@ -17,6 +17,7 @@ import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
+import { bankCardCornerGlows, bankCardGlow, bankCardGradient, bankLogoUrl } from "@/lib/bankLogo";
 
 interface BankCard {
   id: string;
@@ -284,26 +285,88 @@ function BankList({ banks }: { banks: BankCard[] }) {
       </p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {banks.map((b) => (
-          <div
-            key={b.id}
-            className="rounded-2xl border bg-white p-4"
-            style={{ borderColor: B.border, boxShadow: cardShadow }}
-          >
-            <div className="mb-1 flex flex-wrap items-center gap-2">
-              <span className="text-sm font-bold" style={{ color: B.blue }}>
-                {b.bankName}
-              </span>
+          <BankTile key={b.id} bank={b} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const CARD_INK = "#0F172A";
+const CARD_MUTED = "#64748B";
+
+function BankLogoMark({ ifsc }: { ifsc: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <div
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white"
+        style={{ color: "#2A5CDD", boxShadow: "0 2px 8px rgba(11,42,154,0.08)" }}
+      >
+        <Landmark size={18} />
+      </div>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={bankLogoUrl(ifsc)}
+      alt=""
+      width={44}
+      height={44}
+      className="h-11 w-11 shrink-0 rounded-xl bg-white object-contain p-1.5"
+      style={{ boxShadow: "0 2px 10px rgba(11,42,154,0.1)" }}
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+function BankTile({ bank: b }: { bank: BankCard }) {
+  const corners = bankCardCornerGlows(b.ifsc);
+  return (
+    <div
+      className="relative overflow-hidden rounded-[18px] border p-[18px]"
+      style={{
+        borderColor: corners.border,
+        boxShadow: bankCardGlow(b.ifsc),
+        opacity: b.isActive ? 1 : 0.7,
+      }}
+    >
+      <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: bankCardGradient(b.ifsc) }}>
+        <span
+          className="absolute -right-7 -top-9 h-[120px] w-[120px] rounded-full"
+          style={{ background: corners.topRight, opacity: 0.55 }}
+        />
+        <span
+          className="absolute -bottom-10 -left-8 h-[110px] w-[110px] rounded-full"
+          style={{ background: corners.bottomLeft, opacity: 0.4 }}
+        />
+      </div>
+      <div className="relative">
+        <div className="flex items-start gap-3">
+          <BankLogoMark ifsc={b.ifsc} />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[15px] font-bold" style={{ color: CARD_INK }}>
+              {b.bankName}
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-1.5">
               <Badge tone="grey">{PURPOSE_LABEL[b.purpose]}</Badge>
-              {!b.isActive ? <Badge tone="amber">Inactive</Badge> : null}
-            </div>
-            <div className="mb-3 text-xs" style={{ color: B.muted }}>
-              A/c ••{b.accountNumberLast4} · {b.ifsc}
-            </div>
-            <div className="text-2xl font-bold tabular-nums" style={{ color: B.blue }}>
-              {formatInr(b.ledgerBalance)}
+              {b.isActive ? <Badge tone="green">Active</Badge> : <Badge tone="amber">Inactive</Badge>}
             </div>
           </div>
-        ))}
+        </div>
+        <p className="mt-4 text-[11px] font-extrabold uppercase tracking-[0.12em]" style={{ color: CARD_MUTED }}>
+          Ledger balance
+        </p>
+        <div className="mt-1 text-2xl font-extrabold tabular-nums" style={{ color: CARD_INK }}>
+          {formatInr(b.ledgerBalance)}
+        </div>
+        <p className="mt-3 font-mono text-[13px] font-bold tracking-wider" style={{ color: CARD_INK }}>
+          A/c •• {b.accountNumberLast4}
+        </p>
+        <p className="mt-1 text-[12px] font-bold" style={{ color: "#2A5CDD" }}>
+          IFSC · {b.ifsc}
+        </p>
       </div>
     </div>
   );
@@ -329,7 +392,7 @@ function ProviderList({ providers, onSaved }: { providers: ProviderCard[]; onSav
       </p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {providers.map((p) => (
-          <ProviderTile key={p.id} provider={p} onSaved={onSaved} />
+          <ProviderTile key={`${p.id}:${p.lowBalanceThreshold ?? ""}`} provider={p} onSaved={onSaved} />
         ))}
       </div>
     </div>
@@ -339,10 +402,6 @@ function ProviderList({ providers, onSaved }: { providers: ProviderCard[]; onSav
 function ProviderTile({ provider: p, onSaved }: { provider: ProviderCard; onSaved: () => void }) {
   const [limit, setLimit] = useState(p.lowBalanceThreshold ?? "");
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    setLimit(p.lowBalanceThreshold ?? "");
-  }, [p.lowBalanceThreshold]);
 
   const save = async () => {
     const trimmed = limit.trim();

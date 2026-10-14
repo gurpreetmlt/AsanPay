@@ -53,15 +53,34 @@ async function fetchVyaparApiBalance(): Promise<LiveBalance> {
       "PROVIDER_BALANCE_FAILED",
     );
   }
-  const balance = toPaise(pick(json, ["partnerbalance", "partner_balance", "balance", "wallet_balance"]));
+  // Live API returns `buyer_wallet` (= Partner Wallet in their portal); docs still show partnerBalance.
+  const buyer = pick(json, ["buyer_wallet"]);
+  if (buyer && typeof buyer === "object") {
+    const wallet = buyer as Record<string, unknown>;
+    const balance = toPaise(pick(wallet, ["balance", "amount", "wallet_balance", "current_balance"]));
+    if (balance == null) {
+      throw new HttpError(
+        502,
+        `VyaparAPI buyer_wallet has no balance field (fields received: ${keysOf(wallet)})`,
+        "BAD_PROVIDER_RESPONSE",
+      );
+    }
+    return { balance, hold: toPaise(pick(wallet, ["hold", "hold_balance", "holdbalance"])) };
+  }
+
+  const balance =
+    toPaise(buyer) ?? toPaise(pick(json, ["partnerbalance", "partner_balance", "balance", "wallet_balance"]));
   if (balance == null) {
     throw new HttpError(
       502,
-      `VyaparAPI balance response has no partnerBalance field (fields received: ${keysOf(json)})`,
+      `VyaparAPI balance response has no buyer_wallet / partnerBalance (fields received: ${keysOf(json)})`,
       "BAD_PROVIDER_RESPONSE",
     );
   }
-  return { balance, hold: toPaise(pick(json, ["partnerhold", "partner_hold", "hold"])) };
+  return {
+    balance,
+    hold: toPaise(pick(json, ["buyer_hold", "buyer_wallet_hold", "partnerhold", "partner_hold", "hold"])),
+  };
 }
 
 // Keyed by providers.code. A provider without an entry shows ledger float only.
