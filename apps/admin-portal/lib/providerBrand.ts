@@ -3,22 +3,10 @@ import { hexAlpha } from "@/lib/bankLogo";
 type ProviderBrand = { primary: string; secondary: string; domain?: string };
 
 const PROVIDER_BRAND: Record<string, ProviderBrand> = {
-  vyaparapi: {
-    primary: "#2563EB",
-    secondary: "#7C3AED",
-    domain: "vyaparapi.com",
-  },
-  instantpay: {
-    primary: "#0B4EA2",
-    secondary: "#F7941D",
-    domain: "instantpay.in",
-  },
-  paysprint: {
-    primary: "#1C3F94",
-    secondary: "#F15A24",
-    domain: "paysprint.in",
-  },
-  eko: { primary: "#E4002B", secondary: "#1F2A44", domain: "eko.in" },
+  vyaparapi: { primary: "#6D28D9", secondary: "#F59E0B", domain: "vyaparapi.com" },
+  instantpay: { primary: "#0B4EA2", secondary: "#1E88E5", domain: "instantpay.in" },
+  paysprint: { primary: "#E31E24", secondary: "#B71C1C", domain: "paysprint.in" },
+  eko: { primary: "#F5B301", secondary: "#E09B00", domain: "eko.in" },
 };
 
 const DEFAULT_BRAND: ProviderBrand = {
