@@ -540,6 +540,19 @@ adminRouter.get("/treasury/breakdown", async (_req, res) => {
   sendSuccess(res, await getTreasuryBreakdown(tenantId));
 });
 
+adminRouter.get("/treasury/banks/:id/details", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const raw = String(req.params.id);
+  if (!/^\d+$/.test(raw)) throw new HttpError(422, "Bank account id is invalid", "INVALID_ID");
+  const { getTreasuryBankDetails } = await import("../treasury/treasury.service");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const tenantId = await resolveTenantId();
+  sendSuccess(
+    res,
+    await getTreasuryBankDetails({ tenantId, bankAccountId: BigInt(raw), adminId: req.auth.sub }),
+  );
+});
+
 const providerThresholdBody = z.object({
   lowBalanceThreshold: z
     .string()

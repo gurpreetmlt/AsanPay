@@ -4,7 +4,7 @@ import { type ReactNode, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { AlertTriangle, ChevronDown, Landmark, Plug, ReceiptText, RefreshCcw, Scale } from "lucide-react";
+import { AlertTriangle, ChevronDown, Copy, Eye, Landmark, Plug, ReceiptText, RefreshCcw, Scale, X } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
@@ -342,57 +342,227 @@ function BankLogoMark({ ifsc }: { ifsc: string }) {
 
 function BankTile({ bank: b }: { bank: BankCard }) {
   const corners = bankCardCornerGlows(b.ifsc);
+  const [showDetails, setShowDetails] = useState(false);
+  return (
+    <>
+      {showDetails ? <BankDetailsModal bank={b} onClose={() => setShowDetails(false)} /> : null}
+      <div
+        className="relative overflow-hidden rounded-[18px] border p-[18px]"
+        style={{
+          borderColor: corners.border,
+          boxShadow: bankCardGlow(b.ifsc),
+          opacity: b.isActive ? 1 : 0.7,
+        }}
+      >
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{ background: bankCardGradient(b.ifsc) }}
+        >
+          <span
+            className="absolute -right-7 -top-9 h-[120px] w-[120px] rounded-full"
+            style={{ background: corners.topRight, opacity: 0.55 }}
+          />
+          <span
+            className="absolute -bottom-10 -left-8 h-[110px] w-[110px] rounded-full"
+            style={{ background: corners.bottomLeft, opacity: 0.4 }}
+          />
+        </div>
+        <div className="relative">
+          <div className="flex items-start gap-3">
+            <BankLogoMark ifsc={b.ifsc} />
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[15px] font-bold" style={{ color: CARD_INK }}>
+                {b.bankName}
+              </div>
+              <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                <Badge tone="grey">{PURPOSE_LABEL[b.purpose]}</Badge>
+                {b.isActive ? <Badge tone="green">Active</Badge> : <Badge tone="amber">Inactive</Badge>}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowDetails(true)}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white"
+              style={{ color: "#2A5CDD", boxShadow: "0 2px 8px rgba(11,42,154,0.12)" }}
+              aria-label={`View full details of ${b.bankName}`}
+              title="View full details"
+            >
+              <Eye size={17} />
+            </button>
+          </div>
+          <p className="mt-4 text-[11px] font-extrabold uppercase tracking-[0.12em]" style={{ color: CARD_MUTED }}>
+            Ledger balance
+          </p>
+          <div className="mt-1 text-2xl font-extrabold tabular-nums" style={{ color: CARD_INK }}>
+            {formatInr(b.ledgerBalance)}
+          </div>
+          <p className="mt-3 font-mono text-[13px] font-bold tracking-wider" style={{ color: CARD_INK }}>
+            A/c •• {b.accountNumberLast4}
+          </p>
+          <p className="mt-1 text-[12px] font-bold" style={{ color: "#2A5CDD" }}>
+            IFSC · {b.ifsc}
+          </p>
+        </div>
+      </div>
+    </>
+  );
+}
+
+interface BankDetails {
+  id: string;
+  bankName: string;
+  accountNumber: string;
+  ifsc: string;
+  purpose: BankCard["purpose"];
+  isActive: boolean;
+  supportsVan: boolean;
+  ledgerCode: string;
+  ledgerBalance: string;
+  createdAt: string;
+}
+
+function BankDetailsModal({ bank, onClose }: { bank: BankCard; onClose: () => void }) {
+  const [details, setDetails] = useState<BankDetails | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchApi<BankDetails>(`/admin/treasury/banks/${bank.id}/details`)
+      .then((d) => {
+        if (!cancelled) setDetails(d);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(errMessage(err, `Could not load details for ${bank.bankName}`));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [bank.id, bank.bankName]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const rows: { label: string; value: string; copy?: boolean; mono?: boolean }[] = details
+    ? [
+        { label: "Bank name", value: details.bankName, copy: true },
+        { label: "Account number", value: details.accountNumber, copy: true, mono: true },
+        { label: "IFSC", value: details.ifsc, copy: true, mono: true },
+        { label: "Purpose", value: PURPOSE_LABEL[details.purpose] },
+        { label: "Status", value: details.isActive ? "Active" : "Inactive" },
+        { label: "Virtual accounts (VAN)", value: details.supportsVan ? "Supported" : "Not supported" },
+        { label: "Ledger balance", value: formatInr(details.ledgerBalance) },
+        { label: "Ledger account code", value: details.ledgerCode, copy: true, mono: true },
+        { label: "Added on", value: new Date(details.createdAt).toLocaleDateString("en-IN") },
+      ]
+    : [];
+
+  const copyAll = () => {
+    if (!details) return;
+    void copyText(
+      `Bank: ${details.bankName}\nAccount number: ${details.accountNumber}\nIFSC: ${details.ifsc}`,
+      "Bank details copied",
+    );
+  };
+
   return (
     <div
-      className="relative overflow-hidden rounded-[18px] border p-[18px]"
-      style={{
-        borderColor: corners.border,
-        boxShadow: bankCardGlow(b.ifsc),
-        opacity: b.isActive ? 1 : 0.7,
-      }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${bank.bankName} details`}
     >
       <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{ background: bankCardGradient(b.ifsc) }}
+        className="w-full max-w-md rounded-2xl bg-white p-5"
+        style={{ boxShadow: "0 20px 50px rgba(15,23,42,0.25)" }}
+        onClick={(e) => e.stopPropagation()}
       >
-        <span
-          className="absolute -right-7 -top-9 h-[120px] w-[120px] rounded-full"
-          style={{ background: corners.topRight, opacity: 0.55 }}
-        />
-        <span
-          className="absolute -bottom-10 -left-8 h-[110px] w-[110px] rounded-full"
-          style={{ background: corners.bottomLeft, opacity: 0.4 }}
-        />
-      </div>
-      <div className="relative">
-        <div className="flex items-start gap-3">
-          <BankLogoMark ifsc={b.ifsc} />
+        <div className="mb-4 flex items-center gap-3">
+          <BankLogoMark ifsc={bank.ifsc} />
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[15px] font-bold" style={{ color: CARD_INK }}>
-              {b.bankName}
+            <div className="truncate text-base font-bold" style={{ color: CARD_INK }}>
+              {bank.bankName}
             </div>
-            <div className="mt-1 flex flex-wrap items-center gap-1.5">
-              <Badge tone="grey">{PURPOSE_LABEL[b.purpose]}</Badge>
-              {b.isActive ? <Badge tone="green">Active</Badge> : <Badge tone="amber">Inactive</Badge>}
+            <div className="text-xs" style={{ color: CARD_MUTED }}>
+              Company bank account details
             </div>
           </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1.5"
+            style={{ color: CARD_MUTED }}
+            aria-label="Close"
+          >
+            <X size={18} />
+          </button>
         </div>
-        <p className="mt-4 text-[11px] font-extrabold uppercase tracking-[0.12em]" style={{ color: CARD_MUTED }}>
-          Ledger balance
-        </p>
-        <div className="mt-1 text-2xl font-extrabold tabular-nums" style={{ color: CARD_INK }}>
-          {formatInr(b.ledgerBalance)}
-        </div>
-        <p className="mt-3 font-mono text-[13px] font-bold tracking-wider" style={{ color: CARD_INK }}>
-          A/c •• {b.accountNumberLast4}
-        </p>
-        <p className="mt-1 text-[12px] font-bold" style={{ color: "#2A5CDD" }}>
-          IFSC · {b.ifsc}
-        </p>
+
+        {error ? (
+          <p className="text-sm font-semibold" style={{ color: B.danger }}>
+            {error}
+          </p>
+        ) : !details ? (
+          <p className="text-sm" style={{ color: CARD_MUTED }}>
+            Loading…
+          </p>
+        ) : (
+          <>
+            <dl className="divide-y rounded-xl border" style={{ borderColor: B.border }}>
+              {rows.map((r) => (
+                <div key={r.label} className="flex items-center gap-3 px-3 py-2.5" style={{ borderColor: B.border }}>
+                  <dt className="w-40 shrink-0 text-xs font-semibold" style={{ color: CARD_MUTED }}>
+                    {r.label}
+                  </dt>
+                  <dd
+                    className={`min-w-0 flex-1 break-all text-sm font-semibold ${r.mono ? "font-mono" : ""}`}
+                    style={{ color: CARD_INK }}
+                  >
+                    {r.value}
+                  </dd>
+                  {r.copy ? (
+                    <button
+                      type="button"
+                      onClick={() => void copyText(r.value, `${r.label} copied`)}
+                      className="rounded-lg p-1.5"
+                      style={{ color: "#2A5CDD" }}
+                      aria-label={`Copy ${r.label}`}
+                      title={`Copy ${r.label}`}
+                    >
+                      <Copy size={15} />
+                    </button>
+                  ) : null}
+                </div>
+              ))}
+            </dl>
+            <button
+              type="button"
+              onClick={copyAll}
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white"
+              style={{ background: B.badgeGrad }}
+            >
+              <Copy size={15} /> Copy bank name, account number and IFSC
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
+}
+
+async function copyText(text: string, success: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast.success(success);
+  } catch {
+    toast.error("Could not copy — your browser blocked clipboard access");
+  }
 }
 
 function ProviderList({ providers, onSaved }: { providers: ProviderCard[]; onSaved: () => void }) {

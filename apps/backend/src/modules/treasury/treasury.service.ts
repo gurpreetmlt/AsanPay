@@ -6,6 +6,8 @@ import { HttpError } from "../../utils/httpError";
 import { floatAccountCode } from "../wallet/ledgerAccounts";
 import { getTreasurySummary } from "../reconciliation/checks";
 import { fetchProviderLiveBalance } from "./providerLiveBalance";
+import { decryptPII } from "../../utils/aes";
+import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
 
 export interface TreasuryBankCard {
   id: string;
@@ -148,6 +150,63 @@ export async function getTreasuryBreakdown(tenantId: string): Promise<TreasuryBr
     providers: providerCards,
     lowBalanceCount,
     mismatchCount,
+  };
+}
+
+/** Full bank details for the admin eye view. The account number is decrypted here only. */
+export async function getTreasuryBankDetails(params: { tenantId: string; bankAccountId: bigint; adminId: string }) {
+  const [row] = await db
+    .select({
+      id: bankAccounts.id,
+      bankName: bankAccounts.bankName,
+      accountNumberEnc: bankAccounts.accountNumberEnc,
+      ifsc: bankAccounts.ifsc,
+      purpose: bankAccounts.purpose,
+      isActive: bankAccounts.isActive,
+      supportsVan: bankAccounts.supportsVan,
+      createdAt: bankAccounts.createdAt,
+      ledgerCode: accounts.code,
+      balance: sql<string>`COALESCE(${accountBalances.balance}, 0)::text`,
+    })
+    .from(bankAccounts)
+    .innerJoin(accounts, eq(accounts.id, bankAccounts.ledgerAccountId))
+    .leftJoin(accountBalances, eq(accountBalances.accountId, accounts.id))
+    .where(
+      and(
+        eq(bankAccounts.id, params.bankAccountId),
+        eq(bankAccounts.tenantId, params.tenantId),
+        isNull(bankAccounts.deletedAt),
+      ),
+    )
+    .limit(1);
+  if (!row) throw new HttpError(404, "Bank account not found", "BANK_NOT_FOUND");
+
+  let accountNumber: string;
+  try {
+    accountNumber = decryptPII(row.accountNumberEnc);
+  } catch {
+    throw new HttpError(500, "Could not read the stored account number for this bank", "DECRYPT_FAILED");
+  }
+
+  await insertAuditLog({
+    userId: params.adminId,
+    action: "admin.bank_account_reveal",
+    entityType: "bank_account",
+    entityId: String(row.id),
+    metadata: { bankName: row.bankName },
+  });
+
+  return {
+    id: String(row.id),
+    bankName: row.bankName,
+    accountNumber,
+    ifsc: row.ifsc,
+    purpose: row.purpose,
+    isActive: row.isActive,
+    supportsVan: row.supportsVan,
+    ledgerCode: row.ledgerCode,
+    ledgerBalance: paiseToRupees(BigInt(row.balance)),
+    createdAt: row.createdAt,
   };
 }
 
