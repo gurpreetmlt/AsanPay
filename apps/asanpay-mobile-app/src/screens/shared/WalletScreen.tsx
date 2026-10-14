@@ -161,14 +161,12 @@ export function WalletScreen() {
             {active === "main" ? "Available for services" : "Cash from customer AEPS services only"}
           </Text>
           <View style={styles.heroActions}>
-            {user.role === "retailer" ? (
-              <Pressable
-                style={[styles.heroBtn, { backgroundColor: colors.green }]}
-                onPress={() => setShowFund(true)}
-              >
-                <Text style={styles.heroBtnText}>+ Add Money</Text>
-              </Pressable>
-            ) : null}
+            <Pressable
+              style={[styles.heroBtn, { backgroundColor: colors.green }]}
+              onPress={() => setShowFund(true)}
+            >
+              <Text style={styles.heroBtnText}>+ Add Money</Text>
+            </Pressable>
             <Pressable style={[styles.heroBtn, styles.heroBtnOutline]} onPress={() => void load(true)}>
               <Text style={styles.heroBtnText}>Refresh</Text>
             </Pressable>

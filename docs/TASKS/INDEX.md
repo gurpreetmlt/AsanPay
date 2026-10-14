@@ -67,6 +67,7 @@ Queue: [wallet-engine-queue.md](wallet-engine-queue.md) (MVP 27A–27D done)
 | 27C | Settlements module | L | [27C-settlements.md](27C-settlements.md) |
 | 27D | VAN + webhook auto-credit | M | [27D-van-webhook.md](27D-van-webhook.md) |
 | 32 | Fund dual-approve limit (admin DB) | S | [32-fund-dual-approve-setting.md](32-fund-dual-approve-setting.md) done |
+| 33 | Noble commercials: GST + TDS split (33A → 33B) | L ⚠️ split | [33-noble-commercials.md](33-noble-commercials.md) |
 
 ## Recommended next (fast value)
 ```

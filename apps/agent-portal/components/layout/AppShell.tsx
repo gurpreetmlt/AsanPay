@@ -399,8 +399,7 @@ function WalletPill({
   }
 
   const goAddMoney = () => {
-    if (role === "retailer") router.push("/fund-request");
-    else toast("Ask your upline to fund your balance, or use Collect on Balance");
+    router.push("/fund-request");
   };
 
   const balanceVisible = useBalanceVisibility((s) => s.visible);

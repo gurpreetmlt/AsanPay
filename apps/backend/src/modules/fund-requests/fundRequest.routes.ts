@@ -42,7 +42,9 @@ fundRequestRouter.post("/rematch", requireRole("admin"), async (_req, res) => {
   sendSuccess(res, result, "Pending fund requests rematched");
 });
 
-fundRequestRouter.get("/", requireRole("admin", "retailer"), async (req, res) => {
+const AGENT_ROLES = ["super_distributor", "distributor", "retailer"] as const;
+
+fundRequestRouter.get("/", requireRole("admin", ...AGENT_ROLES), async (req, res) => {
   if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
   const defaultFilter: FundRequestListFilter = req.auth.role === "admin" ? "open" : "all";
   const raw = typeof req.query.status === "string" ? req.query.status : defaultFilter;
@@ -64,7 +66,7 @@ fundRequestRouter.get("/", requireRole("admin", "retailer"), async (req, res) =>
 
 fundRequestRouter.post(
   "/",
-  requireRole("retailer"),
+  requireRole(...AGENT_ROLES),
   walletTxnLimiter,
   requireIdempotencyKey,
   validateBody(submitFundRequestSchema),
@@ -116,7 +118,7 @@ fundRequestRouter.get("/:id", async (req, res) => {
 
 fundRequestRouter.post(
   "/:id/cancel",
-  requireRole("retailer"),
+  requireRole(...AGENT_ROLES),
   async (req, res) => {
     if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
     const tenantId = await resolveTenantId();

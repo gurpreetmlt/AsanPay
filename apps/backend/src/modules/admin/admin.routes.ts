@@ -533,6 +533,45 @@ adminRouter.get("/treasury/summary", async (_req, res) => {
   });
 });
 
+adminRouter.get("/treasury/breakdown", async (_req, res) => {
+  const { getTreasuryBreakdown } = await import("../treasury/treasury.service");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const tenantId = await resolveTenantId();
+  sendSuccess(res, await getTreasuryBreakdown(tenantId));
+});
+
+const providerThresholdBody = z.object({
+  lowBalanceThreshold: z
+    .string()
+    .trim()
+    .max(20)
+    .regex(/^(\d+(\.\d{1,2})?)?$/, "Low balance limit must be a rupee amount, e.g. 10000")
+    .nullable(),
+});
+
+adminRouter.patch("/treasury/providers/:id/threshold", async (req, res) => {
+  const parsed = providerThresholdBody.safeParse(req.body);
+  if (!parsed.success) {
+    throw new HttpError(422, parsed.error.issues[0]?.message ?? "Low balance limit is invalid", "VALIDATION_ERROR");
+  }
+  const providerId = String(req.params.id);
+  if (!z.string().uuid().safeParse(providerId).success) {
+    throw new HttpError(422, "Provider id is invalid", "INVALID_ID");
+  }
+  const { setProviderLowBalanceThreshold } = await import("../treasury/treasury.service");
+  const { rupeesToPaise } = await import("../../core/money");
+  const raw = parsed.data.lowBalanceThreshold;
+  const result = await setProviderLowBalanceThreshold({
+    providerId,
+    threshold: raw ? rupeesToPaise(raw) : null,
+  });
+  sendSuccess(
+    res,
+    result,
+    result.lowBalanceThreshold ? "Low balance limit saved" : "Low balance limit removed",
+  );
+});
+
 adminRouter.post("/ledger/recon/run", async (_req, res) => {
   const { runAndPersistReconciliation } = await import("../reconciliation/reports");
   const { resolveTenantId } = await import("../fund-requests/tenant");

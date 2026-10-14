@@ -242,11 +242,7 @@ export function AccountScreen() {
   }
 
   function goRequestFunds() {
-    if (isRetailer) {
-      setShowFund(true);
-    } else {
-      showAlert("Not applicable", "Fund requests are only for retailer accounts.");
-    }
+    setShowFund(true);
   }
 
   useEffect(() => {
@@ -296,18 +292,12 @@ export function AccountScreen() {
     ]);
   }
 
-  const QUICK_ACTIONS = isRetailer
-    ? [
-        { icon: Wallet, label: "Manage\nWallet", action: goManageWallet },
-        { icon: Landmark, label: "Bank\nSettlement", action: () => setShowSettlements(true) },
-        { icon: KeyRound, label: "Request\nFunds", action: goRequestFunds },
-        { icon: ShieldCheck, label: "My\nEarnings", action: goMyEarnings },
-      ]
-    : [
-        { icon: Wallet, label: "Manage\nWallet", action: goManageWallet },
-        { icon: Landmark, label: "Bank\nSettlement", action: () => setShowSettlements(true) },
-        { icon: ShieldCheck, label: "My\nEarnings", action: goMyEarnings },
-      ];
+  const QUICK_ACTIONS = [
+    { icon: Wallet, label: "Manage\nWallet", action: goManageWallet },
+    { icon: Landmark, label: "Bank\nSettlement", action: () => setShowSettlements(true) },
+    { icon: KeyRound, label: "Request\nFunds", action: goRequestFunds },
+    { icon: ShieldCheck, label: "My\nEarnings", action: goMyEarnings },
+  ];
 
   return (
     <PageEnter>

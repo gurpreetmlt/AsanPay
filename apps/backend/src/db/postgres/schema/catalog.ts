@@ -5,6 +5,7 @@ import {
   text,
   boolean,
   integer,
+  bigint,
   numeric,
   timestamp,
   index,
@@ -52,6 +53,8 @@ export const providers = pgTable("providers", {
   baseUrl: text("base_url"),
   isActive: boolean("is_active").notNull().default(true),
   priority: integer("priority").notNull().default(0),
+  // Paise. Admin Treasury warns when this provider's float drops below it; NULL = no warning.
+  lowBalanceThreshold: bigint("low_balance_threshold", { mode: "bigint" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

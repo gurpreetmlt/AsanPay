@@ -59,6 +59,8 @@
 - [x] Settlements UI wired (agent web + admin + mobile)
 - [x] Admin banking ops UI (`/banking` — accounts, statement import, suspense)
 - [x] Float management (`/float` + `/api/float`)
+- [x] Admin Treasury page (`/treasury`): total bank / total API wallets / total treasury cards, per-bank + per-provider drill-down, VyaparAPI live balance vs ledger, per-provider low-balance limit (`providers.low_balance_threshold`, migration 0047)
+- [x] Fund requests (company collection bank deposit) open to all agent roles — SD / Distributor / Retailer (API + web `/fund-request` + mobile Add Money / Request Funds); admin list shows requester role
 - [x] VAN assign (admin Banking tab + `POST /banking/van/assign`)
 - [x] Ledger reports (`/ledger-reports`)
 - [x] Tenant settings: fund dual-approve + settlement charge (Site Control)

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { AdminShell } from "@/components/layout/AdminShell";
 import api, { fetchApi } from "@/lib/api";
-import { B } from "@/lib/brand";
+import { B, ROLE_LABEL } from "@/lib/brand";
 import { createAttemptKeyHolder } from "@/lib/idempotencyKey";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
@@ -26,7 +26,7 @@ interface FundRequestRow {
   rejectRemarks: string | null;
   submittedAt: string;
   receiptUrl: string;
-  requester?: { id: string; name: string; mobile: string; uid: string };
+  requester?: { id: string; name: string; mobile: string; uid: string; role?: string };
 }
 
 const TABS: { key: FrTab; label: string }[] = [
@@ -216,7 +216,7 @@ export default function FundRequestsPage() {
                   className="border-b text-xs uppercase tracking-wider"
                   style={{ borderColor: B.border, background: B.secondary, color: B.muted }}
                 >
-                  <th className="px-4 py-3 font-semibold">Retailer</th>
+                  <th className="px-4 py-3 font-semibold">Agent</th>
                   <th className="px-4 py-3 font-semibold">Amount</th>
                   <th className="px-4 py-3 font-semibold">Mode / UTR</th>
                   <th className="px-4 py-3 font-semibold">Status</th>
@@ -245,6 +245,14 @@ export default function FundRequestsPage() {
                       <td className="px-4 py-3">
                         <div className="font-medium" style={{ color: B.blue }}>
                           {r.requester?.name ?? "—"}
+                          {r.requester?.role ? (
+                            <span
+                              className="ml-1.5 rounded px-1.5 py-0.5 text-[11px] font-bold"
+                              style={{ background: B.secondary, color: B.muted }}
+                            >
+                              {ROLE_LABEL[r.requester.role] ?? r.requester.role}
+                            </span>
+                          ) : null}
                         </div>
                         <div className="text-xs font-mono" style={{ color: B.muted }}>
                           {r.requester?.uid} · {r.requester?.mobile}

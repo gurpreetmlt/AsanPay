@@ -15,7 +15,6 @@ export default function FundRequestPage() {
   const router = useRouter();
   const hydrated = useAuthHydrated();
   const accessToken = useAuthStore((s) => s.accessToken);
-  const user = useAuthStore((s) => s.user);
   const [rows, setRows] = useState<FundRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -36,16 +35,10 @@ export default function FundRequestPage() {
       router.replace("/login");
       return;
     }
-    if (user?.role && user.role !== "retailer") {
-      toast.error("Fund requests are for retailers only");
-      router.replace("/wallet");
-      return;
-    }
     void load();
-  }, [hydrated, accessToken, user?.role, router, load]);
+  }, [hydrated, accessToken, router, load]);
 
   if (!hydrated || !accessToken) return null;
-  if (user?.role && user.role !== "retailer") return null;
 
   return (
     <AppShell>

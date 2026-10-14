@@ -607,11 +607,9 @@ const OPEN_STATUSES: FundRequestStatus[] = [
 
 export type FundRequestListFilter = "open" | "credited" | "rejected" | "cancelled" | "all";
 
-function mapFundRequestRow(
-  row: FundRequestRow,
-  actorRole: string,
-  requester?: { id: string; name: string; mobile: string; uid: string },
-) {
+type RequesterSummary = { id: string; name: string; mobile: string; uid: string; role: string };
+
+function mapFundRequestRow(row: FundRequestRow, actorRole: string, requester?: RequesterSummary) {
   return {
     id: String(row.id),
     amount: paiseToRupees(row.amount),
@@ -661,6 +659,7 @@ export async function listFundRequests(params: {
       requesterName: users.name,
       requesterMobile: users.mobile,
       requesterUid: users.uid,
+      requesterRole: users.role,
     })
     .from(fundRequests)
     .innerJoin(users, eq(users.id, fundRequests.requesterUserId))
@@ -669,7 +668,7 @@ export async function listFundRequests(params: {
     .limit(limit)
     .offset(offset);
 
-  return rows.map(({ request, requesterId, requesterName, requesterMobile, requesterUid }) =>
+  return rows.map(({ request, requesterId, requesterName, requesterMobile, requesterUid, requesterRole }) =>
     mapFundRequestRow(
       request,
       params.actorRole,
@@ -679,6 +678,7 @@ export async function listFundRequests(params: {
             name: requesterName,
             mobile: requesterMobile,
             uid: requesterUid,
+            role: requesterRole,
           }
         : undefined,
     ),
@@ -703,10 +703,10 @@ export async function getFundRequest(params: {
     throw new HttpError(403, "Not your request", "FORBIDDEN");
   }
 
-  let requester: { id: string; name: string; mobile: string; uid: string } | undefined;
+  let requester: RequesterSummary | undefined;
   if (params.actorRole === "admin") {
     const [u] = await db
-      .select({ id: users.id, name: users.name, mobile: users.mobile, uid: users.uid })
+      .select({ id: users.id, name: users.name, mobile: users.mobile, uid: users.uid, role: users.role })
       .from(users)
       .where(eq(users.id, row.requesterUserId))
       .limit(1);

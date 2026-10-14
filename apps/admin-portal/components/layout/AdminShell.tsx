@@ -54,6 +54,7 @@ const TREASURY: NavItem[] = [
     label: "Treasury & Balance",
     icon: { lib: "md", name: "MdAccountBalanceWallet" },
     children: [
+      { href: "/treasury", label: "Treasury", icon: { lib: "lucide", icon: Landmark } },
       { href: "/wallet", label: "Company balance", icon: { lib: "md", name: "MdAccountBalanceWallet" } },
       { href: "/fund-requests", label: "Fund requests", icon: { lib: "lucide", icon: IndianRupee } },
       { href: "/settlements", label: "Settlements / banks", icon: { lib: "lucide", icon: Landmark } },

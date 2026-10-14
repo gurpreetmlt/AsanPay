@@ -330,6 +330,13 @@
       "when": 1789700000000,
       "tag": "0046_uid_counters",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1789800000000,
+      "tag": "0047_provider_low_balance_threshold",
+      "breakpoints": true
     }
   ]
 }
