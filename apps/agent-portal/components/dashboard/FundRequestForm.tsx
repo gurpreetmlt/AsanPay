@@ -67,6 +67,15 @@ async function sha256Hex(file: File): Promise<string> {
     .join("");
 }
 
+function readAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error("Could not read the receipt file"));
+    reader.readAsDataURL(file);
+  });
+}
+
 function toOffsetIso(localValue: string): string {
   const d = new Date(localValue);
   if (Number.isNaN(d.getTime())) throw new Error("Invalid deposit date/time");
@@ -353,7 +362,7 @@ export function FundRequestForm({
     setSubmitting(true);
     try {
       const receiptSha256 = await sha256Hex(receiptFile);
-      const receiptUrl = `https://receipts.asanpay.app/${receiptSha256}`;
+      const receiptDataUrl = await readAsDataUrl(receiptFile);
       let depositDatetime: string;
       try {
         depositDatetime = toOffsetIso(depositLocal);
@@ -372,7 +381,8 @@ export function FundRequestForm({
           referenceNumber: referenceNumber.trim() || null,
           depositDatetime,
           senderName: senderName.trim() || null,
-          receiptUrl,
+          receiptDataUrl,
+          receiptName: receiptFile.name.slice(0, 200),
           receiptSha256,
           remarks: remarks.trim() || null,
         },
@@ -740,7 +750,7 @@ export function FundRequestForm({
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept="image/*,application/pdf"
+                      accept="image/png,image/jpeg,image/webp,application/pdf"
                       className="hidden"
                       onChange={(e) => {
                         setReceiptFile(e.target.files?.[0] ?? null);

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { Router } from "express";
 import { requireAuth } from "../../middleware/auth.middleware";
 import { requireRole } from "../../middleware/rbac.middleware";
@@ -19,6 +20,7 @@ import {
   cancelFundRequest,
   rematchPending,
   getFundRequest,
+  getFundRequestReceipt,
   listFundRequests,
   retailerFacingStatus,
   type FundRequestListFilter,
@@ -29,6 +31,7 @@ import {
   rejectFundRequestSchema,
   parseRequestId,
   parseRupeeAmount,
+  parseReceiptDataUrl,
 } from "./fundRequest.validators";
 
 export const fundRequestRouter = Router();
@@ -79,6 +82,8 @@ fundRequestRouter.post(
       throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
     }
     const body = req.body as ReturnType<typeof submitFundRequestSchema.parse>;
+    const receiptBytes = parseReceiptDataUrl(body.receiptDataUrl);
+    const receiptSha256 = createHash("sha256").update(receiptBytes).digest("hex");
     const tenantId = await resolveTenantId();
     const result = await submitFundRequest({
       tenantId,
@@ -89,8 +94,10 @@ fundRequestRouter.post(
       referenceNumber: body.referenceNumber,
       depositDatetime: new Date(body.depositDatetime),
       senderName: body.senderName,
-      receiptUrl: body.receiptUrl,
-      receiptSha256: body.receiptSha256.toLowerCase(),
+      receiptUrl: `stored:${receiptSha256}`,
+      receiptSha256,
+      receiptDataUrl: body.receiptDataUrl as string,
+      receiptName: body.receiptName ?? null,
       remarks: body.remarks,
       idempotencyKey: req.idempotencyKey,
     });
@@ -107,6 +114,18 @@ fundRequestRouter.post(
     );
   },
 );
+
+fundRequestRouter.get("/:id/receipt", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const tenantId = await resolveTenantId();
+  const data = await getFundRequestReceipt({
+    tenantId,
+    requestId: parseRequestId(paramId(req.params.id)),
+    actorUserId: req.auth.sub,
+    actorRole: req.auth.role,
+  });
+  sendSuccess(res, data);
+});
 
 fundRequestRouter.get("/:id", async (req, res) => {
   if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");

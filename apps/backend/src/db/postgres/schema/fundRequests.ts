@@ -132,6 +132,16 @@ export const fundRequests = pgTable(
   ],
 );
 
+// Kept out of fund_requests so list queries never drag the file bytes along.
+export const fundRequestReceipts = pgTable("fund_request_receipts", {
+  fundRequestId: bigint("fund_request_id", { mode: "bigint" })
+    .primaryKey()
+    .references(() => fundRequests.id, { onDelete: "restrict" }),
+  fileName: varchar("file_name", { length: 200 }),
+  dataUrl: text("data_url").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 // Append-only state trail. The retailer's timeline view and every dispute are reconstructed
 // from this, so nothing here is ever updated or deleted.
 export const fundRequestEvents = pgTable(

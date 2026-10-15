@@ -157,6 +157,18 @@ export function FundRequestsPanel({
     }
   }
 
+  async function viewReceipt(id: string) {
+    try {
+      const { dataUrl } = await fetchApi<{ name: string | null; dataUrl: string }>(
+        `/fund-requests/${id}/receipt`,
+      );
+      const blob = await (await fetch(dataUrl)).blob();
+      window.open(URL.createObjectURL(blob), "_blank", "noopener");
+    } catch (err) {
+      toast.error(errMessage(err, "Could not open the receipt"));
+    }
+  }
+
   async function openLink(r: FundRequestRow) {
     setLinkFor(r);
     setCandidates(null);
@@ -376,15 +388,14 @@ export function FundRequestsPanel({
                       </td>
                       <td className="px-4 py-4">
                         <div className="flex flex-wrap items-center gap-2">
-                          <a
-                            href={r.receiptUrl}
-                            target="_blank"
-                            rel="noreferrer"
+                          <button
+                            type="button"
+                            onClick={() => void viewReceipt(r.id)}
                             className={`${btn} border bg-white`}
                             style={{ borderColor: B.border, color: B.blue }}
                           >
                             <FileText size={13} /> Receipt
-                          </a>
+                          </button>
                           {isOpen ? (
                             <>
                               {needsLine ? (

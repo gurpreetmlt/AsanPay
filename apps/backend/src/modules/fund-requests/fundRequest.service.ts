@@ -6,6 +6,7 @@ import {
   bankStatementLines,
   fundRequests,
   fundRequestEvents,
+  fundRequestReceipts,
   users,
   walletIdempotency,
 } from "../../db/postgres/schema";
@@ -39,6 +40,8 @@ export interface SubmitFundRequestInput {
   senderName?: string | null;
   receiptUrl: string;
   receiptSha256: string;
+  receiptDataUrl: string;
+  receiptName?: string | null;
   remarks?: string | null;
   /** Client Idempotency-Key — same key returns the original request, never a second credit. */
   idempotencyKey?: string;
@@ -171,6 +174,12 @@ export async function submitFundRequest(
       .returning();
 
     if (!created) throw new HttpError(500, "Could not create fund request", "CREATE_FAILED");
+
+    await tx.insert(fundRequestReceipts).values({
+      fundRequestId: created.id,
+      fileName: input.receiptName ?? null,
+      dataUrl: input.receiptDataUrl,
+    });
 
     await recordEvent(tx, created.id, null, "submitted", requesterUserId, "retailer", null);
 
@@ -864,6 +873,37 @@ export async function getFundRequest(params: {
   }
 
   return mapFundRequestRow(row, params.actorRole, requester);
+}
+
+/** Receipt file for one request — owner or admin only. */
+export async function getFundRequestReceipt(params: {
+  tenantId: string;
+  requestId: bigint;
+  actorUserId: string;
+  actorRole: string;
+}): Promise<{ name: string | null; dataUrl: string }> {
+  const [row] = await db
+    .select({ requesterUserId: fundRequests.requesterUserId })
+    .from(fundRequests)
+    .where(and(eq(fundRequests.id, params.requestId), eq(fundRequests.tenantId, params.tenantId)))
+    .limit(1);
+  if (!row) throw new HttpError(404, "Fund request not found", "NOT_FOUND");
+  if (params.actorRole !== "admin" && row.requesterUserId !== params.actorUserId) {
+    throw new HttpError(403, "Not your request", "FORBIDDEN");
+  }
+  const [file] = await db
+    .select({ name: fundRequestReceipts.fileName, dataUrl: fundRequestReceipts.dataUrl })
+    .from(fundRequestReceipts)
+    .where(eq(fundRequestReceipts.fundRequestId, params.requestId))
+    .limit(1);
+  if (!file) {
+    throw new HttpError(
+      404,
+      "Receipt file was not uploaded for this request (submitted before receipt uploads were enabled). Ask the agent for the slip.",
+      "RECEIPT_NOT_STORED",
+    );
+  }
+  return file;
 }
 
 /**

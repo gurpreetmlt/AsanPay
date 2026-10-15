@@ -715,6 +715,18 @@ export function BankEntriesPanel({ onOpenReconciliation }: { onOpenReconciliatio
     }
   }
 
+  async function viewReceipt(fundRequestId: string) {
+    try {
+      const { dataUrl } = await fetchApi<{ name: string | null; dataUrl: string }>(
+        `/fund-requests/${fundRequestId}/receipt`,
+      );
+      const blob = await (await fetch(dataUrl)).blob();
+      window.open(URL.createObjectURL(blob), "_blank", "noopener");
+    } catch (err) {
+      toast.error(errMessage(err, "Could not open the receipt"));
+    }
+  }
+
   const set = (k: keyof typeof EMPTY_FORM) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   return (
@@ -1166,16 +1178,15 @@ export function BankEntriesPanel({ onOpenReconciliation }: { onOpenReconciliatio
                                 Proof
                               </button>
                             ) : null}
-                            {r.receiptUrl ? (
-                              <a
-                                href={r.receiptUrl}
-                                target="_blank"
-                                rel="noreferrer"
+                            {r.source === "fund_request" && r.fundRequestId ? (
+                              <button
+                                type="button"
+                                onClick={() => void viewReceipt(r.fundRequestId as string)}
                                 className="inline-flex items-center gap-1 rounded-lg border px-2 py-1.5 text-xs font-semibold"
                                 style={{ borderColor: B.border, color: B.blue }}
                               >
                                 <FileText size={13} /> Receipt
-                              </a>
+                              </button>
                             ) : null}
                             {r.source === "fund_request" && r.fundRequestId && !r.isTest ? (
                               <button

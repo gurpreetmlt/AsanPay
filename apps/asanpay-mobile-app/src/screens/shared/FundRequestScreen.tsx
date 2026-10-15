@@ -67,15 +67,6 @@ interface MyVan {
 
 const AMOUNT_PRESETS = ["500", "1000", "2000", "5000"];
 
-async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
-  const subtle = globalThis.crypto?.subtle;
-  if (!subtle) throw new Error("SHA-256 is not available on this device");
-  const digest = await subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
 function newIdemKey() {
   return `fr-mobile-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`.slice(0, 100);
 }
@@ -723,17 +714,27 @@ function ConfirmStep({
   const [senderName, setSenderName] = useState("");
   const [receiptUri, setReceiptUri] = useState<string | null>(null);
   const [receiptName, setReceiptName] = useState<string | null>(null);
+  const [receiptDataUrl, setReceiptDataUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const idemRef = useRef(newIdemKey());
 
   const needsBankPicker = !prefill.bankAccountId;
 
   async function pickReceipt() {
-    const res = await launchImageLibrary({ mediaType: "photo", selectionLimit: 1, quality: 0.8 });
+    const res = await launchImageLibrary({
+      mediaType: "photo",
+      selectionLimit: 1,
+      quality: 0.7,
+      maxWidth: 1600,
+      maxHeight: 1600,
+      includeBase64: true,
+    });
     const asset = res.assets?.[0];
-    if (!asset?.uri) return;
+    if (!asset?.uri || !asset.base64) return;
+    const mime = asset.type === "image/png" || asset.type === "image/webp" ? asset.type : "image/jpeg";
     setReceiptUri(asset.uri);
     setReceiptName(asset.fileName || "receipt.jpg");
+    setReceiptDataUrl(`data:${mime};base64,${asset.base64}`);
   }
 
   async function submit() {
@@ -746,22 +747,17 @@ function ConfirmStep({
       showAlert("Invalid amount", "Enter a valid amount greater than zero");
       return;
     }
-    if (!receiptUri) {
+    if (!receiptUri || !receiptDataUrl) {
       showAlert("Receipt required", "Attach your deposit / payment receipt image");
+      return;
+    }
+    if (receiptDataUrl.length > 2_700_000) {
+      showAlert("File too large", "Receipt must be 2 MB or smaller");
       return;
     }
 
     setSaving(true);
     try {
-      const fileRes = await fetch(receiptUri);
-      const buf = await fileRes.arrayBuffer();
-      if (buf.byteLength > 2_000_000) {
-        showAlert("File too large", "Receipt must be 2 MB or smaller");
-        setSaving(false);
-        return;
-      }
-      const receiptSha256 = await sha256Hex(buf);
-      const receiptUrl = `https://receipts.asanpay.app/${receiptSha256}`;
       await api.post(
         "/fund-requests",
         {
@@ -771,8 +767,8 @@ function ConfirmStep({
           referenceNumber: referenceNumber.trim() || null,
           depositDatetime: new Date().toISOString(),
           senderName: senderName.trim() || null,
-          receiptUrl,
-          receiptSha256,
+          receiptDataUrl,
+          receiptName: (receiptName || "receipt.jpg").slice(0, 200),
         },
         { headers: { "Idempotency-Key": idemRef.current } },
       );
