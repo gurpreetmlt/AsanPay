@@ -216,7 +216,8 @@ export default function AdminFloatPage() {
               key={t.key}
               type="button"
               onClick={() => setTab(t.key)}
-              className="rounded-xl px-3 py-2 text-sm font-semibold"
+              data-active={tab === t.key}
+              className="tab-chip rounded-xl px-3 py-2 text-sm font-semibold"
               style={{
                 background: tab === t.key ? B.badgeGrad : "var(--admin-card)",
                 color: tab === t.key ? B.ctaText : "var(--admin-muted)",

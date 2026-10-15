@@ -626,6 +626,125 @@ html.dark ::placeholder {
   }
 }
 
+/* Filter / status tabs: hover lift + tint, press, pop when selected */
+.tab-chip {
+  transition:
+    transform 0.18s ease-out,
+    box-shadow 0.18s ease-out,
+    background-color 0.18s ease-out,
+    color 0.18s ease-out,
+    filter 0.18s ease-out;
+}
+
+.tab-chip:not([data-active="true"]):hover {
+  transform: translateY(-1px);
+  background-image: linear-gradient(rgba(42, 92, 221, 0.08), rgba(42, 92, 221, 0.08)) !important;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
+}
+
+.tab-chip[data-active="true"]:hover {
+  filter: brightness(1.04);
+}
+
+.tab-chip:active {
+  transform: scale(0.95);
+}
+
+.tab-chip:focus-visible {
+  outline: 2px solid #2a5cdd;
+  outline-offset: 2px;
+}
+
+@keyframes tab-chip-pop {
+  0% {
+    transform: scale(0.92);
+  }
+  60% {
+    transform: scale(1.04);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.tab-chip[data-active="true"] {
+  animation: tab-chip-pop 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Clickable status pill (e.g. Matched → opens Reconciliation) */
+.link-pill > span {
+  transition:
+    box-shadow 0.15s ease-out,
+    transform 0.15s ease-out;
+}
+
+.link-pill:hover > span {
+  box-shadow: 0 0 0 2px currentColor;
+  transform: translateY(-1px);
+}
+
+.link-pill__arrow {
+  transition: transform 0.15s ease-out;
+}
+
+.link-pill:hover .link-pill__arrow {
+  transform: translate(1px, -1px);
+}
+
+/* Tailwind 4 resets buttons to cursor: default */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+select:not(:disabled),
+label[for],
+summary {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+/* Table rows: soft highlight on hover */
+main tbody tr {
+  transition: background-color 0.15s ease-out;
+}
+
+main tbody tr:hover > td {
+  background-image: linear-gradient(rgba(42, 92, 221, 0.045), rgba(42, 92, 221, 0.045));
+}
+
+/* Buttons: hover brighten + press feedback */
+main button:not(:disabled) {
+  transition:
+    transform 0.15s ease-out,
+    filter 0.15s ease-out,
+    box-shadow 0.15s ease-out,
+    background-color 0.15s ease-out,
+    color 0.15s ease-out;
+}
+
+main button:not(:disabled):not(.tab-chip):hover {
+  filter: brightness(1.06);
+}
+
+main button:not(:disabled):not(.tab-chip):active {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-chip,
+  .tab-chip[data-active="true"],
+  main button:not(:disabled) {
+    animation: none;
+    transition: none;
+  }
+  .tab-chip:hover,
+  .tab-chip:active,
+  main button:not(:disabled):active {
+    transform: none !important;
+  }
+}
+
 /* Danger confirm modal (bank delete etc.) */
 @keyframes danger-backdrop-in {
   from {

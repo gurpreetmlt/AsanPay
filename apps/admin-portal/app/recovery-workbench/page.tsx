@@ -95,7 +95,8 @@ export default function RecoveryWorkbenchPage() {
               key={s}
               type="button"
               onClick={() => setStatus(s)}
-              className="rounded-xl px-3 py-2 text-sm font-semibold capitalize"
+              data-active={status === s}
+              className="tab-chip rounded-xl px-3 py-2 text-sm font-semibold capitalize"
               style={status === s ? { background: B.badgeGrad, color: "#fff" } : { background: B.secondary, color: B.blueMid }}
             >
               {s} ({status === s ? rows.length : "…"})

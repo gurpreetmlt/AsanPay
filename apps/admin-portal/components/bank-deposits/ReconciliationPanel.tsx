@@ -952,7 +952,8 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                     key={key}
                     type="button"
                     onClick={() => setFilter(key)}
-                    className="rounded-full px-3 py-1.5 text-xs font-bold"
+                    data-active={filter === key}
+                    className="tab-chip rounded-full px-3 py-1.5 text-xs font-bold"
                     style={
                       filter === key
                         ? { background: B.cta, color: "#fff" }

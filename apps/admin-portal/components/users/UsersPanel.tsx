@@ -422,7 +422,8 @@ export function UsersPanel({ lockedRole = "" }: Props) {
                 key={t.key || "all"}
                 type="button"
                 onClick={() => setRole(t.key)}
-                className="rounded-xl px-3 py-2 text-sm font-semibold transition"
+                data-active={role === t.key}
+                className="tab-chip rounded-xl px-3 py-2 text-sm font-semibold"
                 style={
                   role === t.key
                     ? { background: B.badgeGrad, color: "#fff" }
@@ -447,7 +448,8 @@ export function UsersPanel({ lockedRole = "" }: Props) {
                   key={t.key}
                   type="button"
                   onClick={() => setView(t.key)}
-                  className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition"
+                  data-active={view === t.key}
+                  className="tab-chip flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold"
                   style={
                     view === t.key
                       ? { background: B.badgeGrad, color: "#fff" }

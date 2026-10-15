@@ -244,7 +244,8 @@ export function FundRequestsPanel({
               key={t.key}
               type="button"
               onClick={() => setTab(t.key)}
-              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition"
+              data-active={tab === t.key}
+              className="tab-chip inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold"
               style={
                 tab === t.key
                   ? { background: "#fff", color: B.blueLight, boxShadow: "0 1px 2px rgba(15,23,42,0.08)" }

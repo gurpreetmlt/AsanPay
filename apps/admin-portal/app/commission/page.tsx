@@ -357,7 +357,8 @@ export default function CommissionSchemesPage() {
                 key={t.id}
                 type="button"
                 onClick={() => setTab(t.id)}
-                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold"
+                data-active={tab === t.id}
+                className="tab-chip inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold"
                 style={{
                   background: tab === t.id ? B.badgeGrad : "transparent",
                   color: tab === t.id ? "#fff" : B.muted,

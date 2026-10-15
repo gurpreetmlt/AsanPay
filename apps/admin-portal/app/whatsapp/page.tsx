@@ -226,7 +226,8 @@ export default function WhatsAppInboxPage() {
                 key={t.id}
                 type="button"
                 onClick={() => setTab(t.id)}
-                className="rounded-full px-4 py-1.5 text-sm font-semibold"
+                data-active={tab === t.id}
+                className="tab-chip rounded-full px-4 py-1.5 text-sm font-semibold"
                 style={{
                   background: tab === t.id ? B.blue : "transparent",
                   color: tab === t.id ? "#fff" : B.blueMid,

@@ -195,7 +195,8 @@ export default function DeviceRepairsPage() {
               key={t}
               type="button"
               onClick={() => setTab(t)}
-              className="shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold capitalize"
+              data-active={tab === t}
+              className="tab-chip shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold capitalize"
               style={{
                 borderColor: tab === t ? B.blueLight : B.border,
                 background: tab === t ? B.badgeGrad : "var(--admin-card)",

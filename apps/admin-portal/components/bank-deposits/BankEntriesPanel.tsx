@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type Reac
 import Link from "next/link";
 import { toast } from "react-hot-toast";
 import {
+  ArrowUpRight,
   Check,
   ChevronDown,
   Download,
@@ -1251,11 +1252,12 @@ function StatementCell({ row, onOpen }: { row: BankEntry; onOpen?: OpenReconcili
   const canOpen = !!onOpen && !!row.bankAccountId && (status === "matched" || status === "not_found");
   const pill = (
     <span
-      className="inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold"
+      className="inline-flex items-center gap-0.5 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold"
       style={{ color: meta.color, background: meta.bg }}
     >
       {status === "matched" ? "✓ " : ""}
       {meta.label}
+      {canOpen ? <ArrowUpRight className="link-pill__arrow h-3 w-3" strokeWidth={2.5} aria-hidden /> : null}
     </span>
   );
   return (
@@ -1266,7 +1268,7 @@ function StatementCell({ row, onOpen }: { row: BankEntry; onOpen?: OpenReconcili
           onClick={() =>
             onOpen!({ bankAccountId: row.bankAccountId!, date: line?.date ?? row.txnDate, lineId: line?.id })
           }
-          className="transition hover:opacity-80 active:scale-95"
+          className="link-pill rounded-full"
           title={status === "matched" ? "Open this line in Reconciliation" : "Open Reconciliation for this date"}
         >
           {pill}

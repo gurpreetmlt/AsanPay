@@ -182,7 +182,8 @@ export default function KycPage() {
               key={t.key}
               type="button"
               onClick={() => setTab(t.key)}
-              className="rounded-xl px-3 py-2 text-sm font-semibold transition"
+              data-active={tab === t.key}
+              className="tab-chip rounded-xl px-3 py-2 text-sm font-semibold"
               style={
                 tab === t.key
                   ? { background: B.badgeGrad, color: "#fff" }

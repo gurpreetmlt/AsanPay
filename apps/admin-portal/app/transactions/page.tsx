@@ -85,7 +85,8 @@ export default function TransactionsPage() {
               key={t.key || "all"}
               type="button"
               onClick={() => setStatus(t.key)}
-              className="rounded-xl px-3 py-2 text-sm font-semibold transition"
+              data-active={status === t.key}
+              className="tab-chip rounded-xl px-3 py-2 text-sm font-semibold"
               style={
                 status === t.key
                   ? { background: B.badgeGrad, color: "#fff" }
