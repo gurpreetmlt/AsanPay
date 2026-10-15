@@ -541,8 +541,9 @@ function BankCardSlider({
 }: {
   banks: BankAccount[];
   myVan: MyVan | null;
-  selected: string;
-  onSelect: (id: string) => void;
+  /** Omit both to show cards without a select tick (bank is picked in the form). */
+  selected?: string;
+  onSelect?: (id: string) => void;
 }) {
   const [revealedIds, setRevealedIds] = useState<Record<string, boolean>>({});
   const [viewBank, setViewBank] = useState<BankViewDetails | null>(null);
@@ -622,7 +623,7 @@ function BankCardSlider({
               statusTone={isSelected ? "success" : b.isActive ? "info" : "pending"}
               statusLabel={isSelected ? "Selected" : b.isActive ? "Available" : "Unavailable"}
               selected={isSelected}
-              onSelect={() => onSelect(b.id)}
+              onSelect={onSelect ? () => onSelect(b.id) : undefined}
               unavailable={!b.isActive}
               note={isMine ? "Your dedicated account" : undefined}
               cardWidth={cardWidth}
@@ -806,8 +807,6 @@ function ConfirmStep({
     }
   }
 
-  const selectedBank = banks.find((b) => b.id === bankAccountId) ?? null;
-
   const fields = (
     <>
       <Text style={[styles.label, { color: tokens.sub }]}>Amount (₹)</Text>
@@ -870,30 +869,70 @@ function ConfirmStep({
 
       {needsBankPicker ? (
         <>
-          <Text style={[styles.label, { color: tokens.sub }]}>Available banks</Text>
-          <View style={{ marginBottom: 4 }}>
-            <BankCardSlider banks={banks} myVan={myVan} selected={bankAccountId} onSelect={setBankAccountId} />
-          </View>
           <Pressable
-            style={[styles.submit, { backgroundColor: colors.green, opacity: bankAccountId ? 1 : 0.5 }]}
-            disabled={!bankAccountId}
+            style={[styles.submit, { marginTop: 14, backgroundColor: colors.green, opacity: banks.length ? 1 : 0.5 }]}
+            disabled={!banks.length}
             onPress={() => setFormOpen(true)}
             accessibilityRole="button"
           >
             <Text style={styles.submitText}>+ Create fund request</Text>
           </Pressable>
+          <Text style={[styles.label, { color: tokens.sub }]}>Available banks</Text>
+          <View style={{ marginBottom: 4 }}>
+            <BankCardSlider banks={banks} myVan={myVan} />
+          </View>
 
           <Modal visible={formOpen} animationType="slide" onRequestClose={() => !saving && setFormOpen(false)}>
             <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bg }]}>
               <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
                 <ScreenTop title="Create fund request" onBack={() => !saving && setFormOpen(false)} />
-                {selectedBank ? (
-                  <Text style={[styles.label, { color: tokens.mute, marginTop: 0 }]}>
-                    Deposited to {selectedBank.bankName}
-                    {selectedBank.branchName ? `, ${selectedBank.branchName}` : ""} · ****
-                    {selectedBank.accountNumberLast4}
-                  </Text>
-                ) : null}
+                <Text style={[styles.label, { color: tokens.sub, marginTop: 0 }]}>Deposited to bank</Text>
+                {banks
+                  .filter((b) => b.isActive)
+                  .map((b) => {
+                    const on = b.id === bankAccountId;
+                    return (
+                      <Pressable
+                        key={b.id}
+                        onPress={() => {
+                          idemRef.current = newIdemKey();
+                          setBankAccountId(b.id);
+                        }}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: on }}
+                        style={[
+                          styles.input,
+                          {
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 10,
+                            marginBottom: 8,
+                            backgroundColor: tokens.card,
+                            borderColor: on ? colors.blue : tokens.cardBorder,
+                            borderWidth: on ? 2 : 1,
+                          },
+                        ]}
+                      >
+                        <View
+                          style={{
+                            width: 18,
+                            height: 18,
+                            borderRadius: 9,
+                            borderWidth: 2,
+                            borderColor: on ? colors.blue : tokens.mute,
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          {on ? <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.blue }} /> : null}
+                        </View>
+                        <Text style={{ flex: 1, color: tokens.txt, fontWeight: "700" }} numberOfLines={1}>
+                          {b.bankName}
+                          {b.branchName ? `, ${b.branchName}` : ""} · ****{b.accountNumberLast4}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
                 {fields}
                 <View style={{ flexDirection: "row", gap: 10 }}>
                   <Pressable

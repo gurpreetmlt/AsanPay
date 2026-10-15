@@ -187,13 +187,9 @@ function maskTail(value: string): string {
 function BankCardSlider({
   banks,
   myVan,
-  selected,
-  onSelect,
 }: {
   banks: BankAccount[];
   myVan: MyVan | null;
-  selected: string;
-  onSelect: (id: string) => void;
 }) {
   const [revealedIds, setRevealedIds] = useState<Record<string, boolean>>({});
   const [viewBank, setViewBank] = useState<BankViewDetails | null>(null);
@@ -202,7 +198,6 @@ function BankCardSlider({
     <div className="grid items-stretch gap-4 overflow-visible p-1 sm:grid-cols-2 xl:grid-cols-3">
       {viewBank ? <BankAccountViewModal bank={viewBank} onClose={() => setViewBank(null)} /> : null}
       {banks.map((b) => {
-        const isSelected = selected === b.id;
         const isActive = b.isActive !== false;
         const isMine = myVan?.bankAccountId === b.id && Boolean(myVan?.vanNumber);
         const fullAccount =
@@ -254,10 +249,8 @@ function BankCardSlider({
                 city: b.city,
               })
             }
-            statusTone={isSelected ? "success" : isActive ? "info" : "pending"}
-            statusLabel={isSelected ? "Selected" : isActive ? "Available" : "Unavailable"}
-            selected={isSelected}
-            onSelect={() => onSelect(b.id)}
+            statusTone={isActive ? "info" : "pending"}
+            statusLabel={isActive ? "Available" : "Unavailable"}
             unavailable={!isActive}
             note={isMine ? "Your dedicated account" : undefined}
           />
@@ -313,13 +306,7 @@ export function FundRequestForm({
   const [formOpen, setFormOpen] = useState(false);
   const attemptKey = useRef(createAttemptKeyHolder("fund-request"));
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const selectedBank = banks.find((b) => b.id === bankAccountId) ?? null;
-
   function openForm() {
-    if (!bankAccountId) {
-      toast.error("Select the company bank account you deposited to");
-      return;
-    }
     setFormOpen(true);
   }
 
@@ -525,7 +512,19 @@ export function FundRequestForm({
                 <RefreshCcw size={14} />
                 Refresh
               </PrimaryButton>
-            ) : null}
+            ) : (
+              <PrimaryButton
+                type="button"
+                variant="success"
+                size="sm"
+                showArrow={false}
+                disabled={banks.length === 0}
+                onClick={openForm}
+                className="!w-auto"
+              >
+                <Plus size={16} /> Create fund request
+              </PrimaryButton>
+            )}
           </div>
 
           <InfoBanner tone={activeTab === "upi" || activeTab === "bank" ? "amber" : "blue"}>{tab.subtext}</InfoBanner>
@@ -683,29 +682,10 @@ export function FundRequestForm({
                       No collection accounts available right now.
                     </p>
                   ) : (
-                    <BankCardSlider
-                      banks={banks}
-                      myVan={myVan}
-                      selected={bankAccountId}
-                      onSelect={(id) => {
-                        setBankAccountId(id);
-                        attemptKey.current.clear();
-                      }}
-                    />
+                    <BankCardSlider banks={banks} myVan={myVan} />
                   )}
                 </div>
               )}
-
-              <PrimaryButton
-                type="button"
-                variant="success"
-                showArrow={false}
-                disabled={banks.length === 0}
-                onClick={openForm}
-                className="mt-6 !w-auto"
-              >
-                <Plus size={16} /> Create fund request
-              </PrimaryButton>
 
               {formOpen && typeof document !== "undefined"
                 ? createPortal(
@@ -725,13 +705,9 @@ export function FundRequestForm({
                     <p className="text-base font-bold" style={{ color: B.blue }}>
                       Create fund request
                     </p>
-                    {selectedBank ? (
-                      <p className="mt-0.5 text-xs" style={{ color: B.muted }}>
-                        Deposited to {selectedBank.bankName}
-                        {selectedBank.branchName ? `, ${selectedBank.branchName}` : ""} · ****
-                        {selectedBank.accountNumberLast4}
-                      </p>
-                    ) : null}
+                    <p className="mt-0.5 text-xs" style={{ color: B.muted }}>
+                      Fill the deposit details exactly as on your bank slip
+                    </p>
                   </div>
                   <button
                     type="button"
@@ -745,6 +721,28 @@ export function FundRequestForm({
                   </button>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <FieldLabel>Deposited to bank</FieldLabel>
+                    <select
+                      value={bankAccountId}
+                      onChange={(e) => {
+                        setBankAccountId(e.target.value);
+                        attemptKey.current.clear();
+                      }}
+                      className={inputClass}
+                      style={inputStyle}
+                    >
+                      {banks.length > 1 ? <option value="">Select the bank you deposited to</option> : null}
+                      {banks
+                        .filter((b) => b.isActive !== false)
+                        .map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.bankName}
+                            {b.branchName ? `, ${b.branchName}` : ""} · ****{b.accountNumberLast4}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
                   <div>
                     <FieldLabel>Amount (₹)</FieldLabel>
                     <input
