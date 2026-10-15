@@ -110,7 +110,7 @@ export function BankDetailCard({
   const accountShown = showFull ? (accountFull as string) : accountMasked;
   const canReveal = Boolean(onToggleReveal);
   const resolvedBank = bankName || bankNameFromIfsc(ifsc);
-  const bankLine = [resolvedBank, branch].filter(Boolean).join(" · ");
+  const bankLine = [resolvedBank, branch].filter(Boolean).join(", ");
   const tint = bankBrandTint(ifsc);
   const glow = bankCardGlowColor(ifsc);
   const fillColors = bankCardFillColors(ifsc);

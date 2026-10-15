@@ -132,7 +132,7 @@ export function BankDetailCard({
   const accountShown = showFull ? (accountFull as string) : accountMasked;
   const canReveal = Boolean(onToggleReveal);
   const resolvedBank = bankName || bankNameFromIfsc(ifsc);
-  const bankLine = [resolvedBank, branch].filter(Boolean).join(" · ");
+  const bankLine = [resolvedBank, branch].filter(Boolean).join(", ");
   const tint = bankBrandTint(ifsc);
   const corners = bankCardCornerGlows(ifsc);
   const ink = "#0F172A";

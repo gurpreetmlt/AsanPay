@@ -471,13 +471,14 @@ function BankDetailsModal({ bank, onClose }: { bank: BankCard; onClose: () => vo
 
   const rows: { label: string; value: string; copy?: boolean; mono?: boolean; missing?: boolean }[] = details
     ? [
+        details.branchName
+          ? { label: "Bank / Branch", value: `${details.bankName}, ${details.branchName}`, copy: true }
+          : { label: "Bank / Branch", value: `${details.bankName}, branch not added`, missing: true },
         profile("Account type", details.accountType ? titleCase(details.accountType) : null),
         { label: "Account number", value: details.accountNumber, copy: true, mono: true },
         profile("Account name", details.holderName),
-        { label: "Bank name", value: details.bankName, copy: true },
         { label: "IFSC", value: details.ifsc, copy: true, mono: true },
         profile("Branch code", details.branchCode, true),
-        profile("Branch name", details.branchName),
         profile("City / District", details.city),
         { label: "Purpose", value: PURPOSE_LABEL[details.purpose] },
         { label: "Status", value: details.isActive ? "Active" : "Inactive" },

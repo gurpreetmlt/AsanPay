@@ -988,6 +988,9 @@ function BankDetailsCard(props: {
           </p>
         </div>
       </div>
+      <ConfirmRow label="Bank / Branch">
+        {props.branchName ? `${props.bankName}, ${props.branchName}` : <>{props.bankName}, {missing}</>}
+      </ConfirmRow>
       <ConfirmRow label="Account type">
         {props.accountType ? props.accountType.charAt(0).toUpperCase() + props.accountType.slice(1) : missing}
       </ConfirmRow>
@@ -995,7 +998,6 @@ function BankDetailsCard(props: {
         <span className="font-mono">{props.accountNumber}</span>
       </ConfirmRow>
       <ConfirmRow label="Account name">{props.holderName || missing}</ConfirmRow>
-      <ConfirmRow label="Branch name">{props.branchName || missing}</ConfirmRow>
       <ConfirmRow label="Branch code">{props.branchCode ? <span className="font-mono">{props.branchCode}</span> : missing}</ConfirmRow>
       {props.showCity || props.city ? <ConfirmRow label="City / District">{props.city || missing}</ConfirmRow> : null}
       <ConfirmRow label="Purpose">{PURPOSE_TEXT[props.purpose]}</ConfirmRow>
