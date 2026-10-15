@@ -514,9 +514,9 @@ export default function NetworkPage() {
                         "Main",
                         "AEPS",
                         "Credit",
-                        "Actions",
                         "History",
                         "Status",
+                        "Actions",
                       ].map((h) => (
                         <th
                           key={h}
@@ -561,6 +561,32 @@ export default function NetworkPage() {
                             —
                           </td>
                           <td className="px-4 py-3.5">
+                            <ActionIconButton
+                              title="History"
+                              tone="amber"
+                              onClick={() => void openHistory(m)}
+                            >
+                              <History size={16} strokeWidth={2.25} />
+                            </ActionIconButton>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <div className="flex items-center gap-2">
+                              <StatusBadge tone={m.isActive ? "success" : "danger"}>
+                                {m.isActive ? "Active" : "Inactive"}
+                              </StatusBadge>
+                              {canToggleChildren && isDirect ? (
+                                <ActionIconButton
+                                  title={m.isActive ? "Disable agent" : "Enable agent"}
+                                  tone={m.isActive ? "amber" : "green"}
+                                  disabled={togglingId === m.id}
+                                  onClick={() => void toggleChild(m.id, !m.isActive)}
+                                >
+                                  <Power size={15} strokeWidth={2.25} />
+                                </ActionIconButton>
+                              ) : null}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3.5">
                             <div className="flex items-center gap-2">
                               <button
                                 type="button"
@@ -594,32 +620,6 @@ export default function NetworkPage() {
                               >
                                 <ArrowLeft size={13} strokeWidth={2.5} /> Reverse
                               </button>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3.5">
-                            <ActionIconButton
-                              title="History"
-                              tone="amber"
-                              onClick={() => void openHistory(m)}
-                            >
-                              <History size={16} strokeWidth={2.25} />
-                            </ActionIconButton>
-                          </td>
-                          <td className="px-4 py-3.5">
-                            <div className="flex items-center gap-2">
-                              <StatusBadge tone={m.isActive ? "success" : "danger"}>
-                                {m.isActive ? "Active" : "Inactive"}
-                              </StatusBadge>
-                              {canToggleChildren && isDirect ? (
-                                <ActionIconButton
-                                  title={m.isActive ? "Disable agent" : "Enable agent"}
-                                  tone={m.isActive ? "amber" : "green"}
-                                  disabled={togglingId === m.id}
-                                  onClick={() => void toggleChild(m.id, !m.isActive)}
-                                >
-                                  <Power size={15} strokeWidth={2.25} />
-                                </ActionIconButton>
-                              ) : null}
                             </div>
                           </td>
                         </tr>
