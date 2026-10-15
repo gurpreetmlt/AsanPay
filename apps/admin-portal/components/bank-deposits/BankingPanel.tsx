@@ -1,7 +1,9 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "react-hot-toast";
+import { Plus, X } from "lucide-react";
 import {
   emptyIfscBankDetails,
   IfscBankDetailsFields,
@@ -68,6 +70,7 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
   const [vanNumber, setVanNumber] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<BankAccount | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
   const [viewTarget, setViewTarget] = useState<BankAccount | null>(null);
   const [vpa, setVpa] = useState("");
   const [vanRows, setVanRows] = useState<
@@ -181,6 +184,7 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
         toast.success("Bank account registered");
       }
       setReviewOpen(false);
+      setFormOpen(false);
       setBankDetails(emptyIfscBankDetails());
       setSupportsVan(false);
       setProfile(emptyProfile);
@@ -210,9 +214,11 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
       branchCode: a.branchCode ?? "",
     });
     setTab("accounts");
+    setFormOpen(true);
   }
 
   function cancelEdit() {
+    setFormOpen(false);
     setEditingId(null);
     setBankDetails(emptyIfscBankDetails());
     setPurpose("collection");
@@ -360,25 +366,50 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
           </p>
         ) : tab === "accounts" ? (
           <div className="space-y-5">
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  cancelEdit();
+                  setFormOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-bold text-white"
+                style={{ background: B.green }}
+              >
+                <Plus size={16} /> Add bank account
+              </button>
+            </div>
+
+            {formOpen
+              ? createPortal(
+                  <div
+                    className="bank-entry-backdrop fixed inset-0 z-40 flex items-center justify-center bg-slate-900/45 p-3 backdrop-blur-[2px] md:p-6"
+                    onClick={() => !saving && cancelEdit()}
+                  >
+                    <div
+                      role="dialog"
+                      aria-modal="true"
+                      className="bank-entry-modal max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white shadow-2xl"
+                      onClick={(e) => e.stopPropagation()}
+                    >
             <form
               onSubmit={registerBank}
-              className="space-y-3 rounded-2xl border bg-[var(--admin-card)] p-5"
-              style={{ borderColor: B.border }}
+              className="space-y-3 bg-[var(--admin-card)] p-5 md:p-6"
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-base font-bold" style={{ color: B.blue }}>
-                  {editingId ? "Edit bank account" : "Register bank account"}
+                <h2 className="text-lg font-bold" style={{ color: B.blue }}>
+                  {editingId ? "Edit bank account" : "Add bank account"}
                 </h2>
-                {editingId ? (
-                  <button
-                    type="button"
-                    onClick={cancelEdit}
-                    className="rounded-lg px-3 py-1.5 text-xs font-semibold"
-                    style={{ color: "#DC2626", border: `1px solid ${B.border}` }}
-                  >
-                    Cancel edit
-                  </button>
-                ) : null}
+                <button
+                  type="button"
+                  onClick={cancelEdit}
+                  disabled={saving}
+                  aria-label="Close"
+                  className="rounded-lg p-1.5"
+                  style={{ color: B.muted }}
+                >
+                  <X size={18} />
+                </button>
               </div>
               <IfscBankDetailsFields
                 value={bankDetails}
@@ -461,17 +492,31 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
                   </>
                 }
               />
-              <div className="flex justify-end">
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={cancelEdit}
+                  disabled={saving}
+                  className="rounded-xl px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60"
+                  style={{ background: B.danger }}
+                >
+                  Cancel
+                </button>
                 <button
                   type="submit"
                   disabled={saving || !bankDetails.bankName.trim() || bankDetails.ifsc.length !== 11}
                   className="rounded-xl px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60"
                   style={{ background: B.badgeGrad }}
                 >
-                  {saving ? "Saving…" : editingId ? "Save changes" : "Register account"}
+                  {saving ? "Saving…" : editingId ? "Review changes" : "Review and register"}
                 </button>
               </div>
             </form>
+                    </div>
+                  </div>,
+                  document.body,
+                )
+              : null}
 
             {accounts.length === 0 ? (
               <p className="text-sm" style={{ color: B.muted }}>
