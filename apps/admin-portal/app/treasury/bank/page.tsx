@@ -7,7 +7,7 @@ import { ArrowLeftRight, IndianRupee, Landmark, TriangleAlert } from "lucide-rea
 import { AdminShell } from "@/components/layout/AdminShell";
 import { FundRequestsPanel } from "@/components/bank-deposits/FundRequestsPanel";
 import { ReconciliationPanel } from "@/components/bank-deposits/ReconciliationPanel";
-import { BankEntriesPanel } from "@/components/bank-deposits/BankEntriesPanel";
+import { BankEntriesPanel, type OpenReconciliation } from "@/components/bank-deposits/BankEntriesPanel";
 import { BankingPanel } from "@/components/bank-deposits/BankingPanel";
 import { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
@@ -116,6 +116,15 @@ function BankDepositsContent() {
     [pathname],
   );
 
+  const openReconciliation = useCallback<OpenReconciliation>(
+    ({ bankAccountId, date, lineId }) => {
+      const q = new URLSearchParams({ tab: "reconciliation", bank: bankAccountId, from: date, to: date });
+      if (lineId) q.set("line", lineId);
+      window.history.replaceState(null, "", `${pathname}?${q.toString()}`);
+    },
+    [pathname],
+  );
+
   if (!hydrated || !accessToken) return null;
 
   const pending = summary?.pendingFundRequests ?? 0;
@@ -219,7 +228,7 @@ function BankDepositsContent() {
           ) : tab === "reconciliation" ? (
             <ReconciliationPanel onChanged={loadSummary} />
           ) : tab === "bank-entries" ? (
-            <BankEntriesPanel />
+            <BankEntriesPanel onOpenReconciliation={openReconciliation} />
           ) : tab === "bank-accounts" ? (
             <BankingPanel section="accounts" />
           ) : (

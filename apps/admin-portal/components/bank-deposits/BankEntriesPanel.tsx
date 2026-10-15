@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { toast } from "react-hot-toast";
 import {
@@ -62,6 +62,12 @@ interface BankEntry {
   hasAttachment: boolean;
   attachmentName: string | null;
   receiptUrl: string | null;
+  bankAccountId: string | null;
+  fundRequestId: string | null;
+  statement: {
+    status: StatementStatus;
+    line: { id: string; date: string; utr: string | null; narration: string | null; fileName: string | null } | null;
+  };
   status: EntryStatus;
   requestedBy: string;
   requestedByName: string;
@@ -104,6 +110,28 @@ const EMPTY_FORM = {
 
 const GREEN = "#16A34A";
 const RED = "#DC2626";
+
+type StatementStatus = "matched" | "not_found" | "not_uploaded" | "pending" | "no_bank";
+
+const STATEMENT_META: Record<StatementStatus, { label: string; color: string; bg: string; hint: string }> = {
+  matched: { label: "Matched", color: "#15803D", bg: "#DCFCE7", hint: "Confirmed by the bank statement" },
+  not_found: {
+    label: "Not in statement",
+    color: "#B91C1C",
+    bg: "#FEE2E2",
+    hint: "A statement for this date is uploaded, but this entry is not on it. Check the date, amount or bank.",
+  },
+  not_uploaded: {
+    label: "Statement not uploaded",
+    color: "#B45309",
+    bg: "#FEF3C7",
+    hint: "Upload this bank's statement for this date in the Reconciliation tab",
+  },
+  pending: { label: "Pending approval", color: "#64748B", bg: "#F1F5F9", hint: "Matched after the entry is approved" },
+  no_bank: { label: "No company bank", color: "#64748B", bg: "#F1F5F9", hint: "Paid from the owner's personal account" },
+};
+
+export type OpenReconciliation = (q: { bankAccountId: string; date: string; lineId?: string }) => void;
 
 function errMessage(err: unknown, fallback: string) {
   const ax = err as { response?: { data?: { message?: string } }; message?: string };
@@ -162,6 +190,8 @@ function exportTable(rows: BankEntry[]) {
     "API provider",
     "Narration",
     "Status",
+    "Bank statement",
+    "Statement line date",
     "Entered by",
     "Approved / rejected by",
     "Ledger journal",
@@ -186,6 +216,8 @@ function exportTable(rows: BankEntry[]) {
       r.providerName,
       r.narration,
       r.status,
+      STATEMENT_META[r.statement.status].label,
+      r.statement.line ? formatDate(r.statement.line.date) : "",
       r.requestedByName,
       r.approvedByName,
       r.journalId,
@@ -268,12 +300,13 @@ function buildReport(rows: BankEntry[], from: string, to: string, generatedBy: s
         { label: "#", width: "5%" },
         { label: "Txn date", width: "8%" },
         { label: "Company bank", width: "11%" },
-        { label: "Category / narration", width: "18%" },
-        { label: "Party / agent", width: "16%" },
+        { label: "Category / narration", width: "15%" },
+        { label: "Party / agent", width: "13%" },
         { label: "UTR / mode", width: "12%" },
         { label: "Credit (₹)", align: "right", width: "9%" },
         { label: "Debit (₹)", align: "right", width: "9%" },
         { label: "Status", align: "center", width: "7%" },
+        { label: "Bank statement", width: "9%" },
         { label: "Approved by / journal", width: "10%" },
       ],
       rows: rows.map((r) => [
@@ -286,6 +319,11 @@ function buildReport(rows: BankEntry[], from: string, to: string, generatedBy: s
         amount(r, "credit"),
         amount(r, "debit"),
         { text: STATUS_TEXT[r.status], tone: statusTone(r.status), align: "center" },
+        {
+          text: STATEMENT_META[r.statement.status].label,
+          sub: r.statement.line ? `Line ${formatDate(r.statement.line.date)}` : undefined,
+          tone: r.statement.status === "matched" ? "approved" : r.statement.status === "not_found" ? "rejected" : "muted",
+        },
         { text: r.approvedByName ?? "—", sub: r.journalId ? `J#${r.journalId}` : undefined },
       ]),
     };
@@ -408,7 +446,7 @@ function readFileAsDataUrl(file: File): Promise<string> {
   });
 }
 
-export function BankEntriesPanel() {
+export function BankEntriesPanel({ onOpenReconciliation }: { onOpenReconciliation?: OpenReconciliation } = {}) {
   const me = useAuthStore((s) => s.user);
   const [showForm, setShowForm] = useState(false);
 
@@ -431,12 +469,21 @@ export function BankEntriesPanel() {
   }, [showForm, saving]);
   const [proofInputKey, setProofInputKey] = useState(0);
   const [statusFilter, setStatusFilter] = useState<"" | EntryStatus>("");
+  const [statementFilter, setStatementFilter] = useState<"" | "matched" | "unmatched">("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [decidingId, setDecidingId] = useState<string | null>(null);
   const [approveRow, setApproveRow] = useState<BankEntry | null>(null);
   const [rejectRow, setRejectRow] = useState<BankEntry | null>(null);
   const [canSelfApprove, setCanSelfApprove] = useState(false);
+
+  const visibleRows = useMemo(() => {
+    if (statementFilter === "matched") return rows.filter((r) => r.statement.status === "matched");
+    if (statementFilter === "unmatched") {
+      return rows.filter((r) => r.statement.status === "not_found" || r.statement.status === "not_uploaded");
+    }
+    return rows;
+  }, [rows, statementFilter]);
 
   const loadLookups = useCallback(async () => {
     try {
@@ -863,6 +910,18 @@ export function BankEntriesPanel() {
                 <option value="rejected">Rejected</option>
               </select>
             </Field>
+            <Field label="Bank statement">
+              <select
+                className={inputCls}
+                style={inputStyle}
+                value={statementFilter}
+                onChange={(e) => setStatementFilter(e.target.value as "" | "matched" | "unmatched")}
+              >
+                <option value="">All</option>
+                <option value="matched">Matched</option>
+                <option value="unmatched">Not matched</option>
+              </select>
+            </Field>
             <Field label="From date">
               <input
                 type="date"
@@ -881,14 +940,14 @@ export function BankEntriesPanel() {
                 onChange={(e) => setTo(e.target.value)}
               />
             </Field>
-            <ExportMenu rows={rows} from={from} to={to} />
+            <ExportMenu rows={visibleRows} from={from} to={to} />
           </div>
 
           {loading ? (
             <p className="text-sm" style={{ color: B.muted }}>
               Loading…
             </p>
-          ) : !rows.length ? (
+          ) : !visibleRows.length ? (
             <p className="text-sm" style={{ color: B.muted }}>
               No bank entries match this filter.
             </p>
@@ -905,13 +964,14 @@ export function BankEntriesPanel() {
                     <th className="py-2 pr-3 font-semibold">Amount</th>
                     <th className="py-2 pr-3 font-semibold">Bank</th>
                     <th className="py-2 pr-3 font-semibold">Party</th>
+                    <th className="py-2 pr-3 font-semibold">Bank statement</th>
                     <th className="py-2 pr-3 font-semibold">UTR / mode</th>
                     <th className="py-2 pr-3 font-semibold">Status</th>
                     <th className="py-2 font-semibold text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r) => {
+                  {visibleRows.map((r) => {
                     const mine = !canSelfApprove && me?.id && r.requestedBy === me.id;
                     const busy = decidingId === r.id;
                     return (
@@ -963,6 +1023,9 @@ export function BankEntriesPanel() {
                               {r.partyIfsc ?? ""} {r.partyAccountLast4 ? `••${r.partyAccountLast4}` : ""}
                             </div>
                           ) : null}
+                        </td>
+                        <td className="py-3 pr-3 text-xs">
+                          <StatementCell row={r} onOpen={onOpenReconciliation} />
                         </td>
                         <td className="py-3 pr-3 text-xs">
                           <div className="font-mono">{r.utr ?? "—"}</div>
@@ -1126,6 +1189,52 @@ function Field({
         </span>
       ) : null}
     </label>
+  );
+}
+
+function StatementCell({ row, onOpen }: { row: BankEntry; onOpen?: OpenReconciliation }) {
+  const { status, line } = row.statement;
+  const meta = STATEMENT_META[status];
+  const canOpen = !!onOpen && !!row.bankAccountId && (status === "matched" || status === "not_found");
+  const pill = (
+    <span
+      className="inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold"
+      style={{ color: meta.color, background: meta.bg }}
+    >
+      {status === "matched" ? "✓ " : ""}
+      {meta.label}
+    </span>
+  );
+  return (
+    <div className="max-w-[200px]" title={meta.hint}>
+      {canOpen ? (
+        <button
+          type="button"
+          onClick={() =>
+            onOpen!({ bankAccountId: row.bankAccountId!, date: line?.date ?? row.txnDate, lineId: line?.id })
+          }
+          className="transition hover:opacity-80 active:scale-95"
+          title={status === "matched" ? "Open this line in Reconciliation" : "Open Reconciliation for this date"}
+        >
+          {pill}
+        </button>
+      ) : (
+        pill
+      )}
+      {line ? (
+        <>
+          <div className="mt-1" style={{ color: B.muted }}>
+            Line {formatDate(line.date)}
+            {line.utr ? <span className="font-mono"> · …{line.utr.slice(-6)}</span> : null}
+          </div>
+          {line.fileName ? (
+            <div className="truncate text-[10px]" style={{ color: B.muted }} title={line.fileName}>
+              {line.fileName}
+            </div>
+          ) : null}
+        </>
+      ) : null}
+    </div>
   );
 }
 

@@ -10,6 +10,7 @@ import {
   char,
   date,
   boolean,
+  integer,
   timestamp,
   index,
   uniqueIndex,
@@ -17,6 +18,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { tenants } from "./tenants";
 import { accounts } from "./accounts";
+import { users } from "./users";
 
 export const bankPurposeEnum = pgEnum("bank_purpose", ["collection", "payout", "ops"]);
 
@@ -93,6 +95,34 @@ export const virtualAccounts = pgTable(
 
 // Imported bank statement lines. The matching engine is useless without these, and unmatched
 // CREDIT lines are the single best fraud and leakage indicator the platform has.
+// One row per statement upload (all batches of one file share it). Counts are what the upload
+// itself did; how many of its lines are matched *now* is computed live from the lines.
+export const bankStatementImports = pgTable(
+  "bank_statement_imports",
+  {
+    id: bigserial("id", { mode: "bigint" }).primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    bankAccountId: bigint("bank_account_id", { mode: "bigint" })
+      .notNull()
+      .references(() => bankAccounts.id, { onDelete: "restrict" }),
+    fileName: varchar("file_name", { length: 200 }),
+    source: varchar("source", { length: 10 }).notNull().default("paste").$type<"file" | "paste">(),
+    periodFrom: date("period_from"),
+    periodTo: date("period_to"),
+    lineCount: integer("line_count").notNull().default(0),
+    insertedCount: integer("inserted_count").notNull().default(0),
+    duplicateCount: integer("duplicate_count").notNull().default(0),
+    importedBy: uuid("imported_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("bank_statement_imports_tenant_idx").on(table.tenantId, table.createdAt),
+    check("bank_statement_imports_source_valid", sql`${table.source} IN ('file', 'paste')`),
+  ],
+);
+
 export const bankStatementLines = pgTable(
   "bank_statement_lines",
   {
@@ -125,8 +155,13 @@ export const bankStatementLines = pgTable(
     // Set when an unresolved credit line is parked in suspense so treasury reflects reality.
     suspenseJournalId: bigint("suspense_journal_id", { mode: "bigint" }),
     importedAt: timestamp("imported_at", { withTimezone: true }).notNull().defaultNow(),
+    // The upload that first brought this line in. Re-uploads of the same line keep the original.
+    importId: bigint("import_id", { mode: "bigint" }).references(() => bankStatementImports.id, {
+      onDelete: "set null",
+    }),
   },
   (table) => [
+    index("bank_statement_lines_import_idx").on(table.importId),
     uniqueIndex("bank_statement_lines_txn_uidx").on(table.bankAccountId, table.bankTxnId),
     // One line can be consumed by exactly one claim. This is the constraint that stops the
     // same deposit being credited to two different retailers.

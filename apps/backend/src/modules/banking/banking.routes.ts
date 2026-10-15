@@ -40,7 +40,9 @@ import {
   reconAutoMatchSchema,
   reconLinkSchema,
   reconUnlinkSchema,
+  statementImportsQuerySchema,
 } from "./banking.validators";
+import { listStatementImports, recordImportBatch, startStatementImport } from "./statementImports.service";
 import {
   autoMatchStatement,
   getReconciliation,
@@ -237,9 +239,21 @@ bankingRouter.post(
     const body = req.body as ReturnType<typeof importStatementSchema.parse>;
     const tenantId = await resolveTenantId();
 
+    const importId = await startStatementImport({
+      tenantId,
+      bankAccountId: BigInt(body.bankAccountId),
+      importId: body.importId,
+      fileName: body.fileName,
+      source: body.source,
+      periodFrom: body.periodFrom,
+      periodTo: body.periodTo,
+      importedBy: req.auth.sub,
+    });
+
     const imported = await importStatementLines({
       tenantId,
       bankAccountId: BigInt(body.bankAccountId),
+      importId,
       lines: body.lines.map((line) => ({
         bankTxnId: line.bankTxnId,
         txnDate: line.txnDate,
@@ -252,6 +266,12 @@ bankingRouter.post(
         balanceAfter: line.balanceAfter != null ? rupeesToPaise(line.balanceAfter) : null,
       })),
     });
+    await recordImportBatch({
+      importId,
+      lines: body.lines.length,
+      inserted: imported.imported,
+      duplicates: imported.skipped,
+    });
 
     // Fund requests first: an agent's deposit must claim its line before a bank entry can.
     const rematched = await rematchPending(tenantId);
@@ -259,11 +279,25 @@ bankingRouter.post(
 
     sendSuccess(
       res,
-      { ...imported, rematched: rematched.processed, autoMatched: autoMatched.linked },
+      {
+        ...imported,
+        importId: String(importId),
+        rematched: rematched.processed,
+        autoMatched: autoMatched.linked,
+      },
       "Statement lines imported",
     );
   },
 );
+
+bankingRouter.get("/statement-imports", requireRole("admin"), async (req, res) => {
+  const q = statementImportsQuerySchema.safeParse(req.query);
+  if (!q.success) {
+    throw new HttpError(422, q.error.issues[0]?.message ?? "Invalid upload history filter", "VALIDATION_ERROR");
+  }
+  const tenantId = await resolveTenantId();
+  sendSuccess(res, await listStatementImports({ tenantId, ...q.data }));
+});
 
 bankingRouter.get("/reconciliation", requireRole("admin"), async (req, res) => {
   const q = reconQuerySchema.safeParse(req.query);

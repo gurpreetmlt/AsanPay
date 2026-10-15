@@ -385,6 +385,7 @@ export async function listBankEntries(params: {
       journalId: bankEntries.journalId,
       requestedAt: bankEntries.requestedAt,
       decidedAt: bankEntries.decidedAt,
+      bankAccountId: bankEntries.bankAccountId,
       bankName: bankAccounts.bankName,
       bankLast4: bankAccounts.accountNumberLast4,
       providerName: providers.name,
@@ -423,21 +424,128 @@ export async function listBankEntries(params: {
     journalId: r.journalId != null ? String(r.journalId) : null,
     requestedAt: r.requestedAt,
     decidedAt: r.decidedAt,
+    bankAccountId: r.bankAccountId != null ? String(r.bankAccountId) : null,
     bankName: r.bankName,
     bankLast4: r.bankLast4,
     providerName: r.providerName,
     agent: null as AgentRef | null,
+    fundRequestId: null as string | null,
   }));
 
   // Credited agent fund requests are bank credits too; list them read-only so the register
   // (and the CA export) shows every rupee that entered a company bank.
-  if (params.status && params.status !== "approved") return entries;
+  if (params.status && params.status !== "approved") return attachStatementInfo(params.tenantId, entries);
   const deposits = await listCreditedFundRequests(params.tenantId, params.from, params.to, limit);
-  return [...entries, ...deposits]
+  const combined = [...entries, ...deposits]
     .sort((a, b) =>
       a.txnDate === b.txnDate ? b.requestedAt.getTime() - a.requestedAt.getTime() : a.txnDate < b.txnDate ? 1 : -1,
     )
     .slice(0, limit);
+  return attachStatementInfo(params.tenantId, combined);
+}
+
+/**
+ * - matched: a statement line is tied to this entry (bank entry journal / fund request claim)
+ * - not_found: a statement covering this date was uploaded for this bank, but no line is tied
+ * - not_uploaded: no statement for this bank covers this date yet
+ * - pending: entry not approved, so nothing can be matched yet
+ * - no_bank: paid outside the company bank (owner's personal account)
+ */
+export type StatementStatus = "matched" | "not_found" | "not_uploaded" | "pending" | "no_bank";
+
+interface StatementLinkable {
+  source: "bank_entry" | "fund_request";
+  status: string;
+  journalId: string | null;
+  fundRequestId: string | null;
+  bankAccountId: string | null;
+  txnDate: string;
+}
+
+type LinkedLineRow = {
+  id: string;
+  txn_date: string;
+  utr: string | null;
+  narration: string | null;
+  matched_to_type: string;
+  matched_to_id: string;
+  file_name: string | null;
+};
+
+async function attachStatementInfo<T extends StatementLinkable>(tenantId: string, rows: T[]) {
+  const journalIds = rows.filter((r) => r.source === "bank_entry" && r.journalId).map((r) => r.journalId!);
+  const frIds = rows.filter((r) => r.fundRequestId).map((r) => r.fundRequestId!);
+  const idList = (ids: string[]) =>
+    sql.join(
+      ids.map((id) => sql`${id}`),
+      sql`, `,
+    );
+
+  const linked = new Map<string, LinkedLineRow>();
+  if (journalIds.length || frIds.length) {
+    const result = await db.execute<LinkedLineRow>(sql`
+      SELECT l.id::text, l.txn_date::text, l.utr, l.narration, l.matched_to_type,
+             l.matched_to_id::text, i.file_name
+      FROM bank_statement_lines l
+      LEFT JOIN bank_statement_imports i ON i.id = l.import_id
+      WHERE l.tenant_id = ${tenantId}
+        AND (
+          ${journalIds.length ? sql`(l.matched_to_type = 'journal' AND l.matched_to_id IN (${idList(journalIds)}))` : sql`FALSE`}
+          OR
+          ${frIds.length ? sql`(l.matched_to_type = 'fund_request' AND l.matched_to_id IN (${idList(frIds)}))` : sql`FALSE`}
+        )
+    `);
+    for (const l of result.rows) linked.set(`${l.matched_to_type}:${l.matched_to_id}`, l);
+  }
+
+  // A date counts as covered only if an upload's statement period includes it. Lines imported
+  // before upload history existed have no period, so each covers just its own date.
+  const coverageRows = await db.execute<{ bank_account_id: string; first: string; last: string }>(sql`
+    SELECT bank_account_id::text, period_from::text AS first, period_to::text AS last
+    FROM bank_statement_imports
+    WHERE tenant_id = ${tenantId} AND period_from IS NOT NULL AND period_to IS NOT NULL
+    UNION
+    SELECT bank_account_id::text, txn_date::text, txn_date::text
+    FROM bank_statement_lines
+    WHERE tenant_id = ${tenantId} AND import_id IS NULL
+  `);
+  const coverage = new Map<string, Array<{ first: string; last: string }>>();
+  for (const c of coverageRows.rows) {
+    const list = coverage.get(c.bank_account_id) ?? [];
+    list.push({ first: c.first, last: c.last });
+    coverage.set(c.bank_account_id, list);
+  }
+  const covered = (bankAccountId: string, date: string) =>
+    (coverage.get(bankAccountId) ?? []).some((c) => date >= c.first && date <= c.last);
+
+  return rows.map((r) => {
+    const key =
+      r.source === "fund_request" ? `fund_request:${r.fundRequestId}` : r.journalId ? `journal:${r.journalId}` : null;
+    const line = key ? linked.get(key) : undefined;
+
+    let statementStatus: StatementStatus;
+    if (!r.bankAccountId) statementStatus = "no_bank";
+    else if (line) statementStatus = "matched";
+    else if (r.status !== "approved") statementStatus = "pending";
+    else if (covered(r.bankAccountId, r.txnDate)) statementStatus = "not_found";
+    else statementStatus = "not_uploaded";
+
+    return {
+      ...r,
+      statement: {
+        status: statementStatus,
+        line: line
+          ? {
+              id: line.id,
+              date: line.txn_date,
+              utr: line.utr,
+              narration: line.narration,
+              fileName: line.file_name,
+            }
+          : null,
+      },
+    };
+  });
 }
 
 interface AgentRef {
@@ -490,6 +598,7 @@ async function listCreditedFundRequests(
       submittedAt: fundRequests.submittedAt,
       creditedAt: fundRequests.creditedAt,
       receiveJournalId: fundRequests.receiveJournalId,
+      bankAccountId: fundRequests.bankAccountId,
       bankName: bankAccounts.bankName,
       bankLast4: bankAccounts.accountNumberLast4,
       agentId: agent.id,
@@ -540,10 +649,12 @@ async function listCreditedFundRequests(
       journalId: r.receiveJournalId != null ? String(r.receiveJournalId) : null,
       requestedAt: r.submittedAt,
       decidedAt: r.creditedAt,
+      bankAccountId: String(r.bankAccountId) as string | null,
       bankName: r.bankName as string | null,
       bankLast4: r.bankLast4 as string | null,
       providerName: null as string | null,
       agent: { name: r.agentName, uid: r.agentUid, mobile: r.agentMobile, role: roleLabel } as AgentRef | null,
+      fundRequestId: String(r.id) as string | null,
     };
   });
 }

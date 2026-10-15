@@ -206,6 +206,7 @@ export async function importStatementLines(params: {
   tenantId: string;
   bankAccountId: bigint;
   lines: readonly StatementLineInput[];
+  importId?: bigint | null;
 }): Promise<{ imported: number; skipped: number }> {
   const { tenantId, bankAccountId, lines } = params;
   if (lines.length === 0) return { imported: 0, skipped: 0 };
@@ -213,6 +214,7 @@ export async function importStatementLines(params: {
   const values = lines.map((line) => ({
     tenantId,
     bankAccountId,
+    importId: params.importId ?? null,
     // Where the feed gives no id, derive a stable one. Two genuinely identical transactions on
     // the same day would collapse into one row — rare, and far safer than double-crediting.
     bankTxnId: line.bankTxnId?.trim() || synthesiseTxnId(line),

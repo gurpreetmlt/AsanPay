@@ -57,8 +57,20 @@ export const importStatementSchema = z.object({
     )
     .min(1)
     .max(500),
+  // Upload history. The first batch of an upload omits importId and gets one back; later
+  // batches of the same file send it so the whole file is one history row.
+  importId: z.string().regex(/^\d+$/, "importId must be a numeric id").optional(),
+  fileName: z.string().trim().max(200).optional().nullable(),
+  source: z.enum(["file", "paste"]).optional(),
+  periodFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "periodFrom must be YYYY-MM-DD").optional(),
+  periodTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "periodTo must be YYYY-MM-DD").optional(),
 });
 export type ImportStatementBody = z.infer<typeof importStatementSchema>;
+
+export const statementImportsQuerySchema = z.object({
+  bankAccountId: z.string().regex(/^\d+$/, "Select a company bank account").optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD");
 

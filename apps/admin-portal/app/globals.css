@@ -559,6 +559,30 @@ html.dark ::placeholder {
   }
 }
 
+/* Reconciliation row opened from Bank entries */
+@keyframes recon-row-focus {
+  0%,
+  100% {
+    box-shadow: inset 4px 0 0 #2a5cdd;
+  }
+  50% {
+    box-shadow:
+      inset 4px 0 0 #2a5cdd,
+      inset 0 0 0 9999px rgba(42, 92, 221, 0.08);
+  }
+}
+
+.recon-row-focus {
+  animation: recon-row-focus 1.2s ease-in-out 3;
+  box-shadow: inset 4px 0 0 #2a5cdd;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .recon-row-focus {
+    animation: none;
+  }
+}
+
 /* New bank entry modal */
 @keyframes bank-entry-modal-in {
   from {

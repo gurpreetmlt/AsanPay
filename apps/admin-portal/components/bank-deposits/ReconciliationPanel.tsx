@@ -55,6 +55,25 @@ interface ReconRow {
   unlinkable: boolean;
 }
 
+interface StatementImport {
+  id: string;
+  bankAccountId: string;
+  bankName: string;
+  last4: string;
+  fileName: string | null;
+  source: string;
+  periodFrom: string | null;
+  periodTo: string | null;
+  lineCount: number;
+  newLines: number;
+  duplicates: number;
+  matched: number;
+  suspense: number;
+  unmatched: number;
+  importedBy: string | null;
+  uploadedAt: string;
+}
+
 interface ReconReport {
   bank: { id: string; bankName: string; last4: string };
   period: { from: string; to: string };
@@ -312,6 +331,25 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<"attention" | "matched" | "all">("attention");
   const [busyLine, setBusyLine] = useState<string | null>(null);
+  const [focusLine, setFocusLine] = useState<string | null>(null);
+  const focusRowRef = useRef<HTMLTableRowElement | null>(null);
+  const reconcileRef = useRef<HTMLElement | null>(null);
+  const [history, setHistory] = useState<StatementImport[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+
+  const loadHistory = useCallback(async () => {
+    try {
+      setHistory(await fetchApi<StatementImport[]>("/banking/statement-imports", { limit: "20" }));
+    } catch (err) {
+      toast.error(errMessage(err, "Could not load the statement upload history"));
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadHistory();
+  }, [loadHistory]);
 
   useEffect(() => {
     fetchApi<BankAccount[]>("/banking/accounts", { purpose: "all" })
@@ -348,6 +386,43 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
     [bankId, from, to, onChanged],
   );
 
+  // Deep link from Bank entries: ?bank=&from=&to=&line= opens that period and highlights the line.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const b = q.get("bank");
+    const f = q.get("from");
+    const t = q.get("to");
+    if (!b || !f || !t) return;
+    setBankId(b);
+    setFrom(f);
+    setTo(t);
+    setFilter("all");
+    setFocusLine(q.get("line"));
+    for (const k of ["bank", "from", "to", "line"]) q.delete(k);
+    window.history.replaceState(null, "", `${window.location.pathname}?${q.toString()}`);
+    void runReport({ bankId: b, from: f, to: t });
+    // Runs once on mount; runReport is read with the deep-link values passed explicitly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (report && focusLine) focusRowRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [report, focusLine]);
+
+  function viewImport(imp: StatementImport) {
+    if (!imp.periodFrom || !imp.periodTo) {
+      return void toast.error("This upload has no statement period recorded — pick the dates manually");
+    }
+    const range = { bankId: imp.bankAccountId, from: imp.periodFrom, to: imp.periodTo };
+    setBankId(range.bankId);
+    setFrom(range.from);
+    setTo(range.to);
+    setFilter("all");
+    setFocusLine(null);
+    reconcileRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    void runReport(range);
+  }
+
   async function onFile(file: File | null) {
     setParsed(null);
     if (!file) {
@@ -382,21 +457,31 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
     let imported = 0;
     let skipped = 0;
     let matched = 0;
+    const dates = parsed.lines.map((l) => l.txnDate).sort();
+    const range = { bankId: uploadBankId, from: dates[0]!, to: dates[dates.length - 1]! };
+    let importId: string | undefined;
     try {
       for (let i = 0; i < parsed.lines.length; i += BATCH) {
         const { data } = await api.post(
           "/banking/statements/import",
-          { bankAccountId: uploadBankId, lines: parsed.lines.slice(i, i + BATCH) },
+          {
+            bankAccountId: uploadBankId,
+            lines: parsed.lines.slice(i, i + BATCH),
+            importId,
+            fileName,
+            source: fileName ? "file" : "paste",
+            periodFrom: range.from,
+            periodTo: range.to,
+          },
           { headers: { "Idempotency-Key": newKey() } },
         );
         if (!data.success) throw new Error(data.message);
+        importId = data.data.importId ?? importId;
         imported += data.data.imported ?? 0;
         skipped += data.data.skipped ?? 0;
         matched += data.data.autoMatched ?? 0;
       }
       toast.success(`Imported ${imported} new line(s), ${skipped} already uploaded, ${matched} matched by UTR`);
-      const dates = parsed.lines.map((l) => l.txnDate).sort();
-      const range = { bankId: uploadBankId, from: dates[0]!, to: dates[dates.length - 1]! };
       setBankId(range.bankId);
       setFrom(range.from);
       setTo(range.to);
@@ -409,6 +494,7 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
       toast.error(errMessage(err, "Statement import failed"));
     } finally {
       setImporting(false);
+      void loadHistory();
     }
   }
 
@@ -418,6 +504,7 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
     try {
       await api.post("/banking/reconciliation/link", { lineId: row.line.id, journalId: row.record.journalId });
       toast.success("Match confirmed");
+      void loadHistory();
       await runReport();
     } catch (err) {
       toast.error(errMessage(err, "Could not confirm the match"));
@@ -432,6 +519,7 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
     try {
       await api.post("/banking/reconciliation/unlink", { lineId: row.line.id });
       toast.success("Match removed");
+      void loadHistory();
       await runReport();
     } catch (err) {
       toast.error(errMessage(err, "Could not remove the match"));
@@ -613,7 +701,11 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
           ) : null}
         </section>
 
-        <section className="space-y-4 rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
+        <section
+          ref={reconcileRef}
+          className="scroll-mt-4 space-y-4 rounded-2xl border bg-white p-5"
+          style={{ borderColor: B.border }}
+        >
           <h2 className="text-base font-bold" style={{ color: B.blue }}>
             2. Reconcile
           </h2>
@@ -771,13 +863,15 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                       visibleRows.map((r, i) => {
                         const meta = KIND_META[r.kind];
                         const busy = !!r.line && busyLine === r.line.id;
+                        const focused = !!focusLine && r.line?.id === focusLine;
                         return (
                           <tr
                             key={`${r.line?.id ?? "x"}-${r.record?.journalId ?? "x"}-${i}`}
-                            className="border-t align-top"
+                            ref={focused ? focusRowRef : undefined}
+                            className={`border-t align-top ${focused ? "recon-row-focus" : ""}`}
                             style={{
                               borderColor: B.border,
-                              background: r.kind === "matched" ? undefined : `${meta.bg}80`,
+                              background: focused ? "#DBEAFE" : r.kind === "matched" ? undefined : `${meta.bg}80`,
                             }}
                           >
                             <td className="whitespace-nowrap px-3 py-2.5">{dmy(r.line?.date ?? r.record?.date ?? "")}</td>
@@ -882,6 +976,102 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
             <p className="text-sm" style={{ color: B.muted }}>
               Pick a bank and period, then Run reconciliation.
             </p>
+          )}
+        </section>
+
+        <section className="space-y-3 rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-base font-bold" style={{ color: B.blue }}>
+              3. Upload history
+            </h2>
+            <p className="text-xs" style={{ color: B.muted }}>
+              Every statement uploaded, newest first. Matched counts are live.
+            </p>
+          </div>
+          {historyLoading ? (
+            <p className="text-sm" style={{ color: B.muted }}>
+              Loading…
+            </p>
+          ) : !history.length ? (
+            <p className="text-sm" style={{ color: B.muted }}>
+              No statement uploaded yet. Uploads made before this history existed are not listed — use Reconcile with
+              their dates.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[900px] text-sm">
+                <thead>
+                  <tr className="text-left text-xs uppercase" style={{ color: B.muted }}>
+                    <th className="px-3 py-2">Uploaded</th>
+                    <th className="px-3 py-2">Bank</th>
+                    <th className="px-3 py-2">File</th>
+                    <th className="px-3 py-2">Statement period</th>
+                    <th className="px-3 py-2 text-right">Lines</th>
+                    <th className="px-3 py-2">Match result</th>
+                    <th className="px-3 py-2 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.map((h) => (
+                    <tr key={h.id} className="border-t align-top" style={{ borderColor: B.border }}>
+                      <td className="whitespace-nowrap px-3 py-2.5">
+                        <p style={{ color: B.blue }}>{new Date(h.uploadedAt).toLocaleString("en-IN")}</p>
+                        <p className="text-xs" style={{ color: B.muted }}>
+                          By {h.importedBy ?? "—"}
+                        </p>
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-xs">
+                        {h.bankName} ••{h.last4}
+                      </td>
+                      <td className="max-w-[220px] px-3 py-2.5 text-xs">
+                        <p className="truncate" title={h.fileName ?? ""} style={{ color: B.blue }}>
+                          {h.fileName ?? "Pasted rows"}
+                        </p>
+                        <p style={{ color: B.muted }}>{h.source === "file" ? "CSV file" : "Copy-paste"}</p>
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-xs">
+                        {h.periodFrom && h.periodTo ? `${dmy(h.periodFrom)} to ${dmy(h.periodTo)}` : "—"}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-right text-xs">
+                        <p className="font-semibold" style={{ color: B.blue }}>
+                          {h.lineCount} in file
+                        </p>
+                        <p style={{ color: B.muted }}>
+                          {h.newLines} new · {h.duplicates} already uploaded
+                        </p>
+                      </td>
+                      <td className="px-3 py-2.5 text-xs">
+                        <div className="flex flex-wrap gap-1.5">
+                          <span className="rounded-full px-2 py-0.5 font-bold" style={{ color: "#15803D", background: "#DCFCE7" }}>
+                            {h.matched} matched
+                          </span>
+                          {h.unmatched ? (
+                            <span className="rounded-full px-2 py-0.5 font-bold" style={{ color: "#B91C1C", background: "#FEE2E2" }}>
+                              {h.unmatched} not matched
+                            </span>
+                          ) : null}
+                          {h.suspense ? (
+                            <span className="rounded-full px-2 py-0.5 font-bold" style={{ color: "#B45309", background: "#FEF3C7" }}>
+                              {h.suspense} in suspense
+                            </span>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        <button
+                          type="button"
+                          onClick={() => viewImport(h)}
+                          className="rounded-lg px-3 py-1.5 text-xs font-bold text-white transition hover:-translate-y-px active:scale-95"
+                          style={{ background: B.badgeGrad }}
+                        >
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </section>
       </div>
