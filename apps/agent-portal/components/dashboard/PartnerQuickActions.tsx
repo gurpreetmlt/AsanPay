@@ -1,7 +1,8 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "react-hot-toast";
 import {
   ArrowRightLeft,
   BarChart3,
@@ -9,10 +10,16 @@ import {
   CirclePlus,
   Layers,
   MailPlus,
+  Search,
   Users,
 } from "lucide-react";
-import { B } from "@/lib/brand";
-import { useAuthStore } from "@/lib/store";
+import { Modal } from "@/components/ui/Modal";
+import { InviteModal } from "@/components/network/InviteAgentPanel";
+import { FundForm } from "@/components/dashboard/FundForm";
+import { fetchApi } from "@/lib/api";
+import { B, initials } from "@/lib/brand";
+import { formatInr } from "@/lib/walletLabels";
+import type { DownlineUser } from "@/lib/types";
 
 interface Tile {
   key: string;
@@ -24,25 +31,31 @@ interface Tile {
   onClick: () => void;
 }
 
-function greeting(): string {
-  const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 17) return "Good afternoon";
-  return "Good evening";
-}
-
 /** Top-of-dashboard actions for Super Distributor / Distributor. */
 export function PartnerQuickActions({
   childLabel,
   onBulkTransfer,
+  onChanged,
 }: {
   childLabel: "Distributor" | "Retailer";
   onBulkTransfer?: () => void;
+  /** Called after a successful transfer so the dashboard can refresh numbers. */
+  onChanged?: () => void;
 }) {
   const router = useRouter();
-  const user = useAuthStore((s) => s.user);
-  const firstName = (user?.name ?? "").trim().split(/\s+/)[0] || "there";
-  const today = new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" });
+  const childRole = childLabel === "Distributor" ? "distributor" : "retailer";
+  const [showInvite, setShowInvite] = useState(false);
+  const [picker, setPicker] = useState<DownlineUser[] | null>(null);
+  const [fundTarget, setFundTarget] = useState<DownlineUser | null>(null);
+
+  async function openFund() {
+    try {
+      const rows = await fetchApi<DownlineUser[]>("/users/downline");
+      setPicker(rows.filter((r) => r.role === childRole));
+    } catch {
+      toast.error(`Could not load your ${childLabel.toLowerCase()}s. Check your connection and try again.`);
+    }
+  }
 
   const tiles: Tile[] = [
     {
@@ -52,16 +65,16 @@ export function PartnerQuickActions({
       icon: <MailPlus size={20} />,
       color: "#15803D",
       bg: "#DCFCE7",
-      onClick: () => router.push("/network?invite=1"),
+      onClick: () => setShowInvite(true),
     },
     {
       key: "fund",
       label: `Fund ${childLabel}`,
-      hint: "Top-up or reverse",
+      hint: "Send money with PIN",
       icon: <ArrowRightLeft size={20} />,
       color: "#1D4ED8",
       bg: "#DBEAFE",
-      onClick: () => router.push("/network"),
+      onClick: () => void openFund(),
     },
     ...(onBulkTransfer
       ? [
@@ -95,7 +108,7 @@ export function PartnerQuickActions({
       onClick: () => router.push("/fund-request"),
     },
     {
-      key: "passbook",
+      key: "history",
       label: "History",
       hint: "Credits and debits",
       icon: <BookText size={20} />,
@@ -115,20 +128,8 @@ export function PartnerQuickActions({
   ];
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <h1 className="text-xl font-bold" style={{ color: B.blue }}>
-            {greeting()}, {firstName}
-          </h1>
-          <p className="text-xs" style={{ color: B.muted }}>
-            {today} · Here is your network at a glance
-          </p>
-        </div>
-      </div>
-      <div
-        className={`grid grid-cols-3 gap-2 sm:gap-3 ${tiles.length > 6 ? "lg:grid-cols-7" : "lg:grid-cols-6"}`}
-      >
+    <>
+      <div className={`grid grid-cols-3 gap-2 sm:gap-3 ${tiles.length > 6 ? "lg:grid-cols-7" : "lg:grid-cols-6"}`}>
         {tiles.map((t) => (
           <button
             key={t.key}
@@ -152,6 +153,111 @@ export function PartnerQuickActions({
           </button>
         ))}
       </div>
-    </div>
+
+      {showInvite ? <InviteModal childRole={childRole} onClose={() => setShowInvite(false)} /> : null}
+
+      {picker ? (
+        <DownlinePicker
+          title={`Fund ${childLabel}`}
+          emptyText={`No ${childLabel.toLowerCase()}s yet. Invite one first.`}
+          rows={picker}
+          onClose={() => setPicker(null)}
+          onPick={(u) => {
+            setPicker(null);
+            setFundTarget(u);
+          }}
+        />
+      ) : null}
+
+      {fundTarget ? (
+        <FundForm
+          target={fundTarget}
+          onClose={() => setFundTarget(null)}
+          onSuccess={() => onChanged?.()}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function DownlinePicker({
+  title,
+  emptyText,
+  rows,
+  onClose,
+  onPick,
+}: {
+  title: string;
+  emptyText: string;
+  rows: DownlineUser[];
+  onClose: () => void;
+  onPick: (u: DownlineUser) => void;
+}) {
+  const [q, setQ] = useState("");
+  const list = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    if (!s) return rows;
+    return rows.filter(
+      (r) => r.name.toLowerCase().includes(s) || r.mobile.includes(s) || r.uid.toLowerCase().includes(s),
+    );
+  }, [q, rows]);
+
+  return (
+    <Modal title={title} onClose={onClose}>
+      {rows.length === 0 ? (
+        <p className="py-6 text-center text-sm" style={{ color: B.muted }}>
+          {emptyText}
+        </p>
+      ) : (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 rounded-xl border px-3 py-2" style={{ borderColor: B.border }}>
+            <Search size={14} style={{ color: B.muted }} />
+            <input
+              autoFocus
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search name, mobile or ID"
+              className="w-full bg-transparent text-sm outline-none"
+            />
+          </div>
+          <div className="max-h-72 space-y-1 overflow-y-auto">
+            {list.length === 0 ? (
+              <p className="py-4 text-center text-xs" style={{ color: B.muted }}>
+                No match for &quot;{q}&quot;
+              </p>
+            ) : (
+              list.map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  disabled={!r.isActive}
+                  onClick={() => onPick(r)}
+                  className="flex w-full cursor-pointer items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <span
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+                    style={{ background: B.blue }}
+                  >
+                    {initials(r.name)}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold" style={{ color: B.blue }}>
+                      {r.name}
+                    </span>
+                    <span className="block text-[11px]" style={{ color: B.muted }}>
+                      {r.mobile} · {r.uid}
+                      {r.isActive ? "" : " · Inactive"}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-xs font-bold tabular-nums" style={{ color: B.green }}>
+                    {formatInr(r.mainBalance)}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </Modal>
   );
 }

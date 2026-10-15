@@ -61,8 +61,6 @@ export function InviteAgentPanel({ childRole }: { childRole: "distributor" | "re
   const roleLabel = childRole === "distributor" ? "Distributor" : "Retailer";
   const [invites, setInvites] = useState<Invite[]>([]);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", mobile: "", email: "" });
-  const [busy, setBusy] = useState(false);
   const [rowBusy, setRowBusy] = useState<string | null>(null);
   const [created, setCreated] = useState<CreateResult | null>(null);
 
@@ -89,28 +87,6 @@ export function InviteAgentPanel({ childRole }: { childRole: "distributor" | "re
   function closeModal() {
     setOpen(false);
     setCreated(null);
-    setForm({ name: "", mobile: "", email: "" });
-  }
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    const err = validate(form);
-    if (err) {
-      toast.error(err);
-      return;
-    }
-    setBusy(true);
-    try {
-      const { data } = await api.post<ApiResponse<CreateResult>>("/invites", form);
-      if (!data.success) throw new Error(data.message);
-      setCreated(data.data);
-      notifyEmail(data.data, form.email);
-      void load();
-    } catch (error) {
-      toast.error(extractApiError(error, "Could not create the invite"));
-    } finally {
-      setBusy(false);
-    }
   }
 
   async function resend(inv: Invite) {
@@ -243,7 +219,57 @@ export function InviteAgentPanel({ childRole }: { childRole: "distributor" | "re
       ) : null}
 
       {open ? (
-        <Modal title={created ? "Invite link ready" : `Invite ${roleLabel}`} onClose={closeModal}>
+        <InviteModal
+          childRole={childRole}
+          initialResult={created}
+          onClose={closeModal}
+          onCreated={() => void load()}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+/** Invite form + "link ready" view. Usable from any page (Network panel, dashboard tile). */
+export function InviteModal({
+  childRole,
+  initialResult = null,
+  onClose,
+  onCreated,
+}: {
+  childRole: "distributor" | "retailer";
+  initialResult?: CreateResult | null;
+  onClose: () => void;
+  onCreated?: () => void;
+}) {
+  const roleLabel = childRole === "distributor" ? "Distributor" : "Retailer";
+  const [form, setForm] = useState({ name: "", mobile: "", email: "" });
+  const [busy, setBusy] = useState(false);
+  const [created, setCreated] = useState<CreateResult | null>(initialResult);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    const err = validate(form);
+    if (err) {
+      toast.error(err);
+      return;
+    }
+    setBusy(true);
+    try {
+      const { data } = await api.post<ApiResponse<CreateResult>>("/invites", form);
+      if (!data.success) throw new Error(data.message);
+      setCreated(data.data);
+      notifyEmail(data.data, form.email);
+      onCreated?.();
+    } catch (error) {
+      toast.error(extractApiError(error, "Could not create the invite"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+        <Modal title={created ? "Invite link ready" : `Invite ${roleLabel}`} onClose={onClose}>
           {created ? (
             <div className="space-y-4">
               <p className="text-sm" style={{ color: B.muted }}>
@@ -311,7 +337,7 @@ export function InviteAgentPanel({ childRole }: { childRole: "distributor" | "re
                 </div>
               ))}
               <div className="grid grid-cols-2 gap-2 pt-2">
-                <PrimaryButton type="button" variant="destructive" showArrow={false} onClick={closeModal}>
+                <PrimaryButton type="button" variant="destructive" showArrow={false} onClick={onClose}>
                   Cancel
                 </PrimaryButton>
                 <PrimaryButton type="submit" variant="primary" disabled={busy}>
@@ -321,7 +347,5 @@ export function InviteAgentPanel({ childRole }: { childRole: "distributor" | "re
             </form>
           )}
         </Modal>
-      ) : null}
-    </div>
   );
 }

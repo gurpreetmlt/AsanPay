@@ -92,7 +92,11 @@ export function SuperDistributorDashboard() {
 
   return (
     <div className="space-y-5">
-      <PartnerQuickActions childLabel="Distributor" onBulkTransfer={() => setShowBulk(true)} />
+      <PartnerQuickActions
+        childLabel="Distributor"
+        onBulkTransfer={() => setShowBulk(true)}
+        onChanged={() => void load()}
+      />
 
       {lowFloat ? (
         <div
