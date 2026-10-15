@@ -150,12 +150,27 @@ export function FundRequestModal({ visible, onClose }: { visible: boolean; onClo
     }
   }, []);
 
+  const isPartner = user?.role === "super_distributor" || user?.role === "distributor";
+  const cashPrefill: ConfirmPrefill = {
+    mode: "cash_deposit",
+    headline: "Deposit Cash & Claim",
+    subtext:
+      "Deposit cash at the bank branch, select the bank below and upload the bank receipt — wallet loads after verification.",
+  };
+
   useEffect(() => {
     if (visible) {
-      setStep("home");
+      // Partners see their history on the Requests tab, so skip the chooser.
+      if (isPartner) {
+        setConfirmPrefill(cashPrefill);
+        setStep("confirm");
+      } else {
+        setStep("home");
+      }
       void loadAll();
     }
-  }, [visible, loadAll]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, loadAll, isPartner]);
 
   function close() {
     setStep("home");
@@ -244,8 +259,8 @@ export function FundRequestModal({ visible, onClose }: { visible: boolean; onClo
           <ConfirmStep
             banks={banks}
             myVan={myVan}
-            prefill={confirmPrefill!}
-            onBack={() => setStep("home")}
+            prefill={confirmPrefill ?? cashPrefill}
+            onBack={isPartner ? close : () => setStep("home")}
             onDone={close}
           />
         )}
