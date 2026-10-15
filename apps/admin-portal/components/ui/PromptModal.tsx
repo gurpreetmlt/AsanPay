@@ -20,6 +20,8 @@ interface PromptModalProps {
   multiline?: boolean;
   minLength?: number;
   initialValue?: string;
+  /** Quick reasons shown as chips; the text box becomes an optional note appended as "Reason — note". "Other" requires a note. */
+  presets?: string[];
   onConfirm: (value: string) => void;
   onClose: () => void;
 }
@@ -47,13 +49,17 @@ export function PromptModal({
   multiline = false,
   minLength = 0,
   initialValue = "",
+  presets,
   onConfirm,
   onClose,
 }: PromptModalProps) {
   const btn = TONE_BTN[tone];
   const [mounted, setMounted] = useState(false);
   const [value, setValue] = useState(initialValue);
+  const [preset, setPreset] = useState(presets?.[0] ?? "");
   const [error, setError] = useState<string | null>(null);
+  const hasPresets = !!presets && presets.length > 0;
+  const noteRequired = hasPresets && preset === "Other";
 
   useEffect(() => {
     setMounted(true);
@@ -65,6 +71,16 @@ export function PromptModal({
   }, []);
 
   function submit() {
+    if (hasPresets) {
+      const note = value.trim();
+      if (noteRequired && note.length < 3) {
+        setError("Write a note — at least 3 characters — when the reason is Other");
+        return;
+      }
+      setError(null);
+      onConfirm(noteRequired ? note : note ? `${preset} — ${note}` : preset);
+      return;
+    }
     const trimmed = value.trim();
     if (minLength > 0 && trimmed.length < minLength) {
       setError(`Enter at least ${minLength} characters`);
@@ -144,9 +160,38 @@ export function PromptModal({
         </div>
 
         <div className="space-y-2 px-5 py-4">
-          {label ? (
+          {hasPresets ? (
+            <>
+              <span className="block text-xs font-semibold uppercase tracking-wide" style={{ color: B.muted }}>
+                Reason
+              </span>
+              <div className="flex flex-wrap gap-2 pb-1">
+                {presets!.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    disabled={busy}
+                    data-active={preset === p}
+                    onClick={() => {
+                      setPreset(p);
+                      setError(null);
+                    }}
+                    className="tab-chip rounded-full border px-3 py-1.5 text-xs font-semibold"
+                    style={
+                      preset === p
+                        ? { background: btn, borderColor: btn, color: "#fff" }
+                        : { borderColor: B.border, color: B.blue, background: "var(--admin-bg)" }
+                    }
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : null}
+          {label || hasPresets ? (
             <label className="block text-xs font-semibold uppercase tracking-wide" style={{ color: B.muted }}>
-              {label}
+              {hasPresets ? (noteRequired ? "Note (required)" : "Note (optional)") : label}
             </label>
           ) : null}
           {multiline ? (

@@ -1325,9 +1325,15 @@ export function BankEntriesPanel({ onOpenReconciliation }: { onOpenReconciliatio
         <PromptModal
           title="Reject bank entry?"
           message="The admin who entered it will see this note."
-          label="Rejection note"
-          placeholder="e.g. Amount does not match the statement"
-          minLength={3}
+          presets={[
+            "Amount does not match the statement",
+            "UTR not found in the bank statement",
+            "Wrong bank account selected",
+            "Duplicate entry",
+            "Receipt unclear or missing",
+            "Other",
+          ]}
+          placeholder="Add details for the admin who entered it"
           multiline
           tone="danger"
           confirmLabel="Reject"
@@ -1378,9 +1384,9 @@ export function BankEntriesPanel({ onOpenReconciliation }: { onOpenReconciliatio
               ) : null}
             </>
           }
-          label="Reason"
-          placeholder="e.g. Wrong bank account"
-          minLength={5}
+          presets={["Wrong bank entry", "Wrong amount", "Duplicate entry", "Test entry", "Other"]}
+          placeholder="Add details (optional)"
+          multiline
           tone="danger"
           confirmLabel={reverseMoveTo ? "Reverse and move" : "Reverse"}
           busy={decidingId !== null}
