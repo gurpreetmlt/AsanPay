@@ -283,6 +283,8 @@ export async function approveFundRequest(params: {
   /** Only needed when linking a line manually or overriding a mismatch. */
   creditAmount?: Paise;
   note?: string;
+  /** Admin confirmed the deposit in net banking — allows approving before the statement is uploaded. */
+  manualVerified?: boolean;
 }): Promise<
   | { pendingChecker: true; status: "under_review"; creditedAmount: Paise }
   | { pendingChecker: false; journalId: bigint; creditedAmount: Paise }
@@ -298,15 +300,26 @@ export async function approveFundRequest(params: {
     if (["credited", "rejected", "cancelled"].includes(request.status)) {
       throw new HttpError(422, `Request is already ${request.status}`, "ALREADY_TERMINAL");
     }
-    if (!request.matchedLineId) {
+    const manual = !request.matchedLineId;
+    if (manual && !params.manualVerified) {
       throw new HttpError(
         422,
-        "Link a bank statement line before approving — we credit what the bank received",
-        "NO_STATEMENT_LINE",
+        "No bank statement line is linked. Tick “I verified this deposit in net banking” to approve manually, or link a bank line.",
+        "MANUAL_CONFIRM_REQUIRED",
+      );
+    }
+    if (manual && !params.note?.trim()) {
+      throw new HttpError(
+        422,
+        "Enter a verification note for manual approval, e.g. “Checked in Indian Bank net banking, UTR matches”",
+        "VERIFICATION_NOTE_REQUIRED",
       );
     }
 
-    const amount = params.creditAmount ?? (await statementAmount(tx, request.matchedLineId));
+    const amount =
+      params.creditAmount ??
+      (request.matchedLineId ? await statementAmount(tx, request.matchedLineId) : request.amount);
+    const note = manual ? `Manual net-banking verification: ${params.note?.trim()}` : params.note;
     const { getTenantSettings } = await import("../tenants/tenantSettings.service");
     const settings = await getTenantSettings(params.tenantId);
     const dualThreshold = BigInt(Math.round(settings.fundApproveDualRupees * 100));
@@ -324,7 +337,8 @@ export async function approveFundRequest(params: {
         await recordEvent(tx, request.id, request.status, "under_review", params.adminId, "admin", {
           action: "pre_approved",
           creditAmount: amount.toString(),
-          note: params.note ?? null,
+          manual,
+          note: note ?? null,
         });
         return { pendingChecker: true as const, status: "under_review" as const, creditedAmount: amount };
       }
@@ -337,7 +351,7 @@ export async function approveFundRequest(params: {
       }
     }
 
-    const result = await creditRequest(tx, request.id, amount, params.adminId, params.note);
+    const result = await creditRequest(tx, request.id, amount, params.adminId, note);
     return { pendingChecker: false as const, journalId: result.journalId, creditedAmount: amount };
   });
 }
@@ -1005,7 +1019,8 @@ export async function linkFundRequestLine(params: {
       .where(and(eq(fundRequests.id, params.requestId), eq(fundRequests.tenantId, params.tenantId)))
       .for("update");
     if (!request) throw new HttpError(404, "Fund request not found", "NOT_FOUND");
-    if (!OPEN_STATUSES.includes(request.status)) {
+    const creditedWithoutLine = request.status === "credited" && !request.matchedLineId;
+    if (!OPEN_STATUSES.includes(request.status) && !creditedWithoutLine) {
       throw new HttpError(422, `Request is already ${request.status}`, "ALREADY_TERMINAL");
     }
 
@@ -1024,6 +1039,28 @@ export async function linkFundRequestLine(params: {
     if (line.matchStatus !== "unmatched" || line.matchedToId !== null) {
       throw new HttpError(422, "That bank line is already matched to another record", "LINE_ALREADY_CLAIMED");
     }
+
+    // Manually approved earlier — attach the statement line for reconciliation; no money moves.
+    if (creditedWithoutLine) {
+      const credited = request.creditedAmount ?? request.amount;
+      if (line.amount !== credited) {
+        throw new HttpError(
+          422,
+          `Bank line amount ₹${paiseToRupees(line.amount)} does not match the credited ₹${paiseToRupees(credited)}. Pick the matching line.`,
+          "AMOUNT_MISMATCH",
+        );
+      }
+      if (!(await claimStatementLine(tx, line.id, request.id))) {
+        throw new HttpError(422, "That bank line is already matched to another record", "LINE_ALREADY_CLAIMED");
+      }
+      await tx.update(fundRequests).set({ matchedLineId: line.id }).where(eq(fundRequests.id, request.id));
+      await recordEvent(tx, request.id, "credited", "credited", params.adminId, "admin", {
+        action: "line_linked_after_credit",
+        statementLineId: line.id.toString(),
+      });
+      return { status: "credited" as FundRequestStatus };
+    }
+
     const [other] = await tx
       .select({ id: fundRequests.id })
       .from(fundRequests)

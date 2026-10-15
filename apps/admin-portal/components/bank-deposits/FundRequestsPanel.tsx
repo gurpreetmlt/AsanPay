@@ -118,6 +118,7 @@ export function FundRequestsPanel({
   const [approveFor, setApproveFor] = useState<FundRequestRow | null>(null);
   const [creditAmount, setCreditAmount] = useState("");
   const [approveNote, setApproveNote] = useState("");
+  const [manualOk, setManualOk] = useState(false);
   const [linkFor, setLinkFor] = useState<FundRequestRow | null>(null);
   const [candidates, setCandidates] = useState<LineCandidate[] | null>(null);
   const [pickedLine, setPickedLine] = useState("");
@@ -190,7 +191,11 @@ export function FundRequestsPanel({
     setActing(linkFor.id);
     try {
       await api.post(`/fund-requests/${linkFor.id}/link-line`, { lineId: pickedLine });
-      toast.success("Bank line linked — you can approve it now");
+      toast.success(
+        linkFor.status === "credited"
+          ? "Bank line linked — reconciliation updated"
+          : "Bank line linked — you can approve it now",
+      );
       setLinkFor(null);
       refresh();
     } catch (err) {
@@ -202,6 +207,15 @@ export function FundRequestsPanel({
 
   async function approve() {
     if (!approveFor || acting) return;
+    const manual = !approveFor.hasBankLine;
+    if (manual && !manualOk) {
+      toast.error("Tick “I verified this deposit in net banking” before approving");
+      return;
+    }
+    if (manual && !approveNote.trim()) {
+      toast.error("Enter a verification note, e.g. “Checked in net banking, UTR matches”");
+      return;
+    }
     setActing(approveFor.id);
     try {
       await api.post(
@@ -209,6 +223,7 @@ export function FundRequestsPanel({
         {
           ...(creditAmount.trim() ? { creditAmount: creditAmount.trim() } : {}),
           ...(approveNote.trim() ? { note: approveNote.trim() } : {}),
+          ...(manual ? { manualVerified: true } : {}),
         },
         { headers: { "Idempotency-Key": approveKey.current.get() } },
       );
@@ -398,32 +413,32 @@ export function FundRequestsPanel({
                           </button>
                           {isOpen ? (
                             <>
+                              <button
+                                type="button"
+                                disabled={acting === r.id}
+                                onClick={() => {
+                                  approveKey.current.clear();
+                                  setApproveFor(r);
+                                  setCreditAmount("");
+                                  setApproveNote("");
+                                  setManualOk(false);
+                                }}
+                                className={`${btn} text-white`}
+                                style={{ background: B.green }}
+                              >
+                                <Check size={13} /> Approve
+                              </button>
                               {needsLine ? (
                                 <button
                                   type="button"
                                   disabled={acting === r.id}
                                   onClick={() => void openLink(r)}
-                                  className={`${btn} text-white`}
-                                  style={{ background: B.badgeGrad }}
+                                  className={`${btn} border bg-white`}
+                                  style={{ borderColor: B.border, color: B.blue }}
                                 >
                                   <Link2 size={13} /> Link bank line
                                 </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  disabled={acting === r.id}
-                                  onClick={() => {
-                                    approveKey.current.clear();
-                                    setApproveFor(r);
-                                    setCreditAmount("");
-                                    setApproveNote("");
-                                  }}
-                                  className={`${btn} text-white`}
-                                  style={{ background: B.green }}
-                                >
-                                  <Check size={13} /> Approve
-                                </button>
-                              )}
+                              ) : null}
                               <button
                                 type="button"
                                 disabled={acting === r.id}
@@ -438,6 +453,17 @@ export function FundRequestsPanel({
                                 Reject
                               </button>
                             </>
+                          ) : r.status === "credited" && !r.hasBankLine ? (
+                            <button
+                              type="button"
+                              disabled={acting === r.id}
+                              onClick={() => void openLink(r)}
+                              title="Approved manually — attach the bank statement line for reconciliation"
+                              className={`${btn} border bg-white`}
+                              style={{ borderColor: B.border, color: B.blue }}
+                            >
+                              <Link2 size={13} /> Link bank line
+                            </button>
                           ) : null}
                         </div>
                       </td>
@@ -456,7 +482,8 @@ export function FundRequestsPanel({
                               <Info size={12} />
                             </span>
                             <span>
-                              <b style={{ color: B.blue }}>No bank statement line yet.</b> Upload the statement in the{" "}
+                              <b style={{ color: B.blue }}>No bank statement line yet.</b> Verify the deposit in net
+                              banking and Approve, or upload the statement in the{" "}
                               {onGoToReconciliation ? (
                                 <button
                                   type="button"
@@ -589,11 +616,25 @@ export function FundRequestsPanel({
             </h2>
             <p className="mb-4 text-xs" style={{ color: B.muted }}>
               {approveFor.requester?.name} · claimed {formatInr(approveFor.amount)}
+              {approveFor.referenceNumber ? ` · UTR / slip ${approveFor.referenceNumber}` : ""}
             </p>
+            {!approveFor.hasBankLine ? (
+              <div
+                className="mb-3 rounded-lg border px-3 py-2 text-xs"
+                style={{ background: "#FFFBEB", borderColor: "#FDE68A", color: "#92400E" }}
+              >
+                No bank statement line is linked. Check this deposit in net banking (amount, date, UTR)
+                before approving.
+              </div>
+            ) : null}
             <label className="mb-1 block text-sm font-medium text-gray-700">Credit amount (₹)</label>
             <input
               value={creditAmount}
-              placeholder="Leave blank to credit the bank statement amount"
+              placeholder={
+                approveFor.hasBankLine
+                  ? "Leave blank to credit the bank statement amount"
+                  : `Leave blank to credit ${formatInr(approveFor.amount)}`
+              }
               onChange={(e) => {
                 setCreditAmount(e.target.value.replace(/[^\d.]/g, ""));
                 approveKey.current.clear();
@@ -602,15 +643,33 @@ export function FundRequestsPanel({
               style={{ borderColor: B.border }}
             />
             <p className="mb-3 text-[11px]" style={{ color: B.muted }}>
-              Blank = the amount the bank actually received.
+              {approveFor.hasBankLine
+                ? "Blank = the amount the bank actually received."
+                : "Blank = the amount the agent entered. Change it if net banking shows a different amount."}
             </p>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Note (optional)</label>
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              {approveFor.hasBankLine ? "Note (optional)" : "Verification note *"}
+            </label>
             <input
               value={approveNote}
               onChange={(e) => setApproveNote(e.target.value)}
-              className="mb-4 w-full rounded-lg border px-3 py-2 text-sm"
+              placeholder={approveFor.hasBankLine ? "" : "e.g. Checked in net banking, UTR matches"}
+              className="mb-3 w-full rounded-lg border px-3 py-2 text-sm"
               style={{ borderColor: B.border }}
             />
+            {!approveFor.hasBankLine ? (
+              <label className="mb-4 flex cursor-pointer items-start gap-2 text-sm" style={{ color: B.blue }}>
+                <input
+                  type="checkbox"
+                  checked={manualOk}
+                  onChange={(e) => setManualOk(e.target.checked)}
+                  className="mt-0.5"
+                />
+                I verified this deposit in net banking
+              </label>
+            ) : (
+              <div className="mb-1" />
+            )}
             <div className="flex gap-2">
               <button
                 type="button"

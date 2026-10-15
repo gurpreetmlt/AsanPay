@@ -189,6 +189,7 @@ fundRequestRouter.post(
       adminId: req.auth.sub,
       creditAmount: body.creditAmount ? parseRupeeAmount(body.creditAmount) : undefined,
       note: body.note,
+      manualVerified: body.manualVerified === true,
     });
     if (result.pendingChecker) {
       sendSuccess(

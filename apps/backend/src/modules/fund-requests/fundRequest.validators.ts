@@ -37,6 +37,7 @@ export type SubmitFundRequestBody = z.infer<typeof submitFundRequestSchema>;
 export const approveFundRequestSchema = z.object({
   creditAmount: amountSchema.optional(),
   note: z.string().trim().max(500).optional(),
+  manualVerified: z.boolean().optional(),
 });
 export type ApproveFundRequestBody = z.infer<typeof approveFundRequestSchema>;
 

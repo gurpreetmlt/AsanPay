@@ -230,7 +230,7 @@ export function FundRequestModal({ visible, onClose }: { visible: boolean; onClo
                 headline: kind === "claim" ? "Deposit Cash & Claim" : "Instant Credit via E-Collect",
                 subtext:
                   kind === "claim"
-                    ? "Deposit cash at the bank branch, then upload the slip below — wallet loads in 15–60 minutes after verification."
+                    ? "Deposit cash at the bank branch, then upload the slip below — your wallet is credited once our team verifies the deposit."
                     : "Deposit cash at an E-Collect machine, then upload the receipt below for instant wallet credit.",
               })
             }
@@ -690,7 +690,7 @@ function CashSelectStep({
         <OptionRow
           icon={Building2}
           title="Deposit Cash & Claim"
-          subtitle="Deposit cash at bank & claim — 15–60 min load time"
+          subtitle="Deposit cash at bank & claim — credited after verification"
           tokens={tokens}
           onPress={() => onSelect("claim")}
         />

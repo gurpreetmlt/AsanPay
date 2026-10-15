@@ -128,7 +128,7 @@ const ALL_TABS: {
     icon: Building2,
     mode: "cash_deposit",
     headline: "Deposit Cash & Claim",
-    subtext: "Deposit cash at the bank branch, then upload the slip — credit after verification (15–60 min).",
+    subtext: "Deposit cash at the bank branch, then upload the slip — your wallet is credited once our team verifies the deposit.",
   },
   {
     id: "ecollect",
