@@ -36,7 +36,9 @@ interface BankAccount {
 
 type AccountType = "current" | "savings";
 
-const emptyProfile = { holderName: "", accountType: "current" as AccountType, branchName: "", branchCode: "" };
+const COMPANY_ACCOUNT_NAME = "ASANPAY INNOVATION PRIVATE LIMITED";
+
+const emptyProfile = { holderName: COMPANY_ACCOUNT_NAME, accountType: "current" as AccountType, branchCode: "" };
 
 function errMessage(err: unknown, fallback: string) {
   const ax = err as { response?: { data?: { message?: string } }; message?: string };
@@ -149,7 +151,7 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
     const profileBody = {
       holderName: profile.holderName.trim(),
       accountType: profile.accountType,
-      branchName: profile.branchName.trim() || bankDetails.branch.trim(),
+      branchName: bankDetails.branch.trim(),
       branchCode: profile.branchCode.trim(),
     };
     setSaving(true);
@@ -196,14 +198,14 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
       ...emptyIfscBankDetails(),
       ifsc: a.ifsc,
       bankName: a.bankName,
+      branch: a.branchName ?? "",
       accountNumber: "",
     });
     setPurpose(a.purpose);
     setSupportsVan(a.supportsVan);
     setProfile({
-      holderName: a.holderName ?? "",
+      holderName: a.holderName || COMPANY_ACCOUNT_NAME,
       accountType: a.accountType === "savings" ? "savings" : "current",
-      branchName: a.branchName ?? "",
       branchCode: a.branchCode ?? "",
     });
     setTab("accounts");
@@ -381,6 +383,7 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
                 value={bankDetails}
                 onChange={(patch) => setBankDetails((prev) => ({ ...prev, ...patch }))}
                 showHolder={false}
+                editableBankBranch
                 showConfirmAccount={!editingId}
                 accountRequired={!editingId}
                 accountPlaceholder={
@@ -434,14 +437,6 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
                         <option value="savings">Savings</option>
                       </select>
                     </label>
-                    <ProfileInput
-                      label="Branch name"
-                      placeholder={bankDetails.branch ? `As on passbook (IFSC says ${bankDetails.branch})` : "e.g. MALAUT"}
-                      hint="Leave blank to use the branch from IFSC"
-                      value={profile.branchName}
-                      disabled={saving}
-                      onChange={(v) => setProfile((p) => ({ ...p, branchName: v }))}
-                    />
                     <ProfileInput
                       label="Branch code"
                       placeholder="e.g. 06738"
@@ -761,7 +756,7 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
                 accountNumber={bankDetails.accountNumber.trim() || "Unchanged"}
                 holderName={profile.holderName.trim()}
                 accountType={profile.accountType}
-                branchName={profile.branchName.trim() || bankDetails.branch.trim()}
+                branchName={bankDetails.branch.trim()}
                 branchCode={profile.branchCode.trim()}
                 city={bankDetails.city.trim()}
                 purpose={purpose}

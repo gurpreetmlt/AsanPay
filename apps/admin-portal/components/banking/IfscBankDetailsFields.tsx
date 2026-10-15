@@ -25,6 +25,8 @@ type Props = {
   disabled?: boolean;
   className?: string;
   notifyLookupFail?: boolean;
+  /** Bank name + branch become editable; IFSC lookup only fills empty fields so saved values survive. */
+  editableBankBranch?: boolean;
   footer?: ReactNode;
 };
 
@@ -46,6 +48,7 @@ export function IfscBankDetailsFields({
   disabled = false,
   className = "",
   notifyLookupFail = true,
+  editableBankBranch = false,
   footer,
 }: Props) {
   const [busy, setBusy] = useState(false);
@@ -68,11 +71,19 @@ export function IfscBankDetailsFields({
         if (notifyLookupFail) toast.error("IFSC not found. Check the code and try again.");
         return;
       }
-      onChange({
-        bankName: place.bank,
-        branch: place.branch || "",
-        city: place.city || "",
-      });
+      onChange(
+        editableBankBranch
+          ? {
+              bankName: value.bankName.trim() || place.bank,
+              branch: value.branch.trim() || place.branch || "",
+              city: value.city.trim() || place.city || "",
+            }
+          : {
+              bankName: place.bank,
+              branch: place.branch || "",
+              city: place.city || "",
+            },
+      );
     });
     return () => {
       cancelled = true;
@@ -107,6 +118,7 @@ export function IfscBankDetailsFields({
           onChange={(e) =>
             onChange({
               ifsc: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11),
+              ...(editableBankBranch ? { bankName: "", branch: "", city: "" } : {}),
             })
           }
           required
@@ -120,27 +132,56 @@ export function IfscBankDetailsFields({
         <span className={labelCls} style={{ color: "var(--admin-muted)" }}>
           Bank name
         </span>
-        <input
-          className={inputBase}
-          style={readOnlyStyle}
-          value={value.bankName}
-          readOnly
-          placeholder={busy ? "Looking up…" : "Auto from IFSC"}
-        />
+        {editableBankBranch ? (
+          <input
+            className={inputBase}
+            style={editStyle}
+            value={value.bankName}
+            disabled={disabled}
+            onChange={(e) => onChange({ bankName: e.target.value.slice(0, 120) })}
+            placeholder={busy ? "Looking up…" : "Auto from IFSC — edit if needed"}
+          />
+        ) : (
+          <input
+            className={inputBase}
+            style={readOnlyStyle}
+            value={value.bankName}
+            readOnly
+            placeholder={busy ? "Looking up…" : "Auto from IFSC"}
+          />
+        )}
       </label>
 
       <label className="block text-sm">
         <span className={labelCls} style={{ color: "var(--admin-muted)" }}>
           Branch
         </span>
-        <input
-          className={inputBase}
-          style={readOnlyStyle}
-          value={branchLine}
-          readOnly
-          placeholder={busy ? "Looking up…" : "Auto from IFSC"}
-          title={branchLine || undefined}
-        />
+        {editableBankBranch ? (
+          <>
+            <input
+              className={inputBase}
+              style={editStyle}
+              value={value.branch}
+              disabled={disabled}
+              onChange={(e) => onChange({ branch: e.target.value.slice(0, 120) })}
+              placeholder={busy ? "Looking up…" : "Auto from IFSC — edit as on passbook"}
+            />
+            {value.city ? (
+              <span className="mt-1 block text-xs" style={{ color: "var(--admin-muted)" }}>
+                City: {value.city}
+              </span>
+            ) : null}
+          </>
+        ) : (
+          <input
+            className={inputBase}
+            style={readOnlyStyle}
+            value={branchLine}
+            readOnly
+            placeholder={busy ? "Looking up…" : "Auto from IFSC"}
+            title={branchLine || undefined}
+          />
+        )}
       </label>
 
       <label className={`block text-sm ${showHolder || showConfirmAccount ? "" : "lg:col-span-2"}`}>
