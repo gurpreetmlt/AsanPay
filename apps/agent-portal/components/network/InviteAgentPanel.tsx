@@ -78,6 +78,14 @@ export function InviteAgentPanel({ childRole }: { childRole: "distributor" | "re
     void load();
   }, [load]);
 
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("invite") !== "1") return;
+    setOpen(true);
+    url.searchParams.delete("invite");
+    window.history.replaceState(null, "", url.pathname + url.search);
+  }, []);
+
   function closeModal() {
     setOpen(false);
     setCreated(null);

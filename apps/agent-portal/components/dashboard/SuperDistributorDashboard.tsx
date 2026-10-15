@@ -6,15 +6,11 @@ import {
   TrendingUp,
   TrendingDown,
   Wallet,
-  UserPlus,
-  ArrowRightLeft,
-  Network,
   Store,
   BarChart3,
   AlertTriangle,
   IndianRupee,
   Building2,
-  Layers,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { fetchApi } from "@/lib/api";
@@ -24,6 +20,7 @@ import { formatInr } from "@/lib/walletLabels";
 import type { DownlineUser, WalletBalance } from "@/lib/types";
 import { BulkFundForm } from "@/components/dashboard/BulkFundForm";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
+import { PartnerQuickActions } from "./PartnerQuickActions";
 
 const LOW_FLOAT_THRESHOLD = 10000;
 
@@ -99,6 +96,8 @@ export function SuperDistributorDashboard() {
 
   return (
     <div className="space-y-5">
+      <PartnerQuickActions childLabel="Distributor" onBulkTransfer={() => setShowBulk(true)} />
+
       {lowFloat ? (
         <div
           className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3"
@@ -423,37 +422,6 @@ export function SuperDistributorDashboard() {
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
-        <h3 className="mb-4 text-sm font-bold" style={{ color: B.blue }}>Quick Actions</h3>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <QuickAction
-            icon={<UserPlus size={18} />}
-            label="Add Distributor"
-            desc="Onboard a new distributor"
-            onClick={() => router.push("/network")}
-          />
-          <QuickAction
-            icon={<ArrowRightLeft size={18} />}
-            label="Fund Transfer"
-            desc="Transfer to distributor"
-            onClick={() => router.push("/wallet")}
-          />
-          <QuickAction
-            icon={<Layers size={18} />}
-            label="Bulk transfer"
-            desc="Fund multiple distributors"
-            onClick={() => setShowBulk(true)}
-          />
-          <QuickAction
-            icon={<Network size={18} />}
-            label="Network Tree"
-            desc="View full hierarchy"
-            onClick={() => router.push("/network")}
-          />
-        </div>
-      </div>
-
       {showBulk ? (
         <BulkFundForm
           targets={downline}
@@ -491,29 +459,5 @@ function AlertRow({ color, text }: { color: string; text: string }) {
       <div className="h-2 w-2 rounded-full" style={{ background: color }} />
       <span className="text-xs font-medium" style={{ color }}>{text}</span>
     </div>
-  );
-}
-
-function QuickAction({ icon, label, desc, onClick }: {
-  icon: React.ReactNode; label: string; desc: string; onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex items-center gap-3 rounded-2xl border p-4 text-left transition-all hover:shadow-md"
-      style={{ borderColor: B.border }}
-    >
-      <div
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-        style={{ background: B.secondary, color: B.blue }}
-      >
-        {icon}
-      </div>
-      <div>
-        <div className="text-sm font-semibold" style={{ color: B.blue }}>{label}</div>
-        <div className="text-xs" style={{ color: B.muted }}>{desc}</div>
-      </div>
-    </button>
   );
 }

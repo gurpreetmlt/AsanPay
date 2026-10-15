@@ -6,7 +6,6 @@ import {
   Users,
   TrendingUp,
   Wallet,
-  UserPlus,
   ArrowRightLeft,
   BarChart3,
   Store,
@@ -23,6 +22,7 @@ import { B, roleFromUserRole, initials } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { formatInr } from "@/lib/walletLabels";
 import type { WalletBalance } from "@/lib/types";
+import { PartnerQuickActions } from "./PartnerQuickActions";
 
 interface ActivityMonth {
   month: string;
@@ -104,6 +104,8 @@ export function DistributorDashboard() {
 
   return (
     <div className="space-y-4">
+      <PartnerQuickActions childLabel="Retailer" />
+
       {/* Single overview band — no tall empty balance card */}
       <div className="overflow-hidden rounded-2xl border bg-white shadow-sm" style={{ borderColor: B.border }}>
         <div className="grid grid-cols-1 lg:grid-cols-12">
@@ -324,32 +326,6 @@ export function DistributorDashboard() {
         </div>
       ) : null}
 
-      <div className="rounded-2xl border bg-white p-4" style={{ borderColor: B.border }}>
-        <h3 className="mb-3 text-sm font-bold" style={{ color: B.blue }}>
-          Quick Actions
-        </h3>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-          <QuickAction
-            icon={<UserPlus size={16} />}
-            label="Add Retailer"
-            desc="Onboard a new retailer"
-            onClick={() => router.push("/signup")}
-          />
-          <QuickAction
-            icon={<ArrowRightLeft size={16} />}
-            label="Fund / Reverse"
-            desc="Send or reverse balance"
-            onClick={() => router.push("/wallet")}
-          />
-          <QuickAction
-            icon={<BarChart3 size={16} />}
-            label="View Reports"
-            desc="Txn & commission reports"
-            onClick={() => router.push("/reports")}
-          />
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
           <div className="mb-4 flex items-center gap-2">
@@ -475,42 +451,6 @@ function FunnelChip({
       </div>
       <div className="mt-0.5 text-xl font-bold tabular-nums" style={{ color: hot ? "#C2410C" : B.blue }}>
         {count}
-      </div>
-    </button>
-  );
-}
-
-function QuickAction({
-  icon,
-  label,
-  desc,
-  onClick,
-}: {
-  icon: ReactNode;
-  label: string;
-  desc: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex items-center gap-3 rounded-2xl border px-3 py-3 text-left transition hover:shadow-sm"
-      style={{ borderColor: B.border }}
-    >
-      <div
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-        style={{ background: B.secondary, color: B.blue }}
-      >
-        {icon}
-      </div>
-      <div className="min-w-0">
-        <div className="text-sm font-semibold" style={{ color: B.blue }}>
-          {label}
-        </div>
-        <div className="truncate text-xs" style={{ color: B.muted }}>
-          {desc}
-        </div>
       </div>
     </button>
   );
