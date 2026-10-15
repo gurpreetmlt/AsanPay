@@ -456,15 +456,26 @@ function BankDetailsModal({ bank, onClose }: { bank: BankCard; onClose: () => vo
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const rows: { label: string; value: string; copy?: boolean; mono?: boolean }[] = details
+  const profile = (label: string, value: string | null, mono = false) =>
+    value ? { label, value, copy: true, mono } : { label, value: "Not added", missing: true };
+  const missingFields = details
     ? [
-        ...(details.accountType ? [{ label: "Account type", value: titleCase(details.accountType) }] : []),
+        !details.accountType && "Account type",
+        !details.holderName && "Account name",
+        !details.branchCode && "Branch code",
+        !details.branchName && "Branch name",
+      ].filter((x): x is string => !!x)
+    : [];
+
+  const rows: { label: string; value: string; copy?: boolean; mono?: boolean; missing?: boolean }[] = details
+    ? [
+        profile("Account type", details.accountType ? titleCase(details.accountType) : null),
         { label: "Account number", value: details.accountNumber, copy: true, mono: true },
-        ...(details.holderName ? [{ label: "Account name", value: details.holderName, copy: true }] : []),
+        profile("Account name", details.holderName),
         { label: "Bank name", value: details.bankName, copy: true },
         { label: "IFSC", value: details.ifsc, copy: true, mono: true },
-        ...(details.branchCode ? [{ label: "Branch code", value: details.branchCode, copy: true, mono: true }] : []),
-        ...(details.branchName ? [{ label: "Branch name", value: details.branchName, copy: true }] : []),
+        profile("Branch code", details.branchCode, true),
+        profile("Branch name", details.branchName),
         { label: "Purpose", value: PURPOSE_LABEL[details.purpose] },
         { label: "Status", value: details.isActive ? "Active" : "Inactive" },
         { label: "Virtual accounts (VAN)", value: details.supportsVan ? "Supported" : "Not supported" },
@@ -544,7 +555,7 @@ function BankDetailsModal({ bank, onClose }: { bank: BankCard; onClose: () => vo
                   </dt>
                   <dd
                     className={`min-w-0 flex-1 break-all text-sm font-semibold ${r.mono ? "font-mono" : ""}`}
-                    style={{ color: CARD_INK }}
+                    style={{ color: r.missing ? "#B45309" : CARD_INK }}
                   >
                     {r.value}
                   </dd>
@@ -563,6 +574,16 @@ function BankDetailsModal({ bank, onClose }: { bank: BankCard; onClose: () => vo
                 </div>
               ))}
             </dl>
+            {missingFields.length > 0 ? (
+              <p
+                className="mt-3 rounded-xl px-3 py-2 text-xs font-semibold"
+                style={{ background: "#FEF3C7", color: "#92400E" }}
+              >
+                {missingFields.join(", ")} {missingFields.length === 1 ? "is" : "are"} not added, so the copy leaves{" "}
+                {missingFields.length === 1 ? "it" : "them"} out. Add from Bank &amp; deposits → Bank accounts → Edit on
+                this bank.
+              </p>
+            ) : null}
             <button
               type="button"
               onClick={copyAll}
