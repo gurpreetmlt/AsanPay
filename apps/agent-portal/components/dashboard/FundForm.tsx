@@ -7,7 +7,9 @@ import { Modal } from "@/components/ui/Modal";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { extractApiError } from "@/lib/onboarding";
 import { createAttemptKeyHolder } from "@/lib/idempotencyKey";
+import { ROLE_LABEL } from "@/lib/roles";
 import type { DownlineUser } from "@/lib/types";
+import { TransferConfirm } from "./TransferConfirm";
 
 interface FundFormProps {
   target: DownlineUser;
@@ -16,15 +18,29 @@ interface FundFormProps {
 }
 
 export function FundForm({ target, onClose, onSuccess }: FundFormProps) {
+  const [step, setStep] = useState<"form" | "confirm">("form");
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [txnPin, setTxnPin] = useState("");
   const [loading, setLoading] = useState(false);
   const attemptKey = useRef(createAttemptKeyHolder(`xfer-${target.id}`));
 
-  async function handleSubmit(e: FormEvent) {
+  function review(e: FormEvent) {
     e.preventDefault();
+    if (!(parseFloat(amount) > 0)) {
+      toast.error("Enter an amount greater than ₹0");
+      return;
+    }
+    setTxnPin("");
+    setStep("confirm");
+  }
+
+  async function send() {
     if (loading) return;
+    if (txnPin.length !== 4) {
+      toast.error("Enter your 4-digit transaction PIN");
+      return;
+    }
     setLoading(true);
     try {
       await api.post("/wallet/transfer", {
@@ -41,15 +57,39 @@ export function FundForm({ target, onClose, onSuccess }: FundFormProps) {
       onClose();
     } catch (err) {
       // Keep the same key so a retry of this attempt cannot double-debit.
+      setTxnPin("");
       toast.error(extractApiError(err, "Transfer failed"));
     } finally {
       setLoading(false);
     }
   }
 
+  if (step === "confirm") {
+    return (
+      <Modal title="Confirm transfer" onClose={onClose}>
+        <TransferConfirm
+          amount={amount}
+          rows={[
+            { label: "To", value: target.name },
+            { label: "Role", value: ROLE_LABEL[target.role] ?? target.role },
+            { label: "ID", value: target.uid },
+            { label: "Mobile", value: target.mobile },
+            { label: "From", value: "Main wallet" },
+            ...(description ? [{ label: "Note", value: description }] : []),
+          ]}
+          pin={txnPin}
+          onPin={setTxnPin}
+          loading={loading}
+          onBack={() => setStep("form")}
+          onConfirm={() => void send()}
+        />
+      </Modal>
+    );
+  }
+
   return (
     <Modal title={`Fund ${target.name}`} onClose={onClose}>
-      <form onSubmit={handleSubmit} className="space-y-3">
+      <form onSubmit={review} className="space-y-3">
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">Amount (₹)</label>
           <input
@@ -66,20 +106,6 @@ export function FundForm({ target, onClose, onSuccess }: FundFormProps) {
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Transaction PIN</label>
-          <input
-            required
-            type="password"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={4}
-            value={txnPin}
-            onChange={(e) => setTxnPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
-            placeholder="4-digit PIN"
-            className="w-full rounded-lg border border-border-subtle px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-          />
-        </div>
-        <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">Note (optional)</label>
           <input
             value={description}
@@ -87,13 +113,8 @@ export function FundForm({ target, onClose, onSuccess }: FundFormProps) {
             className="w-full rounded-lg border border-border-subtle px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
           />
         </div>
-        <PrimaryButton
-          type="submit"
-          variant="primary"
-          disabled={loading || txnPin.length !== 4}
-          loading={loading}
-        >
-          Send Funds
+        <PrimaryButton type="submit" variant="primary">
+          Continue
         </PrimaryButton>
       </form>
     </Modal>

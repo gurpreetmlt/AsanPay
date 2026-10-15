@@ -10,7 +10,7 @@ const requireTxnProof = (data: { txnPin?: string; txnAuth?: string }, ctx: z.Ref
   if (!data.txnPin && !data.txnAuth) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: "Transaction PIN or txnAuth is required",
+      message: "Enter your 4-digit transaction PIN",
       path: ["txnAuth"],
     });
   }

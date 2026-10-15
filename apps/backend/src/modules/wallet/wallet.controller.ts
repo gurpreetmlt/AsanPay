@@ -46,7 +46,7 @@ export async function fund(req: Request, res: Response): Promise<void> {
 export async function transfer(req: Request, res: Response): Promise<void> {
   const actor = requireActor(req);
   const input = transferWalletSchema.parse(req.body);
-  await assertTxnAuthorization(actor.id, { txnPin: input.txnPin, txnAuth: input.txnAuth });
+  await assertTxnAuthorization(actor.id, { txnPin: input.txnPin, txnAuth: input.txnAuth }, { always: true });
   const result = await transferToChild(
     actor,
     input.targetUserId,
@@ -68,7 +68,7 @@ export async function pullRequest(req: Request, res: Response): Promise<void> {
 export async function pullConfirm(req: Request, res: Response): Promise<void> {
   const actor = requireActor(req);
   const input = pullConfirmSchema.parse(req.body);
-  await assertTxnAuthorization(actor.id, { txnPin: input.txnPin, txnAuth: input.txnAuth });
+  await assertTxnAuthorization(actor.id, { txnPin: input.txnPin, txnAuth: input.txnAuth }, { always: true });
   const result = await confirmPullFromChild(actor, {
     targetUserId: input.targetUserId,
     amount: input.amount,

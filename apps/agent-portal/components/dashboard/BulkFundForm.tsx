@@ -10,6 +10,7 @@ import { newIdempotencyKey } from "@/lib/idempotencyKey";
 import { B } from "@/lib/brand";
 import { formatInr } from "@/lib/walletLabels";
 import type { DownlineUser } from "@/lib/types";
+import { TransferConfirm } from "./TransferConfirm";
 
 interface BulkFundFormProps {
   targets: DownlineUser[];
@@ -26,6 +27,7 @@ export function BulkFundForm({
 }: BulkFundFormProps) {
   const active = useMemo(() => targets.filter((t) => t.isActive), [targets]);
   const [selected, setSelected] = useState<Set<string>>(() => new Set(active.map((t) => t.id)));
+  const [step, setStep] = useState<"form" | "confirm">("form");
   const [amount, setAmount] = useState("");
   const [txnPin, setTxnPin] = useState("");
   const [loading, setLoading] = useState(false);
@@ -40,19 +42,23 @@ export function BulkFundForm({
     });
   }
 
-  async function handleSubmit(e: FormEvent) {
+  function review(e: FormEvent) {
     e.preventDefault();
-    if (loading) return;
-    const ids = [...selected];
-    const amt = parseFloat(amount);
-    if (ids.length === 0) {
+    if (selected.size === 0) {
       toast.error("Select at least one partner");
       return;
     }
-    if (!Number.isFinite(amt) || amt <= 0) {
-      toast.error("Enter a valid amount");
+    if (!(parseFloat(amount) > 0)) {
+      toast.error("Enter an amount greater than ₹0");
       return;
     }
+    setTxnPin("");
+    setStep("confirm");
+  }
+
+  async function send() {
+    if (loading) return;
+    const ids = [...selected];
     if (txnPin.length !== 4) {
       toast.error("Enter your 4-digit transaction PIN");
       return;
@@ -61,6 +67,7 @@ export function BulkFundForm({
     setLoading(true);
     let ok = 0;
     let failed = 0;
+    let lastError = "Transfer failed. Check your balance and partner status.";
     const batch = runId.current;
     try {
       for (const id of ids) {
@@ -74,8 +81,10 @@ export function BulkFundForm({
             description: `Bulk transfer`,
           });
           ok += 1;
-        } catch {
+        } catch (err) {
           failed += 1;
+          lastError = extractApiError(err, lastError);
+          if (ok === 0 && /PIN/i.test(lastError)) break;
         }
       }
       if (ok > 0 && failed === 0) {
@@ -83,10 +92,12 @@ export function BulkFundForm({
         onSuccess();
         onClose();
       } else if (ok > 0) {
-        toast.error(`Transferred to ${ok}; failed for ${failed}. Check balances and retry.`);
+        toast.error(`Transferred to ${ok}; failed for ${failed}. Last error: ${lastError}`);
         onSuccess();
+        onClose();
       } else {
-        toast.error("All transfers failed. Check PIN, balance, and partner status.");
+        setTxnPin("");
+        toast.error(lastError);
       }
     } catch (err) {
       toast.error(extractApiError(err, "Bulk transfer failed"));
@@ -99,9 +110,32 @@ export function BulkFundForm({
   const perAmt = parseFloat(amount) || 0;
   const total = perAmt * selected.size;
 
+  if (step === "confirm") {
+    const names = active.filter((t) => selected.has(t.id)).map((t) => t.name).join(", ");
+    return (
+      <Modal title="Confirm bulk transfer" onClose={onClose}>
+        <TransferConfirm
+          amount={total}
+          amountCaption="Total to transfer"
+          rows={[
+            { label: "Each", value: formatInr(perAmt) },
+            { label: "Partners", value: String(selected.size) },
+            { label: "To", value: names },
+            { label: "From", value: "Main wallet" },
+          ]}
+          pin={txnPin}
+          onPin={setTxnPin}
+          loading={loading}
+          onBack={() => setStep("form")}
+          onConfirm={() => void send()}
+        />
+      </Modal>
+    );
+  }
+
   return (
     <Modal title={title} onClose={onClose}>
-      <form onSubmit={handleSubmit} className="space-y-3">
+      <form onSubmit={review} className="space-y-3">
         <p className="text-xs" style={{ color: B.muted }}>
           Same amount to each selected partner. Each transfer uses its own Idempotency-Key.
         </p>
@@ -149,27 +183,8 @@ export function BulkFundForm({
             </p>
           ) : null}
         </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Transaction PIN</label>
-          <input
-            required
-            type="password"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={4}
-            value={txnPin}
-            onChange={(e) => setTxnPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
-            placeholder="4-digit PIN"
-            className="w-full rounded-lg border border-border-subtle px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-          />
-        </div>
-        <PrimaryButton
-          type="submit"
-          variant="primary"
-          disabled={loading || txnPin.length !== 4 || selected.size === 0}
-          loading={loading}
-        >
-          Confirm bulk transfer
+        <PrimaryButton type="submit" variant="primary" disabled={selected.size === 0}>
+          Continue
         </PrimaryButton>
       </form>
     </Modal>

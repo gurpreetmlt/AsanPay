@@ -14,7 +14,7 @@ import { formatINR } from "../../lib/format";
 import type { DownlineUser, LedgerEntry, WalletBalance } from "../../lib/types";
 import { useTheme } from "../../theme/ThemeContext";
 import { useAuthStore } from "../../store/auth";
-import { useTxnPin } from "../../hooks/useTxnPin";
+import { PinInput } from "../../components/PinInput";
 import { colors } from "../../theme/colors";
 import { showAlert } from "../../components/AppAlert";
 import Clipboard from "@react-native-clipboard/clipboard";
@@ -652,22 +652,32 @@ function FundModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
+  const [step, setStep] = useState<"form" | "confirm">("form");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
+  const [txnPin, setTxnPin] = useState("");
   const [loading, setLoading] = useState(false);
-  const { promptPin, TxnPinPrompt } = useTxnPin();
   const attemptKey = useRef(createAttemptKeyHolder(`xfer-${target.id}`));
+
+  function close() {
+    setStep("form");
+    setTxnPin("");
+    onClose();
+  }
+
+  function review() {
+    if (!amount || !(parseFloat(amount) > 0)) {
+      showAlert("Invalid amount", "Enter an amount greater than ₹0.");
+      return;
+    }
+    setTxnPin("");
+    setStep("confirm");
+  }
 
   async function submit() {
     if (loading) return;
-    if (!amount || parseFloat(amount) <= 0) {
-      showAlert("Invalid amount", "Enter a valid amount.");
-      return;
-    }
-    let txnAuth: string;
-    try {
-      txnAuth = await promptPin();
-    } catch {
+    if (txnPin.length !== 4) {
+      showAlert("Invalid PIN", "Enter your 4-digit transaction PIN.");
       return;
     }
     setLoading(true);
@@ -676,37 +686,111 @@ function FundModal({
         targetUserId: target.id,
         walletType: "main",
         amount,
-        txnAuth,
+        txnPin,
         idempotencyKey: attemptKey.current.get(),
         ...(note ? { description: note } : {}),
       });
       attemptKey.current.clear();
       showAlert("Success", `₹${amount} sent to ${target.name}`);
       onSuccess();
-      onClose();
+      close();
       setAmount("");
       setNote("");
     } catch (err) {
+      setTxnPin("");
       const msg =
         (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? "Transfer failed";
-      showAlert("Error", msg);
+      showAlert("Transfer failed", msg);
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <>
-      <ModalSheet visible={visible} title={`Fund ${target.name}`} onClose={onClose}>
-      <Field label="Amount (₹)" value={amount} onChangeText={(t) => { setAmount(t.replace(/[^\d.]/g, "")); attemptKey.current.clear(); }} keyboardType="decimal-pad" />
-      <Field label="Note (optional)" value={note} onChangeText={setNote} />
-      <Pressable onPress={submit} disabled={loading}>
-        <LinearGradient colors={[...colors.gradient]} style={styles.submit}>
-          <Text style={styles.submitText}>{loading ? "Sending..." : "Send Funds"}</Text>
-        </LinearGradient>
-      </Pressable>
+    <ModalSheet
+      visible={visible}
+      title={step === "confirm" ? "Confirm transfer" : `Fund ${target.name}`}
+      onClose={close}
+    >
+      {step === "form" ? (
+        <>
+          <Field label="Amount (₹)" value={amount} onChangeText={(t) => { setAmount(t.replace(/[^\d.]/g, "")); attemptKey.current.clear(); }} keyboardType="decimal-pad" />
+          <Field label="Note (optional)" value={note} onChangeText={setNote} />
+          <Pressable onPress={review}>
+            <LinearGradient colors={[...colors.gradient]} style={styles.submit}>
+              <Text style={styles.submitText}>Continue</Text>
+            </LinearGradient>
+          </Pressable>
+        </>
+      ) : (
+        <TransferConfirm
+          amount={amount}
+          rows={[
+            { label: "To", value: target.name },
+            { label: "Role", value: ROLE_LABEL[target.role] ?? target.role },
+            { label: "ID", value: target.uid },
+            { label: "Mobile", value: target.mobile },
+            { label: "From", value: "Main wallet" },
+            ...(note ? [{ label: "Note", value: note }] : []),
+          ]}
+          pin={txnPin}
+          onPin={setTxnPin}
+          loading={loading}
+          onBack={() => setStep("form")}
+          onConfirm={() => void submit()}
+        />
+      )}
     </ModalSheet>
-    <TxnPinPrompt />
+  );
+}
+
+function TransferConfirm({
+  amount,
+  amountCaption = "Amount to transfer",
+  rows,
+  pin,
+  onPin,
+  loading,
+  onBack,
+  onConfirm,
+}: {
+  amount: string;
+  amountCaption?: string;
+  rows: { label: string; value: string }[];
+  pin: string;
+  onPin: (v: string) => void;
+  loading: boolean;
+  onBack: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <>
+      <View style={styles.confirmAmountBox}>
+        <Text style={styles.confirmCaption}>{amountCaption}</Text>
+        <Text style={styles.confirmAmount}>{formatINR(amount)}</Text>
+      </View>
+      <View style={styles.confirmRows}>
+        {rows.map((r) => (
+          <View key={r.label} style={styles.confirmRow}>
+            <Text style={styles.confirmLabel}>{r.label}</Text>
+            <Text style={styles.confirmValue} numberOfLines={2}>{r.value}</Text>
+          </View>
+        ))}
+      </View>
+      <Text style={styles.confirmPinLabel}>Enter your 4-digit transaction PIN</Text>
+      <PinInput value={pin} onChange={onPin} />
+      <View style={styles.confirmActions}>
+        <Pressable onPress={onBack} disabled={loading} style={[styles.confirmBtn, { backgroundColor: colors.danger }]}>
+          <Text style={styles.submitText}>Edit</Text>
+        </Pressable>
+        <Pressable
+          onPress={onConfirm}
+          disabled={loading || pin.length !== 4}
+          style={[styles.confirmBtn, { backgroundColor: colors.blue, opacity: pin.length === 4 ? 1 : 0.5 }]}
+        >
+          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>Confirm & Send</Text>}
+        </Pressable>
+      </View>
     </>
   );
 }
@@ -722,31 +806,42 @@ function BulkFundModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
+  const [step, setStep] = useState<"form" | "confirm">("form");
   const [amount, setAmount] = useState("");
+  const [txnPin, setTxnPin] = useState("");
   const [loading, setLoading] = useState(false);
-  const { promptPin, TxnPinPrompt } = useTxnPin();
   const batchRef = useRef(newIdempotencyKey("bulk"));
 
-  async function submit() {
-    if (loading) return;
+  function close() {
+    setStep("form");
+    setTxnPin("");
+    onClose();
+  }
+
+  function review() {
     if (targets.length === 0) {
       showAlert("Select partners", "Select at least one active distributor.");
       return;
     }
-    if (!amount || parseFloat(amount) <= 0) {
-      showAlert("Invalid amount", "Enter a valid amount.");
+    if (!amount || !(parseFloat(amount) > 0)) {
+      showAlert("Invalid amount", "Enter an amount greater than ₹0.");
       return;
     }
-    let txnAuth: string;
-    try {
-      txnAuth = await promptPin();
-    } catch {
+    setTxnPin("");
+    setStep("confirm");
+  }
+
+  async function submit() {
+    if (loading) return;
+    if (txnPin.length !== 4) {
+      showAlert("Invalid PIN", "Enter your 4-digit transaction PIN.");
       return;
     }
     setLoading(true);
     const batch = batchRef.current;
     let ok = 0;
     let failed = 0;
+    let lastError = "Transfer failed. Check your balance and partner status.";
     try {
       for (const target of targets) {
         try {
@@ -754,24 +849,29 @@ function BulkFundModal({
             targetUserId: target.id,
             walletType: "main",
             amount,
-            txnAuth,
+            txnPin,
             idempotencyKey: `${batch}-${target.id}`.slice(0, 100),
             description: "Bulk transfer",
           });
           ok += 1;
-        } catch {
+        } catch (err) {
           failed += 1;
+          lastError =
+            (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? lastError;
+          if (ok === 0 && /PIN/i.test(lastError)) break;
         }
       }
       if (ok > 0 && failed === 0) {
         showAlert("Success", `Sent ₹${amount} to ${ok} partner${ok === 1 ? "" : "s"}`);
         onSuccess();
-        onClose();
+        close();
       } else if (ok > 0) {
-        showAlert("Partial", `Transferred to ${ok}; failed for ${failed}.`);
+        showAlert("Partial", `Transferred to ${ok}; failed for ${failed}. Last error: ${lastError}`);
         onSuccess();
+        close();
       } else {
-        showAlert("Error", "All transfers failed. Check PIN, balance, and partner status.");
+        setTxnPin("");
+        showAlert("Transfer failed", lastError);
       }
     } finally {
       setLoading(false);
@@ -779,26 +879,50 @@ function BulkFundModal({
     }
   }
 
+  const total = (parseFloat(amount || "0") * targets.length).toFixed(2);
+  const names = targets.map((t) => t.name).join(", ");
+
   return (
-    <>
-      <ModalSheet visible={visible} title={`Bulk transfer (${targets.length})`} onClose={onClose}>
-        <Text style={{ color: "#64748B", fontSize: 12, marginBottom: 10 }}>
-          Same amount to each selected partner
-        </Text>
-        <Field
-          label="Amount each (₹)"
-          value={amount}
-          onChangeText={(t) => setAmount(t.replace(/[^\d.]/g, ""))}
-          keyboardType="decimal-pad"
+    <ModalSheet
+      visible={visible}
+      title={step === "confirm" ? "Confirm bulk transfer" : `Bulk transfer (${targets.length})`}
+      onClose={close}
+    >
+      {step === "form" ? (
+        <>
+          <Text style={{ color: "#64748B", fontSize: 12, marginBottom: 10 }}>
+            Same amount to each selected partner
+          </Text>
+          <Field
+            label="Amount each (₹)"
+            value={amount}
+            onChangeText={(t) => setAmount(t.replace(/[^\d.]/g, ""))}
+            keyboardType="decimal-pad"
+          />
+          <Pressable onPress={review}>
+            <LinearGradient colors={[...colors.gradient]} style={styles.submit}>
+              <Text style={styles.submitText}>Continue</Text>
+            </LinearGradient>
+          </Pressable>
+        </>
+      ) : (
+        <TransferConfirm
+          amount={total}
+          amountCaption="Total to transfer"
+          rows={[
+            { label: "Each", value: formatINR(amount) },
+            { label: "Partners", value: String(targets.length) },
+            { label: "To", value: names },
+            { label: "From", value: "Main wallet" },
+          ]}
+          pin={txnPin}
+          onPin={setTxnPin}
+          loading={loading}
+          onBack={() => setStep("form")}
+          onConfirm={() => void submit()}
         />
-        <Pressable onPress={submit} disabled={loading}>
-          <LinearGradient colors={[...colors.gradient]} style={styles.submit}>
-            <Text style={styles.submitText}>{loading ? "Sending..." : "Confirm bulk transfer"}</Text>
-          </LinearGradient>
-        </Pressable>
-      </ModalSheet>
-      <TxnPinPrompt />
-    </>
+      )}
+    </ModalSheet>
   );
 }
 
@@ -1079,6 +1203,35 @@ const styles = StyleSheet.create({
   submit: { borderRadius: 12, paddingVertical: 14, alignItems: "center", marginTop: 8 },
   submitText: { color: "#fff", fontWeight: "700", fontSize: 15 },
   help: { fontSize: 12, color: colors.textMuted, marginBottom: 10, lineHeight: 17 },
+  confirmAmountBox: {
+    alignItems: "center",
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: colors.greenBg,
+    marginBottom: 12,
+  },
+  confirmCaption: { fontSize: 12, color: colors.textMuted, fontWeight: "700" },
+  confirmAmount: { fontSize: 28, fontWeight: "900", color: colors.greenDark, marginTop: 2 },
+  confirmRows: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    marginBottom: 14,
+  },
+  confirmRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 12,
+    paddingVertical: 9,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  confirmLabel: { fontSize: 13, color: colors.textMuted, fontWeight: "600" },
+  confirmValue: { flex: 1, textAlign: "right", fontSize: 13, color: colors.text, fontWeight: "800" },
+  confirmPinLabel: { fontSize: 13, color: colors.textMuted, textAlign: "center", marginBottom: 10 },
+  confirmActions: { flexDirection: "row", gap: 10, marginTop: 18 },
+  confirmBtn: { flex: 1, borderRadius: 12, paddingVertical: 14, alignItems: "center" },
   devOtp: {
     fontSize: 13,
     fontWeight: "800",

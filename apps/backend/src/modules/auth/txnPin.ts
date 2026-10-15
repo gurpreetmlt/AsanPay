@@ -78,7 +78,11 @@ export async function verifyTxnPinOrThrow(userId: string, pin: string | undefine
     throw new HttpError(429, "Transaction PIN temporarily locked — try again later", "TXN_PIN_LOCKED");
   }
   if (!user.txnPinHash) {
-    throw new HttpError(409, "Set a transaction PIN before making transactions", "TXN_PIN_NOT_SET");
+    throw new HttpError(
+      409,
+      "Transaction PIN is not set. Set a 4-digit PIN in Settings → Transaction PIN, then try again.",
+      "TXN_PIN_NOT_SET",
+    );
   }
   const ok = await comparePassword(pin, user.txnPinHash);
   if (!ok) {
@@ -131,8 +135,9 @@ export async function verifyTxnPinAndIssueAuth(
 export async function assertTxnAuthorization(
   userId: string,
   input: { txnPin?: string; txnAuth?: string },
+  opts: { always?: boolean } = {},
 ): Promise<void> {
-  if (!env.REQUIRE_TXN_PIN) return;
+  if (!env.REQUIRE_TXN_PIN && !opts.always) return;
   if (input.txnAuth) {
     try {
       const auth = verifyTxnAuth(input.txnAuth);

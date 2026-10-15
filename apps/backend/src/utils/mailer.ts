@@ -82,6 +82,16 @@ const BRAND = {
 const SITE_URL = "https://asanpay.in";
 const AGENT_URL = "https://dev.asanpay.in";
 
+/** PNG (not SVG — Gmail/Outlook drop SVG). Served from agent-portal `public/brand/email`. */
+const LOGO_BASE = `${env.AGENT_PORTAL_URL.replace(/\/$/, "")}/brand/email`;
+const LOGO = {
+  icon: `${LOGO_BASE}/asanpay-icon.png`,
+  /** White "Asan" — for dark headers. */
+  wordmarkOnDark: `${LOGO_BASE}/asanpay-wordmark-light.png`,
+  /** Dark "Asan" — for light backgrounds. */
+  wordmarkOnLight: `${LOGO_BASE}/asanpay-wordmark-dark.png`,
+} as const;
+
 /** Shared HTML shell — table layout for Gmail/Outlook compatibility. */
 function brandedEmailHtml(opts: {
   preheader: string;
@@ -109,23 +119,17 @@ function brandedEmailHtml(opts: {
       <td align="center">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px">
           <tr>
-            <td align="center" style="padding:0 0 20px;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">
-              <span style="display:inline-block;font-size:13px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:${BRAND.blue}">AsanPay</span>
-            </td>
-          </tr>
-          <tr>
             <td style="background:${BRAND.white};border-radius:20px;overflow:hidden;border:1px solid ${BRAND.border};box-shadow:0 12px 40px rgba(11,42,154,0.08)">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                 <tr>
                   <td style="background:${BRAND.blueDeep};padding:28px 32px 24px">
                     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                       <tr>
-                        <td width="52" valign="middle">
-                          <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(145deg,${BRAND.blueLight},${BRAND.blue});text-align:center;line-height:44px;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:20px;font-weight:800;color:${BRAND.white}">A</div>
+                        <td width="56" valign="middle">
+                          <img src="${LOGO.icon}" width="48" height="48" alt="" style="display:block;width:48px;height:48px;border:0;outline:none" />
                         </td>
-                        <td valign="middle" style="padding-left:14px;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">
-                          <div style="font-size:20px;font-weight:800;letter-spacing:-0.03em;color:${BRAND.white}">AsanPay</div>
-                          <div style="margin-top:3px;font-size:12px;font-weight:500;color:rgba(255,255,255,0.72)">Payment Made Easy</div>
+                        <td valign="middle" style="padding-left:10px">
+                          <img src="${LOGO.wordmarkOnDark}" width="167" height="54" alt="AsanPay — Payment Made Easy" style="display:block;width:167px;height:54px;border:0;outline:none;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:20px;font-weight:800;color:${BRAND.white}" />
                         </td>
                       </tr>
                     </table>
