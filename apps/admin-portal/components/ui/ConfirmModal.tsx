@@ -1,8 +1,9 @@
 "use client";
 
-import { AlertTriangle, X } from "lucide-react";
+import { AlertTriangle, Copy, X } from "lucide-react";
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { toast } from "react-hot-toast";
 import { B } from "@/lib/brand";
 
 export type ConfirmTone = "danger" | "warning" | "info";
@@ -15,6 +16,9 @@ interface ConfirmModalProps {
   busy?: boolean;
   busyLabel?: string;
   tone?: ConfirmTone;
+  /** When set, the admin must type (or paste) this exact value before confirm unlocks. */
+  confirmText?: string;
+  confirmTextLabel?: string;
   onConfirm: () => void;
   onClose: () => void;
 }
@@ -43,12 +47,16 @@ export function ConfirmModal({
   busy = false,
   busyLabel = "Working…",
   tone = "danger",
+  confirmText,
+  confirmTextLabel,
   onConfirm,
   onClose,
 }: ConfirmModalProps) {
   const btn = TONE_BTN[tone];
   const icon = TONE_ICON[tone];
   const [mounted, setMounted] = useState(false);
+  const [typed, setTyped] = useState("");
+  const typedOk = !confirmText || typed.trim().toUpperCase() === confirmText.toUpperCase();
 
   useEffect(() => {
     setMounted(true);
@@ -122,6 +130,53 @@ export function ConfirmModal({
           </button>
         </div>
 
+        {confirmText ? (
+          <div className="space-y-2 px-5 py-4">
+            <label className="block text-xs font-semibold uppercase tracking-wide" style={{ color: B.muted }}>
+              {confirmTextLabel ?? "Type to confirm"}
+            </label>
+            <div className="flex items-center gap-2">
+              <code
+                className="flex-1 rounded-lg px-3 py-2 font-mono text-sm font-bold"
+                style={{ background: "var(--admin-secondary)", color: B.blue }}
+              >
+                {confirmText}
+              </code>
+              <button
+                type="button"
+                onClick={() => {
+                  void navigator.clipboard?.writeText(confirmText);
+                  toast.success("Copied — paste it below");
+                }}
+                className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-2 text-xs font-semibold"
+                style={{ borderColor: B.border, color: B.blue }}
+              >
+                <Copy size={13} /> Copy
+              </button>
+            </div>
+            <input
+              autoFocus
+              type="text"
+              value={typed}
+              disabled={busy}
+              placeholder={`Type ${confirmText}`}
+              onChange={(e) => setTyped(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && typedOk && !busy) onConfirm();
+              }}
+              className="w-full rounded-xl border px-3 py-2.5 font-mono text-sm outline-none"
+              style={{
+                borderColor: typed && !typedOk ? "#FCA5A5" : typedOk ? "#86EFAC" : B.border,
+                background: "var(--admin-bg)",
+                color: "var(--admin-text)",
+              }}
+            />
+            {typed && !typedOk ? (
+              <p className="text-xs font-semibold text-red-600">Does not match — type {confirmText} exactly</p>
+            ) : null}
+          </div>
+        ) : null}
+
         <div
           className="flex items-center justify-end gap-2 border-t px-5 py-4"
           style={{ borderColor: B.border, background: "var(--admin-card)" }}
@@ -141,7 +196,8 @@ export function ConfirmModal({
           </button>
           <button
             type="button"
-            disabled={busy}
+            disabled={busy || !typedOk}
+            title={typedOk ? undefined : `Type ${confirmText} to enable`}
             onClick={onConfirm}
             className="danger-confirm-btn rounded-xl px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60"
             style={{ ...accentStyle, background: btn }}

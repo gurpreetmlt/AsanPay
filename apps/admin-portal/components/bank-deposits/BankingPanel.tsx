@@ -716,6 +716,8 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
               </p>
             </>
           }
+          confirmText={`${deleteTarget.ifsc}-${deleteTarget.accountNumberLast4}`}
+          confirmTextLabel="Type IFSC-last 4 digits to confirm"
           confirmLabel="Yes, delete bank"
           cancelLabel="Cancel"
           busy={saving}
