@@ -84,7 +84,7 @@ export default function WalletPage() {
   if (!hydrated || !accessToken) return null;
 
   const main = wallets.find((w) => w.walletType === "main");
-  const aeps = wallets.find((w) => w.walletType === "aeps");
+  const aeps = canFund ? undefined : wallets.find((w) => w.walletType === "aeps");
   const filteredLedger = ledger.filter((e) => {
     if (ledgerPartner !== "all") {
       const partner = downline.find((d) => d.id === ledgerPartner);

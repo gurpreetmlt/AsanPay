@@ -552,7 +552,9 @@ export default function NetworkPage() {
                             {formatInr(m.mainBalance)}
                           </td>
                           <td className="px-4 py-3.5 font-semibold tabular-nums" style={{ color: B.blue }}>
-                            {formatInr(m.aepsBalance ?? "0")}
+                            {m.role === "retailer" || m.role === "direct_retailer"
+                              ? formatInr(m.aepsBalance ?? "0")
+                              : "—"}
                           </td>
                           <td className="px-4 py-3.5 text-xs" style={{ color: B.muted }}>
                             —

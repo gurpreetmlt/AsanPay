@@ -607,13 +607,13 @@ export function AppShell({ children }: { children: ReactNode }) {
     setWalletsLoading(true);
     try {
       const data = await fetchApi<WalletBalance[]>("/wallet/me");
-      setWallets(data);
+      setWallets(isPartner ? data.filter((w) => w.walletType === "main") : data);
     } catch {
       // Header balance is non-blocking — page-level loaders surface errors
     } finally {
       setWalletsLoading(false);
     }
-  }, [accessToken]);
+  }, [accessToken, isPartner]);
 
   useEffect(() => {
     setDrawer(false);

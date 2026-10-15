@@ -193,7 +193,7 @@ export function NetworkScreen() {
           </View>
         }
       >
-        <WalletBar wallets={wallets} />
+        <WalletBar wallets={wallets} single />
       </ScreenHeader>
 
       {user.kycStatus !== "verified" ? (

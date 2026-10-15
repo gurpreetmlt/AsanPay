@@ -6,6 +6,7 @@ import { db } from "../../db/postgres";
 import { signupInvites, users } from "../../db/postgres/schema";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import { HttpError } from "../../utils/httpError";
+import { logger } from "../../utils/logger";
 import { isMailerConfigured, sendMail, signupInviteEmailTemplate } from "../../utils/mailer";
 
 const INVITE_TTL_DAYS = 7;
@@ -99,7 +100,10 @@ async function loadInviter(inviterId: string) {
 }
 
 async function emailInvite(row: InviteRow, rawToken: string, inviterName: string): Promise<boolean> {
-  if (!isMailerConfigured()) return false;
+  if (!isMailerConfigured()) {
+    logger.warn({ inviteId: row.id }, "Invite email skipped: SMTP_HOST / SMTP_USER / SMTP_PASS not set");
+    return false;
+  }
   const ok = await sendMail({
     ...signupInviteEmailTemplate({
       name: row.name,

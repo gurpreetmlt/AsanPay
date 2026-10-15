@@ -15,10 +15,12 @@ interface Props {
   onWalletPress?: () => void;
   onAddMoney?: () => void;
   onReports?: () => void;
+  /** Super Distributor / Distributor hold only the main wallet (no AEPS). */
+  single?: boolean;
 }
 
 /** Retailer-style twin wallet cards + Add Money / Reports — shared by home headers. */
-export function WalletBar({ wallets, onWalletPress, onAddMoney, onReports }: Props) {
+export function WalletBar({ wallets, onWalletPress, onAddMoney, onReports, single }: Props) {
   const main = wallets.find((w) => w.walletType === "main");
   const aeps = wallets.find((w) => w.walletType === "aeps");
   const [visible, setVisible] = useState(true);
@@ -74,6 +76,7 @@ export function WalletBar({ wallets, onWalletPress, onAddMoney, onReports }: Pro
           <Text style={styles.walletCardDelta}>Main wallet</Text>
         </Pressable>
 
+        {single ? null : (
         <Pressable style={{ flex: 1, minWidth: 0 }} onPress={openWallet}>
           <LinearGradient
             colors={["rgba(36,204,130,.28)", "rgba(17,163,98,.16)"]}
@@ -100,6 +103,7 @@ export function WalletBar({ wallets, onWalletPress, onAddMoney, onReports }: Pro
             <Text style={styles.walletCardNoteGreen}>Settlement pending</Text>
           </LinearGradient>
         </Pressable>
+        )}
       </View>
 
       <View style={styles.quickRow}>

@@ -1,10 +1,14 @@
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
+import { ArrowDownToLine, ArrowUpFromLine, Power } from "lucide-react-native";
 import type { DownlineUser } from "../lib/types";
 import { ROLE_LABEL } from "../lib/roles";
 import { formatINR } from "../lib/format";
 import { colors } from "../theme/colors";
+
+const RED = "#b91c1c";
+const AMBER = "#b45309";
 
 interface Props {
   user: DownlineUser;
@@ -46,22 +50,34 @@ export function DownlineCard({ user, onFund, onReverse, onToggleActive, toggling
             <Pressable
               onPress={() => onToggleActive(user)}
               disabled={toggling}
-              style={[styles.toggleBtn, user.isActive ? styles.toggleOff : styles.toggleOn]}
+              hitSlop={6}
+              accessibilityLabel={user.isActive ? "Disable agent" : "Enable agent"}
+              style={[styles.iconBtn, user.isActive ? styles.toneAmber : styles.toneGreen]}
             >
-              <Text style={[styles.toggleText, user.isActive ? styles.toggleOffText : styles.toggleOnText]}>
-                {toggling ? "…" : user.isActive ? "Deactivate" : "Activate"}
-              </Text>
+              {toggling ? (
+                <ActivityIndicator size="small" color={user.isActive ? AMBER : colors.green} />
+              ) : (
+                <Power size={18} color={user.isActive ? AMBER : colors.green} strokeWidth={2.25} />
+              )}
             </Pressable>
           ) : null}
           {onReverse ? (
-            <Pressable onPress={() => onReverse(user)} style={styles.reverseBtn}>
-              <Text style={styles.reverseText}>Reverse</Text>
+            <Pressable
+              onPress={() => onReverse(user)}
+              hitSlop={6}
+              accessibilityLabel="Reverse — pull funds from partner"
+              style={[styles.iconBtn, styles.toneRed]}
+            >
+              <ArrowUpFromLine size={18} color={RED} strokeWidth={2.25} />
             </Pressable>
           ) : null}
-          <Pressable onPress={() => onFund(user)}>
-            <LinearGradient colors={[...colors.gradient]} style={styles.fundBtn}>
-              <Text style={styles.fundText}>Fund →</Text>
-            </LinearGradient>
+          <Pressable
+            onPress={() => onFund(user)}
+            hitSlop={6}
+            accessibilityLabel="Top up — send funds"
+            style={[styles.iconBtn, styles.toneGreen]}
+          >
+            <ArrowDownToLine size={18} color={colors.green} strokeWidth={2.25} />
           </Pressable>
         </View>
       </View>
@@ -110,26 +126,16 @@ const styles = StyleSheet.create({
   balLabel: { fontSize: 11, color: colors.textMuted },
   bal: { fontSize: 16, fontWeight: "700", color: colors.text, marginTop: 2 },
   actions: { flexDirection: "row", alignItems: "center", gap: 8 },
-  toggleBtn: {
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+  iconBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
     borderWidth: 1,
+    borderColor: "transparent",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  toggleOn: { borderColor: colors.green, backgroundColor: colors.greenBg },
-  toggleOff: { borderColor: "#fecaca", backgroundColor: "#fef2f2" },
-  toggleText: { fontWeight: "700", fontSize: 12 },
-  toggleOnText: { color: colors.green },
-  toggleOffText: { color: "#b91c1c" },
-  fundBtn: { borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10 },
-  fundText: { color: "#fff", fontWeight: "700", fontSize: 13 },
-  reverseBtn: {
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: colors.blue,
-    backgroundColor: `${colors.blue}14`,
-  },
-  reverseText: { color: colors.blueFlat, fontWeight: "700", fontSize: 12 },
+  toneGreen: { borderColor: `${colors.green}55`, backgroundColor: colors.greenBg },
+  toneRed: { borderColor: "#fecaca", backgroundColor: "#fef2f2" },
+  toneAmber: { borderColor: "#fde68a", backgroundColor: "#fffbeb" },
 });

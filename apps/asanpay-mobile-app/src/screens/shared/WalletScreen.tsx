@@ -19,6 +19,7 @@ const BALANCE_VISIBLE_KEY = "asanpay_balance_visible";
 
 export function WalletScreen() {
   const user = useAuthStore((s) => s.user)!;
+  const isPartner = user.role === "super_distributor" || user.role === "distributor";
   const { tokens } = useTheme();
   const [wallets, setWallets] = useState<WalletBalance[]>([]);
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
@@ -102,7 +103,7 @@ export function WalletScreen() {
       </LinearGradient>
 
       <View style={[styles.switcher, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
-        {(["main", "aeps"] as WalletKind[]).map((k) => {
+        {((isPartner ? ["main"] : ["main", "aeps"]) as WalletKind[]).map((k) => {
           const isActive = active === k;
           const w = k === "main" ? main : aeps;
           return (
