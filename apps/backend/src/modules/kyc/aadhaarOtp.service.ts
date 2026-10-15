@@ -297,6 +297,7 @@ export async function verifyAadhaarKycOtp(
   assertConfigured();
   const pending = await loadPending(userId);
   if (!pending) {
+    logger.warn({ userId }, "Aadhaar OTP verify: no pending session (expired or lost on restart)");
     throw new HttpError(
       401,
       "Aadhaar OTP has expired. Tap Resend OTP to request a new code.",
@@ -304,6 +305,7 @@ export async function verifyAadhaarKycOtp(
     );
   }
   if (pending.providerId !== input.requestId.trim()) {
+    logger.warn({ userId, aadhaarLast4: pending.last4 }, "Aadhaar OTP verify: request id mismatch");
     throw new HttpError(
       401,
       "This OTP does not match the latest Aadhaar request. Tap Resend OTP again.",
@@ -373,6 +375,10 @@ export async function verifyAadhaarKycOtp(
   if (/^\d{10}$/.test(linkedMobile)) {
     mobileMatched = linkedMobile === row.mobile.replace(/\D/g, "").slice(-10);
     if (!mobileMatched) {
+      logger.warn(
+        { userId, aadhaarLast4: pending.last4, linkedLast4: linkedMobile.slice(-4) },
+        "Aadhaar OTP verify: linked mobile differs from signup mobile",
+      );
       throw new HttpError(
         422,
         "This Aadhaar is linked to a different mobile. Use the Aadhaar registered on your signup number.",
