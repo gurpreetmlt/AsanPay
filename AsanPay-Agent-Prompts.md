@@ -17,7 +17,7 @@ Retailer serves the end customer at the counter (AEPS / DMT / BBPS / recharge).
 - **Apps:** `apps/admin` (web), `apps/distributor` (web), `apps/retailer` (mobile-first web / can later wrap in React Native)
 - **Shared packages:** `packages/db`, `packages/auth`, `packages/aggregator`, `packages/ui`, `packages/config`, `packages/commission`
 - **Stack:** TypeScript, Next.js 15 (App Router), React 19, MongoDB (Mongoose), Tailwind
-- **Golden rule:** the app is a *software layer*. All real banking (AEPS, DMT, BBPS) goes through a **pluggable aggregator adapter** (Eko / PaySprint / Setu / Decentro). Never hardcode one provider.
+- **Golden rule:** the app is a *software layer*. All real banking (AEPS, DMT, BBPS) goes through a **pluggable aggregator adapter** (InstantPay / PaySprint / VyaparAPI). Never hardcode one provider.
 
 ---
 
@@ -117,7 +117,7 @@ Pages / modules:
 
 6. SERVICE & AGGREGATOR CONFIG
    - Table of services (AEPS, DMT, BBPS, Recharge, Aadhaar Pay).
-   - Per service: enable/disable, choose aggregator (Eko/PaySprint/...), min/max amount.
+   - Per service: enable/disable, choose aggregator (InstantPay/PaySprint/...), min/max amount.
    - API keys are read from env only — UI shows "configured / not configured", never the key.
 
 7. TRANSACTIONS MONITOR
@@ -243,7 +243,7 @@ PWA shell, and graceful handling of aggregator timeouts (mark pending, allow sta
 
 1. **Prompt 0 first** — nothing works without shared models + ledger + aggregator interface.
 2. Then **Admin**, then **Distributor**, then **Retailer** (each depends on the tier above for funds).
-3. **Keep the aggregator pluggable.** Today Eko/PaySprint mock; swap real API later without touching UI.
+3. **Keep the aggregator pluggable.** Swap providers without touching UI.
 4. **Double-entry ledger + idempotency** on every rupee. This is the part that must never be sloppy.
 5. **Compliance reality (not code, but decide early):** AEPS needs a BC / bank tie-up via your
    aggregator; your wallet rides on a partner's PPI license unless you get your own; use certified

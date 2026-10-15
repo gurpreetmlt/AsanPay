@@ -679,7 +679,7 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
         }
         setLiveIinByName(map);
       } catch {
-        // Non-fatal — fall back to static IINs (dummy mode already matches).
+        // Non-fatal — fall back to static IINs (the non-InstantPay rails already match).
       }
     })();
     return () => {

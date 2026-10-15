@@ -212,7 +212,7 @@ export default function BioKycOnboardingPage() {
               </dd>
               <dt style={{ color: B.muted }}>Mode</dt>
               <dd className="font-medium" style={{ color: B.blue }}>
-                {status.live ? "Live InstantPay" : "Dummy (auto-approved)"}
+                {status.live ? "Live InstantPay" : "Auto-approved (not InstantPay)"}
               </dd>
             </dl>
           ) : (

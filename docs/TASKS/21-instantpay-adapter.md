@@ -10,7 +10,7 @@ Real InstantPay adapter behind the existing `ProviderAdapter` contract so AEPS /
 
 - [x] `AEPS_PROVIDER_MODE=dummy|instantpay_sandbox|instantpay_live` + fail-closed creds check
 - [x] `InstantPayAdapter` registered (`agentAuth`, balance, withdraw, mini statement, aadhaar pay, checkStatus)
-- [x] AEPS services resolve by mode (dummy → eko stub, instantpay_* → InstantPay; no silent fallback)
+- [x] AEPS services resolve by mode (instantpay_* → InstantPay, paysprint_* → PaySprint; no silent fallback — Eko stub and dummy mode removed 15 Oct 2026)
 - [x] Daily agent 2FA routes through provider `agentAuth`
 - [x] InstantPay `outletLoginStatus` wired into `GET /auth/agent-auth/status` (LOGGEDIN / LOGINREQUIRED)
 - [x] Compliance gates: KYC, geofence, bio-mismatch/EDD, dormancy, cash receipt register

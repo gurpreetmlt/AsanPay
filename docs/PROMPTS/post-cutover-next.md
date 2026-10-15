@@ -10,7 +10,7 @@ Supersedes [`ledger-cutover-next.md`](ledger-cutover-next.md), which is stale: i
 | Chart of accounts, ledger, `postJournal()`, flow matrix, `reverseJournal()` | `verify:ledger` 10/10 |
 | DB guards — append-only triggers, no-overdraft, protected accounts | live |
 | `UPLINE_PULL` txn type + `USABLE_ONLY_DEBIT_TYPES` floor | `core/ledger/flowMatrix.ts` |
-| `TREASURY_FLOAT_<provider>` per active provider | 3 provisioned: INSTANTPAY, EKO, PAYSPRINT |
+| `TREASURY_FLOAT_<provider>` per active provider | provisioned: INSTANTPAY, PAYSPRINT, VYAPARAPI (EKO closed 15 Oct 2026) |
 | **Cut-over** — `wallet.ledger.ts` posts journals; `wallets.balance` is a mirror | `598dca9`, deployed |
 | HTTP routes | `fundRequest.routes.ts`, `banking.routes.ts`, `settlement.routes.ts` |
 | Reconciliation sweep wired into boot | `server.ts:17` `runLedgerReconciliationSweep()` |

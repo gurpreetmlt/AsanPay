@@ -5,7 +5,7 @@
  *
  * Sources it looks for:
  *   - verify:shim         → providers / categories / services with code SHIM%, users "[shim-done] …"
- *   - test world helper   → "Eko (mock)" provider, "W Cat" categories, users "[torn-down] …"
+ *   - test world helper   → "test_mock" provider, "W Cat" categories, users "[torn-down] …"
  *   - seed:network        → demo hierarchy on mobiles 91111111xx / 92222222xx / 93333333xx
  *   - seed:txns           → transactions with idempotency_key "seed-%"
  *   - seed:settlements-dummy → settlement requests owned by the demo mobiles
@@ -37,11 +37,8 @@ async function main() {
       (SELECT COUNT(*)::int FROM provider_services ps WHERE ps.provider_id = p.id) AS routes
     FROM providers p ORDER BY p.code`);
   for (const p of providerRows) {
-    const flag = /^shim/i.test(p.code) || p.name === "Eko (mock)" ? "  <-- TEST" : "";
+    const flag = /^shim/i.test(p.code) || p.code === "test_mock" ? "  <-- TEST" : "";
     console.log(`  ${p.code.padEnd(24)} active=${String(p.is_active).padEnd(5)} routes=${p.routes}  ${p.name}${flag}`);
-  }
-  if (!providerRows.some((p) => p.code === "eko")) {
-    console.log("  !! 'eko' provider row is MISSING (a test run may have deleted it)");
   }
 
   section("Test catalog leftovers");

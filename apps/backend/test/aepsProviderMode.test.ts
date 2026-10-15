@@ -28,18 +28,13 @@ async function loadEnvModule(overrides: Record<string, string | undefined>) {
 
 afterEach(() => {
   vi.resetModules();
-  process.env.AEPS_PROVIDER_MODE = "dummy";
+  delete process.env.AEPS_PROVIDER_MODE;
 });
 
 describe("assertAepsProviderConfig", () => {
-  it("allows dummy mode without InstantPay credentials", async () => {
-    const { assertAepsProviderConfig, env } = await loadEnvModule({
-      AEPS_PROVIDER_MODE: "dummy",
-      INSTANTPAY_CLIENT_ID: undefined,
-      INSTANTPAY_CLIENT_SECRET: undefined,
-      INSTANTPAY_AES_KEY: undefined,
-    });
-    expect(env.AEPS_PROVIDER_MODE).toBe("dummy");
+  it("reads the retired dummy value as off and boots without credentials", async () => {
+    const { assertAepsProviderConfig, env } = await loadEnvModule({ AEPS_PROVIDER_MODE: "dummy" });
+    expect(env.AEPS_PROVIDER_MODE).toBe("off");
     expect(() => assertAepsProviderConfig()).not.toThrow();
   });
 
@@ -66,10 +61,10 @@ describe("assertAepsProviderConfig", () => {
 });
 
 describe("aepsAdapterCode", () => {
-  it("maps dummy → eko", async () => {
-    await loadEnvModule({ AEPS_PROVIDER_MODE: "dummy" });
+  it("returns null when AePS is off", async () => {
+    await loadEnvModule({ AEPS_PROVIDER_MODE: undefined });
     const { aepsAdapterCode } = await import("../src/modules/providers/aepsMode");
-    expect(aepsAdapterCode()).toBe("eko");
+    expect(aepsAdapterCode()).toBeNull();
   });
 
   it("maps instantpay_live → instantpay", async () => {

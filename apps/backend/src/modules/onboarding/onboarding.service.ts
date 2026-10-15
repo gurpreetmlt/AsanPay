@@ -25,7 +25,7 @@ export interface OutletProfile {
   state: string | null;
   districtName: string | null;
   address: string | null;
-  /** true when InstantPay was actually called; false in dummy mode. */
+  /** true when InstantPay was actually called; false on non-InstantPay rails. */
   live: boolean;
 }
 
@@ -33,7 +33,7 @@ export interface OutletProfile {
  * InstantPay Signup Min-KYC (POST /user/outlet/signup/minKyc) — registers the retailer as an
  * outlet and persists the returned outletId + business geo on the user row. Idempotent on the
  * provider side: InstantPay updates the profile if the outlet is already registered.
- * Dummy mode fabricates an outletId so the rest of the AEPS flow can be tested end-to-end.
+ * Non-InstantPay rails fabricate an outletId so the rest of the AEPS flow can be tested end-to-end.
  */
 export async function signupMinKyc(
   userId: string,
@@ -149,7 +149,7 @@ export interface BioKycStatus {
 
 /**
  * Merchant Biometric eKYC Status (POST /user/outlet/signup/biometricKycStatus).
- * spKey: DMI = DMT rail, WAP = AePS rail. Dummy mode reports APPROVED so downstream
+ * spKey: DMI = DMT rail, WAP = AePS rail. Non-InstantPay rails report APPROVED so downstream
  * flows stay testable without InstantPay.
  */
 export async function biometricKycStatus(
@@ -222,7 +222,7 @@ export async function biometricKycStatus(
  * Merchant Biometric KYC submit (POST /user/outlet/signup/biometricKyc) — merchant's own
  * Aadhaar fingerprint validated against UIDAI to activate the outlet on a rail.
  * The RD capture MUST embed the status API's `pidOptionWadh` (PidOptions wadh attribute).
- * After success, poll biometricKycStatus until APPROVED. Dummy mode short-circuits to success.
+ * After success, poll biometricKycStatus until APPROVED. Non-InstantPay rails short-circuit to success.
  */
 export async function submitBiometricKyc(
   userId: string,
@@ -253,7 +253,7 @@ export async function submitBiometricKyc(
   }
 
   if (!isInstantPayAepsMode()) {
-    return { submitted: true, message: "Biometric KYC accepted (dummy mode)", live: false };
+    return { submitted: true, message: "Biometric KYC not required on the PaySprint rail", live: false };
   }
 
   // encryptedAadhaar mandatory only when the status API returned an empty outletAadhaarNumber.
@@ -336,7 +336,7 @@ export async function mobileChangeInitiate(
       new: mask(input.newMobileNumber),
       otpReferenceID: `MOCKREF-${randomUUID().slice(0, 12)}`,
       hash: `MOCKHASH-${randomUUID().slice(0, 12)}`,
-      message: "Mobile change OTPs sent (dummy mode)",
+      message: "Mobile change OTPs are not required on the PaySprint rail",
       live: false,
     };
   }
@@ -382,7 +382,7 @@ export async function mobileChangeVerify(
   endpointIp: string,
 ): Promise<{ changed: boolean; message: string; live: boolean }> {
   if (!isInstantPayAepsMode()) {
-    return { changed: true, message: "Mobile Number successfully changed (dummy mode)", live: false };
+    return { changed: true, message: "Mobile number changed (no provider update needed on the PaySprint rail)", live: false };
   }
 
   const res = await instantPayPost(
@@ -440,7 +440,7 @@ export async function merchantList(
   endpointIp: string,
 ): Promise<MerchantListResult> {
   if (!isInstantPayAepsMode()) {
-    // Reflect locally-onboarded merchants so the admin list works in dummy mode too.
+    // Reflect locally-onboarded merchants so the admin list works on non-InstantPay rails too.
     const rows = await db
       .select({
         instantpayOutletId: users.instantpayOutletId,

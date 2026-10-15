@@ -26,7 +26,7 @@ export enum Service {
 }
 
 export enum AggregatorProvider {
-  Eko = 'eko',
+  InstantPay = 'instantpay',
   PaySprint = 'paysprint',
   Setu = 'setu',
   Decentro = 'decentro',
@@ -101,7 +101,7 @@ export const DEFAULT_SERVICE_CONFIG: Record<
 > = {
   [Service.Aeps]: {
     enabled: true,
-    aggregator: AggregatorProvider.Eko,
+    aggregator: AggregatorProvider.InstantPay,
     minAmount: 100,
     maxAmount: 10_000,
   },
@@ -125,7 +125,7 @@ export const DEFAULT_SERVICE_CONFIG: Record<
   },
   [Service.AadhaarPay]: {
     enabled: true,
-    aggregator: AggregatorProvider.Eko,
+    aggregator: AggregatorProvider.InstantPay,
     minAmount: 1,
     maxAmount: 10_000,
   },

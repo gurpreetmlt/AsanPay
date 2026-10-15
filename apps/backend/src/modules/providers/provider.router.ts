@@ -30,11 +30,19 @@ export interface RoutedProvider {
 
 /**
  * AEPS services honour AEPS_PROVIDER_MODE:
- * - dummy → eko stub (real RD PID + KYC still enforced above the adapter)
- * - instantpay_* → InstantPay adapter only (never silently falls back to dummy)
+ * - instantpay_* → InstantPay adapter
+ * - paysprint_* → PaySprint adapter
+ * - off → 503 (no AePS provider configured yet)
  */
 async function resolveAepsProvider(serviceCode: string): Promise<RoutedProvider[]> {
   const code = aepsAdapterCode();
+  if (!code) {
+    throw new HttpError(
+      503,
+      "AePS is not live yet — no AePS provider is configured. Contact support.",
+      "AEPS_NOT_CONFIGURED",
+    );
+  }
   const adapter = getAdapterByCode(code);
   if (!adapter) {
     throw new HttpError(503, `AEPS adapter "${code}" is not registered`, "NO_PROVIDER_AVAILABLE");
@@ -42,7 +50,7 @@ async function resolveAepsProvider(serviceCode: string): Promise<RoutedProvider[
   if (isStubBlocked(adapter, env.NODE_ENV, env.ALLOW_STUB_PROVIDERS)) {
     throw new HttpError(
       503,
-      "Dummy AEPS provider blocked in production — set AEPS_PROVIDER_MODE=instantpay_live (or ALLOW_STUB_PROVIDERS for staging)",
+      "Stub AEPS provider blocked in production — set AEPS_PROVIDER_MODE=instantpay_live (or ALLOW_STUB_PROVIDERS for staging)",
       "STUB_PROVIDER_BLOCKED",
     );
   }
@@ -59,7 +67,7 @@ async function resolveAepsProvider(serviceCode: string): Promise<RoutedProvider[
     // Ensure a providers row exists so txn.providerId FK stays valid.
     const [created] = await db
       .insert(providers)
-      .values({ code, name: code === "instantpay" ? "InstantPay" : "Eko (dummy AEPS)" })
+      .values({ code, name: code === "instantpay" ? "InstantPay" : "PaySprint" })
       .returning({ id: providers.id, isActive: providers.isActive });
     row = created!;
   }

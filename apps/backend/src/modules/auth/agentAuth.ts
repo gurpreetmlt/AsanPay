@@ -28,7 +28,7 @@ export interface AgentAuthStatus {
   /** Retailer's own KYC Aadhaar (signup) — clients auto-fill daily 2FA from this. */
   aadhaarNumber: string | null;
   providerMode: string;
-  /** InstantPay outletLoginStatus extras (null in dummy mode / provider unreachable). */
+  /** InstantPay outletLoginStatus extras (null on non-InstantPay rails / provider unreachable). */
   outlet?: {
     registered: boolean;
     actcode: string | null;
@@ -129,7 +129,7 @@ export interface AgentAuthInput {
 /**
  * Daily retailer 2FA before AEPS.
  * - Always: KYC Aadhaar match + fresh PID (replay guard)
- * - dummy: mock provider agentAuth succeeds → unlock day
+ * - paysprint: provider agentAuth succeeds → unlock day
  * - instantpay_*: unlock only after InstantPay outletLogin success
  */
 export async function verifyAndRecordAgentAuth(

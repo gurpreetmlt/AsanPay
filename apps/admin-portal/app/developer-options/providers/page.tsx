@@ -45,7 +45,7 @@ interface CategoryGroup {
 
 interface RailInfo {
   mode: string;
-  activeProviderCode: string;
+  activeProviderCode: string | null;
   note: string;
 }
 
@@ -249,7 +249,7 @@ export default function ProvidersPage() {
               </span>{" "}
               — mode <code>{railInfo.mode}</code>, active provider{" "}
               <span className="font-medium" style={{ color: B.blue }}>
-                {railInfo.activeProviderCode}
+                {railInfo.activeProviderCode ?? "None — AePS is off"}
               </span>
               . {railInfo.note}
             </div>

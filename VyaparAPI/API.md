@@ -559,7 +559,7 @@ Partner Callback URL in Vyapar portal:
 https://<your-backend-host>/api/webhooks/vyaparapi/callback?token=<same as VYAPARAPI_CALLBACK_SECRET>
 ```
 
-Admin → Developer Options → Providers → **Bill Payment (BBPS)** → enable **VyaparAPI** on Mobile Prepaid / DTH (seeded inactive). Disable Eko for those services when going live.
+Admin → Developer Options → Providers → **Bill Payment (BBPS)** → enable **VyaparAPI** on Mobile Prepaid / DTH (seeded inactive).
 
 ```bash
 npm run seed:providers -w @asanpay/backend

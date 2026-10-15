@@ -152,7 +152,7 @@ async function main() {
 
   process.env.LEDGER_TENANT_CODE = "LEDGERTEST";
   const suffix = `ld${Date.now().toString(36)}`;
-  // Wallets + LEDGERTEST isolation. createWorld also inserts a throwaway eko provider id we
+  // Wallets + LEDGERTEST isolation. createWorld also inserts a throwaway test_mock provider id we
   // attach to load txns so service journals have a float account (auto-provisioned).
   const w = await createWorld(suffix);
   const tenantId = await ledgerTenantId();

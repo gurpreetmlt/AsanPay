@@ -16,7 +16,6 @@ import { aepsAdapterCode } from "../src/modules/providers/aepsMode";
 // panel. Nepal remittance + merchant onboarding/eKYC stay on the env switch (InstantPay-specific
 // endpoints, no generic adapter method to route through yet) — not seeded here.
 const PROVIDERS = [
-  { code: "eko", name: "Eko (dummy AEPS)" },
   { code: "instantpay", name: "InstantPay" },
   { code: "paysprint", name: "PaySprint" },
   { code: "vyaparapi", name: "VyaparAPI" },
@@ -131,7 +130,7 @@ async function seedOperationProviders(
   providerIds: Record<string, string>,
   activeAdapterCode: string,
 ) {
-  const order: (keyof typeof providerIds)[] = ["eko", "instantpay", "paysprint"];
+  const order: (keyof typeof providerIds)[] = ["instantpay", "paysprint"];
   let created = 0;
   for (let i = 0; i < order.length; i++) {
     const code = order[i]!;
@@ -157,10 +156,9 @@ async function seedOperationProviders(
 
 async function main() {
   const providerIds = await upsertProviders();
-  const activeAdapterCode = aepsAdapterCode();
-  console.log(`Current AEPS_PROVIDER_MODE=${env.AEPS_PROVIDER_MODE} → seeding "${activeAdapterCode}" as active for AEPS/DMT`);
+  const activeAdapterCode = aepsAdapterCode() ?? "";
+  console.log(`Current AEPS_PROVIDER_MODE=${env.AEPS_PROVIDER_MODE} → seeding "${activeAdapterCode || "none (AePS off)"}" as active for AEPS/DMT`);
 
-  // BBPS (existing — unchanged, single provider "eko" per category, no live mode to preserve)
   const [bbpsCategory] = await db
     .select()
     .from(serviceCategories)
@@ -169,21 +167,6 @@ async function main() {
     throw new Error('BILL_PAYMENT_BBPS category not found — run "npm run seed:catalog -w @asanpay/backend" first');
   }
   const bbpsServices = await db.select().from(services).where(eq(services.categoryId, bbpsCategory.id));
-  let bbpsCreated = 0;
-  for (const svc of bbpsServices) {
-    const existing = await db.select().from(providerServices).where(eq(providerServices.serviceId, svc.id));
-    if (existing.length) continue;
-    await db.insert(providerServices).values({
-      serviceId: svc.id,
-      providerId: providerIds.eko!,
-      providerServiceCode: `eko:${svc.code}`,
-      isPrimary: true,
-      priority: 0,
-      isActive: true,
-    });
-    bbpsCreated++;
-  }
-  console.log(`BBPS: ${bbpsCreated} provider_services created (${bbpsServices.length} services total)`);
 
   // VyaparAPI on Mobile Prepaid + DTH (inactive by default — admin toggles live)
   let vyaparCreated = 0;

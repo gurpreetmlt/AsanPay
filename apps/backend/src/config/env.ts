@@ -143,7 +143,7 @@ const envSchema = z.object({
   /**
    * Comma-separated allowlist of STQC-certified RD-service device-provider ids (PidData
    * DeviceInfo@dpId) accepted for AePS biometric capture — e.g. Mantra, Morpho/IDEMIA, Precision.
-   * Case-insensitive prefix match. Empty means allow-all (dummy/dev only — see isAepsDeviceAllowlistEnforced).
+   * Case-insensitive prefix match. Empty means allow-all (dev only — see isAepsDeviceAllowlistEnforced).
    */
   AEPS_CERTIFIED_DEVICE_PROVIDERS: z
     .string()
@@ -151,12 +151,15 @@ const envSchema = z.object({
     .transform((v) => v.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean)),
   /**
    * AEPS rail mode. Same UI/API; only the provider behind the adapter changes.
-   * - dummy: MockAdapter (eko) — real RD PID + KYC still required; no InstantPay HTTP
+   * - off: no AePS provider configured — AePS requests fail with a clear 503
    * - instantpay_sandbox / instantpay_live: real InstantPay adapter (fail-closed if creds missing)
+   * - paysprint_sandbox / paysprint_live: real PaySprint adapter (fail-closed if creds missing)
+   * The retired `dummy` value is read as `off` so an old env cannot stop the server booting.
    */
-  AEPS_PROVIDER_MODE: z
-    .enum(["dummy", "instantpay_sandbox", "instantpay_live", "paysprint_sandbox", "paysprint_live"])
-    .default("dummy"),
+  AEPS_PROVIDER_MODE: z.preprocess(
+    (v) => (v === "dummy" ? "off" : v),
+    z.enum(["off", "instantpay_sandbox", "instantpay_live", "paysprint_sandbox", "paysprint_live"]).default("off"),
+  ),
   INSTANTPAY_CLIENT_ID: z.string().optional(),
   INSTANTPAY_CLIENT_SECRET: z.string().optional(),
   /** Auth code header — InstantPay docs use fixed "1". */
@@ -303,7 +306,7 @@ if (!parsed.success) {
 
 export const env = parsed.data;
 
-/** Fail-closed: sandbox/live must have InstantPay credentials — never silent-fallback to dummy. */
+/** Fail-closed: sandbox/live must have InstantPay credentials — never silently fall back to another rail. */
 export function assertAepsProviderConfig(): void {
   if (!isInstantPayAepsMode()) return;
   const missing: string[] = [];
@@ -313,7 +316,7 @@ export function assertAepsProviderConfig(): void {
   if (missing.length) {
     throw new Error(
       `AEPS_PROVIDER_MODE=${env.AEPS_PROVIDER_MODE} requires ${missing.join(", ")}. ` +
-        "Set credentials or switch AEPS_PROVIDER_MODE=dummy. Silent fallback to dummy is not allowed.",
+        "Set the credentials in Coolify, or switch AEPS_PROVIDER_MODE to a rail whose credentials are set.",
     );
   }
 }
@@ -341,7 +344,7 @@ export function assertPaySprintProviderConfig(): void {
   if (missing.length) {
     throw new Error(
       `AEPS_PROVIDER_MODE=${env.AEPS_PROVIDER_MODE} requires ${missing.join(", ")}. ` +
-        "Set credentials or switch AEPS_PROVIDER_MODE=dummy. Silent fallback to dummy is not allowed.",
+        "Set the credentials in Coolify, or switch AEPS_PROVIDER_MODE to a rail whose credentials are set.",
     );
   }
 }

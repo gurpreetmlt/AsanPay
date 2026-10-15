@@ -29,7 +29,7 @@ apps/backend/src/modules/
   catalog/       service tiles (Mongo/Postgres)
   transactions/  AEPS, DMT, BBPS, recharge
   commission/    slab engine
-  providers/     Eko, PaySprint adapters
+  providers/     InstantPay, PaySprint, VyaparAPI adapters
 ```
 
 ## Money flow

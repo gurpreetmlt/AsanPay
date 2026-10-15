@@ -32,7 +32,7 @@ function laterOf(a: Date | null, b: Date | null): Date | null {
 }
 
 /**
- * Pre-txn gates shared by dummy and InstantPay modes:
+ * Pre-txn gates shared by every AePS rail:
  * KYC verified, not AEPS-blocked, not EDD-locked, not dormant, within geofence.
  */
 export async function assertAepsCompliance(
@@ -76,7 +76,7 @@ export async function assertAepsCompliance(
   }
 
   // RBI's AePS Touchpoint Operator Directions (in force 1 Jan 2026) require fresh KYC after
-  // three consecutive months with no transactions. Dummy mode only flags merchants who
+  // three consecutive months with no transactions. Non-InstantPay rails only flag merchants who
   // previously did AEPS then went idle (so seed/test accounts aren't locked by createdAt).
   //
   // The anchor is the LATER of the last transaction and the last admin reactivation. Anchoring
@@ -222,8 +222,8 @@ export async function recordCashReceipt(input: {
 
 /**
  * Reject biometric captures from RD-service devices whose declared device-provider id (dpId)
- * isn't on our STQC-certified allowlist (Mantra, Morpho/IDEMIA, Precision, etc.). Dummy AePS
- * mode is exempt since it never talks to a real device. Configurable via
+ * isn't on our STQC-certified allowlist (Mantra, Morpho/IDEMIA, Precision, etc.). Enforced on the
+ * InstantPay rail only. Configurable via
  * AEPS_CERTIFIED_DEVICE_PROVIDERS so ops can add a newly certified vendor without a code change.
  */
 export function assertCertifiedBiometricDevice(dpId: string): void {

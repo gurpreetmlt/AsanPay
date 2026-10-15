@@ -6,7 +6,6 @@ const PROVIDER_BRAND: Record<string, ProviderBrand> = {
   vyaparapi: { primary: "#6D28D9", secondary: "#F59E0B", domain: "vyaparapi.com" },
   instantpay: { primary: "#0B4EA2", secondary: "#1E88E5", domain: "instantpay.in" },
   paysprint: { primary: "#E31E24", secondary: "#B71C1C", domain: "paysprint.in" },
-  eko: { primary: "#F5B301", secondary: "#E09B00", domain: "eko.in" },
 };
 
 const DEFAULT_BRAND: ProviderBrand = {
@@ -14,7 +13,7 @@ const DEFAULT_BRAND: ProviderBrand = {
   secondary: "#0B2A9A",
 };
 
-/** Matches on code prefix so variants like `eko_aeps` share the parent brand. */
+/** Matches on code prefix so variants like `instantpay_aeps` share the parent brand. */
 export function providerBrand(code: string): ProviderBrand {
   const c = code.toLowerCase();
   const key = Object.keys(PROVIDER_BRAND).find((k) => c === k || c.startsWith(k));

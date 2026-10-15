@@ -4,8 +4,6 @@ export const envSchema = z.object({
   MONGODB_URI: z.string().min(1, 'MONGODB_URI is required'),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
   JWT_EXPIRES_IN: z.string().default('7d'),
-  EKO_API_KEY: z.string().optional(),
-  EKO_API_SECRET: z.string().optional(),
   PAYSPRINT_API_KEY: z.string().optional(),
   PAYSPRINT_API_SECRET: z.string().optional(),
   DIGILOCKER_CLIENT_ID: z.string().optional(),
@@ -33,11 +31,9 @@ export function getEnv(): Env {
   return cachedEnv;
 }
 
-export function isAggregatorConfigured(provider: 'eko' | 'paysprint'): boolean {
+export function isAggregatorConfigured(provider: 'paysprint'): boolean {
   const env = getEnv();
   switch (provider) {
-    case 'eko':
-      return Boolean(env.EKO_API_KEY && env.EKO_API_SECRET);
     case 'paysprint':
       return Boolean(env.PAYSPRINT_API_KEY && env.PAYSPRINT_API_SECRET);
     default:

@@ -979,7 +979,7 @@ export async function aepsMiniStatement(req: Request, res: Response): Promise<vo
   sendSuccess(res, result);
 }
 
-/** OTP for ₹5,000+ withdrawals. Moves no money; dummy mode returns a mock referenceKey. */
+/** OTP for ₹5,000+ withdrawals. Moves no money; non-InstantPay rails return a provider referenceKey. */
 export async function aepsWithdrawOtp(req: Request, res: Response): Promise<void> {
   const body = req.body as z.infer<typeof aepsTxnOtpSchema>;
   const userId = actor(req).id;

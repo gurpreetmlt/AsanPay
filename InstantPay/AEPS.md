@@ -17,7 +17,7 @@ Client (mobile/web)
       │  same REST contract
       ▼
 Backend txn/auth controllers
-      │  resolveProvidersForService()  ── AEPS_PROVIDER_MODE ──►  eko (mock)  |  instantpay
+      │  resolveProvidersForService()  ── AEPS_PROVIDER_MODE ──►  instantpay  |  paysprint
       ▼
 ProviderAdapter  (aeps* methods)
       ▼
@@ -27,7 +27,6 @@ InstantPay HTTP  (/fi/aeps/*)   ← sirf instantpay_sandbox / instantpay_live me
 ### Modes (`AEPS_PROVIDER_MODE`)
 | Mode | Adapter | InstantPay HTTP? | Kab use |
 |------|---------|------------------|---------|
-| `dummy` | eko mock | Nahi | Testing — real RD PID + KYC phir bhi enforce hote hain |
 | `instantpay_sandbox` | InstantPay | Haan (sandbox creds) | UAT |
 | `instantpay_live` | InstantPay | Haan (prod creds) | Production |
 

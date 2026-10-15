@@ -124,7 +124,7 @@ export abstract class MockAdapterBase implements ProviderAdapter {
   aepsTransactionOtp(
     params: AepsTxnOtpParams,
   ): Promise<ProviderResult<{ referenceKey: string; validity: string }>> {
-    // Mock OTP dispatch — dummy flow accepts any 6-digit OTP typed at capture time.
+    // Mock OTP dispatch — mock flow accepts any 6-digit OTP typed at capture time.
     return this.respond("AEPS transaction OTP", undefined, {
       referenceKey: `MOCKOTP-${randomUUID().slice(0, 16)}`,
       validity: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
@@ -148,7 +148,7 @@ export abstract class MockAdapterBase implements ProviderAdapter {
   }
 
   aepsBankList(_params: AepsBankListParams): Promise<ProviderResult<{ banks: AepsBank[] }>> {
-    // Real NPCI IINs so dummy-mode selection matches live behaviour; extend as needed.
+    // Real NPCI IINs so mock selection matches live behaviour; extend as needed.
     const banks: AepsBank[] = [
       { bankId: 109005, name: "STATE BANK OF INDIA", iin: "607094", aepsEnabled: true, aadhaarpayEnabled: true, aepsFailureRate: "33", aadhaarpayFailureRate: "45" },
       { bankId: 74984, name: "Punjab National Bank", iin: "607027", aepsEnabled: true, aadhaarpayEnabled: true, aepsFailureRate: "16", aadhaarpayFailureRate: "71" },

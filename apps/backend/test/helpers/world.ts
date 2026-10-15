@@ -23,6 +23,7 @@ import { postJournal, clearAccountCache } from "../../src/core/ledger";
 import { rupeesToPaise } from "../../src/core/money";
 import { seedSystemAccounts } from "../../src/modules/bootstrap/systemAccounts";
 import { ensureHierarchyAccount } from "../../src/modules/wallet/ledgerAccounts";
+import { TEST_PROVIDER_CODE } from "./mockProvider";
 import {
   clearTenantCache,
   legacyTenantCode,
@@ -171,13 +172,12 @@ export async function createWorld(suffix: string): Promise<World> {
   const [cat] = await db.insert(serviceCategories).values({ code: `w_${suffix}`, name: "W Cat" }).returning();
   const categoryId = cat!.id;
 
-  // Never delete a pre-existing "eko" row: on a shared DB that is the real provider, and its
-  // provider_services routing would cascade away with it.
-  const [existingEko] = await db.select().from(providers).where(eq(providers.code, "eko")).limit(1);
-  const ownsProvider = !existingEko;
+  // Reuse a leftover test_mock row from an aborted run rather than failing on the unique code.
+  const [existingMock] = await db.select().from(providers).where(eq(providers.code, TEST_PROVIDER_CODE)).limit(1);
+  const ownsProvider = !existingMock;
   const prov =
-    existingEko ??
-    (await db.insert(providers).values({ code: "eko", name: "Eko (mock)" }).returning())[0];
+    existingMock ??
+    (await db.insert(providers).values({ code: TEST_PROVIDER_CODE, name: "Test mock" }).returning())[0];
   const providerId = prov!.id;
 
   const serviceIds: string[] = [];
@@ -196,7 +196,7 @@ export async function createWorld(suffix: string): Promise<World> {
       .returning();
     await db
       .insert(providerServices)
-      .values({ serviceId: svc!.id, providerId, providerServiceCode: "eko", isPrimary: true });
+      .values({ serviceId: svc!.id, providerId, providerServiceCode: TEST_PROVIDER_CODE, isPrimary: true });
     serviceIds.push(svc!.id);
     return svc!.id;
   }

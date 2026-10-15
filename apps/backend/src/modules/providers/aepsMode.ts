@@ -38,10 +38,10 @@ export function isAepsRoutedService(serviceCode: string): boolean {
 }
 
 /** Adapter registry code for the current AEPS mode. */
-export function aepsAdapterCode(): "eko" | "instantpay" | "paysprint" {
+export function aepsAdapterCode(): "instantpay" | "paysprint" | null {
   if (isInstantPayAepsMode()) return "instantpay";
   if (isPaySprintAepsMode()) return "paysprint";
-  return "eko";
+  return null;
 }
 
 export function aepsProviderModeLabel(): string {

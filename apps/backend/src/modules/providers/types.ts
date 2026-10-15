@@ -1,6 +1,6 @@
 // Provider-agnostic contract for the wrapper layer. Every real banking rail
 // (AEPS, DMT, BBPS, recharge) goes through an adapter implementing this
-// interface — the rest of the codebase never talks to Eko/PaySprint directly,
+// interface — the rest of the codebase never talks to InstantPay/PaySprint directly,
 // so swapping or adding a provider is a registry entry, not a refactor.
 
 export type ProviderTxnStatus = "success" | "failed" | "pending";

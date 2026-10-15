@@ -14,6 +14,7 @@ import {
   walletLedgerEntries,
 } from "../src/db/postgres/schema";
 import { recheckTxnStatus } from "../src/modules/transactions/txn.service";
+import { TEST_PROVIDER_CODE } from "./helpers/mockProvider";
 
 // Critical-1 regression: a pending AEPS credit must settle EXACTLY ONCE even when a retailer
 // fires many concurrent /recheck calls for the same txn. Before the fix (no txn-row lock +
@@ -85,11 +86,15 @@ beforeAll(async () => {
     .returning();
   serviceId = svc!.id;
 
-  // Provider "eko" resolves to the mock adapter (checkStatus -> success).
-  await db.delete(providers).where(eq(providers.code, "eko"));
-  const [prov] = await db.insert(providers).values({ code: "eko", name: "Eko (mock)" }).returning();
+  // The test_mock provider resolves to the mock adapter (checkStatus -> success).
+  const [existingMock] = await db.select().from(providers).where(eq(providers.code, TEST_PROVIDER_CODE)).limit(1);
+  const prov =
+    existingMock ??
+    (await db.insert(providers).values({ code: TEST_PROVIDER_CODE, name: "Test mock" }).returning())[0];
   providerId = prov!.id;
-  await db.insert(providerServices).values({ serviceId, providerId, providerServiceCode: "eko-aeps", isPrimary: true });
+  await db
+    .insert(providerServices)
+    .values({ serviceId, providerId, providerServiceCode: `${TEST_PROVIDER_CODE}-aeps`, isPrimary: true });
 
   // A pending AEPS withdrawal awaiting settlement.
   txnRef = `SECTEST-${SUFFIX}`;

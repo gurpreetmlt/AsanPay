@@ -12,7 +12,6 @@
 |------|-----|
 | `apps/backend/src/modules/transactions/txn.routes.ts` | AEPS endpoints |
 | `apps/backend/src/modules/transactions/txn.service.ts` | Txn logic |
-| `apps/backend/src/modules/providers/adapters/eko.adapter.ts` | Mock aggregator |
 | `apps/agent-portal/app/dashboard/page.tsx` | Retailer dashboard |
 | `apps/mobile/src/screens/RoleHomeScreens.tsx` | Mobile entry |
 

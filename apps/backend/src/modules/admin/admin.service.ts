@@ -1447,7 +1447,7 @@ export async function listProvidersAdmin() {
       }
 
       // Per-service breakdown — lets admin toggle ONE biller's provider independently
-      // (e.g. move just "DTH" to PaySprint while the rest of BBPS stays on Eko).
+      // (e.g. move just "DTH" to PaySprint while the rest of BBPS stays on VyaparAPI).
       //
       // NOT for AEPS/DMT (2026-07-21, user-flagged risk): those are multi-step sequential
       // flows (remitter register → verify → KYC → beneficiary → transfer, all sharing a

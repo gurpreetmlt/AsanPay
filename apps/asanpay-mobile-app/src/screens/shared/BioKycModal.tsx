@@ -167,7 +167,7 @@ export function BioKycModal({ visible, onClose }: { visible: boolean; onClose: (
                 Aadhaar: {status.outletAadhaarNumber || "Not on file"}
               </Text>
               <Text style={[styles.meta, { color: tokens.sub }]}>
-                Mode: {status.live ? "Live InstantPay" : "Dummy (auto-approved)"}
+                Mode: {status.live ? "Live InstantPay" : "Auto-approved (not InstantPay)"}
               </Text>
             </View>
           ) : null}
