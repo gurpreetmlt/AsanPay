@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
-import { Check, Copy, Eye, EyeOff, Landmark } from "lucide-react";
+import { Check, Copy, Eye, EyeOff, FileText, Landmark } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { B } from "@/lib/brand";
 import {
@@ -92,6 +92,7 @@ export function BankDetailCard({
   revealing = false,
   onToggleReveal,
   onCopy,
+  onView,
   statusTone = "success",
   statusLabel = "Active",
   selected = false,
@@ -105,6 +106,8 @@ export function BankDetailCard({
   onActivate,
   activateLabel = "Set as active",
 }: {
+  /** Opens the full account details popup. */
+  onView?: () => void;
   ifsc: string;
   holderName: string;
   accountMasked: string;
@@ -245,6 +248,18 @@ export function BankDetailCard({
             }}
           >
             {showFull ? <EyeOff size={17} strokeWidth={2.25} /> : <Eye size={17} strokeWidth={2.25} />}
+          </ActionBtn>
+        ) : null}
+        {onView ? (
+          <ActionBtn
+            label="View details"
+            disabled={unavailable}
+            onClick={(e) => {
+              e.stopPropagation();
+              onView();
+            }}
+          >
+            <FileText size={17} strokeWidth={2.25} />
           </ActionBtn>
         ) : null}
         <ActionBtn

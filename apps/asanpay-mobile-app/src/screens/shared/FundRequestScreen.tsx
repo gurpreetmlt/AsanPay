@@ -37,6 +37,7 @@ import { formatSettlementBankCopy } from "../../lib/bankLogo";
 import { formatINR } from "../../lib/format";
 import { showAlert } from "../../components/AppAlert";
 import { BankDetailCard } from "../../components/BankDetailCard";
+import { BankAccountViewSheet, type BankViewDetails } from "../../components/BankAccountViewSheet";
 import { useTheme } from "../../theme/ThemeContext";
 import { useAuthStore } from "../../store/auth";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
@@ -45,6 +46,7 @@ import { colors } from "../../theme/colors";
 interface BankAccount {
   id: string;
   bankName: string;
+  accountNumber?: string | null;
   accountNumberLast4: string;
   ifsc: string;
   isActive: boolean;
@@ -543,6 +545,7 @@ function BankCardSlider({
   onSelect: (id: string) => void;
 }) {
   const [revealedIds, setRevealedIds] = useState<Record<string, boolean>>({});
+  const [viewBank, setViewBank] = useState<BankViewDetails | null>(null);
   const [trackW, setTrackW] = useState(0);
   /** Full card stays inside screen; ~22px peek of the next bank. */
   const GAP = 12;
@@ -555,6 +558,7 @@ function BankCardSlider({
       style={{ marginHorizontal: -16 }}
       onLayout={(e) => setTrackW(e.nativeEvent.layout.width)}
     >
+      <BankAccountViewSheet bank={viewBank} onClose={() => setViewBank(null)} />
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -567,10 +571,11 @@ function BankCardSlider({
         {banks.map((b) => {
           const isSelected = selected === b.id;
           const isMine = myVan?.bankAccountId === b.id && Boolean(myVan?.vanNumber);
-          const fullAccount = isMine && myVan?.vanNumber ? myVan.vanNumber : `****${b.accountNumberLast4}`;
+          const fullAccount =
+            isMine && myVan?.vanNumber ? myVan.vanNumber : b.accountNumber || `****${b.accountNumberLast4}`;
           const masked =
             isMine && myVan?.vanNumber ? maskTail(myVan.vanNumber) : `**** ${b.accountNumberLast4}`;
-          const canReveal = isMine && Boolean(myVan?.vanNumber);
+          const canReveal = (isMine && Boolean(myVan?.vanNumber)) || Boolean(b.accountNumber);
 
           return (
             <BankDetailCard
@@ -602,6 +607,18 @@ function BankCardSlider({
                 );
                 showAlert("Copied", "Bank details copied");
               }}
+              onView={() =>
+                setViewBank({
+                  bankName: b.bankName,
+                  ifsc: b.ifsc,
+                  accountNumber: fullAccount.replace(/\s/g, ""),
+                  holderName: b.holderName || "AsanPay",
+                  accountType: b.accountType,
+                  branchName: b.branchName,
+                  branchCode: b.branchCode,
+                  city: b.city,
+                })
+              }
               statusTone={isSelected ? "success" : b.isActive ? "info" : "pending"}
               statusLabel={isSelected ? "Selected" : b.isActive ? "Available" : "Unavailable"}
               selected={isSelected}

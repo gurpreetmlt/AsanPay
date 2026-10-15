@@ -16,6 +16,7 @@ import { toast } from "react-hot-toast";
 import {
   BankDetailCard,
 } from "@/components/banking/BankAccountDetailsCard";
+import { BankAccountViewModal, type BankViewDetails } from "@/components/banking/BankAccountViewModal";
 import api, { fetchApi } from "@/lib/api";
 import { extractApiError } from "@/lib/onboarding";
 import { createAttemptKeyHolder } from "@/lib/idempotencyKey";
@@ -26,6 +27,7 @@ import { PrimaryButton } from "@/components/ui/PrimaryButton";
 interface BankAccount {
   id: string;
   bankName: string;
+  accountNumber?: string | null;
   accountNumberLast4: string;
   ifsc: string;
   isActive?: boolean;
@@ -191,16 +193,19 @@ function BankCardSlider({
   onSelect: (id: string) => void;
 }) {
   const [revealedIds, setRevealedIds] = useState<Record<string, boolean>>({});
+  const [viewBank, setViewBank] = useState<BankViewDetails | null>(null);
 
   return (
     <div className="grid items-stretch gap-4 overflow-visible p-1 sm:grid-cols-2 xl:grid-cols-3">
+      {viewBank ? <BankAccountViewModal bank={viewBank} onClose={() => setViewBank(null)} /> : null}
       {banks.map((b) => {
         const isSelected = selected === b.id;
         const isActive = b.isActive !== false;
         const isMine = myVan?.bankAccountId === b.id && Boolean(myVan?.vanNumber);
-        const fullAccount = isMine && myVan?.vanNumber ? myVan.vanNumber : `****${b.accountNumberLast4}`;
+        const fullAccount =
+          isMine && myVan?.vanNumber ? myVan.vanNumber : b.accountNumber || `****${b.accountNumberLast4}`;
         const masked = isMine && myVan?.vanNumber ? maskTail(myVan.vanNumber) : `**** ${b.accountNumberLast4}`;
-        const canReveal = isMine && Boolean(myVan?.vanNumber);
+        const canReveal = (isMine && Boolean(myVan?.vanNumber)) || Boolean(b.accountNumber);
 
         return (
           <BankDetailCard
@@ -234,6 +239,18 @@ function BankCardSlider({
                 .then(() => toast.success("Bank details copied"))
                 .catch(() => toast.error("Could not copy bank details"));
             }}
+            onView={() =>
+              setViewBank({
+                bankName: b.bankName,
+                ifsc: b.ifsc,
+                accountNumber: fullAccount.replace(/\s/g, ""),
+                holderName: b.holderName || "AsanPay",
+                accountType: b.accountType,
+                branchName: b.branchName,
+                branchCode: b.branchCode,
+                city: b.city,
+              })
+            }
             statusTone={isSelected ? "success" : isActive ? "info" : "pending"}
             statusLabel={isSelected ? "Selected" : isActive ? "Available" : "Unavailable"}
             selected={isSelected}

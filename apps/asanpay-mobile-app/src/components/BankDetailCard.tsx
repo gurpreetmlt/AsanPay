@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import Clipboard from "@react-native-clipboard/clipboard";
-import { Check, Copy, Eye, EyeOff, Landmark } from "lucide-react-native";
+import { Check, Copy, Eye, EyeOff, FileText, Landmark } from "lucide-react-native";
 import {
   bankBrandTint,
   bankCardCornerTint,
@@ -70,6 +70,7 @@ export function BankDetailCard({
   revealing = false,
   onToggleReveal,
   onCopy,
+  onView,
   statusTone = "success",
   statusLabel = "Active",
   selected = false,
@@ -84,6 +85,8 @@ export function BankDetailCard({
   onActivate,
   activateLabel = "Set as active",
 }: {
+  /** Opens the full account details sheet. */
+  onView?: () => void;
   ifsc: string;
   holderName: string;
   accountMasked: string;
@@ -194,6 +197,11 @@ export function BankDetailCard({
             ) : (
               <Eye size={17} color={colors.blueFlat} strokeWidth={2.25} />
             )}
+          </ActionBtn>
+        ) : null}
+        {onView ? (
+          <ActionBtn label="View details" onPress={onView} disabled={unavailable}>
+            <FileText size={17} color={colors.blueFlat} strokeWidth={2.25} />
           </ActionBtn>
         ) : null}
         <ActionBtn

@@ -5,7 +5,7 @@ import { db } from "../../db/postgres";
 import { accounts, bankAccounts, bankStatementLines, virtualAccounts } from "../../db/postgres/schema";
 import { postJournal } from "../../core/ledger";
 import { ensureTreasuryAccount, ensureHierarchyAccount } from "../wallet/ledgerAccounts";
-import { encryptPII } from "../../utils/aes";
+import { decryptPII, encryptPII } from "../../utils/aes";
 import { HttpError } from "../../utils/httpError";
 import { env } from "../../config/env";
 import type { Paise } from "../../core/money";
@@ -418,7 +418,10 @@ export async function unmatchedCreditCount(tenantId: string): Promise<number> {
   return Number(row?.n ?? 0);
 }
 
-/** Safe bank list for dropdowns — never returns the encrypted account number. */
+/**
+ * Bank list for dropdowns. The full account number is only returned for collection banks —
+ * agents need it to deposit; payout / ops numbers stay masked.
+ */
 export async function listBankAccounts(
   tenantId: string,
   opts?: { purpose?: "collection" | "payout" | "ops"; activeOnly?: boolean },
@@ -426,6 +429,7 @@ export async function listBankAccounts(
   Array<{
     id: string;
     bankName: string;
+    accountNumber: string | null;
     accountNumberLast4: string;
     ifsc: string;
     purpose: "collection" | "payout" | "ops";
@@ -446,6 +450,7 @@ export async function listBankAccounts(
     .select({
       id: bankAccounts.id,
       bankName: bankAccounts.bankName,
+      accountNumberEnc: bankAccounts.accountNumberEnc,
       accountNumberLast4: bankAccounts.accountNumberLast4,
       ifsc: bankAccounts.ifsc,
       purpose: bankAccounts.purpose,
@@ -463,6 +468,7 @@ export async function listBankAccounts(
   return rows.map((r) => ({
     id: String(r.id),
     bankName: r.bankName,
+    accountNumber: r.purpose === "collection" ? safeDecrypt(r.accountNumberEnc) : null,
     accountNumberLast4: r.accountNumberLast4,
     ifsc: r.ifsc,
     purpose: r.purpose,
@@ -474,6 +480,15 @@ export async function listBankAccounts(
     branchCode: r.branchCode,
     city: r.city,
   }));
+}
+
+function safeDecrypt(enc: string | null): string | null {
+  if (!enc) return null;
+  try {
+    return decryptPII(enc);
+  } catch {
+    return null;
+  }
 }
 
 export async function updateBankAccount(params: {
