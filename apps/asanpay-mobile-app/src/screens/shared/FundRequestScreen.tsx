@@ -789,7 +789,7 @@ function ConfirmStep({
       return;
     }
     if (!referenceNumber.trim()) {
-      showAlert("UTR required", "Enter the UTR / reference number from the bank slip");
+      showAlert("UTR / slip number required", "Enter the UTR, journal or slip number printed on your receipt");
       return;
     }
     if (!depositAt) {
@@ -864,7 +864,7 @@ function ConfirmStep({
         placeholderTextColor={tokens.mute}
       />
 
-      <Text style={[styles.label, { color: tokens.sub }]}>UTR / reference *</Text>
+      <Text style={[styles.label, { color: tokens.sub }]}>UTR / slip number *</Text>
       <TextInput
         style={[styles.input, { backgroundColor: tokens.card, borderColor: tokens.cardBorder, color: tokens.txt }]}
         value={referenceNumber}
@@ -873,7 +873,7 @@ function ConfirmStep({
           setReferenceNumber(v);
         }}
         maxLength={60}
-        placeholder="Journal / UTR number on the bank slip"
+        placeholder="UTR, journal or slip number on the receipt"
         placeholderTextColor={tokens.mute}
       />
 

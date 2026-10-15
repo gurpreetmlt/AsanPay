@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, notInArray, sql } from "drizzle-orm";
 import { db } from "../../db/postgres";
 import {
   accounts,
@@ -145,6 +145,7 @@ export async function submitFundRequest(
 
     await assertWithinLimits(tx, tenantId, requesterUserId);
     await assertReceiptNotReused(tx, input.receiptSha256);
+    await assertReferenceNotReused(tx, input.bankAccountId, referenceNorm);
 
     const requesterCode = await ensureHierarchyAccount(tx, tenantId, requesterUserId);
     const requesterAccount = await resolveAccount(tenantId, requesterCode, tx);
@@ -714,15 +715,50 @@ async function assertWithinLimits(tx: Tx, tenantId: string, userId: string): Pro
 }
 
 /** One deposit slip, one claim — across every retailer, not just this one. */
+async function assertReferenceNotReused(tx: Tx, bankAccountId: bigint, referenceNorm: string | null): Promise<void> {
+  if (!referenceNorm) return;
+  const [existing] = await tx
+    .select({ id: fundRequests.id, status: fundRequests.status })
+    .from(fundRequests)
+    .where(
+      and(
+        eq(fundRequests.bankAccountId, bankAccountId),
+        eq(fundRequests.referenceNorm, referenceNorm),
+        notInArray(fundRequests.status, ["rejected", "cancelled", "voided"]),
+      ),
+    )
+    .limit(1);
+  if (existing) {
+    const state = existing.status === "credited" ? "already credited" : "still under review";
+    throw new HttpError(
+      422,
+      `This UTR / reference number was already used in fund request #${existing.id} for this bank (${state}). Check the number on your slip.`,
+      "REFERENCE_REUSED",
+    );
+  }
+}
+
+/** A slip from a rejected, cancelled or deleted (test) request may be submitted again. */
 async function assertReceiptNotReused(tx: Tx, sha256: string): Promise<void> {
   const [existing] = await tx
-    .select({ id: fundRequests.id })
+    .select({ id: fundRequests.id, status: fundRequests.status, submittedAt: fundRequests.submittedAt })
     .from(fundRequests)
-    .where(eq(fundRequests.receiptSha256, sha256))
+    .where(
+      and(
+        eq(fundRequests.receiptSha256, sha256),
+        notInArray(fundRequests.status, ["rejected", "cancelled", "voided"]),
+      ),
+    )
     .limit(1);
 
   if (existing) {
-    throw new HttpError(422, "This receipt has already been submitted", "RECEIPT_REUSED");
+    const when = existing.submittedAt.toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata" });
+    const state = existing.status === "credited" ? "already credited" : "still under review";
+    throw new HttpError(
+      422,
+      `This receipt was already used in fund request #${existing.id} (submitted ${when}, ${state}). Upload a different slip.`,
+      "RECEIPT_REUSED",
+    );
   }
 }
 

@@ -117,10 +117,12 @@ export const fundRequests = pgTable(
   },
   (table) => [
     // Hard constraint, not an application check: the same UTR into the same bank account can
-    // be claimed exactly once, by anybody.
+    // be claimed exactly once, by anybody. Rejected / cancelled / deleted requests free it up.
     uniqueIndex("fund_requests_bank_ref_uidx")
       .on(table.bankAccountId, table.referenceNorm)
-      .where(sql`${table.referenceNorm} IS NOT NULL`),
+      .where(
+        sql`${table.referenceNorm} IS NOT NULL AND ${table.status} NOT IN ('rejected', 'cancelled', 'voided')`,
+      ),
     index("fund_requests_tenant_status_idx").on(table.tenantId, table.status, table.submittedAt),
     index("fund_requests_requester_idx").on(table.requesterUserId, table.submittedAt),
     index("fund_requests_receipt_hash_idx").on(table.receiptSha256),

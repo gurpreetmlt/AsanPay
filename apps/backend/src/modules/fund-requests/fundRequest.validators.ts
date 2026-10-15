@@ -12,9 +12,9 @@ export const submitFundRequestSchema = z.object({
   amount: amountSchema,
   paymentMode: z.enum(["cash_deposit", "neft", "rtgs", "imps", "upi", "cheque"]),
   referenceNumber: z
-    .string({ error: "Enter the UTR / reference number from the bank slip" })
+    .string({ error: "Enter the UTR, journal or slip number printed on your receipt" })
     .trim()
-    .min(1, "Enter the UTR / reference number from the bank slip")
+    .min(1, "Enter the UTR, journal or slip number printed on your receipt")
     .max(60, "UTR / reference must be 60 characters or fewer"),
   depositDatetime: z.string().datetime({ offset: true }),
   senderName: z

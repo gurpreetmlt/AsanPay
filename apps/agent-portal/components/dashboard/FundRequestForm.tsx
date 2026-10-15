@@ -364,7 +364,7 @@ export function FundRequestForm({
       return;
     }
     if (!referenceNumber.trim()) {
-      toast.error("Enter the UTR / reference number from the bank slip");
+      toast.error("Enter the UTR, journal or slip number printed on your receipt");
       return;
     }
     if (!depositLocal) {
@@ -779,14 +779,14 @@ export function FundRequestForm({
                     />
                   </div>
                   <div>
-                    <FieldLabel>UTR / reference</FieldLabel>
+                    <FieldLabel>UTR / slip number</FieldLabel>
                     <input
                       value={referenceNumber}
                       onChange={(e) => {
                         setReferenceNumber(e.target.value);
                         attemptKey.current.clear();
                       }}
-                      placeholder="Journal / UTR number on the bank slip"
+                      placeholder="UTR, journal or slip number on the receipt"
                       maxLength={60}
                       className={inputClass}
                       style={inputStyle}
