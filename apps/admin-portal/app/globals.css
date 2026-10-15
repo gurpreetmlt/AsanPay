@@ -629,3 +629,24 @@ html.dark .danger-confirm-icon {
     transition: none;
   }
 }
+
+@keyframes fund-switch-label-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fund-switch-label {
+  animation: fund-switch-label-in 250ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fund-switch-label {
+    animation: none;
+  }
+}

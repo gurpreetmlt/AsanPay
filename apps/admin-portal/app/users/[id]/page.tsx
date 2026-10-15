@@ -14,6 +14,12 @@ import {
   Network,
   History,
   Landmark,
+  BadgeCheck,
+  CircleCheck,
+  CircleX,
+  Clock,
+  Snowflake,
+  type LucideIcon,
 } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { Badge } from "@/components/ui/Badge";
@@ -32,6 +38,58 @@ import api, { fetchApi } from "@/lib/api";
 import { B, ROLE_LABEL } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
+
+type PillTone = "green" | "amber" | "red" | "slate";
+
+const PILL_TONES: Record<PillTone, { bg: string; border: string; fg: string; dot: string }> = {
+  green: { bg: "#F0FDF4", border: "#86EFAC", fg: "#15803D", dot: "#22C55E" },
+  amber: { bg: "#FFFBEB", border: "#FCD34D", fg: "#B45309", dot: "#F59E0B" },
+  red: { bg: "#FEF2F2", border: "#FCA5A5", fg: "#B91C1C", dot: "#EF4444" },
+  slate: { bg: "#F8FAFC", border: "#CBD5E1", fg: "#475569", dot: "#94A3B8" },
+};
+
+function kycPill(status: string): { text: string; tone: PillTone; icon: LucideIcon } {
+  if (status === "verified") return { text: "Verified", tone: "green", icon: BadgeCheck };
+  if (status === "rejected") return { text: "Rejected", tone: "red", icon: CircleX };
+  if (status === "pending") return { text: "Pending review", tone: "amber", icon: Clock };
+  return { text: status.replace(/_/g, " "), tone: "slate", icon: Clock };
+}
+
+function StatusPill({
+  label,
+  text,
+  tone,
+  icon: Icon,
+  live = false,
+}: {
+  label: string;
+  text: string;
+  tone: PillTone;
+  icon: LucideIcon;
+  live?: boolean;
+}) {
+  const t = PILL_TONES[tone];
+  return (
+    <div className="rounded-xl border px-3 py-2.5" style={{ background: t.bg, borderColor: t.border }}>
+      <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: t.fg, opacity: 0.75 }}>
+        {label}
+      </p>
+      <p className="mt-1 flex items-center gap-1.5 text-sm font-bold capitalize" style={{ color: t.fg }}>
+        <Icon size={16} strokeWidth={2.4} />
+        {text}
+        {live ? (
+          <span className="relative ml-0.5 flex h-2 w-2">
+            <span
+              className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60"
+              style={{ background: t.dot }}
+            />
+            <span className="relative inline-flex h-2 w-2 rounded-full" style={{ background: t.dot }} />
+          </span>
+        ) : null}
+      </p>
+    </div>
+  );
+}
 
 type PendingConfirm = {
   title: string;
@@ -504,8 +562,15 @@ export default function AgentDetailPage() {
             <div className="space-y-6">
               <DetailSection title="Verification" icon={ShieldCheck}>
                 <div className="space-y-3">
-                  <InfoRow label="KYC" value={agent.kycStatus} />
-                  <InfoRow label="Account" value={agent.isFrozen ? "Frozen" : "Active"} />
+                  <div className="grid grid-cols-2 gap-3">
+                    <StatusPill label="KYC" {...kycPill(agent.kycStatus)} />
+                    <StatusPill
+                      label="Account"
+                      {...(agent.isFrozen
+                        ? { text: "Frozen", tone: "red" as const, icon: Snowflake }
+                        : { text: "Active", tone: "green" as const, icon: CircleCheck, live: true })}
+                    />
+                  </div>
                   <div
                     className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5"
                     style={{ borderColor: B.border }}

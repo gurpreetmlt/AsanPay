@@ -349,8 +349,7 @@ export function UsersPanel({ lockedRole = "" }: Props) {
   const canMoveSelected = selectedMovable.length > 0 && !mixedRoles && selectedMovable.length === selectedUsers.length;
 
   const meta = TITLES[lockedRole || ""] ?? TITLES[""];
-  const showFundSwitch = lockedRole === "retailer";
-  const colSpan = (lockedRole ? 6 : 7) + (showFundSwitch ? 1 : 0);
+  const colSpan = lockedRole ? 7 : 8;
   const showBankBanner =
     pendingBanks.length > 0 && (lockedRole === "retailer" || lockedRole === "" || !lockedRole);
 
@@ -558,7 +557,7 @@ export function UsersPanel({ lockedRole = "" }: Props) {
                 {!lockedRole && <th className="px-4 py-3 font-semibold">Role</th>}
                 <th className="px-4 py-3 font-semibold">KYC</th>
                 <th className="px-4 py-3 font-semibold">Status</th>
-                {showFundSwitch && <th className="px-4 py-3 font-semibold">Fund requests</th>}
+                <th className="px-4 py-3 font-semibold">Fund requests</th>
                 <th className="px-4 py-3 text-center font-semibold">Actions</th>
               </tr>
             </thead>
@@ -622,8 +621,10 @@ export function UsersPanel({ lockedRole = "" }: Props) {
                     <td className="px-4 py-3">
                       <Badge status={u.isFrozen ? "inactive" : "active"} />
                     </td>
-                    {showFundSwitch && (
-                      <td className="px-4 py-3">
+                    <td className="px-4 py-3">
+                      {u.role === "admin" ? (
+                        <span style={{ color: B.muted }}>—</span>
+                      ) : (
                         <FundRequestSwitch
                           userId={u.id}
                           name={u.name}
@@ -633,8 +634,8 @@ export function UsersPanel({ lockedRole = "" }: Props) {
                             setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, fundRequestEnabled: enabled } : x)))
                           }
                         />
-                      </td>
-                    )}
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <TableActionButtons
                         viewHref={`/users/${u.id}`}
@@ -716,7 +717,7 @@ export function UsersPanel({ lockedRole = "" }: Props) {
                 <Badge status={u.kycStatus} />
                 <Badge status={u.isFrozen ? "inactive" : "active"} />
               </div>
-              {showFundSwitch ? (
+              {u.role !== "admin" ? (
                 <div className="mt-3 flex items-center gap-2 text-xs" style={{ color: B.muted }}>
                   Fund requests
                   <FundRequestSwitch
