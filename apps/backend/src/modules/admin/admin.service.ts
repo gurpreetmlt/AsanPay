@@ -1714,7 +1714,7 @@ export async function listReconciliationMismatches(opts: { limit: number; offset
       limit 1
     ) pl on true
     where t.status in ('pending', 'initiated')
-       or (pl.status is not null and pl.status <> t.status)
+       or (pl.status is not null and pl.status <> t.status::text)
     order by t.created_at desc
     limit ${opts.limit} offset ${opts.offset}
   `);

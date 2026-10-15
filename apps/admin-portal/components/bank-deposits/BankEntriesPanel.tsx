@@ -419,6 +419,15 @@ export function BankEntriesPanel() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [proof, setProof] = useState<File | null>(null);
+
+  useEffect(() => {
+    if (!showForm) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !saving) setShowForm(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showForm, saving]);
   const [proofInputKey, setProofInputKey] = useState(0);
   const [statusFilter, setStatusFilter] = useState<"" | EntryStatus>("");
   const [from, setFrom] = useState("");
@@ -583,34 +592,41 @@ export function BankEntriesPanel() {
     <>
       <div className="space-y-4 p-4 md:p-5">
         {showForm ? (
-          <div className="fixed inset-0 z-40 flex justify-end bg-black/30" onClick={() => !saving && setShowForm(false)}>
+          <div
+            className="bank-entry-backdrop fixed inset-0 z-40 flex items-center justify-center bg-slate-900/45 p-3 backdrop-blur-[2px] md:p-6"
+            onClick={() => !saving && setShowForm(false)}
+          >
             <div
-              className="h-full w-full max-w-2xl overflow-y-auto bg-white p-5 shadow-2xl"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="new-bank-entry-title"
+              className="bank-entry-modal flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="mb-3 flex items-center justify-between">
-                <p className="text-xs" style={{ color: B.muted }}>
-                  Nothing reaches the ledger until the entry is approved.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setShowForm(false)}
-                  className="rounded-lg border px-3 py-1.5 text-xs font-semibold"
-                  style={{ borderColor: "#FCA5A5", color: RED }}
-                >
-                  Cancel
-                </button>
-              </div>
-        <form
-          onSubmit={onSubmit}
-          className="space-y-4 rounded-2xl border bg-white p-5"
-          style={{ borderColor: B.border }}
-        >
-          <h2 className="text-base font-bold" style={{ color: B.blue }}>
-            New bank entry
-          </h2>
+        <form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
+          <div className="flex items-start justify-between gap-3 border-b px-5 py-4 md:px-6" style={{ borderColor: B.border }}>
+            <div>
+              <h2 id="new-bank-entry-title" className="text-lg font-bold" style={{ color: B.blue }}>
+                New bank entry
+              </h2>
+              <p className="mt-0.5 text-xs" style={{ color: B.muted }}>
+                Nothing reaches the ledger until the entry is approved.
+              </p>
+            </div>
+            <button
+              type="button"
+              aria-label="Close"
+              disabled={saving}
+              onClick={() => setShowForm(false)}
+              className="rounded-lg p-1.5 transition hover:rotate-90 hover:bg-red-50 disabled:opacity-50"
+              style={{ color: RED }}
+            >
+              <X size={18} />
+            </button>
+          </div>
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-5 md:px-6">
+          <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Category" required>
               <select
                 className={inputCls}
@@ -791,15 +807,30 @@ export function BankEntriesPanel() {
               onChange={(e) => set("narration")(e.target.value)}
             />
           </Field>
+          </div>
 
-          <button
-            type="submit"
-            disabled={saving}
-            className="rounded-xl px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60"
-            style={{ background: B.badgeGrad }}
+          <div
+            className="flex items-center justify-end gap-2 border-t bg-slate-50/70 px-5 py-3.5 md:px-6"
+            style={{ borderColor: B.border }}
           >
-            {saving ? "Saving…" : "Submit for approval"}
-          </button>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => setShowForm(false)}
+              className="rounded-xl border px-4 py-2.5 text-sm font-semibold transition hover:bg-red-50 active:scale-95 disabled:opacity-50"
+              style={{ borderColor: "#FCA5A5", color: RED }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="rounded-xl px-5 py-2.5 text-sm font-bold text-white shadow-md transition hover:-translate-y-px hover:shadow-lg active:scale-95 disabled:opacity-60"
+              style={{ background: B.badgeGrad }}
+            >
+              {saving ? "Saving…" : "Submit for approval"}
+            </button>
+          </div>
         </form>
             </div>
           </div>

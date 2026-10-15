@@ -14,6 +14,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
+import { SectionTabs } from "@/components/layout/SectionTabs";
 import { DownlineTable } from "@/components/dashboard/DownlineTable";
 import { OnboardForm } from "@/components/dashboard/OnboardForm";
 import { FundForm } from "@/components/dashboard/FundForm";
@@ -99,6 +100,7 @@ export default function WalletPage() {
   return (
     <AdminShell>
       <div className="mx-auto w-full max-w-[1600px] space-y-5 p-6">
+        <SectionTabs group="overview" />
         <div>
           <h1 className="text-2xl font-bold" style={{ color: B.blue }}>
             Company balance

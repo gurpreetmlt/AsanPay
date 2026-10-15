@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { AlertTriangle, ChevronDown, Copy, Eye, Landmark, Plug, ReceiptText, RefreshCcw, Scale, X } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
+import { SectionTabs } from "@/components/layout/SectionTabs";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
@@ -120,6 +121,7 @@ export default function TreasuryPage() {
   return (
     <AdminShell>
       <div className="mx-auto w-full max-w-[1600px] space-y-5 p-6">
+        <SectionTabs group="overview" />
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold" style={{ color: B.blue }}>

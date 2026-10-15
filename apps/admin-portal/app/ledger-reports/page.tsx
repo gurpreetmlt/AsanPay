@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { Scale } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
+import { SectionTabs } from "@/components/layout/SectionTabs";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
@@ -98,6 +99,7 @@ export default function AdminLedgerReportsPage() {
   return (
     <AdminShell>
       <div className="mx-auto w-full max-w-[1600px] space-y-5 p-4 md:p-6">
+        <SectionTabs group="reports" />
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div

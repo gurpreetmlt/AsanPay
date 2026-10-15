@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { Scale, Check, X } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
+import { SectionTabs } from "@/components/layout/SectionTabs";
 import { ConfirmModal, type ConfirmTone } from "@/components/ui/ConfirmModal";
 import { PromptModal } from "@/components/ui/PromptModal";
 import api, { fetchApi } from "@/lib/api";
@@ -235,6 +236,7 @@ export default function ReconAdjustmentsPage() {
   return (
     <AdminShell>
       <div className="mx-auto w-full max-w-[1600px] space-y-6 p-6">
+        <SectionTabs group="reports" />
         <div className="flex flex-wrap items-center gap-3">
           <div
             className="flex h-12 w-12 items-center justify-center rounded-2xl text-white"

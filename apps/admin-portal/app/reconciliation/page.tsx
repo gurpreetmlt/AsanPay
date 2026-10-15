@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { AlertTriangle, ScaleIcon } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
+import { SectionTabs } from "@/components/layout/SectionTabs";
 import { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
@@ -37,13 +38,19 @@ export default function ReconciliationPage() {
 
   const [rows, setRows] = useState<MismatchRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       setRows(await fetchApi<MismatchRow[]>("/admin/reconciliation", { limit: "100" }));
-    } catch {
-      toast.error("Failed to load reconciliation data");
+    } catch (err) {
+      const msg = err instanceof Error && err.message ? err.message : "Server did not respond";
+      const full = `Could not load transaction reconciliation: ${msg}. Refresh the page to retry.`;
+      setRows([]);
+      setLoadError(full);
+      toast.error(full);
     } finally {
       setLoading(false);
     }
@@ -64,6 +71,9 @@ export default function ReconciliationPage() {
   return (
     <AdminShell>
       <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6">
+        <div className="mb-5">
+          <SectionTabs group="reports" />
+        </div>
         <div className="flex items-center gap-2">
           <ScaleIcon size={20} style={{ color: B.blueLight }} />
           <h1 className="text-xl font-bold" style={{ color: B.blue }}>
@@ -118,7 +128,14 @@ export default function ReconciliationPage() {
                     </td>
                   </tr>
                 )}
-                {!loading && rows.length === 0 && (
+                {!loading && loadError && (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-8 text-center text-sm" style={{ color: "#dc2626" }}>
+                      {loadError}
+                    </td>
+                  </tr>
+                )}
+                {!loading && !loadError && rows.length === 0 && (
                   <tr>
                     <td colSpan={6} className="px-4 py-8 text-center text-sm" style={{ color: B.muted }}>
                       Nothing to reconcile — everything matches ✅

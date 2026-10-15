@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { ArrowLeftRight } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
+import { SectionTabs } from "@/components/layout/SectionTabs";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { createAttemptKeyHolder } from "@/lib/idempotencyKey";
@@ -186,6 +187,7 @@ export default function AdminFloatPage() {
   return (
     <AdminShell>
       <div className="mx-auto w-full max-w-[1600px] space-y-5 p-4 md:p-6">
+        <SectionTabs group="overview" />
         <div className="flex items-center gap-3">
           <div
             className="flex h-11 w-11 items-center justify-center rounded-2xl text-white"

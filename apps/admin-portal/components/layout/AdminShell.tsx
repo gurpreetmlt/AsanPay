@@ -4,7 +4,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Crown, Network, Store, Tags, Percent, Plug, ScrollText, Scale, ShieldAlert, Wrench, LifeBuoy, IndianRupee, Landmark, Building2, ArrowLeftRight, Settings, Megaphone, Trash2, MessageCircle } from "lucide-react";
+import { ChevronDown, Crown, Network, Store, Tags, Percent, Plug, ScrollText, Scale, ShieldAlert, Wrench, LifeBuoy, IndianRupee, Landmark, Building2, Settings, Megaphone, Trash2, MessageCircle } from "lucide-react";
 import { AsanPayLockup } from "@/components/brand/Logo";
 import { AnimatedNavIcon } from "@/components/ui/AnimatedNavIcon";
 import type { NavIconDef } from "@/lib/iconTypes";
@@ -17,7 +17,8 @@ import { AdminAlertsProvider, useAdminAlerts } from "@/components/layout/AdminAl
 import { useAdminTheme } from "@/components/theme/AdminThemeProvider";
 import { cn } from "@/lib/utils";
 
-type NavChild = { href: string; label: string; icon: NavIconDef };
+/** `match` = extra routes (tabs of a grouped page) that keep this item highlighted. */
+type NavChild = { href: string; label: string; icon: NavIconDef; match?: string[] };
 type NavItem =
   | { type: "link"; href: string; label: string; icon: NavIconDef }
   | { type: "group"; id: string; label: string; icon: NavIconDef; children: NavChild[] };
@@ -38,6 +39,7 @@ const AGENTS: NavItem[] = [
       { href: "/users/distributors", label: "Distributors", icon: { lib: "lucide", icon: Network } },
       { href: "/users/retailers", label: "Retailers", icon: { lib: "lucide", icon: Store } },
       { href: "/kyc", label: "KYC Queue", icon: { lib: "md", name: "MdVerifiedUser" } },
+      { href: "/settlements", label: "Settlements / banks", icon: { lib: "lucide", icon: Landmark } },
     ],
   },
 ];
@@ -54,16 +56,20 @@ const TREASURY: NavItem[] = [
     label: "Treasury & Balance",
     icon: { lib: "md", name: "MdAccountBalanceWallet" },
     children: [
-      { href: "/treasury", label: "Treasury", icon: { lib: "lucide", icon: Landmark } },
+      {
+        href: "/treasury",
+        label: "Treasury overview",
+        icon: { lib: "lucide", icon: Landmark },
+        match: ["/wallet", "/float"],
+      },
       { href: "/treasury/bank", label: "Bank & deposits", icon: { lib: "lucide", icon: Building2 } },
-      { href: "/wallet", label: "Company balance", icon: { lib: "md", name: "MdAccountBalanceWallet" } },
-      { href: "/settlements", label: "Settlements / banks", icon: { lib: "lucide", icon: Landmark } },
-      { href: "/float", label: "Float", icon: { lib: "lucide", icon: ArrowLeftRight } },
-      { href: "/ledger-reports", label: "Ledger reports", icon: { lib: "lucide", icon: Scale } },
-      { href: "/recon-adjustments", label: "Recon adjustments", icon: { lib: "lucide", icon: Scale } },
-      { href: "/passbook", label: "Balance statement", icon: { lib: "fa", name: "FaHistory" } },
-      { href: "/reconciliation", label: "Txn reconciliation", icon: { lib: "lucide", icon: Scale } },
-      { href: "/treasury-settings", label: "Treasury Settings", icon: { lib: "lucide", icon: Settings } },
+      {
+        href: "/ledger-reports",
+        label: "Reports & recon",
+        icon: { lib: "lucide", icon: Scale },
+        match: ["/passbook", "/reconciliation", "/recon-adjustments"],
+      },
+      { href: "/treasury-settings", label: "Treasury settings", icon: { lib: "lucide", icon: Settings } },
     ],
   },
 ];
@@ -110,8 +116,12 @@ function pathActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+function childActive(pathname: string, child: NavChild) {
+  return pathActive(pathname, child.href) || (child.match ?? []).some((m) => pathActive(pathname, m));
+}
+
 function groupActive(pathname: string, children: NavChild[]) {
-  return children.some((c) => pathActive(pathname, c.href));
+  return children.some((c) => childActive(pathname, c));
 }
 
 function initials(name: string) {
@@ -207,7 +217,7 @@ function NavDropdown({
       {expanded && (
         <div className="ml-3 space-y-0.5 border-l pl-2" style={{ borderColor: "var(--admin-sidebar-border)" }}>
           {item.children.map((child) => {
-            const childActive = pathActive(pathname, child.href);
+            const isChildActive = childActive(pathname, child);
             const count = childBadge?.(child.href) ?? 0;
             return (
               <Link
@@ -216,13 +226,13 @@ function NavDropdown({
                 onClick={onNavigate}
                 className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition"
                 style={{
-                  background: childActive ? "var(--admin-sidebar-active)" : "transparent",
-                  color: childActive
+                  background: isChildActive ? "var(--admin-sidebar-active)" : "transparent",
+                  color: isChildActive
                     ? "var(--admin-sidebar-text-active)"
                     : "var(--admin-sidebar-text)",
                 }}
               >
-                <AnimatedNavIcon def={child.icon} active={childActive} size={15} />
+                <AnimatedNavIcon def={child.icon} active={isChildActive} size={15} />
                 <span className="min-w-0 flex-1 truncate">{child.label}</span>
                 <AlertCountBadge count={count} />
               </Link>
@@ -275,7 +285,7 @@ function groupBadgeFor(
   },
 ): number {
   if (id === "agents") return badges.kycPending + badges.settlementBanksPending;
-  if (id === "treasury") return badges.fundRequestsPending + badges.settlementBanksPending;
+  if (id === "treasury") return badges.fundRequestsPending;
   if (id === "site") return badges.supportTicketsOpen;
   return 0;
 }
