@@ -139,6 +139,10 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
       toast.error("Account number must be 6–18 digits");
       return;
     }
+    if (editingId && bankDetails.accountNumber.trim() && bankDetails.accountNumber !== (bankDetails.accountNumberConfirm ?? "")) {
+      toast.error("Account numbers do not match — re-enter the new account number in Confirm account number");
+      return;
+    }
     if (!profile.holderName.trim()) {
       toast.error("Enter the account name exactly as printed on the passbook");
       return;
@@ -416,7 +420,7 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
                 onChange={(patch) => setBankDetails((prev) => ({ ...prev, ...patch }))}
                 showHolder={false}
                 editableBankBranch
-                showConfirmAccount={!editingId}
+                showConfirmAccount={!editingId || bankDetails.accountNumber.length > 0}
                 accountRequired={!editingId}
                 accountPlaceholder={
                   editingId ? "Account number (leave blank to keep)" : "Account number"
