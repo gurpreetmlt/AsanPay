@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import {
   TrendingUp,
   TrendingDown,
-  Wallet,
   Store,
   BarChart3,
   AlertTriangle,
@@ -14,8 +13,7 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { fetchApi } from "@/lib/api";
-import { B, roleFromUserRole, initials } from "@/lib/brand";
-import { useAuthStore } from "@/lib/store";
+import { B, initials } from "@/lib/brand";
 import { formatInr } from "@/lib/walletLabels";
 import type { DownlineUser, WalletBalance } from "@/lib/types";
 import { BulkFundForm } from "@/components/dashboard/BulkFundForm";
@@ -47,8 +45,6 @@ interface SDStats {
 
 export function SuperDistributorDashboard() {
   const router = useRouter();
-  const user = useAuthStore((s) => s.user);
-  const role = roleFromUserRole(user?.role);
 
   const [wallets, setWallets] = useState<WalletBalance[]>([]);
   const [stats, setStats] = useState<SDStats | null>(null);
@@ -124,21 +120,8 @@ export function SuperDistributorDashboard() {
         </div>
       ) : null}
 
-      {/* Top: Wallet + Network Overview */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
-        {/* Wallet */}
-        <div
-          className="relative overflow-hidden rounded-2xl p-5 text-white"
-          style={{ background: role.gradient, boxShadow: `0 8px 32px ${role.color}40` }}
-        >
-          <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white opacity-10" />
-          <div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-white/70">
-            <Wallet size={14} /> My Balance
-          </div>
-          <div className="text-3xl font-bold">{loading ? "…" : formatInr(primary?.balance ?? "0")}</div>
-        </div>
-
-        {/* Network Stats */}
+      {/* Network overview — wallet balance lives in the header chip. */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <NetworkStatCard
           icon={<Building2 size={20} />}
           label="Distributors"

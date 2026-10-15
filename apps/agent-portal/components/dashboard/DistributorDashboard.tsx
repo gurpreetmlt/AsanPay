@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import {
   Users,
   TrendingUp,
-  Wallet,
   ArrowRightLeft,
   BarChart3,
   Store,
@@ -18,10 +17,9 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { fetchApi } from "@/lib/api";
-import { B, roleFromUserRole, initials } from "@/lib/brand";
+import { B, initials } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { formatInr } from "@/lib/walletLabels";
-import type { WalletBalance } from "@/lib/types";
 import { PartnerQuickActions } from "./PartnerQuickActions";
 
 interface ActivityMonth {
@@ -45,9 +43,6 @@ interface DistributorStats {
 export function DistributorDashboard() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
-  const role = roleFromUserRole(user?.role);
-
-  const [wallets, setWallets] = useState<WalletBalance[]>([]);
   const [stats, setStats] = useState<DistributorStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
@@ -58,12 +53,8 @@ export function DistributorDashboard() {
     (async () => {
       setLoading(true);
       try {
-        const [walletRows, dashStats] = await Promise.all([
-          fetchApi<WalletBalance[]>("/wallet/me"),
-          fetchApi<DistributorStats>("/dashboard/stats"),
-        ]);
+        const dashStats = await fetchApi<DistributorStats>("/dashboard/stats");
         if (!alive) return;
-        setWallets(walletRows);
         setStats(dashStats);
         const hist = dashStats.activityHistory ?? [];
         if (hist.length > 0) setSelectedMonth(hist[hist.length - 1]!.month);
@@ -78,11 +69,6 @@ export function DistributorDashboard() {
     };
   }, []);
 
-  const primary = wallets.find((w) => w.walletType === "main");
-  const totalPending = wallets.reduce(
-    (s, w) => s + (parseFloat(w.pendingBalance ?? "0") || 0),
-    0,
-  );
   const history = stats?.activityHistory ?? [];
   const selected =
     history.find((h) => h.month === selectedMonth) ?? history[history.length - 1] ?? null;
@@ -106,28 +92,10 @@ export function DistributorDashboard() {
     <div className="space-y-4">
       <PartnerQuickActions childLabel="Retailer" />
 
-      {/* Single overview band — no tall empty balance card */}
+      {/* Wallet balance lives in the header chip; this band is retailer activity only. */}
       <div className="overflow-hidden rounded-2xl border bg-white shadow-sm" style={{ borderColor: B.border }}>
-        <div className="grid grid-cols-1 lg:grid-cols-12">
-          <div
-            className="relative flex items-center gap-4 px-5 py-4 text-white lg:col-span-3 lg:flex-col lg:items-start lg:justify-center lg:gap-1"
-            style={{ background: role.gradient }}
-          >
-            <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white/10" />
-            <div className="relative min-w-0">
-              <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-white/70">
-                <Wallet size={12} /> Main
-              </div>
-              <div className="mt-0.5 text-2xl font-bold leading-none tracking-tight">
-                {loading ? "…" : formatInr(primary?.balance ?? "0")}
-              </div>
-            </div>
-            <div className="relative inline-flex items-center gap-1 rounded-md bg-white/15 px-2 py-1 text-[12px] text-white/90 lg:mt-2">
-              <Clock size={10} /> Pending {formatInr(totalPending)}
-            </div>
-          </div>
-
-          <div className="flex flex-col justify-center gap-3 px-4 py-4 sm:px-5 lg:col-span-9">
+        <div>
+          <div className="flex flex-col justify-center gap-3 px-4 py-4 sm:px-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <Store size={15} style={{ color: B.blue }} />
@@ -204,7 +172,7 @@ export function DistributorDashboard() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
               <StatChip
                 label="Total"
                 value={loading ? "…" : String(selected?.total ?? stats?.retailers.total ?? 0)}
@@ -237,7 +205,6 @@ export function DistributorDashboard() {
                 value={loading ? "…" : formatInr(stats?.month?.commission ?? "0")}
                 tone="good"
                 icon={<IndianRupee size={11} />}
-                className="col-span-2 sm:col-span-1"
               />
             </div>
             {(stats?.retailers.inactive ?? 0) > 0 ? (
