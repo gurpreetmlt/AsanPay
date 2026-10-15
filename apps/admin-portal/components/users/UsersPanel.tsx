@@ -12,6 +12,8 @@ import { PromptModal } from "@/components/ui/PromptModal";
 import { ActionIconButton, TableActionButtons } from "@/components/ui/TableActionButtons";
 import { NetworkTreeView } from "@/components/users/NetworkTreeView";
 import { MoveAgentModal } from "@/components/users/MoveAgentModal";
+import { WalletMoveModal, type WalletMoveKind } from "@/components/users/WalletMoveModal";
+import { WalletMovesPending } from "@/components/users/WalletMovesPending";
 import { FundRequestSwitch } from "@/components/users/FundRequestSwitch";
 import { useDevOptionsStore } from "@/lib/devOptionsStore";
 
@@ -98,6 +100,8 @@ export function UsersPanel({ lockedRole = "" }: Props) {
   const [toggling, setToggling] = useState<string | null>(null);
   const [view, setView] = useState<"table" | "tree">("table");
   const [moveAgents, setMoveAgents] = useState<AdminUser[] | null>(null);
+  const [walletMove, setWalletMove] = useState<{ id: string; kind: WalletMoveKind } | null>(null);
+  const [walletMoveKey, setWalletMoveKey] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -363,6 +367,8 @@ export function UsersPanel({ lockedRole = "" }: Props) {
           {meta.sub}
         </p>
       </div>
+
+      <WalletMovesPending refreshKey={walletMoveKey} />
 
       {showBankBanner ? (
         <div
@@ -644,6 +650,8 @@ export function UsersPanel({ lockedRole = "" }: Props) {
                         }
                         onBan={!u.isFrozen && toggling !== u.id ? () => void toggleActive(u) : undefined}
                         onMove={isMovable(u) ? () => setMoveAgents([u]) : undefined}
+                        onTransfer={isMovable(u) ? () => setWalletMove({ id: u.id, kind: "transfer" }) : undefined}
+                        onReverse={isMovable(u) ? () => setWalletMove({ id: u.id, kind: "reverse" }) : undefined}
                         onDelete={rowDeleteEnabled ? () => void deleteUser(u) : undefined}
                         deleting={deletingId === u.id}
                       />
@@ -708,6 +716,8 @@ export function UsersPanel({ lockedRole = "" }: Props) {
                   }
                   onBan={!u.isFrozen && toggling !== u.id ? () => void toggleActive(u) : undefined}
                   onMove={isMovable(u) ? () => setMoveAgents([u]) : undefined}
+                        onTransfer={isMovable(u) ? () => setWalletMove({ id: u.id, kind: "transfer" }) : undefined}
+                        onReverse={isMovable(u) ? () => setWalletMove({ id: u.id, kind: "reverse" }) : undefined}
                   onDelete={rowDeleteEnabled ? () => void deleteUser(u) : undefined}
                   deleting={deletingId === u.id}
                 />
@@ -752,6 +762,15 @@ export function UsersPanel({ lockedRole = "" }: Props) {
           }}
         />
       )}
+
+      {walletMove ? (
+        <WalletMoveModal
+          agentId={walletMove.id}
+          initialKind={walletMove.kind}
+          onClose={() => setWalletMove(null)}
+          onDone={() => setWalletMoveKey((k) => k + 1)}
+        />
+      ) : null}
 
       {pendingConfirm ? (
         <ConfirmModal

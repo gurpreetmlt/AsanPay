@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
-import { Eye, Pencil, Trash2, Ban, CheckCircle, Power, Move } from "lucide-react";
+import { Eye, Pencil, Trash2, Ban, CheckCircle, Power, Move, Send, Undo2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDevOptionsStore } from "@/lib/devOptionsStore";
 
@@ -63,6 +63,8 @@ export function TableActionButtons({
   toggleActiveTitle,
   toggleActiveTone = "navy",
   onMove,
+  onTransfer,
+  onReverse,
   deleting,
   className,
 }: {
@@ -75,6 +77,8 @@ export function TableActionButtons({
   toggleActiveTitle?: string;
   toggleActiveTone?: ActionIconTone;
   onMove?: () => void;
+  onTransfer?: () => void;
+  onReverse?: () => void;
   deleting?: boolean;
   className?: string;
 }) {
@@ -114,6 +118,16 @@ export function TableActionButtons({
           onClick={onToggleActive}
         >
           <Power className="h-4 w-4" strokeWidth={2.25} />
+        </ActionIconButton>
+      ) : null}
+      {onTransfer ? (
+        <ActionIconButton title="Transfer from upline" tone="green" onClick={onTransfer}>
+          <Send className="h-4 w-4" strokeWidth={2.25} />
+        </ActionIconButton>
+      ) : null}
+      {onReverse ? (
+        <ActionIconButton title="Reverse to upline" tone="amber" onClick={onReverse}>
+          <Undo2 className="h-4 w-4" strokeWidth={2.25} />
         </ActionIconButton>
       ) : null}
       {onMove ? (

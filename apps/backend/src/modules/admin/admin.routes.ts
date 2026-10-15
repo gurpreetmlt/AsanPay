@@ -105,9 +105,20 @@ adminRouter.put("/users/:id/commissions", async (req, res) => {
   sendSuccess(res, result, "Commission rates saved");
 });
 
+adminRouter.get("/users/:id/fund-request-context", async (req, res) => {
+  const userId = String(req.params.id);
+  if (!z.string().uuid().safeParse(userId).success) {
+    throw new HttpError(422, "Agent id is invalid", "INVALID_ID");
+  }
+  const { getFundRequestPermissionContext } = await import("./admin.service");
+  sendSuccess(res, await getFundRequestPermissionContext(userId));
+});
+
 adminRouter.patch("/users/:id/fund-requests", async (req, res) => {
   if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
-  const parsed = z.object({ enabled: z.boolean() }).safeParse(req.body);
+  const parsed = z
+    .object({ enabled: z.boolean(), confirmUid: z.string().trim().max(40).optional() })
+    .safeParse(req.body);
   if (!parsed.success) {
     throw new HttpError(422, "Send enabled: true or false", "VALIDATION_ERROR");
   }
@@ -116,7 +127,7 @@ adminRouter.patch("/users/:id/fund-requests", async (req, res) => {
     throw new HttpError(422, "Agent id is invalid", "INVALID_ID");
   }
   const { setFundRequestEnabled } = await import("./admin.service");
-  const result = await setFundRequestEnabled(req.auth.sub, userId, parsed.data.enabled);
+  const result = await setFundRequestEnabled(req.auth.sub, userId, parsed.data.enabled, parsed.data.confirmUid);
   sendSuccess(res, result, parsed.data.enabled ? "Fund requests enabled" : "Fund requests disabled");
 });
 
@@ -933,4 +944,64 @@ adminRouter.post("/promos/upload", async (req, res) => {
   const tenantId = await resolveTenantId();
   const saved = await savePromoUpload(tenantId, body.dataUrl);
   sendSuccess(res, { imageUrl: saved.imageUrl, path: saved.imageUrl }, "Image uploaded");
+});
+
+const walletMoveBody = z.object({
+  kind: z.enum(["transfer", "reverse"], { message: "Choose Transfer or Reverse" }),
+  amount: z.string().trim().min(1, "Enter an amount"),
+  reason: z.string().trim().min(5, "Reason must be at least 5 characters"),
+});
+
+adminRouter.get("/agents/:id/wallet-move-context", async (req, res) => {
+  const { getMoveContext } = await import("./adminWalletMove.service");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  sendSuccess(res, await getMoveContext(await resolveTenantId(), String(req.params.id)));
+});
+
+adminRouter.post("/agents/:id/wallet-move", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const body = walletMoveBody.parse(req.body);
+  const { requestWalletMove } = await import("./adminWalletMove.service");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const result = await requestWalletMove({
+    tenantId: await resolveTenantId(),
+    adminId: req.auth.sub,
+    agentUserId: String(req.params.id),
+    ...body,
+  });
+  sendSuccess(
+    res,
+    result,
+    result.status === "done"
+      ? body.kind === "transfer"
+        ? "Transfer done"
+        : "Reverse done"
+      : "Sent for second admin approval",
+  );
+});
+
+adminRouter.get("/wallet-moves", async (req, res) => {
+  const { listWalletMoves } = await import("./adminWalletMove.service");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const status = typeof req.query.status === "string" ? req.query.status : undefined;
+  sendSuccess(res, await listWalletMoves(await resolveTenantId(), status));
+});
+
+adminRouter.post("/wallet-moves/:id/:decision", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const decision = String(req.params.decision);
+  if (decision !== "approve" && decision !== "reject") {
+    throw new HttpError(404, "Unknown action — use approve or reject", "NOT_FOUND");
+  }
+  if (!/^\d+$/.test(String(req.params.id))) throw new HttpError(400, "Invalid wallet move id", "INVALID_ID");
+  const { decideWalletMove } = await import("./adminWalletMove.service");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const result = await decideWalletMove({
+    tenantId: await resolveTenantId(),
+    adminId: req.auth.sub,
+    moveId: String(req.params.id),
+    approve: decision === "approve",
+    note: typeof req.body?.note === "string" ? req.body.note : undefined,
+  });
+  sendSuccess(res, result, result.status === "done" ? "Approved and posted" : "Rejected");
 });

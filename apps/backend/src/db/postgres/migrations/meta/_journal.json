@@ -386,6 +386,13 @@
       "when": 1790500000000,
       "tag": "0054_fund_request_void",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1790600000000,
+      "tag": "0055_admin_wallet_moves",
+      "breakpoints": true
     }
   ]
 }

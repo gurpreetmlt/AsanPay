@@ -51,13 +51,53 @@ export async function registerBankAccount(params: {
     throw new HttpError(422, "Account number looks invalid", "INVALID_ACCOUNT_NUMBER");
   }
 
-  const code = bankAccountCode(bankName, purpose);
+  const last4 = digits.slice(-4);
+  const ifscUpper = ifsc.toUpperCase();
+  const baseCode = bankAccountCode(bankName, purpose);
 
   return db.transaction(async (tx) => {
+    // The first account of a bank keeps the plain code; more accounts at the same bank get the
+    // last 4 digits (then the IFSC) appended. A code already used by a *different* account is
+    // skipped, never reused, so two accounts can never share a ledger.
+    let code = baseCode;
+    let accountName = `${bankName} (${purpose})`;
+    for (const candidate of [
+      { code: baseCode, name: `${bankName} (${purpose})` },
+      { code: `${baseCode}_${last4}`, name: `${bankName} ••${last4} (${purpose})` },
+      { code: `${baseCode}_${last4}_${ifscUpper}`, name: `${bankName} ••${last4} ${ifscUpper} (${purpose})` },
+    ]) {
+      const [owner] = await tx
+        .select({ last4: bankAccounts.accountNumberLast4, ifsc: bankAccounts.ifsc, deletedAt: bankAccounts.deletedAt })
+        .from(accounts)
+        .innerJoin(bankAccounts, eq(bankAccounts.ledgerAccountId, accounts.id))
+        .where(and(eq(accounts.tenantId, tenantId), eq(accounts.code, candidate.code)))
+        .limit(1);
+      const sameAccount = owner && owner.last4 === last4 && owner.ifsc.toUpperCase() === ifscUpper;
+      if (!owner || sameAccount) {
+        code = candidate.code;
+        accountName = candidate.name;
+        if (sameAccount && !owner.deletedAt) {
+          throw new HttpError(
+            422,
+            `${bankName} account ••${last4} (${purpose}) is already registered. Edit or disable it instead of adding it again.`,
+            "BANK_ALREADY_EXISTS",
+          );
+        }
+        break;
+      }
+      if (candidate.code.endsWith(ifscUpper)) {
+        throw new HttpError(
+          422,
+          `${bankName} account ••${last4} with IFSC ${ifscUpper} is already registered.`,
+          "BANK_ALREADY_EXISTS",
+        );
+      }
+    }
+
     await ensureTreasuryAccount(tx, {
       tenantId,
       code,
-      name: `${bankName} (${purpose})`,
+      name: accountName,
       type: "bank",
     });
 

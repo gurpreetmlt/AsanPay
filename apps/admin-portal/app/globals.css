@@ -603,9 +603,25 @@ html.dark ::placeholder {
   animation: bank-entry-modal-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+@keyframes panel-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.panel-fade-in {
+  animation: panel-fade-in 0.22s ease-out both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .bank-entry-backdrop,
-  .bank-entry-modal {
+  .bank-entry-modal,
+  .panel-fade-in {
     animation: none;
   }
 }

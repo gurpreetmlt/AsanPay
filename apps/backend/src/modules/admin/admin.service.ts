@@ -35,6 +35,7 @@ import { listAdapterCodes } from "../providers/provider.registry";
 import { aepsAdapterCode } from "../providers/aepsMode";
 import { getAdminFullNetworkTree, getUserAncestors } from "../users/users.service";
 import { HttpError } from "../../utils/httpError";
+import { paiseToRupees, type Paise } from "../../core/money";
 import { decryptPII } from "../../utils/aes";
 import { env } from "../../config/env";
 import { sendSlackAlert } from "../../utils/alert";
@@ -464,16 +465,106 @@ export async function listAdminUsers(opts: {
     .offset(opts.offset);
 }
 
+/** Everything the admin should see before changing an agent's fund-request permission. */
+export async function getFundRequestPermissionContext(userId: string) {
+  const res = await db.execute<{
+    id: string;
+    uid: string;
+    name: string;
+    mobile: string;
+    email: string | null;
+    role: string;
+    kyc_status: string;
+    is_active: boolean;
+    frozen: boolean;
+    created_at: string;
+    enabled: boolean;
+    upline_name: string | null;
+    upline_uid: string | null;
+    upline_role: string | null;
+    credited_count: string;
+    credited_total: string;
+    open_count: string;
+  }>(sql`
+    SELECT u.id::text, u.uid, u.name, u.mobile, u.email, u.role::text AS role, u.kyc_status::text AS kyc_status,
+           u.is_active, coalesce(bool_or(a.block_login), false) AS frozen, u.created_at::text,
+           coalesce(u.fund_request_enabled, u.role <> 'retailer') AS enabled,
+           p.name AS upline_name, p.uid AS upline_uid, p.role::text AS upline_role,
+           (SELECT count(*) FROM fund_requests f WHERE f.requester_user_id = u.id AND f.status = 'credited')::text AS credited_count,
+           (SELECT coalesce(sum(coalesce(f.credited_amount, f.amount)), 0) FROM fund_requests f
+             WHERE f.requester_user_id = u.id AND f.status = 'credited')::text AS credited_total,
+           (SELECT count(*) FROM fund_requests f WHERE f.requester_user_id = u.id
+             AND f.status IN ('submitted', 'pending_match', 'auto_matched', 'amount_mismatch', 'suspect', 'under_review'))::text AS open_count
+    FROM users u
+    LEFT JOIN users p ON p.id = u.parent_id
+    LEFT JOIN accounts a ON a.user_id = u.id
+    WHERE u.id = ${userId}
+    GROUP BY u.id, p.id
+  `);
+  const r = res.rows[0];
+  if (!r) throw new HttpError(404, "Agent not found", "USER_NOT_FOUND");
+  return {
+    id: r.id,
+    uid: r.uid,
+    name: r.name,
+    mobile: r.mobile,
+    email: r.email,
+    role: r.role,
+    kycStatus: r.kyc_status,
+    isActive: r.is_active,
+    isFrozen: r.frozen,
+    joinedAt: r.created_at,
+    fundRequestEnabled: r.enabled,
+    upline: r.upline_name ? { name: r.upline_name, uid: r.upline_uid, role: r.upline_role } : null,
+    creditedCount: Number(r.credited_count),
+    creditedTotal: paiseToRupees(BigInt(r.credited_total) as Paise),
+    openCount: Number(r.open_count),
+  };
+}
+
 /** Per-agent switch for raising fund requests to the company bank. */
-export async function setFundRequestEnabled(adminId: string, userId: string, enabled: boolean) {
+export async function setFundRequestEnabled(
+  adminId: string,
+  userId: string,
+  enabled: boolean,
+  confirmUid?: string,
+) {
   const [target] = await db
-    .select({ id: users.id, role: users.role, name: users.name })
+    .select({
+      id: users.id,
+      role: users.role,
+      name: users.name,
+      uid: users.uid,
+      kycStatus: users.kycStatus,
+      isActive: users.isActive,
+    })
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
   if (!target) throw new HttpError(404, "Agent not found", "USER_NOT_FOUND");
   if (target.role === "admin") {
     throw new HttpError(422, "Fund requests apply to agents only, not admins", "INVALID_TARGET");
+  }
+  // Allowing fund requests lets this agent receive real money on admin approval, so the admin
+  // must prove they are looking at the right agent and the agent must be verified and active.
+  if (enabled) {
+    if ((confirmUid ?? "").trim().toUpperCase() !== target.uid.toUpperCase()) {
+      throw new HttpError(
+        422,
+        `UID does not match ${target.name}. Type the agent's UID exactly as shown (${target.uid}) to allow fund requests.`,
+        "CONFIRM_UID_MISMATCH",
+      );
+    }
+    if (!target.isActive) {
+      throw new HttpError(422, "This account is inactive. Activate it before allowing fund requests.", "ACCOUNT_INACTIVE");
+    }
+    if (target.kycStatus !== "verified") {
+      throw new HttpError(
+        422,
+        `${target.name}'s KYC is ${target.kycStatus}. Verify KYC before allowing fund requests.`,
+        "KYC_NOT_VERIFIED",
+      );
+    }
   }
 
   await db
