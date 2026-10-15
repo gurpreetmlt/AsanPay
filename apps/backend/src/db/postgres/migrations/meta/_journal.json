@@ -372,6 +372,13 @@
       "when": 1790300000000,
       "tag": "0052_bank_statement_imports",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1790400000000,
+      "tag": "0053_statement_import_verification",
+      "breakpoints": true
     }
   ]
 }

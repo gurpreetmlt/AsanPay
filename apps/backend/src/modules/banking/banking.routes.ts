@@ -41,7 +41,9 @@ import {
   reconLinkSchema,
   reconUnlinkSchema,
   statementImportsQuerySchema,
+  verifyStatementSchema,
 } from "./banking.validators";
+import { verifyStatementBank, type VerifyResult } from "./statementVerify.service";
 import { listStatementImports, recordImportBatch, startStatementImport } from "./statementImports.service";
 import {
   autoMatchStatement,
@@ -239,6 +241,33 @@ bankingRouter.post(
     const body = req.body as ReturnType<typeof importStatementSchema.parse>;
     const tenantId = await resolveTenantId();
 
+    // The first batch of an upload decides whether this statement may go under this bank.
+    let verdict: VerifyResult["verdict"] | undefined;
+    if (!body.importId) {
+      const check = await verifyStatementBank({
+        tenantId,
+        bankAccountId: body.bankAccountId,
+        accountLast4: body.accountLast4,
+        ifsc: body.ifsc,
+        opening: body.opening,
+        lines: body.lines,
+      });
+      if (check.verdict === "blocked") {
+        const hint = check.suggestedBank
+          ? ` Select ${check.suggestedBank.bankName} ••${check.suggestedBank.last4} instead.`
+          : " Select the correct bank.";
+        throw new HttpError(422, `${check.message}.${hint}`, "STATEMENT_BANK_MISMATCH");
+      }
+      if (check.verdict === "unverified" && !body.confirmedBank) {
+        throw new HttpError(
+          422,
+          "Could not confirm which bank this statement is from. Tick “I confirm this statement is for the selected bank” and import again.",
+          "STATEMENT_BANK_UNCONFIRMED",
+        );
+      }
+      verdict = check.verdict;
+    }
+
     const importId = await startStatementImport({
       tenantId,
       bankAccountId: BigInt(body.bankAccountId),
@@ -247,6 +276,8 @@ bankingRouter.post(
       source: body.source,
       periodFrom: body.periodFrom,
       periodTo: body.periodTo,
+      accountLast4: body.accountLast4,
+      verification: verdict === "verified" ? "verified" : verdict === "unverified" ? "confirmed" : undefined,
       importedBy: req.auth.sub,
     });
 
@@ -287,6 +318,17 @@ bankingRouter.post(
       },
       "Statement lines imported",
     );
+  },
+);
+
+bankingRouter.post(
+  "/statements/verify",
+  requireRole("admin"),
+  validateBody(verifyStatementSchema),
+  async (req, res) => {
+    const body = req.body as ReturnType<typeof verifyStatementSchema.parse>;
+    const tenantId = await resolveTenantId();
+    sendSuccess(res, await verifyStatementBank({ tenantId, ...body }));
   },
 );
 

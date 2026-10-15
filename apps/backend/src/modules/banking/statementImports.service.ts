@@ -16,6 +16,9 @@ export async function startStatementImport(params: {
   source?: "file" | "paste";
   periodFrom?: string;
   periodTo?: string;
+  accountLast4?: string | null;
+  /** verified = engine confirmed the bank; confirmed = admin ticked the confirmation. */
+  verification?: "verified" | "confirmed";
   importedBy: string;
 }): Promise<bigint> {
   if (params.importId) {
@@ -36,11 +39,13 @@ export async function startStatementImport(params: {
 
   const rows = await db.execute<{ id: string }>(sql`
     INSERT INTO bank_statement_imports
-      (tenant_id, bank_account_id, file_name, source, period_from, period_to, imported_by)
+      (tenant_id, bank_account_id, file_name, source, period_from, period_to,
+       account_last4, verification, imported_by)
     VALUES (
       ${params.tenantId}, ${String(params.bankAccountId)}, ${params.fileName?.trim() || null},
       ${params.source ?? (params.fileName ? "file" : "paste")},
-      ${params.periodFrom ?? null}, ${params.periodTo ?? null}, ${params.importedBy}
+      ${params.periodFrom ?? null}, ${params.periodTo ?? null},
+      ${params.accountLast4 ?? null}, ${params.verification ?? null}, ${params.importedBy}
     )
     RETURNING id::text
   `);
@@ -78,6 +83,8 @@ type ImportRow = {
   duplicate_count: number;
   imported_by_name: string | null;
   created_at: string;
+  account_last4: string | null;
+  verification: string | null;
   matched: string;
   suspense: string;
   unmatched: string;
@@ -93,7 +100,7 @@ export async function listStatementImports(params: {
     SELECT i.id::text, i.bank_account_id::text, ba.bank_name, ba.account_number_last4 AS last4,
            i.file_name, i.source, i.period_from::text, i.period_to::text,
            i.line_count, i.inserted_count, i.duplicate_count,
-           u.name AS imported_by_name, i.created_at::text,
+           u.name AS imported_by_name, i.created_at::text, i.account_last4, i.verification,
            COUNT(l.id) FILTER (WHERE l.matched_to_id IS NOT NULL)::text AS matched,
            COUNT(l.id) FILTER (WHERE l.matched_to_id IS NULL AND l.suspense_journal_id IS NOT NULL)::text AS suspense,
            COUNT(l.id) FILTER (
@@ -126,5 +133,7 @@ export async function listStatementImports(params: {
     unmatched: Number(r.unmatched),
     importedBy: r.imported_by_name,
     uploadedAt: r.created_at,
+    accountLast4: r.account_last4,
+    verification: r.verification,
   }));
 }

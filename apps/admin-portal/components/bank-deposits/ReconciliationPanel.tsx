@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import Link from "next/link";
 import { toast } from "react-hot-toast";
 import {
+  AlertTriangle,
   CheckCircle2,
   ChevronDown,
   Download,
@@ -72,6 +73,21 @@ interface StatementImport {
   unmatched: number;
   importedBy: string | null;
   uploadedAt: string;
+  accountLast4: string | null;
+  verification: string | null;
+}
+
+interface BankVerifyCheck {
+  code: string;
+  result: "pass" | "fail" | "skipped";
+  message: string;
+}
+
+interface BankVerifyResult {
+  verdict: "verified" | "blocked" | "unverified";
+  message: string;
+  checks: BankVerifyCheck[];
+  suggestedBank: { id: string; bankName: string; last4: string } | null;
 }
 
 interface ReconReport {
@@ -312,6 +328,68 @@ function newEntryHref(bankId: string, line: ReconLine) {
   return `/treasury/bank?tab=bank-entries&${q.toString()}`;
 }
 
+const VERDICT_STYLE = {
+  verified: { color: "#15803D", bg: "#F0FDF4", border: "#BBF7D0" },
+  blocked: { color: "#B91C1C", bg: "#FEF2F2", border: "#FECACA" },
+  unverified: { color: "#B45309", bg: "#FFFBEB", border: "#FDE68A" },
+} as const;
+
+function BankCheckBox({
+  check,
+  verifying,
+  confirmed,
+  onConfirm,
+  onSwitch,
+}: {
+  check: BankVerifyResult | null;
+  verifying: boolean;
+  confirmed: boolean;
+  onConfirm: (v: boolean) => void;
+  onSwitch: (bankId: string) => void;
+}) {
+  if (verifying)
+    return (
+      <p className="text-sm" style={{ color: B.muted }}>
+        Verifying the statement belongs to the selected bank…
+      </p>
+    );
+  if (!check) return null;
+  const s = VERDICT_STYLE[check.verdict];
+  const Icon = check.verdict === "verified" ? CheckCircle2 : check.verdict === "blocked" ? XCircle : AlertTriangle;
+  return (
+    <div className="panel-fade-in space-y-2 rounded-xl border p-3 text-sm" style={{ background: s.bg, borderColor: s.border }}>
+      <p className="flex items-start gap-2 font-semibold" style={{ color: s.color }}>
+        <Icon size={16} className="mt-0.5 shrink-0" /> {check.message}
+      </p>
+      <ul className="space-y-0.5 pl-6 text-xs" style={{ color: B.muted }}>
+        {check.checks
+          .filter((c) => c.result !== "skipped")
+          .map((c) => (
+            <li key={c.code}>
+              {c.result === "pass" ? "✓" : "✗"} {c.message}
+            </li>
+          ))}
+      </ul>
+      {check.verdict === "blocked" && check.suggestedBank ? (
+        <button
+          type="button"
+          onClick={() => onSwitch(check.suggestedBank!.id)}
+          className="ml-6 rounded-lg px-3 py-1.5 text-xs font-bold text-white"
+          style={{ background: B.blue }}
+        >
+          Switch to {check.suggestedBank.bankName} ••{check.suggestedBank.last4}
+        </button>
+      ) : null}
+      {check.verdict === "unverified" ? (
+        <label className="ml-6 flex cursor-pointer items-center gap-2 text-xs font-semibold" style={{ color: s.color }}>
+          <input type="checkbox" checked={confirmed} onChange={(e) => onConfirm(e.target.checked)} />I confirm this
+          statement is for the selected bank
+        </label>
+      ) : null}
+    </div>
+  );
+}
+
 export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
 
   const [banks, setBanks] = useState<BankAccount[]>([]);
@@ -322,6 +400,9 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
   const [fileInputKey, setFileInputKey] = useState(0);
   const [parsed, setParsed] = useState<ParsedStatement | null>(null);
   const [importing, setImporting] = useState(false);
+  const [bankCheck, setBankCheck] = useState<BankVerifyResult | null>(null);
+  const [verifying, setVerifying] = useState(false);
+  const [confirmedBank, setConfirmedBank] = useState(false);
 
   const initial = presetRange("month");
   const [bankId, setBankId] = useState("");
@@ -443,16 +524,46 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
     setRawText(await file.text());
   }
 
+  async function verifyBank(bank: string, statement: ParsedStatement) {
+    setBankCheck(null);
+    setConfirmedBank(false);
+    if (!statement.lines.length) return;
+    setVerifying(true);
+    try {
+      const { data } = await api.post("/banking/statements/verify", {
+        bankAccountId: bank,
+        ...statement.identity,
+        lines: statement.lines.slice(0, 500).map((l) => ({ utr: l.utr, amount: l.amount, direction: l.direction })),
+      });
+      if (!data.success) throw new Error(data.message);
+      setBankCheck(data.data as BankVerifyResult);
+    } catch (err) {
+      toast.error(errMessage(err, "Could not verify the statement's bank"));
+    } finally {
+      setVerifying(false);
+    }
+  }
+
   async function preview() {
+    if (!uploadBankId) return void toast.error("Select which company bank this statement belongs to");
     if (!rawText.trim()) return void toast.error("Choose a statement CSV file or paste the statement rows");
     const result = await parseStatement(rawText);
     setParsed(result);
     if (result.errors.length) toast.error(result.errors[0]!);
+    await verifyBank(uploadBankId, result);
+  }
+
+  function switchUploadBank(id: string) {
+    setUploadBankId(id);
+    if (parsed) void verifyBank(id, parsed);
   }
 
   async function importParsed() {
     if (!uploadBankId) return void toast.error("Select which company bank this statement belongs to");
     if (!parsed?.lines.length) return void toast.error("Preview the statement first — no rows to import");
+    if (bankCheck?.verdict === "blocked") return void toast.error(bankCheck.message);
+    if (bankCheck?.verdict === "unverified" && !confirmedBank)
+      return void toast.error("Tick “I confirm this statement is for the selected bank” before importing");
     setImporting(true);
     let imported = 0;
     let skipped = 0;
@@ -472,6 +583,8 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
             source: fileName ? "file" : "paste",
             periodFrom: range.from,
             periodTo: range.to,
+            ...parsed.identity,
+            confirmedBank,
           },
           { headers: { "Idempotency-Key": newKey() } },
         );
@@ -486,6 +599,7 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
       setFrom(range.from);
       setTo(range.to);
       setParsed(null);
+      setBankCheck(null);
       setRawText("");
       setFileName(null);
       setFileInputKey((k) => k + 1);
@@ -566,10 +680,7 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                 className={inputCls}
                 style={inputStyle}
                 value={uploadBankId}
-                onChange={(e) => {
-                  setUploadBankId(e.target.value);
-                  setParsed(null);
-                }}
+                onChange={(e) => switchUploadBank(e.target.value)}
               >
                 <option value="">Select bank account</option>
                 {banks.map((b) => (
@@ -624,6 +735,7 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                   setRawText("");
                   setFileName(null);
                   setParsed(null);
+                  setBankCheck(null);
                   setFileInputKey((k) => k + 1);
                 }}
                 className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
@@ -688,9 +800,22 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                   </p>
                 ) : null}
               </div>
+              <BankCheckBox
+                check={bankCheck}
+                verifying={verifying}
+                confirmed={confirmedBank}
+                onConfirm={setConfirmedBank}
+                onSwitch={switchUploadBank}
+              />
               <button
                 type="button"
-                disabled={importing}
+                disabled={
+                  importing ||
+                  verifying ||
+                  !bankCheck ||
+                  bankCheck.verdict === "blocked" ||
+                  (bankCheck.verdict === "unverified" && !confirmedBank)
+                }
                 onClick={() => void importParsed()}
                 className="inline-flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60"
                 style={{ background: B.badgeGrad }}
@@ -1021,7 +1146,16 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                         </p>
                       </td>
                       <td className="whitespace-nowrap px-3 py-2.5 text-xs">
-                        {h.bankName} ••{h.last4}
+                        <p>
+                          {h.bankName} ••{h.last4}
+                        </p>
+                        {h.verification ? (
+                          <p style={{ color: h.verification === "verified" ? "#15803D" : "#B45309" }}>
+                            {h.verification === "verified"
+                              ? `Verified${h.accountLast4 ? ` · statement ••${h.accountLast4}` : ""}`
+                              : "Confirmed manually"}
+                          </p>
+                        ) : null}
                       </td>
                       <td className="max-w-[220px] px-3 py-2.5 text-xs">
                         <p className="truncate" title={h.fileName ?? ""} style={{ color: B.blue }}>

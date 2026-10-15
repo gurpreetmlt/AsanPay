@@ -14,11 +14,61 @@ export interface ParsedStatementLine {
   balanceAfter: string | null;
 }
 
+/** What the statement says about which account it belongs to — used to verify the selected bank. */
+export interface StatementIdentity {
+  accountLast4: string | null;
+  ifsc: string | null;
+  /** Balance before the chronologically first transaction. */
+  opening: { date: string; balance: string } | null;
+}
+
 export interface ParsedStatement {
   lines: ParsedStatementLine[];
   columns: string[];
   skippedRows: number;
   errors: string[];
+  identity: StatementIdentity;
+}
+
+const NO_IDENTITY: StatementIdentity = { accountLast4: null, ifsc: null, opening: null };
+
+function extractIdentity(preamble: string[][], lines: ParsedStatementLine[]): StatementIdentity {
+  let accountLast4: string | null = null;
+  let ifsc: string | null = null;
+  for (const row of preamble) {
+    const text = row.join(" ");
+    if (!accountLast4) {
+      const m = /(?:account|a\/c|acct)\.?\s*(?:no\.?|number|num)?\s*[:#.-]?\s*['"]?([0-9Xx*][0-9Xx*\s-]{3,30})/i.exec(text);
+      const cleaned = m?.[1]!.replace(/[\s-]/g, "") ?? "";
+      if (/\d{4}$/.test(cleaned)) accountLast4 = cleaned.slice(-4);
+    }
+    const code = /\b([A-Z]{4}0[A-Z0-9]{6})\b/.exec(text.toUpperCase())?.[1];
+    if (code && (!ifsc || /ifsc/i.test(text))) ifsc = code;
+  }
+
+  let opening: StatementIdentity["opening"] = null;
+  const withBalance = lines.filter((l) => l.balanceAfter !== null);
+  if (withBalance.length > 0) {
+    const descending = withBalance[0]!.txnDate > withBalance[withBalance.length - 1]!.txnDate;
+    const first = descending ? withBalance[withBalance.length - 1]! : withBalance[0]!;
+    const ZERO = BigInt(0);
+    const HUNDRED = BigInt(100);
+    const toPaise = (s: string) => {
+      const neg = s.startsWith("-");
+      const [w, f = ""] = s.replace("-", "").split(".");
+      const p = BigInt(w!) * HUNDRED + BigInt((f + "00").slice(0, 2));
+      return neg ? -p : p;
+    };
+    const after = toPaise(first.balanceAfter!);
+    const amt = toPaise(first.amount);
+    const before = first.direction === "CR" ? after - amt : after + amt;
+    const abs = before < ZERO ? -before : before;
+    opening = {
+      date: first.txnDate,
+      balance: `${before < ZERO ? "-" : ""}${abs / HUNDRED}.${String(abs % HUNDRED).padStart(2, "0")}`,
+    };
+  }
+  return { accountLast4, ifsc, opening };
 }
 
 function splitRows(raw: string): string[][] {
@@ -173,7 +223,8 @@ async function stableId(parts: string[]): Promise<string> {
 export async function parseStatement(raw: string): Promise<ParsedStatement> {
   const rows = splitRows(raw);
   const errors: string[] = [];
-  if (rows.length === 0) return { lines: [], columns: [], skippedRows: 0, errors: ["The file is empty"] };
+  if (rows.length === 0)
+    return { lines: [], columns: [], skippedRows: 0, errors: ["The file is empty"], identity: NO_IDENTITY };
 
   const headerIdx = rows.slice(0, 60).findIndex((r) => {
     const c = detectColumns(r);
@@ -187,6 +238,7 @@ export async function parseStatement(raw: string): Promise<ParsedStatement> {
       errors: [
         "Could not find the header row. The statement needs a Date column and either Debit + Credit columns or an Amount + Dr/Cr column.",
       ],
+      identity: NO_IDENTITY,
     };
   }
 
@@ -244,5 +296,5 @@ export async function parseStatement(raw: string): Promise<ParsedStatement> {
   }
 
   if (lines.length === 0) errors.push("No transaction rows found under the header row");
-  return { lines, columns, skippedRows, errors };
+  return { lines, columns, skippedRows, errors, identity: extractIdentity(rows.slice(0, headerIdx), lines) };
 }

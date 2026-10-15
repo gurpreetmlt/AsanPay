@@ -64,8 +64,47 @@ export const importStatementSchema = z.object({
   source: z.enum(["file", "paste"]).optional(),
   periodFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "periodFrom must be YYYY-MM-DD").optional(),
   periodTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "periodTo must be YYYY-MM-DD").optional(),
+  ...statementIdentityFields(),
+  confirmedBank: z.boolean().optional(),
 });
 export type ImportStatementBody = z.infer<typeof importStatementSchema>;
+
+function statementIdentityFields() {
+  return {
+    accountLast4: z
+      .string()
+      .regex(/^\d{4}$/, "accountLast4 must be 4 digits")
+      .optional()
+      .nullable(),
+    ifsc: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z]{4}0[A-Za-z0-9]{6}$/, "IFSC must be 11 characters, e.g. IDIB000M123")
+      .optional()
+      .nullable(),
+    opening: z
+      .object({
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Opening date must be YYYY-MM-DD"),
+        balance: z.string().regex(/^-?\d{1,12}(\.\d{1,2})?$/, "Opening balance must be a number"),
+      })
+      .optional()
+      .nullable(),
+  };
+}
+
+export const verifyStatementSchema = z.object({
+  bankAccountId: z.string().regex(/^\d+$/, "Select which company bank this statement belongs to"),
+  ...statementIdentityFields(),
+  lines: z
+    .array(
+      z.object({
+        utr: z.string().trim().max(60).optional().nullable(),
+        amount: amountSchema,
+        direction: z.enum(["DR", "CR"]),
+      }),
+    )
+    .max(500),
+});
 
 export const statementImportsQuerySchema = z.object({
   bankAccountId: z.string().regex(/^\d+$/, "Select a company bank account").optional(),

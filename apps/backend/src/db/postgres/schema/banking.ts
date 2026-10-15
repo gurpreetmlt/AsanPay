@@ -114,6 +114,9 @@ export const bankStatementImports = pgTable(
     lineCount: integer("line_count").notNull().default(0),
     insertedCount: integer("inserted_count").notNull().default(0),
     duplicateCount: integer("duplicate_count").notNull().default(0),
+    accountLast4: varchar("account_last4", { length: 4 }),
+    /** verified = engine matched the bank; confirmed = admin confirmed manually. */
+    verification: varchar("verification", { length: 12 }),
     importedBy: uuid("imported_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
