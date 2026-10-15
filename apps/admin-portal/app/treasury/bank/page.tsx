@@ -185,8 +185,12 @@ function BankDepositsContent() {
                   key={t.key}
                   type="button"
                   onClick={() => goTab(t.key)}
-                  className="relative inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-3.5 text-sm transition"
-                  style={{ color: active ? B.blueLight : B.muted, fontWeight: active ? 700 : 500 }}
+                  aria-current={active ? "page" : undefined}
+                  className={`group relative my-1 inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2.5 text-sm transition-all duration-200 ease-out active:scale-95 ${
+                    active
+                      ? "font-bold text-[#2A5CDD]"
+                      : "font-medium text-[var(--admin-muted)] hover:-translate-y-px hover:bg-[#EEF3FF] hover:text-[#2A5CDD]"
+                  }`}
                 >
                   {t.label}
                   {t.key === "fund-requests" && pending > 0 ? (
@@ -197,9 +201,12 @@ function BankDepositsContent() {
                       {pending}
                     </span>
                   ) : null}
-                  {active ? (
-                    <span className="absolute inset-x-2 bottom-0 h-[3px] rounded-t-full" style={{ background: B.blueLight }} />
-                  ) : null}
+                  <span
+                    className={`absolute inset-x-2 -bottom-1 h-[3px] origin-center rounded-t-full transition-all duration-300 ease-out ${
+                      active ? "scale-x-100 opacity-100" : "scale-x-0 opacity-0 group-hover:scale-x-50 group-hover:opacity-40"
+                    }`}
+                    style={{ background: B.blueLight }}
+                  />
                 </button>
               );
             })}
