@@ -22,8 +22,45 @@ type PendingConfirm = {
   message: ReactNode;
   confirmLabel: string;
   tone: ConfirmTone;
+  confirmText?: string;
+  confirmTextLabel?: string;
   action: () => void | Promise<void>;
 };
+
+const ROLE_LABEL: Record<string, string> = {
+  super_distributor: "Super Distributor",
+  distributor: "Distributor",
+  retailer: "Retailer",
+};
+
+function DeleteUserDetails({ u }: { u: AdminUser }) {
+  const rows: [string, string][] = [
+    ["Name", u.name],
+    ["Mobile", u.mobile],
+    ["UID", u.uid],
+    ["Role", ROLE_LABEL[u.role] ?? u.role],
+    ["Email", u.email || "Not added"],
+    ["KYC", u.kycStatus.charAt(0).toUpperCase() + u.kycStatus.slice(1)],
+    ["Status", u.isFrozen ? "Frozen" : u.isActive ? "Active" : "Inactive"],
+    ["Joined", new Date(u.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })],
+  ];
+  return (
+    <div className="mt-3 overflow-hidden rounded-xl border" style={{ borderColor: B.border }}>
+      {rows.map(([k, v], i) => (
+        <div
+          key={k}
+          className="grid grid-cols-[90px_1fr] gap-3 px-3 py-2 text-xs"
+          style={{ borderTop: i ? `1px solid ${B.border}` : undefined }}
+        >
+          <span style={{ color: B.muted }}>{k}</span>
+          <span className="break-all font-semibold" style={{ color: "var(--admin-text)" }}>
+            {v}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 type PendingPrompt = {
   title: string;
@@ -231,20 +268,18 @@ export function UsersPanel({ lockedRole = "" }: Props) {
       message: (
         <>
           <p>
-            Permanently delete{" "}
-            <span className="font-semibold" style={{ color: B.blue }}>
-              {u.name}
-            </span>{" "}
-            ({u.mobile})?
+            Permanently delete this {ROLE_LABEL[u.role] ?? "user"}? This cannot be undone.
           </p>
-          <p className="mt-2">
-            This cannot be undone. Delete retailers before distributors / super distributors if they
-            are linked.
+          <DeleteUserDetails u={u} />
+          <p className="mt-2 text-xs">
+            Delete retailers before distributors / super distributors if they are linked.
           </p>
         </>
       ),
       confirmLabel: "Delete user",
       tone: "danger",
+      confirmText: u.mobile,
+      confirmTextLabel: "Type the mobile number to confirm",
       action: () => void executeDeleteUser(u),
     });
   }
@@ -314,6 +349,8 @@ export function UsersPanel({ lockedRole = "" }: Props) {
       ),
       confirmLabel: "Delete selected",
       tone: "danger",
+      confirmText: "DELETE",
+      confirmTextLabel: "Type DELETE to confirm",
       action: () => void executeDeleteSelected(targets),
     });
   }
@@ -780,6 +817,8 @@ export function UsersPanel({ lockedRole = "" }: Props) {
           message={pendingConfirm.message}
           confirmLabel={pendingConfirm.confirmLabel}
           tone={pendingConfirm.tone}
+          confirmText={pendingConfirm.confirmText}
+          confirmTextLabel={pendingConfirm.confirmTextLabel}
           busy={deletingId !== null || bulkDeleting}
           onConfirm={() => void pendingConfirm.action()}
           onClose={() => {
