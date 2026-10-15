@@ -15,6 +15,7 @@ import { normaliseUtr } from "../banking/banking.service";
 import { matchFundRequest, claimStatementLine } from "./matching";
 import { HttpError } from "../../utils/httpError";
 import { paiseToRupees, type Paise } from "../../core/money";
+import { isFundRequestEnabled } from "@asanpay/shared-types";
 
 const COMPANY = "COMPANY_001";
 
@@ -63,6 +64,26 @@ export async function submitFundRequest(
   const { tenantId, requesterUserId, amount, paymentMode, depositDatetime } = input;
 
   if (amount <= 0n) throw new HttpError(422, "Amount must be positive", "INVALID_AMOUNT");
+
+  const [requester] = await db
+    .select({ role: users.role, fundRequestEnabled: users.fundRequestEnabled })
+    .from(users)
+    .where(eq(users.id, requesterUserId))
+    .limit(1);
+  if (!requester || !isFundRequestEnabled(requester.role, requester.fundRequestEnabled)) {
+    throw new HttpError(
+      403,
+      "Fund requests are not enabled for your account. Contact your sales manager to enable them.",
+      "FUND_REQUEST_DISABLED",
+    );
+  }
+  if (paymentMode !== "cash_deposit") {
+    throw new HttpError(
+      422,
+      "Only cash deposit fund requests are accepted right now. Deposit cash at the bank and upload the receipt.",
+      "PAYMENT_MODE_NOT_ALLOWED",
+    );
+  }
 
   const now = Date.now();
   if (depositDatetime.getTime() > now) {
@@ -660,28 +681,35 @@ export async function listFundRequests(params: {
       requesterMobile: users.mobile,
       requesterUid: users.uid,
       requesterRole: users.role,
+      bankName: bankAccounts.bankName,
+      bankLast4: bankAccounts.accountNumberLast4,
     })
     .from(fundRequests)
     .innerJoin(users, eq(users.id, fundRequests.requesterUserId))
+    .leftJoin(bankAccounts, eq(bankAccounts.id, fundRequests.bankAccountId))
     .where(and(...conditions))
     .orderBy(desc(fundRequests.submittedAt))
     .limit(limit)
     .offset(offset);
 
-  return rows.map(({ request, requesterId, requesterName, requesterMobile, requesterUid, requesterRole }) =>
-    mapFundRequestRow(
-      request,
-      params.actorRole,
-      params.actorRole === "admin"
-        ? {
-            id: requesterId,
-            name: requesterName,
-            mobile: requesterMobile,
-            uid: requesterUid,
-            role: requesterRole,
-          }
-        : undefined,
-    ),
+  return rows.map(
+    ({ request, requesterId, requesterName, requesterMobile, requesterUid, requesterRole, bankName, bankLast4 }) => ({
+      ...mapFundRequestRow(
+        request,
+        params.actorRole,
+        params.actorRole === "admin"
+          ? {
+              id: requesterId,
+              name: requesterName,
+              mobile: requesterMobile,
+              uid: requesterUid,
+              role: requesterRole,
+            }
+          : undefined,
+      ),
+      bankName: bankName ?? null,
+      bankLast4: bankLast4 ?? null,
+    }),
   );
 }
 

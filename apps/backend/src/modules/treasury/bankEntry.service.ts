@@ -1,7 +1,7 @@
 import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "../../db/postgres";
-import { accounts, bankAccounts, bankEntries, providers, users } from "../../db/postgres/schema";
+import { accounts, bankAccounts, bankEntries, fundRequests, providers, users } from "../../db/postgres/schema";
 import { postJournal, type Tx } from "../../core/ledger";
 import { paiseToRupees, type Paise } from "../../core/money";
 import { HttpError } from "../../utils/httpError";
@@ -20,7 +20,14 @@ type Direction = "credit" | "debit" | "none";
 interface CategorySpec {
   label: string;
   direction: Direction;
-  counter: "OWNER_CAPITAL" | "LOAN_PAYABLE" | "BANK_INTEREST_INCOME" | "BANK_CHARGES" | "SUSPENSE_IN" | "SUSPENSE_OUT" | "FLOAT";
+  counter:
+    | "OWNER_CAPITAL"
+    | "LOAN_PAYABLE"
+    | "BANK_INTEREST_INCOME"
+    | "BANK_CHARGES"
+    | "SUSPENSE_IN"
+    | "SUSPENSE_OUT"
+    | "FLOAT";
 }
 
 export const BANK_ENTRY_CATEGORIES = {
@@ -135,7 +142,11 @@ export async function requestBankEntry(params: {
       .limit(1);
     if (!provider) throw new HttpError(404, "API provider not found", "PROVIDER_NOT_FOUND");
   } else if (params.providerId) {
-    throw new HttpError(422, "An API provider can only be selected for provider top-up or withdrawal", "PROVIDER_NOT_ALLOWED");
+    throw new HttpError(
+      422,
+      "An API provider can only be selected for provider top-up or withdrawal",
+      "PROVIDER_NOT_ALLOWED",
+    );
   }
 
   if (params.attachmentDataUrl) validateAttachment(params.attachmentDataUrl);
@@ -225,9 +236,7 @@ async function resolveLegs(
     .limit(1);
   if (!bank) throw new HttpError(404, "Company bank account not found", "BANK_NOT_FOUND");
 
-  return spec.direction === "credit"
-    ? { debit: bank.code, credit: counter }
-    : { debit: counter, credit: bank.code };
+  return spec.direction === "credit" ? { debit: bank.code, credit: counter } : { debit: counter, credit: bank.code };
 }
 
 /** With a single admin there is nobody else to check, so the maker may decide their own entry. */
@@ -242,11 +251,7 @@ export async function canSelfApproveBankEntries(): Promise<boolean> {
 async function assertMayDecide(requestedBy: string, actorId: string, verb: "approve" | "reject"): Promise<boolean> {
   if (requestedBy !== actorId) return false;
   if (await canSelfApproveBankEntries()) return true;
-  throw new HttpError(
-    403,
-    `You cannot ${verb} a bank entry you created. Ask another admin.`,
-    "MAKER_IS_CHECKER",
-  );
+  throw new HttpError(403, `You cannot ${verb} a bank entry you created. Ask another admin.`, "MAKER_IS_CHECKER");
 }
 
 export async function approveBankEntry(params: {
@@ -386,7 +391,8 @@ export async function listBankEntries(params: {
     .orderBy(desc(bankEntries.txnDate), desc(bankEntries.id))
     .limit(limit);
 
-  return rows.map((r) => ({
+  const entries = rows.map((r) => ({
+    source: "bank_entry" as const,
     id: String(r.id),
     category: r.category,
     categoryLabel: isBankEntryCategory(r.category) ? BANK_ENTRY_CATEGORIES[r.category].label : r.category,
@@ -412,7 +418,124 @@ export async function listBankEntries(params: {
     bankName: r.bankName,
     bankLast4: r.bankLast4,
     providerName: r.providerName,
+    agent: null as AgentRef | null,
   }));
+
+  // Credited agent fund requests are bank credits too; list them read-only so the register
+  // (and the CA export) shows every rupee that entered a company bank.
+  if (params.status && params.status !== "approved") return entries;
+  const deposits = await listCreditedFundRequests(params.tenantId, params.from, params.to, limit);
+  return [...entries, ...deposits]
+    .sort((a, b) =>
+      a.txnDate === b.txnDate ? b.requestedAt.getTime() - a.requestedAt.getTime() : a.txnDate < b.txnDate ? 1 : -1,
+    )
+    .slice(0, limit);
+}
+
+interface AgentRef {
+  name: string;
+  uid: string;
+  mobile: string;
+  role: string;
+}
+
+const AGENT_ROLE_LABEL: Record<string, string> = {
+  super_distributor: "Super Distributor",
+  distributor: "Distributor",
+  retailer: "Retailer",
+};
+
+const PAYMENT_MODE_TO_ENTRY_MODE: Record<string, string> = {
+  cash_deposit: "cash",
+  neft: "neft",
+  rtgs: "rtgs",
+  imps: "imps",
+  upi: "upi",
+  cheque: "cheque",
+};
+
+async function listCreditedFundRequests(
+  tenantId: string,
+  from: string | undefined,
+  to: string | undefined,
+  limit: number,
+) {
+  const agent = alias(users, "fr_agent");
+  const reviewer = alias(users, "fr_reviewer");
+  const depositDate = sql<string>`to_char(${fundRequests.depositDatetime} AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD')`;
+
+  const conditions = [eq(fundRequests.tenantId, tenantId), eq(fundRequests.status, "credited")];
+  if (from) conditions.push(sql`${depositDate} >= ${from}`);
+  if (to) conditions.push(sql`${depositDate} <= ${to}`);
+
+  const rows = await db
+    .select({
+      id: fundRequests.id,
+      amount: fundRequests.amount,
+      creditedAmount: fundRequests.creditedAmount,
+      paymentMode: fundRequests.paymentMode,
+      referenceNumber: fundRequests.referenceNumber,
+      senderName: fundRequests.senderName,
+      remarks: fundRequests.remarks,
+      depositDate,
+      submittedAt: fundRequests.submittedAt,
+      creditedAt: fundRequests.creditedAt,
+      receiveJournalId: fundRequests.receiveJournalId,
+      bankName: bankAccounts.bankName,
+      bankLast4: bankAccounts.accountNumberLast4,
+      agentId: agent.id,
+      agentName: agent.name,
+      agentUid: agent.uid,
+      agentMobile: agent.mobile,
+      agentRole: agent.role,
+      reviewerName: reviewer.name,
+    })
+    .from(fundRequests)
+    .innerJoin(agent, eq(agent.id, fundRequests.requesterUserId))
+    .leftJoin(reviewer, eq(reviewer.id, fundRequests.reviewedBy))
+    .innerJoin(bankAccounts, eq(bankAccounts.id, fundRequests.bankAccountId))
+    .where(and(...conditions))
+    .orderBy(desc(fundRequests.depositDatetime))
+    .limit(limit);
+
+  return rows.map((r) => {
+    const roleLabel = AGENT_ROLE_LABEL[r.agentRole] ?? r.agentRole;
+    return {
+      source: "fund_request" as const,
+      id: `FR-${r.id}`,
+      category: "agent_deposit",
+      categoryLabel: "Agent deposit (fund request)",
+      direction: "credit" as Direction,
+      amount: paiseToRupees((r.creditedAmount ?? r.amount) as Paise),
+      txnDate: r.depositDate,
+      mode: PAYMENT_MODE_TO_ENTRY_MODE[r.paymentMode] ?? "other",
+      utr: r.referenceNumber,
+      partyName: r.agentName,
+      partyIfsc: null as string | null,
+      partyAccountLast4: null as string | null,
+      narration: [
+        `${roleLabel} · ${r.agentUid} · ${r.agentMobile}`,
+        r.senderName ? `Depositor: ${r.senderName}` : null,
+        r.remarks,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      hasAttachment: false,
+      attachmentName: null as string | null,
+      status: "approved" as const,
+      requestedBy: r.agentId,
+      requestedByName: r.agentName,
+      approvedByName: r.reviewerName ?? "Auto-matched",
+      decisionNote: null as string | null,
+      journalId: r.receiveJournalId != null ? String(r.receiveJournalId) : null,
+      requestedAt: r.submittedAt,
+      decidedAt: r.creditedAt,
+      bankName: r.bankName as string | null,
+      bankLast4: r.bankLast4 as string | null,
+      providerName: null as string | null,
+      agent: { name: r.agentName, uid: r.agentUid, mobile: r.agentMobile, role: roleLabel } as AgentRef | null,
+    };
+  });
 }
 
 export async function getBankEntryAttachment(tenantId: string, entryId: bigint) {

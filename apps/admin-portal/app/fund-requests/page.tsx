@@ -27,6 +27,8 @@ interface FundRequestRow {
   submittedAt: string;
   receiptUrl: string;
   requester?: { id: string; name: string; mobile: string; uid: string; role?: string };
+  bankName?: string | null;
+  bankLast4?: string | null;
 }
 
 const TABS: { key: FrTab; label: string }[] = [
@@ -218,7 +220,7 @@ export default function FundRequestsPage() {
                 >
                   <th className="px-4 py-3 font-semibold">Agent</th>
                   <th className="px-4 py-3 font-semibold">Amount</th>
-                  <th className="px-4 py-3 font-semibold">Mode / UTR</th>
+                  <th className="px-4 py-3 font-semibold">Mode / bank</th>
                   <th className="px-4 py-3 font-semibold">Status</th>
                   <th className="px-4 py-3 font-semibold">Submitted</th>
                   <th className="px-4 py-3 text-center font-semibold">Actions</th>
@@ -269,6 +271,12 @@ export default function FundRequestsPage() {
                       <td className="px-4 py-3 text-xs" style={{ color: B.muted }}>
                         <div className="uppercase">{r.paymentMode.replace("_", " ")}</div>
                         <div className="font-mono">{r.referenceNumber || "—"}</div>
+                        {r.bankName ? (
+                          <div className="mt-0.5 font-semibold" style={{ color: B.blueMid }}>
+                            {r.bankName} ••{r.bankLast4}
+                          </div>
+                        ) : null}
+                        <div>Deposited {new Date(r.depositDatetime).toLocaleString("en-IN")}</div>
                       </td>
                       <td className="px-4 py-3 text-xs">
                         <span className="font-semibold" style={{ color: B.blueMid }}>

@@ -27,6 +27,7 @@ import {
   AEPS_REACTIVATE_REASON_PRESETS,
 } from "@/components/users/ReasonSelect";
 import { AgentCommissionPanel } from "@/components/users/AgentCommissionPanel";
+import { FundRequestSwitch } from "@/components/users/FundRequestSwitch";
 import api, { fetchApi } from "@/lib/api";
 import { B, ROLE_LABEL } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
@@ -69,6 +70,7 @@ interface AgentDetail {
   isActive: boolean;
   /** Full-freeze status (accounts.blockLogin) — the moderation lever. isActive is lifecycle-only. */
   isFrozen: boolean;
+  fundRequestEnabled: boolean;
   parentId: string | null;
   createdAt: string;
   updatedAt: string;
@@ -504,6 +506,29 @@ export default function AgentDetailPage() {
                 <div className="space-y-3">
                   <InfoRow label="KYC" value={agent.kycStatus} />
                   <InfoRow label="Account" value={agent.isFrozen ? "Frozen" : "Active"} />
+                  <div
+                    className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5"
+                    style={{ borderColor: B.border }}
+                  >
+                    <div>
+                      <div className="text-sm font-semibold" style={{ color: B.blue }}>
+                        Fund requests
+                      </div>
+                      <div className="text-xs" style={{ color: B.muted }}>
+                        {agent.role === "retailer"
+                          ? "Off by default for retailers — turn on when the sales manager asks"
+                          : "On by default for Super Distributors and Distributors"}
+                      </div>
+                    </div>
+                    <FundRequestSwitch
+                      key={`${agent.id}:${agent.fundRequestEnabled}`}
+                      userId={agent.id}
+                      name={agent.name}
+                      enabled={agent.fundRequestEnabled}
+                      showLabel
+                      onChange={(enabled) => setAgent((a) => (a ? { ...a, fundRequestEnabled: enabled } : a))}
+                    />
+                  </div>
                   <div className="flex flex-col gap-2 pt-1">
                     {agent.kycStatus === "pending" ? (
                       <>

@@ -6,6 +6,7 @@ import { HttpError } from "../../utils/httpError";
 import { findLatestAuditLog, insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import { kycSubmittedEmailTemplate, notifyUserEmail } from "../../utils/mailer";
 import type { AuthUser } from "@asanpay/shared-types";
+import { isFundRequestEnabled } from "@asanpay/shared-types";
 import type { KycSubmitInput } from "../auth/auth.validators";
 import {
   metaDataUrlKey,
@@ -33,6 +34,7 @@ function toAuthUser(row: typeof users.$inferSelect): AuthUser {
     hasTxnPin: Boolean(row.txnPinHash),
     hasLoginMpin: Boolean(row.loginMpinHash),
     telegramLinked: Boolean(row.telegramChatId),
+    fundRequestEnabled: isFundRequestEnabled(row.role, row.fundRequestEnabled),
   };
 }
 

@@ -76,7 +76,10 @@ const formatInr = (v: string) => {
 type TabId = "upi" | "bank" | "cashClaim" | "ecollect" | "history";
 type PaymentMode = "upi" | "neft" | "cash_deposit";
 
-const TABS: {
+/** Backend accepts cash deposits only for now (`PAYMENT_MODE_NOT_ALLOWED` otherwise). */
+const ENABLED_TABS = new Set<TabId>(["cashClaim", "history"]);
+
+const ALL_TABS: {
   id: TabId;
   label: string;
   icon: typeof Wallet;
@@ -124,6 +127,8 @@ const TABS: {
     subtext: "Track every fund request you submitted — pending, credited, or rejected.",
   },
 ];
+
+const TABS = ALL_TABS.filter((t) => ENABLED_TABS.has(t.id));
 
 function statusTone(status: string, display: string): { bg: string; fg: string; border: string } {
   const s = `${status} ${display}`.toLowerCase();
@@ -252,7 +257,7 @@ export function FundRequestForm({
   onRefreshHistory: () => void;
   onSuccess: () => void;
 }) {
-  const [activeTab, setActiveTab] = useState<TabId>("upi");
+  const [activeTab, setActiveTab] = useState<TabId>("cashClaim");
   const [banks, setBanks] = useState<BankAccount[]>([]);
   const [myVan, setMyVan] = useState<MyVan | null>(null);
   const [walletBalance, setWalletBalance] = useState<string | null>(null);

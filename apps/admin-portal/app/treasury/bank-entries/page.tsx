@@ -38,6 +38,7 @@ interface ProviderRow {
 }
 
 interface BankEntry {
+  source: "bank_entry" | "fund_request";
   id: string;
   category: string;
   categoryLabel: string;
@@ -63,6 +64,7 @@ interface BankEntry {
   bankName: string | null;
   bankLast4: string | null;
   providerName: string | null;
+  agent: { name: string; uid: string; mobile: string; role: string } | null;
 }
 
 const MODES = [
@@ -141,6 +143,9 @@ function downloadCsv(rows: BankEntry[], from: string, to: string) {
     "Party name",
     "Party IFSC",
     "Party A/c last 4",
+    "Agent role",
+    "Agent UID",
+    "Agent mobile",
     "API provider",
     "Narration",
     "Status",
@@ -162,6 +167,9 @@ function downloadCsv(rows: BankEntry[], from: string, to: string) {
       r.partyName,
       r.partyIfsc,
       r.partyAccountLast4,
+      r.agent?.role,
+      r.agent?.uid,
+      r.agent?.mobile,
       r.providerName,
       r.narration,
       r.status,
@@ -664,6 +672,15 @@ export default function BankEntriesPage() {
                           <div className="font-semibold" style={{ color: B.blue }}>
                             {r.categoryLabel}
                           </div>
+                          {r.source === "fund_request" ? (
+                            <Link
+                              href="/fund-requests"
+                              className="mt-0.5 inline-block rounded-md px-1.5 py-0.5 text-[10px] font-bold"
+                              style={{ background: "rgba(42,92,221,0.1)", color: "#2A5CDD" }}
+                            >
+                              From fund requests
+                            </Link>
+                          ) : null}
                           {r.providerName ? (
                             <div className="text-xs" style={{ color: B.muted }}>
                               {r.providerName}
@@ -687,6 +704,11 @@ export default function BankEntriesPage() {
                         </td>
                         <td className="py-3 pr-3 text-xs">
                           <div className="font-semibold">{r.partyName ?? "—"}</div>
+                          {r.agent ? (
+                            <div style={{ color: B.muted }}>
+                              {r.agent.role} · <span className="font-mono">{r.agent.uid}</span> · {r.agent.mobile}
+                            </div>
+                          ) : null}
                           {r.partyIfsc || r.partyAccountLast4 ? (
                             <div className="font-mono" style={{ color: B.muted }}>
                               {r.partyIfsc ?? ""} {r.partyAccountLast4 ? `••${r.partyAccountLast4}` : ""}
@@ -735,7 +757,7 @@ export default function BankEntriesPage() {
                                 Proof
                               </button>
                             ) : null}
-                            {r.status === "requested" ? (
+                            {r.source === "bank_entry" && r.status === "requested" ? (
                               <>
                                 <button
                                   type="button"

@@ -105,6 +105,21 @@ adminRouter.put("/users/:id/commissions", async (req, res) => {
   sendSuccess(res, result, "Commission rates saved");
 });
 
+adminRouter.patch("/users/:id/fund-requests", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const parsed = z.object({ enabled: z.boolean() }).safeParse(req.body);
+  if (!parsed.success) {
+    throw new HttpError(422, "Send enabled: true or false", "VALIDATION_ERROR");
+  }
+  const userId = String(req.params.id);
+  if (!z.string().uuid().safeParse(userId).success) {
+    throw new HttpError(422, "Agent id is invalid", "INVALID_ID");
+  }
+  const { setFundRequestEnabled } = await import("./admin.service");
+  const result = await setFundRequestEnabled(req.auth.sub, userId, parsed.data.enabled);
+  sendSuccess(res, result, parsed.data.enabled ? "Fund requests enabled" : "Fund requests disabled");
+});
+
 adminRouter.patch("/users/:id/active", async (req, res) => {
   if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
   const body = z.object({ isActive: z.boolean() }).parse(req.body);

@@ -84,6 +84,7 @@ export async function getAdminUserDetail(userId: string) {
       role: users.role,
       kycStatus: users.kycStatus,
       isActive: users.isActive,
+      fundRequestEnabled: sql<boolean>`coalesce(${users.fundRequestEnabled}, ${users.role} <> 'retailer')`,
       parentId: users.parentId,
       panNumberEncrypted: users.panNumberEncrypted,
       aadhaarNumberEncrypted: users.aadhaarNumberEncrypted,
@@ -435,6 +436,7 @@ export async function listAdminUsers(opts: {
       // Full-freeze status, not isActive — see setRestrictionLevel(). isActive is the
       // account-lifecycle flag (never onboarded / closed), no longer the moderation lever.
       isFrozen: sql<boolean>`coalesce(bool_or(${accounts.blockLogin}), false)`,
+      fundRequestEnabled: sql<boolean>`coalesce(${users.fundRequestEnabled}, ${users.role} <> 'retailer')`,
       parentId: users.parentId,
       hasKycDocs: sql<boolean>`(${users.panNumberEncrypted} is not null and ${users.aadhaarNumberEncrypted} is not null)`,
       createdAt: users.createdAt,
@@ -451,6 +453,7 @@ export async function listAdminUsers(opts: {
       users.role,
       users.kycStatus,
       users.isActive,
+      users.fundRequestEnabled,
       users.parentId,
       users.panNumberEncrypted,
       users.aadhaarNumberEncrypted,
@@ -459,6 +462,34 @@ export async function listAdminUsers(opts: {
     .orderBy(desc(users.createdAt))
     .limit(opts.limit)
     .offset(opts.offset);
+}
+
+/** Per-agent switch for raising fund requests to the company bank. */
+export async function setFundRequestEnabled(adminId: string, userId: string, enabled: boolean) {
+  const [target] = await db
+    .select({ id: users.id, role: users.role, name: users.name })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  if (!target) throw new HttpError(404, "Agent not found", "USER_NOT_FOUND");
+  if (target.role === "admin") {
+    throw new HttpError(422, "Fund requests apply to agents only, not admins", "INVALID_TARGET");
+  }
+
+  await db
+    .update(users)
+    .set({ fundRequestEnabled: enabled, updatedAt: new Date() })
+    .where(eq(users.id, userId));
+
+  await insertAuditLog({
+    userId: adminId,
+    action: enabled ? "admin.fund_request_enable" : "admin.fund_request_disable",
+    entityType: "user",
+    entityId: userId,
+    metadata: { role: target.role, name: target.name },
+  });
+
+  return { id: userId, fundRequestEnabled: enabled };
 }
 
 /**

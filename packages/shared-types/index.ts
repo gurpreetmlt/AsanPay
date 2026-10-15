@@ -70,6 +70,14 @@ export interface AuthUser {
   hasLoginMpin: boolean;
   /** True when Telegram chat is linked for OTP delivery. */
   telegramLinked: boolean;
+  /** True when this agent may raise fund requests (admin can switch it per agent). */
+  fundRequestEnabled: boolean;
+}
+
+/** SD / Distributor may raise fund requests by default; a retailer only when admin enables it. */
+export function isFundRequestEnabled(role: UserRole, override: boolean | null | undefined): boolean {
+  if (role === "admin") return false;
+  return override ?? role !== "retailer";
 }
 
 export interface JwtAccessPayload {

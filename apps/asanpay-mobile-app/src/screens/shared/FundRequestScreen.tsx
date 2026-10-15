@@ -36,6 +36,8 @@ import { formatINR } from "../../lib/format";
 import { showAlert } from "../../components/AppAlert";
 import { BankDetailCard } from "../../components/BankDetailCard";
 import { useTheme } from "../../theme/ThemeContext";
+import { useAuthStore } from "../../store/auth";
+import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import { colors } from "../../theme/colors";
 
 interface BankAccount {
@@ -90,9 +92,17 @@ export function FundRequestModal({ visible, onClose }: { visible: boolean; onClo
   const [loading, setLoading] = useState(true);
   const [confirmPrefill, setConfirmPrefill] = useState<ConfirmPrefill | null>(null);
 
+  const user = useAuthStore((s) => s.user);
+  const enabled = user ? user.role !== "admin" && (user.fundRequestEnabled ?? user.role !== "retailer") : false;
+
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
+      const me = await api
+        .get<ApiResponse<{ user: AuthUser }>>("/auth/me")
+        .then(({ data }) => (data.success ? data.data.user : null))
+        .catch(() => null);
+      if (me) useAuthStore.getState().updateUser(me);
       const [bankRows, vanRows, wallets] = await Promise.all([
         fetchApi<BankAccount[]>("/banking/accounts", { purpose: "collection" }),
         fetchApi<MyVan[]>("/banking/van/mine").catch(() => []),
@@ -131,14 +141,29 @@ export function FundRequestModal({ visible, onClose }: { visible: boolean; onClo
       <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bg }]} edges={["top", "bottom"]}>
         {loading ? (
           <ActivityIndicator color={colors.blueFlat} style={{ marginTop: 60 }} />
+        ) : !enabled ? (
+          <ScrollView contentContainerStyle={styles.content}>
+            <ScreenTop title="" onClose={close} />
+            <Text style={[styles.h1, { color: tokens.txt }]}>Add Money to Wallet</Text>
+            <View style={[styles.noticeBanner, { backgroundColor: "#FEF3C7" }]}>
+              <Info size={16} color="#92400E" />
+              <Text style={styles.noticeText}>
+                Fund requests are not enabled for your account. Contact your sales manager to enable them.
+              </Text>
+            </View>
+          </ScrollView>
         ) : step === "home" ? (
           <HomeStep
             walletBalance={walletBalance}
-            hasUpi={Boolean(myVan?.vpa)}
             onClose={close}
-            onUpi={() => setStep("upi")}
-            onBank={() => setStep("bank")}
-            onCash={() => setStep("cashSelect")}
+            onCash={() =>
+              goConfirm({
+                mode: "cash_deposit",
+                headline: "Deposit Cash & Claim",
+                subtext:
+                  "Deposit cash at the bank branch, select the bank below and upload the bank receipt — wallet loads after verification.",
+              })
+            }
           />
         ) : step === "upi" ? (
           <UpiStep
@@ -234,17 +259,11 @@ const topStyles = StyleSheet.create({
 
 function HomeStep({
   walletBalance,
-  hasUpi,
   onClose,
-  onUpi,
-  onBank,
   onCash,
 }: {
   walletBalance: string | null;
-  hasUpi: boolean;
   onClose: () => void;
-  onUpi: () => void;
-  onBank: () => void;
   onCash: () => void;
 }) {
   const { tokens } = useTheme();
@@ -258,24 +277,15 @@ function HomeStep({
         </Text>
       ) : null}
 
-      <Text style={[styles.groupLabel, { color: tokens.txt }]}>Add Money Online</Text>
-      <View style={[styles.card, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
-        <OptionRow
-          icon={Wallet}
-          title="UPI"
-          subtitle={hasUpi ? "No charges" : "Set up by your distributor"}
-          tokens={tokens}
-          onPress={onUpi}
-        />
-        <View style={[styles.divider, { backgroundColor: tokens.cardBorder }]} />
-        <OptionRow icon={Landmark} title="Bank Account Transfer" subtitle="No charges" tokens={tokens} onPress={onBank} />
-      </View>
-
       <Text style={[styles.groupLabel, { color: tokens.txt }]}>Deposit Cash & Get Credit</Text>
       <View style={[styles.card, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
-        <OptionRow icon={Building2} title="At Bank Branch" subtitle="Bank-wise charges & limits" tokens={tokens} onPress={onCash} />
-        <View style={[styles.divider, { backgroundColor: tokens.cardBorder }]} />
-        <OptionRow icon={CreditCard} title="At Cash Deposit Machine" subtitle="Bank-wise charges & limits" tokens={tokens} onPress={onCash} />
+        <OptionRow
+          icon={Building2}
+          title="Deposit Cash & Claim"
+          subtitle="Deposit at a company bank branch, then upload the bank receipt"
+          tokens={tokens}
+          onPress={onCash}
+        />
       </View>
     </ScrollView>
   );

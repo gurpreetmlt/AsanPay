@@ -74,6 +74,8 @@ export const users = pgTable(
      * Unique when set so one chat cannot receive OTPs for multiple accounts.
      */
     telegramChatId: varchar("telegram_chat_id", { length: 64 }),
+    /** Admin override for fund requests. Null = role default (SD / Distributor on, Retailer off). */
+    fundRequestEnabled: boolean("fund_request_enabled"),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

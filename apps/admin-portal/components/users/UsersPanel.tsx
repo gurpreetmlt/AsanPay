@@ -12,6 +12,7 @@ import { PromptModal } from "@/components/ui/PromptModal";
 import { ActionIconButton, TableActionButtons } from "@/components/ui/TableActionButtons";
 import { NetworkTreeView } from "@/components/users/NetworkTreeView";
 import { MoveAgentModal } from "@/components/users/MoveAgentModal";
+import { FundRequestSwitch } from "@/components/users/FundRequestSwitch";
 import { useDevOptionsStore } from "@/lib/devOptionsStore";
 
 type PendingConfirm = {
@@ -47,6 +48,7 @@ interface AdminUser {
   isActive: boolean;
   /** Full-freeze status (accounts.blockLogin) — the moderation lever. isActive is lifecycle-only. */
   isFrozen: boolean;
+  fundRequestEnabled: boolean;
   createdAt: string;
 }
 
@@ -347,7 +349,8 @@ export function UsersPanel({ lockedRole = "" }: Props) {
   const canMoveSelected = selectedMovable.length > 0 && !mixedRoles && selectedMovable.length === selectedUsers.length;
 
   const meta = TITLES[lockedRole || ""] ?? TITLES[""];
-  const colSpan = lockedRole ? 6 : 7;
+  const showFundSwitch = lockedRole === "retailer";
+  const colSpan = (lockedRole ? 6 : 7) + (showFundSwitch ? 1 : 0);
   const showBankBanner =
     pendingBanks.length > 0 && (lockedRole === "retailer" || lockedRole === "" || !lockedRole);
 
@@ -555,6 +558,7 @@ export function UsersPanel({ lockedRole = "" }: Props) {
                 {!lockedRole && <th className="px-4 py-3 font-semibold">Role</th>}
                 <th className="px-4 py-3 font-semibold">KYC</th>
                 <th className="px-4 py-3 font-semibold">Status</th>
+                {showFundSwitch && <th className="px-4 py-3 font-semibold">Fund requests</th>}
                 <th className="px-4 py-3 text-center font-semibold">Actions</th>
               </tr>
             </thead>
@@ -618,6 +622,19 @@ export function UsersPanel({ lockedRole = "" }: Props) {
                     <td className="px-4 py-3">
                       <Badge status={u.isFrozen ? "inactive" : "active"} />
                     </td>
+                    {showFundSwitch && (
+                      <td className="px-4 py-3">
+                        <FundRequestSwitch
+                          userId={u.id}
+                          name={u.name}
+                          enabled={u.fundRequestEnabled}
+                          showLabel
+                          onChange={(enabled) =>
+                            setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, fundRequestEnabled: enabled } : x)))
+                          }
+                        />
+                      </td>
+                    )}
                     <td className="px-4 py-3">
                       <TableActionButtons
                         viewHref={`/users/${u.id}`}
@@ -699,6 +716,20 @@ export function UsersPanel({ lockedRole = "" }: Props) {
                 <Badge status={u.kycStatus} />
                 <Badge status={u.isFrozen ? "inactive" : "active"} />
               </div>
+              {showFundSwitch ? (
+                <div className="mt-3 flex items-center gap-2 text-xs" style={{ color: B.muted }}>
+                  Fund requests
+                  <FundRequestSwitch
+                    userId={u.id}
+                    name={u.name}
+                    enabled={u.fundRequestEnabled}
+                    showLabel
+                    onChange={(enabled) =>
+                      setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, fundRequestEnabled: enabled } : x)))
+                    }
+                  />
+                </div>
+              ) : null}
             </div>
           ))}
       </div>

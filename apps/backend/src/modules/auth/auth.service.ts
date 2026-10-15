@@ -40,7 +40,7 @@ import {
   releaseEmailIfUnused,
 } from "./emailVerify.service";
 import type { AuthPortal, AuthUser, UserRole } from "@asanpay/shared-types";
-import { isAdminRole, isAgentPortalRole, ROLE_LABELS } from "@asanpay/shared-types";
+import { isAdminRole, isAgentPortalRole, isFundRequestEnabled, ROLE_LABELS } from "@asanpay/shared-types";
 import { deliverAuthOtp } from "../telegram/link.service";
 import type {
   RegisterInput,
@@ -112,6 +112,7 @@ function toAuthUser(row: typeof users.$inferSelect): AuthUser {
     hasTxnPin: Boolean(row.txnPinHash),
     hasLoginMpin: Boolean(row.loginMpinHash),
     telegramLinked: Boolean(row.telegramChatId),
+    fundRequestEnabled: isFundRequestEnabled(row.role, row.fundRequestEnabled),
   };
 }
 
