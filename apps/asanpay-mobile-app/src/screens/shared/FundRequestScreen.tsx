@@ -732,6 +732,7 @@ function ConfirmStep({
   const [receiptUri, setReceiptUri] = useState<string | null>(null);
   const [receiptName, setReceiptName] = useState<string | null>(null);
   const [receiptDataUrl, setReceiptDataUrl] = useState<string | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const idemRef = useRef(newIdemKey());
 
@@ -790,6 +791,8 @@ function ConfirmStep({
         { headers: { "Idempotency-Key": idemRef.current } },
       );
       idemRef.current = newIdemKey();
+      setFormOpen(false);
+      setFormOpen(false);
       showAlert("Submitted", "Fund request submitted for review");
       onDone();
     } catch (err) {
@@ -803,23 +806,10 @@ function ConfirmStep({
     }
   }
 
-  return (
-    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <ScreenTop title={prefill.headline} onBack={onBack} />
-      <View style={[styles.noticeBanner, { backgroundColor: "#EFF6FF" }]}>
-        <HelpCircle size={16} color={colors.blueFlat} />
-        <Text style={[styles.noticeText, { color: colors.blueFlat }]}>{prefill.subtext}</Text>
-      </View>
+  const selectedBank = banks.find((b) => b.id === bankAccountId) ?? null;
 
-      {needsBankPicker ? (
-        <>
-          <Text style={[styles.label, { color: tokens.sub }]}>Company bank</Text>
-          <View style={{ marginBottom: 4 }}>
-            <BankCardSlider banks={banks} myVan={myVan} selected={bankAccountId} onSelect={setBankAccountId} />
-          </View>
-        </>
-      ) : null}
-
+  const fields = (
+    <>
       <Text style={[styles.label, { color: tokens.sub }]}>Amount (₹)</Text>
       <TextInput
         style={[styles.input, { backgroundColor: tokens.card, borderColor: tokens.cardBorder, color: tokens.txt }]}
@@ -857,10 +847,74 @@ function ConfirmStep({
           {receiptName ? `Receipt: ${receiptName}` : "Attach receipt / payment proof"}
         </Text>
       </Pressable>
+    </>
+  );
 
-      <Pressable style={[styles.submit, { opacity: saving ? 0.6 : 1 }]} onPress={() => void submit()} disabled={saving}>
-        <Text style={styles.submitText}>{saving ? "Submitting…" : "Submit fund request"}</Text>
-      </Pressable>
+  const submitBtn = (
+    <Pressable
+      style={[styles.submit, { flex: needsBankPicker ? 1 : undefined, opacity: saving ? 0.6 : 1 }]}
+      onPress={() => void submit()}
+      disabled={saving}
+    >
+      <Text style={styles.submitText}>{saving ? "Submitting…" : "Submit fund request"}</Text>
+    </Pressable>
+  );
+
+  return (
+    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScreenTop title={prefill.headline} onBack={onBack} />
+      <View style={[styles.noticeBanner, { backgroundColor: "#EFF6FF" }]}>
+        <HelpCircle size={16} color={colors.blueFlat} />
+        <Text style={[styles.noticeText, { color: colors.blueFlat }]}>{prefill.subtext}</Text>
+      </View>
+
+      {needsBankPicker ? (
+        <>
+          <Text style={[styles.label, { color: tokens.sub }]}>Available banks</Text>
+          <View style={{ marginBottom: 4 }}>
+            <BankCardSlider banks={banks} myVan={myVan} selected={bankAccountId} onSelect={setBankAccountId} />
+          </View>
+          <Pressable
+            style={[styles.submit, { backgroundColor: colors.green, opacity: bankAccountId ? 1 : 0.5 }]}
+            disabled={!bankAccountId}
+            onPress={() => setFormOpen(true)}
+            accessibilityRole="button"
+          >
+            <Text style={styles.submitText}>+ Create fund request</Text>
+          </Pressable>
+
+          <Modal visible={formOpen} animationType="slide" onRequestClose={() => !saving && setFormOpen(false)}>
+            <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bg }]}>
+              <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+                <ScreenTop title="Create fund request" onBack={() => !saving && setFormOpen(false)} />
+                {selectedBank ? (
+                  <Text style={[styles.label, { color: tokens.mute, marginTop: 0 }]}>
+                    Deposited to {selectedBank.bankName}
+                    {selectedBank.branchName ? `, ${selectedBank.branchName}` : ""} · ****
+                    {selectedBank.accountNumberLast4}
+                  </Text>
+                ) : null}
+                {fields}
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <Pressable
+                    style={[styles.submit, { flex: 1, backgroundColor: colors.danger }]}
+                    onPress={() => setFormOpen(false)}
+                    disabled={saving}
+                  >
+                    <Text style={styles.submitText}>Cancel</Text>
+                  </Pressable>
+                  {submitBtn}
+                </View>
+              </ScrollView>
+            </SafeAreaView>
+          </Modal>
+        </>
+      ) : (
+        <>
+          {fields}
+          {submitBtn}
+        </>
+      )}
     </ScrollView>
   );
 }

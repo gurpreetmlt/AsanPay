@@ -1,14 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import {
   Building2,
   ClipboardList,
   FileUp,
   Info,
   Landmark,
+  Plus,
   RefreshCcw,
   Wallet,
+  X,
   Zap,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -307,8 +310,18 @@ export function FundRequestForm({
   const [remarks, setRemarks] = useState("");
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
   const attemptKey = useRef(createAttemptKeyHolder("fund-request"));
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const selectedBank = banks.find((b) => b.id === bankAccountId) ?? null;
+
+  function openForm() {
+    if (!bankAccountId) {
+      toast.error("Select the company bank account you deposited to");
+      return;
+    }
+    setFormOpen(true);
+  }
 
   useEffect(() => {
     let alive = true;
@@ -413,6 +426,7 @@ export function FundRequestForm({
       setSenderName("");
       setRemarks("");
       setReceiptFile(null);
+      setFormOpen(false);
       onSuccess();
       setActiveTab("history");
     } catch (err) {
@@ -682,10 +696,54 @@ export function FundRequestForm({
                 </div>
               )}
 
-              <div className="mt-6 rounded-2xl border p-4 sm:p-5" style={{ borderColor: B.border, background: "#FAFBFF" }}>
-                <p className="mb-4 text-sm font-bold" style={{ color: B.blue }}>
-                  Submit fund request
-                </p>
+              <PrimaryButton
+                type="button"
+                variant="success"
+                showArrow={false}
+                disabled={banks.length === 0}
+                onClick={openForm}
+                className="mt-6 !w-auto"
+              >
+                <Plus size={16} /> Create fund request
+              </PrimaryButton>
+
+              {formOpen && typeof document !== "undefined"
+                ? createPortal(
+              <div
+                className="confirm-modal-backdrop fixed inset-0 z-50 flex items-center justify-center overflow-y-auto px-4 py-6"
+                onClick={() => !submitting && setFormOpen(false)}
+              >
+              <div
+                className="confirm-modal-panel w-full max-w-2xl rounded-2xl bg-card p-5 shadow-lg sm:p-6"
+                onClick={(e) => e.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+                aria-label="Create fund request"
+              >
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-base font-bold" style={{ color: B.blue }}>
+                      Create fund request
+                    </p>
+                    {selectedBank ? (
+                      <p className="mt-0.5 text-xs" style={{ color: B.muted }}>
+                        Deposited to {selectedBank.bankName}
+                        {selectedBank.branchName ? `, ${selectedBank.branchName}` : ""} · ****
+                        {selectedBank.accountNumberLast4}
+                      </p>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFormOpen(false)}
+                    disabled={submitting}
+                    className="icon-tooltip rounded-lg p-1.5 text-gray-400 hover:text-gray-600"
+                    aria-label="Close"
+                    data-tooltip="Close"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <FieldLabel>Amount (₹)</FieldLabel>
@@ -788,17 +846,33 @@ export function FundRequestForm({
                   </div>
                 </div>
 
-                <PrimaryButton
-                  type="button"
-                  variant="primary"
-                  disabled={submitting || banks.length === 0}
-                  loading={submitting}
-                  onClick={() => void handleSubmit()}
-                  className="mt-5"
-                >
-                  Submit fund request
-                </PrimaryButton>
+                <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                  <PrimaryButton
+                    type="button"
+                    variant="destructive"
+                    showArrow={false}
+                    disabled={submitting}
+                    onClick={() => setFormOpen(false)}
+                    className="sm:!w-auto"
+                  >
+                    Cancel
+                  </PrimaryButton>
+                  <PrimaryButton
+                    type="button"
+                    variant="primary"
+                    disabled={submitting || banks.length === 0}
+                    loading={submitting}
+                    onClick={() => void handleSubmit()}
+                    className="sm:!w-auto"
+                  >
+                    Submit fund request
+                  </PrimaryButton>
+                </div>
               </div>
+              </div>,
+                    document.body,
+                  )
+                : null}
             </>
           )}
         </div>
