@@ -33,7 +33,8 @@
     "verify:ledger": "tsx scripts/verifyLedgerEngine.ts",
     "verify:shim": "tsx scripts/verifyWalletShim.ts",
     "verify:load": "tsx scripts/verifyLedgerLoad.ts",
-    "report:test-data": "tsx scripts/reportTestData.ts"
+    "report:test-data": "tsx scripts/reportTestData.ts",
+    "reset:test-balances": "tsx scripts/resetTestBalances.ts"
   },
   "dependencies": {
     "@asanpay/shared-types": "*",
