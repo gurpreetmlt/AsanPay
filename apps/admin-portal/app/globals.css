@@ -499,6 +499,55 @@ html.dark ::placeholder {
   opacity: 1;
 }
 
+/* Sidebar group: smooth expand / collapse, children slide in one after another */
+.side-nav-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows 0.3s ease-out,
+    opacity 0.25s ease-out;
+}
+
+.side-nav-collapse[data-open="true"] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.side-nav-collapse > * {
+  min-height: 0;
+  overflow: hidden;
+}
+
+@keyframes side-nav-item-in {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.side-nav-collapse[data-open="true"] .side-nav-link {
+  animation: side-nav-item-in 0.3s ease-out backwards;
+}
+
+.side-nav-collapse[data-open="true"] .side-nav-link:nth-child(2) { animation-delay: 0.04s; }
+.side-nav-collapse[data-open="true"] .side-nav-link:nth-child(3) { animation-delay: 0.08s; }
+.side-nav-collapse[data-open="true"] .side-nav-link:nth-child(4) { animation-delay: 0.12s; }
+.side-nav-collapse[data-open="true"] .side-nav-link:nth-child(5) { animation-delay: 0.16s; }
+.side-nav-collapse[data-open="true"] .side-nav-link:nth-child(n + 6) { animation-delay: 0.2s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .side-nav-collapse,
+  .side-nav-collapse[data-open="true"] .side-nav-link {
+    animation: none;
+    transition: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .side-nav-link,
   .side-nav-link::before {

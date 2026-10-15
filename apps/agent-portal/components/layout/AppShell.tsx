@@ -313,12 +313,13 @@ function SidebarContent({
                     </span>
                     <ChevronDown
                       size={14}
-                      className={`text-white/40 transition-transform ${expanded ? "rotate-180" : ""}`}
+                      className={`text-white/40 transition-transform duration-300 ${expanded ? "rotate-180" : ""}`}
                     />
                   </>
                 )}
               </button>
-              {open && expanded && (
+              {open && (
+                <div className="side-nav-collapse" data-open={expanded} inert={!expanded}>
                 <div className="ml-3 space-y-0.5 border-l border-white/10 pl-2">
                   {item.children.map((child) => {
                     const childActive = pathActive(pathname, child.to, child.exact);
@@ -349,6 +350,7 @@ function SidebarContent({
                       </Link>
                     );
                   })}
+                </div>
                 </div>
               )}
             </div>
@@ -440,7 +442,7 @@ function WalletPill({
       </button>
       {open && (
         <div
-          className="absolute right-0 top-full z-50 mt-1 min-w-[11rem] rounded-2xl border bg-white p-1.5 shadow-lg"
+          className="dropdown-pop-in absolute right-0 top-full z-50 mt-1 min-w-[11rem] rounded-2xl border bg-white p-1.5 shadow-lg"
           style={{ borderColor: B.border }}
         >
           {actions.map(({ icon: Icon, label, action }) => (
@@ -686,13 +688,13 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="fixed inset-0 z-[60] md:hidden">
           <button
             type="button"
-            className="absolute inset-0 bg-black/50"
+            className="drawer-backdrop-in absolute inset-0 bg-black/50"
             aria-label="Close menu"
             data-tooltip="Close menu"
             onClick={() => setDrawer(false)}
           />
           <aside
-            className="absolute left-0 top-0 flex h-full w-[248px] flex-col shadow-2xl"
+            className="drawer-slide-in absolute left-0 top-0 flex h-full w-[248px] flex-col shadow-2xl"
             style={{ background: B.badgeGrad }}
           >
             <SidebarContent
@@ -750,7 +752,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </form>
             {searchOpen && headerSearch.trim() && searchMatches.length > 0 ? (
               <div
-                className="absolute left-0 right-0 top-full z-50 mt-1 max-h-80 overflow-y-auto rounded-xl border bg-white shadow-lg"
+                className="dropdown-pop-in absolute left-0 right-0 top-full z-50 mt-1 max-h-80 overflow-y-auto rounded-xl border bg-white shadow-lg"
                 style={{ borderColor: B.border }}
               >
                 {searchMatches.map((m) => (
@@ -787,7 +789,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               </button>
               {notifOpen ? (
                 <div
-                  className="absolute right-0 top-full z-50 mt-2 w-[min(100vw-2rem,22rem)] overflow-hidden rounded-2xl border bg-white shadow-xl"
+                  className="dropdown-pop-in absolute right-0 top-full z-50 mt-2 w-[min(100vw-2rem,22rem)] overflow-hidden rounded-2xl border bg-white shadow-xl"
                   style={{ borderColor: B.border }}
                 >
                   <div className="border-b px-4 py-3" style={{ borderColor: B.border }}>

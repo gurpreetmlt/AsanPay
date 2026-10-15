@@ -1129,6 +1129,134 @@ body {
   opacity: 1;
 }
 
+/* Sidebar group: smooth expand / collapse, children slide in one after another */
+.side-nav-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows 0.3s ease-out,
+    opacity 0.25s ease-out;
+}
+
+.side-nav-collapse[data-open="true"] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.side-nav-collapse > * {
+  min-height: 0;
+  overflow: hidden;
+}
+
+@keyframes side-nav-item-in {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.side-nav-collapse[data-open="true"] .side-nav-link {
+  animation: side-nav-item-in 0.3s ease-out backwards;
+}
+
+.side-nav-collapse[data-open="true"] .side-nav-link:nth-child(2) { animation-delay: 0.04s; }
+.side-nav-collapse[data-open="true"] .side-nav-link:nth-child(3) { animation-delay: 0.08s; }
+.side-nav-collapse[data-open="true"] .side-nav-link:nth-child(4) { animation-delay: 0.12s; }
+.side-nav-collapse[data-open="true"] .side-nav-link:nth-child(5) { animation-delay: 0.16s; }
+.side-nav-collapse[data-open="true"] .side-nav-link:nth-child(n + 6) { animation-delay: 0.2s; }
+
+/* Header dropdowns (wallet, notifications, search) */
+@keyframes dropdown-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.dropdown-pop-in {
+  transform-origin: top right;
+  animation: dropdown-pop-in 0.18s ease-out both;
+}
+
+/* Settings left menu + section content */
+.settings-menu-item {
+  transition:
+    background-color 0.2s ease-out,
+    transform 0.2s ease-out;
+}
+
+.settings-menu-item:not([data-active="true"]):hover {
+  background: #eef3ff !important;
+}
+
+.settings-menu-item:active {
+  transform: scale(0.98);
+}
+
+@keyframes panel-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.panel-fade-in {
+  animation: panel-fade-in 0.25s ease-out;
+}
+
+/* Mobile-web menu drawer */
+@keyframes drawer-slide-in {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes drawer-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.drawer-slide-in {
+  animation: drawer-slide-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.drawer-backdrop-in {
+  animation: drawer-backdrop-in 0.2s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .side-nav-collapse,
+  .side-nav-collapse[data-open="true"] .side-nav-link,
+  .dropdown-pop-in,
+  .panel-fade-in,
+  .settings-menu-item,
+  .drawer-slide-in,
+  .drawer-backdrop-in {
+    animation: none;
+    transition: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .side-nav-link,
   .side-nav-link::before {

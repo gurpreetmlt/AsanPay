@@ -109,9 +109,11 @@ function BankDepositsContent() {
     if (hydrated && accessToken) void loadSummary();
   }, [hydrated, accessToken, loadSummary]);
 
+  // history.replaceState stays on the client (Next syncs useSearchParams from it); router.replace
+  // round-trips to the server and silently does nothing if that request fails.
   const goTab = useCallback(
-    (key: TabKey) => router.replace(`${pathname}?tab=${key}`, { scroll: false }),
-    [router, pathname],
+    (key: TabKey) => window.history.replaceState(null, "", `${pathname}?tab=${key}`),
+    [pathname],
   );
 
   if (!hydrated || !accessToken) return null;

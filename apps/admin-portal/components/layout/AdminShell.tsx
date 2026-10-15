@@ -205,12 +205,12 @@ function NavDropdown({
         <AlertCountBadge count={groupBadge} />
         <ChevronDown
           size={14}
-          className={cn("shrink-0 transition-transform duration-200", expanded && "rotate-180")}
+          className={cn("shrink-0 transition-transform duration-300", expanded && "rotate-180")}
           style={{ color: "var(--admin-sidebar-muted)" }}
         />
       </button>
 
-      {expanded && (
+      <div className="side-nav-collapse" data-open={expanded} inert={!expanded}>
         <div className="ml-3 space-y-0.5 border-l pl-2" style={{ borderColor: "var(--admin-sidebar-border)" }}>
           {item.children.map((child) => {
             const isChildActive = childActive(pathname, child);
@@ -237,7 +237,7 @@ function NavDropdown({
             );
           })}
         </div>
-      )}
+      </div>
     </div>
   );
 }

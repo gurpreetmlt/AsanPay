@@ -347,7 +347,8 @@ export default function SettingsPage() {
                   key={s.id}
                   type="button"
                   onClick={() => setActive(s.id)}
-                  className="flex w-full items-center justify-between border-b px-4 py-3.5 text-left transition-all"
+                  data-active={active === s.id}
+                  className="settings-menu-item group flex w-full items-center justify-between border-b px-4 py-3.5 text-left"
                   style={{
                     borderColor: B.border,
                     background: active === s.id ? `${B.blue}0A` : "transparent",
@@ -363,13 +364,17 @@ export default function SettingsPage() {
                       {s.label}
                     </span>
                   </div>
-                  <ChevronRight size={13} style={{ color: B.muted }} />
+                  <ChevronRight
+                    size={13}
+                    className="transition-transform duration-200 group-hover:translate-x-1"
+                    style={{ color: B.muted }}
+                  />
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="flex-1">
+          <div key={active} className="panel-fade-in flex-1">
             {active === "profile" && (
               <div className="space-y-5">
                 <div className="space-y-5 rounded-2xl border bg-white p-6" style={{ borderColor: B.border }}>
