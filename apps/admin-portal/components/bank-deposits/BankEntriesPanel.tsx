@@ -14,6 +14,7 @@ import {
   Paperclip,
   Plus,
   Trash2,
+  Undo2,
   Upload,
   X,
 } from "lucide-react";
@@ -68,6 +69,8 @@ interface BankEntry {
   bankAccountId: string | null;
   fundRequestId: string | null;
   isTest?: boolean;
+  reversedAt?: string | null;
+  reverseReason?: string | null;
   statement: {
     status: StatementStatus;
     line: { id: string; date: string; utr: string | null; narration: string | null; fileName: string | null } | null;
@@ -481,6 +484,8 @@ export function BankEntriesPanel({ onOpenReconciliation }: { onOpenReconciliatio
   const [rejectRow, setRejectRow] = useState<BankEntry | null>(null);
   const [voidRow, setVoidRow] = useState<BankEntry | null>(null);
   const [testRow, setTestRow] = useState<BankEntry | null>(null);
+  const [reverseRow, setReverseRow] = useState<BankEntry | null>(null);
+  const [reverseMoveTo, setReverseMoveTo] = useState("");
   const [canSelfApprove, setCanSelfApprove] = useState(false);
 
   const visibleRows = useMemo(() => {
@@ -641,6 +646,41 @@ export function BankEntriesPanel({ onOpenReconciliation }: { onOpenReconciliatio
       await loadRows();
     } catch (err) {
       toast.error(errMessage(err, "Could not delete the test entry"));
+    } finally {
+      setDecidingId(null);
+    }
+  }
+
+  async function addReceipt(row: BankEntry, file: File) {
+    if (!/^(image\/(png|jpeg|webp)|application\/pdf)$/.test(file.type)) {
+      return void toast.error("Receipt must be a PNG, JPG, WEBP image or a PDF");
+    }
+    if (file.size > MAX_PROOF_BYTES) return void toast.error("Receipt file must be 3 MB or smaller");
+    setDecidingId(row.id);
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      await api.post(`/admin/bank-entries/${row.id}/receipt`, { attachmentName: file.name, attachmentDataUrl: dataUrl });
+      toast.success("Receipt added — this entry can be approved now");
+      await loadRows();
+    } catch (err) {
+      toast.error(errMessage(err, "Could not upload the receipt"));
+    } finally {
+      setDecidingId(null);
+    }
+  }
+
+  async function reverseEntry(row: BankEntry, reason: string) {
+    setDecidingId(row.id);
+    try {
+      const { data } = await api.post(`/admin/bank-entries/${row.id}/reverse`, {
+        reason,
+        moveToBankAccountId: reverseMoveTo || null,
+      });
+      toast.success(data?.message ?? "Bank entry reversed");
+      setReverseRow(null);
+      await loadRows();
+    } catch (err) {
+      toast.error(errMessage(err, "Could not reverse the bank entry"));
     } finally {
       setDecidingId(null);
     }
@@ -1061,14 +1101,33 @@ export function BankEntriesPanel({ onOpenReconciliation }: { onOpenReconciliatio
                           ) : null}
                         </td>
                         <td className="py-3 pr-3 text-xs">
-                          <StatementCell row={r} onOpen={onOpenReconciliation} />
+                          {r.reversedAt ? (
+                            <span style={{ color: B.muted }}>—</span>
+                          ) : (
+                            <StatementCell row={r} onOpen={onOpenReconciliation} />
+                          )}
                         </td>
                         <td className="py-3 pr-3 text-xs">
                           <div className="font-mono">{r.utr ?? "—"}</div>
                           <div style={{ color: B.muted }}>{r.mode.toUpperCase()}</div>
                         </td>
                         <td className="py-3 pr-3 text-xs">
-                          <StatusPill status={r.status} />
+                          {r.reversedAt ? (
+                            <span
+                              className="inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold"
+                              style={{ color: "#475569", background: "#E2E8F0" }}
+                              title={r.reverseReason ?? undefined}
+                            >
+                              Reversed
+                            </span>
+                          ) : (
+                            <StatusPill status={r.status} />
+                          )}
+                          {r.reversedAt && r.reverseReason ? (
+                            <div className="mt-1 max-w-[200px]" style={{ color: B.muted }}>
+                              {r.reverseReason}
+                            </div>
+                          ) : null}
                           <div className="mt-1" style={{ color: B.muted }}>
                             By {r.requestedByName}
                           </div>
@@ -1153,12 +1212,60 @@ export function BankEntriesPanel({ onOpenReconciliation }: { onOpenReconciliatio
                                 </button>
                               </>
                             ) : null}
+                            {r.source === "bank_entry" && r.status === "approved" && !r.reversedAt ? (
+                              <button
+                                type="button"
+                                disabled={busy}
+                                title="Reverse this entry (wrong bank, amount or category). Optionally re-enter it on another bank."
+                                onClick={() => {
+                                  setReverseMoveTo("");
+                                  setReverseRow(r);
+                                }}
+                                className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+                                style={{ background: RED }}
+                              >
+                                <Undo2 size={13} /> Reverse
+                              </button>
+                            ) : null}
                             {r.source === "bank_entry" && r.status === "requested" ? (
                               <>
+                                {!r.hasAttachment ? (
+                                  <>
+                                    <span
+                                      className="inline-flex items-center rounded-full px-2 py-1 text-[11px] font-bold"
+                                      style={{ color: "#B45309", background: "#FEF3C7" }}
+                                    >
+                                      Receipt missing
+                                    </span>
+                                    <label
+                                      className={`inline-flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-white ${busy ? "pointer-events-none opacity-40" : ""}`}
+                                      style={{ background: GREEN }}
+                                      title="Upload the receipt for this entry (image or PDF, max 3 MB)"
+                                    >
+                                      <Upload size={13} /> Add receipt
+                                      <input
+                                        type="file"
+                                        accept="image/png,image/jpeg,image/webp,application/pdf"
+                                        className="hidden"
+                                        onChange={(e) => {
+                                          const f = e.target.files?.[0];
+                                          e.target.value = "";
+                                          if (f) void addReceipt(r, f);
+                                        }}
+                                      />
+                                    </label>
+                                  </>
+                                ) : null}
                                 <button
                                   type="button"
-                                  disabled={!!mine || busy}
-                                  title={mine ? "Another admin must approve your entry" : undefined}
+                                  disabled={!!mine || busy || !r.hasAttachment}
+                                  title={
+                                    !r.hasAttachment
+                                      ? "Add the receipt first — approve unlocks after upload"
+                                      : mine
+                                        ? "Another admin must approve your entry"
+                                        : undefined
+                                  }
                                   onClick={() => setApproveRow(r)}
                                   className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
                                   style={{ background: GREEN }}
@@ -1228,6 +1335,59 @@ export function BankEntriesPanel({ onOpenReconciliation }: { onOpenReconciliatio
           onConfirm={(v) => void reject(rejectRow, v)}
           onClose={() => {
             if (!decidingId) setRejectRow(null);
+          }}
+        />
+      ) : null}
+
+      {reverseRow ? (
+        <PromptModal
+          title="Reverse this bank entry?"
+          message={
+            <>
+              {reverseRow.categoryLabel} of {formatInr(reverseRow.amount)} on {formatDate(reverseRow.txnDate)}
+              {reverseRow.bankName ? ` (${reverseRow.bankName} ••${reverseRow.bankLast4})` : ""}
+              {reverseRow.utr ? ` · UTR ${reverseRow.utr}` : ""} will be cancelled with a reversal in the ledger. Its
+              statement line goes back to unmatched. The row stays here marked Reversed.
+              {reverseRow.direction !== "none" ? (
+                <label className="mt-3 block text-left">
+                  <span className="mb-1 block text-xs font-semibold uppercase" style={{ color: B.muted }}>
+                    Re-enter on another bank (optional)
+                  </span>
+                  <select
+                    className="w-full rounded-xl border px-3 py-2 text-sm"
+                    style={{ borderColor: B.border }}
+                    value={reverseMoveTo}
+                    onChange={(e) => setReverseMoveTo(e.target.value)}
+                  >
+                    <option value="">No — just reverse</option>
+                    {banks
+                      .filter((b) => b.id !== reverseRow.bankAccountId)
+                      .map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.bankName} ••{b.accountNumberLast4} ({b.purpose})
+                        </option>
+                      ))}
+                  </select>
+                  {reverseMoveTo ? (
+                    <span className="mt-1 block text-xs" style={{ color: "#B45309" }}>
+                      A copy (same amount, date, UTR and proof) is created on that bank as a new request — approve it to
+                      post.
+                    </span>
+                  ) : null}
+                </label>
+              ) : null}
+            </>
+          }
+          label="Reason"
+          placeholder="e.g. Wrong bank account"
+          minLength={5}
+          tone="danger"
+          confirmLabel={reverseMoveTo ? "Reverse and move" : "Reverse"}
+          busy={decidingId !== null}
+          busyLabel="Reversing…"
+          onConfirm={(v) => void reverseEntry(reverseRow, v)}
+          onClose={() => {
+            if (!decidingId) setReverseRow(null);
           }}
         />
       ) : null}

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 import { Crown, Network as NetworkIcon, Store } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
+import { AgentConfirmModal, ConfirmRow } from "@/components/users/AgentConfirmModal";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 
@@ -58,6 +59,7 @@ export function MoveAgentModal({
   const [parentSearching, setParentSearching] = useState(false);
   const [selectedParent, setSelectedParent] = useState<ParentCandidate | null>(null);
   const [moving, setMoving] = useState(false);
+  const [confirming, setConfirming] = useState(false);
 
   // "Currently under" chain only makes sense for a single agent — a bulk selection can span
   // different current parents, so skip it there rather than show something misleading.
@@ -114,6 +116,7 @@ export function MoveAgentModal({
       } else {
         toast.error("Move failed");
       }
+      setConfirming(false);
       onMoved();
       onClose();
     } finally {
@@ -294,14 +297,48 @@ export function MoveAgentModal({
           <button
             type="button"
             disabled={moving || !selectedParent}
-            onClick={() => void confirmMove()}
+            onClick={() => setConfirming(true)}
             className="rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             style={{ background: B.badgeGrad }}
           >
-            {moving ? "Moving…" : isBulk ? `Move ${agents.length}` : "Confirm Move"}
+            {moving ? "Moving…" : isBulk ? `Review move of ${agents.length}` : "Review move"}
           </button>
         </div>
       </div>
+
+      {confirming && selectedParent ? (
+        <AgentConfirmModal
+          userId={selectedParent.id}
+          title={`Move under ${selectedParent.name}?`}
+          warning={
+            <p>
+              <b>This becomes the new upline.</b> Their future commissions, fund approvals and network reports follow this
+              {` ${targetRoleLabel}`}. Check the name, mobile and UID before moving.
+            </p>
+          }
+          summary={
+            <>
+              <div className="py-1 text-xs font-semibold uppercase" style={{ color: B.muted }}>
+                Moving {agents.length} {ROLE_LABEL[primary.role]}
+                {agents.length > 1 ? "s" : ""}
+              </div>
+              <div className="max-h-28 overflow-y-auto">
+                {agents.map((a) => (
+                  <ConfirmRow key={a.id} label={a.name}>
+                    +91 {a.mobile}
+                  </ConfirmRow>
+                ))}
+              </div>
+            </>
+          }
+          confirmLabel={isBulk ? `Move ${agents.length}` : "Move agent"}
+          busy={moving}
+          onConfirm={() => void confirmMove()}
+          onClose={() => {
+            if (!moving) setConfirming(false);
+          }}
+        />
+      ) : null}
     </Modal>
   );
 }

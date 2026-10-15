@@ -407,6 +407,13 @@
       "when": 1790800000000,
       "tag": "0057_bank_account_profile",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1790900000000,
+      "tag": "0058_bank_entry_reverse",
+      "breakpoints": true
     }
   ]
 }

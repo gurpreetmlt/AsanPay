@@ -8,6 +8,7 @@ import {
   type IfscBankDetailsValue,
 } from "@/components/banking/IfscBankDetailsFields";
 import { DangerConfirmModal } from "@/components/ui/DangerConfirmModal";
+import { AgentConfirmModal, ConfirmRow } from "@/components/users/AgentConfirmModal";
 import { TableActionButtons } from "@/components/ui/TableActionButtons";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
@@ -57,6 +58,7 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
 
   const [olderThanHours, setOlderThanHours] = useState("48");
   const [vanUserId, setVanUserId] = useState("");
+  const [vanConfirm, setVanConfirm] = useState(false);
   const [vanBankId, setVanBankId] = useState("");
   const [vanNumber, setVanNumber] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<BankAccount | null>(null);
@@ -267,16 +269,24 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
     }
   }
 
-  async function assignVan(e: FormEvent) {
+  function reviewVan(e: FormEvent) {
     e.preventDefault();
     if (!vanUserId.trim() || !vanBankId) {
       toast.error("Enter agent user UUID and select a VAN-capable bank");
       return;
     }
-    if (!vanNumber.trim() && !vpa.trim()) {
-      toast.error("Provide vanNumber or vpa");
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(vanUserId.trim())) {
+      toast.error("Agent user ID must be a UUID, e.g. 3f2a…-…-…-…-…");
       return;
     }
+    if (!vanNumber.trim() && !vpa.trim()) {
+      toast.error("Enter a VAN number or a VPA");
+      return;
+    }
+    setVanConfirm(true);
+  }
+
+  async function assignVan() {
     setSaving(true);
     try {
       await api.post("/banking/van/assign", {
@@ -286,6 +296,7 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
         vpa: vpa.trim() || null,
       });
       toast.success("Virtual account assigned");
+      setVanConfirm(false);
       setVanNumber("");
       setVpa("");
       await load();
@@ -559,7 +570,7 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
         ) : (
           <div className="space-y-5">
             <form
-              onSubmit={assignVan}
+              onSubmit={reviewVan}
               className="grid gap-3 rounded-2xl border bg-white p-5 md:grid-cols-2"
               style={{ borderColor: B.border }}
             >
@@ -610,9 +621,47 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
                 className="rounded-xl px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60 md:col-span-2"
                 style={{ background: B.badgeGrad }}
               >
-                {saving ? "Assigning…" : "Assign VAN"}
+                {saving ? "Assigning…" : "Review and assign VAN"}
               </button>
             </form>
+            {vanConfirm ? (
+              <AgentConfirmModal
+                userId={vanUserId.trim()}
+                title="Assign this virtual account?"
+                warning={
+                  <p>
+                    <b>Every deposit into this VAN credits this agent&apos;s wallet automatically.</b> Check the name,
+                    mobile and UID — a VAN on the wrong agent sends someone else&apos;s money to them.
+                  </p>
+                }
+                summary={
+                  <>
+                    <ConfirmRow label="Bank">
+                      {(() => {
+                        const bank = accounts.find((a) => a.id === vanBankId);
+                        return bank ? `${bank.bankName} · ****${bank.accountNumberLast4}` : "—";
+                      })()}
+                    </ConfirmRow>
+                    {vanNumber.trim() ? (
+                      <ConfirmRow label="VAN">
+                        <span className="font-mono">{vanNumber.trim()}</span>
+                      </ConfirmRow>
+                    ) : null}
+                    {vpa.trim() ? (
+                      <ConfirmRow label="VPA">
+                        <span className="font-mono">{vpa.trim()}</span>
+                      </ConfirmRow>
+                    ) : null}
+                  </>
+                }
+                confirmLabel="Assign VAN"
+                busy={saving}
+                onConfirm={() => void assignVan()}
+                onClose={() => {
+                  if (!saving) setVanConfirm(false);
+                }}
+              />
+            ) : null}
             <div className="overflow-x-auto rounded-2xl border bg-white" style={{ borderColor: B.border }}>
               <table className="min-w-full text-sm">
                 <thead>

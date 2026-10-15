@@ -732,6 +732,67 @@ adminRouter.post("/bank-entries", async (req, res) => {
   sendSuccess(res, result, "Bank entry saved — approve it to post to the ledger");
 });
 
+adminRouter.post("/bank-entries/bulk", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const parsed = z
+    .object({
+      bankAccountId: z.string().regex(/^\d+$/, "Select the company bank account"),
+      category: z.string().min(1, "Select a category"),
+      providerId: z.string().trim().max(64).nullable().optional(),
+      lineIds: z
+        .array(z.string().regex(/^\d+$/, "Statement line id is invalid"))
+        .min(1, "Select at least one statement line")
+        .max(50, "Select at most 50 lines at a time"),
+    })
+    .safeParse(req.body);
+  if (!parsed.success) {
+    throw new HttpError(422, parsed.error.issues[0]?.message ?? "Bulk entry is invalid", "VALIDATION_ERROR");
+  }
+  const { createBankEntriesFromLines, isBankEntryCategory } = await import("../treasury/bankEntry.service");
+  if (!isBankEntryCategory(parsed.data.category)) {
+    throw new HttpError(422, "Select a valid category", "INVALID_CATEGORY");
+  }
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const tenantId = await resolveTenantId();
+  const results = await createBankEntriesFromLines({
+    tenantId,
+    requestedBy: req.auth.sub,
+    bankAccountId: parsed.data.bankAccountId,
+    category: parsed.data.category,
+    providerId: parsed.data.providerId || null,
+    lineIds: [...new Set(parsed.data.lineIds)],
+  });
+  const created = results.filter((r) => r.entryId).length;
+  sendSuccess(
+    res,
+    results,
+    `${created} of ${results.length} entries created — add any missing receipts, then approve`,
+  );
+});
+
+adminRouter.post("/bank-entries/:id/receipt", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const parsed = z
+    .object({
+      attachmentName: z.string().trim().min(1).max(160),
+      attachmentDataUrl: z.string().min(1, "Choose a receipt file").max(4_500_000, "Proof file must be 3 MB or smaller"),
+    })
+    .safeParse(req.body);
+  if (!parsed.success) {
+    throw new HttpError(422, parsed.error.issues[0]?.message ?? "Receipt is invalid", "VALIDATION_ERROR");
+  }
+  const { attachBankEntryReceipt } = await import("../treasury/bankEntry.service");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const tenantId = await resolveTenantId();
+  await attachBankEntryReceipt({
+    tenantId,
+    entryId: bankEntryIdParam(req.params.id),
+    adminId: req.auth.sub,
+    ...parsed.data,
+  });
+  sendSuccess(res, { ok: true }, "Receipt added");
+});
+
 adminRouter.post("/bank-entries/:id/approve", async (req, res) => {
   if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
   const { approveBankEntry } = await import("../treasury/bankEntry.service");
@@ -761,6 +822,36 @@ adminRouter.post("/bank-entries/:id/reject", async (req, res) => {
     note: note.data.note,
   });
   sendSuccess(res, { ok: true }, "Bank entry rejected");
+});
+
+adminRouter.post("/bank-entries/:id/reverse", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const body = z
+    .object({
+      reason: z.string().trim().min(5, "Reason must be at least 5 characters (e.g. Wrong bank account)"),
+      moveToBankAccountId: z.string().trim().nullable().optional(),
+    })
+    .safeParse(req.body);
+  if (!body.success) {
+    throw new HttpError(422, body.error.issues[0]?.message ?? "Reason is required", "VALIDATION_ERROR");
+  }
+  const { reverseBankEntry } = await import("../treasury/bankEntry.service");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const tenantId = await resolveTenantId();
+  const result = await reverseBankEntry({
+    tenantId,
+    entryId: bankEntryIdParam(req.params.id),
+    adminId: req.auth.sub,
+    reason: body.data.reason,
+    moveToBankAccountId: body.data.moveToBankAccountId || null,
+  });
+  sendSuccess(
+    res,
+    result,
+    result.newEntryId
+      ? `Entry reversed. New entry #${result.newEntryId} created on the other bank — approve it to post.`
+      : "Bank entry reversed",
+  );
 });
 
 adminRouter.post("/ledger/recon/run", async (_req, res) => {

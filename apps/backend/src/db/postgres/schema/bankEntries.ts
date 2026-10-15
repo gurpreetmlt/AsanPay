@@ -58,12 +58,19 @@ export const bankEntries = pgTable(
     }),
     requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
     decidedAt: timestamp("decided_at", { withTimezone: true }),
+    // Approved entries are never edited: a wrong one is reversed in the ledger and stays visible.
+    reversedAt: timestamp("reversed_at", { withTimezone: true }),
+    reversedBy: uuid("reversed_by").references(() => users.id, { onDelete: "set null" }),
+    reversalJournalId: bigint("reversal_journal_id", { mode: "bigint" }).references(() => journals.id, {
+      onDelete: "restrict",
+    }),
+    reverseReason: text("reverse_reason"),
   },
   (table) => [
     index("bank_entries_tenant_status_idx").on(table.tenantId, table.status, table.txnDate),
     uniqueIndex("bank_entries_utr_uidx")
       .on(table.tenantId, table.utr)
-      .where(sql`${table.utr} IS NOT NULL AND ${table.status} <> 'rejected'`),
+      .where(sql`${table.utr} IS NOT NULL AND ${table.status} <> 'rejected' AND ${table.reversedAt} IS NULL`),
     check("bank_entries_amount_positive", sql`${table.amount} > 0`),
     check("bank_entries_direction_valid", sql`${table.direction} IN ('credit', 'debit', 'none')`),
     check(

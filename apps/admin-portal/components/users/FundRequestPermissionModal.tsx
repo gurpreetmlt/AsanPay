@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "react-hot-toast";
-import { AlertTriangle, BadgeCheck, Ban, Check, Loader2, ShieldAlert, UserRound, X } from "lucide-react";
+import { AlertTriangle, BadgeCheck, Ban, Check, Copy, Loader2, ShieldAlert, UserRound, X } from "lucide-react";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 
@@ -225,13 +225,28 @@ export function FundRequestPermissionModal({
               {enable && blockers.length === 0 ? (
                 <label className="block">
                   <span className="text-xs font-semibold" style={{ color: B.muted }}>
-                    Type the agent&apos;s UID <b className="font-mono">{ctx.uid}</b> to confirm *
+                    Type or paste the agent&apos;s UID <b className="font-mono">{ctx.uid}</b>{" "}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        void navigator.clipboard
+                          .writeText(ctx.uid)
+                          .then(() => toast.success("UID copied — paste it below"))
+                          .catch(() => toast.error("Could not copy — your browser blocked clipboard access"));
+                      }}
+                      className="inline-flex items-center gap-0.5 rounded px-1 align-middle text-[11px] font-semibold"
+                      style={{ color: B.blueLight }}
+                      title="Copy UID"
+                    >
+                      <Copy size={11} /> Copy
+                    </button>{" "}
+                    to confirm *
                   </span>
                   <input
                     autoFocus
                     value={typedUid}
                     onChange={(e) => setTypedUid(e.target.value)}
-                    onPaste={(e) => e.preventDefault()}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") void save();
                     }}

@@ -22,6 +22,7 @@ import {
   updateBankAccount,
   setBankAccountActive,
   deleteBankAccount,
+  deleteStatementLine,
   assertVanWebhookSignature,
   vanWebhookCanonical,
   processVanWebhookCredit,
@@ -339,6 +340,14 @@ bankingRouter.post(
     sendSuccess(res, await verifyStatementBank({ tenantId, ...body }));
   },
 );
+
+bankingRouter.delete("/statements/lines/:id", requireRole("admin"), async (req, res) => {
+  const id = String(req.params.id || "");
+  if (!/^\d+$/.test(id)) throw new HttpError(422, "Statement line id is invalid", "INVALID_ID");
+  const tenantId = await resolveTenantId();
+  await deleteStatementLine({ tenantId, lineId: BigInt(id) });
+  sendSuccess(res, { ok: true }, "Statement line removed");
+});
 
 bankingRouter.get("/statement-imports", requireRole("admin"), async (req, res) => {
   const q = statementImportsQuerySchema.safeParse(req.query);

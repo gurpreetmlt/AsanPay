@@ -4,6 +4,7 @@ import { useRef, useState, type FormEvent } from "react";
 import { toast } from "react-hot-toast";
 import api from "@/lib/api";
 import { Modal } from "@/components/ui/Modal";
+import { AgentConfirmModal, ConfirmRow } from "@/components/users/AgentConfirmModal";
 import { createAttemptKeyHolder } from "@/lib/idempotencyKey";
 import type { DownlineUser } from "@/lib/types";
 
@@ -19,15 +20,24 @@ export function FundForm({ target, onClose, onSuccess }: FundFormProps) {
   const [description, setDescription] = useState("");
   const [txnPin, setTxnPin] = useState("");
   const [loading, setLoading] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const attemptKey = useRef(createAttemptKeyHolder("admin-fund-md"));
 
-  async function handleSubmit(e: FormEvent) {
+  function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (loading) return;
+    if (!/^\d+(\.\d{1,2})?$/.test(amount) || Number(amount) <= 0) {
+      toast.error("Amount must be a rupee amount greater than zero, e.g. 1000");
+      return;
+    }
     if (!/^\d{4}$/.test(txnPin)) {
       toast.error("Enter your 4-digit transaction PIN");
       return;
     }
+    setConfirming(true);
+  }
+
+  async function loadFloat() {
     setLoading(true);
     try {
       await api.post("/wallet/fund", {
@@ -39,6 +49,7 @@ export function FundForm({ target, onClose, onSuccess }: FundFormProps) {
       });
       attemptKey.current.clear();
       toast.success(`₹${amount} loaded to ${target.name}`);
+      setConfirming(false);
       onSuccess();
       onClose();
     } catch (err) {
@@ -51,51 +62,78 @@ export function FundForm({ target, onClose, onSuccess }: FundFormProps) {
   }
 
   return (
-    <Modal title={`Load float · ${target.name}`} onClose={onClose}>
-      <form onSubmit={handleSubmit} className="space-y-3">
-        <p className="text-xs text-gray-500">
-          Mints float into this Super Distributor balance (admin does not transfer from own balance).
-        </p>
-        <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Amount (₹)</label>
-          <input
-            required
-            type="text"
-            inputMode="decimal"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ""))}
-            placeholder="1000.00"
-            className="w-full rounded-lg border border-border-subtle px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Txn PIN</label>
-          <input
-            required
-            type="password"
-            inputMode="numeric"
-            maxLength={6}
-            value={txnPin}
-            onChange={(e) => setTxnPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
-            className="w-full rounded-lg border border-border-subtle px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Note (optional)</label>
-          <input
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="w-full rounded-lg border border-border-subtle px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-          />
-        </div>
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60"
-        >
-          {loading ? "Loading..." : "Load float"}
-        </button>
-      </form>
-    </Modal>
+    <>
+      <Modal title={`Load float · ${target.name}`} onClose={onClose}>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <p className="text-xs text-gray-500">
+            Mints float into this Super Distributor balance (admin does not transfer from own balance).
+          </p>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Amount (₹)</label>
+            <input
+              required
+              type="text"
+              inputMode="decimal"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ""))}
+              placeholder="1000.00"
+              className="w-full rounded-lg border border-border-subtle px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Txn PIN</label>
+            <input
+              required
+              type="password"
+              inputMode="numeric"
+              maxLength={6}
+              value={txnPin}
+              onChange={(e) => setTxnPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              className="w-full rounded-lg border border-border-subtle px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Note (optional)</label>
+            <input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full rounded-lg border border-border-subtle px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60"
+          >
+            Review and load float
+          </button>
+        </form>
+      </Modal>
+
+      {confirming ? (
+        <AgentConfirmModal
+          userId={target.id}
+          title="Load float to this agent?"
+          warning={
+            <p>
+              <b>Real money is credited to this wallet.</b> Check the name, mobile and UID with the agent before loading —
+              float sent to the wrong agent has to be reversed manually.
+            </p>
+          }
+          summary={
+            <>
+              <ConfirmRow label="Amount">₹{Number(amount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</ConfirmRow>
+              {description ? <ConfirmRow label="Note">{description}</ConfirmRow> : null}
+            </>
+          }
+          confirmLabel={`Load ₹${amount}`}
+          busy={loading}
+          onConfirm={() => void loadFloat()}
+          onClose={() => {
+            if (!loading) setConfirming(false);
+          }}
+        />
+      ) : null}
+    </>
   );
 }

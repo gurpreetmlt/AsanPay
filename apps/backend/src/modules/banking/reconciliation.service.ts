@@ -135,6 +135,9 @@ function recordsCte(ledgerAccountId: string) {
         -- A voided fund request and its reversal cancel out; no bank money moved for either.
         AND (fr.id IS NULL OR fr.status::text <> 'voided')
         AND j.idem_key NOT LIKE 'FR:%:VOID:%'
+        -- Same for a reversed bank entry and its reversal.
+        AND (be.id IS NULL OR be.reversed_at IS NULL)
+        AND j.idem_key NOT LIKE 'BE:%:REV'
     )`;
 }
 

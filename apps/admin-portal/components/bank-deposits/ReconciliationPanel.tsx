@@ -10,9 +10,12 @@ import {
   Download,
   FileSpreadsheet,
   FileText,
+  Trash2,
   Upload,
   XCircle,
 } from "lucide-react";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { BulkBankEntryModal } from "./BulkBankEntryModal";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
@@ -412,6 +415,9 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<"attention" | "matched" | "all">("attention");
   const [busyLine, setBusyLine] = useState<string | null>(null);
+  const [removeRow, setRemoveRow] = useState<ReconRow | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkLines, setBulkLines] = useState<ReconLine[] | null>(null);
   const [focusLine, setFocusLine] = useState<string | null>(null);
   const focusRowRef = useRef<HTMLTableRowElement | null>(null);
   const reconcileRef = useRef<HTMLElement | null>(null);
@@ -640,6 +646,38 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
     } finally {
       setBusyLine(null);
     }
+  }
+
+  async function removeLine(row: ReconRow) {
+    if (!row.line) return;
+    setBusyLine(row.line.id);
+    try {
+      await api.delete(`/banking/statements/lines/${row.line.id}`);
+      toast.success("Statement line removed");
+      setRemoveRow(null);
+      void loadHistory();
+      await runReport();
+    } catch (err) {
+      toast.error(errMessage(err, "Could not remove the statement line"));
+    } finally {
+      setBusyLine(null);
+    }
+  }
+
+  const selectableLines = useMemo(
+    () => (report?.rows ?? []).flatMap((r) => (r.kind === "only_bank" && r.line ? [r.line] : [])),
+    [report],
+  );
+
+  useEffect(() => {
+    setSelectedIds((prev) => prev.filter((id) => selectableLines.some((l) => l.id === id)));
+  }, [selectableLines]);
+
+  const selectedLines = selectableLines.filter((l) => selectedIds.includes(l.id));
+  const mixedDirections = new Set(selectedLines.map((l) => l.direction)).size > 1;
+
+  function toggleLine(id: string) {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
   const visibleRows = useMemo(() => {
@@ -965,10 +1003,52 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                 ))}
               </div>
 
+              {selectedLines.length > 0 ? (
+                <div
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl px-3 py-2"
+                  style={{ background: "#EEF2FF" }}
+                >
+                  <span className="text-xs font-bold" style={{ color: B.blue }}>
+                    {selectedLines.length} line{selectedLines.length === 1 ? "" : "s"} selected
+                    {mixedDirections ? " — select only money-in or only money-out lines to create together" : ""}
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedIds([])}
+                      className="rounded-lg px-3 py-1.5 text-xs font-bold text-white"
+                      style={{ background: B.danger }}
+                    >
+                      Clear
+                    </button>
+                    <button
+                      type="button"
+                      disabled={mixedDirections}
+                      onClick={() => setBulkLines(selectedLines)}
+                      className="rounded-lg px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
+                      style={{ background: B.green }}
+                    >
+                      Create entries for {selectedLines.length} selected
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-xs uppercase" style={{ color: B.muted }}>
+                      <th className="w-8 py-2 pl-3">
+                        {selectableLines.length > 0 ? (
+                          <input
+                            type="checkbox"
+                            aria-label="Select all lines only in bank"
+                            title="Select all lines that are only in the bank"
+                            checked={selectedIds.length === selectableLines.length}
+                            onChange={(e) => setSelectedIds(e.target.checked ? selectableLines.map((l) => l.id) : [])}
+                          />
+                        ) : null}
+                      </th>
                       <th className="px-3 py-2">Date</th>
                       <th className="px-3 py-2">Bank statement</th>
                       <th className="px-3 py-2">Our record</th>
@@ -979,7 +1059,7 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                   <tbody>
                     {visibleRows.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="px-3 py-8 text-center" style={{ color: B.muted }}>
+                        <td colSpan={6} className="px-3 py-8 text-center" style={{ color: B.muted }}>
                           {filter === "attention"
                             ? "Nothing needs attention for this period."
                             : "No statement lines or records in this period. Upload the statement first."}
@@ -1000,6 +1080,16 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                               background: focused ? "#DBEAFE" : r.kind === "matched" ? undefined : `${meta.bg}80`,
                             }}
                           >
+                            <td className="py-2.5 pl-3">
+                              {r.kind === "only_bank" && r.line ? (
+                                <input
+                                  type="checkbox"
+                                  aria-label="Select line"
+                                  checked={selectedIds.includes(r.line.id)}
+                                  onChange={() => toggleLine(r.line!.id)}
+                                />
+                              ) : null}
+                            </td>
                             <td className="whitespace-nowrap px-3 py-2.5">{dmy(r.line?.date ?? r.record?.date ?? "")}</td>
                             <td className="px-3 py-2.5">
                               {r.line ? (
@@ -1059,13 +1149,25 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                                   {busy ? "Saving…" : "Confirm match"}
                                 </button>
                               ) : r.kind === "only_bank" && r.line ? (
-                                <Link
-                                  href={newEntryHref(report.bank.id, r.line)}
-                                  className="inline-block rounded-lg px-3 py-1.5 text-xs font-bold text-white"
-                                  style={{ background: B.green }}
-                                >
-                                  Create bank entry
-                                </Link>
+                                <div className="inline-flex items-center gap-2">
+                                  <Link
+                                    href={newEntryHref(report.bank.id, r.line)}
+                                    className="inline-block rounded-lg px-3 py-1.5 text-xs font-bold text-white"
+                                    style={{ background: B.green }}
+                                  >
+                                    Create bank entry
+                                  </Link>
+                                  <button
+                                    type="button"
+                                    disabled={busy}
+                                    onClick={() => setRemoveRow(r)}
+                                    title="Remove this line — it does not belong to this bank's statement"
+                                    className="inline-flex items-center gap-1 rounded-lg border px-2 py-1.5 text-xs font-bold disabled:opacity-60"
+                                    style={{ borderColor: "#FCA5A5", color: B.danger }}
+                                  >
+                                    <Trash2 size={13} /> Remove
+                                  </button>
+                                </div>
                               ) : r.kind === "matched" && r.unlinkable ? (
                                 <button
                                   type="button"
@@ -1210,6 +1312,40 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
           )}
         </section>
       </div>
+
+      {removeRow?.line ? (
+        <ConfirmModal
+          title="Remove this statement line?"
+          message={
+            <>
+              {removeRow.line.direction === "CR" ? "Credit" : "Debit"} of ₹{removeRow.line.amount} on{" "}
+              {removeRow.line.date}
+              {removeRow.line.utr ? ` (UTR ${removeRow.line.utr})` : ""} will be deleted from this bank&apos;s statement.
+              Use this only when the line was uploaded to the wrong bank or was a test. Nothing in the ledger changes.
+            </>
+          }
+          confirmLabel="Remove line"
+          tone="danger"
+          busy={busyLine !== null}
+          busyLabel="Removing…"
+          onConfirm={() => void removeLine(removeRow)}
+          onClose={() => {
+            if (!busyLine) setRemoveRow(null);
+          }}
+        />
+      ) : null}
+
+      {bulkLines && report ? (
+        <BulkBankEntryModal
+          bank={report.bank}
+          lines={bulkLines}
+          onClose={() => setBulkLines(null)}
+          onDone={() => {
+            setSelectedIds([]);
+            void runReport();
+          }}
+        />
+      ) : null}
     </>
   );
 }

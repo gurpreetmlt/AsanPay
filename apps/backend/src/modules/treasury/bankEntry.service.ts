@@ -1,8 +1,8 @@
-import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, lte, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "../../db/postgres";
 import { accounts, bankAccounts, bankEntries, fundRequests, providers, users } from "../../db/postgres/schema";
-import { postJournal, type Tx } from "../../core/ledger";
+import { postJournal, reverseJournal, type Tx } from "../../core/ledger";
 import { paiseToRupees, type Paise } from "../../core/money";
 import { HttpError } from "../../utils/httpError";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
@@ -97,6 +97,8 @@ export async function requestBankEntry(params: {
   narration: string | null;
   attachmentName: string | null;
   attachmentDataUrl: string | null;
+  /** Bulk entries from statement lines: receipt can follow later, but approve stays locked until it does. */
+  allowMissingProof?: boolean;
 }): Promise<{ id: string }> {
   const spec = BANK_ENTRY_CATEGORIES[params.category];
 
@@ -149,21 +151,23 @@ export async function requestBankEntry(params: {
     );
   }
 
-  if (!params.attachmentDataUrl) {
+  if (!params.attachmentDataUrl && !params.allowMissingProof) {
     throw new HttpError(
       422,
       "Upload proof — a bank statement screenshot, receipt photo or PDF is required for every bank entry",
       "PROOF_REQUIRED",
     );
   }
-  validateAttachment(params.attachmentDataUrl);
+  if (params.attachmentDataUrl) validateAttachment(params.attachmentDataUrl);
 
   const utr = params.utr?.trim().toUpperCase() || null;
   if (utr) {
     const [dup] = await db
       .select({ id: bankEntries.id, status: bankEntries.status })
       .from(bankEntries)
-      .where(and(eq(bankEntries.tenantId, params.tenantId), eq(bankEntries.utr, utr)))
+      .where(
+        and(eq(bankEntries.tenantId, params.tenantId), eq(bankEntries.utr, utr), isNull(bankEntries.reversedAt)),
+      )
       .orderBy(desc(bankEntries.id))
       .limit(1);
     if (dup && dup.status !== "rejected") {
@@ -276,6 +280,13 @@ export async function approveBankEntry(params: {
     if (row.status !== "requested") {
       throw new HttpError(422, `Bank entry is already ${row.status}`, "ALREADY_DECIDED");
     }
+    if (!row.attachmentDataUrl) {
+      throw new HttpError(
+        422,
+        `Receipt missing for bank entry #${row.id} — upload the receipt before approving`,
+        "RECEIPT_MISSING",
+      );
+    }
     const selfApproved = await assertMayDecide(row.requestedBy, params.approvedBy, "approve");
 
     const legs = await resolveLegs(tx, params.tenantId, row);
@@ -347,6 +358,258 @@ export async function rejectBankEntry(params: {
   });
 }
 
+function modeFromNarration(narration: string | null): BankEntryMode {
+  const n = (narration ?? "").toUpperCase();
+  if (/\bUPI\b/.test(n)) return "upi";
+  if (/\bIMPS\b/.test(n)) return "imps";
+  if (/\bNEFT\b/.test(n)) return "neft";
+  if (/\bRTGS\b/.test(n)) return "rtgs";
+  if (/\b(CHQ|CHEQUE|CLG)\b/.test(n)) return "cheque";
+  if (/\b(CASH|CSH)\b/.test(n)) return "cash";
+  return "other";
+}
+
+/**
+ * One request per statement line, all with the same category. Each line is checked on its own;
+ * a bad line is reported and skipped, never blocks the rest. Receipts may follow later.
+ */
+export async function createBankEntriesFromLines(params: {
+  tenantId: string;
+  requestedBy: string;
+  bankAccountId: string;
+  category: BankEntryCategory;
+  providerId: string | null;
+  lineIds: string[];
+}): Promise<Array<{ lineId: string; entryId: string | null; error: string | null }>> {
+  const spec = BANK_ENTRY_CATEGORIES[params.category];
+  if (spec.direction === "none") {
+    throw new HttpError(422, "This category has no company bank — it cannot be created from statement lines", "BAD_CATEGORY");
+  }
+  if (!/^\d+$/.test(params.bankAccountId)) throw new HttpError(422, "Select the company bank account", "BANK_REQUIRED");
+
+  const results: Array<{ lineId: string; entryId: string | null; error: string | null }> = [];
+  for (const lineId of params.lineIds) {
+    try {
+      if (!/^\d+$/.test(lineId)) throw new HttpError(422, "Statement line id is invalid", "INVALID_ID");
+      const found = await db.execute<{
+        txn_date: string;
+        direction: string;
+        amount: string;
+        utr: string | null;
+        narration: string | null;
+        sender_name: string | null;
+        match_status: string;
+      }>(sql`
+        SELECT txn_date::text, direction, amount::text, utr, narration, sender_name, match_status::text
+        FROM bank_statement_lines
+        WHERE id = ${lineId} AND tenant_id = ${params.tenantId} AND bank_account_id = ${params.bankAccountId}
+      `);
+      const line = found.rows[0];
+      if (!line) throw new HttpError(404, "Line not found on this bank's statement", "NOT_FOUND");
+      if (line.match_status !== "unmatched") {
+        throw new HttpError(422, `Line is already ${line.match_status.replace(/_/g, " ")}`, "LINE_IN_USE");
+      }
+      const lineDirection = line.direction === "CR" ? "credit" : "debit";
+      if (lineDirection !== spec.direction) {
+        throw new HttpError(
+          422,
+          `${spec.label} is money ${spec.direction === "credit" ? "in" : "out"}, but this line is money ${lineDirection === "credit" ? "in" : "out"}`,
+          "DIRECTION_MISMATCH",
+        );
+      }
+      const created = await requestBankEntry({
+        tenantId: params.tenantId,
+        requestedBy: params.requestedBy,
+        category: params.category,
+        bankAccountId: params.bankAccountId,
+        providerId: params.providerId,
+        amount: BigInt(line.amount) as Paise,
+        txnDate: line.txn_date,
+        mode: modeFromNarration(line.narration),
+        utr: line.utr,
+        partyName: line.sender_name?.slice(0, 120) ?? null,
+        partyIfsc: null,
+        partyAccountLast4: null,
+        narration: line.narration?.slice(0, 500) ?? null,
+        attachmentName: null,
+        attachmentDataUrl: null,
+        allowMissingProof: true,
+      });
+      results.push({ lineId, entryId: created.id, error: null });
+    } catch (err) {
+      results.push({
+        lineId,
+        entryId: null,
+        error: err instanceof HttpError ? err.message : "Could not create the entry for this line",
+      });
+    }
+  }
+  return results;
+}
+
+/** Attach or replace the receipt of an entry that has not been decided yet. */
+export async function attachBankEntryReceipt(params: {
+  tenantId: string;
+  entryId: bigint;
+  adminId: string;
+  attachmentName: string;
+  attachmentDataUrl: string;
+}): Promise<void> {
+  validateAttachment(params.attachmentDataUrl);
+  const [row] = await db
+    .select({ id: bankEntries.id, status: bankEntries.status })
+    .from(bankEntries)
+    .where(and(eq(bankEntries.id, params.entryId), eq(bankEntries.tenantId, params.tenantId)))
+    .limit(1);
+  if (!row) throw new HttpError(404, "Bank entry not found", "NOT_FOUND");
+  if (row.status !== "requested") {
+    throw new HttpError(422, `Receipt can only be added before approval — this entry is ${row.status}`, "ALREADY_DECIDED");
+  }
+  await db
+    .update(bankEntries)
+    .set({
+      attachmentName: params.attachmentName.trim().slice(0, 160) || "proof",
+      attachmentDataUrl: params.attachmentDataUrl,
+    })
+    .where(eq(bankEntries.id, row.id));
+  await insertAuditLog({
+    userId: params.adminId,
+    action: "admin.bank_entry_receipt",
+    entityType: "bank_entry",
+    entityId: String(row.id),
+    metadata: { attachmentName: params.attachmentName },
+  });
+}
+
+/**
+ * Undo an approved entry with a REVERSAL journal (the ledger is append-only). The statement line
+ * it was matched to goes back to unmatched. With `moveToBankAccountId`, a copy of the entry is
+ * created on that bank as a new request — for an entry booked against the wrong bank account.
+ */
+export async function reverseBankEntry(params: {
+  tenantId: string;
+  entryId: bigint;
+  adminId: string;
+  reason: string;
+  moveToBankAccountId?: string | null;
+}): Promise<{ reversalJournalId: string; newEntryId: string | null }> {
+  const reason = params.reason.trim();
+  if (reason.length < 5) {
+    throw new HttpError(422, "Reason must be at least 5 characters (e.g. Wrong bank account)", "REASON_REQUIRED");
+  }
+
+  const result = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(bankEntries)
+      .where(and(eq(bankEntries.id, params.entryId), eq(bankEntries.tenantId, params.tenantId)))
+      .for("update");
+    if (!row) throw new HttpError(404, "Bank entry not found", "NOT_FOUND");
+    if (row.reversedAt) throw new HttpError(422, "This bank entry is already reversed", "ALREADY_REVERSED");
+    if (row.status !== "approved" || !row.journalId) {
+      throw new HttpError(
+        422,
+        `Only approved entries can be reversed — this one is ${row.status}. Reject it instead.`,
+        "NOT_REVERSIBLE",
+      );
+    }
+
+    let moveTo: bigint | null = null;
+    if (params.moveToBankAccountId) {
+      if (row.direction === "none") {
+        throw new HttpError(422, "This entry has no company bank, so it cannot be moved to one", "MOVE_NOT_ALLOWED");
+      }
+      if (!/^\d+$/.test(params.moveToBankAccountId)) {
+        throw new HttpError(422, "Select the bank account to move this entry to", "INVALID_BANK");
+      }
+      moveTo = BigInt(params.moveToBankAccountId);
+      if (moveTo === row.bankAccountId) {
+        throw new HttpError(422, "Pick a different bank account — the entry is already on this one", "SAME_BANK");
+      }
+      const [bank] = await tx
+        .select({ id: bankAccounts.id, deletedAt: bankAccounts.deletedAt })
+        .from(bankAccounts)
+        .where(and(eq(bankAccounts.id, moveTo), eq(bankAccounts.tenantId, params.tenantId)))
+        .limit(1);
+      if (!bank || bank.deletedAt) throw new HttpError(404, "Target bank account not found", "BANK_NOT_FOUND");
+    }
+
+    let reversal;
+    try {
+      reversal = await reverseJournal(tx, {
+        tenantId: params.tenantId,
+        journalId: row.journalId,
+        idemKey: `BE:${row.id}:REV`,
+        performedBy: params.adminId,
+        reason: `Bank entry ${row.id} reversed: ${reason}`,
+      });
+    } catch (err) {
+      if (err instanceof Error && /Overdraft blocked/i.test(err.message)) {
+        throw new HttpError(
+          422,
+          "Reversing this entry would take an account below zero — the money it recorded was already used.",
+          "INSUFFICIENT_BALANCE",
+        );
+      }
+      throw err;
+    }
+
+    await tx.execute(sql`
+      UPDATE bank_statement_lines
+      SET match_status = 'unmatched', matched_to_type = NULL, matched_to_id = NULL
+      WHERE tenant_id = ${params.tenantId}
+        AND matched_to_type = 'journal' AND matched_to_id = ${String(row.journalId)}
+    `);
+
+    await tx
+      .update(bankEntries)
+      .set({
+        reversedAt: new Date(),
+        reversedBy: params.adminId,
+        reversalJournalId: reversal.id,
+        reverseReason: reason,
+      })
+      .where(eq(bankEntries.id, row.id));
+
+    let newEntryId: string | null = null;
+    if (moveTo) {
+      const [copy] = await tx
+        .insert(bankEntries)
+        .values({
+          tenantId: row.tenantId,
+          bankAccountId: moveTo,
+          providerId: row.providerId,
+          category: row.category,
+          direction: row.direction,
+          amount: row.amount,
+          txnDate: row.txnDate,
+          mode: row.mode,
+          utr: row.utr,
+          partyName: row.partyName,
+          partyIfsc: row.partyIfsc,
+          partyAccountLast4: row.partyAccountLast4,
+          narration: [row.narration, `Moved from bank entry #${row.id}`].filter(Boolean).join(" · "),
+          attachmentName: row.attachmentName,
+          attachmentDataUrl: row.attachmentDataUrl,
+          requestedBy: params.adminId,
+        })
+        .returning({ id: bankEntries.id });
+      newEntryId = copy ? String(copy.id) : null;
+    }
+
+    return { reversalJournalId: String(reversal.id), newEntryId };
+  });
+
+  await insertAuditLog({
+    userId: params.adminId,
+    action: "admin.bank_entry_reverse",
+    entityType: "bank_entry",
+    entityId: String(params.entryId),
+    metadata: { reason, ...result, moveToBankAccountId: params.moveToBankAccountId ?? null },
+  });
+  return result;
+}
+
 export async function listBankEntries(params: {
   tenantId: string;
   status?: "requested" | "approved" | "rejected";
@@ -385,6 +648,8 @@ export async function listBankEntries(params: {
       journalId: bankEntries.journalId,
       requestedAt: bankEntries.requestedAt,
       decidedAt: bankEntries.decidedAt,
+      reversedAt: bankEntries.reversedAt,
+      reverseReason: bankEntries.reverseReason,
       bankAccountId: bankEntries.bankAccountId,
       bankName: bankAccounts.bankName,
       bankLast4: bankAccounts.accountNumberLast4,
@@ -431,6 +696,8 @@ export async function listBankEntries(params: {
     agent: null as AgentRef | null,
     fundRequestId: null as string | null,
     isTest: false,
+    reversedAt: r.reversedAt as Date | null,
+    reverseReason: r.reverseReason as string | null,
   }));
 
   // Credited agent fund requests are bank credits too; list them read-only so the register
@@ -658,6 +925,8 @@ async function listCreditedFundRequests(
       agent: { name: r.agentName, uid: r.agentUid, mobile: r.agentMobile, role: roleLabel } as AgentRef | null,
       fundRequestId: String(r.id) as string | null,
       isTest: r.testMarkedAt != null,
+      reversedAt: null as Date | null,
+      reverseReason: null as string | null,
     };
   });
 }

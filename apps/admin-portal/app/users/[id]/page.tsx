@@ -34,6 +34,7 @@ import {
 } from "@/components/users/ReasonSelect";
 import { AgentCommissionPanel } from "@/components/users/AgentCommissionPanel";
 import { FundRequestSwitch } from "@/components/users/FundRequestSwitch";
+import { MoveAgentModal } from "@/components/users/MoveAgentModal";
 import api, { fetchApi } from "@/lib/api";
 import { B, ROLE_LABEL } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
@@ -164,7 +165,7 @@ export default function AgentDetailPage() {
   const [agent, setAgent] = useState<AgentDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [newParentUid, setNewParentUid] = useState("");
+  const [moveOpen, setMoveOpen] = useState(false);
   const [aepsReason, setAepsReason] = useState("");
   const [restrictReason, setRestrictReason] = useState("");
   const [recentTxns, setRecentTxns] = useState<RecentTxn[]>([]);
@@ -286,29 +287,6 @@ export default function AgentDetailPage() {
       toast.error(
         (err as { response?: { data?: { message?: string } } }).response?.data?.message ??
           "Reactivation failed",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function reassignParent() {
-    if (!agent) return;
-    const uid = newParentUid.trim().toUpperCase();
-    if (!uid) {
-      toast.error("Enter new parent UID");
-      return;
-    }
-    setBusy(true);
-    try {
-      await api.post(`/admin/users/${agent.id}/reassign`, { newParentUid: uid });
-      toast.success("Parent reassigned");
-      setNewParentUid("");
-      await load();
-    } catch (err) {
-      toast.error(
-        (err as { response?: { data?: { message?: string } } }).response?.data?.message ??
-          "Reassign failed",
       );
     } finally {
       setBusy(false);
@@ -666,32 +644,27 @@ export default function AgentDetailPage() {
                     No parent (top-level Super Distributor)
                   </p>
                 )}
-                {agent.role !== "admin" ? (
+                {agent.role === "distributor" || agent.role === "retailer" ? (
                   <div className="mt-4 space-y-2 border-t pt-4" style={{ borderColor: B.border }}>
                     <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: B.muted }}>
                       Move in tree
                     </p>
-                    <input
-                      type="text"
-                      value={newParentUid}
-                      onChange={(e) => setNewParentUid(e.target.value)}
-                      placeholder="New parent UID"
-                      className="admin-input w-full rounded-xl border px-3 py-2 text-sm outline-none"
-                      style={{
-                        borderColor: B.border,
-                        color: "var(--admin-text)",
-                        background: "var(--admin-bg)",
-                      }}
-                    />
                     <button
                       type="button"
                       disabled={busy}
-                      onClick={() => void reassignParent()}
+                      onClick={() => setMoveOpen(true)}
                       className="admin-btn-primary w-full rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
                     >
-                      Reassign parent
+                      Change upline
                     </button>
                   </div>
+                ) : null}
+                {moveOpen && (agent.role === "distributor" || agent.role === "retailer") ? (
+                  <MoveAgentModal
+                    agents={[{ id: agent.id, name: agent.name, mobile: agent.mobile, role: agent.role }]}
+                    onClose={() => setMoveOpen(false)}
+                    onMoved={() => void load()}
+                  />
                 ) : null}
 
                 {agent.role !== "admin" ? (

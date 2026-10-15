@@ -215,6 +215,33 @@ export async function registerBankAccount(params: {
   });
 }
 
+/**
+ * Remove a statement line that should never have been imported (wrong bank, test paste). Only
+ * unmatched lines: anything tied to a ledger posting must be unlinked or reversed first.
+ */
+export async function deleteStatementLine(params: { tenantId: string; lineId: bigint }): Promise<void> {
+  const [line] = await db
+    .select({ id: bankStatementLines.id, matchStatus: bankStatementLines.matchStatus })
+    .from(bankStatementLines)
+    .where(and(eq(bankStatementLines.id, params.lineId), eq(bankStatementLines.tenantId, params.tenantId)))
+    .limit(1);
+  if (!line) throw new HttpError(404, "Statement line not found", "NOT_FOUND");
+  if (line.matchStatus !== "unmatched") {
+    throw new HttpError(
+      422,
+      `This line is ${line.matchStatus.replace(/_/g, " ")} — reverse or unlink the entry it is tied to before removing the line.`,
+      "LINE_IN_USE",
+    );
+  }
+  const linked = await db.execute<{ n: number }>(
+    sql`SELECT count(*)::int AS n FROM fund_requests WHERE matched_line_id = ${params.lineId}`,
+  );
+  if ((linked.rows[0]?.n ?? 0) > 0) {
+    throw new HttpError(422, "A fund request still points to this line — void it first.", "LINE_IN_USE");
+  }
+  await db.delete(bankStatementLines).where(eq(bankStatementLines.id, params.lineId));
+}
+
 export interface BankProfileInput {
   holderName?: string;
   accountType?: "current" | "savings";
