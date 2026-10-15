@@ -9,7 +9,7 @@ import {
   users,
   walletIdempotency,
 } from "../../db/postgres/schema";
-import { postJournal, resolveAccount, type Tx } from "../../core/ledger";
+import { postJournal, resolveAccount, reverseJournal, type Tx } from "../../core/ledger";
 import { ensureHierarchyAccount } from "../wallet/ledgerAccounts";
 import { normaliseUtr } from "../banking/banking.service";
 import { matchFundRequest, claimStatementLine } from "./matching";
@@ -509,6 +509,91 @@ export async function cancelFundRequest(params: {
 }
 
 /**
+ * Undo a credited request (test entry, credited by mistake). Journals are append-only, so both
+ * deposit journals get a REVERSAL; the statement line it claimed goes back to unmatched.
+ * Fails with a clear message when the agent has already spent the money (no-overdraft trigger).
+ */
+export async function voidFundRequest(params: {
+  tenantId: string;
+  requestId: bigint;
+  adminId: string;
+  reason: string;
+}): Promise<{ reversalJournalIds: string[] }> {
+  const reason = params.reason.trim();
+  if (reason.length < 5) {
+    throw new HttpError(422, "Reason must be at least 5 characters (e.g. Test entry)", "REASON_REQUIRED");
+  }
+
+  return db.transaction(async (tx) => {
+    const [request] = await tx
+      .select()
+      .from(fundRequests)
+      .where(and(eq(fundRequests.id, params.requestId), eq(fundRequests.tenantId, params.tenantId)))
+      .for("update");
+
+    if (!request) throw new HttpError(404, "Fund request not found", "NOT_FOUND");
+    if (request.status !== "credited") {
+      throw new HttpError(422, `Only credited requests can be voided — this one is ${request.status}`, "NOT_VOIDABLE");
+    }
+    if (!request.creditJournalId || !request.receiveJournalId) {
+      throw new HttpError(500, "Credited request is missing its journals", "MISSING_JOURNAL");
+    }
+
+    const reversalJournalIds: string[] = [];
+    try {
+      for (const journalId of [request.creditJournalId, request.receiveJournalId]) {
+        const rev = await reverseJournal(tx, {
+          tenantId: params.tenantId,
+          journalId,
+          idemKey: `FR:${request.id}:VOID:${journalId}`,
+          performedBy: params.adminId,
+          reason: `Fund request ${request.id} voided: ${reason}`,
+        });
+        reversalJournalIds.push(String(rev.id));
+      }
+    } catch (err) {
+      if (err instanceof Error && /Overdraft blocked/i.test(err.message)) {
+        throw new HttpError(
+          422,
+          `The agent's wallet no longer has ₹${paiseToRupees((request.creditedAmount ?? request.amount) as Paise)} — part of this credit was already spent, so it cannot be voided.`,
+          "INSUFFICIENT_BALANCE",
+        );
+      }
+      throw err;
+    }
+
+    await tx.execute(sql`
+      UPDATE bank_statement_lines
+      SET match_status = 'unmatched', matched_to_type = NULL, matched_to_id = NULL
+      WHERE tenant_id = ${params.tenantId}
+        AND ((matched_to_type = 'fund_request' AND matched_to_id = ${String(request.id)})
+          OR (matched_to_type = 'journal'
+              AND matched_to_id IN (${String(request.receiveJournalId)}, ${String(request.creditJournalId)})))
+    `);
+
+    await tx
+      .update(fundRequests)
+      .set({
+        status: "voided",
+        matchedLineId: null,
+        // Frees the UTR so a corrected request for the same deposit can be submitted again.
+        referenceNorm: null,
+        voidedAt: new Date(),
+        voidedBy: params.adminId,
+        voidReason: reason,
+      })
+      .where(eq(fundRequests.id, request.id));
+
+    await recordEvent(tx, request.id, "credited", "voided", params.adminId, "admin", {
+      reason,
+      reversalJournalIds,
+    });
+
+    return { reversalJournalIds };
+  });
+}
+
+/**
  * Retailer-facing label. Internal states never leak: "suspect" and every fraud signal read as
  * "Under review by team", because an honest duplicate entry looks identical from the inside.
  */
@@ -529,6 +614,8 @@ export function retailerFacingStatus(status: FundRequestStatus): string {
       return "Rejected";
     case "cancelled":
       return "Cancelled";
+    case "voided":
+      return "Reversed by team";
   }
 }
 
@@ -626,7 +713,7 @@ const OPEN_STATUSES: FundRequestStatus[] = [
   "under_review",
 ];
 
-export type FundRequestListFilter = "open" | "credited" | "rejected" | "cancelled" | "all";
+export type FundRequestListFilter = "open" | "credited" | "rejected" | "cancelled" | "voided" | "all";
 
 type RequesterSummary = { id: string; name: string; mobile: string; uid: string; role: string };
 
@@ -673,6 +760,7 @@ export async function listFundRequests(params: {
   else if (filter === "credited") conditions.push(eq(fundRequests.status, "credited"));
   else if (filter === "rejected") conditions.push(eq(fundRequests.status, "rejected"));
   else if (filter === "cancelled") conditions.push(eq(fundRequests.status, "cancelled"));
+  else if (filter === "voided") conditions.push(eq(fundRequests.status, "voided"));
 
   const rows = await db
     .select({

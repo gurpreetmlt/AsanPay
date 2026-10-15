@@ -42,6 +42,9 @@ export const fundRequestStatusEnum = pgEnum("fund_request_status", [
   "credited",
   "rejected",
   "cancelled",
+  // Credited by mistake (e.g. a test entry) and reversed by an admin. The credit journals stay;
+  // REVERSAL journals undo them.
+  "voided",
 ]);
 
 export const fundRequestActorEnum = pgEnum("fund_request_actor", ["retailer", "admin", "system"]);
@@ -105,6 +108,9 @@ export const fundRequests = pgTable(
 
     submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
     creditedAt: timestamp("credited_at", { withTimezone: true }),
+    voidedAt: timestamp("voided_at", { withTimezone: true }),
+    voidedBy: uuid("voided_by").references(() => users.id, { onDelete: "set null" }),
+    voidReason: text("void_reason"),
   },
   (table) => [
     // Hard constraint, not an application check: the same UTR into the same bank account can

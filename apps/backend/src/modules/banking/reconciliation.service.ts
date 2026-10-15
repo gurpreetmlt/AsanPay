@@ -132,6 +132,9 @@ function recordsCte(ledgerAccountId: string) {
       LEFT JOIN fund_requests fr ON fr.receive_journal_id = j.id
       LEFT JOIN users u ON u.id = fr.requester_user_id
       WHERE le.account_id = ${ledgerAccountId}
+        -- A voided fund request and its reversal cancel out; no bank money moved for either.
+        AND (fr.id IS NULL OR fr.status::text <> 'voided')
+        AND j.idem_key NOT LIKE 'FR:%:VOID:%'
     )`;
 }
 

@@ -14,6 +14,7 @@ import {
   listLineCandidates,
   linkFundRequestLine,
   rejectFundRequest,
+  voidFundRequest,
   cancelFundRequest,
   rematchPending,
   getFundRequest,
@@ -50,7 +51,7 @@ fundRequestRouter.get("/", requireRole("admin", ...AGENT_ROLES), async (req, res
   if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
   const defaultFilter: FundRequestListFilter = req.auth.role === "admin" ? "open" : "all";
   const raw = typeof req.query.status === "string" ? req.query.status : defaultFilter;
-  const allowed: FundRequestListFilter[] = ["open", "credited", "rejected", "cancelled", "all"];
+  const allowed: FundRequestListFilter[] = ["open", "credited", "rejected", "cancelled", "voided", "all"];
   const filter = (allowed.includes(raw as FundRequestListFilter) ? raw : defaultFilter) as FundRequestListFilter;
   const limit = typeof req.query.limit === "string" ? Number(req.query.limit) : undefined;
   const offset = typeof req.query.offset === "string" ? Number(req.query.offset) : undefined;
@@ -211,3 +212,16 @@ fundRequestRouter.post(
     sendSuccess(res, { status: "rejected" }, "Fund request rejected");
   },
 );
+
+fundRequestRouter.post("/:id/void", requireRole("admin"), async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const reason = typeof req.body?.reason === "string" ? req.body.reason : "";
+  const tenantId = await resolveTenantId();
+  const result = await voidFundRequest({
+    tenantId,
+    requestId: parseRequestId(paramId(req.params.id)),
+    adminId: req.auth.sub,
+    reason,
+  });
+  sendSuccess(res, { status: "voided", ...result }, "Fund request voided — the credit was reversed");
+});

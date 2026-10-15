@@ -475,6 +475,7 @@ export function BankEntriesPanel({ onOpenReconciliation }: { onOpenReconciliatio
   const [decidingId, setDecidingId] = useState<string | null>(null);
   const [approveRow, setApproveRow] = useState<BankEntry | null>(null);
   const [rejectRow, setRejectRow] = useState<BankEntry | null>(null);
+  const [voidRow, setVoidRow] = useState<BankEntry | null>(null);
   const [canSelfApprove, setCanSelfApprove] = useState(false);
 
   const visibleRows = useMemo(() => {
@@ -620,6 +621,21 @@ export function BankEntriesPanel({ onOpenReconciliation }: { onOpenReconciliatio
       await loadRows();
     } catch (err) {
       toast.error(errMessage(err, "Could not reject the bank entry"));
+    } finally {
+      setDecidingId(null);
+    }
+  }
+
+  async function voidFundRequest(row: BankEntry, reason: string) {
+    if (!row.fundRequestId) return;
+    setDecidingId(row.id);
+    try {
+      await api.post(`/fund-requests/${row.fundRequestId}/void`, { reason });
+      toast.success(`Voided — ${formatInr(row.amount)} taken back from the agent's wallet`);
+      setVoidRow(null);
+      await loadRows();
+    } catch (err) {
+      toast.error(errMessage(err, "Could not void the fund request"));
     } finally {
       setDecidingId(null);
     }
@@ -1080,6 +1096,18 @@ export function BankEntriesPanel({ onOpenReconciliation }: { onOpenReconciliatio
                                 <FileText size={13} /> Receipt
                               </a>
                             ) : null}
+                            {r.source === "fund_request" && r.fundRequestId ? (
+                              <button
+                                type="button"
+                                disabled={busy}
+                                title="Reverse this credit (test entry or credited by mistake)"
+                                onClick={() => setVoidRow(r)}
+                                className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-white transition hover:-translate-y-0.5 disabled:opacity-40"
+                                style={{ background: RED }}
+                              >
+                                <X size={13} /> Void
+                              </button>
+                            ) : null}
                             {r.source === "bank_entry" && r.status === "requested" ? (
                               <>
                                 <button
@@ -1155,6 +1183,31 @@ export function BankEntriesPanel({ onOpenReconciliation }: { onOpenReconciliatio
           onConfirm={(v) => void reject(rejectRow, v)}
           onClose={() => {
             if (!decidingId) setRejectRow(null);
+          }}
+        />
+      ) : null}
+
+      {voidRow ? (
+        <PromptModal
+          title="Void this fund request?"
+          message={
+            <>
+              {formatInr(voidRow.amount)} credited to {voidRow.partyName ?? "the agent"} on {formatDate(voidRow.txnDate)}{" "}
+              will be reversed: taken back from their wallet and removed from the bank balance. The matched statement
+              line goes back to unmatched. The entry is hidden from Bank entries and shows as Voided under Fund
+              requests. This cannot be undone.
+            </>
+          }
+          label="Reason"
+          placeholder="e.g. Test entry"
+          minLength={5}
+          tone="danger"
+          confirmLabel="Void and reverse"
+          busy={decidingId !== null}
+          busyLabel="Reversing…"
+          onConfirm={(v) => void voidFundRequest(voidRow, v)}
+          onClose={() => {
+            if (!decidingId) setVoidRow(null);
           }}
         />
       ) : null}

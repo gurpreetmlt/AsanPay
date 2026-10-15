@@ -7,7 +7,7 @@ import api, { fetchApi } from "@/lib/api";
 import { B, ROLE_LABEL } from "@/lib/brand";
 import { createAttemptKeyHolder } from "@/lib/idempotencyKey";
 
-type FrTab = "open" | "credited" | "rejected" | "cancelled";
+type FrTab = "open" | "credited" | "rejected" | "cancelled" | "voided";
 
 interface FundRequestRow {
   id: string;
@@ -44,6 +44,7 @@ const TABS: { key: FrTab; label: string }[] = [
   { key: "credited", label: "Credited" },
   { key: "rejected", label: "Rejected" },
   { key: "cancelled", label: "Cancelled" },
+  { key: "voided", label: "Voided" },
 ];
 
 const REJECT_REASONS = [
@@ -64,6 +65,7 @@ const STATUS_PILL: Record<string, { label: string; color: string; bg: string }> 
   credited: { label: "Credited", color: "#15803D", bg: "#DCFCE7" },
   rejected: { label: "Rejected", color: "#B91C1C", bg: "#FEE2E2" },
   cancelled: { label: "Cancelled", color: "#64748B", bg: "#F1F5F9" },
+  voided: { label: "Voided", color: "#B91C1C", bg: "#FEE2E2" },
 };
 
 function formatInr(amount: string) {
