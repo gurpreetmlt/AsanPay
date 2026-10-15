@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { Copy, MailPlus, RotateCw, Share2, XCircle } from "lucide-react";
 import type { ApiResponse } from "@asanpay/shared-types";
@@ -76,13 +77,14 @@ export function InviteAgentPanel({ childRole }: { childRole: "distributor" | "re
     void load();
   }, [load]);
 
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   useEffect(() => {
-    const url = new URL(window.location.href);
-    if (url.searchParams.get("invite") !== "1") return;
+    if (searchParams.get("invite") !== "1") return;
     setOpen(true);
-    url.searchParams.delete("invite");
-    window.history.replaceState(null, "", url.pathname + url.search);
-  }, []);
+    router.replace(pathname, { scroll: false });
+  }, [searchParams, router, pathname]);
 
   function closeModal() {
     setOpen(false);
