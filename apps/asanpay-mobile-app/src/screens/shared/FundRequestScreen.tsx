@@ -18,6 +18,7 @@ import Clipboard from "@react-native-clipboard/clipboard";
 // namespace as a result, so TS sees an invalid JSX component even though it renders fine.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import RawQRCode from "react-native-qrcode-svg";
+import DateTimePicker, { type DateTimePickerEvent } from "@react-native-community/datetimepicker";
 const QRCode = RawQRCode as unknown as React.ComponentType<{ value: string; size: number }>;
 import {
   ArrowLeft,
@@ -734,8 +735,29 @@ function ConfirmStep({
   const [receiptName, setReceiptName] = useState<string | null>(null);
   const [receiptDataUrl, setReceiptDataUrl] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  const [depositAt, setDepositAt] = useState<Date | null>(null);
+  const [pickerMode, setPickerMode] = useState<"date" | "time" | null>(null);
+  const [remarks, setRemarks] = useState("");
   const [saving, setSaving] = useState(false);
   const idemRef = useRef(newIdemKey());
+
+  function onPickDeposit(event: DateTimePickerEvent, picked?: Date) {
+    const mode = pickerMode;
+    setPickerMode(null);
+    if (event.type === "dismissed" || !picked) return;
+    idemRef.current = newIdemKey();
+    if (mode === "date") {
+      const base = depositAt ?? new Date();
+      const next = new Date(picked);
+      next.setHours(base.getHours(), base.getMinutes(), 0, 0);
+      setDepositAt(next);
+      setPickerMode("time");
+    } else {
+      const next = new Date(depositAt ?? new Date());
+      next.setHours(picked.getHours(), picked.getMinutes(), 0, 0);
+      setDepositAt(next);
+    }
+  }
 
   const needsBankPicker = !prefill.bankAccountId;
 
@@ -766,6 +788,26 @@ function ConfirmStep({
       showAlert("Invalid amount", "Enter a valid amount greater than zero");
       return;
     }
+    if (!referenceNumber.trim()) {
+      showAlert("UTR required", "Enter the UTR / reference number from the bank slip");
+      return;
+    }
+    if (!depositAt) {
+      showAlert("Date required", "Select the deposit / payment date and time");
+      return;
+    }
+    if (depositAt.getTime() > Date.now()) {
+      showAlert("Invalid date", "Deposit date and time cannot be in the future");
+      return;
+    }
+    if (!senderName.trim()) {
+      showAlert("Sender name required", "Enter the sender name — the person who deposited");
+      return;
+    }
+    if (!remarks.trim()) {
+      showAlert("Remarks required", "Enter remarks for the finance team");
+      return;
+    }
     if (!receiptUri || !receiptDataUrl) {
       showAlert("Receipt required", "Attach your deposit / payment receipt image");
       return;
@@ -783,16 +825,16 @@ function ConfirmStep({
           bankAccountId,
           amount,
           paymentMode: PAYMENT_MODE_MAP[prefill.mode],
-          referenceNumber: referenceNumber.trim() || null,
-          depositDatetime: new Date().toISOString(),
-          senderName: senderName.trim() || null,
+          referenceNumber: referenceNumber.trim(),
+          depositDatetime: depositAt.toISOString(),
+          senderName: senderName.trim(),
+          remarks: remarks.trim(),
           receiptDataUrl,
           receiptName: (receiptName || "receipt.jpg").slice(0, 200),
         },
         { headers: { "Idempotency-Key": idemRef.current } },
       );
       idemRef.current = newIdemKey();
-      setFormOpen(false);
       setFormOpen(false);
       showAlert("Submitted", "Fund request submitted for review");
       onDone();
@@ -809,7 +851,7 @@ function ConfirmStep({
 
   const fields = (
     <>
-      <Text style={[styles.label, { color: tokens.sub }]}>Amount (₹)</Text>
+      <Text style={[styles.label, { color: tokens.sub }]}>Amount (₹) *</Text>
       <TextInput
         style={[styles.input, { backgroundColor: tokens.card, borderColor: tokens.cardBorder, color: tokens.txt }]}
         keyboardType="decimal-pad"
@@ -822,22 +864,62 @@ function ConfirmStep({
         placeholderTextColor={tokens.mute}
       />
 
-      <Text style={[styles.label, { color: tokens.sub }]}>UTR / reference (optional)</Text>
+      <Text style={[styles.label, { color: tokens.sub }]}>UTR / reference *</Text>
       <TextInput
         style={[styles.input, { backgroundColor: tokens.card, borderColor: tokens.cardBorder, color: tokens.txt }]}
         value={referenceNumber}
-        onChangeText={setReferenceNumber}
+        onChangeText={(v) => {
+          idemRef.current = newIdemKey();
+          setReferenceNumber(v);
+        }}
+        maxLength={60}
+        placeholder="Journal / UTR number on the bank slip"
         placeholderTextColor={tokens.mute}
       />
 
-      <Text style={[styles.label, { color: tokens.sub }]}>Sender name (optional)</Text>
+      <Text style={[styles.label, { color: tokens.sub }]}>Deposit / payment date & time *</Text>
+      <Pressable
+        style={[styles.input, { backgroundColor: tokens.card, borderColor: tokens.cardBorder, justifyContent: "center" }]}
+        onPress={() => setPickerMode("date")}
+        accessibilityRole="button"
+      >
+        <Text style={{ color: depositAt ? tokens.txt : tokens.mute }}>
+          {depositAt
+            ? depositAt.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })
+            : "Select date and time"}
+        </Text>
+      </Pressable>
+      {pickerMode ? (
+        <DateTimePicker
+          value={depositAt ?? new Date()}
+          mode={pickerMode}
+          display="default"
+          maximumDate={new Date()}
+          onChange={onPickDeposit}
+        />
+      ) : null}
+
+      <Text style={[styles.label, { color: tokens.sub }]}>Sender name *</Text>
       <TextInput
         style={[styles.input, { backgroundColor: tokens.card, borderColor: tokens.cardBorder, color: tokens.txt }]}
         value={senderName}
         onChangeText={setSenderName}
+        maxLength={160}
+        placeholder="Name of the person who deposited"
         placeholderTextColor={tokens.mute}
       />
 
+      <Text style={[styles.label, { color: tokens.sub }]}>Remarks *</Text>
+      <TextInput
+        style={[styles.input, { backgroundColor: tokens.card, borderColor: tokens.cardBorder, color: tokens.txt }]}
+        value={remarks}
+        onChangeText={setRemarks}
+        maxLength={500}
+        placeholder="e.g. Cash deposited at Malout branch counter"
+        placeholderTextColor={tokens.mute}
+      />
+
+      <Text style={[styles.label, { color: tokens.sub }]}>Receipt *</Text>
       <Pressable
         style={[styles.receiptBtn, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
         onPress={() => void pickReceipt()}
@@ -886,7 +968,7 @@ function ConfirmStep({
             <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bg }]}>
               <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
                 <ScreenTop title="Create fund request" onBack={() => !saving && setFormOpen(false)} />
-                <Text style={[styles.label, { color: tokens.sub, marginTop: 0 }]}>Deposited to bank</Text>
+                <Text style={[styles.label, { color: tokens.sub, marginTop: 0 }]}>Deposited to bank *</Text>
                 {banks
                   .filter((b) => b.isActive)
                   .map((b) => {

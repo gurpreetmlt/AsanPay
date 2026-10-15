@@ -167,7 +167,7 @@ function FieldLabel({ children, hint }: { children: ReactNode; hint?: string }) 
   return (
     <label className="mb-1.5 block">
       <span className="text-xs font-bold uppercase tracking-wide" style={{ color: B.muted }}>
-        {children}
+        {children} <span style={{ color: "#DC2626" }}>*</span>
       </span>
       {hint ? (
         <span className="mt-0.5 block text-[11px] font-medium normal-case tracking-normal" style={{ color: B.muted }}>
@@ -363,8 +363,16 @@ export function FundRequestForm({
       toast.error("Enter a valid amount greater than zero");
       return;
     }
+    if (!referenceNumber.trim()) {
+      toast.error("Enter the UTR / reference number from the bank slip");
+      return;
+    }
     if (!depositLocal) {
       toast.error("Enter the deposit/payment date and time");
+      return;
+    }
+    if (!senderName.trim()) {
+      toast.error("Enter the sender name — the person who deposited");
       return;
     }
     if (!receiptFile) {
@@ -373,6 +381,10 @@ export function FundRequestForm({
     }
     if (receiptFile.size > 2_000_000) {
       toast.error("Receipt file must be 2 MB or smaller");
+      return;
+    }
+    if (!remarks.trim()) {
+      toast.error("Enter remarks for the finance team");
       return;
     }
 
@@ -767,14 +779,14 @@ export function FundRequestForm({
                     />
                   </div>
                   <div>
-                    <FieldLabel hint="Optional — helps faster matching">UTR / reference</FieldLabel>
+                    <FieldLabel>UTR / reference</FieldLabel>
                     <input
                       value={referenceNumber}
                       onChange={(e) => {
                         setReferenceNumber(e.target.value);
                         attemptKey.current.clear();
                       }}
-                      placeholder="Bank UTR or reference number"
+                      placeholder="Journal / UTR number on the bank slip"
                       maxLength={60}
                       className={inputClass}
                       style={inputStyle}
@@ -794,12 +806,12 @@ export function FundRequestForm({
                     />
                   </div>
                   <div>
-                    <FieldLabel hint="Optional">Sender name</FieldLabel>
+                    <FieldLabel>Sender name</FieldLabel>
                     <input
                       value={senderName}
                       onChange={(e) => setSenderName(e.target.value)}
                       maxLength={160}
-                      placeholder="Name on the transfer"
+                      placeholder="Name of the person who deposited"
                       className={inputClass}
                       style={inputStyle}
                     />
@@ -832,12 +844,12 @@ export function FundRequestForm({
                     />
                   </div>
                   <div className="sm:col-span-2">
-                    <FieldLabel hint="Optional">Remarks</FieldLabel>
+                    <FieldLabel>Remarks</FieldLabel>
                     <input
                       value={remarks}
                       onChange={(e) => setRemarks(e.target.value)}
                       maxLength={500}
-                      placeholder="Any note for the finance team"
+                      placeholder="e.g. Cash deposited at Malout branch counter"
                       className={inputClass}
                       style={inputStyle}
                     />

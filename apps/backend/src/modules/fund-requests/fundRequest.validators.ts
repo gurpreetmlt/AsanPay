@@ -11,14 +11,26 @@ export const submitFundRequestSchema = z.object({
   bankAccountId: z.string().regex(/^\d+$/, "bankAccountId must be a numeric id"),
   amount: amountSchema,
   paymentMode: z.enum(["cash_deposit", "neft", "rtgs", "imps", "upi", "cheque"]),
-  referenceNumber: z.string().trim().min(1).max(60).optional().nullable(),
+  referenceNumber: z
+    .string({ error: "Enter the UTR / reference number from the bank slip" })
+    .trim()
+    .min(1, "Enter the UTR / reference number from the bank slip")
+    .max(60, "UTR / reference must be 60 characters or fewer"),
   depositDatetime: z.string().datetime({ offset: true }),
-  senderName: z.string().trim().min(1).max(160).optional().nullable(),
+  senderName: z
+    .string({ error: "Enter the sender name — the person who deposited" })
+    .trim()
+    .min(1, "Enter the sender name — the person who deposited")
+    .max(160, "Sender name must be 160 characters or fewer"),
   receiptDataUrl: z.string().max(4_000_000, "Receipt file must be 2 MB or smaller").optional(),
   receiptName: z.string().trim().max(200).optional().nullable(),
   receiptUrl: z.string().max(2000).optional(),
   receiptSha256: z.string().optional(),
-  remarks: z.string().trim().max(500).optional().nullable(),
+  remarks: z
+    .string({ error: "Enter remarks for the finance team" })
+    .trim()
+    .min(1, "Enter remarks for the finance team")
+    .max(500, "Remarks must be 500 characters or fewer"),
 });
 export type SubmitFundRequestBody = z.infer<typeof submitFundRequestSchema>;
 
