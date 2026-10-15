@@ -42,6 +42,11 @@ interface SignupScreenProps {
   onBack: () => void;
   /** Pre-select role when opening signup from login role chips. */
   initialRole?: SignupRole;
+  onPartnerEnquiry?: () => void;
+}
+
+function isPartnerRole(role: SignupRole): boolean {
+  return role === "distributor" || role === "super_distributor";
 }
 
 function signupRoleLabel(role: SignupRole): string {
@@ -323,7 +328,7 @@ function DateTextField({
   );
 }
 
-export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
+export function SignupScreen({ onBack, initialRole, onPartnerEnquiry }: SignupScreenProps) {
   const { tokens, scheme } = useTheme();
   const setAuth = useAuthStore((s) => s.setAuth);
   const updateUser = useAuthStore((s) => s.updateUser);
@@ -609,18 +614,16 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
       }
 
       if (existing) {
+        if (!existing.accountCreated && isPartnerRole(existing.role)) {
+          existing.role = "retailer";
+        }
         setDraft(existing);
         if (existing.accountCreated && existing.stepIndex < 2) {
           setDraft({ ...existing, stepIndex: 2 });
         } else if (existing.signupToken && existing.stepIndex < 1 && !existing.accountCreated) {
           setDraft({ ...existing, stepIndex: 1 });
         }
-      } else if (
-        initialRole === "retailer" ||
-        initialRole === "distributor" ||
-        initialRole === "super_distributor" ||
-        initialRole === "direct_retailer"
-      ) {
+      } else if (initialRole === "retailer" || initialRole === "direct_retailer") {
         setDraft({ ...EMPTY_MOBILE_SIGNUP_DRAFT, role: initialRole });
       }
       setDraftReady(true);
@@ -1774,7 +1777,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                   <Text style={[styles.hint, { color: tokens.mute }]}>Choose your role and create login credentials.</Text>
                   <FieldLabel text="Role *" color={tokens.mute} />
                   <View style={styles.chipGrid}>
-                    {ROLE_OPTIONS.map((r) => (
+                    {ROLE_OPTIONS.filter((r) => draft.accountCreated || !isPartnerRole(r.value)).map((r) => (
                       <Pressable
                         key={r.value}
                         disabled={draft.accountCreated}
@@ -1799,6 +1802,14 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                       </Pressable>
                     ))}
                   </View>
+                  {!draft.accountCreated && onPartnerEnquiry ? (
+                    <Pressable onPress={onPartnerEnquiry} style={{ marginBottom: 8 }}>
+                      <Text style={[styles.hint, { color: tokens.mute }]}>
+                        Want to become a Distributor or Super Distributor?{" "}
+                        <Text style={{ color: colors.blue, fontWeight: "700" }}>Contact us</Text>
+                      </Text>
+                    </Pressable>
+                  ) : null}
                   <FieldLabel text="Full Name *" color={tokens.mute} />
                   <TextInput
                     value={draft.name}

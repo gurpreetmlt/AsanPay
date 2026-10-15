@@ -39,6 +39,7 @@ import {
 import { requireAuth } from "../../middleware/auth.middleware";
 import { requireRole } from "../../middleware/rbac.middleware";
 import { authLimiter, otpRequestLimiter, walletTxnLimiter, signupMobileCheckLimiter } from "../../middleware/rateLimiter";
+import { partnerEnquiry } from "./partnerEnquiry";
 
 export const authRouter = Router();
 
@@ -80,6 +81,7 @@ authRouter.get("/signup/mobile-check", signupMobileCheckLimiter, signupMobileChe
 authRouter.post("/signup/request", otpRequestLimiter, signupRequest);
 authRouter.post("/signup/verify", authLimiter, signupVerify);
 authRouter.post("/signup/complete", authLimiter, signupComplete);
+authRouter.post("/partner-enquiry", otpRequestLimiter, partnerEnquiry);
 
 authRouter.post("/txn-pin", requireAuth, setTransactionPin);
 authRouter.post("/txn-pin/verify", requireAuth, authLimiter, verifyTransactionPin);

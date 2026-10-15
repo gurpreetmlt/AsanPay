@@ -5,15 +5,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import {
-  Crown,
-  Network,
-  Store,
   Phone,
   Lock,
   Eye,
   EyeOff,
   Fingerprint,
-  Check,
   KeyRound,
   Sparkles,
 } from "lucide-react";
@@ -22,7 +18,7 @@ import { AsanPayLockup } from "@/components/brand/Logo";
 import { PromoSlider } from "@/components/promos/PromoSlider";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import api from "@/lib/api";
-import { B, ROLES, type Role } from "@/lib/brand";
+import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { extractApiError, nextOnboardingPath } from "@/lib/onboarding";
 import { authenticateBiometric, clearBiometricStore, getBiometricStore } from "@/lib/webauthn";
@@ -37,28 +33,9 @@ interface LoginResponseData {
 
 type OtpStep = "mobile" | "otp" | "pin";
 
-const ROLE_ICONS = { super: Crown, distributor: Network, retailer: Store } as const;
-
-function apiRoleFromUi(r: Role): "retailer" | "distributor" | "super_distributor" {
-  if (r.id === "super") return "super_distributor";
-  if (r.id === "distributor") return "distributor";
-  return "retailer";
-}
-
-function roleFromMismatchMessage(msg: string): Role | null {
-  const m = msg.match(/registered as\s+([^./]+)/i);
-  if (!m?.[1]) return null;
-  const label = m[1].trim().toLowerCase();
-  if (label.includes("super")) return ROLES.find((r) => r.id === "super") ?? null;
-  if (label.includes("distributor")) return ROLES.find((r) => r.id === "distributor") ?? null;
-  if (label.includes("retailer")) return ROLES.find((r) => r.id === "retailer") ?? null;
-  return null;
-}
-
 export default function LoginPage() {
   const router = useRouter();
   const setAuth = useAuthStore((s) => s.setAuth);
-  const [role, setRole] = useState<Role>(ROLES[0]);
   const [method, setMethod] = useState<"otp" | "password">("otp");
   const [mobile, setMobile] = useState("");
   const [password, setPassword] = useState("");
@@ -213,7 +190,6 @@ export default function LoginPage() {
       const { data } = await api.post<ApiResponse<{ otp?: string; message: string }>>("/auth/otp/request", {
         mobile,
         portal: "agent",
-        role: apiRoleFromUi(role),
       });
       if (!data.success) throw new Error(data.message);
       lastOtpSentKey.current = mobile;
@@ -226,18 +202,7 @@ export default function LoginPage() {
       );
     } catch (err) {
       lastOtpSentKey.current = mobile;
-      const msg = extractApiError(err, "OTP request failed");
-      const suggested = roleFromMismatchMessage(msg);
-      if (suggested && suggested.id !== role.id) {
-        // Backend already stored OTP before ROLE_MISMATCH — switch chip and show OTP field.
-        lastOtpSentKey.current = mobile;
-        setRole(suggested);
-        setOtpStep("otp");
-        setOtp("");
-        toast.error(`${msg} — role updated. Enter the OTP now.`);
-      } else {
-        toast.error(msg);
-      }
+      toast.error(extractApiError(err, "OTP request failed"));
     } finally {
       setLoading(false);
     }
@@ -252,7 +217,6 @@ export default function LoginPage() {
         mobile,
         otp,
         portal: "agent",
-        role: apiRoleFromUi(role),
         deviceId: getDeviceId(),
         deviceLabel: getDeviceLabel(),
       });
@@ -267,16 +231,7 @@ export default function LoginPage() {
         finishLogin(data.data);
       }
     } catch (err) {
-      const msg = extractApiError(err, "Incorrect OTP");
-      const suggested = roleFromMismatchMessage(msg);
-      if (suggested && suggested.id !== role.id) {
-        setRole(suggested);
-        setOtpStep("mobile");
-        setOtp("");
-        toast.error(`${msg} — role updated. Tap Continue to send a new OTP.`);
-      } else {
-        toast.error(msg);
-      }
+      toast.error(extractApiError(err, "Incorrect OTP"));
     } finally {
       setLoading(false);
     }
@@ -437,52 +392,6 @@ export default function LoginPage() {
             Preferred: <strong style={{ color: B.blue }}>OTP</strong> — fast & secure
           </p>
 
-          <div className="mb-6 grid grid-cols-3 gap-2">
-            {ROLES.map((r) => {
-              const Icon = ROLE_ICONS[r.id];
-              const active = role.id === r.id;
-              return (
-                <button
-                  key={r.id}
-                  type="button"
-                  onClick={() => {
-                    // Fresh login on manual role switch — don't carry the previous role's number.
-                    if (r.id !== role.id) {
-                      setMobile("");
-                      setOtpStep("mobile");
-                      setOtp("");
-                      setDevOtp(null);
-                    }
-                    setRole(r);
-                  }}
-                  className="relative flex flex-col items-center gap-2 rounded-2xl border-2 p-3.5"
-                  style={{
-                    borderColor: active ? r.color : B.border,
-                    background: active ? `${r.color}0E` : "#fff",
-                  }}
-                >
-                  {active && (
-                    <div
-                      className="absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded-full"
-                      style={{ background: r.color }}
-                    >
-                      <Check size={9} className="text-white" strokeWidth={3} />
-                    </div>
-                  )}
-                  <div
-                    className="flex h-10 w-10 items-center justify-center rounded-xl"
-                    style={{ background: active ? r.gradient : `${r.color}15` }}
-                  >
-                    <Icon size={18} style={{ color: active ? "#fff" : r.color }} />
-                  </div>
-                  <span className="text-center text-xs font-semibold" style={{ color: active ? r.color : B.muted }}>
-                    {r.shortLabel}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
           <div className="mb-4 grid grid-cols-2 gap-1 rounded-2xl p-1" style={{ background: B.secondary }}>
             {(
               [
@@ -541,7 +450,7 @@ export default function LoginPage() {
                 <Sparkles size={14} />
                 Forgot your password? OTP is the faster way in.
               </div>
-              <SubmitBtn loading={loading} label={`Login as ${role.label}`} />
+              <SubmitBtn loading={loading} label="Login" />
             </form>
           ) : otpStep === "pin" && pending ? (
             <form onSubmit={verifyPin} className="mb-6 space-y-4">
@@ -660,12 +569,13 @@ export default function LoginPage() {
           </PrimaryButton>
 
           <p className="text-center text-xs" style={{ color: B.muted }}>
-            <Link
-              href={`/signup?role=${role.id === "super" ? "super_distributor" : role.id}`}
-              className="font-semibold"
-              style={{ color: role.color }}
-            >
-              Sign up as {role.label}
+            New retailer?{" "}
+            <Link href="/signup?role=retailer" className="font-semibold" style={{ color: B.blue }}>
+              Sign up
+            </Link>
+            {" · "}
+            <Link href="/partner-enquiry" className="font-semibold" style={{ color: B.blue }}>
+              Become a Distributor
             </Link>
           </p>
           </>

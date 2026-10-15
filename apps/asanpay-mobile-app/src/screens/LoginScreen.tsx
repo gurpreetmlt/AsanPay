@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Eye, EyeOff, Fingerprint, Lock, Network, ShieldCheck, Star, Store, Users } from "lucide-react-native";
+import { Eye, EyeOff, Fingerprint, Lock, ShieldCheck, Star } from "lucide-react-native";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import { api, API_BASE, setAuthHeader } from "../lib/api";
 import { apiError } from "../utils/apiError";
@@ -17,32 +17,8 @@ import { useAuthStore } from "../store/auth";
 
 export type LoginRoleChip = "retailer" | "distributor" | "super_distributor";
 
-const ROLE_CHIPS: {
-  key: LoginRoleChip;
-  short: string;
-  desc: string;
-  Icon: typeof Store;
-}[] = [
-  { key: "retailer", short: "Retailer", desc: "Outlet agent", Icon: Store },
-  { key: "distributor", short: "Distributor", desc: "Manage retailers", Icon: Users },
-  { key: "super_distributor", short: "Super Dist.", desc: "Manage network", Icon: Network },
-];
-
-/** Parse backend ROLE_MISMATCH copy → chip key */
-function roleFromMismatchMessage(msg: string): LoginRoleChip | null {
-  const m = msg.match(/registered as\s+([^./]+)/i);
-  if (!m?.[1]) return null;
-  const label = m[1].trim().toLowerCase();
-  if (label.includes("super") || label.includes("master")) return "super_distributor";
-  if (label.includes("distributor") && !label.includes("super")) return "distributor";
-  if (label.includes("retailer")) return "retailer";
-  return null;
-}
-
-function roleSignupLabel(role: LoginRoleChip): string {
-  if (role === "super_distributor") return "Super Distributor";
-  if (role === "distributor") return "Distributor";
-  return "Retailer";
+function loginRoleOf(user: AuthUser): LoginRoleChip {
+  return user.role === "super_distributor" || user.role === "distributor" ? user.role : "retailer";
 }
 
 interface LoginScreenProps {
@@ -58,7 +34,6 @@ interface PendingSession {
 export function LoginScreen({ onSignup }: LoginScreenProps) {
   const setAuth = useAuthStore((s) => s.setAuth);
   const [mobile, setMobile] = useState("");
-  const [role, setRole] = useState<LoginRoleChip>("retailer");
   const [loading, setLoading] = useState(false);
   const [method, setMethod] = useState<"otp" | "password">("otp");
   const [password, setPassword] = useState("");
@@ -97,7 +72,7 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
 
   function commitLogin(session: PendingSession) {
     setAuthHeader(session.accessToken);
-    void setRememberedLogin({ mobile: session.user.mobile, role: role });
+    void setRememberedLogin({ mobile: session.user.mobile, role: loginRoleOf(session.user) });
     setAuth(session.user, { accessToken: session.accessToken, refreshToken: session.refreshToken });
   }
 
@@ -114,7 +89,11 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
         text: "Enable",
         style: "primary",
         onPress: () => {
-          void enableBioUnlock({ mobile: session.user.mobile, role, refreshToken: session.refreshToken }).then(
+          void enableBioUnlock({
+            mobile: session.user.mobile,
+            role: loginRoleOf(session.user),
+            refreshToken: session.refreshToken,
+          }).then(
             () => commitLogin(session),
           );
         },
@@ -131,10 +110,10 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
     try {
       const { data } = await api.post<ApiResponse<{ message: string; otp?: string }>>(
         "/auth/otp/request",
-        { mobile, portal: "agent", role },
+        { mobile, portal: "agent" },
       );
       if (!data.success) throw new Error(data.message);
-      lastOtpSentKey.current = `${mobile}:${role}`;
+      lastOtpSentKey.current = mobile;
       setDevOtp(data.data.otp ?? null);
       setOtp(data.data.otp ?? "");
       setOtpStep("otp");
@@ -145,23 +124,8 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
           : data.data.message || data.message || "OTP has been sent on WhatsApp",
       );
     } catch (err) {
-      lastOtpSentKey.current = `${mobile}:${role}`;
-      const msg = apiError(err, "Could not send OTP");
-      const suggested = roleFromMismatchMessage(msg);
-      if (suggested && suggested !== role) {
-        // OTP already issued server-side before ROLE_MISMATCH.
-        setRole(suggested);
-        setOtpStep("otp");
-        setOtp("");
-        setDevOtp(null);
-        showAlert(
-          "Wrong role selected",
-          `${msg}\n\nCorrect role selected: ${ROLE_CHIPS.find((r) => r.key === suggested)?.short}. Enter OTP now.`,
-          [{ text: "OK", style: "primary" }],
-        );
-      } else {
-        showAlert("OTP failed", msg);
-      }
+      lastOtpSentKey.current = mobile;
+      showAlert("OTP failed", apiError(err, "Could not send OTP"));
     } finally {
       setLoading(false);
     }
@@ -179,7 +143,6 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
         mobile,
         otp,
         portal: "agent",
-        role,
         deviceId: await getDeviceId(),
         deviceLabel: getDeviceLabel(),
       });
@@ -336,52 +299,7 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
 
           <View style={styles.panel}>
             <>
-                {!(method === "otp" && otpStep === "otp") ? (
-                  <>
-                    <Text style={styles.label}>CONTINUE AS</Text>
-                    <View style={styles.chipRow}>
-                      {ROLE_CHIPS.map((r) => {
-                        const active = role === r.key;
-                        const Icon = r.Icon;
-                        return (
-                          <Pressable
-                            key={r.key}
-                            onPress={() => {
-                              // Switching role manually starts a fresh login — clear the number so the
-                              // previous role's mobile isn't accidentally submitted under the new role.
-                              // (The auto-correction path in requestOtp deliberately keeps the number.)
-                              if (r.key !== role) {
-                                setMobile("");
-                                lastOtpSentKey.current = null;
-                              }
-                              setRole(r.key);
-                            }}
-                            style={[styles.chip, active && styles.chipActive]}
-                            accessibilityRole="button"
-                            accessibilityState={{ selected: active }}
-                          >
-                            <Icon
-                              size={16}
-                              color={active ? "#3BE39A" : "rgba(255,255,255,0.75)"}
-                              strokeWidth={2.2}
-                            />
-                            <Text style={[styles.chipTitle, active && styles.chipTitleActive]}>{r.short}</Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                    <View style={styles.selectedBanner}>
-                      <Text style={styles.selectedBannerText}>
-                        Signing in as{" "}
-                        <Text style={styles.selectedBannerBold}>
-                          {ROLE_CHIPS.find((r) => r.key === role)?.short}
-                        </Text>
-                      </Text>
-                    </View>
-                  </>
-                ) : null}
-
-                <View style={[styles.methodRow, !(method === "otp" && otpStep === "otp") && { marginTop: 14 }]}>
+                <View style={styles.methodRow}>
                   {(["otp", "password"] as const).map((m) => {
                     const active = method === m;
                     return (
@@ -512,7 +430,7 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
                         {loading ? (
                           <ActivityIndicator color="#fff" />
                         ) : (
-                          <Text style={styles.buttonText}>Login as {roleSignupLabel(role)}  →</Text>
+                          <Text style={styles.buttonText}>Login  →</Text>
                         )}
                       </LinearGradient>
                     </Pressable>
@@ -548,8 +466,11 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
               </>
           </View>
 
-          <Pressable onPress={() => onSignup(role)} style={styles.signupRow}>
-            <Text style={styles.signupLink}>Sign up as {roleSignupLabel(role)}</Text>
+          <Pressable onPress={() => onSignup("retailer")} style={styles.signupRow}>
+            <Text style={styles.signupLink}>New retailer? Sign up</Text>
+          </Pressable>
+          <Pressable onPress={() => onSignup("distributor")} style={styles.signupRow}>
+            <Text style={styles.signupLink}>Become a Distributor — contact us</Text>
           </Pressable>
 
           {__DEV__ ? <Text style={styles.devHint}>Dev API: {API_BASE}</Text> : null}

@@ -1540,6 +1540,14 @@ export async function completeSignup(
     throw new HttpError(401, "Too many attempts — verify mobile OTP again", "OTP_LOCKED");
   }
 
+  if ((["distributor", "super_distributor"] as string[]).includes(input.role)) {
+    throw new HttpError(
+      403,
+      "Distributor and Super Distributor accounts are opened by our team. Submit a partner enquiry and we will contact you.",
+      "PARTNER_SIGNUP_BY_ENQUIRY",
+    );
+  }
+
   const isDirectRetailer = input.role === "direct_retailer";
   const isSuperDirect = input.role === "super_distributor";
   const childRole: "super_distributor" | "distributor" | "retailer" = isDirectRetailer

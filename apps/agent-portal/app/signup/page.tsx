@@ -59,6 +59,10 @@ const ROLE_OPTIONS: { value: SignupRole; label: string }[] = [
   { value: "super_distributor", label: "Super Distributor" },
 ];
 
+function isPartnerRole(role: SignupRole): boolean {
+  return role === "distributor" || role === "super_distributor";
+}
+
 const SPONSOR_ROLE: Record<Exclude<SignupRole, "direct_retailer">, SponsorRole> = {
   super_distributor: "admin",
   distributor: "super_distributor",
@@ -604,7 +608,16 @@ function SignupPageInner() {
       return;
     }
 
+    const q = (searchParams.get("role") || "").trim();
+    if (!existing?.accountCreated && (q === "distributor" || q === "super_distributor" || q === "super")) {
+      router.replace(`/partner-enquiry?role=${q === "super" ? "super_distributor" : q}`);
+      return;
+    }
+
     if (existing) {
+      if (!existing.accountCreated && isPartnerRole(existing.role)) {
+        existing.role = "retailer";
+      }
       setDraft(existing);
       if (existing.accountCreated && existing.stepIndex < 2) {
         setDraft({ ...existing, stepIndex: 2 });
@@ -612,13 +625,7 @@ function SignupPageInner() {
         setDraft({ ...existing, stepIndex: 1 });
       }
     } else {
-      const q = (searchParams.get("role") || "").trim();
-      const fromLogin: SignupRole | null =
-        q === "retailer" || q === "distributor" || q === "super_distributor" || q === "direct_retailer"
-          ? q
-          : q === "super"
-            ? "super_distributor"
-            : null;
+      const fromLogin: SignupRole | null = q === "retailer" || q === "direct_retailer" ? q : null;
       if (fromLogin) {
         setDraft({ ...EMPTY_SIGNUP_DRAFT, role: fromLogin });
       }
@@ -1759,12 +1766,22 @@ function SignupPageInner() {
                     style={inputStyle}
                     disabled={draft.accountCreated || loggedInContinue}
                   >
-                    {ROLE_OPTIONS.map((r) => (
+                    {ROLE_OPTIONS.filter(
+                      (r) => draft.accountCreated || loggedInContinue || !isPartnerRole(r.value),
+                    ).map((r) => (
                       <option key={r.value} value={r.value}>
                         {r.label}
                       </option>
                     ))}
                   </select>
+                  {!(draft.accountCreated || loggedInContinue) ? (
+                    <p className="mt-1 text-xs" style={{ color: B.muted }}>
+                      Want to become a Distributor or Super Distributor?{" "}
+                      <Link href="/partner-enquiry" className="font-semibold" style={{ color: B.blue }}>
+                        Contact us
+                      </Link>
+                    </p>
+                  ) : null}
                 </Field>
                 <Field label="Full Name *">
                   <input
