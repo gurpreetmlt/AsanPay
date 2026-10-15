@@ -111,6 +111,9 @@ export const fundRequests = pgTable(
     voidedAt: timestamp("voided_at", { withTimezone: true }),
     voidedBy: uuid("voided_by").references(() => users.id, { onDelete: "set null" }),
     voidReason: text("void_reason"),
+    // Only requests marked as test entries can be deleted (voided) from Bank entries.
+    testMarkedAt: timestamp("test_marked_at", { withTimezone: true }),
+    testMarkedBy: uuid("test_marked_by").references(() => users.id, { onDelete: "set null" }),
   },
   (table) => [
     // Hard constraint, not an application check: the same UTR into the same bank account can

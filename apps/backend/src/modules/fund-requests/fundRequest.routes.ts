@@ -15,6 +15,7 @@ import {
   linkFundRequestLine,
   rejectFundRequest,
   voidFundRequest,
+  markFundRequestTest,
   cancelFundRequest,
   rematchPending,
   getFundRequest,
@@ -223,5 +224,20 @@ fundRequestRouter.post("/:id/void", requireRole("admin"), async (req, res) => {
     adminId: req.auth.sub,
     reason,
   });
-  sendSuccess(res, { status: "voided", ...result }, "Fund request voided — the credit was reversed");
+  sendSuccess(res, { status: "voided", ...result }, "Test entry deleted — the credit was reversed");
+});
+
+fundRequestRouter.post("/:id/test", requireRole("admin"), async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  if (typeof req.body?.isTest !== "boolean") {
+    throw new HttpError(422, "isTest must be true or false", "VALIDATION_ERROR");
+  }
+  const tenantId = await resolveTenantId();
+  await markFundRequestTest({
+    tenantId,
+    requestId: parseRequestId(paramId(req.params.id)),
+    adminId: req.auth.sub,
+    isTest: req.body.isTest,
+  });
+  sendSuccess(res, { isTest: req.body.isTest }, req.body.isTest ? "Marked as test entry" : "Test mark removed");
 });

@@ -533,7 +533,14 @@ export async function voidFundRequest(params: {
 
     if (!request) throw new HttpError(404, "Fund request not found", "NOT_FOUND");
     if (request.status !== "credited") {
-      throw new HttpError(422, `Only credited requests can be voided — this one is ${request.status}`, "NOT_VOIDABLE");
+      throw new HttpError(422, `Only credited requests can be deleted — this one is ${request.status}`, "NOT_VOIDABLE");
+    }
+    if (!request.testMarkedAt) {
+      throw new HttpError(
+        422,
+        "Only test entries can be deleted. Mark this entry as Test first.",
+        "NOT_MARKED_TEST",
+      );
     }
     if (!request.creditJournalId || !request.receiveJournalId) {
       throw new HttpError(500, "Credited request is missing its journals", "MISSING_JOURNAL");
@@ -591,6 +598,32 @@ export async function voidFundRequest(params: {
 
     return { reversalJournalIds };
   });
+}
+
+/** Flags a credited request as a test entry (or clears the flag). Nothing moves in the ledger. */
+export async function markFundRequestTest(params: {
+  tenantId: string;
+  requestId: bigint;
+  adminId: string;
+  isTest: boolean;
+}): Promise<void> {
+  const [request] = await db
+    .select({ id: fundRequests.id, status: fundRequests.status })
+    .from(fundRequests)
+    .where(and(eq(fundRequests.id, params.requestId), eq(fundRequests.tenantId, params.tenantId)))
+    .limit(1);
+  if (!request) throw new HttpError(404, "Fund request not found", "NOT_FOUND");
+  if (request.status !== "credited") {
+    throw new HttpError(422, `Only credited requests can be marked as test — this one is ${request.status}`, "NOT_CREDITED");
+  }
+  await db
+    .update(fundRequests)
+    .set(
+      params.isTest
+        ? { testMarkedAt: new Date(), testMarkedBy: params.adminId }
+        : { testMarkedAt: null, testMarkedBy: null },
+    )
+    .where(eq(fundRequests.id, request.id));
 }
 
 /**

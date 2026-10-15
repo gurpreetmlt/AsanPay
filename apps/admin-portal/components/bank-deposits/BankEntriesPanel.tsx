@@ -10,8 +10,10 @@ import {
   Download,
   FileSpreadsheet,
   FileText,
+  FlaskConical,
   Paperclip,
   Plus,
+  Trash2,
   Upload,
   X,
 } from "lucide-react";
@@ -65,6 +67,7 @@ interface BankEntry {
   receiptUrl: string | null;
   bankAccountId: string | null;
   fundRequestId: string | null;
+  isTest?: boolean;
   statement: {
     status: StatementStatus;
     line: { id: string; date: string; utr: string | null; narration: string | null; fileName: string | null } | null;
@@ -477,6 +480,7 @@ export function BankEntriesPanel({ onOpenReconciliation }: { onOpenReconciliatio
   const [approveRow, setApproveRow] = useState<BankEntry | null>(null);
   const [rejectRow, setRejectRow] = useState<BankEntry | null>(null);
   const [voidRow, setVoidRow] = useState<BankEntry | null>(null);
+  const [testRow, setTestRow] = useState<BankEntry | null>(null);
   const [canSelfApprove, setCanSelfApprove] = useState(false);
 
   const visibleRows = useMemo(() => {
@@ -632,11 +636,26 @@ export function BankEntriesPanel({ onOpenReconciliation }: { onOpenReconciliatio
     setDecidingId(row.id);
     try {
       await api.post(`/fund-requests/${row.fundRequestId}/void`, { reason });
-      toast.success(`Voided — ${formatInr(row.amount)} taken back from the agent's wallet`);
+      toast.success(`Test entry deleted — ${formatInr(row.amount)} taken back from the agent's wallet`);
       setVoidRow(null);
       await loadRows();
     } catch (err) {
-      toast.error(errMessage(err, "Could not void the fund request"));
+      toast.error(errMessage(err, "Could not delete the test entry"));
+    } finally {
+      setDecidingId(null);
+    }
+  }
+
+  async function setTestMark(row: BankEntry, isTest: boolean) {
+    if (!row.fundRequestId) return;
+    setDecidingId(row.id);
+    try {
+      await api.post(`/fund-requests/${row.fundRequestId}/test`, { isTest });
+      toast.success(isTest ? "Marked as test entry — Delete is now available" : "Test mark removed");
+      setTestRow(null);
+      await loadRows();
+    } catch (err) {
+      toast.error(errMessage(err, "Could not update the test mark"));
     } finally {
       setDecidingId(null);
     }
@@ -1097,17 +1116,42 @@ export function BankEntriesPanel({ onOpenReconciliation }: { onOpenReconciliatio
                                 <FileText size={13} /> Receipt
                               </a>
                             ) : null}
-                            {r.source === "fund_request" && r.fundRequestId ? (
+                            {r.source === "fund_request" && r.fundRequestId && !r.isTest ? (
                               <button
                                 type="button"
                                 disabled={busy}
-                                title="Reverse this credit (test entry or credited by mistake)"
-                                onClick={() => setVoidRow(r)}
-                                className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-white transition hover:-translate-y-0.5 disabled:opacity-40"
-                                style={{ background: RED }}
+                                title="Mark as a test entry so it can be deleted"
+                                onClick={() => setTestRow(r)}
+                                className="inline-flex items-center gap-1 rounded-lg border px-2 py-1.5 text-xs font-semibold disabled:opacity-40"
+                                style={{ borderColor: "#FCD34D", color: "#B45309", background: "#FFFBEB" }}
                               >
-                                <X size={13} /> Void
+                                <FlaskConical size={13} /> Mark test
                               </button>
+                            ) : null}
+                            {r.source === "fund_request" && r.fundRequestId && r.isTest ? (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  title="Remove the test mark"
+                                  onClick={() => void setTestMark(r, false)}
+                                  className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-bold disabled:opacity-40"
+                                  style={{ color: "#B45309", background: "#FEF3C7" }}
+                                >
+                                  <FlaskConical size={12} /> Test
+                                  <X size={11} aria-hidden />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  title="Delete this test entry (the credit is reversed)"
+                                  onClick={() => setVoidRow(r)}
+                                  className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+                                  style={{ background: RED }}
+                                >
+                                  <Trash2 size={13} /> Delete
+                                </button>
+                              </>
                             ) : null}
                             {r.source === "bank_entry" && r.status === "requested" ? (
                               <>
@@ -1188,24 +1232,45 @@ export function BankEntriesPanel({ onOpenReconciliation }: { onOpenReconciliatio
         />
       ) : null}
 
+      {testRow ? (
+        <ConfirmModal
+          title="Mark as test entry?"
+          message={
+            <>
+              {formatInr(testRow.amount)} credited to {testRow.partyName ?? "the agent"} on {formatDate(testRow.txnDate)}
+              {testRow.utr ? ` (UTR ${testRow.utr})` : ""} will be tagged as a test. Nothing moves yet — a Delete
+              button appears on the row. Only mark entries that were never real money.
+            </>
+          }
+          confirmLabel="Mark as test"
+          tone="info"
+          busy={decidingId !== null}
+          onConfirm={() => void setTestMark(testRow, true)}
+          onClose={() => {
+            if (!decidingId) setTestRow(null);
+          }}
+        />
+      ) : null}
+
       {voidRow ? (
         <PromptModal
-          title="Void this fund request?"
+          title="Delete this test entry?"
           message={
             <>
               {formatInr(voidRow.amount)} credited to {voidRow.partyName ?? "the agent"} on {formatDate(voidRow.txnDate)}{" "}
-              will be reversed: taken back from their wallet and removed from the bank balance. The matched statement
-              line goes back to unmatched. The entry is hidden from Bank entries and shows as Voided under Fund
-              requests. This cannot be undone.
+              will be taken back from their wallet and removed from the bank balance. The matched statement line goes
+              back to unmatched. The entry disappears from Bank entries and stays in the audit trail under Fund
+              requests → Deleted. This cannot be undone.
             </>
           }
           label="Reason"
+          initialValue="Test entry"
           placeholder="e.g. Test entry"
           minLength={5}
           tone="danger"
-          confirmLabel="Void and reverse"
+          confirmLabel="Delete"
           busy={decidingId !== null}
-          busyLabel="Reversing…"
+          busyLabel="Deleting…"
           onConfirm={(v) => void voidFundRequest(voidRow, v)}
           onClose={() => {
             if (!decidingId) setVoidRow(null);

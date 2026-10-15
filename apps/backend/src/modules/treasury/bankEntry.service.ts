@@ -430,6 +430,7 @@ export async function listBankEntries(params: {
     providerName: r.providerName,
     agent: null as AgentRef | null,
     fundRequestId: null as string | null,
+    isTest: false,
   }));
 
   // Credited agent fund requests are bank credits too; list them read-only so the register
@@ -598,6 +599,7 @@ async function listCreditedFundRequests(
       submittedAt: fundRequests.submittedAt,
       creditedAt: fundRequests.creditedAt,
       receiveJournalId: fundRequests.receiveJournalId,
+      testMarkedAt: fundRequests.testMarkedAt,
       bankAccountId: fundRequests.bankAccountId,
       bankName: bankAccounts.bankName,
       bankLast4: bankAccounts.accountNumberLast4,
@@ -655,6 +657,7 @@ async function listCreditedFundRequests(
       providerName: null as string | null,
       agent: { name: r.agentName, uid: r.agentUid, mobile: r.agentMobile, role: roleLabel } as AgentRef | null,
       fundRequestId: String(r.id) as string | null,
+      isTest: r.testMarkedAt != null,
     };
   });
 }
