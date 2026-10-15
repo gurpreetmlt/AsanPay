@@ -824,36 +824,6 @@ adminRouter.post("/bank-entries/:id/reject", async (req, res) => {
   sendSuccess(res, { ok: true }, "Bank entry rejected");
 });
 
-adminRouter.post("/bank-entries/:id/reverse", async (req, res) => {
-  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
-  const body = z
-    .object({
-      reason: z.string().trim().min(5, "Reason must be at least 5 characters (e.g. Wrong bank account)"),
-      moveToBankAccountId: z.string().trim().nullable().optional(),
-    })
-    .safeParse(req.body);
-  if (!body.success) {
-    throw new HttpError(422, body.error.issues[0]?.message ?? "Reason is required", "VALIDATION_ERROR");
-  }
-  const { reverseBankEntry } = await import("../treasury/bankEntry.service");
-  const { resolveTenantId } = await import("../fund-requests/tenant");
-  const tenantId = await resolveTenantId();
-  const result = await reverseBankEntry({
-    tenantId,
-    entryId: bankEntryIdParam(req.params.id),
-    adminId: req.auth.sub,
-    reason: body.data.reason,
-    moveToBankAccountId: body.data.moveToBankAccountId || null,
-  });
-  sendSuccess(
-    res,
-    result,
-    result.newEntryId
-      ? `Entry reversed. New entry #${result.newEntryId} created on the other bank — approve it to post.`
-      : "Bank entry reversed",
-  );
-});
-
 adminRouter.post("/ledger/recon/run", async (_req, res) => {
   const { runAndPersistReconciliation } = await import("../reconciliation/reports");
   const { resolveTenantId } = await import("../fund-requests/tenant");

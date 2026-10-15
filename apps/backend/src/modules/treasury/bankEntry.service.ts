@@ -621,7 +621,7 @@ export async function listBankEntries(params: {
   const maker = alias(users, "bank_entry_maker");
   const checker = alias(users, "bank_entry_checker");
 
-  const conditions = [eq(bankEntries.tenantId, params.tenantId)];
+  const conditions = [eq(bankEntries.tenantId, params.tenantId), isNull(bankEntries.reversedAt)];
   if (params.status) conditions.push(eq(bankEntries.status, params.status));
   if (params.from) conditions.push(gte(bankEntries.txnDate, params.from));
   if (params.to) conditions.push(lte(bankEntries.txnDate, params.to));
