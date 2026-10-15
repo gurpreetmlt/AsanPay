@@ -16,6 +16,7 @@ import {
   Send,
   Settings,
   TrendingUp,
+  UserPlus,
   Users,
   Wallet,
   Zap,
@@ -211,6 +212,17 @@ export function PartnerHomeScreen() {
             </View>
           </Pressable>
 
+          <Pressable style={styles.inviteCta} onPress={() => go("Network", { invite: Date.now() })}>
+            <View style={styles.inviteIcon}>
+              <UserPlus size={20} color={colors.green} strokeWidth={2.4} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.inviteTitle}>Invite {isSd ? "Distributor" : "Retailer"}</Text>
+              <Text style={styles.inviteSub}>Send a signup link by email or WhatsApp</Text>
+            </View>
+            <ChevronRight size={20} color="#fff" strokeWidth={2.6} />
+          </Pressable>
+
           <Text style={[styles.section, { color: tokens.txt }]}>My Network</Text>
           <View style={styles.bigTileRow}>
             {networkTiles.map((t) => (
@@ -383,6 +395,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  inviteCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: colors.green,
+    borderRadius: 16,
+    padding: 14,
+    marginTop: 12,
+  },
+  inviteIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  inviteTitle: { color: "#fff", fontSize: 16, fontWeight: "800" },
+  inviteSub: { color: "rgba(255,255,255,0.88)", fontSize: 12, marginTop: 2 },
   section: { fontSize: 17, fontWeight: "800", marginTop: 22, marginBottom: 10 },
   bigTileRow: { flexDirection: "row", gap: 10 },
   bigTile: {
