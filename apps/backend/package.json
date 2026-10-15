@@ -31,6 +31,7 @@
     "provision:float": "tsx scripts/provisionProviderFloat.ts",
     "cleanup:shim": "tsx scripts/cleanupShimCatalog.ts",
     "cleanup:eko": "tsx scripts/cleanupEkoProvider.ts",
+    "wallet:resync": "tsx scripts/resyncWalletMirrors.ts",
     "verify:ledger": "tsx scripts/verifyLedgerEngine.ts",
     "verify:shim": "tsx scripts/verifyWalletShim.ts",
     "verify:load": "tsx scripts/verifyLedgerLoad.ts",

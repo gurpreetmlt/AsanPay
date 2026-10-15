@@ -12,6 +12,7 @@ import {
 } from "../../db/postgres/schema";
 import { postJournal, resolveAccount, reverseJournal, type Tx } from "../../core/ledger";
 import { ensureHierarchyAccount } from "../wallet/ledgerAccounts";
+import { syncWalletsAfterJournal } from "../wallet/wallet.ledger";
 import { normaliseUtr } from "../banking/banking.service";
 import { matchFundRequest, claimStatementLine } from "./matching";
 import { HttpError } from "../../utils/httpError";
@@ -428,6 +429,12 @@ async function creditRequest(
     ],
   });
 
+  await syncWalletsAfterJournal(tx, request.tenantId, [request.requesterUserId], {
+    referenceType: "fund_request",
+    referenceId: String(request.id),
+    description: "Fund request credited",
+  });
+
   await tx
     .update(fundRequests)
     .set({
@@ -592,6 +599,12 @@ export async function voidFundRequest(params: {
       }
       throw err;
     }
+
+    await syncWalletsAfterJournal(tx, params.tenantId, [request.requesterUserId], {
+      referenceType: "fund_request",
+      referenceId: String(request.id),
+      description: "Fund request reversed",
+    });
 
     await tx.execute(sql`
       UPDATE bank_statement_lines

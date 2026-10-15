@@ -431,6 +431,21 @@ async function openGroup(
   return group.id;
 }
 
+/**
+ * For money paths that post journals directly (fund requests): refresh `wallets.balance` from
+ * the ledger and add the matching passbook rows, inside the caller's transaction.
+ */
+export async function syncWalletsAfterJournal(
+  tx: Tx,
+  tenantId: string,
+  userIds: readonly string[],
+  ref: { referenceType: string; referenceId?: string; description?: string },
+): Promise<void> {
+  const groupId = await openGroup(tx, ref);
+  const mirrored = await mirrorBalances(tx, tenantId, userIds, true);
+  await writeLegacyEntries(tx, groupId, mirrored);
+}
+
 // ---------------------------------------------------------------------------------------
 // Public API — unchanged signatures
 // ---------------------------------------------------------------------------------------
