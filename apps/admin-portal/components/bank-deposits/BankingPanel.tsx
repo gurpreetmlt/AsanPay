@@ -65,6 +65,7 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
   const [vanNumber, setVanNumber] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<BankAccount | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [viewTarget, setViewTarget] = useState<BankAccount | null>(null);
   const [vpa, setVpa] = useState("");
   const [vanRows, setVanRows] = useState<
     Array<{
@@ -524,6 +525,7 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
                         </td>
                         <td className="px-4 py-3">
                           <TableActionButtons
+                            onView={() => setViewTarget(a)}
                             onEdit={() => startEdit(a)}
                             onToggleActive={() => void toggleActive(a)}
                             toggleActiveTitle={a.isActive ? "Disable" : "Enable"}
@@ -745,6 +747,8 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
         />
       ) : null}
 
+      {viewTarget ? <BankViewModal bank={viewTarget} onClose={() => setViewTarget(null)} /> : null}
+
       {reviewOpen ? (
         <ConfirmModal
           tone="info"
@@ -785,6 +789,89 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
 }
 
 const PURPOSE_TEXT: Record<Purpose, string> = { collection: "Collection", payout: "Payout", ops: "Operations" };
+
+interface BankFullDetails {
+  accountNumber: string;
+  ledgerBalance: string;
+  ledgerCode: string;
+}
+
+function BankViewModal({ bank, onClose }: { bank: BankAccount; onClose: () => void }) {
+  const [full, setFull] = useState<BankFullDetails | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchApi<BankFullDetails>(`/admin/treasury/banks/${bank.id}/details`)
+      .then((d) => {
+        if (!cancelled) setFull(d);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(errMessage(err, `Could not load the full account number for ${bank.bankName}`));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [bank.id, bank.bankName]);
+
+  const accountNumber = full?.accountNumber ?? `••••${bank.accountNumberLast4}`;
+
+  function copyAll() {
+    const lines = [
+      bank.accountType ? `Account Type: ${bank.accountType.charAt(0).toUpperCase()}${bank.accountType.slice(1)}` : null,
+      `Account Number: ${accountNumber}`,
+      bank.holderName ? `Account Name: ${bank.holderName}` : null,
+      `Bank Name: ${bank.bankName}`,
+      `Bank IFSC: ${bank.ifsc}`,
+      bank.branchCode ? `Branch Code: ${bank.branchCode}` : null,
+      bank.branchName ? `Branch Name: ${bank.branchName}` : null,
+    ].filter(Boolean);
+    void navigator.clipboard?.writeText(lines.join("\n"));
+    toast.success("Bank details copied");
+  }
+
+  return (
+    <ConfirmModal
+      tone="info"
+      title={`${bank.bankName} ••${bank.accountNumberLast4}`}
+      message={
+        <>
+          <BankDetailsCard
+            ifsc={bank.ifsc}
+            bankName={bank.bankName}
+            accountNumber={accountNumber}
+            holderName={bank.holderName}
+            accountType={bank.accountType}
+            branchName={bank.branchName}
+            branchCode={bank.branchCode}
+            purpose={bank.purpose}
+            supportsVan={bank.supportsVan}
+            status={bank.isActive ? "Active" : "Disabled"}
+          />
+          {full ? (
+            <div className="mt-3 rounded-xl border px-4 py-2" style={{ borderColor: B.border }}>
+              <ConfirmRow label="Ledger balance">
+                ₹{Number(full.ledgerBalance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+              </ConfirmRow>
+              <ConfirmRow label="Ledger code">
+                <span className="break-all font-mono text-xs">{full.ledgerCode}</span>
+              </ConfirmRow>
+            </div>
+          ) : null}
+          {error ? (
+            <p className="mt-3 text-xs font-semibold" style={{ color: B.danger }}>
+              {error}
+            </p>
+          ) : null}
+        </>
+      }
+      confirmLabel="Copy full bank details"
+      cancelLabel="Close"
+      onConfirm={copyAll}
+      onClose={onClose}
+    />
+  );
+}
 
 function BankDetailsCard(props: {
   ifsc: string;

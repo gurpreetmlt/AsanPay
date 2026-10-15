@@ -512,7 +512,7 @@ function BankDetailsModal({ bank, onClose }: { bank: BankCard; onClose: () => vo
       aria-label={`${bank.bankName} details`}
     >
       <div
-        className="w-full max-w-md rounded-2xl bg-white p-5"
+        className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-5"
         style={{ boxShadow: "0 20px 50px rgba(15,23,42,0.25)" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -547,10 +547,13 @@ function BankDetailsModal({ bank, onClose }: { bank: BankCard; onClose: () => vo
           </p>
         ) : (
           <>
-            <dl className="divide-y rounded-xl border" style={{ borderColor: B.border }}>
+            <dl
+              className="grid grid-cols-1 gap-px overflow-hidden rounded-xl border md:grid-cols-2"
+              style={{ borderColor: B.border, background: B.border }}
+            >
               {rows.map((r) => (
-                <div key={r.label} className="flex items-center gap-3 px-3 py-2.5" style={{ borderColor: B.border }}>
-                  <dt className="w-40 shrink-0 text-xs font-semibold" style={{ color: CARD_MUTED }}>
+                <div key={r.label} className="flex items-center gap-3 bg-white px-3 py-2.5">
+                  <dt className="w-32 shrink-0 text-xs font-semibold" style={{ color: CARD_MUTED }}>
                     {r.label}
                   </dt>
                   <dd
@@ -573,6 +576,7 @@ function BankDetailsModal({ bank, onClose }: { bank: BankCard; onClose: () => vo
                   ) : null}
                 </div>
               ))}
+              {rows.length % 2 === 1 ? <div className="hidden bg-white md:block" aria-hidden /> : null}
             </dl>
             {missingFields.length > 0 ? (
               <p

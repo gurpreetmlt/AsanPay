@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -22,6 +23,7 @@ import {
   ArrowLeft,
   Building2,
   ChevronRight,
+  ClipboardList,
   CreditCard,
   HelpCircle,
   Info,
@@ -77,7 +79,32 @@ function newIdemKey() {
   return `fr-mobile-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`.slice(0, 100);
 }
 
-type Step = "home" | "upi" | "bank" | "cashSelect" | "confirm";
+type Step = "home" | "upi" | "bank" | "cashSelect" | "confirm" | "history";
+
+interface FundRequestRow {
+  id: string;
+  amount: string;
+  paymentMode: string;
+  referenceNumber: string | null;
+  status: string;
+  displayStatus: string;
+  submittedAt: string;
+  creditedAmount: string | null;
+}
+
+function statusTone(status: string, display: string): { bg: string; fg: string; border: string } {
+  const s = `${status} ${display}`.toLowerCase();
+  if (s.includes("credit") || s.includes("approved") || s.includes("success")) {
+    return { bg: "#F0FDF4", fg: "#15803D", border: "#86EFAC" };
+  }
+  if (s.includes("reject") || s.includes("fail") || s.includes("cancel") || s.includes("void") || s.includes("revers")) {
+    return { bg: "#FEF2F2", fg: "#B91C1C", border: "#FECACA" };
+  }
+  if (s.includes("pending") || s.includes("review") || s.includes("submit") || s.includes("verif")) {
+    return { bg: "#FFF7ED", fg: "#C2410C", border: "#FDBA74" };
+  }
+  return { bg: "#EEF2FF", fg: colors.blueFlat, border: "#C7D2FE" };
+}
 type ConfirmMode = "upi" | "neft" | "cash_deposit";
 
 interface ConfirmPrefill {
@@ -160,6 +187,7 @@ export function FundRequestModal({ visible, onClose }: { visible: boolean; onClo
           <HomeStep
             walletBalance={walletBalance}
             onClose={close}
+            onHistory={() => setStep("history")}
             onCash={() =>
               goConfirm({
                 mode: "cash_deposit",
@@ -196,6 +224,8 @@ export function FundRequestModal({ visible, onClose }: { visible: boolean; onClo
               })
             }
           />
+        ) : step === "history" ? (
+          <HistoryStep onBack={() => setStep("home")} />
         ) : step === "cashSelect" ? (
           <CashSelectStep
             onBack={() => setStep("home")}
@@ -265,10 +295,12 @@ function HomeStep({
   walletBalance,
   onClose,
   onCash,
+  onHistory,
 }: {
   walletBalance: string | null;
   onClose: () => void;
   onCash: () => void;
+  onHistory: () => void;
 }) {
   const { tokens } = useTheme();
   return (
@@ -291,9 +323,112 @@ function HomeStep({
           onPress={onCash}
         />
       </View>
+
+      <Text style={[styles.groupLabel, { color: tokens.txt }]}>History</Text>
+      <View style={[styles.card, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
+        <OptionRow
+          icon={ClipboardList}
+          title="My fund requests"
+          subtitle="Status of every request — credited, under review, rejected or reversed"
+          tokens={tokens}
+          onPress={onHistory}
+        />
+      </View>
     </ScrollView>
   );
 }
+
+function HistoryStep({ onBack }: { onBack: () => void }) {
+  const { tokens } = useTheme();
+  const [rows, setRows] = useState<FundRequestRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setRows(await fetchApi<FundRequestRow[]>("/fund-requests", { status: "all", limit: 30 }));
+    } catch (err) {
+      setError((err as Error).message || "Could not load your fund requests. Pull down or tap Refresh to try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  return (
+    <ScrollView
+      contentContainerStyle={styles.content}
+      refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void load()} />}
+    >
+      <ScreenTop title="My fund requests" onBack={onBack} />
+      {error ? (
+        <View style={[styles.noticeBanner, { backgroundColor: "#FEE2E2" }]}>
+          <Info size={16} color="#B91C1C" />
+          <Text style={[styles.noticeText, { color: "#B91C1C" }]}>{error}</Text>
+        </View>
+      ) : null}
+      {!loading && !error && rows.length === 0 ? (
+        <View style={historyStyles.empty}>
+          <ClipboardList size={28} color={tokens.mute} />
+          <Text style={[historyStyles.emptyTitle, { color: tokens.txt }]}>No fund requests yet</Text>
+          <Text style={[historyStyles.emptySub, { color: tokens.sub }]}>
+            Deposit at a company bank, then submit a request from Add Money.
+          </Text>
+        </View>
+      ) : null}
+      {rows.map((r) => {
+        const tone = statusTone(r.status, r.displayStatus);
+        return (
+          <View
+            key={r.id}
+            style={[historyStyles.row, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={[historyStyles.amount, { color: tokens.txt }]}>{formatINR(r.amount)}</Text>
+              {r.creditedAmount ? (
+                <Text style={historyStyles.credited}>Credited {formatINR(r.creditedAmount)}</Text>
+              ) : null}
+              <Text style={[historyStyles.meta, { color: tokens.sub }]}>
+                {r.paymentMode.replace(/_/g, " ").toUpperCase()} · {r.referenceNumber || "No UTR"}
+              </Text>
+              <Text style={[historyStyles.meta, { color: tokens.mute }]}>
+                {new Date(r.submittedAt).toLocaleString("en-IN")}
+              </Text>
+            </View>
+            <View style={[historyStyles.pill, { backgroundColor: tone.bg, borderColor: tone.border }]}>
+              <Text style={[historyStyles.pillText, { color: tone.fg }]}>{r.displayStatus || r.status}</Text>
+            </View>
+          </View>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
+const historyStyles = StyleSheet.create({
+  row: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
+    gap: 10,
+  },
+  amount: { fontSize: 16, fontWeight: "800" },
+  credited: { fontSize: 12, fontWeight: "600", color: "#15803D", marginTop: 2 },
+  meta: { fontSize: 12, marginTop: 3 },
+  pill: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4, maxWidth: 150 },
+  pillText: { fontSize: 11, fontWeight: "800", textAlign: "center" },
+  empty: { alignItems: "center", paddingVertical: 40, gap: 6 },
+  emptyTitle: { fontSize: 15, fontWeight: "700" },
+  emptySub: { fontSize: 12, textAlign: "center" },
+});
 
 function OptionRow({
   icon: Icon,

@@ -55,6 +55,7 @@ export function ActionIconButton({
 /** AsanPay table action icon row (Edit / Details / Power / Delete / …). */
 export function TableActionButtons({
   viewHref,
+  onView,
   onEdit,
   onDelete,
   onBan,
@@ -69,6 +70,7 @@ export function TableActionButtons({
   className,
 }: {
   viewHref?: string;
+  onView?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
   onBan?: () => void;
@@ -100,6 +102,11 @@ export function TableActionButtons({
         >
           <Eye className="h-4 w-4" strokeWidth={2.25} />
         </Link>
+      ) : null}
+      {onView ? (
+        <ActionIconButton title="View details" tone="blue" onClick={onView}>
+          <Eye className="h-4 w-4" strokeWidth={2.25} />
+        </ActionIconButton>
       ) : null}
       {onEdit ? (
         <ActionIconButton title="Edit" tone="blue" onClick={onEdit}>

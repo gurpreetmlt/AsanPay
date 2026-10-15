@@ -139,7 +139,7 @@ function statusTone(status: string, display: string): { bg: string; fg: string; 
   if (s.includes("credit") || s.includes("approved") || s.includes("success")) {
     return { bg: "#F0FDF4", fg: "#15803D", border: "#86EFAC" };
   }
-  if (s.includes("reject") || s.includes("fail") || s.includes("cancel")) {
+  if (s.includes("reject") || s.includes("fail") || s.includes("cancel") || s.includes("void") || s.includes("revers")) {
     return { bg: "#FEF2F2", fg: "#B91C1C", border: "#FECACA" };
   }
   if (s.includes("pending") || s.includes("review") || s.includes("submit")) {
