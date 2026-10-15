@@ -7,7 +7,9 @@ import {
   IfscBankDetailsFields,
   type IfscBankDetailsValue,
 } from "@/components/banking/IfscBankDetailsFields";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { DangerConfirmModal } from "@/components/ui/DangerConfirmModal";
+import { bankLogoUrl } from "@/lib/bankLogo";
 import { AgentConfirmModal, ConfirmRow } from "@/components/users/AgentConfirmModal";
 import { TableActionButtons } from "@/components/ui/TableActionButtons";
 import api, { fetchApi } from "@/lib/api";
@@ -62,6 +64,7 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
   const [vanBankId, setVanBankId] = useState("");
   const [vanNumber, setVanNumber] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<BankAccount | null>(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
   const [vpa, setVpa] = useState("");
   const [vanRows, setVanRows] = useState<
     Array<{
@@ -137,6 +140,11 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
       toast.error("Branch code must be letters or digits only, e.g. 06738");
       return;
     }
+    setReviewOpen(true);
+  }
+
+  async function saveBank() {
+    const ifsc = bankDetails.ifsc.trim().toUpperCase();
     const profileBody = {
       holderName: profile.holderName.trim(),
       accountType: profile.accountType,
@@ -168,6 +176,7 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
         });
         toast.success("Bank account registered");
       }
+      setReviewOpen(false);
       setBankDetails(emptyIfscBankDetails());
       setSupportsVan(false);
       setProfile(emptyProfile);
@@ -703,16 +712,24 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
           title="Delete this bank?"
           message={
             <>
-              <p>
-                You are about to remove{" "}
-                <span className="font-semibold" style={{ color: B.blue }}>
-                  {deleteTarget.bankName} ****{deleteTarget.accountNumberLast4}
-                </span>{" "}
-                ({deleteTarget.ifsc}).
-              </p>
-              <p className="mt-2">
-                It will disappear from Banking and Add Money. Linked history stays in the database.
-                This cannot be undone from the admin UI.
+              <BankDetailsCard
+                ifsc={deleteTarget.ifsc}
+                bankName={deleteTarget.bankName}
+                accountNumber={`••••${deleteTarget.accountNumberLast4}`}
+                holderName={deleteTarget.holderName}
+                accountType={deleteTarget.accountType}
+                branchName={deleteTarget.branchName}
+                branchCode={deleteTarget.branchCode}
+                purpose={deleteTarget.purpose}
+                supportsVan={deleteTarget.supportsVan}
+                status={deleteTarget.isActive ? "Active" : "Disabled"}
+              />
+              <p
+                className="mt-3 rounded-xl px-3 py-2 text-xs font-semibold"
+                style={{ background: "#FEE2E2", color: "#B91C1C" }}
+              >
+                It will disappear from Banking and Add Money. Linked history stays in the database. This cannot be
+                undone from the admin UI.
               </p>
             </>
           }
@@ -727,7 +744,98 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
           }}
         />
       ) : null}
+
+      {reviewOpen ? (
+        <ConfirmModal
+          tone="info"
+          title={editingId ? "Save changes to this bank?" : "Register this bank account?"}
+          message={
+            <>
+              <BankDetailsCard
+                ifsc={bankDetails.ifsc.trim().toUpperCase()}
+                bankName={bankDetails.bankName.trim()}
+                accountNumber={bankDetails.accountNumber.trim() || "Unchanged"}
+                holderName={profile.holderName.trim()}
+                accountType={profile.accountType}
+                branchName={profile.branchName.trim() || bankDetails.branch.trim()}
+                branchCode={profile.branchCode.trim()}
+                city={bankDetails.city.trim()}
+                purpose={purpose}
+                supportsVan={supportsVan}
+              />
+              <p
+                className="mt-3 rounded-xl px-3 py-2 text-xs font-semibold"
+                style={{ background: "#FEF3C7", color: "#92400E" }}
+              >
+                Match every line with the passbook. Agents see these details when they add money to this bank.
+              </p>
+            </>
+          }
+          confirmLabel={editingId ? "Save changes" : "Register account"}
+          busy={saving}
+          busyLabel="Saving…"
+          onConfirm={() => void saveBank()}
+          onClose={() => {
+            if (!saving) setReviewOpen(false);
+          }}
+        />
+      ) : null}
     </>
+  );
+}
+
+const PURPOSE_TEXT: Record<Purpose, string> = { collection: "Collection", payout: "Payout", ops: "Operations" };
+
+function BankDetailsCard(props: {
+  ifsc: string;
+  bankName: string;
+  accountNumber: string;
+  holderName?: string | null;
+  accountType?: string | null;
+  branchName?: string | null;
+  branchCode?: string | null;
+  city?: string | null;
+  purpose: Purpose;
+  supportsVan: boolean;
+  status?: string;
+}) {
+  const missing = <span style={{ color: "#B45309" }}>Not added</span>;
+  return (
+    <div className="mt-3 rounded-2xl border px-4 py-3" style={{ borderColor: B.border, background: "var(--admin-card)" }}>
+      <div className="mb-2 flex items-center gap-3 border-b pb-2" style={{ borderColor: B.border }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={bankLogoUrl(props.ifsc)}
+          alt=""
+          className="h-10 w-10 rounded-xl border bg-white object-contain p-1"
+          style={{ borderColor: B.border }}
+          onError={(e) => {
+            e.currentTarget.style.visibility = "hidden";
+          }}
+        />
+        <div className="min-w-0">
+          <p className="truncate text-base font-bold" style={{ color: B.blue }}>
+            {props.bankName}
+          </p>
+          <p className="font-mono text-xs" style={{ color: B.muted }}>
+            {props.ifsc}
+          </p>
+        </div>
+      </div>
+      <ConfirmRow label="Account type">
+        {props.accountType ? props.accountType.charAt(0).toUpperCase() + props.accountType.slice(1) : missing}
+      </ConfirmRow>
+      <ConfirmRow label="Account number">
+        <span className="font-mono">{props.accountNumber}</span>
+      </ConfirmRow>
+      <ConfirmRow label="Account name">{props.holderName || missing}</ConfirmRow>
+      <ConfirmRow label="Branch name">{props.branchName || missing}</ConfirmRow>
+      <ConfirmRow label="Branch code">{props.branchCode ? <span className="font-mono">{props.branchCode}</span> : missing}</ConfirmRow>
+      {props.city ? <ConfirmRow label="City">{props.city}</ConfirmRow> : null}
+      <ConfirmRow label="Purpose">{PURPOSE_TEXT[props.purpose]}</ConfirmRow>
+      <ConfirmRow label="Virtual accounts (VAN)">{props.supportsVan ? "Supported" : "Not supported"}</ConfirmRow>
+      {props.status ? <ConfirmRow label="Status">{props.status}</ConfirmRow> : null}
+    </div>
   );
 }
 
