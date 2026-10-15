@@ -745,6 +745,54 @@ main button:not(:disabled):not(.tab-chip):active {
   }
 }
 
+/* Native file pickers: make "Choose file" look like a real button */
+input[type="file"]:not(.hidden) {
+  cursor: pointer;
+  font-size: 0.8125rem;
+  color: var(--admin-muted, #64748b);
+}
+input[type="file"]::file-selector-button {
+  margin-right: 0.75rem;
+  padding: 0.5rem 0.95rem 0.5rem 2rem;
+  border: 0;
+  border-radius: 0.75rem;
+  background: #2a5cdd
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'%3E%3Cpath d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/%3E%3Cpolyline points='17 8 12 3 7 8'/%3E%3Cline x1='12' y1='3' x2='12' y2='15'/%3E%3C/svg%3E")
+    no-repeat 0.75rem center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(42, 92, 221, 0.28);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease;
+}
+input[type="file"]:hover::file-selector-button {
+  background-color: #1e46b8;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(42, 92, 221, 0.35);
+}
+input[type="file"]:active::file-selector-button {
+  transform: translateY(0) scale(0.97);
+}
+input[type="file"]:disabled,
+input[type="file"]:disabled::file-selector-button {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  input[type="file"]::file-selector-button {
+    transition: none;
+  }
+  input[type="file"]:hover::file-selector-button,
+  input[type="file"]:active::file-selector-button {
+    transform: none;
+  }
+}
+
 /* Danger confirm modal (bank delete etc.) */
 @keyframes danger-backdrop-in {
   from {
