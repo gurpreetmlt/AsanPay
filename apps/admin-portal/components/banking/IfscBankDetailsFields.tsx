@@ -166,11 +166,9 @@ export function IfscBankDetailsFields({
               onChange={(e) => onChange({ branch: e.target.value.slice(0, 120) })}
               placeholder={busy ? "Looking up…" : "Auto from IFSC — edit as on passbook"}
             />
-            {value.city ? (
-              <span className="mt-1 block text-xs" style={{ color: "var(--admin-muted)" }}>
-                City: {value.city}
-              </span>
-            ) : null}
+            <span className="mt-1 block text-xs" style={{ color: "var(--admin-muted)" }}>
+              Branch only, e.g. MALOUT — city goes below
+            </span>
           </>
         ) : (
           <input
@@ -183,6 +181,25 @@ export function IfscBankDetailsFields({
           />
         )}
       </label>
+
+      {editableBankBranch ? (
+        <label className="block text-sm">
+          <span className={labelCls} style={{ color: "var(--admin-muted)" }}>
+            City / District
+          </span>
+          <input
+            className={inputBase}
+            style={editStyle}
+            value={value.city}
+            disabled={disabled}
+            onChange={(e) => onChange({ city: e.target.value.slice(0, 120) })}
+            placeholder={busy ? "Looking up…" : "e.g. Muktsar Distt"}
+          />
+          <span className="mt-1 block text-xs" style={{ color: "var(--admin-muted)" }}>
+            IFSC data can be wrong — correct it as on the passbook
+          </span>
+        </label>
+      ) : null}
 
       <label className={`block text-sm ${showHolder || showConfirmAccount ? "" : "lg:col-span-2"}`}>
         <span className={labelCls} style={{ color: "var(--admin-muted)" }}>

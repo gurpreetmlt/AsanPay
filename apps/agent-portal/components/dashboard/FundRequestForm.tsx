@@ -33,6 +33,7 @@ interface BankAccount {
   accountType?: string | null;
   branchName?: string | null;
   branchCode?: string | null;
+  city?: string | null;
 }
 
 interface MyVan {
@@ -218,6 +219,7 @@ function BankCardSlider({
                     ifsc: b.ifsc,
                     branch: b.branchName,
                     branchCode: b.branchCode,
+                    city: b.city || undefined,
                   }),
                 )
                 .then(() => toast.success("Bank details copied"))

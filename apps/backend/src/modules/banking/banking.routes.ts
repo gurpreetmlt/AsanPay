@@ -173,6 +173,7 @@ bankingRouter.post(
       accountType: body.accountType,
       branchName: body.branchName,
       branchCode: body.branchCode,
+      city: body.city,
     });
     sendSuccess(
       res,
@@ -204,6 +205,7 @@ bankingRouter.patch(
       accountType: body.accountType,
       branchName: body.branchName,
       branchCode: body.branchCode,
+      city: body.city,
     });
     sendSuccess(res, result, "Bank account updated");
   },

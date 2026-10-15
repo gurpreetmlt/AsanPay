@@ -35,6 +35,7 @@ interface BankAccount {
   accountType?: string | null;
   branchName?: string | null;
   branchCode?: string | null;
+  city?: string | null;
 }
 
 type AccountType = "current" | "savings";
@@ -161,6 +162,7 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
       accountType: profile.accountType,
       branchName: bankDetails.branch.trim(),
       branchCode: profile.branchCode.trim(),
+      city: bankDetails.city.trim(),
     };
     setSaving(true);
     try {
@@ -208,6 +210,7 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
       ifsc: a.ifsc,
       bankName: a.bankName,
       branch: a.branchName ?? "",
+      city: a.city ?? "",
       accountNumber: "",
     });
     setPurpose(a.purpose);
@@ -767,6 +770,8 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
                 accountType={deleteTarget.accountType}
                 branchName={deleteTarget.branchName}
                 branchCode={deleteTarget.branchCode}
+                city={deleteTarget.city}
+                showCity
                 purpose={deleteTarget.purpose}
                 supportsVan={deleteTarget.supportsVan}
                 status={deleteTarget.isActive ? "Active" : "Disabled"}
@@ -809,6 +814,7 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
                 branchName={bankDetails.branch.trim()}
                 branchCode={profile.branchCode.trim()}
                 city={bankDetails.city.trim()}
+                showCity
                 purpose={purpose}
                 supportsVan={supportsVan}
               />
@@ -873,7 +879,7 @@ function BankViewModal({ bank, onClose }: { bank: BankAccount; onClose: () => vo
 
   const accountNumber = full?.accountNumber ?? `••••${bank.accountNumberLast4}`;
   const branch = bank.branchName || ifscBranch;
-  const notSaved = !bank.holderName || !bank.accountType || !bank.branchName;
+  const notSaved = !bank.holderName || !bank.accountType || !bank.branchName || !bank.city;
 
   function copyAll() {
     const lines = [
@@ -884,6 +890,7 @@ function BankViewModal({ bank, onClose }: { bank: BankAccount; onClose: () => vo
       `Bank IFSC: ${bank.ifsc}`,
       bank.branchCode ? `Branch Code: ${bank.branchCode}` : null,
       branch ? `Branch Name: ${branch}` : null,
+      bank.city ? `City: ${bank.city}` : null,
     ].filter(Boolean);
     void navigator.clipboard?.writeText(lines.join("\n"));
     toast.success("Bank details copied");
@@ -903,6 +910,8 @@ function BankViewModal({ bank, onClose }: { bank: BankAccount; onClose: () => vo
             accountType={bank.accountType}
             branchName={bank.branchName || (ifscBranch ? `${ifscBranch} (from IFSC, not saved)` : null)}
             branchCode={bank.branchCode}
+            city={bank.city}
+            showCity
             purpose={bank.purpose}
             supportsVan={bank.supportsVan}
             status={bank.isActive ? "Active" : "Disabled"}
@@ -950,6 +959,8 @@ function BankDetailsCard(props: {
   branchName?: string | null;
   branchCode?: string | null;
   city?: string | null;
+  /** Always show the City / District row (with "Not added" when empty). */
+  showCity?: boolean;
   purpose: Purpose;
   supportsVan: boolean;
   status?: string;
@@ -986,7 +997,7 @@ function BankDetailsCard(props: {
       <ConfirmRow label="Account name">{props.holderName || missing}</ConfirmRow>
       <ConfirmRow label="Branch name">{props.branchName || missing}</ConfirmRow>
       <ConfirmRow label="Branch code">{props.branchCode ? <span className="font-mono">{props.branchCode}</span> : missing}</ConfirmRow>
-      {props.city ? <ConfirmRow label="City">{props.city}</ConfirmRow> : null}
+      {props.showCity || props.city ? <ConfirmRow label="City / District">{props.city || missing}</ConfirmRow> : null}
       <ConfirmRow label="Purpose">{PURPOSE_TEXT[props.purpose]}</ConfirmRow>
       <ConfirmRow label="Virtual accounts (VAN)">{props.supportsVan ? "Supported" : "Not supported"}</ConfirmRow>
       {props.status ? <ConfirmRow label="Status">{props.status}</ConfirmRow> : null}

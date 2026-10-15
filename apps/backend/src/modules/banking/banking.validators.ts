@@ -9,6 +9,7 @@ const bankProfileFields = {
   holderName: z.string().trim().max(160, "Account name must be 160 characters or fewer").optional(),
   accountType: z.enum(["current", "savings"], { message: "Account type must be Current or Savings" }).optional(),
   branchName: z.string().trim().max(120, "Branch name must be 120 characters or fewer").optional(),
+  city: z.string().trim().max(120, "City / District must be 120 characters or fewer").optional(),
   branchCode: z
     .string()
     .trim()

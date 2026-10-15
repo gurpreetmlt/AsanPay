@@ -414,6 +414,13 @@
       "when": 1790900000000,
       "tag": "0058_bank_entry_reverse",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1791000000000,
+      "tag": "0059_bank_account_city",
+      "breakpoints": true
     }
   ]
 }

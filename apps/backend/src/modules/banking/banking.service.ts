@@ -247,6 +247,7 @@ export interface BankProfileInput {
   accountType?: "current" | "savings";
   branchName?: string;
   branchCode?: string;
+  city?: string;
 }
 
 /** Only keys that were sent; an empty string clears the stored value. */
@@ -256,6 +257,7 @@ function bankProfilePatch(p: BankProfileInput): Partial<typeof bankAccounts.$inf
   if (p.accountType !== undefined) patch.accountType = p.accountType;
   if (p.branchName !== undefined) patch.branchName = p.branchName.trim() || null;
   if (p.branchCode !== undefined) patch.branchCode = p.branchCode.trim().toUpperCase() || null;
+  if (p.city !== undefined) patch.city = p.city.trim() || null;
   return patch;
 }
 
@@ -433,6 +435,7 @@ export async function listBankAccounts(
     accountType: string | null;
     branchName: string | null;
     branchCode: string | null;
+    city: string | null;
   }>
 > {
   const conditions = [eq(bankAccounts.tenantId, tenantId), isNull(bankAccounts.deletedAt)];
@@ -452,6 +455,7 @@ export async function listBankAccounts(
       accountType: bankAccounts.accountType,
       branchName: bankAccounts.branchName,
       branchCode: bankAccounts.branchCode,
+      city: bankAccounts.city,
     })
     .from(bankAccounts)
     .where(and(...conditions));
@@ -468,6 +472,7 @@ export async function listBankAccounts(
     accountType: r.accountType,
     branchName: r.branchName,
     branchCode: r.branchCode,
+    city: r.city,
   }));
 }
 

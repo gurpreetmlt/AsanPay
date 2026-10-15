@@ -54,6 +54,7 @@ export const bankAccounts = pgTable(
     accountType: varchar("account_type", { length: 20 }),
     branchName: varchar("branch_name", { length: 120 }),
     branchCode: varchar("branch_code", { length: 20 }),
+    city: varchar("city", { length: 120 }),
     purpose: bankPurposeEnum("purpose").notNull(),
     supportsVan: boolean("supports_van").notNull().default(false),
     isActive: boolean("is_active").notNull().default(true),

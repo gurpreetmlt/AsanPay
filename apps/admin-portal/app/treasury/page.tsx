@@ -422,6 +422,7 @@ interface BankDetails {
   accountType: string | null;
   branchName: string | null;
   branchCode: string | null;
+  city: string | null;
   purpose: BankCard["purpose"];
   isActive: boolean;
   supportsVan: boolean;
@@ -464,6 +465,7 @@ function BankDetailsModal({ bank, onClose }: { bank: BankCard; onClose: () => vo
         !details.holderName && "Account name",
         !details.branchCode && "Branch code",
         !details.branchName && "Branch name",
+        !details.city && "City / District",
       ].filter((x): x is string => !!x)
     : [];
 
@@ -476,6 +478,7 @@ function BankDetailsModal({ bank, onClose }: { bank: BankCard; onClose: () => vo
         { label: "IFSC", value: details.ifsc, copy: true, mono: true },
         profile("Branch code", details.branchCode, true),
         profile("Branch name", details.branchName),
+        profile("City / District", details.city),
         { label: "Purpose", value: PURPOSE_LABEL[details.purpose] },
         { label: "Status", value: details.isActive ? "Active" : "Inactive" },
         { label: "Virtual accounts (VAN)", value: details.supportsVan ? "Supported" : "Not supported" },
@@ -496,6 +499,7 @@ function BankDetailsModal({ bank, onClose }: { bank: BankCard; onClose: () => vo
         `Bank IFSC: ${details.ifsc}`,
         details.branchCode ? `Branch Code: ${details.branchCode}` : null,
         details.branchName ? `Branch Name: ${details.branchName}` : null,
+        details.city ? `City: ${details.city}` : null,
       ]
         .filter(Boolean)
         .join("\n"),
