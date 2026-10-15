@@ -154,17 +154,12 @@ function NavLink({
       href={href}
       onClick={onNavigate}
       title={label}
-      className="group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all"
+      data-active={active}
+      className="side-nav-link group flex items-center gap-3 rounded-xl px-3 py-2.5"
       style={{
         background: active ? "var(--admin-sidebar-active)" : "transparent",
         borderLeft: active ? `3px solid ${B.green}` : "3px solid transparent",
         color: active ? "var(--admin-sidebar-text-active)" : "var(--admin-sidebar-text)",
-      }}
-      onMouseEnter={(e) => {
-        if (!active) e.currentTarget.style.background = "var(--admin-sidebar-hover)";
-      }}
-      onMouseLeave={(e) => {
-        if (!active) e.currentTarget.style.background = "transparent";
       }}
     >
       <AnimatedNavIcon def={icon} active={active} size={18} className={active ? "opacity-100" : "opacity-70"} />
@@ -197,7 +192,8 @@ function NavDropdown({
       <button
         type="button"
         onClick={onToggle}
-        className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 transition-all"
+        data-active={active}
+        className="side-nav-link flex w-full items-center gap-3 rounded-xl px-3 py-2.5"
         style={{
           background: active ? "var(--admin-sidebar-active)" : "transparent",
           borderLeft: active ? `3px solid ${B.green}` : "3px solid transparent",
@@ -224,7 +220,9 @@ function NavDropdown({
                 key={child.href}
                 href={child.href}
                 onClick={onNavigate}
-                className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition"
+                data-active={isChildActive}
+                data-bar=""
+                className="side-nav-link flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium"
                 style={{
                   background: isChildActive ? "var(--admin-sidebar-active)" : "transparent",
                   color: isChildActive

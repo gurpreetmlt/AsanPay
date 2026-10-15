@@ -454,6 +454,62 @@ html.dark ::placeholder {
   }
 }
 
+/* Sidebar links: hover slide + accent bar, press scale (same feel as page tabs) */
+.side-nav-link {
+  position: relative;
+  transition:
+    transform 0.2s ease-out,
+    background-color 0.2s ease-out,
+    color 0.2s ease-out;
+}
+
+.side-nav-link:not([data-active="true"]):hover {
+  background: var(--admin-sidebar-hover) !important;
+  color: var(--admin-sidebar-text-active) !important;
+  transform: translateX(3px);
+}
+
+.side-nav-link:active {
+  transform: scale(0.97);
+}
+
+.side-nav-link[data-bar]::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 22%;
+  bottom: 22%;
+  width: 3px;
+  border-radius: 9999px;
+  background: #12b76a;
+  transform: scaleY(0);
+  opacity: 0;
+  transition:
+    transform 0.3s ease-out,
+    opacity 0.3s ease-out;
+}
+
+.side-nav-link[data-bar]:hover::before {
+  transform: scaleY(0.5);
+  opacity: 0.5;
+}
+
+.side-nav-link[data-bar][data-active="true"]::before {
+  transform: scaleY(1);
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .side-nav-link,
+  .side-nav-link::before {
+    transition: none;
+  }
+  .side-nav-link:not([data-active="true"]):hover,
+  .side-nav-link:active {
+    transform: none;
+  }
+}
+
 /* New bank entry modal */
 @keyframes bank-entry-modal-in {
   from {

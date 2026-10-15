@@ -261,7 +261,8 @@ function SidebarContent({
                 key={item.to}
                 href={item.to}
                 onClick={onClose}
-                className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all ${
+                data-active={isActive}
+                className={`side-nav-link group flex items-center gap-3 rounded-xl px-3 py-2.5 ${
                   isActive ? "bg-white/15" : "hover:bg-white/8"
                 }`}
                 style={{ borderLeft: isActive ? `3px solid ${B.green}` : "3px solid transparent" }}
@@ -290,7 +291,8 @@ function SidebarContent({
               <button
                 type="button"
                 onClick={() => toggleGroup(item.id)}
-                className={`group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 transition-all ${
+                data-active={gActive}
+                className={`side-nav-link group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 ${
                   gActive ? "bg-white/15" : "hover:bg-white/8"
                 }`}
                 style={{ borderLeft: gActive ? `3px solid ${B.green}` : "3px solid transparent" }}
@@ -326,7 +328,9 @@ function SidebarContent({
                         key={`${child.label}-${child.to}`}
                         href={child.to}
                         onClick={onClose}
-                        className={`group flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition-all ${
+                        data-active={childActive}
+                        data-bar=""
+                        className={`side-nav-link group flex items-center gap-2.5 rounded-lg px-2.5 py-2 ${
                           childActive ? "bg-white/15" : "hover:bg-white/8"
                         }`}
                       >
