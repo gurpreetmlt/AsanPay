@@ -7,7 +7,7 @@ import { useAuthHydrated } from "@/lib/useAuthHydrated";
 import api from "@/lib/api";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 
-const SKIP = new Set(["/login", "/signup", "/partner-enquiry"]);
+const SKIP = new Set(["/login", "/signup"]);
 
 /**
  * Refresh /auth/me. Dashboard is allowed without outlet/PIN; KYC lock is UI-level.

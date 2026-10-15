@@ -118,8 +118,6 @@ const envSchema = z.object({
   SMTP_PASS: z.string().optional(),
   /** From header, e.g. "AsanPay <no-reply@asanpay.in>". Falls back to SMTP_USER. */
   SMTP_FROM: z.string().optional(),
-  /** Inbox for Distributor / Super Distributor enquiries. Falls back to SMTP_USER. */
-  PARTNER_ENQUIRY_EMAIL: z.string().email().optional(),
   /** Email alert when a downline wallet transfer is at/above this amount (₹). */
   WALLET_LARGE_DEBIT_ALERT_RS: z.coerce.number().positive().default(25_000),
   /** Optional Slack/Teams-compatible incoming webhook URL for ops alerts (recon failures, stuck txns). */

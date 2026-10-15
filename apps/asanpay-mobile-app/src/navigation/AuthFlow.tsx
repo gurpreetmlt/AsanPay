@@ -2,10 +2,9 @@ import React, { useEffect, useState } from "react";
 import { LoginScreen, type LoginRoleChip } from "../screens/LoginScreen";
 import { TrustedUnlockScreen } from "../screens/TrustedUnlockScreen";
 import { SignupScreen } from "../screens/signup/SignupScreen";
-import { PartnerEnquiryScreen } from "../screens/PartnerEnquiryScreen";
 import { getRememberedLogin, isTrustWindowExpired } from "../lib/rememberedLogin";
 
-type AuthStep = "login" | "signup" | "partner" | "trustedUnlock";
+type AuthStep = "login" | "signup" | "trustedUnlock";
 
 export function AuthFlow() {
   const [step, setStep] = useState<AuthStep>("login");
@@ -46,34 +45,8 @@ export function AuthFlow() {
   }
 
   if (step === "signup") {
-    return (
-      <SignupScreen
-        initialRole={role}
-        onBack={() => setStep("login")}
-        onPartnerEnquiry={() => setStep("partner")}
-      />
-    );
+    return <SignupScreen initialRole="retailer" onBack={() => setStep("login")} />;
   }
 
-  if (step === "partner") {
-    return (
-      <PartnerEnquiryScreen
-        initialRole={role === "super_distributor" ? "super_distributor" : "distributor"}
-        onBack={() => setStep("login")}
-        onRetailerSignup={() => {
-          setRole("retailer");
-          setStep("signup");
-        }}
-      />
-    );
-  }
-
-  return (
-    <LoginScreen
-      onSignup={(selected) => {
-        setRole(selected);
-        setStep(selected === "retailer" ? "signup" : "partner");
-      }}
-    />
-  );
+  return <LoginScreen onSignup={() => setStep("signup")} />;
 }

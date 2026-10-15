@@ -22,7 +22,7 @@ function loginRoleOf(user: AuthUser): LoginRoleChip {
 }
 
 interface LoginScreenProps {
-  onSignup: (role: LoginRoleChip) => void;
+  onSignup: () => void;
 }
 
 interface PendingSession {
@@ -466,11 +466,8 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
               </>
           </View>
 
-          <Pressable onPress={() => onSignup("retailer")} style={styles.signupRow}>
-            <Text style={styles.signupLink}>New retailer? Sign up</Text>
-          </Pressable>
-          <Pressable onPress={() => onSignup("distributor")} style={styles.signupRow}>
-            <Text style={styles.signupLink}>Become a Distributor — contact us</Text>
+          <Pressable onPress={onSignup} style={styles.signupRow}>
+            <Text style={styles.signupLink}>Sign up as Retailer</Text>
           </Pressable>
 
           {__DEV__ ? <Text style={styles.devHint}>Dev API: {API_BASE}</Text> : null}

@@ -569,13 +569,8 @@ export default function LoginPage() {
           </PrimaryButton>
 
           <p className="text-center text-xs" style={{ color: B.muted }}>
-            New retailer?{" "}
             <Link href="/signup?role=retailer" className="font-semibold" style={{ color: B.blue }}>
-              Sign up
-            </Link>
-            {" · "}
-            <Link href="/partner-enquiry" className="font-semibold" style={{ color: B.blue }}>
-              Become a Distributor
+              Sign up as Retailer
             </Link>
           </p>
           </>

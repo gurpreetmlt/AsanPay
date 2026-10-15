@@ -1543,7 +1543,7 @@ export async function completeSignup(
   if ((["distributor", "super_distributor"] as string[]).includes(input.role)) {
     throw new HttpError(
       403,
-      "Distributor and Super Distributor accounts are opened by our team. Submit a partner enquiry and we will contact you.",
+      "Distributor and Super Distributor accounts are created by AsanPay admin. Sign up as a Retailer instead.",
       "PARTNER_SIGNUP_BY_ENQUIRY",
     );
   }

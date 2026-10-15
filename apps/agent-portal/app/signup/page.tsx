@@ -609,10 +609,6 @@ function SignupPageInner() {
     }
 
     const q = (searchParams.get("role") || "").trim();
-    if (!existing?.accountCreated && (q === "distributor" || q === "super_distributor" || q === "super")) {
-      router.replace(`/partner-enquiry?role=${q === "super" ? "super_distributor" : q}`);
-      return;
-    }
 
     if (existing) {
       if (!existing.accountCreated && isPartnerRole(existing.role)) {
@@ -1774,14 +1770,6 @@ function SignupPageInner() {
                       </option>
                     ))}
                   </select>
-                  {!(draft.accountCreated || loggedInContinue) ? (
-                    <p className="mt-1 text-xs" style={{ color: B.muted }}>
-                      Want to become a Distributor or Super Distributor?{" "}
-                      <Link href="/partner-enquiry" className="font-semibold" style={{ color: B.blue }}>
-                        Contact us
-                      </Link>
-                    </p>
-                  ) : null}
                 </Field>
                 <Field label="Full Name *">
                   <input

@@ -42,7 +42,6 @@ interface SignupScreenProps {
   onBack: () => void;
   /** Pre-select role when opening signup from login role chips. */
   initialRole?: SignupRole;
-  onPartnerEnquiry?: () => void;
 }
 
 function isPartnerRole(role: SignupRole): boolean {
@@ -328,7 +327,7 @@ function DateTextField({
   );
 }
 
-export function SignupScreen({ onBack, initialRole, onPartnerEnquiry }: SignupScreenProps) {
+export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
   const { tokens, scheme } = useTheme();
   const setAuth = useAuthStore((s) => s.setAuth);
   const updateUser = useAuthStore((s) => s.updateUser);
@@ -1802,14 +1801,6 @@ export function SignupScreen({ onBack, initialRole, onPartnerEnquiry }: SignupSc
                       </Pressable>
                     ))}
                   </View>
-                  {!draft.accountCreated && onPartnerEnquiry ? (
-                    <Pressable onPress={onPartnerEnquiry} style={{ marginBottom: 8 }}>
-                      <Text style={[styles.hint, { color: tokens.mute }]}>
-                        Want to become a Distributor or Super Distributor?{" "}
-                        <Text style={{ color: colors.blue, fontWeight: "700" }}>Contact us</Text>
-                      </Text>
-                    </Pressable>
-                  ) : null}
                   <FieldLabel text="Full Name *" color={tokens.mute} />
                   <TextInput
                     value={draft.name}
