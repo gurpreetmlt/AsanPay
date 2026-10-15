@@ -122,7 +122,7 @@ function buildAgentNav(role: UserRole | undefined): NavItem[] {
       icon: Network,
       children: [
         { to: "/network", label: `My ${childLabel}s`, icon: Network },
-        { to: "/onboarding/outlet", label: `Onboard ${childLabel}`, icon: UserCheck },
+        { to: "/network?invite=1", label: `Invite ${childLabel}`, icon: UserCheck },
         { to: "/action-queue", label: "Action Queue", icon: ListTodo },
         { to: "/kyc-assistant", label: "KYC Assistant", icon: Shield },
       ],

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Users,
@@ -11,8 +11,8 @@ import {
   Crown,
   Network as NetworkIcon,
   Store,
-  ArrowDownToLine,
-  ArrowUpFromLine,
+  ArrowLeft,
+  ArrowRight,
   History,
   Power,
 } from "lucide-react";
@@ -374,7 +374,9 @@ export default function NetworkPage() {
         )}
 
         {user.role === "super_distributor" || user.role === "distributor" ? (
-          <InviteAgentPanel childRole={user.role === "super_distributor" ? "distributor" : "retailer"} />
+          <Suspense fallback={null}>
+            <InviteAgentPanel childRole={user.role === "super_distributor" ? "distributor" : "retailer"} />
+          </Suspense>
         ) : null}
 
         {user.role !== "retailer" && (
@@ -512,8 +514,7 @@ export default function NetworkPage() {
                         "Main",
                         "AEPS",
                         "Credit",
-                        "Top-Up",
-                        "Reverse",
+                        "Actions",
                         "History",
                         "Status",
                       ].map((h) => (
@@ -560,24 +561,40 @@ export default function NetworkPage() {
                             —
                           </td>
                           <td className="px-4 py-3.5">
-                            <ActionIconButton
-                              title="Top up — send funds"
-                              tone="green"
-                              disabled={!moneyOk}
-                              onClick={() => setFundTarget(toDownlineUser(m))}
-                            >
-                              <ArrowDownToLine size={16} strokeWidth={2.25} />
-                            </ActionIconButton>
-                          </td>
-                          <td className="px-4 py-3.5">
-                            <ActionIconButton
-                              title="Reverse — pull funds from partner"
-                              tone="red"
-                              disabled={!collectOk}
-                              onClick={() => setPullTarget(toDownlineUser(m))}
-                            >
-                              <ArrowUpFromLine size={16} strokeWidth={2.25} />
-                            </ActionIconButton>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                title={
+                                  moneyOk
+                                    ? `Send funds to ${m.name}`
+                                    : m.isActive
+                                      ? "Only your direct downline can be funded"
+                                      : "Agent is inactive — enable to transfer"
+                                }
+                                disabled={!moneyOk}
+                                onClick={() => setFundTarget(toDownlineUser(m))}
+                                className="inline-flex cursor-pointer items-center gap-1 whitespace-nowrap rounded-lg border-[1.5px] px-3 py-1.5 text-xs font-bold transition hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+                                style={{ borderColor: "#16A34A", color: "#15803D" }}
+                              >
+                                Transfer <ArrowRight size={13} strokeWidth={2.5} />
+                              </button>
+                              <button
+                                type="button"
+                                title={
+                                  collectOk
+                                    ? `Pull funds back from ${m.name} (OTP on their phone)`
+                                    : Number(m.mainBalance) > 0
+                                      ? "Only your direct, active downline can be reversed"
+                                      : "Nothing to reverse — their balance is ₹0"
+                                }
+                                disabled={!collectOk}
+                                onClick={() => setPullTarget(toDownlineUser(m))}
+                                className="inline-flex cursor-pointer items-center gap-1 whitespace-nowrap rounded-lg border-[1.5px] px-3 py-1.5 text-xs font-bold transition hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+                                style={{ borderColor: "#EA580C", color: "#EA580C" }}
+                              >
+                                <ArrowLeft size={13} strokeWidth={2.5} /> Reverse
+                              </button>
+                            </div>
                           </td>
                           <td className="px-4 py-3.5">
                             <ActionIconButton
