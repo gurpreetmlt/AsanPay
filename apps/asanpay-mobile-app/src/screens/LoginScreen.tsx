@@ -68,7 +68,14 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
   const [otpStep, setOtpStep] = useState<"mobile" | "otp">("mobile");
   const [otp, setOtp] = useState("");
   const [devOtp, setDevOtp] = useState<string | null>(null);
+  const [resendIn, setResendIn] = useState(0);
   const lastOtpSentKey = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const t = setTimeout(() => setResendIn((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendIn]);
 
   function commitLogin(session: PendingSession) {
     setAuthHeader(session.accessToken);
@@ -117,6 +124,7 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
       setDevOtp(data.data.otp ?? null);
       setOtp(data.data.otp ?? "");
       setOtpStep("otp");
+      setResendIn(30);
       showAlert(
         "OTP sent",
         data.data.otp
@@ -357,7 +365,7 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
                       />
                     </View>
                     <Text style={styles.otpHint}>
-                      OTP is sent on WhatsApp. Not received? Use Password or Resend.
+                      OTP is sent on WhatsApp. Not received? Tap Resend OTP or use Password login.
                     </Text>
 
                     <Pressable
@@ -377,6 +385,7 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
                         setOtpStep("mobile");
                         setOtp("");
                         setDevOtp(null);
+                        setResendIn(0);
                         lastOtpSentKey.current = null;
                       }}
                       style={styles.signupRow}
@@ -388,10 +397,12 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
                         lastOtpSentKey.current = null;
                         void requestOtp();
                       }}
-                      disabled={loading}
+                      disabled={loading || resendIn > 0}
                       style={styles.signupRow}
                     >
-                      <Text style={styles.signupLink}>Resend OTP</Text>
+                      <Text style={resendIn > 0 ? styles.signupText : styles.signupLink}>
+                        {resendIn > 0 ? `Resend OTP in 0:${String(resendIn).padStart(2, "0")}` : "Resend OTP"}
+                      </Text>
                     </Pressable>
                   </>
                 ) : method === "password" ? (

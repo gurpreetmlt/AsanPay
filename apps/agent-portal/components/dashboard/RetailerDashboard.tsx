@@ -277,17 +277,6 @@ export function RetailerDashboard() {
           <div className="mb-2.5 text-2xl font-bold leading-none tracking-tight">
             {loading ? "…" : maskBalance(balanceVisible, formatInr(primary?.balance ?? "0"))}
           </div>
-          <PrimaryButton
-            type="button"
-            variant="success"
-            onClick={() => router.push("/fund-request")}
-            size="sm"
-            showArrow={false}
-            className="btn-pill--wallet-cta relative z-10 !w-auto"
-          >
-            <PlusCircle size={14} />
-            Add Money
-          </PrimaryButton>
         </div>
 
         {/* AEPS Wallet */}

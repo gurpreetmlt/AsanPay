@@ -43,6 +43,13 @@ export default function LoginPage() {
   const [pin, setPin] = useState("");
   const [otpStep, setOtpStep] = useState<OtpStep>("mobile");
   const [devOtp, setDevOtp] = useState<string | null>(null);
+  const [resendIn, setResendIn] = useState(0);
+
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const t = setTimeout(() => setResendIn((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendIn]);
   const [pending, setPending] = useState<LoginResponseData | null>(null);
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -194,6 +201,8 @@ export default function LoginPage() {
       if (!data.success) throw new Error(data.message);
       lastOtpSentKey.current = mobile;
       setOtpStep("otp");
+      setOtp("");
+      setResendIn(30);
       setDevOtp(data.data.otp ?? null);
       toast.success(
         data.data.otp
@@ -523,7 +532,7 @@ export default function LoginPage() {
                       placeholder="••••••"
                     />
                     <p className="mt-2 text-center text-xs" style={{ color: B.muted }}>
-                      OTP is sent on WhatsApp. Not received? Use Password login or Resend.
+                      OTP is sent on WhatsApp. Not received? Tap Resend OTP or use Password login.
                     </p>
                   </div>
                 </>
@@ -539,19 +548,34 @@ export default function LoginPage() {
                 </p>
               ) : null}
               {otpStep === "otp" && (
-                <button
-                  type="button"
-                  className="w-full text-sm font-medium"
-                  style={{ color: B.muted }}
-                  onClick={() => {
-                    setOtpStep("mobile");
-                    setOtp("");
-                    setDevOtp(null);
-                    lastOtpSentKey.current = null;
-                  }}
-                >
-                  Change mobile
-                </button>
+                <div className="flex items-center justify-between text-sm font-medium">
+                  <button
+                    type="button"
+                    className="cursor-pointer"
+                    style={{ color: B.muted }}
+                    onClick={() => {
+                      setOtpStep("mobile");
+                      setOtp("");
+                      setDevOtp(null);
+                      setResendIn(0);
+                      lastOtpSentKey.current = null;
+                    }}
+                  >
+                    Change mobile
+                  </button>
+                  <button
+                    type="button"
+                    className="cursor-pointer font-semibold disabled:cursor-not-allowed"
+                    style={{ color: resendIn > 0 || loading ? B.muted : B.green }}
+                    disabled={resendIn > 0 || loading}
+                    onClick={() => {
+                      lastOtpSentKey.current = null;
+                      void requestOtp();
+                    }}
+                  >
+                    {resendIn > 0 ? `Resend OTP in 0:${String(resendIn).padStart(2, "0")}` : "Resend OTP"}
+                  </button>
+                </div>
               )}
             </form>
           )}
