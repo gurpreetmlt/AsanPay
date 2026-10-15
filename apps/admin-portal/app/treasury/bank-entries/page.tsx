@@ -4,7 +4,18 @@ import { FormEvent, useCallback, useEffect, useRef, useState, type ReactNode } f
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { ArrowLeft, Check, Download, FileText, Paperclip, ReceiptText, Upload, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  ChevronDown,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  Paperclip,
+  ReceiptText,
+  Upload,
+  X,
+} from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { PromptModal } from "@/components/ui/PromptModal";
@@ -130,7 +141,11 @@ function csvCell(v: string | null | undefined) {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-function downloadCsv(rows: BankEntry[], from: string, to: string) {
+function exportFileName(from: string, to: string) {
+  return `bank-entries${from ? `-${from}` : ""}${to ? `-to-${to}` : ""}`;
+}
+
+function exportTable(rows: BankEntry[]) {
   const header = [
     "Entry ID",
     "Txn date",
@@ -154,7 +169,7 @@ function downloadCsv(rows: BankEntry[], from: string, to: string) {
     "Ledger journal",
     "Entered at",
   ];
-  const lines = rows.map((r) =>
+  const body = rows.map((r) =>
     [
       r.id,
       formatDate(r.txnDate),
@@ -177,17 +192,134 @@ function downloadCsv(rows: BankEntry[], from: string, to: string) {
       r.approvedByName,
       r.journalId,
       formatWhen(r.requestedAt),
-    ]
-      .map((c) => csvCell(c))
-      .join(","),
+    ].map((c) => c ?? ""),
   );
+  return { header, body };
+}
+
+function downloadCsv(rows: BankEntry[], from: string, to: string) {
+  const { header, body } = exportTable(rows);
+  const lines = body.map((cells) => cells.map((c) => csvCell(c)).join(","));
   const blob = new Blob([`\uFEFF${[header.join(","), ...lines].join("\n")}`], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `bank-entries${from ? `-${from}` : ""}${to ? `-to-${to}` : ""}.csv`;
+  a.download = `${exportFileName(from, to)}.csv`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+function htmlCell(v: string) {
+  return v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/** Opens a print-ready report; the browser's "Save as PDF" produces the file. */
+function downloadPdf(rows: BankEntry[], from: string, to: string): boolean {
+  const { header, body } = exportTable(rows);
+  const win = window.open("", "_blank");
+  if (!win) return false;
+  const period = from || to ? `${from ? formatDate(from) : "Start"} to ${to ? formatDate(to) : "Today"}` : "All dates";
+  const credit = rows
+    .filter((r) => r.direction === "credit" && r.status === "approved")
+    .reduce((s, r) => s + Number(r.amount), 0);
+  const debit = rows
+    .filter((r) => r.direction === "debit" && r.status === "approved")
+    .reduce((s, r) => s + Number(r.amount), 0);
+  const inr = (n: number) => `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${exportFileName(from, to)}</title>
+<style>
+@page { size: A4 landscape; margin: 10mm; }
+body { font-family: Arial, sans-serif; color: #0f172a; margin: 0; }
+h1 { font-size: 16px; margin: 0 0 4px; }
+.meta { font-size: 11px; color: #475569; margin-bottom: 10px; }
+table { width: 100%; border-collapse: collapse; font-size: 8.5px; }
+th, td { border: 1px solid #cbd5e1; padding: 3px 4px; text-align: left; vertical-align: top; word-break: break-word; }
+th { background: #eef2ff; }
+tr { page-break-inside: avoid; }
+</style></head><body>
+<h1>AsanPay — Bank entries</h1>
+<div class="meta">Period: ${htmlCell(period)} · Entries: ${rows.length} · Approved credits: ${inr(
+    credit,
+  )} · Approved debits: ${inr(debit)} · Generated ${htmlCell(new Date().toLocaleString("en-IN"))}</div>
+<table><thead><tr>${header.map((h) => `<th>${htmlCell(h)}</th>`).join("")}</tr></thead>
+<tbody>${body
+    .map((cells) => `<tr>${cells.map((c) => `<td>${htmlCell(c)}</td>`).join("")}</tr>`)
+    .join("")}</tbody></table>
+<script>window.onload = function () { window.print(); };</script>
+</body></html>`);
+  win.document.close();
+  return true;
+}
+
+function ExportMenu({ rows, from, to }: { rows: BankEntry[]; from: string; to: string }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const item = "flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-semibold hover:bg-slate-50";
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        disabled={!rows.length}
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-1.5 rounded-xl border bg-white px-3 py-2.5 text-sm font-semibold disabled:opacity-50"
+        style={{ borderColor: B.border, color: B.blue }}
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        <Download size={14} /> Export <ChevronDown size={14} />
+      </button>
+      {open ? (
+        <div
+          role="menu"
+          className="absolute right-0 z-20 mt-1 w-48 overflow-hidden rounded-xl border bg-white shadow-lg"
+          style={{ borderColor: B.border }}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            className={item}
+            style={{ color: B.blue }}
+            onClick={() => {
+              setOpen(false);
+              if (!downloadPdf(rows, from, to)) toast.error("Allow pop-ups for this site to export the PDF");
+            }}
+          >
+            <FileText size={14} style={{ color: "#DC2626" }} /> PDF
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className={item}
+            style={{ color: B.blue }}
+            onClick={() => {
+              setOpen(false);
+              downloadCsv(rows, from, to);
+            }}
+          >
+            <FileSpreadsheet size={14} style={{ color: "#16A34A" }} /> Excel / CSV
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function readFileAsDataUrl(file: File): Promise<string> {
@@ -624,15 +756,7 @@ export default function BankEntriesPage() {
                 onChange={(e) => setTo(e.target.value)}
               />
             </Field>
-            <button
-              type="button"
-              disabled={!rows.length}
-              onClick={() => downloadCsv(rows, from, to)}
-              className="inline-flex items-center gap-1.5 rounded-xl border bg-white px-3 py-2.5 text-sm font-semibold disabled:opacity-50"
-              style={{ borderColor: B.border, color: B.blue }}
-            >
-              <Download size={14} /> Export for CA (CSV)
-            </button>
+            <ExportMenu rows={rows} from={from} to={to} />
           </div>
 
           {loading ? (
