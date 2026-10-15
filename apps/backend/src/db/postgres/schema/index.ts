@@ -8,6 +8,7 @@ export * from "./treasury";
 export * from "./banking";
 export * from "./bankEntries";
 export * from "./fundRequests";
+export * from "./signupInvites";
 export * from "./settlements";
 export * from "./float";
 export * from "./reconciliation";

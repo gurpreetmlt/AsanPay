@@ -25,6 +25,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ActionIconButton } from "@/components/ui/ActionIconButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
+import { InviteAgentPanel } from "@/components/network/InviteAgentPanel";
 import api, { fetchApi } from "@/lib/api";
 import { B, initials } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
@@ -371,6 +372,10 @@ export default function NetworkPage() {
             </div>
           </div>
         )}
+
+        {user.role === "super_distributor" || user.role === "distributor" ? (
+          <InviteAgentPanel childRole={user.role === "super_distributor" ? "distributor" : "retailer"} />
+        ) : null}
 
         {user.role !== "retailer" && (
           <div className="overflow-hidden rounded-2xl border bg-white shadow-sm" style={{ borderColor: B.border }}>

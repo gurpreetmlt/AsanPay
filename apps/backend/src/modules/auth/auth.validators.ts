@@ -250,6 +250,7 @@ export const signupCompleteSchema = z
     name: z.string().trim().min(2).max(120),
     mobile: mobileSchema,
     sponsorUid: z.string().trim().min(6).max(20).optional(),
+    inviteToken: z.string().trim().min(20).max(100).optional(),
     role: z.enum(SIGNUP_CHILD_ROLES),
     password: passwordSchema.optional(),
     portal: z.enum(AUTH_PORTALS).default("agent"),

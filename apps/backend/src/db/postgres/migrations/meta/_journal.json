@@ -435,6 +435,13 @@
       "when": 1791200000000,
       "tag": "0061_fund_request_ref_reuse",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1791300000000,
+      "tag": "0062_signup_invites",
+      "breakpoints": true
     }
   ]
 }

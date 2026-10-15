@@ -3,7 +3,6 @@ import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, Styl
 import { SafeAreaView } from "react-native-safe-area-context";
 import LinearGradient from "react-native-linear-gradient";
 import { Bell, Scan } from "lucide-react-native";
-import type { UserRole } from "@asanpay/shared-types";
 import { DownlineCard } from "../../components/DownlineCard";
 import { ModalSheet } from "../../components/ModalSheet";
 import { ScreenHeader } from "../../components/ScreenHeader";
@@ -18,6 +17,7 @@ import { useAuthStore } from "../../store/auth";
 import { useTxnPin } from "../../hooks/useTxnPin";
 import { colors } from "../../theme/colors";
 import { showAlert } from "../../components/AppAlert";
+import Clipboard from "@react-native-clipboard/clipboard";
 
 const LOW_FLOAT_THRESHOLD = 10000;
 
@@ -44,6 +44,9 @@ export function NetworkScreen() {
   const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set());
   const [showBulkFund, setShowBulkFund] = useState(false);
   const [inactiveMonth, setInactiveMonth] = useState(0);
+  const [invites, setInvites] = useState<Invite[]>([]);
+  const [inviteResult, setInviteResult] = useState<InviteResult | null>(null);
+  const [inviteBusy, setInviteBusy] = useState<string | null>(null);
 
   const childRole = CHILD_ROLE[user.role];
   const needsKyc = user.kycStatus === "rejected" || !user.hasKycDocs;
@@ -71,9 +74,48 @@ export function NetworkScreen() {
     }
   }, []);
 
+  const loadInvites = useCallback(async () => {
+    if (!CHILD_ROLE[user.role]) return;
+    try {
+      setInvites(await fetchApi<Invite[]>("/invites"));
+    } catch {
+      /* list is secondary */
+    }
+  }, [user.role]);
+
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadInvites();
+  }, [load, loadInvites]);
+
+  async function resendInvite(inv: Invite) {
+    setInviteBusy(inv.id);
+    try {
+      const { data } = await api.post<{ success: boolean; message: string; data: InviteResult }>(
+        `/invites/${inv.id}/resend`,
+      );
+      setInviteResult(data.data);
+      setShowOnboard(true);
+      void loadInvites();
+    } catch (err) {
+      showAlert("Error", apiMsg(err, "Could not resend the invite"));
+    } finally {
+      setInviteBusy(null);
+    }
+  }
+
+  async function revokeInvite(inv: Invite) {
+    setInviteBusy(inv.id);
+    try {
+      await api.delete(`/invites/${inv.id}`);
+      showAlert("Cancelled", "Invite cancelled");
+      void loadInvites();
+    } catch (err) {
+      showAlert("Error", apiMsg(err, "Could not cancel the invite"));
+    } finally {
+      setInviteBusy(null);
+    }
+  }
 
   async function toggleActive(target: DownlineUser) {
     setTogglingId(target.id);
@@ -258,9 +300,9 @@ export function NetworkScreen() {
             ) : null}
             {childRole && (
               <Pressable onPress={() => setShowOnboard(true)}>
-                <LinearGradient colors={[...colors.gradient]} style={styles.addBtn}>
-                  <Text style={styles.addBtnText}>+ Onboard</Text>
-                </LinearGradient>
+                <View style={[styles.addBtn, { backgroundColor: colors.green }]}>
+                  <Text style={styles.addBtnText}>+ Invite {ROLE_LABEL[childRole]}</Text>
+                </View>
               </Pressable>
             )}
           </View>
@@ -284,10 +326,19 @@ export function NetworkScreen() {
           </Pressable>
         ) : null}
 
+        {childRole ? (
+          <InviteList
+            invites={invites}
+            busyId={inviteBusy}
+            onResend={(inv) => void resendInvite(inv)}
+            onRevoke={(inv) => void revokeInvite(inv)}
+          />
+        ) : null}
+
         {loading ? (
           <ActivityIndicator color={colors.blueFlat} style={{ marginTop: 24 }} />
         ) : downline.length === 0 ? (
-          <Text style={styles.empty}>No downline yet. Tap Onboard to add.</Text>
+          <Text style={styles.empty}>No downline yet. Tap Invite to add.</Text>
         ) : (
           downline.map((u) => (
             <View key={u.id}>
@@ -328,12 +379,18 @@ export function NetworkScreen() {
       </ScrollView>
 
       {childRole && (
-        <OnboardModal
+        <InviteModal
           visible={showOnboard}
-          childRole={childRole}
           label={ROLE_LABEL[childRole]}
-          onClose={() => setShowOnboard(false)}
-          onSuccess={() => void load(true)}
+          result={inviteResult}
+          onResult={(r) => {
+            setInviteResult(r);
+            void loadInvites();
+          }}
+          onClose={() => {
+            setShowOnboard(false);
+            setInviteResult(null);
+          }}
         />
       )}
 
@@ -372,54 +429,193 @@ export function NetworkScreen() {
   );
 }
 
-function OnboardModal({
+interface Invite {
+  id: string;
+  role: string;
+  name: string;
+  mobile: string;
+  email: string;
+  status: "pending" | "accepted" | "revoked" | "expired";
+  createdAt: string;
+}
+
+interface InviteResult {
+  invite: Invite;
+  link: string;
+  emailSent: boolean;
+}
+
+const INVITE_STATUS: Record<Invite["status"], { label: string; color: string; bg: string }> = {
+  pending: { label: "Pending", color: "#1D4ED8", bg: "#EFF6FF" },
+  accepted: { label: "Joined", color: "#047857", bg: "#ECFDF5" },
+  revoked: { label: "Cancelled", color: "#64748B", bg: "#F1F5F9" },
+  expired: { label: "Expired", color: "#B91C1C", bg: "#FEF2F2" },
+};
+
+function apiMsg(err: unknown, fallback: string): string {
+  return (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? fallback;
+}
+
+function shareInviteWhatsApp(link: string, name: string, roleLabel: string) {
+  const text = `Hi ${name}, create your AsanPay ${roleLabel} account using this link: ${link}`;
+  void Linking.openURL(`https://wa.me/?text=${encodeURIComponent(text)}`);
+}
+
+function InviteLinkView({ result, roleLabel }: { result: InviteResult; roleLabel: string }) {
+  return (
+    <View>
+      <Text style={styles.help}>
+        {result.emailSent
+          ? `Signup link emailed to ${result.invite.email}. You can also share it on WhatsApp.`
+          : "The email could not be sent. Share this link with them on WhatsApp instead."}
+      </Text>
+      <Text selectable style={styles.linkBox}>
+        {result.link}
+      </Text>
+      <Text style={styles.help}>Works once, only with mobile {result.invite.mobile}. Expires in 7 days.</Text>
+      <View style={{ flexDirection: "row", gap: 8 }}>
+        <Pressable
+          style={[styles.secondaryBtn, { flex: 1 }]}
+          onPress={() => {
+            Clipboard.setString(result.link);
+            showAlert("Copied", "Invite link copied");
+          }}
+        >
+          <Text style={styles.secondaryBtnText}>Copy link</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.greenBtn, { flex: 1 }]}
+          onPress={() => shareInviteWhatsApp(result.link, result.invite.name, roleLabel)}
+        >
+          <Text style={styles.submitText}>WhatsApp</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function InviteModal({
   visible,
-  childRole,
   label,
+  result,
+  onResult,
   onClose,
-  onSuccess,
 }: {
   visible: boolean;
-  childRole: UserRole;
   label: string;
+  result: InviteResult | null;
+  onResult: (r: InviteResult) => void;
   onClose: () => void;
-  onSuccess: () => void;
 }) {
   const [name, setName] = useState("");
   const [mobile, setMobile] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
 
+  function close() {
+    setName("");
+    setMobile("");
+    setEmail("");
+    onClose();
+  }
+
   async function submit() {
+    if (name.trim().length < 2) return showAlert("Check the form", "Enter the full name");
+    if (!/^[6-9]\d{9}$/.test(mobile)) return showAlert("Check the form", "Enter a valid 10-digit mobile");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      return showAlert("Check the form", "Enter a valid email address");
+    }
     setLoading(true);
     try {
-      await api.post("/auth/register", { name, mobile, password, role: childRole });
-      showAlert("Success", `${label} onboarded successfully`);
-      onSuccess();
-      onClose();
-      setName("");
-      setMobile("");
-      setPassword("");
+      const { data } = await api.post<{ success: boolean; message: string; data: InviteResult }>("/invites", {
+        name,
+        mobile,
+        email,
+      });
+      onResult(data.data);
     } catch (err) {
-      const msg =
-        (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? "Failed";
-      showAlert("Error", msg);
+      showAlert("Invite not sent", apiMsg(err, "Could not create the invite"));
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <ModalSheet visible={visible} title={`Onboard ${label}`} onClose={onClose}>
-      <Field label="Name" value={name} onChangeText={setName} />
-      <Field label="Mobile" value={mobile} onChangeText={(t) => setMobile(t.replace(/\D/g, ""))} keyboardType="phone-pad" maxLength={10} />
-      <Field label="Password" value={password} onChangeText={setPassword} secureTextEntry />
-      <Pressable onPress={submit} disabled={loading}>
-        <LinearGradient colors={[...colors.gradient]} style={styles.submit}>
-          <Text style={styles.submitText}>{loading ? "Saving..." : "Create Account"}</Text>
-        </LinearGradient>
-      </Pressable>
+    <ModalSheet visible={visible} title={result ? "Invite link ready" : `Invite ${label}`} onClose={close}>
+      {result ? (
+        <InviteLinkView result={result} roleLabel={label} />
+      ) : (
+        <>
+          <Text style={styles.help}>
+            They get a signup link by email. The account joins your network automatically.
+          </Text>
+          <Field label="Full name *" value={name} onChangeText={setName} />
+          <Field
+            label="Mobile *"
+            value={mobile}
+            onChangeText={(t) => setMobile(t.replace(/\D/g, "").slice(0, 10))}
+            keyboardType="phone-pad"
+            maxLength={10}
+          />
+          <Field label="Email *" value={email} onChangeText={setEmail} keyboardType="email-address" />
+          <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+            <Pressable style={[styles.dangerBtn, { flex: 1 }]} onPress={close}>
+              <Text style={styles.submitText}>Cancel</Text>
+            </Pressable>
+            <Pressable style={[styles.blueBtn, { flex: 1, opacity: loading ? 0.7 : 1 }]} onPress={submit} disabled={loading}>
+              <Text style={styles.submitText}>{loading ? "Sending…" : "Send invite"}</Text>
+            </Pressable>
+          </View>
+        </>
+      )}
     </ModalSheet>
+  );
+}
+
+function InviteList({
+  invites,
+  busyId,
+  onResend,
+  onRevoke,
+}: {
+  invites: Invite[];
+  busyId: string | null;
+  onResend: (inv: Invite) => void;
+  onRevoke: (inv: Invite) => void;
+}) {
+  if (invites.length === 0) return null;
+  return (
+    <View style={{ marginBottom: 16 }}>
+      <Text style={[styles.sectionTitle, { marginBottom: 8 }]}>Invites</Text>
+      {invites.map((inv) => {
+        const st = INVITE_STATUS[inv.status];
+        return (
+          <View key={inv.id} style={styles.inviteRow}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.inviteName} numberOfLines={1}>
+                {inv.name}
+              </Text>
+              <Text style={styles.inviteSub} numberOfLines={1}>
+                {inv.mobile} · {inv.email}
+              </Text>
+            </View>
+            <View style={[styles.inviteBadge, { backgroundColor: st.bg }]}>
+              <Text style={{ color: st.color, fontSize: 11, fontWeight: "800" }}>{st.label}</Text>
+            </View>
+            {inv.status !== "accepted" ? (
+              <Pressable disabled={busyId === inv.id} onPress={() => onResend(inv)} style={styles.inviteAction}>
+                <Text style={{ color: colors.green, fontWeight: "800", fontSize: 12 }}>Resend</Text>
+              </Pressable>
+            ) : null}
+            {inv.status === "pending" ? (
+              <Pressable disabled={busyId === inv.id} onPress={() => onRevoke(inv)} style={styles.inviteAction}>
+                <Text style={{ color: colors.danger, fontWeight: "800", fontSize: 12 }}>Cancel</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        );
+      })}
+    </View>
   );
 }
 
@@ -761,7 +957,7 @@ function Field({
   value: string;
   onChangeText: (t: string) => void;
   secureTextEntry?: boolean;
-  keyboardType?: "default" | "phone-pad" | "decimal-pad";
+  keyboardType?: "default" | "phone-pad" | "decimal-pad" | "email-address";
   maxLength?: number;
 }) {
   return (
@@ -773,6 +969,7 @@ function Field({
         onChangeText={onChangeText}
         secureTextEntry={secureTextEntry}
         keyboardType={keyboardType}
+        autoCapitalize={keyboardType === "email-address" ? "none" : undefined}
         maxLength={maxLength}
         placeholderTextColor={colors.textLight}
       />
@@ -832,6 +1029,41 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginBottom: 10,
   },
+  linkBox: {
+    fontSize: 12,
+    color: colors.blueFlat,
+    backgroundColor: "#EEF2FF",
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 10,
+  },
+  secondaryBtn: {
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: "#fff",
+  },
+  secondaryBtnText: { color: colors.blueFlat, fontWeight: "700", fontSize: 15 },
+  greenBtn: { borderRadius: 12, paddingVertical: 14, alignItems: "center", backgroundColor: colors.green },
+  blueBtn: { borderRadius: 12, paddingVertical: 14, alignItems: "center", backgroundColor: colors.blue },
+  dangerBtn: { borderRadius: 12, paddingVertical: 14, alignItems: "center", backgroundColor: colors.danger },
+  inviteRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 8,
+    backgroundColor: "#fff",
+  },
+  inviteName: { fontSize: 14, fontWeight: "700", color: colors.text },
+  inviteSub: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
+  inviteBadge: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
+  inviteAction: { paddingHorizontal: 4, paddingVertical: 4 },
   changeAmount: { marginTop: 12, alignItems: "center" },
   changeAmountText: { color: colors.textMuted, fontWeight: "600", fontSize: 13 },
 });

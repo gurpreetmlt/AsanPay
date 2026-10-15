@@ -651,6 +651,59 @@ export function productUpdateEmailTemplate(input: {
   };
 }
 
+export function signupInviteEmailTemplate(input: {
+  name: string;
+  roleLabel: string;
+  inviterName: string;
+  link: string;
+  expiresDays: number;
+}): SendMailInput {
+  const name = input.name.trim() || "there";
+  const text = [
+    `Hi ${name},`,
+    ``,
+    `${input.inviterName} has invited you to join AsanPay as a ${input.roleLabel}.`,
+    `Open this link to create your account:`,
+    input.link,
+    ``,
+    `The link works once and expires in ${input.expiresDays} days. Sign up with the mobile number your upline entered.`,
+    ``,
+    `— Team AsanPay`,
+  ].join("\n");
+
+  const bodyHtml = `
+    <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${BRAND.green}">Invitation</p>
+    <h1 style="margin:0 0 12px;font-size:26px;line-height:1.2;font-weight:800;letter-spacing:-0.03em;color:${BRAND.blueDeep}">Join AsanPay as a ${escapeHtml(input.roleLabel)}</h1>
+    <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:${BRAND.muted}">Hi ${escapeHtml(name)},</p>
+    <p style="margin:0 0 22px;font-size:15px;line-height:1.6;color:${BRAND.muted}">
+      <strong style="color:${BRAND.blue}">${escapeHtml(input.inviterName)}</strong> has invited you to join their AsanPay network.
+      Tap the button to create your account.
+    </p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 18px">
+      <tr>
+        <td style="background:${BRAND.green};border-radius:12px;padding:14px 22px">
+          <a href="${escapeHtml(input.link)}" style="font-size:14px;font-weight:700;color:${BRAND.white};text-decoration:none">Create my account</a>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0;font-size:12px;line-height:1.6;color:${BRAND.muted}">
+      This link works once and expires in ${input.expiresDays} days. Sign up with the mobile number your upline entered.
+    </p>
+  `;
+
+  return {
+    to: "",
+    subject: `${input.inviterName} invited you to AsanPay`,
+    text,
+    html: brandedEmailHtml({
+      preheader: `Create your AsanPay ${input.roleLabel} account.`,
+      title: "AsanPay invitation",
+      bodyHtml,
+      accent: "green",
+    }),
+  };
+}
+
 /** Fire-and-forget notify — never throws; skips when SMTP or address missing. */
 export function notifyUserEmail(to: string | null | undefined, build: () => SendMailInput): void {
   if (!to || !isMailerConfigured()) return;

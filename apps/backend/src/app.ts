@@ -11,6 +11,7 @@ import { authRouter } from "./modules/auth/auth.routes";
 import { walletRouter } from "./modules/wallet/wallet.routes";
 import { catalogRouter } from "./modules/catalog/catalog.routes";
 import { usersRouter } from "./modules/users/users.routes";
+import { inviteRouter } from "./modules/invites/invite.routes";
 import { txnRouter } from "./modules/transactions/txn.routes";
 import { kycRouter } from "./modules/kyc/kyc.routes";
 import { agentDeviceRouter } from "./modules/devices/agentDevice.routes";
@@ -91,6 +92,7 @@ export function createApp(): Express {
   app.use("/api/wallet", walletRouter);
   app.use("/api/catalog", catalogRouter);
   app.use("/api/users", usersRouter);
+  app.use("/api/invites", inviteRouter);
   app.use("/api/txn", txnRouter);
   app.use("/api/kyc", kycRouter);
   app.use("/api/devices", agentDeviceRouter);

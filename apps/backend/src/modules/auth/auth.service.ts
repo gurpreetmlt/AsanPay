@@ -42,6 +42,7 @@ import {
 import type { AuthPortal, AuthUser, UserRole } from "@asanpay/shared-types";
 import { isAdminRole, isAgentPortalRole, isFundRequestEnabled, ROLE_LABELS } from "@asanpay/shared-types";
 import { deliverAuthOtp } from "../telegram/link.service";
+import { assertInviteForSignup, markInviteAccepted } from "../invites/invite.service";
 import type {
   RegisterInput,
   LoginInput,
@@ -1540,11 +1541,14 @@ export async function completeSignup(
     throw new HttpError(401, "Too many attempts — verify mobile OTP again", "OTP_LOCKED");
   }
 
-  if ((["distributor", "super_distributor"] as string[]).includes(input.role)) {
+  const invite = input.inviteToken ? await assertInviteForSignup(input.inviteToken, input.mobile) : null;
+  if (invite) {
+    input = { ...input, role: invite.role, sponsorUid: invite.sponsorUid };
+  } else if ((["distributor", "super_distributor"] as string[]).includes(input.role)) {
     throw new HttpError(
       403,
-      "Distributor and Super Distributor accounts are created by AsanPay admin. Sign up as a Retailer instead.",
-      "PARTNER_SIGNUP_BY_ENQUIRY",
+      "Distributor accounts need an invite link from your Super Distributor. Sign up as a Retailer instead.",
+      "PARTNER_SIGNUP_NEEDS_INVITE",
     );
   }
 
@@ -1617,6 +1621,7 @@ export async function completeSignup(
     .where(eq(users.id, user.id))
     .returning();
   if (!row) throw new HttpError(500, "User created but not found");
+  if (invite) await markInviteAccepted(invite.inviteId, row.id);
 
   await insertAuditLog({
     userId: row.id,

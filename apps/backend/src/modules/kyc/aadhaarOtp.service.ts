@@ -167,6 +167,23 @@ function mapVerifyFailureMessage(raw: string): { status: number; message: string
   return { status: 401, message: msg, code: "AADHAAR_OTP_INCORRECT" };
 }
 
+function assertInPlan(httpStatus: number, raw: string): void {
+  if (/not_in_plan|not in plan/i.test(raw)) {
+    throw new HttpError(
+      503,
+      "Aadhaar OTP verification is not active on our provider plan yet. Please try again later or contact support.",
+      "AADHAAR_OTP_NOT_IN_PLAN",
+    );
+  }
+  if (httpStatus === 403) {
+    throw new HttpError(
+      503,
+      "Aadhaar OTP verification is blocked by our provider right now. Please try again later or contact support.",
+      "AADHAAR_OTP_FORBIDDEN",
+    );
+  }
+}
+
 function assertConfigured(): void {
   if (!bestApiConfigured()) {
     throw new HttpError(
@@ -221,6 +238,7 @@ export async function sendAadhaarKycOtp(
   const res = await bestApiPost(SEND_PATH, { Adhar: digits });
   if (isFailurePayload(res.httpStatus, res.json)) {
     const raw = providerMessage(res.json, "Could not send Aadhaar OTP. Check the Aadhaar number and try again.");
+    assertInPlan(res.httpStatus, raw);
     if (isUpstreamUnreachable(raw)) {
       throw new HttpError(
         502,
@@ -318,6 +336,7 @@ export async function verifyAadhaarKycOtp(
       },
       "Aadhaar OTP verify failed at BestAPI",
     );
+    assertInPlan(res.httpStatus, raw);
     // BestAPI often returns Cloudflare HTML/JSON 502 when UIDAI origin is down.
     if (res.httpStatus >= 500 || isUpstreamUnreachable(raw) || /bad gateway|cloudflare/i.test(raw)) {
       throw new HttpError(

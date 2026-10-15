@@ -52,6 +52,15 @@ interface SponsorInfo {
   role: SponsorRole;
 }
 
+interface InviteInfo {
+  role: "distributor" | "retailer";
+  name: string;
+  mobile: string;
+  email: string;
+  expiresAt: string;
+  sponsor: SponsorInfo;
+}
+
 const ROLE_OPTIONS: { value: SignupRole; label: string }[] = [
   { value: "retailer", label: "Retailer" },
   { value: "direct_retailer", label: "Direct Retailer" },
@@ -487,6 +496,8 @@ function SignupPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const stepParam = searchParams.get("step");
+  const inviteToken = (searchParams.get("invite") || "").trim();
+  const [invite, setInvite] = useState<InviteInfo | null>(null);
   const setAuth = useAuthStore((s) => s.setAuth);
   const accessToken = useAuthStore((s) => s.accessToken);
   const user = useAuthStore((s) => s.user);
@@ -650,6 +661,33 @@ function SignupPageInner() {
     if (!draftReady) return;
     saveSignupDraft(storageKey, draft);
   }, [draft, draftReady, storageKey]);
+
+  useEffect(() => {
+    if (!draftReady || !inviteToken || loggedInContinue || draft.accountCreated) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { data } = await api.get<ApiResponse<InviteInfo>>(`/invites/lookup/${encodeURIComponent(inviteToken)}`);
+        if (cancelled || !data.success) return;
+        const inv = data.data;
+        setInvite(inv);
+        setDraft((d) => ({
+          ...d,
+          role: inv.role,
+          name: d.name.trim() ? d.name : inv.name,
+          mobile: inv.mobile,
+          email: d.email.trim() ? d.email : inv.email,
+          sponsorMobile: inv.sponsor.mobile.replace(/\D/g, "").slice(0, 10),
+        }));
+      } catch (err) {
+        if (!cancelled) toast.error(extractApiError(err, "This invite link is not valid. Ask your upline to send a new one."));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftReady, inviteToken, loggedInContinue]);
 
   useEffect(() => {
     if (!draftReady || !loggedInContinue || !needsUpline) return;
@@ -1142,6 +1180,7 @@ function SignupPageInner() {
         latitude: draft.latitude,
         longitude: draft.longitude,
         ...(sponsor ? { sponsorUid: sponsor.uid } : {}),
+        ...(invite ? { inviteToken } : {}),
         ...(draft.password ? { password: draft.password } : {}),
       });
       if (!data.success) throw new Error(data.message);
@@ -1612,11 +1651,18 @@ function SignupPageInner() {
                       : "Location captured · resolving address…"}
                   </p>
                 )}
+                {invite ? (
+                  <p className="rounded-xl px-3 py-2 text-xs" style={{ background: B.secondary, color: B.blue }}>
+                    Invited by <strong>{invite.sponsor.name}</strong> to join as{" "}
+                    <strong>{invite.role === "distributor" ? "Distributor" : "Retailer"}</strong>. Mobile is fixed to
+                    the number in your invite.
+                  </p>
+                ) : null}
                 <Field label="Mobile Number *">
                   <input
                     value={draft.mobile}
                     onChange={(e) => {
-                      if (!canEditIdentity) return;
+                      if (!canEditIdentity || invite) return;
                       patch({ mobile: e.target.value.replace(/\D/g, "").slice(0, 10), signupToken: "" });
                       setOtpSent(false);
                       setOtp("");
@@ -1632,7 +1678,7 @@ function SignupPageInner() {
                     inputMode="numeric"
                     placeholder="10-digit mobile"
                     disabled={!hasLocation || otpSent || !canEditIdentity}
-                    readOnly={!canEditIdentity}
+                    readOnly={!canEditIdentity || Boolean(invite)}
                   />
                 </Field>
                 {loggedInContinue && canEditIdentity ? (
@@ -1760,10 +1806,13 @@ function SignupPageInner() {
                     }
                     className={inputCls}
                     style={inputStyle}
-                    disabled={draft.accountCreated || loggedInContinue}
+                    disabled={draft.accountCreated || loggedInContinue || Boolean(invite)}
                   >
                     {ROLE_OPTIONS.filter(
-                      (r) => draft.accountCreated || loggedInContinue || !isPartnerRole(r.value),
+                      (r) =>
+                        draft.accountCreated ||
+                        loggedInContinue ||
+                        (invite ? r.value === invite.role : !isPartnerRole(r.value)),
                     ).map((r) => (
                       <option key={r.value} value={r.value}>
                         {r.label}
@@ -1785,7 +1834,7 @@ function SignupPageInner() {
                     <input
                       value={draft.sponsorMobile}
                       onChange={(e) => {
-                        if (draft.accountCreated || loggedInContinue) return;
+                        if (draft.accountCreated || loggedInContinue || invite) return;
                         patch({
                           sponsorMobile: e.target.value.replace(/\D/g, "").slice(0, 10),
                         });
@@ -1793,8 +1842,8 @@ function SignupPageInner() {
                       className={inputCls}
                       style={inputStyle}
                       inputMode="numeric"
-                      readOnly={draft.accountCreated || loggedInContinue}
-                      disabled={draft.accountCreated || loggedInContinue}
+                      readOnly={draft.accountCreated || loggedInContinue || Boolean(invite)}
+                      disabled={draft.accountCreated || loggedInContinue || Boolean(invite)}
                       placeholder="10-digit upline mobile"
                     />
                     {(sponsorStatus === "ok" && sponsor) || draft.sponsorName ? (
