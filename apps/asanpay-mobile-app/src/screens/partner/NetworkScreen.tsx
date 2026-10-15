@@ -18,14 +18,13 @@ import { useTxnPin } from "../../hooks/useTxnPin";
 import { colors } from "../../theme/colors";
 import { showAlert } from "../../components/AppAlert";
 import Clipboard from "@react-native-clipboard/clipboard";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 
 const LOW_FLOAT_THRESHOLD = 10000;
 
 export function NetworkScreen() {
   const user = useAuthStore((s) => s.user)!;
   const setSignupContinue = useAuthStore((s) => s.setSignupContinue);
-  const inviteParam = (useRoute().params as { invite?: number } | undefined)?.invite;
   const navigation = useNavigation<{ navigate: (name: string) => void }>();
   const { tokens } = useTheme();
   const [query, setQuery] = useState("");
@@ -89,15 +88,14 @@ export function NetworkScreen() {
 
   useEffect(() => {
     void load();
-    void loadInvites();
-  }, [load, loadInvites]);
+  }, [load]);
 
-  useEffect(() => {
-    if (inviteParam && childRole) {
-      setInviteResult(null);
-      setShowOnboard(true);
-    }
-  }, [inviteParam, childRole]);
+  // Invites are sent from Home, so refresh the list whenever this tab is opened.
+  useFocusEffect(
+    useCallback(() => {
+      void loadInvites();
+    }, [loadInvites]),
+  );
 
   async function resendInvite(inv: Invite) {
     setInviteBusy(inv.id);
@@ -315,11 +313,6 @@ export function NetworkScreen() {
                 </Text>
               </Pressable>
             ) : null}
-            {childRole ? (
-              <Pressable onPress={() => setShowOnboard(true)} style={[styles.addBtn, { backgroundColor: colors.green }]}>
-                <Text style={styles.addBtnText}>+ Invite</Text>
-              </Pressable>
-            ) : null}
           </View>
 
           {bulkMode && isSd ? (
@@ -355,7 +348,7 @@ export function NetworkScreen() {
             <ActivityIndicator color={colors.blueFlat} style={{ marginTop: 24 }} />
           ) : filtered.length === 0 ? (
             <Text style={styles.empty}>
-              {downline.length === 0 ? "No agents yet. Tap Invite to add." : "No agent matches this search."}
+              {downline.length === 0 ? "No agents yet. Use Invite on the Home screen to add one." : "No agent matches this search."}
             </Text>
           ) : (
             filtered.map((u, i) => (
@@ -458,7 +451,7 @@ export function NetworkScreen() {
   );
 }
 
-interface Invite {
+export interface Invite {
   id: string;
   role: string;
   name: string;
@@ -468,7 +461,7 @@ interface Invite {
   createdAt: string;
 }
 
-interface InviteResult {
+export interface InviteResult {
   invite: Invite;
   link: string;
   emailSent: boolean;
@@ -523,7 +516,7 @@ function InviteLinkView({ result, roleLabel }: { result: InviteResult; roleLabel
   );
 }
 
-function InviteModal({
+export function InviteModal({
   visible,
   label,
   result,

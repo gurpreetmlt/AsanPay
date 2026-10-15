@@ -33,6 +33,7 @@ import { showAlert } from "../../components/AppAlert";
 import { PageEnter } from "../../components/PageEnter";
 import { BrandLockup } from "../../components/BrandMark";
 import { FundRequestModal } from "../shared/FundRequestScreen";
+import { InviteModal, type InviteResult } from "./NetworkScreen";
 
 interface PartnerStats {
   revenue?: { todayCommission?: string };
@@ -59,6 +60,12 @@ export function PartnerHomeScreen() {
   const [todayEarnings, setTodayEarnings] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [showFund, setShowFund] = useState(false);
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteResult, setInviteResult] = useState<InviteResult | null>(null);
+  const openInvite = () => {
+    setInviteResult(null);
+    setShowInvite(true);
+  };
 
   const isSd = user.role === "super_distributor";
   const childPlural = isSd ? "Distributors" : "Retailers";
@@ -105,7 +112,7 @@ export function PartnerHomeScreen() {
   const reportTiles: Tile[] = [
     { label: "Earnings", icon: ChartColumn, tint: "#6D28D9", onPress: () => go("Ledger") },
     { label: "Transfers", icon: ReceiptText, tint: colors.green, onPress: () => go("Ledger") },
-    { label: "Referral", icon: Send, tint: "#0D9488", onPress: () => go("Network", { invite: Date.now() }) },
+    { label: "Referral", icon: Send, tint: "#0D9488", onPress: () => openInvite() },
     { label: "Invoices", icon: FileText, tint: colors.blueFlat, onPress: () => comingSoon("Invoices") },
   ];
 
@@ -212,7 +219,7 @@ export function PartnerHomeScreen() {
             </View>
           </Pressable>
 
-          <Pressable style={styles.inviteCta} onPress={() => go("Network", { invite: Date.now() })}>
+          <Pressable style={styles.inviteCta} onPress={() => openInvite()}>
             <View style={styles.inviteIcon}>
               <UserPlus size={20} color={colors.green} strokeWidth={2.4} />
             </View>
@@ -259,6 +266,17 @@ export function PartnerHomeScreen() {
             ))}
           </View>
         </ScrollView>
+
+        <InviteModal
+          visible={showInvite}
+          label={isSd ? "Distributor" : "Retailer"}
+          result={inviteResult}
+          onResult={setInviteResult}
+          onClose={() => {
+            setShowInvite(false);
+            setInviteResult(null);
+          }}
+        />
 
         <FundRequestModal
           visible={showFund}
