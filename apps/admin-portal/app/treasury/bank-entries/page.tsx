@@ -476,6 +476,22 @@ export default function BankEntriesPage() {
   }, [hydrated, accessToken, loadLookups]);
 
   useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("fromStatement") !== "1") return;
+    setForm({
+      ...EMPTY_FORM,
+      bankAccountId: q.get("bankAccountId") ?? "",
+      amount: q.get("amount") ?? "",
+      txnDate: q.get("txnDate") ?? "",
+      utr: q.get("utr") ?? "",
+      narration: q.get("narration") ?? "",
+    });
+    const dir = q.get("direction") === "debit" ? "money out (debit)" : "money in (credit)";
+    toast(`Filled from the bank statement line. Pick the ${dir} category, then submit.`, { duration: 6000 });
+    window.history.replaceState(null, "", window.location.pathname);
+  }, []);
+
+  useEffect(() => {
     if (!hydrated || !accessToken) return;
     void loadRows();
   }, [hydrated, accessToken, loadRows]);

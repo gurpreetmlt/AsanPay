@@ -4,7 +4,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Crown, Network, Store, Tags, Percent, Plug, ScrollText, Scale, ShieldAlert, Wrench, LifeBuoy, IndianRupee, Landmark, Building2, ArrowLeftRight, Settings, Megaphone, Trash2, MessageCircle, ReceiptText } from "lucide-react";
+import { ChevronDown, Crown, Network, Store, Tags, Percent, Plug, ScrollText, Scale, ShieldAlert, Wrench, LifeBuoy, IndianRupee, Landmark, Building2, ArrowLeftRight, Settings, Megaphone, Trash2, MessageCircle, ReceiptText, GitCompareArrows } from "lucide-react";
 import { AsanPayLockup } from "@/components/brand/Logo";
 import { AnimatedNavIcon } from "@/components/ui/AnimatedNavIcon";
 import type { NavIconDef } from "@/lib/iconTypes";
@@ -56,6 +56,7 @@ const TREASURY: NavItem[] = [
     children: [
       { href: "/treasury", label: "Treasury", icon: { lib: "lucide", icon: Landmark } },
       { href: "/treasury/bank-entries", label: "Bank entries", icon: { lib: "lucide", icon: ReceiptText } },
+      { href: "/treasury/bank-reconciliation", label: "Bank reconciliation", icon: { lib: "lucide", icon: GitCompareArrows } },
       { href: "/wallet", label: "Company balance", icon: { lib: "md", name: "MdAccountBalanceWallet" } },
       { href: "/fund-requests", label: "Fund requests", icon: { lib: "lucide", icon: IndianRupee } },
       { href: "/settlements", label: "Settlements / banks", icon: { lib: "lucide", icon: Landmark } },

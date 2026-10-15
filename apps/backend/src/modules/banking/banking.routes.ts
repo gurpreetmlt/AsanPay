@@ -34,7 +34,17 @@ import {
   parkSuspenseSchema,
   vanWebhookSchema,
   assignVanSchema,
+  reconQuerySchema,
+  reconAutoMatchSchema,
+  reconLinkSchema,
+  reconUnlinkSchema,
 } from "./banking.validators";
+import {
+  autoMatchStatement,
+  getReconciliation,
+  linkStatementLine,
+  unlinkStatementLine,
+} from "./reconciliation.service";
 import { normalizeVanWebhookPayload } from "./vanAdapters";
 
 export const bankingRouter = Router();
@@ -241,14 +251,73 @@ bankingRouter.post(
       })),
     });
 
-    // Newly imported credits should resolve any FR that was waiting for this UTR.
+    // Fund requests first: an agent's deposit must claim its line before a bank entry can.
     const rematched = await rematchPending(tenantId);
+    const autoMatched = await autoMatchStatement({ tenantId, bankAccountId: BigInt(body.bankAccountId) });
 
     sendSuccess(
       res,
-      { ...imported, rematched: rematched.processed },
+      { ...imported, rematched: rematched.processed, autoMatched: autoMatched.linked },
       "Statement lines imported",
     );
+  },
+);
+
+bankingRouter.get("/reconciliation", requireRole("admin"), async (req, res) => {
+  const q = reconQuerySchema.safeParse(req.query);
+  if (!q.success) {
+    throw new HttpError(422, q.error.issues[0]?.message ?? "Select a bank and a valid period", "VALIDATION_ERROR");
+  }
+  const tenantId = await resolveTenantId();
+  const report = await getReconciliation({
+    tenantId,
+    bankAccountId: BigInt(q.data.bankAccountId),
+    from: q.data.from,
+    to: q.data.to,
+  });
+  sendSuccess(res, report);
+});
+
+bankingRouter.post(
+  "/reconciliation/auto-match",
+  requireRole("admin"),
+  validateBody(reconAutoMatchSchema),
+  async (req, res) => {
+    const body = req.body as ReturnType<typeof reconAutoMatchSchema.parse>;
+    const tenantId = await resolveTenantId();
+    const result = await autoMatchStatement({ tenantId, bankAccountId: BigInt(body.bankAccountId) });
+    sendSuccess(res, result, `${result.linked} statement line(s) matched by UTR`);
+  },
+);
+
+bankingRouter.post(
+  "/reconciliation/link",
+  requireRole("admin"),
+  validateBody(reconLinkSchema),
+  async (req, res) => {
+    if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+    const body = req.body as ReturnType<typeof reconLinkSchema.parse>;
+    const tenantId = await resolveTenantId();
+    await linkStatementLine({
+      tenantId,
+      lineId: BigInt(body.lineId),
+      journalId: BigInt(body.journalId),
+      adminId: req.auth.sub,
+    });
+    sendSuccess(res, { lineId: body.lineId }, "Statement line matched");
+  },
+);
+
+bankingRouter.post(
+  "/reconciliation/unlink",
+  requireRole("admin"),
+  validateBody(reconUnlinkSchema),
+  async (req, res) => {
+    if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+    const body = req.body as ReturnType<typeof reconUnlinkSchema.parse>;
+    const tenantId = await resolveTenantId();
+    await unlinkStatementLine({ tenantId, lineId: BigInt(body.lineId), adminId: req.auth.sub });
+    sendSuccess(res, { lineId: body.lineId }, "Match removed");
   },
 );
 

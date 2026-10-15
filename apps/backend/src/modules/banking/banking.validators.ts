@@ -48,13 +48,44 @@ export const importStatementSchema = z.object({
         utr: z.string().trim().max(60).optional().nullable(),
         narration: z.string().trim().max(500).optional().nullable(),
         senderName: z.string().trim().max(160).optional().nullable(),
-        balanceAfter: amountSchema.optional().nullable(),
+        balanceAfter: z
+          .string()
+          .regex(/^-?\d{1,12}(\.\d{1,2})?$/, "Balance must be a number with at most 2 decimals")
+          .optional()
+          .nullable(),
       }),
     )
     .min(1)
     .max(500),
 });
 export type ImportStatementBody = z.infer<typeof importStatementSchema>;
+
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD");
+
+export const reconQuerySchema = z
+  .object({
+    bankAccountId: z.string().regex(/^\d+$/, "Select a company bank account"),
+    from: isoDate,
+    to: isoDate,
+  })
+  .refine((v) => v.from <= v.to, { message: "From date must be on or before To date", path: ["from"] })
+  .refine((v) => Date.parse(v.to) - Date.parse(v.from) <= 366 * 86_400_000, {
+    message: "Period can be at most one year",
+    path: ["to"],
+  });
+
+export const reconAutoMatchSchema = z.object({
+  bankAccountId: z.string().regex(/^\d+$/, "Select a company bank account"),
+});
+
+export const reconLinkSchema = z.object({
+  lineId: z.string().regex(/^\d+$/, "lineId must be a numeric id"),
+  journalId: z.string().regex(/^\d+$/, "journalId must be a numeric id"),
+});
+
+export const reconUnlinkSchema = z.object({
+  lineId: z.string().regex(/^\d+$/, "lineId must be a numeric id"),
+});
 
 export const parkSuspenseSchema = z.object({
   olderThanHours: z.coerce.number().int().min(1).max(720).optional(),

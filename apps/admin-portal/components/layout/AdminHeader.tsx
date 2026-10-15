@@ -50,6 +50,8 @@ const QUICK_ROUTES = [
   { q: "treasury", href: "/treasury", label: "Treasury" },
   { q: "bank entries", href: "/treasury/bank-entries", label: "Bank entries" },
   { q: "capital", href: "/treasury/bank-entries", label: "Bank entries" },
+  { q: "reconciliation", href: "/treasury/bank-reconciliation", label: "Bank reconciliation" },
+  { q: "statement", href: "/treasury/bank-reconciliation", label: "Bank reconciliation" },
   { q: "passbook", href: "/passbook", label: "Balance statement" },
   { q: "statement", href: "/passbook", label: "Balance statement" },
   { q: "reconcil", href: "/reconciliation", label: "Txn reconciliation" },
