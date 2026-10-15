@@ -8,6 +8,7 @@ import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { extractApiError } from "@/lib/onboarding";
 import { createAttemptKeyHolder } from "@/lib/idempotencyKey";
 import { ROLE_LABEL } from "@/lib/roles";
+import { formatInr } from "@/lib/walletLabels";
 import type { DownlineUser } from "@/lib/types";
 import { TransferConfirm } from "./TransferConfirm";
 
@@ -69,11 +70,13 @@ export function FundForm({ target, onClose, onSuccess }: FundFormProps) {
       <Modal title="Confirm transfer" onClose={onClose}>
         <TransferConfirm
           amount={amount}
+          recipient={{
+            name: target.name,
+            subtitle: `${ROLE_LABEL[target.role] ?? target.role} · ${target.uid}`,
+          }}
           rows={[
-            { label: "To", value: target.name },
-            { label: "Role", value: ROLE_LABEL[target.role] ?? target.role },
-            { label: "ID", value: target.uid },
             { label: "Mobile", value: target.mobile },
+            { label: "Their balance now", value: formatInr(target.mainBalance) },
             { label: "From", value: "Main wallet" },
             ...(description ? [{ label: "Note", value: description }] : []),
           ]}

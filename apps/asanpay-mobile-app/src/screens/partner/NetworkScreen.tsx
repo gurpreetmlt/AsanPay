@@ -725,11 +725,13 @@ function FundModal({
       ) : (
         <TransferConfirm
           amount={amount}
+          recipient={{
+            name: target.name,
+            subtitle: `${ROLE_LABEL[target.role] ?? target.role} · ${target.uid}`,
+          }}
           rows={[
-            { label: "To", value: target.name },
-            { label: "Role", value: ROLE_LABEL[target.role] ?? target.role },
-            { label: "ID", value: target.uid },
             { label: "Mobile", value: target.mobile },
+            { label: "Their balance now", value: formatINR(target.mainBalance) },
             { label: "From", value: "Main wallet" },
             ...(note ? [{ label: "Note", value: note }] : []),
           ]}
@@ -746,7 +748,8 @@ function FundModal({
 
 function TransferConfirm({
   amount,
-  amountCaption = "Amount to transfer",
+  amountCaption = "You are sending",
+  recipient,
   rows,
   pin,
   onPin,
@@ -756,6 +759,7 @@ function TransferConfirm({
 }: {
   amount: string;
   amountCaption?: string;
+  recipient?: { name: string; subtitle: string };
   rows: { label: string; value: string }[];
   pin: string;
   onPin: (v: string) => void;
@@ -769,15 +773,40 @@ function TransferConfirm({
         <Text style={styles.confirmCaption}>{amountCaption}</Text>
         <Text style={styles.confirmAmount}>{formatINR(amount)}</Text>
       </View>
+      {recipient ? (
+        <View style={styles.confirmRecipient}>
+          <View style={styles.confirmAvatar}>
+            <Text style={styles.confirmAvatarText}>
+              {recipient.name
+                .split(/\s+/)
+                .map((p) => p[0] ?? "")
+                .join("")
+                .slice(0, 2)
+                .toUpperCase()}
+            </Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.confirmRecipientName} numberOfLines={1}>{recipient.name}</Text>
+            <Text style={styles.confirmRecipientSub} numberOfLines={1}>{recipient.subtitle}</Text>
+          </View>
+        </View>
+      ) : null}
       <View style={styles.confirmRows}>
-        {rows.map((r) => (
-          <View key={r.label} style={styles.confirmRow}>
+        {rows.map((r, i) => (
+          <View
+            key={r.label}
+            style={[
+              styles.confirmRow,
+              i === 0 ? null : styles.confirmRowDivider,
+              i % 2 === 1 ? { backgroundColor: "#F8FAFC" } : null,
+            ]}
+          >
             <Text style={styles.confirmLabel}>{r.label}</Text>
             <Text style={styles.confirmValue} numberOfLines={2}>{r.value}</Text>
           </View>
         ))}
       </View>
-      <Text style={styles.confirmPinLabel}>Enter your 4-digit transaction PIN</Text>
+      <Text style={styles.confirmPinLabel}>Enter your 4-digit PIN to authorise this transfer</Text>
       <PinInput value={pin} onChange={onPin} />
       <View style={styles.confirmActions}>
         <Pressable onPress={onBack} disabled={loading} style={[styles.confirmBtn, { backgroundColor: colors.danger }]}>
@@ -1206,29 +1235,53 @@ const styles = StyleSheet.create({
   confirmAmountBox: {
     alignItems: "center",
     paddingVertical: 14,
-    borderRadius: 14,
+    borderRadius: 16,
     backgroundColor: colors.greenBg,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
     marginBottom: 12,
   },
-  confirmCaption: { fontSize: 12, color: colors.textMuted, fontWeight: "700" },
-  confirmAmount: { fontSize: 28, fontWeight: "900", color: colors.greenDark, marginTop: 2 },
+  confirmCaption: { fontSize: 11, color: colors.greenDark, fontWeight: "700", letterSpacing: 0.8, textTransform: "uppercase" },
+  confirmAmount: { fontSize: 30, fontWeight: "900", color: colors.greenDark, marginTop: 2 },
+  confirmRecipient: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 12,
+  },
+  confirmAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.blueFlat,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  confirmAvatarText: { color: "#fff", fontWeight: "800", fontSize: 15 },
+  confirmRecipientName: { fontSize: 15, fontWeight: "800", color: colors.text },
+  confirmRecipientSub: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
   confirmRows: {
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 12,
+    borderRadius: 16,
+    overflow: "hidden",
     marginBottom: 14,
   },
   confirmRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     gap: 12,
-    paddingVertical: 9,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: "#fff",
   },
-  confirmLabel: { fontSize: 13, color: colors.textMuted, fontWeight: "600" },
-  confirmValue: { flex: 1, textAlign: "right", fontSize: 13, color: colors.text, fontWeight: "800" },
+  confirmRowDivider: { borderTopWidth: 1, borderTopColor: colors.border },
+  confirmLabel: { fontSize: 13, color: colors.textMuted },
+  confirmValue: { flex: 1, textAlign: "right", fontSize: 13, color: colors.text, fontWeight: "700" },
   confirmPinLabel: { fontSize: 13, color: colors.textMuted, textAlign: "center", marginBottom: 10 },
   confirmActions: { flexDirection: "row", gap: 10, marginTop: 18 },
   confirmBtn: { flex: 1, borderRadius: 12, paddingVertical: 14, alignItems: "center" },
