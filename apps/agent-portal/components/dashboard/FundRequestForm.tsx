@@ -29,6 +29,10 @@ interface BankAccount {
   accountNumberLast4: string;
   ifsc: string;
   isActive?: boolean;
+  holderName?: string | null;
+  accountType?: string | null;
+  branchName?: string | null;
+  branchCode?: string | null;
 }
 
 interface MyVan {
@@ -192,8 +196,9 @@ function BankCardSlider({
           <BankDetailCard
             key={b.id}
             ifsc={b.ifsc}
-            holderName="AsanPay"
+            holderName={b.holderName || "AsanPay"}
             bankName={b.bankName}
+            branch={b.branchName || undefined}
             accountMasked={masked}
             accountFull={canReveal ? fullAccount : undefined}
             revealed={Boolean(revealedIds[b.id])}
@@ -206,10 +211,13 @@ function BankCardSlider({
               void navigator.clipboard
                 .writeText(
                   formatSettlementBankCopy({
+                    accountType: b.accountType,
                     bankName: b.bankName,
-                    holderName: "AsanPay",
+                    holderName: b.holderName || "AsanPay",
                     accountNumber: fullAccount.replace(/\s/g, ""),
                     ifsc: b.ifsc,
+                    branch: b.branchName,
+                    branchCode: b.branchCode,
                   }),
                 )
                 .then(() => toast.success("Bank details copied"))

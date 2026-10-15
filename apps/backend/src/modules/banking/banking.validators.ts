@@ -5,6 +5,17 @@ const amountSchema = z
   .regex(/^\d{1,12}(\.\d{1,2})?$/, "Amount must be a positive number with at most 2 decimals")
   .refine((v) => parseFloat(v) > 0, "Amount must be greater than zero");
 
+const bankProfileFields = {
+  holderName: z.string().trim().max(160, "Account name must be 160 characters or fewer").optional(),
+  accountType: z.enum(["current", "savings"], { message: "Account type must be Current or Savings" }).optional(),
+  branchName: z.string().trim().max(120, "Branch name must be 120 characters or fewer").optional(),
+  branchCode: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z0-9]{0,20}$/, "Branch code must be letters or digits only (max 20)")
+    .optional(),
+};
+
 export const registerBankAccountSchema = z.object({
   bankName: z.string().trim().min(2).max(120),
   accountNumber: z.string().trim().min(6).max(40),
@@ -14,6 +25,7 @@ export const registerBankAccountSchema = z.object({
     .regex(/^[A-Za-z]{4}0[A-Za-z0-9]{6}$/, "Enter a valid 11-character IFSC"),
   purpose: z.enum(["collection", "payout", "ops"]),
   supportsVan: z.boolean().optional(),
+  ...bankProfileFields,
 });
 export type RegisterBankAccountBody = z.infer<typeof registerBankAccountSchema>;
 
@@ -27,6 +39,7 @@ export const updateBankAccountSchema = z.object({
     .optional(),
   purpose: z.enum(["collection", "payout", "ops"]).optional(),
   supportsVan: z.boolean().optional(),
+  ...bankProfileFields,
 });
 export type UpdateBankAccountBody = z.infer<typeof updateBankAccountSchema>;
 

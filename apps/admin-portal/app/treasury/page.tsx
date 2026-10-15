@@ -418,6 +418,10 @@ interface BankDetails {
   bankName: string;
   accountNumber: string;
   ifsc: string;
+  holderName: string | null;
+  accountType: string | null;
+  branchName: string | null;
+  branchCode: string | null;
   purpose: BankCard["purpose"];
   isActive: boolean;
   supportsVan: boolean;
@@ -454,9 +458,13 @@ function BankDetailsModal({ bank, onClose }: { bank: BankCard; onClose: () => vo
 
   const rows: { label: string; value: string; copy?: boolean; mono?: boolean }[] = details
     ? [
-        { label: "Bank name", value: details.bankName, copy: true },
+        ...(details.accountType ? [{ label: "Account type", value: titleCase(details.accountType) }] : []),
         { label: "Account number", value: details.accountNumber, copy: true, mono: true },
+        ...(details.holderName ? [{ label: "Account name", value: details.holderName, copy: true }] : []),
+        { label: "Bank name", value: details.bankName, copy: true },
         { label: "IFSC", value: details.ifsc, copy: true, mono: true },
+        ...(details.branchCode ? [{ label: "Branch code", value: details.branchCode, copy: true, mono: true }] : []),
+        ...(details.branchName ? [{ label: "Branch name", value: details.branchName, copy: true }] : []),
         { label: "Purpose", value: PURPOSE_LABEL[details.purpose] },
         { label: "Status", value: details.isActive ? "Active" : "Inactive" },
         { label: "Virtual accounts (VAN)", value: details.supportsVan ? "Supported" : "Not supported" },
@@ -469,7 +477,17 @@ function BankDetailsModal({ bank, onClose }: { bank: BankCard; onClose: () => vo
   const copyAll = () => {
     if (!details) return;
     void copyText(
-      `Bank: ${details.bankName}\nAccount number: ${details.accountNumber}\nIFSC: ${details.ifsc}`,
+      [
+        details.accountType ? `Account Type: ${titleCase(details.accountType)}` : null,
+        `Account Number: ${details.accountNumber}`,
+        details.holderName ? `Account Name: ${details.holderName}` : null,
+        `Bank Name: ${details.bankName}`,
+        `Bank IFSC: ${details.ifsc}`,
+        details.branchCode ? `Branch Code: ${details.branchCode}` : null,
+        details.branchName ? `Branch Name: ${details.branchName}` : null,
+      ]
+        .filter(Boolean)
+        .join("\n"),
       "Bank details copied",
     );
   };
@@ -551,13 +569,17 @@ function BankDetailsModal({ bank, onClose }: { bank: BankCard; onClose: () => vo
               className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white"
               style={{ background: B.badgeGrad }}
             >
-              <Copy size={15} /> Copy bank name, account number and IFSC
+              <Copy size={15} /> Copy full bank details
             </button>
           </>
         )}
       </div>
     </div>
   );
+}
+
+function titleCase(s: string) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 async function copyText(text: string, success: string) {

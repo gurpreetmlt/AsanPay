@@ -144,21 +144,27 @@ export function bankCardCornerTint(ifsc: string): { topRight: string; bottomLeft
   };
 }
 
+/** Passbook-style block — same labels and order on web and mobile. */
 export function formatSettlementBankCopy(details: {
   bankName?: string;
-  branch?: string;
+  branch?: string | null;
+  branchCode?: string | null;
   city?: string;
+  accountType?: string | null;
   holderName: string;
   accountNumber: string;
   ifsc: string;
 }): string {
+  const type = details.accountType?.trim();
   const lines = [
-    details.bankName ? `Bank: ${details.bankName}` : null,
-    details.branch ? `Branch: ${details.branch}` : null,
+    type ? `Account Type: ${type.charAt(0).toUpperCase()}${type.slice(1)}` : null,
+    `Account Number: ${details.accountNumber}`,
+    `Account Name: ${details.holderName}`,
+    details.bankName ? `Bank Name: ${details.bankName}` : null,
+    `Bank IFSC: ${details.ifsc}`,
+    details.branchCode ? `Branch Code: ${details.branchCode}` : null,
+    details.branch ? `Branch Name: ${details.branch}` : null,
     details.city ? `City: ${details.city}` : null,
-    `Account holder: ${details.holderName}`,
-    `Account number: ${details.accountNumber}`,
-    `IFSC: ${details.ifsc}`,
   ].filter(Boolean) as string[];
   return lines.join("\n");
 }

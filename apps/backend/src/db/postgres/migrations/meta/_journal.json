@@ -400,6 +400,13 @@
       "when": 1790700000000,
       "tag": "0056_fund_request_test_mark",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1790800000000,
+      "tag": "0057_bank_account_profile",
+      "breakpoints": true
     }
   ]
 }

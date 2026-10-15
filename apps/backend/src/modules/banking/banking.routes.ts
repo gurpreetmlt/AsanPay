@@ -168,6 +168,10 @@ bankingRouter.post(
       ifsc: body.ifsc,
       purpose: body.purpose,
       supportsVan: body.supportsVan,
+      holderName: body.holderName,
+      accountType: body.accountType,
+      branchName: body.branchName,
+      branchCode: body.branchCode,
     });
     sendSuccess(
       res,
@@ -195,6 +199,10 @@ bankingRouter.patch(
       ifsc: body.ifsc,
       purpose: body.purpose,
       supportsVan: body.supportsVan,
+      holderName: body.holderName,
+      accountType: body.accountType,
+      branchName: body.branchName,
+      branchCode: body.branchCode,
     });
     sendSuccess(res, result, "Bank account updated");
   },

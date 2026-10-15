@@ -49,6 +49,11 @@ export const bankAccounts = pgTable(
     // dropdown without decrypting every row.
     accountNumberLast4: char("account_number_last4", { length: 4 }).notNull(),
     ifsc: varchar("ifsc", { length: 15 }).notNull(),
+    // As printed on the passbook / cheque, so a copied block is exactly what a depositor types.
+    holderName: varchar("holder_name", { length: 160 }),
+    accountType: varchar("account_type", { length: 20 }),
+    branchName: varchar("branch_name", { length: 120 }),
+    branchCode: varchar("branch_code", { length: 20 }),
     purpose: bankPurposeEnum("purpose").notNull(),
     supportsVan: boolean("supports_van").notNull().default(false),
     isActive: boolean("is_active").notNull().default(true),

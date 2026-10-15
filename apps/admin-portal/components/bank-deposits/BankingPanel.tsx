@@ -25,7 +25,15 @@ interface BankAccount {
   purpose: Purpose;
   supportsVan: boolean;
   isActive: boolean;
+  holderName?: string | null;
+  accountType?: string | null;
+  branchName?: string | null;
+  branchCode?: string | null;
 }
+
+type AccountType = "current" | "savings";
+
+const emptyProfile = { holderName: "", accountType: "current" as AccountType, branchName: "", branchCode: "" };
 
 function errMessage(err: unknown, fallback: string) {
   const ax = err as { response?: { data?: { message?: string } }; message?: string };
@@ -44,6 +52,7 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
   const [bankDetails, setBankDetails] = useState<IfscBankDetailsValue>(emptyIfscBankDetails);
   const [purpose, setPurpose] = useState<Purpose>("collection");
   const [supportsVan, setSupportsVan] = useState(false);
+  const [profile, setProfile] = useState(emptyProfile);
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [olderThanHours, setOlderThanHours] = useState("48");
@@ -118,6 +127,20 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
       toast.error("Account number must be 6–18 digits");
       return;
     }
+    if (!profile.holderName.trim()) {
+      toast.error("Enter the account name exactly as printed on the passbook");
+      return;
+    }
+    if (profile.branchCode.trim() && !/^[A-Za-z0-9]{1,20}$/.test(profile.branchCode.trim())) {
+      toast.error("Branch code must be letters or digits only, e.g. 06738");
+      return;
+    }
+    const profileBody = {
+      holderName: profile.holderName.trim(),
+      accountType: profile.accountType,
+      branchName: profile.branchName.trim() || bankDetails.branch.trim(),
+      branchCode: profile.branchCode.trim(),
+    };
     setSaving(true);
     try {
       if (editingId) {
@@ -129,6 +152,7 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
           ifsc,
           purpose,
           supportsVan,
+          ...profileBody,
         });
         toast.success("Bank account updated");
       } else {
@@ -138,11 +162,13 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
           ifsc,
           purpose,
           supportsVan,
+          ...profileBody,
         });
         toast.success("Bank account registered");
       }
       setBankDetails(emptyIfscBankDetails());
       setSupportsVan(false);
+      setProfile(emptyProfile);
       setEditingId(null);
       await load();
     } catch (err) {
@@ -162,6 +188,12 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
     });
     setPurpose(a.purpose);
     setSupportsVan(a.supportsVan);
+    setProfile({
+      holderName: a.holderName ?? "",
+      accountType: a.accountType === "savings" ? "savings" : "current",
+      branchName: a.branchName ?? "",
+      branchCode: a.branchCode ?? "",
+    });
     setTab("accounts");
   }
 
@@ -170,6 +202,7 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
     setBankDetails(emptyIfscBankDetails());
     setPurpose("collection");
     setSupportsVan(false);
+    setProfile(emptyProfile);
   }
 
   async function toggleActive(a: BankAccount) {
@@ -358,6 +391,44 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
                         <option value="ops">Ops</option>
                       </select>
                     </label>
+                    <ProfileInput
+                      label="Account name *"
+                      placeholder="As on passbook, e.g. ASANPAY INNOVATION PRIVATE LIMITED"
+                      value={profile.holderName}
+                      disabled={saving}
+                      onChange={(v) => setProfile((p) => ({ ...p, holderName: v }))}
+                    />
+                    <label className="block text-sm">
+                      <span className="mb-1 block text-xs font-semibold uppercase" style={{ color: B.muted }}>
+                        Account type
+                      </span>
+                      <select
+                        className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
+                        style={{ borderColor: B.border, background: "var(--admin-card)", color: "var(--admin-text)" }}
+                        value={profile.accountType}
+                        onChange={(e) => setProfile((p) => ({ ...p, accountType: e.target.value as AccountType }))}
+                        disabled={saving}
+                      >
+                        <option value="current">Current</option>
+                        <option value="savings">Savings</option>
+                      </select>
+                    </label>
+                    <ProfileInput
+                      label="Branch name"
+                      placeholder={bankDetails.branch ? `As on passbook (IFSC says ${bankDetails.branch})` : "e.g. MALAUT"}
+                      hint="Leave blank to use the branch from IFSC"
+                      value={profile.branchName}
+                      disabled={saving}
+                      onChange={(v) => setProfile((p) => ({ ...p, branchName: v }))}
+                    />
+                    <ProfileInput
+                      label="Branch code"
+                      placeholder="e.g. 06738"
+                      hint="Optional · printed on the passbook"
+                      value={profile.branchCode}
+                      disabled={saving}
+                      onChange={(v) => setProfile((p) => ({ ...p, branchCode: v.replace(/[^A-Za-z0-9]/g, "").slice(0, 20) }))}
+                    />
                     <label
                       className="flex items-center gap-2 self-end pb-2 text-sm sm:col-span-2 lg:col-span-2"
                       style={{ color: B.muted }}
@@ -606,5 +677,42 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
         />
       ) : null}
     </>
+  );
+}
+
+function ProfileInput({
+  label,
+  placeholder,
+  hint,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  placeholder: string;
+  hint?: string;
+  value: string;
+  disabled?: boolean;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <label className="block text-sm">
+      <span className="mb-1 block text-xs font-semibold uppercase" style={{ color: B.muted }}>
+        {label}
+      </span>
+      <input
+        className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none disabled:opacity-60"
+        style={{ borderColor: B.border, background: "var(--admin-card)", color: "var(--admin-text)" }}
+        placeholder={placeholder}
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      {hint ? (
+        <span className="mt-1 block text-xs" style={{ color: B.muted }}>
+          {hint}
+        </span>
+      ) : null}
+    </label>
   );
 }

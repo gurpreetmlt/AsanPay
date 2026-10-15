@@ -43,8 +43,9 @@ export async function registerBankAccount(params: {
   ifsc: string;
   purpose: "collection" | "payout" | "ops";
   supportsVan?: boolean;
-}): Promise<{ bankAccountId: bigint; code: string }> {
+} & BankProfileInput): Promise<{ bankAccountId: bigint; code: string }> {
   const { tenantId, bankName, accountNumber, ifsc, purpose } = params;
+  const profile = bankProfilePatch(params);
 
   const digits = accountNumber.replace(/\s/g, "");
   if (digits.length < 6) {
@@ -146,6 +147,7 @@ export async function registerBankAccount(params: {
           ifsc: ifsc.toUpperCase(),
           purpose,
           supportsVan: params.supportsVan ?? false,
+          ...profile,
           isActive: true,
           deletedAt: null,
         })
@@ -165,6 +167,7 @@ export async function registerBankAccount(params: {
           ifsc: ifsc.toUpperCase(),
           purpose,
           supportsVan: params.supportsVan ?? false,
+          ...profile,
         })
         .returning({ id: bankAccounts.id });
 
@@ -195,6 +198,7 @@ export async function registerBankAccount(params: {
             ifsc: ifsc.toUpperCase(),
             purpose,
             supportsVan: params.supportsVan ?? false,
+            ...profile,
             isActive: true,
             deletedAt: null,
           })
@@ -209,6 +213,23 @@ export async function registerBankAccount(params: {
       );
     }
   });
+}
+
+export interface BankProfileInput {
+  holderName?: string;
+  accountType?: "current" | "savings";
+  branchName?: string;
+  branchCode?: string;
+}
+
+/** Only keys that were sent; an empty string clears the stored value. */
+function bankProfilePatch(p: BankProfileInput): Partial<typeof bankAccounts.$inferInsert> {
+  const patch: Partial<typeof bankAccounts.$inferInsert> = {};
+  if (p.holderName !== undefined) patch.holderName = p.holderName.trim() || null;
+  if (p.accountType !== undefined) patch.accountType = p.accountType;
+  if (p.branchName !== undefined) patch.branchName = p.branchName.trim() || null;
+  if (p.branchCode !== undefined) patch.branchCode = p.branchCode.trim().toUpperCase() || null;
+  return patch;
 }
 
 function collectPgErrorText(err: unknown): string {
@@ -381,6 +402,10 @@ export async function listBankAccounts(
     purpose: "collection" | "payout" | "ops";
     supportsVan: boolean;
     isActive: boolean;
+    holderName: string | null;
+    accountType: string | null;
+    branchName: string | null;
+    branchCode: string | null;
   }>
 > {
   const conditions = [eq(bankAccounts.tenantId, tenantId), isNull(bankAccounts.deletedAt)];
@@ -396,6 +421,10 @@ export async function listBankAccounts(
       purpose: bankAccounts.purpose,
       supportsVan: bankAccounts.supportsVan,
       isActive: bankAccounts.isActive,
+      holderName: bankAccounts.holderName,
+      accountType: bankAccounts.accountType,
+      branchName: bankAccounts.branchName,
+      branchCode: bankAccounts.branchCode,
     })
     .from(bankAccounts)
     .where(and(...conditions));
@@ -408,6 +437,10 @@ export async function listBankAccounts(
     purpose: r.purpose,
     supportsVan: r.supportsVan,
     isActive: r.isActive,
+    holderName: r.holderName,
+    accountType: r.accountType,
+    branchName: r.branchName,
+    branchCode: r.branchCode,
   }));
 }
 
@@ -419,7 +452,7 @@ export async function updateBankAccount(params: {
   purpose?: "collection" | "payout" | "ops";
   supportsVan?: boolean;
   accountNumber?: string;
-}): Promise<{ id: string }> {
+} & BankProfileInput): Promise<{ id: string }> {
   const [row] = await db
     .select({ id: bankAccounts.id })
     .from(bankAccounts)
@@ -433,7 +466,7 @@ export async function updateBankAccount(params: {
     .limit(1);
   if (!row) throw new HttpError(404, "Bank account not found", "NOT_FOUND");
 
-  const patch: Partial<typeof bankAccounts.$inferInsert> = {};
+  const patch: Partial<typeof bankAccounts.$inferInsert> = bankProfilePatch(params);
   if (params.bankName !== undefined) patch.bankName = params.bankName.trim();
   if (params.ifsc !== undefined) patch.ifsc = params.ifsc.trim().toUpperCase();
   if (params.purpose !== undefined) patch.purpose = params.purpose;
