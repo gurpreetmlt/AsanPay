@@ -333,7 +333,55 @@ function HomeStep({
   );
 }
 
-function HistoryStep({ onBack }: { onBack: () => void }) {
+/** Partner "Requests" tab — raise a fund request + full history. */
+export function FundRequestsScreen() {
+  const { tokens } = useTheme();
+  const [showFund, setShowFund] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  return (
+    <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bg }]} edges={["top"]}>
+      <HistoryStep
+        title="Requests"
+        reloadKey={reloadKey}
+        action={
+          <Pressable style={requestsStyles.raiseBtn} onPress={() => setShowFund(true)}>
+            <Text style={requestsStyles.raiseText}>+ Raise Request</Text>
+          </Pressable>
+        }
+      />
+      <FundRequestModal
+        visible={showFund}
+        onClose={() => {
+          setShowFund(false);
+          setReloadKey((k) => k + 1);
+        }}
+      />
+    </SafeAreaView>
+  );
+}
+
+const requestsStyles = StyleSheet.create({
+  raiseBtn: {
+    backgroundColor: colors.green,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+    marginBottom: 14,
+  },
+  raiseText: { color: "#fff", fontWeight: "800", fontSize: 15 },
+});
+
+function HistoryStep({
+  onBack,
+  title = "My fund requests",
+  action,
+  reloadKey = 0,
+}: {
+  onBack?: () => void;
+  title?: string;
+  action?: React.ReactNode;
+  reloadKey?: number;
+}) {
   const { tokens } = useTheme();
   const [rows, setRows] = useState<FundRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -353,14 +401,15 @@ function HistoryStep({ onBack }: { onBack: () => void }) {
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, reloadKey]);
 
   return (
     <ScrollView
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void load()} />}
     >
-      <ScreenTop title="My fund requests" onBack={onBack} />
+      <ScreenTop title={title} onBack={onBack} />
+      {action}
       {error ? (
         <View style={[styles.noticeBanner, { backgroundColor: "#FEE2E2" }]}>
           <Info size={16} color="#B91C1C" />

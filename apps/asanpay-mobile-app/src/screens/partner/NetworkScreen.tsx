@@ -18,6 +18,7 @@ import { useTxnPin } from "../../hooks/useTxnPin";
 import { colors } from "../../theme/colors";
 import { showAlert } from "../../components/AppAlert";
 import Clipboard from "@react-native-clipboard/clipboard";
+import { useRoute } from "@react-navigation/native";
 
 const LOW_FLOAT_THRESHOLD = 10000;
 
@@ -32,6 +33,7 @@ function greetingName(name: string): string {
 export function NetworkScreen() {
   const user = useAuthStore((s) => s.user)!;
   const setSignupContinue = useAuthStore((s) => s.setSignupContinue);
+  const inviteParam = (useRoute().params as { invite?: number } | undefined)?.invite;
   const [wallets, setWallets] = useState<WalletBalance[]>([]);
   const [downline, setDownline] = useState<DownlineUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -87,6 +89,13 @@ export function NetworkScreen() {
     void load();
     void loadInvites();
   }, [load, loadInvites]);
+
+  useEffect(() => {
+    if (inviteParam && childRole) {
+      setInviteResult(null);
+      setShowOnboard(true);
+    }
+  }, [inviteParam, childRole]);
 
   async function resendInvite(inv: Invite) {
     setInviteBusy(inv.id);

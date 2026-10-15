@@ -237,8 +237,8 @@ export function AccountScreen() {
   }
 
   function goMyEarnings() {
-    // RetailerTabs names the passbook tab "History"; PartnerTabs (SD/Distributor) names it "Passbook".
-    navigation.navigate((isRetailer ? "History" : "Passbook") as never);
+    // RetailerTabs names the passbook tab "History"; PartnerTabs (SD/Distributor) names it "Ledger".
+    navigation.navigate((isRetailer ? "History" : "Ledger") as never);
   }
 
   function goRequestFunds() {
