@@ -105,7 +105,7 @@ export function parseStatementDate(raw: string): string | null {
   const s = raw.trim().split(/\s+(?=\d{1,2}:\d{2})/)[0] ?? "";
   let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
   if (m) return `${m[1]}-${m[2]}-${m[3]}`;
-  m = /^(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{2}|\d{4})$/.exec(s);
+  m = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2}|\d{4})$/.exec(s);
   if (m) {
     const year = m[3]!.length === 2 ? `20${m[3]}` : m[3]!;
     return valid(year, m[2]!, m[1]!);
@@ -155,7 +155,7 @@ function parseMoney(raw: string | undefined): { value: string; negative: boolean
 function extractUtr(ref: string | undefined, narration: string): string | null {
   const r = (ref ?? "").trim();
   if (r && !/^[0\-.\s]*$/.test(r)) return r.slice(0, 60);
-  const neft = /(?:NEFT|RTGS|IMPS)[\s/:\-]+([A-Z0-9]{10,22})/i.exec(narration);
+  const neft = /(?:NEFT|RTGS|IMPS)[\s/:-]+([A-Z0-9]{10,22})/i.exec(narration);
   if (neft) return neft[1]!.toUpperCase();
   const rrn = /(?:^|\D)(\d{12})(?:\D|$)/.exec(narration);
   return rrn ? rrn[1]! : null;

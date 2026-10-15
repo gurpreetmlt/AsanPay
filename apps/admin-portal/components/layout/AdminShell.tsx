@@ -4,7 +4,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Crown, Network, Store, Tags, Percent, Plug, ScrollText, Scale, ShieldAlert, Wrench, LifeBuoy, IndianRupee, Landmark, Building2, ArrowLeftRight, Settings, Megaphone, Trash2, MessageCircle, ReceiptText, GitCompareArrows } from "lucide-react";
+import { ChevronDown, Crown, Network, Store, Tags, Percent, Plug, ScrollText, Scale, ShieldAlert, Wrench, LifeBuoy, IndianRupee, Landmark, Building2, ArrowLeftRight, Settings, Megaphone, Trash2, MessageCircle } from "lucide-react";
 import { AsanPayLockup } from "@/components/brand/Logo";
 import { AnimatedNavIcon } from "@/components/ui/AnimatedNavIcon";
 import type { NavIconDef } from "@/lib/iconTypes";
@@ -55,12 +55,9 @@ const TREASURY: NavItem[] = [
     icon: { lib: "md", name: "MdAccountBalanceWallet" },
     children: [
       { href: "/treasury", label: "Treasury", icon: { lib: "lucide", icon: Landmark } },
-      { href: "/treasury/bank-entries", label: "Bank entries", icon: { lib: "lucide", icon: ReceiptText } },
-      { href: "/treasury/bank-reconciliation", label: "Bank reconciliation", icon: { lib: "lucide", icon: GitCompareArrows } },
+      { href: "/treasury/bank", label: "Bank & deposits", icon: { lib: "lucide", icon: Building2 } },
       { href: "/wallet", label: "Company balance", icon: { lib: "md", name: "MdAccountBalanceWallet" } },
-      { href: "/fund-requests", label: "Fund requests", icon: { lib: "lucide", icon: IndianRupee } },
       { href: "/settlements", label: "Settlements / banks", icon: { lib: "lucide", icon: Landmark } },
-      { href: "/banking", label: "Banking", icon: { lib: "lucide", icon: Building2 } },
       { href: "/float", label: "Float", icon: { lib: "lucide", icon: ArrowLeftRight } },
       { href: "/ledger-reports", label: "Ledger reports", icon: { lib: "lucide", icon: Scale } },
       { href: "/recon-adjustments", label: "Recon adjustments", icon: { lib: "lucide", icon: Scale } },
@@ -109,7 +106,7 @@ const DEVELOPER_OPTIONS: NavItem[] = [
 ];
 
 function pathActive(pathname: string, href: string) {
-  if (href === "/users") return pathname === "/users";
+  if (href === "/users" || href === "/treasury") return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -259,7 +256,7 @@ function badgeForHref(
       return badges.kycPendingByRole.retailer + badges.settlementBanksPending;
     case "/settlements":
       return badges.settlementBanksPending;
-    case "/fund-requests":
+    case "/treasury/bank":
       return badges.fundRequestsPending;
     case "/support-tickets":
       return badges.supportTicketsOpen;

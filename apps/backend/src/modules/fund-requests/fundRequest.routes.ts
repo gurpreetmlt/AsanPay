@@ -11,6 +11,8 @@ import { resolveTenantId } from "./tenant";
 import {
   submitFundRequest,
   approveFundRequest,
+  listLineCandidates,
+  linkFundRequestLine,
   rejectFundRequest,
   cancelFundRequest,
   rematchPending,
@@ -130,6 +132,25 @@ fundRequestRouter.post(
     sendSuccess(res, { status: "cancelled" }, "Fund request cancelled");
   },
 );
+
+fundRequestRouter.get("/:id/line-candidates", requireRole("admin"), async (req, res) => {
+  const tenantId = await resolveTenantId();
+  sendSuccess(res, await listLineCandidates({ tenantId, requestId: parseRequestId(paramId(req.params.id)) }));
+});
+
+fundRequestRouter.post("/:id/link-line", requireRole("admin"), async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const lineId = typeof req.body?.lineId === "string" ? req.body.lineId : "";
+  if (!/^\d+$/.test(lineId)) throw new HttpError(422, "Select a bank statement line to link", "VALIDATION_ERROR");
+  const tenantId = await resolveTenantId();
+  const result = await linkFundRequestLine({
+    tenantId,
+    requestId: parseRequestId(paramId(req.params.id)),
+    lineId: BigInt(lineId),
+    adminId: req.auth.sub,
+  });
+  sendSuccess(res, result, "Bank line linked — review and approve");
+});
 
 fundRequestRouter.post(
   "/:id/approve",

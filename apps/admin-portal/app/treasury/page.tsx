@@ -131,7 +131,7 @@ export default function TreasuryPage() {
           </div>
           <div className="flex items-center gap-2">
             <Link
-              href="/treasury/bank-entries"
+              href="/treasury/bank?tab=bank-entries"
               className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
               style={{ background: "#16A34A" }}
             >
@@ -289,8 +289,8 @@ function BankList({ banks }: { banks: BankCard[] }) {
     return (
       <div className="rounded-2xl border bg-white p-5 text-sm" style={{ borderColor: B.border, color: B.muted }}>
         No bank accounts registered yet.{" "}
-        <Link href="/banking" className="font-semibold underline" style={{ color: B.blueLight }}>
-          Add a bank account in Banking
+        <Link href="/treasury/bank?tab=bank-accounts" className="font-semibold underline" style={{ color: B.blueLight }}>
+          Add a bank account in Bank &amp; deposits
         </Link>
         .
       </div>

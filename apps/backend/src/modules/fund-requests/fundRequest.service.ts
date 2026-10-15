@@ -647,6 +647,7 @@ function mapFundRequestRow(row: FundRequestRow, actorRole: string, requester?: R
     rejectRemarks: row.rejectRemarks,
     submittedAt: row.submittedAt.toISOString(),
     creditedAt: row.creditedAt?.toISOString() ?? null,
+    ...(actorRole === "admin" ? { hasBankLine: row.matchedLineId != null } : {}),
     ...(requester ? { requester } : {}),
   };
 }
@@ -742,4 +743,114 @@ export async function getFundRequest(params: {
   }
 
   return mapFundRequestRow(row, params.actorRole, requester);
+}
+
+/**
+ * Unclaimed bank credits an admin can tie to a request by hand — same bank, credit side,
+ * within a week of the stated deposit time. Exact-amount lines sort first.
+ */
+export async function listLineCandidates(params: { tenantId: string; requestId: bigint }) {
+  const [request] = await db
+    .select()
+    .from(fundRequests)
+    .where(and(eq(fundRequests.id, params.requestId), eq(fundRequests.tenantId, params.tenantId)))
+    .limit(1);
+  if (!request) throw new HttpError(404, "Fund request not found", "NOT_FOUND");
+
+  const day = request.depositDatetime.toISOString().slice(0, 10);
+  const rows = await db.execute<{
+    id: string;
+    txn_date: string;
+    amount: string;
+    utr: string | null;
+    narration: string | null;
+    sender_name: string | null;
+  }>(sql`
+    SELECT l.id::text, l.txn_date::text, l.amount::text, l.utr, l.narration, l.sender_name
+    FROM bank_statement_lines l
+    WHERE l.tenant_id = ${params.tenantId}
+      AND l.bank_account_id = ${String(request.bankAccountId)}
+      AND l.direction = 'CR'
+      AND l.match_status = 'unmatched'
+      AND l.matched_to_id IS NULL
+      AND l.txn_date BETWEEN (${day}::date - 7) AND (${day}::date + 7)
+      AND NOT EXISTS (
+        SELECT 1 FROM fund_requests fr
+        WHERE fr.matched_line_id = l.id AND fr.id <> ${String(request.id)}
+          AND fr.status NOT IN ('rejected', 'cancelled')
+      )
+    ORDER BY (l.amount = ${String(request.amount)}) DESC, ABS(l.txn_date - ${day}::date), l.id
+    LIMIT 30
+  `);
+
+  return rows.rows.map((r) => ({
+    id: r.id,
+    txnDate: r.txn_date,
+    amount: paiseToRupees(BigInt(r.amount)),
+    exactAmount: r.amount === String(request.amount),
+    utr: r.utr,
+    narration: r.narration,
+    senderName: r.sender_name,
+  }));
+}
+
+/** Admin ties a statement line to a request that matching could not resolve on its own. */
+export async function linkFundRequestLine(params: {
+  tenantId: string;
+  requestId: bigint;
+  lineId: bigint;
+  adminId: string;
+}): Promise<{ status: FundRequestStatus }> {
+  return db.transaction(async (tx) => {
+    const [request] = await tx
+      .select()
+      .from(fundRequests)
+      .where(and(eq(fundRequests.id, params.requestId), eq(fundRequests.tenantId, params.tenantId)))
+      .for("update");
+    if (!request) throw new HttpError(404, "Fund request not found", "NOT_FOUND");
+    if (!OPEN_STATUSES.includes(request.status)) {
+      throw new HttpError(422, `Request is already ${request.status}`, "ALREADY_TERMINAL");
+    }
+
+    const [line] = await tx
+      .select()
+      .from(bankStatementLines)
+      .where(and(eq(bankStatementLines.id, params.lineId), eq(bankStatementLines.tenantId, params.tenantId)))
+      .for("update");
+    if (!line) throw new HttpError(404, "Bank statement line not found. Reload and try again.", "LINE_NOT_FOUND");
+    if (line.bankAccountId !== request.bankAccountId) {
+      throw new HttpError(422, "That line is from a different bank than the one the agent deposited into", "WRONG_BANK");
+    }
+    if (line.direction !== "CR") {
+      throw new HttpError(422, "Only a credit (money in) line can be linked to a deposit", "NOT_A_CREDIT");
+    }
+    if (line.matchStatus !== "unmatched" || line.matchedToId !== null) {
+      throw new HttpError(422, "That bank line is already matched to another record", "LINE_ALREADY_CLAIMED");
+    }
+    const [other] = await tx
+      .select({ id: fundRequests.id })
+      .from(fundRequests)
+      .where(
+        and(
+          eq(fundRequests.matchedLineId, line.id),
+          sql`${fundRequests.id} <> ${request.id}`,
+          inArray(fundRequests.status, OPEN_STATUSES),
+        ),
+      )
+      .limit(1);
+    if (other) {
+      throw new HttpError(422, `That bank line is already linked to fund request #${other.id}`, "LINE_ALREADY_CLAIMED");
+    }
+
+    const next: FundRequestStatus = line.amount === request.amount ? "under_review" : "amount_mismatch";
+    await tx
+      .update(fundRequests)
+      .set({ status: next, matchedLineId: line.id, matchConfidence: null })
+      .where(eq(fundRequests.id, request.id));
+    await recordEvent(tx, request.id, request.status, next, params.adminId, "admin", {
+      action: "line_linked",
+      statementLineId: line.id.toString(),
+    });
+    return { status: next };
+  });
 }

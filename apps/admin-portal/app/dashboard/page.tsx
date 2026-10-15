@@ -57,7 +57,7 @@ const QUICK = [
   { href: "/kyc", label: "KYC Queue", icon: ShieldCheck },
   { href: "/transactions", label: "Transactions", icon: ArrowLeftRight },
   { href: "/wallet", label: "Company balance", icon: Wallet },
-  { href: "/fund-requests", label: "Fund requests", icon: IndianRupee },
+  { href: "/treasury/bank?tab=fund-requests", label: "Fund requests", icon: IndianRupee },
   { href: "/treasury-settings", label: "Treasury Settings", icon: Store },
 ];
 

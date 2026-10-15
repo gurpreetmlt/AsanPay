@@ -6,7 +6,9 @@ import { validateBody } from "../../middleware/validate";
 import { walletTxnLimiter } from "../../middleware/rateLimiter";
 import { sendSuccess } from "../../utils/apiResponse";
 import { HttpError } from "../../utils/httpError";
-import { rupeesToPaise } from "../../core/money";
+import { sql } from "drizzle-orm";
+import { db } from "../../db/postgres";
+import { paiseToRupees, rupeesToPaise } from "../../core/money";
 import { sendSlackAlert } from "../../utils/alert";
 import { resolveTenantId } from "../fund-requests/tenant";
 import { rematchPending } from "../fund-requests/fundRequest.service";
@@ -320,6 +322,49 @@ bankingRouter.post(
     sendSuccess(res, { lineId: body.lineId }, "Match removed");
   },
 );
+
+/** Headline numbers for the admin "Bank & deposits" page. */
+bankingRouter.get("/summary", requireRole("admin"), async (_req, res) => {
+  const tenantId = await resolveTenantId();
+  const rows = await db.execute<{
+    pending: string;
+    unmatched: string;
+    credited_today: string;
+    bank_total: string;
+  }>(sql`
+    SELECT
+      (SELECT COUNT(*) FROM fund_requests
+        WHERE tenant_id = ${tenantId}
+          AND status IN ('submitted','pending_match','auto_matched','amount_mismatch','suspect','under_review'))::text AS pending,
+      (SELECT COUNT(*) FROM bank_statement_lines
+        WHERE tenant_id = ${tenantId} AND direction = 'CR' AND match_status = 'unmatched')::text AS unmatched,
+      (SELECT COALESCE(SUM(credited_amount), 0) FROM fund_requests
+        WHERE tenant_id = ${tenantId} AND status = 'credited'
+          AND (credited_at AT TIME ZONE 'Asia/Kolkata')::date = (now() AT TIME ZONE 'Asia/Kolkata')::date)::text AS credited_today,
+      (SELECT COALESCE(SUM(ab.balance), 0) FROM bank_accounts ba
+        JOIN account_balances ab ON ab.account_id = ba.ledger_account_id
+        WHERE ba.tenant_id = ${tenantId} AND ba.deleted_at IS NULL)::text AS bank_total
+  `);
+  const banks = await db.execute<{ bank_name: string; last4: string; balance: string }>(sql`
+    SELECT ba.bank_name, ba.account_number_last4 AS last4, COALESCE(ab.balance, 0)::text AS balance
+    FROM bank_accounts ba
+    LEFT JOIN account_balances ab ON ab.account_id = ba.ledger_account_id
+    WHERE ba.tenant_id = ${tenantId} AND ba.deleted_at IS NULL AND ba.is_active
+    ORDER BY ab.balance DESC NULLS LAST
+  `);
+  const r = rows.rows[0];
+  sendSuccess(res, {
+    pendingFundRequests: Number(r?.pending ?? 0),
+    unmatchedLines: Number(r?.unmatched ?? 0),
+    creditedToday: paiseToRupees(BigInt(r?.credited_today ?? "0")),
+    bankTotal: paiseToRupees(BigInt(r?.bank_total ?? "0")),
+    banks: banks.rows.map((b) => ({
+      bankName: b.bank_name,
+      last4: b.last4,
+      balance: paiseToRupees(BigInt(b.balance)),
+    })),
+  });
+});
 
 bankingRouter.get("/unmatched-count", requireRole("admin"), async (_req, res) => {
   const tenantId = await resolveTenantId();

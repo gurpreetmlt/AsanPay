@@ -10,7 +10,7 @@ import { AnimatedNavIcon } from "@/components/ui/AnimatedNavIcon";
 const tabs: { href: string; label: string; icon: NavIconDef }[] = [
   { href: "/dashboard", label: "Home", icon: { lib: "md", name: "MdDashboard" } },
   { href: "/users", label: "Network", icon: { lib: "fa", name: "FaUsers" } },
-  { href: "/fund-requests", label: "Funds", icon: { lib: "lucide", icon: IndianRupee } },
+  { href: "/treasury/bank", label: "Funds", icon: { lib: "lucide", icon: IndianRupee } },
   { href: "/transactions", label: "Txns", icon: { lib: "fa", name: "FaExchangeAlt" } },
   { href: "/wallet", label: "Balance", icon: { lib: "md", name: "MdAccountBalanceWallet" } },
 ];
