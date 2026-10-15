@@ -61,6 +61,7 @@ interface BankEntry {
   narration: string | null;
   hasAttachment: boolean;
   attachmentName: string | null;
+  receiptUrl: string | null;
   status: EntryStatus;
   requestedBy: string;
   requestedByName: string;
@@ -513,7 +514,10 @@ export function BankEntriesPanel() {
     if (form.partyAccountLast4 && !/^\d{4}$/.test(form.partyAccountLast4)) {
       return void toast.error("Enter only the last 4 digits of the account number");
     }
-    if (proof && proof.size > MAX_PROOF_BYTES) return void toast.error("Proof file must be 3 MB or smaller");
+    if (!proof) {
+      return void toast.error("Upload proof — a bank statement screenshot, receipt photo or PDF is required");
+    }
+    if (proof.size > MAX_PROOF_BYTES) return void toast.error("Proof file must be 3 MB or smaller");
 
     setSaving(true);
     try {
@@ -1002,6 +1006,17 @@ export function BankEntriesPanel() {
                                 Proof
                               </button>
                             ) : null}
+                            {r.receiptUrl ? (
+                              <a
+                                href={r.receiptUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 rounded-lg border px-2 py-1.5 text-xs font-semibold"
+                                style={{ borderColor: B.border, color: B.blue }}
+                              >
+                                <FileText size={13} /> Receipt
+                              </a>
+                            ) : null}
                             {r.source === "bank_entry" && r.status === "requested" ? (
                               <>
                                 <button
@@ -1120,7 +1135,7 @@ function ProofPicker({ file, onChange }: { file: File | null; onChange: (f: File
   return (
     <div className="block text-sm">
       <span className="mb-1 block font-medium" style={{ color: B.muted }}>
-        Proof (optional)
+        Proof <span style={{ color: RED }}>*</span>
       </span>
       <input
         ref={inputRef}

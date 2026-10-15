@@ -149,7 +149,14 @@ export async function requestBankEntry(params: {
     );
   }
 
-  if (params.attachmentDataUrl) validateAttachment(params.attachmentDataUrl);
+  if (!params.attachmentDataUrl) {
+    throw new HttpError(
+      422,
+      "Upload proof — a bank statement screenshot, receipt photo or PDF is required for every bank entry",
+      "PROOF_REQUIRED",
+    );
+  }
+  validateAttachment(params.attachmentDataUrl);
 
   const utr = params.utr?.trim().toUpperCase() || null;
   if (utr) {
@@ -407,6 +414,7 @@ export async function listBankEntries(params: {
     narration: r.narration,
     hasAttachment: Boolean(r.attachmentName),
     attachmentName: r.attachmentName,
+    receiptUrl: null as string | null,
     status: r.status,
     requestedBy: r.requestedBy,
     requestedByName: r.requestedByName,
@@ -477,6 +485,7 @@ async function listCreditedFundRequests(
       referenceNumber: fundRequests.referenceNumber,
       senderName: fundRequests.senderName,
       remarks: fundRequests.remarks,
+      receiptUrl: fundRequests.receiptUrl,
       depositDate,
       submittedAt: fundRequests.submittedAt,
       creditedAt: fundRequests.creditedAt,
@@ -522,6 +531,7 @@ async function listCreditedFundRequests(
         .join(" · "),
       hasAttachment: false,
       attachmentName: null as string | null,
+      receiptUrl: r.receiptUrl as string | null,
       status: "approved" as const,
       requestedBy: r.agentId,
       requestedByName: r.agentName,
