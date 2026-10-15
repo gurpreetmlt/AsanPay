@@ -220,19 +220,19 @@ export function IfscBankDetailsFields({
       {showConfirmAccount ? (
         <label className="block text-sm">
           <span className={labelCls} style={{ color: "var(--admin-muted)" }}>
-            Confirm account number *
+            Confirm account number{accountRequired || value.accountNumber.length > 0 ? " *" : ""}
           </span>
           <input
             className={inputBase}
             style={editStyle}
-            placeholder="Re-enter account number"
+            placeholder={accountRequired ? "Re-enter account number" : "Re-enter only if changing the number"}
             inputMode="numeric"
             value={value.accountNumberConfirm ?? ""}
             disabled={disabled}
             onChange={(e) =>
               onChange({ accountNumberConfirm: e.target.value.replace(/\D/g, "").slice(0, 18) })
             }
-            required
+            required={accountRequired || value.accountNumber.length > 0}
           />
         </label>
       ) : null}

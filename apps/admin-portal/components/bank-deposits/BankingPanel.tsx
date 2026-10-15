@@ -423,7 +423,7 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
                 onChange={(patch) => setBankDetails((prev) => ({ ...prev, ...patch }))}
                 showHolder={false}
                 editableBankBranch
-                showConfirmAccount={!editingId || bankDetails.accountNumber.length > 0}
+                showConfirmAccount
                 accountRequired={!editingId}
                 accountPlaceholder={
                   editingId ? "Account number (leave blank to keep)" : "Account number"
