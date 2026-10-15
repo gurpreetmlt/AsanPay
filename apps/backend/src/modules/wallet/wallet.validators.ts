@@ -76,8 +76,20 @@ export const pullConfirmSchema = z
   .superRefine(requireTxnProof);
 export type PullConfirmInput = z.infer<typeof pullConfirmSchema>;
 
-export const ledgerQuerySchema = z.object({
-  limit: z.coerce.number().int().min(1).max(100).default(20),
-  offset: z.coerce.number().int().min(0).default(0),
-});
+const ledgerDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format")
+  .optional();
+
+export const ledgerQuerySchema = z
+  .object({
+    limit: z.coerce.number().int().min(1).max(500).default(20),
+    offset: z.coerce.number().int().min(0).default(0),
+    from: ledgerDate,
+    to: ledgerDate,
+  })
+  .refine((q) => !q.from || !q.to || q.from <= q.to, {
+    message: "From date must be on or before To date",
+    path: ["from"],
+  });
 export type LedgerQueryInput = z.infer<typeof ledgerQuerySchema>;

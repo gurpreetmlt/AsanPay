@@ -82,7 +82,7 @@ export async function pullConfirm(req: Request, res: Response): Promise<void> {
 
 export async function ledger(req: Request, res: Response): Promise<void> {
   const actor = requireActor(req);
-  const { limit, offset } = ledgerQuerySchema.parse(req.query);
-  const entries = await getWalletLedger(actor.id, { limit, offset });
+  const { limit, offset, from, to } = ledgerQuerySchema.parse(req.query);
+  const entries = await getWalletLedger(actor.id, { limit, offset, from, to });
   sendSuccess(res, entries);
 }

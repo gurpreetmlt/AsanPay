@@ -31,6 +31,7 @@ export interface LedgerEntry {
   amount: string;
   balanceAfter: string;
   referenceType: string;
+  referenceId?: string | null;
   description: string | null;
   createdAt: string;
 }

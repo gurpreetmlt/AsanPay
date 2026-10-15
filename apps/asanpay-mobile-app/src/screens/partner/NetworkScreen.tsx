@@ -2,38 +2,34 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import LinearGradient from "react-native-linear-gradient";
-import { Bell, Scan } from "lucide-react-native";
+import { ArrowRight, Clock, Search, Zap } from "lucide-react-native";
 import { DownlineCard } from "../../components/DownlineCard";
 import { ModalSheet } from "../../components/ModalSheet";
-import { ScreenHeader } from "../../components/ScreenHeader";
-import { WalletBar } from "../../components/WalletBar";
+import { PartnerTopBar } from "../../components/PartnerTopBar";
 import { PageEnter } from "../../components/PageEnter";
 import { api, fetchApi } from "../../lib/api";
 import { createAttemptKeyHolder, newIdempotencyKey } from "../../lib/idempotencyKey";
 import { CHILD_ROLE, ROLE_LABEL } from "../../lib/roles";
 import { formatINR } from "../../lib/format";
-import type { DownlineUser, WalletBalance } from "../../lib/types";
+import type { DownlineUser, LedgerEntry, WalletBalance } from "../../lib/types";
+import { useTheme } from "../../theme/ThemeContext";
 import { useAuthStore } from "../../store/auth";
 import { useTxnPin } from "../../hooks/useTxnPin";
 import { colors } from "../../theme/colors";
 import { showAlert } from "../../components/AppAlert";
 import Clipboard from "@react-native-clipboard/clipboard";
-import { useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 
 const LOW_FLOAT_THRESHOLD = 10000;
-
-function greetingName(name: string): string {
-  const first = name.split(" ")[0] ?? name;
-  const hour = new Date().getHours();
-  if (hour < 12) return `Good morning, ${first}`;
-  if (hour < 17) return `Good afternoon, ${first}`;
-  return `Good evening, ${first}`;
-}
 
 export function NetworkScreen() {
   const user = useAuthStore((s) => s.user)!;
   const setSignupContinue = useAuthStore((s) => s.setSignupContinue);
   const inviteParam = (useRoute().params as { invite?: number } | undefined)?.invite;
+  const navigation = useNavigation<{ navigate: (name: string) => void }>();
+  const { tokens } = useTheme();
+  const [query, setQuery] = useState("");
+  const [recent, setRecent] = useState<LedgerEntry[]>([]);
   const [wallets, setWallets] = useState<WalletBalance[]>([]);
   const [downline, setDownline] = useState<DownlineUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,13 +56,19 @@ export function NetworkScreen() {
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     try {
-      const [wal, down, dash] = await Promise.all([
+      const [wal, down, dash, ledger] = await Promise.all([
         fetchApi<WalletBalance[]>("/wallet/me"),
         fetchApi<DownlineUser[]>("/users/downline"),
         fetchApi<{ retailers?: { inactive?: number } }>("/dashboard/stats").catch(() => null),
+        fetchApi<LedgerEntry[]>("/wallet/ledger", { limit: 40 }).catch(() => [] as LedgerEntry[]),
       ]);
       setWallets(wal);
       setDownline(down);
+      setRecent(
+        ledger
+          .filter((e) => e.referenceType === "downline_transfer" && e.entryType === "debit")
+          .slice(0, 3),
+      );
       if (dash?.retailers?.inactive != null) setInactiveMonth(dash.retailers.inactive);
     } catch {
       /* retry on pull */
@@ -166,117 +168,21 @@ export function NetworkScreen() {
     [downline, bulkSelected],
   );
 
-  const initials = user.name
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((p) => p[0]?.toUpperCase() ?? "")
-    .join("");
+  const byId = useMemo(() => new Map(downline.map((d) => [d.id, d])), [downline]);
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return downline;
+    return downline.filter(
+      (d) => d.name.toLowerCase().includes(q) || d.mobile.includes(q) || d.uid.toLowerCase().includes(q),
+    );
+  }, [downline, query]);
+  const cardStyle = { backgroundColor: tokens.card, borderColor: tokens.cardBorder };
+  const childPlural = childRole ? `${ROLE_LABEL[childRole]}s` : "Agents";
 
   return (
     <PageEnter>
-    <SafeAreaView style={styles.safe} edges={["top"]}>
-      <ScreenHeader
-        variant="profile"
-        avatarLetter={initials || user.name.charAt(0).toUpperCase()}
-        eyebrow={greetingName(user.name)}
-        title={user.name}
-        subtitle={`${ROLE_LABEL[user.role]} · ${user.uid}${
-          user.kycStatus === "verified"
-            ? " · Verified"
-            : user.kycStatus === "rejected"
-              ? " · KYC Rejected"
-              : user.hasKycDocs
-                ? " · Under Review"
-                : " · KYC Pending"
-        }`}
-        topRight={
-          <View style={styles.headerIconRow}>
-            <Pressable style={styles.headerIconBtn} onPress={() => showAlert("Coming soon", "QR scan")}>
-              <Scan size={18} color="#fff" strokeWidth={2.1} />
-            </Pressable>
-            <Pressable style={styles.headerIconBtn} onPress={() => showAlert("Coming soon", "Notifications")}>
-              <Bell size={18} color="#fff" strokeWidth={2.1} />
-              <View style={styles.headerIconDot} />
-            </Pressable>
-          </View>
-        }
-      >
-        <WalletBar wallets={wallets} single />
-      </ScreenHeader>
-
-      {user.kycStatus !== "verified" ? (
-        <Pressable
-          onPress={() => {
-            if (needsKyc) setSignupContinue(true);
-          }}
-          style={{
-            marginHorizontal: 16,
-            marginTop: 10,
-            borderRadius: 14,
-            borderWidth: 1,
-            borderColor: `${colors.blue}33`,
-            backgroundColor: `${colors.blue}14`,
-            padding: 12,
-            flexDirection: "row",
-            alignItems: "center",
-          }}
-        >
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.blueFlat, fontWeight: "800", fontSize: 13 }}>
-              {user.hasKycDocs && user.kycStatus !== "rejected"
-                ? "KYC under review"
-                : "Complete your KYC for Onboarding"}
-            </Text>
-            <Text style={{ color: "#8FA2E0", fontSize: 11, marginTop: 2 }}>
-              {needsKyc ? "Tap to continue signup KYC." : "Awaiting admin approval."}
-            </Text>
-          </View>
-        </Pressable>
-      ) : null}
-
-      {lowFloat ? (
-        <View
-          style={{
-            marginHorizontal: 16,
-            marginTop: 10,
-            borderRadius: 14,
-            borderWidth: 1,
-            borderColor: "#FDBA74",
-            backgroundColor: "#FFF7ED",
-            padding: 12,
-          }}
-        >
-          <Text style={{ color: "#C2410C", fontWeight: "800", fontSize: 13 }}>
-            Low float — Add Money / transfer carefully
-          </Text>
-          <Text style={{ color: "#9A3412", fontSize: 11, marginTop: 2 }}>
-            Main balance is under {formatINR(LOW_FLOAT_THRESHOLD)}. Top up before large funding.
-          </Text>
-        </View>
-      ) : null}
-
-      {isDist && inactiveMonth > 0 ? (
-        <Pressable
-          onPress={shareInactiveWhatsApp}
-          style={{
-            marginHorizontal: 16,
-            marginTop: 10,
-            borderRadius: 14,
-            borderWidth: 1,
-            borderColor: "#86EFAC",
-            backgroundColor: "#F0FDF4",
-            padding: 12,
-          }}
-        >
-          <Text style={{ color: "#166534", fontWeight: "800", fontSize: 13 }}>
-            WhatsApp nudge · {inactiveMonth} inactive retailer{inactiveMonth === 1 ? "" : "s"}
-          </Text>
-          <Text style={{ color: "#15803D", fontSize: 11, marginTop: 2 }}>
-            Share login reminder with English template
-          </Text>
-        </Pressable>
-      ) : null}
+    <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bg }]} edges={["top"]}>
+      <PartnerTopBar title="My Agents" />
 
       <ScrollView
         contentContainerStyle={styles.content}
@@ -288,11 +194,113 @@ export function NetworkScreen() {
           />
         }
       >
-        <View style={styles.toolbar}>
-          <Text style={styles.sectionTitle}>
-            My Downline {childRole ? `(${ROLE_LABEL[childRole]}s)` : ""}
-          </Text>
-          <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+        <View style={[styles.card, styles.meCard, cardStyle]}>
+          <View style={styles.meAvatar}>
+            <Text style={styles.meAvatarText}>{user.name.charAt(0).toUpperCase()}</Text>
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={[styles.meName, { color: tokens.txt }]} numberOfLines={1}>
+              {user.name}
+            </Text>
+            <View style={styles.meBal}>
+              <Text style={styles.meBalText}>My Bal: {formatINR(String(mainBal))}</Text>
+            </View>
+          </View>
+          <Pressable style={styles.historyBtn} onPress={() => navigation.navigate("Ledger")}>
+            <Clock size={15} color={colors.blueFlat} strokeWidth={2.3} />
+            <Text style={styles.historyText}>History</Text>
+          </Pressable>
+        </View>
+
+        {user.kycStatus !== "verified" ? (
+          <Pressable
+            onPress={() => {
+              if (needsKyc) setSignupContinue(true);
+            }}
+            style={[styles.banner, { borderColor: `${colors.blue}33`, backgroundColor: `${colors.blue}14` }]}
+          >
+            <Text style={{ color: colors.blueFlat, fontWeight: "800", fontSize: 13 }}>
+              {user.hasKycDocs && user.kycStatus !== "rejected" ? "KYC under review" : "Complete your KYC for Onboarding"}
+            </Text>
+            <Text style={{ color: "#8FA2E0", fontSize: 11, marginTop: 2 }}>
+              {needsKyc ? "Tap to continue signup KYC." : "Awaiting admin approval."}
+            </Text>
+          </Pressable>
+        ) : null}
+
+        {lowFloat ? (
+          <View style={[styles.banner, { borderColor: "#FDBA74", backgroundColor: "#FFF7ED" }]}>
+            <Text style={{ color: "#C2410C", fontWeight: "800", fontSize: 13 }}>
+              Low float — Add Money / transfer carefully
+            </Text>
+            <Text style={{ color: "#9A3412", fontSize: 11, marginTop: 2 }}>
+              Main balance is under {formatINR(LOW_FLOAT_THRESHOLD)}. Top up before large funding.
+            </Text>
+          </View>
+        ) : null}
+
+        {isDist && inactiveMonth > 0 ? (
+          <Pressable
+            onPress={shareInactiveWhatsApp}
+            style={[styles.banner, { borderColor: "#86EFAC", backgroundColor: "#F0FDF4" }]}
+          >
+            <Text style={{ color: "#166534", fontWeight: "800", fontSize: 13 }}>
+              WhatsApp nudge · {inactiveMonth} inactive retailer{inactiveMonth === 1 ? "" : "s"}
+            </Text>
+            <Text style={{ color: "#15803D", fontSize: 11, marginTop: 2 }}>
+              Share login reminder with English template
+            </Text>
+          </Pressable>
+        ) : null}
+
+        {recent.length > 0 ? (
+          <View style={[styles.card, cardStyle]}>
+            <View style={styles.recentHead}>
+              <Zap size={14} color="#D97706" strokeWidth={2.4} />
+              <Text style={[styles.recentTitle, { color: tokens.txt }]}>RECENT TRANSFERS</Text>
+            </View>
+            {recent.map((e, i) => {
+              const party = e.referenceId ? byId.get(e.referenceId) : undefined;
+              return (
+                <View
+                  key={e.id}
+                  style={[
+                    styles.recentRow,
+                    i < recent.length - 1 && { borderBottomWidth: 1, borderBottomColor: tokens.cardBorder },
+                  ]}
+                >
+                  <View style={styles.recentIcon}>
+                    <ArrowRight size={16} color={colors.greenDark} strokeWidth={2.4} />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={[styles.recentName, { color: tokens.txt }]} numberOfLines={2}>
+                      {party?.name ?? e.description ?? "Partner"}
+                    </Text>
+                    {party ? <Text style={[styles.recentSub, { color: tokens.sub }]}>{party.mobile}</Text> : null}
+                  </View>
+                  <View style={{ alignItems: "flex-end" }}>
+                    <Text style={styles.recentAmt}>+ {formatINR(e.amount)}</Text>
+                    <Text style={[styles.recentSub, { color: tokens.sub }]}>
+                      {new Date(e.createdAt).toLocaleString("en-IN", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        ) : null}
+
+        <View style={[styles.card, cardStyle]}>
+          <View style={styles.toolbar}>
+            <Text style={[styles.sectionTitle, { color: tokens.txt }]}>
+              My {childPlural} ({downline.length})
+            </Text>
             {isSd ? (
               <Pressable
                 onPress={() => {
@@ -307,33 +315,87 @@ export function NetworkScreen() {
                 </Text>
               </Pressable>
             ) : null}
-            {childRole && (
-              <Pressable onPress={() => setShowOnboard(true)}>
-                <View style={[styles.addBtn, { backgroundColor: colors.green }]}>
-                  <Text style={styles.addBtnText}>+ Invite {ROLE_LABEL[childRole]}</Text>
-                </View>
+            {childRole ? (
+              <Pressable onPress={() => setShowOnboard(true)} style={[styles.addBtn, { backgroundColor: colors.green }]}>
+                <Text style={styles.addBtnText}>+ Invite</Text>
               </Pressable>
-            )}
+            ) : null}
           </View>
-        </View>
 
-        {bulkMode && isSd ? (
-          <Pressable
-            disabled={bulkTargets.length === 0}
-            onPress={() => setShowBulkFund(true)}
-            style={{
-              marginBottom: 12,
-              borderRadius: 12,
-              backgroundColor: bulkTargets.length ? colors.blueFlat : "#CBD5E1",
-              paddingVertical: 10,
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ color: "#fff", fontWeight: "800", fontSize: 13 }}>
-              Transfer to {bulkTargets.length} selected
+          {bulkMode && isSd ? (
+            <Pressable
+              disabled={bulkTargets.length === 0}
+              onPress={() => setShowBulkFund(true)}
+              style={{
+                marginBottom: 12,
+                borderRadius: 12,
+                backgroundColor: bulkTargets.length ? colors.blueFlat : "#CBD5E1",
+                paddingVertical: 10,
+                alignItems: "center",
+              }}
+            >
+              <Text style={{ color: "#fff", fontWeight: "800", fontSize: 13 }}>
+                Transfer to {bulkTargets.length} selected
+              </Text>
+            </Pressable>
+          ) : null}
+
+          <View style={[styles.searchBox, { borderColor: tokens.inputBorder, backgroundColor: tokens.inputBg }]}>
+            <Search size={18} color={colors.blueFlat} />
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search name or mobile."
+              placeholderTextColor={tokens.mute}
+              style={[styles.searchInput, { color: tokens.txt }]}
+            />
+          </View>
+
+          {loading ? (
+            <ActivityIndicator color={colors.blueFlat} style={{ marginTop: 24 }} />
+          ) : filtered.length === 0 ? (
+            <Text style={styles.empty}>
+              {downline.length === 0 ? "No agents yet. Tap Invite to add." : "No agent matches this search."}
             </Text>
-          </Pressable>
-        ) : null}
+          ) : (
+            filtered.map((u, i) => (
+              <View key={u.id}>
+                {bulkMode && isSd ? (
+                  <Pressable
+                    onPress={() => u.isActive && toggleBulk(u.id)}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 8,
+                      marginTop: 10,
+                      opacity: u.isActive ? 1 : 0.5,
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: 4,
+                        borderWidth: 2,
+                        borderColor: colors.blueFlat,
+                        backgroundColor: bulkSelected.has(u.id) ? colors.blueFlat : "transparent",
+                      }}
+                    />
+                    <Text style={{ color: colors.blueFlat, fontWeight: "700", fontSize: 12 }}>Select</Text>
+                  </Pressable>
+                ) : null}
+                <DownlineCard
+                  user={u}
+                  onFund={setFundTarget}
+                  onReverse={setPullTarget}
+                  onToggleActive={(target) => void toggleActive(target)}
+                  toggling={togglingId === u.id}
+                  last={i === filtered.length - 1}
+                />
+              </View>
+            ))
+          )}
+        </View>
 
         {childRole ? (
           <InviteList
@@ -343,48 +405,6 @@ export function NetworkScreen() {
             onRevoke={(inv) => void revokeInvite(inv)}
           />
         ) : null}
-
-        {loading ? (
-          <ActivityIndicator color={colors.blueFlat} style={{ marginTop: 24 }} />
-        ) : downline.length === 0 ? (
-          <Text style={styles.empty}>No downline yet. Tap Invite to add.</Text>
-        ) : (
-          downline.map((u) => (
-            <View key={u.id}>
-              {bulkMode && isSd ? (
-                <Pressable
-                  onPress={() => u.isActive && toggleBulk(u.id)}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 8,
-                    marginBottom: 4,
-                    opacity: u.isActive ? 1 : 0.5,
-                  }}
-                >
-                  <View
-                    style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: 4,
-                      borderWidth: 2,
-                      borderColor: colors.blueFlat,
-                      backgroundColor: bulkSelected.has(u.id) ? colors.blueFlat : "transparent",
-                    }}
-                  />
-                  <Text style={{ color: colors.blueFlat, fontWeight: "700", fontSize: 12 }}>Select</Text>
-                </Pressable>
-              ) : null}
-              <DownlineCard
-                user={u}
-                onFund={setFundTarget}
-                onReverse={setPullTarget}
-                onToggleActive={(target) => void toggleActive(target)}
-                toggling={togglingId === u.id}
-              />
-            </View>
-          ))
-        )}
       </ScrollView>
 
       {childRole && (
@@ -988,30 +1008,67 @@ function Field({
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.surface },
-  content: { padding: 16, paddingBottom: 32 },
-  headerIconRow: { flexDirection: "row", gap: 9, marginTop: 2 },
-  headerIconBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 11,
-    backgroundColor: "rgba(255,255,255,.14)",
+  content: { padding: 14, paddingBottom: 32, gap: 14 },
+  card: { borderWidth: 1, borderRadius: 18, padding: 16 },
+  meCard: { flexDirection: "row", alignItems: "center", gap: 12 },
+  meAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#EA580C",
     alignItems: "center",
     justifyContent: "center",
   },
-  headerIconDot: {
-    position: "absolute",
-    top: 8,
-    right: 9,
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: colors.green,
-    borderWidth: 1.5,
-    borderColor: "#1E42B0",
+  meAvatarText: { color: "#fff", fontSize: 18, fontWeight: "800" },
+  meName: { fontSize: 18, fontWeight: "800" },
+  meBal: {
+    alignSelf: "flex-start",
+    marginTop: 6,
+    backgroundColor: colors.greenBg,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
-  toolbar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
-  sectionTitle: { fontSize: 16, fontWeight: "700", color: colors.text, flex: 1 },
-  addBtn: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
+  meBalText: { color: colors.greenDark, fontSize: 13.5, fontWeight: "800" },
+  historyBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderWidth: 1.5,
+    borderColor: colors.blueFlat,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  historyText: { color: colors.blueFlat, fontWeight: "800", fontSize: 13 },
+  banner: { borderRadius: 14, borderWidth: 1, padding: 12 },
+  recentHead: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
+  recentTitle: { fontSize: 12.5, fontWeight: "800", letterSpacing: 0.4 },
+  recentRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12 },
+  recentIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.greenBg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  recentName: { fontSize: 14, fontWeight: "800" },
+  recentSub: { fontSize: 11.5, marginTop: 2 },
+  recentAmt: { color: colors.greenDark, fontSize: 14, fontWeight: "800" },
+  searchBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    marginBottom: 4,
+  },
+  searchInput: { flex: 1, paddingVertical: 12, fontSize: 15 },
+  toolbar: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 },
+  sectionTitle: { fontSize: 16, fontWeight: "800", flex: 1 },
+  addBtn: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
   addBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
   empty: { color: colors.textMuted, textAlign: "center", marginTop: 24 },
   field: { marginBottom: 14 },

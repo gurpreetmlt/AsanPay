@@ -3,7 +3,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { BookText, CircleArrowUp, House, Settings, Users } from "lucide-react-native";
 import { PartnerHomeScreen } from "../screens/partner/PartnerHomeScreen";
 import { NetworkScreen } from "../screens/partner/NetworkScreen";
-import { PassbookScreen } from "../screens/shared/PassbookScreen";
+import { PartnerLedgerScreen } from "../screens/partner/PartnerLedgerScreen";
 import { WalletScreen } from "../screens/shared/WalletScreen";
 import { AccountScreen } from "../screens/shared/AccountScreen";
 import { FundRequestsScreen } from "../screens/shared/FundRequestScreen";
@@ -43,7 +43,7 @@ export function PartnerTabs() {
     >
       <Tab.Screen name="Home" component={PartnerHomeScreen} />
       <Tab.Screen name="Network" component={NetworkScreen} options={{ tabBarLabel: networkLabel }} />
-      <Tab.Screen name="Ledger" component={PassbookScreen} />
+      <Tab.Screen name="Ledger" component={PartnerLedgerScreen} />
       <Tab.Screen name="Requests" component={FundRequestsScreen} />
       <Tab.Screen name="Settings" component={AccountScreen} />
       <Tab.Screen

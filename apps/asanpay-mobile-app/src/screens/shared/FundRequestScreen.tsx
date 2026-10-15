@@ -27,12 +27,17 @@ import {
   ClipboardList,
   CreditCard,
   HelpCircle,
+  Hourglass,
   Info,
   Landmark,
+  Plus,
+  Search,
   Wallet,
   X,
   Zap,
 } from "lucide-react-native";
+import { PartnerTopBar } from "../../components/PartnerTopBar";
+import { DateRangeFields, toYmd } from "../../components/DateRangeCard";
 import { api, fetchApi } from "../../lib/api";
 import { formatSettlementBankCopy } from "../../lib/bankLogo";
 import { formatINR } from "../../lib/format";
@@ -336,24 +341,112 @@ function HomeStep({
 /** Partner "Requests" tab — raise a fund request + full history. */
 export function FundRequestsScreen() {
   const { tokens } = useTheme();
+  const today = toYmd(new Date());
   const [showFund, setShowFund] = useState(false);
-  const [reloadKey, setReloadKey] = useState(0);
+  const [range, setRange] = useState({ from: today, to: today });
+  const [applied, setApplied] = useState({ from: today, to: today });
+  const [rows, setRows] = useState<FundRequestRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      setRows(await fetchApi<FundRequestRow[]>("/fund-requests", { status: "all", limit: 100 }));
+    } catch (err) {
+      showAlert("Could not load requests", (err as Error).message || "Check your connection and tap Search again.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const visible = useMemo(
+    () =>
+      rows.filter((r) => {
+        const day = toYmd(new Date(r.submittedAt));
+        return day >= applied.from && day <= applied.to;
+      }),
+    [rows, applied],
+  );
+
+  const cardStyle = { backgroundColor: tokens.card, borderColor: tokens.cardBorder };
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bg }]} edges={["top"]}>
-      <HistoryStep
-        title="Requests"
-        reloadKey={reloadKey}
-        action={
-          <Pressable style={requestsStyles.raiseBtn} onPress={() => setShowFund(true)}>
-            <Text style={requestsStyles.raiseText}>+ Raise Request</Text>
-          </Pressable>
-        }
-      />
+      <PartnerTopBar title="Request Funds" />
+      <ScrollView
+        contentContainerStyle={requestsStyles.content}
+        refreshControl={<RefreshControl refreshing={false} onRefresh={() => void load()} />}
+      >
+        <View style={[requestsStyles.card, cardStyle]}>
+          <View style={requestsStyles.titleRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={[requestsStyles.h1, { color: tokens.txt }]}>Fund Requests</Text>
+              <Text style={[requestsStyles.sub, { color: tokens.sub }]}>View or raise a new one</Text>
+            </View>
+            <Pressable style={requestsStyles.raiseBtn} onPress={() => setShowFund(true)}>
+              <Plus size={16} color="#fff" strokeWidth={2.6} />
+              <Text style={requestsStyles.raiseText}>Raise</Text>
+            </Pressable>
+          </View>
+          <View style={[requestsStyles.filterBox, { borderColor: tokens.cardBorder }]}>
+            <DateRangeFields from={range.from} to={range.to} onChange={setRange} />
+            <Pressable
+              style={requestsStyles.searchBtn}
+              onPress={() => {
+                setApplied(range);
+                void load();
+              }}
+            >
+              <Search size={17} color="#fff" />
+              <Text style={requestsStyles.searchText}>Search</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        {loading ? (
+          <ActivityIndicator color={colors.blueFlat} style={{ marginTop: 24 }} />
+        ) : visible.length === 0 ? (
+          <View style={[requestsStyles.card, requestsStyles.empty, cardStyle]}>
+            <Hourglass size={30} color={colors.blueFlat} />
+            <Text style={[requestsStyles.emptyTitle, { color: tokens.txt }]}>No requests found</Text>
+            <Text style={[requestsStyles.sub, { color: tokens.sub, textAlign: "center" }]}>
+              Try changing the date range or raise a new request.
+            </Text>
+          </View>
+        ) : (
+          visible.map((r) => {
+            const tone = statusTone(r.status, r.displayStatus);
+            return (
+              <View key={r.id} style={[historyStyles.row, cardStyle]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[historyStyles.amount, { color: tokens.txt }]}>{formatINR(r.amount)}</Text>
+                  {r.creditedAmount ? (
+                    <Text style={historyStyles.credited}>Credited {formatINR(r.creditedAmount)}</Text>
+                  ) : null}
+                  <Text style={[historyStyles.meta, { color: tokens.sub }]}>
+                    {r.paymentMode.replace(/_/g, " ").toUpperCase()} · {r.referenceNumber || "No UTR"}
+                  </Text>
+                  <Text style={[historyStyles.meta, { color: tokens.mute }]}>
+                    {new Date(r.submittedAt).toLocaleString("en-IN")}
+                  </Text>
+                </View>
+                <View style={[historyStyles.pill, { backgroundColor: tone.bg, borderColor: tone.border }]}>
+                  <Text style={[historyStyles.pillText, { color: tone.fg }]}>{r.displayStatus || r.status}</Text>
+                </View>
+              </View>
+            );
+          })
+        )}
+      </ScrollView>
       <FundRequestModal
         visible={showFund}
         onClose={() => {
           setShowFund(false);
-          setReloadKey((k) => k + 1);
+          void load();
         }}
       />
     </SafeAreaView>
@@ -361,27 +454,38 @@ export function FundRequestsScreen() {
 }
 
 const requestsStyles = StyleSheet.create({
+  content: { padding: 14, paddingBottom: 32, gap: 14 },
+  card: { borderWidth: 1, borderRadius: 18, padding: 16 },
+  titleRow: { flexDirection: "row", alignItems: "center", marginBottom: 14 },
+  h1: { fontSize: 20, fontWeight: "800" },
+  sub: { fontSize: 12.5, marginTop: 3 },
   raiseBtn: {
-    backgroundColor: colors.green,
-    borderRadius: 12,
-    paddingVertical: 14,
+    flexDirection: "row",
     alignItems: "center",
-    marginBottom: 14,
+    gap: 6,
+    backgroundColor: colors.green,
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
-  raiseText: { color: "#fff", fontWeight: "800", fontSize: 15 },
+  raiseText: { color: "#fff", fontWeight: "800", fontSize: 14 },
+  filterBox: { borderWidth: 1, borderRadius: 14, padding: 12 },
+  searchBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: colors.blueFlat,
+    borderRadius: 999,
+    paddingVertical: 13,
+    marginTop: 12,
+  },
+  searchText: { color: "#fff", fontWeight: "800", fontSize: 15 },
+  empty: { alignItems: "center", paddingVertical: 30, gap: 8 },
+  emptyTitle: { fontSize: 16, fontWeight: "800" },
 });
 
-function HistoryStep({
-  onBack,
-  title = "My fund requests",
-  action,
-  reloadKey = 0,
-}: {
-  onBack?: () => void;
-  title?: string;
-  action?: React.ReactNode;
-  reloadKey?: number;
-}) {
+function HistoryStep({ onBack }: { onBack: () => void }) {
   const { tokens } = useTheme();
   const [rows, setRows] = useState<FundRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -401,15 +505,14 @@ function HistoryStep({
 
   useEffect(() => {
     void load();
-  }, [load, reloadKey]);
+  }, [load]);
 
   return (
     <ScrollView
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void load()} />}
     >
-      <ScreenTop title={title} onBack={onBack} />
-      {action}
+      <ScreenTop title="My fund requests" onBack={onBack} />
       {error ? (
         <View style={[styles.noticeBanner, { backgroundColor: "#FEE2E2" }]}>
           <Info size={16} color="#B91C1C" />

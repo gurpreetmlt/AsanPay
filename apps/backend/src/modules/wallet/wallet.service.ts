@@ -1,4 +1,4 @@
-import { eq, and, desc, sql, inArray } from "drizzle-orm";
+import { eq, and, desc, sql, inArray, gte, lte } from "drizzle-orm";
 import { randomInt, timingSafeEqual } from "node:crypto";
 import type { PgTransaction } from "drizzle-orm/pg-core";
 import { db } from "../../db/postgres";
@@ -498,8 +498,12 @@ export interface LedgerEntryView {
 // Powers the "Passbook" screen — every ledger line for a user, across all their wallets.
 export async function getWalletLedger(
   userId: string,
-  { limit, offset }: { limit: number; offset: number },
+  { limit, offset, from, to }: { limit: number; offset: number; from?: string; to?: string },
 ): Promise<LedgerEntryView[]> {
+  // Dates are calendar days in IST (agents think in local days).
+  const conds = [eq(wallets.userId, userId)];
+  if (from) conds.push(gte(walletLedgerEntries.createdAt, new Date(`${from}T00:00:00+05:30`)));
+  if (to) conds.push(lte(walletLedgerEntries.createdAt, new Date(`${to}T23:59:59.999+05:30`)));
   const rows = await db
     .select({
       id: walletLedgerEntries.id,
@@ -515,7 +519,7 @@ export async function getWalletLedger(
     .from(walletLedgerEntries)
     .innerJoin(wallets, eq(wallets.id, walletLedgerEntries.walletId))
     .innerJoin(walletLedgerGroups, eq(walletLedgerGroups.id, walletLedgerEntries.groupId))
-    .where(eq(wallets.userId, userId))
+    .where(and(...conds))
     .orderBy(desc(walletLedgerEntries.createdAt))
     .limit(limit)
     .offset(offset);
