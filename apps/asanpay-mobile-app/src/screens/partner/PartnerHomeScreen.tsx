@@ -30,6 +30,7 @@ import { useTheme } from "../../theme/ThemeContext";
 import { colors } from "../../theme/colors";
 import { showAlert } from "../../components/AppAlert";
 import { PageEnter } from "../../components/PageEnter";
+import { BrandLockup } from "../../components/BrandMark";
 import { FundRequestModal } from "../shared/FundRequestScreen";
 
 interface PartnerStats {
@@ -62,6 +63,15 @@ export function PartnerHomeScreen() {
   const childPlural = isSd ? "Distributors" : "Retailers";
   const needsKyc = user.kycStatus === "rejected" || !user.hasKycDocs;
   const main = wallets.find((w) => w.walletType === "main");
+  const initials =
+    user.name
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((p) => p[0]?.toUpperCase() ?? "")
+      .join("") || "A";
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
   const go = (name: string, params?: object) => navigation.navigate(name, params);
 
@@ -117,20 +127,30 @@ export function PartnerHomeScreen() {
     <PageEnter>
       <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bg }]} edges={["top"]}>
         <LinearGradient colors={[...colors.gradient]} style={styles.header}>
+          <View style={[styles.bubble, styles.bubbleA]} />
+          <View style={[styles.bubble, styles.bubbleB]} />
           <View style={styles.headerRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.headerRole}>{ROLE_LABEL[user.role]}</Text>
-              <Text style={styles.headerName} numberOfLines={1}>
-                {user.name} · {user.uid}
+            <Pressable style={styles.avatar} onPress={() => go("Settings")}>
+              <Text style={styles.avatarText}>{initials}</Text>
+            </Pressable>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.greeting} numberOfLines={1}>
+                {greeting}, {user.name.split(" ")[0]}
               </Text>
+              <View style={styles.rolePill}>
+                <Text style={styles.rolePillText} numberOfLines={1}>
+                  {ROLE_LABEL[user.role]} · {user.uid}
+                </Text>
+              </View>
             </View>
             <Pressable style={styles.bellBtn} onPress={() => comingSoon("Notifications")}>
               <Bell size={18} color="#fff" strokeWidth={2.1} />
+              <View style={styles.bellDot} />
             </Pressable>
           </View>
-          <Text style={styles.brand}>
-            Asan<Text style={{ color: colors.greenLight }}>Pay</Text>
-          </Text>
+          <View style={styles.brandWrap}>
+            <BrandLockup iconSize={40} animate light showTagline />
+          </View>
         </LinearGradient>
 
         <ScrollView
@@ -267,23 +287,59 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   header: {
     paddingHorizontal: 18,
-    paddingTop: 10,
-    paddingBottom: 22,
-    borderBottomLeftRadius: 22,
-    borderBottomRightRadius: 22,
+    paddingTop: 12,
+    paddingBottom: 20,
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
+    overflow: "hidden",
   },
-  headerRow: { flexDirection: "row", alignItems: "center" },
-  headerRole: { color: "#fff", fontSize: 17, fontWeight: "800" },
-  headerName: { color: "rgba(255,255,255,0.8)", fontSize: 12, fontWeight: "600", marginTop: 2 },
+  bubble: { position: "absolute", borderRadius: 999, backgroundColor: "rgba(255,255,255,0.07)" },
+  bubbleA: { width: 180, height: 180, top: -70, right: -50 },
+  bubbleB: { width: 120, height: 120, bottom: -60, left: -30 },
+  headerRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.28)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarText: { color: "#fff", fontSize: 16, fontWeight: "800" },
+  greeting: { color: "#fff", fontSize: 16, fontWeight: "800" },
+  rolePill: {
+    alignSelf: "flex-start",
+    marginTop: 4,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    backgroundColor: "rgba(59,227,154,0.18)",
+    borderWidth: 1,
+    borderColor: "rgba(59,227,154,0.4)",
+  },
+  rolePillText: { color: "#BFF3D9", fontSize: 11, fontWeight: "700" },
   bellBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 11,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     backgroundColor: "rgba(255,255,255,.14)",
     alignItems: "center",
     justifyContent: "center",
   },
-  brand: { color: "#fff", fontSize: 34, fontWeight: "900", textAlign: "center", marginTop: 14, letterSpacing: -0.5 },
+  bellDot: {
+    position: "absolute",
+    top: 9,
+    right: 10,
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: colors.green,
+    borderWidth: 1.5,
+    borderColor: "#1E42B0",
+  },
+  brandWrap: { alignItems: "center", marginTop: 18 },
   content: { padding: 16, paddingBottom: 32 },
   kycBanner: {
     borderRadius: 14,

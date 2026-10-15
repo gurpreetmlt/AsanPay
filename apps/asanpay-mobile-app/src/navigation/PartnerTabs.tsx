@@ -25,11 +25,14 @@ const TAB_ICONS = {
 export function PartnerTabs() {
   const { tokens } = useTheme();
   const role = useAuthStore((s) => s.user?.role);
-  const networkLabel = role === "super_distributor" ? "Distributors" : "Retailers";
+  const networkLabel = role === "super_distributor" ? "Distrs." : "Retailers";
+  const base = getTabBarScreenOptions(tokens);
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        ...getTabBarScreenOptions(tokens),
+        ...base,
+        tabBarLabelStyle: [base.tabBarLabelStyle, { fontSize: 10.5 }],
+        tabBarAllowFontScaling: false,
         tabBarIcon: ({ focused }) => (
           <TabBarIcon
             icon={TAB_ICONS[route.name as keyof typeof TAB_ICONS] ?? Users}
