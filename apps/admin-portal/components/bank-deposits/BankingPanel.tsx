@@ -10,6 +10,7 @@ import {
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { DangerConfirmModal } from "@/components/ui/DangerConfirmModal";
 import { bankLogoUrl } from "@/lib/bankLogo";
+import { lookupIndianIfsc } from "@/lib/ifsc";
 import { AgentConfirmModal, ConfirmRow } from "@/components/users/AgentConfirmModal";
 import { TableActionButtons } from "@/components/ui/TableActionButtons";
 import api, { fetchApi } from "@/lib/api";
@@ -794,6 +795,18 @@ interface BankFullDetails {
 function BankViewModal({ bank, onClose }: { bank: BankAccount; onClose: () => void }) {
   const [full, setFull] = useState<BankFullDetails | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [ifscBranch, setIfscBranch] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (bank.branchName) return;
+    let cancelled = false;
+    void lookupIndianIfsc(bank.ifsc).then((place) => {
+      if (!cancelled && place?.branch) setIfscBranch(place.branch);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [bank.ifsc, bank.branchName]);
 
   useEffect(() => {
     let cancelled = false;
@@ -810,6 +823,8 @@ function BankViewModal({ bank, onClose }: { bank: BankAccount; onClose: () => vo
   }, [bank.id, bank.bankName]);
 
   const accountNumber = full?.accountNumber ?? `••••${bank.accountNumberLast4}`;
+  const branch = bank.branchName || ifscBranch;
+  const notSaved = !bank.holderName || !bank.accountType || !bank.branchName;
 
   function copyAll() {
     const lines = [
@@ -819,7 +834,7 @@ function BankViewModal({ bank, onClose }: { bank: BankAccount; onClose: () => vo
       `Bank Name: ${bank.bankName}`,
       `Bank IFSC: ${bank.ifsc}`,
       bank.branchCode ? `Branch Code: ${bank.branchCode}` : null,
-      bank.branchName ? `Branch Name: ${bank.branchName}` : null,
+      branch ? `Branch Name: ${branch}` : null,
     ].filter(Boolean);
     void navigator.clipboard?.writeText(lines.join("\n"));
     toast.success("Bank details copied");
@@ -837,12 +852,21 @@ function BankViewModal({ bank, onClose }: { bank: BankAccount; onClose: () => vo
             accountNumber={accountNumber}
             holderName={bank.holderName}
             accountType={bank.accountType}
-            branchName={bank.branchName}
+            branchName={bank.branchName || (ifscBranch ? `${ifscBranch} (from IFSC, not saved)` : null)}
             branchCode={bank.branchCode}
             purpose={bank.purpose}
             supportsVan={bank.supportsVan}
             status={bank.isActive ? "Active" : "Disabled"}
           />
+          {notSaved ? (
+            <p
+              className="mt-3 rounded-xl px-3 py-2 text-xs font-semibold"
+              style={{ background: "#FEF3C7", color: "#92400E" }}
+            >
+              Passbook details are not saved for this bank yet. Close this, click the pencil (Edit), check Account
+              name, Branch and Branch code, then Save changes — the copy will include them after that.
+            </p>
+          ) : null}
           {full ? (
             <div className="mt-3 rounded-xl border px-4 py-2" style={{ borderColor: B.border }}>
               <ConfirmRow label="Ledger balance">
