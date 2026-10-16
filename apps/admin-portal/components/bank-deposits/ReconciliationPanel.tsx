@@ -991,11 +991,11 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
             </p>
           </div>
 
-          {/* Control bar — one row like the mock */}
-          <div className="flex flex-wrap items-end gap-3">
-            <label className="block w-full min-w-[260px] flex-1 text-sm sm:max-w-[340px]">
-              <span className="mb-1 block font-medium" style={{ color: B.muted }}>
-                Bank account
+          {/* Bank + filters — full width, stacks on small screens */}
+          <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-end">
+            <label className="block w-full min-w-0 lg:max-w-[280px] lg:flex-none">
+              <span className="mb-1 block text-xs font-medium" style={{ color: B.muted }}>
+                Bank
               </span>
               <select
                 className="h-11 w-full rounded-xl border px-3 text-sm"
@@ -1012,83 +1012,87 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
               </select>
             </label>
 
-            <div
-              className="inline-flex h-11 items-center rounded-xl border p-1"
-              style={{ borderColor: B.border, background: "#F1F5F9" }}
-            >
-              {(
-                [
-                  ["today", "Today"],
-                  ["week", "This week"],
-                  ["month", "This month"],
-                  ["lastMonth", "Last month"],
-                ] as const
-              ).map(([key, label]) => {
-                const active = periodPreset === key;
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => {
-                      const r = presetRange(key);
-                      setFrom(r.from);
-                      setTo(r.to);
-                      setPeriodPreset(key);
-                    }}
-                    className="rounded-lg px-3 py-1.5 text-xs font-bold transition"
-                    style={{
-                      background: active ? "#fff" : "transparent",
-                      color: active ? B.blue : B.muted,
-                      boxShadow: active ? "0 1px 2px rgba(15,23,42,0.08)" : undefined,
-                    }}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
+            <div className="flex min-w-0 w-full flex-1 flex-col gap-3 sm:flex-row sm:items-end">
+              <div
+                className="flex h-11 w-full min-w-0 flex-1 items-center rounded-xl border p-1"
+                style={{ borderColor: B.border, background: "#F1F5F9" }}
+              >
+                {(
+                  [
+                    ["today", "Today"],
+                    ["week", "This week"],
+                    ["month", "This month"],
+                    ["lastMonth", "Last month"],
+                  ] as const
+                ).map(([key, label]) => {
+                  const active = periodPreset === key;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => {
+                        const r = presetRange(key);
+                        setFrom(r.from);
+                        setTo(r.to);
+                        setPeriodPreset(key);
+                      }}
+                      className="min-w-0 flex-1 truncate rounded-lg px-1.5 py-1.5 text-[11px] font-bold transition sm:px-2 sm:text-xs"
+                      style={{
+                        background: active ? "#fff" : "transparent",
+                        color: active ? B.blue : B.muted,
+                        boxShadow: active ? "0 1px 2px rgba(15,23,42,0.08)" : undefined,
+                      }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <label className="block w-full sm:w-[148px] sm:flex-none">
+                <span className="mb-1 block text-xs font-medium" style={{ color: B.muted }}>
+                  From
+                </span>
+                <input
+                  type="date"
+                  className="h-11 w-full rounded-xl border px-3 text-sm"
+                  style={inputStyle}
+                  value={from}
+                  onChange={(e) => {
+                    setFrom(e.target.value);
+                    setPeriodPreset(null);
+                  }}
+                />
+              </label>
+              <label className="block w-full sm:w-[148px] sm:flex-none">
+                <span className="mb-1 block text-xs font-medium" style={{ color: B.muted }}>
+                  To
+                </span>
+                <input
+                  type="date"
+                  className="h-11 w-full rounded-xl border px-3 text-sm"
+                  style={inputStyle}
+                  value={to}
+                  onChange={(e) => {
+                    setTo(e.target.value);
+                    setPeriodPreset(null);
+                  }}
+                />
+              </label>
             </div>
 
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium" style={{ color: B.muted }}>
-                From
-              </span>
-              <input
-                type="date"
-                className="h-11 rounded-xl border px-3 text-sm"
-                style={inputStyle}
-                value={from}
-                onChange={(e) => {
-                  setFrom(e.target.value);
-                  setPeriodPreset(null);
-                }}
-              />
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium" style={{ color: B.muted }}>
-                To
-              </span>
-              <input
-                type="date"
-                className="h-11 rounded-xl border px-3 text-sm"
-                style={inputStyle}
-                value={to}
-                onChange={(e) => {
-                  setTo(e.target.value);
-                  setPeriodPreset(null);
-                }}
-              />
-            </label>
-
-            <button
-              type="button"
-              disabled={loading}
-              onClick={() => void runReport()}
-              className="h-11 rounded-xl px-5 text-sm font-bold text-white disabled:opacity-60"
-              style={{ background: B.badgeGrad }}
-            >
-              {loading ? "Checking…" : "Run reconciliation"}
-            </button>
-            {report ? <ExportMenu report={report} rows={visibleRows} /> : null}
+            <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-none lg:justify-end">
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => void runReport()}
+                className="h-11 flex-1 rounded-xl px-5 text-sm font-bold text-white disabled:opacity-60 lg:flex-none"
+                style={{ background: B.badgeGrad }}
+              >
+                {loading ? "Checking…" : "Run reconciliation"}
+              </button>
+              {report ? <ExportMenu report={report} rows={visibleRows} /> : null}
+            </div>
           </div>
 
           {report ? (
@@ -1413,11 +1417,7 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                 </table>
               </div>
             </>
-          ) : (
-            <p className="text-sm" style={{ color: B.muted }}>
-              Pick a bank and period, then Run reconciliation.
-            </p>
-          )}
+          ) : null}
         </section>
 
         <section className="space-y-3 rounded-2xl border bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]" style={{ borderColor: B.border }}>
