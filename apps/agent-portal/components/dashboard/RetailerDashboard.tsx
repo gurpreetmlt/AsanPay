@@ -239,105 +239,121 @@ export function RetailerDashboard() {
           </PrimaryButton>
         </div>
       ) : null}
-      <div className="dash-stagger grid grid-cols-1 items-stretch gap-3 md:grid-cols-2 lg:grid-cols-4">
-        {/* Wallets — closed by default; expand to MAIN / AEPS detail cards */}
-        <div className={walletsOpen && secondary ? "md:col-span-2 lg:col-span-2" : "lg:col-span-2"}>
-          <button
-            type="button"
-            onClick={() => setWalletsOpen((v) => !v)}
-            aria-expanded={walletsOpen}
-            className="flex w-full items-center gap-3 rounded-xl border bg-white px-3.5 py-2.5 text-left shadow-[0_2px_10px_rgba(15,23,42,0.08)] transition-colors hover:bg-slate-50"
-            style={{ borderColor: B.border }}
-          >
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
-              <span className="flex min-w-0 flex-col">
-                <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
-                  {primary ? walletDisplayName(primary.walletType) : "Main"}
-                </span>
-                <span className="truncate text-sm font-extrabold tabular-nums" style={{ color: B.blueLight }}>
-                  {loading ? "…" : maskBalance(balanceVisible, formatInr(primary?.balance ?? "0"))}
-                </span>
+      {/* Full stats strip: MAIN + AEPS + Transactions + Success — one open/close, default closed */}
+      <div className="dash-stagger">
+        <button
+          type="button"
+          onClick={() => setWalletsOpen((v) => !v)}
+          aria-expanded={walletsOpen}
+          className="flex w-full items-center gap-2 rounded-xl border bg-white px-3.5 py-2.5 text-left shadow-[0_2px_10px_rgba(15,23,42,0.08)] transition-colors hover:bg-slate-50"
+          style={{ borderColor: B.border }}
+        >
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-2">
+            <span className="flex min-w-0 flex-col">
+              <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+                {primary ? walletDisplayName(primary.walletType) : "Main"}
               </span>
-              {secondary ? (
-                <>
-                  <span className="hidden h-7 w-px sm:block" style={{ background: "rgba(11,42,154,0.12)" }} />
-                  <span className="flex min-w-0 flex-col">
-                    <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
-                      {walletDisplayName(secondary.walletType)}
-                    </span>
-                    <span className="truncate text-sm font-extrabold tabular-nums" style={{ color: B.green }}>
-                      {loading ? "…" : maskBalance(balanceVisible, formatInr(secondary.balance))}
-                    </span>
+              <span className="truncate text-sm font-extrabold tabular-nums" style={{ color: B.blueLight }}>
+                {loading ? "…" : maskBalance(balanceVisible, formatInr(primary?.balance ?? "0"))}
+              </span>
+            </span>
+            {secondary ? (
+              <>
+                <span className="hidden h-7 w-px sm:block" style={{ background: "rgba(11,42,154,0.12)" }} />
+                <span className="flex min-w-0 flex-col">
+                  <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+                    {walletDisplayName(secondary.walletType)}
                   </span>
-                </>
-              ) : null}
-            </div>
-            <ChevronDown
-              size={16}
-              className={`shrink-0 transition-transform ${walletsOpen ? "rotate-180" : ""}`}
-              style={{ color: B.muted }}
-            />
-          </button>
+                  <span className="truncate text-sm font-extrabold tabular-nums" style={{ color: B.green }}>
+                    {loading ? "…" : maskBalance(balanceVisible, formatInr(secondary.balance))}
+                  </span>
+                </span>
+              </>
+            ) : null}
+            <span className="hidden h-7 w-px sm:block" style={{ background: "rgba(11,42,154,0.12)" }} />
+            <span className="flex min-w-0 flex-col">
+              <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+                Transactions
+              </span>
+              <span className="truncate text-sm font-extrabold tabular-nums" style={{ color: B.blue }}>
+                {loading ? "…" : String(stats?.today.txnCount ?? 0)}
+              </span>
+            </span>
+            <span className="hidden h-7 w-px sm:block" style={{ background: "rgba(11,42,154,0.12)" }} />
+            <span className="flex min-w-0 flex-col">
+              <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+                Success Rate
+              </span>
+              <span className="truncate text-sm font-extrabold tabular-nums" style={{ color: B.blue }}>
+                {loading ? "…" : `${stats?.today.successRate ?? 0}%`}
+              </span>
+            </span>
+          </div>
+          <ChevronDown
+            size={16}
+            className={`shrink-0 transition-transform ${walletsOpen ? "rotate-180" : ""}`}
+            style={{ color: B.muted }}
+          />
+        </button>
 
-          {walletsOpen ? (
-            <div className={`mt-3 grid grid-cols-1 gap-3 ${secondary ? "md:grid-cols-2" : ""}`}>
+        {walletsOpen ? (
+          <div className="mt-3 grid grid-cols-1 items-stretch gap-3 md:grid-cols-2 lg:grid-cols-4">
+            <div
+              className="dash-card-hover relative flex h-full min-h-[108px] flex-col overflow-hidden rounded-xl p-3.5 text-white"
+              style={{ background: role.gradient, boxShadow: `0 2px 10px ${role.color}22` }}
+            >
+              <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white opacity-10" />
+              <div className="mb-1 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-white/70">
+                <Wallet size={12} />
+                {primary ? walletDisplayName(primary.walletType) : "Main"}
+              </div>
+              <div className="mb-2.5 text-2xl font-bold leading-none tracking-tight">
+                {loading ? "…" : maskBalance(balanceVisible, formatInr(primary?.balance ?? "0"))}
+              </div>
+              <div className="mt-auto flex min-h-[28px] items-center gap-1.5 border-t border-white/15 pt-2">
+                <Activity size={11} className="text-white/80" />
+                <span className="text-[11px] text-white/90">Ready to use</span>
+              </div>
+            </div>
+
+            {secondary ? (
               <div
                 className="dash-card-hover relative flex h-full min-h-[108px] flex-col overflow-hidden rounded-xl p-3.5 text-white"
-                style={{ background: role.gradient, boxShadow: `0 2px 10px ${role.color}22` }}
+                style={{ background: B.green, boxShadow: `0 2px 10px ${B.green}22` }}
               >
                 <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white opacity-10" />
                 <div className="mb-1 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-white/70">
                   <Wallet size={12} />
-                  {primary ? walletDisplayName(primary.walletType) : "Main"}
+                  {walletDisplayName(secondary.walletType)}
                 </div>
                 <div className="mb-2.5 text-2xl font-bold leading-none tracking-tight">
-                  {loading ? "…" : maskBalance(balanceVisible, formatInr(primary?.balance ?? "0"))}
+                  {loading ? "…" : maskBalance(balanceVisible, formatInr(secondary.balance))}
                 </div>
                 <div className="mt-auto flex min-h-[28px] items-center gap-1.5 border-t border-white/15 pt-2">
                   <Activity size={11} className="text-white/80" />
-                  <span className="text-[11px] text-white/90">Ready to use</span>
+                  <span className="text-[11px] text-white/90">
+                    Pending: {balanceVisible ? formatInr(totalPending) : "••••"}
+                  </span>
                 </div>
               </div>
+            ) : null}
 
-              {secondary ? (
-                <div
-                  className="dash-card-hover relative flex h-full min-h-[108px] flex-col overflow-hidden rounded-xl p-3.5 text-white"
-                  style={{ background: B.green, boxShadow: `0 2px 10px ${B.green}22` }}
-                >
-                  <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white opacity-10" />
-                  <div className="mb-1 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-white/70">
-                    <Wallet size={12} />
-                    {walletDisplayName(secondary.walletType)}
-                  </div>
-                  <div className="mb-2.5 text-2xl font-bold leading-none tracking-tight">
-                    {loading ? "…" : maskBalance(balanceVisible, formatInr(secondary.balance))}
-                  </div>
-                  <div className="mt-auto flex min-h-[28px] items-center gap-1.5 border-t border-white/15 pt-2">
-                    <Activity size={11} className="text-white/80" />
-                    <span className="text-[11px] text-white/90">
-                      Pending: {balanceVisible ? formatInr(totalPending) : "••••"}
-                    </span>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-
-        <StatCard
-          icon={<Activity size={18} />}
-          label="Transactions"
-          value={loading ? "…" : String(stats?.today.txnCount ?? 0)}
-          sub={`${formatInr(stats?.today.volume ?? "0")} volume`}
-          accent={B.blue}
-        />
-        <StatCard
-          icon={<CheckCircle2 size={18} />}
-          label="Success Rate"
-          value={loading ? "…" : `${stats?.today.successRate ?? 0}%`}
-          sub={Number(stats?.today.successRate ?? 0) >= 90 ? "Excellent" : "Track carefully"}
-          accent={B.green}
-        />
+            <StatCard
+              icon={<Activity size={18} />}
+              label="Transactions"
+              value={loading ? "…" : String(stats?.today.txnCount ?? 0)}
+              sub={`${formatInr(stats?.today.volume ?? "0")} volume`}
+              accent={B.blue}
+            />
+            <StatCard
+              icon={<CheckCircle2 size={18} />}
+              label="Success Rate"
+              value={loading ? "…" : `${stats?.today.successRate ?? 0}%`}
+              sub={Number(stats?.today.successRate ?? 0) >= 90 ? "Excellent" : "Track carefully"}
+              accent={B.green}
+            />
+          </div>
+        ) : null}
       </div>
 
       {/* All services — favourites pin removed from home */}
