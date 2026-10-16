@@ -141,19 +141,22 @@ export async function verifyStatementBank(input: VerifyInput): Promise<VerifyRes
     .map((b) => ({ bank: b, hits: hitsByBank.get(b.id) ?? 0 }))
     .sort((a, b) => b.hits - a.hits)[0];
   let knownFail = false;
-  if (sameHits > 0) {
-    checks.push({
-      code: "known_txns",
-      result: "pass",
-      message: `${sameHits} transaction(s) on this statement are already recorded for ${label(selected)}`,
-    });
-  } else if (otherBest && otherBest.hits > 0) {
+  if (otherBest && otherBest.hits > sameHits && otherBest.hits > 0) {
     knownFail = true;
     suggested ??= otherBest.bank;
     checks.push({
       code: "known_txns",
       result: "fail",
-      message: `${otherBest.hits} transaction(s) on this statement are recorded for ${label(otherBest.bank)}, none for ${label(selected)}`,
+      message:
+        sameHits > 0
+          ? `${otherBest.hits} transaction(s) match ${label(otherBest.bank)} vs ${sameHits} for ${label(selected)} — this file looks like the wrong bank`
+          : `${otherBest.hits} transaction(s) on this statement are recorded for ${label(otherBest.bank)}, none for ${label(selected)}`,
+    });
+  } else if (sameHits > 0) {
+    checks.push({
+      code: "known_txns",
+      result: "pass",
+      message: `${sameHits} transaction(s) on this statement are already recorded for ${label(selected)}`,
     });
   } else {
     checks.push({ code: "known_txns", result: "skipped", message: "No transaction on this statement is recorded yet" });
@@ -162,6 +165,8 @@ export async function verifyStatementBank(input: VerifyInput): Promise<VerifyRes
   // 4. Balance continuity with the last uploaded line before the statement starts
   let balancePass = false;
   let balanceOther: BankRow | null = null;
+  /** Selected bank has prior lines but opening does not continue them (gap or wrong bank). */
+  let balanceGap = false;
   if (input.opening) {
     const opening = rupeesToPaise(input.opening.balance);
     const last = await db.execute<{ bank_account_id: string; balance_after: string }>(sql`
@@ -183,12 +188,13 @@ export async function verifyStatementBank(input: VerifyInput): Promise<VerifyRes
       });
     } else {
       balanceOther = others.find((b) => lastBy.get(b.id) === opening) ?? null;
+      balanceGap = !balanceOther;
       checks.push({
         code: "balance",
         result: "fail",
         message: balanceOther
           ? `Opening balance ₹${paiseToRupees(opening)} continues ${label(balanceOther)}'s statement, not ${label(selected)}'s (₹${paiseToRupees(prev as Paise)})`
-          : `Opening balance ₹${paiseToRupees(opening)} does not continue from the last uploaded balance ₹${paiseToRupees(prev as Paise)} — a statement may be missing`,
+          : `Opening balance ₹${paiseToRupees(opening)} does not continue from the last uploaded balance ₹${paiseToRupees(prev as Paise)} — wrong bank or a statement period is missing`,
       });
       if (balanceOther) suggested ??= balanceOther;
     }
@@ -196,17 +202,33 @@ export async function verifyStatementBank(input: VerifyInput): Promise<VerifyRes
     checks.push({ code: "balance", result: "skipped", message: "Statement has no balance column" });
   }
 
+  // Hard identity (account / IFSC) can override soft wrong-bank hints.
+  // Soft matches (known UTRs / balance continuity on selected) must NOT override
+  // stronger evidence that the file belongs to another company bank.
+  const hardMatch = accountPass || ifscPass;
+  const softMatch = sameHits > 0 || balancePass;
+  const pointsElsewhere =
+    knownFail ||
+    !!balanceOther ||
+    (!!otherBest && otherBest.hits > sameHits && otherBest.hits >= 1);
+  if (pointsElsewhere && otherBest && otherBest.hits > sameHits) {
+    suggested ??= otherBest.bank;
+  }
+
   let verdict: Verdict;
   let message: string;
   if (hardFail) {
     verdict = "blocked";
     message = checks.find((c) => c.result === "fail" && (c.code === "account" || c.code === "ifsc"))!.message;
-  } else if (accountPass || ifscPass || sameHits > 0 || balancePass) {
+  } else if (pointsElsewhere && !hardMatch) {
+    verdict = "blocked";
+    message = `This statement looks like ${suggested ? label(suggested) : "another bank"}'s, not ${label(selected)}'s. Import is blocked — switch bank or upload the correct file.`;
+  } else if (balanceGap && !hardMatch && !softMatch) {
+    verdict = "blocked";
+    message = `Opening balance does not continue ${label(selected)}'s last statement. Import is blocked — select the correct bank or upload the missing period first.`;
+  } else if (hardMatch || softMatch) {
     verdict = "verified";
     message = `Statement verified for ${label(selected)}`;
-  } else if (knownFail || balanceOther) {
-    verdict = "blocked";
-    message = `This statement looks like ${suggested ? label(suggested) : "another bank"}'s, not ${label(selected)}'s`;
   } else {
     verdict = "unverified";
     message = `Could not confirm this statement belongs to ${label(selected)}. Confirm the bank before importing.`;

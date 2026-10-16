@@ -510,6 +510,7 @@ function BankCheckBox({
   if (!check) return null;
   const s = VERDICT_STYLE[check.verdict];
   const Icon = check.verdict === "verified" ? CheckCircle2 : check.verdict === "blocked" ? XCircle : AlertTriangle;
+  const shown = check.checks.filter((c) => c.result !== "skipped");
   return (
     <div
       className="recon-verify-in space-y-2 rounded-xl border p-3 text-sm"
@@ -518,20 +519,23 @@ function BankCheckBox({
       <p className="flex items-start gap-2 font-semibold" style={{ color: s.color }}>
         <Icon size={16} className="mt-0.5 shrink-0" /> {check.message}
       </p>
+      {check.verdict === "blocked" ? (
+        <p className="pl-6 text-xs font-bold" style={{ color: s.color }}>
+          Import is blocked until you switch to the correct bank or fix the file.
+        </p>
+      ) : null}
       <ul className="space-y-0.5 pl-6 text-xs" style={{ color: B.muted }}>
-        {check.checks
-          .filter((c) => c.result !== "skipped")
-          .map((c) => (
-            <li key={c.code}>
-              {c.result === "pass" ? "✓" : "✗"} {c.message}
-            </li>
-          ))}
+        {shown.map((c) => (
+          <li key={c.code} style={{ color: c.result === "fail" ? B.danger : B.muted }}>
+            {c.result === "pass" ? "✓" : "✗"} {c.message}
+          </li>
+        ))}
       </ul>
       {check.verdict === "blocked" && check.suggestedBank ? (
         <button
           type="button"
           onClick={() => onSwitch(check.suggestedBank!.id)}
-          className="ml-6 rounded-lg px-3 py-1.5 text-xs font-bold text-white"
+          className="ml-6 inline-flex h-10 items-center rounded-xl px-4 text-sm font-bold text-white"
           style={{ background: B.blue }}
         >
           Switch to {check.suggestedBank.bankName} ••{check.suggestedBank.last4}

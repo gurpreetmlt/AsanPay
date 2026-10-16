@@ -56,7 +56,7 @@
 | 16 | Txn PIN modal | S | [16-mobile-txn-pin.md](16-mobile-txn-pin.md) |
 
 ## Treasury & Balance ease (ordered)
-Queue: [treasury-balance-ease-queue.md](treasury-balance-ease-queue.md) — **CURRENT = TB10 Wrong-bank detector**
+Queue: [treasury-balance-ease-queue.md](treasury-balance-ease-queue.md) — **CURRENT = TB11 Likely match Confirm**
 
 ## Wallet engine pending (ordered)
 Queue: [wallet-engine-queue.md](wallet-engine-queue.md) (MVP 27A–27D done)
