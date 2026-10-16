@@ -20,8 +20,6 @@ import {
   Star,
   RefreshCw,
   PlusCircle,
-  SendHorizonal,
-  Download,
   ChevronDown,
   Landmark,
   LifeBuoy,
@@ -36,7 +34,6 @@ import {
   EyeOff,
   TrendingUp,
 } from "lucide-react";
-import { toast } from "react-hot-toast";
 import { isFundRequestEnabled, type UserRole } from "@asanpay/shared-types";
 import { AsanPayLockup } from "@/components/brand/Logo";
 import { fetchApi } from "@/lib/api";
@@ -453,7 +450,7 @@ function walletAmountColor(walletType: string): string {
   return B.blueLight;
 }
 
-/** Unified header wallet bar: MAIN | AEPS | eye | refresh. Menu opens on click only (default closed). */
+/** Unified header wallet bar: MAIN | AEPS | eye | refresh (no click menu on balances). */
 function HeaderWalletBalances({
   wallets,
   loading,
@@ -465,10 +462,6 @@ function HeaderWalletBalances({
   onRefresh: () => void;
   className?: string;
 }) {
-  const router = useRouter();
-  const user = useAuthStore((s) => s.user);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
   const ordered = [...wallets].sort((a, b) => {
     if (a.walletType === "main") return -1;
     if (b.walletType === "main") return 1;
@@ -477,43 +470,10 @@ function HeaderWalletBalances({
   const balanceVisible = useBalanceVisibility((s) => s.visible);
   const toggleBalance = useBalanceVisibility((s) => s.toggle);
 
-  useEffect(() => {
-    if (!menuOpen) return;
-    function onClickOutside(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setMenuOpen(false);
-    }
-    document.addEventListener("mousedown", onClickOutside);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onClickOutside);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [menuOpen]);
-
-  const fundOn = user ? isFundRequestEnabled(user.role, user.fundRequestEnabled) : false;
-  const goAddMoney = () => {
-    if (!fundOn) {
-      toast.error("Fund requests are not enabled for your account. Contact your sales manager to enable them.");
-      return;
-    }
-    router.push("/fund-request");
-  };
-
-  const actions = [
-    ...(fundOn ? [{ icon: PlusCircle, label: "Add Money", action: goAddMoney }] : []),
-    { icon: SendHorizonal, label: "Transfer", action: () => router.push("/wallet") },
-    { icon: RefreshCw, label: "Refresh", action: onRefresh },
-    { icon: Download, label: "Statement", action: () => router.push("/statements") },
-  ];
-
   if (!loading && ordered.length === 0) return null;
 
   return (
     <div
-      ref={menuRef}
       className={`relative inline-flex max-w-full items-center gap-0.5 rounded-xl border bg-white py-1 pl-1.5 pr-1.5 shadow-[0_2px_14px_rgba(15,23,42,0.10)] ${className ?? ""}`}
       style={{ borderColor: "rgba(11,42,154,0.08)" }}
     >
@@ -522,14 +482,7 @@ function HeaderWalletBalances({
           …
         </span>
       ) : (
-        <button
-          type="button"
-          onClick={() => setMenuOpen((v) => !v)}
-          className="flex items-center gap-0.5 rounded-lg px-0.5 py-0.5 text-left transition-colors hover:bg-slate-50"
-          aria-expanded={menuOpen}
-          aria-haspopup="menu"
-          title="Wallet actions"
-        >
+        <div className="flex items-center gap-0.5 px-0.5 py-0.5" aria-label="Wallet balances">
           {ordered.map((w, i) => (
             <div key={w.id} className="flex items-center">
               {i > 0 ? (
@@ -551,15 +504,12 @@ function HeaderWalletBalances({
               </span>
             </div>
           ))}
-        </button>
+        </div>
       )}
       <div className="ml-1 flex shrink-0 items-center gap-1.5 pl-0.5">
         <button
           type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            toggleBalance();
-          }}
+          onClick={() => toggleBalance()}
           className="icon-tooltip flex h-8 w-8 items-center justify-center rounded-lg"
           style={{ background: B.secondary, color: B.blueLight }}
           aria-label={balanceVisible ? "Hide balances" : "Show balances"}
@@ -569,10 +519,7 @@ function HeaderWalletBalances({
         </button>
         <button
           type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRefresh();
-          }}
+          onClick={() => onRefresh()}
           disabled={loading}
           className="icon-tooltip flex h-8 w-8 items-center justify-center rounded-lg text-white disabled:opacity-50"
           style={{ background: B.blueLight }}
@@ -582,32 +529,6 @@ function HeaderWalletBalances({
           <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
         </button>
       </div>
-
-      {menuOpen ? (
-        <div
-          role="menu"
-          className="dropdown-pop-in absolute right-0 top-full z-50 mt-1.5 min-w-[11rem] rounded-xl border bg-white p-1.5 shadow-lg"
-          style={{ borderColor: B.border }}
-        >
-          {actions.map(({ icon: Icon, label, action }) => (
-            <button
-              key={label}
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                action();
-                setMenuOpen(false);
-              }}
-              disabled={label === "Refresh" && loading}
-              className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-xs font-semibold transition-colors hover:bg-secondary disabled:opacity-50"
-              style={{ color: B.blue }}
-            >
-              <Icon size={14} className={label === "Refresh" && loading ? "animate-spin" : ""} />
-              {label}
-            </button>
-          ))}
-        </div>
-      ) : null}
     </div>
   );
 }
