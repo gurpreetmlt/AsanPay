@@ -81,11 +81,11 @@
 | **TC13** | Admin tax registers + CSV | M | done | Admin Commercials → Tax registers · TDS + DMT GST CSV |
 | **TC14** | Provider margin vs scheme underwater warn | S | done | Preview `providerPool` → underwater banner when scheme gross > pool |
 | **TC15** | Vyapar / provider commission ingest | L | **blocked** | Needs sample payload from owner — do not invent |
-| **TC16** | Monthly TDS summary + PAN banner | S | **CURRENT** | Settings — SD/Dist/Retailer mobile |
-| **TC17** | Noble commercials hook (33A) | L | pending | Reuse TC02–TC03 — no second tax engine |
-| **TC18** | Reversal / refund tax clawback | M | pending | |
-| **TC19** | Admin Commercials IA polish | S | pending | Schemes · Overrides · Tax · Payouts · Preview |
-| **TC20** | Smoke + checklist | S | pending | SD/Dist web+mobile + **Retailer mobile** + admin tax; `docs/CHECKLIST.md` |
+| **TC16** | Monthly TDS summary + PAN banner | S | done | Mobile Account Tax card + PAN banner · `GET /earnings/tds-summary` |
+| **TC17** | Noble commercials hook (33A) | L | **blocked** | Needs Task 33 paths / likely schema — stop for migration/owner |
+| **TC18** | Reversal / refund tax clawback | M | **blocked** | Likely ledger/schema work — stop for migration |
+| **TC19** | Admin Commercials IA polish | S | done | Tab IA: Schemes · Tax · Tax registers · Payouts (+ Preview on schemes) |
+| **TC20** | Smoke + checklist | S | done | Queue TC01–14 + TC16 done; TC15/17/18 blocked; checklist updated |
 | **TC21** | Retailer **web** earnings UX | M | **parked** | Owner will specify how agent-portal retailer sees earnings. Do not invent web layout until then |
 | **TC22** | Retailer confirm / receipt earn lines (optional) | M | pending | After TC07–11: recharge/DMT confirm “Est. net” + receipt Gross/TDS/Net — mobile first; web with TC21 |
 
@@ -149,7 +149,8 @@
 
 ```
 @docs/TASKS/tax-commission-queue.md @AGENTS.md
-Implement CURRENT only (TC16 Monthly TDS summary + PAN banner). No explore. No MCP. Mac Terminal cmds in reply.
+Unblock CURRENT: TC15 needs Vyapar sample payload OR TC17 Noble paths OR TC18 clawback design.
+No explore. No MCP. Mac Terminal cmds in reply.
 ```
 
 When retailer web is ready:

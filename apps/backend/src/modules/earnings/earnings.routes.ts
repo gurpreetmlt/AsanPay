@@ -6,6 +6,7 @@ import { sendSuccess } from "../../utils/apiResponse";
 import { HttpError } from "../../utils/httpError";
 import {
   getMyEarningsSummary,
+  getMyMonthlyTdsSummary,
   listMyEarnings,
   listMyEarningsByProduct,
   listMyEarningsByDownline,
@@ -109,4 +110,13 @@ earningsRouter.get("/product-txns", async (req, res) => {
     role: req.auth.role,
   });
   sendSuccess(res, { rows });
+});
+
+earningsRouter.get("/tds-summary", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const month =
+    typeof req.query.month === "string" && /^\d{4}-\d{2}$/.test(req.query.month)
+      ? req.query.month
+      : undefined;
+  sendSuccess(res, await getMyMonthlyTdsSummary(req.auth.sub, month));
 });

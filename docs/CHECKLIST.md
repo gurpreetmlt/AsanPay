@@ -29,6 +29,9 @@
 - [x] My Earnings shell (TC07–08): Home Today’s Earnings / Report → `MyEarnings`; `/api/earnings` summary + by-product; SD/Dist web `/earnings`
 - [x] My Earnings TC09–12: downline + product tabs, expand Gross/TDS/Net, nav wiring (web SD/Dist + mobile all agent roles)
 - [x] Admin tax registers (TC13): TDS by agent/month + DMT fee GST + CSV on Commercials
+- [x] Commission preview underwater warn (TC14) when provider pool &lt; scheme gross
+- [x] Mobile monthly TDS + PAN banner (TC16) on Account
+- [ ] Tax commission blocked: TC15 Vyapar ingest (sample payload), TC17 Noble hook, TC18 tax clawback (likely migrate)
 - [ ] Service flows (AEPS, DMT, BBPS)
 - [ ] Biometric SDK
 - [x] Txn PIN modal + wallet transfer PIN

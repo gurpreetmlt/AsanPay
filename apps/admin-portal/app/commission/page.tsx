@@ -512,7 +512,7 @@ export default function CommissionSchemesPage() {
                 Commercials
               </h1>
               <p className="text-sm" style={{ color: B.muted }}>
-                Schemes, tax (TDS / fee GST), and payout ledger. Per-agent overrides stay on agent detail.
+                Schemes · Tax · Tax registers · Payouts · Preview. Per-agent overrides stay on agent detail.
               </p>
             </div>
           </div>

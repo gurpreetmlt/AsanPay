@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   Smartphone,
   Sun,
+  TrendingUp,
   UserCircle,
   Wallet,
 } from "lucide-react-native";
@@ -26,7 +27,8 @@ import { BrandMark } from "../../components/BrandMark";
 import { PageEnter } from "../../components/PageEnter";
 import { ModalSheet } from "../../components/ModalSheet";
 import { PinInput } from "../../components/PinInput";
-import { api } from "../../lib/api";
+import { api, fetchApi } from "../../lib/api";
+import { formatINR } from "../../lib/format";
 import { logoutEverywhere } from "../../lib/logout";
 import { apiError } from "../../utils/apiError";
 import { useAuthStore } from "../../store/auth";
@@ -173,6 +175,33 @@ export function AccountScreen() {
   const [showRegisterOutlet, setShowRegisterOutlet] = useState(false);
   const [showBioKyc, setShowBioKyc] = useState(false);
   const [telegramBusy, setTelegramBusy] = useState(false);
+  const [tdsSummary, setTdsSummary] = useState<{
+    month: string;
+    totalGross: string;
+    totalTds: string;
+    totalNet: string;
+    hasPan: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    void fetchApi<{
+      month: string;
+      totalGross: string;
+      totalTds: string;
+      totalNet: string;
+      hasPan: boolean;
+    }>("/earnings/tds-summary")
+      .then((data) => {
+        if (alive) setTdsSummary(data);
+      })
+      .catch(() => {
+        /* non-blocking */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   async function linkTelegram() {
     if (telegramBusy) return;
@@ -373,6 +402,47 @@ export function AccountScreen() {
             })}
           </View>
         </View>
+
+        {tdsSummary ? (
+          <>
+            <Text style={[styles.section, { color: tokens.sub }]}>Tax</Text>
+            {!tdsSummary.hasPan ? (
+              <Pressable
+                onPress={() => setShowProfile(true)}
+                style={[
+                  styles.panBanner,
+                  { backgroundColor: "#FFF7ED", borderColor: "#FDBA74" },
+                ]}
+              >
+                <Text style={styles.panBannerTitle}>Add PAN for TDS</Text>
+                <Text style={styles.panBannerSub}>
+                  PAN is missing on your profile. TDS still applies at the configured rate — complete KYC /
+                  PAN so your tax records stay accurate.
+                </Text>
+              </Pressable>
+            ) : null}
+            <Pressable
+              onPress={() => goMyEarnings()}
+              style={[styles.tdsCard, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
+            >
+              <View style={[styles.tdsIcon, { backgroundColor: colors.greenBg }]}>
+                <TrendingUp size={18} color={colors.green} strokeWidth={2.2} />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={[styles.tdsLabel, { color: tokens.sub }]}>
+                  TDS this month ({tdsSummary.month})
+                </Text>
+                <Text style={[styles.tdsValue, { color: tokens.txt }]}>
+                  {formatINR(tdsSummary.totalTds)}
+                </Text>
+                <Text style={[styles.tdsMeta, { color: tokens.sub }]}>
+                  Gross {formatINR(tdsSummary.totalGross)} · Net {formatINR(tdsSummary.totalNet)}
+                </Text>
+              </View>
+              <ChevronRight size={18} color={tokens.mute} />
+            </Pressable>
+          </>
+        ) : null}
 
         <Text style={[styles.section, { color: tokens.sub }]}>Manage</Text>
         <SectionCard tokens={tokens}>
@@ -1270,6 +1340,34 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     marginTop: 4,
   },
+  panBanner: {
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 12,
+    gap: 4,
+  },
+  panBannerTitle: { fontSize: 14, fontWeight: "800", color: "#C2410C" },
+  panBannerSub: { fontSize: 12, fontWeight: "600", color: "#9A3412", lineHeight: 17 },
+  tdsCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 16,
+  },
+  tdsIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tdsLabel: { fontSize: 11, fontWeight: "800", letterSpacing: 0.3 },
+  tdsValue: { fontSize: 20, fontWeight: "800", marginTop: 2 },
+  tdsMeta: { fontSize: 11, fontWeight: "600", marginTop: 2 },
   card: {
     backgroundColor: colors.card,
     borderRadius: 16,

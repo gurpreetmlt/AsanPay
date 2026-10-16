@@ -858,6 +858,45 @@ export async function listAdminCommissionPayouts(filters?: {
   };
 }
 
+/** Agent Settings — monthly TDS summary for the logged-in beneficiary. */
+export async function getMyMonthlyTdsSummary(userId: string, monthYmd?: string) {
+  const month = monthYmd && /^\d{4}-\d{2}$/.test(monthYmd) ? monthYmd : todayYmdIst().slice(0, 7);
+  const monthStart = new Date(`${month}-01T00:00:00+05:30`);
+  const monthEnd = new Date(monthStart);
+  monthEnd.setMonth(monthEnd.getMonth() + 1);
+
+  const [totals] = await db
+    .select({
+      totalGross: sql<string>`coalesce(sum(coalesce(${commissionLedger.grossAmount}, ${commissionLedger.amount})), '0')`,
+      totalTds: sql<string>`coalesce(sum(coalesce(${commissionLedger.tdsAmount}, 0)), '0')`,
+      totalNet: sql<string>`coalesce(sum(${commissionLedger.amount}), '0')`,
+      creditCount: sql<number>`count(*)::int`,
+    })
+    .from(commissionLedger)
+    .where(
+      and(
+        eq(commissionLedger.beneficiaryUserId, userId),
+        gte(commissionLedger.createdAt, monthStart),
+        sql`${commissionLedger.createdAt} < ${monthEnd}`,
+      ),
+    );
+
+  const [userRow] = await db
+    .select({ panNumberEncrypted: users.panNumberEncrypted })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  return {
+    month,
+    totalGross: String(totals?.totalGross ?? "0"),
+    totalTds: String(totals?.totalTds ?? "0"),
+    totalNet: String(totals?.totalNet ?? "0"),
+    creditCount: totals?.creditCount ?? 0,
+    hasPan: Boolean(userRow?.panNumberEncrypted),
+  };
+}
+
 /** Admin TDS register — net/gross/TDS by agent × calendar month (IST). */
 export async function listAdminTdsRegister(filters?: {
   month?: string; // YYYY-MM
