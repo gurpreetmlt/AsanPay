@@ -617,9 +617,11 @@ export async function voidFundRequest(params: {
     }
 
     try {
+      // Must not reuse the credit's (referenceType, referenceId) — wallet_ledger_groups
+      // has a unique index on that pair, so a second insert with the same key 500s.
       await syncWalletsAfterJournal(tx, params.tenantId, [request.requesterUserId], {
         referenceType: "fund_request",
-        referenceId: String(request.id),
+        referenceId: `${request.id}:void`,
         description: "Fund request reversed",
       });
     } catch (err) {
@@ -628,18 +630,25 @@ export async function voidFundRequest(params: {
       if (/wallets_balance_nonnegative|Overdraft blocked|Insufficient balance/i.test(chain)) {
         throw new HttpError(422, spentMessage, "INSUFFICIENT_BALANCE");
       }
+      if (/wallet_ledger_groups_ref_uidx|duplicate key/i.test(chain)) {
+        throw new HttpError(
+          500,
+          "Could not write the reversal passbook row — contact support with this fund request id.",
+          "VOID_LEDGER_GROUP",
+        );
+      }
       throw err;
     }
 
     const journalIdList = sql.join(
-      journalIds.map((id) => sql`${String(id)}`),
+      journalIds.map((id) => sql`${id}`),
       sql`, `,
     );
     await tx.execute(sql`
       UPDATE bank_statement_lines
       SET match_status = 'unmatched', matched_to_type = NULL, matched_to_id = NULL
       WHERE tenant_id = ${params.tenantId}
-        AND ((matched_to_type = 'fund_request' AND matched_to_id = ${String(request.id)})
+        AND ((matched_to_type = 'fund_request' AND matched_to_id = ${request.id})
           OR (matched_to_type = 'journal' AND matched_to_id IN (${journalIdList})))
     `);
 

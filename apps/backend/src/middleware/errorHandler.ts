@@ -111,6 +111,14 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
     });
     return;
   }
+  if (/wallet_ledger_groups_ref_uidx|duplicate key value violates unique constraint/i.test(msg)) {
+    res.status(500).json({
+      success: false,
+      message: "A ledger passbook row for this reference already exists. Try again or contact support.",
+      code: "LEDGER_GROUP_CONFLICT",
+    });
+    return;
+  }
 
   res.status(500).json({ success: false, message: "Internal server error" });
 }
