@@ -25,8 +25,8 @@
 | **TB15** | Opening / closing balance lock + mid-day drift | L | done | Per bank per day · `bank_daily_balance_locks` |
 | **TB16** | Rules engine (UTR prefix → category) | L | done | `bank_entry_category_rules` · Category rules tab |
 | **TB17** | Search everywhere (UTR / amount / agent / mobile) | M | done | `GET /banking/search` · Bank & deposits box |
-| **TB18** | Mobile-friendly recon (admin light or owner) | L | **CURRENT** | Platform exception OK if admin-web only first |
-| TB19 | Sandbox vs live / Test entries hardened | S | partial | Test flag exists — visual harden |
+| **TB18** | Mobile-friendly recon (admin light or owner) | L | done | Admin-web responsive only (no native admin app) |
+| **TB19** | Sandbox vs live / Test entries hardened | S | **CURRENT** | Test flag exists — visual harden |
 | TB20 | Treasury health score (%) | M | pending | Matched % + gaps + stale statements |
 
 ## Already shipped (related, not in this queue)
@@ -57,6 +57,7 @@
 | TB15 | Daily close → Opening/closing · mid-day drift | Per bank rows + lock | Live drift = statement close − books close. Close locks snapshot; import/match blocked (`DAY_BALANCE_LOCKED`). Reopen unlocks. `GET /banking/balance-drift`. Migration `0064`. |
 | TB16 | Bank & deposits → Category rules | Prefix → category | CRUD + Auto on bulk create. Longest prefix; bank-specific wins ties. Fallback other_credit/debit. Migration `0065`. |
 | TB17 | Bank & deposits → top search box | UTR / amount / agent / mobile | Hits → Reconciliation / Fund requests / Bank entries / agent profile. `GET /banking/search`. |
+| TB18 | Phone browser → Reconciliation | Touch + sticky bulk | Period 2×2, tile tips on phone, sticky bulk above bottom nav, min-w table, larger taps. Exception: admin-web only (no native admin). |
 | … | | | |
 
 ## Prompt for next chat

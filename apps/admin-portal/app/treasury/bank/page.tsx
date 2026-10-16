@@ -231,8 +231,8 @@ function BankDepositsContent() {
   return (
     <AdminShell>
       <div className="mx-auto w-full max-w-[1600px] space-y-5 p-4 md:p-6">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
+        <div className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-end md:justify-between">
+          <div className="min-w-0">
             <nav className="mb-2 text-xs" style={{ color: B.muted }}>
               <Link href="/treasury" className="hover:underline">
                 Treasury
@@ -247,7 +247,9 @@ function BankDepositsContent() {
               Company bank money, agent deposits and statement matching in one place
             </p>
           </div>
-          <TreasurySearchBox />
+          <div className="w-full md:w-auto md:max-w-md md:flex-1">
+            <TreasurySearchBox />
+          </div>
         </div>
 
         <section
@@ -267,7 +269,7 @@ function BankDepositsContent() {
             <button
               type="button"
               onClick={() => goTab("reconciliation")}
-              className="cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold transition hover:bg-[#EEF3FF]"
+              className="inline-flex h-11 cursor-pointer items-center rounded-lg px-3 text-xs font-semibold transition hover:bg-[#EEF3FF]"
               style={{ color: B.blueLight }}
             >
               Open Reconciliation
@@ -390,7 +392,10 @@ function BankDepositsContent() {
           className="overflow-hidden rounded-2xl border bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
           style={{ borderColor: B.border }}
         >
-          <div className="flex gap-1 overflow-x-auto border-b px-2" style={{ borderColor: B.border }}>
+          <div
+            className="sticky top-0 z-[5] flex gap-1 overflow-x-auto scroll-smooth border-b bg-white px-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            style={{ borderColor: B.border }}
+          >
             {TABS.map((t) => {
               const active = tab === t.key;
               return (
@@ -399,7 +404,7 @@ function BankDepositsContent() {
                   type="button"
                   onClick={() => goTab(t.key)}
                   aria-current={active ? "page" : undefined}
-                  className={`group relative my-1 inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2.5 text-sm transition-all duration-200 ease-out active:scale-95 ${
+                  className={`group relative my-1 inline-flex min-h-11 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2.5 text-sm transition-all duration-200 ease-out active:scale-95 ${
                     active
                       ? "font-bold text-[#2A5CDD]"
                       : "font-medium text-[var(--admin-muted)] hover:-translate-y-px hover:bg-[#EEF3FF] hover:text-[#2A5CDD]"

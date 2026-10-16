@@ -82,7 +82,7 @@ export function TreasurySearchBox() {
   }
 
   return (
-    <div ref={wrapRef} className="relative w-full max-w-md">
+    <div ref={wrapRef} className="relative w-full">
       <label className="sr-only" htmlFor="treasury-search">
         Search UTR, amount, agent or mobile
       </label>

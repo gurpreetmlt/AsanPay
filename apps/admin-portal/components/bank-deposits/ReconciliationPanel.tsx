@@ -1279,7 +1279,7 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
 
             <div className="flex min-w-0 w-full flex-1 flex-col gap-3 sm:flex-row sm:items-end">
               <div
-                className="flex h-11 w-full min-w-0 flex-1 items-center rounded-xl border p-1"
+                className="grid w-full min-w-0 flex-1 grid-cols-2 gap-1 rounded-xl border p-1 sm:flex sm:h-11 sm:items-center"
                 style={{ borderColor: B.border, background: "#F1F5F9" }}
               >
                 {(
@@ -1301,7 +1301,7 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                         setTo(r.to);
                         setPeriodPreset(key);
                       }}
-                      className="min-w-0 flex-1 truncate rounded-lg px-1.5 py-1.5 text-[11px] font-bold transition sm:px-2 sm:text-xs"
+                      className="min-h-11 min-w-0 truncate rounded-lg px-2 text-xs font-bold transition sm:h-auto sm:min-h-0 sm:flex-1 sm:py-1.5 sm:text-[11px] md:text-xs"
                       style={{
                         background: active ? "#fff" : "transparent",
                         color: active ? B.blue : B.muted,
@@ -1346,12 +1346,12 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
               </label>
             </div>
 
-            <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-none lg:justify-end">
+            <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center lg:w-auto lg:flex-none lg:justify-end">
               <button
                 type="button"
                 disabled={loading}
                 onClick={() => void runReport()}
-                className="h-11 flex-1 rounded-xl px-5 text-sm font-bold text-white disabled:opacity-60 lg:flex-none"
+                className="h-11 w-full rounded-xl px-5 text-sm font-bold text-white disabled:opacity-60 sm:w-auto sm:flex-1 lg:flex-none"
                 style={{ background: B.badgeGrad }}
               >
                 {loading ? "Checking…" : "Run reconciliation"}
@@ -1380,6 +1380,9 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                     <p className="mt-1 text-2xl font-bold tabular-nums" style={{ color: B.blue }}>
                       {report.counts[k]}
                     </p>
+                    <p className="mt-1 text-[10px] leading-snug md:hidden" style={{ color: B.muted }}>
+                      {KIND_META[k].tip}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -1391,7 +1394,9 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                 <span className="font-semibold" style={{ color: B.blue }}>
                   Status tip:{" "}
                 </span>
-                Hover a tile for the full meaning. Older codes map as{" "}
+                <span className="hidden md:inline">Hover a tile for the full meaning. </span>
+                <span className="md:hidden">On phone, each tile shows its meaning below the count. </span>
+                Older codes map as{" "}
                 <code className="rounded bg-white px-1 py-0.5 text-[10px]">suspense</code> → Needs review ·{" "}
                 <code className="rounded bg-white px-1 py-0.5 text-[10px]">possible</code> → Likely match ·{" "}
                 <code className="rounded bg-white px-1 py-0.5 text-[10px]">mismatch</code> → Amount differs ·{" "}
@@ -1440,7 +1445,7 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="inline-flex flex-wrap gap-1.5 rounded-xl p-1" style={{ background: "#F1F5F9" }}>
+                <div className="inline-flex w-full flex-wrap gap-1.5 rounded-xl p-1 sm:w-auto" style={{ background: "#F1F5F9" }}>
                   {(
                     [
                       ["attention", "Needs attention", ATTENTION.reduce((n, k) => n + report.counts[k], 0)],
@@ -1455,7 +1460,7 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                         type="button"
                         onClick={() => setFilter(key)}
                         data-active={active}
-                        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition"
+                        className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition sm:min-h-0 sm:flex-none sm:py-1.5"
                         style={{
                           background: active ? B.badgeGrad : "transparent",
                           color: active ? "#fff" : B.muted,
@@ -1500,8 +1505,8 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
 
               {selectedCount > 0 ? (
                 <div
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl px-3 py-2"
-                  style={{ background: "#EEF2FF" }}
+                  className="sticky bottom-20 z-10 flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-3 shadow-lg md:bottom-3"
+                  style={{ background: "#EEF2FF", borderColor: "#C7D2FE" }}
                 >
                   <span className="text-xs font-bold" style={{ color: B.blue }}>
                     {selectedCount} line{selectedCount === 1 ? "" : "s"} selected
@@ -1515,11 +1520,11 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                       ? " — for Create entries, select only money-in or only money-out"
                       : ""}
                   </span>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex w-full flex-wrap gap-2 sm:w-auto">
                     <button
                       type="button"
                       onClick={() => setSelectedIds([])}
-                      className="rounded-lg px-3 py-1.5 text-xs font-bold text-white"
+                      className="inline-flex h-11 min-w-[5.5rem] flex-1 items-center justify-center rounded-lg px-3 text-xs font-bold text-white sm:flex-none"
                       style={{ background: B.danger }}
                     >
                       Clear
@@ -1529,7 +1534,7 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                         type="button"
                         disabled={!!busyLine}
                         onClick={() => void ignoreSelected()}
-                        className="rounded-lg border px-3 py-1.5 text-xs font-bold disabled:opacity-50"
+                        className="inline-flex h-11 flex-1 items-center justify-center rounded-lg border px-3 text-xs font-bold disabled:opacity-50 sm:flex-none"
                         style={{ borderColor: B.border, color: B.blue, background: "#fff" }}
                         title="Keep the lines but skip them in Needs attention"
                       >
@@ -1543,7 +1548,7 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                         type="button"
                         disabled={!!busyLine}
                         onClick={() => void confirmLikelyRows(selectedPossible)}
-                        className="rounded-lg px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
+                        className="inline-flex h-11 flex-1 items-center justify-center rounded-lg px-3 text-xs font-bold text-white disabled:opacity-50 sm:flex-none"
                         style={{ background: B.badgeGrad }}
                       >
                         {busyLine === "all-likely"
@@ -1556,7 +1561,7 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                         type="button"
                         disabled={mixedDirections || !!busyLine}
                         onClick={() => setBulkLines(selectedOnlyBank)}
-                        className="rounded-lg px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
+                        className="inline-flex h-11 flex-1 items-center justify-center rounded-lg px-3 text-xs font-bold text-white disabled:opacity-50 sm:flex-none"
                         style={{ background: B.green }}
                       >
                         Create entries · {selectedOnlyBank.length}
@@ -1566,14 +1571,15 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                 </div>
               ) : null}
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+              <div className="-mx-1 overflow-x-auto px-1 pb-24 md:pb-0">
+                <table className="w-full min-w-[720px] text-sm">
                   <thead>
                     <tr className="text-left text-xs uppercase" style={{ color: B.muted }}>
-                      <th className="w-8 py-2 pl-3">
+                      <th className="w-10 py-2 pl-3">
                         {selectableIds.length > 0 ? (
                           <input
                             type="checkbox"
+                            className="h-5 w-5"
                             aria-label="Select all unresolved bank lines"
                             title="Select all In bank only and Likely match rows"
                             checked={selectedIds.length === selectableIds.length}
@@ -1616,6 +1622,7 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                               {r.line && (r.kind === "only_bank" || r.kind === "possible") ? (
                                 <input
                                   type="checkbox"
+                                  className="h-5 w-5"
                                   aria-label="Select line"
                                   checked={selectedIds.includes(r.line.id)}
                                   onChange={() => toggleLine(r.line!.id)}
@@ -1678,17 +1685,17 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                                   type="button"
                                   disabled={busy}
                                   onClick={() => void confirmMatch(r)}
-                                  className="rounded-lg px-3 py-1.5 text-xs font-bold text-white disabled:opacity-60"
+                                  className="inline-flex min-h-11 items-center rounded-lg px-3 py-2 text-xs font-bold text-white disabled:opacity-60 sm:min-h-0 sm:py-1.5"
                                   style={{ background: B.badgeGrad }}
                                   title={ROW_EXPLAIN.possible.next}
                                 >
                                   {busy ? "Saving…" : "Confirm match"}
                                 </button>
                               ) : r.kind === "only_bank" && r.line ? (
-                                <div className="inline-flex flex-wrap items-center justify-end gap-2">
+                                <div className="inline-flex flex-col items-stretch justify-end gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                                   <Link
                                     href={newEntryHref(report.bank.id, r.line)}
-                                    className="inline-block rounded-lg px-3 py-1.5 text-xs font-bold text-white"
+                                    className="inline-flex min-h-11 items-center justify-center rounded-lg px-3 py-2 text-xs font-bold text-white sm:min-h-0 sm:py-1.5"
                                     style={{ background: B.green }}
                                     title={ROW_EXPLAIN.only_bank.next}
                                   >
@@ -1699,7 +1706,7 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                                     disabled={busy}
                                     onClick={() => void ignoreOne(r)}
                                     title="Skip this line in Needs attention (keeps it on the statement)"
-                                    className="rounded-lg border px-2 py-1.5 text-xs font-bold disabled:opacity-60"
+                                    className="inline-flex min-h-11 items-center justify-center rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-60 sm:min-h-0 sm:py-1.5"
                                     style={{ borderColor: B.border, color: B.blue, background: "#fff" }}
                                   >
                                     Ignore
