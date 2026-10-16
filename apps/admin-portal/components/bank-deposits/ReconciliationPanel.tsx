@@ -171,6 +171,38 @@ const TILE_ORDER: Kind[] = ["matched", "possible", "mismatch", "only_bank", "onl
 const ATTENTION: Kind[] = ["possible", "mismatch", "only_bank", "only_ours", "suspense"];
 const BATCH = 500;
 
+/** Per-row “why” + next step for the reconciliation table (TB03). */
+const ROW_EXPLAIN: Record<Kind, { why: string; next: string }> = {
+  matched: {
+    why: "This statement line is already linked to an AsanPay record.",
+    next: "No action needed. Use Undo only if the link is wrong.",
+  },
+  possible: {
+    why: "Amount and side match a nearby record, but it was not auto-confirmed (UTR missing or different).",
+    next: "Confirm match if this is the right pair.",
+  },
+  mismatch: {
+    why: "The same UTR appears on both sides, but the amounts do not match.",
+    next: "Fix the amount on the fund request or bank entry, then run reconciliation again.",
+  },
+  only_bank: {
+    why: "Money moved in the bank with no matching entry in AsanPay yet.",
+    next: "Create a bank entry for this line, or remove it if it does not belong to this account.",
+  },
+  only_ours: {
+    why: "AsanPay has a posting that is not on this statement for the selected bank and dates.",
+    next: "Widen the date range, pick the correct bank, or check the posting date.",
+  },
+  suspense: {
+    why: "This credit was parked because the sender could not be identified.",
+    next: "Identify the sender and create a bank entry to clear it.",
+  },
+  ignored: {
+    why: "This line was marked to skip for reconciliation.",
+    next: "No action needed.",
+  },
+};
+
 function errMessage(err: unknown, fallback: string) {
   const ax = err as { response?: { data?: { message?: string } }; message?: string };
   return ax?.response?.data?.message || ax?.message || fallback;
@@ -242,7 +274,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 }
 
 function KindPill({ kind }: { kind: Kind }) {
-  const m = KIND_META[kind];
+  const m = KIND_META[kind] ?? KIND_META.only_bank;
   return (
     <span
       title={`${m.tip} (old code: ${m.oldCode})`}
@@ -251,6 +283,27 @@ function KindPill({ kind }: { kind: Kind }) {
     >
       {m.label}
     </span>
+  );
+}
+
+function RowExplain({ kind }: { kind: Kind }) {
+  const explain = ROW_EXPLAIN[kind] ?? ROW_EXPLAIN.only_bank;
+  const meta = KIND_META[kind] ?? KIND_META.only_bank;
+  return (
+    <div className="mt-1.5 max-w-[260px] space-y-1 text-[11px] leading-snug">
+      <p style={{ color: B.muted }}>
+        <span className="font-bold" style={{ color: meta.color }}>
+          Why:{" "}
+        </span>
+        {explain.why}
+      </p>
+      <p style={{ color: B.muted }}>
+        <span className="font-bold" style={{ color: B.blue }}>
+          Next:{" "}
+        </span>
+        {explain.next}
+      </p>
+    </div>
   );
 }
 
@@ -1341,7 +1394,7 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                       </tr>
                     ) : (
                       visibleRows.map((r, i) => {
-                        const meta = KIND_META[r.kind];
+                        const meta = KIND_META[r.kind] ?? KIND_META.only_bank;
                         const busy = !!r.line && busyLine === r.line.id;
                         const focused = !!focusLine && r.line?.id === focusLine;
                         return (
@@ -1410,6 +1463,7 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                             </td>
                             <td className="px-3 py-2.5">
                               <KindPill kind={r.kind} />
+                              {r.kind !== "matched" && r.kind !== "ignored" ? <RowExplain kind={r.kind} /> : null}
                             </td>
                             <td className="px-3 py-2.5 text-right">
                               {r.kind === "possible" ? (
@@ -1419,6 +1473,7 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                                   onClick={() => void confirmMatch(r)}
                                   className="rounded-lg px-3 py-1.5 text-xs font-bold text-white disabled:opacity-60"
                                   style={{ background: B.badgeGrad }}
+                                  title={ROW_EXPLAIN.possible.next}
                                 >
                                   {busy ? "Saving…" : "Confirm match"}
                                 </button>
@@ -1428,6 +1483,7 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                                     href={newEntryHref(report.bank.id, r.line)}
                                     className="inline-block rounded-lg px-3 py-1.5 text-xs font-bold text-white"
                                     style={{ background: B.green }}
+                                    title={ROW_EXPLAIN.only_bank.next}
                                   >
                                     + Create bank entry
                                   </Link>
@@ -1449,40 +1505,61 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                                   onClick={() => void undoMatch(r)}
                                   className="text-xs font-bold disabled:opacity-60"
                                   style={{ color: B.danger }}
+                                  title={ROW_EXPLAIN.matched.next}
                                 >
                                   {busy ? "Saving…" : "Undo"}
                                 </button>
                               ) : r.kind === "mismatch" ? (
-                                <button
-                                  type="button"
-                                  className="rounded-lg border px-3 py-1.5 text-xs font-bold"
-                                  style={{ borderColor: "#FDBA74", color: "#C2410C", background: "#FFF7ED" }}
-                                  onClick={() =>
-                                    toast("Same UTR, different amount — open Bank entries or the fund request and fix the amount.")
-                                  }
-                                >
-                                  Fix amount
-                                </button>
+                                <div className="inline-flex flex-wrap items-center justify-end gap-2">
+                                  <Link
+                                    href="/treasury/bank?tab=bank-entries"
+                                    className="rounded-lg border px-3 py-1.5 text-xs font-bold"
+                                    style={{ borderColor: "#FDBA74", color: "#C2410C", background: "#FFF7ED" }}
+                                    title={ROW_EXPLAIN.mismatch.next}
+                                  >
+                                    Open Bank entries
+                                  </Link>
+                                  <Link
+                                    href="/treasury/bank?tab=fund-requests"
+                                    className="rounded-lg border px-3 py-1.5 text-xs font-bold"
+                                    style={{ borderColor: "#FDBA74", color: "#C2410C", background: "#FFF7ED" }}
+                                    title={ROW_EXPLAIN.mismatch.next}
+                                  >
+                                    Open Fund requests
+                                  </Link>
+                                </div>
                               ) : r.kind === "only_ours" ? (
                                 <button
                                   type="button"
                                   className="rounded-lg border px-3 py-1.5 text-xs font-bold"
                                   style={{ borderColor: "#FCA5A5", color: "#B91C1C", background: "#FEF2F2" }}
+                                  title={ROW_EXPLAIN.only_ours.next}
                                   onClick={() =>
-                                    toast("Not on this statement — check the date range or the selected bank.")
+                                    toast(
+                                      "Widen the From/To dates above, or switch bank — this posting is not on the current statement slice.",
+                                    )
                                   }
                                 >
-                                  Not in statement
+                                  Check period / bank
                                 </button>
+                              ) : r.kind === "suspense" && r.line ? (
+                                <Link
+                                  href={newEntryHref(report.bank.id, r.line)}
+                                  className="inline-block rounded-lg px-3 py-1.5 text-xs font-bold text-white"
+                                  style={{ background: B.green }}
+                                  title={ROW_EXPLAIN.suspense.next}
+                                >
+                                  + Create bank entry
+                                </Link>
                               ) : r.kind === "suspense" ? (
-                                <button
-                                  type="button"
+                                <Link
+                                  href="/treasury/bank?tab=bank-entries"
                                   className="rounded-lg border px-3 py-1.5 text-xs font-bold"
                                   style={{ borderColor: "#FCD34D", color: "#B45309", background: "#FFFBEB" }}
-                                  onClick={() => toast("Owner unknown — identify the sender and create a bank entry.")}
+                                  title={ROW_EXPLAIN.suspense.next}
                                 >
-                                  Identify sender
-                                </button>
+                                  Open Bank entries
+                                </Link>
                               ) : null}
                             </td>
                           </tr>

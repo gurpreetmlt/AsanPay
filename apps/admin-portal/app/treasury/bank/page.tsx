@@ -53,15 +53,18 @@ interface Summary {
   banks: SummaryBank[];
 }
 
-function inr(v: string, decimals = 2) {
-  const neg = v.startsWith("-");
-  const n = Number(neg ? v.slice(1) : v);
+function inr(v: string | number | null | undefined, decimals = 2) {
+  if (v === null || v === undefined || v === "") return "—";
+  const s = String(v);
+  const neg = s.startsWith("-");
+  const n = Number(neg ? s.slice(1) : s);
+  if (!Number.isFinite(n)) return "—";
   const text = `₹${n.toLocaleString("en-IN", { minimumFractionDigits: decimals, maximumFractionDigits: 2 })}`;
-  return neg ? `−${text}` : text;
+  return neg ? `-${text}` : text;
 }
 
-function signedInr(v: string | null) {
-  if (v === null) return "—";
+function signedInr(v: string | null | undefined) {
+  if (v === null || v === undefined || v === "") return "—";
   if (v.startsWith("-")) return inr(v);
   if (Number(v) === 0) return inr(v);
   return `+${inr(v)}`;
@@ -249,45 +252,53 @@ function BankDepositsContent() {
               Open Reconciliation
             </button>
           </div>
-          <div className="grid grid-cols-2 divide-x divide-y divide-[var(--admin-border)] xl:grid-cols-4 xl:divide-y-0">
-            <CashCell
-              label="Bank"
-              value={picture?.bank ? inr(picture.bank) : "—"}
-              sub={
-                picture?.bank
-                  ? asOf
-                    ? `Statement as of ${asOf}`
-                    : "Latest imported statement"
-                  : "Upload a statement to see the bank balance"
-              }
-            />
-            <CashCell
-              label="Books"
-              value={picture?.bank ? inr(picture.books) : summary ? inr(summary.bankTotal) : "—"}
-              sub={
-                !picture?.bank
-                  ? "Company bank ledger"
-                  : missingStatements
-                    ? `Ledger for ${picture.banksWithStatement} of ${picture.activeBanks} banks`
-                    : "Active bank ledger"
-              }
-            />
-            <CashCell
-              label="Difference"
-              value={signedInr(diff)}
-              valueColor={diff === null ? B.muted : diffZero ? "#15803D" : B.danger}
-              sub={diff === null ? "Needs a statement balance" : diffZero ? "Bank and books match" : "Statement minus books"}
-            />
-            <CashCell
-              label="Pending"
-              value={picture ? inr(picture.pendingAmount) : "—"}
-              valueColor={picture ? (pendingOpen ? "#D97706" : "#15803D") : B.muted}
-              sub={
-                unmatched
-                  ? `${unmatched} unmatched credit${unmatched === 1 ? "" : "s"}`
-                  : "No unmatched statement credits"
-              }
-            />
+          <div className="grid grid-cols-2 xl:grid-cols-4">
+            <div className="border-b xl:border-b-0 xl:border-r" style={{ borderColor: B.border }}>
+              <CashCell
+                label="Bank"
+                value={picture?.bank ? inr(picture.bank) : "—"}
+                sub={
+                  picture?.bank
+                    ? asOf
+                      ? `Statement as of ${asOf}`
+                      : "Latest imported statement"
+                    : "Upload a statement to see the bank balance"
+                }
+              />
+            </div>
+            <div className="border-b xl:border-b-0 xl:border-r" style={{ borderColor: B.border }}>
+              <CashCell
+                label="Books"
+                value={picture?.bank ? inr(picture.books) : summary ? inr(summary.bankTotal) : "—"}
+                sub={
+                  !picture?.bank
+                    ? "Company bank ledger"
+                    : missingStatements
+                      ? `Ledger for ${picture.banksWithStatement} of ${picture.activeBanks} banks`
+                      : "Active bank ledger"
+                }
+              />
+            </div>
+            <div className="border-b xl:border-b-0 xl:border-r" style={{ borderColor: B.border }}>
+              <CashCell
+                label="Difference"
+                value={signedInr(diff)}
+                valueColor={diff === null ? B.muted : diffZero ? "#15803D" : B.danger}
+                sub={diff === null ? "Needs a statement balance" : diffZero ? "Bank and books match" : "Statement minus books"}
+              />
+            </div>
+            <div>
+              <CashCell
+                label="Pending"
+                value={picture ? inr(picture.pendingAmount) : "—"}
+                valueColor={picture ? (pendingOpen ? "#D97706" : "#15803D") : B.muted}
+                sub={
+                  unmatched
+                    ? `${unmatched} unmatched credit${unmatched === 1 ? "" : "s"}`
+                    : "No unmatched statement credits"
+                }
+              />
+            </div>
           </div>
           {missingStatements ? (
             <p className="border-t px-4 py-2 text-[11px]" style={{ borderColor: B.border, color: B.muted }}>
