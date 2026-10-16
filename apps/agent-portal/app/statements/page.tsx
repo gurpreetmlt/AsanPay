@@ -6,6 +6,7 @@ import { Download } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { AppShell } from "@/components/layout/AppShell";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
+import { LedgerTaxDetail } from "@/components/wallet/LedgerTaxDetail";
 import { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { extractApiError } from "@/lib/onboarding";
@@ -173,6 +174,7 @@ export default function StatementsPage() {
                     </td>
                     <td className="px-5 py-3 font-semibold" style={{ color: B.blue }}>
                       {e.description || e.referenceType}
+                      <LedgerTaxDetail entry={e} />
                       <div className="text-xs font-normal uppercase" style={{ color: B.muted }}>
                         {walletDisplayName(e.walletType)}
                       </div>

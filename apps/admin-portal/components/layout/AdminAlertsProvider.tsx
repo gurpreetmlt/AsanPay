@@ -14,7 +14,7 @@ import { useAuthStore } from "@/lib/store";
 
 export type AdminAlertNotification = {
   id: string;
-  type: "kyc_pending" | "fund_request" | "support_ticket";
+  type: "kyc_pending" | "fund_request" | "support_ticket" | "pan_gap";
   title: string;
   body: string;
   href: string;
@@ -31,6 +31,8 @@ export type AdminAlertBadges = {
   };
   fundRequestsPending: number;
   supportTicketsOpen: number;
+  /** Agents with TDS withheld this month and no PAN on file */
+  panGapCount?: number;
   /** Agent settlement banks awaiting admin verify */
   settlementBanksPending: number;
 };

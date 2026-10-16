@@ -64,6 +64,12 @@ const QUICK_ROUTES = [
   { q: "tds", href: "/tax-commission/registers", label: "Tax registers" },
   { q: "schemes", href: "/tax-commission/schemes", label: "Commission schemes" },
   { q: "what-if", href: "/tax-commission/what-if", label: "What-if calculator" },
+  { q: "ca pack", href: "/tax-commission/ca-pack", label: "CA month pack" },
+  { q: "pan", href: "/tax-commission/pan-gaps", label: "PAN gaps" },
+  { q: "rate audit", href: "/tax-commission/rate-audit", label: "Rate audit" },
+  { q: "commission recon", href: "/tax-commission/recon", label: "Commission recon" },
+  { q: "month lock", href: "/tax-commission/month-lock", label: "Month lock" },
+  { q: "override", href: "/tax-commission/overrides", label: "Commission overrides" },
   { q: "calculator", href: "/tax-commission/what-if", label: "What-if calculator" },
   { q: "service charge", href: "/service-charges", label: "Service charges" },
   { q: "customer fee", href: "/service-charges", label: "Service charges" },
@@ -92,6 +98,7 @@ function initials(name: string) {
 function notifIcon(type: AdminAlertNotification["type"]) {
   if (type === "kyc_pending") return UserCheck;
   if (type === "fund_request") return IndianRupee;
+  if (type === "pan_gap") return AlertTriangle;
   return LifeBuoy;
 }
 
@@ -346,13 +353,13 @@ export function AdminHeader({ onOpenMobileNav }: { onOpenMobileNav?: () => void 
                           background:
                             n.type === "kyc_pending"
                               ? "rgba(220,38,38,0.12)"
-                              : n.type === "fund_request"
+                              : n.type === "fund_request" || n.type === "pan_gap"
                                 ? "rgba(217,119,6,0.14)"
                                 : "rgba(42,92,221,0.12)",
                           color:
                             n.type === "kyc_pending"
                               ? "#DC2626"
-                              : n.type === "fund_request"
+                              : n.type === "fund_request" || n.type === "pan_gap"
                                 ? "#D97706"
                                 : B.blueLight,
                         }}

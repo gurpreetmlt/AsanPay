@@ -25,6 +25,7 @@ import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import type { UserRole } from "@asanpay/shared-types";
 import { applyTdsToGrossPaise, resolveTaxForService } from "./tax.service";
 import { reverseJournal } from "../../core/ledger";
+import { assertCommissionMonthUnlocked, recordRateChangeEvent } from "./commission.guards";
 
 const SCHEME_ROLES = ["retailer", "distributor", "super_distributor"] as const;
 type SchemeRole = (typeof SCHEME_ROLES)[number];
@@ -48,7 +49,7 @@ type RuleRow = {
   value: string;
 };
 
-function isSchemeRole(role: string): role is SchemeRole {
+export function isSchemeRole(role: string): role is SchemeRole {
   return (SCHEME_ROLES as readonly string[]).includes(role);
 }
 
@@ -58,7 +59,7 @@ export function computePayoutPaise(rule: RuleRow, amountPaise: number): number {
   return Math.floor((amountPaise * Math.round(parseFloat(rule.value) * 10000)) / 1_000_000);
 }
 
-function validateRuleValue(ruleType: RuleType, valueRaw: string): string {
+export function validateRuleValue(ruleType: RuleType, valueRaw: string): string {
   const valueNum = Number(valueRaw);
   if (!Number.isFinite(valueNum) || valueNum < 0) {
     throw new HttpError(400, "Commission value must be a non-negative number", "INVALID_VALUE");
@@ -73,7 +74,7 @@ function validateRuleValue(ruleType: RuleType, valueRaw: string): string {
   return valueNum.toFixed(4);
 }
 
-function normalizeAmountBound(raw: string | null | undefined, field: "minAmount" | "maxAmount"): string | null {
+export function normalizeAmountBound(raw: string | null | undefined, field: "minAmount" | "maxAmount"): string | null {
   if (raw === undefined || raw === null || String(raw).trim() === "") return null;
   const n = Number(raw);
   if (!Number.isFinite(n) || n < 0) {
@@ -416,6 +417,8 @@ async function findActiveRule(
         eq(userCommissionRates.userId, userId),
         eq(userCommissionRates.serviceId, serviceId),
         eq(userCommissionRates.isActive, true),
+        // TCR06: an override with expires_at <= now no longer applies.
+        or(isNull(userCommissionRates.expiresAt), gt(userCommissionRates.expiresAt, at)),
       ),
     )
     .limit(1);
@@ -1392,7 +1395,39 @@ export async function listCommissionRules(filters?: {
   }));
 }
 
-export async function createCommissionRule(adminId: string, input: CommissionRuleInput) {
+type RuleSnapshotRow = {
+  serviceId: string;
+  providerId: string | null;
+  role: string;
+  ruleType: string;
+  value: string | number;
+  minAmount: string | number | null;
+  maxAmount: string | number | null;
+  effectiveFrom: Date;
+  effectiveTo: Date | null;
+  isActive: boolean;
+};
+
+function ruleSnapshot(r: RuleSnapshotRow): Record<string, unknown> {
+  return {
+    serviceId: r.serviceId,
+    providerId: r.providerId,
+    role: r.role,
+    ruleType: r.ruleType,
+    value: String(r.value),
+    minAmount: r.minAmount != null ? String(r.minAmount) : null,
+    maxAmount: r.maxAmount != null ? String(r.maxAmount) : null,
+    effectiveFrom: r.effectiveFrom.toISOString(),
+    effectiveTo: r.effectiveTo ? r.effectiveTo.toISOString() : null,
+    isActive: r.isActive,
+  };
+}
+
+export async function createCommissionRule(
+  adminId: string,
+  input: CommissionRuleInput,
+  opts?: { reason?: string },
+) {
   if (!isSchemeRole(input.role)) {
     throw new HttpError(400, "Role must be retailer, distributor, or super_distributor", "INVALID_ROLE");
   }
@@ -1411,6 +1446,8 @@ export async function createCommissionRule(adminId: string, input: CommissionRul
   if (effectiveTo && effectiveTo <= effectiveFrom) {
     throw new HttpError(400, "Effective to must be after effective from", "INVALID_DATE");
   }
+
+  await assertCommissionMonthUnlocked([effectiveFrom]);
 
   const [created] = await db
     .insert(commissionRules)
@@ -1439,6 +1476,15 @@ export async function createCommissionRule(adminId: string, input: CommissionRul
     entityId: created.id,
     metadata: { serviceId: input.serviceId, role: input.role, ruleType: input.ruleType, value },
   });
+  await recordRateChangeEvent({
+    adminId,
+    entityType: "rule",
+    entityId: created.id,
+    serviceId: created.serviceId,
+    before: null,
+    after: ruleSnapshot(created),
+    reason: opts?.reason ?? "Rule created",
+  });
 
   return created;
 }
@@ -1447,6 +1493,7 @@ export async function updateCommissionRule(
   adminId: string,
   ruleId: string,
   patch: Partial<CommissionRuleInput>,
+  opts?: { reason?: string },
 ) {
   const [existing] = await db.select().from(commissionRules).where(eq(commissionRules.id, ruleId)).limit(1);
   if (!existing) throw new HttpError(404, "Commission rule not found", "RULE_NOT_FOUND");
@@ -1492,6 +1539,8 @@ export async function updateCommissionRule(
     throw new HttpError(400, "Effective to must be after effective from", "INVALID_DATE");
   }
 
+  await assertCommissionMonthUnlocked([existing.effectiveFrom, effectiveFrom]);
+
   const [updated] = await db
     .update(commissionRules)
     .set({
@@ -1516,13 +1565,26 @@ export async function updateCommissionRule(
     entityId: ruleId,
     metadata: patch as Record<string, unknown>,
   });
+  if (updated) {
+    await recordRateChangeEvent({
+      adminId,
+      entityType: "rule",
+      entityId: ruleId,
+      serviceId: updated.serviceId,
+      before: ruleSnapshot(existing),
+      after: ruleSnapshot(updated),
+      reason: opts?.reason ?? "Rule updated",
+    });
+  }
 
   return updated;
 }
 
-export async function deleteCommissionRule(adminId: string, ruleId: string) {
-  const [existing] = await db.select({ id: commissionRules.id }).from(commissionRules).where(eq(commissionRules.id, ruleId)).limit(1);
+export async function deleteCommissionRule(adminId: string, ruleId: string, opts?: { reason?: string }) {
+  const [existing] = await db.select().from(commissionRules).where(eq(commissionRules.id, ruleId)).limit(1);
   if (!existing) throw new HttpError(404, "Commission rule not found", "RULE_NOT_FOUND");
+
+  await assertCommissionMonthUnlocked([existing.effectiveFrom]);
 
   await db.delete(commissionRules).where(eq(commissionRules.id, ruleId));
 
@@ -1532,6 +1594,15 @@ export async function deleteCommissionRule(adminId: string, ruleId: string) {
     entityType: "commission_rule",
     entityId: ruleId,
     metadata: {},
+  });
+  await recordRateChangeEvent({
+    adminId,
+    entityType: "rule",
+    entityId: ruleId,
+    serviceId: existing.serviceId,
+    before: ruleSnapshot(existing),
+    after: null,
+    reason: opts?.reason ?? "Rule deleted",
   });
 
   return { id: ruleId, deleted: true };

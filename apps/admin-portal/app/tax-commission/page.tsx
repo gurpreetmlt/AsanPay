@@ -4,7 +4,18 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { AlertTriangle, Calculator, FileSpreadsheet, Percent, ScrollText } from "lucide-react";
+import {
+  AlertTriangle,
+  Calculator,
+  FileSpreadsheet,
+  History,
+  IdCard,
+  Lock,
+  Package,
+  Percent,
+  Scale,
+  ScrollText,
+} from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { SectionTabs } from "@/components/layout/SectionTabs";
 import { fetchApi } from "@/lib/api";
@@ -98,7 +109,7 @@ export default function TaxCommissionOverviewPage() {
     {
       href: "/tax-commission/overrides",
       label: "Overrides",
-      hint: "Per-agent rates",
+      hint: "Per-agent rates + inbox",
       icon: Percent,
     },
     {
@@ -130,6 +141,36 @@ export default function TaxCommissionOverviewPage() {
       label: "Underwater",
       hint: "Scheme vs provider pool",
       icon: AlertTriangle,
+    },
+    {
+      href: "/tax-commission/ca-pack",
+      label: "CA pack",
+      hint: "Month TDS + GST CSVs",
+      icon: Package,
+    },
+    {
+      href: "/tax-commission/pan-gaps",
+      label: "PAN gaps",
+      hint: "TDS withheld, no PAN",
+      icon: IdCard,
+    },
+    {
+      href: "/tax-commission/rate-audit",
+      label: "Rate audit",
+      hint: "Who changed which rate",
+      icon: History,
+    },
+    {
+      href: "/tax-commission/recon",
+      label: "Recon",
+      hint: "Ledger vs wallet credits",
+      icon: Scale,
+    },
+    {
+      href: "/tax-commission/month-lock",
+      label: "Month lock",
+      hint: "Freeze a closed month",
+      icon: Lock,
     },
   ] as const;
 

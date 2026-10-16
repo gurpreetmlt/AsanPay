@@ -24,6 +24,22 @@ const yesterdayStart = () => {
   return d;
 };
 
+/**
+ * TCR09 — gross / TDS split for today's commission. Same row filter as the net totals
+ * (`commission_ledger.amount`), so gross - tds = net. Historical rows without tax columns
+ * fall back to gross = net, tds = 0.
+ */
+async function getTodayCommissionTax(userId: string, since: Date) {
+  const [row] = await db
+    .select({
+      gross: sql<string>`coalesce(sum(coalesce(${commissionLedger.grossAmount}, ${commissionLedger.amount})), '0')`,
+      tds: sql<string>`coalesce(sum(coalesce(${commissionLedger.tdsAmount}, 0)), '0')`,
+    })
+    .from(commissionLedger)
+    .where(and(eq(commissionLedger.beneficiaryUserId, userId), gte(commissionLedger.createdAt, since)));
+  return { todayCommissionGross: String(row?.gross ?? "0"), todayCommissionTds: String(row?.tds ?? "0") };
+}
+
 export async function getDashboardStats(userId: string, role: UserRole) {
   switch (role) {
     case "retailer":
@@ -58,14 +74,20 @@ async function getRetailerStats(userId: string) {
     .from(commissionLedger)
     .where(and(eq(commissionLedger.beneficiaryUserId, userId), gte(commissionLedger.createdAt, today)));
 
+  const tax = await getTodayCommissionTax(userId, today);
+
   return {
     role: "retailer" as const,
     today: {
       txnCount: totalTxns,
       volume: todaySummary?.volume ?? "0",
       successRate,
+      // Net credited to wallet (after TDS)
       commissionEarned: commission?.total ?? "0",
+      commissionGross: tax.todayCommissionGross,
+      commissionTds: tax.todayCommissionTds,
     },
+    ...tax,
   };
 }
 
@@ -132,6 +154,7 @@ async function getDistributorStats(userId: string) {
   }
   const noActivityThisMonth = Math.max(0, retailers.length - transactedThisMonth);
 
+  const distTax = await getTodayCommissionTax(userId, today);
   let todayVolume = "0";
   let todayCommission = "0";
   let monthCommission = "0";
@@ -233,9 +256,12 @@ async function getDistributorStats(userId: string) {
     today: {
       volume: todayVolume,
       commission: todayCommission,
+      commissionGross: distTax.todayCommissionGross,
+      commissionTds: distTax.todayCommissionTds,
       cashIn: todayCashIn,
       payouts: todayPayouts,
     },
+    ...distTax,
     month: { commission: monthCommission },
     topRetailers,
     activityHistory,
@@ -350,6 +376,7 @@ async function getSuperDistributorStats(userId: string) {
     .from(commissionLedger)
     .where(and(eq(commissionLedger.beneficiaryUserId, userId), gte(commissionLedger.createdAt, today)));
   const todayCommission = comm?.total ?? "0";
+  const sdTax = await getTodayCommissionTax(userId, today);
 
   const monthStartSd = (() => {
     const d = new Date();
@@ -513,8 +540,11 @@ async function getSuperDistributorStats(userId: string) {
       todayVolume,
       yesterdayVolume,
       todayCommission,
+      todayCommissionGross: sdTax.todayCommissionGross,
+      todayCommissionTds: sdTax.todayCommissionTds,
       monthCommission,
     },
+    ...sdTax,
     distributorPerformance: distPerformance,
     topDistributorsMtd: distPerformance.slice(0, 5),
     commissionMtdByDist,

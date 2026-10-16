@@ -43,6 +43,11 @@ export const SECTION_GROUPS: Record<
       { href: "/tax-commission/payouts", label: "Payouts" },
       { href: "/tax-commission/what-if", label: "What-if" },
       { href: "/tax-commission/underwater", label: "Underwater" },
+      { href: "/tax-commission/ca-pack", label: "CA pack" },
+      { href: "/tax-commission/pan-gaps", label: "PAN gaps" },
+      { href: "/tax-commission/rate-audit", label: "Rate audit" },
+      { href: "/tax-commission/recon", label: "Recon" },
+      { href: "/tax-commission/month-lock", label: "Month lock" },
     ],
   },
 };

@@ -20,6 +20,7 @@ import { colors } from "../../theme/colors";
 import { showAlert } from "../../components/AppAlert";
 import { DateRangeFields, toYmd } from "../../components/DateRangeCard";
 import { PageEnter } from "../../components/PageEnter";
+import { PanMissingBanner } from "../../components/PanMissingBanner";
 
 type EarningsSummary = {
   from: string;
@@ -337,6 +338,14 @@ export function MyEarningsScreen() {
           }
           keyboardShouldPersistTaps="handled"
         >
+          <View style={{ marginHorizontal: -16 }}>
+            <PanMissingBanner
+              onPress={() =>
+                (navigation as { navigate: (n: string) => void }).navigate(isPartner ? "Settings" : "Account")
+              }
+            />
+          </View>
+
           <DateRangeFields from={range.from} to={range.to} onChange={(next) => setRange(next)} />
 
           <View style={[styles.totalCard, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>

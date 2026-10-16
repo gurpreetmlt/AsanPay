@@ -36,6 +36,8 @@ export interface LedgerEntry {
   referenceId: string | null;
   description: string | null;
   createdAt: string;
+  /** Commission credits only — gross / TDS / net split. */
+  tax?: { gross: string; tds: string; net: string };
 }
 
 export interface TxnRow {

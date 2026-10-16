@@ -4,7 +4,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Crown, Network, Store, Tags, Percent, Plug, ScrollText, Scale, ShieldAlert, Wrench, LifeBuoy, IndianRupee, Landmark, Building2, Settings, Megaphone, Trash2, MessageCircle, Calculator, FileSpreadsheet, AlertTriangle } from "lucide-react";
+import { ChevronDown, Crown, Network, Store, Tags, Percent, Plug, ScrollText, Scale, ShieldAlert, Wrench, LifeBuoy, IndianRupee, Landmark, Building2, Settings, Megaphone, Trash2, MessageCircle, Calculator, FileSpreadsheet, AlertTriangle, Package, IdCard, History, Lock } from "lucide-react";
 import { AsanPayLockup } from "@/components/brand/Logo";
 import { AnimatedNavIcon } from "@/components/ui/AnimatedNavIcon";
 import type { NavIconDef } from "@/lib/iconTypes";
@@ -107,6 +107,11 @@ const TAX_COMMISSION: NavItem[] = [
         label: "Underwater",
         icon: { lib: "lucide", icon: AlertTriangle },
       },
+      { href: "/tax-commission/ca-pack", label: "CA pack", icon: { lib: "lucide", icon: Package } },
+      { href: "/tax-commission/pan-gaps", label: "PAN gaps", icon: { lib: "lucide", icon: IdCard } },
+      { href: "/tax-commission/rate-audit", label: "Rate audit", icon: { lib: "lucide", icon: History } },
+      { href: "/tax-commission/recon", label: "Recon", icon: { lib: "lucide", icon: Scale } },
+      { href: "/tax-commission/month-lock", label: "Month lock", icon: { lib: "lucide", icon: Lock } },
     ],
   },
 ];

@@ -6,6 +6,7 @@ import { toast } from "react-hot-toast";
 import { ChevronDown, ChevronRight, Search, TrendingUp } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
+import { PanMissingBanner } from "@/components/dashboard/PanMissingBanner";
 import { fetchApi } from "@/lib/api";
 import { B, initials } from "@/lib/brand";
 import { extractApiError } from "@/lib/onboarding";
@@ -320,6 +321,8 @@ function MyEarningsInner() {
               : "Net commission credited to your wallet"}
           </p>
         </div>
+
+        <PanMissingBanner />
 
         <div
           className="flex flex-wrap items-end gap-3 rounded-2xl border bg-white p-4"

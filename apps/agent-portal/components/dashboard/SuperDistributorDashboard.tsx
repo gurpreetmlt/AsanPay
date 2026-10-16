@@ -19,6 +19,8 @@ import type { DownlineUser, WalletBalance } from "@/lib/types";
 import { BulkFundForm } from "@/components/dashboard/BulkFundForm";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { PartnerQuickActions } from "./PartnerQuickActions";
+import { TodayEarningsChip } from "./TodayEarningsChip";
+import { PanMissingBanner } from "./PanMissingBanner";
 
 const LOW_FLOAT_THRESHOLD = 10000;
 
@@ -36,8 +38,12 @@ interface SDStats {
     todayVolume: string;
     yesterdayVolume: string;
     todayCommission: string;
+    todayCommissionGross?: string;
+    todayCommissionTds?: string;
     monthCommission?: string;
   };
+  todayCommissionGross?: string;
+  todayCommissionTds?: string;
   onboarding?: { pendingKyc: number };
   distributorPerformance: { id: string; name: string; retailerCount: number; volume: string }[];
   topDistributorsMtd?: { id: string; name: string; retailerCount: number; volume: string }[];
@@ -99,32 +105,18 @@ export function SuperDistributorDashboard() {
         onChanged={() => void load()}
       />
 
-      <button
-        type="button"
-        onClick={() => {
+      <TodayEarningsChip
+        net={stats?.revenue.todayCommission ?? "0"}
+        gross={stats?.todayCommissionGross ?? stats?.revenue.todayCommissionGross}
+        tds={stats?.todayCommissionTds ?? stats?.revenue.todayCommissionTds}
+        loading={loading}
+        onReport={() => {
           const d = new Date();
           const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
           router.push(`/earnings?from=${ymd}&to=${ymd}`);
         }}
-        className="flex w-full items-center gap-3 rounded-2xl border bg-white px-4 py-3 text-left transition hover:shadow-sm"
-        style={{ borderColor: B.border }}
-      >
-        <span
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-          style={{ background: "#EEF2FF", color: B.blueLight }}
-        >
-          <BarChart3 size={18} />
-        </span>
-        <span className="min-w-0 flex-1 text-sm font-bold" style={{ color: B.blue }}>
-          Today&apos;s Earnings:{" "}
-          <span style={{ color: B.green }}>
-            {loading ? "…" : formatInr(stats?.revenue.todayCommission ?? "0")}
-          </span>
-        </span>
-        <span className="text-xs font-bold" style={{ color: B.blueMid }}>
-          Report →
-        </span>
-      </button>
+      />
+      <PanMissingBanner />
 
       {lowFloat ? (
         <div

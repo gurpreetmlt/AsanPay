@@ -96,6 +96,8 @@ adminRouter.put("/users/:id/commissions", async (req, res) => {
             value: z.string().max(20).optional().default(""),
             isActive: z.boolean().optional(),
             clear: z.boolean().optional(),
+            expiresAt: z.string().max(40).nullable().optional(),
+            reason: z.string().max(300).optional(),
           }),
         )
         .max(200),
@@ -662,6 +664,119 @@ adminRouter.post("/commission/clawback/:transactionId", async (req, res) => {
       reason,
     }),
     "Commission clawback completed",
+  );
+});
+
+// ── Tax & Commission rich (TCR05–TCR14) ─────────────────────────────────────
+const schemeImportBody = z.object({
+  rows: z
+    .array(
+      z.object({
+        serviceCode: z.string().min(1).max(60),
+        role: z.string().min(1).max(30),
+        ruleType: z.string().min(1).max(20),
+        value: z.union([z.string().max(20), z.number()]),
+        minAmount: z.union([z.string().max(20), z.number()]).nullable().optional(),
+        maxAmount: z.union([z.string().max(20), z.number()]).nullable().optional(),
+        providerCode: z.string().max(40).nullable().optional(),
+        isActive: z.boolean().optional(),
+      }),
+    )
+    .min(1, "Add at least one row to import")
+    .max(1000, "Import is limited to 1000 rows per request"),
+  dryRun: z.boolean().optional(),
+  fileName: z.string().max(200).nullable().optional(),
+});
+
+adminRouter.get("/commission/rules/export", async (_req, res) => {
+  const { exportCommissionRulesCsv } = await import("../commission/commission.rich.service");
+  sendSuccess(res, await exportCommissionRulesCsv());
+});
+
+adminRouter.post("/commission/rules/import", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { importCommissionRules } = await import("../commission/commission.rich.service");
+  const body = schemeImportBody.parse(req.body);
+  const result = await importCommissionRules(req.auth.sub, body);
+  sendSuccess(res, result, body.dryRun ? "Import preview ready" : "Commission scheme import finished");
+});
+
+adminRouter.get("/commission/overrides", async (req, res) => {
+  const { listCommissionOverrides } = await import("../commission/commission.rich.service");
+  const q = typeof req.query.q === "string" ? req.query.q : undefined;
+  const role = typeof req.query.role === "string" ? req.query.role : undefined;
+  const expiredRaw = req.query.expired;
+  const expired = expiredRaw === "1" || expiredRaw === "all" || expiredRaw === "0" ? expiredRaw : undefined;
+  const activeRaw = req.query.active;
+  const active = activeRaw === "0" || activeRaw === "all" || activeRaw === "1" ? activeRaw : undefined;
+  const limit = Math.min(Number(req.query.limit) || 100, 500);
+  const offset = Number(req.query.offset) || 0;
+  sendSuccess(res, await listCommissionOverrides({ q, role, expired, active, limit, offset }));
+});
+
+adminRouter.post("/commission/overrides/:id/revert", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const id = String(req.params.id);
+  if (!z.string().uuid().safeParse(id).success) {
+    throw new HttpError(400, "Override id must be a valid UUID", "INVALID_ID");
+  }
+  const body = z
+    .object({
+      mode: z.enum(["deactivate", "delete"]).optional(),
+      reason: z.string().max(300).optional(),
+    })
+    .parse(req.body ?? {});
+  const { revertCommissionOverride } = await import("../commission/commission.rich.service");
+  sendSuccess(res, await revertCommissionOverride(req.auth.sub, id, body), "Override reverted");
+});
+
+adminRouter.get("/commission/ca-month-pack", async (req, res) => {
+  const { getCaMonthPack } = await import("../commission/commission.rich.service");
+  const month = typeof req.query.month === "string" ? req.query.month : undefined;
+  sendSuccess(res, await getCaMonthPack(month));
+});
+
+adminRouter.get("/commission/pan-gaps", async (req, res) => {
+  const { getPanGaps } = await import("../commission/commission.rich.service");
+  const month = typeof req.query.month === "string" ? req.query.month : undefined;
+  sendSuccess(res, await getPanGaps(month));
+});
+
+adminRouter.get("/commission/rate-audit", async (req, res) => {
+  const { listRateAudit } = await import("../commission/commission.rich.service");
+  const limit = Math.min(Number(req.query.limit) || 100, 500);
+  const entityType = typeof req.query.entityType === "string" ? req.query.entityType : undefined;
+  const q = typeof req.query.q === "string" ? req.query.q : undefined;
+  sendSuccess(res, await listRateAudit({ limit, entityType, q }));
+});
+
+adminRouter.get("/commission/recon", async (req, res) => {
+  const { getCommissionRecon } = await import("../commission/commission.rich.service");
+  const from = typeof req.query.from === "string" ? req.query.from : undefined;
+  const to = typeof req.query.to === "string" ? req.query.to : undefined;
+  sendSuccess(res, await getCommissionRecon(from, to));
+});
+
+adminRouter.get("/commission/month-locks", async (_req, res) => {
+  const { listMonthLocks } = await import("../commission/commission.rich.service");
+  sendSuccess(res, await listMonthLocks());
+});
+
+adminRouter.post("/commission/month-locks", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const body = z.object({ yearMonth: z.string().max(7) }).parse(req.body);
+  const { lockCommissionMonth } = await import("../commission/commission.rich.service");
+  sendSuccess(res, await lockCommissionMonth(req.auth.sub, body.yearMonth), "Commission month locked");
+});
+
+adminRouter.post("/commission/month-locks/:yearMonth/unlock", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const body = z.object({ reason: z.string().max(500).optional() }).parse(req.body ?? {});
+  const { unlockCommissionMonth } = await import("../commission/commission.rich.service");
+  sendSuccess(
+    res,
+    await unlockCommissionMonth(req.auth.sub, String(req.params.yearMonth), body.reason),
+    "Commission month unlocked",
   );
 });
 

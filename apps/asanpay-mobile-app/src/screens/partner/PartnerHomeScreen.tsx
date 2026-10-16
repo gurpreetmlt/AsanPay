@@ -31,6 +31,8 @@ import { useTheme } from "../../theme/ThemeContext";
 import { colors } from "../../theme/colors";
 import { showAlert } from "../../components/AppAlert";
 import { PageEnter } from "../../components/PageEnter";
+import { TodayEarningsCard } from "../../components/TodayEarningsCard";
+import { PanMissingBanner } from "../../components/PanMissingBanner";
 import { BrandLockup } from "../../components/BrandMark";
 import { FundRequestModal } from "../shared/FundRequestScreen";
 import { InviteModal, type InviteResult } from "./NetworkScreen";
@@ -38,6 +40,8 @@ import { InviteModal, type InviteResult } from "./NetworkScreen";
 interface PartnerStats {
   revenue?: { todayCommission?: string };
   today?: { commission?: string };
+  todayCommissionGross?: string;
+  todayCommissionTds?: string;
   onboarding?: { pendingKyc?: number };
 }
 
@@ -59,6 +63,8 @@ export function PartnerHomeScreen() {
   const { tokens } = useTheme();
   const [wallets, setWallets] = useState<WalletBalance[]>([]);
   const [todayEarnings, setTodayEarnings] = useState<string | null>(null);
+  const [todayGross, setTodayGross] = useState<string | null>(null);
+  const [todayTds, setTodayTds] = useState<string | null>(null);
   const [pendingKyc, setPendingKyc] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [showFund, setShowFund] = useState(false);
@@ -103,6 +109,8 @@ export function PartnerHomeScreen() {
       ]);
       setWallets(wal);
       setTodayEarnings(stats?.revenue?.todayCommission ?? stats?.today?.commission ?? "0");
+      setTodayGross(stats?.todayCommissionGross ?? null);
+      setTodayTds(stats?.todayCommissionTds ?? null);
       setPendingKyc(stats?.onboarding?.pendingKyc ?? 0);
     } catch {
       /* retry on pull */
@@ -234,16 +242,15 @@ export function PartnerHomeScreen() {
             </Pressable>
           </View>
 
-          <Pressable style={[styles.todayCard, cardStyle]} onPress={() => goEarnings(true)}>
-            <View style={[styles.statIcon, { backgroundColor: "#EEF2FF" }]}>
-              <ChartColumn size={18} color={colors.blueFlat} strokeWidth={2.2} />
-            </View>
-            <Text style={[styles.todayLabel, { color: tokens.txt }]}>Today&apos;s Earnings:</Text>
-            <Text style={styles.todayValue}>{formatINR(todayEarnings ?? "0")}</Text>
-            <View style={styles.todayArrow}>
-              <ChevronRight size={16} color="#fff" strokeWidth={2.6} />
-            </View>
-          </Pressable>
+          <View style={styles.earnWrap}>
+            <TodayEarningsCard
+              net={todayEarnings ?? "0"}
+              gross={todayGross}
+              tds={todayTds}
+              onReport={() => goEarnings(true)}
+            />
+            <PanMissingBanner onPress={() => go("Settings")} />
+          </View>
 
           <Pressable style={styles.inviteCta} onPress={() => openInvite()}>
             <View style={styles.inviteIcon}>
@@ -443,6 +450,8 @@ const styles = StyleSheet.create({
   statIcon: { width: 38, height: 38, borderRadius: 11, alignItems: "center", justifyContent: "center" },
   statLabel: { fontSize: 10.5, fontWeight: "700", letterSpacing: 0.4 },
   statValue: { fontSize: 15, fontWeight: "800", marginTop: 2 },
+  // Cancels the screen's horizontal padding — shared cards carry their own 16px margin.
+  earnWrap: { marginHorizontal: -16, marginTop: 2 },
   todayCard: {
     flexDirection: "row",
     alignItems: "center",

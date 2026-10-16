@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, LayoutAnimation, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, UIManager, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import LinearGradient from "react-native-linear-gradient";
-import { Bell, ChartColumn, ChevronRight, Gift, Scan } from "lucide-react-native";
+import { Bell, Gift, Scan } from "lucide-react-native";
 import { CategorySection } from "../../components/CategorySection";
 import { HomeEditModeBar } from "../../components/HomeEditModeBar";
 import { ScreenHeader } from "../../components/ScreenHeader";
@@ -25,6 +25,8 @@ import { FundRequestModal } from "../shared/FundRequestScreen";
 import { showAlert } from "../../components/AppAlert";
 import { BrandLockup } from "../../components/BrandMark";
 import { PageEnter } from "../../components/PageEnter";
+import { TodayEarningsCard } from "../../components/TodayEarningsCard";
+import { PanMissingBanner } from "../../components/PanMissingBanner";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 
@@ -66,6 +68,8 @@ export function ServicesScreen() {
   const [categories, setCategories] = useState<CatalogCategoryView[]>([]);
   const [wallets, setWallets] = useState<WalletBalance[]>([]);
   const [todayEarnings, setTodayEarnings] = useState("0");
+  const [todayGross, setTodayGross] = useState<string | null>(null);
+  const [todayTds, setTodayTds] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [homeEditMode, setHomeEditMode] = useState(false);
@@ -95,9 +99,12 @@ export function ServicesScreen() {
         fetchApi<CatalogCategoryView[]>("/catalog"),
         fetchApi<WalletBalance[]>("/wallet/me"),
         fetchApi<{ isActive: boolean; verified: boolean }[]>("/settlements/banks").catch(() => []),
-        fetchApi<{ today?: { commissionEarned?: string }; revenue?: { todayCommission?: string } }>(
-          "/dashboard/stats",
-        ).catch(() => null),
+        fetchApi<{
+          today?: { commissionEarned?: string };
+          revenue?: { todayCommission?: string };
+          todayCommissionGross?: string;
+          todayCommissionTds?: string;
+        }>("/dashboard/stats").catch(() => null),
       ]);
       setCategories(cat);
       setWallets(wal);
@@ -105,6 +112,8 @@ export function ServicesScreen() {
       setTodayEarnings(
         dash?.today?.commissionEarned ?? dash?.revenue?.todayCommission ?? "0",
       );
+      setTodayGross(dash?.todayCommissionGross ?? null);
+      setTodayTds(dash?.todayCommissionTds ?? null);
     } catch {
       /* silent — pull to retry */
     } finally {
@@ -259,9 +268,11 @@ export function ServicesScreen() {
         />
       </ScreenHeader>
 
-      <Pressable
-        style={[styles.todayEarnCard, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
-        onPress={() => {
+      <TodayEarningsCard
+        net={todayEarnings}
+        gross={todayGross}
+        tds={todayTds}
+        onReport={() => {
           const d = new Date();
           const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
           (navigation as { navigate: (n: string, p?: object) => void }).navigate("MyEarnings", {
@@ -269,18 +280,8 @@ export function ServicesScreen() {
             to: ymd,
           });
         }}
-        accessibilityRole="button"
-        accessibilityLabel="Today's earnings"
-      >
-        <View style={[styles.todayEarnIcon, { backgroundColor: "#EEF2FF" }]}>
-          <ChartColumn size={18} color={colors.blueFlat} strokeWidth={2.2} />
-        </View>
-        <Text style={[styles.todayEarnLabel, { color: tokens.txt }]}>Today&apos;s Earnings:</Text>
-        <Text style={styles.todayEarnValue}>{formatINR(todayEarnings)}</Text>
-        <View style={styles.todayEarnArrow}>
-          <ChevronRight size={16} color="#fff" strokeWidth={2.6} />
-        </View>
-      </Pressable>
+      />
+      <PanMissingBanner onPress={() => navigation.navigate("Account")} />
 
       {doNext.length > 0 ? (
         <View style={[styles.doNextWrap, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>

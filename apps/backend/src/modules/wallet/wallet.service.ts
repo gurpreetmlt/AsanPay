@@ -1,4 +1,4 @@
-import { eq, and, desc, sql, inArray, gte, lte } from "drizzle-orm";
+import { eq, and, desc, sql, inArray, gte, lte, isNull } from "drizzle-orm";
 import { randomInt, timingSafeEqual } from "node:crypto";
 import type { PgTransaction } from "drizzle-orm/pg-core";
 import { db } from "../../db/postgres";
@@ -9,6 +9,7 @@ import {
   walletIdempotency,
   users,
   transactions,
+  commissionLedger,
 } from "../../db/postgres/schema";
 import { transferBetweenWallets, fundWallet } from "./wallet.ledger";
 import { toPaise } from "./decimal";
@@ -497,6 +498,8 @@ export interface LedgerEntryView {
   referenceId: string | null;
   description: string | null;
   createdAt: Date;
+  /** TCR10 — present on commission credits: gross, TDS withheld, net credited. */
+  tax?: { gross: string; tds: string; net: string };
 }
 
 // Powers the "Passbook" screen — every ledger line for a user, across all their wallets.
@@ -519,6 +522,7 @@ export async function getWalletLedger(
       referenceId: walletLedgerGroups.referenceId,
       description: walletLedgerGroups.description,
       createdAt: walletLedgerEntries.createdAt,
+      groupId: walletLedgerEntries.groupId,
     })
     .from(walletLedgerEntries)
     .innerJoin(wallets, eq(wallets.id, walletLedgerEntries.walletId))
@@ -528,5 +532,40 @@ export async function getWalletLedger(
     .limit(limit)
     .offset(offset);
 
-  return rows;
+  // TCR10 — attach gross / TDS / net for commission credits (matched by ledger group + beneficiary).
+  const commissionGroupIds = rows
+    .filter((r) => r.referenceType === "commission" && r.entryType === "credit")
+    .map((r) => r.groupId);
+  const taxByGroup = new Map<string, { gross: string; tds: string; net: string }>();
+  if (commissionGroupIds.length > 0) {
+    const taxRows = await db
+      .select({
+        ledgerGroupId: commissionLedger.ledgerGroupId,
+        amount: commissionLedger.amount,
+        grossAmount: commissionLedger.grossAmount,
+        tdsAmount: commissionLedger.tdsAmount,
+      })
+      .from(commissionLedger)
+      .where(
+        and(
+          eq(commissionLedger.beneficiaryUserId, userId),
+          inArray(commissionLedger.ledgerGroupId, commissionGroupIds),
+          isNull(commissionLedger.reversedAt),
+        ),
+      );
+    for (const t of taxRows) {
+      if (!t.ledgerGroupId) continue;
+      const net = String(t.amount);
+      taxByGroup.set(t.ledgerGroupId, {
+        gross: t.grossAmount != null ? String(t.grossAmount) : net,
+        tds: t.tdsAmount != null ? String(t.tdsAmount) : "0.00",
+        net,
+      });
+    }
+  }
+
+  return rows.map(({ groupId, ...entry }) => {
+    const tax = entry.referenceType === "commission" ? taxByGroup.get(groupId) : undefined;
+    return tax ? { ...entry, tax } : entry;
+  });
 }

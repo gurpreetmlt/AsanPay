@@ -15,7 +15,6 @@ import {
   Share2,
   RotateCcw,
   LifeBuoy,
-  BarChart3,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { isFundRequestEnabled } from "@asanpay/shared-types";
@@ -28,6 +27,8 @@ import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { ServiceCards } from "@/components/services/ServiceCards";
+import { TodayEarningsChip } from "@/components/dashboard/TodayEarningsChip";
+import { PanMissingBanner } from "@/components/dashboard/PanMissingBanner";
 import { formatInr, walletDisplayName } from "@/lib/walletLabels";
 import type { TxnRow, WalletBalance } from "@/lib/types";
 
@@ -38,7 +39,11 @@ interface RetailerStats {
     volume: string;
     successRate: number;
     commissionEarned: string;
+    commissionGross?: string;
+    commissionTds?: string;
   };
+  todayCommissionGross?: string;
+  todayCommissionTds?: string;
 }
 
 const AEPS_TAB_MAP: Record<string, string> = {
@@ -240,32 +245,18 @@ export function RetailerDashboard() {
           </div>
         </div>
       ) : null}
-      <button
-        type="button"
-        onClick={() => {
+      <TodayEarningsChip
+        net={todayEarn}
+        gross={stats?.todayCommissionGross ?? stats?.today.commissionGross}
+        tds={stats?.todayCommissionTds ?? stats?.today.commissionTds}
+        loading={loading}
+        onReport={() => {
           const d = new Date();
           const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
           router.push(`/earnings?from=${ymd}&to=${ymd}`);
         }}
-        className="flex w-full items-center gap-3 rounded-2xl border bg-white px-4 py-3 text-left transition hover:shadow-sm"
-        style={{ borderColor: B.border }}
-      >
-        <span
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-          style={{ background: "#EEF2FF", color: B.blueLight }}
-        >
-          <BarChart3 size={18} />
-        </span>
-        <span className="min-w-0 flex-1 text-sm font-bold" style={{ color: B.blue }}>
-          Today&apos;s Earnings:{" "}
-          <span style={{ color: B.green }}>
-            {loading ? "…" : formatInr(todayEarn)}
-          </span>
-        </span>
-        <span className="text-xs font-bold" style={{ color: B.blueMid }}>
-          Report →
-        </span>
-      </button>
+      />
+      <PanMissingBanner />
 
       {lowBalance && fundOn ? (
         <div

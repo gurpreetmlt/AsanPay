@@ -477,6 +477,13 @@
       "when": 1791800000000,
       "tag": "0067_commission_clawback_ingest",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1791900000000,
+      "tag": "0068_tax_commission_rich",
+      "breakpoints": true
     }
   ]
 }

@@ -7,6 +7,7 @@ import { toast } from "react-hot-toast";
 import { Search } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { SectionTabs } from "@/components/layout/SectionTabs";
+import { OverridesInbox } from "@/components/commission/OverridesInbox";
 import { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
@@ -184,6 +185,8 @@ export default function TaxCommissionOverridesPage() {
             </table>
           )}
         </div>
+
+        <OverridesInbox />
       </div>
     </AdminShell>
   );

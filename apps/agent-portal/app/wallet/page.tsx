@@ -15,6 +15,7 @@ import { toast } from "react-hot-toast";
 import { isFundRequestEnabled } from "@asanpay/shared-types";
 import { AppShell } from "@/components/layout/AppShell";
 import { WalletActionForm } from "@/components/dashboard/WalletActionForm";
+import { LedgerTaxDetail } from "@/components/wallet/LedgerTaxDetail";
 import { BulkFundForm } from "@/components/dashboard/BulkFundForm";
 import { fetchApi } from "@/lib/api";
 import { B, initials, roleFromUserRole } from "@/lib/brand";
@@ -499,6 +500,7 @@ export default function WalletPage() {
                     </td>
                     <td className="px-5 py-3 text-sm font-semibold" style={{ color: B.blue }}>
                       {l.description || l.referenceType}
+                      <LedgerTaxDetail entry={l} />
                     </td>
                     <td className="px-5 py-3 text-xs uppercase" style={{ color: B.muted }}>
                       {walletDisplayName(l.walletType)}

@@ -46,6 +46,7 @@ import {
 } from "../kyc/kycDocuments.service";
 import { kycDecisionEmailTemplate, notifyUserEmail } from "../../utils/mailer";
 import { findLatestAuditLog, insertAuditLog } from "../../db/postgres/repositories/auditLog";
+import { assertCommissionMonthUnlocked, recordRateChangeEvent } from "../commission/commission.guards";
 import { resyncUidCounter } from "../../utils/uid";
 import type { UserRole, KycStatus, TransactionStatus } from "@asanpay/shared-types";
 
@@ -346,6 +347,16 @@ export async function getAdminAlerts() {
   const fundRequestsPending = Number(fundRow?.total ?? 0);
   const supportTicketsOpen = Number(ticketRow?.total ?? 0);
 
+  // TCR11 — agents with TDS withheld this month but no PAN on file.
+  let panGapCount = 0;
+  try {
+    const { countPanGapsForMonth } = await import("../commission/commission.rich.service");
+    panGapCount = await countPanGapsForMonth();
+  } catch {
+    // Alerts poll often; a tax-query failure must not hide KYC / fund-request badges.
+    panGapCount = 0;
+  }
+
   const ROLE_LABEL: Record<string, string> = {
     retailer: "Retailer",
     distributor: "Distributor",
@@ -394,6 +405,19 @@ export async function getAdminAlerts() {
           },
         ]
       : []),
+    ...(panGapCount > 0
+      ? [
+          {
+            id: "pan-gap",
+            type: "pan_gap" as const,
+            title: "Agents missing PAN (TDS withheld)",
+            body: `${panGapCount} agent${panGapCount === 1 ? "" : "s"} had TDS deducted this month without a PAN on file`,
+            href: "/tax-commission/pan-gaps",
+            createdAt: new Date().toISOString(),
+            meta: { count: panGapCount },
+          },
+        ]
+      : []),
   ];
 
   return {
@@ -402,6 +426,7 @@ export async function getAdminAlerts() {
       kycPendingByRole: byRole,
       fundRequestsPending,
       supportTicketsOpen,
+      panGapCount,
     },
     notifications,
   };
@@ -1234,11 +1259,20 @@ type CommissionServiceRowOut = {
   ruleType: "flat" | "percentage";
   value: string;
   rateActive: boolean;
+  /** TCR06 — ISO timestamp when the override stops applying (null = never). */
+  expiresAt: string | null;
+};
+
+type CommissionRateLite = {
+  ruleType: "flat" | "percentage";
+  value: string;
+  isActive: boolean;
+  expiresAt?: Date | null;
 };
 
 function mapCommissionServiceRow(
   s: { id: string; code: string; name: string; isActive: boolean },
-  rate: { ruleType: "flat" | "percentage"; value: string; isActive: boolean } | undefined,
+  rate: CommissionRateLite | undefined,
 ): CommissionServiceRowOut {
   return {
     id: s.id,
@@ -1249,13 +1283,14 @@ function mapCommissionServiceRow(
     ruleType: rate?.ruleType ?? "percentage",
     value: rate ? String(rate.value) : "",
     rateActive: rate?.isActive ?? true,
+    expiresAt: rate?.expiresAt ? rate.expiresAt.toISOString() : null,
   };
 }
 
 /** Collapse AEPS sub-services into one virtual row; leave other services as-is (BBPS untouched). */
 function foldAepsCommissionGroup(
   categoryServices: Array<{ id: string; code: string; name: string; isActive: boolean }>,
-  rateByService: Map<string, { ruleType: "flat" | "percentage"; value: string; isActive: boolean }>,
+  rateByService: Map<string, CommissionRateLite>,
 ): CommissionServiceRowOut[] {
   const aepsMembers = categoryServices.filter((s) => AEPS_COMMISSION_GROUP_CODE_SET.has(s.code));
   if (aepsMembers.length === 0) {
@@ -1275,6 +1310,7 @@ function foldAepsCommissionGroup(
     ruleType: rate?.ruleType ?? "percentage",
     value: rate ? String(rate.value) : "",
     rateActive: rate?.isActive ?? true,
+    expiresAt: rate?.expiresAt ? rate.expiresAt.toISOString() : null,
   };
 
   const out: CommissionServiceRowOut[] = [];
@@ -1341,6 +1377,10 @@ export async function upsertAdminUserCommissions(
     value: string;
     isActive?: boolean;
     clear?: boolean;
+    /** TCR06 — ISO date/time; omit = keep existing, null/"" = never expires. */
+    expiresAt?: string | null;
+    /** Optional note stored on the rate-change event (TCR12). */
+    reason?: string;
   }>,
 ) {
   const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
@@ -1377,13 +1417,47 @@ export async function upsertAdminUserCommissions(
     }
   }
 
+  // TCR14 — overrides take effect immediately, so the current month must not be locked.
+  if (expandedRates.length > 0) await assertCommissionMonthUnlocked([]);
+
+  const snapshotOverride = (r: {
+    ruleType: string;
+    value: string | number;
+    isActive: boolean;
+    expiresAt: Date | null;
+  }): Record<string, unknown> => ({
+    ruleType: r.ruleType,
+    value: String(r.value),
+    isActive: r.isActive,
+    expiresAt: r.expiresAt ? r.expiresAt.toISOString() : null,
+  });
+
   for (const rate of expandedRates) {
     if (rate.clear) {
+      const [prior] = await db
+        .select()
+        .from(userCommissionRates)
+        .where(
+          and(eq(userCommissionRates.userId, userId), eq(userCommissionRates.serviceId, rate.serviceId)),
+        )
+        .limit(1);
       await db
         .delete(userCommissionRates)
         .where(
           and(eq(userCommissionRates.userId, userId), eq(userCommissionRates.serviceId, rate.serviceId)),
         );
+      if (prior) {
+        await recordRateChangeEvent({
+          adminId,
+          entityType: "override",
+          entityId: prior.id,
+          userId,
+          serviceId: rate.serviceId,
+          before: snapshotOverride(prior),
+          after: null,
+          reason: rate.reason ?? "Override cleared",
+        });
+      }
       continue;
     }
 
@@ -1402,8 +1476,25 @@ export async function upsertAdminUserCommissions(
 
     const value = valueNum.toFixed(4);
     const isActive = rate.isActive !== false;
+
+    let expiresAt: Date | null | undefined;
+    if (rate.expiresAt === undefined) {
+      expiresAt = undefined;
+    } else if (rate.expiresAt === null || String(rate.expiresAt).trim() === "") {
+      expiresAt = null;
+    } else {
+      const parsed = new Date(rate.expiresAt);
+      if (Number.isNaN(parsed.getTime())) {
+        throw new HttpError(400, "Override expiry (expiresAt) must be a valid date", "INVALID_DATE");
+      }
+      if (parsed.getTime() <= Date.now()) {
+        throw new HttpError(400, "Override expiry (expiresAt) must be in the future", "INVALID_DATE");
+      }
+      expiresAt = parsed;
+    }
+
     const [existing] = await db
-      .select({ id: userCommissionRates.id })
+      .select()
       .from(userCommissionRates)
       .where(
         and(eq(userCommissionRates.userId, userId), eq(userCommissionRates.serviceId, rate.serviceId)),
@@ -1411,23 +1502,51 @@ export async function upsertAdminUserCommissions(
       .limit(1);
 
     if (existing) {
+      const nextExpires = expiresAt === undefined ? existing.expiresAt : expiresAt;
       await db
         .update(userCommissionRates)
         .set({
           ruleType: rate.ruleType,
           value,
           isActive,
+          expiresAt: nextExpires,
           updatedAt: new Date(),
         })
         .where(eq(userCommissionRates.id, existing.id));
-    } else {
-      await db.insert(userCommissionRates).values({
+      await recordRateChangeEvent({
+        adminId,
+        entityType: "override",
+        entityId: existing.id,
         userId,
         serviceId: rate.serviceId,
-        ruleType: rate.ruleType,
-        value,
-        isActive,
+        before: snapshotOverride(existing),
+        after: snapshotOverride({ ruleType: rate.ruleType, value, isActive, expiresAt: nextExpires }),
+        reason: rate.reason ?? "Override updated",
       });
+    } else {
+      const [inserted] = await db
+        .insert(userCommissionRates)
+        .values({
+          userId,
+          serviceId: rate.serviceId,
+          ruleType: rate.ruleType,
+          value,
+          isActive,
+          expiresAt: expiresAt ?? null,
+        })
+        .returning();
+      if (inserted) {
+        await recordRateChangeEvent({
+          adminId,
+          entityType: "override",
+          entityId: inserted.id,
+          userId,
+          serviceId: rate.serviceId,
+          before: null,
+          after: snapshotOverride(inserted),
+          reason: rate.reason ?? "Override created",
+        });
+      }
     }
   }
 

@@ -10,6 +10,7 @@ import {
   varchar,
   jsonb,
   text,
+  integer,
 } from "drizzle-orm/pg-core";
 import { userRoleEnum, commissionRuleTypeEnum } from "./enums";
 import { services, providers } from "./catalog";
@@ -96,12 +97,15 @@ export const userCommissionRates = pgTable(
     ruleType: commissionRuleTypeEnum("rule_type").notNull(),
     value: numeric("value", { precision: 10, scale: 4 }).notNull(),
     isActive: boolean("is_active").notNull().default(true),
+    /** TCR06: override stops applying once expires_at <= now (null = never expires). */
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     uniqueIndex("user_commission_rates_user_service_key").on(table.userId, table.serviceId),
     index("user_commission_rates_user_idx").on(table.userId),
+    index("user_commission_rates_expires_idx").on(table.expiresAt),
   ],
 );
 
@@ -189,4 +193,74 @@ export const providerCommissionIngest = pgTable(
   (table) => [
     index("provider_commission_ingest_provider_idx").on(table.providerCode, table.createdAt),
   ],
+);
+
+/** TCR05: audit row per CSV scheme import (dry runs are not stored). */
+export const commissionSchemeImportBatches = pgTable(
+  "commission_scheme_import_batches",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    adminId: uuid("admin_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    fileName: varchar("file_name", { length: 200 }),
+    rowCount: integer("row_count").notNull().default(0),
+    createdCount: integer("created_count").notNull().default(0),
+    updatedCount: integer("updated_count").notNull().default(0),
+    skippedCount: integer("skipped_count").notNull().default(0),
+    errorCount: integer("error_count").notNull().default(0),
+    errors: jsonb("errors").notNull().default(sql`'[]'::jsonb`),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("commission_scheme_import_batches_tenant_idx").on(table.tenantId, table.createdAt)],
+);
+
+/** TCR12: before/after trail for role-default rules and per-agent overrides. */
+export const commissionRateChangeEvents = pgTable(
+  "commission_rate_change_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    adminId: uuid("admin_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    /** `rule` (commission_rules) | `override` (user_commission_rates) */
+    entityType: varchar("entity_type", { length: 20 }).notNull(),
+    entityId: uuid("entity_id").notNull(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    serviceId: uuid("service_id").references(() => services.id, { onDelete: "set null" }),
+    before: jsonb("before"),
+    after: jsonb("after"),
+    reason: text("reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("commission_rate_change_events_tenant_created_idx").on(table.tenantId, table.createdAt),
+    index("commission_rate_change_events_entity_idx").on(table.entityType, table.entityId),
+  ],
+);
+
+/** TCR14: lock a tax month so rates cannot be changed retroactively after filing. */
+export const commissionTaxMonthLocks = pgTable(
+  "commission_tax_month_locks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    /** IST calendar month, YYYY-MM */
+    yearMonth: varchar("year_month", { length: 7 }).notNull(),
+    lockedAt: timestamp("locked_at", { withTimezone: true }).notNull().defaultNow(),
+    lockedBy: uuid("locked_by")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    unlockedAt: timestamp("unlocked_at", { withTimezone: true }),
+    unlockReason: text("unlock_reason"),
+  },
+  (table) => [uniqueIndex("commission_tax_month_locks_tenant_month_key").on(table.tenantId, table.yearMonth)],
 );

@@ -34,7 +34,7 @@
 - [x] Tax commission TC15 raw ingest + TC18 clawback (migrate `0067`) + TC21 retailer web earnings + TC22 Est. earn lines
 - [ ] Tax commission still blocked: TC17 Noble 33A (Task 33 paths/CA) · TC15 parse mapping needs Vyapar sample
 - [x] Admin Tax & Commission IA (TCA01–06): sidebar group + SectionTabs + overview + schemes/tax/registers/payouts + overrides; `/commission` redirects
-- [x] Tax & Commission rich TCR01–04: sidebar + clawback filter/badge + underwater ops + what-if calculator (`/tax-commission/what-if`)
+- [x] Tax & Commission rich TCR01–14 (TCR15/16 blocked): CSV schemes, overrides inbox, CA pack, PAN gaps, what-if, underwater, rate audit, recon, month lock; agent home/passbook Gross·TDS + PAN banner (web+mobile). Migrate `0068_tax_commission_rich` on EC2.
 - [ ] Service flows (AEPS, DMT, BBPS)
 - [ ] Biometric SDK
 - [x] Txn PIN modal + wallet transfer PIN

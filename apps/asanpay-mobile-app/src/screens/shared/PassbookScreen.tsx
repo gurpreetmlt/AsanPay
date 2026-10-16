@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { fetchApi } from "../../lib/api";
@@ -17,6 +17,7 @@ export function PassbookScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [todayEarn, setTodayEarn] = useState("0");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -157,11 +158,18 @@ export function PassbookScreen() {
           <View style={[styles.listCard, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
             {entries.map((item, i) => {
               const credit = item.entryType === "credit";
+              const hasTax = !!item.tax || (credit && item.referenceType === "commission");
+              const isOpen = hasTax && expandedId === item.id;
               return (
-                <View
+                <Pressable
                   key={item.id}
-                  style={[styles.row, i < entries.length - 1 && { borderBottomColor: tokens.cardBorder, borderBottomWidth: 1 }]}
+                  disabled={!hasTax}
+                  onPress={() => setExpandedId(isOpen ? null : item.id)}
+                  accessibilityRole={hasTax ? "button" : undefined}
+                  accessibilityLabel={hasTax ? "Show gross, TDS and net" : undefined}
+                  style={i < entries.length - 1 && { borderBottomColor: tokens.cardBorder, borderBottomWidth: 1 }}
                 >
+                <View style={styles.row}>
                   <View style={[styles.icon, { backgroundColor: credit ? colors.greenBg : colors.dangerBg }]}>
                     <Text style={[styles.iconText, { color: credit ? colors.greenDark : colors.danger }]}>
                       {credit ? "↓" : "↑"}
@@ -188,6 +196,15 @@ export function PassbookScreen() {
                     <Text style={[styles.balAfter, { color: tokens.mute }]}>Bal {formatINR(item.balanceAfter)}</Text>
                   </View>
                 </View>
+                {isOpen ? (
+                  <Text style={[styles.taxLine, { color: tokens.sub }]}>
+                    Gross {formatINR(item.tax?.gross ?? item.amount)} · TDS {formatINR(item.tax?.tds ?? "0")} · Net{" "}
+                    {formatINR(item.tax?.net ?? item.amount)}
+                  </Text>
+                ) : hasTax ? (
+                  <Text style={[styles.taxHint, { color: colors.blueFlat }]}>Tax details</Text>
+                ) : null}
+                </Pressable>
               );
             })}
           </View>
@@ -233,4 +250,6 @@ const styles = StyleSheet.create({
   date: { fontSize: 11, marginTop: 2 },
   right: { alignItems: "flex-end" },
   balAfter: { fontSize: 10, marginTop: 2 },
+  taxLine: { fontSize: 11.5, fontWeight: "600", paddingHorizontal: 14, paddingBottom: 12, paddingLeft: 66 },
+  taxHint: { fontSize: 11, fontWeight: "700", paddingBottom: 10, paddingLeft: 66 },
 });
