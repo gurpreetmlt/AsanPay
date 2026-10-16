@@ -36,7 +36,7 @@ import {
   EyeOff,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
-import type { UserRole } from "@asanpay/shared-types";
+import { isFundRequestEnabled, type UserRole } from "@asanpay/shared-types";
 import { AsanPayLockup } from "@/components/brand/Logo";
 import { fetchApi } from "@/lib/api";
 import { B, initials, roleFromUserRole } from "@/lib/brand";
@@ -68,8 +68,12 @@ function groupActive(pathname: string, children: NavChild[]) {
   return children.some((c) => pathActive(pathname, c.to, c.exact));
 }
 
-function buildAgentNav(role: UserRole | undefined): NavItem[] {
+function buildAgentNav(role: UserRole | undefined, fundRequestOn: boolean): NavItem[] {
   if (!role) return [];
+
+  const moneyExtra: NavChild[] = fundRequestOn
+    ? [{ to: "/fund-request", label: "Add Money", icon: PlusCircle }]
+    : [];
 
   if (isRetailerRole(role)) {
     return [
@@ -93,7 +97,7 @@ function buildAgentNav(role: UserRole | undefined): NavItem[] {
         icon: Wallet,
         children: [
           { to: "/wallet", label: "Balance", icon: Wallet, exact: true },
-          { to: "/fund-request", label: "Add Money", icon: PlusCircle },
+          ...moneyExtra,
           { to: "/settlements", label: "Earnings & Settlement", icon: Landmark },
           { to: "/passbook", label: "History", icon: History },
           { to: "/statements", label: "Statements", icon: FileText },
@@ -138,7 +142,7 @@ function buildAgentNav(role: UserRole | undefined): NavItem[] {
       icon: Wallet,
       children: [
         { to: "/wallet", label: "Balance", icon: Wallet, exact: true },
-        { to: "/fund-request", label: "Add Money", icon: PlusCircle },
+        ...moneyExtra,
         { to: "/settlements", label: "Settlements", icon: Landmark },
         { to: "/float-planner", label: "Float & Earnings", icon: PiggyBank },
         { to: "/passbook", label: "History", icon: History },
@@ -195,9 +199,11 @@ function SidebarContent({
   av: string;
 }) {
   const pathname = usePathname();
-  const authRole = useAuthStore((s) => s.user?.role);
+  const authUser = useAuthStore((s) => s.user);
+  const authRole = authUser?.role;
   const accessToken = useAuthStore((s) => s.accessToken);
-  const nav = useMemo(() => buildAgentNav(authRole), [authRole]);
+  const fundRequestOn = authUser ? isFundRequestEnabled(authUser.role, authUser.fundRequestEnabled) : false;
+  const nav = useMemo(() => buildAgentNav(authRole, fundRequestOn), [authRole, fundRequestOn]);
   const isPartner = authRole === "super_distributor" || authRole === "distributor";
 
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
@@ -440,7 +446,7 @@ function WalletPill({
   loading: boolean;
 }) {
   const router = useRouter();
-  const role = useAuthStore((s) => s.user?.role);
+  const user = useAuthStore((s) => s.user);
   const [open, setOpen] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ref = useRef<HTMLDivElement>(null);
@@ -462,7 +468,12 @@ function WalletPill({
     closeTimer.current = setTimeout(() => setOpen(false), 150);
   }
 
+  const fundOn = user ? isFundRequestEnabled(user.role, user.fundRequestEnabled) : false;
   const goAddMoney = () => {
+    if (!fundOn) {
+      toast.error("Fund requests are not enabled for your account. Contact your sales manager to enable them.");
+      return;
+    }
     router.push("/fund-request");
   };
 
@@ -470,7 +481,7 @@ function WalletPill({
 
   // Same actions on Main and AEPS — Add Money (fund request) credits Main; keep entry points consistent.
   const actions = [
-    { icon: PlusCircle, label: "Add Money", action: goAddMoney },
+    ...(fundOn ? [{ icon: PlusCircle, label: "Add Money", action: goAddMoney }] : []),
     { icon: SendHorizonal, label: "Transfer", action: () => router.push("/wallet") },
     { icon: RefreshCw, label: "Refresh", action: onRefresh },
     { icon: Download, label: "Statement", action: () => router.push("/statements") },
@@ -616,12 +627,16 @@ export function AppShell({ children }: { children: ReactNode }) {
   const toggleBalance = useBalanceVisibility((s) => s.toggle);
   const isPartner = user?.role === "super_distributor" || user?.role === "distributor";
 
+  const fundRequestOn = user ? isFundRequestEnabled(user.role, user.fundRequestEnabled) : false;
+
   const alertItems = useMemo(() => {
     const r = user?.role;
     if (r === "retailer") {
       return [
         { href: "/settings", title: "KYC & profile", body: "Complete KYC, bank, and MPIN" },
-        { href: "/fund-request", title: "Add money", body: "Top up main wallet for services" },
+        ...(fundRequestOn
+          ? [{ href: "/fund-request", title: "Add money", body: "Top up main wallet for services" }]
+          : []),
         { href: "/settlements", title: "Settlement banks", body: "Add or check bank for withdrawals" },
         { href: "/support", title: "Support", body: "Open a ticket if a txn failed" },
       ];
@@ -630,10 +645,12 @@ export function AppShell({ children }: { children: ReactNode }) {
       { href: "/network", title: "Network", body: "Review downline activity and KYC" },
       { href: "/onboarding/outlet", title: "Onboard partner", body: "Add a new distributor or retailer" },
       { href: "/wallet", title: "Fund transfer", body: "Send float to your network" },
-      { href: "/fund-request", title: "Add money", body: "Request float for your wallet" },
+      ...(fundRequestOn
+        ? [{ href: "/fund-request", title: "Add money", body: "Request float for your wallet" }]
+        : []),
       { href: "/settlements", title: "Settlements", body: "Bank verify and withdrawals" },
     ];
-  }, [user?.role]);
+  }, [user?.role, fundRequestOn]);
 
   const searchMatches = useMemo(() => {
     const q = headerSearch.trim().toLowerCase();
@@ -641,6 +658,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (!q) return items;
 
     for (const s of HEADER_SEARCH_SERVICES) {
+      if (s.href === "/fund-request" && !fundRequestOn) continue;
       if (s.label.toLowerCase().includes(q) || s.q.includes(q)) {
         items.push({ href: s.href, label: s.label, group: "Services" });
       }
@@ -658,7 +676,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       });
     }
     return items.slice(0, 12);
-  }, [headerSearch, isPartner]);
+  }, [headerSearch, isPartner, fundRequestOn]);
 
   const loadWallets = useCallback(async () => {
     if (!accessToken) return;

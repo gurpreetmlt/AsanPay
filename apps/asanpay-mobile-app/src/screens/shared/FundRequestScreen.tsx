@@ -18,11 +18,11 @@ import Clipboard from "@react-native-clipboard/clipboard";
 // namespace as a result, so TS sees an invalid JSX component even though it renders fine.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import RawQRCode from "react-native-qrcode-svg";
-import DateTimePicker, { type DateTimePickerEvent } from "@react-native-community/datetimepicker";
 const QRCode = RawQRCode as unknown as React.ComponentType<{ value: string; size: number }>;
 import {
   ArrowLeft,
   Building2,
+  Calendar,
   ChevronRight,
   ClipboardList,
   CreditCard,
@@ -47,7 +47,7 @@ import { BankDetailCard } from "../../components/BankDetailCard";
 import { BankAccountViewSheet, type BankViewDetails } from "../../components/BankAccountViewSheet";
 import { useTheme } from "../../theme/ThemeContext";
 import { useAuthStore } from "../../store/auth";
-import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
+import { isFundRequestEnabled, type ApiResponse, type AuthUser } from "@asanpay/shared-types";
 import { colors } from "../../theme/colors";
 
 interface BankAccount {
@@ -125,7 +125,7 @@ export function FundRequestModal({ visible, onClose }: { visible: boolean; onClo
   const [confirmPrefill, setConfirmPrefill] = useState<ConfirmPrefill | null>(null);
 
   const user = useAuthStore((s) => s.user);
-  const enabled = user ? user.role !== "admin" && (user.fundRequestEnabled ?? user.role !== "retailer") : false;
+  const enabled = user ? isFundRequestEnabled(user.role, user.fundRequestEnabled) : false;
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -933,6 +933,255 @@ const PAYMENT_MODE_MAP: Record<ConfirmMode, string> = {
   cash_deposit: "cash_deposit",
 };
 
+const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+function formatDepositDigits(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 12);
+  const dd = digits.slice(0, 2);
+  const mm = digits.slice(2, 4);
+  const yyyy = digits.slice(4, 8);
+  const hh = digits.slice(8, 10);
+  const mi = digits.slice(10, 12);
+  let out = dd;
+  if (digits.length > 2) out += `/${mm}`;
+  if (digits.length > 4) out += `/${yyyy}`;
+  if (digits.length > 8) out += ` ${hh}`;
+  if (digits.length > 10) out += `:${mi}`;
+  return out;
+}
+
+function parseDepositDisplay(text: string): Date | null {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?$/.exec(text.trim());
+  if (!m) return null;
+  const day = Number(m[1]);
+  const month = Number(m[2]);
+  const year = Number(m[3]);
+  const hour = m[4] != null ? Number(m[4]) : 12;
+  const minute = m[5] != null ? Number(m[5]) : 0;
+  if (year < 2020 || month < 1 || month > 12 || day < 1 || day > 31) return null;
+  if (hour > 23 || minute > 59) return null;
+  const dt = new Date(year, month - 1, day, hour, minute, 0, 0);
+  if (dt.getFullYear() !== year || dt.getMonth() !== month - 1 || dt.getDate() !== day) return null;
+  return dt;
+}
+
+function dateToDisplay(d: Date): string {
+  return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+/** JS modal date+time — no native DateTimePicker (avoids Android crash on some devices). */
+function DepositDateTimeField({
+  value,
+  onChange,
+  tokens,
+}: {
+  value: Date | null;
+  onChange: (d: Date | null) => void;
+  tokens: { sub: string; txt: string; mute: string; card: string; cardBorder: string; bg: string };
+}) {
+  const [open, setOpen] = useState(false);
+  const seed = value ?? new Date();
+  const [viewYear, setViewYear] = useState(seed.getFullYear());
+  const [viewMonth, setViewMonth] = useState(seed.getMonth());
+  const [day, setDay] = useState(seed.getDate());
+  const [hour, setHour] = useState(seed.getHours());
+  const [minute, setMinute] = useState(seed.getMinutes());
+  const [typed, setTyped] = useState(value ? dateToDisplay(value) : "");
+
+  function openModal() {
+    const s = value ?? new Date();
+    setViewYear(s.getFullYear());
+    setViewMonth(s.getMonth());
+    setDay(s.getDate());
+    setHour(s.getHours());
+    setMinute(s.getMinutes());
+    setTyped(value ? dateToDisplay(value) : "");
+    setOpen(true);
+  }
+
+  function applyPick() {
+    const dt = new Date(viewYear, viewMonth, day, hour, minute, 0, 0);
+    if (dt.getTime() > Date.now()) {
+      showAlert("Invalid date", "Deposit date and time cannot be in the future");
+      return;
+    }
+    onChange(dt);
+    setTyped(dateToDisplay(dt));
+    setOpen(false);
+  }
+
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const startWeekday = new Date(viewYear, viewMonth, 1).getDay();
+  const maxYear = new Date().getFullYear();
+
+  return (
+    <>
+      <Pressable
+        style={[
+          styles.input,
+          {
+            backgroundColor: tokens.card,
+            borderColor: tokens.cardBorder,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+          },
+        ]}
+        onPress={openModal}
+        accessibilityRole="button"
+        accessibilityLabel="Select deposit date and time"
+      >
+        <Text style={{ color: value ? tokens.txt : tokens.mute, flex: 1 }}>
+          {value
+            ? value.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })
+            : "Select date and time"}
+        </Text>
+        <Calendar size={16} color={tokens.sub} />
+      </Pressable>
+
+      <Modal visible={open} animationType="slide" transparent onRequestClose={() => setOpen(false)}>
+        <Pressable style={styles.dtBackdrop} onPress={() => setOpen(false)}>
+          <Pressable
+            style={[styles.dtSheet, { backgroundColor: tokens.bg, borderColor: tokens.cardBorder }]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.dtHeader}>
+              <Text style={[styles.dtTitle, { color: tokens.txt }]}>Deposit date & time</Text>
+              <Pressable onPress={() => setOpen(false)} hitSlop={12}>
+                <X size={20} color={tokens.sub} />
+              </Pressable>
+            </View>
+
+            <Text style={[styles.label, { color: tokens.sub }]}>Type DD/MM/YYYY HH:MM</Text>
+            <TextInput
+              style={[styles.input, { backgroundColor: tokens.card, borderColor: tokens.cardBorder, color: tokens.txt }]}
+              value={typed}
+              onChangeText={(raw) => {
+                const formatted = formatDepositDigits(raw);
+                setTyped(formatted);
+                const parsed = parseDepositDisplay(formatted);
+                if (parsed && parsed.getTime() <= Date.now()) {
+                  setViewYear(parsed.getFullYear());
+                  setViewMonth(parsed.getMonth());
+                  setDay(parsed.getDate());
+                  setHour(parsed.getHours());
+                  setMinute(parsed.getMinutes());
+                }
+              }}
+              keyboardType="number-pad"
+              placeholder="e.g. 16/10/2026 14:30"
+              placeholderTextColor={tokens.mute}
+              maxLength={16}
+            />
+
+            <View style={styles.dtMonthRow}>
+              <Pressable
+                onPress={() => {
+                  if (viewMonth === 0) {
+                    setViewMonth(11);
+                    setViewYear((y) => y - 1);
+                  } else setViewMonth((m) => m - 1);
+                }}
+                style={styles.dtNavBtn}
+              >
+                <Text style={{ color: colors.blueFlat, fontWeight: "800" }}>‹</Text>
+              </Pressable>
+              <Text style={{ color: tokens.txt, fontWeight: "800" }}>
+                {MONTH_SHORT[viewMonth]} {viewYear}
+              </Text>
+              <Pressable
+                onPress={() => {
+                  if (viewYear > maxYear || (viewYear === maxYear && viewMonth >= new Date().getMonth())) return;
+                  if (viewMonth === 11) {
+                    setViewMonth(0);
+                    setViewYear((y) => y + 1);
+                  } else setViewMonth((m) => m + 1);
+                }}
+                style={styles.dtNavBtn}
+              >
+                <Text style={{ color: colors.blueFlat, fontWeight: "800" }}>›</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.dtWeekRow}>
+              {["S", "M", "T", "W", "T", "F", "S"].map((w, i) => (
+                <Text key={i} style={[styles.dtWeek, { color: tokens.mute }]}>
+                  {w}
+                </Text>
+              ))}
+            </View>
+            <View style={styles.dtGrid}>
+              {Array.from({ length: startWeekday }).map((_, i) => (
+                <View key={`e-${i}`} style={[styles.dtDay, { width: "14.28%" }]} />
+              ))}
+              {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => {
+                const candidate = new Date(viewYear, viewMonth, d);
+                const disabled = candidate.getTime() > Date.now();
+                const selected = d === day;
+                return (
+                  <Pressable
+                    key={d}
+                    disabled={disabled}
+                    onPress={() => setDay(d)}
+                    style={[
+                      styles.dtDay,
+                      { width: "14.28%" },
+                      selected && { backgroundColor: colors.blueFlat, borderRadius: 8 },
+                      disabled && { opacity: 0.3 },
+                    ]}
+                  >
+                    <Text
+                      style={{
+                        fontWeight: "700",
+                        color: selected ? "#fff" : tokens.txt,
+                      }}
+                    >
+                      {d}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Text style={[styles.label, { color: tokens.sub }]}>Time (24h)</Text>
+            <View style={styles.dtTimeRow}>
+              <TextInput
+                style={[styles.dtTimeInput, { backgroundColor: tokens.card, borderColor: tokens.cardBorder, color: tokens.txt }]}
+                value={pad2(hour)}
+                onChangeText={(t) => {
+                  const n = Number(t.replace(/\D/g, "").slice(0, 2));
+                  if (Number.isFinite(n) && n <= 23) setHour(n);
+                }}
+                keyboardType="number-pad"
+                maxLength={2}
+              />
+              <Text style={{ color: tokens.txt, fontWeight: "800", fontSize: 18 }}>:</Text>
+              <TextInput
+                style={[styles.dtTimeInput, { backgroundColor: tokens.card, borderColor: tokens.cardBorder, color: tokens.txt }]}
+                value={pad2(minute)}
+                onChangeText={(t) => {
+                  const n = Number(t.replace(/\D/g, "").slice(0, 2));
+                  if (Number.isFinite(n) && n <= 59) setMinute(n);
+                }}
+                keyboardType="number-pad"
+                maxLength={2}
+              />
+            </View>
+
+            <Pressable style={styles.submit} onPress={applyPick}>
+              <Text style={styles.submitText}>Use this date & time</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </>
+  );
+}
+
 function ConfirmStep({
   banks,
   myVan,
@@ -956,28 +1205,9 @@ function ConfirmStep({
   const [receiptDataUrl, setReceiptDataUrl] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [depositAt, setDepositAt] = useState<Date | null>(null);
-  const [pickerMode, setPickerMode] = useState<"date" | "time" | null>(null);
   const [remarks, setRemarks] = useState("");
   const [saving, setSaving] = useState(false);
   const idemRef = useRef(newIdemKey());
-
-  function onPickDeposit(event: DateTimePickerEvent, picked?: Date) {
-    const mode = pickerMode;
-    setPickerMode(null);
-    if (event.type === "dismissed" || !picked) return;
-    idemRef.current = newIdemKey();
-    if (mode === "date") {
-      const base = depositAt ?? new Date();
-      const next = new Date(picked);
-      next.setHours(base.getHours(), base.getMinutes(), 0, 0);
-      setDepositAt(next);
-      setPickerMode("time");
-    } else {
-      const next = new Date(depositAt ?? new Date());
-      next.setHours(picked.getHours(), picked.getMinutes(), 0, 0);
-      setDepositAt(next);
-    }
-  }
 
   const needsBankPicker = !prefill.bankAccountId;
 
@@ -1098,26 +1328,14 @@ function ConfirmStep({
       />
 
       <LabelText label="Deposit / payment date & time *" color={tokens.sub} style={styles.label} />
-      <Pressable
-        style={[styles.input, { backgroundColor: tokens.card, borderColor: tokens.cardBorder, justifyContent: "center" }]}
-        onPress={() => setPickerMode("date")}
-        accessibilityRole="button"
-      >
-        <Text style={{ color: depositAt ? tokens.txt : tokens.mute }}>
-          {depositAt
-            ? depositAt.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })
-            : "Select date and time"}
-        </Text>
-      </Pressable>
-      {pickerMode ? (
-        <DateTimePicker
-          value={depositAt ?? new Date()}
-          mode={pickerMode}
-          display="default"
-          maximumDate={new Date()}
-          onChange={onPickDeposit}
-        />
-      ) : null}
+      <DepositDateTimeField
+        value={depositAt}
+        onChange={(d) => {
+          idemRef.current = newIdemKey();
+          setDepositAt(d);
+        }}
+        tokens={tokens}
+      />
 
       <LabelText label="Sender name *" color={tokens.sub} style={styles.label} />
       <TextInput
@@ -1285,4 +1503,38 @@ const styles = StyleSheet.create({
   receiptBtn: { marginTop: 16, borderWidth: 1, borderRadius: 12, padding: 14 },
   submit: { marginTop: 20, backgroundColor: colors.blue, borderRadius: 14, paddingVertical: 14, alignItems: "center" },
   submitText: { color: "#fff", fontWeight: "800", fontSize: 15 },
+  dtBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(15,23,42,0.45)" },
+  dtSheet: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderWidth: 1,
+    padding: 16,
+    paddingBottom: 28,
+    maxHeight: "92%",
+  },
+  dtHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
+  dtTitle: { fontSize: 17, fontWeight: "800" },
+  dtMonthRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  dtNavBtn: { paddingHorizontal: 14, paddingVertical: 8 },
+  dtWeekRow: { flexDirection: "row", marginBottom: 4 },
+  dtWeek: { flex: 1, textAlign: "center", fontSize: 11, fontWeight: "700" },
+  dtGrid: { flexDirection: "row", flexWrap: "wrap" },
+  dtDay: { aspectRatio: 1, alignItems: "center", justifyContent: "center" },
+  dtTimeRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 4 },
+  dtTimeInput: {
+    width: 64,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 18,
+    fontWeight: "800",
+    textAlign: "center",
+  },
 });

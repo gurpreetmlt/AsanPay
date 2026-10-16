@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   PlusCircle,
@@ -12,6 +12,7 @@ import {
   Clock,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { isFundRequestEnabled } from "@asanpay/shared-types";
 import { AppShell } from "@/components/layout/AppShell";
 import { WalletActionForm } from "@/components/dashboard/WalletActionForm";
 import { BulkFundForm } from "@/components/dashboard/BulkFundForm";
@@ -27,6 +28,9 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { maskBalance, useBalanceVisibility } from "@/lib/balanceVisibility";
 
+const FUND_REQUEST_DISABLED_MESSAGE =
+  "Fund requests are not enabled for your account. Contact your sales manager to enable them.";
+
 export default function WalletPage() {
   const router = useRouter();
   const hydrated = useAuthHydrated();
@@ -34,7 +38,7 @@ export default function WalletPage() {
   const user = useAuthStore((s) => s.user);
   const role = roleFromUserRole(user?.role);
   const canFund = user?.role === "distributor" || user?.role === "super_distributor";
-  const isRetailer = user?.role === "retailer" || !user?.role;
+  const fundOn = user ? isFundRequestEnabled(user.role, user.fundRequestEnabled) : false;
 
   const [wallets, setWallets] = useState<WalletBalance[]>([]);
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
@@ -45,8 +49,9 @@ export default function WalletPage() {
   const [ledgerPartner, setLedgerPartner] = useState("all");
   const [ledgerFrom, setLedgerFrom] = useState("");
   const [ledgerTo, setLedgerTo] = useState("");
+  const ledgerRangeRef = useRef({ from: "", to: "" });
+  ledgerRangeRef.current = { from: ledgerFrom, to: ledgerTo };
   const balanceVisible = useBalanceVisibility((s) => s.visible);
-
 
   useEffect(() => {
     if (hydrated && !accessToken) router.replace("/login");
@@ -56,9 +61,13 @@ export default function WalletPage() {
     if (!accessToken) return;
     setLoading(true);
     try {
+      const { from, to } = ledgerRangeRef.current;
+      const ledgerParams: Record<string, string | number> = { limit: 500, offset: 0 };
+      if (from) ledgerParams.from = from;
+      if (to) ledgerParams.to = to;
       const [balances, entries] = await Promise.all([
         fetchApi<WalletBalance[]>("/wallet/me"),
-        fetchApi<LedgerEntry[]>("/wallet/ledger", { limit: 50, offset: 0 }),
+        fetchApi<LedgerEntry[]>("/wallet/ledger", ledgerParams),
       ]);
       setWallets(balances);
       setLedger(entries);
@@ -143,9 +152,9 @@ export default function WalletPage() {
                     icon: PlusCircle,
                     label: "Add Money",
                     action: () =>
-                      isRetailer
+                      fundOn
                         ? router.push("/fund-request")
-                        : toast("Ask your upline to fund your balance, or use Collect"),
+                        : toast.error(FUND_REQUEST_DISABLED_MESSAGE),
                   },
                   {
                     icon: SendHorizonal,
@@ -343,8 +352,8 @@ export default function WalletPage() {
             <h2 className="font-bold" style={{ color: B.blue }}>
               Ledger
             </h2>
-            {canFund ? (
-              <div className="mt-3 flex flex-wrap items-end gap-3">
+            <div className="mt-3 flex flex-wrap items-end gap-3">
+              {canFund ? (
                 <div>
                   <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide" style={{ color: B.muted }}>
                     Partner
@@ -363,32 +372,78 @@ export default function WalletPage() {
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide" style={{ color: B.muted }}>
-                    From
-                  </label>
-                  <input
-                    type="date"
-                    value={ledgerFrom}
-                    onChange={(e) => setLedgerFrom(e.target.value)}
-                    className="rounded-lg border px-3 py-2 text-sm"
-                    style={{ borderColor: B.border, color: B.blue }}
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide" style={{ color: B.muted }}>
-                    To
-                  </label>
-                  <input
-                    type="date"
-                    value={ledgerTo}
-                    onChange={(e) => setLedgerTo(e.target.value)}
-                    className="rounded-lg border px-3 py-2 text-sm"
-                    style={{ borderColor: B.border, color: B.blue }}
-                  />
-                </div>
+              ) : null}
+              <div>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide" style={{ color: B.muted }}>
+                  From
+                </label>
+                <input
+                  type="date"
+                  value={ledgerFrom}
+                  onChange={(e) => setLedgerFrom(e.target.value)}
+                  className="rounded-lg border px-3 py-2 text-sm"
+                  style={{ borderColor: B.border, color: B.blue }}
+                />
               </div>
-            ) : null}
+              <div>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide" style={{ color: B.muted }}>
+                  To
+                </label>
+                <input
+                  type="date"
+                  value={ledgerTo}
+                  onChange={(e) => setLedgerTo(e.target.value)}
+                  className="rounded-lg border px-3 py-2 text-sm"
+                  style={{ borderColor: B.border, color: B.blue }}
+                />
+              </div>
+              <PrimaryButton
+                type="button"
+                variant="primary"
+                size="sm"
+                showArrow={false}
+                className="!w-auto"
+                onClick={() => void load()}
+                disabled={loading}
+              >
+                View
+              </PrimaryButton>
+              <PrimaryButton
+                type="button"
+                variant="success"
+                size="sm"
+                showArrow={false}
+                className="!w-auto"
+                onClick={() => {
+                  if (filteredLedger.length === 0) {
+                    toast.error("No ledger entries in this date range.");
+                    return;
+                  }
+                  const header = "Date,Particulars,Type,Amount,Balance";
+                  const lines = filteredLedger.map((e) =>
+                    [
+                      new Date(e.createdAt).toLocaleString("en-IN"),
+                      `"${(e.description || e.referenceType).replace(/"/g, "'")}"`,
+                      e.entryType,
+                      e.amount,
+                      e.balanceAfter,
+                    ].join(","),
+                  );
+                  const blob = new Blob([[header, ...lines].join("\n")], {
+                    type: "text/csv;charset=utf-8",
+                  });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `asanpay-ledger-${ledgerFrom || "all"}-${ledgerTo || "all"}.csv`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                  toast.success("Ledger downloaded");
+                }}
+              >
+                <Download size={15} /> Download
+              </PrimaryButton>
+            </div>
           </div>
           {loading && ledger.length === 0 ? (
             <p className="px-5 py-8 text-sm" style={{ color: B.muted }}>

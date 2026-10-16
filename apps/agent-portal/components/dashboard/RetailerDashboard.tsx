@@ -17,6 +17,7 @@ import {
   LifeBuoy,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { isFundRequestEnabled } from "@asanpay/shared-types";
 import { fetchApi } from "@/lib/api";
 import { B, roleFromUserRole } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
@@ -165,11 +166,12 @@ export function RetailerDashboard() {
   const lowBalance = !loading && mainBal < 500;
   const todayEarn = stats?.today.commissionEarned ?? "0";
 
+  const fundOn = user ? isFundRequestEnabled(user.role, user.fundRequestEnabled) : false;
   const doNext: { id: string; label: string; href: string }[] = [];
   if (!loading) {
     if (!kycDone) doNext.push({ id: "kyc", label: "Complete KYC", href: "/settings?tab=profile" });
     if (!hasActiveBank) doNext.push({ id: "bank", label: "Add settlement bank", href: "/settings?tab=banks" });
-    if (mainBal < 500) doNext.push({ id: "money", label: "Add Money", href: "/fund-request" });
+    if (fundOn && mainBal < 500) doNext.push({ id: "money", label: "Add Money", href: "/fund-request" });
     if (user && !user.hasLoginMpin) doNext.push({ id: "mpin", label: "Set login MPIN", href: "/settings?tab=security" });
   }
 
@@ -237,7 +239,7 @@ export function RetailerDashboard() {
           </div>
         </div>
       ) : null}
-      {lowBalance ? (
+      {lowBalance && fundOn ? (
         <div
           className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3"
           style={{ borderColor: "#FDBA74", background: "#FFF7ED" }}

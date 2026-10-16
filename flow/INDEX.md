@@ -19,7 +19,7 @@ Parent can also Collect (Wapas) ← child OTP + parent txn PIN
 | [02-auth-login.md](02-auth-login.md) | Login / OTP / MPIN / portals |
 | [03-signup-sponsor.md](03-signup-sponsor.md) | Signup role + upline mobile mapping |
 | [04-wallet-fund-transfer.md](04-wallet-fund-transfer.md) | Mint + downline fund |
-| [05-wallet-pull-otp.md](05-wallet-pull-otp.md) | Wapas / collect with child OTP |
+| [05-wallet-pull-otp.md](05-wallet-pull-otp.md) | Reverse / collect — txn PIN only (like Transfer) |
 | [06-network-active.md](06-network-active.md) | Network tree, active, reassign |
 | [07-admin-portal.md](07-admin-portal.md) | Admin web (:3000) |
 | [08-agent-web.md](08-agent-web.md) | Agent web (:3001) |

@@ -21,7 +21,7 @@ import {
   UserCircle,
   Wallet,
 } from "lucide-react-native";
-import { ROLE_LABELS, type ApiResponse, type AuthUser } from "@asanpay/shared-types";
+import { isFundRequestEnabled, ROLE_LABELS, type ApiResponse, type AuthUser } from "@asanpay/shared-types";
 import { BrandMark } from "../../components/BrandMark";
 import { PageEnter } from "../../components/PageEnter";
 import { ModalSheet } from "../../components/ModalSheet";
@@ -174,8 +174,6 @@ export function AccountScreen() {
   const [showBioKyc, setShowBioKyc] = useState(false);
   const [telegramBusy, setTelegramBusy] = useState(false);
 
-  const isRetailer = user.role === "retailer";
-
   async function linkTelegram() {
     if (telegramBusy) return;
     setTelegramBusy(true);
@@ -237,11 +235,19 @@ export function AccountScreen() {
   }
 
   function goMyEarnings() {
-    // RetailerTabs names the passbook tab "History"; PartnerTabs (SD/Distributor) names it "Ledger".
-    navigation.navigate((isRetailer ? "History" : "Ledger") as never);
+    navigation.navigate("Ledger" as never);
   }
 
+  const fundOn = isFundRequestEnabled(user.role, user.fundRequestEnabled);
+
   function goRequestFunds() {
+    if (!fundOn) {
+      showAlert(
+        "Not enabled",
+        "Fund requests are not enabled for your account. Contact your sales manager to enable them.",
+      );
+      return;
+    }
     setShowFund(true);
   }
 
@@ -295,8 +301,8 @@ export function AccountScreen() {
   const QUICK_ACTIONS = [
     { icon: Wallet, label: "Manage\nWallet", action: goManageWallet },
     { icon: Landmark, label: "Bank\nSettlement", action: () => setShowSettlements(true) },
-    { icon: KeyRound, label: "Request\nFunds", action: goRequestFunds },
-    { icon: ShieldCheck, label: "My\nEarnings", action: goMyEarnings },
+    ...(fundOn ? [{ icon: KeyRound, label: "Request\nFunds", action: goRequestFunds }] : []),
+    { icon: ShieldCheck, label: "Ledger", action: goMyEarnings },
   ];
 
   return (

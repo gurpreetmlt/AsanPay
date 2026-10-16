@@ -70,10 +70,36 @@ export default function StatementsPage() {
           </div>
           <PrimaryButton
             type="button"
-            variant="secondary"
+            variant="success"
             size="sm"
             className="!w-auto"
-            onClick={() => toast("PDF download coming soon")}
+            onClick={() => {
+              if (ledger.length === 0) {
+                toast.error("No ledger entries to download.");
+                return;
+              }
+              const header = "Date,Reference,Description,Type,Amount,Balance";
+              const lines = ledger.map((e) =>
+                [
+                  new Date(e.createdAt).toLocaleString("en-IN"),
+                  e.referenceType,
+                  `"${(e.description || "").replace(/"/g, "'")}"`,
+                  e.entryType,
+                  e.amount,
+                  e.balanceAfter,
+                ].join(","),
+              );
+              const blob = new Blob([[header, ...lines].join("\n")], {
+                type: "text/csv;charset=utf-8",
+              });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `asanpay-statement.csv`;
+              a.click();
+              URL.revokeObjectURL(url);
+              toast.success("Statement downloaded");
+            }}
           >
             <Download size={15} /> Download
           </PrimaryButton>

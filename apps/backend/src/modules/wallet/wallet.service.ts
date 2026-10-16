@@ -267,7 +267,8 @@ async function assertPullableChild(
 }
 
 /**
- * Step 1 of upline collect: OTP to the child's mobile. Parent later confirms with OTP + txn PIN.
+ * Legacy: OTP to the child's mobile before collect. Current web/mobile UI skips this —
+ * reverse uses confirmPullFromChild with parent txn PIN only (same as Transfer).
  */
 export async function requestPullFromChild(
   actor: Actor,
@@ -325,7 +326,7 @@ export async function requestPullFromChild(
 
 /**
  * Move main/aeps funds from child → parent. Parent txn PIN is checked in the controller.
- * If an OTP is sent (older clients), it must still match the request on the child's phone.
+ * Same process as Transfer — no OTP required. Optional `otp` remains for older clients only.
  */
 export async function confirmPullFromChild(
   actor: Actor,

@@ -10,9 +10,11 @@ import type { LedgerEntry, WalletBalance } from "../../lib/types";
 import { useAuthStore } from "../../store/auth";
 import { useTheme } from "../../theme/ThemeContext";
 import { colors, gradientDirection } from "../../theme/colors";
+import { isFundRequestEnabled } from "@asanpay/shared-types";
 import { FundRequestModal } from "./FundRequestScreen";
 import { SettlementsModal } from "./SettlementsModal";
 import { PageEnter } from "../../components/PageEnter";
+import { showAlert } from "../../components/AppAlert";
 
 type WalletKind = "main" | "aeps";
 const BALANCE_VISIBLE_KEY = "asanpay_balance_visible";
@@ -20,6 +22,7 @@ const BALANCE_VISIBLE_KEY = "asanpay_balance_visible";
 export function WalletScreen() {
   const user = useAuthStore((s) => s.user)!;
   const isPartner = user.role === "super_distributor" || user.role === "distributor";
+  const fundOn = isFundRequestEnabled(user.role, user.fundRequestEnabled);
   const { tokens } = useTheme();
   const [wallets, setWallets] = useState<WalletBalance[]>([]);
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
@@ -164,7 +167,16 @@ export function WalletScreen() {
           <View style={styles.heroActions}>
             <Pressable
               style={[styles.heroBtn, { backgroundColor: colors.green }]}
-              onPress={() => setShowFund(true)}
+              onPress={() => {
+                if (!fundOn) {
+                  showAlert(
+                    "Not enabled",
+                    "Fund requests are not enabled for your account. Contact your sales manager to enable them.",
+                  );
+                  return;
+                }
+                setShowFund(true);
+              }}
             >
               <Text style={styles.heroBtnText}>+ Add Money</Text>
             </Pressable>

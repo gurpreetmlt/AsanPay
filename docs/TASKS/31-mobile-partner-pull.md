@@ -4,9 +4,9 @@
 ## Depends: wallet pull API
 
 ## Goal
-Wire partner mobile Network → Reverse pull (OTP + txn PIN), matching web.
+Wire partner mobile Network → Reverse (same as Transfer: amount + txn PIN only — no child OTP).
 
 ## Done when
 - [x] DownlineCard Reverse action
-- [x] PullModal: request OTP → confirm with PIN
+- [x] Wallet modal: Reverse → confirm with parent txn PIN (`POST /wallet/pull/confirm`)
 - [x] SD/Distributor only (same as API)

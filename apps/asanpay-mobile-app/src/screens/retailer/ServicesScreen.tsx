@@ -20,6 +20,7 @@ import { DmtScreen } from "./DmtScreen";
 import { NepalScreen } from "./NepalScreen";
 import { UpiCashPointScreen } from "./UpiCashPointScreen";
 import { RechargeScreen } from "./RechargeScreen";
+import { isFundRequestEnabled } from "@asanpay/shared-types";
 import { FundRequestModal } from "../shared/FundRequestScreen";
 import { showAlert } from "../../components/AppAlert";
 import { BrandLockup } from "../../components/BrandMark";
@@ -171,6 +172,17 @@ export function ServicesScreen() {
     .join("");
   const firstName = user.name.split(" ")[0] ?? user.name;
   const mainBal = parseFloat(wallets.find((w) => w.walletType === "main")?.balance ?? "0") || 0;
+  const fundOn = isFundRequestEnabled(user.role, user.fundRequestEnabled);
+  function openAddMoney() {
+    if (!fundOn) {
+      showAlert(
+        "Not enabled",
+        "Fund requests are not enabled for your account. Contact your sales manager to enable them.",
+      );
+      return;
+    }
+    setShowFund(true);
+  }
   const doNext: { id: string; label: string; onPress: () => void }[] = [];
   if (!loading) {
     if (user.kycStatus !== "verified") {
@@ -190,8 +202,8 @@ export function ServicesScreen() {
         onPress: () => navigation.navigate("Account"),
       });
     }
-    if (mainBal < 500) {
-      doNext.push({ id: "money", label: "Add Money", onPress: () => setShowFund(true) });
+    if (fundOn && mainBal < 500) {
+      doNext.push({ id: "money", label: "Add Money", onPress: openAddMoney });
     }
     if (!user.hasLoginMpin) {
       doNext.push({
@@ -234,7 +246,7 @@ export function ServicesScreen() {
       >
         <WalletBar
           wallets={wallets}
-          onAddMoney={() => setShowFund(true)}
+          onAddMoney={openAddMoney}
           onWalletPress={() => navigation.navigate("Balance")}
           onReports={() => navigation.navigate("History")}
         />
