@@ -333,6 +333,7 @@ function SidebarNav({
           { title: "Agents", items: AGENTS },
           { title: "Transactions", items: TRANSACTIONS },
           { title: "Treasury", items: TREASURY },
+          { title: "Tax & Commission", items: TAX_COMMISSION },
           { title: "Platform", items: SITE_CONTROL },
           { title: "Developer", items: DEVELOPER_OPTIONS },
         ] as const

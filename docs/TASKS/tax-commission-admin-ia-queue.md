@@ -9,7 +9,7 @@
 
 | # | Task | Size | Status | Notes |
 |---|------|------|--------|-------|
-| **TCA01** | Sidebar group + SectionTabs + route shell | M | done | Group **Tax & Commission**; `/tax-commission/*`; redirect `/commission` |
+| **TCA01** | Sidebar group + SectionTabs + route shell | M | done | Group **Tax & Commission**; `/tax-commission/*`; redirect `/commission` · sidebar section wired in `SidebarNav` (was missing from section list) |
 | **TCA02** | Overview page (cards + quick links) | M | done | Month TDS / fee GST / payout totals — existing APIs |
 | **TCA03** | Split workbench by route (Schemes · Tax · Registers · Payouts) | M | done | `CommissionWorkbench` + SectionTabs |
 | **TCA04** | Header search + legacy redirects polish | S | done | AdminHeader + `/commissions` → schemes |
