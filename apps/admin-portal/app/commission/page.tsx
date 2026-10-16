@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { Calculator, Percent, Plus, ScrollText } from "lucide-react";
+import { Calculator, Download, FileSpreadsheet, Percent, Plus, ScrollText } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { ConfirmModal, type ConfirmTone } from "@/components/ui/ConfirmModal";
 import { TableActionButtons } from "@/components/ui/TableActionButtons";
@@ -22,7 +22,8 @@ type PendingConfirm = {
 
 type SchemeRole = "retailer" | "distributor" | "super_distributor";
 type RuleType = "flat" | "percentage";
-type PageTab = "schemes" | "payouts" | "tax";
+type PageTab = "schemes" | "payouts" | "tax" | "registers";
+type RegisterKind = "tds" | "dmt_gst";
 
 interface TaxConfigRow {
   id: string;
@@ -113,6 +114,43 @@ interface PayoutPayload {
   rows: PayoutRow[];
 }
 
+interface TdsRegisterRow {
+  month: string;
+  beneficiaryName: string;
+  beneficiaryUid: string;
+  beneficiaryMobile: string;
+  role: SchemeRole;
+  grossAmount: string;
+  tdsAmount: string;
+  netAmount: string;
+  creditCount: number;
+}
+
+interface TdsRegisterPayload {
+  summary: { totalGross: string; totalTds: string; totalNet: string; count: number };
+  rows: TdsRegisterRow[];
+}
+
+interface DmtGstRegisterRow {
+  id: string;
+  txnRef: string;
+  createdAt: string;
+  amount: string;
+  customerFee: string;
+  customerFeeGst: string;
+  status: string;
+  serviceName: string;
+  serviceCode: string;
+  agentName: string;
+  agentUid: string;
+  agentMobile: string;
+}
+
+interface DmtGstRegisterPayload {
+  summary: { totalFee: string; totalGst: string; count: number };
+  rows: DmtGstRegisterRow[];
+}
+
 const ROLE_LABEL: Record<SchemeRole, string> = {
   retailer: "Retailer",
   distributor: "Distributor",
@@ -148,6 +186,24 @@ function formatWhen(iso: string) {
   }
 }
 
+function downloadCsv(filename: string, header: string[], lines: string[][]) {
+  const body = [header, ...lines]
+    .map((row) => row.map((c) => `"${String(c).replace(/"/g, "'")}"`).join(","))
+    .join("\n");
+  const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function currentMonthYmd() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
 export default function CommissionSchemesPage() {
   const router = useRouter();
   const hydrated = useAuthHydrated();
@@ -176,6 +232,15 @@ export default function CommissionSchemesPage() {
   const [taxRows, setTaxRows] = useState<TaxConfigRow[]>([]);
   const [taxLoading, setTaxLoading] = useState(false);
   const [taxSavingId, setTaxSavingId] = useState<string | null>(null);
+  const [registerKind, setRegisterKind] = useState<RegisterKind>("tds");
+  const [regMonth, setRegMonth] = useState(currentMonthYmd());
+  const [regRole, setRegRole] = useState<"" | SchemeRole>("");
+  const [regQ, setRegQ] = useState("");
+  const [regSince, setRegSince] = useState("");
+  const [regUntil, setRegUntil] = useState("");
+  const [tdsReg, setTdsReg] = useState<TdsRegisterPayload | null>(null);
+  const [dmtGstReg, setDmtGstReg] = useState<DmtGstRegisterPayload | null>(null);
+  const [regLoading, setRegLoading] = useState(false);
 
   useEffect(() => {
     if (hydrated && !accessToken) router.replace("/login");
@@ -276,6 +341,40 @@ export default function CommissionSchemesPage() {
     if (!hydrated || !accessToken || tab !== "tax") return;
     void loadTax();
   }, [hydrated, accessToken, tab, loadTax]);
+
+  const loadRegisters = useCallback(async () => {
+    setRegLoading(true);
+    try {
+      if (registerKind === "tds") {
+        const params: Record<string, string> = { limit: "200" };
+        if (regMonth) params.month = regMonth;
+        if (regRole) params.role = regRole;
+        if (regQ.trim()) params.q = regQ.trim();
+        setTdsReg(await fetchApi<TdsRegisterPayload>("/admin/commission/tax-registers/tds", params));
+      } else {
+        const params: Record<string, string> = { limit: "200" };
+        if (regQ.trim()) params.q = regQ.trim();
+        if (regSince) params.since = new Date(regSince).toISOString();
+        if (regUntil) {
+          const end = new Date(regUntil);
+          end.setHours(23, 59, 59, 999);
+          params.until = end.toISOString();
+        }
+        setDmtGstReg(
+          await fetchApi<DmtGstRegisterPayload>("/admin/commission/tax-registers/dmt-gst", params),
+        );
+      }
+    } catch (err) {
+      toast.error(errMessage(err, "Failed to load tax register"));
+    } finally {
+      setRegLoading(false);
+    }
+  }, [registerKind, regMonth, regRole, regQ, regSince, regUntil]);
+
+  useEffect(() => {
+    if (!hydrated || !accessToken || tab !== "registers") return;
+    void loadRegisters();
+  }, [hydrated, accessToken, tab, loadRegisters]);
 
   const filteredRules = useMemo(
     () => (roleFilter ? rules.filter((r) => r.role === roleFilter) : rules),
@@ -411,6 +510,7 @@ export default function CommissionSchemesPage() {
               [
                 { id: "schemes" as const, label: "Schemes", icon: Percent },
                 { id: "tax" as const, label: "Tax", icon: Calculator },
+                { id: "registers" as const, label: "Tax registers", icon: FileSpreadsheet },
                 { id: "payouts" as const, label: "Payout report", icon: ScrollText },
               ] as const
             ).map((t) => (
@@ -543,6 +643,329 @@ export default function CommissionSchemesPage() {
                   </tbody>
                 </table>
               </div>
+            )}
+          </div>
+        ) : tab === "registers" ? (
+          <div className="space-y-4 rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
+            <p className="text-sm" style={{ color: B.muted }}>
+              TDS register groups commission credits by agent and month. DMT GST register lists customer fee GST
+              lines for CA export (CSV).
+            </p>
+            <div className="flex gap-1 rounded-xl border p-1" style={{ borderColor: B.border }}>
+              {(
+                [
+                  { id: "tds" as const, label: "TDS by agent / month" },
+                  { id: "dmt_gst" as const, label: "DMT fee GST" },
+                ] as const
+              ).map((k) => (
+                <button
+                  key={k.id}
+                  type="button"
+                  onClick={() => setRegisterKind(k.id)}
+                  className="flex-1 rounded-lg px-3 py-2 text-sm font-semibold"
+                  style={{
+                    background: registerKind === k.id ? B.badgeGrad : "transparent",
+                    color: registerKind === k.id ? "#fff" : B.muted,
+                  }}
+                >
+                  {k.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap items-end gap-3">
+              {registerKind === "tds" ? (
+                <>
+                  <label className="block text-sm">
+                    <span className="mb-1 block font-medium" style={{ color: B.muted }}>
+                      Month
+                    </span>
+                    <input
+                      type="month"
+                      className="rounded-xl border px-3 py-2 text-sm"
+                      style={{ borderColor: B.border }}
+                      value={regMonth}
+                      onChange={(e) => setRegMonth(e.target.value)}
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    <span className="mb-1 block font-medium" style={{ color: B.muted }}>
+                      Role
+                    </span>
+                    <select
+                      className="rounded-xl border px-3 py-2 text-sm"
+                      style={{ borderColor: B.border }}
+                      value={regRole}
+                      onChange={(e) => setRegRole(e.target.value as "" | SchemeRole)}
+                    >
+                      <option value="">All roles</option>
+                      {(Object.keys(ROLE_LABEL) as SchemeRole[]).map((r) => (
+                        <option key={r} value={r}>
+                          {ROLE_LABEL[r]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </>
+              ) : (
+                <>
+                  <label className="block text-sm">
+                    <span className="mb-1 block font-medium" style={{ color: B.muted }}>
+                      From
+                    </span>
+                    <input
+                      type="date"
+                      className="rounded-xl border px-3 py-2 text-sm"
+                      style={{ borderColor: B.border }}
+                      value={regSince}
+                      onChange={(e) => setRegSince(e.target.value)}
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    <span className="mb-1 block font-medium" style={{ color: B.muted }}>
+                      To
+                    </span>
+                    <input
+                      type="date"
+                      className="rounded-xl border px-3 py-2 text-sm"
+                      style={{ borderColor: B.border }}
+                      value={regUntil}
+                      onChange={(e) => setRegUntil(e.target.value)}
+                    />
+                  </label>
+                </>
+              )}
+              <label className="block min-w-[180px] flex-1 text-sm">
+                <span className="mb-1 block font-medium" style={{ color: B.muted }}>
+                  Search
+                </span>
+                <input
+                  className="w-full rounded-xl border px-3 py-2 text-sm"
+                  style={{ borderColor: B.border }}
+                  value={regQ}
+                  onChange={(e) => setRegQ(e.target.value)}
+                  placeholder="Name / UID / mobile…"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => void loadRegisters()}
+                className="rounded-xl px-4 py-2.5 text-sm font-bold text-white"
+                style={{ background: B.badgeGrad }}
+              >
+                Apply
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (registerKind === "tds") {
+                    if (!tdsReg?.rows.length) {
+                      toast.error("No TDS rows to download.");
+                      return;
+                    }
+                    downloadCsv(
+                      `asanpay-tds-${regMonth || "all"}.csv`,
+                      ["Month", "Name", "UID", "Mobile", "Role", "Gross", "TDS", "Net", "Credits"],
+                      tdsReg.rows.map((r) => [
+                        r.month,
+                        r.beneficiaryName,
+                        r.beneficiaryUid,
+                        r.beneficiaryMobile,
+                        ROLE_LABEL[r.role] ?? r.role,
+                        r.grossAmount,
+                        r.tdsAmount,
+                        r.netAmount,
+                        String(r.creditCount),
+                      ]),
+                    );
+                    return;
+                  }
+                  if (!dmtGstReg?.rows.length) {
+                    toast.error("No DMT GST rows to download.");
+                    return;
+                  }
+                  downloadCsv(
+                    "asanpay-dmt-fee-gst.csv",
+                    ["When", "Txn", "Agent", "UID", "Mobile", "Service", "Amount", "Fee", "GST", "Status"],
+                    dmtGstReg.rows.map((r) => [
+                      formatWhen(r.createdAt),
+                      r.txnRef,
+                      r.agentName,
+                      r.agentUid,
+                      r.agentMobile,
+                      r.serviceName,
+                      r.amount,
+                      r.customerFee,
+                      r.customerFeeGst,
+                      r.status,
+                    ]),
+                  );
+                }}
+                className="inline-flex items-center gap-1.5 rounded-xl border px-4 py-2.5 text-sm font-bold"
+                style={{ borderColor: B.border, color: B.blue }}
+              >
+                <Download size={14} />
+                CSV
+              </button>
+            </div>
+
+            {registerKind === "tds" ? (
+              <>
+                <div className="flex flex-wrap gap-4 text-sm">
+                  <div className="rounded-xl border px-4 py-3" style={{ borderColor: B.border }}>
+                    <div className="text-xs" style={{ color: B.muted }}>
+                      Credits
+                    </div>
+                    <div className="text-lg font-bold" style={{ color: B.blue }}>
+                      {tdsReg?.summary.count ?? 0}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border px-4 py-3" style={{ borderColor: B.border }}>
+                    <div className="text-xs" style={{ color: B.muted }}>
+                      Total TDS
+                    </div>
+                    <div className="text-lg font-bold" style={{ color: B.blue }}>
+                      ₹{tdsReg?.summary.totalTds ?? "0"}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border px-4 py-3" style={{ borderColor: B.border }}>
+                    <div className="text-xs" style={{ color: B.muted }}>
+                      Total net
+                    </div>
+                    <div className="text-lg font-bold" style={{ color: B.blue }}>
+                      ₹{tdsReg?.summary.totalNet ?? "0"}
+                    </div>
+                  </div>
+                </div>
+                {regLoading ? (
+                  <p className="text-sm" style={{ color: B.muted }}>
+                    Loading…
+                  </p>
+                ) : !tdsReg?.rows.length ? (
+                  <p className="text-sm" style={{ color: B.muted }}>
+                    No TDS rows for these filters.
+                  </p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[800px] text-left text-sm">
+                      <thead>
+                        <tr
+                          className="border-b text-xs uppercase tracking-wide"
+                          style={{ borderColor: B.border, color: B.muted }}
+                        >
+                          <th className="py-2 pr-3 font-semibold">Month</th>
+                          <th className="py-2 pr-3 font-semibold">Agent</th>
+                          <th className="py-2 pr-3 font-semibold">Role</th>
+                          <th className="py-2 pr-3 font-semibold text-right">Gross</th>
+                          <th className="py-2 pr-3 font-semibold text-right">TDS</th>
+                          <th className="py-2 pr-3 font-semibold text-right">Net</th>
+                          <th className="py-2 font-semibold text-right">Credits</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {tdsReg.rows.map((row) => (
+                          <tr
+                            key={`${row.month}-${row.beneficiaryUid}-${row.role}`}
+                            className="border-b last:border-0"
+                            style={{ borderColor: B.border }}
+                          >
+                            <td className="py-3 pr-3 whitespace-nowrap">{row.month}</td>
+                            <td className="py-3 pr-3">
+                              <div className="font-medium" style={{ color: B.blue }}>
+                                {row.beneficiaryName}
+                              </div>
+                              <div className="text-xs" style={{ color: B.muted }}>
+                                {row.beneficiaryUid} · {row.beneficiaryMobile}
+                              </div>
+                            </td>
+                            <td className="py-3 pr-3">{ROLE_LABEL[row.role] ?? row.role}</td>
+                            <td className="py-3 pr-3 text-right">₹{row.grossAmount}</td>
+                            <td className="py-3 pr-3 text-right font-semibold">₹{row.tdsAmount}</td>
+                            <td className="py-3 pr-3 text-right">₹{row.netAmount}</td>
+                            <td className="py-3 text-right">{row.creditCount}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-4 text-sm">
+                  <div className="rounded-xl border px-4 py-3" style={{ borderColor: B.border }}>
+                    <div className="text-xs" style={{ color: B.muted }}>
+                      Txns
+                    </div>
+                    <div className="text-lg font-bold" style={{ color: B.blue }}>
+                      {dmtGstReg?.summary.count ?? 0}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border px-4 py-3" style={{ borderColor: B.border }}>
+                    <div className="text-xs" style={{ color: B.muted }}>
+                      Total fee GST
+                    </div>
+                    <div className="text-lg font-bold" style={{ color: B.blue }}>
+                      ₹{dmtGstReg?.summary.totalGst ?? "0"}
+                    </div>
+                  </div>
+                </div>
+                {regLoading ? (
+                  <p className="text-sm" style={{ color: B.muted }}>
+                    Loading…
+                  </p>
+                ) : !dmtGstReg?.rows.length ? (
+                  <p className="text-sm" style={{ color: B.muted }}>
+                    No DMT fee GST rows for these filters.
+                  </p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[900px] text-left text-sm">
+                      <thead>
+                        <tr
+                          className="border-b text-xs uppercase tracking-wide"
+                          style={{ borderColor: B.border, color: B.muted }}
+                        >
+                          <th className="py-2 pr-3 font-semibold">When</th>
+                          <th className="py-2 pr-3 font-semibold">Agent</th>
+                          <th className="py-2 pr-3 font-semibold">Service</th>
+                          <th className="py-2 pr-3 font-semibold">Txn</th>
+                          <th className="py-2 pr-3 font-semibold text-right">Fee</th>
+                          <th className="py-2 pr-3 font-semibold text-right">GST</th>
+                          <th className="py-2 font-semibold">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {dmtGstReg.rows.map((row) => (
+                          <tr key={row.id} className="border-b last:border-0" style={{ borderColor: B.border }}>
+                            <td className="py-3 pr-3 whitespace-nowrap" style={{ color: B.muted }}>
+                              {formatWhen(row.createdAt)}
+                            </td>
+                            <td className="py-3 pr-3">
+                              <div className="font-medium" style={{ color: B.blue }}>
+                                {row.agentName}
+                              </div>
+                              <div className="text-xs" style={{ color: B.muted }}>
+                                {row.agentUid} · {row.agentMobile}
+                              </div>
+                            </td>
+                            <td className="py-3 pr-3">
+                              <div>{row.serviceName}</div>
+                              <div className="font-mono text-[11px]" style={{ color: B.muted }}>
+                                {row.serviceCode}
+                              </div>
+                            </td>
+                            <td className="py-3 pr-3 font-mono text-xs">{row.txnRef}</td>
+                            <td className="py-3 pr-3 text-right">₹{row.customerFee}</td>
+                            <td className="py-3 pr-3 text-right font-semibold">₹{row.customerFeeGst}</td>
+                            <td className="py-3">{row.status}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
             )}
           </div>
         ) : tab === "payouts" ? (

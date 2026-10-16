@@ -28,6 +28,7 @@
 - [x] Bottom tab navigation (Retailer 4 tabs, Partner 3 tabs)
 - [x] My Earnings shell (TC07–08): Home Today’s Earnings / Report → `MyEarnings`; `/api/earnings` summary + by-product; SD/Dist web `/earnings`
 - [x] My Earnings TC09–12: downline + product tabs, expand Gross/TDS/Net, nav wiring (web SD/Dist + mobile all agent roles)
+- [x] Admin tax registers (TC13): TDS by agent/month + DMT fee GST + CSV on Commercials
 - [ ] Service flows (AEPS, DMT, BBPS)
 - [ ] Biometric SDK
 - [x] Txn PIN modal + wallet transfer PIN

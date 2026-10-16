@@ -858,6 +858,178 @@ export async function listAdminCommissionPayouts(filters?: {
   };
 }
 
+/** Admin TDS register — net/gross/TDS by agent × calendar month (IST). */
+export async function listAdminTdsRegister(filters?: {
+  month?: string; // YYYY-MM
+  role?: SchemeRole;
+  q?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  const limit = Math.min(filters?.limit ?? 100, 500);
+  const offset = filters?.offset ?? 0;
+  const month = filters?.month?.trim();
+  const monthStart = month ? new Date(`${month}-01T00:00:00+05:30`) : undefined;
+  let monthEnd: Date | undefined;
+  if (monthStart) {
+    monthEnd = new Date(monthStart);
+    monthEnd.setMonth(monthEnd.getMonth() + 1);
+  }
+
+  const conditions = [
+    sql`coalesce(${commissionLedger.tdsAmount}, 0) > 0`,
+    filters?.role ? eq(commissionLedger.role, filters.role) : undefined,
+    monthStart ? sql`${commissionLedger.createdAt} >= ${monthStart}` : undefined,
+    monthEnd ? sql`${commissionLedger.createdAt} < ${monthEnd}` : undefined,
+    filters?.q?.trim()
+      ? or(
+          ilike(users.name, `%${filters.q.trim()}%`),
+          ilike(users.uid, `%${filters.q.trim()}%`),
+          ilike(users.mobile, `%${filters.q.trim()}%`),
+        )
+      : undefined,
+  ].filter((c): c is NonNullable<typeof c> => Boolean(c));
+
+  const whereClause = and(...conditions);
+  const monthKey = sql<string>`to_char(timezone('Asia/Kolkata', ${commissionLedger.createdAt}), 'YYYY-MM')`;
+
+  const [summary] = await db
+    .select({
+      totalGross: sql<string>`coalesce(sum(coalesce(${commissionLedger.grossAmount}, ${commissionLedger.amount})), '0')`,
+      totalTds: sql<string>`coalesce(sum(coalesce(${commissionLedger.tdsAmount}, 0)), '0')`,
+      totalNet: sql<string>`coalesce(sum(${commissionLedger.amount}), '0')`,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(commissionLedger)
+    .innerJoin(users, eq(commissionLedger.beneficiaryUserId, users.id))
+    .where(whereClause);
+
+  const rows = await db
+    .select({
+      month: monthKey,
+      beneficiaryUserId: users.id,
+      beneficiaryName: users.name,
+      beneficiaryUid: users.uid,
+      beneficiaryMobile: users.mobile,
+      role: commissionLedger.role,
+      grossAmount: sql<string>`coalesce(sum(coalesce(${commissionLedger.grossAmount}, ${commissionLedger.amount})), '0')`,
+      tdsAmount: sql<string>`coalesce(sum(coalesce(${commissionLedger.tdsAmount}, 0)), '0')`,
+      netAmount: sql<string>`coalesce(sum(${commissionLedger.amount}), '0')`,
+      creditCount: sql<number>`count(*)::int`,
+    })
+    .from(commissionLedger)
+    .innerJoin(users, eq(commissionLedger.beneficiaryUserId, users.id))
+    .where(whereClause)
+    .groupBy(monthKey, users.id, users.name, users.uid, users.mobile, commissionLedger.role)
+    .orderBy(desc(monthKey), desc(sql`sum(coalesce(${commissionLedger.tdsAmount}, 0))`))
+    .limit(limit)
+    .offset(offset);
+
+  return {
+    summary: {
+      totalGross: String(summary?.totalGross ?? "0"),
+      totalTds: String(summary?.totalTds ?? "0"),
+      totalNet: String(summary?.totalNet ?? "0"),
+      count: summary?.count ?? 0,
+    },
+    rows: rows.map((r) => ({
+      month: r.month,
+      beneficiaryUserId: r.beneficiaryUserId,
+      beneficiaryName: r.beneficiaryName,
+      beneficiaryUid: r.beneficiaryUid,
+      beneficiaryMobile: r.beneficiaryMobile,
+      role: r.role,
+      grossAmount: String(r.grossAmount),
+      tdsAmount: String(r.tdsAmount),
+      netAmount: String(r.netAmount),
+      creditCount: r.creditCount,
+    })),
+  };
+}
+
+/** Admin DMT fee-GST register — txns with customer_fee_gst > 0. */
+export async function listAdminDmtGstRegister(filters?: {
+  since?: Date;
+  until?: Date;
+  q?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  const limit = Math.min(filters?.limit ?? 100, 500);
+  const offset = filters?.offset ?? 0;
+  const conditions = [
+    sql`coalesce(${transactions.customerFeeGst}, 0) > 0`,
+    filters?.since ? sql`${transactions.createdAt} >= ${filters.since}` : undefined,
+    filters?.until ? sql`${transactions.createdAt} <= ${filters.until}` : undefined,
+    filters?.q?.trim()
+      ? or(
+          ilike(users.name, `%${filters.q.trim()}%`),
+          ilike(users.uid, `%${filters.q.trim()}%`),
+          ilike(users.mobile, `%${filters.q.trim()}%`),
+          ilike(transactions.txnRef, `%${filters.q.trim()}%`),
+        )
+      : undefined,
+  ].filter((c): c is NonNullable<typeof c> => Boolean(c));
+  const whereClause = and(...conditions);
+
+  const [summary] = await db
+    .select({
+      totalFee: sql<string>`coalesce(sum(${transactions.customerFee}), '0')`,
+      totalGst: sql<string>`coalesce(sum(${transactions.customerFeeGst}), '0')`,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(transactions)
+    .innerJoin(users, eq(transactions.userId, users.id))
+    .where(whereClause);
+
+  const rows = await db
+    .select({
+      id: transactions.id,
+      txnRef: transactions.txnRef,
+      createdAt: transactions.createdAt,
+      amount: transactions.amount,
+      customerFee: transactions.customerFee,
+      customerFeeGst: transactions.customerFeeGst,
+      status: transactions.status,
+      serviceCode: services.code,
+      serviceName: services.name,
+      agentUserId: users.id,
+      agentName: users.name,
+      agentUid: users.uid,
+      agentMobile: users.mobile,
+    })
+    .from(transactions)
+    .innerJoin(users, eq(transactions.userId, users.id))
+    .innerJoin(services, eq(transactions.serviceId, services.id))
+    .where(whereClause)
+    .orderBy(desc(transactions.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  return {
+    summary: {
+      totalFee: String(summary?.totalFee ?? "0"),
+      totalGst: String(summary?.totalGst ?? "0"),
+      count: summary?.count ?? 0,
+    },
+    rows: rows.map((r) => ({
+      id: r.id,
+      txnRef: r.txnRef,
+      createdAt: r.createdAt,
+      amount: String(r.amount),
+      customerFee: String(r.customerFee ?? "0"),
+      customerFeeGst: String(r.customerFeeGst ?? "0"),
+      status: r.status,
+      serviceCode: r.serviceCode,
+      serviceName: r.serviceName,
+      agentUserId: r.agentUserId,
+      agentName: r.agentName,
+      agentUid: r.agentUid,
+      agentMobile: r.agentMobile,
+    })),
+  };
+}
+
 
 // ── Role-default scheme CRUD (commission_rules) ─────────────────────────────
 
