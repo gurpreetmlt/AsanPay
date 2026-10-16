@@ -111,7 +111,7 @@ function buildAgentNav(role: UserRole | undefined, fundRequestOn: boolean): NavI
         icon: Users,
         children: [
           { to: "/customers", label: "Customers", icon: Users },
-          { to: "/reports", label: "Reports", icon: BarChart3 },
+          { to: "/reports", label: "Business Report", icon: BarChart3 },
         ],
       },
       { type: "link", to: "/support", label: "Support", icon: LifeBuoy },
@@ -151,7 +151,7 @@ function buildAgentNav(role: UserRole | undefined, fundRequestOn: boolean): NavI
         { to: "/statements", label: "Statements", icon: FileText },
       ],
     },
-    { type: "link", to: "/reports", label: "Reports", icon: BarChart3 },
+    { type: "link", to: "/reports", label: "Business Report", icon: BarChart3 },
     { type: "link", to: "/support", label: "Support", icon: LifeBuoy },
     { type: "link", to: "/settings", label: "Settings", icon: Settings },
   ];
@@ -605,7 +605,7 @@ const HEADER_SEARCH_SERVICES = [
   { label: "Add Money", href: "/fund-request", q: "fund add money wallet" },
   { label: "Settlements", href: "/settlements", q: "settlement bank withdraw" },
   { label: "My Earnings", href: "/earnings", q: "earnings commission report today" },
-  { label: "Reports", href: "/reports", q: "reports earnings commission" },
+  { label: "Business Report", href: "/reports", q: "reports earnings commission business volume" },
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
