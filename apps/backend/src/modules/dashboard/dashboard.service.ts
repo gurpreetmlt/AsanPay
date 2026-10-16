@@ -430,6 +430,22 @@ async function getSuperDistributorStats(userId: string) {
   const inactiveRetailerPct =
     retailerRows.length > 0 ? Math.round((inactiveRetailers / retailerRows.length) * 1000) / 10 : 0;
 
+  const pendingKycTargets =
+    descendantIds.length > 0
+      ? await db
+          .select({ id: users.id, kycStatus: users.kycStatus })
+          .from(users)
+          .where(
+            and(
+              inArray(users.id, descendantIds),
+              inArray(users.role, ["distributor", "retailer"]),
+            ),
+          )
+      : [];
+  const pendingKyc = pendingKycTargets.filter(
+    (r) => r.kycStatus === "pending" || r.kycStatus === "rejected",
+  ).length;
+
   // SD commission MTD broken down by direct distributor (via txn actor → parent dist)
   interface CommByDist { id: string; name: string; amount: string }
   let commissionMtdByDist: CommByDist[] = [];
@@ -489,6 +505,9 @@ async function getSuperDistributorStats(userId: string) {
       activeRetailers: retailerRows.filter((r) => r.isActive).length,
       inactiveRetailers,
       inactiveRetailerPct,
+    },
+    onboarding: {
+      pendingKyc,
     },
     revenue: {
       todayVolume,

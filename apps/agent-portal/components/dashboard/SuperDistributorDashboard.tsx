@@ -38,6 +38,7 @@ interface SDStats {
     todayCommission: string;
     monthCommission?: string;
   };
+  onboarding?: { pendingKyc: number };
   distributorPerformance: { id: string; name: string; retailerCount: number; volume: string }[];
   topDistributorsMtd?: { id: string; name: string; retailerCount: number; volume: string }[];
   commissionMtdByDist?: { id: string; name: string; amount: string }[];
@@ -394,6 +395,31 @@ export function SuperDistributorDashboard() {
             <h3 className="text-sm font-bold" style={{ color: B.blue }}>Alerts</h3>
           </div>
           <div className="space-y-3">
+            {(stats?.onboarding?.pendingKyc ?? 0) > 0 ? (
+              <button
+                type="button"
+                onClick={() => router.push("/action-queue")}
+                className="flex w-full items-center justify-between gap-2 rounded-lg p-2 text-left transition hover:bg-red-50"
+                style={{ background: "#DC262608" }}
+              >
+                <span className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full" style={{ background: "#DC2626" }} />
+                  <span className="text-xs font-medium" style={{ color: "#DC2626" }}>
+                    {(stats?.onboarding?.pendingKyc ?? 0) === 1
+                      ? "1 agent KYC needs follow-up"
+                      : `${stats?.onboarding?.pendingKyc} agent KYCs need follow-up`}
+                  </span>
+                </span>
+                <span
+                  className="inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold text-white"
+                  style={{ background: "#DC2626" }}
+                >
+                  {(stats?.onboarding?.pendingKyc ?? 0) > 99 ? "99+" : stats?.onboarding?.pendingKyc}
+                </span>
+              </button>
+            ) : (
+              <AlertRow color={B.green} text="No pending agent KYC in your network" />
+            )}
             {inactiveRetailers > 0 && (
               <AlertRow
                 color="#DC2626"
@@ -404,7 +430,6 @@ export function SuperDistributorDashboard() {
               color={B.blueMid}
               text="Fund distributors from Balance (PIN required)"
             />
-            <AlertRow color={B.muted} text="KYC pending alerts: coming soon" />
           </div>
         </div>
       </div>

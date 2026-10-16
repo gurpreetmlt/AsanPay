@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeftRight, IndianRupee, Landmark, TriangleAlert } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
+import { AlertCountBadge } from "@/components/layout/AlertCountBadge";
 import { FundRequestsPanel } from "@/components/bank-deposits/FundRequestsPanel";
 import { ReconciliationPanel } from "@/components/bank-deposits/ReconciliationPanel";
 import { BankEntriesPanel, type OpenReconciliation } from "@/components/bank-deposits/BankEntriesPanel";
@@ -204,14 +205,7 @@ function BankDepositsContent() {
                   }`}
                 >
                   {t.label}
-                  {t.key === "fund-requests" && pending > 0 ? (
-                    <span
-                      className="rounded-full px-1.5 text-[10px] font-bold"
-                      style={{ background: "#DBEAFE", color: B.blueLight }}
-                    >
-                      {pending}
-                    </span>
-                  ) : null}
+                  {t.key === "fund-requests" ? <AlertCountBadge count={pending} /> : null}
                   <span
                     className={`absolute inset-x-2 -bottom-1 h-[3px] origin-center rounded-t-full transition-all duration-300 ease-out ${
                       active ? "scale-x-100 opacity-100" : "scale-x-0 opacity-0 group-hover:scale-x-50 group-hover:opacity-40"

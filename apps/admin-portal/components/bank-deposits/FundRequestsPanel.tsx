@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 import { Check, FileText, Info, Link2, RefreshCw } from "lucide-react";
+import { AlertCountBadge } from "@/components/layout/AlertCountBadge";
 import api, { fetchApi } from "@/lib/api";
 import { B, ROLE_LABEL } from "@/lib/brand";
 import { createAttemptKeyHolder } from "@/lib/idempotencyKey";
@@ -280,11 +281,7 @@ export function FundRequestsPanel({
               }
             >
               {t.label}
-              {t.key === "open" && openCount > 0 ? (
-                <span className="rounded-full px-1.5 text-[10px] font-bold" style={{ background: "#DBEAFE", color: B.blueLight }}>
-                  {openCount}
-                </span>
-              ) : null}
+              {t.key === "open" ? <AlertCountBadge count={openCount} /> : null}
             </button>
           ))}
         </div>

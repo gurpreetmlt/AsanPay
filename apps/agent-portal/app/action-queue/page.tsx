@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { AlertTriangle, Wallet, ShieldAlert, ArrowRight } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
+import { AlertCountBadge } from "@/components/layout/AlertCountBadge";
 import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
@@ -106,20 +107,22 @@ export default function ActionQueuePage() {
           <button
             type="button"
             onClick={() => setFilter("")}
-            className="rounded-xl px-3 py-2 text-sm font-semibold"
+            className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold"
             style={filter === "" ? { background: B.badgeGrad, color: "#fff" } : { background: B.secondary, color: B.blueMid }}
           >
-            All ({issues.length})
+            All
+            <AlertCountBadge count={issues.length} />
           </button>
           {(Object.keys(ISSUE_META) as IssueType[]).map((t) => (
             <button
               key={t}
               type="button"
               onClick={() => setFilter(t)}
-              className="rounded-xl px-3 py-2 text-sm font-semibold"
+              className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold"
               style={filter === t ? { background: B.badgeGrad, color: "#fff" } : { background: B.secondary, color: B.blueMid }}
             >
-              {ISSUE_META[t].label} ({counts[t]})
+              {ISSUE_META[t].label}
+              <AlertCountBadge count={counts[t]} />
             </button>
           ))}
         </div>

@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { Eye } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
+import { AlertCountBadge } from "@/components/layout/AlertCountBadge";
+import { useAdminAlerts } from "@/components/layout/AdminAlertsProvider";
 import { Badge } from "@/components/ui/Badge";
 import { TableActionButtons } from "@/components/ui/TableActionButtons";
 import { DocumentPreviewModal } from "@/components/users/DocumentPreviewModal";
@@ -69,6 +71,7 @@ export default function KycPage() {
   const router = useRouter();
   const hydrated = useAuthHydrated();
   const accessToken = useAuthStore((s) => s.accessToken);
+  const { badges, refresh: refreshAlerts } = useAdminAlerts();
 
   const [tab, setTab] = useState<KycTab>("pending");
   const [rows, setRows] = useState<KycRow[]>([]);
@@ -77,6 +80,7 @@ export default function KycPage() {
   const [previewSlides, setPreviewSlides] = useState<{ title: string; url: string }[]>([]);
   const [previewAgent, setPreviewAgent] = useState("");
   const [previewBusy, setPreviewBusy] = useState<string | null>(null);
+  const pendingCount = badges.kycPending;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -153,6 +157,7 @@ export default function KycPage() {
       await api.post(`/admin/kyc/${id}/decide`, { decision });
       toast.success(decision === "verified" ? "KYC approved" : "KYC rejected");
       setRows((prev) => prev.filter((r) => r.id !== id));
+      void refreshAlerts();
     } catch (err) {
       const message =
         (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? "Decision failed";
@@ -183,7 +188,7 @@ export default function KycPage() {
               type="button"
               onClick={() => setTab(t.key)}
               data-active={tab === t.key}
-              className="tab-chip rounded-xl px-3 py-2 text-sm font-semibold"
+              className="tab-chip inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold"
               style={
                 tab === t.key
                   ? { background: B.badgeGrad, color: "#fff" }
@@ -191,6 +196,7 @@ export default function KycPage() {
               }
             >
               {t.label}
+              {t.key === "pending" ? <AlertCountBadge count={pendingCount} /> : null}
             </button>
           ))}
         </div>

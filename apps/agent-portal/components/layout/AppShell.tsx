@@ -46,6 +46,10 @@ import { useOnboardingGate } from "@/lib/useOnboardingGate";
 import { formatInr, walletDisplayName } from "@/lib/walletLabels";
 import { maskBalance, useBalanceVisibility } from "@/lib/balanceVisibility";
 import { CHILD_ROLE, ROLE_LABEL, isRetailerRole } from "@/lib/roles";
+import { AlertCountBadge } from "@/components/layout/AlertCountBadge";
+
+const ACTION_QUEUE_POLL_MS = 60_000;
+const LOW_BALANCE_THRESHOLD = 200;
 
 type LucideIcon = ComponentType<{ size?: number; className?: string; strokeWidth?: number }>;
 
@@ -192,9 +196,13 @@ function SidebarContent({
 }) {
   const pathname = usePathname();
   const authRole = useAuthStore((s) => s.user?.role);
+  const accessToken = useAuthStore((s) => s.accessToken);
   const nav = useMemo(() => buildAgentNav(authRole), [authRole]);
+  const isPartner = authRole === "super_distributor" || authRole === "distributor";
 
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const [actionQueueCount, setActionQueueCount] = useState(0);
+  const [kycPendingCount, setKycPendingCount] = useState(0);
 
   useEffect(() => {
     const next: Record<string, boolean> = {};
@@ -206,8 +214,56 @@ function SidebarContent({
     if (Object.keys(next).length) setOpenGroups((g) => ({ ...g, ...next }));
   }, [pathname, nav]);
 
+  useEffect(() => {
+    if (!accessToken || !isPartner) {
+      setActionQueueCount(0);
+      setKycPendingCount(0);
+      return;
+    }
+    let alive = true;
+    async function loadAlerts() {
+      try {
+        const data = await fetchApi<{
+          downline: { isActive: boolean; mainBalance: string; kycStatus?: string }[];
+        }>("/users/network");
+        if (!alive) return;
+        let action = 0;
+        let kyc = 0;
+        for (const m of data.downline) {
+          if (m.kycStatus && m.kycStatus !== "verified") {
+            action += 1;
+            kyc += 1;
+          }
+          if (Number(m.mainBalance) < LOW_BALANCE_THRESHOLD) action += 1;
+          if (!m.isActive) action += 1;
+        }
+        setActionQueueCount(action);
+        setKycPendingCount(kyc);
+      } catch {
+        /* keep last good count */
+      }
+    }
+    void loadAlerts();
+    const t = setInterval(() => void loadAlerts(), ACTION_QUEUE_POLL_MS);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [accessToken, isPartner]);
+
   function toggleGroup(id: string) {
     setOpenGroups((g) => ({ ...g, [id]: !g[id] }));
+  }
+
+  function badgeForChild(to: string): number {
+    if (to === "/action-queue") return actionQueueCount;
+    if (to.startsWith("/network") && !to.includes("invite")) return kycPendingCount;
+    return 0;
+  }
+
+  function badgeForGroup(id: string): number {
+    if (id === "network") return actionQueueCount;
+    return 0;
   }
 
   return (
@@ -311,6 +367,7 @@ function SidebarContent({
                     >
                       {item.label}
                     </span>
+                    <AlertCountBadge count={badgeForGroup(item.id)} />
                     <ChevronDown
                       size={14}
                       className={`text-white/40 transition-transform duration-300 ${expanded ? "rotate-180" : ""}`}
@@ -341,12 +398,13 @@ function SidebarContent({
                           strokeWidth={childActive ? 2.5 : 2}
                         />
                         <span
-                          className={`text-sm font-medium ${
+                          className={`flex-1 text-sm font-medium ${
                             childActive ? "text-white" : "text-white/55 group-hover:text-white"
                           }`}
                         >
                           {child.label}
                         </span>
+                        <AlertCountBadge count={badgeForChild(child.to)} />
                       </Link>
                     );
                   })}

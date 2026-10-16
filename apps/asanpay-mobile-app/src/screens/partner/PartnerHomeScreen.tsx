@@ -38,6 +38,7 @@ import { InviteModal, type InviteResult } from "./NetworkScreen";
 interface PartnerStats {
   revenue?: { todayCommission?: string };
   today?: { commission?: string };
+  onboarding?: { pendingKyc?: number };
 }
 
 interface Tile {
@@ -58,6 +59,7 @@ export function PartnerHomeScreen() {
   const { tokens } = useTheme();
   const [wallets, setWallets] = useState<WalletBalance[]>([]);
   const [todayEarnings, setTodayEarnings] = useState<string | null>(null);
+  const [pendingKyc, setPendingKyc] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [showFund, setShowFund] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
@@ -92,6 +94,7 @@ export function PartnerHomeScreen() {
       ]);
       setWallets(wal);
       setTodayEarnings(stats?.revenue?.todayCommission ?? stats?.today?.commission ?? "0");
+      setPendingKyc(stats?.onboarding?.pendingKyc ?? 0);
     } catch {
       /* retry on pull */
     } finally {
@@ -182,6 +185,20 @@ export function PartnerHomeScreen() {
                 {user.hasKycDocs && user.kycStatus !== "rejected" ? "KYC under review" : "Complete your KYC"}
               </Text>
               <Text style={styles.kycSub}>{needsKyc ? "Tap to continue signup KYC." : "Awaiting admin approval."}</Text>
+            </Pressable>
+          ) : null}
+
+          {pendingKyc > 0 ? (
+            <Pressable onPress={() => go("Network")} style={styles.pendingKycBanner}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.pendingKycTitle}>
+                  {pendingKyc === 1 ? "1 agent KYC needs follow-up" : `${pendingKyc} agent KYCs need follow-up`}
+                </Text>
+                <Text style={styles.pendingKycSub}>Open Network to review pending KYC.</Text>
+              </View>
+              <View style={styles.pendingKycBadge}>
+                <Text style={styles.pendingKycBadgeText}>{pendingKyc > 99 ? "99+" : pendingKyc}</Text>
+              </View>
             </Pressable>
           ) : null}
 
@@ -381,6 +398,29 @@ const styles = StyleSheet.create({
   },
   kycTitle: { color: colors.blueFlat, fontWeight: "800", fontSize: 13 },
   kycSub: { color: "#8FA2E0", fontSize: 11, marginTop: 2 },
+  pendingKycBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    backgroundColor: "#FEF2F2",
+    padding: 12,
+    marginBottom: 12,
+  },
+  pendingKycTitle: { color: colors.dangerDark, fontWeight: "800", fontSize: 13 },
+  pendingKycSub: { color: "#991B1B", fontSize: 11, marginTop: 2, opacity: 0.85 },
+  pendingKycBadge: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    paddingHorizontal: 6,
+    backgroundColor: colors.danger,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pendingKycBadgeText: { color: "#fff", fontSize: 11, fontWeight: "800" },
   statRow: { flexDirection: "row", gap: 10 },
   statCard: {
     flex: 1,

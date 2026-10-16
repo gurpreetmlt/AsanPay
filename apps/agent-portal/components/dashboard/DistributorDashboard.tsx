@@ -407,18 +407,28 @@ function FunnelChip({
     <button
       type="button"
       onClick={onClick}
-      className="rounded-xl border px-3 py-3 text-left transition hover:shadow-sm"
+      className="flex items-start justify-between gap-2 rounded-xl border px-3 py-3 text-left transition hover:shadow-sm"
       style={{
-        borderColor: hot ? "#FDBA74" : B.border,
-        background: hot ? "#FFF7ED" : B.secondary,
+        borderColor: hot ? "#FECACA" : B.border,
+        background: hot ? "#FEF2F2" : B.secondary,
       }}
     >
-      <div className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: B.muted }}>
-        {label}
+      <div>
+        <div className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: B.muted }}>
+          {label}
+        </div>
+        <div className="mt-0.5 text-xl font-bold tabular-nums" style={{ color: hot ? "#DC2626" : B.blue }}>
+          {count}
+        </div>
       </div>
-      <div className="mt-0.5 text-xl font-bold tabular-nums" style={{ color: hot ? "#C2410C" : B.blue }}>
-        {count}
-      </div>
+      {hot ? (
+        <span
+          className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[10px] font-bold text-white"
+          style={{ background: "#DC2626" }}
+        >
+          {count > 99 ? "99+" : count}
+        </span>
+      ) : null}
     </button>
   );
 }
