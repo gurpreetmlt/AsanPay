@@ -606,6 +606,15 @@ bankingRouter.post("/daily-close/reopen", requireRole("admin"), async (req, res)
   );
 });
 
+/** Global treasury search — UTR / amount / agent / mobile (TB17). */
+bankingRouter.get("/search", requireRole("admin"), async (req, res) => {
+  const tenantId = await resolveTenantId();
+  const q = typeof req.query.q === "string" ? req.query.q : "";
+  const limit = Math.min(Number(req.query.limit) || 30, 50);
+  const { searchTreasury } = await import("./treasurySearch.service");
+  sendSuccess(res, await searchTreasury({ tenantId, q, limit }));
+});
+
 /** Unified Bank / Agent / API activity for the admin Bank & deposits → Activity tab. */
 bankingRouter.get("/activity", requireRole("admin"), async (req, res) => {
   const tenantId = await resolveTenantId();

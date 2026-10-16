@@ -14,6 +14,7 @@ import { ActivityPanel } from "@/components/bank-deposits/ActivityPanel";
 import { DailyClosePanel } from "@/components/bank-deposits/DailyClosePanel";
 import { AuditTrailPanel } from "@/components/bank-deposits/AuditTrailPanel";
 import { CategoryRulesPanel } from "@/components/bank-deposits/CategoryRulesPanel";
+import { TreasurySearchBox } from "@/components/bank-deposits/TreasurySearchBox";
 import { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
@@ -230,20 +231,23 @@ function BankDepositsContent() {
   return (
     <AdminShell>
       <div className="mx-auto w-full max-w-[1600px] space-y-5 p-4 md:p-6">
-        <div>
-          <nav className="mb-2 text-xs" style={{ color: B.muted }}>
-            <Link href="/treasury" className="hover:underline">
-              Treasury
-            </Link>
-            <span className="mx-1.5">/</span>
-            <span>Bank &amp; deposits</span>
-          </nav>
-          <h1 className="text-2xl font-bold md:text-3xl" style={{ color: B.blue }}>
-            Bank &amp; deposits
-          </h1>
-          <p className="mt-1 text-sm" style={{ color: B.muted }}>
-            Company bank money, agent deposits and statement matching in one place
-          </p>
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <nav className="mb-2 text-xs" style={{ color: B.muted }}>
+              <Link href="/treasury" className="hover:underline">
+                Treasury
+              </Link>
+              <span className="mx-1.5">/</span>
+              <span>Bank &amp; deposits</span>
+            </nav>
+            <h1 className="text-2xl font-bold md:text-3xl" style={{ color: B.blue }}>
+              Bank &amp; deposits
+            </h1>
+            <p className="mt-1 text-sm" style={{ color: B.muted }}>
+              Company bank money, agent deposits and statement matching in one place
+            </p>
+          </div>
+          <TreasurySearchBox />
         </div>
 
         <section
