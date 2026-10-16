@@ -573,46 +573,74 @@ export async function voidFundRequest(params: {
         "NOT_MARKED_TEST",
       );
     }
-    if (!request.creditJournalId || !request.receiveJournalId) {
-      throw new HttpError(500, "Credited request is missing its journals", "MISSING_JOURNAL");
+    if (!request.creditJournalId) {
+      throw new HttpError(
+        422,
+        "This credited request has no credit journal, so it cannot be deleted automatically. Contact support.",
+        "MISSING_JOURNAL",
+      );
     }
+
+    const amountPaise = (request.creditedAmount ?? request.amount) as Paise;
+    const amountLabel = paiseToRupees(amountPaise);
+    const spentMessage = `The agent's wallet no longer has ₹${amountLabel} — part of this credit was already spent, so it cannot be deleted.`;
+
+    const journalIds = [request.creditJournalId, request.receiveJournalId].filter(
+      (id): id is bigint => id != null,
+    );
 
     const reversalJournalIds: string[] = [];
     try {
-      for (const journalId of [request.creditJournalId, request.receiveJournalId]) {
+      // Credit first (takes money back from the agent), then receive (bank line).
+      for (const journalId of journalIds) {
         const rev = await reverseJournal(tx, {
           tenantId: params.tenantId,
           journalId,
           idemKey: `FR:${request.id}:VOID:${journalId}`,
           performedBy: params.adminId,
-          reason: `Fund request ${request.id} voided: ${reason}`,
+          reason: `Fund request ${request.id} voided: ${reason}`.slice(0, 500),
         });
         reversalJournalIds.push(String(rev.id));
       }
     } catch (err) {
-      if (err instanceof Error && /Overdraft blocked/i.test(err.message)) {
-        throw new HttpError(
-          422,
-          `The agent's wallet no longer has ₹${paiseToRupees((request.creditedAmount ?? request.amount) as Paise)} — part of this credit was already spent, so it cannot be voided.`,
-          "INSUFFICIENT_BALANCE",
-        );
+      const chain = [err instanceof Error ? err.message : "", err instanceof Error && err.cause instanceof Error ? err.cause.message : ""]
+        .join(" | ");
+      if (
+        /Overdraft blocked|Insufficient balance|INSUFFICIENT_BALANCE|wallets_balance_nonnegative/i.test(
+          chain,
+        )
+      ) {
+        throw new HttpError(422, spentMessage, "INSUFFICIENT_BALANCE");
+      }
+      if (err instanceof HttpError) throw err;
+      throw err;
+    }
+
+    try {
+      await syncWalletsAfterJournal(tx, params.tenantId, [request.requesterUserId], {
+        referenceType: "fund_request",
+        referenceId: String(request.id),
+        description: "Fund request reversed",
+      });
+    } catch (err) {
+      const chain = [err instanceof Error ? err.message : "", err instanceof Error && err.cause instanceof Error ? err.cause.message : ""]
+        .join(" | ");
+      if (/wallets_balance_nonnegative|Overdraft blocked|Insufficient balance/i.test(chain)) {
+        throw new HttpError(422, spentMessage, "INSUFFICIENT_BALANCE");
       }
       throw err;
     }
 
-    await syncWalletsAfterJournal(tx, params.tenantId, [request.requesterUserId], {
-      referenceType: "fund_request",
-      referenceId: String(request.id),
-      description: "Fund request reversed",
-    });
-
+    const journalIdList = sql.join(
+      journalIds.map((id) => sql`${String(id)}`),
+      sql`, `,
+    );
     await tx.execute(sql`
       UPDATE bank_statement_lines
       SET match_status = 'unmatched', matched_to_type = NULL, matched_to_id = NULL
       WHERE tenant_id = ${params.tenantId}
         AND ((matched_to_type = 'fund_request' AND matched_to_id = ${String(request.id)})
-          OR (matched_to_type = 'journal'
-              AND matched_to_id IN (${String(request.receiveJournalId)}, ${String(request.creditJournalId)})))
+          OR (matched_to_type = 'journal' AND matched_to_id IN (${journalIdList})))
     `);
 
     await tx

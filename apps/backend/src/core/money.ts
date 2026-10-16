@@ -8,6 +8,8 @@
 // Never use `number` here. Drizzle's bigint({ mode: "number" }) silently loses precision past
 // 2^53 paise, and any float arithmetic on money is a defect regardless of magnitude.
 
+import { HttpError } from "../utils/httpError";
+
 /** Amount in paise. Always a whole number of paise, may be negative only in derived figures. */
 export type Paise = bigint;
 
@@ -71,6 +73,9 @@ export function sumPaise(amounts: readonly Paise[]): Paise {
  * CHECK (amount > 0) — direction is carried by `direction`, never by a negative amount.
  */
 export function assertPositiveAmount(paise: Paise, label = "amount"): Paise {
-  if (paise <= 0n) throw new Error(`${label} must be > 0 paise, got ${paise}`);
-  return paise;
+  const n = typeof paise === "bigint" ? paise : BigInt(paise as unknown as string | number | bigint);
+  if (n <= 0n) {
+    throw new HttpError(422, `${label} must be greater than zero`, "INVALID_AMOUNT");
+  }
+  return n;
 }

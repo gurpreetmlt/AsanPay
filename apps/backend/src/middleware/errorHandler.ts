@@ -30,6 +30,24 @@ function isHttpErrorLike(err: unknown): err is HttpError {
   return typeof e.statusCode === "number" && typeof e.message === "string";
 }
 
+/** Drizzle / pg often wrap thrown HttpErrors in `cause` — unwrap before treating as 500. */
+function findHttpError(err: unknown): HttpError | null {
+  let cur: unknown = err;
+  for (let depth = 0; cur && depth < 6; depth += 1) {
+    if (isHttpErrorLike(cur)) return cur;
+    if (cur instanceof Error) {
+      cur = cur.cause;
+      continue;
+    }
+    if (typeof cur === "object" && cur !== null && "cause" in cur) {
+      cur = (cur as { cause?: unknown }).cause;
+      continue;
+    }
+    break;
+  }
+  return null;
+}
+
 export function notFoundHandler(req: Request, res: Response): void {
   res.status(404).json({ success: false, message: `Route not found: ${req.method} ${req.path}` });
 }
@@ -45,12 +63,13 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
     return;
   }
 
-  if (isHttpErrorLike(err)) {
-    res.status(err.statusCode).json({
+  const httpErr = findHttpError(err);
+  if (httpErr) {
+    res.status(httpErr.statusCode).json({
       success: false,
-      message: err.message,
-      code: err.code,
-      errors: err.errors,
+      message: httpErr.message,
+      code: httpErr.code,
+      errors: httpErr.errors,
     });
     return;
   }
@@ -63,6 +82,32 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
       success: false,
       message: "Database is out of date. Run npm run db:migrate and restart the backend.",
       code: "DB_SCHEMA_OUTDATED",
+    });
+    return;
+  }
+  if (/invalid input value for enum/i.test(msg)) {
+    res.status(500).json({
+      success: false,
+      message: "Database is out of date. Run npm run db:migrate on EC2 and restart the backend.",
+      code: "DB_SCHEMA_OUTDATED",
+    });
+    return;
+  }
+  if (/Overdraft blocked/i.test(msg) || /Insufficient balance/i.test(msg)) {
+    res.status(422).json({
+      success: false,
+      message:
+        "Not enough balance left to reverse this entry — part of the credited amount was already spent.",
+      code: "INSUFFICIENT_BALANCE",
+    });
+    return;
+  }
+  if (/wallets_balance_nonnegative|settleable_within_balance/i.test(msg)) {
+    res.status(422).json({
+      success: false,
+      message:
+        "Wallet balance cannot be reversed cleanly — the agent may have already spent part of this credit.",
+      code: "INSUFFICIENT_BALANCE",
     });
     return;
   }

@@ -487,7 +487,8 @@ export async function reverseJournal(
     entries: legs.map((l) => ({
       code: l.code,
       dir: l.direction === "DR" ? ("CR" as const) : ("DR" as const),
-      amount: l.amount,
+      // Drivers occasionally return numeric columns as string — coerce before BigInt math.
+      amount: typeof l.amount === "bigint" ? l.amount : BigInt(l.amount),
     })),
   });
 }
