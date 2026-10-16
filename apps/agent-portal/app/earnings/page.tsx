@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { ChevronDown, ChevronRight, Search, TrendingUp } from "lucide-react";
@@ -76,6 +76,22 @@ function TaxLines({ gross, tds, net }: { gross: string; tds: string; net: string
 }
 
 export default function MyEarningsPage() {
+  return (
+    <Suspense
+      fallback={
+        <AppShell>
+          <div className="px-4 py-8 text-sm" style={{ color: B.muted }}>
+            Loading…
+          </div>
+        </AppShell>
+      }
+    >
+      <MyEarningsInner />
+    </Suspense>
+  );
+}
+
+function MyEarningsInner() {
   const router = useRouter();
   const search = useSearchParams();
   const hydrated = useAuthHydrated();
