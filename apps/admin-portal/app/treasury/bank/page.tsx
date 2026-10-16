@@ -406,7 +406,11 @@ function BankDepositsContent() {
           </div>
 
           {tab === "fund-requests" ? (
-            <FundRequestsPanel onChanged={loadSummary} onGoToReconciliation={() => goTab("reconciliation")} />
+            <FundRequestsPanel
+              onChanged={loadSummary}
+              onGoToReconciliation={() => goTab("reconciliation")}
+              onOpenReconciliation={openReconciliation}
+            />
           ) : tab === "reconciliation" ? (
             <ReconciliationPanel onChanged={loadSummary} />
           ) : tab === "bank-entries" ? (

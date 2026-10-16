@@ -877,7 +877,12 @@ function mapFundRequestRow(row: FundRequestRow, actorRole: string, requester?: R
     rejectRemarks: row.rejectRemarks,
     submittedAt: row.submittedAt.toISOString(),
     creditedAt: row.creditedAt?.toISOString() ?? null,
-    ...(actorRole === "admin" ? { hasBankLine: row.matchedLineId != null } : {}),
+    ...(actorRole === "admin"
+      ? {
+          hasBankLine: row.matchedLineId != null,
+          matchedLineId: row.matchedLineId != null ? String(row.matchedLineId) : null,
+        }
+      : {}),
     ...(requester ? { requester } : {}),
   };
 }
@@ -915,17 +920,31 @@ export async function listFundRequests(params: {
       requesterRole: users.role,
       bankName: bankAccounts.bankName,
       bankLast4: bankAccounts.accountNumberLast4,
+      matchedLineDate: bankStatementLines.txnDate,
+      matchedLineUtr: bankStatementLines.utr,
     })
     .from(fundRequests)
     .innerJoin(users, eq(users.id, fundRequests.requesterUserId))
     .leftJoin(bankAccounts, eq(bankAccounts.id, fundRequests.bankAccountId))
+    .leftJoin(bankStatementLines, eq(bankStatementLines.id, fundRequests.matchedLineId))
     .where(and(...conditions))
     .orderBy(desc(fundRequests.submittedAt))
     .limit(limit)
     .offset(offset);
 
   return rows.map(
-    ({ request, requesterId, requesterName, requesterMobile, requesterUid, requesterRole, bankName, bankLast4 }) => ({
+    ({
+      request,
+      requesterId,
+      requesterName,
+      requesterMobile,
+      requesterUid,
+      requesterRole,
+      bankName,
+      bankLast4,
+      matchedLineDate,
+      matchedLineUtr,
+    }) => ({
       ...mapFundRequestRow(
         request,
         params.actorRole,
@@ -941,6 +960,12 @@ export async function listFundRequests(params: {
       ),
       bankName: bankName ?? null,
       bankLast4: bankLast4 ?? null,
+      ...(params.actorRole === "admin"
+        ? {
+            matchedLineDate: matchedLineDate ?? null,
+            matchedLineUtr: matchedLineUtr ?? null,
+          }
+        : {}),
     }),
   );
 }

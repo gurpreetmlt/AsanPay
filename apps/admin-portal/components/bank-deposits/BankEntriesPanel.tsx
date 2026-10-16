@@ -1493,7 +1493,10 @@ function Field({
 function StatementCell({ row, onOpen }: { row: BankEntry; onOpen?: OpenReconciliation }) {
   const { status, line } = row.statement;
   const meta = STATEMENT_META[status];
-  const canOpen = !!onOpen && !!row.bankAccountId && (status === "matched" || status === "not_found");
+  const canOpen =
+    !!onOpen && !!row.bankAccountId && status !== "pending" && status !== "no_bank";
+  const openRecon = () =>
+    onOpen!({ bankAccountId: row.bankAccountId!, date: line?.date ?? row.txnDate, lineId: line?.id });
   const pill = (
     <span
       className="inline-flex items-center gap-0.5 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold"
@@ -1505,16 +1508,9 @@ function StatementCell({ row, onOpen }: { row: BankEntry; onOpen?: OpenReconcili
     </span>
   );
   return (
-    <div className="max-w-[200px]" title={meta.hint}>
+    <div className="max-w-[220px]" title={meta.hint}>
       {canOpen ? (
-        <button
-          type="button"
-          onClick={() =>
-            onOpen!({ bankAccountId: row.bankAccountId!, date: line?.date ?? row.txnDate, lineId: line?.id })
-          }
-          className="link-pill rounded-full"
-          title={status === "matched" ? "Open this line in Reconciliation" : "Open Reconciliation for this date"}
-        >
+        <button type="button" onClick={openRecon} className="link-pill rounded-full" title="Open in Reconcile">
           {pill}
         </button>
       ) : (
@@ -1532,6 +1528,21 @@ function StatementCell({ row, onOpen }: { row: BankEntry; onOpen?: OpenReconcili
             </div>
           ) : null}
         </>
+      ) : null}
+      {row.agent ? (
+        <div className="mt-1 text-[10px] font-medium" style={{ color: "#15803D" }}>
+          Agent {row.agent.name} · {row.agent.uid}
+        </div>
+      ) : null}
+      {canOpen ? (
+        <button
+          type="button"
+          onClick={openRecon}
+          className="mt-1 inline-flex items-center gap-0.5 text-[11px] font-bold hover:underline"
+          style={{ color: B.blueLight }}
+        >
+          Open in Reconcile <ArrowUpRight size={12} />
+        </button>
       ) : null}
     </div>
   );

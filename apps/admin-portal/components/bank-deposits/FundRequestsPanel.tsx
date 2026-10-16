@@ -2,11 +2,12 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
-import { Check, FileText, Info, Link2, RefreshCw } from "lucide-react";
+import { ArrowUpRight, Check, FileText, Info, Link2, RefreshCw } from "lucide-react";
 import { AlertCountBadge } from "@/components/layout/AlertCountBadge";
 import api, { fetchApi } from "@/lib/api";
 import { B, ROLE_LABEL } from "@/lib/brand";
 import { createAttemptKeyHolder } from "@/lib/idempotencyKey";
+import type { OpenReconciliation } from "./BankEntriesPanel";
 
 type FrTab = "open" | "credited" | "rejected" | "cancelled" | "voided";
 
@@ -24,7 +25,11 @@ interface FundRequestRow {
   rejectRemarks: string | null;
   submittedAt: string;
   receiptUrl: string;
+  bankAccountId?: string;
   hasBankLine?: boolean;
+  matchedLineId?: string | null;
+  matchedLineDate?: string | null;
+  matchedLineUtr?: string | null;
   requester?: { id: string; name: string; mobile: string; uid: string; role?: string };
   bankName?: string | null;
   bankLast4?: string | null;
@@ -104,9 +109,11 @@ function fundAging(submittedAt: string): { label: string; bg: string; color: str
 export function FundRequestsPanel({
   onChanged,
   onGoToReconciliation,
+  onOpenReconciliation,
 }: {
   onChanged?: () => void;
   onGoToReconciliation?: () => void;
+  onOpenReconciliation?: OpenReconciliation;
 }) {
   const [tab, setTab] = useState<FrTab>("open");
   const [rows, setRows] = useState<FundRequestRow[]>([]);
@@ -383,6 +390,14 @@ export function FundRequestsPanel({
                         >
                           {pill.label}
                         </span>
+                        {r.hasBankLine ? (
+                          <div className="mt-1 text-[11px]" style={{ color: "#15803D" }}>
+                            Linked to bank
+                            {r.matchedLineUtr ? (
+                              <span className="font-mono"> · …{r.matchedLineUtr.slice(-6)}</span>
+                            ) : null}
+                          </div>
+                        ) : null}
                         {age ? (
                           <div>
                             <span
@@ -460,6 +475,26 @@ export function FundRequestsPanel({
                               style={{ borderColor: B.border, color: B.blue }}
                             >
                               <Link2 size={13} /> Link bank line
+                            </button>
+                          ) : null}
+                          {r.hasBankLine && r.bankAccountId && onOpenReconciliation ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const date =
+                                  r.matchedLineDate ??
+                                  r.depositDatetime.slice(0, 10);
+                                onOpenReconciliation({
+                                  bankAccountId: r.bankAccountId!,
+                                  date,
+                                  lineId: r.matchedLineId ?? undefined,
+                                });
+                              }}
+                              title="Open the linked bank statement line in Reconciliation"
+                              className={`${btn} border bg-white`}
+                              style={{ borderColor: "#BBF7D0", color: "#15803D", background: "#F0FDF4" }}
+                            >
+                              <ArrowUpRight size={13} /> Open in Reconcile
                             </button>
                           ) : null}
                         </div>

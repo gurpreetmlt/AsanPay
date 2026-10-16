@@ -85,6 +85,7 @@
 - [x] **Recon status labels** (TB02): plain English — Needs review / Likely match / Amount differs / In bank only / In books only + tip strip for old codes (`suspense`, `possible`, …). Admin recon UI only; API kinds unchanged.
 - [x] **Explain this line** (TB03): recon attention rows show Why + Next under the status pill; CTAs link to Confirm / Create bank entry / Bank entries / Fund requests / Check period. Admin recon UI only.
 - [x] **Activity feed** (TB04): Bank & deposits → Activity tab — filters All / Bank / Agent / API. `GET /banking/activity` merges statement lines, bank entries, fund requests, provider journals. Admin only; no migration.
+- [x] **Open in Reconcile** (TB05): Fund requests with a linked bank line show “Linked to bank” + Open in Reconcile jump; bank entries statement cell shows agent + Open in Reconcile. Admin only; no migration.
 - [x] Fund request rules: SD / Distributor on by default, Retailer off until admin enables per user (`users.fund_request_enabled`, migration 0051; switch in Retailers list + agent detail). Cash deposit only (web + mobile), bank + receipt required. Admin list shows agent, bank, deposit date; credited requests appear read-only in Bank entries + CA export
 - [x] Fund requests (company collection bank deposit) open to all agent roles — SD / Distributor / Retailer (API + web `/fund-request` + mobile Add Money / Request Funds); admin list shows requester role
 - [x] VAN assign (admin Banking tab + `POST /banking/van/assign`)
