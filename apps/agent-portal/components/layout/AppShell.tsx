@@ -34,6 +34,7 @@ import {
   History,
   Eye,
   EyeOff,
+  TrendingUp,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { isFundRequestEnabled, type UserRole } from "@asanpay/shared-types";
@@ -76,6 +77,7 @@ function buildAgentNav(role: UserRole | undefined, fundRequestOn: boolean): NavI
     : [];
 
   if (isRetailerRole(role)) {
+    // Money = wallet cash. Business = earnings, reports, settlements, customers (admin-style groups).
     return [
       {
         type: "group",
@@ -83,7 +85,7 @@ function buildAgentNav(role: UserRole | undefined, fundRequestOn: boolean): NavI
         label: "Services",
         icon: LayoutDashboard,
         children: [
-          { to: "/dashboard", label: "Services", icon: LayoutDashboard, exact: true },
+          { to: "/dashboard", label: "Home", icon: LayoutDashboard, exact: true },
           { to: "/aeps", label: "AePS", icon: Fingerprint },
           { to: "/dmt", label: "DMT", icon: Banknote },
           { to: "/upi-cash-point", label: "UPI Cash Point", icon: MapPin },
@@ -98,20 +100,20 @@ function buildAgentNav(role: UserRole | undefined, fundRequestOn: boolean): NavI
         children: [
           { to: "/wallet", label: "Balance", icon: Wallet, exact: true },
           ...moneyExtra,
-          { to: "/earnings", label: "My Earnings", icon: BarChart3 },
-          { to: "/settlements", label: "Earnings & Settlement", icon: Landmark },
           { to: "/passbook", label: "History", icon: History },
-          { to: "/statements", label: "Statements", icon: FileText },
         ],
       },
       {
         type: "group",
         id: "business",
         label: "Business",
-        icon: Users,
+        icon: BarChart3,
         children: [
+          { to: "/earnings", label: "My Earnings", icon: BarChart3 },
+          { to: "/reports", label: "Business Report", icon: TrendingUp },
+          { to: "/statements", label: "Statements", icon: FileText },
+          { to: "/settlements", label: "Earnings & Settlement", icon: Landmark },
           { to: "/customers", label: "Customers", icon: Users },
-          { to: "/reports", label: "Business Report", icon: BarChart3 },
         ],
       },
       { type: "link", to: "/support", label: "Support", icon: LifeBuoy },
@@ -144,14 +146,22 @@ function buildAgentNav(role: UserRole | undefined, fundRequestOn: boolean): NavI
       children: [
         { to: "/wallet", label: "Balance", icon: Wallet, exact: true },
         ...moneyExtra,
-        { to: "/settlements", label: "Settlements", icon: Landmark },
-        { to: "/float-planner", label: "Float & Earnings", icon: PiggyBank },
-        { to: "/earnings", label: "My Earnings", icon: BarChart3 },
         { to: "/passbook", label: "History", icon: History },
-        { to: "/statements", label: "Statements", icon: FileText },
+        { to: "/float-planner", label: "Float & Earnings", icon: PiggyBank },
       ],
     },
-    { type: "link", to: "/reports", label: "Business Report", icon: BarChart3 },
+    {
+      type: "group",
+      id: "business",
+      label: "Business",
+      icon: BarChart3,
+      children: [
+        { to: "/earnings", label: "My Earnings", icon: BarChart3 },
+        { to: "/reports", label: "Business Report", icon: TrendingUp },
+        { to: "/statements", label: "Statements", icon: FileText },
+        { to: "/settlements", label: "Settlements", icon: Landmark },
+      ],
+    },
     { type: "link", to: "/support", label: "Support", icon: LifeBuoy },
     { type: "link", to: "/settings", label: "Settings", icon: Settings },
   ];
