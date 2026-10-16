@@ -248,8 +248,8 @@ export function DateField({
         <div
           role="dialog"
           aria-label={label ? `${label} calendar` : "Calendar"}
-          className="date-cal-pop absolute left-0 z-50 mt-2 w-[300px] rounded-2xl border bg-white p-3 shadow-xl"
-          style={{ borderColor: B.border }}
+          className="date-cal-pop absolute left-0 z-50 mt-2 w-[300px] rounded-2xl border p-3 shadow-xl"
+          style={{ borderColor: "#D6E0F5", background: "#F5F8FF", boxShadow: "0 10px 28px rgba(11,42,154,0.14)" }}
         >
           <div className="mb-2 flex items-center justify-between gap-1">
             <button
@@ -404,11 +404,13 @@ export function DateField({
                   }
                   if (isSelected) {
                     style = {
-                      background: B.blueLight,
+                      background: B.blueMid,
                       color: "#fff",
                       borderRadius: 999,
                       fontWeight: 800,
-                      boxShadow: `0 4px 12px ${B.blueLight}44`,
+                      boxShadow: `0 3px 10px ${B.blueMid}55`,
+                      outline: "2px solid #fff",
+                      outlineOffset: 0,
                     };
                   }
 
@@ -459,6 +461,22 @@ function joinLocal(ymd: string, hm: string) {
   return `${ymd}T${hm || "00:00"}`;
 }
 
+function hmToParts(hm: string): { hour12: number; minute: number; isPm: boolean } {
+  const [hRaw, mRaw] = (hm || "00:00").split(":");
+  const h24 = Math.min(23, Math.max(0, Number(hRaw) || 0));
+  const minute = Math.min(59, Math.max(0, Number(mRaw) || 0));
+  const isPm = h24 >= 12;
+  const mod = h24 % 12;
+  return { hour12: mod === 0 ? 12 : mod, minute, isPm };
+}
+
+function partsToHm(hour12: number, minute: number, isPm: boolean): string {
+  let h24: number;
+  if (hour12 === 12) h24 = isPm ? 12 : 0;
+  else h24 = isPm ? hour12 + 12 : hour12;
+  return `${pad2(h24)}:${pad2(minute)}`;
+}
+
 export function DateTimeField({
   value,
   onChange,
@@ -470,8 +488,14 @@ export function DateTimeField({
   fullWidth = false,
 }: DateTimeFieldProps) {
   const { ymd, hm } = splitLocal(value);
+  const { hour12, minute, isPm } = hmToParts(hm);
   const minYmd = min?.slice(0, 10);
   const maxYmd = max?.slice(0, 10);
+  const timeDisabled = disabled || !ymd;
+
+  function setTime(nextHour12: number, nextMinute: number, nextPm: boolean) {
+    onChange(joinLocal(ymd || todayYmd(), partsToHm(nextHour12, nextMinute, nextPm)));
+  }
 
   return (
     <div className={clsx("flex flex-wrap items-center gap-2", fullWidth && "w-full", className)}>
@@ -484,20 +508,68 @@ export function DateTimeField({
         fullWidth={fullWidth}
         onChange={(next) => onChange(joinLocal(next, hm))}
       />
-      <label
-        className="flex items-center gap-2 rounded-xl border bg-white px-3 py-2.5"
-        style={{ borderColor: B.border, color: B.blue }}
+      <div
+        className="flex items-center gap-2 rounded-xl border px-3 py-2"
+        style={{
+          borderColor: "#C7D2FE",
+          background: "#EEF2FF",
+          opacity: timeDisabled ? 0.55 : 1,
+        }}
       >
         <Clock size={15} style={{ color: B.muted }} />
         <input
-          type="time"
-          value={hm}
-          disabled={disabled || !ymd}
-          onChange={(e) => onChange(joinLocal(ymd || todayYmd(), e.target.value || "00:00"))}
-          className="bg-transparent text-sm font-bold outline-none"
-          style={{ color: B.blue }}
+          type="text"
+          inputMode="numeric"
+          disabled={timeDisabled}
+          value={pad2(hour12)}
+          onChange={(e) => {
+            const n = Number(e.target.value.replace(/\D/g, "").slice(0, 2));
+            if (!Number.isFinite(n) || n < 1 || n > 12) return;
+            setTime(n, minute, isPm);
+          }}
+          className="w-10 rounded-lg border bg-white px-1.5 py-1 text-center text-sm font-bold outline-none"
+          style={{ borderColor: "#C7D2FE", color: B.blue }}
+          aria-label="Hour"
         />
-      </label>
+        <span className="text-sm font-extrabold" style={{ color: B.blue }}>
+          :
+        </span>
+        <input
+          type="text"
+          inputMode="numeric"
+          disabled={timeDisabled}
+          value={pad2(minute)}
+          onChange={(e) => {
+            const n = Number(e.target.value.replace(/\D/g, "").slice(0, 2));
+            if (!Number.isFinite(n) || n > 59) return;
+            setTime(hour12, n, isPm);
+          }}
+          className="w-10 rounded-lg border bg-white px-1.5 py-1 text-center text-sm font-bold outline-none"
+          style={{ borderColor: "#C7D2FE", color: B.blue }}
+          aria-label="Minute"
+        />
+        <div className="ml-1 flex gap-1">
+          {(["AM", "PM"] as const).map((labelAmPm) => {
+            const on = (isPm ? "PM" : "AM") === labelAmPm;
+            return (
+              <button
+                key={labelAmPm}
+                type="button"
+                disabled={timeDisabled}
+                onClick={() => setTime(hour12, minute, labelAmPm === "PM")}
+                className="rounded-lg px-2.5 py-1 text-xs font-extrabold transition"
+                style={
+                  on
+                    ? { background: B.blueMid, color: "#fff" }
+                    : { background: "#fff", color: B.blueMid, border: `1.5px solid ${B.blueMid}` }
+                }
+              >
+                {labelAmPm}
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

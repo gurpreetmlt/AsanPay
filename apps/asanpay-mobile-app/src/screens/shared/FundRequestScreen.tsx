@@ -1117,7 +1117,7 @@ function DepositDateTimeField({
               </Pressable>
             </View>
 
-            <Text style={[styles.label, { color: tokens.sub }]}>Type DD/MM/YYYY HH:MM</Text>
+            <Text style={[styles.label, { color: tokens.sub }]}>Type DD/MM/YYYY hh:mm AM/PM</Text>
             <TextInput
               style={[styles.input, { backgroundColor: tokens.card, borderColor: tokens.cardBorder, color: tokens.txt }]}
               value={typed}
@@ -1133,150 +1133,162 @@ function DepositDateTimeField({
                   setMinute(parsed.getMinutes());
                 }
               }}
-              keyboardType="number-pad"
-              placeholder="e.g. 16/10/2026 14:30"
+              autoCapitalize="characters"
+              placeholder="e.g. 16/10/2026 02:30 PM"
               placeholderTextColor={tokens.mute}
-              maxLength={16}
+              maxLength={22}
             />
 
-            <View style={styles.dtMonthRow}>
-              <Pressable onPress={() => shiftNav(-1)} style={styles.dtNavBtn}>
-                <Text style={{ color: colors.blueFlat, fontWeight: "800" }}>‹</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  if (pickerLevel === "day") setPickerLevel("month");
-                  else if (pickerLevel === "month") setPickerLevel("year");
-                }}
-                style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
-              >
-                <Text style={{ color: tokens.txt, fontWeight: "800" }}>{headerLabel}</Text>
-                {pickerLevel !== "year" ? (
-                  <Text style={{ color: colors.blueFlat, fontWeight: "800", fontSize: 10 }}>▼</Text>
-                ) : null}
-              </Pressable>
-              <Pressable onPress={() => shiftNav(1)} style={styles.dtNavBtn}>
-                <Text style={{ color: colors.blueFlat, fontWeight: "800" }}>›</Text>
-              </Pressable>
-            </View>
+            <View style={styles.dtCalPanel}>
+              <View style={styles.dtMonthRow}>
+                <Pressable onPress={() => shiftNav(-1)} style={styles.dtNavBtn}>
+                  <Text style={{ color: colors.blueFlat, fontWeight: "800" }}>‹</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    if (pickerLevel === "day") setPickerLevel("month");
+                    else if (pickerLevel === "month") setPickerLevel("year");
+                  }}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+                >
+                  <Text style={{ color: tokens.txt, fontWeight: "800" }}>{headerLabel}</Text>
+                  {pickerLevel !== "year" ? (
+                    <Text style={{ color: colors.blueFlat, fontWeight: "800", fontSize: 10 }}>▼</Text>
+                  ) : null}
+                </Pressable>
+                <Pressable onPress={() => shiftNav(1)} style={styles.dtNavBtn}>
+                  <Text style={{ color: colors.blueFlat, fontWeight: "800" }}>›</Text>
+                </Pressable>
+              </View>
 
-            {pickerLevel === "year" ? (
-              <View style={styles.dtGrid}>
-                {yearOptions.map((y) => {
-                  const on = y === viewYear;
-                  const disabled = y > maxYear || y < 2020;
-                  return (
-                    <Pressable
-                      key={y}
-                      disabled={disabled}
-                      onPress={() => {
-                        setViewYear(y);
-                        setPickerLevel("month");
-                      }}
-                      style={[
-                        styles.dtDay,
-                        { width: "33.33%" },
-                        on && { backgroundColor: colors.blueFlat, borderRadius: 8 },
-                        disabled && { opacity: 0.3 },
-                      ]}
-                    >
-                      <Text style={{ fontWeight: "700", color: on ? "#fff" : tokens.txt }}>{y}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            ) : pickerLevel === "month" ? (
-              <View style={styles.dtGrid}>
-                {MONTH_SHORT.map((name, i) => {
-                  const on = i === viewMonth;
-                  const disabled = viewYear === maxYear && i > new Date().getMonth();
-                  return (
-                    <Pressable
-                      key={name}
-                      disabled={disabled}
-                      onPress={() => {
-                        setViewMonth(i);
-                        setPickerLevel("day");
-                      }}
-                      style={[
-                        styles.dtDay,
-                        { width: "33.33%" },
-                        on && { backgroundColor: colors.blueFlat, borderRadius: 8 },
-                        disabled && { opacity: 0.3 },
-                      ]}
-                    >
-                      <Text style={{ fontWeight: "700", color: on ? "#fff" : tokens.txt }}>{name}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            ) : (
-              <>
-                <View style={styles.dtWeekRow}>
-                  {["S", "M", "T", "W", "T", "F", "S"].map((w, i) => (
-                    <Text key={i} style={[styles.dtWeek, { color: tokens.mute }]}>
-                      {w}
-                    </Text>
-                  ))}
-                </View>
+              {pickerLevel === "year" ? (
                 <View style={styles.dtGrid}>
-                  {Array.from({ length: startWeekday }).map((_, i) => (
-                    <View key={`e-${i}`} style={[styles.dtDay, { width: "14.28%" }]} />
-                  ))}
-                  {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => {
-                    const candidate = new Date(viewYear, viewMonth, d);
-                    const disabled = candidate.getTime() > Date.now();
-                    const selected = d === day;
+                  {yearOptions.map((y) => {
+                    const on = y === viewYear;
+                    const disabled = y > maxYear || y < 2020;
                     return (
                       <Pressable
-                        key={d}
+                        key={y}
                         disabled={disabled}
-                        onPress={() => setDay(d)}
-                        style={[
-                          styles.dtDay,
-                          { width: "14.28%" },
-                          selected && { backgroundColor: colors.blueFlat, borderRadius: 8 },
-                          disabled && { opacity: 0.3 },
-                        ]}
+                        onPress={() => {
+                          setViewYear(y);
+                          setPickerLevel("month");
+                        }}
+                        style={[styles.dtDay, { width: "33.33%" }, disabled && { opacity: 0.3 }]}
                       >
-                        <Text
-                          style={{
-                            fontWeight: "700",
-                            color: selected ? "#fff" : tokens.txt,
-                          }}
+                        <View style={[styles.dtDayInner, on && styles.dtDayInnerSelected, { width: "90%", borderRadius: 10 }]}>
+                          <Text style={{ fontWeight: "700", color: on ? "#fff" : tokens.txt }}>{y}</Text>
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ) : pickerLevel === "month" ? (
+                <View style={styles.dtGrid}>
+                  {MONTH_SHORT.map((name, i) => {
+                    const on = i === viewMonth;
+                    const disabled = viewYear === maxYear && i > new Date().getMonth();
+                    return (
+                      <Pressable
+                        key={name}
+                        disabled={disabled}
+                        onPress={() => {
+                          setViewMonth(i);
+                          setPickerLevel("day");
+                        }}
+                        style={[styles.dtDay, { width: "33.33%" }, disabled && { opacity: 0.3 }]}
+                      >
+                        <View style={[styles.dtDayInner, on && styles.dtDayInnerSelected, { width: "90%", borderRadius: 10 }]}>
+                          <Text style={{ fontWeight: "700", color: on ? "#fff" : tokens.txt }}>{name}</Text>
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ) : (
+                <>
+                  <View style={styles.dtWeekRow}>
+                    {["S", "M", "T", "W", "T", "F", "S"].map((w, i) => (
+                      <Text key={i} style={[styles.dtWeek, { color: tokens.mute }]}>
+                        {w}
+                      </Text>
+                    ))}
+                  </View>
+                  <View style={styles.dtGrid}>
+                    {Array.from({ length: startWeekday }).map((_, i) => (
+                      <View key={`e-${i}`} style={[styles.dtDay, { width: "14.28%" }]} />
+                    ))}
+                    {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => {
+                      const candidate = new Date(viewYear, viewMonth, d);
+                      const disabled = candidate.getTime() > Date.now();
+                      const selected = d === day;
+                      return (
+                        <Pressable
+                          key={d}
+                          disabled={disabled}
+                          onPress={() => setDay(d)}
+                          style={[styles.dtDay, { width: "14.28%" }, disabled && { opacity: 0.3 }]}
                         >
-                          {d}
+                          <View style={[styles.dtDayInner, selected && styles.dtDayInnerSelected]}>
+                            <Text
+                              style={{
+                                fontWeight: selected ? "800" : "700",
+                                color: selected ? "#fff" : tokens.txt,
+                              }}
+                            >
+                              {d}
+                            </Text>
+                          </View>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </>
+              )}
+            </View>
+
+            <View style={styles.dtTimePanel}>
+              <Text style={[styles.label, { color: tokens.sub, marginTop: 0 }]}>Time (12h)</Text>
+              <View style={styles.dtTimeRow}>
+                <TextInput
+                  style={[styles.dtTimeInput, { backgroundColor: "#fff", borderColor: "#C7D2FE", color: tokens.txt }]}
+                  value={pad2(toHour12(hour))}
+                  onChangeText={(t) => {
+                    const n = Number(t.replace(/\D/g, "").slice(0, 2));
+                    if (!Number.isFinite(n) || n < 1 || n > 12) return;
+                    setHour(fromHour12(n, hour >= 12));
+                  }}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                />
+                <Text style={{ color: tokens.txt, fontWeight: "800", fontSize: 18 }}>:</Text>
+                <TextInput
+                  style={[styles.dtTimeInput, { backgroundColor: "#fff", borderColor: "#C7D2FE", color: tokens.txt }]}
+                  value={pad2(minute)}
+                  onChangeText={(t) => {
+                    const n = Number(t.replace(/\D/g, "").slice(0, 2));
+                    if (Number.isFinite(n) && n <= 59) setMinute(n);
+                  }}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                />
+                <View style={styles.dtAmPmRow}>
+                  {(["AM", "PM"] as const).map((label) => {
+                    const on = (hour >= 12 ? "PM" : "AM") === label;
+                    return (
+                      <Pressable
+                        key={label}
+                        onPress={() => setHour(fromHour12(toHour12(hour), label === "PM"))}
+                        style={[styles.dtAmPmChip, on && styles.dtAmPmChipOn]}
+                      >
+                        <Text style={{ color: on ? "#fff" : colors.blueFlat, fontWeight: "800", fontSize: 13 }}>
+                          {label}
                         </Text>
                       </Pressable>
                     );
                   })}
                 </View>
-              </>
-            )}
-
-            <Text style={[styles.label, { color: tokens.sub }]}>Time (24h)</Text>
-            <View style={styles.dtTimeRow}>
-              <TextInput
-                style={[styles.dtTimeInput, { backgroundColor: tokens.card, borderColor: tokens.cardBorder, color: tokens.txt }]}
-                value={pad2(hour)}
-                onChangeText={(t) => {
-                  const n = Number(t.replace(/\D/g, "").slice(0, 2));
-                  if (Number.isFinite(n) && n <= 23) setHour(n);
-                }}
-                keyboardType="number-pad"
-                maxLength={2}
-              />
-              <Text style={{ color: tokens.txt, fontWeight: "800", fontSize: 18 }}>:</Text>
-              <TextInput
-                style={[styles.dtTimeInput, { backgroundColor: tokens.card, borderColor: tokens.cardBorder, color: tokens.txt }]}
-                value={pad2(minute)}
-                onChangeText={(t) => {
-                  const n = Number(t.replace(/\D/g, "").slice(0, 2));
-                  if (Number.isFinite(n) && n <= 59) setMinute(n);
-                }}
-                keyboardType="number-pad"
-                maxLength={2}
-              />
+              </View>
             </View>
 
             <Pressable style={styles.submit} onPress={applyPick}>
@@ -1311,12 +1323,18 @@ function ConfirmStep({
   const [receiptName, setReceiptName] = useState<string | null>(null);
   const [receiptDataUrl, setReceiptDataUrl] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  const [bankMenuOpen, setBankMenuOpen] = useState(false);
   const [depositAt, setDepositAt] = useState<Date | null>(null);
   const [remarks, setRemarks] = useState("");
   const [saving, setSaving] = useState(false);
   const idemRef = useRef(newIdemKey());
 
   const needsBankPicker = !prefill.bankAccountId;
+  const activeBanks = banks.filter((b) => b.isActive);
+  const selectedBank = activeBanks.find((b) => b.id === bankAccountId);
+  const selectedBankLabel = selectedBank
+    ? `${selectedBank.bankName}${selectedBank.branchName ? `, ${selectedBank.branchName}` : ""} · ****${selectedBank.accountNumberLast4}`
+    : "Select the bank you deposited to";
 
   async function pickReceipt() {
     const res = await launchImageLibrary({
@@ -1514,52 +1532,71 @@ function ConfirmStep({
               <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
                 <ScreenTop title="Create fund request" onBack={() => !saving && setFormOpen(false)} />
                 <LabelText label="Deposited to bank *" color={tokens.sub} style={{ ...styles.label, marginTop: 0 }} />
-                {banks
-                  .filter((b) => b.isActive)
-                  .map((b) => {
-                    const on = b.id === bankAccountId;
-                    return (
-                      <Pressable
-                        key={b.id}
-                        onPress={() => {
-                          idemRef.current = newIdemKey();
-                          setBankAccountId(b.id);
-                        }}
-                        accessibilityRole="radio"
-                        accessibilityState={{ selected: on }}
-                        style={[
-                          styles.input,
-                          {
-                            flexDirection: "row",
-                            alignItems: "center",
-                            gap: 10,
-                            marginBottom: 8,
-                            backgroundColor: tokens.card,
-                            borderColor: on ? colors.blue : tokens.cardBorder,
-                            borderWidth: on ? 2 : 1,
-                          },
-                        ]}
-                      >
-                        <View
-                          style={{
-                            width: 18,
-                            height: 18,
-                            borderRadius: 9,
-                            borderWidth: 2,
-                            borderColor: on ? colors.blue : tokens.mute,
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
-                        >
-                          {on ? <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.blue }} /> : null}
-                        </View>
-                        <Text style={{ flex: 1, color: tokens.txt, fontWeight: "700" }} numberOfLines={1}>
-                          {b.bankName}
-                          {b.branchName ? `, ${b.branchName}` : ""} · ****{b.accountNumberLast4}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
+                <Pressable
+                  onPress={() => setBankMenuOpen(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Select deposited bank"
+                  style={[
+                    styles.input,
+                    styles.bankSelect,
+                    {
+                      backgroundColor: tokens.card,
+                      borderColor: bankAccountId ? colors.blue : tokens.cardBorder,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={{
+                      flex: 1,
+                      color: selectedBank ? tokens.txt : tokens.mute,
+                      fontWeight: selectedBank ? "700" : "600",
+                    }}
+                    numberOfLines={1}
+                  >
+                    {selectedBankLabel}
+                  </Text>
+                  <ChevronDown size={18} color={tokens.sub} />
+                </Pressable>
+                <Modal
+                  visible={bankMenuOpen}
+                  transparent
+                  animationType="fade"
+                  onRequestClose={() => setBankMenuOpen(false)}
+                >
+                  <View style={styles.bankMenuRoot}>
+                    <Pressable style={styles.bankMenuScrim} onPress={() => setBankMenuOpen(false)} />
+                    <View style={[styles.bankMenuSheet, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
+                      <Text style={{ color: tokens.txt, fontWeight: "800", fontSize: 16, marginBottom: 8 }}>
+                        Deposited to bank
+                      </Text>
+                      <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 320 }}>
+                        {activeBanks.map((b) => {
+                          const on = b.id === bankAccountId;
+                          const label = `${b.bankName}${b.branchName ? `, ${b.branchName}` : ""} · ****${b.accountNumberLast4}`;
+                          return (
+                            <Pressable
+                              key={b.id}
+                              onPress={() => {
+                                idemRef.current = newIdemKey();
+                                setBankAccountId(b.id);
+                                setBankMenuOpen(false);
+                              }}
+                              style={[styles.bankMenuOption, on && { backgroundColor: `${colors.blue}14` }]}
+                            >
+                              <Text
+                                style={{ flex: 1, color: on ? colors.blue : tokens.txt, fontWeight: on ? "700" : "500" }}
+                                numberOfLines={2}
+                              >
+                                {label}
+                              </Text>
+                              {on ? <Check size={16} color={colors.blue} /> : null}
+                            </Pressable>
+                          );
+                        })}
+                      </ScrollView>
+                    </View>
+                  </View>
+                </Modal>
                 {fields}
                 <View style={{ flexDirection: "row", gap: 10 }}>
                   <Pressable
@@ -1610,6 +1647,33 @@ const styles = StyleSheet.create({
   receiptBtn: { marginTop: 16, borderWidth: 1, borderRadius: 12, padding: 14 },
   submit: { marginTop: 20, backgroundColor: colors.blue, borderRadius: 14, paddingVertical: 14, alignItems: "center" },
   submitText: { color: "#fff", fontWeight: "800", fontSize: 15 },
+  bankSelect: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  bankMenuRoot: { flex: 1, justifyContent: "center", padding: 24 },
+  bankMenuScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(15,23,42,0.45)" },
+  bankMenuSheet: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14,
+    shadowColor: "#0B2A9A",
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
+  bankMenuOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    marginBottom: 4,
+  },
   dtBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(15,23,42,0.45)" },
   dtSheet: {
     borderTopLeftRadius: 20,
@@ -1621,11 +1685,26 @@ const styles = StyleSheet.create({
   },
   dtHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
   dtTitle: { fontSize: 17, fontWeight: "800" },
+  dtCalPanel: {
+    marginTop: 12,
+    backgroundColor: "#F5F8FF",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#D6E0F5",
+    paddingHorizontal: 10,
+    paddingTop: 4,
+    paddingBottom: 10,
+    shadowColor: "#0B2A9A",
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+  },
   dtMonthRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: 12,
+    marginTop: 8,
     marginBottom: 8,
   },
   dtNavBtn: { paddingHorizontal: 14, paddingVertical: 8 },
@@ -1633,6 +1712,33 @@ const styles = StyleSheet.create({
   dtWeek: { flex: 1, textAlign: "center", fontSize: 11, fontWeight: "700" },
   dtGrid: { flexDirection: "row", flexWrap: "wrap" },
   dtDay: { aspectRatio: 1, alignItems: "center", justifyContent: "center" },
+  dtDayInner: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dtDayInnerSelected: {
+    backgroundColor: colors.blueFlat,
+    borderWidth: 2,
+    borderColor: "#fff",
+    shadowColor: colors.blueFlat,
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  dtTimePanel: {
+    marginTop: 14,
+    backgroundColor: "#EEF2FF",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#C7D2FE",
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 12,
+  },
   dtTimeRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 4 },
   dtTimeInput: {
     width: 64,
@@ -1643,5 +1749,18 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "800",
     textAlign: "center",
+  },
+  dtAmPmRow: { flexDirection: "row", gap: 6, marginLeft: 4 },
+  dtAmPmChip: {
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: colors.blueFlat,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: "#fff",
+  },
+  dtAmPmChipOn: {
+    backgroundColor: colors.blueFlat,
+    borderColor: colors.blueFlat,
   },
 });
