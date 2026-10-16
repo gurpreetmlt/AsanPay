@@ -23,6 +23,8 @@ import {
   ArrowLeft,
   Building2,
   Calendar,
+  Check,
+  ChevronDown,
   ChevronRight,
   ClipboardList,
   CreditCard,
@@ -939,7 +941,19 @@ function pad2(n: number) {
   return String(n).padStart(2, "0");
 }
 
+function toHour12(h24: number): number {
+  const h = h24 % 12;
+  return h === 0 ? 12 : h;
+}
+
+function fromHour12(h12: number, isPm: boolean): number {
+  if (h12 === 12) return isPm ? 12 : 0;
+  return isPm ? h12 + 12 : h12;
+}
+
 function formatDepositDigits(raw: string): string {
+  const upper = raw.toUpperCase();
+  const ampm = upper.includes("PM") ? "PM" : upper.includes("AM") ? "AM" : "";
   const digits = raw.replace(/\D/g, "").slice(0, 12);
   const dd = digits.slice(0, 2);
   const mm = digits.slice(2, 4);
@@ -951,26 +965,37 @@ function formatDepositDigits(raw: string): string {
   if (digits.length > 4) out += `/${yyyy}`;
   if (digits.length > 8) out += ` ${hh}`;
   if (digits.length > 10) out += `:${mi}`;
+  if (ampm && digits.length >= 10) out += ` ${ampm}`;
   return out;
 }
 
 function parseDepositDisplay(text: string): Date | null {
-  const m = /^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?$/.exec(text.trim());
+  const m =
+    /^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?:\s*(AM|PM))?)?$/i.exec(text.trim());
   if (!m) return null;
   const day = Number(m[1]);
   const month = Number(m[2]);
   const year = Number(m[3]);
-  const hour = m[4] != null ? Number(m[4]) : 12;
+  let hour = m[4] != null ? Number(m[4]) : 12;
   const minute = m[5] != null ? Number(m[5]) : 0;
+  const ampm = m[6]?.toUpperCase();
   if (year < 2020 || month < 1 || month > 12 || day < 1 || day > 31) return null;
-  if (hour > 23 || minute > 59) return null;
+  if (minute > 59) return null;
+  if (ampm) {
+    if (hour < 1 || hour > 12) return null;
+    hour = fromHour12(hour, ampm === "PM");
+  } else if (hour > 23) {
+    return null;
+  }
   const dt = new Date(year, month - 1, day, hour, minute, 0, 0);
   if (dt.getFullYear() !== year || dt.getMonth() !== month - 1 || dt.getDate() !== day) return null;
   return dt;
 }
 
 function dateToDisplay(d: Date): string {
-  return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  const h12 = toHour12(d.getHours());
+  const ampm = d.getHours() >= 12 ? "PM" : "AM";
+  return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()} ${pad2(h12)}:${pad2(d.getMinutes())} ${ampm}`;
 }
 
 /** JS modal date+time — no native DateTimePicker (avoids Android crash on some devices). */
@@ -991,6 +1016,7 @@ function DepositDateTimeField({
   const [hour, setHour] = useState(seed.getHours());
   const [minute, setMinute] = useState(seed.getMinutes());
   const [typed, setTyped] = useState(value ? dateToDisplay(value) : "");
+  const [pickerLevel, setPickerLevel] = useState<"day" | "month" | "year">("day");
 
   function openModal() {
     const s = value ?? new Date();
@@ -1000,6 +1026,7 @@ function DepositDateTimeField({
     setHour(s.getHours());
     setMinute(s.getMinutes());
     setTyped(value ? dateToDisplay(value) : "");
+    setPickerLevel("day");
     setOpen(true);
   }
 
@@ -1017,6 +1044,40 @@ function DepositDateTimeField({
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
   const startWeekday = new Date(viewYear, viewMonth, 1).getDay();
   const maxYear = new Date().getFullYear();
+  const yearBlockStart = Math.floor(viewYear / 12) * 12;
+  const yearOptions = Array.from({ length: 12 }, (_, i) => yearBlockStart + i);
+
+  function shiftNav(delta: number) {
+    if (pickerLevel === "day") {
+      if (delta < 0) {
+        if (viewMonth === 0) {
+          setViewMonth(11);
+          setViewYear((y) => y - 1);
+        } else setViewMonth((m) => m - 1);
+      } else {
+        if (viewYear > maxYear || (viewYear === maxYear && viewMonth >= new Date().getMonth())) return;
+        if (viewMonth === 11) {
+          setViewMonth(0);
+          setViewYear((y) => y + 1);
+        } else setViewMonth((m) => m + 1);
+      }
+      return;
+    }
+    if (pickerLevel === "month") {
+      const next = viewYear + delta;
+      if (next > maxYear || next < 2020) return;
+      setViewYear(next);
+      return;
+    }
+    setViewYear((y) => Math.min(Math.max(y + delta * 12, 2020), maxYear));
+  }
+
+  const headerLabel =
+    pickerLevel === "year"
+      ? `${yearBlockStart} – ${yearBlockStart + 11}`
+      : pickerLevel === "month"
+        ? String(viewYear)
+        : `${MONTH_SHORT[viewMonth]} ${viewYear}`;
 
   return (
     <>
@@ -1079,73 +1140,119 @@ function DepositDateTimeField({
             />
 
             <View style={styles.dtMonthRow}>
-              <Pressable
-                onPress={() => {
-                  if (viewMonth === 0) {
-                    setViewMonth(11);
-                    setViewYear((y) => y - 1);
-                  } else setViewMonth((m) => m - 1);
-                }}
-                style={styles.dtNavBtn}
-              >
+              <Pressable onPress={() => shiftNav(-1)} style={styles.dtNavBtn}>
                 <Text style={{ color: colors.blueFlat, fontWeight: "800" }}>‹</Text>
               </Pressable>
-              <Text style={{ color: tokens.txt, fontWeight: "800" }}>
-                {MONTH_SHORT[viewMonth]} {viewYear}
-              </Text>
               <Pressable
                 onPress={() => {
-                  if (viewYear > maxYear || (viewYear === maxYear && viewMonth >= new Date().getMonth())) return;
-                  if (viewMonth === 11) {
-                    setViewMonth(0);
-                    setViewYear((y) => y + 1);
-                  } else setViewMonth((m) => m + 1);
+                  if (pickerLevel === "day") setPickerLevel("month");
+                  else if (pickerLevel === "month") setPickerLevel("year");
                 }}
-                style={styles.dtNavBtn}
+                style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
               >
+                <Text style={{ color: tokens.txt, fontWeight: "800" }}>{headerLabel}</Text>
+                {pickerLevel !== "year" ? (
+                  <Text style={{ color: colors.blueFlat, fontWeight: "800", fontSize: 10 }}>▼</Text>
+                ) : null}
+              </Pressable>
+              <Pressable onPress={() => shiftNav(1)} style={styles.dtNavBtn}>
                 <Text style={{ color: colors.blueFlat, fontWeight: "800" }}>›</Text>
               </Pressable>
             </View>
 
-            <View style={styles.dtWeekRow}>
-              {["S", "M", "T", "W", "T", "F", "S"].map((w, i) => (
-                <Text key={i} style={[styles.dtWeek, { color: tokens.mute }]}>
-                  {w}
-                </Text>
-              ))}
-            </View>
-            <View style={styles.dtGrid}>
-              {Array.from({ length: startWeekday }).map((_, i) => (
-                <View key={`e-${i}`} style={[styles.dtDay, { width: "14.28%" }]} />
-              ))}
-              {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => {
-                const candidate = new Date(viewYear, viewMonth, d);
-                const disabled = candidate.getTime() > Date.now();
-                const selected = d === day;
-                return (
-                  <Pressable
-                    key={d}
-                    disabled={disabled}
-                    onPress={() => setDay(d)}
-                    style={[
-                      styles.dtDay,
-                      { width: "14.28%" },
-                      selected && { backgroundColor: colors.blueFlat, borderRadius: 8 },
-                      disabled && { opacity: 0.3 },
-                    ]}
-                  >
-                    <Text
-                      style={{
-                        fontWeight: "700",
-                        color: selected ? "#fff" : tokens.txt,
+            {pickerLevel === "year" ? (
+              <View style={styles.dtGrid}>
+                {yearOptions.map((y) => {
+                  const on = y === viewYear;
+                  const disabled = y > maxYear || y < 2020;
+                  return (
+                    <Pressable
+                      key={y}
+                      disabled={disabled}
+                      onPress={() => {
+                        setViewYear(y);
+                        setPickerLevel("month");
                       }}
+                      style={[
+                        styles.dtDay,
+                        { width: "33.33%" },
+                        on && { backgroundColor: colors.blueFlat, borderRadius: 8 },
+                        disabled && { opacity: 0.3 },
+                      ]}
                     >
-                      {d}
+                      <Text style={{ fontWeight: "700", color: on ? "#fff" : tokens.txt }}>{y}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : pickerLevel === "month" ? (
+              <View style={styles.dtGrid}>
+                {MONTH_SHORT.map((name, i) => {
+                  const on = i === viewMonth;
+                  const disabled = viewYear === maxYear && i > new Date().getMonth();
+                  return (
+                    <Pressable
+                      key={name}
+                      disabled={disabled}
+                      onPress={() => {
+                        setViewMonth(i);
+                        setPickerLevel("day");
+                      }}
+                      style={[
+                        styles.dtDay,
+                        { width: "33.33%" },
+                        on && { backgroundColor: colors.blueFlat, borderRadius: 8 },
+                        disabled && { opacity: 0.3 },
+                      ]}
+                    >
+                      <Text style={{ fontWeight: "700", color: on ? "#fff" : tokens.txt }}>{name}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : (
+              <>
+                <View style={styles.dtWeekRow}>
+                  {["S", "M", "T", "W", "T", "F", "S"].map((w, i) => (
+                    <Text key={i} style={[styles.dtWeek, { color: tokens.mute }]}>
+                      {w}
                     </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+                  ))}
+                </View>
+                <View style={styles.dtGrid}>
+                  {Array.from({ length: startWeekday }).map((_, i) => (
+                    <View key={`e-${i}`} style={[styles.dtDay, { width: "14.28%" }]} />
+                  ))}
+                  {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => {
+                    const candidate = new Date(viewYear, viewMonth, d);
+                    const disabled = candidate.getTime() > Date.now();
+                    const selected = d === day;
+                    return (
+                      <Pressable
+                        key={d}
+                        disabled={disabled}
+                        onPress={() => setDay(d)}
+                        style={[
+                          styles.dtDay,
+                          { width: "14.28%" },
+                          selected && { backgroundColor: colors.blueFlat, borderRadius: 8 },
+                          disabled && { opacity: 0.3 },
+                        ]}
+                      >
+                        <Text
+                          style={{
+                            fontWeight: "700",
+                            color: selected ? "#fff" : tokens.txt,
+                          }}
+                        >
+                          {d}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </>
+            )}
 
             <Text style={[styles.label, { color: tokens.sub }]}>Time (24h)</Text>
             <View style={styles.dtTimeRow}>

@@ -57,6 +57,7 @@ export function JsCalendarModal({
   const seed = fromYmd(valueYmd || maxYmd || toYmd(new Date()));
   const [viewYear, setViewYear] = useState(seed.getFullYear());
   const [viewMonth, setViewMonth] = useState(seed.getMonth());
+  const [pickerLevel, setPickerLevel] = useState<"day" | "month" | "year">("day");
 
   // Reset view when opening
   React.useEffect(() => {
@@ -64,12 +65,15 @@ export function JsCalendarModal({
     const d = fromYmd(valueYmd || maxYmd || toYmd(new Date()));
     setViewYear(d.getFullYear());
     setViewMonth(d.getMonth());
+    setPickerLevel("day");
   }, [visible, valueYmd, maxYmd]);
 
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
   const startWeekday = new Date(viewYear, viewMonth, 1).getDay();
   const max = maxYmd || toYmd(new Date());
   const min = minYmd;
+  const yearBlockStart = Math.floor(viewYear / 12) * 12;
+  const yearOptions = Array.from({ length: 12 }, (_, i) => yearBlockStart + i);
 
   const cells = useMemo(() => {
     const out: Array<{ day: number; ymd: string } | null> = [];
@@ -85,11 +89,31 @@ export function JsCalendarModal({
       ? Number(valueYmd.slice(8, 10))
       : 0;
 
-  function shiftMonth(delta: number) {
-    const d = new Date(viewYear, viewMonth + delta, 1);
-    setViewYear(d.getFullYear());
-    setViewMonth(d.getMonth());
+  function shiftNav(delta: number) {
+    if (pickerLevel === "day") {
+      const d = new Date(viewYear, viewMonth + delta, 1);
+      setViewYear(d.getFullYear());
+      setViewMonth(d.getMonth());
+      return;
+    }
+    if (pickerLevel === "month") {
+      setViewYear((y) => y + delta);
+      return;
+    }
+    setViewYear((y) => y + delta * 12);
   }
+
+  function onHeaderPress() {
+    if (pickerLevel === "day") setPickerLevel("month");
+    else if (pickerLevel === "month") setPickerLevel("year");
+  }
+
+  const headerLabel =
+    pickerLevel === "year"
+      ? `${yearBlockStart} – ${yearBlockStart + 11}`
+      : pickerLevel === "month"
+        ? String(viewYear)
+        : `${MONTH_LABELS[viewMonth]} ${viewYear}`;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -100,58 +124,124 @@ export function JsCalendarModal({
         >
           <Text style={[styles.sheetTitle, { color: tokens.txt }]}>{title}</Text>
 
-          <View style={styles.monthRow}>
-            <Pressable onPress={() => shiftMonth(-1)} hitSlop={10} style={styles.navBtn}>
-              <Text style={styles.navTxt}>‹</Text>
-            </Pressable>
-            <Text style={[styles.monthLabel, { color: tokens.txt }]}>
-              {MONTH_LABELS[viewMonth]} {viewYear}
-            </Text>
-            <Pressable onPress={() => shiftMonth(1)} hitSlop={10} style={styles.navBtn}>
-              <Text style={styles.navTxt}>›</Text>
-            </Pressable>
-          </View>
+          <View style={styles.calPanel}>
+            <View style={styles.monthRow}>
+              <Pressable onPress={() => shiftNav(-1)} hitSlop={10} style={styles.navBtn}>
+                <Text style={styles.navTxt}>‹</Text>
+              </Pressable>
+              <Pressable onPress={onHeaderPress} hitSlop={8} style={styles.headerHit}>
+                <Text style={[styles.monthLabel, { color: tokens.txt }]}>{headerLabel}</Text>
+                {pickerLevel !== "year" ? (
+                  <Text style={{ color: colors.blueLight, fontWeight: "800", fontSize: 12 }}>▼</Text>
+                ) : null}
+              </Pressable>
+              <Pressable onPress={() => shiftNav(1)} hitSlop={10} style={styles.navBtn}>
+                <Text style={styles.navTxt}>›</Text>
+              </Pressable>
+            </View>
 
-          <View style={styles.weekRow}>
-            {WEEKDAYS.map((w, i) => (
-              <Text key={`${w}-${i}`} style={[styles.weekCell, { color: tokens.sub }]}>
-                {w}
-              </Text>
-            ))}
-          </View>
+            {pickerLevel === "year" ? (
+              <View style={styles.pickerGrid}>
+                {yearOptions.map((y) => {
+                  const on = y === viewYear;
+                  const minY = min ? Number(min.slice(0, 4)) : undefined;
+                  const maxY = max ? Number(max.slice(0, 4)) : undefined;
+                  const disabled = (minY != null && y < minY) || (maxY != null && y > maxY);
+                  return (
+                    <Pressable
+                      key={y}
+                      disabled={disabled}
+                      onPress={() => {
+                        setViewYear(y);
+                        setPickerLevel("month");
+                      }}
+                      style={[styles.pickerCell, on && styles.pickerCellOn]}
+                    >
+                      <Text
+                        style={{
+                          fontWeight: "800",
+                          color: disabled ? tokens.mute : on ? "#fff" : tokens.txt,
+                        }}
+                      >
+                        {y}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : pickerLevel === "month" ? (
+              <View style={styles.pickerGrid}>
+                {MONTH_LABELS.map((name, i) => {
+                  const on = i === viewMonth;
+                  const ymdProbe = `${viewYear}-${pad2(i + 1)}-01`;
+                  const monthEnd = toYmd(new Date(viewYear, i + 1, 0));
+                  const disabled = (!!min && monthEnd < min) || (!!max && ymdProbe > max);
+                  return (
+                    <Pressable
+                      key={name}
+                      disabled={disabled}
+                      onPress={() => {
+                        setViewMonth(i);
+                        setPickerLevel("day");
+                      }}
+                      style={[styles.pickerCell, on && styles.pickerCellOn]}
+                    >
+                      <Text
+                        style={{
+                          fontWeight: "800",
+                          color: disabled ? tokens.mute : on ? "#fff" : tokens.txt,
+                        }}
+                      >
+                        {name}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : (
+              <>
+                <View style={styles.weekRow}>
+                  {WEEKDAYS.map((w, i) => (
+                    <Text key={`${w}-${i}`} style={[styles.weekCell, { color: tokens.sub }]}>
+                      {w}
+                    </Text>
+                  ))}
+                </View>
 
-          <View style={styles.grid}>
-            {cells.map((c, idx) => {
-              if (!c) {
-                return <View key={`e-${idx}`} style={styles.dayCell} />;
-              }
-              const disabled = (min && c.ymd < min) || c.ymd > max;
-              const selected = c.day === selectedDay;
-              return (
-                <Pressable
-                  key={c.ymd}
-                  disabled={disabled}
-                  onPress={() => {
-                    onPick(c.ymd);
-                    onClose();
-                  }}
-                  style={[
-                    styles.dayCell,
-                    selected && { backgroundColor: colors.blueLight, borderRadius: 999 },
-                  ]}
-                >
-                  <Text
-                    style={{
-                      fontWeight: selected ? "800" : "600",
-                      color: disabled ? tokens.mute : selected ? "#fff" : tokens.txt,
-                      fontSize: 14,
-                    }}
-                  >
-                    {c.day}
-                  </Text>
-                </Pressable>
-              );
-            })}
+                <View style={styles.grid}>
+                  {cells.map((c, idx) => {
+                    if (!c) {
+                      return <View key={`e-${idx}`} style={styles.dayCell} />;
+                    }
+                    const disabled = (min && c.ymd < min) || c.ymd > max;
+                    const selected = c.day === selectedDay;
+                    return (
+                      <Pressable
+                        key={c.ymd}
+                        disabled={!!disabled}
+                        onPress={() => {
+                          onPick(c.ymd);
+                          onClose();
+                        }}
+                        style={styles.dayCell}
+                      >
+                        <View style={[styles.dayInner, selected && styles.dayInnerSelected]}>
+                          <Text
+                            style={{
+                              fontWeight: selected ? "800" : "600",
+                              color: disabled ? tokens.mute : selected ? "#fff" : tokens.txt,
+                              fontSize: 14,
+                            }}
+                          >
+                            {c.day}
+                          </Text>
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </>
+            )}
           </View>
 
           <Pressable onPress={onClose} style={styles.cancelBtn}>
@@ -377,12 +467,27 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   sheetTitle: { fontSize: 16, fontWeight: "800", marginBottom: 12 },
+  calPanel: {
+    backgroundColor: "#F5F8FF",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#D6E0F5",
+    paddingHorizontal: 10,
+    paddingTop: 10,
+    paddingBottom: 8,
+    shadowColor: "#0B2A9A",
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+  },
   monthRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 10,
   },
+  headerHit: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 4 },
   navBtn: {
     width: 36,
     height: 36,
@@ -396,11 +501,45 @@ const styles = StyleSheet.create({
   weekRow: { flexDirection: "row", marginBottom: 4 },
   weekCell: { flex: 1, textAlign: "center", fontSize: 11, fontWeight: "700" },
   grid: { flexDirection: "row", flexWrap: "wrap" },
+  pickerGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  pickerCell: {
+    width: "31%",
+    flexGrow: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  pickerCellOn: {
+    backgroundColor: colors.blueFlat,
+    shadowColor: colors.blueFlat,
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
   dayCell: {
     width: "14.28%",
     aspectRatio: 1,
     alignItems: "center",
     justifyContent: "center",
+  },
+  dayInner: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dayInnerSelected: {
+    backgroundColor: colors.blueFlat,
+    borderWidth: 2,
+    borderColor: "#fff",
+    shadowColor: colors.blueFlat,
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
   cancelBtn: { alignItems: "center", paddingTop: 12, paddingBottom: 4 },
 });

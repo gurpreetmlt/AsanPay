@@ -126,7 +126,8 @@ export function DateField({
   const [viewY, setViewY] = useState(seed.getFullYear());
   const [viewM, setViewM] = useState(seed.getMonth());
   const [monthDir, setMonthDir] = useState<"left" | "right" | "none">("none");
-  const [monthPicker, setMonthPicker] = useState(false);
+  /** day → month → year (header click drills up; pick drills down). */
+  const [pickerLevel, setPickerLevel] = useState<"day" | "month" | "year">("day");
 
   const openCalendar = useCallback(() => {
     if (disabled) return;
@@ -134,7 +135,7 @@ export function DateField({
     setViewY(d.getFullYear());
     setViewM(d.getMonth());
     setMonthDir("none");
-    setMonthPicker(false);
+    setPickerLevel("day");
     setOpen(true);
   }, [disabled, value]);
 
@@ -173,12 +174,28 @@ export function DateField({
           ? rangePeer
           : value;
 
-  function shiftMonth(delta: number) {
+  function shiftNav(delta: number) {
     setMonthDir(delta < 0 ? "left" : "right");
-    const d = new Date(viewY, viewM + delta, 1);
-    setViewY(d.getFullYear());
-    setViewM(d.getMonth());
+    if (pickerLevel === "day") {
+      const d = new Date(viewY, viewM + delta, 1);
+      setViewY(d.getFullYear());
+      setViewM(d.getMonth());
+      return;
+    }
+    if (pickerLevel === "month") {
+      setViewY((y) => y + delta);
+      return;
+    }
+    setViewY((y) => y + delta * 12);
   }
+
+  function onHeaderClick() {
+    if (pickerLevel === "day") setPickerLevel("month");
+    else if (pickerLevel === "month") setPickerLevel("year");
+  }
+
+  const yearBlockStart = Math.floor(viewY / 12) * 12;
+  const yearOptions = Array.from({ length: 12 }, (_, i) => yearBlockStart + i);
 
   function pickDay(ymd: string) {
     if (min && ymd < min) return;
@@ -186,6 +203,13 @@ export function DateField({
     onChange(clampYmd(ymd, min, max));
     setOpen(false);
   }
+
+  const headerLabel =
+    pickerLevel === "year"
+      ? `${yearBlockStart} – ${yearBlockStart + 11}`
+      : pickerLevel === "month"
+        ? String(viewY)
+        : `${MONTHS[viewM]} ${viewY}`;
 
   const active = open;
 
@@ -230,10 +254,12 @@ export function DateField({
           <div className="mb-2 flex items-center justify-between gap-1">
             <button
               type="button"
-              aria-label="Previous month"
+              aria-label={
+                pickerLevel === "year" ? "Previous years" : pickerLevel === "month" ? "Previous year" : "Previous month"
+              }
               className="date-cal-nav flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#EEF2FF]"
               style={{ color: B.blue }}
-              onClick={() => shiftMonth(-1)}
+              onClick={() => shiftNav(-1)}
             >
               <ChevronLeft size={16} />
             </button>
@@ -241,36 +267,79 @@ export function DateField({
               type="button"
               className="flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-bold transition hover:bg-[#EEF2FF]"
               style={{ color: B.blue }}
-              onClick={() => setMonthPicker((v) => !v)}
+              onClick={onHeaderClick}
+              aria-label={
+                pickerLevel === "day" ? "Choose month" : pickerLevel === "month" ? "Choose year" : "Year range"
+              }
             >
-              {MONTHS[viewM]} {viewY}
-              <ChevronDown size={14} className={clsx("opacity-60 transition", monthPicker && "rotate-180")} />
+              {headerLabel}
+              {pickerLevel !== "year" ? (
+                <ChevronDown
+                  size={14}
+                  className={clsx("opacity-60 transition", pickerLevel !== "day" && "rotate-180")}
+                />
+              ) : null}
             </button>
             <button
               type="button"
-              aria-label="Next month"
+              aria-label={
+                pickerLevel === "year" ? "Next years" : pickerLevel === "month" ? "Next year" : "Next month"
+              }
               className="date-cal-nav flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#EEF2FF]"
               style={{ color: B.blue }}
-              onClick={() => shiftMonth(1)}
+              onClick={() => shiftNav(1)}
             >
               <ChevronRight size={16} />
             </button>
           </div>
 
-          {monthPicker ? (
-            <div className="date-cal-grid-anim grid grid-cols-3 gap-1.5 pb-1">
+          {pickerLevel === "year" ? (
+            <div key={`y-${yearBlockStart}`} className="date-cal-grid-anim grid grid-cols-3 gap-1.5 pb-1">
+              {yearOptions.map((y) => {
+                const on = y === viewY;
+                const minY = min ? Number(min.slice(0, 4)) : undefined;
+                const maxY = max ? Number(max.slice(0, 4)) : undefined;
+                const disabledYear = (minY != null && y < minY) || (maxY != null && y > maxY);
+                return (
+                  <button
+                    key={y}
+                    type="button"
+                    disabled={disabledYear}
+                    onClick={() => {
+                      setViewY(y);
+                      setPickerLevel("month");
+                      setMonthDir("none");
+                    }}
+                    className="rounded-xl px-2 py-2.5 text-xs font-bold transition disabled:opacity-40"
+                    style={{
+                      background: on ? B.blueLight : "transparent",
+                      color: on ? "#fff" : B.blue,
+                    }}
+                  >
+                    {y}
+                  </button>
+                );
+              })}
+            </div>
+          ) : pickerLevel === "month" ? (
+            <div key={`m-${viewY}`} className="date-cal-grid-anim grid grid-cols-3 gap-1.5 pb-1">
               {MONTHS.map((name, i) => {
                 const on = i === viewM;
+                const ymdProbe = `${viewY}-${String(i + 1).padStart(2, "0")}-01`;
+                const monthEnd = toYmd(new Date(viewY, i + 1, 0));
+                const disabledMonth =
+                  (!!min && monthEnd < min) || (!!max && ymdProbe > max);
                 return (
                   <button
                     key={name}
                     type="button"
+                    disabled={disabledMonth}
                     onClick={() => {
                       setViewM(i);
-                      setMonthPicker(false);
+                      setPickerLevel("day");
                       setMonthDir("none");
                     }}
-                    className="rounded-xl px-2 py-2.5 text-xs font-bold transition"
+                    className="rounded-xl px-2 py-2.5 text-xs font-bold transition disabled:opacity-40"
                     style={{
                       background: on ? B.blueLight : "transparent",
                       color: on ? "#fff" : B.blue,

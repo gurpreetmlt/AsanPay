@@ -158,6 +158,7 @@ function DateTextField({
   const seed = isoToDate(isoValue, optional ? new Date() : new Date(1995, 0, 1));
   const [viewYear, setViewYear] = useState(seed.getFullYear());
   const [viewMonth, setViewMonth] = useState(seed.getMonth());
+  const [pickerLevel, setPickerLevel] = useState<"day" | "month" | "year">("day");
 
   useEffect(() => {
     if (isoValue) setText(isoToDisplayDob(isoValue));
@@ -168,6 +169,7 @@ function DateTextField({
     const d = isoToDate(isoValue, optional ? new Date() : new Date(1995, 0, 1));
     setViewYear(d.getFullYear());
     setViewMonth(d.getMonth());
+    setPickerLevel("day");
     setCalOpen(true);
   }
 
@@ -190,6 +192,44 @@ function DateTextField({
       ? Number(isoValue.slice(8, 10))
       : 0;
   const maxYear = new Date().getFullYear();
+  const yearBlockStart = Math.floor(viewYear / 12) * 12;
+  const yearOptions = Array.from({ length: 12 }, (_, i) => yearBlockStart + i);
+
+  function shiftNav(delta: number) {
+    if (pickerLevel === "day") {
+      if (delta < 0) {
+        if (viewMonth === 0) {
+          if (viewYear <= 1940) return;
+          setViewYear((y) => y - 1);
+          setViewMonth(11);
+        } else setViewMonth((m) => m - 1);
+      } else if (viewMonth === 11) {
+        if (viewYear >= maxYear) return;
+        setViewYear((y) => y + 1);
+        setViewMonth(0);
+      } else {
+        if (viewYear === maxYear && viewMonth >= new Date().getMonth()) return;
+        setViewMonth((m) => m + 1);
+      }
+      return;
+    }
+    if (pickerLevel === "month") {
+      const next = viewYear + delta;
+      if (next < 1940 || next > maxYear) return;
+      setViewYear(next);
+      return;
+    }
+    const next = viewYear + delta * 12;
+    if (next + 11 < 1940 || next > maxYear) return;
+    setViewYear(Math.min(Math.max(next, 1940), maxYear));
+  }
+
+  const headerLabel =
+    pickerLevel === "year"
+      ? `${yearBlockStart} – ${yearBlockStart + 11}`
+      : pickerLevel === "month"
+        ? String(viewYear)
+        : `${MONTH_LABELS[viewMonth]} ${viewYear}`;
 
   return (
     <>
@@ -232,77 +272,122 @@ function DateTextField({
             onPress={(e) => e.stopPropagation()}
           >
             <View style={styles.calHeader}>
-              <Pressable
-                onPress={() => {
-                  if (viewMonth === 0) {
-                    if (viewYear <= 1940) return;
-                    setViewYear((y) => y - 1);
-                    setViewMonth(11);
-                  } else setViewMonth((m) => m - 1);
-                }}
-                hitSlop={8}
-              >
+              <Pressable onPress={() => shiftNav(-1)} hitSlop={8}>
                 <Text style={{ color: colors.blue, fontWeight: "800", fontSize: 18 }}>‹</Text>
               </Pressable>
-              <Text style={{ color: tokens.txt2, fontWeight: "800", fontSize: 15 }}>
-                {MONTH_LABELS[viewMonth]} {viewYear}
-              </Text>
               <Pressable
                 onPress={() => {
-                  if (viewMonth === 11) {
-                    if (viewYear >= maxYear) return;
-                    setViewYear((y) => y + 1);
-                    setViewMonth(0);
-                  } else {
-                    if (viewYear === maxYear && viewMonth >= new Date().getMonth()) return;
-                    setViewMonth((m) => m + 1);
-                  }
+                  if (pickerLevel === "day") setPickerLevel("month");
+                  else if (pickerLevel === "month") setPickerLevel("year");
                 }}
                 hitSlop={8}
+                style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
               >
+                <Text style={{ color: tokens.txt2, fontWeight: "800", fontSize: 15 }}>{headerLabel}</Text>
+                {pickerLevel !== "year" ? (
+                  <Text style={{ color: colors.blue, fontWeight: "800", fontSize: 10 }}>▼</Text>
+                ) : null}
+              </Pressable>
+              <Pressable onPress={() => shiftNav(1)} hitSlop={8}>
                 <Text style={{ color: colors.blue, fontWeight: "800", fontSize: 18 }}>›</Text>
               </Pressable>
             </View>
-            <View style={styles.calWeekRow}>
-              {["S", "M", "T", "W", "T", "F", "S"].map((w, i) => (
-                <Text key={`${w}-${i}`} style={[styles.calWeekDay, { color: tokens.mute }]}>
-                  {w}
-                </Text>
-              ))}
-            </View>
-            <View style={styles.calGrid}>
-              {Array.from({ length: startWeekday }, (_, i) => (
-                <View key={`e-${i}`} style={styles.calCell} />
-              ))}
-              {Array.from({ length: daysInMonth }, (_, i) => {
-                const day = i + 1;
-                const dt = new Date(viewYear, viewMonth, day);
-                const disabled = dt.getTime() > Date.now();
-                const selected = selectedDay === day;
-                return (
-                  <Pressable
-                    key={day}
-                    disabled={disabled}
-                    onPress={() => pickDay(day)}
-                    style={[
-                      styles.calCell,
-                      selected && { backgroundColor: colors.blue, borderRadius: 10 },
-                      disabled && { opacity: 0.35 },
-                    ]}
-                  >
-                    <Text
-                      style={{
-                        color: selected ? "#fff" : tokens.txt2,
-                        fontWeight: selected ? "800" : "600",
-                        fontSize: 13,
+
+            {pickerLevel === "year" ? (
+              <View style={styles.calGrid}>
+                {yearOptions.map((y) => {
+                  const on = y === viewYear;
+                  const disabled = y < 1940 || y > maxYear;
+                  return (
+                    <Pressable
+                      key={y}
+                      disabled={disabled}
+                      onPress={() => {
+                        setViewYear(y);
+                        setPickerLevel("month");
                       }}
+                      style={[
+                        styles.calCell,
+                        { width: "33.33%" },
+                        on && { backgroundColor: colors.blue, borderRadius: 10 },
+                        disabled && { opacity: 0.35 },
+                      ]}
                     >
-                      {day}
+                      <Text style={{ color: on ? "#fff" : tokens.txt2, fontWeight: "800", fontSize: 13 }}>{y}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : pickerLevel === "month" ? (
+              <View style={styles.calGrid}>
+                {MONTH_LABELS.map((name, i) => {
+                  const on = i === viewMonth;
+                  const disabled = viewYear === maxYear && i > new Date().getMonth();
+                  return (
+                    <Pressable
+                      key={name}
+                      disabled={disabled}
+                      onPress={() => {
+                        setViewMonth(i);
+                        setPickerLevel("day");
+                      }}
+                      style={[
+                        styles.calCell,
+                        { width: "33.33%" },
+                        on && { backgroundColor: colors.blue, borderRadius: 10 },
+                        disabled && { opacity: 0.35 },
+                      ]}
+                    >
+                      <Text style={{ color: on ? "#fff" : tokens.txt2, fontWeight: "800", fontSize: 13 }}>{name}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : (
+              <>
+                <View style={styles.calWeekRow}>
+                  {["S", "M", "T", "W", "T", "F", "S"].map((w, i) => (
+                    <Text key={`${w}-${i}`} style={[styles.calWeekDay, { color: tokens.mute }]}>
+                      {w}
                     </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+                  ))}
+                </View>
+                <View style={styles.calGrid}>
+                  {Array.from({ length: startWeekday }, (_, i) => (
+                    <View key={`e-${i}`} style={styles.calCell} />
+                  ))}
+                  {Array.from({ length: daysInMonth }, (_, i) => {
+                    const day = i + 1;
+                    const dt = new Date(viewYear, viewMonth, day);
+                    const disabled = dt.getTime() > Date.now();
+                    const selected = selectedDay === day;
+                    return (
+                      <Pressable
+                        key={day}
+                        disabled={disabled}
+                        onPress={() => pickDay(day)}
+                        style={[
+                          styles.calCell,
+                          selected && { backgroundColor: colors.blue, borderRadius: 10 },
+                          disabled && { opacity: 0.35 },
+                        ]}
+                      >
+                        <Text
+                          style={{
+                            color: selected ? "#fff" : tokens.txt2,
+                            fontWeight: selected ? "800" : "600",
+                            fontSize: 13,
+                          }}
+                        >
+                          {day}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </>
+            )}
+
             <View style={styles.calFooter}>
               {optional ? (
                 <Pressable
