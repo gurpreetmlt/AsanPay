@@ -426,6 +426,7 @@ bankingRouter.get("/summary", requireRole("admin"), async (_req, res) => {
     unmatched: string;
     credited_today: string;
     bank_total: string;
+    pending_amount: string;
   }>(sql`
     SELECT
       (SELECT COUNT(*) FROM fund_requests
@@ -438,25 +439,73 @@ bankingRouter.get("/summary", requireRole("admin"), async (_req, res) => {
           AND (credited_at AT TIME ZONE 'Asia/Kolkata')::date = (now() AT TIME ZONE 'Asia/Kolkata')::date)::text AS credited_today,
       (SELECT COALESCE(SUM(ab.balance), 0) FROM bank_accounts ba
         JOIN account_balances ab ON ab.account_id = ba.ledger_account_id
-        WHERE ba.tenant_id = ${tenantId} AND ba.deleted_at IS NULL)::text AS bank_total
+        WHERE ba.tenant_id = ${tenantId} AND ba.deleted_at IS NULL)::text AS bank_total,
+      (SELECT COALESCE(SUM(amount), 0) FROM bank_statement_lines
+        WHERE tenant_id = ${tenantId} AND direction = 'CR' AND match_status = 'unmatched')::text AS pending_amount
   `);
-  const banks = await db.execute<{ bank_name: string; last4: string; balance: string }>(sql`
-    SELECT ba.bank_name, ba.account_number_last4 AS last4, COALESCE(ab.balance, 0)::text AS balance
+  const banks = await db.execute<{
+    bank_name: string;
+    last4: string;
+    balance: string;
+    statement_balance: string | null;
+    statement_as_of: string | null;
+  }>(sql`
+    SELECT ba.bank_name,
+           ba.account_number_last4 AS last4,
+           COALESCE(ab.balance, 0)::text AS balance,
+           stmt.balance_after::text AS statement_balance,
+           stmt.txn_date::text AS statement_as_of
     FROM bank_accounts ba
     LEFT JOIN account_balances ab ON ab.account_id = ba.ledger_account_id
+    LEFT JOIN LATERAL (
+      SELECT l.balance_after, l.txn_date
+      FROM bank_statement_lines l
+      WHERE l.bank_account_id = ba.id AND l.balance_after IS NOT NULL
+      ORDER BY l.txn_date DESC, l.id DESC
+      LIMIT 1
+    ) stmt ON true
     WHERE ba.tenant_id = ${tenantId} AND ba.deleted_at IS NULL AND ba.is_active
     ORDER BY ab.balance DESC NULLS LAST
   `);
   const r = rows.rows[0];
+  let statementPaise = 0n;
+  let booksCompared = 0n;
+  let banksWithStatement = 0;
+  let statementAsOf: string | null = null;
+  for (const b of banks.rows) {
+    if (b.statement_balance == null) continue;
+    statementPaise += BigInt(b.statement_balance);
+    booksCompared += BigInt(b.balance);
+    banksWithStatement += 1;
+    if (b.statement_as_of && (!statementAsOf || b.statement_as_of > statementAsOf)) {
+      statementAsOf = b.statement_as_of;
+    }
+  }
+  const hasStatement = banksWithStatement > 0;
   sendSuccess(res, {
     pendingFundRequests: Number(r?.pending ?? 0),
     unmatchedLines: Number(r?.unmatched ?? 0),
     creditedToday: paiseToRupees(BigInt(r?.credited_today ?? "0")),
     bankTotal: paiseToRupees(BigInt(r?.bank_total ?? "0")),
+    cashPicture: {
+      bank: hasStatement ? paiseToRupees(statementPaise) : null,
+      books: paiseToRupees(hasStatement ? booksCompared : 0n),
+      difference: hasStatement ? paiseToRupees(statementPaise - booksCompared) : null,
+      pendingAmount: paiseToRupees(BigInt(r?.pending_amount ?? "0")),
+      asOf: statementAsOf,
+      banksWithStatement,
+      activeBanks: banks.rows.length,
+    },
     banks: banks.rows.map((b) => ({
       bankName: b.bank_name,
       last4: b.last4,
       balance: paiseToRupees(BigInt(b.balance)),
+      statementBalance: b.statement_balance != null ? paiseToRupees(BigInt(b.statement_balance)) : null,
+      statementAsOf: b.statement_as_of,
+      statementDifference:
+        b.statement_balance != null
+          ? paiseToRupees(BigInt(b.statement_balance) - BigInt(b.balance))
+          : null,
     })),
   });
 });

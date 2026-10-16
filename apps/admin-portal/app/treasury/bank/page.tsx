@@ -25,17 +25,80 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "virtual-accounts", label: "Virtual accounts" },
 ];
 
+interface CashPicture {
+  bank: string | null;
+  books: string;
+  difference: string | null;
+  pendingAmount: string;
+  asOf: string | null;
+  banksWithStatement: number;
+  activeBanks: number;
+}
+
+interface SummaryBank {
+  bankName: string;
+  last4: string;
+  balance: string;
+  statementBalance?: string | null;
+  statementAsOf?: string | null;
+  statementDifference?: string | null;
+}
+
 interface Summary {
   pendingFundRequests: number;
   unmatchedLines: number;
   creditedToday: string;
   bankTotal: string;
-  banks: { bankName: string; last4: string; balance: string }[];
+  cashPicture?: CashPicture;
+  banks: SummaryBank[];
 }
 
 function inr(v: string, decimals = 2) {
-  const n = Number(v);
-  return `₹${n.toLocaleString("en-IN", { minimumFractionDigits: decimals, maximumFractionDigits: 2 })}`;
+  const neg = v.startsWith("-");
+  const n = Number(neg ? v.slice(1) : v);
+  const text = `₹${n.toLocaleString("en-IN", { minimumFractionDigits: decimals, maximumFractionDigits: 2 })}`;
+  return neg ? `−${text}` : text;
+}
+
+function signedInr(v: string | null) {
+  if (v === null) return "—";
+  if (v.startsWith("-")) return inr(v);
+  if (Number(v) === 0) return inr(v);
+  return `+${inr(v)}`;
+}
+
+function asOfLabel(iso: string | null) {
+  if (!iso) return null;
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  if (!y || !m || !d) return null;
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${Number(d)} ${months[Number(m) - 1] ?? m} ${y}`;
+}
+
+function CashCell({
+  label,
+  value,
+  sub,
+  valueColor,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+  valueColor?: string;
+}) {
+  return (
+    <div className="min-w-0 px-4 py-3">
+      <p className="text-xs font-medium" style={{ color: B.muted }}>
+        {label}
+      </p>
+      <p className="mt-0.5 text-xl font-bold tabular-nums" style={{ color: valueColor ?? B.blue }}>
+        {value}
+      </p>
+      <p className="truncate text-[11px]" style={{ color: B.muted }}>
+        {sub}
+      </p>
+    </div>
+  );
 }
 
 function StatCard({
@@ -134,6 +197,15 @@ function BankDepositsContent() {
   const banks = summary?.banks ?? [];
   const bankSub =
     banks.length === 1 ? `${banks[0]!.bankName} ••${banks[0]!.last4}` : `${banks.length} company bank accounts`;
+  const picture = summary?.cashPicture;
+  const diff = picture?.difference ?? null;
+  const diffZero = diff !== null && !diff.startsWith("-") && Number(diff) === 0;
+  const pendingOpen = unmatched > 0 || (picture ? Number(picture.pendingAmount) > 0 : false);
+  const asOf = asOfLabel(picture?.asOf ?? null);
+  const missingStatements =
+    picture && picture.activeBanks > 0 && picture.banksWithStatement < picture.activeBanks
+      ? picture.activeBanks - picture.banksWithStatement
+      : 0;
 
   return (
     <AdminShell>
@@ -153,6 +225,103 @@ function BankDepositsContent() {
             Company bank money, agent deposits and statement matching in one place
           </p>
         </div>
+
+        <section
+          aria-label="Cash picture"
+          className="rounded-2xl border bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
+          style={{ borderColor: B.border }}
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3 border-b px-4 py-3" style={{ borderColor: B.border }}>
+            <div>
+              <h2 className="text-sm font-bold" style={{ color: B.blue }}>
+                Cash picture
+              </h2>
+              <p className="mt-0.5 text-xs" style={{ color: B.muted }}>
+                Latest statement balance against the AsanPay ledger. Reconciliation is not required.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => goTab("reconciliation")}
+              className="cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold transition hover:bg-[#EEF3FF]"
+              style={{ color: B.blueLight }}
+            >
+              Open Reconciliation
+            </button>
+          </div>
+          <div className="grid grid-cols-2 divide-x divide-y divide-[var(--admin-border)] xl:grid-cols-4 xl:divide-y-0">
+            <CashCell
+              label="Bank"
+              value={picture?.bank ? inr(picture.bank) : "—"}
+              sub={
+                picture?.bank
+                  ? asOf
+                    ? `Statement as of ${asOf}`
+                    : "Latest imported statement"
+                  : "Upload a statement to see the bank balance"
+              }
+            />
+            <CashCell
+              label="Books"
+              value={picture?.bank ? inr(picture.books) : summary ? inr(summary.bankTotal) : "—"}
+              sub={
+                !picture?.bank
+                  ? "Company bank ledger"
+                  : missingStatements
+                    ? `Ledger for ${picture.banksWithStatement} of ${picture.activeBanks} banks`
+                    : "Active bank ledger"
+              }
+            />
+            <CashCell
+              label="Difference"
+              value={signedInr(diff)}
+              valueColor={diff === null ? B.muted : diffZero ? "#15803D" : B.danger}
+              sub={diff === null ? "Needs a statement balance" : diffZero ? "Bank and books match" : "Statement minus books"}
+            />
+            <CashCell
+              label="Pending"
+              value={picture ? inr(picture.pendingAmount) : "—"}
+              valueColor={picture ? (pendingOpen ? "#D97706" : "#15803D") : B.muted}
+              sub={
+                unmatched
+                  ? `${unmatched} unmatched credit${unmatched === 1 ? "" : "s"}`
+                  : "No unmatched statement credits"
+              }
+            />
+          </div>
+          {missingStatements ? (
+            <p className="border-t px-4 py-2 text-[11px]" style={{ borderColor: B.border, color: B.muted }}>
+              {missingStatements} active bank{missingStatements === 1 ? " has" : "s have"} no statement balance yet. Difference uses only banks that do.
+            </p>
+          ) : null}
+          {banks.length > 1 ? (
+            <ul className="grid gap-2 border-t p-3 sm:grid-cols-2" style={{ borderColor: B.border }}>
+              {banks.map((b, i) => {
+                const rowDiff = b.statementBalance != null ? signedInr(b.statementDifference ?? null) : "—";
+                const rowAsOf = asOfLabel(b.statementAsOf ?? null);
+                return (
+                  <li
+                    key={`${b.bankName}-${b.last4}-${i}`}
+                    className="rounded-xl border px-3 py-2 text-xs"
+                    style={{ borderColor: B.border }}
+                  >
+                    <p className="font-semibold" style={{ color: B.blue }}>
+                      {b.bankName} ••{b.last4}
+                    </p>
+                    <p className="mt-0.5 tabular-nums" style={{ color: B.muted }}>
+                      Bank {b.statementBalance ? inr(b.statementBalance) : "—"}
+                      {" · "}
+                      Books {inr(b.balance)}
+                      {" · "}
+                      Diff {rowDiff}
+                      {rowAsOf ? ` · ${rowAsOf}` : ""}
+                    </p>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
+        </section>
 
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
