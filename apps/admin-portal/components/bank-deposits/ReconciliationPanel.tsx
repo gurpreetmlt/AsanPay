@@ -277,7 +277,7 @@ function ExportMenu({ report, rows }: { report: ReconReport; rows: ReconRow[] })
         type="button"
         disabled={!rows.length}
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-1.5 rounded-xl border bg-white px-3 py-2.5 text-sm font-semibold disabled:opacity-50"
+        className="inline-flex h-11 items-center gap-1.5 rounded-xl border bg-white px-3 text-sm font-semibold disabled:opacity-50"
         style={{ borderColor: B.border, color: B.blue }}
       >
         <Download size={14} /> Export <ChevronDown size={14} />
@@ -712,35 +712,13 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
         </p>
 
         <section className="space-y-4 rounded-2xl border bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]" style={{ borderColor: B.border }}>
-          <h2 className="text-base font-bold" style={{ color: B.blue }}>
-            Upload statement
-          </h2>
-
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-            <Field label="Bank account">
-              <select
-                className={inputCls}
-                style={inputStyle}
-                value={uploadBankId}
-                onChange={(e) => switchUploadBank(e.target.value)}
-              >
-                <option value="">Select bank account</option>
-                {banks.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {bankLabel(b)}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <button
-              type="button"
-              onClick={() => void preview()}
-              disabled={importing || verifying}
-              className="inline-flex h-[42px] items-center justify-center gap-1.5 rounded-xl px-5 text-sm font-bold text-white disabled:opacity-60"
-              style={{ background: B.badgeGrad }}
-            >
-              <Upload size={15} /> Preview &amp; prepare
-            </button>
+          <div>
+            <h2 className="text-base font-bold" style={{ color: B.blue }}>
+              Upload statement
+            </h2>
+            <p className="mt-0.5 text-sm" style={{ color: B.muted }}>
+              Import transactions directly from your bank statement
+            </p>
           </div>
 
           <input
@@ -752,56 +730,67 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
             onChange={(e) => void onFile(e.target.files?.[0] ?? null)}
           />
 
-          <div
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                fileInputRef.current?.click();
-              }
-            }}
-            onClick={() => fileInputRef.current?.click()}
-            onDragEnter={(e) => {
-              e.preventDefault();
-              setDragOver(true);
-            }}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragOver(true);
-            }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDragOver(false);
-              void onFile(e.dataTransfer.files?.[0] ?? null);
-            }}
-            className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed px-4 py-10 text-center transition"
-            style={{
-              borderColor: dragOver ? B.blueLight : "#CBD5E1",
-              background: dragOver ? "#EFF6FF" : "#F8FAFC",
-            }}
-          >
-            <span
-              className="flex h-12 w-12 items-center justify-center rounded-2xl"
-              style={{ background: "#E0E9FD", color: B.blueLight }}
-            >
-              <FileSpreadsheet size={22} />
-            </span>
-            <p className="text-sm font-semibold" style={{ color: B.blue }}>
-              {fileName
-                ? `Selected: ${fileName}`
-                : "Drop CSV file here or browse file"}
-            </p>
-            <p className="max-w-md text-xs" style={{ color: B.muted }}>
-              Works with CSV export or rows copied from Excel. Date, Debit, Credit and Balance columns are detected
-              automatically.
-            </p>
+          {/* Row 1: small Bank + Upload field, same height */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <label className="block w-full sm:w-[220px] sm:shrink-0 text-sm">
+              <span className="mb-1 block font-medium" style={{ color: B.muted }}>
+                Bank account
+              </span>
+              <select
+                className="h-11 w-full rounded-xl border px-3 text-sm"
+                style={inputStyle}
+                value={uploadBankId}
+                onChange={(e) => switchUploadBank(e.target.value)}
+              >
+                <option value="">Select bank</option>
+                {banks.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.bankName} ••{b.accountNumberLast4}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block min-w-0 flex-1 text-sm">
+              <span className="mb-1 block font-medium" style={{ color: B.muted }}>
+                Upload statement
+              </span>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                onDragEnter={(e) => {
+                  e.preventDefault();
+                  setDragOver(true);
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragOver(true);
+                }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOver(false);
+                  void onFile(e.dataTransfer.files?.[0] ?? null);
+                }}
+                className="flex h-11 w-full items-center gap-2 truncate rounded-xl border border-dashed px-3 text-left text-sm font-medium transition"
+                style={{
+                  borderColor: dragOver ? B.blueLight : B.border,
+                  background: dragOver ? "#EFF6FF" : "#F8FAFC",
+                  color: B.blue,
+                }}
+              >
+                <Upload size={16} className="shrink-0" style={{ color: B.blueLight }} />
+                <span className="min-w-0 truncate">
+                  {fileName ? fileName : "Drop CSV here or browse file"}
+                </span>
+              </button>
+            </label>
           </div>
 
+          {/* Row 2: paste field */}
           <Field label="…or paste rows copied from Excel / the statement (include the header row)">
             <textarea
-              className={`${inputCls} min-h-[120px] font-mono text-xs`}
+              className={`${inputCls} min-h-[110px] font-mono text-xs`}
               style={inputStyle}
               placeholder={
                 "Txn Date\tDescription\tRef No.\tDebit\tCredit\tBalance\n14/09/2026\tUPI/392778526720/AJAY KUMAR\t392778526720\t\t4,990.00\t4,990.00"
@@ -816,22 +805,34 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
             />
           </Field>
 
-          {(fileName || rawText) && (
+          {/* Row 3: Preview bottom-right */}
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {(fileName || rawText) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setRawText("");
+                  setFileName(null);
+                  setParsed(null);
+                  setBankCheck(null);
+                  setFileInputKey((k) => k + 1);
+                }}
+                className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
+                style={{ background: B.danger }}
+              >
+                Clear
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => {
-                setRawText("");
-                setFileName(null);
-                setParsed(null);
-                setBankCheck(null);
-                setFileInputKey((k) => k + 1);
-              }}
-              className="rounded-xl px-4 py-2 text-sm font-semibold text-white"
-              style={{ background: B.danger }}
+              onClick={() => void preview()}
+              disabled={importing || verifying}
+              className="inline-flex h-11 items-center justify-center gap-1.5 rounded-xl px-5 text-sm font-bold text-white disabled:opacity-60"
+              style={{ background: B.badgeGrad }}
             >
-              Clear
+              <Upload size={15} /> Preview
             </button>
-          )}
+          </div>
 
           {parsed && parsed.lines.length > 0 && previewTotals ? (
             <div className="space-y-3 rounded-xl border p-4" style={{ borderColor: B.border, background: "#F8FAFF" }}>
@@ -919,97 +920,113 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
           className="scroll-mt-4 space-y-4 rounded-2xl border bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
           style={{ borderColor: B.border }}
         >
-          <h2 className="text-base font-bold" style={{ color: B.blue }}>
-            Reconcile
-          </h2>
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="min-w-[240px] flex-1">
-                <Field label="Bank account">
-                  <select
-                    className={inputCls}
-                    style={inputStyle}
-                    value={bankId}
-                    onChange={(e) => setBankId(e.target.value)}
-                  >
-                    <option value="">Select bank account</option>
-                    {banks.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {bankLabel(b)}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-              </div>
-              <div className="flex flex-wrap gap-1.5 pb-0.5">
-                {(
-                  [
-                    ["today", "Today"],
-                    ["week", "This week"],
-                    ["month", "This month"],
-                    ["lastMonth", "Last month"],
-                  ] as const
-                ).map(([key, label]) => {
-                  const active = periodPreset === key;
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => {
-                        const r = presetRange(key);
-                        setFrom(r.from);
-                        setTo(r.to);
-                        setPeriodPreset(key);
-                      }}
-                      className="rounded-lg border px-3 py-2 text-xs font-bold transition"
-                      style={{
-                        borderColor: active ? B.blueLight : B.border,
-                        color: active ? B.blueLight : B.muted,
-                        background: active ? "#EFF6FF" : "#fff",
-                      }}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <div className="flex flex-wrap items-end gap-3">
-              <Field label="From">
-                <input
-                  type="date"
-                  className={inputCls}
-                  style={inputStyle}
-                  value={from}
-                  onChange={(e) => {
-                    setFrom(e.target.value);
-                    setPeriodPreset(null);
-                  }}
-                />
-              </Field>
-              <Field label="To">
-                <input
-                  type="date"
-                  className={inputCls}
-                  style={inputStyle}
-                  value={to}
-                  onChange={(e) => {
-                    setTo(e.target.value);
-                    setPeriodPreset(null);
-                  }}
-                />
-              </Field>
-              <button
-                type="button"
-                disabled={loading}
-                onClick={() => void runReport()}
-                className="rounded-xl px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60"
-                style={{ background: B.badgeGrad }}
+          <div>
+            <h2 className="text-base font-bold" style={{ color: B.blue }}>
+              Reconcile
+            </h2>
+            <p className="mt-0.5 text-sm" style={{ color: B.muted }}>
+              Compare your books with the bank statement
+            </p>
+          </div>
+
+          {/* Control bar — one row like the mock */}
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="block w-full text-sm sm:w-[200px]">
+              <span className="mb-1 block font-medium" style={{ color: B.muted }}>
+                Bank account
+              </span>
+              <select
+                className="h-11 w-full rounded-xl border px-3 text-sm"
+                style={inputStyle}
+                value={bankId}
+                onChange={(e) => setBankId(e.target.value)}
               >
-                {loading ? "Checking…" : "Run reconciliation"}
-              </button>
-              {report ? <ExportMenu report={report} rows={visibleRows} /> : null}
+                <option value="">Select bank</option>
+                {banks.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.bankName} ••{b.accountNumberLast4}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div
+              className="inline-flex h-11 items-center rounded-xl border p-1"
+              style={{ borderColor: B.border, background: "#F1F5F9" }}
+            >
+              {(
+                [
+                  ["today", "Today"],
+                  ["week", "This week"],
+                  ["month", "This month"],
+                  ["lastMonth", "Last month"],
+                ] as const
+              ).map(([key, label]) => {
+                const active = periodPreset === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => {
+                      const r = presetRange(key);
+                      setFrom(r.from);
+                      setTo(r.to);
+                      setPeriodPreset(key);
+                    }}
+                    className="rounded-lg px-3 py-1.5 text-xs font-bold transition"
+                    style={{
+                      background: active ? "#fff" : "transparent",
+                      color: active ? B.blue : B.muted,
+                      boxShadow: active ? "0 1px 2px rgba(15,23,42,0.08)" : undefined,
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
             </div>
+
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium" style={{ color: B.muted }}>
+                From
+              </span>
+              <input
+                type="date"
+                className="h-11 rounded-xl border px-3 text-sm"
+                style={inputStyle}
+                value={from}
+                onChange={(e) => {
+                  setFrom(e.target.value);
+                  setPeriodPreset(null);
+                }}
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium" style={{ color: B.muted }}>
+                To
+              </span>
+              <input
+                type="date"
+                className="h-11 rounded-xl border px-3 text-sm"
+                style={inputStyle}
+                value={to}
+                onChange={(e) => {
+                  setTo(e.target.value);
+                  setPeriodPreset(null);
+                }}
+              />
+            </label>
+
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => void runReport()}
+              className="h-11 rounded-xl px-5 text-sm font-bold text-white disabled:opacity-60"
+              style={{ background: B.badgeGrad }}
+            >
+              {loading ? "Checking…" : "Run reconciliation"}
+            </button>
+            {report ? <ExportMenu report={report} rows={visibleRows} /> : null}
           </div>
 
           {report ? (
@@ -1018,13 +1035,17 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                 {TILE_ORDER.map((k) => (
                   <div
                     key={k}
-                    className="rounded-xl border border-l-4 bg-white p-3"
-                    style={{ borderColor: B.border, borderLeftColor: KIND_META[k].color }}
+                    className="rounded-xl border bg-white p-3"
+                    style={{
+                      borderColor: B.border,
+                      borderTopWidth: 4,
+                      borderTopColor: KIND_META[k].color,
+                    }}
                   >
                     <p className="text-xs font-semibold" style={{ color: B.muted }}>
                       {KIND_META[k].label}
                     </p>
-                    <p className="text-2xl font-bold" style={{ color: KIND_META[k].color }}>
+                    <p className="mt-1 text-2xl font-bold tabular-nums" style={{ color: B.blue }}>
                       {report.counts[k]}
                     </p>
                   </div>
@@ -1034,20 +1055,20 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
               <div
                 className="flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm"
                 style={{
-                  borderColor: diff === null ? B.border : balanced ? "#86EFAC" : "#FCA5A5",
-                  background: diff === null ? "#F8FAFC" : balanced ? "#F0FDF4" : "#FEF2F2",
+                  borderColor: B.border,
+                  background: "#F8FAFC",
                 }}
               >
                 <div className="flex flex-wrap items-center gap-x-8 gap-y-2">
                   <span style={{ color: B.muted }}>
-                    Statement closing <b style={{ color: B.blue }}>{inr(report.statement.closing)}</b>
+                    Statement closing: <b style={{ color: B.blue }}>{inr(report.statement.closing)}</b>
                   </span>
                   <span style={{ color: B.muted }}>
-                    Our closing <b style={{ color: B.blue }}>{inr(report.ours.closing)}</b>
+                    Our closing: <b style={{ color: B.blue }}>{inr(report.ours.closing)}</b>
                   </span>
                   {diff !== null ? (
                     <span style={{ color: B.muted }}>
-                      Difference{" "}
+                      Difference:{" "}
                       <b style={{ color: balanced ? "#15803D" : "#B91C1C" }}>{inr(diff)}</b>
                     </span>
                   ) : (
@@ -1056,50 +1077,62 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                 </div>
                 {diff === null ? null : balanced ? (
                   <span
-                    className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold"
+                    className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold"
                     style={{ background: "#DCFCE7", color: "#15803D" }}
                   >
-                    <CheckCircle2 size={14} /> Balanced
+                    <CheckCircle2 size={13} /> Balanced
                   </span>
                 ) : (
                   <span
-                    className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold"
+                    className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold"
                     style={{ background: "#FEE2E2", color: "#B91C1C" }}
                   >
-                    <XCircle size={14} /> Not balanced
+                    <XCircle size={13} /> Not balanced
                   </span>
                 )}
               </div>
 
-              <div className="flex flex-wrap gap-1 border-b" style={{ borderColor: B.border }}>
-                {(
-                  [
-                    ["attention", `Needs attention (${ATTENTION.reduce((n, k) => n + report.counts[k], 0)})`],
-                    ["matched", `Matched (${report.counts.matched})`],
-                    ["all", `All (${report.rows.length})`],
-                  ] as const
-                ).map(([key, label]) => {
-                  const active = filter === key;
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => setFilter(key)}
-                      data-active={active}
-                      className="relative px-3 py-2.5 text-sm font-semibold transition"
-                      style={{ color: active ? B.blueLight : B.muted }}
-                    >
-                      {label}
-                      <span
-                        className="absolute inset-x-2 -bottom-px h-[2px] rounded-full transition"
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="inline-flex flex-wrap gap-1.5 rounded-xl p-1" style={{ background: "#F1F5F9" }}>
+                  {(
+                    [
+                      ["attention", "Needs attention", ATTENTION.reduce((n, k) => n + report.counts[k], 0)],
+                      ["matched", "Matched", report.counts.matched],
+                      ["all", "All", report.rows.length],
+                    ] as const
+                  ).map(([key, label, count]) => {
+                    const active = filter === key;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setFilter(key)}
+                        data-active={active}
+                        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition"
                         style={{
-                          background: B.blueLight,
-                          opacity: active ? 1 : 0,
+                          background: active ? B.badgeGrad : "transparent",
+                          color: active ? "#fff" : B.muted,
                         }}
-                      />
-                    </button>
-                  );
-                })}
+                      >
+                        {label}
+                        {key === "attention" && count > 0 ? (
+                          <span
+                            className="inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold"
+                            style={{
+                              background: active ? "rgba(255,255,255,0.25)" : "#DC2626",
+                              color: "#fff",
+                            }}
+                          >
+                            {count}
+                          </span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs font-medium" style={{ color: B.muted }}>
+                  Showing {visibleRows.length} of {report.rows.length} transactions
+                </p>
               </div>
 
               {selectedLines.length > 0 ? (
