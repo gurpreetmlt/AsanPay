@@ -41,6 +41,7 @@ import { extractApiError } from "@/lib/onboarding";
 import { useAuthStore } from "@/lib/store";
 import type { TxnRow } from "@/lib/types";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
+import { formatEarnEstimateLine, useEarnEstimate } from "@/hooks/useEarnEstimate";
 
 function todayInputValue(): string {
   const d = new Date();
@@ -493,6 +494,8 @@ function RechargeInner() {
   const [panelTab, setPanelTab] = useState<"plans" | "offers">("plans");
   const [panelBusy, setPanelBusy] = useState(false);
   const [amount, setAmount] = useState("");
+  const earnEstimate = useEarnEstimate(serviceCode, amount);
+  const earnLine = formatEarnEstimateLine(earnEstimate);
   const [txnPin, setTxnPin] = useState("");
   const [loading, setLoading] = useState(false);
   const [lastRef, setLastRef] = useState<string | null>(null);
@@ -883,7 +886,9 @@ function RechargeInner() {
         setTxnPin("");
         setResultAlert({
           title: "Recharge successful",
-          message: txn?.txnRef ? `Ref: ${txn.txnRef}` : "Done",
+          message:
+            (txn?.txnRef ? `Ref: ${txn.txnRef}` : "Done") +
+            (earnLine ? `\n${earnLine}` : ""),
           tone: "info",
         });
         void loadRecentTxns();
@@ -1229,6 +1234,11 @@ function RechargeInner() {
                         placeholder="Min. Rs. 10"
                       />
                     </div>
+                    {earnLine ? (
+                      <p className="text-xs font-bold" style={{ color: B.green }}>
+                        {earnLine}
+                      </p>
+                    ) : null}
                   </label>
 
                   <label className="block space-y-1">

@@ -209,6 +209,23 @@ export async function resolveDispute(params: {
 
     if (!row) throw new HttpError(500, "Could not resolve dispute", "DISPUTE_RESOLVE_FAILED");
     return { id: row.id, status: row.status, reversalJournalIds };
+  }).then(async (result) => {
+    // After journals reverse, mark commission_ledger clawed back + sync beneficiary wallets (TC18).
+    if (params.outcome === "resolved" && params.refund) {
+      const { clawbackCommissionForTxn } = await import("../commission/commission.service");
+      const [d] = await db.select({ transactionId: disputes.transactionId }).from(disputes).where(eq(disputes.id, params.id)).limit(1);
+      if (d) {
+        try {
+          await clawbackCommissionForTxn(d.transactionId, {
+            performedBy: params.adminId,
+            reason: `Dispute ${params.id} refund — commission clawback`,
+          });
+        } catch {
+          // Dispute money path already committed; clawback is best-effort for tax/earnings rows.
+        }
+      }
+    }
+    return result;
   });
 }
 

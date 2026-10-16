@@ -98,6 +98,8 @@ function MyEarningsInner() {
   const accessToken = useAuthStore((s) => s.accessToken);
   const user = useAuthStore((s) => s.user);
   const isPartner = user?.role === "super_distributor" || user?.role === "distributor";
+  const isRetailer = user?.role === "retailer";
+  const canView = isPartner || isRetailer;
   const downlineLabel = user?.role === "super_distributor" ? "Distributor-wise" : "Retailer-wise";
 
   const initialFrom = search.get("from") || todayYmd();
@@ -105,7 +107,7 @@ function MyEarningsInner() {
 
   const [from, setFrom] = useState(initialFrom);
   const [to, setTo] = useState(initialTo);
-  const [mode, setMode] = useState<"product" | "downline">("downline");
+  const [mode, setMode] = useState<"product" | "downline">(isRetailer ? "product" : "downline");
   const [q, setQ] = useState("");
   const [summary, setSummary] = useState<EarningsSummary | null>(null);
   const [products, setProducts] = useState<ProductRow[]>([]);
@@ -122,28 +124,37 @@ function MyEarningsInner() {
   }, [hydrated, accessToken, router]);
 
   useEffect(() => {
-    if (hydrated && user?.role === "retailer") router.replace("/dashboard");
-  }, [hydrated, user?.role, router]);
+    if (isRetailer) setMode("product");
+  }, [isRetailer]);
 
   useEffect(() => {
-    if (!accessToken || !isPartner) return;
+    if (!accessToken || !canView) return;
     let alive = true;
     (async () => {
       setLoading(true);
       try {
-        const [sum, prod, dl] = await Promise.all([
+        const tasks: Promise<unknown>[] = [
           fetchApi<EarningsSummary>("/earnings/summary", { from, to }),
           fetchApi<{ products: ProductRow[] }>("/earnings/by-product", { from, to }),
-          fetchApi<{ rows: DownlineRow[] }>("/earnings/by-downline", {
-            from,
-            to,
-            ...(q.trim() ? { q: q.trim() } : {}),
-          }),
-        ]);
+        ];
+        if (isPartner) {
+          tasks.push(
+            fetchApi<{ rows: DownlineRow[] }>("/earnings/by-downline", {
+              from,
+              to,
+              ...(q.trim() ? { q: q.trim() } : {}),
+            }),
+          );
+        }
+        const [sum, prod, dl] = (await Promise.all(tasks)) as [
+          EarningsSummary,
+          { products: ProductRow[] },
+          { rows: DownlineRow[] } | undefined,
+        ];
         if (!alive) return;
         setSummary(sum);
         setProducts(prod.products);
-        setDownline(dl.rows);
+        setDownline(dl?.rows ?? []);
         setExpandedDownline(null);
         setExpandedProduct(null);
         setDownlineProducts([]);
@@ -157,7 +168,7 @@ function MyEarningsInner() {
     return () => {
       alive = false;
     };
-  }, [accessToken, isPartner, from, to, q]);
+  }, [accessToken, canView, isPartner, from, to, q]);
 
   const badge = useMemo(() => {
     if (mode === "downline" && summary?.activeDownline != null) {
@@ -294,7 +305,7 @@ function MyEarningsInner() {
     });
   }
 
-  if (!hydrated || !accessToken || !isPartner) return null;
+  if (!hydrated || !accessToken || !canView) return null;
 
   return (
     <AppShell>
@@ -304,7 +315,9 @@ function MyEarningsInner() {
             My Earnings
           </h1>
           <p className="mt-0.5 text-sm" style={{ color: B.muted }}>
-            Net commission credited to your wallet
+            {isRetailer
+              ? "Product-wise commission credited to your wallet"
+              : "Net commission credited to your wallet"}
           </p>
         </div>
 
@@ -376,6 +389,7 @@ function MyEarningsInner() {
           </div>
         </div>
 
+        {isPartner ? (
         <div className="flex gap-1 rounded-2xl border bg-white p-1" style={{ borderColor: B.border }}>
           <button
             type="button"
@@ -400,8 +414,9 @@ function MyEarningsInner() {
             Product-wise
           </button>
         </div>
+        ) : null}
 
-        {mode === "downline" ? (
+        {mode === "downline" && isPartner ? (
           <div
             className="flex items-center gap-2 rounded-2xl border bg-white px-3 py-2.5"
             style={{ borderColor: B.border }}
@@ -417,7 +432,7 @@ function MyEarningsInner() {
           </div>
         ) : null}
 
-        {mode === "downline" ? (
+        {mode === "downline" && isPartner ? (
           loading && downline.length === 0 ? (
             <p className="text-sm" style={{ color: B.muted }}>
               Loading…

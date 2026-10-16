@@ -28,6 +28,7 @@ import { useTxnPin } from "../../hooks/useTxnPin";
 import { useTheme } from "../../theme/ThemeContext";
 import { colors, gradientDirection } from "../../theme/colors";
 import { showAlert } from "../../components/AppAlert";
+import { formatEarnEstimateLine, useEarnEstimate } from "../../hooks/useEarnEstimate";
 
 interface DmtScreenProps {
   onBack: () => void;
@@ -173,6 +174,8 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
   const [deleteBusy, setDeleteBusy] = useState(false);
 
   const [amount, setAmount] = useState("");
+  const earnEstimate = useEarnEstimate("dmt", amount);
+  const earnLine = formatEarnEstimateLine(earnEstimate);
   const [mode, setMode] = useState<Mode>("imps");
   const [txnOtp, setTxnOtp] = useState("");
   const [txnRefKey, setTxnRefKey] = useState("");
@@ -588,6 +591,7 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
       >("/txn/dmt/transfer", body);
       if (!data.success) throw new Error(data.message || "Transfer failed");
       const txnRef = data.data?.txn?.txnRef ?? null;
+      const receiptEarn = earnLine;
       setLastTxnRef(txnRef);
       attemptKey.current.clear();
       setOtpSent(false);
@@ -596,7 +600,8 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
       setAmount("");
       showAlert(
         "Transfer submitted",
-        txnRef ? `Reference ${txnRef}` : "Transfer submitted to InstantPay.",
+        (txnRef ? `Reference ${txnRef}` : "Transfer submitted to InstantPay.") +
+          (receiptEarn ? `\n${receiptEarn}` : ""),
       );
       await refreshProfile();
     } catch (err) {
@@ -880,6 +885,11 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
                     </Pressable>
                   ))}
                 </View>
+                {earnLine ? (
+                  <Text style={{ color: colors.greenDark, fontSize: 12, fontWeight: "700", marginTop: 8 }}>
+                    {earnLine}
+                  </Text>
+                ) : null}
 
                 <Text style={[styles.label, { marginTop: 10 }]}>MODE</Text>
                 <View style={styles.modeRow}>

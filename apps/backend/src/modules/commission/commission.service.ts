@@ -1,4 +1,4 @@
-import { and, eq, gt, gte, lte, isNull, or, desc, sql, asc, ilike } from "drizzle-orm";
+import { and, eq, gt, gte, lte, isNull, or, desc, sql, asc, ilike, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "../../db/postgres";
 import {
@@ -12,8 +12,10 @@ import {
   services,
   serviceCategories,
   providers,
+  journals,
+  providerCommissionIngest,
 } from "../../db/postgres/schema";
-import { transferBetweenWallets } from "../wallet/wallet.ledger";
+import { mirrorBalances, transferBetweenWallets } from "../wallet/wallet.ledger";
 import { toPaise, fromPaise } from "../wallet/decimal";
 import { logger } from "../../utils/logger";
 import { notifyCommissionCredit } from "../notifications/userEmail.service";
@@ -22,9 +24,13 @@ import { env } from "../../config/env";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import type { UserRole } from "@asanpay/shared-types";
 import { applyTdsToGrossPaise, resolveTaxForService } from "./tax.service";
+import { reverseJournal } from "../../core/ledger";
 
 const SCHEME_ROLES = ["retailer", "distributor", "super_distributor"] as const;
 type SchemeRole = (typeof SCHEME_ROLES)[number];
+
+/** Credits that have not been clawed back after refund / dispute (TC18). */
+const activeCommission = isNull(commissionLedger.reversedAt);
 
 type RuleType = "flat" | "percentage";
 
@@ -84,7 +90,7 @@ export async function distributeCommissionForTxn(transactionId: string): Promise
   const [alreadyPaid] = await db
     .select({ id: commissionLedger.id })
     .from(commissionLedger)
-    .where(eq(commissionLedger.transactionId, transactionId))
+    .where(and(eq(commissionLedger.transactionId, transactionId), activeCommission))
     .limit(1);
   if (alreadyPaid) return;
 
@@ -176,6 +182,210 @@ export async function distributeCommissionForTxn(transactionId: string): Promise
       logger.error({ err, transactionId, beneficiary: member.userId }, "commission payout skipped/failed");
     }
   }
+}
+
+/**
+ * Claw back commission after a successful txn is refunded / dispute-refunded (TC18).
+ * Reverses any unreversed COMMISSION_PAYOUT journals for the txn, marks ledger rows,
+ * and sets txn status to `refunded` when it was still `success`.
+ */
+export async function clawbackCommissionForTxn(
+  transactionId: string,
+  opts?: { performedBy?: string | null; reason?: string },
+): Promise<{ clawedRows: number; reversedJournals: number }> {
+  const reason = opts?.reason ?? `Commission clawback for txn ${transactionId}`;
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const tenantId = await resolveTenantId();
+
+  return db.transaction(async (tx) => {
+    const [txn] = await tx
+      .select({ id: transactions.id, status: transactions.status, userId: transactions.userId })
+      .from(transactions)
+      .where(eq(transactions.id, transactionId))
+      .for("update");
+    if (!txn) throw new HttpError(404, "Transaction not found", "TXN_NOT_FOUND");
+
+    const rows = await tx
+      .select({
+        id: commissionLedger.id,
+        beneficiaryUserId: commissionLedger.beneficiaryUserId,
+      })
+      .from(commissionLedger)
+      .where(and(eq(commissionLedger.transactionId, transactionId), activeCommission));
+
+    const candidates = await tx
+      .select({ id: journals.id, txnType: journals.txnType })
+      .from(journals)
+      .where(and(eq(journals.tenantId, tenantId), eq(journals.referenceId, transactionId)));
+
+    const commissionIds = candidates.filter((c) => c.txnType === "COMMISSION_PAYOUT").map((c) => c.id);
+    let reversedJournals = 0;
+    const beneficiaryIds = new Set(rows.map((r) => r.beneficiaryUserId));
+
+    if (commissionIds.length > 0) {
+      const already = await tx
+        .select({ reversesId: journals.reversesId })
+        .from(journals)
+        .where(and(eq(journals.tenantId, tenantId), inArray(journals.reversesId, commissionIds)));
+      const reversedSet = new Set(already.map((a) => a.reversesId).filter(Boolean));
+      for (const journalId of commissionIds) {
+        if (reversedSet.has(journalId)) continue;
+        await reverseJournal(tx, {
+          tenantId,
+          journalId,
+          idemKey: `COMM_CB:${transactionId}:${journalId}`,
+          performedBy: opts?.performedBy ?? null,
+          reason,
+        });
+        reversedJournals += 1;
+      }
+    }
+
+    if (rows.length > 0) {
+      await tx
+        .update(commissionLedger)
+        .set({ reversedAt: new Date() })
+        .where(
+          and(
+            eq(commissionLedger.transactionId, transactionId),
+            isNull(commissionLedger.reversedAt),
+          ),
+        );
+    }
+
+    if (beneficiaryIds.size > 0 || reversedJournals > 0) {
+      await mirrorBalances(tx, tenantId, [...beneficiaryIds], false);
+    }
+
+    if (txn.status === "success") {
+      await tx
+        .update(transactions)
+        .set({ status: "refunded", updatedAt: new Date() })
+        .where(eq(transactions.id, transactionId));
+    }
+
+    return { clawedRows: rows.length, reversedJournals };
+  });
+}
+
+/** Store raw provider commission payload (TC15). Parsing awaits sample from owner. */
+export async function storeProviderCommissionIngest(input: {
+  providerCode: string;
+  payload: unknown;
+  externalRef?: string | null;
+  parseNote?: string | null;
+}) {
+  const code = input.providerCode.trim().toLowerCase();
+  if (!code || code.length > 40) {
+    throw new HttpError(400, "Provider code must be 1–40 characters", "INVALID_PROVIDER_CODE");
+  }
+  if (input.payload == null || typeof input.payload !== "object") {
+    throw new HttpError(400, "Payload must be a JSON object or array", "INVALID_PAYLOAD");
+  }
+  const [row] = await db
+    .insert(providerCommissionIngest)
+    .values({
+      providerCode: code,
+      externalRef: input.externalRef?.trim() || null,
+      payload: input.payload as Record<string, unknown>,
+      parseStatus: "stored",
+      parseNote:
+        input.parseNote?.trim() ||
+        "Stored raw — parse rules pending sample payload confirmation",
+    })
+    .returning({
+      id: providerCommissionIngest.id,
+      providerCode: providerCommissionIngest.providerCode,
+      parseStatus: providerCommissionIngest.parseStatus,
+      createdAt: providerCommissionIngest.createdAt,
+    });
+  return row;
+}
+
+/** Agent-facing estimate for confirm UI (TC22) — uses live scheme + TDS rules. */
+export async function estimateMyCommission(input: {
+  userId: string;
+  role: UserRole;
+  amount: string;
+  serviceId?: string;
+  serviceCode?: string;
+  providerId?: string | null;
+}) {
+  if (!isSchemeRole(input.role)) {
+    throw new HttpError(403, "Earnings estimate is only for agent roles", "FORBIDDEN");
+  }
+  let serviceId = input.serviceId;
+  let serviceCode: string | null = null;
+  let serviceName: string | null = null;
+  if (serviceId) {
+    const [svc] = await db
+      .select({ id: services.id, code: services.code, name: services.name })
+      .from(services)
+      .where(eq(services.id, serviceId))
+      .limit(1);
+    if (!svc) throw new HttpError(404, "Service not found", "SERVICE_NOT_FOUND");
+    serviceCode = svc.code;
+    serviceName = svc.name;
+  } else if (input.serviceCode?.trim()) {
+    const [svc] = await db
+      .select({ id: services.id, code: services.code, name: services.name })
+      .from(services)
+      .where(eq(services.code, input.serviceCode.trim()))
+      .limit(1);
+    if (!svc) throw new HttpError(404, "Service not found for this code", "SERVICE_NOT_FOUND");
+    serviceId = svc.id;
+    serviceCode = svc.code;
+    serviceName = svc.name;
+  } else {
+    throw new HttpError(400, "Enter a valid service id or service code", "SERVICE_REQUIRED");
+  }
+
+  const amountNum = Number(input.amount);
+  if (!Number.isFinite(amountNum) || amountNum <= 0) {
+    throw new HttpError(400, "Amount must be a positive number", "INVALID_AMOUNT");
+  }
+  const amount = amountNum.toFixed(2);
+  const amountPaise = toPaise(amount);
+  const now = new Date();
+  const providerId = input.providerId || null;
+
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const taxCfg = await resolveTaxForService(await resolveTenantId(), serviceId, now);
+  const rule = await findActiveRule(serviceId, providerId, input.userId, input.role, amount, now);
+  if (!rule) {
+    return {
+      serviceId,
+      serviceCode,
+      serviceName,
+      amount,
+      matched: false,
+      estimated: true,
+      gross: "0.00",
+      tds: "0.00",
+      net: "0.00",
+      tax: {
+        tdsApplies: taxCfg.tdsApplies,
+        tdsPercent: taxCfg.tdsPercent,
+      },
+    };
+  }
+  const grossPaise = Math.max(0, computePayoutPaise(rule, amountPaise));
+  const { netPaise, tdsPaise, grossPaise: g, tdsPercent } = applyTdsToGrossPaise(grossPaise, taxCfg);
+  return {
+    serviceId,
+    serviceCode,
+    serviceName,
+    amount,
+    matched: true,
+    estimated: true,
+    gross: fromPaise(g),
+    tds: fromPaise(tdsPaise),
+    net: fromPaise(netPaise),
+    tax: {
+      tdsApplies: taxCfg.tdsApplies,
+      tdsPercent: tdsPaise > 0 ? tdsPercent : taxCfg.tdsPercent,
+    },
+  };
 }
 
 async function findActiveRule(
@@ -276,7 +486,9 @@ export async function getEarningsSummary(userId: string, since: Date) {
       count: sql<number>`count(*)::int`,
     })
     .from(commissionLedger)
-    .where(and(eq(commissionLedger.beneficiaryUserId, userId), sql`${commissionLedger.createdAt} >= ${since}`));
+    .where(and(eq(commissionLedger.beneficiaryUserId, userId), sql`${commissionLedger.createdAt} >= ${since}`,
+    activeCommission,
+  ));
   return row ?? { total: "0", count: 0 };
 }
 
@@ -291,7 +503,7 @@ export async function listEarnings(userId: string, limit = 50, offset = 0) {
     })
     .from(commissionLedger)
     .innerJoin(transactions, eq(commissionLedger.transactionId, transactions.id))
-    .where(eq(commissionLedger.beneficiaryUserId, userId))
+    .where(and(eq(commissionLedger.beneficiaryUserId, userId), activeCommission))
     .orderBy(desc(commissionLedger.createdAt))
     .limit(Math.min(limit, 100))
     .offset(offset);
@@ -315,6 +527,7 @@ export async function getMyEarningsSummary(
     eq(commissionLedger.beneficiaryUserId, userId),
     gte(commissionLedger.createdAt, since),
     lte(commissionLedger.createdAt, until),
+    activeCommission,
   );
 
   const [totals] = await db
@@ -383,6 +596,7 @@ export async function listMyEarnings(
         eq(commissionLedger.beneficiaryUserId, userId),
         gte(commissionLedger.createdAt, since),
         lte(commissionLedger.createdAt, until),
+        activeCommission,
       ),
     )
     .orderBy(desc(commissionLedger.createdAt))
@@ -471,6 +685,7 @@ export async function listMyEarningsByProduct(
     eq(commissionLedger.beneficiaryUserId, userId),
     gte(commissionLedger.createdAt, since),
     lte(commissionLedger.createdAt, until),
+    activeCommission,
   );
 
   if (opts?.downlineUserId) {
@@ -574,6 +789,7 @@ export async function listMyEarningsByDownline(
           eq(commissionLedger.beneficiaryUserId, userId),
           gte(commissionLedger.createdAt, since),
           lte(commissionLedger.createdAt, until),
+          activeCommission,
           eq(downline.parentId, userId),
           ...(search ? [search] : []),
         ),
@@ -628,6 +844,7 @@ export async function listMyEarningsByDownline(
         eq(commissionLedger.beneficiaryUserId, userId),
         gte(commissionLedger.createdAt, since),
         lte(commissionLedger.createdAt, until),
+        activeCommission,
         ...(search ? [search] : []),
       ),
     )
@@ -670,6 +887,7 @@ export async function listMyEarningsProductTxns(
     eq(transactions.serviceId, serviceId),
     gte(commissionLedger.createdAt, since),
     lte(commissionLedger.createdAt, until),
+    activeCommission,
   ];
 
   if (opts.downlineUserId) {
@@ -794,6 +1012,7 @@ export async function listAdminCommissionPayouts(filters?: {
   const offset = filters?.offset ?? 0;
 
   const conditions = [
+    activeCommission,
     filters?.role ? eq(commissionLedger.role, filters.role) : undefined,
     filters?.since ? sql`${commissionLedger.createdAt} >= ${filters.since}` : undefined,
     filters?.until ? sql`${commissionLedger.createdAt} <= ${filters.until}` : undefined,
@@ -807,7 +1026,7 @@ export async function listAdminCommissionPayouts(filters?: {
       : undefined,
   ].filter((c): c is NonNullable<typeof c> => Boolean(c));
 
-  const whereClause = conditions.length > 0 ? and(...conditions) : sql`true`;
+  const whereClause = and(...conditions);
 
   const [summary] = await db
     .select({
@@ -878,6 +1097,7 @@ export async function getMyMonthlyTdsSummary(userId: string, monthYmd?: string) 
         eq(commissionLedger.beneficiaryUserId, userId),
         gte(commissionLedger.createdAt, monthStart),
         sql`${commissionLedger.createdAt} < ${monthEnd}`,
+        activeCommission,
       ),
     );
 
@@ -916,6 +1136,7 @@ export async function listAdminTdsRegister(filters?: {
   }
 
   const conditions = [
+    activeCommission,
     sql`coalesce(${commissionLedger.tdsAmount}, 0) > 0`,
     filters?.role ? eq(commissionLedger.role, filters.role) : undefined,
     monthStart ? sql`${commissionLedger.createdAt} >= ${monthStart}` : undefined,

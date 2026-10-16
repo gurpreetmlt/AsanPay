@@ -11,6 +11,7 @@ import {
   listMyEarningsByProduct,
   listMyEarningsByDownline,
   listMyEarningsProductTxns,
+  estimateMyCommission,
 } from "../commission/commission.service";
 
 export const earningsRouter = Router();
@@ -119,4 +120,32 @@ earningsRouter.get("/tds-summary", async (req, res) => {
       ? req.query.month
       : undefined;
   sendSuccess(res, await getMyMonthlyTdsSummary(req.auth.sub, month));
+});
+
+const estimateSchema = z
+  .object({
+    amount: z.string().min(1, "Enter a valid amount"),
+    serviceId: z.string().uuid("Enter a valid service id").optional(),
+    serviceCode: z.string().trim().min(2).max(60).optional(),
+    providerId: z.string().uuid().optional().nullable(),
+  })
+  .refine((q) => Boolean(q.serviceId || q.serviceCode), {
+    message: "Enter a valid service id or service code",
+    path: ["serviceCode"],
+  });
+
+earningsRouter.get("/estimate", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const q = estimateSchema.parse(req.query);
+  sendSuccess(
+    res,
+    await estimateMyCommission({
+      userId: req.auth.sub,
+      role: req.auth.role,
+      amount: q.amount,
+      serviceId: q.serviceId,
+      serviceCode: q.serviceCode,
+      providerId: q.providerId,
+    }),
+  );
 });

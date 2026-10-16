@@ -43,6 +43,7 @@ import { apiError } from "../../utils/apiError";
 import { showAlert } from "../../components/AppAlert";
 import { useTheme } from "../../theme/ThemeContext";
 import { colors } from "../../theme/colors";
+import { formatEarnEstimateLine, useEarnEstimate } from "../../hooks/useEarnEstimate";
 
 type ServiceCode = "MOBILE_PREPAID" | "DTH";
 
@@ -405,6 +406,8 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
   const [panelTab, setPanelTab] = useState<"plans" | "offers">("plans");
   const [panelBusy, setPanelBusy] = useState(false);
   const [amount, setAmount] = useState("");
+  const earnEstimate = useEarnEstimate(serviceCode, amount);
+  const earnLine = formatEarnEstimateLine(earnEstimate);
   const [txnPin, setTxnPin] = useState("");
   const [loading, setLoading] = useState(false);
   const [blockResubmit, setBlockResubmit] = useState(false);
@@ -758,7 +761,10 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
         attemptKey.current.clear();
         stayBlocked = true;
         setBlockResubmit(true);
-        showAlert("Recharge successful", ref ? `Ref: ${ref}` : "Done");
+        showAlert(
+          "Recharge successful",
+          (ref ? `Ref: ${ref}` : "Done") + (earnLine ? `\n${earnLine}` : ""),
+        );
         setTxnPin("");
       } else if (status === "failed") {
         setBlockResubmit(false);
@@ -980,6 +986,11 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
                 placeholderTextColor={tokens.mute}
               />
             </View>
+            {earnLine ? (
+              <Text style={{ color: colors.greenDark, fontSize: 12, fontWeight: "700", marginTop: 6 }}>
+                {earnLine}
+              </Text>
+            ) : null}
 
             <Text style={[styles.label, { color: tokens.txt }]}>TPIN</Text>
             <View

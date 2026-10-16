@@ -98,6 +98,7 @@ function buildAgentNav(role: UserRole | undefined, fundRequestOn: boolean): NavI
         children: [
           { to: "/wallet", label: "Balance", icon: Wallet, exact: true },
           ...moneyExtra,
+          { to: "/earnings", label: "My Earnings", icon: BarChart3 },
           { to: "/settlements", label: "Earnings & Settlement", icon: Landmark },
           { to: "/passbook", label: "History", icon: History },
           { to: "/statements", label: "Statements", icon: FileText },

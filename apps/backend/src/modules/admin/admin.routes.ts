@@ -590,6 +590,51 @@ adminRouter.get("/commission/tax-registers/dmt-gst", async (req, res) => {
   sendSuccess(res, await listAdminDmtGstRegister({ since, until, q, limit, offset }));
 });
 
+/** TC15 — store raw provider commission JSON until parse rules are confirmed. */
+adminRouter.post("/commission/provider-ingest", async (req, res) => {
+  const { storeProviderCommissionIngest } = await import("../commission/commission.service");
+  const body = req.body as {
+    providerCode?: string;
+    payload?: unknown;
+    externalRef?: string;
+    parseNote?: string;
+  };
+  if (!body.providerCode?.trim()) {
+    throw new HttpError(400, "Provider code is required", "PROVIDER_CODE_REQUIRED");
+  }
+  sendSuccess(
+    res,
+    await storeProviderCommissionIngest({
+      providerCode: body.providerCode,
+      payload: body.payload,
+      externalRef: body.externalRef,
+      parseNote: body.parseNote,
+    }),
+    "Provider commission payload stored",
+  );
+});
+
+/** TC18 — claw back commission after refund (also auto-runs on dispute refund). */
+adminRouter.post("/commission/clawback/:transactionId", async (req, res) => {
+  const { clawbackCommissionForTxn } = await import("../commission/commission.service");
+  const transactionId = req.params.transactionId;
+  if (!transactionId) {
+    throw new HttpError(400, "Transaction id is required", "TRANSACTION_ID_REQUIRED");
+  }
+  const reason =
+    typeof req.body?.reason === "string" && req.body.reason.trim()
+      ? req.body.reason.trim()
+      : undefined;
+  sendSuccess(
+    res,
+    await clawbackCommissionForTxn(transactionId, {
+      performedBy: req.auth?.sub,
+      reason,
+    }),
+    "Commission clawback completed",
+  );
+});
+
 adminRouter.get("/ledger/health", async (_req, res) => {
   const { getLedgerHealthReport } = await import("../reconciliation/reports");
   const { resolveTenantId } = await import("../fund-requests/tenant");

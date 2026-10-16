@@ -80,14 +80,14 @@
 | **TC12** | Nav wiring | S | done | Home / Report / Account / WalletBar → My Earnings |
 | **TC13** | Admin tax registers + CSV | M | done | Admin Commercials → Tax registers · TDS + DMT GST CSV |
 | **TC14** | Provider margin vs scheme underwater warn | S | done | Preview `providerPool` → underwater banner when scheme gross > pool |
-| **TC15** | Vyapar / provider commission ingest | L | **blocked** | Needs sample payload from owner — do not invent |
+| **TC15** | Vyapar / provider commission ingest | L | done | Raw store `POST /admin/commission/provider-ingest` + table `provider_commission_ingest` (0067). **Parse rules still need Vyapar sample** — do not invent field map |
 | **TC16** | Monthly TDS summary + PAN banner | S | done | Mobile Account Tax card + PAN banner · `GET /earnings/tds-summary` |
-| **TC17** | Noble commercials hook (33A) | L | **blocked** | Needs Task 33 paths / likely schema — stop for migration/owner |
-| **TC18** | Reversal / refund tax clawback | M | **blocked** | Likely ledger/schema work — stop for migration |
+| **TC17** | Noble commercials hook (33A) | L | **blocked** | Task 33 paths still TBD + CA open questions — full Noble engine = Task 33A (migration). Success path already uses `distributeCommissionForTxn` + TDS |
+| **TC18** | Reversal / refund tax clawback | M | done | `commission_ledger.reversed_at` (0067) · `clawbackCommissionForTxn` · dispute refund + admin `POST /admin/commission/clawback/:transactionId` |
 | **TC19** | Admin Commercials IA polish | S | done | Tab IA: Schemes · Tax · Tax registers · Payouts (+ Preview on schemes) |
 | **TC20** | Smoke + checklist | S | done | Queue TC01–14 + TC16 done; TC15/17/18 blocked; checklist updated |
-| **TC21** | Retailer **web** earnings UX | M | **parked** | Owner will specify how agent-portal retailer sees earnings. Do not invent web layout until then |
-| **TC22** | Retailer confirm / receipt earn lines (optional) | M | pending | After TC07–11: recharge/DMT confirm “Est. net” + receipt Gross/TDS/Net — mobile first; web with TC21 |
+| **TC21** | Retailer **web** earnings UX | M | done | Product-wise `/earnings` for retailer · Home Today’s Earnings · Money nav |
+| **TC22** | Retailer confirm / receipt earn lines (optional) | M | done | `GET /earnings/estimate` · Est. net + Gross/TDS/Net on recharge/DMT (mobile + web) |
 
 ---
 
@@ -140,8 +140,8 @@
 | TC11 | Expand | Detail + tax lines | Retailer product→txns |
 | TC12 | Entrypoints | Nav | Retailer mobile wired |
 | TC13–20 | As row | | |
-| TC21 | Agent web retailer | — | Parked |
-| TC22 | Confirm/receipt | Optional | Mobile first |
+| TC21 | Agent web retailer | My Earnings product-wise | Works |
+| TC22 | Confirm/receipt | Est. net lines | Mobile + web recharge/DMT |
 
 ---
 
@@ -149,13 +149,7 @@
 
 ```
 @docs/TASKS/tax-commission-queue.md @AGENTS.md
-Unblock CURRENT: TC15 needs Vyapar sample payload OR TC17 Noble paths OR TC18 clawback design.
+Unblock TC17: fill Task 33 Read ONLY paths + CA answers, then implement 33A.
+OR paste Vyapar commission sample JSON to finish TC15 parse mapping.
 No explore. No MCP. Mac Terminal cmds in reply.
-```
-
-When retailer web is ready:
-
-```
-@docs/TASKS/tax-commission-queue.md
-Unpark TC21. [describe or screenshot agent-portal retailer earnings]
 ```

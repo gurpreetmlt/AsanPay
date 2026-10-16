@@ -59,8 +59,8 @@
 Queue: [treasury-balance-ease-queue.md](treasury-balance-ease-queue.md) — **complete (TB01–TB20)**
 
 ## Tax & Commission (ordered)
-Queue: [tax-commission-queue.md](tax-commission-queue.md) — product/earnings (TC15/17/18 blocked)
-Earnings UX: SD/Dist web+mobile · Retailer mobile. Retailer web: **parked (TC21)**.
+Queue: [tax-commission-queue.md](tax-commission-queue.md) — product mostly done; **TC17 Noble 33A blocked**; TC15 parse awaits Vyapar sample
+Earnings UX: SD/Dist + Retailer web+mobile My Earnings · Est. earn on recharge/DMT
 
 **Admin IA (Treasury-style):** [tax-commission-admin-ia-queue.md](tax-commission-admin-ia-queue.md) — **complete (TCA01–06)**
 

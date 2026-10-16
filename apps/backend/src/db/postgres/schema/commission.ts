@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   pgTable,
   uuid,
@@ -6,6 +7,9 @@ import {
   timestamp,
   index,
   uniqueIndex,
+  varchar,
+  jsonb,
+  text,
 } from "drizzle-orm/pg-core";
 import { userRoleEnum, commissionRuleTypeEnum } from "./enums";
 import { services, providers } from "./catalog";
@@ -156,12 +160,33 @@ export const commissionLedger = pgTable(
       onDelete: "set null",
     }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    /** Set when commission is clawed back after refund / dispute (TC18). */
+    reversedAt: timestamp("reversed_at", { withTimezone: true }),
   },
   (table) => [
     index("commission_ledger_transaction_idx").on(table.transactionId),
     index("commission_ledger_beneficiary_idx").on(table.beneficiaryUserId),
-    // One payout per (transaction, beneficiary). A concurrent duplicate distribution hits this and
-    // rolls back its transfer (insert + transfer share one tx), so commission can't be double-paid.
-    uniqueIndex("commission_ledger_txn_beneficiary_key").on(table.transactionId, table.beneficiaryUserId),
+    // One active payout per (transaction, beneficiary). Reversed rows keep history; a later
+    // re-payout (rare) can insert again because the unique key is partial.
+    uniqueIndex("commission_ledger_txn_beneficiary_key")
+      .on(table.transactionId, table.beneficiaryUserId)
+      .where(sql`${table.reversedAt} is null`),
+  ],
+);
+
+/** Raw provider commission payloads (Vyapar etc.) until parse rules are confirmed (TC15). */
+export const providerCommissionIngest = pgTable(
+  "provider_commission_ingest",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    providerCode: varchar("provider_code", { length: 40 }).notNull(),
+    externalRef: varchar("external_ref", { length: 120 }),
+    payload: jsonb("payload").notNull(),
+    parseStatus: varchar("parse_status", { length: 20 }).notNull().default("stored"),
+    parseNote: text("parse_note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("provider_commission_ingest_provider_idx").on(table.providerCode, table.createdAt),
   ],
 );

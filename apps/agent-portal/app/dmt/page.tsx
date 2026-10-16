@@ -35,6 +35,7 @@ import {
   warmRdService,
   type RdEndpoint,
 } from "@/lib/rdServiceFingerprint";
+import { formatEarnEstimateLine, useEarnEstimate } from "@/hooks/useEarnEstimate";
 
 /* ── Types ─────────────────────────────────────────────────────────── */
 
@@ -244,6 +245,8 @@ export default function DmtPage() {
   // Transfer
   const [selectedBene, setSelectedBene] = useState<DmtBeneficiary | null>(null);
   const [amount, setAmount] = useState("");
+  const earnEstimate = useEarnEstimate("dmt", amount);
+  const earnLine = formatEarnEstimateLine(earnEstimate);
   const [mode, setMode] = useState<"imps" | "neft">("imps");
   const [txnOtp, setTxnOtp] = useState("");
   const [txnPin, setTxnPin] = useState("");
@@ -718,6 +721,7 @@ export default function DmtPage() {
       });
       if (!data.success) throw new Error(data.message || "Transfer failed");
       const txnRef = data.data?.txn?.txnRef ?? null;
+      const receiptEarn = earnLine;
       setLastTxnRef(txnRef);
       attemptKey.current.clear();
       setOtpSent(false);
@@ -725,7 +729,10 @@ export default function DmtPage() {
       setTxnPin("");
       setTxnRefKey("");
       setAmount("");
-      toast.success(txnRef ? `Transfer submitted — ${txnRef}` : "Transfer submitted");
+      toast.success(
+        (txnRef ? `Transfer submitted — ${txnRef}` : "Transfer submitted") +
+          (receiptEarn ? ` · ${receiptEarn}` : ""),
+      );
       await refreshProfile();
     } catch (err) {
       toast.error(extractApiError(err, "Transfer failed"));
@@ -1267,6 +1274,9 @@ export default function DmtPage() {
                           </button>
                         ))}
                       </div>
+                      {earnLine ? (
+                        <p className="mt-2 text-xs font-bold text-green-700">{earnLine}</p>
+                      ) : null}
                     </div>
 
                     {!otpSent ? (
@@ -1315,8 +1325,7 @@ export default function DmtPage() {
 
                     {lastTxnRef && (
                       <p className="rounded-xl bg-green-50 px-3 py-2 text-sm text-green-800">
-                        Last txn: <span className="font-bold">{lastTxnRef}</span> — pending pe History se
-                        recheck karo.
+                        Last txn: <span className="font-bold">{lastTxnRef}</span> — if pending, recheck from History.
                       </p>
                     )}
                   </>

@@ -31,7 +31,8 @@
 - [x] Admin tax registers (TC13): TDS by agent/month + DMT fee GST + CSV on Commercials
 - [x] Commission preview underwater warn (TC14) when provider pool is below scheme gross
 - [x] Mobile monthly TDS + PAN banner (TC16) on Account
-- [ ] Tax commission blocked: TC15 Vyapar ingest (sample payload), TC17 Noble hook, TC18 tax clawback (likely migrate)
+- [x] Tax commission TC15 raw ingest + TC18 clawback (migrate `0067`) + TC21 retailer web earnings + TC22 Est. earn lines
+- [ ] Tax commission still blocked: TC17 Noble 33A (Task 33 paths/CA) · TC15 parse mapping needs Vyapar sample
 - [x] Admin Tax & Commission IA (TCA01–06): sidebar group + SectionTabs + overview + schemes/tax/registers/payouts + overrides; `/commission` redirects
 - [ ] Service flows (AEPS, DMT, BBPS)
 - [ ] Biometric SDK
