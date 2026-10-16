@@ -183,7 +183,6 @@ export function ServicesScreen() {
     .map((p) => p[0]?.toUpperCase() ?? "")
     .join("");
   const firstName = user.name.split(" ")[0] ?? user.name;
-  const mainBal = parseFloat(wallets.find((w) => w.walletType === "main")?.balance ?? "0") || 0;
   const fundOn = isFundRequestEnabled(user.role, user.fundRequestEnabled);
   function openAddMoney() {
     if (!fundOn) {
