@@ -9,6 +9,7 @@ import api from "@/lib/api";
 import { B } from "@/lib/brand";
 import { extractApiError } from "@/lib/onboarding";
 import { useAuthStore } from "@/lib/store";
+import { RequiredMark } from "@/components/ui/RequiredMark";
 
 function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
@@ -178,7 +179,7 @@ export function EmailVerifyField({
         <div className="mb-1.5 flex items-center gap-2">
           <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: B.muted }}>
             {label}
-            {required ? " *" : ""}
+            {required ? <RequiredMark /> : null}
           </span>
           {verified ? (
             <span

@@ -7,6 +7,7 @@ import { Copy, MailPlus, RotateCw, Share2, XCircle } from "lucide-react";
 import type { ApiResponse } from "@asanpay/shared-types";
 import { Modal } from "@/components/ui/Modal";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
+import { RequiredMark } from "@/components/ui/RequiredMark";
 import { StatusBadge, type StatusTone } from "@/components/ui/StatusBadge";
 import { ActionIconButton } from "@/components/ui/ActionIconButton";
 import api, { fetchApi } from "@/lib/api";
@@ -320,7 +321,8 @@ export function InviteModal({
               ).map(([key, label, placeholder, type]) => (
                 <div key={key}>
                   <div className="mb-1 text-xs font-semibold uppercase tracking-wider" style={{ color: B.muted }}>
-                    {label} <span style={{ color: "#DC2626" }}>*</span>
+                    {label}
+                    <RequiredMark />
                   </div>
                   <input
                     type={type}

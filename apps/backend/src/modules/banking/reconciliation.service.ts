@@ -487,3 +487,64 @@ export async function unlinkStatementLine(params: {
     metadata: {},
   });
 }
+
+/**
+ * Mark unmatched statement lines as ignored so they drop out of Needs attention.
+ * Does not delete the line (use delete for wrong-bank paste). Bulk-safe.
+ */
+export async function ignoreStatementLines(params: {
+  tenantId: string;
+  lineIds: string[];
+  adminId: string;
+}): Promise<{ ignored: number }> {
+  if (!params.lineIds.length) return { ignored: 0 };
+  const ids = sql.join(
+    params.lineIds.map((id) => sql`${id}::bigint`),
+    sql`, `,
+  );
+  const res = await db.execute(sql`
+    UPDATE bank_statement_lines
+    SET match_status = 'ignored'
+    WHERE tenant_id = ${params.tenantId}
+      AND id IN (${ids})
+      AND match_status = 'unmatched'
+      AND matched_to_id IS NULL
+      AND suspense_journal_id IS NULL
+  `);
+  const ignored = res.rowCount ?? 0;
+  if (ignored) {
+    await insertAuditLog({
+      userId: params.adminId,
+      action: "admin.bank_recon_ignore",
+      entityType: "bank_statement_line",
+      entityId: params.lineIds[0]!,
+      metadata: { lineIds: params.lineIds, ignored },
+    });
+  }
+  return { ignored };
+}
+
+/** Restore an ignored line to unmatched so it shows in Needs attention again. */
+export async function unignoreStatementLine(params: {
+  tenantId: string;
+  lineId: bigint;
+  adminId: string;
+}): Promise<void> {
+  const res = await db.execute(sql`
+    UPDATE bank_statement_lines
+    SET match_status = 'unmatched'
+    WHERE id = ${String(params.lineId)}
+      AND tenant_id = ${params.tenantId}
+      AND match_status = 'ignored'
+  `);
+  if (!res.rowCount) {
+    throw new HttpError(422, "Only ignored statement lines can be restored.", "RECON_UNIGNORE_INVALID");
+  }
+  await insertAuditLog({
+    userId: params.adminId,
+    action: "admin.bank_recon_unignore",
+    entityType: "bank_statement_line",
+    entityId: String(params.lineId),
+    metadata: {},
+  });
+}

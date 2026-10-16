@@ -698,7 +698,14 @@ export function FundRequestsPanel({
                 : "Blank = the amount the agent entered. Change it if net banking shows a different amount."}
             </p>
             <label className="mb-1 block text-sm font-medium text-gray-700">
-              {approveFor.hasBankLine ? "Note (optional)" : "Verification note *"}
+              {approveFor.hasBankLine ? (
+                "Note (optional)"
+              ) : (
+                <>
+                  Verification note
+                  <span style={{ color: "#DC2626" }}> *</span>
+                </>
+              )}
             </label>
             <input
               value={approveNote}

@@ -16,6 +16,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { LabelText } from "@/components/ui/RequiredMark";
 import { BulkBankEntryModal } from "./BulkBankEntryModal";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
@@ -190,7 +191,7 @@ const ROW_EXPLAIN: Record<Kind, { why: string; next: string }> = {
   },
   only_bank: {
     why: "Money moved in the bank with no matching entry in AsanPay yet.",
-    next: "Create a bank entry for this line, or remove it if it does not belong to this account.",
+    next: "Create a bank entry, ignore it for this recon, or remove it if it does not belong here.",
   },
   only_ours: {
     why: "AsanPay has a posting that is not on this statement for the selected bank and dates.",
@@ -202,7 +203,7 @@ const ROW_EXPLAIN: Record<Kind, { why: string; next: string }> = {
   },
   ignored: {
     why: "This line was marked to skip for reconciliation.",
-    next: "No action needed.",
+    next: "Use Restore if it should show in Needs attention again.",
   },
 };
 
@@ -264,7 +265,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   return (
     <label className="block text-sm">
       <span className="mb-1 block font-medium" style={{ color: B.muted }}>
-        {label}
+        <LabelText label={label} />
       </span>
       {children}
       {hint ? (
@@ -807,10 +808,9 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
     }
   }
 
-  async function confirmAllLikely() {
-    if (!report || busyLine) return;
-    const likely = report.rows.filter((r) => r.kind === "possible" && r.line && r.record);
-    if (!likely.length) return;
+  async function confirmLikelyRows(rows: ReconRow[]) {
+    const likely = rows.filter((r) => r.kind === "possible" && r.line && r.record);
+    if (!likely.length || busyLine) return;
     setBusyLine("all-likely");
     let ok = 0;
     let fail = 0;
@@ -828,8 +828,65 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
       }
       if (ok) toast.success(`Confirmed ${ok} likely match${ok === 1 ? "" : "es"}`);
       if (fail) toast.error(`${fail} match${fail === 1 ? "" : "es"} could not be confirmed`);
+      setSelectedIds([]);
       void loadHistory();
       await runReport();
+    } finally {
+      setBusyLine(null);
+    }
+  }
+
+  async function confirmAllLikely() {
+    if (!report) return;
+    await confirmLikelyRows(report.rows);
+  }
+
+  async function ignoreSelected() {
+    if (!selectedOnlyBank.length || busyLine) return;
+    setBusyLine("bulk-ignore");
+    try {
+      const { data } = await api.post("/banking/reconciliation/ignore", {
+        lineIds: selectedOnlyBank.map((l) => l.id),
+      });
+      if (!data.success) throw new Error(data.message);
+      const n = data.data?.ignored ?? 0;
+      toast.success(n ? `Ignored ${n} line${n === 1 ? "" : "s"}` : "No lines were ignored");
+      setSelectedIds([]);
+      void loadHistory();
+      await runReport();
+    } catch (err) {
+      toast.error(errMessage(err, "Could not ignore the selected lines"));
+    } finally {
+      setBusyLine(null);
+    }
+  }
+
+  async function ignoreOne(row: ReconRow) {
+    if (!row.line || busyLine) return;
+    setBusyLine(row.line.id);
+    try {
+      const { data } = await api.post("/banking/reconciliation/ignore", { lineIds: [row.line.id] });
+      if (!data.success) throw new Error(data.message);
+      toast.success("Line ignored");
+      void loadHistory();
+      await runReport();
+    } catch (err) {
+      toast.error(errMessage(err, "Could not ignore this line"));
+    } finally {
+      setBusyLine(null);
+    }
+  }
+
+  async function unignoreOne(row: ReconRow) {
+    if (!row.line || busyLine) return;
+    setBusyLine(row.line.id);
+    try {
+      await api.post("/banking/reconciliation/unignore", { lineId: row.line.id });
+      toast.success("Line restored");
+      void loadHistory();
+      await runReport();
+    } catch (err) {
+      toast.error(errMessage(err, "Could not restore this line"));
     } finally {
       setBusyLine(null);
     }
@@ -866,17 +923,34 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
     }
   }
 
-  const selectableLines = useMemo(
-    () => (report?.rows ?? []).flatMap((r) => (r.kind === "only_bank" && r.line ? [r.line] : [])),
+  /** In bank only + Likely match — bulk entry / ignore / confirm. */
+  const selectableRows = useMemo(
+    () =>
+      (report?.rows ?? []).filter(
+        (r): r is ReconRow & { line: ReconLine } =>
+          !!r.line && (r.kind === "only_bank" || r.kind === "possible"),
+      ),
     [report],
   );
+  const selectableIds = useMemo(() => selectableRows.map((r) => r.line.id), [selectableRows]);
 
   useEffect(() => {
-    setSelectedIds((prev) => prev.filter((id) => selectableLines.some((l) => l.id === id)));
-  }, [selectableLines]);
+    setSelectedIds((prev) => prev.filter((id) => selectableIds.includes(id)));
+  }, [selectableIds]);
 
-  const selectedLines = selectableLines.filter((l) => selectedIds.includes(l.id));
-  const mixedDirections = new Set(selectedLines.map((l) => l.direction)).size > 1;
+  const selectedOnlyBank = useMemo(
+    () =>
+      selectableRows
+        .filter((r) => r.kind === "only_bank" && selectedIds.includes(r.line.id))
+        .map((r) => r.line),
+    [selectableRows, selectedIds],
+  );
+  const selectedPossible = useMemo(
+    () => selectableRows.filter((r) => r.kind === "possible" && selectedIds.includes(r.line.id)),
+    [selectableRows, selectedIds],
+  );
+  const selectedCount = selectedOnlyBank.length + selectedPossible.length;
+  const mixedDirections = new Set(selectedOnlyBank.map((l) => l.direction)).size > 1;
 
   function toggleLine(id: string) {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -1419,16 +1493,24 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                 </div>
               </div>
 
-              {selectedLines.length > 0 ? (
+              {selectedCount > 0 ? (
                 <div
                   className="flex flex-wrap items-center justify-between gap-2 rounded-xl px-3 py-2"
                   style={{ background: "#EEF2FF" }}
                 >
                   <span className="text-xs font-bold" style={{ color: B.blue }}>
-                    {selectedLines.length} line{selectedLines.length === 1 ? "" : "s"} selected
-                    {mixedDirections ? " — select only money-in or only money-out lines to create together" : ""}
+                    {selectedCount} line{selectedCount === 1 ? "" : "s"} selected
+                    {selectedOnlyBank.length
+                      ? ` · ${selectedOnlyBank.length} in bank only`
+                      : ""}
+                    {selectedPossible.length
+                      ? ` · ${selectedPossible.length} likely match${selectedPossible.length === 1 ? "" : "es"}`
+                      : ""}
+                    {mixedDirections
+                      ? " — for Create entries, select only money-in or only money-out"
+                      : ""}
                   </span>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={() => setSelectedIds([])}
@@ -1437,15 +1519,44 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                     >
                       Clear
                     </button>
-                    <button
-                      type="button"
-                      disabled={mixedDirections}
-                      onClick={() => setBulkLines(selectedLines)}
-                      className="rounded-lg px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
-                      style={{ background: B.green }}
-                    >
-                      Create entries for {selectedLines.length} selected
-                    </button>
+                    {selectedOnlyBank.length > 0 ? (
+                      <button
+                        type="button"
+                        disabled={!!busyLine}
+                        onClick={() => void ignoreSelected()}
+                        className="rounded-lg border px-3 py-1.5 text-xs font-bold disabled:opacity-50"
+                        style={{ borderColor: B.border, color: B.blue, background: "#fff" }}
+                        title="Keep the lines but skip them in Needs attention"
+                      >
+                        {busyLine === "bulk-ignore"
+                          ? "Ignoring…"
+                          : `Ignore ${selectedOnlyBank.length}`}
+                      </button>
+                    ) : null}
+                    {selectedPossible.length > 0 ? (
+                      <button
+                        type="button"
+                        disabled={!!busyLine}
+                        onClick={() => void confirmLikelyRows(selectedPossible)}
+                        className="rounded-lg px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
+                        style={{ background: B.badgeGrad }}
+                      >
+                        {busyLine === "all-likely"
+                          ? "Confirming…"
+                          : `Confirm ${selectedPossible.length} match${selectedPossible.length === 1 ? "" : "es"}`}
+                      </button>
+                    ) : null}
+                    {selectedOnlyBank.length > 0 ? (
+                      <button
+                        type="button"
+                        disabled={mixedDirections || !!busyLine}
+                        onClick={() => setBulkLines(selectedOnlyBank)}
+                        className="rounded-lg px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
+                        style={{ background: B.green }}
+                      >
+                        Create entries · {selectedOnlyBank.length}
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               ) : null}
@@ -1455,13 +1566,13 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                   <thead>
                     <tr className="text-left text-xs uppercase" style={{ color: B.muted }}>
                       <th className="w-8 py-2 pl-3">
-                        {selectableLines.length > 0 ? (
+                        {selectableIds.length > 0 ? (
                           <input
                             type="checkbox"
-                            aria-label="Select all lines only in bank"
-                            title="Select all lines that are only in the bank"
-                            checked={selectedIds.length === selectableLines.length}
-                            onChange={(e) => setSelectedIds(e.target.checked ? selectableLines.map((l) => l.id) : [])}
+                            aria-label="Select all unresolved bank lines"
+                            title="Select all In bank only and Likely match rows"
+                            checked={selectedIds.length === selectableIds.length}
+                            onChange={(e) => setSelectedIds(e.target.checked ? selectableIds : [])}
                           />
                         ) : null}
                       </th>
@@ -1497,7 +1608,7 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                             }}
                           >
                             <td className="py-2.5 pl-3">
-                              {r.kind === "only_bank" && r.line ? (
+                              {r.line && (r.kind === "only_bank" || r.kind === "possible") ? (
                                 <input
                                   type="checkbox"
                                   aria-label="Select line"
@@ -1581,6 +1692,16 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                                   <button
                                     type="button"
                                     disabled={busy}
+                                    onClick={() => void ignoreOne(r)}
+                                    title="Skip this line in Needs attention (keeps it on the statement)"
+                                    className="rounded-lg border px-2 py-1.5 text-xs font-bold disabled:opacity-60"
+                                    style={{ borderColor: B.border, color: B.blue, background: "#fff" }}
+                                  >
+                                    Ignore
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={busy}
                                     onClick={() => setRemoveRow(r)}
                                     title="Remove this line — it does not belong to this bank's statement"
                                     className="inline-flex items-center gap-1 rounded-lg border px-2 py-1.5 text-xs font-bold disabled:opacity-60"
@@ -1589,6 +1710,17 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                                     <Trash2 size={13} /> Remove
                                   </button>
                                 </div>
+                              ) : r.kind === "ignored" && r.line ? (
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => void unignoreOne(r)}
+                                  className="rounded-lg border px-3 py-1.5 text-xs font-bold disabled:opacity-60"
+                                  style={{ borderColor: B.border, color: B.blue, background: "#fff" }}
+                                  title="Put this line back into Needs attention"
+                                >
+                                  {busy ? "Saving…" : "Restore"}
+                                </button>
                               ) : r.kind === "matched" && r.unlinkable ? (
                                 <button
                                   type="button"

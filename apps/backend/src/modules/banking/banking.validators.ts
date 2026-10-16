@@ -155,6 +155,17 @@ export const reconUnlinkSchema = z.object({
   lineId: z.string().regex(/^\d+$/, "lineId must be a numeric id"),
 });
 
+export const reconIgnoreSchema = z.object({
+  lineIds: z
+    .array(z.string().regex(/^\d+$/, "Each line id must be numeric"))
+    .min(1, "Select at least one statement line")
+    .max(200, "Select at most 200 lines at once"),
+});
+
+export const reconUnignoreSchema = z.object({
+  lineId: z.string().regex(/^\d+$/, "lineId must be a numeric id"),
+});
+
 export const parkSuspenseSchema = z.object({
   olderThanHours: z.coerce.number().int().min(1).max(720).optional(),
 });

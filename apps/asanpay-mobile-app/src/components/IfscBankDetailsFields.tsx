@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { StyleSheet, Text, TextInput, View, type TextStyle, type ViewStyle } from "react-native";
 import { lookupIndianIfsc } from "../lib/ifsc";
 import { showAlert } from "./AppAlert";
+import { LabelText } from "./RequiredMark";
 import { colors } from "../theme/colors";
 
 export type IfscBankDetailsValue = {
@@ -95,7 +96,7 @@ export function IfscBankDetailsFields({
 
   return (
     <View style={[styles.wrap, style]}>
-      <Text style={[styles.label, { color: tokens.mute }]}>IFSC *</Text>
+      <LabelText label="IFSC *" color={tokens.mute} style={styles.label} />
       <TextInput
         style={[styles.input, inputStyle, styles.mono]}
         placeholder="e.g. SBIN0001234"
@@ -130,7 +131,7 @@ export function IfscBankDetailsFields({
 
       <View style={styles.accountRow}>
         <View style={styles.accountCol}>
-          <Text style={[styles.label, styles.labelTight, { color: tokens.mute }]}>Account number *</Text>
+          <LabelText label="Account number *" color={tokens.mute} style={{ ...styles.label, ...styles.labelTight }} />
           <TextInput
             style={[styles.input, inputStyle]}
             placeholder={accountPlaceholder}
@@ -143,7 +144,7 @@ export function IfscBankDetailsFields({
 
         {showConfirmAccount ? (
           <View style={styles.accountCol}>
-            <Text style={[styles.label, styles.labelTight, { color: tokens.mute }]}>Confirm account *</Text>
+            <LabelText label="Confirm account *" color={tokens.mute} style={{ ...styles.label, ...styles.labelTight }} />
             <TextInput
               style={[styles.input, inputStyle]}
               placeholder="Re-enter"
@@ -159,7 +160,7 @@ export function IfscBankDetailsFields({
 
         {showHolder ? (
           <View style={styles.accountCol}>
-            <Text style={[styles.label, styles.labelTight, { color: tokens.mute }]}>Account holder *</Text>
+            <LabelText label="Account holder *" color={tokens.mute} style={{ ...styles.label, ...styles.labelTight }} />
             <TextInput
               style={[styles.input, inputStyle]}
               placeholder="Account holder name"

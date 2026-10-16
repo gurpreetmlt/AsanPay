@@ -9,6 +9,7 @@ import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import { AsanPayLockup } from "@/components/brand/Logo";
 import { EmailVerifyField } from "@/components/EmailVerifyField";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
+import { LabelText } from "@/components/ui/RequiredMark";
 import { SignupStepper, SIGNUP_STEPS } from "@/components/signup/SignupStepper";
 import {
   LocationPermissionModal,
@@ -91,7 +92,7 @@ const BUSINESS_PROOFS = ["Shop License", "GST Certificate", "Udyam", "Rent Agree
 function Label({ children }: { children: ReactNode }) {
   return (
     <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider" style={{ color: B.muted }}>
-      {children}
+      {typeof children === "string" ? <LabelText label={children} /> : children}
     </div>
   );
 }

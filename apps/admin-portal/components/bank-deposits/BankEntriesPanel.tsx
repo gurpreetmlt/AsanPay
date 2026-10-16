@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { PromptModal } from "@/components/ui/PromptModal";
+import { RequiredMark } from "@/components/ui/RequiredMark";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
@@ -1478,7 +1479,7 @@ function Field({
     <label className="block text-sm">
       <span className="mb-1 block font-medium" style={{ color: B.muted }}>
         {label}
-        {required ? <span style={{ color: RED }}> *</span> : null}
+        {required ? <RequiredMark /> : null}
       </span>
       {children}
       {hint ? (
@@ -1554,7 +1555,8 @@ function ProofPicker({ file, onChange }: { file: File | null; onChange: (f: File
   return (
     <div className="block text-sm">
       <span className="mb-1 block font-medium" style={{ color: B.muted }}>
-        Proof <span style={{ color: RED }}>*</span>
+        Proof
+        <RequiredMark />
       </span>
       <input
         ref={inputRef}

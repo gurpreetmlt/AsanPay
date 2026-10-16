@@ -26,6 +26,7 @@ import { createAttemptKeyHolder } from "@/lib/idempotencyKey";
 import { B } from "@/lib/brand";
 import { formatSettlementBankCopy } from "@/lib/bankLogo";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
+import { RequiredMark } from "@/components/ui/RequiredMark";
 
 interface BankAccount {
   id: string;
@@ -167,7 +168,8 @@ function FieldLabel({ children, hint }: { children: ReactNode; hint?: string }) 
   return (
     <label className="mb-1.5 block">
       <span className="text-xs font-bold uppercase tracking-wide" style={{ color: B.muted }}>
-        {children} <span style={{ color: "#DC2626" }}>*</span>
+        {children}
+        <RequiredMark />
       </span>
       {hint ? (
         <span className="mt-0.5 block text-[11px] font-medium normal-case tracking-normal" style={{ color: B.muted }}>

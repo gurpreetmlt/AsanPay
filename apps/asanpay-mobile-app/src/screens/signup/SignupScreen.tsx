@@ -24,6 +24,7 @@ import { colors } from "../../theme/colors";
 import { showAlert } from "../../components/AppAlert";
 import { BrandMark } from "../../components/BrandMark";
 import { IfscBankDetailsFields } from "../../components/IfscBankDetailsFields";
+import { LabelText } from "../../components/RequiredMark";
 import { MobileSignupStepper, MOBILE_SIGNUP_STEPS } from "../../components/MobileSignupStepper";
 import { TermsAcceptModal } from "../../components/TermsAcceptModal";
 import {
@@ -2580,7 +2581,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
 }
 
 function FieldLabel({ text, color }: { text: string; color: string }) {
-  return <Text style={[styles.label, { color }]}>{text}</Text>;
+  return <LabelText label={text} color={color} style={styles.label} />;
 }
 
 function UploadRow({

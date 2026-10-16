@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { Headphones, MapPin } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
+import { LabelText } from "@/components/ui/RequiredMark";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
@@ -232,7 +233,7 @@ function Field({
   return (
     <label className="block space-y-1">
       <span className="text-xs font-semibold" style={{ color: B.muted }}>
-        {label}
+        <LabelText label={label} />
       </span>
       {hint && (
         <span className="block text-[12px]" style={{ color: B.muted }}>

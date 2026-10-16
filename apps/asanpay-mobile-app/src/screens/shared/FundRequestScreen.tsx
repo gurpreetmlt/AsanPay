@@ -37,6 +37,7 @@ import {
   Zap,
 } from "lucide-react-native";
 import { PartnerTopBar } from "../../components/PartnerTopBar";
+import { LabelText } from "../../components/RequiredMark";
 import { DateRangeFields, toYmd } from "../../components/DateRangeCard";
 import { api, fetchApi } from "../../lib/api";
 import { formatSettlementBankCopy } from "../../lib/bankLogo";
@@ -1018,7 +1019,7 @@ function ConfirmStep({
 
   const fields = (
     <>
-      <Text style={[styles.label, { color: tokens.sub }]}>Amount (₹) *</Text>
+      <LabelText label="Amount (₹) *" color={tokens.sub} style={styles.label} />
       <TextInput
         style={[styles.input, { backgroundColor: tokens.card, borderColor: tokens.cardBorder, color: tokens.txt }]}
         keyboardType="decimal-pad"
@@ -1031,7 +1032,7 @@ function ConfirmStep({
         placeholderTextColor={tokens.mute}
       />
 
-      <Text style={[styles.label, { color: tokens.sub }]}>UTR / slip number *</Text>
+      <LabelText label="UTR / slip number *" color={tokens.sub} style={styles.label} />
       <TextInput
         style={[styles.input, { backgroundColor: tokens.card, borderColor: tokens.cardBorder, color: tokens.txt }]}
         value={referenceNumber}
@@ -1044,7 +1045,7 @@ function ConfirmStep({
         placeholderTextColor={tokens.mute}
       />
 
-      <Text style={[styles.label, { color: tokens.sub }]}>Deposit / payment date & time *</Text>
+      <LabelText label="Deposit / payment date & time *" color={tokens.sub} style={styles.label} />
       <Pressable
         style={[styles.input, { backgroundColor: tokens.card, borderColor: tokens.cardBorder, justifyContent: "center" }]}
         onPress={() => setPickerMode("date")}
@@ -1066,7 +1067,7 @@ function ConfirmStep({
         />
       ) : null}
 
-      <Text style={[styles.label, { color: tokens.sub }]}>Sender name *</Text>
+      <LabelText label="Sender name *" color={tokens.sub} style={styles.label} />
       <TextInput
         style={[styles.input, { backgroundColor: tokens.card, borderColor: tokens.cardBorder, color: tokens.txt }]}
         value={senderName}
@@ -1076,7 +1077,7 @@ function ConfirmStep({
         placeholderTextColor={tokens.mute}
       />
 
-      <Text style={[styles.label, { color: tokens.sub }]}>Remarks *</Text>
+      <LabelText label="Remarks *" color={tokens.sub} style={styles.label} />
       <TextInput
         style={[styles.input, { backgroundColor: tokens.card, borderColor: tokens.cardBorder, color: tokens.txt }]}
         value={remarks}
@@ -1086,7 +1087,7 @@ function ConfirmStep({
         placeholderTextColor={tokens.mute}
       />
 
-      <Text style={[styles.label, { color: tokens.sub }]}>Receipt *</Text>
+      <LabelText label="Receipt *" color={tokens.sub} style={styles.label} />
       <Pressable
         style={[styles.receiptBtn, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
         onPress={() => void pickReceipt()}
@@ -1135,7 +1136,7 @@ function ConfirmStep({
             <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bg }]}>
               <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
                 <ScreenTop title="Create fund request" onBack={() => !saving && setFormOpen(false)} />
-                <Text style={[styles.label, { color: tokens.sub, marginTop: 0 }]}>Deposited to bank *</Text>
+                <LabelText label="Deposited to bank *" color={tokens.sub} style={{ ...styles.label, marginTop: 0 }} />
                 {banks
                   .filter((b) => b.isActive)
                   .map((b) => {

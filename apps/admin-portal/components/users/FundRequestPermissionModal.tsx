@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "react-hot-toast";
 import { AlertTriangle, BadgeCheck, Ban, Check, Copy, Loader2, ShieldAlert, UserRound, X } from "lucide-react";
+import { RequiredMark } from "@/components/ui/RequiredMark";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 
@@ -241,7 +242,8 @@ export function FundRequestPermissionModal({
                     >
                       <Copy size={11} /> Copy
                     </button>{" "}
-                    to confirm *
+                    to confirm
+                    <RequiredMark />
                   </span>
                   <input
                     autoFocus

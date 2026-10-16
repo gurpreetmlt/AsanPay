@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "react-hot-toast";
 import { ArrowRight, Loader2, Send, Undo2, Wallet, X } from "lucide-react";
+import { RequiredMark } from "@/components/ui/RequiredMark";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 
@@ -200,7 +201,8 @@ export function WalletMoveModal({
 
               <label className="block">
                 <span className="text-xs font-semibold" style={{ color: B.muted }}>
-                  Amount (₹) *
+                  Amount (₹)
+                  <RequiredMark />
                 </span>
                 <input
                   autoFocus

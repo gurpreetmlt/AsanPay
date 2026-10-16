@@ -15,6 +15,7 @@ import { bankLogoUrl } from "@/lib/bankLogo";
 import { lookupIndianIfsc } from "@/lib/ifsc";
 import { AgentConfirmModal, ConfirmRow } from "@/components/users/AgentConfirmModal";
 import { TableActionButtons } from "@/components/ui/TableActionButtons";
+import { LabelText } from "@/components/ui/RequiredMark";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { useDevOptionsStore } from "@/lib/devOptionsStore";
@@ -1025,7 +1026,7 @@ function ProfileInput({
   return (
     <label className="block text-sm">
       <span className="mb-1 block text-xs font-semibold uppercase" style={{ color: B.muted }}>
-        {label}
+        <LabelText label={label} />
       </span>
       <input
         className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none disabled:opacity-60"

@@ -4,6 +4,7 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { toast } from "react-hot-toast";
 import { lookupIndianIfsc } from "@/lib/ifsc";
 import { B } from "@/lib/brand";
+import { LabelText } from "@/components/ui/RequiredMark";
 
 export type IfscBankDetailsValue = {
   ifsc: string;
@@ -98,7 +99,7 @@ export function IfscBankDetailsFields({
     <div className={`grid gap-3 sm:grid-cols-2 lg:grid-cols-3 ${className}`.trim()}>
       <label className="block text-sm">
         <span className={labelCls} style={{ color: B.muted }}>
-          IFSC *
+          <LabelText label="IFSC *" />
         </span>
         <input
           className={`${inputBase} font-mono`}
@@ -147,7 +148,7 @@ export function IfscBankDetailsFields({
 
       <label className="block text-sm">
         <span className={labelCls} style={{ color: B.muted }}>
-          Account number *
+          <LabelText label="Account number *" />
         </span>
         <input
           className={inputBase}
@@ -164,7 +165,7 @@ export function IfscBankDetailsFields({
       {showConfirmAccount ? (
         <label className="block text-sm">
           <span className={labelCls} style={{ color: B.muted }}>
-            Confirm account number *
+            <LabelText label="Confirm account number *" />
           </span>
           <input
             className={inputBase}
@@ -188,7 +189,7 @@ export function IfscBankDetailsFields({
           }`}
         >
           <span className={labelCls} style={{ color: B.muted }}>
-            Account holder *
+            <LabelText label="Account holder *" />
           </span>
           <input
             className={inputBase}

@@ -42,6 +42,8 @@ import {
   reconAutoMatchSchema,
   reconLinkSchema,
   reconUnlinkSchema,
+  reconIgnoreSchema,
+  reconUnignoreSchema,
   statementImportsQuerySchema,
   verifyStatementSchema,
 } from "./banking.validators";
@@ -50,7 +52,9 @@ import { listStatementImports, recordImportBatch, startStatementImport } from ".
 import {
   autoMatchStatement,
   getReconciliation,
+  ignoreStatementLines,
   linkStatementLine,
+  unignoreStatementLine,
   unlinkStatementLine,
 } from "./reconciliation.service";
 import { normalizeVanWebhookPayload } from "./vanAdapters";
@@ -423,6 +427,42 @@ bankingRouter.post(
     const tenantId = await resolveTenantId();
     await unlinkStatementLine({ tenantId, lineId: BigInt(body.lineId), adminId: req.auth.sub });
     sendSuccess(res, { lineId: body.lineId }, "Match removed");
+  },
+);
+
+bankingRouter.post(
+  "/reconciliation/ignore",
+  requireRole("admin"),
+  validateBody(reconIgnoreSchema),
+  async (req, res) => {
+    if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+    const body = req.body as ReturnType<typeof reconIgnoreSchema.parse>;
+    const tenantId = await resolveTenantId();
+    const result = await ignoreStatementLines({
+      tenantId,
+      lineIds: body.lineIds,
+      adminId: req.auth.sub,
+    });
+    sendSuccess(
+      res,
+      result,
+      result.ignored
+        ? `Ignored ${result.ignored} statement line${result.ignored === 1 ? "" : "s"}`
+        : "No unmatched lines were ignored — reload and try again",
+    );
+  },
+);
+
+bankingRouter.post(
+  "/reconciliation/unignore",
+  requireRole("admin"),
+  validateBody(reconUnignoreSchema),
+  async (req, res) => {
+    if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+    const body = req.body as ReturnType<typeof reconUnignoreSchema.parse>;
+    const tenantId = await resolveTenantId();
+    await unignoreStatementLine({ tenantId, lineId: BigInt(body.lineId), adminId: req.auth.sub });
+    sendSuccess(res, { lineId: body.lineId }, "Line restored to Needs attention");
   },
 );
 

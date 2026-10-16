@@ -17,6 +17,7 @@ import { useAuthStore } from "../../store/auth";
 import { PinInput } from "../../components/PinInput";
 import { colors } from "../../theme/colors";
 import { showAlert } from "../../components/AppAlert";
+import { LabelText } from "../../components/RequiredMark";
 import Clipboard from "@react-native-clipboard/clipboard";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 
@@ -1097,7 +1098,7 @@ function Field({
 }) {
   return (
     <View style={styles.field}>
-      <Text style={styles.fieldLabel}>{label}</Text>
+      <LabelText label={label} style={styles.fieldLabel} />
       <TextInput
         style={styles.input}
         value={value}
