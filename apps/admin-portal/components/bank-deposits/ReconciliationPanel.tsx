@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   ChevronDown,
   Download,
+  Eye,
   FileSpreadsheet,
   FileText,
   Trash2,
@@ -847,34 +848,36 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
             />
           </Field>
 
-          {/* Row 3: Preview bottom-right */}
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            {(fileName || rawText) && (
+          {/* Step 1: Clear + Preview (only before a preview exists) */}
+          {!parsed ? (
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {(fileName || rawText) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRawText("");
+                    setFileName(null);
+                    setParsed(null);
+                    setBankCheck(null);
+                    setFileInputKey((k) => k + 1);
+                  }}
+                  className="inline-flex h-11 items-center rounded-xl px-4 text-sm font-semibold text-white"
+                  style={{ background: B.danger }}
+                >
+                  Clear
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => {
-                  setRawText("");
-                  setFileName(null);
-                  setParsed(null);
-                  setBankCheck(null);
-                  setFileInputKey((k) => k + 1);
-                }}
-                className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
-                style={{ background: B.danger }}
+                onClick={() => void preview()}
+                disabled={importing || verifying}
+                className="inline-flex h-11 items-center justify-center gap-1.5 rounded-xl px-5 text-sm font-bold text-white disabled:opacity-60"
+                style={{ background: B.badgeGrad }}
               >
-                Clear
+                <Eye size={15} /> Preview
               </button>
-            )}
-            <button
-              type="button"
-              onClick={() => void preview()}
-              disabled={importing || verifying}
-              className="inline-flex h-11 items-center justify-center gap-1.5 rounded-xl px-5 text-sm font-bold text-white disabled:opacity-60"
-              style={{ background: B.badgeGrad }}
-            >
-              <Upload size={15} /> Preview
-            </button>
-          </div>
+            </div>
+          ) : null}
 
           {parsed && parsed.lines.length > 0 && previewTotals ? (
             <div className="space-y-3 rounded-xl border p-4" style={{ borderColor: B.border, background: "#F8FAFF" }}>
@@ -937,22 +940,39 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                 onConfirm={setConfirmedBank}
                 onSwitch={switchUploadBank}
               />
-              <button
-                type="button"
-                disabled={
-                  importing ||
-                  verifying ||
-                  !bankCheck ||
-                  bankCheck.verdict === "blocked" ||
-                  (bankCheck.verdict === "unverified" && !confirmedBank)
-                }
-                onClick={() => void importParsed()}
-                className="inline-flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60"
-                style={{ background: B.badgeGrad }}
-              >
-                <Upload size={14} />{" "}
-                {importing ? "Importing…" : `Import statement · ${parsed.lines.length} lines`}
-              </button>
+              {/* Step 2: Clear + Import together (Preview hidden) */}
+              <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRawText("");
+                    setFileName(null);
+                    setParsed(null);
+                    setBankCheck(null);
+                    setFileInputKey((k) => k + 1);
+                  }}
+                  className="inline-flex h-11 items-center rounded-xl px-4 text-sm font-semibold text-white"
+                  style={{ background: B.danger }}
+                >
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  disabled={
+                    importing ||
+                    verifying ||
+                    !bankCheck ||
+                    bankCheck.verdict === "blocked" ||
+                    (bankCheck.verdict === "unverified" && !confirmedBank)
+                  }
+                  onClick={() => void importParsed()}
+                  className="inline-flex h-11 items-center gap-1.5 rounded-xl px-5 text-sm font-bold text-white disabled:opacity-60"
+                  style={{ background: B.badgeGrad }}
+                >
+                  <Upload size={15} />{" "}
+                  {importing ? "Importing…" : `Import statement · ${parsed.lines.length} lines`}
+                </button>
+              </div>
             </div>
           ) : null}
         </section>
