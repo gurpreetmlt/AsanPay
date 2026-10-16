@@ -30,6 +30,7 @@ interface FundRequestRow {
   matchedLineId?: string | null;
   matchedLineDate?: string | null;
   matchedLineUtr?: string | null;
+  isTest?: boolean;
   requester?: { id: string; name: string; mobile: string; uid: string; role?: string };
   bankName?: string | null;
   bankLast4?: string | null;
@@ -355,7 +356,14 @@ export function FundRequestsPanel({
                 const age = isOpen ? fundAging(r.submittedAt) : null;
                 return (
                   <Fragment key={r.id}>
-                    <tr className={needsLine ? "" : "border-b"} style={{ borderColor: B.border }}>
+                    <tr
+                      className={needsLine ? "" : "border-b"}
+                      style={{
+                        borderColor: B.border,
+                        background: r.isTest ? "#FFFBEB" : undefined,
+                        boxShadow: r.isTest ? "inset 3px 0 0 #F59E0B" : undefined,
+                      }}
+                    >
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-3">
                           <div
@@ -403,12 +411,23 @@ export function FundRequestsPanel({
                         <div>Deposited {formatWhen(r.depositDatetime).date}, {formatWhen(r.depositDatetime).time}</div>
                       </td>
                       <td className="px-4 py-4">
-                        <span
-                          className="inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold"
-                          style={{ background: pill.bg, color: pill.color }}
-                        >
-                          {pill.label}
-                        </span>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span
+                            className="inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold"
+                            style={{ background: pill.bg, color: pill.color }}
+                          >
+                            {pill.label}
+                          </span>
+                          {r.isTest ? (
+                            <span
+                              className="inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold"
+                              style={{ color: "#B45309", background: "#FEF3C7" }}
+                              title="Marked as a test entry"
+                            >
+                              Test
+                            </span>
+                          ) : null}
+                        </div>
                         {r.hasBankLine ? (
                           <div className="mt-1 text-[11px]" style={{ color: "#15803D" }}>
                             Linked to bank

@@ -168,10 +168,12 @@ export async function listTreasuryActivity(params: {
         bank_name: string;
         last4: string;
         submitted_at: string;
+        is_test: boolean;
       }>(sql`
         SELECT fr.id::text AS id, fr.amount::text AS amount, fr.credited_amount::text AS credited_amount,
                fr.status::text AS status, fr.reference_number, u.name AS agent_name, u.mobile AS agent_mobile,
-               ba.bank_name, ba.account_number_last4 AS last4, fr.submitted_at::text AS submitted_at
+               ba.bank_name, ba.account_number_last4 AS last4, fr.submitted_at::text AS submitted_at,
+               (fr.test_marked_at IS NOT NULL) AS is_test
         FROM fund_requests fr
         JOIN users u ON u.id = fr.requester_user_id
         JOIN bank_accounts ba ON ba.id = fr.bank_account_id
@@ -181,6 +183,7 @@ export async function listTreasuryActivity(params: {
       `);
       for (const r of frs.rows) {
         const amt = r.credited_amount ?? r.amount;
+        const statusBase = fundStatusLabel(r.status);
         items.push({
           id: `fr:${r.id}`,
           channel: "agent",
@@ -191,7 +194,7 @@ export async function listTreasuryActivity(params: {
             .join(" · "),
           amount: paiseToRupees(BigInt(amt)),
           direction: "CR",
-          status: fundStatusLabel(r.status),
+          status: r.is_test ? `${statusBase} · Test` : statusBase,
           occurredAt: r.submitted_at,
           href: `/treasury/bank?tab=fund-requests`,
         });

@@ -1066,7 +1066,15 @@ export function BankEntriesPanel({ onOpenReconciliation }: { onOpenReconciliatio
                     const mine = !canSelfApprove && me?.id && r.requestedBy === me.id;
                     const busy = decidingId === r.id;
                     return (
-                      <tr key={r.id} className="border-b align-top last:border-0" style={{ borderColor: B.border }}>
+                      <tr
+                        key={r.id}
+                        className="border-b align-top last:border-0"
+                        style={{
+                          borderColor: B.border,
+                          background: r.isTest ? "#FFFBEB" : undefined,
+                          boxShadow: r.isTest ? "inset 3px 0 0 #F59E0B" : undefined,
+                        }}
+                      >
                         <td className="py-3 pr-3 whitespace-nowrap">{formatDate(r.txnDate)}</td>
                         <td className="py-3 pr-3">
                           <div className="font-semibold" style={{ color: B.blue }}>
@@ -1127,17 +1135,28 @@ export function BankEntriesPanel({ onOpenReconciliation }: { onOpenReconciliatio
                           <div style={{ color: B.muted }}>{r.mode.toUpperCase()}</div>
                         </td>
                         <td className="py-3 pr-3 text-xs">
-                          {r.reversedAt ? (
-                            <span
-                              className="inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold"
-                              style={{ color: "#475569", background: "#E2E8F0" }}
-                              title={r.reverseReason ?? undefined}
-                            >
-                              Reversed
-                            </span>
-                          ) : (
-                            <StatusPill status={r.status} />
-                          )}
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {r.reversedAt ? (
+                              <span
+                                className="inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold"
+                                style={{ color: "#475569", background: "#E2E8F0" }}
+                                title={r.reverseReason ?? undefined}
+                              >
+                                Reversed
+                              </span>
+                            ) : (
+                              <StatusPill status={r.status} />
+                            )}
+                            {r.isTest ? (
+                              <span
+                                className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold"
+                                style={{ color: "#B45309", background: "#FEF3C7" }}
+                                title="Test entry — excluded from live cash picture when deleted"
+                              >
+                                <FlaskConical size={11} /> Test
+                              </span>
+                            ) : null}
+                          </div>
                           {r.reversedAt && r.reverseReason ? (
                             <div className="mt-1 max-w-[200px]" style={{ color: B.muted }}>
                               {r.reverseReason}

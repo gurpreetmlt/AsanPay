@@ -161,8 +161,16 @@ export function ActivityPanel() {
             const status = statusLabel(item.status);
             const amountColor =
               item.direction === "CR" ? "#15803D" : item.direction === "DR" ? B.danger : B.blue;
+            const isTest = Boolean(item.status?.includes("Test"));
             const body = (
-              <div className="flex items-start gap-3 px-4 py-3 transition hover:bg-[#F8FAFC]">
+              <div
+                className="flex items-start gap-3 px-4 py-3 transition hover:bg-[#F8FAFC]"
+                style={
+                  isTest
+                    ? { background: "#FFFBEB", boxShadow: "inset 3px 0 0 #F59E0B" }
+                    : undefined
+                }
+              >
                 <div
                   className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
                   style={{ background: meta.bg, color: meta.color }}
@@ -178,7 +186,10 @@ export function ActivityPanel() {
                       {meta.label}
                     </span>
                     {status ? (
-                      <span className="text-[11px] font-medium" style={{ color: B.muted }}>
+                      <span
+                        className="text-[11px] font-medium"
+                        style={{ color: isTest ? "#B45309" : B.muted }}
+                      >
                         {status}
                       </span>
                     ) : null}

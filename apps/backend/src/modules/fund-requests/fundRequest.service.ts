@@ -900,6 +900,7 @@ function mapFundRequestRow(row: FundRequestRow, actorRole: string, requester?: R
       ? {
           hasBankLine: row.matchedLineId != null,
           matchedLineId: row.matchedLineId != null ? String(row.matchedLineId) : null,
+          isTest: row.testMarkedAt != null,
         }
       : {}),
     ...(requester ? { requester } : {}),
