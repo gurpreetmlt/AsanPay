@@ -252,7 +252,7 @@ export default function WalletPage() {
                   Downline — Fund / Reverse
                 </h2>
                 <p className="mt-0.5 text-xs" style={{ color: B.muted }}>
-                  Fund needs your PIN. Reverse sends OTP to partner phone, then you enter OTP + PIN.
+                  Fund and reverse both need your 4-digit PIN.
                 </p>
               </div>
               {user?.role === "super_distributor" || user?.role === "distributor" ? (

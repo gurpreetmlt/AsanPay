@@ -753,6 +753,8 @@ function TransferConfirm({
   rows,
   pin,
   onPin,
+  pinHint = "Enter your 4-digit PIN to authorise this transfer",
+  confirmLabel = "Confirm & Send",
   loading,
   onBack,
   onConfirm,
@@ -763,6 +765,8 @@ function TransferConfirm({
   rows: { label: string; value: string }[];
   pin: string;
   onPin: (v: string) => void;
+  pinHint?: string;
+  confirmLabel?: string;
   loading: boolean;
   onBack: () => void;
   onConfirm: () => void;
@@ -806,7 +810,7 @@ function TransferConfirm({
           </View>
         ))}
       </View>
-      <Text style={styles.confirmPinLabel}>Enter your 4-digit PIN to authorise this transfer</Text>
+      <Text style={styles.confirmPinLabel}>{pinHint}</Text>
       <PinInput value={pin} onChange={onPin} />
       <View style={styles.confirmActions}>
         <Pressable onPress={onBack} disabled={loading} style={[styles.confirmBtn, { backgroundColor: colors.danger }]}>
@@ -817,7 +821,7 @@ function TransferConfirm({
           disabled={loading || pin.length !== 4}
           style={[styles.confirmBtn, { backgroundColor: colors.blue, opacity: pin.length === 4 ? 1 : 0.5 }]}
         >
-          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>Confirm & Send</Text>}
+          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>{confirmLabel}</Text>}
         </Pressable>
       </View>
     </>
@@ -966,59 +970,36 @@ function PullModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
-  const [step, setStep] = useState<"amount" | "otp">("amount");
+  const [step, setStep] = useState<"form" | "confirm">("form");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
-  const [otp, setOtp] = useState("");
   const [txnPin, setTxnPin] = useState("");
-  const [devOtp, setDevOtp] = useState<string | null>(null);
-  const [maskedMobile, setMaskedMobile] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const attemptKey = useRef(createAttemptKeyHolder(`pull-${target.id}`));
 
-  async function requestOtp() {
-    if (loading) return;
-    if (!amount || parseFloat(amount) <= 0) {
-      showAlert("Invalid amount", "Enter a valid amount.");
-      return;
-    }
-    setLoading(true);
-    try {
-      const { data } = await api.post<{
-        success: boolean;
-        message: string;
-        data: { message: string; otp?: string; maskedMobile?: string; expiresInSeconds: number };
-      }>("/wallet/pull/request", {
-        targetUserId: target.id,
-        walletType: "main",
-        amount,
-      });
-      if (!data.success) throw new Error(data.message);
-      setDevOtp(data.data.otp ?? null);
-      setMaskedMobile(data.data.maskedMobile ?? null);
-      setStep("otp");
-      showAlert(
-        "OTP sent",
-        data.data.otp ? `Dev OTP: ${data.data.otp}` : data.data.message || "OTP sent to partner phone",
-      );
-    } catch (err) {
-      const msg =
-        (err as { response?: { data?: { message?: string } } }).response?.data?.message ??
-        "Could not send OTP";
-      showAlert("Error", msg);
-    } finally {
-      setLoading(false);
-    }
+  function close() {
+    setStep("form");
+    setTxnPin("");
+    onClose();
   }
 
-  async function confirm() {
-    if (loading) return;
-    if (otp.length !== 6) {
-      showAlert("Invalid OTP", "Enter the 6-digit OTP from the partner phone");
+  function review() {
+    if (!amount || !(parseFloat(amount) > 0)) {
+      showAlert("Invalid amount", "Enter an amount greater than ₹0.");
       return;
     }
+    if (parseFloat(amount) > Number(target.mainBalance)) {
+      showAlert("Amount too high", "Amount is higher than their main wallet balance.");
+      return;
+    }
+    setTxnPin("");
+    setStep("confirm");
+  }
+
+  async function submit() {
+    if (loading) return;
     if (txnPin.length !== 4) {
-      showAlert("Invalid PIN", "Enter your 4-digit transaction PIN");
+      showAlert("Invalid PIN", "Enter your 4-digit transaction PIN.");
       return;
     }
     setLoading(true);
@@ -1027,7 +1008,6 @@ function PullModal({
         targetUserId: target.id,
         walletType: "main",
         amount,
-        otp,
         txnPin,
         idempotencyKey: attemptKey.current.get(),
         ...(note ? { description: note } : {}),
@@ -1035,29 +1015,27 @@ function PullModal({
       attemptKey.current.clear();
       showAlert("Success", `₹${amount} reversed from ${target.name}`);
       onSuccess();
-      onClose();
-      setStep("amount");
+      close();
       setAmount("");
       setNote("");
-      setOtp("");
-      setTxnPin("");
-      setDevOtp(null);
     } catch (err) {
+      setTxnPin("");
       const msg =
         (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? "Reverse failed";
-      showAlert("Error", msg);
+      showAlert("Reverse failed", msg);
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <ModalSheet visible={visible} title={`Reverse · ${target.name}`} onClose={onClose}>
-      {step === "amount" ? (
+    <ModalSheet
+      visible={visible}
+      title={step === "confirm" ? "Confirm reverse" : `Reverse ${target.name}`}
+      onClose={close}
+    >
+      {step === "form" ? (
         <>
-          <Text style={styles.help}>
-            OTP goes to {target.name}&apos;s phone ({target.mobile}). You enter that OTP + your txn PIN.
-          </Text>
           <Text style={styles.help}>Available: {formatINR(target.mainBalance)}</Text>
           <Field
             label="Amount (₹)"
@@ -1069,52 +1047,34 @@ function PullModal({
             keyboardType="decimal-pad"
           />
           <Field label="Note (optional)" value={note} onChangeText={setNote} />
-          <Pressable onPress={() => void requestOtp()} disabled={loading}>
+          <Pressable onPress={review}>
             <LinearGradient colors={[...colors.gradient]} style={styles.submit}>
-              <Text style={styles.submitText}>{loading ? "Sending OTP…" : "Send OTP to partner"}</Text>
+              <Text style={styles.submitText}>Continue</Text>
             </LinearGradient>
           </Pressable>
         </>
       ) : (
-        <>
-          <Text style={styles.help}>
-            Reversing ₹{amount} from {target.name}
-            {maskedMobile ? ` · OTP sent to ${maskedMobile}` : ""}
-          </Text>
-          {devOtp ? <Text style={styles.devOtp}>Dev OTP: {devOtp}</Text> : null}
-          <Field
-            label="6-digit OTP"
-            value={otp}
-            onChangeText={(t) => setOtp(t.replace(/\D/g, "").slice(0, 6))}
-            keyboardType="phone-pad"
-            maxLength={6}
-          />
-          <Field
-            label="Your transaction PIN"
-            value={txnPin}
-            onChangeText={(t) => setTxnPin(t.replace(/\D/g, "").slice(0, 4))}
-            keyboardType="phone-pad"
-            maxLength={4}
-            secureTextEntry
-          />
-          <Pressable onPress={() => void confirm()} disabled={loading}>
-            <LinearGradient colors={[...colors.gradient]} style={styles.submit}>
-              <Text style={styles.submitText}>{loading ? "Reversing…" : "Confirm reverse"}</Text>
-            </LinearGradient>
-          </Pressable>
-          <Pressable
-            onPress={() => {
-              setStep("amount");
-              setOtp("");
-              setTxnPin("");
-              setDevOtp(null);
-              attemptKey.current.clear();
-            }}
-            style={styles.changeAmount}
-          >
-            <Text style={styles.changeAmountText}>Change amount</Text>
-          </Pressable>
-        </>
+        <TransferConfirm
+          amount={amount}
+          amountCaption="You are reversing"
+          recipient={{
+            name: target.name,
+            subtitle: `${ROLE_LABEL[target.role] ?? target.role} · ${target.uid}`,
+          }}
+          rows={[
+            { label: "Mobile", value: target.mobile },
+            { label: "Their balance now", value: formatINR(target.mainBalance) },
+            { label: "To", value: "Your main wallet" },
+            ...(note ? [{ label: "Note", value: note }] : []),
+          ]}
+          pin={txnPin}
+          onPin={setTxnPin}
+          pinHint="Enter your 4-digit PIN to authorise this reverse"
+          confirmLabel="Confirm & Reverse"
+          loading={loading}
+          onBack={() => setStep("form")}
+          onConfirm={() => void submit()}
+        />
       )}
     </ModalSheet>
   );
@@ -1285,15 +1245,6 @@ const styles = StyleSheet.create({
   confirmPinLabel: { fontSize: 13, color: colors.textMuted, textAlign: "center", marginBottom: 10 },
   confirmActions: { flexDirection: "row", gap: 10, marginTop: 18 },
   confirmBtn: { flex: 1, borderRadius: 12, paddingVertical: 14, alignItems: "center" },
-  devOtp: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: colors.green,
-    backgroundColor: colors.greenBg,
-    padding: 10,
-    borderRadius: 10,
-    marginBottom: 10,
-  },
   linkBox: {
     fontSize: 12,
     color: colors.blueFlat,
@@ -1329,6 +1280,4 @@ const styles = StyleSheet.create({
   inviteSub: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
   inviteBadge: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
   inviteAction: { paddingHorizontal: 4, paddingVertical: 4 },
-  changeAmount: { marginTop: 12, alignItems: "center" },
-  changeAmountText: { color: colors.textMuted, fontWeight: "600", fontSize: 13 },
 });

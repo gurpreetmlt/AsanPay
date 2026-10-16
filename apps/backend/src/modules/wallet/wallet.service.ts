@@ -324,14 +324,15 @@ export async function requestPullFromChild(
 }
 
 /**
- * Step 2: verify child OTP + move main/aeps funds from child → parent.
+ * Move main/aeps funds from child → parent. Parent txn PIN is checked in the controller.
+ * If an OTP is sent (older clients), it must still match the request on the child's phone.
  */
 export async function confirmPullFromChild(
   actor: Actor,
   opts: {
     targetUserId: string;
     amount: string;
-    otp: string;
+    otp?: string;
     walletType?: WalletType;
     description?: string;
     idempotencyKey: string;
@@ -340,25 +341,27 @@ export async function confirmPullFromChild(
   const walletType = opts.walletType ?? "main";
   const target = await assertPullableChild(actor, opts.targetUserId);
 
-  const record = await findLatestActiveOtp({ mobile: target.mobile, purpose: "wallet_pull" });
-  if (!record) throw new HttpError(401, "OTP has expired or was not requested", "OTP_EXPIRED");
-  if (record.attempts >= MAX_OTP_ATTEMPTS) {
-    throw new HttpError(401, "Too many incorrect attempts — request a new OTP", "OTP_LOCKED");
-  }
-  if (!otpHashesEqual(record.otpHash, opts.otp)) {
-    await incrementOtpAttempts(record.id);
-    throw new HttpError(401, "Incorrect OTP", "OTP_INCORRECT");
-  }
+  if (opts.otp) {
+    const record = await findLatestActiveOtp({ mobile: target.mobile, purpose: "wallet_pull" });
+    if (!record) throw new HttpError(401, "OTP has expired or was not requested", "OTP_EXPIRED");
+    if (record.attempts >= MAX_OTP_ATTEMPTS) {
+      throw new HttpError(401, "Too many incorrect attempts — request a new OTP", "OTP_LOCKED");
+    }
+    if (!otpHashesEqual(record.otpHash, opts.otp)) {
+      await incrementOtpAttempts(record.id);
+      throw new HttpError(401, "Incorrect OTP", "OTP_INCORRECT");
+    }
 
-  const meta = record.meta ?? {};
-  if (meta.actorId !== actor.id || meta.targetUserId !== target.id) {
-    throw new HttpError(422, "OTP does not match this collect request", "OTP_MISMATCH");
-  }
-  if (meta.amount !== opts.amount || (meta.walletType ?? "main") !== walletType) {
-    throw new HttpError(422, "Amount or balance type does not match OTP request", "PULL_MISMATCH");
-  }
+    const meta = record.meta ?? {};
+    if (meta.actorId !== actor.id || meta.targetUserId !== target.id) {
+      throw new HttpError(422, "OTP does not match this collect request", "OTP_MISMATCH");
+    }
+    if (meta.amount !== opts.amount || (meta.walletType ?? "main") !== walletType) {
+      throw new HttpError(422, "Amount or balance type does not match OTP request", "PULL_MISMATCH");
+    }
 
-  await markOtpConsumed(record.id);
+    await markOtpConsumed(record.id);
+  }
 
   const fromWallet = await getWalletOrThrow(target.id, walletType);
   const toWallet = await getWalletOrThrow(actor.id, "main");

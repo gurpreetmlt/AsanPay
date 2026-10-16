@@ -13,6 +13,8 @@ interface TransferConfirmProps {
   rows: { label: string; value: string }[];
   pin: string;
   onPin: (pin: string) => void;
+  pinHint?: string;
+  confirmLabel?: string;
   loading: boolean;
   onBack: () => void;
   onConfirm: () => void;
@@ -25,6 +27,8 @@ export function TransferConfirm({
   rows,
   pin,
   onPin,
+  pinHint = "Enter your 4-digit PIN to authorise this transfer",
+  confirmLabel = "Confirm & Send",
   loading,
   onBack,
   onConfirm,
@@ -113,7 +117,7 @@ export function TransferConfirm({
           style={{ borderColor: pin.length === 4 ? B.green : B.border, color: B.blue }}
         />
         <p className="mt-1.5 text-center text-[11px]" style={{ color: B.muted }}>
-          Enter your 4-digit PIN to authorise this transfer
+          {pinHint}
         </p>
       </div>
 
@@ -122,7 +126,7 @@ export function TransferConfirm({
           Edit
         </PrimaryButton>
         <PrimaryButton type="submit" variant="primary" disabled={loading || pin.length !== 4} loading={loading}>
-          Confirm & Send
+          {confirmLabel}
         </PrimaryButton>
       </div>
     </form>

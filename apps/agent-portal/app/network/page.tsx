@@ -596,7 +596,7 @@ export default function NetworkPage() {
                                 type="button"
                                 title={
                                   collectOk
-                                    ? `Pull funds back from ${m.name} (OTP on their phone)`
+                                    ? `Pull funds back from ${m.name}`
                                     : Number(m.mainBalance) > 0
                                       ? "Only your direct, active downline can be reversed"
                                       : "Nothing to reverse — their balance is ₹0"

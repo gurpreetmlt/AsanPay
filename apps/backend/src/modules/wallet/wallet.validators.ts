@@ -61,13 +61,13 @@ export const pullRequestSchema = z.object({
 });
 export type PullRequestInput = z.infer<typeof pullRequestSchema>;
 
-/** Confirm collect: child OTP + parent txn PIN. */
+/** Confirm collect with the parent's transaction PIN. OTP is optional (older clients). */
 export const pullConfirmSchema = z
   .object({
     targetUserId: z.string().uuid(),
     walletType: z.enum(WALLET_TYPES).default("main"),
     amount: amountSchema,
-    otp: z.string().regex(/^\d{6}$/, "OTP must be 6 digits"),
+    otp: z.string().regex(/^\d{6}$/, "OTP must be 6 digits").optional(),
     description: z.string().trim().max(255).optional(),
     txnPin: z.string().regex(/^\d{4,6}$/).optional(),
     txnAuth: z.string().min(20).optional(),
