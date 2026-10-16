@@ -58,6 +58,9 @@
 ## Treasury & Balance ease (ordered)
 Queue: [treasury-balance-ease-queue.md](treasury-balance-ease-queue.md) — **complete (TB01–TB20)**
 
+## Tax & Commission (ordered)
+Queue: [tax-commission-queue.md](tax-commission-queue.md) — **TC01 CURRENT** (TDS all commission products · GST on DMT · My rates / receipts)
+
 ## Wallet engine pending (ordered)
 Queue: [wallet-engine-queue.md](wallet-engine-queue.md) (MVP 27A–27D done)
 
@@ -74,8 +77,8 @@ Queue: [wallet-engine-queue.md](wallet-engine-queue.md) (MVP 27A–27D done)
 
 ## Recommended next (fast value)
 ```
-1. @docs/TASKS/18-kyc-module.md  (KYC CRUD leftovers)
-2. Service flows — AEPS / DMT / BBPS task files
+1. @docs/TASKS/tax-commission-queue.md  (TC01 CURRENT — Tax & Commission)
+2. @docs/TASKS/18-kyc-module.md  (KYC CRUD leftovers)
 ```
 
 ## Prompt format
