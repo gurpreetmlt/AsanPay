@@ -120,6 +120,11 @@ body::before {
     radial-gradient(ellipse 50% 40% at 100% 100%, var(--mesh-b), transparent 50%);
 }
 
+/* List row dividers (Tailwind divide-y) — same color as card outer border */
+.divide-y > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--admin-border);
+}
+
 /* Theme-aware surfaces (prefer these over hard-coded white) */
 .admin-card {
   background: var(--admin-card);

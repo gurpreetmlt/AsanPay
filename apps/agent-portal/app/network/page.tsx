@@ -453,7 +453,7 @@ export default function NetworkPage() {
                   }
                 />
               ) : (
-                <div className="divide-y px-2 py-2" style={{ borderColor: B.border }}>
+                <div className="divide-y divide-[var(--agent-border)] px-2 py-2" style={{ borderColor: B.border }}>
                   {data!.tree.map((node) => (
                     <TreeItem
                       key={node.id}

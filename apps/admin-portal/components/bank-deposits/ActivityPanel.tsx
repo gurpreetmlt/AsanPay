@@ -154,7 +154,10 @@ export function ActivityPanel() {
           No activity for this filter yet.
         </p>
       ) : (
-        <ul className="divide-y rounded-2xl border bg-white" style={{ borderColor: B.border }}>
+        <ul
+          className="divide-y divide-[var(--admin-border)] rounded-2xl border bg-white"
+          style={{ borderColor: B.border }}
+        >
           {items.map((item) => {
             const meta = CHANNEL_META[item.channel];
             const Icon = meta.icon;

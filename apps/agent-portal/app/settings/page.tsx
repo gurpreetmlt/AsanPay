@@ -1024,7 +1024,7 @@ export default function SettingsPage() {
                   <h2 className="mb-4 text-lg font-bold" style={{ color: B.blue }}>
                     Legal and Help
                   </h2>
-                  <div className="divide-y" style={{ borderColor: B.border }}>
+                  <div className="divide-y divide-[var(--agent-border)]" style={{ borderColor: B.border }}>
                     <Link href="/privacy" className="flex items-center gap-3 py-3.5">
                       <Shield size={18} style={{ color: B.blue }} />
                       <div className="flex-1">

@@ -35,6 +35,16 @@
   --text-3xl: 1.875rem;
 }
 
+:root {
+  /* Same as B.border — list dividers must match card outer borders */
+  --agent-border: rgba(11, 42, 154, 0.1);
+}
+
+/* List row dividers (Tailwind divide-y) — same color as card outer border */
+.divide-y > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--agent-border);
+}
+
 * {
   box-sizing: border-box;
 }
