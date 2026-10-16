@@ -9,8 +9,8 @@
 | # | Task | Size | Status | Notes |
 |---|------|------|--------|-------|
 | **TB01** | Cash picture strip (bank / books / diff / pending) without running Reconcile | M | done | Admin Bank & deposits top |
-| **TB02** | Simple match labels + tip for old codes (`suspense` → Needs review, etc.) | S | **CURRENT** | Reconcile UI copy |
-| TB03 | Explain this line (why unmatched + next step CTA) | M | pending | Per recon row |
+| **TB02** | Simple match labels + tip for old codes (`suspense` → Needs review, etc.) | S | done | Reconcile UI copy |
+| **TB03** | Explain this line (why unmatched + next step CTA) | M | **CURRENT** | Per recon row |
 | TB04 | Unified activity feed (Bank / Agent / API filters) | L | pending | New tab or panel |
 | TB05 | Agent ↔ bank link + “Open in Reconcile” jump | M | pending | Fund request / bank entry rows |
 | TB06 | Provider ledger strip (In / Out / Fees / wallet impact) | M | pending | Separate from bank CR/DR |
@@ -41,7 +41,7 @@
 | # | Where to click | What to check | Expected |
 |---|----------------|---------------|----------|
 | TB01 | Admin → Bank & deposits (page top, any tab) | Cash picture strip loads on open | Bank = latest statement balance, Books = ledger for those banks, Difference = statement minus books, Pending = unmatched credit amount. No Reconcile click. Missing statement shows — and “Upload a statement…”. |
-| TB02 | | | |
+| TB02 | Bank & deposits → Reconciliation → Run reconciliation | Status tiles + row pills + tip strip | Labels: Matched, Needs review, Likely match, Amount differs, In bank only, In books only. Tip maps old codes (suspense → Needs review, etc.). Hover tile/pill shows meaning. Upload history: “needs review” not “in suspense”. |
 | … | | | |
 
 ## Prompt for next chat

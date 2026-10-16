@@ -104,14 +104,67 @@ interface ReconReport {
   rows: ReconRow[];
 }
 
-const KIND_META: Record<Kind, { label: string; color: string; bg: string; tone: CellTone }> = {
-  matched: { label: "Matched", color: "#15803D", bg: "#DCFCE7", tone: "approved" },
-  suspense: { label: "Parked in suspense", color: "#B45309", bg: "#FEF3C7", tone: "requested" },
-  possible: { label: "Possible match", color: "#A16207", bg: "#FEF9C3", tone: "requested" },
-  mismatch: { label: "Amount mismatch", color: "#C2410C", bg: "#FFEDD5", tone: "requested" },
-  only_bank: { label: "Only in bank", color: "#B91C1C", bg: "#FEE2E2", tone: "rejected" },
-  only_ours: { label: "Only in our records", color: "#B91C1C", bg: "#FEE2E2", tone: "rejected" },
-  ignored: { label: "Ignored", color: "#64748B", bg: "#F1F5F9", tone: "muted" },
+/** Display labels stay plain English. `oldCode` is the internal / legacy name for the tip strip. */
+const KIND_META: Record<
+  Kind,
+  { label: string; tip: string; oldCode: string; color: string; bg: string; tone: CellTone }
+> = {
+  matched: {
+    label: "Matched",
+    tip: "Statement line tied to an AsanPay record",
+    oldCode: "matched",
+    color: "#15803D",
+    bg: "#DCFCE7",
+    tone: "approved",
+  },
+  suspense: {
+    label: "Needs review",
+    tip: "Credit parked until the sender is identified",
+    oldCode: "suspense",
+    color: "#B45309",
+    bg: "#FEF3C7",
+    tone: "requested",
+  },
+  possible: {
+    label: "Likely match",
+    tip: "Same amount and side — confirm if it is the right record",
+    oldCode: "possible",
+    color: "#A16207",
+    bg: "#FEF9C3",
+    tone: "requested",
+  },
+  mismatch: {
+    label: "Amount differs",
+    tip: "Same UTR, but the amounts do not match",
+    oldCode: "mismatch",
+    color: "#C2410C",
+    bg: "#FFEDD5",
+    tone: "requested",
+  },
+  only_bank: {
+    label: "In bank only",
+    tip: "On the statement with no matching AsanPay entry",
+    oldCode: "only_bank",
+    color: "#B91C1C",
+    bg: "#FEE2E2",
+    tone: "rejected",
+  },
+  only_ours: {
+    label: "In books only",
+    tip: "Posted in AsanPay but not on this statement",
+    oldCode: "only_ours",
+    color: "#B91C1C",
+    bg: "#FEE2E2",
+    tone: "rejected",
+  },
+  ignored: {
+    label: "Skipped",
+    tip: "Marked to ignore for this reconciliation",
+    oldCode: "ignored",
+    color: "#64748B",
+    bg: "#F1F5F9",
+    tone: "muted",
+  },
 };
 
 const TILE_ORDER: Kind[] = ["matched", "possible", "mismatch", "only_bank", "only_ours", "suspense"];
@@ -192,6 +245,7 @@ function KindPill({ kind }: { kind: Kind }) {
   const m = KIND_META[kind];
   return (
     <span
+      title={`${m.tip} (old code: ${m.oldCode})`}
       className="inline-flex whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-bold"
       style={{ color: m.color, background: m.bg }}
     >
@@ -253,7 +307,7 @@ function buildReport(report: ReconReport, rows: ReconRow[], generatedBy: string)
       { text: KIND_META[r.kind].label, tone: KIND_META[r.kind].tone },
     ]),
     footerNote:
-      "Matched = statement line tied to a ledger posting. Only in bank = money moved with no entry in AsanPay. Only in our records = posted in AsanPay but not on this statement.",
+      "Matched = statement line tied to a ledger posting. In bank only = money on the statement with no AsanPay entry. In books only = posted in AsanPay but not on this statement. Needs review = formerly suspense.",
   };
 }
 
@@ -1001,7 +1055,7 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
           <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-end">
             <label className="block w-full min-w-0 lg:max-w-[280px] lg:flex-none">
               <span className="mb-1 block text-xs font-medium" style={{ color: B.muted }}>
-                Bank
+                Bank account
               </span>
               <select
                 className="h-11 w-full rounded-xl border px-3 text-sm"
@@ -1107,6 +1161,7 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                 {TILE_ORDER.map((k) => (
                   <div
                     key={k}
+                    title={`${KIND_META[k].tip} (old code: ${KIND_META[k].oldCode})`}
                     className="rounded-xl border bg-white p-3"
                     style={{
                       borderColor: B.border,
@@ -1123,6 +1178,21 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                   </div>
                 ))}
               </div>
+
+              <p
+                className="rounded-xl border px-3 py-2 text-[11px] leading-relaxed"
+                style={{ borderColor: B.border, background: "#F8FAFC", color: B.muted }}
+              >
+                <span className="font-semibold" style={{ color: B.blue }}>
+                  Status tip:{" "}
+                </span>
+                Hover a tile for the full meaning. Older codes map as{" "}
+                <code className="rounded bg-white px-1 py-0.5 text-[10px]">suspense</code> → Needs review ·{" "}
+                <code className="rounded bg-white px-1 py-0.5 text-[10px]">possible</code> → Likely match ·{" "}
+                <code className="rounded bg-white px-1 py-0.5 text-[10px]">mismatch</code> → Amount differs ·{" "}
+                <code className="rounded bg-white px-1 py-0.5 text-[10px]">only_bank</code> → In bank only ·{" "}
+                <code className="rounded bg-white px-1 py-0.5 text-[10px]">only_ours</code> → In books only.
+              </p>
 
               <div
                 className="flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm"
@@ -1507,8 +1577,12 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                             </span>
                           ) : null}
                           {h.suspense ? (
-                            <span className="rounded-full px-2 py-0.5 font-bold" style={{ color: "#B45309", background: "#FEF3C7" }}>
-                              {h.suspense} in suspense
+                            <span
+                              className="rounded-full px-2 py-0.5 font-bold"
+                              title="Was labelled suspense"
+                              style={{ color: "#B45309", background: "#FEF3C7" }}
+                            >
+                              {h.suspense} needs review
                             </span>
                           ) : null}
                         </div>
