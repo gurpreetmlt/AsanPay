@@ -31,7 +31,7 @@ export const SECTION_GROUPS: Record<
       { href: "/recon-adjustments", label: "Recon adjustments" },
     ],
   },
-  // Sidebar stays a single hub link; page tabs switch tools without going back.
+  // Matches Tax & Commission sidebar children + in-page tabs.
   taxCommission: {
     root: "Tax & Commission",
     title: "Tax & Commission",
