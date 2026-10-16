@@ -6,6 +6,7 @@ import { Wrench, Plus, X } from "lucide-react";
 import { B } from "@/lib/brand";
 import api, { fetchApi } from "@/lib/api";
 import { extractApiError } from "@/lib/onboarding";
+import { DateField } from "@/components/ui/DateField";
 
 interface RepairRow {
   id: string;
@@ -271,13 +272,11 @@ export function DeviceRepairRequests() {
             <p className="mb-1.5 text-xs font-semibold" style={{ color: B.muted }}>
               Invoice date — optional
             </p>
-            <input
-              type="date"
+            <DateField
               value={invoiceDate}
-              onChange={(e) => setInvoiceDate(e.target.value)}
+              fullWidth
               max={new Date().toISOString().slice(0, 10)}
-              className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none"
-              style={{ borderColor: B.border, color: B.blue }}
+              onChange={setInvoiceDate}
             />
           </div>
           <input

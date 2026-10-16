@@ -8,6 +8,7 @@ import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { downloadBrandedExcel, openBrandedPdf, type BrandedReport } from "@/lib/brandedExport";
 import { useAuthStore } from "@/lib/store";
+import { DateField } from "@/components/ui/DateField";
 
 interface DailyCloseStep {
   id: string;
@@ -255,18 +256,12 @@ export function DailyClosePanel() {
             Upload → Reconcile → Resolve → Close. Closing locks each bank&apos;s opening and closing for the day.
           </p>
         </div>
-        <label className="block text-sm">
+        <div className="block text-sm">
           <span className="mb-1 block text-xs font-medium" style={{ color: B.muted }}>
             Business date
           </span>
-          <input
-            type="date"
-            className="h-11 rounded-xl border px-3 text-sm"
-            style={{ borderColor: B.border }}
-            value={date}
-            onChange={(e) => setDate(e.target.value || istToday())}
-          />
-        </label>
+          <DateField value={date} onChange={(v) => setDate(v || istToday())} />
+        </div>
       </div>
 
       {loading || !status ? (

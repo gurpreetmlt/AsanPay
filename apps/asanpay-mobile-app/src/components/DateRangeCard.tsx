@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import DateTimePicker, { type DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { Calendar } from "lucide-react-native";
+import { colors } from "../theme/colors";
 import { useTheme } from "../theme/ThemeContext";
 
 /** YYYY-MM-DD in the device's local day (IST for our agents). */
@@ -12,6 +13,7 @@ export function toYmd(d: Date): string {
 }
 
 function toDisplay(ymd: string): string {
+  if (!ymd) return "Select";
   const [y, m, d] = ymd.split("-");
   return `${d}/${m}/${y}`;
 }
@@ -27,6 +29,7 @@ interface Props {
   onChange: (range: { from: string; to: string }) => void;
 }
 
+/** InstantPay-style FROM / TO pills — native picker on tap (OS calendar). */
 export function DateRangeFields({ from, to, onChange }: Props) {
   const { tokens } = useTheme();
   const [picking, setPicking] = useState<"from" | "to" | null>(null);
@@ -42,22 +45,39 @@ export function DateRangeFields({ from, to, onChange }: Props) {
 
   return (
     <View style={styles.row}>
-      {(["from", "to"] as const).map((k) => (
-        <View key={k} style={{ flex: 1 }}>
-          <Text style={[styles.label, { color: tokens.sub }]}>{k === "from" ? "From" : "To"}</Text>
+      {(["from", "to"] as const).map((k) => {
+        const active = picking === k;
+        return (
           <Pressable
+            key={k}
             onPress={() => setPicking(k)}
-            style={[styles.input, { borderColor: tokens.inputBorder, backgroundColor: tokens.inputBg }]}
+            style={[
+              styles.pill,
+              {
+                borderColor: active ? colors.blueLight : tokens.inputBorder,
+                backgroundColor: tokens.inputBg,
+                shadowColor: colors.blueLight,
+                shadowOpacity: active ? 0.18 : 0,
+                shadowRadius: active ? 6 : 0,
+                elevation: active ? 2 : 0,
+              },
+            ]}
           >
-            <Text style={[styles.value, { color: tokens.txt }]}>{toDisplay(k === "from" ? from : to)}</Text>
-            <Calendar size={16} color={tokens.sub} />
+            <Calendar size={15} color={tokens.sub} />
+            <Text style={[styles.pillLabel, { color: tokens.sub }]}>
+              {k === "from" ? "FROM" : "TO"}
+            </Text>
+            <Text style={[styles.pillValue, { color: tokens.txt }]} numberOfLines={1}>
+              {toDisplay(k === "from" ? from : to)}
+            </Text>
           </Pressable>
-        </View>
-      ))}
+        );
+      })}
       {picking ? (
         <DateTimePicker
-          value={fromYmd(picking === "from" ? from : to)}
+          value={fromYmd(picking === "from" ? from || toYmd(new Date()) : to || toYmd(new Date()))}
           mode="date"
+          display="calendar"
           maximumDate={new Date()}
           onChange={onPicked}
         />
@@ -68,15 +88,16 @@ export function DateRangeFields({ from, to, onChange }: Props) {
 
 const styles = StyleSheet.create({
   row: { flexDirection: "row", gap: 10 },
-  label: { fontSize: 12, fontWeight: "700", marginBottom: 6 },
-  input: {
+  pill: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    borderWidth: 1,
-    borderRadius: 12,
+    gap: 6,
+    borderWidth: 1.5,
+    borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: 12,
   },
-  value: { fontSize: 14, fontWeight: "600" },
+  pillLabel: { fontSize: 10, fontWeight: "800", letterSpacing: 0.6 },
+  pillValue: { flex: 1, fontSize: 14, fontWeight: "700", fontVariant: ["tabular-nums"] },
 });

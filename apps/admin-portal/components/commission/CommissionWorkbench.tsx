@@ -6,6 +6,7 @@ import { toast } from "react-hot-toast";
 import { Calculator, Download, Percent, Plus } from "lucide-react";
 import { ConfirmModal, type ConfirmTone } from "@/components/ui/ConfirmModal";
 import { TableActionButtons } from "@/components/ui/TableActionButtons";
+import { DateField } from "@/components/ui/DateField";
 import { B } from "@/lib/brand";
 import api, { fetchApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
@@ -769,30 +770,30 @@ export function CommissionWorkbench({
                 </>
               ) : (
                 <>
-                  <label className="block text-sm">
+                  <div className="block text-sm">
                     <span className="mb-1 block font-medium" style={{ color: B.muted }}>
                       From
                     </span>
-                    <input
-                      type="date"
-                      className="rounded-xl border px-3 py-2 text-sm"
-                      style={{ borderColor: B.border }}
+                    <DateField
                       value={regSince}
-                      onChange={(e) => setRegSince(e.target.value)}
+                      rangePeer={regUntil}
+                      rangeRole="start"
+                      max={regUntil || undefined}
+                      onChange={setRegSince}
                     />
-                  </label>
-                  <label className="block text-sm">
+                  </div>
+                  <div className="block text-sm">
                     <span className="mb-1 block font-medium" style={{ color: B.muted }}>
                       To
                     </span>
-                    <input
-                      type="date"
-                      className="rounded-xl border px-3 py-2 text-sm"
-                      style={{ borderColor: B.border }}
+                    <DateField
                       value={regUntil}
-                      onChange={(e) => setRegUntil(e.target.value)}
+                      rangePeer={regSince}
+                      rangeRole="end"
+                      min={regSince || undefined}
+                      onChange={setRegUntil}
                     />
-                  </label>
+                  </div>
                 </>
               )}
               <label className="block min-w-[180px] flex-1 text-sm">
@@ -1098,30 +1099,30 @@ export function CommissionWorkbench({
                   ))}
                 </select>
               </label>
-              <label className="block text-sm">
+              <div className="block text-sm">
                 <span className="mb-1 block font-medium" style={{ color: B.muted }}>
                   From
                 </span>
-                <input
-                  type="date"
-                  className="rounded-xl border px-3 py-2 text-sm"
-                  style={{ borderColor: B.border }}
+                <DateField
                   value={payoutSince}
-                  onChange={(e) => setPayoutSince(e.target.value)}
+                  rangePeer={payoutUntil}
+                  rangeRole="start"
+                  max={payoutUntil || undefined}
+                  onChange={setPayoutSince}
                 />
-              </label>
-              <label className="block text-sm">
+              </div>
+              <div className="block text-sm">
                 <span className="mb-1 block font-medium" style={{ color: B.muted }}>
                   To
                 </span>
-                <input
-                  type="date"
-                  className="rounded-xl border px-3 py-2 text-sm"
-                  style={{ borderColor: B.border }}
+                <DateField
                   value={payoutUntil}
-                  onChange={(e) => setPayoutUntil(e.target.value)}
+                  rangePeer={payoutSince}
+                  rangeRole="end"
+                  min={payoutSince || undefined}
+                  onChange={setPayoutUntil}
                 />
-              </label>
+              </div>
               <label className="block min-w-[180px] flex-1 text-sm">
                 <span className="mb-1 block font-medium" style={{ color: B.muted }}>
                   Search (name / UID / mobile / txn)

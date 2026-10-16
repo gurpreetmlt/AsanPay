@@ -10,6 +10,7 @@ import { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
+import { DateField } from "@/components/ui/DateField";
 
 type UnderwaterScheme = {
   serviceId: string;
@@ -129,18 +130,12 @@ export default function TaxCommissionUnderwaterPage() {
           className="flex flex-wrap items-end gap-3 rounded-2xl border bg-white p-5"
           style={{ borderColor: B.border }}
         >
-          <label className="block text-sm">
+          <div className="block text-sm">
             <span className="mb-1 block font-medium" style={{ color: B.muted }}>
               Date (IST)
             </span>
-            <input
-              type="date"
-              className="rounded-xl border px-3 py-2 text-sm"
-              style={{ borderColor: B.border }}
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-            />
-          </label>
+            <DateField value={date} onChange={setDate} />
+          </div>
           <label className="block text-sm">
             <span className="mb-1 block font-medium" style={{ color: B.muted }}>
               Provider pool %

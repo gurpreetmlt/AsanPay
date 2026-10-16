@@ -21,6 +21,7 @@ import {
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { PromptModal } from "@/components/ui/PromptModal";
 import { RequiredMark } from "@/components/ui/RequiredMark";
+import { DateField } from "@/components/ui/DateField";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
@@ -858,13 +859,7 @@ export function BankEntriesPanel({ onOpenReconciliation }: { onOpenReconciliatio
             </Field>
 
             <Field label="Transaction date" required>
-              <input
-                type="date"
-                className={inputCls}
-                style={inputStyle}
-                value={form.txnDate}
-                onChange={(e) => set("txnDate")(e.target.value)}
-              />
+              <DateField value={form.txnDate} fullWidth onChange={(v) => set("txnDate")(v)} />
             </Field>
 
             <Field label="Mode" required>
@@ -1014,21 +1009,23 @@ export function BankEntriesPanel({ onOpenReconciliation }: { onOpenReconciliatio
               </select>
             </Field>
             <Field label="From date">
-              <input
-                type="date"
-                className={inputCls}
-                style={inputStyle}
+              <DateField
                 value={from}
-                onChange={(e) => setFrom(e.target.value)}
+                fullWidth
+                rangePeer={to}
+                rangeRole="start"
+                max={to || undefined}
+                onChange={setFrom}
               />
             </Field>
             <Field label="To date">
-              <input
-                type="date"
-                className={inputCls}
-                style={inputStyle}
+              <DateField
                 value={to}
-                onChange={(e) => setTo(e.target.value)}
+                fullWidth
+                rangePeer={from}
+                rangeRole="end"
+                min={from || undefined}
+                onChange={setTo}
               />
             </Field>
             <ExportMenu rows={visibleRows} from={from} to={to} />

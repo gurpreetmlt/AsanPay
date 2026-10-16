@@ -2,8 +2,9 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "react-hot-toast";
-import { CalendarDays } from "lucide-react";
+import { Search } from "lucide-react";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
+import { DateField, DatePresetLinks } from "@/components/ui/DateField";
 import { B } from "@/lib/brand";
 import { DATE_PRESETS, todayYmd } from "./reportUtils";
 
@@ -43,76 +44,44 @@ export function ReportDateBar({ from, to, onApply, loading = false, actions }: P
     return r.from === draftFrom && r.to === draftTo;
   })?.id;
 
-  const inputCls = "rounded-xl border bg-white px-3 py-2 text-sm font-semibold outline-none";
-
   return (
     <div
-      className="flex flex-wrap items-end gap-x-4 gap-y-3 rounded-2xl border bg-white p-4 shadow-sm"
+      className="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-2xl border bg-white p-4 shadow-sm"
       style={{ borderColor: B.border }}
     >
-      <label className="flex flex-col gap-1 text-[11px] font-extrabold uppercase tracking-wide" style={{ color: B.muted }}>
-        From
-        <span className="relative">
-          <CalendarDays
-            size={15}
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
-            style={{ color: B.muted }}
-          />
-          <input
-            type="date"
-            value={draftFrom}
-            max={draftTo || todayYmd()}
-            onChange={(e) => setDraftFrom(e.target.value)}
-            className={`${inputCls} pl-9`}
-            style={{ borderColor: B.border, color: B.blue }}
-          />
-        </span>
-      </label>
-      <label className="flex flex-col gap-1 text-[11px] font-extrabold uppercase tracking-wide" style={{ color: B.muted }}>
-        To
-        <span className="relative">
-          <CalendarDays
-            size={15}
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
-            style={{ color: B.muted }}
-          />
-          <input
-            type="date"
-            value={draftTo}
-            min={draftFrom}
-            max={todayYmd()}
-            onChange={(e) => setDraftTo(e.target.value)}
-            className={`${inputCls} pl-9`}
-            style={{ borderColor: B.border, color: B.blue }}
-          />
-        </span>
-      </label>
+      <DateField
+        label="From"
+        value={draftFrom}
+        rangePeer={draftTo}
+        rangeRole="start"
+        max={draftTo || todayYmd()}
+        onChange={(v) => {
+          setDraftFrom(v);
+          if (draftTo && v > draftTo) setDraftTo(v);
+        }}
+      />
+      <DateField
+        label="To"
+        value={draftTo}
+        rangePeer={draftFrom}
+        rangeRole="end"
+        min={draftFrom}
+        max={todayYmd()}
+        onChange={(v) => {
+          setDraftTo(v);
+          if (draftFrom && v < draftFrom) setDraftFrom(v);
+        }}
+      />
 
-      <div className="flex flex-wrap items-center gap-2 pb-0.5">
-        {DATE_PRESETS.map((p) => {
-          const on = activePreset === p.id;
-          return (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => {
-                const r = p.range();
-                setDraftFrom(r.from);
-                setDraftTo(r.to);
-                apply(r.from, r.to);
-              }}
-              className="rounded-full border px-3.5 py-1.5 text-xs font-bold transition"
-              style={{
-                borderColor: on ? B.blueLight : B.border,
-                background: on ? "#EEF2FF" : "#fff",
-                color: on ? B.blue : B.muted,
-              }}
-            >
-              {p.label}
-            </button>
-          );
-        })}
-      </div>
+      <DatePresetLinks
+        activeId={activePreset}
+        presets={DATE_PRESETS}
+        onPick={(f, t) => {
+          setDraftFrom(f);
+          setDraftTo(t);
+          apply(f, t);
+        }}
+      />
 
       <div className="ml-auto flex flex-wrap items-center gap-2">
         {actions}
@@ -125,6 +94,7 @@ export function ReportDateBar({ from, to, onApply, loading = false, actions }: P
           loading={loading}
           onClick={() => apply(draftFrom, draftTo)}
         >
+          <Search size={14} className="mr-1.5" />
           View Report
         </PrimaryButton>
       </div>

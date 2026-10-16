@@ -27,6 +27,7 @@ import { B } from "@/lib/brand";
 import { formatSettlementBankCopy } from "@/lib/bankLogo";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { RequiredMark } from "@/components/ui/RequiredMark";
+import { DateTimeField } from "@/components/ui/DateField";
 
 interface BankAccount {
   id: string;
@@ -845,15 +846,13 @@ export function FundRequestForm({
                   </div>
                   <div>
                     <FieldLabel>Deposit / payment date & time</FieldLabel>
-                    <input
-                      type="datetime-local"
+                    <DateTimeField
                       value={depositLocal}
-                      onChange={(e) => {
-                        setDepositLocal(e.target.value);
+                      fullWidth
+                      onChange={(v) => {
+                        setDepositLocal(v);
                         attemptKey.current.clear();
                       }}
-                      className={inputClass}
-                      style={inputStyle}
                     />
                   </div>
                   <div>

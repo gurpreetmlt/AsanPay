@@ -10,6 +10,7 @@ import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 import { apiErrorMessage, formatWhen, monthStartYmd, todayYmd } from "@/lib/taxCommissionUtils";
+import { DateField } from "@/components/ui/DateField";
 
 type ReconGap = {
   commissionLedgerId: string;
@@ -126,30 +127,30 @@ export default function TaxCommissionReconPage() {
           className="flex flex-wrap items-end gap-3 rounded-2xl border bg-white p-5"
           style={{ borderColor: B.border }}
         >
-          <label className="block text-sm">
+          <div className="block text-sm">
             <span className="mb-1 block font-medium" style={{ color: B.muted }}>
               From (IST)
             </span>
-            <input
-              type="date"
-              className="rounded-xl border px-3 py-2 text-sm"
-              style={{ borderColor: B.border }}
+            <DateField
               value={from}
-              onChange={(e) => setFrom(e.target.value)}
+              rangePeer={to}
+              rangeRole="start"
+              max={to || undefined}
+              onChange={setFrom}
             />
-          </label>
-          <label className="block text-sm">
+          </div>
+          <div className="block text-sm">
             <span className="mb-1 block font-medium" style={{ color: B.muted }}>
               To (IST)
             </span>
-            <input
-              type="date"
-              className="rounded-xl border px-3 py-2 text-sm"
-              style={{ borderColor: B.border }}
+            <DateField
               value={to}
-              onChange={(e) => setTo(e.target.value)}
+              rangePeer={from}
+              rangeRole="end"
+              min={from || undefined}
+              onChange={setTo}
             />
-          </label>
+          </div>
           <button
             type="button"
             onClick={() => void load()}

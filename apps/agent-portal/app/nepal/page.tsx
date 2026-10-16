@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
+import { DateField } from "@/components/ui/DateField";
 import { B } from "@/lib/brand";
 import api from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
@@ -1656,12 +1657,14 @@ export default function NepalPage() {
                       </div>
                       <div>
                         <label className={labelCls()}>DOB</label>
-                        <input
-                          type="date"
-                          value={regForm.dob}
-                          onChange={(e) => setRegForm((f) => ({ ...f, dob: e.target.value }))}
-                          className={clsx(inputCls(), "mt-1")}
-                        />
+                        <div className="mt-1">
+                          <DateField
+                            value={regForm.dob}
+                            fullWidth
+                            max={new Date().toISOString().slice(0, 10)}
+                            onChange={(v) => setRegForm((f) => ({ ...f, dob: v }))}
+                          />
+                        </div>
                       </div>
                       <div className="col-span-2">
                         <label className={labelCls()}>Address</label>

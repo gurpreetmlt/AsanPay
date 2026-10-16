@@ -27,6 +27,7 @@ import { formatInr, walletDisplayName } from "@/lib/walletLabels";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { DateField } from "@/components/ui/DateField";
 import { maskBalance, useBalanceVisibility } from "@/lib/balanceVisibility";
 
 const FUND_REQUEST_DISABLED_MESSAGE =
@@ -390,30 +391,22 @@ export default function WalletPage() {
                   </select>
                 </div>
               ) : null}
-              <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide" style={{ color: B.muted }}>
-                  From
-                </label>
-                <input
-                  type="date"
-                  value={ledgerFrom}
-                  onChange={(e) => setLedgerFrom(e.target.value)}
-                  className="rounded-lg border px-3 py-2 text-sm"
-                  style={{ borderColor: B.border, color: B.blue }}
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide" style={{ color: B.muted }}>
-                  To
-                </label>
-                <input
-                  type="date"
-                  value={ledgerTo}
-                  onChange={(e) => setLedgerTo(e.target.value)}
-                  className="rounded-lg border px-3 py-2 text-sm"
-                  style={{ borderColor: B.border, color: B.blue }}
-                />
-              </div>
+              <DateField
+                label="From"
+                value={ledgerFrom}
+                rangePeer={ledgerTo}
+                rangeRole="start"
+                max={ledgerTo || undefined}
+                onChange={setLedgerFrom}
+              />
+              <DateField
+                label="To"
+                value={ledgerTo}
+                rangePeer={ledgerFrom}
+                rangeRole="end"
+                min={ledgerFrom || undefined}
+                onChange={setLedgerTo}
+              />
               <PrimaryButton
                 type="button"
                 variant="primary"

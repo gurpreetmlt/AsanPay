@@ -14,6 +14,7 @@ import { extractApiError, nextOnboardingPath } from "@/lib/onboarding";
 import { lookupIndianPincode } from "@/lib/pincode";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
+import { DateField } from "@/components/ui/DateField";
 
 type Gender = "M" | "F" | "T";
 
@@ -310,13 +311,11 @@ export default function RegisterOutletPage() {
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wider" style={{ color: B.muted }}>
                 Date of birth
               </label>
-              <input
-                required
-                type="date"
+              <DateField
                 value={form.dateOfBirth}
-                onChange={(e) => set("dateOfBirth", e.target.value)}
-                className={inputCls}
-                style={inputStyle}
+                fullWidth
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={(v) => set("dateOfBirth", v)}
               />
             </div>
 

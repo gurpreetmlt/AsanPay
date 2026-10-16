@@ -10,6 +10,7 @@ import { AsanPayLockup } from "@/components/brand/Logo";
 import { EmailVerifyField } from "@/components/EmailVerifyField";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { LabelText } from "@/components/ui/RequiredMark";
+import { DateField } from "@/components/ui/DateField";
 import { SignupStepper, SIGNUP_STEPS } from "@/components/signup/SignupStepper";
 import {
   LocationPermissionModal,
@@ -1997,24 +1998,21 @@ function SignupPageInner() {
                     </select>
                   </Field>
                   <Field label="Date of Birth *">
-                    <input
-                      type="date"
+                    <DateField
                       value={draft.dob}
-                      onChange={(e) => patch({ dob: e.target.value })}
-                      className={inputCls}
-                      style={inputStyle}
+                      fullWidth
+                      max={new Date().toISOString().slice(0, 10)}
+                      onChange={(v) => patch({ dob: v })}
                     />
                     <p className="mt-1 text-xs" style={{ color: B.muted }}>
                       As on PAN card
                     </p>
                   </Field>
                   <Field label="Anniversary Date">
-                    <input
-                      type="date"
+                    <DateField
                       value={draft.anniversaryDate}
-                      onChange={(e) => patch({ anniversaryDate: e.target.value })}
-                      className={inputCls}
-                      style={inputStyle}
+                      fullWidth
+                      onChange={(v) => patch({ anniversaryDate: v })}
                     />
                     <p className="mt-1 text-xs" style={{ color: B.muted }}>
                       Optional

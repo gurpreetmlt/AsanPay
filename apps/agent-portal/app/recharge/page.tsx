@@ -34,6 +34,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { ConfirmModal, type ConfirmTone } from "@/components/ui/ConfirmModal";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { DateField } from "@/components/ui/DateField";
 import api, { fetchApi, RECHARGE_TIMEOUT_MS } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { createAttemptKeyHolder } from "@/lib/idempotencyKey";
@@ -1424,26 +1425,22 @@ function RechargeInner() {
               </h2>
             </div>
             <div className="flex flex-nowrap items-end gap-2">
-              <label className="text-[10px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
-                From
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="mt-1 block w-[9.5rem] rounded-xl border bg-[#F7F9FF] px-2.5 py-2 text-sm"
-                  style={{ borderColor: B.border, color: B.blue }}
-                />
-              </label>
-              <label className="text-[10px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
-                To
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="mt-1 block w-[9.5rem] rounded-xl border bg-[#F7F9FF] px-2.5 py-2 text-sm"
-                  style={{ borderColor: B.border, color: B.blue }}
-                />
-              </label>
+              <DateField
+                label="From"
+                value={dateFrom}
+                rangePeer={dateTo}
+                rangeRole="start"
+                max={dateTo || undefined}
+                onChange={setDateFrom}
+              />
+              <DateField
+                label="To"
+                value={dateTo}
+                rangePeer={dateFrom}
+                rangeRole="end"
+                min={dateFrom || undefined}
+                onChange={setDateTo}
+              />
               <PrimaryButton
                 type="button"
                 variant="primary"

@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { LabelText } from "@/components/ui/RequiredMark";
+import { DateField } from "@/components/ui/DateField";
 import { BulkBankEntryModal } from "./BulkBankEntryModal";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
@@ -1314,36 +1315,38 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                 })}
               </div>
 
-              <label className="block w-full sm:w-[148px] sm:flex-none">
+              <div className="block w-full sm:w-[168px] sm:flex-none">
                 <span className="mb-1 block text-xs font-medium" style={{ color: B.muted }}>
                   From
                 </span>
-                <input
-                  type="date"
-                  className="h-11 w-full rounded-xl border px-3 text-sm"
-                  style={inputStyle}
+                <DateField
                   value={from}
-                  onChange={(e) => {
-                    setFrom(e.target.value);
+                  fullWidth
+                  rangePeer={to}
+                  rangeRole="start"
+                  max={to || undefined}
+                  onChange={(v) => {
+                    setFrom(v);
                     setPeriodPreset(null);
                   }}
                 />
-              </label>
-              <label className="block w-full sm:w-[148px] sm:flex-none">
+              </div>
+              <div className="block w-full sm:w-[168px] sm:flex-none">
                 <span className="mb-1 block text-xs font-medium" style={{ color: B.muted }}>
                   To
                 </span>
-                <input
-                  type="date"
-                  className="h-11 w-full rounded-xl border px-3 text-sm"
-                  style={inputStyle}
+                <DateField
                   value={to}
-                  onChange={(e) => {
-                    setTo(e.target.value);
+                  fullWidth
+                  rangePeer={from}
+                  rangeRole="end"
+                  min={from || undefined}
+                  onChange={(v) => {
+                    setTo(v);
                     setPeriodPreset(null);
                   }}
                 />
-              </label>
+              </div>
             </div>
 
             <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center lg:w-auto lg:flex-none lg:justify-end">
