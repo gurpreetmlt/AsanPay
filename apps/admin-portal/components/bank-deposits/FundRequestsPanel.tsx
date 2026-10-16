@@ -124,6 +124,8 @@ export function FundRequestsPanel({
   const [rejectCode, setRejectCode] = useState(REJECT_REASONS[0].code);
   const [rejectRemarks, setRejectRemarks] = useState("");
   const [approveFor, setApproveFor] = useState<FundRequestRow | null>(null);
+  const [confirmDuplicate, setConfirmDuplicate] = useState(false);
+  const [dupWarning, setDupWarning] = useState<string | null>(null);
   const [creditAmount, setCreditAmount] = useState("");
   const [approveNote, setApproveNote] = useState("");
   const [manualOk, setManualOk] = useState(false);
@@ -224,6 +226,10 @@ export function FundRequestsPanel({
       toast.error("Enter a verification note, e.g. “Checked in net banking, UTR matches”");
       return;
     }
+    if (dupWarning && !confirmDuplicate) {
+      toast.error("Tick “I confirm this is not a double credit” before approving");
+      return;
+    }
     setActing(approveFor.id);
     try {
       await api.post(
@@ -232,6 +238,7 @@ export function FundRequestsPanel({
           ...(creditAmount.trim() ? { creditAmount: creditAmount.trim() } : {}),
           ...(approveNote.trim() ? { note: approveNote.trim() } : {}),
           ...(manual ? { manualVerified: true } : {}),
+          ...(confirmDuplicate ? { confirmDuplicate: true } : {}),
         },
         { headers: { "Idempotency-Key": approveKey.current.get() } },
       );
@@ -240,9 +247,18 @@ export function FundRequestsPanel({
       setApproveFor(null);
       setCreditAmount("");
       setApproveNote("");
+      setDupWarning(null);
+      setConfirmDuplicate(false);
       refresh();
     } catch (err) {
-      toast.error(errMessage(err, "Approve failed"));
+      const ax = err as { response?: { data?: { message?: string; code?: string } } };
+      const msg = ax?.response?.data?.message ?? errMessage(err, "Approve failed");
+      const code = ax?.response?.data?.code;
+      if (code === "DUPLICATE_CREDIT_CONFIRM" || /double credit/i.test(msg)) {
+        setDupWarning(msg);
+        approveKey.current.clear();
+      }
+      toast.error(msg);
     } finally {
       setActing(null);
     }
@@ -428,13 +444,15 @@ export function FundRequestsPanel({
                               <button
                                 type="button"
                                 disabled={acting === r.id}
-                                onClick={() => {
-                                  approveKey.current.clear();
-                                  setApproveFor(r);
-                                  setCreditAmount("");
-                                  setApproveNote("");
-                                  setManualOk(false);
-                                }}
+                onClick={() => {
+                  approveKey.current.clear();
+                  setApproveFor(r);
+                  setCreditAmount("");
+                  setApproveNote("");
+                  setManualOk(false);
+                  setDupWarning(null);
+                  setConfirmDuplicate(false);
+                }}
                                 className={`${btn} text-white`}
                                 style={{ background: B.green }}
                               >
@@ -690,7 +708,7 @@ export function FundRequestsPanel({
               style={{ borderColor: B.border }}
             />
             {!approveFor.hasBankLine ? (
-              <label className="mb-4 flex cursor-pointer items-start gap-2 text-sm" style={{ color: B.blue }}>
+              <label className="mb-3 flex cursor-pointer items-start gap-2 text-sm" style={{ color: B.blue }}>
                 <input
                   type="checkbox"
                   checked={manualOk}
@@ -699,13 +717,37 @@ export function FundRequestsPanel({
                 />
                 I verified this deposit in net banking
               </label>
+            ) : null}
+            {dupWarning ? (
+              <div
+                className="mb-3 space-y-2 rounded-lg border px-3 py-2 text-xs"
+                style={{ background: "#FFF7ED", borderColor: "#FDBA74", color: "#9A3412" }}
+              >
+                <p className="font-semibold">{dupWarning}</p>
+                <label className="flex cursor-pointer items-start gap-2 font-semibold">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={confirmDuplicate}
+                    onChange={(e) => {
+                      setConfirmDuplicate(e.target.checked);
+                      approveKey.current.clear();
+                    }}
+                  />
+                  I confirm this is not a double credit
+                </label>
+              </div>
             ) : (
               <div className="mb-1" />
             )}
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => setApproveFor(null)}
+                onClick={() => {
+                  setApproveFor(null);
+                  setDupWarning(null);
+                  setConfirmDuplicate(false);
+                }}
                 className="flex-1 rounded-lg border py-2 text-sm font-semibold"
                 style={{ borderColor: "#FCA5A5", color: B.danger }}
               >
@@ -713,9 +755,9 @@ export function FundRequestsPanel({
               </button>
               <button
                 type="button"
-                disabled={!!acting}
+                disabled={!!acting || (!!dupWarning && !confirmDuplicate)}
                 onClick={() => void approve()}
-                className="flex-1 rounded-lg py-2 text-sm font-semibold text-white"
+                className="flex-1 rounded-lg py-2 text-sm font-semibold text-white disabled:opacity-50"
                 style={{ background: B.green }}
               >
                 {acting ? "Crediting…" : "Credit balance"}

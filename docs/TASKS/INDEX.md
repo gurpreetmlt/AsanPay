@@ -55,6 +55,9 @@
 | 15 | Biometric SDK | L ⚠️ split | [15-mobile-biometric.md](15-mobile-biometric.md) |
 | 16 | Txn PIN modal | S | [16-mobile-txn-pin.md](16-mobile-txn-pin.md) |
 
+## Treasury & Balance ease (ordered)
+Queue: [treasury-balance-ease-queue.md](treasury-balance-ease-queue.md) — **CURRENT = TB10 Wrong-bank detector**
+
 ## Wallet engine pending (ordered)
 Queue: [wallet-engine-queue.md](wallet-engine-queue.md) (MVP 27A–27D done)
 

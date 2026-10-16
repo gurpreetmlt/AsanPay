@@ -38,6 +38,8 @@ export const approveFundRequestSchema = z.object({
   creditAmount: amountSchema.optional(),
   note: z.string().trim().max(500).optional(),
   manualVerified: z.boolean().optional(),
+  /** Admin acknowledged UTR / amount+date double-credit warnings. */
+  confirmDuplicate: z.boolean().optional(),
 });
 export type ApproveFundRequestBody = z.infer<typeof approveFundRequestSchema>;
 

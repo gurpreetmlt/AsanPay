@@ -286,6 +286,8 @@ export async function approveFundRequest(params: {
   note?: string;
   /** Admin confirmed the deposit in net banking — allows approving before the statement is uploaded. */
   manualVerified?: boolean;
+  /** Admin acknowledged possible duplicate / double-credit. */
+  confirmDuplicate?: boolean;
 }): Promise<
   | { pendingChecker: true; status: "under_review"; creditedAmount: Paise }
   | { pendingChecker: false; journalId: bigint; creditedAmount: Paise }
@@ -320,6 +322,23 @@ export async function approveFundRequest(params: {
     const amount =
       params.creditAmount ??
       (request.matchedLineId ? await statementAmount(tx, request.matchedLineId) : request.amount);
+
+    const { findFundRequestCreditRisks } = await import("../banking/duplicateGuard.service");
+    const dupRisks = await findFundRequestCreditRisks({
+      tenantId: params.tenantId,
+      requestId: String(request.id),
+      bankAccountId: String(request.bankAccountId),
+      referenceNorm: request.referenceNorm,
+      amountPaise: amount.toString(),
+      depositDate: request.depositDatetime.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }),
+    });
+    if (dupRisks.length && !params.confirmDuplicate) {
+      throw new HttpError(
+        422,
+        `${dupRisks[0]!.message} Tick “I confirm this is not a double credit” to approve anyway.`,
+        "DUPLICATE_CREDIT_CONFIRM",
+      );
+    }
     const note = manual ? `Manual net-banking verification: ${params.note?.trim()}` : params.note;
     const { getTenantSettings } = await import("../tenants/tenantSettings.service");
     const settings = await getTenantSettings(params.tenantId);

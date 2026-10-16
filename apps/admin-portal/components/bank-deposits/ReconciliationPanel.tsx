@@ -92,6 +92,7 @@ interface BankVerifyResult {
   message: string;
   checks: BankVerifyCheck[];
   suggestedBank: { id: string; bankName: string; last4: string } | null;
+  duplicateWarnings?: { code: string; message: string; utr: string | null; amount: string | null; date: string | null }[];
 }
 
 interface ReconReport {
@@ -560,6 +561,7 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
   const [bankCheck, setBankCheck] = useState<BankVerifyResult | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [confirmedBank, setConfirmedBank] = useState(false);
+  const [confirmDuplicates, setConfirmDuplicates] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const initial = presetRange("month");
@@ -689,13 +691,19 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
   async function verifyBank(bank: string, statement: ParsedStatement) {
     setBankCheck(null);
     setConfirmedBank(false);
+    setConfirmDuplicates(false);
     if (!statement.lines.length) return;
     setVerifying(true);
     try {
       const { data } = await api.post("/banking/statements/verify", {
         bankAccountId: bank,
         ...statement.identity,
-        lines: statement.lines.slice(0, 500).map((l) => ({ utr: l.utr, amount: l.amount, direction: l.direction })),
+        lines: statement.lines.slice(0, 500).map((l) => ({
+          utr: l.utr,
+          amount: l.amount,
+          direction: l.direction,
+          txnDate: l.txnDate,
+        })),
       });
       if (!data.success) throw new Error(data.message);
       setBankCheck(data.data as BankVerifyResult);
@@ -726,6 +734,8 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
     if (bankCheck?.verdict === "blocked") return void toast.error(bankCheck.message);
     if (bankCheck?.verdict === "unverified" && !confirmedBank)
       return void toast.error("Tick “I confirm this statement is for the selected bank” before importing");
+    if ((bankCheck?.duplicateWarnings?.length ?? 0) > 0 && !confirmDuplicates)
+      return void toast.error("Tick “I understand these may be duplicates” before importing");
     setImporting(true);
     let imported = 0;
     let skipped = 0;
@@ -747,6 +757,7 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
             periodTo: range.to,
             ...parsed.identity,
             confirmedBank,
+            confirmDuplicates,
           },
           { headers: { "Idempotency-Key": newKey() } },
         );
@@ -762,6 +773,7 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
       setTo(range.to);
       setParsed(null);
       setBankCheck(null);
+      setConfirmDuplicates(false);
       setRawText("");
       setFileName(null);
       setFileInputKey((k) => k + 1);
@@ -1053,6 +1065,31 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                 onConfirm={setConfirmedBank}
                 onSwitch={switchUploadBank}
               />
+              {bankCheck?.duplicateWarnings && bankCheck.duplicateWarnings.length > 0 ? (
+                <div
+                  className="space-y-2 rounded-xl border p-3 text-sm"
+                  style={{ borderColor: "#FDBA74", background: "#FFF7ED", color: "#9A3412" }}
+                >
+                  <p className="font-bold">Possible duplicate / double-credit</p>
+                  <ul className="list-disc space-y-1 pl-4 text-xs">
+                    {bankCheck.duplicateWarnings.slice(0, 5).map((w, i) => (
+                      <li key={`${w.code}-${i}`}>{w.message}</li>
+                    ))}
+                  </ul>
+                  {bankCheck.duplicateWarnings.length > 5 ? (
+                    <p className="text-xs">…and {bankCheck.duplicateWarnings.length - 5} more</p>
+                  ) : null}
+                  <label className="flex cursor-pointer items-start gap-2 text-xs font-semibold">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={confirmDuplicates}
+                      onChange={(e) => setConfirmDuplicates(e.target.checked)}
+                    />
+                    I understand these may be duplicates — import anyway
+                  </label>
+                </div>
+              ) : null}
               {/* Step 2: Clear + Import together (Preview hidden) */}
               <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
                 <button
@@ -1062,6 +1099,7 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                     setFileName(null);
                     setParsed(null);
                     setBankCheck(null);
+                    setConfirmDuplicates(false);
                     setFileInputKey((k) => k + 1);
                   }}
                   className="inline-flex h-11 items-center rounded-xl px-4 text-sm font-semibold text-white"
@@ -1076,7 +1114,8 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                     verifying ||
                     !bankCheck ||
                     bankCheck.verdict === "blocked" ||
-                    (bankCheck.verdict === "unverified" && !confirmedBank)
+                    (bankCheck.verdict === "unverified" && !confirmedBank) ||
+                    ((bankCheck.duplicateWarnings?.length ?? 0) > 0 && !confirmDuplicates)
                   }
                   onClick={() => void importParsed()}
                   className="inline-flex h-11 items-center gap-1.5 rounded-xl px-5 text-sm font-bold text-white disabled:opacity-60"

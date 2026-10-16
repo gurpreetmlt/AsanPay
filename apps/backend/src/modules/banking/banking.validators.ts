@@ -80,6 +80,8 @@ export const importStatementSchema = z.object({
   periodTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "periodTo must be YYYY-MM-DD").optional(),
   ...statementIdentityFields(),
   confirmedBank: z.boolean().optional(),
+  /** Admin acknowledged duplicate / double-credit warnings from verify. */
+  confirmDuplicates: z.boolean().optional(),
 });
 export type ImportStatementBody = z.infer<typeof importStatementSchema>;
 
@@ -115,6 +117,7 @@ export const verifyStatementSchema = z.object({
         utr: z.string().trim().max(60).optional().nullable(),
         amount: amountSchema,
         direction: z.enum(["DR", "CR"]),
+        txnDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
       }),
     )
     .max(500),

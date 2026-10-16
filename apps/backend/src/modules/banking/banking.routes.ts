@@ -277,6 +277,13 @@ bankingRouter.post(
           "STATEMENT_BANK_UNCONFIRMED",
         );
       }
+      if (check.duplicateWarnings.length && !body.confirmDuplicates) {
+        throw new HttpError(
+          422,
+          `${check.duplicateWarnings[0]!.message} Tick “I understand these may be duplicates” to import anyway.`,
+          "DUPLICATE_RISK_CONFIRM",
+        );
+      }
       verdict = check.verdict;
     }
 

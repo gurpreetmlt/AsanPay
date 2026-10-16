@@ -29,6 +29,14 @@ export interface VerifyResult {
   message: string;
   checks: VerifyCheck[];
   suggestedBank: { id: string; bankName: string; last4: string } | null;
+  /** Soft duplicate / double-credit risks — import still needs confirmDuplicates when non-empty. */
+  duplicateWarnings: Array<{
+    code: string;
+    message: string;
+    utr: string | null;
+    amount: string | null;
+    date: string | null;
+  }>;
 }
 
 export interface VerifyInput {
@@ -37,7 +45,7 @@ export interface VerifyInput {
   accountLast4?: string | null;
   ifsc?: string | null;
   opening?: { date: string; balance: string } | null;
-  lines: ReadonlyArray<{ utr?: string | null; amount: string; direction: "CR" | "DR" }>;
+  lines: ReadonlyArray<{ utr?: string | null; amount: string; direction: "CR" | "DR"; txnDate?: string }>;
 }
 
 type BankRow = { id: string; bank_name: string; last4: string; ifsc: string };
@@ -204,10 +212,18 @@ export async function verifyStatementBank(input: VerifyInput): Promise<VerifyRes
     message = `Could not confirm this statement belongs to ${label(selected)}. Confirm the bank before importing.`;
   }
 
+  const { findImportDuplicateRisks } = await import("./duplicateGuard.service");
+  const duplicateWarnings = await findImportDuplicateRisks({
+    tenantId: input.tenantId,
+    bankAccountId: input.bankAccountId,
+    lines: input.lines,
+  });
+
   return {
     verdict,
     message,
     checks,
     suggestedBank: suggested ? { id: suggested.id, bankName: suggested.bank_name, last4: suggested.last4 } : null,
+    duplicateWarnings,
   };
 }
