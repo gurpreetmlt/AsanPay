@@ -62,7 +62,7 @@ Queue: [treasury-balance-ease-queue.md](treasury-balance-ease-queue.md) — **co
 Queue: [tax-commission-queue.md](tax-commission-queue.md) — product/earnings (TC15/17/18 blocked)
 Earnings UX: SD/Dist web+mobile · Retailer mobile. Retailer web: **parked (TC21)**.
 
-**Admin IA (Treasury-style):** [tax-commission-admin-ia-queue.md](tax-commission-admin-ia-queue.md) — **TCA05 CURRENT** (TCA01–04 done)
+**Admin IA (Treasury-style):** [tax-commission-admin-ia-queue.md](tax-commission-admin-ia-queue.md) — **complete (TCA01–06)**
 
 ## Wallet engine pending (ordered)
 Queue: [wallet-engine-queue.md](wallet-engine-queue.md) (MVP 27A–27D done)

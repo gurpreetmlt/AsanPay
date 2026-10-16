@@ -534,7 +534,9 @@ export default function AgentDetailPage() {
                 )}
               </DetailSection>
 
-              <AgentCommissionPanel userId={agent.id} />
+              <div id="commission">
+                <AgentCommissionPanel userId={agent.id} />
+              </div>
             </div>
 
             <div className="space-y-6">

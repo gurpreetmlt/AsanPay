@@ -89,6 +89,7 @@ const TAX_COMMISSION: NavItem[] = [
         match: ["/commission", "/commissions"],
       },
       { href: "/tax-commission/schemes", label: "Schemes", icon: { lib: "lucide", icon: Percent } },
+      { href: "/tax-commission/overrides", label: "Overrides", icon: { lib: "lucide", icon: Network } },
       { href: "/tax-commission/tax", label: "Tax settings", icon: { lib: "lucide", icon: Calculator } },
       {
         href: "/tax-commission/registers",

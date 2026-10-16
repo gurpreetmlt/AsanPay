@@ -96,6 +96,12 @@ export default function TaxCommissionOverviewPage() {
       icon: Percent,
     },
     {
+      href: "/tax-commission/overrides",
+      label: "Overrides",
+      hint: "Per-agent rates",
+      icon: Percent,
+    },
+    {
       href: "/tax-commission/tax",
       label: "Tax settings",
       hint: "TDS % · fee GST flags",

@@ -13,8 +13,8 @@
 | **TCA02** | Overview page (cards + quick links) | M | done | Month TDS / fee GST / payout totals — existing APIs |
 | **TCA03** | Split workbench by route (Schemes · Tax · Registers · Payouts) | M | done | `CommissionWorkbench` + SectionTabs |
 | **TCA04** | Header search + legacy redirects polish | S | done | AdminHeader + `/commissions` → schemes |
-| **TCA05** | Overrides list page (optional) | M | **CURRENT** | Search agents → deep link to agent commission panel |
-| **TCA06** | Smoke + checklist | S | pending | Nav + tabs + redirect; `docs/CHECKLIST.md` |
+| **TCA05** | Overrides list page (optional) | M | done | Search agents → `/users/:id#commission` |
+| **TCA06** | Smoke + checklist | S | done | Nav + tabs + redirect; checklist updated — **queue complete** |
 
 ## Out of scope here
 - Vyapar ingest / Noble / clawback (tax-commission-queue TC15/17/18)
@@ -24,6 +24,5 @@
 ## Prompt
 
 ```
-@docs/TASKS/tax-commission-admin-ia-queue.md @AGENTS.md
-Implement CURRENT only. No explore. No MCP. Mac Terminal cmds in reply.
+Queue complete (TCA01–06). Next product work: tax-commission-queue TC15/17/18 (blocked) or other INDEX task.
 ```

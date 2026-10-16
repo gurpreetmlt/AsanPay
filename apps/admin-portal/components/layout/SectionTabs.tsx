@@ -37,6 +37,7 @@ export const SECTION_GROUPS: Record<
     tabs: [
       { href: "/tax-commission", label: "Overview" },
       { href: "/tax-commission/schemes", label: "Schemes" },
+      { href: "/tax-commission/overrides", label: "Overrides" },
       { href: "/tax-commission/tax", label: "Tax settings" },
       { href: "/tax-commission/registers", label: "Tax registers" },
       { href: "/tax-commission/payouts", label: "Payouts" },
