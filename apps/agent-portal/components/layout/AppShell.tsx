@@ -448,7 +448,13 @@ function SidebarContent({
   );
 }
 
-function WalletPill({
+function walletAmountColor(walletType: string): string {
+  if (walletType === "aeps") return B.green;
+  return B.blueLight;
+}
+
+/** One wallet segment inside the unified header bar (opens Add Money / Transfer menu). */
+function WalletSegment({
   wallet,
   onRefresh,
   loading,
@@ -462,6 +468,7 @@ function WalletPill({
   const [open, setOpen] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const balanceVisible = useBalanceVisibility((s) => s.visible);
 
   useEffect(() => {
     if (!open) return;
@@ -489,9 +496,6 @@ function WalletPill({
     router.push("/fund-request");
   };
 
-  const balanceVisible = useBalanceVisibility((s) => s.visible);
-
-  // Same actions on Main and AEPS — Add Money (fund request) credits Main; keep entry points consistent.
   const actions = [
     ...(fundOn ? [{ icon: PlusCircle, label: "Add Money", action: goAddMoney }] : []),
     { icon: SendHorizonal, label: "Transfer", action: () => router.push("/wallet") },
@@ -501,7 +505,7 @@ function WalletPill({
 
   return (
     <div
-      className="relative hidden sm:block"
+      className="relative"
       ref={ref}
       onMouseEnter={openNow}
       onMouseLeave={closeSoon}
@@ -509,21 +513,22 @@ function WalletPill({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 rounded-2xl border px-3 py-1.5 transition-colors hover:bg-secondary"
-        style={{ borderColor: B.border, background: B.bg }}
+        className="flex min-w-[4.5rem] flex-col items-start gap-0.5 rounded-lg px-2.5 py-0.5 text-left transition-colors hover:bg-slate-50"
         title={walletDisplayName(wallet.walletType)}
       >
-        <span className="text-[12px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+        <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
           {walletDisplayName(wallet.walletType)}
         </span>
-        <span className="text-sm font-bold tabular-nums" style={{ color: B.blue }}>
+        <span
+          className="text-sm font-extrabold tabular-nums leading-tight"
+          style={{ color: walletAmountColor(wallet.walletType) }}
+        >
           {maskBalance(balanceVisible, formatInr(wallet.balance))}
         </span>
-        <ChevronDown size={13} style={{ color: B.muted }} className={open ? "rotate-180 transition-transform" : "transition-transform"} />
       </button>
-      {open && (
+      {open ? (
         <div
-          className="dropdown-pop-in absolute right-0 top-full z-50 mt-1 min-w-[11rem] rounded-2xl border bg-white p-1.5 shadow-lg"
+          className="dropdown-pop-in absolute left-0 top-full z-50 mt-1 min-w-[11rem] rounded-2xl border bg-white p-1.5 shadow-lg"
           style={{ borderColor: B.border }}
         >
           {actions.map(({ icon: Icon, label, action }) => (
@@ -543,19 +548,22 @@ function WalletPill({
             </button>
           ))}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
 
+/** InstantPay-style unified wallet bar: MAIN | AEPS | eye | refresh (no PG yet). */
 function HeaderWalletBalances({
   wallets,
   loading,
   onRefresh,
+  className,
 }: {
   wallets: WalletBalance[];
   loading: boolean;
   onRefresh: () => void;
+  className?: string;
 }) {
   const ordered = [...wallets].sort((a, b) => {
     if (a.walletType === "main") return -1;
@@ -568,38 +576,47 @@ function HeaderWalletBalances({
   if (!loading && ordered.length === 0) return null;
 
   return (
-    <div className="flex items-center gap-2">
+    <div
+      className={`inline-flex max-w-full items-center gap-0.5 rounded-full border bg-white py-1 pl-1.5 pr-1.5 shadow-[0_2px_14px_rgba(15,23,42,0.10)] ${className ?? ""}`}
+      style={{ borderColor: "rgba(11,42,154,0.08)" }}
+    >
       {loading && ordered.length === 0 ? (
-        <div
-          className="rounded-2xl px-3 py-1.5 text-xs font-semibold"
-          style={{ background: B.bg, color: B.muted }}
-        >
+        <span className="px-3 py-1.5 text-xs font-semibold" style={{ color: B.muted }}>
           …
-        </div>
+        </span>
       ) : (
-        ordered.map((w) => <WalletPill key={w.id} wallet={w} onRefresh={onRefresh} loading={loading} />)
+        ordered.map((w, i) => (
+          <div key={w.id} className="flex items-center">
+            {i > 0 ? (
+              <div className="mx-0.5 h-7 w-px shrink-0 self-center" style={{ background: "rgba(11,42,154,0.12)" }} />
+            ) : null}
+            <WalletSegment wallet={w} onRefresh={onRefresh} loading={loading} />
+          </div>
+        ))
       )}
-      <button
-        type="button"
-        onClick={toggleBalance}
-        className="icon-tooltip flex h-9 w-9 items-center justify-center rounded-2xl"
-        style={{ background: B.bg, color: B.blue }}
-        aria-label={balanceVisible ? "Hide balances" : "Show balances"}
-        data-tooltip={balanceVisible ? "Hide balances" : "Show balances"}
-      >
-        {balanceVisible ? <EyeOff size={15} /> : <Eye size={15} />}
-      </button>
-      <button
-        type="button"
-        onClick={onRefresh}
-        disabled={loading}
-        className="icon-tooltip flex h-9 w-9 items-center justify-center rounded-2xl disabled:opacity-50"
-        style={{ background: B.bg, color: B.green }}
-        aria-label="Refresh balances"
-        data-tooltip="Refresh balances"
-      >
-        <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
-      </button>
+      <div className="ml-1 flex shrink-0 items-center gap-1.5 pl-0.5">
+        <button
+          type="button"
+          onClick={toggleBalance}
+          className="icon-tooltip flex h-8 w-8 items-center justify-center rounded-lg"
+          style={{ background: B.secondary, color: B.blueLight }}
+          aria-label={balanceVisible ? "Hide balances" : "Show balances"}
+          data-tooltip={balanceVisible ? "Hide balances" : "Show balances"}
+        >
+          {balanceVisible ? <EyeOff size={15} /> : <Eye size={15} />}
+        </button>
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={loading}
+          className="icon-tooltip flex h-8 w-8 items-center justify-center rounded-lg text-white disabled:opacity-50"
+          style={{ background: B.blueLight }}
+          aria-label="Refresh balances"
+          data-tooltip="Refresh balances"
+        >
+          <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
+        </button>
+      </div>
     </div>
   );
 }
@@ -636,8 +653,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   const name = user?.name ?? "Agent";
   const uid = user?.uid ?? "—";
   const av = initials(name);
-  const balanceVisible = useBalanceVisibility((s) => s.visible);
-  const toggleBalance = useBalanceVisibility((s) => s.toggle);
   const isPartner = user?.role === "super_distributor" || user?.role === "distributor";
 
   const fundRequestOn = user ? isFundRequestEnabled(user.role, user.fundRequestEnabled) : false;
@@ -864,7 +879,12 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
 
           <div className="ml-auto flex items-center gap-3">
-            <HeaderWalletBalances wallets={wallets} loading={walletsLoading} onRefresh={() => void loadWallets()} />
+            <HeaderWalletBalances
+              className="hidden sm:inline-flex"
+              wallets={wallets}
+              loading={walletsLoading}
+              onRefresh={() => void loadWallets()}
+            />
             <div className="relative" ref={notifRef}>
               <button
                 type="button"
@@ -929,50 +949,18 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        {/* Mobile: wallet chips under header so retailers always see both balances */}
+        {/* Mobile: same unified wallet bar under header */}
         {(walletsLoading || wallets.length > 0) && (
           <div
-            className="flex items-center gap-2 overflow-x-auto border-b px-4 py-2 sm:hidden"
-            style={{ borderColor: B.border, background: "#fff" }}
+            className="flex items-center overflow-x-auto border-b px-3 py-2 sm:hidden"
+            style={{ borderColor: B.border, background: B.bg }}
           >
-            {walletsLoading && wallets.length === 0 ? (
-              <span className="text-xs" style={{ color: B.muted }}>
-                Loading balances…
-              </span>
-            ) : (
-              <>
-                {[...wallets]
-                  .sort((a, b) => {
-                    if (a.walletType === "main") return -1;
-                    if (b.walletType === "main") return 1;
-                    return a.walletType.localeCompare(b.walletType);
-                  })
-                  .map((w) => (
-                    <Link
-                      key={w.id}
-                      href="/wallet"
-                      className="flex shrink-0 items-center gap-2 rounded-2xl border px-3 py-1.5"
-                      style={{ borderColor: B.border, background: B.bg }}
-                    >
-                      <span className="text-[12px] font-bold uppercase" style={{ color: B.muted }}>
-                        {walletDisplayName(w.walletType)}
-                      </span>
-                      <span className="text-sm font-bold tabular-nums" style={{ color: B.blue }}>
-                        {maskBalance(balanceVisible, formatInr(w.balance))}
-                      </span>
-                    </Link>
-                  ))}
-                <button
-                  type="button"
-                  onClick={toggleBalance}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl"
-                  style={{ background: B.bg, color: B.blue }}
-                  aria-label={balanceVisible ? "Hide balances" : "Show balances"}
-                >
-                  {balanceVisible ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
-              </>
-            )}
+            <HeaderWalletBalances
+              wallets={wallets}
+              loading={walletsLoading}
+              onRefresh={() => void loadWallets()}
+              className="w-full justify-between sm:w-auto"
+            />
           </div>
         )}
 

@@ -1,7 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
+  PermissionsAndroid,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -11,7 +15,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { launchImageLibrary } from "react-native-image-picker";
+import { launchCamera, launchImageLibrary } from "react-native-image-picker";
 import Clipboard from "@react-native-clipboard/clipboard";
 // The monorepo hoists a single node_modules with multiple React copies (web uses 19, this app
 // uses 18); react-native-qrcode-svg's class-component types resolve against the wrong React
@@ -23,6 +27,7 @@ import {
   ArrowLeft,
   Building2,
   Calendar,
+  Camera,
   Check,
   ChevronDown,
   ChevronRight,
@@ -30,6 +35,7 @@ import {
   CreditCard,
   HelpCircle,
   Hourglass,
+  Image as ImageIcon,
   Info,
   Landmark,
   Plus,
