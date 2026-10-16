@@ -553,7 +553,7 @@ function WalletSegment({
   );
 }
 
-/** InstantPay-style unified wallet bar: MAIN | AEPS | eye | refresh (no PG yet). */
+/** Unified header wallet bar: MAIN | AEPS | eye | refresh (no PG yet). */
 function HeaderWalletBalances({
   wallets,
   loading,

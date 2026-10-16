@@ -1111,197 +1111,269 @@ function DepositDateTimeField({
       </Pressable>
 
       <Modal visible={open} animationType="slide" transparent onRequestClose={() => setOpen(false)}>
-        <Pressable style={styles.dtBackdrop} onPress={() => setOpen(false)}>
+        <KeyboardAvoidingView
+          style={styles.dtKav}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 0}
+        >
           <Pressable
-            style={[styles.dtSheet, { backgroundColor: tokens.bg, borderColor: tokens.cardBorder }]}
-            onPress={(e) => e.stopPropagation()}
+            style={styles.dtBackdrop}
+            onPress={() => {
+              Keyboard.dismiss();
+              setOpen(false);
+            }}
           >
-            <View style={styles.dtHeader}>
-              <Text style={[styles.dtTitle, { color: tokens.txt }]}>Deposit date & time</Text>
-              <Pressable onPress={() => setOpen(false)} hitSlop={12}>
-                <X size={20} color={tokens.sub} />
-              </Pressable>
-            </View>
-
-            <Text style={[styles.label, { color: tokens.sub }]}>Type DD/MM/YYYY hh:mm AM/PM</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: tokens.card, borderColor: tokens.cardBorder, color: tokens.txt }]}
-              value={typed}
-              onChangeText={(raw) => {
-                const formatted = formatDepositDigits(raw);
-                setTyped(formatted);
-                const parsed = parseDepositDisplay(formatted);
-                if (parsed && parsed.getTime() <= Date.now()) {
-                  setViewYear(parsed.getFullYear());
-                  setViewMonth(parsed.getMonth());
-                  setDay(parsed.getDate());
-                  setHour(parsed.getHours());
-                  setMinute(parsed.getMinutes());
-                }
-              }}
-              autoCapitalize="characters"
-              placeholder="e.g. 16/10/2026 02:30 PM"
-              placeholderTextColor={tokens.mute}
-              maxLength={22}
-            />
-
-            <View style={styles.dtCalPanel}>
-              <View style={styles.dtMonthRow}>
-                <Pressable onPress={() => shiftNav(-1)} style={styles.dtNavBtn}>
-                  <Text style={{ color: colors.blueFlat, fontWeight: "800" }}>‹</Text>
-                </Pressable>
+            <Pressable
+              style={[styles.dtSheet, { backgroundColor: tokens.bg, borderColor: tokens.cardBorder }]}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <View style={styles.dtHeader}>
+                <Text style={[styles.dtTitle, { color: tokens.txt }]}>Deposit date & time</Text>
                 <Pressable
                   onPress={() => {
-                    if (pickerLevel === "day") setPickerLevel("month");
-                    else if (pickerLevel === "month") setPickerLevel("year");
+                    Keyboard.dismiss();
+                    setOpen(false);
                   }}
-                  style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+                  hitSlop={12}
                 >
-                  <Text style={{ color: tokens.txt, fontWeight: "800" }}>{headerLabel}</Text>
-                  {pickerLevel !== "year" ? (
-                    <Text style={{ color: colors.blueFlat, fontWeight: "800", fontSize: 10 }}>▼</Text>
-                  ) : null}
-                </Pressable>
-                <Pressable onPress={() => shiftNav(1)} style={styles.dtNavBtn}>
-                  <Text style={{ color: colors.blueFlat, fontWeight: "800" }}>›</Text>
+                  <X size={20} color={tokens.sub} />
                 </Pressable>
               </View>
 
-              {pickerLevel === "year" ? (
-                <View style={styles.dtGrid}>
-                  {yearOptions.map((y) => {
-                    const on = y === viewYear;
-                    const disabled = y > maxYear || y < 2020;
-                    return (
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.dtScrollContent}
+              >
+                <Text style={[styles.label, { color: tokens.sub }]}>Type DD/MM/YYYY hh:mm AM/PM</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: tokens.card, borderColor: tokens.cardBorder, color: tokens.txt }]}
+                  value={typed}
+                  onChangeText={(raw) => {
+                    const formatted = formatDepositDigits(raw);
+                    setTyped(formatted);
+                    const parsed = parseDepositDisplay(formatted);
+                    if (parsed && parsed.getTime() <= Date.now()) {
+                      setViewYear(parsed.getFullYear());
+                      setViewMonth(parsed.getMonth());
+                      setDay(parsed.getDate());
+                      setHour(parsed.getHours());
+                      setMinute(parsed.getMinutes());
+                    }
+                  }}
+                  autoCapitalize="characters"
+                  placeholder="e.g. 16/10/2026 02:30 PM"
+                  placeholderTextColor={tokens.mute}
+                  maxLength={22}
+                />
+
+                <Pressable onPress={Keyboard.dismiss}>
+                  <View style={styles.dtCalPanel}>
+                    <View style={styles.dtMonthRow}>
                       <Pressable
-                        key={y}
-                        disabled={disabled}
                         onPress={() => {
-                          setViewYear(y);
-                          setPickerLevel("month");
+                          Keyboard.dismiss();
+                          shiftNav(-1);
                         }}
-                        style={[styles.dtDay, { width: "33.33%" }, disabled && { opacity: 0.3 }]}
+                        style={styles.dtNavBtn}
                       >
-                        <View style={[styles.dtDayInner, on && styles.dtDayInnerSelected, { width: "90%", borderRadius: 10 }]}>
-                          <Text style={{ fontWeight: "700", color: on ? "#fff" : tokens.txt }}>{y}</Text>
-                        </View>
+                        <Text style={{ color: colors.blueFlat, fontWeight: "800" }}>‹</Text>
                       </Pressable>
-                    );
-                  })}
-                </View>
-              ) : pickerLevel === "month" ? (
-                <View style={styles.dtGrid}>
-                  {MONTH_SHORT.map((name, i) => {
-                    const on = i === viewMonth;
-                    const disabled = viewYear === maxYear && i > new Date().getMonth();
-                    return (
                       <Pressable
-                        key={name}
-                        disabled={disabled}
                         onPress={() => {
-                          setViewMonth(i);
-                          setPickerLevel("day");
+                          Keyboard.dismiss();
+                          if (pickerLevel === "day") setPickerLevel("month");
+                          else if (pickerLevel === "month") setPickerLevel("year");
                         }}
-                        style={[styles.dtDay, { width: "33.33%" }, disabled && { opacity: 0.3 }]}
+                        style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
                       >
-                        <View style={[styles.dtDayInner, on && styles.dtDayInnerSelected, { width: "90%", borderRadius: 10 }]}>
-                          <Text style={{ fontWeight: "700", color: on ? "#fff" : tokens.txt }}>{name}</Text>
-                        </View>
+                        <Text style={{ color: tokens.txt, fontWeight: "800" }}>{headerLabel}</Text>
+                        {pickerLevel !== "year" ? (
+                          <Text style={{ color: colors.blueFlat, fontWeight: "800", fontSize: 10 }}>▼</Text>
+                        ) : null}
                       </Pressable>
-                    );
-                  })}
-                </View>
-              ) : (
-                <>
-                  <View style={styles.dtWeekRow}>
-                    {["S", "M", "T", "W", "T", "F", "S"].map((w, i) => (
-                      <Text key={i} style={[styles.dtWeek, { color: tokens.mute }]}>
-                        {w}
-                      </Text>
-                    ))}
-                  </View>
-                  <View style={styles.dtGrid}>
-                    {Array.from({ length: startWeekday }).map((_, i) => (
-                      <View key={`e-${i}`} style={[styles.dtDay, { width: "14.28%" }]} />
-                    ))}
-                    {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => {
-                      const candidate = new Date(viewYear, viewMonth, d);
-                      const disabled = candidate.getTime() > Date.now();
-                      const selected = d === day;
-                      return (
-                        <Pressable
-                          key={d}
-                          disabled={disabled}
-                          onPress={() => setDay(d)}
-                          style={[styles.dtDay, { width: "14.28%" }, disabled && { opacity: 0.3 }]}
-                        >
-                          <View style={[styles.dtDayInner, selected && styles.dtDayInnerSelected]}>
-                            <Text
-                              style={{
-                                fontWeight: selected ? "800" : "700",
-                                color: selected ? "#fff" : tokens.txt,
+                      <Pressable
+                        onPress={() => {
+                          Keyboard.dismiss();
+                          shiftNav(1);
+                        }}
+                        style={styles.dtNavBtn}
+                      >
+                        <Text style={{ color: colors.blueFlat, fontWeight: "800" }}>›</Text>
+                      </Pressable>
+                    </View>
+
+                    {pickerLevel === "year" ? (
+                      <View style={styles.dtGrid}>
+                        {yearOptions.map((y) => {
+                          const on = y === viewYear;
+                          const disabled = y > maxYear || y < 2020;
+                          return (
+                            <Pressable
+                              key={y}
+                              disabled={disabled}
+                              onPress={() => {
+                                Keyboard.dismiss();
+                                setViewYear(y);
+                                setPickerLevel("month");
                               }}
+                              style={[styles.dtDay, { width: "33.33%" }, disabled && { opacity: 0.3 }]}
                             >
-                              {d}
+                              <View
+                                style={[
+                                  styles.dtDayInner,
+                                  on && styles.dtDayInnerSelected,
+                                  { width: "90%", borderRadius: 10 },
+                                ]}
+                              >
+                                <Text style={{ fontWeight: "700", color: on ? "#fff" : tokens.txt }}>{y}</Text>
+                              </View>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    ) : pickerLevel === "month" ? (
+                      <View style={styles.dtGrid}>
+                        {MONTH_SHORT.map((name, i) => {
+                          const on = i === viewMonth;
+                          const disabled = viewYear === maxYear && i > new Date().getMonth();
+                          return (
+                            <Pressable
+                              key={name}
+                              disabled={disabled}
+                              onPress={() => {
+                                Keyboard.dismiss();
+                                setViewMonth(i);
+                                setPickerLevel("day");
+                              }}
+                              style={[styles.dtDay, { width: "33.33%" }, disabled && { opacity: 0.3 }]}
+                            >
+                              <View
+                                style={[
+                                  styles.dtDayInner,
+                                  on && styles.dtDayInnerSelected,
+                                  { width: "90%", borderRadius: 10 },
+                                ]}
+                              >
+                                <Text style={{ fontWeight: "700", color: on ? "#fff" : tokens.txt }}>{name}</Text>
+                              </View>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    ) : (
+                      <>
+                        <View style={styles.dtWeekRow}>
+                          {["S", "M", "T", "W", "T", "F", "S"].map((w, i) => (
+                            <Text key={i} style={[styles.dtWeek, { color: tokens.mute }]}>
+                              {w}
                             </Text>
-                          </View>
-                        </Pressable>
-                      );
-                    })}
+                          ))}
+                        </View>
+                        <View style={styles.dtGrid}>
+                          {Array.from({ length: startWeekday }).map((_, i) => (
+                            <View key={`e-${i}`} style={[styles.dtDay, { width: "14.28%" }]} />
+                          ))}
+                          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => {
+                            const candidate = new Date(viewYear, viewMonth, d);
+                            const disabled = candidate.getTime() > Date.now();
+                            const selected = d === day;
+                            return (
+                              <Pressable
+                                key={d}
+                                disabled={disabled}
+                                onPress={() => {
+                                  Keyboard.dismiss();
+                                  setDay(d);
+                                }}
+                                style={[styles.dtDay, { width: "14.28%" }, disabled && { opacity: 0.3 }]}
+                              >
+                                <View style={[styles.dtDayInner, selected && styles.dtDayInnerSelected]}>
+                                  <Text
+                                    style={{
+                                      fontWeight: selected ? "800" : "700",
+                                      color: selected ? "#fff" : tokens.txt,
+                                    }}
+                                  >
+                                    {d}
+                                  </Text>
+                                </View>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      </>
+                    )}
                   </View>
-                </>
-              )}
-            </View>
+                </Pressable>
 
-            <View style={styles.dtTimePanel}>
-              <Text style={[styles.label, { color: tokens.sub, marginTop: 0 }]}>Time (12h)</Text>
-              <View style={styles.dtTimeRow}>
-                <TextInput
-                  style={[styles.dtTimeInput, { backgroundColor: "#fff", borderColor: "#C7D2FE", color: tokens.txt }]}
-                  value={pad2(toHour12(hour))}
-                  onChangeText={(t) => {
-                    const n = Number(t.replace(/\D/g, "").slice(0, 2));
-                    if (!Number.isFinite(n) || n < 1 || n > 12) return;
-                    setHour(fromHour12(n, hour >= 12));
-                  }}
-                  keyboardType="number-pad"
-                  maxLength={2}
-                />
-                <Text style={{ color: tokens.txt, fontWeight: "800", fontSize: 18 }}>:</Text>
-                <TextInput
-                  style={[styles.dtTimeInput, { backgroundColor: "#fff", borderColor: "#C7D2FE", color: tokens.txt }]}
-                  value={pad2(minute)}
-                  onChangeText={(t) => {
-                    const n = Number(t.replace(/\D/g, "").slice(0, 2));
-                    if (Number.isFinite(n) && n <= 59) setMinute(n);
-                  }}
-                  keyboardType="number-pad"
-                  maxLength={2}
-                />
-                <View style={styles.dtAmPmRow}>
-                  {(["AM", "PM"] as const).map((label) => {
-                    const on = (hour >= 12 ? "PM" : "AM") === label;
-                    return (
-                      <Pressable
-                        key={label}
-                        onPress={() => setHour(fromHour12(toHour12(hour), label === "PM"))}
-                        style={[styles.dtAmPmChip, on && styles.dtAmPmChipOn]}
-                      >
-                        <Text style={{ color: on ? "#fff" : colors.blueFlat, fontWeight: "800", fontSize: 13 }}>
-                          {label}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
+                <View style={styles.dtTimePanel}>
+                  <Text style={[styles.label, { color: tokens.sub, marginTop: 0 }]}>Time (12h)</Text>
+                  <View style={styles.dtTimeRow}>
+                    <TextInput
+                      style={[
+                        styles.dtTimeInput,
+                        { backgroundColor: "#fff", borderColor: "#C7D2FE", color: tokens.txt },
+                      ]}
+                      value={pad2(toHour12(hour))}
+                      onChangeText={(t) => {
+                        const n = Number(t.replace(/\D/g, "").slice(0, 2));
+                        if (!Number.isFinite(n) || n < 1 || n > 12) return;
+                        setHour(fromHour12(n, hour >= 12));
+                      }}
+                      keyboardType="number-pad"
+                      maxLength={2}
+                    />
+                    <Text style={{ color: tokens.txt, fontWeight: "800", fontSize: 18 }}>:</Text>
+                    <TextInput
+                      style={[
+                        styles.dtTimeInput,
+                        { backgroundColor: "#fff", borderColor: "#C7D2FE", color: tokens.txt },
+                      ]}
+                      value={pad2(minute)}
+                      onChangeText={(t) => {
+                        const n = Number(t.replace(/\D/g, "").slice(0, 2));
+                        if (Number.isFinite(n) && n <= 59) setMinute(n);
+                      }}
+                      keyboardType="number-pad"
+                      maxLength={2}
+                    />
+                    <View style={styles.dtAmPmRow}>
+                      {(["AM", "PM"] as const).map((label) => {
+                        const on = (hour >= 12 ? "PM" : "AM") === label;
+                        return (
+                          <Pressable
+                            key={label}
+                            onPress={() => {
+                              Keyboard.dismiss();
+                              setHour(fromHour12(toHour12(hour), label === "PM"));
+                            }}
+                            style={[styles.dtAmPmChip, on && styles.dtAmPmChipOn]}
+                          >
+                            <Text style={{ color: on ? "#fff" : colors.blueFlat, fontWeight: "800", fontSize: 13 }}>
+                              {label}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
                 </View>
-              </View>
-            </View>
 
-            <Pressable style={styles.submit} onPress={applyPick}>
-              <Text style={styles.submitText}>Use this date & time</Text>
+                <Pressable
+                  style={styles.submit}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    applyPick();
+                  }}
+                >
+                  <Text style={styles.submitText}>Use this date & time</Text>
+                </Pressable>
+              </ScrollView>
             </Pressable>
           </Pressable>
-        </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );
@@ -1330,6 +1402,7 @@ function ConfirmStep({
   const [receiptDataUrl, setReceiptDataUrl] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [bankMenuOpen, setBankMenuOpen] = useState(false);
+  const [receiptSourceOpen, setReceiptSourceOpen] = useState(false);
   const [depositAt, setDepositAt] = useState<Date | null>(null);
   const [remarks, setRemarks] = useState("");
   const [saving, setSaving] = useState(false);
@@ -1342,21 +1415,88 @@ function ConfirmStep({
     ? `${selectedBank.bankName}${selectedBank.branchName ? `, ${selectedBank.branchName}` : ""} · ****${selectedBank.accountNumberLast4}`
     : "Select the bank you deposited to";
 
-  async function pickReceipt() {
-    const res = await launchImageLibrary({
-      mediaType: "photo",
-      selectionLimit: 1,
-      quality: 0.7,
-      maxWidth: 1600,
-      maxHeight: 1600,
-      includeBase64: true,
-    });
-    const asset = res.assets?.[0];
-    if (!asset?.uri || !asset.base64) return;
+  function applyReceiptAsset(asset: {
+    uri?: string;
+    base64?: string;
+    type?: string;
+    fileName?: string;
+  } | undefined) {
+    if (!asset?.uri || !asset.base64) {
+      showAlert("Upload failed", "No image selected. Try again.");
+      return;
+    }
     const mime = asset.type === "image/png" || asset.type === "image/webp" ? asset.type : "image/jpeg";
     setReceiptUri(asset.uri);
     setReceiptName(asset.fileName || "receipt.jpg");
     setReceiptDataUrl(`data:${mime};base64,${asset.base64}`);
+  }
+
+  async function pickReceiptFromGallery() {
+    setReceiptSourceOpen(false);
+    try {
+      const res = await launchImageLibrary({
+        mediaType: "photo",
+        selectionLimit: 1,
+        quality: 0.7,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        includeBase64: true,
+      });
+      if (res.didCancel) return;
+      if (res.errorCode) {
+        const permissionDenied =
+          res.errorCode === "permission" || /permission/i.test(res.errorMessage || "");
+        showAlert(
+          permissionDenied ? "Photos required" : "Upload failed",
+          permissionDenied
+            ? "Allow photo access in phone Settings → Apps → AsanPay → Permissions, then try again."
+            : res.errorMessage || "Could not open gallery. Try again.",
+        );
+        return;
+      }
+      applyReceiptAsset(res.assets?.[0]);
+    } catch (err) {
+      showAlert("Upload failed", err instanceof Error ? err.message : "Could not open gallery");
+    }
+  }
+
+  async function pickReceiptFromCamera() {
+    setReceiptSourceOpen(false);
+    try {
+      if (Platform.OS === "android") {
+        const cam = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA, {
+          title: "Camera Permission",
+          message: "AsanPay needs the camera to capture your deposit receipt.",
+          buttonPositive: "Allow",
+          buttonNegative: "Deny",
+        });
+        if (cam !== PermissionsAndroid.RESULTS.GRANTED) {
+          showAlert("Camera required", "Allow camera access to capture a receipt photo");
+          return;
+        }
+      }
+      const res = await launchCamera({
+        mediaType: "photo",
+        cameraType: "back",
+        saveToPhotos: false,
+        quality: 0.7,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        includeBase64: true,
+        presentationStyle: "fullScreen",
+      });
+      if (res.didCancel) return;
+      if (res.errorCode) {
+        showAlert(
+          "Camera failed",
+          res.errorMessage || "Could not open camera. Check camera permission and try again.",
+        );
+        return;
+      }
+      applyReceiptAsset(res.assets?.[0]);
+    } catch (err) {
+      showAlert("Camera unavailable", err instanceof Error ? err.message : "Could not open camera");
+    }
   }
 
   async function submit() {
@@ -1491,12 +1631,53 @@ function ConfirmStep({
       <LabelText label="Receipt *" color={tokens.sub} style={styles.label} />
       <Pressable
         style={[styles.receiptBtn, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
-        onPress={() => void pickReceipt()}
+        onPress={() => setReceiptSourceOpen(true)}
       >
         <Text style={{ color: tokens.txt, fontWeight: "700" }}>
           {receiptName ? `Receipt: ${receiptName}` : "Attach receipt / payment proof"}
         </Text>
+        <Text style={{ color: tokens.sub, fontSize: 12, fontWeight: "600", marginTop: 4 }}>
+          Gallery or Camera
+        </Text>
       </Pressable>
+      <Modal
+        visible={receiptSourceOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setReceiptSourceOpen(false)}
+      >
+        <View style={styles.receiptSourceRoot}>
+          <Pressable style={styles.receiptSourceScrim} onPress={() => setReceiptSourceOpen(false)} />
+          <View style={[styles.receiptSourceSheet, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
+            <Text style={{ color: tokens.txt, fontWeight: "800", fontSize: 16, marginBottom: 4 }}>
+              Attach receipt
+            </Text>
+            <Text style={{ color: tokens.sub, fontSize: 12, fontWeight: "600", marginBottom: 12 }}>
+              Choose gallery or camera
+            </Text>
+            <Pressable
+              style={[styles.receiptSourceOption, { borderColor: tokens.cardBorder }]}
+              onPress={() => void pickReceiptFromGallery()}
+            >
+              <ImageIcon size={18} color={colors.blueFlat} />
+              <Text style={{ color: tokens.txt, fontWeight: "700", flex: 1 }}>Upload from gallery</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.receiptSourceOption, { borderColor: tokens.cardBorder }]}
+              onPress={() => void pickReceiptFromCamera()}
+            >
+              <Camera size={18} color={colors.blueFlat} />
+              <Text style={{ color: tokens.txt, fontWeight: "700", flex: 1 }}>Take photo with camera</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.receiptSourceCancel, { borderColor: colors.danger }]}
+              onPress={() => setReceiptSourceOpen(false)}
+            >
+              <Text style={{ color: colors.danger, fontWeight: "800" }}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 
@@ -1680,15 +1861,44 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     marginBottom: 4,
   },
-  dtBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(15,23,42,0.45)" },
-  dtSheet: {
+  receiptSourceRoot: { flex: 1, justifyContent: "flex-end" },
+  receiptSourceScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(15,23,42,0.45)" },
+  receiptSourceSheet: {
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     borderWidth: 1,
     padding: 16,
     paddingBottom: 28,
+    gap: 8,
+  },
+  receiptSourceOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  receiptSourceCancel: {
+    marginTop: 4,
+    borderWidth: 1.5,
+    borderRadius: 14,
+    paddingVertical: 13,
+    alignItems: "center",
+  },
+  dtKav: { flex: 1, justifyContent: "flex-end" },
+  dtBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(15,23,42,0.45)" },
+  dtSheet: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderWidth: 1,
+    paddingTop: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
     maxHeight: "92%",
   },
+  dtScrollContent: { paddingBottom: 28 },
   dtHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
   dtTitle: { fontSize: 17, fontWeight: "800" },
   dtCalPanel: {

@@ -1,0 +1,33 @@
+---
+description: Never put competitor/reference product names in code, commits, or UI
+alwaysApply: true
+---
+
+# No competitor names in shipped text
+
+Owner will paste screenshots / name products (InstantPay, Paytm, BharatPe, PhonePe, etc.) as **design or flow references only**. Do **not** copy those brand names into anything that ships or is committed.
+
+## Never put competitor / reference brand names in
+
+- Source code (comments, JSDoc, TODOs, string literals for UI)
+- Git commit messages / PR titles / PR bodies
+- Product UI copy (web, mobile, admin, emails, toasts)
+- Agent reply deploy/push command blocks that include a commit message
+- Variable / type / file names invented for “parity with X”
+
+## Allowed (narrow)
+
+- Real vendor integration that **is** that product in this repo (API client, env keys, provider enum, adapter folder) when the system actually talks to that vendor — keep existing technical identifiers; do not sprinkle marketing/parity comments like `// InstantPay-style chip`.
+- Internal agent docs the owner already keeps as vendor maps (e.g. `InstantPay/`, task files) — do not expand brand names into product UI or commit messages from those docs.
+
+## What to write instead
+
+| Bad | Good |
+|-----|------|
+| `// InstantPay-style wallet bar` | `// Unified header wallet bar: MAIN \| AEPS \| eye \| refresh` |
+| commit: `Match InstantPay date filters` | `Match segment date filters to admin tabs` |
+| UI: `InstantPay order id` (when not required by API) | `Order id` / field name the API actually uses |
+
+## Habit
+
+Reference brands stay in **chat only**. Code and git describe **AsanPay behavior**, not competitors.
