@@ -99,6 +99,29 @@ export function SuperDistributorDashboard() {
         onChanged={() => void load()}
       />
 
+      <button
+        type="button"
+        onClick={() => router.push("/reports")}
+        className="flex w-full items-center gap-3 rounded-2xl border bg-white px-4 py-3 text-left transition hover:shadow-sm"
+        style={{ borderColor: B.border }}
+      >
+        <span
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+          style={{ background: "#EEF2FF", color: B.blueLight }}
+        >
+          <BarChart3 size={18} />
+        </span>
+        <span className="min-w-0 flex-1 text-sm font-bold" style={{ color: B.blue }}>
+          Today&apos;s Earnings:{" "}
+          <span style={{ color: B.green }}>
+            {loading ? "…" : formatInr(stats?.revenue.todayCommission ?? "0")}
+          </span>
+        </span>
+        <span className="text-xs font-bold" style={{ color: B.blueMid }}>
+          Report →
+        </span>
+      </button>
+
       {lowFloat ? (
         <div
           className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3"

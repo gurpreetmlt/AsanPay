@@ -72,7 +72,7 @@
 | **TC04** | DMT fee GST in pricing path | M | done | `transactions.customer_fee_gst` · debit total includes GST · journal fee+GST |
 | **TC05** | Admin Tax settings UI | M | done | `/commission` Tax tab · `PATCH /admin/commission/tax-config/:id` |
 | **TC06** | Admin preview includes tax | S | done | Preview shows Gross · TDS · Net + tax flags |
-| **TC07** | Home: Balance · Earnings Report · Today's Earnings | M | **CURRENT** | **Fullimit home.** SD/Dist: web + mobile. **Retailer: mobile only** (`ServicesScreen` / retailer home). Report + arrow → My Earnings |
+| **TC07** | Home: Balance · Earnings Report · Today's Earnings | M | **CURRENT** | Partial: Partner mobile already OK; Retailer mobile strip + SD/Dist web strip added (tap → Ledger/Reports until TC08 My Earnings). Finish: wire all entrypoints to My Earnings when TC08 ships |
 | **TC08** | My Earnings screen shell + APIs | M | pending | Date range, TOTAL card, active-count badge, empty state. Summary + list APIs. Roles: SD, Dist, **Retailer** (product summary). Shared screen OK with role flags |
 | **TC09** | My Earnings — Downline-wise tab | M | pending | **SD/Dist only** (hide for retailer). Web + mobile |
 | **TC10** | My Earnings — Product-wise tab | M | pending | **SD + Dist + Retailer mobile.** Vol + Earning. Retailer: default / only tab |

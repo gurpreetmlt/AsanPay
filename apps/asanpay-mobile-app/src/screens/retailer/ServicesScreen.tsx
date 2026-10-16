@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, LayoutAnimation, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, UIManager, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import LinearGradient from "react-native-linear-gradient";
-import { Bell, Gift, Scan } from "lucide-react-native";
+import { Bell, ChartColumn, ChevronRight, Gift, Scan } from "lucide-react-native";
 import { CategorySection } from "../../components/CategorySection";
 import { HomeEditModeBar } from "../../components/HomeEditModeBar";
 import { ScreenHeader } from "../../components/ScreenHeader";
@@ -65,6 +65,7 @@ export function ServicesScreen() {
   const servicesUnlocked = isKycServicesUnlocked(user);
   const [categories, setCategories] = useState<CatalogCategoryView[]>([]);
   const [wallets, setWallets] = useState<WalletBalance[]>([]);
+  const [todayEarnings, setTodayEarnings] = useState("0");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [homeEditMode, setHomeEditMode] = useState(false);
@@ -90,14 +91,20 @@ export function ServicesScreen() {
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     try {
-      const [cat, wal, banks] = await Promise.all([
+      const [cat, wal, banks, dash] = await Promise.all([
         fetchApi<CatalogCategoryView[]>("/catalog"),
         fetchApi<WalletBalance[]>("/wallet/me"),
         fetchApi<{ isActive: boolean; verified: boolean }[]>("/settlements/banks").catch(() => []),
+        fetchApi<{ today?: { commissionEarned?: string }; revenue?: { todayCommission?: string } }>(
+          "/dashboard/stats",
+        ).catch(() => null),
       ]);
       setCategories(cat);
       setWallets(wal);
       setHasActiveBank(banks.some((b) => b.verified && b.isActive));
+      setTodayEarnings(
+        dash?.today?.commissionEarned ?? dash?.revenue?.todayCommission ?? "0",
+      );
     } catch {
       /* silent — pull to retry */
     } finally {
@@ -248,9 +255,25 @@ export function ServicesScreen() {
           wallets={wallets}
           onAddMoney={openAddMoney}
           onWalletPress={() => navigation.navigate("Balance")}
-          onReports={() => navigation.navigate("History")}
+          onReports={() => navigation.navigate("Ledger")}
         />
       </ScreenHeader>
+
+      <Pressable
+        style={[styles.todayEarnCard, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
+        onPress={() => navigation.navigate("Ledger")}
+        accessibilityRole="button"
+        accessibilityLabel="Today's earnings"
+      >
+        <View style={[styles.todayEarnIcon, { backgroundColor: "#EEF2FF" }]}>
+          <ChartColumn size={18} color={colors.blueFlat} strokeWidth={2.2} />
+        </View>
+        <Text style={[styles.todayEarnLabel, { color: tokens.txt }]}>Today&apos;s Earnings:</Text>
+        <Text style={styles.todayEarnValue}>{formatINR(todayEarnings)}</Text>
+        <View style={styles.todayEarnArrow}>
+          <ChevronRight size={16} color="#fff" strokeWidth={2.6} />
+        </View>
+      </Pressable>
 
       {doNext.length > 0 ? (
         <View style={[styles.doNextWrap, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
@@ -514,6 +537,34 @@ const styles = StyleSheet.create({
     backgroundColor: colors.green,
     borderWidth: 1.5,
     borderColor: "#1E42B0",
+  },
+  todayEarnCard: {
+    marginHorizontal: 16,
+    marginTop: 10,
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  todayEarnIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  todayEarnLabel: { flex: 1, fontSize: 14, fontWeight: "700" },
+  todayEarnValue: { fontSize: 15, fontWeight: "800", color: colors.blueFlat },
+  todayEarnArrow: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.blueFlat,
+    alignItems: "center",
+    justifyContent: "center",
   },
   promo: { flexDirection: "row", alignItems: "center", borderRadius: 18, padding: 16, marginTop: 8, borderWidth: 1 },
   promoTitle: { fontSize: 14.5, fontWeight: "700", fontFamily: "System" },

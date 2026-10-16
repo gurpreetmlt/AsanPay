@@ -92,6 +92,29 @@ export function DistributorDashboard() {
     <div className="space-y-4">
       <PartnerQuickActions childLabel="Retailer" />
 
+      <button
+        type="button"
+        onClick={() => router.push("/reports")}
+        className="flex w-full items-center gap-3 rounded-2xl border bg-white px-4 py-3 text-left transition hover:shadow-sm"
+        style={{ borderColor: B.border }}
+      >
+        <span
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+          style={{ background: "#EEF2FF", color: B.blueLight }}
+        >
+          <BarChart3 size={18} />
+        </span>
+        <span className="min-w-0 flex-1 text-sm font-bold" style={{ color: B.blue }}>
+          Today&apos;s Earnings:{" "}
+          <span style={{ color: B.green }}>
+            {loading ? "…" : formatInr(stats?.today.commission ?? "0")}
+          </span>
+        </span>
+        <span className="text-xs font-bold" style={{ color: B.blueMid }}>
+          Report →
+        </span>
+      </button>
+
       {/* Wallet balance lives in the header chip; this band is retailer activity only. */}
       <div className="overflow-hidden rounded-2xl border bg-white shadow-sm" style={{ borderColor: B.border }}>
         <div>
