@@ -256,6 +256,35 @@ function buildReport(report: ReconReport, rows: ReconRow[], generatedBy: string)
   };
 }
 
+function downloadReconCsv(report: ReconReport, rows: ReconRow[]) {
+  const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
+  const lines = [
+    ["Date", "Bank amount", "Bank UTR", "Bank narration", "Our amount", "Our record", "Status"]
+      .map(esc)
+      .join(","),
+    ...rows.map((r) =>
+      [
+        dmy(r.line?.date ?? r.record?.date ?? ""),
+        r.line ? signed(r.line.direction, r.line.amount) : "",
+        r.line?.utr ?? "",
+        r.line?.narration ?? "",
+        r.record ? signed(r.record.direction, r.record.amount) : "",
+        r.record ? [r.record.label, r.record.party].filter(Boolean).join(" · ") : "",
+        KIND_META[r.kind].label,
+      ]
+        .map(esc)
+        .join(","),
+    ),
+  ];
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `AsanPay_Bank_Reconciliation_${report.bank.bankName.replace(/\W+/g, "_")}_${report.period.from}_to_${report.period.to}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function ExportMenu({ report, rows }: { report: ReconReport; rows: ReconRow[] }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -271,13 +300,15 @@ function ExportMenu({ report, rows }: { report: ReconReport; rows: ReconRow[] })
   }, [open]);
 
   const item = "flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-semibold hover:bg-slate-50";
+  const branded = () => buildReport(report, rows, generatedBy);
+
   return (
     <div ref={ref} className="relative">
       <button
         type="button"
         disabled={!rows.length}
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex h-11 items-center gap-1.5 rounded-xl border bg-white px-3 text-sm font-semibold disabled:opacity-50"
+        className="inline-flex h-11 items-center gap-1.5 rounded-xl border bg-white px-4 text-sm font-semibold disabled:opacity-50"
         style={{ borderColor: B.border, color: B.blue }}
       >
         <Download size={14} /> Export <ChevronDown size={14} />
@@ -294,7 +325,7 @@ function ExportMenu({ report, rows }: { report: ReconReport; rows: ReconRow[] })
             style={{ color: B.blue }}
             onClick={() => {
               setOpen(false);
-              if (!openBrandedPdf(buildReport(report, rows, generatedBy))) {
+              if (!openBrandedPdf(branded())) {
                 toast.error("Allow pop-ups for this site to export the PDF");
               }
             }}
@@ -307,10 +338,21 @@ function ExportMenu({ report, rows }: { report: ReconReport; rows: ReconRow[] })
             style={{ color: B.blue }}
             onClick={() => {
               setOpen(false);
-              downloadBrandedExcel(buildReport(report, rows, generatedBy));
+              downloadReconCsv(report, rows);
             }}
           >
-            <FileSpreadsheet size={14} style={{ color: "#16A34A" }} /> Excel
+            <FileSpreadsheet size={14} style={{ color: B.blueLight }} /> CSV
+          </button>
+          <button
+            type="button"
+            className={item}
+            style={{ color: B.blue }}
+            onClick={() => {
+              setOpen(false);
+              downloadBrandedExcel(branded());
+            }}
+          >
+            <FileSpreadsheet size={14} style={{ color: "#16A34A" }} /> XLS
           </button>
         </div>
       ) : null}
@@ -730,9 +772,9 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
             onChange={(e) => void onFile(e.target.files?.[0] ?? null)}
           />
 
-          {/* Row 1: small Bank + Upload field, same height */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-            <label className="block w-full sm:w-[220px] sm:shrink-0 text-sm">
+          {/* Row 1: Bank + Upload — 50% / 50%, same height */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:items-end">
+            <label className="block w-full text-sm">
               <span className="mb-1 block font-medium" style={{ color: B.muted }}>
                 Bank account
               </span>
@@ -751,7 +793,7 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
               </select>
             </label>
 
-            <label className="block min-w-0 flex-1 text-sm">
+            <label className="block w-full text-sm">
               <span className="mb-1 block font-medium" style={{ color: B.muted }}>
                 Upload statement
               </span>
@@ -931,7 +973,7 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
 
           {/* Control bar — one row like the mock */}
           <div className="flex flex-wrap items-end gap-3">
-            <label className="block w-full text-sm sm:w-[200px]">
+            <label className="block w-full min-w-[260px] flex-1 text-sm sm:max-w-[340px]">
               <span className="mb-1 block font-medium" style={{ color: B.muted }}>
                 Bank account
               </span>
