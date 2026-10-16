@@ -3,11 +3,11 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-/** Legacy path — scheme builder lives at /commission. */
+/** Legacy path — Tax & Commission workbench lives under /tax-commission. */
 export default function CommissionsRedirect() {
   const router = useRouter();
   useEffect(() => {
-    router.replace("/commission");
+    router.replace("/tax-commission/schemes");
   }, [router]);
   return null;
 }

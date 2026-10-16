@@ -4,7 +4,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Crown, Network, Store, Tags, Percent, Plug, ScrollText, Scale, ShieldAlert, Wrench, LifeBuoy, IndianRupee, Landmark, Building2, Settings, Megaphone, Trash2, MessageCircle } from "lucide-react";
+import { ChevronDown, Crown, Network, Store, Tags, Percent, Plug, ScrollText, Scale, ShieldAlert, Wrench, LifeBuoy, IndianRupee, Landmark, Building2, Settings, Megaphone, Trash2, MessageCircle, Calculator, FileSpreadsheet } from "lucide-react";
 import { AsanPayLockup } from "@/components/brand/Logo";
 import { AnimatedNavIcon } from "@/components/ui/AnimatedNavIcon";
 import type { NavIconDef } from "@/lib/iconTypes";
@@ -74,6 +74,32 @@ const TREASURY: NavItem[] = [
   },
 ];
 
+/** Agent commercials / TDS / fee GST — own group (not Treasury cash). */
+const TAX_COMMISSION: NavItem[] = [
+  {
+    type: "group",
+    id: "taxCommission",
+    label: "Tax & Commission",
+    icon: { lib: "lucide", icon: Percent },
+    children: [
+      {
+        href: "/tax-commission",
+        label: "Overview",
+        icon: { lib: "lucide", icon: Landmark },
+        match: ["/commission", "/commissions"],
+      },
+      { href: "/tax-commission/schemes", label: "Schemes", icon: { lib: "lucide", icon: Percent } },
+      { href: "/tax-commission/tax", label: "Tax settings", icon: { lib: "lucide", icon: Calculator } },
+      {
+        href: "/tax-commission/registers",
+        label: "Tax registers",
+        icon: { lib: "lucide", icon: FileSpreadsheet },
+      },
+      { href: "/tax-commission/payouts", label: "Payouts", icon: { lib: "lucide", icon: ScrollText } },
+    ],
+  },
+];
+
 const SITE_CONTROL: NavItem[] = [
   {
     type: "group",
@@ -85,7 +111,6 @@ const SITE_CONTROL: NavItem[] = [
       { href: "/promotions", label: "Promotions", icon: { lib: "lucide", icon: Megaphone } },
       { href: "/announcements", label: "Announcements", icon: { lib: "lucide", icon: Megaphone } },
       { href: "/site-control", label: "Service Badges", icon: { lib: "lucide", icon: Tags } },
-      { href: "/commission", label: "Commissions", icon: { lib: "lucide", icon: Percent } },
       { href: "/service-charges", label: "Service charges", icon: { lib: "lucide", icon: IndianRupee } },
       { href: "/risk-alerts", label: "Risk Alerts", icon: { lib: "lucide", icon: ShieldAlert } },
       { href: "/device-repairs", label: "Device Repairs", icon: { lib: "lucide", icon: Wrench } },
@@ -112,7 +137,7 @@ const DEVELOPER_OPTIONS: NavItem[] = [
 ];
 
 function pathActive(pathname: string, href: string) {
-  if (href === "/users" || href === "/treasury") return pathname === href;
+  if (href === "/users" || href === "/treasury" || href === "/tax-commission") return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -382,6 +407,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     agents: true,
     treasury: true,
+    taxCommission: true,
     site: false,
     developer: false,
   });
@@ -398,6 +424,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
     ...AGENTS,
     ...TRANSACTIONS,
     ...TREASURY,
+    ...TAX_COMMISSION,
     ...SITE_CONTROL,
     ...DEVELOPER_OPTIONS,
   ];

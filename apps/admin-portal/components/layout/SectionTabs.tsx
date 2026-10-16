@@ -4,12 +4,16 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { B } from "@/lib/brand";
 
-export type SectionGroup = "overview" | "reports";
+export type SectionGroup = "overview" | "reports" | "taxCommission";
 
 type SectionTab = { href: string; label: string };
 
-export const SECTION_GROUPS: Record<SectionGroup, { title: string; tabs: SectionTab[] }> = {
+export const SECTION_GROUPS: Record<
+  SectionGroup,
+  { root: string; title: string; tabs: SectionTab[] }
+> = {
   overview: {
+    root: "Treasury",
     title: "Treasury overview",
     tabs: [
       { href: "/treasury", label: "Overview" },
@@ -18,6 +22,7 @@ export const SECTION_GROUPS: Record<SectionGroup, { title: string; tabs: Section
     ],
   },
   reports: {
+    root: "Treasury",
     title: "Reports & recon",
     tabs: [
       { href: "/ledger-reports", label: "Ledger reports" },
@@ -26,16 +31,27 @@ export const SECTION_GROUPS: Record<SectionGroup, { title: string; tabs: Section
       { href: "/recon-adjustments", label: "Recon adjustments" },
     ],
   },
+  taxCommission: {
+    root: "Tax & Commission",
+    title: "Tax & Commission",
+    tabs: [
+      { href: "/tax-commission", label: "Overview" },
+      { href: "/tax-commission/schemes", label: "Schemes" },
+      { href: "/tax-commission/tax", label: "Tax settings" },
+      { href: "/tax-commission/registers", label: "Tax registers" },
+      { href: "/tax-commission/payouts", label: "Payouts" },
+    ],
+  },
 };
 
 export function SectionTabs({ group }: { group: SectionGroup }) {
   const pathname = usePathname();
-  const { title, tabs } = SECTION_GROUPS[group];
+  const { root, title, tabs } = SECTION_GROUPS[group];
 
   return (
     <div>
       <nav className="mb-2 text-xs" style={{ color: B.muted }}>
-        <span>Treasury</span>
+        <span>{root}</span>
         <span className="mx-1.5">/</span>
         <span className="font-semibold" style={{ color: B.blue }}>
           {title}

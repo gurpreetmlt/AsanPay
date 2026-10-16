@@ -32,6 +32,7 @@
 - [x] Commission preview underwater warn (TC14) when provider pool is below scheme gross
 - [x] Mobile monthly TDS + PAN banner (TC16) on Account
 - [ ] Tax commission blocked: TC15 Vyapar ingest (sample payload), TC17 Noble hook, TC18 tax clawback (likely migrate)
+- [x] Admin Tax & Commission IA (TCA01–04): sidebar group + SectionTabs + overview + route split; `/commission` redirects
 - [ ] Service flows (AEPS, DMT, BBPS)
 - [ ] Biometric SDK
 - [x] Txn PIN modal + wallet transfer PIN
