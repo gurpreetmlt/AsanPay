@@ -311,14 +311,23 @@ export function RetailerDashboard() {
         />
       </div>
       <p className="text-center text-[11px]" style={{ color: B.muted }}>
-        Daily earnings detail is on{" "}
+        Daily detail is on{" "}
+        <button
+          type="button"
+          className="font-semibold underline"
+          style={{ color: B.blue }}
+          onClick={() => router.push("/earnings")}
+        >
+          My Earnings
+        </button>
+        {" · "}
         <button
           type="button"
           className="font-semibold underline"
           style={{ color: B.blue }}
           onClick={() => router.push("/reports")}
         >
-          Reports
+          Business Report
         </button>
       </p>
 

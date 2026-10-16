@@ -46,7 +46,7 @@ export function TodayEarningsChip({ net, gross, tds, loading, onReport }: Props)
           />
         </button>
         <button type="button" onClick={onReport} className="text-xs font-bold" style={{ color: B.blueMid }}>
-          Report →
+          My Earnings →
         </button>
       </div>
       {open ? (

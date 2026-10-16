@@ -178,7 +178,7 @@ function mobileTabsForRole(role: string | undefined) {
     MOBILE_CORE[0],
     { icon: Network, label: "Network", to: "/network" },
     MOBILE_CORE[1],
-    { icon: BarChart3, label: "Earnings", to: "/earnings" },
+    { icon: BarChart3, label: "My Earnings", to: "/earnings" },
     MOBILE_CORE[3],
   ];
 }
