@@ -4,7 +4,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Crown, Network, Store, Tags, Percent, Plug, ScrollText, Scale, ShieldAlert, Wrench, LifeBuoy, IndianRupee, Landmark, Building2, Settings, Megaphone, Trash2, MessageCircle, Calculator, FileSpreadsheet, AlertTriangle, Package, IdCard, History, Lock } from "lucide-react";
+import { ChevronDown, Crown, Network, Store, Tags, Percent, Plug, ScrollText, Scale, ShieldAlert, Wrench, LifeBuoy, IndianRupee, Landmark, Building2, Settings, Megaphone, Trash2, MessageCircle } from "lucide-react";
 import { AsanPayLockup } from "@/components/brand/Logo";
 import { AnimatedNavIcon } from "@/components/ui/AnimatedNavIcon";
 import type { NavIconDef } from "@/lib/iconTypes";
@@ -74,45 +74,16 @@ const TREASURY: NavItem[] = [
   },
 ];
 
-/** Agent commercials / TDS / fee GST — own group (not Treasury cash). */
+/**
+ * Agent commercials / TDS / fee GST — single sidebar link (Treasury-style hub).
+ * Sub-tools live as a list on `/tax-commission` overview, not as 13 sidebar children.
+ */
 const TAX_COMMISSION: NavItem[] = [
   {
-    type: "group",
-    id: "taxCommission",
+    type: "link",
+    href: "/tax-commission",
     label: "Tax & Commission",
     icon: { lib: "lucide", icon: Percent },
-    children: [
-      {
-        href: "/tax-commission",
-        label: "Overview",
-        icon: { lib: "lucide", icon: Landmark },
-        match: ["/commission", "/commissions"],
-      },
-      { href: "/tax-commission/schemes", label: "Schemes", icon: { lib: "lucide", icon: Percent } },
-      { href: "/tax-commission/overrides", label: "Overrides", icon: { lib: "lucide", icon: Network } },
-      { href: "/tax-commission/tax", label: "Tax settings", icon: { lib: "lucide", icon: Calculator } },
-      {
-        href: "/tax-commission/registers",
-        label: "Tax registers",
-        icon: { lib: "lucide", icon: FileSpreadsheet },
-      },
-      { href: "/tax-commission/payouts", label: "Payouts", icon: { lib: "lucide", icon: ScrollText } },
-      {
-        href: "/tax-commission/what-if",
-        label: "What-if",
-        icon: { lib: "lucide", icon: Calculator },
-      },
-      {
-        href: "/tax-commission/underwater",
-        label: "Underwater",
-        icon: { lib: "lucide", icon: AlertTriangle },
-      },
-      { href: "/tax-commission/ca-pack", label: "CA pack", icon: { lib: "lucide", icon: Package } },
-      { href: "/tax-commission/pan-gaps", label: "PAN gaps", icon: { lib: "lucide", icon: IdCard } },
-      { href: "/tax-commission/rate-audit", label: "Rate audit", icon: { lib: "lucide", icon: History } },
-      { href: "/tax-commission/recon", label: "Recon", icon: { lib: "lucide", icon: Scale } },
-      { href: "/tax-commission/month-lock", label: "Month lock", icon: { lib: "lucide", icon: Lock } },
-    ],
   },
 ];
 
@@ -153,7 +124,17 @@ const DEVELOPER_OPTIONS: NavItem[] = [
 ];
 
 function pathActive(pathname: string, href: string) {
-  if (href === "/users" || href === "/treasury" || href === "/tax-commission") return pathname === href;
+  if (href === "/users" || href === "/treasury") return pathname === href;
+  // Hub link: keep active on all Tax & Commission tools + legacy commission routes.
+  if (href === "/tax-commission") {
+    return (
+      pathname === href ||
+      pathname.startsWith("/tax-commission/") ||
+      pathname === "/commission" ||
+      pathname === "/commissions" ||
+      pathname.startsWith("/commission/")
+    );
+  }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -291,6 +272,7 @@ function badgeForHref(
     fundRequestsPending: number;
     supportTicketsOpen: number;
     settlementBanksPending: number;
+    panGapCount?: number;
   },
 ): number {
   switch (href) {
@@ -309,6 +291,8 @@ function badgeForHref(
       return badges.fundRequestsPending;
     case "/support-tickets":
       return badges.supportTicketsOpen;
+    case "/tax-commission":
+      return badges.panGapCount ?? 0;
     default:
       return 0;
   }
@@ -424,7 +408,6 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     agents: true,
     treasury: true,
-    taxCommission: true,
     site: false,
     developer: false,
   });
