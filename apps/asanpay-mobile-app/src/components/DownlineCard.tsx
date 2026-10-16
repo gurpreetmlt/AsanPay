@@ -7,7 +7,6 @@ import { colors } from "../theme/colors";
 import { useTheme } from "../theme/ThemeContext";
 
 const REVERSE = "#EA580C";
-const AMBER = "#b45309";
 const AVATAR_COLORS = ["#EA580C", "#16A34A", "#2563EB", "#7C3AED", "#DB2777", "#0D9488"];
 
 function avatarColor(seed: string): string {
@@ -60,16 +59,23 @@ export function DownlineCard({ user, onFund, onReverse, onToggleActive, toggling
           <Pressable
             onPress={() => onToggleActive(user)}
             disabled={toggling}
-            hitSlop={6}
-            style={styles.toggle}
+            style={[
+              styles.btn,
+              user.isActive ? styles.btnDisable : styles.btnEnable,
+              toggling && styles.disabled,
+            ]}
             accessibilityLabel={user.isActive ? "Disable agent" : "Enable agent"}
           >
             {toggling ? (
-              <ActivityIndicator size="small" color={AMBER} />
+              <ActivityIndicator size="small" color={user.isActive ? colors.danger : colors.green} />
             ) : (
               <>
-                <Power size={12} color={user.isActive ? AMBER : colors.green} strokeWidth={2.4} />
-                <Text style={[styles.toggleText, { color: user.isActive ? AMBER : colors.green }]}>
+                <Power
+                  size={14}
+                  color={user.isActive ? colors.dangerDark : colors.greenDark}
+                  strokeWidth={2.4}
+                />
+                <Text style={user.isActive ? styles.btnDisableText : styles.btnEnableText}>
                   {user.isActive ? "Disable" : "Enable"}
                 </Text>
               </>
@@ -115,7 +121,9 @@ const styles = StyleSheet.create({
   btnTransferText: { color: colors.greenDark, fontWeight: "800", fontSize: 12.5 },
   btnReverse: { borderColor: REVERSE, backgroundColor: "#fff" },
   btnReverseText: { color: REVERSE, fontWeight: "800", fontSize: 12.5 },
+  btnDisable: { borderColor: colors.danger, backgroundColor: "#fff" },
+  btnDisableText: { color: colors.dangerDark, fontWeight: "800", fontSize: 12.5 },
+  btnEnable: { borderColor: colors.green, backgroundColor: "#fff" },
+  btnEnableText: { color: colors.greenDark, fontWeight: "800", fontSize: 12.5 },
   disabled: { opacity: 0.45 },
-  toggle: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 2 },
-  toggleText: { fontSize: 11.5, fontWeight: "800" },
 });

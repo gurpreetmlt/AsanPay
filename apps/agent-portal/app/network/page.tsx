@@ -570,21 +570,9 @@ export default function NetworkPage() {
                             </ActionIconButton>
                           </td>
                           <td className="px-4 py-3.5">
-                            <div className="flex items-center gap-2">
-                              <StatusBadge tone={m.isActive ? "success" : "danger"}>
-                                {m.isActive ? "Active" : "Inactive"}
-                              </StatusBadge>
-                              {canToggleChildren && isDirect ? (
-                                <ActionIconButton
-                                  title={m.isActive ? "Disable agent" : "Enable agent"}
-                                  tone={m.isActive ? "amber" : "green"}
-                                  disabled={togglingId === m.id}
-                                  onClick={() => void toggleChild(m.id, !m.isActive)}
-                                >
-                                  <Power size={15} strokeWidth={2.25} />
-                                </ActionIconButton>
-                              ) : null}
-                            </div>
+                            <StatusBadge tone={m.isActive ? "success" : "danger"}>
+                              {m.isActive ? "Active" : "Inactive"}
+                            </StatusBadge>
                           </td>
                           <td className="px-4 py-3.5">
                             <div className="flex items-center gap-2">
@@ -620,6 +608,23 @@ export default function NetworkPage() {
                               >
                                 <ArrowLeft size={13} strokeWidth={2.5} /> Reverse
                               </button>
+                              {canToggleChildren && isDirect ? (
+                                <button
+                                  type="button"
+                                  title={m.isActive ? `Disable ${m.name}` : `Enable ${m.name}`}
+                                  disabled={togglingId === m.id}
+                                  onClick={() => void toggleChild(m.id, !m.isActive)}
+                                  className={`inline-flex cursor-pointer items-center gap-1 whitespace-nowrap rounded-lg border-[1.5px] px-3 py-1.5 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-40 ${m.isActive ? "hover:bg-red-50" : "hover:bg-green-50"}`}
+                                  style={
+                                    m.isActive
+                                      ? { borderColor: "#DC2626", color: "#B91C1C" }
+                                      : { borderColor: "#16A34A", color: "#15803D" }
+                                  }
+                                >
+                                  <Power size={13} strokeWidth={2.5} />
+                                  {m.isActive ? "Disable" : "Enable"}
+                                </button>
+                              ) : null}
                             </div>
                           </td>
                         </tr>
