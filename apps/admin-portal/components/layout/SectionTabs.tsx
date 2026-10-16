@@ -8,22 +8,6 @@ export type SectionGroup = "overview" | "reports" | "taxCommission";
 
 type SectionTab = { href: string; label: string };
 
-const TAX_COMMISSION_CRUMB: Record<string, string> = {
-  "/tax-commission": "Overview",
-  "/tax-commission/schemes": "Schemes",
-  "/tax-commission/overrides": "Overrides",
-  "/tax-commission/tax": "Tax settings",
-  "/tax-commission/registers": "Tax registers",
-  "/tax-commission/payouts": "Payouts",
-  "/tax-commission/what-if": "What-if",
-  "/tax-commission/underwater": "Underwater",
-  "/tax-commission/ca-pack": "CA pack",
-  "/tax-commission/pan-gaps": "PAN gaps",
-  "/tax-commission/rate-audit": "Rate audit",
-  "/tax-commission/recon": "Recon",
-  "/tax-commission/month-lock": "Month lock",
-};
-
 export const SECTION_GROUPS: Record<
   SectionGroup,
   { root: string; title: string; tabs: SectionTab[] }
@@ -47,42 +31,33 @@ export const SECTION_GROUPS: Record<
       { href: "/recon-adjustments", label: "Recon adjustments" },
     ],
   },
-  // Tabs removed — hub list on `/tax-commission` (sidebar is a single link).
+  // Sidebar stays a single hub link; page tabs switch tools without going back.
   taxCommission: {
     root: "Tax & Commission",
     title: "Tax & Commission",
-    tabs: [],
+    tabs: [
+      { href: "/tax-commission", label: "Overview" },
+      { href: "/tax-commission/schemes", label: "Schemes" },
+      { href: "/tax-commission/overrides", label: "Overrides" },
+      { href: "/tax-commission/tax", label: "Tax settings" },
+      { href: "/tax-commission/registers", label: "Tax registers" },
+      { href: "/tax-commission/payouts", label: "Payouts" },
+      { href: "/tax-commission/what-if", label: "What-if" },
+      { href: "/tax-commission/underwater", label: "Underwater" },
+      { href: "/tax-commission/ca-pack", label: "CA pack" },
+      { href: "/tax-commission/pan-gaps", label: "PAN gaps" },
+      { href: "/tax-commission/rate-audit", label: "Rate audit" },
+      { href: "/tax-commission/recon", label: "Recon" },
+      { href: "/tax-commission/month-lock", label: "Month lock" },
+    ],
   },
 };
 
 export function SectionTabs({ group }: { group: SectionGroup }) {
   const pathname = usePathname();
   const { root, title, tabs } = SECTION_GROUPS[group];
-
-  // Tax & Commission: breadcrumb only (back to hub). Tools are listed on the overview page.
-  if (group === "taxCommission") {
-    const pageLabel = TAX_COMMISSION_CRUMB[pathname] ?? "Overview";
-    const onHub = pathname === "/tax-commission";
-    return (
-      <nav className="mb-2 text-xs" style={{ color: B.muted }}>
-        {onHub ? (
-          <span className="font-semibold" style={{ color: B.blue }}>
-            Tax & Commission
-          </span>
-        ) : (
-          <>
-            <Link href="/tax-commission" className="font-medium hover:underline" style={{ color: B.muted }}>
-              Tax & Commission
-            </Link>
-            <span className="mx-1.5">/</span>
-            <span className="font-semibold" style={{ color: B.blue }}>
-              {pageLabel}
-            </span>
-          </>
-        )}
-      </nav>
-    );
-  }
+  const activeTab = tabs.find((t) => t.href === pathname);
+  const crumbTitle = activeTab?.label ?? title;
 
   return (
     <div>
@@ -90,7 +65,7 @@ export function SectionTabs({ group }: { group: SectionGroup }) {
         <span>{root}</span>
         <span className="mx-1.5">/</span>
         <span className="font-semibold" style={{ color: B.blue }}>
-          {title}
+          {crumbTitle}
         </span>
       </nav>
       <div
