@@ -617,12 +617,13 @@ export async function voidFundRequest(params: {
     }
 
     try {
-      // Must not reuse the credit's (referenceType, referenceId) — wallet_ledger_groups
-      // has a unique index on that pair, so a second insert with the same key 500s.
+      // Do not pass referenceId: wallet_ledger_groups.reference_id is UUID, and the credit
+      // path already used (fund_request, <id>). A second row with the same pair hits the
+      // unique index; a fake "id:void" string is invalid UUID and also 500s. Null reference_id
+      // skips the unique index (WHERE reference_id IS NOT NULL).
       await syncWalletsAfterJournal(tx, params.tenantId, [request.requesterUserId], {
-        referenceType: "fund_request",
-        referenceId: `${request.id}:void`,
-        description: "Fund request reversed",
+        referenceType: "fund_request_void",
+        description: `Fund request ${request.id} reversed`,
       });
     } catch (err) {
       const chain = [err instanceof Error ? err.message : "", err instanceof Error && err.cause instanceof Error ? err.cause.message : ""]
@@ -630,7 +631,7 @@ export async function voidFundRequest(params: {
       if (/wallets_balance_nonnegative|Overdraft blocked|Insufficient balance/i.test(chain)) {
         throw new HttpError(422, spentMessage, "INSUFFICIENT_BALANCE");
       }
-      if (/wallet_ledger_groups_ref_uidx|duplicate key/i.test(chain)) {
+      if (/wallet_ledger_groups_ref_uidx|duplicate key|invalid input syntax for type uuid/i.test(chain)) {
         throw new HttpError(
           500,
           "Could not write the reversal passbook row — contact support with this fund request id.",

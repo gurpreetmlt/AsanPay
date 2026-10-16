@@ -119,6 +119,14 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
     });
     return;
   }
+  if (/invalid input syntax for type uuid/i.test(msg)) {
+    res.status(500).json({
+      success: false,
+      message: "Could not save the passbook row for this delete. Try again or contact support.",
+      code: "INVALID_LEDGER_REF",
+    });
+    return;
+  }
 
   res.status(500).json({ success: false, message: "Internal server error" });
 }
