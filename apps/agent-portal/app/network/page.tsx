@@ -11,15 +11,13 @@ import {
   Crown,
   Network as NetworkIcon,
   Store,
-  ArrowLeft,
   ArrowRight,
   History,
   Power,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { AppShell } from "@/components/layout/AppShell";
-import { FundForm } from "@/components/dashboard/FundForm";
-import { PullForm } from "@/components/dashboard/PullForm";
+import { WalletActionForm } from "@/components/dashboard/WalletActionForm";
 import { Modal } from "@/components/ui/Modal";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ActionIconButton } from "@/components/ui/ActionIconButton";
@@ -212,8 +210,10 @@ export default function NetworkPage() {
   const [search, setSearch] = useState("");
   const [view, setView] = useState<"tree" | "table">("table");
   const [togglingId, setTogglingId] = useState<string | null>(null);
-  const [fundTarget, setFundTarget] = useState<DownlineUser | null>(null);
-  const [pullTarget, setPullTarget] = useState<DownlineUser | null>(null);
+  const [walletTarget, setWalletTarget] = useState<{
+    user: DownlineUser;
+    allowReverse: boolean;
+  } | null>(null);
   const [historyTarget, setHistoryTarget] = useState<DownlineItem | null>(null);
   const [historyRows, setHistoryRows] = useState<LedgerEntry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -579,34 +579,23 @@ export default function NetworkPage() {
                               <button
                                 type="button"
                                 title={
-                                  moneyOk
-                                    ? `Send funds to ${m.name}`
+                                  moneyOk || collectOk
+                                    ? `Wallet — transfer or reverse with ${m.name}`
                                     : m.isActive
-                                      ? "Only your direct downline can be funded"
-                                      : "Agent is inactive — enable to transfer"
+                                      ? "Only your direct downline can use wallet actions"
+                                      : "Agent is inactive — enable to use wallet"
                                 }
-                                disabled={!moneyOk}
-                                onClick={() => setFundTarget(toDownlineUser(m))}
+                                disabled={!moneyOk && !collectOk}
+                                onClick={() =>
+                                  setWalletTarget({
+                                    user: toDownlineUser(m),
+                                    allowReverse: collectOk,
+                                  })
+                                }
                                 className="inline-flex cursor-pointer items-center gap-1 whitespace-nowrap rounded-lg border-[1.5px] px-3 py-1.5 text-xs font-bold transition hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
                                 style={{ borderColor: "#16A34A", color: "#15803D" }}
                               >
-                                Transfer <ArrowRight size={13} strokeWidth={2.5} />
-                              </button>
-                              <button
-                                type="button"
-                                title={
-                                  collectOk
-                                    ? `Pull funds back from ${m.name}`
-                                    : Number(m.mainBalance) > 0
-                                      ? "Only your direct, active downline can be reversed"
-                                      : "Nothing to reverse — their balance is ₹0"
-                                }
-                                disabled={!collectOk}
-                                onClick={() => setPullTarget(toDownlineUser(m))}
-                                className="inline-flex cursor-pointer items-center gap-1 whitespace-nowrap rounded-lg border-[1.5px] px-3 py-1.5 text-xs font-bold transition hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
-                                style={{ borderColor: "#EA580C", color: "#EA580C" }}
-                              >
-                                <ArrowLeft size={13} strokeWidth={2.5} /> Reverse
+                                Wallet <ArrowRight size={13} strokeWidth={2.5} />
                               </button>
                               {canToggleChildren && isDirect ? (
                                 <button
@@ -660,20 +649,14 @@ export default function NetworkPage() {
         )}
       </div>
 
-      {fundTarget && (
-        <FundForm
-          target={fundTarget}
-          onClose={() => setFundTarget(null)}
+      {walletTarget ? (
+        <WalletActionForm
+          target={walletTarget.user}
+          allowReverse={walletTarget.allowReverse}
+          onClose={() => setWalletTarget(null)}
           onSuccess={() => void reloadNetwork()}
         />
-      )}
-      {pullTarget && (
-        <PullForm
-          target={pullTarget}
-          onClose={() => setPullTarget(null)}
-          onSuccess={() => void reloadNetwork()}
-        />
-      )}
+      ) : null}
       {historyTarget && (
         <Modal title={`History — ${historyTarget.name}`} onClose={() => setHistoryTarget(null)}>
           {historyLoading ? (

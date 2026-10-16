@@ -690,7 +690,6 @@ export function UsersPanel({ lockedRole = "" }: Props) {
                         onBan={!u.isFrozen && toggling !== u.id ? () => void toggleActive(u) : undefined}
                         onMove={isMovable(u) ? () => setMoveAgents([u]) : undefined}
                         onTransfer={isMovable(u) ? () => setWalletMove({ id: u.id, kind: "transfer" }) : undefined}
-                        onReverse={isMovable(u) ? () => setWalletMove({ id: u.id, kind: "reverse" }) : undefined}
                         onDelete={rowDeleteEnabled ? () => void deleteUser(u) : undefined}
                         deleting={deletingId === u.id}
                       />
@@ -756,7 +755,6 @@ export function UsersPanel({ lockedRole = "" }: Props) {
                   onBan={!u.isFrozen && toggling !== u.id ? () => void toggleActive(u) : undefined}
                   onMove={isMovable(u) ? () => setMoveAgents([u]) : undefined}
                         onTransfer={isMovable(u) ? () => setWalletMove({ id: u.id, kind: "transfer" }) : undefined}
-                        onReverse={isMovable(u) ? () => setWalletMove({ id: u.id, kind: "reverse" }) : undefined}
                   onDelete={rowDeleteEnabled ? () => void deleteUser(u) : undefined}
                   deleting={deletingId === u.id}
                 />

@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { InviteModal } from "@/components/network/InviteAgentPanel";
-import { FundForm } from "@/components/dashboard/FundForm";
+import { WalletActionForm } from "@/components/dashboard/WalletActionForm";
 import { fetchApi } from "@/lib/api";
 import { B, initials } from "@/lib/brand";
 import { formatInr } from "@/lib/walletLabels";
@@ -69,8 +69,8 @@ export function PartnerQuickActions({
     },
     {
       key: "fund",
-      label: `Fund ${childLabel}`,
-      hint: "Send money with PIN",
+      label: `${childLabel} wallet`,
+      hint: "Transfer or reverse",
       icon: <ArrowRightLeft size={20} />,
       color: "#1D4ED8",
       bg: "#DBEAFE",
@@ -158,7 +158,7 @@ export function PartnerQuickActions({
 
       {picker ? (
         <DownlinePicker
-          title={`Fund ${childLabel}`}
+          title={`${childLabel} wallet`}
           emptyText={`No ${childLabel.toLowerCase()}s yet. Invite one first.`}
           rows={picker}
           onClose={() => setPicker(null)}
@@ -170,8 +170,9 @@ export function PartnerQuickActions({
       ) : null}
 
       {fundTarget ? (
-        <FundForm
+        <WalletActionForm
           target={fundTarget}
+          allowReverse={Number(fundTarget.mainBalance) > 0 && fundTarget.isActive}
           onClose={() => setFundTarget(null)}
           onSuccess={() => onChanged?.()}
         />

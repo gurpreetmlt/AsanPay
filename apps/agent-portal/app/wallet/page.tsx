@@ -13,9 +13,8 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { AppShell } from "@/components/layout/AppShell";
-import { FundForm } from "@/components/dashboard/FundForm";
+import { WalletActionForm } from "@/components/dashboard/WalletActionForm";
 import { BulkFundForm } from "@/components/dashboard/BulkFundForm";
-import { PullForm } from "@/components/dashboard/PullForm";
 import { fetchApi } from "@/lib/api";
 import { B, initials, roleFromUserRole } from "@/lib/brand";
 import { extractApiError } from "@/lib/onboarding";
@@ -40,8 +39,7 @@ export default function WalletPage() {
   const [wallets, setWallets] = useState<WalletBalance[]>([]);
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
   const [downline, setDownline] = useState<DownlineUser[]>([]);
-  const [fundTarget, setFundTarget] = useState<DownlineUser | null>(null);
-  const [pullTarget, setPullTarget] = useState<DownlineUser | null>(null);
+  const [walletTarget, setWalletTarget] = useState<DownlineUser | null>(null);
   const [showBulk, setShowBulk] = useState(false);
   const [loading, setLoading] = useState(true);
   const [ledgerPartner, setLedgerPartner] = useState("all");
@@ -249,10 +247,10 @@ export default function WalletPage() {
             <div className="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-4" style={{ borderColor: B.border }}>
               <div>
                 <h2 className="font-bold" style={{ color: B.blue }}>
-                  Downline — Fund / Reverse
+                  Downline — Wallet
                 </h2>
                 <p className="mt-0.5 text-xs" style={{ color: B.muted }}>
-                  Fund and reverse both need your 4-digit PIN.
+                  Transfer or reverse — both need your 4-digit PIN.
                 </p>
               </div>
               {user?.role === "super_distributor" || user?.role === "distributor" ? (
@@ -320,29 +318,17 @@ export default function WalletPage() {
                         </StatusBadge>
                       </td>
                       <td className="px-5 py-3 text-right">
-                        <div className="flex flex-wrap items-center justify-end gap-2">
-                          <PrimaryButton
-                            type="button"
-                            variant="primary"
-                            size="sm"
-                            showArrow={false}
-                            disabled={!d.isActive}
-                            className="!w-auto"
-                            onClick={() => setFundTarget(d)}
-                          >
-                            Fund
-                          </PrimaryButton>
-                          <PrimaryButton
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            disabled={!d.isActive || Number(d.mainBalance) <= 0}
-                            className="!w-auto"
-                            onClick={() => setPullTarget(d)}
-                          >
-                            Reverse
-                          </PrimaryButton>
-                        </div>
+                        <PrimaryButton
+                          type="button"
+                          variant="success"
+                          size="sm"
+                          showArrow={false}
+                          disabled={!d.isActive}
+                          className="!w-auto"
+                          onClick={() => setWalletTarget(d)}
+                        >
+                          Wallet
+                        </PrimaryButton>
                       </td>
                     </tr>
                   ))}
@@ -476,13 +462,14 @@ export default function WalletPage() {
         </div>
       </div>
 
-      {fundTarget && (
-        <FundForm
-          target={fundTarget}
-          onClose={() => setFundTarget(null)}
+      {walletTarget ? (
+        <WalletActionForm
+          target={walletTarget}
+          allowReverse={walletTarget.isActive && Number(walletTarget.mainBalance) > 0}
+          onClose={() => setWalletTarget(null)}
           onSuccess={() => void load()}
         />
-      )}
+      ) : null}
       {showBulk ? (
         <BulkFundForm
           targets={downline}
@@ -491,13 +478,6 @@ export default function WalletPage() {
           onSuccess={() => void load()}
         />
       ) : null}
-      {pullTarget && (
-        <PullForm
-          target={pullTarget}
-          onClose={() => setPullTarget(null)}
-          onSuccess={() => void load()}
-        />
-      )}
     </AppShell>
   );
 }

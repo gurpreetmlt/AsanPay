@@ -1,12 +1,11 @@
 import React from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
-import { ArrowLeft, ArrowRight, Power } from "lucide-react-native";
+import { ArrowRight, Power } from "lucide-react-native";
 import type { DownlineUser } from "../lib/types";
 import { formatINR } from "../lib/format";
 import { colors } from "../theme/colors";
 import { useTheme } from "../theme/ThemeContext";
 
-const REVERSE = "#EA580C";
 const AVATAR_COLORS = ["#EA580C", "#16A34A", "#2563EB", "#7C3AED", "#DB2777", "#0D9488"];
 
 function avatarColor(seed: string): string {
@@ -18,13 +17,12 @@ function avatarColor(seed: string): string {
 interface Props {
   user: DownlineUser;
   onFund: (user: DownlineUser) => void;
-  onReverse?: (user: DownlineUser) => void;
   onToggleActive?: (user: DownlineUser) => void;
   toggling?: boolean;
   last?: boolean;
 }
 
-export function DownlineCard({ user, onFund, onReverse, onToggleActive, toggling, last }: Props) {
+export function DownlineCard({ user, onFund, onToggleActive, toggling, last }: Props) {
   const { tokens } = useTheme();
   return (
     <View style={[styles.row, !last && { borderBottomWidth: 1, borderBottomColor: tokens.cardBorder }]}>
@@ -46,15 +44,9 @@ export function DownlineCard({ user, onFund, onReverse, onToggleActive, toggling
           disabled={!user.isActive}
           style={[styles.btn, styles.btnTransfer, !user.isActive && styles.disabled]}
         >
-          <Text style={styles.btnTransferText}>Transfer</Text>
+          <Text style={styles.btnTransferText}>Wallet</Text>
           <ArrowRight size={14} color={colors.greenDark} strokeWidth={2.4} />
         </Pressable>
-        {onReverse ? (
-          <Pressable onPress={() => onReverse(user)} style={[styles.btn, styles.btnReverse]}>
-            <ArrowLeft size={14} color={REVERSE} strokeWidth={2.4} />
-            <Text style={styles.btnReverseText}>Reverse</Text>
-          </Pressable>
-        ) : null}
         {onToggleActive ? (
           <Pressable
             onPress={() => onToggleActive(user)}
@@ -119,8 +111,6 @@ const styles = StyleSheet.create({
   },
   btnTransfer: { borderColor: colors.green, backgroundColor: "#fff" },
   btnTransferText: { color: colors.greenDark, fontWeight: "800", fontSize: 12.5 },
-  btnReverse: { borderColor: REVERSE, backgroundColor: "#fff" },
-  btnReverseText: { color: REVERSE, fontWeight: "800", fontSize: 12.5 },
   btnDisable: { borderColor: colors.danger, backgroundColor: "#fff" },
   btnDisableText: { color: colors.dangerDark, fontWeight: "800", fontSize: 12.5 },
   btnEnable: { borderColor: colors.green, backgroundColor: "#fff" },

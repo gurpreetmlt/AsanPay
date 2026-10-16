@@ -36,7 +36,6 @@ export function NetworkScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showOnboard, setShowOnboard] = useState(false);
   const [fundTarget, setFundTarget] = useState<DownlineUser | null>(null);
-  const [pullTarget, setPullTarget] = useState<DownlineUser | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set());
@@ -381,7 +380,6 @@ export function NetworkScreen() {
                 <DownlineCard
                   user={u}
                   onFund={setFundTarget}
-                  onReverse={setPullTarget}
                   onToggleActive={(target) => void toggleActive(target)}
                   toggling={togglingId === u.id}
                   last={i === filtered.length - 1}
@@ -418,19 +416,11 @@ export function NetworkScreen() {
       )}
 
       {fundTarget && (
-        <FundModal
+        <WalletModal
           visible={!!fundTarget}
           target={fundTarget}
+          allowReverse={Number(fundTarget.mainBalance) > 0 && fundTarget.isActive}
           onClose={() => setFundTarget(null)}
-          onSuccess={() => void load(true)}
-        />
-      )}
-
-      {pullTarget && (
-        <PullModal
-          visible={!!pullTarget}
-          target={pullTarget}
-          onClose={() => setPullTarget(null)}
           onSuccess={() => void load(true)}
         />
       )}
@@ -642,33 +632,50 @@ function InviteList({
   );
 }
 
-function FundModal({
+function WalletModal({
   visible,
   target,
+  allowReverse,
   onClose,
   onSuccess,
 }: {
   visible: boolean;
   target: DownlineUser;
+  allowReverse: boolean;
   onClose: () => void;
   onSuccess: () => void;
 }) {
+  const [kind, setKind] = useState<"transfer" | "reverse">("transfer");
   const [step, setStep] = useState<"form" | "confirm">("form");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [txnPin, setTxnPin] = useState("");
   const [loading, setLoading] = useState(false);
-  const attemptKey = useRef(createAttemptKeyHolder(`xfer-${target.id}`));
+  const attemptKey = useRef(createAttemptKeyHolder(`wallet-${target.id}`));
+  const isReverse = kind === "reverse";
 
   function close() {
     setStep("form");
     setTxnPin("");
+    setKind("transfer");
     onClose();
+  }
+
+  function setMode(next: "transfer" | "reverse") {
+    if (next === "reverse" && !allowReverse) return;
+    setKind(next);
+    setStep("form");
+    setTxnPin("");
+    attemptKey.current.clear();
   }
 
   function review() {
     if (!amount || !(parseFloat(amount) > 0)) {
       showAlert("Invalid amount", "Enter an amount greater than ₹0.");
+      return;
+    }
+    if (isReverse && parseFloat(amount) > Number(target.mainBalance)) {
+      showAlert("Amount too high", "Amount is higher than their main wallet balance.");
       return;
     }
     setTxnPin("");
@@ -683,16 +690,29 @@ function FundModal({
     }
     setLoading(true);
     try {
-      await api.post("/wallet/transfer", {
-        targetUserId: target.id,
-        walletType: "main",
-        amount,
-        txnPin,
-        idempotencyKey: attemptKey.current.get(),
-        ...(note ? { description: note } : {}),
-      });
-      attemptKey.current.clear();
-      showAlert("Success", `₹${amount} sent to ${target.name}`);
+      if (isReverse) {
+        await api.post("/wallet/pull/confirm", {
+          targetUserId: target.id,
+          walletType: "main",
+          amount,
+          txnPin,
+          idempotencyKey: attemptKey.current.get(),
+          ...(note ? { description: note } : {}),
+        });
+        attemptKey.current.clear();
+        showAlert("Success", `₹${amount} reversed from ${target.name}`);
+      } else {
+        await api.post("/wallet/transfer", {
+          targetUserId: target.id,
+          walletType: "main",
+          amount,
+          txnPin,
+          idempotencyKey: attemptKey.current.get(),
+          ...(note ? { description: note } : {}),
+        });
+        attemptKey.current.clear();
+        showAlert("Success", `₹${amount} sent to ${target.name}`);
+      }
       onSuccess();
       close();
       setAmount("");
@@ -700,8 +720,9 @@ function FundModal({
     } catch (err) {
       setTxnPin("");
       const msg =
-        (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? "Transfer failed";
-      showAlert("Transfer failed", msg);
+        (err as { response?: { data?: { message?: string } } }).response?.data?.message ??
+        (isReverse ? "Reverse failed" : "Transfer failed");
+      showAlert(isReverse ? "Reverse failed" : "Transfer failed", msg);
     } finally {
       setLoading(false);
     }
@@ -710,12 +731,45 @@ function FundModal({
   return (
     <ModalSheet
       visible={visible}
-      title={step === "confirm" ? "Confirm transfer" : `Fund ${target.name}`}
+      title={
+        step === "confirm"
+          ? isReverse
+            ? "Confirm reverse"
+            : "Confirm transfer"
+          : `Wallet — ${target.name}`
+      }
       onClose={close}
     >
       {step === "form" ? (
         <>
-          <Field label="Amount (₹)" value={amount} onChangeText={(t) => { setAmount(t.replace(/[^\d.]/g, "")); attemptKey.current.clear(); }} keyboardType="decimal-pad" />
+          <View style={styles.kindRow}>
+            <Pressable
+              onPress={() => setMode("transfer")}
+              style={[styles.kindBtn, kind === "transfer" && styles.kindBtnOn]}
+            >
+              <Text style={[styles.kindText, kind === "transfer" && styles.kindTextOn]}>Transfer</Text>
+            </Pressable>
+            {allowReverse ? (
+              <Pressable
+                onPress={() => setMode("reverse")}
+                style={[styles.kindBtn, kind === "reverse" && styles.kindBtnOn]}
+              >
+                <Text style={[styles.kindText, kind === "reverse" && styles.kindTextOn]}>Reverse</Text>
+              </Pressable>
+            ) : null}
+          </View>
+          {isReverse ? (
+            <Text style={styles.help}>Available on their wallet: {formatINR(target.mainBalance)}</Text>
+          ) : null}
+          <Field
+            label="Amount (₹)"
+            value={amount}
+            onChangeText={(t) => {
+              setAmount(t.replace(/[^\d.]/g, ""));
+              attemptKey.current.clear();
+            }}
+            keyboardType="decimal-pad"
+          />
           <Field label="Note (optional)" value={note} onChangeText={setNote} />
           <Pressable onPress={review}>
             <LinearGradient colors={[...colors.gradient]} style={styles.submit}>
@@ -726,6 +780,7 @@ function FundModal({
       ) : (
         <TransferConfirm
           amount={amount}
+          amountCaption={isReverse ? "You are reversing" : "You are sending"}
           recipient={{
             name: target.name,
             subtitle: `${ROLE_LABEL[target.role] ?? target.role} · ${target.uid}`,
@@ -733,11 +788,20 @@ function FundModal({
           rows={[
             { label: "Mobile", value: target.mobile },
             { label: "Their balance now", value: formatINR(target.mainBalance) },
-            { label: "From", value: "Main wallet" },
+            {
+              label: isReverse ? "To" : "From",
+              value: isReverse ? "Your main wallet" : "Main wallet",
+            },
             ...(note ? [{ label: "Note", value: note }] : []),
           ]}
           pin={txnPin}
           onPin={setTxnPin}
+          pinHint={
+            isReverse
+              ? "Enter your 4-digit PIN to authorise this reverse"
+              : "Enter your 4-digit PIN to authorise this transfer"
+          }
+          confirmLabel={isReverse ? "Confirm & Reverse" : "Confirm & Send"}
           loading={loading}
           onBack={() => setStep("form")}
           onConfirm={() => void submit()}
@@ -960,127 +1024,6 @@ function BulkFundModal({
   );
 }
 
-function PullModal({
-  visible,
-  target,
-  onClose,
-  onSuccess,
-}: {
-  visible: boolean;
-  target: DownlineUser;
-  onClose: () => void;
-  onSuccess: () => void;
-}) {
-  const [step, setStep] = useState<"form" | "confirm">("form");
-  const [amount, setAmount] = useState("");
-  const [note, setNote] = useState("");
-  const [txnPin, setTxnPin] = useState("");
-  const [loading, setLoading] = useState(false);
-  const attemptKey = useRef(createAttemptKeyHolder(`pull-${target.id}`));
-
-  function close() {
-    setStep("form");
-    setTxnPin("");
-    onClose();
-  }
-
-  function review() {
-    if (!amount || !(parseFloat(amount) > 0)) {
-      showAlert("Invalid amount", "Enter an amount greater than ₹0.");
-      return;
-    }
-    if (parseFloat(amount) > Number(target.mainBalance)) {
-      showAlert("Amount too high", "Amount is higher than their main wallet balance.");
-      return;
-    }
-    setTxnPin("");
-    setStep("confirm");
-  }
-
-  async function submit() {
-    if (loading) return;
-    if (txnPin.length !== 4) {
-      showAlert("Invalid PIN", "Enter your 4-digit transaction PIN.");
-      return;
-    }
-    setLoading(true);
-    try {
-      await api.post("/wallet/pull/confirm", {
-        targetUserId: target.id,
-        walletType: "main",
-        amount,
-        txnPin,
-        idempotencyKey: attemptKey.current.get(),
-        ...(note ? { description: note } : {}),
-      });
-      attemptKey.current.clear();
-      showAlert("Success", `₹${amount} reversed from ${target.name}`);
-      onSuccess();
-      close();
-      setAmount("");
-      setNote("");
-    } catch (err) {
-      setTxnPin("");
-      const msg =
-        (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? "Reverse failed";
-      showAlert("Reverse failed", msg);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <ModalSheet
-      visible={visible}
-      title={step === "confirm" ? "Confirm reverse" : `Reverse ${target.name}`}
-      onClose={close}
-    >
-      {step === "form" ? (
-        <>
-          <Text style={styles.help}>Available: {formatINR(target.mainBalance)}</Text>
-          <Field
-            label="Amount (₹)"
-            value={amount}
-            onChangeText={(t) => {
-              setAmount(t.replace(/[^\d.]/g, ""));
-              attemptKey.current.clear();
-            }}
-            keyboardType="decimal-pad"
-          />
-          <Field label="Note (optional)" value={note} onChangeText={setNote} />
-          <Pressable onPress={review}>
-            <LinearGradient colors={[...colors.gradient]} style={styles.submit}>
-              <Text style={styles.submitText}>Continue</Text>
-            </LinearGradient>
-          </Pressable>
-        </>
-      ) : (
-        <TransferConfirm
-          amount={amount}
-          amountCaption="You are reversing"
-          recipient={{
-            name: target.name,
-            subtitle: `${ROLE_LABEL[target.role] ?? target.role} · ${target.uid}`,
-          }}
-          rows={[
-            { label: "Mobile", value: target.mobile },
-            { label: "Their balance now", value: formatINR(target.mainBalance) },
-            { label: "To", value: "Your main wallet" },
-            ...(note ? [{ label: "Note", value: note }] : []),
-          ]}
-          pin={txnPin}
-          onPin={setTxnPin}
-          pinHint="Enter your 4-digit PIN to authorise this reverse"
-          confirmLabel="Confirm & Reverse"
-          loading={loading}
-          onBack={() => setStep("form")}
-          onConfirm={() => void submit()}
-        />
-      )}
-    </ModalSheet>
-  );
-}
-
 function Field({
   label,
   value,
@@ -1193,6 +1136,19 @@ const styles = StyleSheet.create({
   submit: { borderRadius: 12, paddingVertical: 14, alignItems: "center", marginTop: 8 },
   submitText: { color: "#fff", fontWeight: "700", fontSize: 15 },
   help: { fontSize: 12, color: colors.textMuted, marginBottom: 10, lineHeight: 17 },
+  kindRow: { flexDirection: "row", gap: 8, marginBottom: 14 },
+  kindBtn: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: "center",
+    backgroundColor: colors.surface,
+  },
+  kindBtnOn: { borderColor: colors.blueFlat, backgroundColor: "#EFF6FF" },
+  kindText: { fontSize: 13, fontWeight: "700", color: colors.textMuted },
+  kindTextOn: { color: colors.blueFlat },
   confirmAmountBox: {
     alignItems: "center",
     paddingVertical: 14,
