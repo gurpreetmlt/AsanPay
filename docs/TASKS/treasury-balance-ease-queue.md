@@ -20,8 +20,8 @@
 | **TB10** | Wrong-bank detector stronger (block Import) | S | done | Verify strip exists — harden |
 | **TB11** | Partial / Likely match + 1-click Confirm | M | done | Amount match, UTR miss |
 | **TB12** | Bulk resolve unmatched (ignore / entry / link) | M | done | Bulk bank entry exists — extend |
-| **TB13** | Role views (admin full; agent own deposits only) | M | **CURRENT** | Agent portal + API gate |
-| TB14 | Audit trail (who match/unmatch/delete, when, why) | M | pending | Timeline UI |
+| **TB13** | Role views (admin full; agent own deposits only) | M | done | Agent portal + API gate |
+| **TB14** | Audit trail (who match/unmatch/delete, when, why) | M | **CURRENT** | Timeline UI |
 | TB15 | Opening / closing balance lock + mid-day drift | L | pending | Per bank per day |
 | TB16 | Rules engine (UTR prefix → category) | L | pending | Admin-configurable |
 | TB17 | Search everywhere (UTR / amount / agent / mobile) | M | pending | Treasury global search |
@@ -52,6 +52,7 @@
 | TB10 | Reconciliation → upload wrong bank | Import blocked + Switch CTA | Wrong account/IFSC, UTRs mostly on another bank, or opening continues another bank → `blocked` (no confirm override). Gap on selected with no soft match → blocked. Switch bank button. |
 | TB11 | Reconciliation → Likely match rows | Confirm / Confirm all | Amount + side + ≤3 days + UTR missing (or same UTR); unique candidate only. Hint under Why. Row Confirm match + Confirm all likely. |
 | TB12 | Reconciliation → select rows | Bulk bar | Select In bank only / Likely match → Ignore · Confirm matches · Create entries. Per-row Ignore + Restore. `POST /banking/reconciliation/ignore` · `unignore`. |
+| TB13 | Admin Fund requests vs Agent Add Money | Own vs all | Admin = tenant-wide. Agent list/get scoped to requester. Agents only `GET /banking/accounts?purpose=collection`. UI: My deposits + status filters (web + mobile). |
 | … | | | |
 
 ## Prompt for next chat

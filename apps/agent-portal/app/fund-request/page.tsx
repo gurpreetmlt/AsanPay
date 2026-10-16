@@ -61,10 +61,11 @@ export default function FundRequestPage() {
       <div className="mx-auto w-full max-w-[1600px] space-y-5 px-4 py-5 sm:px-6 lg:px-8">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: B.blue }}>
-            Fund request
+            Add money
           </h1>
           <p className="mt-0.5 text-[14px]" style={{ color: B.muted }}>
-            Deposit cash at a company bank branch, then upload the bank receipt for verification
+            Deposit cash at a company bank branch, then upload the bank receipt. You only see your own
+            deposits here.
           </p>
         </div>
 

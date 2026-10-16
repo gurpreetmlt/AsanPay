@@ -906,7 +906,7 @@ function mapFundRequestRow(row: FundRequestRow, actorRole: string, requester?: R
   };
 }
 
-/** List fund requests for admin (tenant-wide) or retailer (own only). */
+/** List fund requests: admin = full tenant; agent roles = own deposits only. */
 export async function listFundRequests(params: {
   tenantId: string;
   actorUserId: string;

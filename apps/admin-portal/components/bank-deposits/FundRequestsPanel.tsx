@@ -288,6 +288,9 @@ export function FundRequestsPanel({
 
   return (
     <div>
+      <p className="border-b px-4 py-2 text-xs font-medium" style={{ borderColor: B.border, color: B.muted }}>
+        Admin view — all agents’ fund requests for this tenant. Agents only see their own deposits in Add Money.
+      </p>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3" style={{ borderColor: B.border }}>
         <div className="inline-flex rounded-xl p-1" style={{ background: "#F1F5F9" }}>
           {TABS.map((t) => (

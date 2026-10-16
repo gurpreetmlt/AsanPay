@@ -141,12 +141,36 @@ const ALL_TABS: {
   },
   {
     id: "history",
-    label: "Your Request",
+    label: "My deposits",
     icon: ClipboardList,
-    headline: "Your requests",
-    subtext: "Track every fund request you submitted — pending, credited, or rejected.",
+    headline: "My deposits",
+    subtext: "Only your own fund requests — pending, credited, or rejected. Other agents’ deposits are not shown.",
   },
 ];
+
+type HistoryFilter = "all" | "pending" | "credited" | "rejected";
+
+const HISTORY_FILTERS: { key: HistoryFilter; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "pending", label: "Pending" },
+  { key: "credited", label: "Credited" },
+  { key: "rejected", label: "Rejected" },
+];
+
+function matchesHistoryFilter(row: FundRequestRow, filter: HistoryFilter): boolean {
+  if (filter === "all") return true;
+  const s = `${row.status} ${row.displayStatus}`.toLowerCase();
+  if (filter === "credited") return s.includes("credit") || s.includes("approved");
+  if (filter === "rejected")
+    return s.includes("reject") || s.includes("cancel") || s.includes("void");
+  return (
+    !s.includes("credit") &&
+    !s.includes("approved") &&
+    !s.includes("reject") &&
+    !s.includes("cancel") &&
+    !s.includes("void")
+  );
+}
 
 const TABS = ALL_TABS.filter((t) => ENABLED_TABS.has(t.id));
 
@@ -306,8 +330,10 @@ export function FundRequestForm({
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
+  const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("all");
   const attemptKey = useRef(createAttemptKeyHolder("fund-request"));
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const historyRows = rows.filter((r) => matchesHistoryFilter(r, historyFilter));
   function openForm() {
     setFormOpen(true);
   }
@@ -544,7 +570,27 @@ export function FundRequestForm({
           <InfoBanner tone={activeTab === "upi" || activeTab === "bank" ? "amber" : "blue"}>{tab.subtext}</InfoBanner>
 
           {activeTab === "history" ? (
-            <div className="mt-5 overflow-hidden rounded-2xl border" style={{ borderColor: B.border }}>
+            <div className="mt-5 space-y-3">
+              <div className="inline-flex flex-wrap gap-1.5 rounded-xl p-1" style={{ background: "#F1F5F9" }}>
+                {HISTORY_FILTERS.map((f) => {
+                  const active = historyFilter === f.key;
+                  return (
+                    <button
+                      key={f.key}
+                      type="button"
+                      onClick={() => setHistoryFilter(f.key)}
+                      className="rounded-lg px-3 py-1.5 text-xs font-semibold"
+                      style={{
+                        background: active ? B.badgeGrad : "transparent",
+                        color: active ? "#fff" : B.muted,
+                      }}
+                    >
+                      {f.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="overflow-hidden rounded-2xl border" style={{ borderColor: B.border }}>
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr
@@ -565,21 +611,23 @@ export function FundRequestForm({
                       </td>
                     </tr>
                   ) : null}
-                  {!historyLoading && rows.length === 0 ? (
+                  {!historyLoading && historyRows.length === 0 ? (
                     <tr>
                       <td colSpan={4} className="px-4 py-12 text-center">
                         <ClipboardList size={28} className="mx-auto mb-2" style={{ color: B.muted }} />
                         <p className="text-sm font-semibold" style={{ color: B.blue }}>
-                          No fund requests yet
+                          {rows.length === 0 ? "No deposits yet" : "No deposits in this filter"}
                         </p>
                         <p className="mt-1 text-xs" style={{ color: B.muted }}>
-                          Deposit via UPI or bank, then submit a request from the other tabs.
+                          {rows.length === 0
+                            ? "Deposit at a company bank, then submit a request from the other tabs."
+                            : "Try All, Pending, Credited, or Rejected."}
                         </p>
                       </td>
                     </tr>
                   ) : null}
                   {!historyLoading &&
-                    rows.map((r) => {
+                    historyRows.map((r) => {
                       const tone = statusTone(r.status, r.displayStatus);
                       return (
                         <tr key={r.id} className="border-b last:border-0" style={{ borderColor: B.border }}>
@@ -613,6 +661,7 @@ export function FundRequestForm({
                     })}
                 </tbody>
               </table>
+              </div>
             </div>
           ) : (
             <>

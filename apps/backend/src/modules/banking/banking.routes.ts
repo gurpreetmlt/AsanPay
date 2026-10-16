@@ -145,7 +145,16 @@ bankingRouter.get("/accounts", async (req, res) => {
   if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
   const tenantId = await resolveTenantId();
   const purposeRaw = typeof req.query.purpose === "string" ? req.query.purpose : "collection";
-  if (purposeRaw === "all" && req.auth.role !== "admin") {
+  const isAdmin = req.auth.role === "admin";
+  // Agents only see active collection banks (for Add Money / fund request). Full inventory = admin.
+  if (!isAdmin && purposeRaw !== "collection") {
+    throw new HttpError(
+      403,
+      "Agents can only list collection bank accounts for deposits",
+      "FORBIDDEN",
+    );
+  }
+  if (purposeRaw === "all" && !isAdmin) {
     throw new HttpError(403, "Only admin can list all bank accounts", "FORBIDDEN");
   }
   const purpose =

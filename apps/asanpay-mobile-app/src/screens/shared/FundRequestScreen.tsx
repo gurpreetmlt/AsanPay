@@ -355,12 +355,37 @@ function HomeStep({
 }
 
 /** Partner "Requests" tab — raise a fund request + full history. */
+type HistoryFilter = "all" | "pending" | "credited" | "rejected";
+
+const HISTORY_FILTERS: { key: HistoryFilter; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "pending", label: "Pending" },
+  { key: "credited", label: "Credited" },
+  { key: "rejected", label: "Rejected" },
+];
+
+function matchesHistoryFilter(row: FundRequestRow, filter: HistoryFilter): boolean {
+  if (filter === "all") return true;
+  const s = `${row.status} ${row.displayStatus}`.toLowerCase();
+  if (filter === "credited") return s.includes("credit") || s.includes("approved");
+  if (filter === "rejected")
+    return s.includes("reject") || s.includes("cancel") || s.includes("void");
+  return (
+    !s.includes("credit") &&
+    !s.includes("approved") &&
+    !s.includes("reject") &&
+    !s.includes("cancel") &&
+    !s.includes("void")
+  );
+}
+
 export function FundRequestsScreen() {
   const { tokens } = useTheme();
   const today = toYmd(new Date());
   const [showFund, setShowFund] = useState(false);
   const [range, setRange] = useState({ from: today, to: today });
   const [applied, setApplied] = useState({ from: today, to: today });
+  const [statusFilter, setStatusFilter] = useState<HistoryFilter>("all");
   const [rows, setRows] = useState<FundRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -383,16 +408,17 @@ export function FundRequestsScreen() {
     () =>
       rows.filter((r) => {
         const day = toYmd(new Date(r.submittedAt));
-        return day >= applied.from && day <= applied.to;
+        if (day < applied.from || day > applied.to) return false;
+        return matchesHistoryFilter(r, statusFilter);
       }),
-    [rows, applied],
+    [rows, applied, statusFilter],
   );
 
   const cardStyle = { backgroundColor: tokens.card, borderColor: tokens.cardBorder };
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bg }]} edges={["top"]}>
-      <PartnerTopBar title="Request Funds" />
+      <PartnerTopBar title="My deposits" />
       <ScrollView
         contentContainerStyle={requestsStyles.content}
         refreshControl={<RefreshControl refreshing={false} onRefresh={() => void load()} />}
@@ -400,8 +426,10 @@ export function FundRequestsScreen() {
         <View style={[requestsStyles.card, cardStyle]}>
           <View style={requestsStyles.titleRow}>
             <View style={{ flex: 1 }}>
-              <Text style={[requestsStyles.h1, { color: tokens.txt }]}>Fund Requests</Text>
-              <Text style={[requestsStyles.sub, { color: tokens.sub }]}>View or raise a new one</Text>
+              <Text style={[requestsStyles.h1, { color: tokens.txt }]}>My deposits</Text>
+              <Text style={[requestsStyles.sub, { color: tokens.sub }]}>
+                Only your own fund requests — raise a new one anytime
+              </Text>
             </View>
             <Pressable style={requestsStyles.raiseBtn} onPress={() => setShowFund(true)}>
               <Plus size={16} color="#fff" strokeWidth={2.6} />
@@ -410,6 +438,28 @@ export function FundRequestsScreen() {
           </View>
           <View style={[requestsStyles.filterBox, { borderColor: tokens.cardBorder }]}>
             <DateRangeFields from={range.from} to={range.to} onChange={setRange} />
+            <View style={requestsStyles.statusRow}>
+              {HISTORY_FILTERS.map((f) => {
+                const active = statusFilter === f.key;
+                return (
+                  <Pressable
+                    key={f.key}
+                    onPress={() => setStatusFilter(f.key)}
+                    style={[
+                      requestsStyles.statusChip,
+                      {
+                        backgroundColor: active ? colors.blueFlat : tokens.card,
+                        borderColor: active ? colors.blueFlat : tokens.cardBorder,
+                      },
+                    ]}
+                  >
+                    <Text style={{ color: active ? "#fff" : tokens.sub, fontWeight: "700", fontSize: 11 }}>
+                      {f.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
             <Pressable
               style={requestsStyles.searchBtn}
               onPress={() => {
@@ -475,6 +525,8 @@ const requestsStyles = StyleSheet.create({
   titleRow: { flexDirection: "row", alignItems: "center", marginBottom: 14 },
   h1: { fontSize: 20, fontWeight: "800" },
   sub: { fontSize: 12.5, marginTop: 3 },
+  statusRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 },
+  statusChip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
   raiseBtn: {
     flexDirection: "row",
     alignItems: "center",

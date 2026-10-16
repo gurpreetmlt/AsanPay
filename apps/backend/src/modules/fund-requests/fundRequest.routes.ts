@@ -115,7 +115,7 @@ fundRequestRouter.post(
   },
 );
 
-fundRequestRouter.get("/:id/receipt", async (req, res) => {
+fundRequestRouter.get("/:id/receipt", requireRole("admin", ...AGENT_ROLES), async (req, res) => {
   if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
   const tenantId = await resolveTenantId();
   const data = await getFundRequestReceipt({
@@ -127,7 +127,7 @@ fundRequestRouter.get("/:id/receipt", async (req, res) => {
   sendSuccess(res, data);
 });
 
-fundRequestRouter.get("/:id", async (req, res) => {
+fundRequestRouter.get("/:id", requireRole("admin", ...AGENT_ROLES), async (req, res) => {
   if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
   const tenantId = await resolveTenantId();
   const data = await getFundRequest({
