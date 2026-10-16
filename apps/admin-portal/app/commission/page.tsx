@@ -93,6 +93,13 @@ interface PreviewResult {
   };
   splits: PreviewSplit[];
   totalPayout: string;
+  totalGross?: string;
+  underwater?: {
+    providerPool: string;
+    totalGross: string;
+    shortfall: string;
+    isUnderwater: boolean;
+  } | null;
 }
 
 interface PayoutRow {
@@ -218,6 +225,7 @@ export default function CommissionSchemesPage() {
   const [roleFilter, setRoleFilter] = useState<"" | SchemeRole>("");
   const [previewServiceId, setPreviewServiceId] = useState("");
   const [previewAmount, setPreviewAmount] = useState("1000");
+  const [previewPool, setPreviewPool] = useState("");
   const [previewing, setPreviewing] = useState(false);
   const [preview, setPreview] = useState<PreviewResult | null>(null);
 
@@ -468,13 +476,16 @@ export default function CommissionSchemesPage() {
     }
     setPreviewing(true);
     try {
-      const result = await api.post("/admin/commission/preview", {
-        serviceId: previewServiceId,
-        amount: previewAmount.trim(),
-      }).then((r) => {
-        if (!r.data.success) throw new Error(r.data.message || "Preview failed");
-        return r.data.data as PreviewResult;
-      });
+      const result = await api
+        .post("/admin/commission/preview", {
+          serviceId: previewServiceId,
+          amount: previewAmount.trim(),
+          ...(previewPool.trim() ? { providerPool: previewPool.trim() } : {}),
+        })
+        .then((r) => {
+          if (!r.data.success) throw new Error(r.data.message || "Preview failed");
+          return r.data.data as PreviewResult;
+        });
       setPreview(result);
     } catch (err) {
       toast.error(errMessage(err, "Preview failed"));
@@ -1279,6 +1290,19 @@ export default function CommissionSchemesPage() {
               />
             </label>
 
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium" style={{ color: B.muted }}>
+                Provider pool ₹ (optional)
+              </span>
+              <input
+                className="w-full rounded-xl border px-3 py-2 text-sm"
+                style={{ borderColor: B.border }}
+                value={previewPool}
+                onChange={(e) => setPreviewPool(e.target.value)}
+                placeholder="e.g. 12.50"
+              />
+            </label>
+
             <button
               type="button"
               onClick={() => void runPreview()}
@@ -1297,6 +1321,21 @@ export default function CommissionSchemesPage() {
                     {preview.tax.gstOnFeeApplies
                       ? ` · Fee GST ${preview.tax.gstOnFeePercent}%`
                       : " · Fee GST off"}
+                  </p>
+                ) : null}
+                {preview.underwater?.isUnderwater ? (
+                  <div
+                    className="rounded-xl border px-3 py-2 text-xs font-semibold"
+                    style={{ borderColor: "#FDBA74", background: "#FFF7ED", color: "#C2410C" }}
+                  >
+                    Underwater: scheme gross ₹{preview.underwater.totalGross} exceeds provider pool ₹
+                    {preview.underwater.providerPool} by ₹{preview.underwater.shortfall}. Lower slabs or raise
+                    the pool before going live.
+                  </div>
+                ) : preview.underwater ? (
+                  <p className="text-xs font-semibold" style={{ color: "#15803D" }}>
+                    Pool OK: gross ₹{preview.underwater.totalGross} ≤ provider pool ₹
+                    {preview.underwater.providerPool}.
                   </p>
                 ) : null}
                 {preview.splits.map((s) => (
@@ -1328,6 +1367,12 @@ export default function CommissionSchemesPage() {
                   <span>Total net payout</span>
                   <span>₹{preview.totalPayout}</span>
                 </div>
+                {preview.totalGross ? (
+                  <div className="flex items-center justify-between text-xs font-semibold" style={{ color: B.muted }}>
+                    <span>Total gross (before TDS)</span>
+                    <span>₹{preview.totalGross}</span>
+                  </div>
+                ) : null}
               </div>
             )}
           </div>

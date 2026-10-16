@@ -1265,6 +1265,8 @@ export async function previewCommissionSplit(input: {
   serviceId: string;
   amount: string;
   providerId?: string | null;
+  /** Optional provider commission / pool for this txn — warns when scheme gross exceeds it. */
+  providerPool?: string | null;
 }) {
   await assertServiceExists(input.serviceId);
   if (input.providerId) await assertProviderExists(input.providerId);
@@ -1277,6 +1279,15 @@ export async function previewCommissionSplit(input: {
   const amountPaise = toPaise(amount);
   const now = new Date();
   const providerId = input.providerId || null;
+
+  let providerPoolPaise: number | null = null;
+  if (input.providerPool != null && String(input.providerPool).trim() !== "") {
+    const poolNum = Number(input.providerPool);
+    if (!Number.isFinite(poolNum) || poolNum < 0) {
+      throw new HttpError(400, "Provider pool must be a non-negative number", "INVALID_PROVIDER_POOL");
+    }
+    providerPoolPaise = toPaise(poolNum.toFixed(2));
+  }
 
   const { resolveTenantId } = await import("../fund-requests/tenant");
   const taxCfg = await resolveTaxForService(await resolveTenantId(), input.serviceId, now);
@@ -1325,7 +1336,18 @@ export async function previewCommissionSplit(input: {
     });
   }
 
-  const totalPaise = splits.reduce((sum, s) => sum + toPaise(s.net), 0);
+  const totalNetPaise = splits.reduce((sum, s) => sum + toPaise(s.net), 0);
+  const totalGrossPaise = splits.reduce((sum, s) => sum + toPaise(s.gross), 0);
+  const underwater =
+    providerPoolPaise == null
+      ? null
+      : {
+          providerPool: fromPaise(providerPoolPaise),
+          totalGross: fromPaise(totalGrossPaise),
+          shortfall: fromPaise(Math.max(0, totalGrossPaise - providerPoolPaise)),
+          isUnderwater: totalGrossPaise > providerPoolPaise,
+        };
+
   return {
     serviceId: input.serviceId,
     providerId,
@@ -1337,6 +1359,8 @@ export async function previewCommissionSplit(input: {
       gstOnFeePercent: taxCfg.gstOnFeePercent,
     },
     splits,
-    totalPayout: fromPaise(totalPaise),
+    totalPayout: fromPaise(totalNetPaise),
+    totalGross: fromPaise(totalGrossPaise),
+    underwater,
   };
 }

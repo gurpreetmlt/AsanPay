@@ -506,6 +506,7 @@ adminRouter.post("/commission/preview", async (req, res) => {
       serviceId: z.string().uuid(),
       amount: z.string().min(1).max(20),
       providerId: z.string().uuid().nullable().optional(),
+      providerPool: z.string().min(1).max(20).nullable().optional(),
     })
     .parse(req.body);
   sendSuccess(res, await previewCommissionSplit(body));
