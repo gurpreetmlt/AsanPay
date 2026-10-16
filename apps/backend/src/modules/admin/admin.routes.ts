@@ -534,6 +534,26 @@ adminRouter.patch("/commission/tax-config/:id", async (req, res) => {
   sendSuccess(res, await updateTaxConfig(req.params.id, body), "Tax config updated");
 });
 
+adminRouter.get("/commission/underwater-report", async (req, res) => {
+  const { listAdminUnderwaterReport } = await import("../commission/commission.service");
+  const date = typeof req.query.date === "string" ? req.query.date : undefined;
+  const providerPoolPercent =
+    typeof req.query.providerPoolPercent === "string" ? req.query.providerPoolPercent : undefined;
+  if (!providerPoolPercent?.trim()) {
+    throw new HttpError(
+      400,
+      "Provider pool percent is required (0–100, same idea as scheme preview pool)",
+      "PROVIDER_POOL_PERCENT_REQUIRED",
+    );
+  }
+  const probeAmount = typeof req.query.probeAmount === "string" ? req.query.probeAmount : undefined;
+  const txnLimit = Math.min(Number(req.query.limit) || 50, 100);
+  sendSuccess(
+    res,
+    await listAdminUnderwaterReport({ date, providerPoolPercent, probeAmount, txnLimit }),
+  );
+});
+
 adminRouter.get("/commission/payouts", async (req, res) => {
   const { listAdminCommissionPayouts } = await import("../commission/commission.service");
   const role =

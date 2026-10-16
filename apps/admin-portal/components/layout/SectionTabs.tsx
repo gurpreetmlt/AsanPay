@@ -41,6 +41,7 @@ export const SECTION_GROUPS: Record<
       { href: "/tax-commission/tax", label: "Tax settings" },
       { href: "/tax-commission/registers", label: "Tax registers" },
       { href: "/tax-commission/payouts", label: "Payouts" },
+      { href: "/tax-commission/underwater", label: "Underwater" },
     ],
   },
 };

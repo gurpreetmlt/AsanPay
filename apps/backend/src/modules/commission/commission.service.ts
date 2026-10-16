@@ -1641,3 +1641,177 @@ export async function previewCommissionSplit(input: {
     underwater,
   };
 }
+
+/**
+ * TCR03 — daily underwater ops: scheme gross vs provider pool % of amount.
+ * Pool is an admin ops input (same idea as preview providerPool), not a stored rule.
+ */
+export async function listAdminUnderwaterReport(filters?: {
+  date?: string; // YYYY-MM-DD IST
+  /** Expected provider commission as percent of txn/probe amount (0–100). */
+  providerPoolPercent: string;
+  probeAmount?: string;
+  txnLimit?: number;
+}) {
+  const poolPct = Number(filters?.providerPoolPercent);
+  if (!Number.isFinite(poolPct) || poolPct < 0 || poolPct > 100) {
+    throw new HttpError(
+      400,
+      "Provider pool percent must be a number from 0 to 100",
+      "INVALID_PROVIDER_POOL_PERCENT",
+    );
+  }
+
+  const date = filters?.date?.trim() || todayYmdIst();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw new HttpError(400, "date must be YYYY-MM-DD", "INVALID_DATE");
+  }
+
+  let probeAmount = "1000.00";
+  if (filters?.probeAmount != null && String(filters.probeAmount).trim() !== "") {
+    const n = Number(filters.probeAmount);
+    if (!Number.isFinite(n) || n <= 0) {
+      throw new HttpError(400, "Probe amount must be a positive number", "INVALID_AMOUNT");
+    }
+    probeAmount = n.toFixed(2);
+  }
+  const probePaise = toPaise(probeAmount);
+  const probePoolPaise = Math.round((probePaise * poolPct) / 100);
+  const probePool = fromPaise(probePoolPaise);
+  const txnLimit = Math.min(filters?.txnLimit ?? 50, 100);
+
+  const dayStart = istDayStart(date);
+  const dayEnd = istDayEnd(date);
+
+  const serviceRows = await db
+    .selectDistinct({
+      serviceId: commissionRules.serviceId,
+      serviceCode: services.code,
+      serviceName: services.name,
+      providerId: commissionRules.providerId,
+      providerName: providers.name,
+    })
+    .from(commissionRules)
+    .innerJoin(services, eq(commissionRules.serviceId, services.id))
+    .leftJoin(providers, eq(commissionRules.providerId, providers.id))
+    .where(
+      and(
+        eq(commissionRules.isActive, true),
+        sql`(${commissionRules.effectiveTo} is null or ${commissionRules.effectiveTo} >= ${dayStart})`,
+        sql`${commissionRules.effectiveFrom} <= ${dayEnd}`,
+      ),
+    );
+
+  const schemes: Array<{
+    serviceId: string;
+    serviceCode: string;
+    serviceName: string;
+    providerId: string | null;
+    providerName: string | null;
+    probeAmount: string;
+    providerPool: string;
+    totalGross: string;
+    shortfall: string;
+    schemesHref: string;
+  }> = [];
+
+  for (const s of serviceRows) {
+    const preview = await previewCommissionSplit({
+      serviceId: s.serviceId,
+      amount: probeAmount,
+      providerId: s.providerId,
+      providerPool: probePool,
+    });
+    if (!preview.underwater?.isUnderwater) continue;
+    const qs = new URLSearchParams({ serviceId: s.serviceId });
+    if (s.providerId) qs.set("providerId", s.providerId);
+    schemes.push({
+      serviceId: s.serviceId,
+      serviceCode: s.serviceCode,
+      serviceName: s.serviceName,
+      providerId: s.providerId,
+      providerName: s.providerName,
+      probeAmount,
+      providerPool: preview.underwater.providerPool,
+      totalGross: preview.underwater.totalGross,
+      shortfall: preview.underwater.shortfall,
+      schemesHref: `/tax-commission/schemes?${qs.toString()}`,
+    });
+  }
+
+  schemes.sort((a, b) => toPaise(b.shortfall) - toPaise(a.shortfall));
+
+  const txnAgg = await db
+    .select({
+      transactionId: commissionLedger.transactionId,
+      txnRef: transactions.txnRef,
+      createdAt: transactions.createdAt,
+      amount: transactions.amount,
+      serviceId: transactions.serviceId,
+      serviceCode: services.code,
+      serviceName: services.name,
+      providerId: transactions.providerId,
+      totalGross: sql<string>`coalesce(sum(coalesce(${commissionLedger.grossAmount}, ${commissionLedger.amount})), '0')`,
+    })
+    .from(commissionLedger)
+    .innerJoin(transactions, eq(commissionLedger.transactionId, transactions.id))
+    .innerJoin(services, eq(transactions.serviceId, services.id))
+    .where(
+      and(
+        activeCommission,
+        gte(commissionLedger.createdAt, dayStart),
+        lte(commissionLedger.createdAt, dayEnd),
+        eq(transactions.status, "success"),
+      ),
+    )
+    .groupBy(
+      commissionLedger.transactionId,
+      transactions.txnRef,
+      transactions.createdAt,
+      transactions.amount,
+      transactions.serviceId,
+      services.code,
+      services.name,
+      transactions.providerId,
+    )
+    .orderBy(desc(transactions.createdAt))
+    .limit(500);
+
+  const underwaterTxns = txnAgg
+    .map((r) => {
+      const amountPaise = toPaise(String(r.amount));
+      const poolPaise = Math.round((amountPaise * poolPct) / 100);
+      const grossPaise = toPaise(String(r.totalGross));
+      const shortfallPaise = Math.max(0, grossPaise - poolPaise);
+      return {
+        transactionId: r.transactionId,
+        txnRef: r.txnRef,
+        createdAt: r.createdAt.toISOString(),
+        amount: String(r.amount),
+        serviceId: r.serviceId,
+        serviceCode: r.serviceCode,
+        serviceName: r.serviceName,
+        providerId: r.providerId,
+        totalGross: String(r.totalGross),
+        providerPool: fromPaise(poolPaise),
+        shortfall: fromPaise(shortfallPaise),
+        isUnderwater: grossPaise > poolPaise,
+        schemesHref: `/tax-commission/schemes?serviceId=${encodeURIComponent(r.serviceId)}`,
+      };
+    })
+    .filter((r) => r.isUnderwater)
+    .sort((a, b) => toPaise(b.shortfall) - toPaise(a.shortfall))
+    .slice(0, txnLimit);
+
+  return {
+    date,
+    providerPoolPercent: String(Number(poolPct.toFixed(4))),
+    probeAmount,
+    summary: {
+      underwaterSchemeCount: schemes.length,
+      underwaterTxnCount: underwaterTxns.length,
+    },
+    schemes,
+    txns: underwaterTxns,
+  };
+}

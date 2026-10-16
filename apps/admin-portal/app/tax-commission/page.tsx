@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { Calculator, FileSpreadsheet, Percent, ScrollText } from "lucide-react";
+import { AlertTriangle, Calculator, FileSpreadsheet, Percent, ScrollText } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { SectionTabs } from "@/components/layout/SectionTabs";
 import { fetchApi } from "@/lib/api";
@@ -118,6 +118,12 @@ export default function TaxCommissionOverviewPage() {
       label: "Payouts",
       hint: "Commission ledger",
       icon: ScrollText,
+    },
+    {
+      href: "/tax-commission/underwater",
+      label: "Underwater",
+      hint: "Scheme vs provider pool",
+      icon: AlertTriangle,
     },
   ] as const;
 

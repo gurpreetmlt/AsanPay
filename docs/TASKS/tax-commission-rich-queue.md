@@ -12,8 +12,8 @@
 |---|------|------|--------|-------|
 | **TCR01** | Admin sidebar Tax & Commission section (bugfix) | S | done | `87d76e5` — `SidebarNav` lists `TAX_COMMISSION` |
 | **TCR02** | Clawback visibility on payouts + registers | M | done | `clawback=active\|clawed\|all` + “Clawed back” badge on payouts + TDS register |
-| **TCR03** | Underwater daily ops report | M | **CURRENT** | Scheme gross > provider pool; list + link schemes |
-| **TCR04** | What-if calculator (admin) | M | pending | Amount + service → Gross/TDS/Net by role (reuse preview) |
+| **TCR03** | Underwater daily ops report | M | done | `/tax-commission/underwater` · `GET /admin/commission/underwater-report` · Open scheme deep-link |
+| **TCR04** | What-if calculator (admin) | M | **CURRENT** | Amount + service → Gross/TDS/Net by role (reuse preview) |
 | **TCR05** | Bulk scheme CSV import/export | L | pending | **Alert if migration** for import audit log |
 | **TCR06** | Agent override inbox | M | pending | Custom rates list, expiry, revert |
 | **TCR07** | CA month pack (26Q / GSTR helpers) | M | pending | Zip/summary around existing TDS + DMT GST CSV |
@@ -31,7 +31,7 @@
 
 ```
 @docs/TASKS/tax-commission-rich-queue.md @AGENTS.md
-CURRENT TCR03. Commit+push yourself. Alert before any migration.
+CURRENT TCR04. Commit+push yourself. Alert before any migration.
 No explore. No MCP. Mac Terminal cmds in reply only if I must run something.
 ```
 

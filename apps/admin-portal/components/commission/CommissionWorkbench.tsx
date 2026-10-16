@@ -232,7 +232,14 @@ function currentMonthYmd() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-export function CommissionWorkbench({ tab }: { tab: CommissionWorkbenchTab }) {
+export function CommissionWorkbench({
+  tab,
+  initialServiceId = "",
+}: {
+  tab: CommissionWorkbenchTab;
+  /** Deep-link from underwater report → filter schemes. */
+  initialServiceId?: string;
+}) {
   const router = useRouter();
   const hydrated = useAuthHydrated();
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -243,6 +250,7 @@ export function CommissionWorkbench({ tab }: { tab: CommissionWorkbenchTab }) {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [roleFilter, setRoleFilter] = useState<"" | SchemeRole>("");
+  const [serviceFilter, setServiceFilter] = useState(initialServiceId);
   const [previewServiceId, setPreviewServiceId] = useState("");
   const [previewAmount, setPreviewAmount] = useState("1000");
   const [previewPool, setPreviewPool] = useState("");
@@ -406,10 +414,21 @@ export function CommissionWorkbench({ tab }: { tab: CommissionWorkbenchTab }) {
     void loadRegisters();
   }, [hydrated, accessToken, tab, loadRegisters]);
 
-  const filteredRules = useMemo(
-    () => (roleFilter ? rules.filter((r) => r.role === roleFilter) : rules),
-    [rules, roleFilter],
-  );
+  useEffect(() => {
+    if (!initialServiceId) return;
+    setServiceFilter(initialServiceId);
+    if (tab === "schemes") {
+      setPreviewServiceId(initialServiceId);
+      setForm((f) => ({ ...f, serviceId: initialServiceId }));
+    }
+  }, [tab, initialServiceId]);
+
+  const filteredRules = useMemo(() => {
+    let rows = rules;
+    if (serviceFilter) rows = rows.filter((r) => r.serviceId === serviceFilter);
+    if (roleFilter) rows = rows.filter((r) => r.role === roleFilter);
+    return rows;
+  }, [rules, roleFilter, serviceFilter]);
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
@@ -1479,19 +1498,34 @@ export function CommissionWorkbench({ tab }: { tab: CommissionWorkbenchTab }) {
             <h2 className="text-base font-bold" style={{ color: B.blue }}>
               Active schemes
             </h2>
-            <select
-              className="rounded-xl border px-3 py-2 text-sm"
-              style={{ borderColor: B.border }}
-              value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value as "" | SchemeRole)}
-            >
-              <option value="">All roles</option>
-              {(Object.keys(ROLE_LABEL) as SchemeRole[]).map((r) => (
-                <option key={r} value={r}>
-                  {ROLE_LABEL[r]}
-                </option>
-              ))}
-            </select>
+            <div className="flex flex-wrap gap-2">
+              <select
+                className="rounded-xl border px-3 py-2 text-sm"
+                style={{ borderColor: B.border }}
+                value={serviceFilter}
+                onChange={(e) => setServiceFilter(e.target.value)}
+              >
+                <option value="">All services</option>
+                {serviceOptions.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="rounded-xl border px-3 py-2 text-sm"
+                style={{ borderColor: B.border }}
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value as "" | SchemeRole)}
+              >
+                <option value="">All roles</option>
+                {(Object.keys(ROLE_LABEL) as SchemeRole[]).map((r) => (
+                  <option key={r} value={r}>
+                    {ROLE_LABEL[r]}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {loading ? (

@@ -4,7 +4,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Crown, Network, Store, Tags, Percent, Plug, ScrollText, Scale, ShieldAlert, Wrench, LifeBuoy, IndianRupee, Landmark, Building2, Settings, Megaphone, Trash2, MessageCircle, Calculator, FileSpreadsheet } from "lucide-react";
+import { ChevronDown, Crown, Network, Store, Tags, Percent, Plug, ScrollText, Scale, ShieldAlert, Wrench, LifeBuoy, IndianRupee, Landmark, Building2, Settings, Megaphone, Trash2, MessageCircle, Calculator, FileSpreadsheet, AlertTriangle } from "lucide-react";
 import { AsanPayLockup } from "@/components/brand/Logo";
 import { AnimatedNavIcon } from "@/components/ui/AnimatedNavIcon";
 import type { NavIconDef } from "@/lib/iconTypes";
@@ -97,6 +97,11 @@ const TAX_COMMISSION: NavItem[] = [
         icon: { lib: "lucide", icon: FileSpreadsheet },
       },
       { href: "/tax-commission/payouts", label: "Payouts", icon: { lib: "lucide", icon: ScrollText } },
+      {
+        href: "/tax-commission/underwater",
+        label: "Underwater",
+        icon: { lib: "lucide", icon: AlertTriangle },
+      },
     ],
   },
 ];
