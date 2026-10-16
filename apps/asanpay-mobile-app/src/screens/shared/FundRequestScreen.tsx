@@ -1017,40 +1017,70 @@ function WheelColumn({
   index,
   onIndexChange,
   tokens,
+  resetKey,
 }: {
   items: readonly string[];
   index: number;
   onIndexChange: (i: number) => void;
   tokens: { txt: string; mute: string };
+  /** Remount/resync when sheet opens — never while user is scrolling. */
+  resetKey: string | number | boolean;
 }) {
   const ref = useRef<ScrollView>(null);
+  const draggingRef = useRef(false);
+  const indexRef = useRef(index);
+  indexRef.current = index;
   const clamped = Math.max(0, Math.min(items.length - 1, index));
 
   useEffect(() => {
+    draggingRef.current = false;
+    const y = clamped * WHEEL_ITEM_H;
     const t = setTimeout(() => {
-      ref.current?.scrollTo({ y: clamped * WHEEL_ITEM_H, animated: false });
-    }, 16);
+      ref.current?.scrollTo({ y, animated: false });
+    }, 30);
     return () => clearTimeout(t);
-  }, [clamped]);
+    // Only when sheet opens / column remounts — not on every index tick.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetKey]);
 
-  function commitOffset(y: number) {
+  function pickFromOffset(y: number) {
     const i = Math.max(0, Math.min(items.length - 1, Math.round(y / WHEEL_ITEM_H)));
-    if (i !== clamped) onIndexChange(i);
-    ref.current?.scrollTo({ y: i * WHEEL_ITEM_H, animated: true });
+    const target = i * WHEEL_ITEM_H;
+    if (Math.abs(y - target) > 0.5) {
+      ref.current?.scrollTo({ y: target, animated: true });
+    }
+    if (i !== indexRef.current) onIndexChange(i);
   }
 
   return (
     <View style={styles.wheelCol}>
-      <View style={styles.wheelHighlight} pointerEvents="none" />
       <ScrollView
         ref={ref}
         showsVerticalScrollIndicator={false}
         snapToInterval={WHEEL_ITEM_H}
+        snapToAlignment="start"
+        disableIntervalMomentum
         decelerationRate="fast"
+        bounces={false}
+        overScrollMode="never"
         nestedScrollEnabled
+        scrollEventThrottle={16}
         contentContainerStyle={{ paddingVertical: WHEEL_PAD }}
-        onMomentumScrollEnd={(e) => commitOffset(e.nativeEvent.contentOffset.y)}
-        onScrollEndDrag={(e) => commitOffset(e.nativeEvent.contentOffset.y)}
+        onScrollBeginDrag={() => {
+          draggingRef.current = true;
+        }}
+        onScrollEndDrag={(e) => {
+          // No fling → momentum end may not fire; snap here once.
+          const vy = e.nativeEvent.velocity?.y ?? 0;
+          if (Math.abs(vy) < 0.08) {
+            draggingRef.current = false;
+            pickFromOffset(e.nativeEvent.contentOffset.y);
+          }
+        }}
+        onMomentumScrollEnd={(e) => {
+          draggingRef.current = false;
+          pickFromOffset(e.nativeEvent.contentOffset.y);
+        }}
       >
         {items.map((label, i) => {
           const on = i === clamped;
@@ -1059,8 +1089,8 @@ function WheelColumn({
               <Text
                 style={{
                   fontSize: on ? 22 : 17,
-                  fontWeight: on ? "800" : "500",
-                  color: on ? tokens.txt : tokens.mute,
+                  fontWeight: on ? "800" : "600",
+                  color: on ? colors.blueFlat : tokens.mute,
                 }}
               >
                 {label}
@@ -1069,6 +1099,8 @@ function WheelColumn({
           );
         })}
       </ScrollView>
+      {/* Border only, translucent — sits above scroll but numbers stay readable */}
+      <View style={styles.wheelHighlight} pointerEvents="none" />
     </View>
   );
 }
@@ -1118,10 +1150,28 @@ function TimeWheelSheet({
             </Pressable>
           </View>
           <View style={styles.wheelRow}>
-            <WheelColumn items={HOUR12_ITEMS} index={hIdx} onIndexChange={setHIdx} tokens={tokens} />
+            <WheelColumn
+              items={HOUR12_ITEMS}
+              index={hIdx}
+              onIndexChange={setHIdx}
+              tokens={tokens}
+              resetKey={visible}
+            />
             <Text style={[styles.wheelColon, { color: tokens.txt }]}>:</Text>
-            <WheelColumn items={MINUTE_ITEMS} index={mIdx} onIndexChange={setMIdx} tokens={tokens} />
-            <WheelColumn items={AMPM_ITEMS} index={ampmIdx} onIndexChange={setAmpmIdx} tokens={tokens} />
+            <WheelColumn
+              items={MINUTE_ITEMS}
+              index={mIdx}
+              onIndexChange={setMIdx}
+              tokens={tokens}
+              resetKey={visible}
+            />
+            <WheelColumn
+              items={AMPM_ITEMS}
+              index={ampmIdx}
+              onIndexChange={setAmpmIdx}
+              tokens={tokens}
+              resetKey={visible}
+            />
           </View>
         </View>
       </View>
@@ -2138,10 +2188,9 @@ const styles = StyleSheet.create({
     top: WHEEL_PAD,
     height: WHEEL_ITEM_H,
     borderRadius: 12,
-    backgroundColor: "#EEF2FF",
-    borderWidth: 1,
-    borderColor: "#C7D2FE",
-    zIndex: 1,
+    backgroundColor: "rgba(18,58,158,0.08)",
+    borderWidth: 1.5,
+    borderColor: colors.blueFlat,
   },
   wheelItem: {
     height: WHEEL_ITEM_H,
