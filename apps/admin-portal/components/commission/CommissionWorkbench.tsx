@@ -23,6 +23,7 @@ type SchemeRole = "retailer" | "distributor" | "super_distributor";
 type RuleType = "flat" | "percentage";
 export type CommissionWorkbenchTab = "schemes" | "payouts" | "tax" | "registers";
 type RegisterKind = "tds" | "dmt_gst";
+type ClawbackFilter = "active" | "clawed" | "all";
 
 interface TaxConfigRow {
   id: string;
@@ -106,6 +107,8 @@ interface PayoutRow {
   amount: string;
   role: SchemeRole;
   createdAt: string;
+  reversedAt: string | null;
+  clawedBack: boolean;
   txnRef: string;
   txnAmount: string;
   serviceName: string;
@@ -130,6 +133,8 @@ interface TdsRegisterRow {
   tdsAmount: string;
   netAmount: string;
   creditCount: number;
+  clawedCreditCount: number;
+  clawedBack: boolean;
 }
 
 interface TdsRegisterPayload {
@@ -162,6 +167,23 @@ const ROLE_LABEL: Record<SchemeRole, string> = {
   distributor: "Distributor",
   super_distributor: "Super Distributor",
 };
+
+const CLAWBACK_LABEL: Record<ClawbackFilter, string> = {
+  active: "Active",
+  clawed: "Clawed back",
+  all: "All",
+};
+
+function ClawedBackBadge() {
+  return (
+    <span
+      className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold"
+      style={{ background: "#FEE2E2", color: "#B91C1C" }}
+    >
+      Clawed back
+    </span>
+  );
+}
 
 const EMPTY_FORM = {
   serviceId: "",
@@ -230,6 +252,7 @@ export function CommissionWorkbench({ tab }: { tab: CommissionWorkbenchTab }) {
   const [payouts, setPayouts] = useState<PayoutPayload | null>(null);
   const [payoutsLoading, setPayoutsLoading] = useState(false);
   const [payoutRole, setPayoutRole] = useState<"" | SchemeRole>("");
+  const [payoutClawback, setPayoutClawback] = useState<ClawbackFilter>("active");
   const [payoutQ, setPayoutQ] = useState("");
   const [payoutSince, setPayoutSince] = useState("");
   const [payoutUntil, setPayoutUntil] = useState("");
@@ -241,6 +264,7 @@ export function CommissionWorkbench({ tab }: { tab: CommissionWorkbenchTab }) {
   const [registerKind, setRegisterKind] = useState<RegisterKind>("tds");
   const [regMonth, setRegMonth] = useState(currentMonthYmd());
   const [regRole, setRegRole] = useState<"" | SchemeRole>("");
+  const [regClawback, setRegClawback] = useState<ClawbackFilter>("active");
   const [regQ, setRegQ] = useState("");
   const [regSince, setRegSince] = useState("");
   const [regUntil, setRegUntil] = useState("");
@@ -286,7 +310,7 @@ export function CommissionWorkbench({ tab }: { tab: CommissionWorkbenchTab }) {
   const loadPayouts = useCallback(async () => {
     setPayoutsLoading(true);
     try {
-      const params: Record<string, string> = { limit: "100" };
+      const params: Record<string, string> = { limit: "100", clawback: payoutClawback };
       if (payoutRole) params.role = payoutRole;
       if (payoutQ.trim()) params.q = payoutQ.trim();
       if (payoutSince) params.since = new Date(payoutSince).toISOString();
@@ -301,7 +325,7 @@ export function CommissionWorkbench({ tab }: { tab: CommissionWorkbenchTab }) {
     } finally {
       setPayoutsLoading(false);
     }
-  }, [payoutRole, payoutQ, payoutSince, payoutUntil]);
+  }, [payoutRole, payoutClawback, payoutQ, payoutSince, payoutUntil]);
 
   const loadTax = useCallback(async () => {
     setTaxLoading(true);
@@ -352,7 +376,7 @@ export function CommissionWorkbench({ tab }: { tab: CommissionWorkbenchTab }) {
     setRegLoading(true);
     try {
       if (registerKind === "tds") {
-        const params: Record<string, string> = { limit: "200" };
+        const params: Record<string, string> = { limit: "200", clawback: regClawback };
         if (regMonth) params.month = regMonth;
         if (regRole) params.role = regRole;
         if (regQ.trim()) params.q = regQ.trim();
@@ -375,7 +399,7 @@ export function CommissionWorkbench({ tab }: { tab: CommissionWorkbenchTab }) {
     } finally {
       setRegLoading(false);
     }
-  }, [registerKind, regMonth, regRole, regQ, regSince, regUntil]);
+  }, [registerKind, regMonth, regRole, regClawback, regQ, regSince, regUntil]);
 
   useEffect(() => {
     if (!hydrated || !accessToken || tab !== "registers") return;
@@ -706,6 +730,23 @@ export function CommissionWorkbench({ tab }: { tab: CommissionWorkbenchTab }) {
                       ))}
                     </select>
                   </label>
+                  <label className="block text-sm">
+                    <span className="mb-1 block font-medium" style={{ color: B.muted }}>
+                      Clawback
+                    </span>
+                    <select
+                      className="rounded-xl border px-3 py-2 text-sm"
+                      style={{ borderColor: B.border }}
+                      value={regClawback}
+                      onChange={(e) => setRegClawback(e.target.value as ClawbackFilter)}
+                    >
+                      {(Object.keys(CLAWBACK_LABEL) as ClawbackFilter[]).map((k) => (
+                        <option key={k} value={k}>
+                          {CLAWBACK_LABEL[k]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 </>
               ) : (
                 <>
@@ -765,7 +806,19 @@ export function CommissionWorkbench({ tab }: { tab: CommissionWorkbenchTab }) {
                     }
                     downloadCsv(
                       `asanpay-tds-${regMonth || "all"}.csv`,
-                      ["Month", "Name", "UID", "Mobile", "Role", "Gross", "TDS", "Net", "Credits"],
+                      [
+                        "Month",
+                        "Name",
+                        "UID",
+                        "Mobile",
+                        "Role",
+                        "Gross",
+                        "TDS",
+                        "Net",
+                        "Credits",
+                        "Clawed credits",
+                        "Status",
+                      ],
                       tdsReg.rows.map((r) => [
                         r.month,
                         r.beneficiaryName,
@@ -776,6 +829,8 @@ export function CommissionWorkbench({ tab }: { tab: CommissionWorkbenchTab }) {
                         r.tdsAmount,
                         r.netAmount,
                         String(r.creditCount),
+                        String(r.clawedCreditCount ?? 0),
+                        r.clawedBack ? "Clawed back" : "Active",
                       ]),
                     );
                     return;
@@ -856,6 +911,7 @@ export function CommissionWorkbench({ tab }: { tab: CommissionWorkbenchTab }) {
                           <th className="py-2 pr-3 font-semibold">Month</th>
                           <th className="py-2 pr-3 font-semibold">Agent</th>
                           <th className="py-2 pr-3 font-semibold">Role</th>
+                          <th className="py-2 pr-3 font-semibold">Status</th>
                           <th className="py-2 pr-3 font-semibold text-right">Gross</th>
                           <th className="py-2 pr-3 font-semibold text-right">TDS</th>
                           <th className="py-2 pr-3 font-semibold text-right">Net</th>
@@ -879,6 +935,23 @@ export function CommissionWorkbench({ tab }: { tab: CommissionWorkbenchTab }) {
                               </div>
                             </td>
                             <td className="py-3 pr-3">{ROLE_LABEL[row.role] ?? row.role}</td>
+                            <td className="py-3 pr-3">
+                              {row.clawedBack ? (
+                                <div className="space-y-1">
+                                  <ClawedBackBadge />
+                                  {(row.clawedCreditCount ?? 0) > 0 &&
+                                  (row.clawedCreditCount ?? 0) < row.creditCount ? (
+                                    <div className="text-[11px]" style={{ color: B.muted }}>
+                                      {row.clawedCreditCount} of {row.creditCount}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              ) : (
+                                <span className="text-xs" style={{ color: B.muted }}>
+                                  Active
+                                </span>
+                              )}
+                            </td>
                             <td className="py-3 pr-3 text-right">₹{row.grossAmount}</td>
                             <td className="py-3 pr-3 text-right font-semibold">₹{row.tdsAmount}</td>
                             <td className="py-3 pr-3 text-right">₹{row.netAmount}</td>
@@ -991,6 +1064,23 @@ export function CommissionWorkbench({ tab }: { tab: CommissionWorkbenchTab }) {
               </label>
               <label className="block text-sm">
                 <span className="mb-1 block font-medium" style={{ color: B.muted }}>
+                  Clawback
+                </span>
+                <select
+                  className="rounded-xl border px-3 py-2 text-sm"
+                  style={{ borderColor: B.border }}
+                  value={payoutClawback}
+                  onChange={(e) => setPayoutClawback(e.target.value as ClawbackFilter)}
+                >
+                  {(Object.keys(CLAWBACK_LABEL) as ClawbackFilter[]).map((k) => (
+                    <option key={k} value={k}>
+                      {CLAWBACK_LABEL[k]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium" style={{ color: B.muted }}>
                   From
                 </span>
                 <input
@@ -1073,6 +1163,7 @@ export function CommissionWorkbench({ tab }: { tab: CommissionWorkbenchTab }) {
                       <th className="py-2 pr-3 font-semibold">When</th>
                       <th className="py-2 pr-3 font-semibold">Beneficiary</th>
                       <th className="py-2 pr-3 font-semibold">Role</th>
+                      <th className="py-2 pr-3 font-semibold">Status</th>
                       <th className="py-2 pr-3 font-semibold">Service</th>
                       <th className="py-2 pr-3 font-semibold">Txn</th>
                       <th className="py-2 font-semibold text-right">Payout</th>
@@ -1093,6 +1184,22 @@ export function CommissionWorkbench({ tab }: { tab: CommissionWorkbenchTab }) {
                           </div>
                         </td>
                         <td className="py-3 pr-3">{ROLE_LABEL[row.role] ?? row.role}</td>
+                        <td className="py-3 pr-3">
+                          {row.clawedBack ? (
+                            <div className="space-y-1">
+                              <ClawedBackBadge />
+                              {row.reversedAt ? (
+                                <div className="text-[11px]" style={{ color: B.muted }}>
+                                  {formatWhen(row.reversedAt)}
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <span className="text-xs" style={{ color: B.muted }}>
+                              Active
+                            </span>
+                          )}
+                        </td>
                         <td className="py-3 pr-3">
                           <div>{row.serviceName}</div>
                           <div className="font-mono text-[11px]" style={{ color: B.muted }}>

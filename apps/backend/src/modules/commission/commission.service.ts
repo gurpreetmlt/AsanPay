@@ -1,4 +1,4 @@
-import { and, eq, gt, gte, lte, isNull, or, desc, sql, asc, ilike, inArray } from "drizzle-orm";
+import { and, eq, gt, gte, lte, isNull, isNotNull, or, desc, sql, asc, ilike, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "../../db/postgres";
 import {
@@ -31,6 +31,15 @@ type SchemeRole = (typeof SCHEME_ROLES)[number];
 
 /** Credits that have not been clawed back after refund / dispute (TC18). */
 const activeCommission = isNull(commissionLedger.reversedAt);
+
+/** Admin list filter — default `active` keeps money totals unchanged. */
+export type ClawbackVisibility = "active" | "clawed" | "all";
+
+function clawbackVisibilityCondition(visibility?: ClawbackVisibility) {
+  if (visibility === "clawed") return isNotNull(commissionLedger.reversedAt);
+  if (visibility === "all") return undefined;
+  return activeCommission;
+}
 
 type RuleType = "flat" | "percentage";
 
@@ -1005,6 +1014,7 @@ export async function listAdminCommissionPayouts(filters?: {
   since?: Date;
   until?: Date;
   q?: string;
+  clawback?: ClawbackVisibility;
   limit?: number;
   offset?: number;
 }) {
@@ -1012,7 +1022,7 @@ export async function listAdminCommissionPayouts(filters?: {
   const offset = filters?.offset ?? 0;
 
   const conditions = [
-    activeCommission,
+    clawbackVisibilityCondition(filters?.clawback),
     filters?.role ? eq(commissionLedger.role, filters.role) : undefined,
     filters?.since ? sql`${commissionLedger.createdAt} >= ${filters.since}` : undefined,
     filters?.until ? sql`${commissionLedger.createdAt} <= ${filters.until}` : undefined,
@@ -1044,6 +1054,7 @@ export async function listAdminCommissionPayouts(filters?: {
       amount: commissionLedger.amount,
       role: commissionLedger.role,
       createdAt: commissionLedger.createdAt,
+      reversedAt: commissionLedger.reversedAt,
       transactionId: commissionLedger.transactionId,
       txnRef: transactions.txnRef,
       txnAmount: transactions.amount,
@@ -1073,6 +1084,8 @@ export async function listAdminCommissionPayouts(filters?: {
       ...r,
       amount: String(r.amount),
       txnAmount: String(r.txnAmount),
+      reversedAt: r.reversedAt ? r.reversedAt.toISOString() : null,
+      clawedBack: Boolean(r.reversedAt),
     })),
   };
 }
@@ -1122,6 +1135,7 @@ export async function listAdminTdsRegister(filters?: {
   month?: string; // YYYY-MM
   role?: SchemeRole;
   q?: string;
+  clawback?: ClawbackVisibility;
   limit?: number;
   offset?: number;
 }) {
@@ -1136,7 +1150,7 @@ export async function listAdminTdsRegister(filters?: {
   }
 
   const conditions = [
-    activeCommission,
+    clawbackVisibilityCondition(filters?.clawback),
     sql`coalesce(${commissionLedger.tdsAmount}, 0) > 0`,
     filters?.role ? eq(commissionLedger.role, filters.role) : undefined,
     monthStart ? sql`${commissionLedger.createdAt} >= ${monthStart}` : undefined,
@@ -1176,6 +1190,7 @@ export async function listAdminTdsRegister(filters?: {
       tdsAmount: sql<string>`coalesce(sum(coalesce(${commissionLedger.tdsAmount}, 0)), '0')`,
       netAmount: sql<string>`coalesce(sum(${commissionLedger.amount}), '0')`,
       creditCount: sql<number>`count(*)::int`,
+      clawedCreditCount: sql<number>`count(*) filter (where ${commissionLedger.reversedAt} is not null)::int`,
     })
     .from(commissionLedger)
     .innerJoin(users, eq(commissionLedger.beneficiaryUserId, users.id))
@@ -1203,6 +1218,8 @@ export async function listAdminTdsRegister(filters?: {
       tdsAmount: String(r.tdsAmount),
       netAmount: String(r.netAmount),
       creditCount: r.creditCount,
+      clawedCreditCount: r.clawedCreditCount,
+      clawedBack: r.clawedCreditCount > 0,
     })),
   };
 }

@@ -34,6 +34,7 @@
 - [x] Tax commission TC15 raw ingest + TC18 clawback (migrate `0067`) + TC21 retailer web earnings + TC22 Est. earn lines
 - [ ] Tax commission still blocked: TC17 Noble 33A (Task 33 paths/CA) · TC15 parse mapping needs Vyapar sample
 - [x] Admin Tax & Commission IA (TCA01–06): sidebar group + SectionTabs + overview + schemes/tax/registers/payouts + overrides; `/commission` redirects
+- [x] Tax & Commission rich TCR01–02: sidebar Tax & Commission group + clawback filter/badge on payouts + TDS register
 - [ ] Service flows (AEPS, DMT, BBPS)
 - [ ] Biometric SDK
 - [x] Txn PIN modal + wallet transfer PIN

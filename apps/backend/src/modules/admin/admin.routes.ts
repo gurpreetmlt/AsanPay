@@ -541,6 +541,11 @@ adminRouter.get("/commission/payouts", async (req, res) => {
       ? (req.query.role as z.infer<typeof schemeRoleEnum>)
       : undefined;
   const q = typeof req.query.q === "string" ? req.query.q : undefined;
+  const clawbackRaw = typeof req.query.clawback === "string" ? req.query.clawback : undefined;
+  const clawback =
+    clawbackRaw === "clawed" || clawbackRaw === "all" || clawbackRaw === "active"
+      ? clawbackRaw
+      : undefined;
   const sinceRaw = typeof req.query.since === "string" ? req.query.since : undefined;
   const untilRaw = typeof req.query.until === "string" ? req.query.until : undefined;
   const since = sinceRaw ? new Date(sinceRaw) : undefined;
@@ -553,7 +558,7 @@ adminRouter.get("/commission/payouts", async (req, res) => {
   }
   const limit = Math.min(Number(req.query.limit) || 50, 200);
   const offset = Number(req.query.offset) || 0;
-  sendSuccess(res, await listAdminCommissionPayouts({ role, since, until, q, limit, offset }));
+  sendSuccess(res, await listAdminCommissionPayouts({ role, since, until, q, clawback, limit, offset }));
 });
 
 adminRouter.get("/commission/tax-registers/tds", async (req, res) => {
@@ -563,13 +568,18 @@ adminRouter.get("/commission/tax-registers/tds", async (req, res) => {
       ? (req.query.role as z.infer<typeof schemeRoleEnum>)
       : undefined;
   const q = typeof req.query.q === "string" ? req.query.q : undefined;
+  const clawbackRaw = typeof req.query.clawback === "string" ? req.query.clawback : undefined;
+  const clawback =
+    clawbackRaw === "clawed" || clawbackRaw === "all" || clawbackRaw === "active"
+      ? clawbackRaw
+      : undefined;
   const month = typeof req.query.month === "string" ? req.query.month : undefined;
   if (month && !/^\d{4}-\d{2}$/.test(month)) {
     throw new HttpError(400, "month must be YYYY-MM", "INVALID_MONTH");
   }
   const limit = Math.min(Number(req.query.limit) || 100, 500);
   const offset = Number(req.query.offset) || 0;
-  sendSuccess(res, await listAdminTdsRegister({ month, role, q, limit, offset }));
+  sendSuccess(res, await listAdminTdsRegister({ month, role, q, clawback, limit, offset }));
 });
 
 adminRouter.get("/commission/tax-registers/dmt-gst", async (req, res) => {
