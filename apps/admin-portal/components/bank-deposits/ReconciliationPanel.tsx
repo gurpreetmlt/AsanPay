@@ -401,16 +401,19 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
   const [rawText, setRawText] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
   const [fileInputKey, setFileInputKey] = useState(0);
+  const [dragOver, setDragOver] = useState(false);
   const [parsed, setParsed] = useState<ParsedStatement | null>(null);
   const [importing, setImporting] = useState(false);
   const [bankCheck, setBankCheck] = useState<BankVerifyResult | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [confirmedBank, setConfirmedBank] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const initial = presetRange("month");
   const [bankId, setBankId] = useState("");
   const [from, setFrom] = useState(initial.from);
   const [to, setTo] = useState(initial.to);
+  const [periodPreset, setPeriodPreset] = useState<"today" | "week" | "month" | "lastMonth" | null>("month");
   const [report, setReport] = useState<ReconReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<"attention" | "matched" | "all">("attention");
@@ -708,12 +711,13 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
           Anything that does not match is highlighted.
         </p>
 
-        <section className="space-y-4 rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
+        <section className="space-y-4 rounded-2xl border bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]" style={{ borderColor: B.border }}>
           <h2 className="text-base font-bold" style={{ color: B.blue }}>
-            1. Upload statement
+            Upload statement
           </h2>
-          <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Statement of which bank? *">
+
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+            <Field label="Bank account">
               <select
                 className={inputCls}
                 style={inputStyle}
@@ -728,61 +732,106 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                 ))}
               </select>
             </Field>
-            <Field
-              label="Statement file (CSV)"
-              hint="Download the statement from net banking as CSV. Excel file? Open it and Save As → CSV, or copy the rows and paste below."
+            <button
+              type="button"
+              onClick={() => void preview()}
+              disabled={importing || verifying}
+              className="inline-flex h-[42px] items-center justify-center gap-1.5 rounded-xl px-5 text-sm font-bold text-white disabled:opacity-60"
+              style={{ background: B.badgeGrad }}
             >
-              <input
-                key={fileInputKey}
-                type="file"
-                accept=".csv,.txt,.tsv,text/csv"
-                className="block w-full rounded-xl border border-dashed px-3 py-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:px-3 file:py-1.5 file:text-sm file:font-semibold"
-                style={{ borderColor: B.border }}
-                onChange={(e) => void onFile(e.target.files?.[0] ?? null)}
-              />
-            </Field>
+              <Upload size={15} /> Preview &amp; prepare
+            </button>
+          </div>
+
+          <input
+            key={fileInputKey}
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,.txt,.tsv,text/csv"
+            className="hidden"
+            onChange={(e) => void onFile(e.target.files?.[0] ?? null)}
+          />
+
+          <div
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                fileInputRef.current?.click();
+              }
+            }}
+            onClick={() => fileInputRef.current?.click()}
+            onDragEnter={(e) => {
+              e.preventDefault();
+              setDragOver(true);
+            }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+              void onFile(e.dataTransfer.files?.[0] ?? null);
+            }}
+            className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed px-4 py-10 text-center transition"
+            style={{
+              borderColor: dragOver ? B.blueLight : "#CBD5E1",
+              background: dragOver ? "#EFF6FF" : "#F8FAFC",
+            }}
+          >
+            <span
+              className="flex h-12 w-12 items-center justify-center rounded-2xl"
+              style={{ background: "#E0E9FD", color: B.blueLight }}
+            >
+              <FileSpreadsheet size={22} />
+            </span>
+            <p className="text-sm font-semibold" style={{ color: B.blue }}>
+              {fileName
+                ? `Selected: ${fileName}`
+                : "Drop CSV file here or browse file"}
+            </p>
+            <p className="max-w-md text-xs" style={{ color: B.muted }}>
+              Works with CSV export or rows copied from Excel. Date, Debit, Credit and Balance columns are detected
+              automatically.
+            </p>
           </div>
 
           <Field label="…or paste rows copied from Excel / the statement (include the header row)">
             <textarea
-              className={`${inputCls} min-h-[110px] font-mono text-xs`}
+              className={`${inputCls} min-h-[120px] font-mono text-xs`}
               style={inputStyle}
-              placeholder={"Txn Date\tDescription\tRef No.\tDebit\tCredit\tBalance\n14/09/2026\tUPI/392778526720/AJAY KUMAR\t392778526720\t\t4,990.00\t4,990.00"}
+              placeholder={
+                "Txn Date\tDescription\tRef No.\tDebit\tCredit\tBalance\n14/09/2026\tUPI/392778526720/AJAY KUMAR\t392778526720\t\t4,990.00\t4,990.00"
+              }
               value={fileName ? `Loaded from ${fileName}` : rawText}
               readOnly={!!fileName}
               onChange={(e) => {
                 setRawText(e.target.value);
                 setParsed(null);
+                setBankCheck(null);
               }}
             />
           </Field>
 
-          <div className="flex flex-wrap gap-2">
+          {(fileName || rawText) && (
             <button
               type="button"
-              onClick={() => void preview()}
-              className="inline-flex items-center gap-1.5 rounded-xl border bg-white px-4 py-2.5 text-sm font-semibold"
-              style={{ borderColor: B.border, color: B.blue }}
+              onClick={() => {
+                setRawText("");
+                setFileName(null);
+                setParsed(null);
+                setBankCheck(null);
+                setFileInputKey((k) => k + 1);
+              }}
+              className="rounded-xl px-4 py-2 text-sm font-semibold text-white"
+              style={{ background: B.danger }}
             >
-              Preview
+              Clear
             </button>
-            {fileName || rawText ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setRawText("");
-                  setFileName(null);
-                  setParsed(null);
-                  setBankCheck(null);
-                  setFileInputKey((k) => k + 1);
-                }}
-                className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
-                style={{ background: B.danger }}
-              >
-                Clear
-              </button>
-            ) : null}
-          </div>
+          )}
 
           {parsed && parsed.lines.length > 0 && previewTotals ? (
             <div className="space-y-3 rounded-xl border p-4" style={{ borderColor: B.border, background: "#F8FAFF" }}>
@@ -858,7 +907,8 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                 className="inline-flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60"
                 style={{ background: B.badgeGrad }}
               >
-                <Upload size={14} /> {importing ? "Importing…" : `Import ${parsed.lines.length} lines & match`}
+                <Upload size={14} />{" "}
+                {importing ? "Importing…" : `Import statement · ${parsed.lines.length} lines`}
               </button>
             </div>
           ) : null}
@@ -866,65 +916,100 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
 
         <section
           ref={reconcileRef}
-          className="scroll-mt-4 space-y-4 rounded-2xl border bg-white p-5"
+          className="scroll-mt-4 space-y-4 rounded-2xl border bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
           style={{ borderColor: B.border }}
         >
           <h2 className="text-base font-bold" style={{ color: B.blue }}>
-            2. Reconcile
+            Reconcile
           </h2>
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="min-w-[260px] flex-1">
-              <Field label="Bank">
-                <select className={inputCls} style={inputStyle} value={bankId} onChange={(e) => setBankId(e.target.value)}>
-                  <option value="">Select bank account</option>
-                  {banks.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {bankLabel(b)}
-                    </option>
-                  ))}
-                </select>
-              </Field>
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="min-w-[240px] flex-1">
+                <Field label="Bank account">
+                  <select
+                    className={inputCls}
+                    style={inputStyle}
+                    value={bankId}
+                    onChange={(e) => setBankId(e.target.value)}
+                  >
+                    <option value="">Select bank account</option>
+                    {banks.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {bankLabel(b)}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+              <div className="flex flex-wrap gap-1.5 pb-0.5">
+                {(
+                  [
+                    ["today", "Today"],
+                    ["week", "This week"],
+                    ["month", "This month"],
+                    ["lastMonth", "Last month"],
+                  ] as const
+                ).map(([key, label]) => {
+                  const active = periodPreset === key;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => {
+                        const r = presetRange(key);
+                        setFrom(r.from);
+                        setTo(r.to);
+                        setPeriodPreset(key);
+                      }}
+                      className="rounded-lg border px-3 py-2 text-xs font-bold transition"
+                      style={{
+                        borderColor: active ? B.blueLight : B.border,
+                        color: active ? B.blueLight : B.muted,
+                        background: active ? "#EFF6FF" : "#fff",
+                      }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <Field label="From">
-              <input type="date" className={inputCls} style={inputStyle} value={from} onChange={(e) => setFrom(e.target.value)} />
-            </Field>
-            <Field label="To">
-              <input type="date" className={inputCls} style={inputStyle} value={to} onChange={(e) => setTo(e.target.value)} />
-            </Field>
-            <button
-              type="button"
-              disabled={loading}
-              onClick={() => void runReport()}
-              className="rounded-xl px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60"
-              style={{ background: B.badgeGrad }}
-            >
-              {loading ? "Checking…" : "Run reconciliation"}
-            </button>
-            {report ? <ExportMenu report={report} rows={visibleRows} /> : null}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {(
-              [
-                ["today", "Today"],
-                ["week", "This week"],
-                ["month", "This month"],
-                ["lastMonth", "Last month"],
-              ] as const
-            ).map(([key, label]) => (
+            <div className="flex flex-wrap items-end gap-3">
+              <Field label="From">
+                <input
+                  type="date"
+                  className={inputCls}
+                  style={inputStyle}
+                  value={from}
+                  onChange={(e) => {
+                    setFrom(e.target.value);
+                    setPeriodPreset(null);
+                  }}
+                />
+              </Field>
+              <Field label="To">
+                <input
+                  type="date"
+                  className={inputCls}
+                  style={inputStyle}
+                  value={to}
+                  onChange={(e) => {
+                    setTo(e.target.value);
+                    setPeriodPreset(null);
+                  }}
+                />
+              </Field>
               <button
-                key={key}
                 type="button"
-                onClick={() => {
-                  const r = presetRange(key);
-                  setFrom(r.from);
-                  setTo(r.to);
-                }}
-                className="rounded-full border px-3 py-1 text-xs font-semibold"
-                style={{ borderColor: B.border, color: B.blue }}
+                disabled={loading}
+                onClick={() => void runReport()}
+                className="rounded-xl px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60"
+                style={{ background: B.badgeGrad }}
               >
-                {label}
+                {loading ? "Checking…" : "Run reconciliation"}
               </button>
-            ))}
+              {report ? <ExportMenu report={report} rows={visibleRows} /> : null}
+            </div>
           </div>
 
           {report ? (
@@ -947,60 +1032,74 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
               </div>
 
               <div
-                className="flex flex-wrap items-center gap-x-8 gap-y-2 rounded-xl border p-4 text-sm"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm"
                 style={{
                   borderColor: diff === null ? B.border : balanced ? "#86EFAC" : "#FCA5A5",
                   background: diff === null ? "#F8FAFC" : balanced ? "#F0FDF4" : "#FEF2F2",
                 }}
               >
-                <span style={{ color: B.muted }}>
-                  Statement closing <b style={{ color: B.blue }}>{inr(report.statement.closing)}</b>
-                </span>
-                <span style={{ color: B.muted }}>
-                  Our closing <b style={{ color: B.blue }}>{inr(report.ours.closing)}</b>
-                </span>
-                <span style={{ color: B.muted }}>
-                  Statement credits <b style={{ color: "#15803D" }}>{inr(report.statement.credits)}</b> · debits{" "}
-                  <b style={{ color: "#B91C1C" }}>{inr(report.statement.debits)}</b>
-                </span>
-                {diff === null ? (
+                <div className="flex flex-wrap items-center gap-x-8 gap-y-2">
                   <span style={{ color: B.muted }}>
-                    No balance column in this statement — closing balance cannot be compared
+                    Statement closing <b style={{ color: B.blue }}>{inr(report.statement.closing)}</b>
                   </span>
-                ) : balanced ? (
-                  <span className="inline-flex items-center gap-1 font-bold" style={{ color: "#15803D" }}>
-                    <CheckCircle2 size={16} /> Balanced
+                  <span style={{ color: B.muted }}>
+                    Our closing <b style={{ color: B.blue }}>{inr(report.ours.closing)}</b>
+                  </span>
+                  {diff !== null ? (
+                    <span style={{ color: B.muted }}>
+                      Difference{" "}
+                      <b style={{ color: balanced ? "#15803D" : "#B91C1C" }}>{inr(diff)}</b>
+                    </span>
+                  ) : (
+                    <span style={{ color: B.muted }}>No balance column — closing cannot be compared</span>
+                  )}
+                </div>
+                {diff === null ? null : balanced ? (
+                  <span
+                    className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold"
+                    style={{ background: "#DCFCE7", color: "#15803D" }}
+                  >
+                    <CheckCircle2 size={14} /> Balanced
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 font-bold" style={{ color: "#B91C1C" }}>
-                    <XCircle size={16} /> Difference {inr(diff)}
+                  <span
+                    className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold"
+                    style={{ background: "#FEE2E2", color: "#B91C1C" }}
+                  >
+                    <XCircle size={14} /> Not balanced
                   </span>
                 )}
               </div>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1 border-b" style={{ borderColor: B.border }}>
                 {(
                   [
                     ["attention", `Needs attention (${ATTENTION.reduce((n, k) => n + report.counts[k], 0)})`],
                     ["matched", `Matched (${report.counts.matched})`],
                     ["all", `All (${report.rows.length})`],
                   ] as const
-                ).map(([key, label]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setFilter(key)}
-                    data-active={filter === key}
-                    className="tab-chip rounded-full px-3 py-1.5 text-xs font-bold"
-                    style={
-                      filter === key
-                        ? { background: B.cta, color: "#fff" }
-                        : { background: "#EEF2FF", color: B.blueLight }
-                    }
-                  >
-                    {label}
-                  </button>
-                ))}
+                ).map(([key, label]) => {
+                  const active = filter === key;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setFilter(key)}
+                      data-active={active}
+                      className="relative px-3 py-2.5 text-sm font-semibold transition"
+                      style={{ color: active ? B.blueLight : B.muted }}
+                    >
+                      {label}
+                      <span
+                        className="absolute inset-x-2 -bottom-px h-[2px] rounded-full transition"
+                        style={{
+                          background: B.blueLight,
+                          opacity: active ? 1 : 0,
+                        }}
+                      />
+                    </button>
+                  );
+                })}
               </div>
 
               {selectedLines.length > 0 ? (
@@ -1149,13 +1248,13 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                                   {busy ? "Saving…" : "Confirm match"}
                                 </button>
                               ) : r.kind === "only_bank" && r.line ? (
-                                <div className="inline-flex items-center gap-2">
+                                <div className="inline-flex flex-wrap items-center justify-end gap-2">
                                   <Link
                                     href={newEntryHref(report.bank.id, r.line)}
                                     className="inline-block rounded-lg px-3 py-1.5 text-xs font-bold text-white"
                                     style={{ background: B.green }}
                                   >
-                                    Create bank entry
+                                    + Create bank entry
                                   </Link>
                                   <button
                                     type="button"
@@ -1173,23 +1272,42 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                                   type="button"
                                   disabled={busy}
                                   onClick={() => void undoMatch(r)}
-                                  className="rounded-lg border px-3 py-1.5 text-xs font-bold disabled:opacity-60"
-                                  style={{ borderColor: "#FCA5A5", color: B.danger }}
+                                  className="text-xs font-bold disabled:opacity-60"
+                                  style={{ color: B.danger }}
                                 >
-                                  {busy ? "Saving…" : "Undo match"}
+                                  {busy ? "Saving…" : "Undo"}
                                 </button>
                               ) : r.kind === "mismatch" ? (
-                                <span className="text-xs" style={{ color: meta.color }}>
-                                  Same UTR, different amount — fix the record
-                                </span>
+                                <button
+                                  type="button"
+                                  className="rounded-lg border px-3 py-1.5 text-xs font-bold"
+                                  style={{ borderColor: "#FDBA74", color: "#C2410C", background: "#FFF7ED" }}
+                                  onClick={() =>
+                                    toast("Same UTR, different amount — open Bank entries or the fund request and fix the amount.")
+                                  }
+                                >
+                                  Fix amount
+                                </button>
                               ) : r.kind === "only_ours" ? (
-                                <span className="text-xs" style={{ color: meta.color }}>
-                                  Not on this statement — check date or bank
-                                </span>
+                                <button
+                                  type="button"
+                                  className="rounded-lg border px-3 py-1.5 text-xs font-bold"
+                                  style={{ borderColor: "#FCA5A5", color: "#B91C1C", background: "#FEF2F2" }}
+                                  onClick={() =>
+                                    toast("Not on this statement — check the date range or the selected bank.")
+                                  }
+                                >
+                                  Not in statement
+                                </button>
                               ) : r.kind === "suspense" ? (
-                                <span className="text-xs" style={{ color: meta.color }}>
-                                  Owner unknown — identify the sender
-                                </span>
+                                <button
+                                  type="button"
+                                  className="rounded-lg border px-3 py-1.5 text-xs font-bold"
+                                  style={{ borderColor: "#FCD34D", color: "#B45309", background: "#FFFBEB" }}
+                                  onClick={() => toast("Owner unknown — identify the sender and create a bank entry.")}
+                                >
+                                  Identify sender
+                                </button>
                               ) : null}
                             </td>
                           </tr>
@@ -1207,10 +1325,10 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
           )}
         </section>
 
-        <section className="space-y-3 rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
+        <section className="space-y-3 rounded-2xl border bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]" style={{ borderColor: B.border }}>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-base font-bold" style={{ color: B.blue }}>
-              3. Upload history
+              Upload history
             </h2>
             <p className="text-xs" style={{ color: B.muted }}>
               Every statement uploaded, newest first. Matched counts are live.
