@@ -572,19 +572,21 @@ export function FundRequestForm({
 
           {activeTab === "history" ? (
             <div className="mt-5 space-y-3">
-              <div className="inline-flex flex-wrap gap-1.5 rounded-xl p-1" style={{ background: "#F1F5F9" }}>
+              <div className="inline-flex flex-wrap rounded-xl p-1" style={{ background: "#F1F5F9" }}>
                 {HISTORY_FILTERS.map((f) => {
                   const active = historyFilter === f.key;
                   return (
                     <button
                       key={f.key}
                       type="button"
+                      data-active={active}
                       onClick={() => setHistoryFilter(f.key)}
-                      className="rounded-lg px-3 py-1.5 text-xs font-semibold"
-                      style={{
-                        background: active ? B.badgeGrad : "transparent",
-                        color: active ? "#fff" : B.muted,
-                      }}
+                      className="tab-chip inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold"
+                      style={
+                        active
+                          ? { background: "#fff", color: B.blueLight, boxShadow: "0 1px 2px rgba(15,23,42,0.08)" }
+                          : { color: B.muted }
+                      }
                     >
                       {f.label}
                     </button>

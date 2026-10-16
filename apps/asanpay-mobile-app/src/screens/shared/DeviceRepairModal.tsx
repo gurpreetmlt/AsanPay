@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,11 +9,11 @@ import {
   View,
 } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
-import DateTimePicker, { type DateTimePickerEvent } from "@react-native-community/datetimepicker";
-import { Wrench, Plus, X, Calendar } from "lucide-react-native";
+import { Wrench, Plus, X } from "lucide-react-native";
 import type { ApiResponse } from "@asanpay/shared-types";
 import { ModalSheet } from "../../components/ModalSheet";
 import { showAlert } from "../../components/AppAlert";
+import { JsDateField, toYmd } from "../../components/DateRangeCard";
 import { api } from "../../lib/api";
 import { apiError } from "../../utils/apiError";
 import { useTheme } from "../../theme/ThemeContext";
@@ -58,10 +57,6 @@ const ISSUE_TYPES = [
   "Other",
 ];
 
-function isoDateOnly(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
 interface Props {
   visible: boolean;
   onClose: () => void;
@@ -80,8 +75,7 @@ export function DeviceRepairModal({ visible, onClose }: Props) {
   const [vendor, setVendor] = useState<(typeof VENDORS)[number]>(VENDORS[0]);
   const [vendorOther, setVendorOther] = useState("");
   const [issueType, setIssueType] = useState<string>(ISSUE_TYPES[0]!);
-  const [invoiceDate, setInvoiceDate] = useState<Date | null>(null);
-  const [showInvoiceDatePicker, setShowInvoiceDatePicker] = useState(false);
+  const [invoiceDateYmd, setInvoiceDateYmd] = useState("");
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [remarks, setRemarks] = useState("");
   const [busy, setBusy] = useState(false);
@@ -105,7 +99,7 @@ export function DeviceRepairModal({ visible, onClose }: Props) {
     setVendor(VENDORS[0]);
     setVendorOther("");
     setIssueType(ISSUE_TYPES[0]!);
-    setInvoiceDate(null);
+    setInvoiceDateYmd("");
     setInvoiceNumber("");
     setRemarks("");
   }
@@ -127,7 +121,7 @@ export function DeviceRepairModal({ visible, onClose }: Props) {
         deviceType: "biometric_machine",
         vendor: vendorValue || undefined,
         issueType,
-        invoiceDate: invoiceDate ? isoDateOnly(invoiceDate) : undefined,
+        invoiceDate: invoiceDateYmd || undefined,
         invoiceNumber: invoiceNumber.trim() || undefined,
         remarks: remarks.trim(),
       });
@@ -246,32 +240,12 @@ export function DeviceRepairModal({ visible, onClose }: Props) {
             </View>
 
             <Text style={[styles.fieldLabel, { color: tokens.sub }]}>Invoice date — optional</Text>
-            <Pressable
-              onPress={() => setShowInvoiceDatePicker(true)}
-              style={[
-                styles.input,
-                { borderColor: tokens.cardBorder, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-              ]}
-            >
-              <Text style={{ color: invoiceDate ? tokens.txt : colors.textLight, fontSize: 14 }}>
-                {invoiceDate ? isoDateOnly(invoiceDate) : "Select invoice date"}
-              </Text>
-              <Calendar size={16} color={tokens.sub} />
-            </Pressable>
-            {showInvoiceDatePicker ? (
-              <DateTimePicker
-                value={invoiceDate ?? new Date()}
-                mode="date"
-                display={Platform.OS === "ios" ? "spinner" : "default"}
-                maximumDate={new Date()}
-                onChange={(event: DateTimePickerEvent, date?: Date) => {
-                  if (Platform.OS === "android") setShowInvoiceDatePicker(false);
-                  if (event.type === "dismissed") return;
-                  if (date) setInvoiceDate(date);
-                  if (Platform.OS === "ios" && event.type === "set") setShowInvoiceDatePicker(false);
-                }}
-              />
-            ) : null}
+            <JsDateField
+              valueYmd={invoiceDateYmd}
+              placeholder="Select invoice date"
+              maxYmd={toYmd(new Date())}
+              onChange={setInvoiceDateYmd}
+            />
 
             <TextInput
               style={[styles.input, { borderColor: tokens.cardBorder, color: tokens.txt }]}

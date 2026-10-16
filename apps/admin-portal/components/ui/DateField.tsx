@@ -433,7 +433,7 @@ export function DateTimeField({
   );
 }
 
-/** Compact preset text links — InstantPay-style. */
+/** Date range presets — same segment tabs as Fund requests (Open / Credited). */
 export function DatePresetLinks({
   activeId,
   onPick,
@@ -444,19 +444,24 @@ export function DatePresetLinks({
   presets: { id: string; label: string; range: () => { from: string; to: string } }[];
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+    <div className="inline-flex flex-wrap rounded-xl p-1" style={{ background: "#F1F5F9" }}>
       {presets.map((p) => {
         const on = activeId === p.id;
         return (
           <button
             key={p.id}
             type="button"
+            data-active={on}
             onClick={() => {
               const r = p.range();
               onPick(r.from, r.to);
             }}
-            className="date-preset-link text-sm font-semibold transition"
-            style={{ color: on ? B.blueLight : B.muted }}
+            className="tab-chip inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold"
+            style={
+              on
+                ? { background: "#fff", color: B.blueLight, boxShadow: "0 1px 2px rgba(15,23,42,0.08)" }
+                : { color: B.muted }
+            }
           >
             {p.label}
           </button>

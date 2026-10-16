@@ -14,7 +14,7 @@ type Props = {
   to: string;
   onApply: (from: string, to: string) => void;
   loading?: boolean;
-  /** Extra actions (e.g. Download Excel) rendered next to View Report. */
+  /** Extra actions (e.g. Export PDF/CSV/Excel menu) rendered next to View Report. */
   actions?: ReactNode;
 };
 

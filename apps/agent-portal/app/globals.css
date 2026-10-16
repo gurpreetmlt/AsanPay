@@ -1370,8 +1370,49 @@ body {
   transform: scale(0.985);
 }
 
-.date-preset-link:hover {
-  color: #2a5cdd !important;
+/* Filter / status tabs: hover lift + tint, press, pop when selected (match admin) */
+.tab-chip {
+  transition:
+    transform 0.18s ease-out,
+    box-shadow 0.18s ease-out,
+    background-color 0.18s ease-out,
+    color 0.18s ease-out,
+    filter 0.18s ease-out;
+}
+
+.tab-chip:not([data-active="true"]):hover {
+  transform: translateY(-1px);
+  background-image: linear-gradient(rgba(42, 92, 221, 0.08), rgba(42, 92, 221, 0.08)) !important;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
+}
+
+.tab-chip[data-active="true"]:hover {
+  filter: brightness(1.04);
+}
+
+.tab-chip:active {
+  transform: scale(0.95);
+}
+
+.tab-chip:focus-visible {
+  outline: 2px solid #2a5cdd;
+  outline-offset: 2px;
+}
+
+@keyframes tab-chip-pop {
+  0% {
+    transform: scale(0.92);
+  }
+  60% {
+    transform: scale(1.04);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.tab-chip[data-active="true"] {
+  animation: tab-chip-pop 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1383,5 +1424,14 @@ body {
   }
   .date-field-trigger {
     transition: none;
+  }
+  .tab-chip,
+  .tab-chip[data-active="true"] {
+    animation: none;
+    transition: none;
+  }
+  .tab-chip:hover,
+  .tab-chip:active {
+    transform: none !important;
   }
 }

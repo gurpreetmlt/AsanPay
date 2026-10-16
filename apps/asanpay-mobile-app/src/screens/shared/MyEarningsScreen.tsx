@@ -4,6 +4,7 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -11,7 +12,15 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Search, TrendingUp } from "lucide-react-native";
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  Download,
+  Search,
+  TrendingUp,
+} from "lucide-react-native";
 import { fetchApi } from "../../lib/api";
 import { formatINR } from "../../lib/format";
 import { useAuthStore } from "../../store/auth";
@@ -174,6 +183,57 @@ export function MyEarningsScreen() {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
+
+  function earningsCsvBody() {
+    const header = "Product/Service,Business Volume,Gross,TDS,Net";
+    const lines = products.map((p) =>
+      [p.serviceName, p.volume, p.grossAmount, p.tdsAmount, p.netAmount]
+        .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+        .join(","),
+    );
+    return [header, ...lines].join("\n");
+  }
+
+  function openExportMenu() {
+    if (products.length === 0) {
+      showAlert("Nothing to export", "No product earnings in this date range");
+      return;
+    }
+    const title = `AsanPay My Earnings ${range.from} to ${range.to}`;
+    showAlert("Export", "Choose PDF, Excel, or CSV", [
+      {
+        text: "PDF",
+        style: "primary",
+        onPress: () => {
+          void Share.share({
+            title,
+            message: `${title}\n\n${products
+              .map(
+                (p) =>
+                  `${p.serviceName}\n  Volume ${formatINR(p.volume)} · Gross ${formatINR(p.grossAmount)} · TDS ${formatINR(p.tdsAmount)} · Net ${formatINR(p.netAmount)}`,
+              )
+              .join("\n\n")}\n\n— AsanPay`,
+          });
+        },
+      },
+      {
+        text: "Excel",
+        onPress: () => {
+          void Share.share({
+            title: `${title}.xls`,
+            message: earningsCsvBody().replace(/,/g, "\t"),
+          });
+        },
+      },
+      {
+        text: "CSV",
+        onPress: () => {
+          void Share.share({ title: `${title}.csv`, message: earningsCsvBody() });
+        },
+      },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  }
 
   useEffect(() => {
     const p = route.params;
@@ -348,6 +408,16 @@ export function MyEarningsScreen() {
 
           <DateRangeFields from={range.from} to={range.to} onChange={(next) => setRange(next)} />
 
+          <Pressable
+            onPress={openExportMenu}
+            style={[styles.exportBtn, { borderColor: tokens.cardBorder, backgroundColor: tokens.card }]}
+            accessibilityRole="button"
+            accessibilityLabel="Export PDF Excel or CSV"
+          >
+            <Download size={16} color={colors.blueLight} strokeWidth={2.2} />
+            <Text style={[styles.exportBtnText, { color: tokens.txt }]}>Export · PDF / Excel / CSV</Text>
+          </Pressable>
+
           <View style={[styles.totalCard, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
             <View style={styles.totalTop}>
               <View style={[styles.totalIcon, { backgroundColor: colors.greenBg }]}>
@@ -496,6 +566,17 @@ const styles = StyleSheet.create({
   backBtn: { width: 36, alignItems: "flex-start" },
   headerTitle: { flex: 1, textAlign: "center", color: "#fff", fontSize: 18, fontWeight: "800" },
   content: { padding: 16, gap: 14, paddingBottom: 40 },
+  exportBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  exportBtnText: { fontSize: 13, fontWeight: "700" },
   totalCard: { borderWidth: 1, borderRadius: 18, padding: 16, gap: 12 },
   totalTop: { flexDirection: "row", alignItems: "center", gap: 12 },
   totalIcon: {

@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
-import DateTimePicker, { type DateTimePickerEvent } from "@react-native-community/datetimepicker";
-import { Fingerprint, Plus, X, AlertTriangle, Calendar } from "lucide-react-native";
+import { Fingerprint, Plus, X, AlertTriangle } from "lucide-react-native";
 import type { ApiResponse } from "@asanpay/shared-types";
 import { ModalSheet } from "../../components/ModalSheet";
 import { PinInput } from "../../components/PinInput";
 import { showAlert } from "../../components/AppAlert";
+import { JsDateField, toYmd } from "../../components/DateRangeCard";
 import { api } from "../../lib/api";
 import { apiError } from "../../utils/apiError";
 import { useTheme } from "../../theme/ThemeContext";
@@ -24,10 +24,6 @@ interface DeviceRow {
 
 const MAX_DEVICES = 3; // mirrors backend MAX_AGENT_DEVICES default; server is the source of truth
 const VENDORS = ["Mantra", "Morpho", "Startek", "Other"] as const;
-
-function isoDateOnly(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
 
 function daysUntil(iso: string | null): number | null {
   if (!iso) return null;
@@ -55,8 +51,7 @@ export function BiometricDevicesModal({ visible, onClose }: Props) {
   const [serial, setSerial] = useState("");
   const [vendor, setVendor] = useState<(typeof VENDORS)[number]>(VENDORS[0]);
   const [vendorOther, setVendorOther] = useState("");
-  const [invoiceDate, setInvoiceDate] = useState<Date | null>(null);
-  const [showInvoiceDatePicker, setShowInvoiceDatePicker] = useState(false);
+  const [invoiceDateYmd, setInvoiceDateYmd] = useState("");
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [remarks, setRemarks] = useState("");
   const [busy, setBusy] = useState(false);
@@ -84,7 +79,7 @@ export function BiometricDevicesModal({ visible, onClose }: Props) {
     setSerial("");
     setVendor(VENDORS[0]);
     setVendorOther("");
-    setInvoiceDate(null);
+    setInvoiceDateYmd("");
     setInvoiceNumber("");
     setRemarks("");
   }
@@ -116,7 +111,7 @@ export function BiometricDevicesModal({ visible, onClose }: Props) {
       await api.post("/devices", {
         serial: serial.trim(),
         vendor: vendorValue || undefined,
-        invoiceDate: invoiceDate ? isoDateOnly(invoiceDate) : undefined,
+        invoiceDate: invoiceDateYmd || undefined,
         invoiceNumber: invoiceNumber.trim() || undefined,
         remarks: remarks.trim() || undefined,
         otp,
@@ -252,32 +247,13 @@ export function BiometricDevicesModal({ visible, onClose }: Props) {
           ) : null}
 
           <Text style={[modalStyles.fieldLabel, { color: tokens.sub }]}>Invoice date — optional</Text>
-          <Pressable
-            onPress={() => !otpSent && setShowInvoiceDatePicker(true)}
-            style={[
-              modalStyles.input,
-              { borderColor: tokens.cardBorder, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-            ]}
-          >
-            <Text style={{ color: invoiceDate ? tokens.txt : colors.textLight, fontSize: 14 }}>
-              {invoiceDate ? isoDateOnly(invoiceDate) : "Select invoice date"}
-            </Text>
-            <Calendar size={16} color={tokens.sub} />
-          </Pressable>
-          {showInvoiceDatePicker ? (
-            <DateTimePicker
-              value={invoiceDate ?? new Date()}
-              mode="date"
-              display={Platform.OS === "ios" ? "spinner" : "default"}
-              maximumDate={new Date()}
-              onChange={(event: DateTimePickerEvent, date?: Date) => {
-                if (Platform.OS === "android") setShowInvoiceDatePicker(false);
-                if (event.type === "dismissed") return;
-                if (date) setInvoiceDate(date);
-                if (Platform.OS === "ios" && event.type === "set") setShowInvoiceDatePicker(false);
-              }}
-            />
-          ) : null}
+          <JsDateField
+            valueYmd={invoiceDateYmd}
+            placeholder="Select invoice date"
+            maxYmd={toYmd(new Date())}
+            disabled={otpSent}
+            onChange={setInvoiceDateYmd}
+          />
 
           <TextInput
             style={[modalStyles.input, { borderColor: tokens.cardBorder, color: tokens.txt }]}

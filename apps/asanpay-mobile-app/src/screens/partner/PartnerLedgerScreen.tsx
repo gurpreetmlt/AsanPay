@@ -114,11 +114,7 @@ export function PartnerLedgerScreen() {
     return out;
   }, [entries]);
 
-  async function download() {
-    if (entries.length === 0) {
-      showAlert("Nothing to download", "No ledger entries in this date range.");
-      return;
-    }
+  function ledgerCsvBody() {
     const header = "Date,Particulars,Type,Amount,Balance";
     const lines = entries.map((e) =>
       [
@@ -129,10 +125,46 @@ export function PartnerLedgerScreen() {
         e.balanceAfter,
       ].join(","),
     );
-    await Share.share({
-      title: `AsanPay ledger ${range.from} to ${range.to}`,
-      message: [header, ...lines].join("\n"),
-    });
+    return [header, ...lines].join("\n");
+  }
+
+  function download() {
+    if (entries.length === 0) {
+      showAlert("Nothing to export", "No ledger entries in this date range");
+      return;
+    }
+    const title = `AsanPay ledger ${range.from} to ${range.to}`;
+    const csv = ledgerCsvBody();
+    showAlert("Export", "Choose PDF, Excel, or CSV", [
+      {
+        text: "PDF",
+        style: "primary",
+        onPress: () => {
+          void Share.share({
+            title,
+            message: `${title}\n\n${entries
+              .map(
+                (e) =>
+                  `${new Date(e.createdAt).toLocaleString("en-IN")} · ${entryTitle(e, byId)}\n  ${e.entryType} ${e.amount} · Bal ${e.balanceAfter}`,
+              )
+              .join("\n\n")}\n\n— AsanPay`,
+          });
+        },
+      },
+      {
+        text: "Excel",
+        onPress: () => {
+          void Share.share({ title: `${title}.xls`, message: csv.replace(/,/g, "\t") });
+        },
+      },
+      {
+        text: "CSV",
+        onPress: () => {
+          void Share.share({ title: `${title}.csv`, message: csv });
+        },
+      },
+      { text: "Cancel", style: "cancel" },
+    ]);
   }
 
   const cardStyle = { backgroundColor: tokens.card, borderColor: tokens.cardBorder };
@@ -160,9 +192,9 @@ export function PartnerLedgerScreen() {
               <CirclePlay size={17} color="#fff" />
               <Text style={styles.btnBlueText}>View</Text>
             </Pressable>
-            <Pressable style={[styles.btn, styles.btnGreen]} onPress={() => void download()}>
+            <Pressable style={[styles.btn, styles.btnGreen]} onPress={download}>
               <Download size={17} color={colors.greenDark} />
-              <Text style={styles.btnGreenText}>Download</Text>
+              <Text style={styles.btnGreenText}>Export</Text>
             </Pressable>
           </View>
         </View>

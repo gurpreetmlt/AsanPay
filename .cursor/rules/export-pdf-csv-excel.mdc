@@ -1,0 +1,51 @@
+---
+description: Every AsanPay data export must offer PDF, CSV, and Excel — never Excel-only or CSV-only download buttons.
+alwaysApply: true
+---
+
+# Export: PDF + CSV + Excel (AsanPay)
+
+## Rule
+
+Jahan bhi user **report / register / ledger / earnings / statement** download kare, export control **teen formats** offer kare:
+
+1. **PDF** — branded print letterhead (`openBrandedPdf`) → browser “Save as PDF”
+2. **Excel** — branded `.xls` (`downloadBrandedExcel`)
+3. **CSV** — plain UTF-8 BOM CSV (imports / CA tools)
+
+**Forbidden**
+- Lone “Download Excel” / “Export CSV” / “Download” that only does one format
+- “CSV export coming soon” stubs when a table is already on screen
+- New export UIs that skip PDF or Excel
+
+## UI
+
+- Trigger label: **Export** (chevron dropdown)
+- Menu order: **PDF → Excel → CSV**
+- Empty data: disable trigger + clear toast (`Nothing to export…` / field-specific)
+- English labels only
+
+### Components
+
+| Surface | Use |
+|---------|-----|
+| Agent web | `apps/agent-portal/components/ui/ExportMenu.tsx` + `lib/brandedExport.ts` |
+| Admin web | Same pattern (`ExportMenu` in panel or shared) + `apps/admin-portal/lib/brandedExport.ts` |
+| Mobile | Action sheet / menu: PDF · Excel · CSV (Share text/file). Prefer same three options on earnings, ledger, statements. |
+
+## Implementation notes
+
+- Build one `BrandedReport` (title, meta, summary, columns, rows) then call PDF + Excel from it; CSV from the same header/rows arrays.
+- CSV helper: `downloadCsv` in agent `reportUtils` / admin utils — keep BOM `\uFEFF`.
+- PDF needs pop-ups allowed — if `openBrandedPdf` returns false, toast: `Allow pop-ups for this site to export the PDF`
+- Receipt PDFs for a **single txn** (API binary) are OK as one-off “PDF” actions — not the same as table Export menu.
+
+## Done check
+
+- [ ] Export control shows PDF, Excel, CSV
+- [ ] All three produce usable files for the current filter range
+- [ ] Web + mobile parity when the screen exists on both
+- [ ] No Excel-only / CSV-only leftover label on that screen
+---
+name: export-pdf-csv-excel
+---
