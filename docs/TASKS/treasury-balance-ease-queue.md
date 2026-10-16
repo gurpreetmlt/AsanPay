@@ -15,8 +15,8 @@
 | **TB05** | Agent ↔ bank link + “Open in Reconcile” jump | M | done | Fund request / bank entry rows |
 | **TB06** | Provider ledger strip (In / Out / Fees / wallet impact) | M | done | Separate from bank CR/DR |
 | **TB07** | Daily close checklist wizard | L | done | Upload → recon → resolve → close |
-| **TB08** | Export + daily email / WhatsApp summary | M | **CURRENT** | Build on PDF/CSV/XLS |
-| TB09 | Duplicate / double-credit guard (UTR / amount+date) | M | pending | Warn before credit / import |
+| **TB08** | Export + daily email / WhatsApp summary | M | done | Build on PDF/CSV/XLS |
+| **TB09** | Duplicate / double-credit guard (UTR / amount+date) | M | **CURRENT** | Warn before credit / import |
 | TB10 | Wrong-bank detector stronger (block Import) | S | partial | Verify strip exists — harden |
 | TB11 | Partial / Likely match + 1-click Confirm | M | pending | Amount match, UTR miss |
 | TB12 | Bulk resolve unmatched (ignore / entry / link) | M | partial | Bulk bank entry exists — extend |
@@ -47,6 +47,7 @@
 | TB05 | Fund requests (linked) + Bank entries statement cell | Open in Reconcile | Linked fund request shows “Linked to bank” + Open in Reconcile → recon on that line. Bank entry shows agent link text + Open in Reconcile (matched / not in statement / not uploaded). |
 | TB06 | Treasury overview → Provider ledger strip | Today / week / month | In (float CR) · Out (float DR) · Fees (COMMISSION_INCOME) · Wallet impact (agent net). Not bank CR/DR. `GET /admin/treasury/provider-ledger`. |
 | TB07 | Bank & deposits → Daily close | Pick date → 4 steps | Upload / Recon / Resolve / Close. Close disabled until blockers clear. Soft close in `treasury_daily_closes` (migration 0063). Reopen allowed. |
+| TB08 | Daily close → Daily summary export | PDF / CSV / XLS + Send | `GET /banking/daily-summary`, `POST /banking/daily-summary/send` (email + WhatsApp). Activity API rows show provider name · service. |
 | … | | | |
 
 ## Prompt for next chat

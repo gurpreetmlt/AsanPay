@@ -88,6 +88,7 @@
 - [x] **Open in Reconcile** (TB05): Fund requests with a linked bank line show “Linked to bank” + Open in Reconcile jump; bank entries statement cell shows agent + Open in Reconcile. Admin only; no migration.
 - [x] **Provider ledger strip** (TB06): Treasury overview — In / Out / Fees / Wallet impact for API float (Today·Week·Month). `GET /admin/treasury/provider-ledger`. Separate from bank statement CR/DR. No migration.
 - [x] **Daily close wizard** (TB07): Bank & deposits → Daily close — Upload → Reconcile → Resolve → Close. `GET/POST /banking/daily-close`, reopen. Table `treasury_daily_closes` (migration `0063`). Soft close only (hard lock = TB15).
+- [x] **Daily summary export** (TB08): Daily close → PDF/CSV/XLS + email/WhatsApp send. `GET /banking/daily-summary`, `POST /banking/daily-summary/send`. Activity feed API rows titled `Provider · Service` (e.g. VyaparAPI · Recharge).
 - [x] Fund request rules: SD / Distributor on by default, Retailer off until admin enables per user (`users.fund_request_enabled`, migration 0051; switch in Retailers list + agent detail). Cash deposit only (web + mobile), bank + receipt required. Admin list shows agent, bank, deposit date; credited requests appear read-only in Bank entries + CA export
 - [x] Fund requests (company collection bank deposit) open to all agent roles — SD / Distributor / Retailer (API + web `/fund-request` + mobile Add Money / Request Funds); admin list shows requester role
 - [x] VAN assign (admin Banking tab + `POST /banking/van/assign`)

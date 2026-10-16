@@ -210,17 +210,29 @@ export async function listTreasuryActivity(params: {
         reason: string | null;
         created_at: string;
         amount: string | null;
+        provider_name: string | null;
+        float_code: string | null;
       }>(sql`
         SELECT j.id::text AS id, j.txn_type, j.reference_id, j.reason, j.created_at::text AS created_at,
-               (
-                 SELECT le.amount::text
-                 FROM ledger_entries le
-                 JOIN accounts a ON a.id = le.account_id
-                 WHERE le.journal_id = j.id AND a.account_type = 'float'
-                 ORDER BY le.id
-                 LIMIT 1
-               ) AS amount
+               float_leg.amount AS amount,
+               float_leg.provider_name,
+               float_leg.float_code
         FROM journals j
+        LEFT JOIN LATERAL (
+          SELECT le.amount::text AS amount,
+                 a.code AS float_code,
+                 (
+                   SELECT p.name
+                   FROM providers p
+                   WHERE ('TREASURY_FLOAT_' || upper(regexp_replace(p.code, '[^A-Za-z0-9]+', '_', 'g'))) = a.code
+                   LIMIT 1
+                 ) AS provider_name
+          FROM ledger_entries le
+          JOIN accounts a ON a.id = le.account_id
+          WHERE le.journal_id = j.id AND a.account_type = 'float'
+          ORDER BY le.id
+          LIMIT 1
+        ) float_leg ON true
         WHERE j.tenant_id = ${params.tenantId}
           AND j.txn_type IN (
             'DMT','BBPS','RECHARGE','AEPS_DEPOSIT','AEPS_WITHDRAWAL',
@@ -231,11 +243,17 @@ export async function listTreasuryActivity(params: {
       `);
       for (const r of journals.rows) {
         const isFloatIn = r.txn_type === "FLOAT_TRANSFER_CONFIRM" || r.txn_type === "AEPS_WITHDRAWAL";
+        const provider =
+          r.provider_name?.trim() ||
+          (r.float_code?.startsWith("TREASURY_FLOAT_")
+            ? r.float_code.replace(/^TREASURY_FLOAT_/, "").replace(/_/g, " ")
+            : null);
+        const service = labelTxn(r.txn_type);
         items.push({
           id: `j:${r.id}`,
           channel: "api",
           kind: "provider_journal",
-          title: labelTxn(r.txn_type),
+          title: provider ? `${provider} · ${service}` : service,
           subtitle: [r.reference_id, r.reason].filter(Boolean).join(" · ") || null,
           amount: r.amount != null ? paiseToRupees(BigInt(r.amount)) : null,
           direction: isFloatIn ? "CR" : "DR",

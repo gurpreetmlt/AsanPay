@@ -419,6 +419,52 @@ bankingRouter.post(
   },
 );
 
+/** Daily treasury summary for export / email / WhatsApp (TB08). */
+bankingRouter.get("/daily-summary", requireRole("admin"), async (req, res) => {
+  const tenantId = await resolveTenantId();
+  const istToday = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+  const date = typeof req.query.date === "string" && req.query.date ? req.query.date : istToday;
+  const { buildDailySummary } = await import("./dailySummary.service");
+  sendSuccess(res, await buildDailySummary({ tenantId, date }));
+});
+
+bankingRouter.post("/daily-summary/send", requireRole("admin"), async (req, res) => {
+  const tenantId = await resolveTenantId();
+  const body = z
+    .object({
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD"),
+      email: z
+        .string()
+        .trim()
+        .optional()
+        .nullable()
+        .transform((v) => (v && v.length ? v : null))
+        .refine((v) => v == null || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), {
+          message: "Enter a valid email address",
+        }),
+      whatsapp: z
+        .string()
+        .trim()
+        .max(15)
+        .optional()
+        .nullable()
+        .transform((v) => (v && v.length ? v : null)),
+    })
+    .parse(req.body);
+  const { sendDailySummary } = await import("./dailySummary.service");
+  const result = await sendDailySummary({
+    tenantId,
+    date: body.date,
+    email: body.email,
+    whatsapp: body.whatsapp,
+  });
+  const bits = [
+    result.emailSent ? "email sent" : null,
+    result.whatsappSent ? "WhatsApp sent" : null,
+  ].filter(Boolean);
+  sendSuccess(res, result, bits.length ? bits.join(" · ") : "Summary ready");
+});
+
 /** Daily close checklist — Upload → Reconcile → Resolve → Close. */
 bankingRouter.get("/daily-close", requireRole("admin"), async (req, res) => {
   const tenantId = await resolveTenantId();
