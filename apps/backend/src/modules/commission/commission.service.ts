@@ -1,4 +1,5 @@
 import { and, eq, gt, gte, lte, isNull, or, desc, sql, asc, ilike } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { db } from "../../db/postgres";
 import {
   commissionLedger,
@@ -330,14 +331,8 @@ export async function getMyEarningsSummary(
 
   let activeDownline: number | null = null;
   if (role === "super_distributor" || role === "distributor") {
-    const [down] = await db
-      .select({
-        n: sql<number>`count(distinct ${transactions.userId})::int`,
-      })
-      .from(commissionLedger)
-      .innerJoin(transactions, eq(commissionLedger.transactionId, transactions.id))
-      .where(range);
-    activeDownline = down?.n ?? 0;
+    const byDown = await listMyEarningsByDownline(userId, role, from, to);
+    activeDownline = byDown.length;
   }
 
   return {
@@ -409,49 +404,380 @@ export async function listMyEarnings(
   }));
 }
 
-/** Product-wise summary for My Earnings shell (retailer primary; SD/Dist shared). */
-export async function listMyEarningsByProduct(
-  userId: string,
-  fromYmd?: string,
-  toYmd?: string,
-) {
+function parseEarningsRange(fromYmd?: string, toYmd?: string) {
   const from = fromYmd ?? todayYmdIst();
   const to = toYmd ?? from;
   if (from > to) {
     throw new HttpError(400, "From date must be on or before To date", "INVALID_DATE_RANGE");
   }
-  const since = istDayStart(from);
-  const until = istDayEnd(to);
+  return { from, to, since: istDayStart(from), until: istDayEnd(to) };
+}
 
-  const rows = await db
-    .select({
-      serviceId: services.id,
-      serviceCode: services.code,
-      serviceName: services.name,
-      volume: sql<string>`coalesce(sum(${transactions.amount}), '0')`,
-      netAmount: sql<string>`coalesce(sum(${commissionLedger.amount}), '0')`,
-      creditCount: sql<number>`count(*)::int`,
-    })
-    .from(commissionLedger)
-    .innerJoin(transactions, eq(commissionLedger.transactionId, transactions.id))
-    .innerJoin(services, eq(transactions.serviceId, services.id))
-    .where(
-      and(
-        eq(commissionLedger.beneficiaryUserId, userId),
-        gte(commissionLedger.createdAt, since),
-        lte(commissionLedger.createdAt, until),
-      ),
-    )
-    .groupBy(services.id, services.code, services.name)
-    .orderBy(desc(sql`sum(${commissionLedger.amount})`));
+type ProductEarnRow = {
+  serviceId: string;
+  serviceCode: string;
+  serviceName: string;
+  volume: string;
+  netAmount: string;
+  grossAmount: string;
+  tdsAmount: string;
+  creditCount: number;
+};
 
+function mapProductEarnRows(
+  rows: {
+    serviceId: string;
+    serviceCode: string;
+    serviceName: string;
+    volume: string;
+    netAmount: string;
+    grossAmount: string;
+    tdsAmount: string;
+    creditCount: number;
+  }[],
+): ProductEarnRow[] {
   return rows.map((r) => ({
     serviceId: r.serviceId,
     serviceCode: r.serviceCode,
     serviceName: r.serviceName,
     volume: String(r.volume),
     netAmount: String(r.netAmount),
+    grossAmount: String(r.grossAmount),
+    tdsAmount: String(r.tdsAmount),
     creditCount: r.creditCount,
+  }));
+}
+
+const productSelect = {
+  serviceId: services.id,
+  serviceCode: services.code,
+  serviceName: services.name,
+  volume: sql<string>`coalesce(sum(${transactions.amount}), '0')`,
+  netAmount: sql<string>`coalesce(sum(${commissionLedger.amount}), '0')`,
+  grossAmount: sql<string>`coalesce(sum(coalesce(${commissionLedger.grossAmount}, ${commissionLedger.amount})), '0')`,
+  tdsAmount: sql<string>`coalesce(sum(coalesce(${commissionLedger.tdsAmount}, 0)), '0')`,
+  creditCount: sql<number>`count(*)::int`,
+};
+
+/** Product-wise summary for My Earnings (retailer primary; SD/Dist shared). */
+export async function listMyEarningsByProduct(
+  userId: string,
+  fromYmd?: string,
+  toYmd?: string,
+  opts?: { downlineUserId?: string; role?: UserRole },
+): Promise<ProductEarnRow[]> {
+  const { since, until } = parseEarningsRange(fromYmd, toYmd);
+  const base = and(
+    eq(commissionLedger.beneficiaryUserId, userId),
+    gte(commissionLedger.createdAt, since),
+    lte(commissionLedger.createdAt, until),
+  );
+
+  if (opts?.downlineUserId) {
+    if (!opts.role || (opts.role !== "super_distributor" && opts.role !== "distributor")) {
+      throw new HttpError(403, "Downline filter is only for Super Distributor / Distributor", "FORBIDDEN");
+    }
+    const agent = alias(users, "earn_prod_agent");
+    const downline = alias(users, "earn_prod_down");
+
+    if (opts.role === "distributor") {
+      const rows = await db
+        .select(productSelect)
+        .from(commissionLedger)
+        .innerJoin(transactions, eq(commissionLedger.transactionId, transactions.id))
+        .innerJoin(services, eq(transactions.serviceId, services.id))
+        .innerJoin(agent, eq(transactions.userId, agent.id))
+        .where(and(base, eq(agent.id, opts.downlineUserId), eq(agent.parentId, userId)))
+        .groupBy(services.id, services.code, services.name)
+        .orderBy(desc(sql`sum(${commissionLedger.amount})`));
+      return mapProductEarnRows(rows);
+    }
+
+    const rows = await db
+      .select(productSelect)
+      .from(commissionLedger)
+      .innerJoin(transactions, eq(commissionLedger.transactionId, transactions.id))
+      .innerJoin(services, eq(transactions.serviceId, services.id))
+      .innerJoin(agent, eq(transactions.userId, agent.id))
+      .innerJoin(
+        downline,
+        and(
+          eq(downline.id, opts.downlineUserId),
+          eq(downline.parentId, userId),
+          or(
+            and(eq(agent.id, downline.id), eq(agent.role, "distributor")),
+            and(eq(agent.parentId, downline.id), eq(agent.role, "retailer")),
+          ),
+        ),
+      )
+      .where(base)
+      .groupBy(services.id, services.code, services.name)
+      .orderBy(desc(sql`sum(${commissionLedger.amount})`));
+    return mapProductEarnRows(rows);
+  }
+
+  const rows = await db
+    .select(productSelect)
+    .from(commissionLedger)
+    .innerJoin(transactions, eq(commissionLedger.transactionId, transactions.id))
+    .innerJoin(services, eq(transactions.serviceId, services.id))
+    .where(base)
+    .groupBy(services.id, services.code, services.name)
+    .orderBy(desc(sql`sum(${commissionLedger.amount})`));
+  return mapProductEarnRows(rows);
+}
+
+/** Downline-wise earnings (SD / Dist only). */
+export async function listMyEarningsByDownline(
+  userId: string,
+  role: UserRole,
+  fromYmd?: string,
+  toYmd?: string,
+  q?: string,
+) {
+  if (role !== "super_distributor" && role !== "distributor") {
+    throw new HttpError(403, "Downline earnings are only for Super Distributor / Distributor", "FORBIDDEN");
+  }
+  const { since, until } = parseEarningsRange(fromYmd, toYmd);
+  const needle = q?.trim();
+  const agent = alias(users, "earn_dl_agent");
+  const downline = alias(users, "earn_dl_down");
+
+  const search =
+    needle && needle.length > 0
+      ? or(
+          ilike(downline.name, `%${needle}%`),
+          ilike(downline.uid, `%${needle}%`),
+          ilike(downline.mobile, `%${needle}%`),
+        )
+      : undefined;
+
+  if (role === "distributor") {
+    const rows = await db
+      .select({
+        userId: downline.id,
+        name: downline.name,
+        uid: downline.uid,
+        mobile: downline.mobile,
+        isActive: downline.isActive,
+        volume: sql<string>`coalesce(sum(${transactions.amount}), '0')`,
+        netAmount: sql<string>`coalesce(sum(${commissionLedger.amount}), '0')`,
+        grossAmount: sql<string>`coalesce(sum(coalesce(${commissionLedger.grossAmount}, ${commissionLedger.amount})), '0')`,
+        tdsAmount: sql<string>`coalesce(sum(coalesce(${commissionLedger.tdsAmount}, 0)), '0')`,
+        creditCount: sql<number>`count(*)::int`,
+      })
+      .from(commissionLedger)
+      .innerJoin(transactions, eq(commissionLedger.transactionId, transactions.id))
+      .innerJoin(downline, eq(transactions.userId, downline.id))
+      .where(
+        and(
+          eq(commissionLedger.beneficiaryUserId, userId),
+          gte(commissionLedger.createdAt, since),
+          lte(commissionLedger.createdAt, until),
+          eq(downline.parentId, userId),
+          ...(search ? [search] : []),
+        ),
+      )
+      .groupBy(downline.id, downline.name, downline.uid, downline.mobile, downline.isActive)
+      .orderBy(desc(sql`sum(${commissionLedger.amount})`));
+
+    return rows.map((r) => ({
+      userId: r.userId,
+      name: r.name,
+      uid: r.uid,
+      mobile: r.mobile,
+      shopLabel: r.name,
+      isActive: r.isActive,
+      volume: String(r.volume),
+      netAmount: String(r.netAmount),
+      grossAmount: String(r.grossAmount),
+      tdsAmount: String(r.tdsAmount),
+      creditCount: r.creditCount,
+    }));
+  }
+
+  // Super Distributor: attribute retailer txns to their distributor parent.
+  const rows = await db
+    .select({
+      userId: downline.id,
+      name: downline.name,
+      uid: downline.uid,
+      mobile: downline.mobile,
+      isActive: downline.isActive,
+      volume: sql<string>`coalesce(sum(${transactions.amount}), '0')`,
+      netAmount: sql<string>`coalesce(sum(${commissionLedger.amount}), '0')`,
+      grossAmount: sql<string>`coalesce(sum(coalesce(${commissionLedger.grossAmount}, ${commissionLedger.amount})), '0')`,
+      tdsAmount: sql<string>`coalesce(sum(coalesce(${commissionLedger.tdsAmount}, 0)), '0')`,
+      creditCount: sql<number>`count(*)::int`,
+    })
+    .from(commissionLedger)
+    .innerJoin(transactions, eq(commissionLedger.transactionId, transactions.id))
+    .innerJoin(agent, eq(transactions.userId, agent.id))
+    .innerJoin(
+      downline,
+      and(
+        eq(downline.parentId, userId),
+        or(
+          and(eq(agent.id, downline.id), eq(agent.role, "distributor")),
+          and(eq(agent.parentId, downline.id), eq(agent.role, "retailer")),
+        ),
+      ),
+    )
+    .where(
+      and(
+        eq(commissionLedger.beneficiaryUserId, userId),
+        gte(commissionLedger.createdAt, since),
+        lte(commissionLedger.createdAt, until),
+        ...(search ? [search] : []),
+      ),
+    )
+    .groupBy(downline.id, downline.name, downline.uid, downline.mobile, downline.isActive)
+    .orderBy(desc(sql`sum(${commissionLedger.amount})`));
+
+  return rows.map((r) => ({
+    userId: r.userId,
+    name: r.name,
+    uid: r.uid,
+    mobile: r.mobile,
+    shopLabel: r.name,
+    isActive: r.isActive,
+    volume: String(r.volume),
+    netAmount: String(r.netAmount),
+    grossAmount: String(r.grossAmount),
+    tdsAmount: String(r.tdsAmount),
+    creditCount: r.creditCount,
+  }));
+}
+
+/** Product → txn credits for expand (TC11). Optional downline scope for SD/Dist. */
+export async function listMyEarningsProductTxns(
+  userId: string,
+  serviceId: string,
+  opts: {
+    from?: string;
+    to?: string;
+    limit?: number;
+    offset?: number;
+    downlineUserId?: string;
+    role?: UserRole;
+  },
+) {
+  const { since, until } = parseEarningsRange(opts.from, opts.to);
+  const limit = Math.min(opts.limit ?? 50, 200);
+  const offset = opts.offset ?? 0;
+  const conds = [
+    eq(commissionLedger.beneficiaryUserId, userId),
+    eq(transactions.serviceId, serviceId),
+    gte(commissionLedger.createdAt, since),
+    lte(commissionLedger.createdAt, until),
+  ];
+
+  if (opts.downlineUserId) {
+    if (!opts.role || (opts.role !== "super_distributor" && opts.role !== "distributor")) {
+      throw new HttpError(403, "Downline filter is only for Super Distributor / Distributor", "FORBIDDEN");
+    }
+    const agent = alias(users, "earn_txn_agent");
+    const downline = alias(users, "earn_txn_down");
+
+    if (opts.role === "distributor") {
+      const rows = await db
+        .select({
+          id: commissionLedger.id,
+          netAmount: commissionLedger.amount,
+          grossAmount: commissionLedger.grossAmount,
+          tdsAmount: commissionLedger.tdsAmount,
+          transactionId: commissionLedger.transactionId,
+          txnRef: transactions.txnRef,
+          txnAmount: transactions.amount,
+          createdAt: commissionLedger.createdAt,
+        })
+        .from(commissionLedger)
+        .innerJoin(transactions, eq(commissionLedger.transactionId, transactions.id))
+        .innerJoin(agent, eq(transactions.userId, agent.id))
+        .where(and(...conds, eq(agent.id, opts.downlineUserId), eq(agent.parentId, userId)))
+        .orderBy(desc(commissionLedger.createdAt))
+        .limit(limit)
+        .offset(offset);
+      return rows.map((r) => ({
+        id: r.id,
+        netAmount: String(r.netAmount),
+        grossAmount: r.grossAmount != null ? String(r.grossAmount) : String(r.netAmount),
+        tdsAmount: r.tdsAmount != null ? String(r.tdsAmount) : "0",
+        transactionId: r.transactionId,
+        txnRef: r.txnRef,
+        txnAmount: String(r.txnAmount),
+        createdAt: r.createdAt,
+      }));
+    }
+
+    const rows = await db
+      .select({
+        id: commissionLedger.id,
+        netAmount: commissionLedger.amount,
+        grossAmount: commissionLedger.grossAmount,
+        tdsAmount: commissionLedger.tdsAmount,
+        transactionId: commissionLedger.transactionId,
+        txnRef: transactions.txnRef,
+        txnAmount: transactions.amount,
+        createdAt: commissionLedger.createdAt,
+      })
+      .from(commissionLedger)
+      .innerJoin(transactions, eq(commissionLedger.transactionId, transactions.id))
+      .innerJoin(agent, eq(transactions.userId, agent.id))
+      .innerJoin(
+        downline,
+        and(
+          eq(downline.id, opts.downlineUserId),
+          eq(downline.parentId, userId),
+          or(
+            and(eq(agent.id, downline.id), eq(agent.role, "distributor")),
+            and(eq(agent.parentId, downline.id), eq(agent.role, "retailer")),
+          ),
+        ),
+      )
+      .where(and(...conds))
+      .orderBy(desc(commissionLedger.createdAt))
+      .limit(limit)
+      .offset(offset);
+    return rows.map((r) => ({
+      id: r.id,
+      netAmount: String(r.netAmount),
+      grossAmount: r.grossAmount != null ? String(r.grossAmount) : String(r.netAmount),
+      tdsAmount: r.tdsAmount != null ? String(r.tdsAmount) : "0",
+      transactionId: r.transactionId,
+      txnRef: r.txnRef,
+      txnAmount: String(r.txnAmount),
+      createdAt: r.createdAt,
+    }));
+  }
+
+  const rows = await db
+    .select({
+      id: commissionLedger.id,
+      netAmount: commissionLedger.amount,
+      grossAmount: commissionLedger.grossAmount,
+      tdsAmount: commissionLedger.tdsAmount,
+      transactionId: commissionLedger.transactionId,
+      txnRef: transactions.txnRef,
+      txnAmount: transactions.amount,
+      createdAt: commissionLedger.createdAt,
+    })
+    .from(commissionLedger)
+    .innerJoin(transactions, eq(commissionLedger.transactionId, transactions.id))
+    .where(and(...conds))
+    .orderBy(desc(commissionLedger.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  return rows.map((r) => ({
+    id: r.id,
+    netAmount: String(r.netAmount),
+    grossAmount: r.grossAmount != null ? String(r.grossAmount) : String(r.netAmount),
+    tdsAmount: r.tdsAmount != null ? String(r.tdsAmount) : "0",
+    transactionId: r.transactionId,
+    txnRef: r.txnRef,
+    txnAmount: String(r.txnAmount),
+    createdAt: r.createdAt,
   }));
 }
 

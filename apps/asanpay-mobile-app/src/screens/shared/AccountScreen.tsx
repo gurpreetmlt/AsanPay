@@ -235,7 +235,7 @@ export function AccountScreen() {
   }
 
   function goMyEarnings() {
-    navigation.navigate("Ledger" as never);
+    navigation.navigate("MyEarnings" as never);
   }
 
   const fundOn = isFundRequestEnabled(user.role, user.fundRequestEnabled);
@@ -302,7 +302,7 @@ export function AccountScreen() {
     { icon: Wallet, label: "Manage\nWallet", action: goManageWallet },
     { icon: Landmark, label: "Bank\nSettlement", action: () => setShowSettlements(true) },
     ...(fundOn ? [{ icon: KeyRound, label: "Request\nFunds", action: goRequestFunds }] : []),
-    { icon: ShieldCheck, label: "Ledger", action: goMyEarnings },
+    { icon: ShieldCheck, label: "My\nEarnings", action: goMyEarnings },
   ];
 
   return (

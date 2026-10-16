@@ -74,11 +74,11 @@
 | **TC06** | Admin preview includes tax | S | done | Preview shows Gross · TDS · Net + tax flags |
 | **TC07** | Home: Balance · Earnings Report · Today's Earnings | M | done | Home strips + Report → My Earnings (SD/Dist web+mobile; Retailer mobile). Retailer web parked (TC21) |
 | **TC08** | My Earnings screen shell + APIs | M | done | `/api/earnings/*` · mobile `MyEarnings` · web `/earnings` (SD/Dist). Product summary + empty; downline tab = Coming soon until TC09 |
-| **TC09** | My Earnings — Downline-wise tab | M | **CURRENT** | **SD/Dist only** (hide for retailer). Web + mobile |
-| **TC10** | My Earnings — Product-wise tab | M | pending | **SD + Dist + Retailer mobile.** Vol + Earning. Retailer: default / only tab |
-| **TC11** | My Earnings — row expand / detail | M | pending | Downline→products (SD/Dist); product→txns (all). Gross/TDS/Net when TC03 live. Retailer mobile included |
-| **TC12** | Nav wiring | S | pending | Home / Report / Earnings entry → My Earnings. SD/Dist web+mobile; **Retailer mobile** tabs/Account/Reports entry |
-| **TC13** | Admin tax registers + CSV | M | pending | TDS by agent/month; DMT GST register |
+| **TC09** | My Earnings — Downline-wise tab | M | done | `GET /earnings/by-downline` + search; web+mobile |
+| **TC10** | My Earnings — Product-wise tab | M | done | Vol + Earning; retailer mobile only-tab; SD/Dist toggle |
+| **TC11** | My Earnings — row expand / detail | M | done | Downline→products; product→txns; Gross/TDS/Net |
+| **TC12** | Nav wiring | S | done | Home / Report / Account / WalletBar → My Earnings |
+| **TC13** | Admin tax registers + CSV | M | **CURRENT** | TDS by agent/month; DMT GST register |
 | **TC14** | Provider margin vs scheme underwater warn | S | pending | Admin preview |
 | **TC15** | Vyapar / provider commission ingest | L | pending | Needs sample payload from owner |
 | **TC16** | Monthly TDS summary + PAN banner | S | pending | Settings — SD/Dist/Retailer mobile |
@@ -149,7 +149,7 @@
 
 ```
 @docs/TASKS/tax-commission-queue.md @AGENTS.md
-Implement CURRENT only (TC09 My Earnings Downline-wise). No explore. No MCP. Mac Terminal cmds in reply.
+Implement CURRENT only (TC13 Admin tax registers + CSV). No explore. No MCP. Mac Terminal cmds in reply.
 ```
 
 When retailer web is ready:
