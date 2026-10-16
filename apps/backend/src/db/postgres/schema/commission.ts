@@ -101,9 +101,40 @@ export const userCommissionRates = pgTable(
   ],
 );
 
+/**
+ * Per-service tax flags (versioned). `serviceId` null = tenant-wide default.
+ * DMT/Money Transfer typically has gst_on_fee; all commission products have tds_applies.
+ */
+export const taxServiceConfigs = pgTable(
+  "tax_service_configs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    /** null = default for all services in the tenant */
+    serviceId: uuid("service_id").references(() => services.id, { onDelete: "cascade" }),
+    tdsApplies: boolean("tds_applies").notNull().default(true),
+    /** Percent 0–100, e.g. 2.0000 = 2% */
+    tdsPercent: numeric("tds_percent", { precision: 10, scale: 4 }).notNull().default("2.0000"),
+    gstOnFeeApplies: boolean("gst_on_fee_applies").notNull().default(false),
+    gstOnFeePercent: numeric("gst_on_fee_percent", { precision: 10, scale: 4 }).notNull().default("18.0000"),
+    effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull().defaultNow(),
+    effectiveTo: timestamp("effective_to", { withTimezone: true }),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("tax_service_configs_tenant_active_idx").on(table.tenantId, table.isActive, table.effectiveFrom),
+    index("tax_service_configs_tenant_service_idx").on(table.tenantId, table.serviceId),
+  ],
+);
+
 // Actual payout per transaction, one row per beneficiary in the hierarchy chain
 // (retailer -> distributor -> super_distributor -> admin). Written by the async
 // commission-distribution job, each row backed by a matching credit in wallet_ledger_entries.
+// `amount` = net credited to wallet; grossAmount / tdsAmount explain the cut (TC03).
 export const commissionLedger = pgTable(
   "commission_ledger",
   {
@@ -115,7 +146,12 @@ export const commissionLedger = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
     role: userRoleEnum("role").notNull(),
+    /** Net credited (after TDS). Historical rows: same as gross when tax cols null. */
     amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
+    grossAmount: numeric("gross_amount", { precision: 14, scale: 2 }),
+    tdsAmount: numeric("tds_amount", { precision: 14, scale: 2 }),
+    /** Percent applied, e.g. 2.0000 */
+    tdsPercent: numeric("tds_percent", { precision: 10, scale: 4 }),
     ledgerGroupId: uuid("ledger_group_id").references(() => walletLedgerGroups.id, {
       onDelete: "set null",
     }),

@@ -59,7 +59,8 @@
 Queue: [treasury-balance-ease-queue.md](treasury-balance-ease-queue.md) — **complete (TB01–TB20)**
 
 ## Tax & Commission (ordered)
-Queue: [tax-commission-queue.md](tax-commission-queue.md) — **TC01 CURRENT** (TDS all commission products · GST on DMT · My rates / receipts)
+Queue: [tax-commission-queue.md](tax-commission-queue.md) — **TC07 CURRENT** (TC01–TC06 done)
+Earnings UX (Fullimit-style): SD/Dist web+mobile · Retailer mobile. Retailer web: **parked (TC21)**.
 
 ## Wallet engine pending (ordered)
 Queue: [wallet-engine-queue.md](wallet-engine-queue.md) (MVP 27A–27D done)

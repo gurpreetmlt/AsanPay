@@ -1,95 +1,160 @@
 # Tax & Commission — product queue
 
-> Owner ask: commission / slab clarity for Admin · SD · Dist · Retailer; **TDS on all commission products**; **GST on DMT fee**.
-> Aligns with existing: [19-commission-schemes.md](19-commission-schemes.md) · [28-commission-payout-report.md](28-commission-payout-report.md) · [33-noble-commercials.md](33-noble-commercials.md).
+> Owner ask: commission / slab clarity; **TDS on all commission products**; **GST on DMT fee**.
+> **Earnings UX (Fullimit-style):** Super Dist · Distributor · **Retailer mobile** — same Home + My Earnings pattern.
+> **Retailer web** earnings layout = **parked** (owner will specify later).
+> Aligns with: [19-commission-schemes.md](19-commission-schemes.md) · [28-commission-payout-report.md](28-commission-payout-report.md) · [33-noble-commercials.md](33-noble-commercials.md).
 >
 > **Rule:** 1 chat = 1 row marked **CURRENT**. Do not start later rows in the same chat.
 > After each ship: mark `done`, promote next to `CURRENT`, Coolify (+ EC2 migrate if schema) + verify.
-> **UI:** English only · web + mobile parity for agent-facing · no Hinglish product copy.
-> **Money:** paise/decimal rules as ledger; rates in DB + `effective_from` — no hardcoded %.
+> **UI:** English only · AsanPay brand (not Fullimit purple / Hinglish taglines).
+> **Parity:** SD/Dist = web + mobile. Retailer earnings screens = **mobile first**; web later (TC21).
+> **Money:** ledger rules; rates in DB + `effective_from` — no hardcoded %.
 > **CA lock before TC05+:** TDS % / section · DMT GST exclusive vs inclusive · no-PAN rate.
 
-## Ship order (foundation → agent UX → reports)
+---
+
+## Reference UX — earnings (Fullimit → AsanPay)
+
+### Roles
+
+| Role | Home + My Earnings | Platforms |
+|------|--------------------|-----------|
+| Super Distributor | Yes (downline = Distributors) | Web + mobile |
+| Distributor | Yes (downline = Retailers) | Web + mobile |
+| Retailer | Yes (**Product-wise only** — no downline tab) | **Mobile now**; web = TC21 parked |
+
+### 1) Home (all three roles — mobile; SD/Dist also web)
+
+| Element | Behavior |
+|---------|----------|
+| **Balance** card | Main wallet balance |
+| **Earnings** card | CTA **Report** → **My Earnings** |
+| **Today's Earnings** row | `Today's Earnings: ₹X` + arrow → **My Earnings** (today pre-filled) |
+| Optional later | Show net; tap for Gross / TDS / Net |
+
+### 2) My Earnings — Downline-wise (SD & Dist only)
+
+| Element | SD | Dist |
+|---------|----|------|
+| Toggle | **Distributor-wise** \| Product-wise | **Retailer-wise** \| Product-wise |
+| Total badge | N Active Distributors | N Active Retailers |
+| Search | Name, UID, shop | Name, UID, shop |
+| Row | Avatar · name · shop · **+₹** · mobile · chevron | Same for retailers |
+| Chevron | Expand → product / txn breakdown (TC11) | Same |
+
+**Retailer:** no Downline-wise tab (no network).
+
+### 3) My Earnings — Product-wise (SD · Dist · Retailer mobile)
+
+| Element | Behavior |
+|---------|----------|
+| Toggle | Product-wise (Retailer: this is the primary / only list mode) |
+| Total card | TOTAL EARNINGS ₹ · badge **N Active Services** |
+| Row | Service icon · name · **Vol: ₹…** · **+₹ earning** · EARNING |
+| Services | AePS CW, DMT, Referral, recharge, etc. (whatever credited) |
+
+### Tax on these screens (after TC03)
+
+- List amounts = **net credited** (wallet).
+- Expand / detail: **Gross · TDS · Net**.
+- DMT **fee GST** on txn receipt / fee breakdown — not mixed into earning row total.
+
+---
+
+## Ship order
 
 | # | Task | Size | Status | Notes |
 |---|------|------|--------|-------|
-| **TC01** | Product glossary + money layers (docs only) | S | **CURRENT** | Provider pool vs chain split vs customer fee vs TDS vs GST — one page in `flow/` so UI copy stays consistent |
-| **TC02** | Tax config schema (TDS + GST flags per service) | M | pending | DB: `tds_percent`, `gst_on_fee_percent`, `tds_applies`, `gst_on_fee_applies`, `effective_from`, version id. Seed defaults (TDS ~2% draft; GST 18% on DMT only). Admin read API |
-| **TC03** | Commission calc: attach tax components on credit | L | pending | On `distributeCommissionForTxn` (and peers): store gross · TDS · net; ledger/commission_ledger columns or child rows. Skip float transfer/reverse. Reversal path stubs |
-| **TC04** | DMT fee GST in pricing path | M | pending | Customer/agent fee breakdown: fee excl + GST (or inclusive — per CA). Persist on txn. Does **not** replace CCF rules — only tax on fee |
-| **TC05** | Admin Tax settings UI | M | pending | `/commission` or Commercials: Tax tab — per-service toggles, %, effective date, preview box |
-| **TC06** | Admin commission preview includes tax | S | pending | Existing preview: show Retailer/Dist/SD gross → TDS → net + company keep; DMT sample shows fee+GST |
-| **TC07** | Retailer: estimate earn on confirm (recharge first) | M | pending | Vyapar/prepaid confirm: “Est. commission ₹X (TDS ₹Y → net ₹Z)”. Web + mobile. Provisional if provider amount late |
-| **TC08** | Retailer: DMT confirm breakdown | M | pending | Amount · Fee · GST · Total · Est. commission / TDS / net. Web + mobile |
-| **TC09** | Success receipt + ledger lines (tax visible) | M | pending | Receipt + passbook/ledger: Commission · TDS · (DMT) GST on fee. Same labels web/mobile |
-| **TC10** | My rates (read-only) for Retailer / Dist / SD | M | pending | Cards + optional slab table from role scheme (+ override badge). No edit. Nav under Money / Settings |
-| **TC11** | Earnings strip + commission-only list | M | pending | Home/Balance: Today · Month · TDS this month. Tap → filtered ledger. Web + mobile |
-| **TC12** | SD / Dist team earnings (read-only) | M | pending | Downline commission totals (month) — amounts only, not others’ slab secrets |
-| **TC13** | Admin tax registers + CSV export | M | pending | TDS payable by agent/month; GST on DMT taxable+GST. Export for CA |
-| **TC14** | Provider margin vs scheme “underwater” warn | S | pending | Admin: if chain split + tax &gt; expected provider pool → warn (Vyapar/Noble margin when available) |
-| **TC15** | Vyapar / provider commission ingest | L | pending | Map provider commission/cashback fields → pool; confirm vs estimate. Needs provider sample payload from owner |
-| **TC16** | Monthly agent TDS summary + PAN banner | S | pending | Agent Settings: month TDS total; incomplete PAN → English banner (rate TBD with CA) |
-| **TC17** | Noble commercials hook (33A overlap) | L | pending | Only if Noble live: reuse TC02–TC03 config; do not fork second tax engine — extend [33-noble-commercials.md](33-noble-commercials.md) |
-| **TC18** | Reversal / refund tax clawback | M | pending | Failed or refunded txn reverses TDS/GST/commission consistently |
-| **TC19** | Admin Commercials IA polish | S | pending | Single nav: Schemes · Overrides · Tax · Payouts · Preview (wire existing 19/28 + new) |
-| **TC20** | Smoke + checklist pack | S | pending | End-to-end: recharge + DMT + admin export; update `docs/CHECKLIST.md` |
+| **TC01** | Product glossary + money layers (docs only) | S | done | `flow/11-tax-commission.md` |
+| **TC02** | Tax config schema (TDS + GST flags per service) | M | done | `tax_service_configs` · migration `0066` · `GET /admin/commission/tax-config` |
+| **TC03** | Commission calc: gross · TDS · net on credit | L | done | `commission_ledger` tax cols · TDS in `distributeCommissionForTxn` (wallet = net) |
+| **TC04** | DMT fee GST in pricing path | M | done | `transactions.customer_fee_gst` · debit total includes GST · journal fee+GST |
+| **TC05** | Admin Tax settings UI | M | done | `/commission` Tax tab · `PATCH /admin/commission/tax-config/:id` |
+| **TC06** | Admin preview includes tax | S | done | Preview shows Gross · TDS · Net + tax flags |
+| **TC07** | Home: Balance · Earnings Report · Today's Earnings | M | **CURRENT** | **Fullimit home.** SD/Dist: web + mobile. **Retailer: mobile only** (`ServicesScreen` / retailer home). Report + arrow → My Earnings |
+| **TC08** | My Earnings screen shell + APIs | M | pending | Date range, TOTAL card, active-count badge, empty state. Summary + list APIs. Roles: SD, Dist, **Retailer** (product summary). Shared screen OK with role flags |
+| **TC09** | My Earnings — Downline-wise tab | M | pending | **SD/Dist only** (hide for retailer). Web + mobile |
+| **TC10** | My Earnings — Product-wise tab | M | pending | **SD + Dist + Retailer mobile.** Vol + Earning. Retailer: default / only tab |
+| **TC11** | My Earnings — row expand / detail | M | pending | Downline→products (SD/Dist); product→txns (all). Gross/TDS/Net when TC03 live. Retailer mobile included |
+| **TC12** | Nav wiring | S | pending | Home / Report / Earnings entry → My Earnings. SD/Dist web+mobile; **Retailer mobile** tabs/Account/Reports entry |
+| **TC13** | Admin tax registers + CSV | M | pending | TDS by agent/month; DMT GST register |
+| **TC14** | Provider margin vs scheme underwater warn | S | pending | Admin preview |
+| **TC15** | Vyapar / provider commission ingest | L | pending | Needs sample payload from owner |
+| **TC16** | Monthly TDS summary + PAN banner | S | pending | Settings — SD/Dist/Retailer mobile |
+| **TC17** | Noble commercials hook (33A) | L | pending | Reuse TC02–TC03 — no second tax engine |
+| **TC18** | Reversal / refund tax clawback | M | pending | |
+| **TC19** | Admin Commercials IA polish | S | pending | Schemes · Overrides · Tax · Payouts · Preview |
+| **TC20** | Smoke + checklist | S | pending | SD/Dist web+mobile + **Retailer mobile** + admin tax; `docs/CHECKLIST.md` |
+| **TC21** | Retailer **web** earnings UX | M | **parked** | Owner will specify how agent-portal retailer sees earnings. Do not invent web layout until then |
+| **TC22** | Retailer confirm / receipt earn lines (optional) | M | pending | After TC07–11: recharge/DMT confirm “Est. net” + receipt Gross/TDS/Net — mobile first; web with TC21 |
+
+---
 
 ## Out of scope (this queue)
 
-- Full GSTR-1 / 26Q filing product (CSV for CA is enough through TC13)
-- Changing settlement bank cycles
-- Hinglish UI
+- Cloning Fullimit brand / Hinglish taglines
+- Full GSTR-1 / 26Q filing (CSV through TC13)
+- Settlement cycle changes
 - OTP on reverse / transfer
+- Retailer **web** My Earnings until TC21 unparked
 
-## Depends / already shipped (do not rebuild)
+---
+
+## Depends / already shipped
 
 | Piece | Where |
 |-------|--------|
-| Scheme CRUD + preview API | Task 19 · admin `/commission` |
+| Scheme CRUD + preview | Task 19 · admin `/commission` |
 | Payout report | Task 28 |
 | `distributeCommissionForTxn` | commission module |
-| Dashboard today commission | agent dashboards |
-| Noble GST/TDS design notes | Task 33 (33A paths; 33B wait) |
+| Dashboard / home commission snippets | partner + retailer — extend TC07 |
+| Noble GST/TDS notes | Task 33 |
 
-## Open decisions (owner / CA — fill before TC05)
+---
 
-| # | Question | Default assumption until answered |
-|---|----------|-----------------------------------|
-| 1 | TDS % and section (194H?) | 2% on commission excl GST |
-| 2 | No / invalid PAN TDS rate | Same 2% until banner; higher rate later |
-| 3 | DMT GST exclusive or inclusive | Exclusive (fee + 18% shown separately) |
-| 4 | Which wallets get commission net? | Same as today commission credit |
-| 5 | Show Dist/SD split on retailer receipt? | No — only own net |
-| 6 | Vyapar: per-txn commission field or EOD only? | Estimate at txn; confirm when API allows |
+## Open decisions (owner / CA)
 
-## Verify matrix (fill as each TC## ships)
+| # | Question | Default until answered |
+|---|----------|-------------------------|
+| 1 | TDS % / section | 2% on commission excl GST |
+| 2 | No-PAN TDS rate | Same 2% + banner |
+| 3 | DMT GST exclusive or inclusive | Exclusive |
+| 4 | Home Today's Earnings = gross or net? | **Net**; detail Gross/TDS/Net |
+| 5 | Retailer My Earnings second tab? | **Product-wise only** (no downline). Txn list via expand (TC11) |
+| 6 | Retailer **web** earnings | **Wait** (TC21) |
+| 7 | Vyapar per-txn vs EOD | Estimate then confirm |
+
+---
+
+## Verify matrix
 
 | # | Where | Check | Expected |
 |---|--------|-------|----------|
-| TC01 | `flow/` doc | Layers named | Pool / split / fee / TDS / GST defined |
-| TC02 | Migrate + admin GET | Flags | DMT gst_on_fee on; recharge tds on; transfer tds off |
-| TC03 | Test txn commission | Ledger | Gross, TDS, net rows reconcile |
-| TC04 | DMT quote/confirm | Fee | GST line present |
-| TC05 | Admin Tax tab | Save | Versioned effective_from |
-| TC06 | Admin preview | Numbers | Tax columns visible |
-| TC07 | Retailer recharge confirm | Copy | Est. net after TDS |
-| TC08 | Retailer DMT confirm | Copy | Fee + GST + tax on commission |
-| TC09 | Receipt + ledger | Labels | English Gross / TDS / Net |
-| TC10 | Agent My rates | Read-only | Matches scheme |
-| TC11 | Earnings strip | Totals | Match commission_ledger |
-| TC12 | SD/Dist team | List | Own downline only |
-| TC13 | Admin export | CSV | Opens in Excel; sums match |
-| TC14 | Admin preview | Warn | Underwater when over-allocated |
-| TC15 | Provider txn | Pool | Matches sample payload |
-| TC16 | Settings | Banner | PAN incomplete → message |
-| TC17 | Noble path | No fork | Same tax config tables |
-| TC18 | Refund | Balances | Tax + commission reversed |
-| TC19 | Admin nav | IA | One Commercials cluster |
-| TC20 | Checklist | Docs | CHECKLIST updated |
+| TC01 | `flow/` | Layers + role UX | SD/Dist/Retailer mobile noted |
+| TC02–06 | Admin / calc | As before | |
+| TC07 | Home SD/Dist web+mobile; Retailer mobile | Today's Earnings + Report | Opens My Earnings |
+| TC08 | My Earnings all roles | Shell + API | Retailer total = own commission |
+| TC09 | SD/Dist only | Downline tab | Hidden for retailer |
+| TC10 | Product-wise | Vol + earning | Retailer mobile works |
+| TC11 | Expand | Detail + tax lines | Retailer product→txns |
+| TC12 | Entrypoints | Nav | Retailer mobile wired |
+| TC13–20 | As row | | |
+| TC21 | Agent web retailer | — | Parked |
+| TC22 | Confirm/receipt | Optional | Mobile first |
+
+---
 
 ## Prompt for next chat
 
 ```
 @docs/TASKS/tax-commission-queue.md @AGENTS.md
-Implement CURRENT only (TC01). No explore. No MCP. Mac Terminal cmds in reply.
+Implement CURRENT only (TC07). No explore. No MCP. Mac Terminal cmds in reply.
+```
+
+When retailer web is ready:
+
+```
+@docs/TASKS/tax-commission-queue.md
+Unpark TC21. [describe or screenshot agent-portal retailer earnings]
 ```

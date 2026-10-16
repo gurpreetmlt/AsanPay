@@ -22,7 +22,20 @@ type PendingConfirm = {
 
 type SchemeRole = "retailer" | "distributor" | "super_distributor";
 type RuleType = "flat" | "percentage";
-type PageTab = "schemes" | "payouts";
+type PageTab = "schemes" | "payouts" | "tax";
+
+interface TaxConfigRow {
+  id: string;
+  serviceId: string | null;
+  serviceCode: string | null;
+  serviceName: string | null;
+  tdsApplies: boolean;
+  tdsPercent: string;
+  gstOnFeeApplies: boolean;
+  gstOnFeePercent: string;
+  isActive: boolean;
+  effectiveFrom: string;
+}
 
 interface CatalogService {
   id: string;
@@ -62,12 +75,21 @@ interface PreviewSplit {
   ruleType: RuleType | null;
   value: string | null;
   payout: string;
+  gross?: string;
+  tds?: string;
+  net?: string;
   matched: boolean;
 }
 
 interface PreviewResult {
   serviceId: string;
   amount: string;
+  tax?: {
+    tdsApplies: boolean;
+    tdsPercent: string;
+    gstOnFeeApplies: boolean;
+    gstOnFeePercent: string;
+  };
   splits: PreviewSplit[];
   totalPayout: string;
 }
@@ -151,6 +173,9 @@ export default function CommissionSchemesPage() {
   const [payoutUntil, setPayoutUntil] = useState("");
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
+  const [taxRows, setTaxRows] = useState<TaxConfigRow[]>([]);
+  const [taxLoading, setTaxLoading] = useState(false);
+  const [taxSavingId, setTaxSavingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (hydrated && !accessToken) router.replace("/login");
@@ -207,6 +232,36 @@ export default function CommissionSchemesPage() {
     }
   }, [payoutRole, payoutQ, payoutSince, payoutUntil]);
 
+  const loadTax = useCallback(async () => {
+    setTaxLoading(true);
+    try {
+      setTaxRows(await fetchApi<TaxConfigRow[]>("/admin/commission/tax-config"));
+    } catch (err) {
+      toast.error(errMessage(err, "Failed to load tax config"));
+    } finally {
+      setTaxLoading(false);
+    }
+  }, []);
+
+  async function saveTaxRow(row: TaxConfigRow) {
+    setTaxSavingId(row.id);
+    try {
+      await api.patch(`/admin/commission/tax-config/${row.id}`, {
+        tdsApplies: row.tdsApplies,
+        tdsPercent: row.tdsPercent,
+        gstOnFeeApplies: row.gstOnFeeApplies,
+        gstOnFeePercent: row.gstOnFeePercent,
+        isActive: row.isActive,
+      });
+      toast.success("Tax config saved");
+      await loadTax();
+    } catch (err) {
+      toast.error(errMessage(err, "Could not save tax config"));
+    } finally {
+      setTaxSavingId(null);
+    }
+  }
+
   useEffect(() => {
     if (!hydrated || !accessToken) return;
     void load();
@@ -216,6 +271,11 @@ export default function CommissionSchemesPage() {
     if (!hydrated || !accessToken || tab !== "payouts") return;
     void loadPayouts();
   }, [hydrated, accessToken, tab, loadPayouts]);
+
+  useEffect(() => {
+    if (!hydrated || !accessToken || tab !== "tax") return;
+    void loadTax();
+  }, [hydrated, accessToken, tab, loadTax]);
 
   const filteredRules = useMemo(
     () => (roleFilter ? rules.filter((r) => r.role === roleFilter) : rules),
@@ -339,10 +399,10 @@ export default function CommissionSchemesPage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold" style={{ color: B.blue }}>
-                Commission Schemes
+                Commercials
               </h1>
               <p className="text-sm" style={{ color: B.muted }}>
-                Role defaults and payout ledger. Per-agent overrides still live on the agent detail page.
+                Schemes, tax (TDS / fee GST), and payout ledger. Per-agent overrides stay on agent detail.
               </p>
             </div>
           </div>
@@ -350,6 +410,7 @@ export default function CommissionSchemesPage() {
             {(
               [
                 { id: "schemes" as const, label: "Schemes", icon: Percent },
+                { id: "tax" as const, label: "Tax", icon: Calculator },
                 { id: "payouts" as const, label: "Payout report", icon: ScrollText },
               ] as const
             ).map((t) => (
@@ -371,7 +432,120 @@ export default function CommissionSchemesPage() {
           </div>
         </div>
 
-        {tab === "payouts" ? (
+        {tab === "tax" ? (
+          <div className="space-y-4 rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
+            <p className="text-sm" style={{ color: B.muted }}>
+              TDS applies on commission credits. GST on fee applies to customer fee (e.g. DMT). Null service =
+              tenant default. Draft rates until CA locks them.
+            </p>
+            {taxLoading ? (
+              <p className="text-sm" style={{ color: B.muted }}>
+                Loading tax config…
+              </p>
+            ) : taxRows.length === 0 ? (
+              <p className="text-sm" style={{ color: B.muted }}>
+                No tax rows yet. Run migration 0066 on the server, then refresh.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[720px] text-left text-sm">
+                  <thead>
+                    <tr className="border-b text-xs uppercase tracking-wide" style={{ borderColor: B.border, color: B.muted }}>
+                      <th className="px-2 py-2">Service</th>
+                      <th className="px-2 py-2">TDS</th>
+                      <th className="px-2 py-2">TDS %</th>
+                      <th className="px-2 py-2">GST on fee</th>
+                      <th className="px-2 py-2">GST %</th>
+                      <th className="px-2 py-2">Active</th>
+                      <th className="px-2 py-2" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {taxRows.map((row) => (
+                      <tr key={row.id} className="border-b" style={{ borderColor: B.border }}>
+                        <td className="px-2 py-2 font-semibold" style={{ color: B.blue }}>
+                          {row.serviceId ? `${row.serviceName ?? "Service"} (${row.serviceCode})` : "Default (all services)"}
+                        </td>
+                        <td className="px-2 py-2">
+                          <input
+                            type="checkbox"
+                            checked={row.tdsApplies}
+                            onChange={(e) =>
+                              setTaxRows((prev) =>
+                                prev.map((r) => (r.id === row.id ? { ...r, tdsApplies: e.target.checked } : r)),
+                              )
+                            }
+                          />
+                        </td>
+                        <td className="px-2 py-2">
+                          <input
+                            className="w-20 rounded-lg border px-2 py-1"
+                            style={{ borderColor: B.border }}
+                            value={row.tdsPercent}
+                            onChange={(e) =>
+                              setTaxRows((prev) =>
+                                prev.map((r) => (r.id === row.id ? { ...r, tdsPercent: e.target.value } : r)),
+                              )
+                            }
+                          />
+                        </td>
+                        <td className="px-2 py-2">
+                          <input
+                            type="checkbox"
+                            checked={row.gstOnFeeApplies}
+                            onChange={(e) =>
+                              setTaxRows((prev) =>
+                                prev.map((r) =>
+                                  r.id === row.id ? { ...r, gstOnFeeApplies: e.target.checked } : r,
+                                ),
+                              )
+                            }
+                          />
+                        </td>
+                        <td className="px-2 py-2">
+                          <input
+                            className="w-20 rounded-lg border px-2 py-1"
+                            style={{ borderColor: B.border }}
+                            value={row.gstOnFeePercent}
+                            onChange={(e) =>
+                              setTaxRows((prev) =>
+                                prev.map((r) =>
+                                  r.id === row.id ? { ...r, gstOnFeePercent: e.target.value } : r,
+                                ),
+                              )
+                            }
+                          />
+                        </td>
+                        <td className="px-2 py-2">
+                          <input
+                            type="checkbox"
+                            checked={row.isActive}
+                            onChange={(e) =>
+                              setTaxRows((prev) =>
+                                prev.map((r) => (r.id === row.id ? { ...r, isActive: e.target.checked } : r)),
+                              )
+                            }
+                          />
+                        </td>
+                        <td className="px-2 py-2 text-right">
+                          <button
+                            type="button"
+                            disabled={taxSavingId === row.id}
+                            onClick={() => void saveTaxRow(row)}
+                            className="rounded-lg px-3 py-1.5 text-xs font-bold text-white disabled:opacity-60"
+                            style={{ background: B.cta }}
+                          >
+                            {taxSavingId === row.id ? "Saving…" : "Save"}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ) : tab === "payouts" ? (
           <div className="space-y-4 rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
             <div className="flex flex-wrap items-end gap-3">
               <label className="block text-sm">
@@ -694,16 +868,33 @@ export default function CommissionSchemesPage() {
 
             {preview && (
               <div className="space-y-2 rounded-xl border p-3" style={{ borderColor: B.border }}>
+                {preview.tax ? (
+                  <p className="text-xs" style={{ color: B.muted }}>
+                    Tax: TDS {preview.tax.tdsApplies ? `${preview.tax.tdsPercent}%` : "off"}
+                    {preview.tax.gstOnFeeApplies
+                      ? ` · Fee GST ${preview.tax.gstOnFeePercent}%`
+                      : " · Fee GST off"}
+                  </p>
+                ) : null}
                 {preview.splits.map((s) => (
-                  <div key={s.role} className="flex items-center justify-between text-sm">
+                  <div key={s.role} className="flex items-center justify-between gap-2 text-sm">
                     <span style={{ color: B.muted }}>
                       {ROLE_LABEL[s.role]}
                       {s.matched
                         ? ` · ${s.ruleType === "flat" ? `₹${s.value}` : `${s.value}%`}`
                         : " · no rule"}
                     </span>
-                    <span className="font-semibold" style={{ color: B.blue }}>
-                      ₹{s.payout}
+                    <span className="text-right font-semibold" style={{ color: B.blue }}>
+                      {s.matched && s.gross != null ? (
+                        <>
+                          <span className="block text-[11px] font-medium" style={{ color: B.muted }}>
+                            Gross ₹{s.gross} · TDS ₹{s.tds ?? "0.00"}
+                          </span>
+                          Net ₹{s.net ?? s.payout}
+                        </>
+                      ) : (
+                        <>₹{s.payout}</>
+                      )}
                     </span>
                   </div>
                 ))}
@@ -711,7 +902,7 @@ export default function CommissionSchemesPage() {
                   className="mt-2 flex items-center justify-between border-t pt-2 text-sm font-bold"
                   style={{ borderColor: B.border, color: B.blue }}
                 >
-                  <span>Total payout</span>
+                  <span>Total net payout</span>
                   <span>₹{preview.totalPayout}</span>
                 </div>
               </div>

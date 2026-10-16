@@ -33,6 +33,8 @@ export const transactions = pgTable(
     providerTxnId: varchar("provider_txn_id", { length: 100 }),
     amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
     customerFee: numeric("customer_fee", { precision: 14, scale: 2 }).notNull().default("0"),
+    /** GST on customer fee (DMT etc.) — exclusive of customer_fee when gst_on_fee applies */
+    customerFeeGst: numeric("customer_fee_gst", { precision: 14, scale: 2 }).notNull().default("0"),
     status: transactionStatusEnum("status").notNull().default("initiated"),
     failureReason: text("failure_reason"),
     // Wallet debited/credited for this txn (main = Wallet 1, aeps = Wallet 2). Null on legacy rows.

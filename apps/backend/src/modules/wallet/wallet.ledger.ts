@@ -226,6 +226,7 @@ async function serviceJournalContext(
       providerName: providers.name,
       amount: transactions.amount,
       customerFee: transactions.customerFee,
+      customerFeeGst: transactions.customerFeeGst,
     })
     .from(transactions)
     .innerJoin(services, eq(services.id, transactions.serviceId))
@@ -269,12 +270,18 @@ async function serviceJournalContext(
   });
 
   const principal = rupeesToPaise(row.amount);
-  const fee = rupeesToPaise(row.customerFee ?? "0");
+  const feeOnly = rupeesToPaise(row.customerFee ?? "0");
+  const feeGst = rupeesToPaise(row.customerFeeGst ?? "0");
+  // Fee + GST posted together to COMMISSION_INCOME until a dedicated GST_OUTPUT account ships (TC13).
+  const fee = feeOnly + feeGst;
   if (principal <= 0n) {
     throw new HttpError(422, "Transaction amount must be positive", "INVALID_AMOUNT");
   }
-  if (fee < 0n) {
+  if (feeOnly < 0n) {
     throw new HttpError(422, "Customer fee cannot be negative", "INVALID_CUSTOMER_FEE");
+  }
+  if (feeGst < 0n) {
+    throw new HttpError(422, "Fee GST cannot be negative", "INVALID_CUSTOMER_FEE_GST");
   }
 
   return { txnType, floatCode, principal, fee };

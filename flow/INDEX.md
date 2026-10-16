@@ -25,5 +25,6 @@ Parent can also Collect (Wapas) ← child OTP + parent txn PIN
 | [08-agent-web.md](08-agent-web.md) | Agent web (:3001) |
 | [09-mobile.md](09-mobile.md) | Android agent app |
 | [10-services-retailer.md](10-services-retailer.md) | AEPS / DMT / BBPS notes |
+| [11-tax-commission.md](11-tax-commission.md) | Commission / TDS / GST layers + earnings UX |
 
 Also: [`AGENTS.md`](../AGENTS.md) · [`docs/TASKS/INDEX.md`](../docs/TASKS/INDEX.md) · [`LOGIN.md`](../LOGIN.md)

@@ -511,6 +511,28 @@ adminRouter.post("/commission/preview", async (req, res) => {
   sendSuccess(res, await previewCommissionSplit(body));
 });
 
+adminRouter.get("/commission/tax-config", async (_req, res) => {
+  const { listTaxConfigs } = await import("../commission/tax.service");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const tenantId = await resolveTenantId();
+  sendSuccess(res, await listTaxConfigs(tenantId));
+});
+
+adminRouter.patch("/commission/tax-config/:id", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { updateTaxConfig } = await import("../commission/tax.service");
+  const body = z
+    .object({
+      tdsApplies: z.boolean().optional(),
+      tdsPercent: z.string().min(1).max(20).optional(),
+      gstOnFeeApplies: z.boolean().optional(),
+      gstOnFeePercent: z.string().min(1).max(20).optional(),
+      isActive: z.boolean().optional(),
+    })
+    .parse(req.body);
+  sendSuccess(res, await updateTaxConfig(req.params.id, body), "Tax config updated");
+});
+
 adminRouter.get("/commission/payouts", async (req, res) => {
   const { listAdminCommissionPayouts } = await import("../commission/commission.service");
   const role =

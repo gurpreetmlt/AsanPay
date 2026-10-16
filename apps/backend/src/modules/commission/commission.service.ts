@@ -20,6 +20,7 @@ import { HttpError } from "../../utils/httpError";
 import { env } from "../../config/env";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import type { UserRole } from "@asanpay/shared-types";
+import { applyTdsToGrossPaise, resolveTaxForService } from "./tax.service";
 
 const SCHEME_ROLES = ["retailer", "distributor", "super_distributor"] as const;
 type SchemeRole = (typeof SCHEME_ROLES)[number];
@@ -107,6 +108,10 @@ export async function distributeCommissionForTxn(transactionId: string): Promise
   const now = new Date();
   const amountPaise = toPaise(txn.amount);
 
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const tenantId = await resolveTenantId();
+  const taxCfg = await resolveTaxForService(tenantId, txn.serviceId, now);
+
   for (const member of chain) {
     // Admin is the residual earner (whatever margin remains) — no explicit payout row.
     if (member.role === "admin" || !member.active) continue;
@@ -114,9 +119,13 @@ export async function distributeCommissionForTxn(transactionId: string): Promise
     const rule = await findActiveRule(txn.serviceId, txn.providerId, member.userId, member.role, txn.amount, now);
     if (!rule) continue;
 
-    const payoutPaise = computePayoutPaise(rule, amountPaise);
-    if (payoutPaise <= 0) continue;
-    const payout = fromPaise(payoutPaise);
+    const grossPaise = computePayoutPaise(rule, amountPaise);
+    if (grossPaise <= 0) continue;
+    const { netPaise, tdsPaise, tdsPercent, grossPaise: g } = applyTdsToGrossPaise(grossPaise, taxCfg);
+    if (netPaise <= 0) continue;
+    const gross = fromPaise(g);
+    const net = fromPaise(netPaise);
+    const tds = fromPaise(tdsPaise);
 
     const [beneWallet] = await db
       .select({ id: wallets.id })
@@ -128,15 +137,19 @@ export async function distributeCommissionForTxn(transactionId: string): Promise
       // Transfer + ledger insert share one tx: if a concurrent distribution already paid this
       // (transaction, beneficiary), the unique constraint makes the insert throw and the whole
       // tx — including the money transfer — rolls back. No double payout.
+      // Wallet credit = net after TDS (gross held as company TDS payable — books later).
       await db.transaction(async (tx) => {
         const { groupId } = await transferBetweenWallets(
           {
             fromWalletId: systemWallet.id,
             toWalletId: beneWallet.id,
-            amount: payout,
+            amount: net,
             referenceType: "commission",
             referenceId: txn.id,
-            description: `Commission ${txn.txnRef} (${member.role})`,
+            description:
+              tdsPaise > 0
+                ? `Commission ${txn.txnRef} (${member.role}) net after TDS`
+                : `Commission ${txn.txnRef} (${member.role})`,
           },
           tx,
         );
@@ -144,13 +157,16 @@ export async function distributeCommissionForTxn(transactionId: string): Promise
           transactionId: txn.id,
           beneficiaryUserId: member.userId,
           role: member.role,
-          amount: payout,
+          amount: net,
+          grossAmount: gross,
+          tdsAmount: tds,
+          tdsPercent: tdsPaise > 0 ? tdsPercent : null,
           ledgerGroupId: groupId,
         });
       });
       notifyCommissionCredit({
         userId: member.userId,
-        amount: payout,
+        amount: net,
         txnRef: txn.txnRef,
       });
     } catch (err) {
@@ -584,37 +600,64 @@ export async function previewCommissionSplit(input: {
   const now = new Date();
   const providerId = input.providerId || null;
 
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const taxCfg = await resolveTaxForService(await resolveTenantId(), input.serviceId, now);
+
   const splits: Array<{
     role: SchemeRole;
     ruleId: string | null;
     ruleType: RuleType | null;
     value: string | null;
     payout: string;
+    gross: string;
+    tds: string;
+    net: string;
     matched: boolean;
   }> = [];
 
   for (const role of SCHEME_ROLES) {
     const rule = await findRoleDefaultRule(input.serviceId, providerId, role, amount, now);
     if (!rule) {
-      splits.push({ role, ruleId: null, ruleType: null, value: null, payout: "0.00", matched: false });
+      splits.push({
+        role,
+        ruleId: null,
+        ruleType: null,
+        value: null,
+        payout: "0.00",
+        gross: "0.00",
+        tds: "0.00",
+        net: "0.00",
+        matched: false,
+      });
       continue;
     }
-    const payoutPaise = computePayoutPaise(rule, amountPaise);
+    const grossPaise = computePayoutPaise(rule, amountPaise);
+    const { netPaise, tdsPaise, grossPaise: g } = applyTdsToGrossPaise(Math.max(0, grossPaise), taxCfg);
+    const net = fromPaise(netPaise);
     splits.push({
       role,
       ruleId: rule.id,
       ruleType: rule.ruleType,
       value: String(rule.value),
-      payout: fromPaise(Math.max(0, payoutPaise)),
+      payout: net,
+      gross: fromPaise(g),
+      tds: fromPaise(tdsPaise),
+      net,
       matched: true,
     });
   }
 
-  const totalPaise = splits.reduce((sum, s) => sum + toPaise(s.payout), 0);
+  const totalPaise = splits.reduce((sum, s) => sum + toPaise(s.net), 0);
   return {
     serviceId: input.serviceId,
     providerId,
     amount,
+    tax: {
+      tdsApplies: taxCfg.tdsApplies,
+      tdsPercent: taxCfg.tdsPercent,
+      gstOnFeeApplies: taxCfg.gstOnFeeApplies,
+      gstOnFeePercent: taxCfg.gstOnFeePercent,
+    },
     splits,
     totalPayout: fromPaise(totalPaise),
   };

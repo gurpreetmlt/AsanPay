@@ -14,6 +14,7 @@ import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import type { UserRole, WalletType } from "@asanpay/shared-types";
 import { resolveCustomerFee } from "../service-charges/serviceCharge.service";
 import { evaluateVelocitySpike, effectiveDailyLimit } from "../limits/velocity.service";
+import { computeFeeGstRupees, resolveTaxForService } from "../commission/tax.service";
 
 type Actor = { id: string; role: UserRole };
 type TxnRow = typeof transactions.$inferSelect;
@@ -44,11 +45,17 @@ export interface ExecuteTxnInput {
   invoke: (routed: RoutedProvider, txnRef: string) => Promise<ProviderResult>;
 }
 
-/** Wallet charge for a debit: principal + customer fee (rupees). */
-function serviceChargeTotal(principal: string, customerFee?: string | null): string {
+/** Wallet charge for a debit: principal + customer fee + GST on fee (rupees). */
+function serviceChargeTotal(
+  principal: string,
+  customerFee?: string | null,
+  customerFeeGst?: string | null,
+): string {
   const feePaise = customerFee ? toPaise(customerFee) : 0;
+  const gstPaise = customerFeeGst ? toPaise(customerFeeGst) : 0;
   if (feePaise < 0) throw new HttpError(422, "Customer fee cannot be negative", "INVALID_CUSTOMER_FEE");
-  return fromPaise(toPaise(principal) + feePaise);
+  if (gstPaise < 0) throw new HttpError(422, "Fee GST cannot be negative", "INVALID_CUSTOMER_FEE_GST");
+  return fromPaise(toPaise(principal) + feePaise + gstPaise);
 }
 
 export interface TxnOutcome {
@@ -244,11 +251,18 @@ export async function executeServiceTxn(input: ExecuteTxnInput): Promise<TxnOutc
   if (!actorRow?.uid) {
     throw new HttpError(404, "User not found", "USER_NOT_FOUND");
   }
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const taxCfg = await resolveTaxForService(await resolveTenantId(), service.id, new Date());
+  const feeGstNormalized =
+    direction === "debit" && Number(feeNormalized) > 0
+      ? computeFeeGstRupees(feeNormalized, taxCfg)
+      : "0.00";
+
   const txnRef = generateTxnRef(actorRow.uid);
   const needsMoney = direction !== "none" && amount != null;
   const debitTotal =
     needsMoney && direction === "debit" && amount != null
-      ? serviceChargeTotal(amount, feeNormalized)
+      ? serviceChargeTotal(amount, feeNormalized, feeGstNormalized)
       : amount;
   const systemWallet = needsMoney ? await getSystemWallet() : null;
   const userWallet = needsMoney ? await getUserWallet(actor.id, walletType) : null;
@@ -277,6 +291,7 @@ export async function executeServiceTxn(input: ExecuteTxnInput): Promise<TxnOutc
           providerId: routed.providerId,
           amount: amount ?? "0",
           customerFee: feeNormalized,
+          customerFeeGst: feeGstNormalized,
           status: "initiated",
           walletType,
           metadata,
@@ -378,7 +393,7 @@ async function finalizeTxn(txn: TxnRow, result: ProviderResult, ctx: FinalizeCon
 
     const lockedDebitHeld =
       needsMoney && ctx.direction === "debit"
-        ? serviceChargeTotal(locked.amount, locked.customerFee)
+        ? serviceChargeTotal(locked.amount, locked.customerFee, locked.customerFeeGst)
         : locked.amount;
 
     if (result.status === "success") {
