@@ -12,7 +12,7 @@ import {
 import { tenants } from "./tenants";
 import { users } from "./users";
 
-/** Admin marks a business day closed after upload → recon → resolve. Soft close (TB07); hard lock is TB15. */
+/** Admin marks a business day closed after upload → recon → resolve. Close also locks per-bank balances (TB15). */
 export const treasuryDailyCloses = pgTable(
   "treasury_daily_closes",
   {

@@ -449,6 +449,13 @@
       "when": 1791400000000,
       "tag": "0063_treasury_daily_closes",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1791500000000,
+      "tag": "0064_bank_daily_balance_locks",
+      "breakpoints": true
     }
   ]
 }

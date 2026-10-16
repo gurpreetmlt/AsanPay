@@ -225,6 +225,8 @@ export async function deleteStatementLine(params: {
   adminId?: string;
   reason?: string;
 }): Promise<void> {
+  const { assertStatementLinesNotLocked } = await import("./balanceLock.service");
+  await assertStatementLinesNotLocked({ tenantId: params.tenantId, lineIds: [params.lineId] });
   const [line] = await db
     .select({
       id: bankStatementLines.id,
@@ -332,6 +334,12 @@ export async function importStatementLines(params: {
 }): Promise<{ imported: number; skipped: number }> {
   const { tenantId, bankAccountId, lines } = params;
   if (lines.length === 0) return { imported: 0, skipped: 0 };
+  const { assertBankDatesNotLocked } = await import("./balanceLock.service");
+  await assertBankDatesNotLocked({
+    tenantId,
+    bankAccountId,
+    dates: lines.map((l) => l.txnDate),
+  });
 
   const values = lines.map((line) => ({
     tenantId,

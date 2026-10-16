@@ -550,13 +550,22 @@ bankingRouter.post("/daily-summary/send", requireRole("admin"), async (req, res)
   sendSuccess(res, result, bits.length ? bits.join(" · ") : "Summary ready");
 });
 
-/** Daily close checklist — Upload → Reconcile → Resolve → Close. */
+/** Daily close checklist — Upload → Reconcile → Resolve → Close (+ balance lock). */
 bankingRouter.get("/daily-close", requireRole("admin"), async (req, res) => {
   const tenantId = await resolveTenantId();
   const istToday = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
   const date = typeof req.query.date === "string" && req.query.date ? req.query.date : istToday;
   const { getDailyCloseStatus } = await import("./dailyClose.service");
   sendSuccess(res, await getDailyCloseStatus({ tenantId, date }));
+});
+
+/** Mid-day opening/closing drift per bank (same payload as daily-close.balances). */
+bankingRouter.get("/balance-drift", requireRole("admin"), async (req, res) => {
+  const tenantId = await resolveTenantId();
+  const istToday = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+  const date = typeof req.query.date === "string" && req.query.date ? req.query.date : istToday;
+  const { listBankDayBalances } = await import("./balanceLock.service");
+  sendSuccess(res, { date, banks: await listBankDayBalances({ tenantId, date }) });
 });
 
 bankingRouter.post("/daily-close", requireRole("admin"), async (req, res) => {

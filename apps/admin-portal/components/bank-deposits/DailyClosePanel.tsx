@@ -26,6 +26,21 @@ interface DailyCloseBank {
   uploaded: boolean;
 }
 
+interface BankDayBalance {
+  bankAccountId: string;
+  bankName: string;
+  last4: string;
+  uploaded: boolean;
+  locked: boolean;
+  lockedAt: string | null;
+  statementOpening: string | null;
+  statementClosing: string | null;
+  booksOpening: string;
+  booksClosing: string;
+  drift: string | null;
+  status: "ok" | "drift" | "missing_statement" | "locked";
+}
+
 interface DailyCloseStatus {
   date: string;
   closed: boolean;
@@ -34,6 +49,7 @@ interface DailyCloseStatus {
   note: string | null;
   canClose: boolean;
   banks: DailyCloseBank[];
+  balances: BankDayBalance[];
   steps: DailyCloseStep[];
 }
 
@@ -100,8 +116,31 @@ function buildSummaryReport(summary: DailySummary, generatedBy: string): Branded
       { text: l.label },
       { text: l.value, align: "right" },
     ]),
-    footerNote: "Bank statement CR/DR is separate from API float In/Out. Soft daily close does not lock balances.",
+    footerNote:
+      "Bank statement CR/DR is separate from API float In/Out. Closing the day locks each bank's opening and closing balances.",
   };
+}
+
+function formatInr(v: string | null | undefined): string {
+  if (v == null || v === "") return "—";
+  const n = Number(v);
+  if (!Number.isFinite(n)) return `₹${v}`;
+  return `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function driftLabel(b: BankDayBalance): { text: string; color: string; bg: string } {
+  if (b.status === "locked") return { text: "Locked", color: "#15803D", bg: "#DCFCE7" };
+  if (b.status === "missing_statement") return { text: "No statement", color: "#B45309", bg: "#FEF3C7" };
+  if (b.status === "drift") {
+    const n = Number(b.drift);
+    const sign = n > 0 ? "+" : "";
+    return {
+      text: `Drift ${sign}${formatInr(b.drift)}`,
+      color: "#B91C1C",
+      bg: "#FEE2E2",
+    };
+  }
+  return { text: "Matched", color: "#15803D", bg: "#DCFCE7" };
 }
 
 function downloadSummaryCsv(summary: DailySummary) {
@@ -213,7 +252,7 @@ export function DailyClosePanel() {
             Daily close
           </h2>
           <p className="mt-0.5 text-sm" style={{ color: B.muted }}>
-            Walk through Upload → Reconcile → Resolve → Close for one business day
+            Upload → Reconcile → Resolve → Close. Closing locks each bank&apos;s opening and closing for the day.
           </p>
         </div>
         <label className="block text-sm">
@@ -251,8 +290,8 @@ export function DailyClosePanel() {
                 {status.closed
                   ? `Closed${status.closedByName ? ` by ${status.closedByName}` : ""}${
                       status.closedAt ? ` · ${new Date(status.closedAt).toLocaleString("en-IN")}` : ""
-                    }`
-                  : "Soft close records the day as done. Balance lock comes later."}
+                    } · Balances locked`
+                  : "Closing locks opening/closing per bank. Mid-day drift shows statement vs books until then."}
               </p>
               {status.note ? (
                 <p className="mt-1 text-xs" style={{ color: B.muted }}>
@@ -314,32 +353,62 @@ export function DailyClosePanel() {
             ))}
           </ol>
 
-          {status.banks.length > 0 ? (
+          {(status.balances?.length ? status.balances : status.banks).length > 0 ? (
             <div className="rounded-2xl border p-4" style={{ borderColor: B.border }}>
-              <p className="mb-2 text-xs font-bold uppercase tracking-wide" style={{ color: B.muted }}>
-                Banks for this date
+              <p className="mb-1 text-xs font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+                Opening / closing · mid-day drift
               </p>
-              <ul className="grid gap-2 sm:grid-cols-2">
-                {status.banks.map((b) => (
-                  <li
-                    key={b.id}
-                    className="flex items-center justify-between rounded-xl border px-3 py-2 text-sm"
-                    style={{ borderColor: B.border }}
-                  >
-                    <span className="font-semibold" style={{ color: B.blue }}>
-                      {b.bankName} ••{b.last4}
-                    </span>
-                    <span
-                      className="rounded-full px-2 py-0.5 text-[11px] font-bold"
-                      style={{
-                        color: b.uploaded ? "#15803D" : "#B45309",
-                        background: b.uploaded ? "#DCFCE7" : "#FEF3C7",
-                      }}
+              <p className="mb-3 text-xs" style={{ color: B.muted }}>
+                Drift = statement closing − books closing. After close, amounts are frozen until you reopen.
+              </p>
+              <ul className="space-y-2">
+                {(status.balances?.length
+                  ? status.balances
+                  : status.banks.map((b) => ({
+                      bankAccountId: b.id,
+                      bankName: b.bankName,
+                      last4: b.last4,
+                      uploaded: b.uploaded,
+                      locked: false,
+                      lockedAt: null,
+                      statementOpening: null,
+                      statementClosing: null,
+                      booksOpening: "0.00",
+                      booksClosing: "0.00",
+                      drift: null,
+                      status: b.uploaded ? ("ok" as const) : ("missing_statement" as const),
+                    }))
+                ).map((b) => {
+                  const pill = driftLabel(b);
+                  return (
+                    <li
+                      key={b.bankAccountId}
+                      className="rounded-xl border px-3 py-3 text-sm"
+                      style={{ borderColor: B.border }}
                     >
-                      {b.uploaded ? "Uploaded" : "Missing"}
-                    </span>
-                  </li>
-                ))}
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-semibold" style={{ color: B.blue }}>
+                          {b.bankName} ••{b.last4}
+                        </span>
+                        <span
+                          className="rounded-full px-2 py-0.5 text-[11px] font-bold"
+                          style={{ color: pill.color, background: pill.bg }}
+                        >
+                          {pill.text}
+                        </span>
+                      </div>
+                      <div className="mt-2 grid gap-1 text-xs sm:grid-cols-2" style={{ color: B.muted }}>
+                        <p>
+                          Statement open {formatInr(b.statementOpening)} · close{" "}
+                          {formatInr(b.statementClosing)}
+                        </p>
+                        <p>
+                          Books open {formatInr(b.booksOpening)} · close {formatInr(b.booksClosing)}
+                        </p>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           ) : null}
@@ -368,13 +437,17 @@ export function DailyClosePanel() {
                 style={{ background: status.canClose ? B.badgeGrad : "#94A3B8" }}
               >
                 <Lock size={15} />
-                {busy ? "Closing…" : "Close this day"}
+                {busy ? "Closing…" : "Close & lock balances"}
               </button>
               {!status.canClose ? (
                 <p className="text-xs" style={{ color: B.muted }}>
                   Complete every blocking step above before closing.
                 </p>
-              ) : null}
+              ) : (
+                <p className="text-xs" style={{ color: B.muted }}>
+                  After close, statement import and match changes for this date are blocked until you reopen.
+                </p>
+              )}
             </div>
           ) : null}
 

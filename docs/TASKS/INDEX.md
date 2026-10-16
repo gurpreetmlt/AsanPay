@@ -56,7 +56,7 @@
 | 16 | Txn PIN modal | S | [16-mobile-txn-pin.md](16-mobile-txn-pin.md) |
 
 ## Treasury & Balance ease (ordered)
-Queue: [treasury-balance-ease-queue.md](treasury-balance-ease-queue.md) — **CURRENT = TB15 Opening/closing lock**
+Queue: [treasury-balance-ease-queue.md](treasury-balance-ease-queue.md) — **CURRENT = TB16 Rules engine**
 
 ## Wallet engine pending (ordered)
 Queue: [wallet-engine-queue.md](wallet-engine-queue.md) (MVP 27A–27D done)

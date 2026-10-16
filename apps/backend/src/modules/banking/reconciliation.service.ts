@@ -407,6 +407,8 @@ export async function linkStatementLine(params: {
   journalId: bigint;
   adminId: string;
 }): Promise<void> {
+  const { assertStatementLinesNotLocked } = await import("./balanceLock.service");
+  await assertStatementLinesNotLocked({ tenantId: params.tenantId, lineIds: [params.lineId] });
   const res = await db.execute<{ reason: string | null }>(sql`
     WITH line AS (
       SELECT l.id, l.direction, l.amount, l.match_status, l.matched_to_id, ba.ledger_account_id
@@ -470,6 +472,8 @@ export async function unlinkStatementLine(params: {
   lineId: bigint;
   adminId: string;
 }): Promise<void> {
+  const { assertStatementLinesNotLocked } = await import("./balanceLock.service");
+  await assertStatementLinesNotLocked({ tenantId: params.tenantId, lineIds: [params.lineId] });
   const res = await db.execute(sql`
     UPDATE bank_statement_lines
     SET match_status = 'unmatched', matched_to_type = NULL, matched_to_id = NULL
@@ -501,6 +505,8 @@ export async function ignoreStatementLines(params: {
   adminId: string;
 }): Promise<{ ignored: number }> {
   if (!params.lineIds.length) return { ignored: 0 };
+  const { assertStatementLinesNotLocked } = await import("./balanceLock.service");
+  await assertStatementLinesNotLocked({ tenantId: params.tenantId, lineIds: params.lineIds });
   const ids = sql.join(
     params.lineIds.map((id) => sql`${id}::bigint`),
     sql`, `,
@@ -537,6 +543,8 @@ export async function unignoreStatementLine(params: {
   lineId: bigint;
   adminId: string;
 }): Promise<void> {
+  const { assertStatementLinesNotLocked } = await import("./balanceLock.service");
+  await assertStatementLinesNotLocked({ tenantId: params.tenantId, lineIds: [params.lineId] });
   const res = await db.execute(sql`
     UPDATE bank_statement_lines
     SET match_status = 'unmatched'

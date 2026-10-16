@@ -3,6 +3,12 @@ import { db } from "../../db/postgres";
 import { treasuryDailyCloses } from "../../db/postgres/schema";
 import { HttpError } from "../../utils/httpError";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
+import {
+  listBankDayBalances,
+  lockBalancesForDay,
+  unlockBalancesForDay,
+  type BankDayBalance,
+} from "./balanceLock.service";
 
 export type DailyCloseStepId = "upload" | "recon" | "resolve" | "close";
 
@@ -31,6 +37,8 @@ export interface DailyCloseStatus {
   note: string | null;
   canClose: boolean;
   banks: DailyCloseBankStatus[];
+  /** Per-bank opening/closing + mid-day drift (TB15). Locked rows after close. */
+  balances: BankDayBalance[];
   steps: DailyCloseStep[];
 }
 
@@ -44,7 +52,7 @@ function assertDate(raw: string): string {
 
 /**
  * Live checklist for one business day: Upload → Reconcile → Resolve → Close.
- * Close is a soft record (TB07). Hard balance lock is TB15.
+ * Close also locks per-bank opening/closing balances (TB15).
  */
 export async function getDailyCloseStatus(params: {
   tenantId: string;
@@ -175,9 +183,9 @@ export async function getDailyCloseStatus(params: {
       id: "close",
       title: "Close the day",
       detail: closed
-        ? `Closed${closed.closed_by_name ? ` by ${closed.closed_by_name}` : ""}. Soft close — balance lock is a later step.`
+        ? `Closed${closed.closed_by_name ? ` by ${closed.closed_by_name}` : ""}. Opening and closing balances are locked per bank.`
         : uploadDone && reconDone && resolveDone
-          ? "All checks passed. You can close this business day."
+          ? "All checks passed. Closing locks each bank's opening and closing balances for this date."
           : "Finish the steps above before closing.",
       done: !!closed,
       blocking: false,
@@ -185,6 +193,8 @@ export async function getDailyCloseStatus(params: {
       href: null,
     },
   ];
+
+  const balances = await listBankDayBalances({ tenantId: params.tenantId, date });
 
   return {
     date,
@@ -194,6 +204,7 @@ export async function getDailyCloseStatus(params: {
     note: closed?.note ?? null,
     canClose: !closed && uploadDone && reconDone && resolveDone,
     banks: bankRows,
+    balances,
     steps,
   };
 }
@@ -219,6 +230,7 @@ export async function closeBusinessDay(params: {
 
   const snapshot = {
     banks: status.banks,
+    balances: status.balances,
     steps: status.steps.map((s) => ({ id: s.id, done: s.done, count: s.count, detail: s.detail })),
   };
 
@@ -230,6 +242,12 @@ export async function closeBusinessDay(params: {
     snapshot,
   });
 
+  const lockedBanks = await lockBalancesForDay({
+    tenantId: params.tenantId,
+    date: status.date,
+    adminId: params.adminId,
+  });
+
   await insertAuditLog({
     userId: params.adminId,
     action: "admin.treasury_daily_close",
@@ -237,7 +255,8 @@ export async function closeBusinessDay(params: {
     entityId: status.date,
     metadata: {
       date: status.date,
-      why: params.note?.trim() || `Soft-closed business day ${status.date}`,
+      lockedBanks,
+      why: params.note?.trim() || `Closed business day ${status.date} and locked per-bank balances`,
     },
   });
 
@@ -257,12 +276,17 @@ export async function reopenBusinessDay(params: {
   if (!deleted.length) {
     throw new HttpError(404, "This business day is not closed", "DAY_NOT_CLOSED");
   }
+  const unlockedBanks = await unlockBalancesForDay({ tenantId: params.tenantId, date });
   await insertAuditLog({
     userId: params.adminId,
     action: "admin.treasury_daily_reopen",
     entityType: "treasury_daily_close",
     entityId: date,
-    metadata: { date, why: `Reopened soft-closed business day ${date}` },
+    metadata: {
+      date,
+      unlockedBanks,
+      why: `Reopened business day ${date} and unlocked per-bank balances`,
+    },
   });
   return getDailyCloseStatus({ tenantId: params.tenantId, date });
 }

@@ -22,8 +22,8 @@
 | **TB12** | Bulk resolve unmatched (ignore / entry / link) | M | done | Bulk bank entry exists — extend |
 | **TB13** | Role views (admin full; agent own deposits only) | M | done | Agent portal + API gate |
 | **TB14** | Audit trail (who match/unmatch/delete, when, why) | M | done | Timeline UI |
-| **TB15** | Opening / closing balance lock + mid-day drift | L | **CURRENT** | Per bank per day |
-| TB16 | Rules engine (UTR prefix → category) | L | pending | Admin-configurable |
+| **TB15** | Opening / closing balance lock + mid-day drift | L | done | Per bank per day · `bank_daily_balance_locks` |
+| **TB16** | Rules engine (UTR prefix → category) | L | **CURRENT** | Admin-configurable |
 | TB17 | Search everywhere (UTR / amount / agent / mobile) | M | pending | Treasury global search |
 | TB18 | Mobile-friendly recon (admin light or owner) | L | pending | Platform exception OK if admin-web only first |
 | TB19 | Sandbox vs live / Test entries hardened | S | partial | Test flag exists — visual harden |
@@ -54,6 +54,7 @@
 | TB12 | Reconciliation → select rows | Bulk bar | Select In bank only / Likely match → Ignore · Confirm matches · Create entries. Per-row Ignore + Restore. `POST /banking/reconciliation/ignore` · `unignore`. |
 | TB13 | Admin Fund requests vs Agent Add Money | Own vs all | Admin = tenant-wide. Agent list/get scoped to requester. Agents only `GET /banking/accounts?purpose=collection`. UI: My deposits + status filters (web + mobile). |
 | TB14 | Bank & deposits → Audit trail | Timeline | Match / undo / ignore / delete / day close·reopen. `GET /banking/audit`. Why on events; optional reason on Remove. |
+| TB15 | Daily close → Opening/closing · mid-day drift | Per bank rows + lock | Live drift = statement close − books close. Close locks snapshot; import/match blocked (`DAY_BALANCE_LOCKED`). Reopen unlocks. `GET /banking/balance-drift`. Migration `0064`. |
 | … | | | |
 
 ## Prompt for next chat
