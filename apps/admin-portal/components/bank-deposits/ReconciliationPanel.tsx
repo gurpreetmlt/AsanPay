@@ -395,7 +395,7 @@ function BankCheckBox({
 }) {
   if (verifying)
     return (
-      <p className="text-sm" style={{ color: B.muted }}>
+      <p className="recon-verify-in text-sm" style={{ color: B.muted }}>
         Verifying the statement belongs to the selected bank…
       </p>
     );
@@ -403,7 +403,10 @@ function BankCheckBox({
   const s = VERDICT_STYLE[check.verdict];
   const Icon = check.verdict === "verified" ? CheckCircle2 : check.verdict === "blocked" ? XCircle : AlertTriangle;
   return (
-    <div className="panel-fade-in space-y-2 rounded-xl border p-3 text-sm" style={{ background: s.bg, borderColor: s.border }}>
+    <div
+      className="recon-verify-in space-y-2 rounded-xl border p-3 text-sm"
+      style={{ background: s.bg, borderColor: s.border }}
+    >
       <p className="flex items-start gap-2 font-semibold" style={{ color: s.color }}>
         <Icon size={16} className="mt-0.5 shrink-0" /> {check.message}
       </p>
@@ -880,7 +883,10 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
           ) : null}
 
           {parsed && parsed.lines.length > 0 && previewTotals ? (
-            <div className="space-y-3 rounded-xl border p-4" style={{ borderColor: B.border, background: "#F8FAFF" }}>
+            <div
+              className="recon-preview-in space-y-3 rounded-xl border p-4"
+              style={{ borderColor: B.border, background: "#F8FAFF" }}
+            >
               <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm" style={{ color: B.blue }}>
                 <span>
                   <b>{parsed.lines.length}</b> transactions
