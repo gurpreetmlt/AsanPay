@@ -63,6 +63,8 @@ const QUICK_ROUTES = [
   { q: "commission", href: "/tax-commission", label: "Tax & Commission" },
   { q: "tds", href: "/tax-commission/registers", label: "Tax registers" },
   { q: "schemes", href: "/tax-commission/schemes", label: "Commission schemes" },
+  { q: "what-if", href: "/tax-commission/what-if", label: "What-if calculator" },
+  { q: "calculator", href: "/tax-commission/what-if", label: "What-if calculator" },
   { q: "service charge", href: "/service-charges", label: "Service charges" },
   { q: "customer fee", href: "/service-charges", label: "Service charges" },
   { q: "site", href: "/site-control", label: "Service Badges" },

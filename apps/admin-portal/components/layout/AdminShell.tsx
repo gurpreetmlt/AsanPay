@@ -98,6 +98,11 @@ const TAX_COMMISSION: NavItem[] = [
       },
       { href: "/tax-commission/payouts", label: "Payouts", icon: { lib: "lucide", icon: ScrollText } },
       {
+        href: "/tax-commission/what-if",
+        label: "What-if",
+        icon: { lib: "lucide", icon: Calculator },
+      },
+      {
         href: "/tax-commission/underwater",
         label: "Underwater",
         icon: { lib: "lucide", icon: AlertTriangle },

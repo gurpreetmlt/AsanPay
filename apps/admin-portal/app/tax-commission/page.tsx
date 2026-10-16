@@ -120,6 +120,12 @@ export default function TaxCommissionOverviewPage() {
       icon: ScrollText,
     },
     {
+      href: "/tax-commission/what-if",
+      label: "What-if",
+      hint: "Gross / TDS / Net by role",
+      icon: Calculator,
+    },
+    {
       href: "/tax-commission/underwater",
       label: "Underwater",
       hint: "Scheme vs provider pool",
