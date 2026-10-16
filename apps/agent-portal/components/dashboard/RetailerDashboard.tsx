@@ -114,7 +114,6 @@ export function RetailerDashboard() {
   const [recent, setRecent] = useState<TxnRow[]>([]);
   const [stats, setStats] = useState<RetailerStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [hasActiveBank, setHasActiveBank] = useState(true);
   const balanceVisible = useBalanceVisibility((s) => s.visible);
 
   useEffect(() => {
@@ -140,22 +139,6 @@ export function RetailerDashboard() {
     return () => { alive = false; };
   }, []);
 
-  useEffect(() => {
-    let alive = true;
-    void (async () => {
-      try {
-        const banks = await fetchApi<{ isActive: boolean; verified: boolean }[]>("/settlements/banks");
-        if (!alive) return;
-        setHasActiveBank(banks.some((b) => b.verified && b.isActive));
-      } catch {
-        if (alive) setHasActiveBank(true);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, []);
-
   const orderedWallets = [...wallets].sort((a, b) => {
     if (a.walletType === "main") return -1;
     if (b.walletType === "main") return 1;
@@ -173,13 +156,6 @@ export function RetailerDashboard() {
   const todayEarn = stats?.today.commissionEarned ?? "0";
 
   const fundOn = user ? isFundRequestEnabled(user.role, user.fundRequestEnabled) : false;
-  const doNext: { id: string; label: string; href: string }[] = [];
-  if (!loading) {
-    if (!kycDone) doNext.push({ id: "kyc", label: "Complete KYC", href: "/settings?tab=profile" });
-    if (!hasActiveBank) doNext.push({ id: "bank", label: "Add settlement bank", href: "/settings?tab=banks" });
-    if (fundOn && mainBal < 500) doNext.push({ id: "money", label: "Add Money", href: "/fund-request" });
-    if (user && !user.hasLoginMpin) doNext.push({ id: "mpin", label: "Set login MPIN", href: "/settings?tab=security" });
-  }
 
   function shareReceipt(t: TxnRow) {
     const lines = [
@@ -221,30 +197,6 @@ export function RetailerDashboard() {
 
   return (
     <div className="dash-page-stagger space-y-4">
-      {doNext.length > 0 ? (
-        <div
-          className="rounded-2xl border px-4 py-3"
-          style={{ borderColor: B.border, background: "#fff" }}
-        >
-          <p className="mb-2 text-xs font-bold uppercase tracking-wide" style={{ color: B.muted }}>
-            Do next
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {doNext.map((step) => (
-              <button
-                key={step.id}
-                type="button"
-                onClick={() => router.push(step.href)}
-                className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold transition hover:opacity-90"
-                style={{ borderColor: B.border, color: B.blue, background: B.secondary }}
-              >
-                {step.label}
-                <ChevronRight size={14} />
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
       <TodayEarningsChip
         net={todayEarn}
         gross={stats?.todayCommissionGross ?? stats?.today.commissionGross}
@@ -284,10 +236,10 @@ export function RetailerDashboard() {
           </PrimaryButton>
         </div>
       ) : null}
-      <div className="dash-stagger grid grid-cols-1 items-start gap-3 md:grid-cols-2 lg:grid-cols-4">
+      <div className="dash-stagger grid grid-cols-1 items-stretch gap-3 md:grid-cols-2 lg:grid-cols-4">
         {/* Main Wallet */}
         <div
-          className="dash-card-hover relative overflow-hidden rounded-2xl p-3.5 text-white"
+          className="dash-card-hover relative flex h-full min-h-[108px] flex-col overflow-hidden rounded-2xl p-3.5 text-white"
           style={{ background: role.gradient, boxShadow: `0 2px 10px ${role.color}22` }}
         >
           <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white opacity-10" />
@@ -298,12 +250,16 @@ export function RetailerDashboard() {
           <div className="mb-2.5 text-2xl font-bold leading-none tracking-tight">
             {loading ? "…" : maskBalance(balanceVisible, formatInr(primary?.balance ?? "0"))}
           </div>
+          <div className="mt-auto flex min-h-[28px] items-center gap-1.5 border-t border-white/15 pt-2">
+            <Activity size={11} className="text-white/80" />
+            <span className="text-[11px] text-white/90">Ready to use</span>
+          </div>
         </div>
 
         {/* AEPS Wallet */}
         {secondary && (
           <div
-            className="dash-card-hover relative overflow-hidden rounded-2xl p-3.5 text-white"
+            className="dash-card-hover relative flex h-full min-h-[108px] flex-col overflow-hidden rounded-2xl p-3.5 text-white"
             style={{ background: B.green, boxShadow: `0 2px 10px ${B.green}22` }}
           >
             <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white opacity-10" />
@@ -314,7 +270,7 @@ export function RetailerDashboard() {
             <div className="mb-2.5 text-2xl font-bold leading-none tracking-tight">
               {loading ? "…" : maskBalance(balanceVisible, formatInr(secondary.balance))}
             </div>
-            <div className="flex items-center gap-1.5 border-t border-white/15 pt-2">
+            <div className="mt-auto flex min-h-[28px] items-center gap-1.5 border-t border-white/15 pt-2">
               <Activity size={11} className="text-white/80" />
               <span className="text-[11px] text-white/90">
                 Pending: {balanceVisible ? formatInr(totalPending) : "••••"}
@@ -577,13 +533,13 @@ function StatCard({ icon, label, value, sub, accent }: {
   icon: React.ReactNode; label: string; value: string; sub: string; accent: string;
 }) {
   return (
-    <div className="ui-card dash-card-hover p-3.5">
+    <div className="ui-card dash-card-hover flex h-full min-h-[108px] flex-col p-3.5">
       <div className="mb-1 flex items-center gap-2">
         <span style={{ color: accent }}>{icon}</span>
         <span className="text-[11px] font-medium uppercase tracking-wider" style={{ color: B.muted }}>{label}</span>
       </div>
       <div className="text-xl font-bold leading-tight" style={{ color: B.blue }}>{value}</div>
-      <div className="mt-0.5 text-[11px] font-medium" style={{ color: B.muted }}>{sub}</div>
+      <div className="mt-auto pt-2 text-[11px] font-medium" style={{ color: B.muted }}>{sub}</div>
     </div>
   );
 }
