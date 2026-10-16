@@ -418,6 +418,17 @@ bankingRouter.post(
   },
 );
 
+/** Unified Bank / Agent / API activity for the admin Bank & deposits → Activity tab. */
+bankingRouter.get("/activity", requireRole("admin"), async (req, res) => {
+  const tenantId = await resolveTenantId();
+  const raw = typeof req.query.channel === "string" ? req.query.channel : "all";
+  const channel =
+    raw === "bank" || raw === "agent" || raw === "api" || raw === "all" ? raw : "all";
+  const limit = Math.min(Number(req.query.limit) || 40, 100);
+  const { listTreasuryActivity } = await import("./activity.service");
+  sendSuccess(res, await listTreasuryActivity({ tenantId, channel, limit }));
+});
+
 /** Headline numbers for the admin "Bank & deposits" page. */
 bankingRouter.get("/summary", requireRole("admin"), async (_req, res) => {
   const tenantId = await resolveTenantId();

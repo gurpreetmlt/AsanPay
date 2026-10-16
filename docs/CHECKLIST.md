@@ -84,6 +84,7 @@
 - [x] **Cash picture** (TB01): Bank & deposits top strip — Bank (latest statement `balance_after`) / Books (ledger for those banks) / Difference / Pending (unmatched credit amount). `GET /banking/summary` `cashPicture`. No reconcile run, no migration.
 - [x] **Recon status labels** (TB02): plain English — Needs review / Likely match / Amount differs / In bank only / In books only + tip strip for old codes (`suspense`, `possible`, …). Admin recon UI only; API kinds unchanged.
 - [x] **Explain this line** (TB03): recon attention rows show Why + Next under the status pill; CTAs link to Confirm / Create bank entry / Bank entries / Fund requests / Check period. Admin recon UI only.
+- [x] **Activity feed** (TB04): Bank & deposits → Activity tab — filters All / Bank / Agent / API. `GET /banking/activity` merges statement lines, bank entries, fund requests, provider journals. Admin only; no migration.
 - [x] Fund request rules: SD / Distributor on by default, Retailer off until admin enables per user (`users.fund_request_enabled`, migration 0051; switch in Retailers list + agent detail). Cash deposit only (web + mobile), bank + receipt required. Admin list shows agent, bank, deposit date; credited requests appear read-only in Bank entries + CA export
 - [x] Fund requests (company collection bank deposit) open to all agent roles — SD / Distributor / Retailer (API + web `/fund-request` + mobile Add Money / Request Funds); admin list shows requester role
 - [x] VAN assign (admin Banking tab + `POST /banking/van/assign`)

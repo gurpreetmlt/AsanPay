@@ -11,8 +11,8 @@
 | **TB01** | Cash picture strip (bank / books / diff / pending) without running Reconcile | M | done | Admin Bank & deposits top |
 | **TB02** | Simple match labels + tip for old codes (`suspense` → Needs review, etc.) | S | done | Reconcile UI copy |
 | **TB03** | Explain this line (why unmatched + next step CTA) | M | done | Per recon row |
-| **TB04** | Unified activity feed (Bank / Agent / API filters) | L | **CURRENT** | New tab or panel |
-| TB05 | Agent ↔ bank link + “Open in Reconcile” jump | M | pending | Fund request / bank entry rows |
+| **TB04** | Unified activity feed (Bank / Agent / API filters) | L | done | New tab or panel |
+| **TB05** | Agent ↔ bank link + “Open in Reconcile” jump | M | **CURRENT** | Fund request / bank entry rows |
 | TB06 | Provider ledger strip (In / Out / Fees / wallet impact) | M | pending | Separate from bank CR/DR |
 | TB07 | Daily close checklist wizard | L | pending | Upload → recon → resolve → close |
 | TB08 | Export + daily email / WhatsApp summary | M | pending | Build on PDF/CSV/XLS |
@@ -43,6 +43,7 @@
 | TB01 | Admin → Bank & deposits (page top, any tab) | Cash picture strip loads on open | Bank = latest statement balance, Books = ledger for those banks, Difference = statement minus books, Pending = unmatched credit amount. No Reconcile click. Missing statement shows — and “Upload a statement…”. |
 | TB02 | Bank & deposits → Reconciliation → Run reconciliation | Status tiles + row pills + tip strip | Labels: Matched, Needs review, Likely match, Amount differs, In bank only, In books only. Tip maps old codes (suspense → Needs review, etc.). Hover tile/pill shows meaning. Upload history: “needs review” not “in suspense”. |
 | TB03 | Reconciliation → Needs attention rows | Status column + Action | Each attention row shows Why + Next under the pill. CTAs: Confirm match / Create bank entry / Open Bank entries·Fund requests / Check period·bank. Suspense with a line opens Create bank entry. |
+| TB04 | Bank & deposits → Activity tab | Filters All / Bank / Agent / API | Feed lists statement lines + bank entries (Bank), fund requests (Agent), provider journals (API). Row click opens related tab. `GET /banking/activity`. |
 | … | | | |
 
 ## Prompt for next chat

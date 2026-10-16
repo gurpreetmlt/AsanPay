@@ -10,17 +10,25 @@ import { FundRequestsPanel } from "@/components/bank-deposits/FundRequestsPanel"
 import { ReconciliationPanel } from "@/components/bank-deposits/ReconciliationPanel";
 import { BankEntriesPanel, type OpenReconciliation } from "@/components/bank-deposits/BankEntriesPanel";
 import { BankingPanel } from "@/components/bank-deposits/BankingPanel";
+import { ActivityPanel } from "@/components/bank-deposits/ActivityPanel";
 import { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 
-type TabKey = "fund-requests" | "reconciliation" | "bank-entries" | "bank-accounts" | "virtual-accounts";
+type TabKey =
+  | "fund-requests"
+  | "reconciliation"
+  | "bank-entries"
+  | "activity"
+  | "bank-accounts"
+  | "virtual-accounts";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "fund-requests", label: "Fund requests" },
   { key: "reconciliation", label: "Reconciliation" },
   { key: "bank-entries", label: "Bank entries" },
+  { key: "activity", label: "Activity" },
   { key: "bank-accounts", label: "Bank accounts" },
   { key: "virtual-accounts", label: "Virtual accounts" },
 ];
@@ -403,6 +411,8 @@ function BankDepositsContent() {
             <ReconciliationPanel onChanged={loadSummary} />
           ) : tab === "bank-entries" ? (
             <BankEntriesPanel onOpenReconciliation={openReconciliation} />
+          ) : tab === "activity" ? (
+            <ActivityPanel />
           ) : tab === "bank-accounts" ? (
             <BankingPanel section="accounts" />
           ) : (
