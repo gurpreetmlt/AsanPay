@@ -456,6 +456,13 @@
       "when": 1791500000000,
       "tag": "0064_bank_daily_balance_locks",
       "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1791600000000,
+      "tag": "0065_bank_entry_category_rules",
+      "breakpoints": true
     }
   ]
 }

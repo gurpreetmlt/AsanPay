@@ -370,24 +370,33 @@ function modeFromNarration(narration: string | null): BankEntryMode {
 }
 
 /**
- * One request per statement line, all with the same category. Each line is checked on its own;
- * a bad line is reported and skipped, never blocks the rest. Receipts may follow later.
+ * One request per statement line. Category may be fixed, or `"auto"` (UTR prefix rules →
+ * other_credit/other_debit fallback). Each line is checked on its own; a bad line is reported
+ * and skipped. Receipts may follow later.
  */
 export async function createBankEntriesFromLines(params: {
   tenantId: string;
   requestedBy: string;
   bankAccountId: string;
-  category: BankEntryCategory;
+  category: BankEntryCategory | "auto";
   providerId: string | null;
   lineIds: string[];
-}): Promise<Array<{ lineId: string; entryId: string | null; error: string | null }>> {
-  const spec = BANK_ENTRY_CATEGORIES[params.category];
-  if (spec.direction === "none") {
-    throw new HttpError(422, "This category has no company bank — it cannot be created from statement lines", "BAD_CATEGORY");
+}): Promise<Array<{ lineId: string; entryId: string | null; error: string | null; category?: string }>> {
+  if (params.category !== "auto") {
+    const spec = BANK_ENTRY_CATEGORIES[params.category];
+    if (spec.direction === "none") {
+      throw new HttpError(
+        422,
+        "This category has no company bank — it cannot be created from statement lines",
+        "BAD_CATEGORY",
+      );
+    }
   }
   if (!/^\d+$/.test(params.bankAccountId)) throw new HttpError(422, "Select the company bank account", "BANK_REQUIRED");
 
-  const results: Array<{ lineId: string; entryId: string | null; error: string | null }> = [];
+  const { resolveCategoryFromUtr, fallbackCategoryForDirection } = await import("./bankEntryRules.service");
+
+  const results: Array<{ lineId: string; entryId: string | null; error: string | null; category?: string }> = [];
   for (const lineId of params.lineIds) {
     try {
       if (!/^\d+$/.test(lineId)) throw new HttpError(422, "Statement line id is invalid", "INVALID_ID");
@@ -410,17 +419,38 @@ export async function createBankEntriesFromLines(params: {
         throw new HttpError(422, `Line is already ${line.match_status.replace(/_/g, " ")}`, "LINE_IN_USE");
       }
       const lineDirection = line.direction === "CR" ? "credit" : "debit";
-      if (lineDirection !== spec.direction) {
-        throw new HttpError(
-          422,
-          `${spec.label} is money ${spec.direction === "credit" ? "in" : "out"}, but this line is money ${lineDirection === "credit" ? "in" : "out"}`,
-          "DIRECTION_MISMATCH",
-        );
+
+      let category: BankEntryCategory;
+      if (params.category === "auto") {
+        const hit = await resolveCategoryFromUtr({
+          tenantId: params.tenantId,
+          utr: line.utr,
+          bankAccountId: params.bankAccountId,
+        });
+        category = hit?.category ?? fallbackCategoryForDirection(lineDirection);
+        if (BANK_ENTRY_CATEGORIES[category].direction !== lineDirection) {
+          throw new HttpError(
+            422,
+            `UTR rule maps to ${BANK_ENTRY_CATEGORIES[category].label}, which is money ${BANK_ENTRY_CATEGORIES[category].direction === "credit" ? "in" : "out"}, but this line is money ${lineDirection === "credit" ? "in" : "out"}`,
+            "DIRECTION_MISMATCH",
+          );
+        }
+      } else {
+        category = params.category;
+        const spec = BANK_ENTRY_CATEGORIES[category];
+        if (lineDirection !== spec.direction) {
+          throw new HttpError(
+            422,
+            `${spec.label} is money ${spec.direction === "credit" ? "in" : "out"}, but this line is money ${lineDirection === "credit" ? "in" : "out"}`,
+            "DIRECTION_MISMATCH",
+          );
+        }
       }
+
       const created = await requestBankEntry({
         tenantId: params.tenantId,
         requestedBy: params.requestedBy,
-        category: params.category,
+        category,
         bankAccountId: params.bankAccountId,
         providerId: params.providerId,
         amount: BigInt(line.amount) as Paise,
@@ -435,7 +465,7 @@ export async function createBankEntriesFromLines(params: {
         attachmentDataUrl: null,
         allowMissingProof: true,
       });
-      results.push({ lineId, entryId: created.id, error: null });
+      results.push({ lineId, entryId: created.id, error: null, category });
     } catch (err) {
       results.push({
         lineId,

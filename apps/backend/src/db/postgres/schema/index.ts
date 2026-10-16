@@ -9,6 +9,7 @@ export * from "./banking";
 export * from "./bankEntries";
 export * from "./treasuryDailyCloses";
 export * from "./bankDailyBalanceLocks";
+export * from "./bankEntryCategoryRules";
 export * from "./fundRequests";
 export * from "./signupInvites";
 export * from "./settlements";

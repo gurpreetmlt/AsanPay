@@ -13,6 +13,7 @@ import { BankingPanel } from "@/components/bank-deposits/BankingPanel";
 import { ActivityPanel } from "@/components/bank-deposits/ActivityPanel";
 import { DailyClosePanel } from "@/components/bank-deposits/DailyClosePanel";
 import { AuditTrailPanel } from "@/components/bank-deposits/AuditTrailPanel";
+import { CategoryRulesPanel } from "@/components/bank-deposits/CategoryRulesPanel";
 import { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
@@ -22,6 +23,7 @@ type TabKey =
   | "fund-requests"
   | "reconciliation"
   | "bank-entries"
+  | "category-rules"
   | "activity"
   | "daily-close"
   | "audit"
@@ -32,6 +34,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "fund-requests", label: "Fund requests" },
   { key: "reconciliation", label: "Reconciliation" },
   { key: "bank-entries", label: "Bank entries" },
+  { key: "category-rules", label: "Category rules" },
   { key: "activity", label: "Activity" },
   { key: "daily-close", label: "Daily close" },
   { key: "audit", label: "Audit trail" },
@@ -421,6 +424,8 @@ function BankDepositsContent() {
             <ReconciliationPanel onChanged={loadSummary} />
           ) : tab === "bank-entries" ? (
             <BankEntriesPanel onOpenReconciliation={openReconciliation} />
+          ) : tab === "category-rules" ? (
+            <CategoryRulesPanel />
           ) : tab === "activity" ? (
             <ActivityPanel />
           ) : tab === "daily-close" ? (

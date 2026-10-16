@@ -760,7 +760,8 @@ adminRouter.post("/bank-entries/bulk", async (req, res) => {
     throw new HttpError(422, parsed.error.issues[0]?.message ?? "Bulk entry is invalid", "VALIDATION_ERROR");
   }
   const { createBankEntriesFromLines, isBankEntryCategory } = await import("../treasury/bankEntry.service");
-  if (!isBankEntryCategory(parsed.data.category)) {
+  const categoryRaw = parsed.data.category;
+  if (categoryRaw !== "auto" && !isBankEntryCategory(categoryRaw)) {
     throw new HttpError(422, "Select a valid category", "INVALID_CATEGORY");
   }
   const { resolveTenantId } = await import("../fund-requests/tenant");
@@ -769,7 +770,7 @@ adminRouter.post("/bank-entries/bulk", async (req, res) => {
     tenantId,
     requestedBy: req.auth.sub,
     bankAccountId: parsed.data.bankAccountId,
-    category: parsed.data.category,
+    category: categoryRaw === "auto" ? "auto" : categoryRaw,
     providerId: parsed.data.providerId || null,
     lineIds: [...new Set(parsed.data.lineIds)],
   });
@@ -779,6 +780,103 @@ adminRouter.post("/bank-entries/bulk", async (req, res) => {
     results,
     `${created} of ${results.length} entries created — add any missing receipts, then approve`,
   );
+});
+
+/** UTR prefix → category rules (TB16). */
+adminRouter.get("/bank-entry-rules", async (_req, res) => {
+  const { listCategoryRules } = await import("../treasury/bankEntryRules.service");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  sendSuccess(res, await listCategoryRules(await resolveTenantId()));
+});
+
+adminRouter.post("/bank-entry-rules/resolve", async (req, res) => {
+  const body = z
+    .object({
+      bankAccountId: z.string().regex(/^\d+$/).nullable().optional(),
+      items: z
+        .array(
+          z.object({
+            key: z.string().min(1).max(64),
+            utr: z.string().nullable(),
+          }),
+        )
+        .min(1)
+        .max(50),
+    })
+    .parse(req.body);
+  const { resolveCategoriesForUtrs } = await import("../treasury/bankEntryRules.service");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  sendSuccess(
+    res,
+    await resolveCategoriesForUtrs({
+      tenantId: await resolveTenantId(),
+      bankAccountId: body.bankAccountId ?? null,
+      items: body.items,
+    }),
+  );
+});
+
+adminRouter.post("/bank-entry-rules", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const body = z
+    .object({
+      utrPrefix: z.string().trim().min(2, "UTR prefix must be at least 2 characters").max(40),
+      category: z.string().min(1, "Select a category"),
+      bankAccountId: z.string().regex(/^\d+$/).nullable().optional(),
+      note: z.string().trim().max(500).nullable().optional(),
+    })
+    .parse(req.body);
+  const { createCategoryRule } = await import("../treasury/bankEntryRules.service");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  sendSuccess(
+    res,
+    await createCategoryRule({
+      tenantId: await resolveTenantId(),
+      adminId: req.auth.sub,
+      utrPrefix: body.utrPrefix,
+      category: body.category,
+      bankAccountId: body.bankAccountId ?? null,
+      note: body.note,
+    }),
+    "Category rule saved",
+  );
+});
+
+adminRouter.patch("/bank-entry-rules/:id", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const body = z
+    .object({
+      category: z.string().min(1).optional(),
+      isActive: z.boolean().optional(),
+      note: z.string().trim().max(500).nullable().optional(),
+    })
+    .parse(req.body);
+  const { updateCategoryRule } = await import("../treasury/bankEntryRules.service");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  sendSuccess(
+    res,
+    await updateCategoryRule({
+      tenantId: await resolveTenantId(),
+      adminId: req.auth.sub,
+      ruleId: String(req.params.id || ""),
+      category: body.category,
+      isActive: body.isActive,
+      note: body.note,
+    }),
+    "Category rule updated",
+  );
+});
+
+adminRouter.delete("/bank-entry-rules/:id", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { deleteCategoryRule } = await import("../treasury/bankEntryRules.service");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  await deleteCategoryRule({
+    tenantId: await resolveTenantId(),
+    adminId: req.auth.sub,
+    ruleId: String(req.params.id || ""),
+  });
+  sendSuccess(res, { ok: true }, "Category rule removed");
 });
 
 adminRouter.post("/bank-entries/:id/receipt", async (req, res) => {
