@@ -1004,13 +1004,129 @@ function dateToDisplay(d: Date): string {
   return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()} ${pad2(h12)}:${pad2(d.getMinutes())} ${ampm}`;
 }
 
-function bumpHour12(h24: number, delta: number): number {
-  const next12 = ((toHour12(h24) - 1 + delta + 12) % 12) + 1;
-  return fromHour12(next12, h24 >= 12);
+const WHEEL_ITEM_H = 44;
+const WHEEL_VISIBLE = 5;
+const WHEEL_PAD = Math.floor(WHEEL_VISIBLE / 2) * WHEEL_ITEM_H;
+const HOUR12_ITEMS = Array.from({ length: 12 }, (_, i) => pad2(i + 1));
+const MINUTE_ITEMS = Array.from({ length: 60 }, (_, i) => pad2(i));
+const AMPM_ITEMS = ["AM", "PM"] as const;
+
+/** Apple-style snap wheel column (pure JS — no native picker). */
+function WheelColumn({
+  items,
+  index,
+  onIndexChange,
+  tokens,
+}: {
+  items: readonly string[];
+  index: number;
+  onIndexChange: (i: number) => void;
+  tokens: { txt: string; mute: string };
+}) {
+  const ref = useRef<ScrollView>(null);
+  const clamped = Math.max(0, Math.min(items.length - 1, index));
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      ref.current?.scrollTo({ y: clamped * WHEEL_ITEM_H, animated: false });
+    }, 16);
+    return () => clearTimeout(t);
+  }, [clamped]);
+
+  function commitOffset(y: number) {
+    const i = Math.max(0, Math.min(items.length - 1, Math.round(y / WHEEL_ITEM_H)));
+    if (i !== clamped) onIndexChange(i);
+    ref.current?.scrollTo({ y: i * WHEEL_ITEM_H, animated: true });
+  }
+
+  return (
+    <View style={styles.wheelCol}>
+      <View style={styles.wheelHighlight} pointerEvents="none" />
+      <ScrollView
+        ref={ref}
+        showsVerticalScrollIndicator={false}
+        snapToInterval={WHEEL_ITEM_H}
+        decelerationRate="fast"
+        nestedScrollEnabled
+        contentContainerStyle={{ paddingVertical: WHEEL_PAD }}
+        onMomentumScrollEnd={(e) => commitOffset(e.nativeEvent.contentOffset.y)}
+        onScrollEndDrag={(e) => commitOffset(e.nativeEvent.contentOffset.y)}
+      >
+        {items.map((label, i) => {
+          const on = i === clamped;
+          return (
+            <View key={`${label}-${i}`} style={styles.wheelItem}>
+              <Text
+                style={{
+                  fontSize: on ? 22 : 17,
+                  fontWeight: on ? "800" : "500",
+                  color: on ? tokens.txt : tokens.mute,
+                }}
+              >
+                {label}
+              </Text>
+            </View>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
 }
 
-function bumpMinute(m: number, delta: number): number {
-  return (m + delta + 60) % 60;
+/** Bottom sheet: hour / minute / AM·PM scroll wheels. */
+function TimeWheelSheet({
+  visible,
+  hour24,
+  minute,
+  tokens,
+  onClose,
+  onDone,
+}: {
+  visible: boolean;
+  hour24: number;
+  minute: number;
+  tokens: { txt: string; mute: string; sub: string; card: string; cardBorder: string; bg: string };
+  onClose: () => void;
+  onDone: (hour24: number, minute: number) => void;
+}) {
+  const [hIdx, setHIdx] = useState(toHour12(hour24) - 1);
+  const [mIdx, setMIdx] = useState(minute);
+  const [ampmIdx, setAmpmIdx] = useState(hour24 >= 12 ? 1 : 0);
+
+  useEffect(() => {
+    if (!visible) return;
+    setHIdx(toHour12(hour24) - 1);
+    setMIdx(minute);
+    setAmpmIdx(hour24 >= 12 ? 1 : 0);
+  }, [visible, hour24, minute]);
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.wheelSheetRoot}>
+        <Pressable style={styles.wheelSheetScrim} onPress={onClose} />
+        <View style={[styles.wheelSheet, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
+          <View style={styles.wheelSheetHeader}>
+            <Pressable onPress={onClose} hitSlop={10}>
+              <Text style={{ color: tokens.sub, fontWeight: "700", fontSize: 15 }}>Cancel</Text>
+            </Pressable>
+            <Text style={{ color: tokens.txt, fontWeight: "800", fontSize: 16 }}>Select time</Text>
+            <Pressable
+              onPress={() => onDone(fromHour12(hIdx + 1, ampmIdx === 1), mIdx)}
+              hitSlop={10}
+            >
+              <Text style={{ color: colors.blueFlat, fontWeight: "800", fontSize: 15 }}>Done</Text>
+            </Pressable>
+          </View>
+          <View style={styles.wheelRow}>
+            <WheelColumn items={HOUR12_ITEMS} index={hIdx} onIndexChange={setHIdx} tokens={tokens} />
+            <Text style={[styles.wheelColon, { color: tokens.txt }]}>:</Text>
+            <WheelColumn items={MINUTE_ITEMS} index={mIdx} onIndexChange={setMIdx} tokens={tokens} />
+            <WheelColumn items={AMPM_ITEMS} index={ampmIdx} onIndexChange={setAmpmIdx} tokens={tokens} />
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
 }
 
 /** JS modal date+time — no native DateTimePicker (avoids Android crash on some devices). */
@@ -1033,6 +1149,7 @@ function DepositDateTimeField({
   const [typed, setTyped] = useState(value ? dateToDisplay(value) : "");
   const [pickerLevel, setPickerLevel] = useState<"day" | "month" | "year">("day");
   const [kbHeight, setKbHeight] = useState(0);
+  const [timeWheelOpen, setTimeWheelOpen] = useState(false);
 
   useEffect(() => {
     if (!open) {
@@ -1348,85 +1465,24 @@ function DepositDateTimeField({
                 </Pressable>
 
                 <View style={styles.dtTimePanel}>
-                  <Text style={[styles.label, { color: tokens.sub, marginTop: 0 }]}>Time (12h) — tap + / −</Text>
-                  <View style={styles.dtTimeRow}>
-                    <View style={styles.dtStepper}>
-                      <Pressable
-                        style={styles.dtStepBtn}
-                        onPress={() => {
-                          Keyboard.dismiss();
-                          const next = bumpHour12(hour, 1);
-                          setHour(next);
-                          syncTyped(next, minute);
-                        }}
-                      >
-                        <Text style={styles.dtStepBtnTxt}>+</Text>
-                      </Pressable>
-                      <View style={styles.dtStepValue}>
-                        <Text style={[styles.dtStepValueTxt, { color: tokens.txt }]}>{pad2(toHour12(hour))}</Text>
-                      </View>
-                      <Pressable
-                        style={styles.dtStepBtn}
-                        onPress={() => {
-                          Keyboard.dismiss();
-                          const next = bumpHour12(hour, -1);
-                          setHour(next);
-                          syncTyped(next, minute);
-                        }}
-                      >
-                        <Text style={styles.dtStepBtnTxt}>−</Text>
-                      </Pressable>
-                    </View>
-                    <Text style={{ color: tokens.txt, fontWeight: "800", fontSize: 18, marginHorizontal: 2 }}>:</Text>
-                    <View style={styles.dtStepper}>
-                      <Pressable
-                        style={styles.dtStepBtn}
-                        onPress={() => {
-                          Keyboard.dismiss();
-                          const next = bumpMinute(minute, 1);
-                          setMinute(next);
-                          syncTyped(hour, next);
-                        }}
-                      >
-                        <Text style={styles.dtStepBtnTxt}>+</Text>
-                      </Pressable>
-                      <View style={styles.dtStepValue}>
-                        <Text style={[styles.dtStepValueTxt, { color: tokens.txt }]}>{pad2(minute)}</Text>
-                      </View>
-                      <Pressable
-                        style={styles.dtStepBtn}
-                        onPress={() => {
-                          Keyboard.dismiss();
-                          const next = bumpMinute(minute, -1);
-                          setMinute(next);
-                          syncTyped(hour, next);
-                        }}
-                      >
-                        <Text style={styles.dtStepBtnTxt}>−</Text>
-                      </Pressable>
-                    </View>
-                    <View style={styles.dtAmPmRow}>
-                      {(["AM", "PM"] as const).map((label) => {
-                        const on = (hour >= 12 ? "PM" : "AM") === label;
-                        return (
-                          <Pressable
-                            key={label}
-                            onPress={() => {
-                              Keyboard.dismiss();
-                              const next = fromHour12(toHour12(hour), label === "PM");
-                              setHour(next);
-                              syncTyped(next, minute);
-                            }}
-                            style={[styles.dtAmPmChip, on && styles.dtAmPmChipOn]}
-                          >
-                            <Text style={{ color: on ? "#fff" : colors.blueFlat, fontWeight: "800", fontSize: 13 }}>
-                              {label}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                  </View>
+                  <Text style={[styles.label, { color: tokens.sub, marginTop: 0 }]}>Time (12h)</Text>
+                  <Pressable
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setTimeWheelOpen(true);
+                    }}
+                    style={styles.dtTimeTrigger}
+                    accessibilityRole="button"
+                    accessibilityLabel="Select time"
+                  >
+                    <Text style={[styles.dtTimeTriggerValue, { color: tokens.txt }]}>
+                      {pad2(toHour12(hour))}:{pad2(minute)} {hour >= 12 ? "PM" : "AM"}
+                    </Text>
+                    <ChevronDown size={18} color={tokens.sub} />
+                  </Pressable>
+                  <Text style={{ color: tokens.sub, fontSize: 11, fontWeight: "600", marginTop: 6 }}>
+                    Tap to open scroll wheel
+                  </Text>
                 </View>
 
                 <Pressable
@@ -1442,6 +1498,20 @@ function DepositDateTimeField({
           </View>
         </View>
       </Modal>
+
+      <TimeWheelSheet
+        visible={timeWheelOpen}
+        hour24={hour}
+        minute={minute}
+        tokens={tokens}
+        onClose={() => setTimeWheelOpen(false)}
+        onDone={(h, m) => {
+          setHour(h);
+          setMinute(m);
+          syncTyped(h, m);
+          setTimeWheelOpen(false);
+        }}
+      />
     </>
   );
 }
@@ -1967,27 +2037,6 @@ const styles = StyleSheet.create({
   dtScrollContent: { paddingBottom: 28 },
   dtHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
   dtTitle: { fontSize: 17, fontWeight: "800" },
-  dtStepper: { alignItems: "center", gap: 4 },
-  dtStepBtn: {
-    width: 40,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: "#DBEAFE",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  dtStepBtnTxt: { color: colors.blueFlat, fontWeight: "900", fontSize: 18, lineHeight: 20 },
-  dtStepValue: {
-    minWidth: 48,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: "#C7D2FE",
-    backgroundColor: "#fff",
-    alignItems: "center",
-  },
-  dtStepValueTxt: { fontSize: 18, fontWeight: "800" },
   dtCalPanel: {
     marginTop: 12,
     backgroundColor: "#F5F8FF",
@@ -2042,18 +2091,68 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 12,
   },
-  dtTimeRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" },
-  dtAmPmRow: { flexDirection: "row", gap: 6, marginLeft: 4 },
-  dtAmPmChip: {
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: colors.blueFlat,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+  dtTimeTrigger: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     backgroundColor: "#fff",
+    borderWidth: 1.5,
+    borderColor: "#C7D2FE",
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
   },
-  dtAmPmChipOn: {
-    backgroundColor: colors.blueFlat,
-    borderColor: colors.blueFlat,
+  dtTimeTriggerValue: { fontSize: 20, fontWeight: "800", letterSpacing: 0.3 },
+  wheelSheetRoot: { flex: 1, justifyContent: "flex-end" },
+  wheelSheetScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(15,23,42,0.45)" },
+  wheelSheet: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderWidth: 1,
+    paddingTop: 12,
+    paddingBottom: 28,
+    paddingHorizontal: 12,
+  },
+  wheelSheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 8,
+    marginBottom: 8,
+  },
+  wheelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+  },
+  wheelCol: {
+    flex: 1,
+    height: WHEEL_ITEM_H * WHEEL_VISIBLE,
+    overflow: "hidden",
+  },
+  wheelHighlight: {
+    position: "absolute",
+    left: 4,
+    right: 4,
+    top: WHEEL_PAD,
+    height: WHEEL_ITEM_H,
+    borderRadius: 12,
+    backgroundColor: "#EEF2FF",
+    borderWidth: 1,
+    borderColor: "#C7D2FE",
+    zIndex: 1,
+  },
+  wheelItem: {
+    height: WHEEL_ITEM_H,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  wheelColon: {
+    fontSize: 22,
+    fontWeight: "800",
+    marginBottom: 2,
+    width: 14,
+    textAlign: "center",
   },
 });

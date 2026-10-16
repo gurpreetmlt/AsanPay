@@ -453,39 +453,45 @@ function walletAmountColor(walletType: string): string {
   return B.blueLight;
 }
 
-/** One wallet segment inside the unified header bar (opens Add Money / Transfer menu). */
-function WalletSegment({
-  wallet,
-  onRefresh,
+/** Unified header wallet bar: MAIN | AEPS | eye | refresh. Menu opens on click only (default closed). */
+function HeaderWalletBalances({
+  wallets,
   loading,
+  onRefresh,
+  className,
 }: {
-  wallet: WalletBalance;
-  onRefresh: () => void;
+  wallets: WalletBalance[];
   loading: boolean;
+  onRefresh: () => void;
+  className?: string;
 }) {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
-  const [open, setOpen] = useState(false);
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const ref = useRef<HTMLDivElement>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const ordered = [...wallets].sort((a, b) => {
+    if (a.walletType === "main") return -1;
+    if (b.walletType === "main") return 1;
+    return a.walletType.localeCompare(b.walletType);
+  });
   const balanceVisible = useBalanceVisibility((s) => s.visible);
+  const toggleBalance = useBalanceVisibility((s) => s.toggle);
 
   useEffect(() => {
-    if (!open) return;
+    if (!menuOpen) return;
     function onClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setMenuOpen(false);
     }
     document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
-  }, [open]);
-
-  function openNow() {
-    if (closeTimer.current) clearTimeout(closeTimer.current);
-    setOpen(true);
-  }
-  function closeSoon() {
-    closeTimer.current = setTimeout(() => setOpen(false), 150);
-  }
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClickOutside);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
 
   const fundOn = user ? isFundRequestEnabled(user.role, user.fundRequestEnabled) : false;
   const goAddMoney = () => {
@@ -503,81 +509,12 @@ function WalletSegment({
     { icon: Download, label: "Statement", action: () => router.push("/statements") },
   ];
 
-  return (
-    <div
-      className="relative"
-      ref={ref}
-      onMouseEnter={openNow}
-      onMouseLeave={closeSoon}
-    >
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex min-w-[4.5rem] flex-col items-start gap-0.5 rounded-lg px-2.5 py-0.5 text-left transition-colors hover:bg-slate-50"
-        title={walletDisplayName(wallet.walletType)}
-      >
-        <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
-          {walletDisplayName(wallet.walletType)}
-        </span>
-        <span
-          className="text-sm font-extrabold tabular-nums leading-tight"
-          style={{ color: walletAmountColor(wallet.walletType) }}
-        >
-          {maskBalance(balanceVisible, formatInr(wallet.balance))}
-        </span>
-      </button>
-      {open ? (
-        <div
-          className="dropdown-pop-in absolute left-0 top-full z-50 mt-1 min-w-[11rem] rounded-2xl border bg-white p-1.5 shadow-lg"
-          style={{ borderColor: B.border }}
-        >
-          {actions.map(({ icon: Icon, label, action }) => (
-            <button
-              key={label}
-              type="button"
-              onClick={() => {
-                action();
-                setOpen(false);
-              }}
-              disabled={label === "Refresh" && loading}
-              className="flex w-full items-center gap-2 rounded-2xl px-2.5 py-2 text-left text-xs font-semibold transition-colors hover:bg-secondary disabled:opacity-50"
-              style={{ color: B.blue }}
-            >
-              <Icon size={14} className={label === "Refresh" && loading ? "animate-spin" : ""} />
-              {label}
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-/** Unified header wallet bar: MAIN | AEPS | eye | refresh (no PG yet). */
-function HeaderWalletBalances({
-  wallets,
-  loading,
-  onRefresh,
-  className,
-}: {
-  wallets: WalletBalance[];
-  loading: boolean;
-  onRefresh: () => void;
-  className?: string;
-}) {
-  const ordered = [...wallets].sort((a, b) => {
-    if (a.walletType === "main") return -1;
-    if (b.walletType === "main") return 1;
-    return a.walletType.localeCompare(b.walletType);
-  });
-  const balanceVisible = useBalanceVisibility((s) => s.visible);
-  const toggleBalance = useBalanceVisibility((s) => s.toggle);
-
   if (!loading && ordered.length === 0) return null;
 
   return (
     <div
-      className={`inline-flex max-w-full items-center gap-0.5 rounded-xl border bg-white py-1 pl-1.5 pr-1.5 shadow-[0_2px_14px_rgba(15,23,42,0.10)] ${className ?? ""}`}
+      ref={menuRef}
+      className={`relative inline-flex max-w-full items-center gap-0.5 rounded-xl border bg-white py-1 pl-1.5 pr-1.5 shadow-[0_2px_14px_rgba(15,23,42,0.10)] ${className ?? ""}`}
       style={{ borderColor: "rgba(11,42,154,0.08)" }}
     >
       {loading && ordered.length === 0 ? (
@@ -585,19 +522,44 @@ function HeaderWalletBalances({
           …
         </span>
       ) : (
-        ordered.map((w, i) => (
-          <div key={w.id} className="flex items-center">
-            {i > 0 ? (
-              <div className="mx-0.5 h-7 w-px shrink-0 self-center" style={{ background: "rgba(11,42,154,0.12)" }} />
-            ) : null}
-            <WalletSegment wallet={w} onRefresh={onRefresh} loading={loading} />
-          </div>
-        ))
+        <button
+          type="button"
+          onClick={() => setMenuOpen((v) => !v)}
+          className="flex items-center gap-0.5 rounded-lg px-0.5 py-0.5 text-left transition-colors hover:bg-slate-50"
+          aria-expanded={menuOpen}
+          aria-haspopup="menu"
+          title="Wallet actions"
+        >
+          {ordered.map((w, i) => (
+            <div key={w.id} className="flex items-center">
+              {i > 0 ? (
+                <div
+                  className="mx-0.5 h-7 w-px shrink-0 self-center"
+                  style={{ background: "rgba(11,42,154,0.12)" }}
+                />
+              ) : null}
+              <span className="flex min-w-[4.5rem] flex-col items-start gap-0.5 px-2.5 py-0.5">
+                <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+                  {walletDisplayName(w.walletType)}
+                </span>
+                <span
+                  className="text-sm font-extrabold tabular-nums leading-tight"
+                  style={{ color: walletAmountColor(w.walletType) }}
+                >
+                  {maskBalance(balanceVisible, formatInr(w.balance))}
+                </span>
+              </span>
+            </div>
+          ))}
+        </button>
       )}
       <div className="ml-1 flex shrink-0 items-center gap-1.5 pl-0.5">
         <button
           type="button"
-          onClick={toggleBalance}
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleBalance();
+          }}
           className="icon-tooltip flex h-8 w-8 items-center justify-center rounded-lg"
           style={{ background: B.secondary, color: B.blueLight }}
           aria-label={balanceVisible ? "Hide balances" : "Show balances"}
@@ -607,7 +569,10 @@ function HeaderWalletBalances({
         </button>
         <button
           type="button"
-          onClick={onRefresh}
+          onClick={(e) => {
+            e.stopPropagation();
+            onRefresh();
+          }}
           disabled={loading}
           className="icon-tooltip flex h-8 w-8 items-center justify-center rounded-lg text-white disabled:opacity-50"
           style={{ background: B.blueLight }}
@@ -617,6 +582,32 @@ function HeaderWalletBalances({
           <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
         </button>
       </div>
+
+      {menuOpen ? (
+        <div
+          role="menu"
+          className="dropdown-pop-in absolute right-0 top-full z-50 mt-1.5 min-w-[11rem] rounded-xl border bg-white p-1.5 shadow-lg"
+          style={{ borderColor: B.border }}
+        >
+          {actions.map(({ icon: Icon, label, action }) => (
+            <button
+              key={label}
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                action();
+                setMenuOpen(false);
+              }}
+              disabled={label === "Refresh" && loading}
+              className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-xs font-semibold transition-colors hover:bg-secondary disabled:opacity-50"
+              style={{ color: B.blue }}
+            >
+              <Icon size={14} className={label === "Refresh" && loading ? "animate-spin" : ""} />
+              {label}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
