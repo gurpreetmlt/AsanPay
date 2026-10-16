@@ -43,7 +43,10 @@ export default function WalletPage() {
   const [wallets, setWallets] = useState<WalletBalance[]>([]);
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
   const [downline, setDownline] = useState<DownlineUser[]>([]);
-  const [walletTarget, setWalletTarget] = useState<DownlineUser | null>(null);
+  const [walletTarget, setWalletTarget] = useState<{
+    user: DownlineUser;
+    initialKind: "transfer" | "reverse";
+  } | null>(null);
   const [showBulk, setShowBulk] = useState(false);
   const [loading, setLoading] = useState(true);
   const [ledgerPartner, setLedgerPartner] = useState("all");
@@ -256,7 +259,7 @@ export default function WalletPage() {
             <div className="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-4" style={{ borderColor: B.border }}>
               <div>
                 <h2 className="font-bold" style={{ color: B.blue }}>
-                  Downline — Wallet
+                  Downline — Transfer & Reverse
                 </h2>
                 <p className="mt-0.5 text-xs" style={{ color: B.muted }}>
                   Transfer or reverse — both need your 4-digit PIN.
@@ -327,17 +330,30 @@ export default function WalletPage() {
                         </StatusBadge>
                       </td>
                       <td className="px-5 py-3 text-right">
-                        <PrimaryButton
-                          type="button"
-                          variant="success"
-                          size="sm"
-                          showArrow={false}
-                          disabled={!d.isActive}
-                          className="!w-auto"
-                          onClick={() => setWalletTarget(d)}
-                        >
-                          Wallet
-                        </PrimaryButton>
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          <PrimaryButton
+                            type="button"
+                            variant="primary"
+                            size="sm"
+                            showArrow={false}
+                            disabled={!d.isActive}
+                            className="!w-auto"
+                            onClick={() => setWalletTarget({ user: d, initialKind: "transfer" })}
+                          >
+                            Transfer
+                          </PrimaryButton>
+                          <PrimaryButton
+                            type="button"
+                            variant="success"
+                            size="sm"
+                            showArrow={false}
+                            disabled={!d.isActive || !(Number(d.mainBalance) > 0)}
+                            className="!w-auto"
+                            onClick={() => setWalletTarget({ user: d, initialKind: "reverse" })}
+                          >
+                            Reverse
+                          </PrimaryButton>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -519,8 +535,9 @@ export default function WalletPage() {
 
       {walletTarget ? (
         <WalletActionForm
-          target={walletTarget}
-          allowReverse={walletTarget.isActive && Number(walletTarget.mainBalance) > 0}
+          target={walletTarget.user}
+          initialKind={walletTarget.initialKind}
+          allowReverse={walletTarget.user.isActive && Number(walletTarget.user.mainBalance) > 0}
           onClose={() => setWalletTarget(null)}
           onSuccess={() => void load()}
         />

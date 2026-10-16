@@ -69,8 +69,8 @@ export function PartnerQuickActions({
     },
     {
       key: "fund",
-      label: `${childLabel} wallet`,
-      hint: "Transfer or reverse",
+      label: "Transfer / Reverse",
+      hint: `Send to or pull from a ${childLabel.toLowerCase()}`,
       icon: <ArrowRightLeft size={20} />,
       color: "#1D4ED8",
       bg: "#DBEAFE",
@@ -158,7 +158,7 @@ export function PartnerQuickActions({
 
       {picker ? (
         <DownlinePicker
-          title={`${childLabel} wallet`}
+          title={`Pick ${childLabel.toLowerCase()} — Transfer / Reverse`}
           emptyText={`No ${childLabel.toLowerCase()}s yet. Invite one first.`}
           rows={picker}
           onClose={() => setPicker(null)}
@@ -172,6 +172,7 @@ export function PartnerQuickActions({
       {fundTarget ? (
         <WalletActionForm
           target={fundTarget}
+          initialKind="transfer"
           allowReverse={Number(fundTarget.mainBalance) > 0 && fundTarget.isActive}
           onClose={() => setFundTarget(null)}
           onSuccess={() => onChanged?.()}

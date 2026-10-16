@@ -3,7 +3,7 @@ import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, Styl
 import { SafeAreaView } from "react-native-safe-area-context";
 import LinearGradient from "react-native-linear-gradient";
 import { ArrowRight, Clock, Search, Zap } from "lucide-react-native";
-import { DownlineCard } from "../../components/DownlineCard";
+import { DownlineCard, type WalletActionKind } from "../../components/DownlineCard";
 import { ModalSheet } from "../../components/ModalSheet";
 import { PartnerTopBar } from "../../components/PartnerTopBar";
 import { PageEnter } from "../../components/PageEnter";
@@ -35,7 +35,10 @@ export function NetworkScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showOnboard, setShowOnboard] = useState(false);
-  const [fundTarget, setFundTarget] = useState<DownlineUser | null>(null);
+  const [fundTarget, setFundTarget] = useState<{
+    user: DownlineUser;
+    initialKind: WalletActionKind;
+  } | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set());
@@ -379,7 +382,7 @@ export function NetworkScreen() {
                 ) : null}
                 <DownlineCard
                   user={u}
-                  onFund={setFundTarget}
+                  onWalletAction={(target, kind) => setFundTarget({ user: target, initialKind: kind })}
                   onToggleActive={(target) => void toggleActive(target)}
                   toggling={togglingId === u.id}
                   last={i === filtered.length - 1}
@@ -418,8 +421,9 @@ export function NetworkScreen() {
       {fundTarget && (
         <WalletModal
           visible={!!fundTarget}
-          target={fundTarget}
-          allowReverse={Number(fundTarget.mainBalance) > 0 && fundTarget.isActive}
+          target={fundTarget.user}
+          initialKind={fundTarget.initialKind}
+          allowReverse={Number(fundTarget.user.mainBalance) > 0 && fundTarget.user.isActive}
           onClose={() => setFundTarget(null)}
           onSuccess={() => void load(true)}
         />
@@ -635,17 +639,21 @@ function InviteList({
 function WalletModal({
   visible,
   target,
+  initialKind = "transfer",
   allowReverse,
   onClose,
   onSuccess,
 }: {
   visible: boolean;
   target: DownlineUser;
+  initialKind?: WalletActionKind;
   allowReverse: boolean;
   onClose: () => void;
   onSuccess: () => void;
 }) {
-  const [kind, setKind] = useState<"transfer" | "reverse">("transfer");
+  const startKind: WalletActionKind =
+    initialKind === "reverse" && allowReverse ? "reverse" : "transfer";
+  const [kind, setKind] = useState<WalletActionKind>(startKind);
   const [step, setStep] = useState<"form" | "confirm">("form");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
@@ -653,6 +661,16 @@ function WalletModal({
   const [loading, setLoading] = useState(false);
   const attemptKey = useRef(createAttemptKeyHolder(`wallet-${target.id}`));
   const isReverse = kind === "reverse";
+
+  useEffect(() => {
+    if (!visible) return;
+    setKind(initialKind === "reverse" && allowReverse ? "reverse" : "transfer");
+    setStep("form");
+    setAmount("");
+    setNote("");
+    setTxnPin("");
+    attemptKey.current.clear();
+  }, [visible, initialKind, allowReverse, target.id]);
 
   function close() {
     setStep("form");
@@ -736,7 +754,7 @@ function WalletModal({
           ? isReverse
             ? "Confirm reverse"
             : "Confirm transfer"
-          : `Wallet — ${target.name}`
+          : `${isReverse ? "Reverse" : "Transfer"} — ${target.name}`
       }
       onClose={close}
     >
@@ -749,14 +767,13 @@ function WalletModal({
             >
               <Text style={[styles.kindText, kind === "transfer" && styles.kindTextOn]}>Transfer</Text>
             </Pressable>
-            {allowReverse ? (
-              <Pressable
-                onPress={() => setMode("reverse")}
-                style={[styles.kindBtn, kind === "reverse" && styles.kindBtnOn]}
-              >
-                <Text style={[styles.kindText, kind === "reverse" && styles.kindTextOn]}>Reverse</Text>
-              </Pressable>
-            ) : null}
+            <Pressable
+              onPress={() => setMode("reverse")}
+              disabled={!allowReverse}
+              style={[styles.kindBtn, kind === "reverse" && styles.kindBtnOn, !allowReverse && { opacity: 0.4 }]}
+            >
+              <Text style={[styles.kindText, kind === "reverse" && styles.kindTextOn]}>Reverse</Text>
+            </Pressable>
           </View>
           {isReverse ? (
             <Text style={styles.help}>Available on their wallet: {formatINR(target.mainBalance)}</Text>

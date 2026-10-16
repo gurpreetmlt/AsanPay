@@ -1,6 +1,6 @@
 import React from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
-import { ArrowRight, Power } from "lucide-react-native";
+import { Power } from "lucide-react-native";
 import type { DownlineUser } from "../lib/types";
 import { formatINR } from "../lib/format";
 import { colors } from "../theme/colors";
@@ -14,16 +14,19 @@ function avatarColor(seed: string): string {
   return AVATAR_COLORS[h % AVATAR_COLORS.length]!;
 }
 
+export type WalletActionKind = "transfer" | "reverse";
+
 interface Props {
   user: DownlineUser;
-  onFund: (user: DownlineUser) => void;
+  onWalletAction: (user: DownlineUser, kind: WalletActionKind) => void;
   onToggleActive?: (user: DownlineUser) => void;
   toggling?: boolean;
   last?: boolean;
 }
 
-export function DownlineCard({ user, onFund, onToggleActive, toggling, last }: Props) {
+export function DownlineCard({ user, onWalletAction, onToggleActive, toggling, last }: Props) {
   const { tokens } = useTheme();
+  const canReverse = user.isActive && Number(user.mainBalance) > 0;
   return (
     <View style={[styles.row, !last && { borderBottomWidth: 1, borderBottomColor: tokens.cardBorder }]}>
       <View style={[styles.avatar, { backgroundColor: avatarColor(user.id) }]}>
@@ -40,12 +43,20 @@ export function DownlineCard({ user, onFund, onToggleActive, toggling, last }: P
       </View>
       <View style={styles.actions}>
         <Pressable
-          onPress={() => onFund(user)}
+          onPress={() => onWalletAction(user, "transfer")}
           disabled={!user.isActive}
           style={[styles.btn, styles.btnTransfer, !user.isActive && styles.disabled]}
+          accessibilityLabel={`Transfer to ${user.name}`}
         >
-          <Text style={styles.btnTransferText}>Wallet</Text>
-          <ArrowRight size={14} color={colors.greenDark} strokeWidth={2.4} />
+          <Text style={styles.btnTransferText}>Transfer</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => onWalletAction(user, "reverse")}
+          disabled={!canReverse}
+          style={[styles.btn, styles.btnReverse, !canReverse && styles.disabled]}
+          accessibilityLabel={`Reverse from ${user.name}`}
+        >
+          <Text style={styles.btnReverseText}>Reverse</Text>
         </Pressable>
         {onToggleActive ? (
           <Pressable
@@ -109,8 +120,10 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     minWidth: 104,
   },
-  btnTransfer: { borderColor: colors.green, backgroundColor: "#fff" },
-  btnTransferText: { color: colors.greenDark, fontWeight: "800", fontSize: 12.5 },
+  btnTransfer: { borderColor: colors.blueFlat, backgroundColor: "#fff" },
+  btnTransferText: { color: colors.blueFlat, fontWeight: "800", fontSize: 12.5 },
+  btnReverse: { borderColor: colors.green, backgroundColor: "#fff" },
+  btnReverseText: { color: colors.greenDark, fontWeight: "800", fontSize: 12.5 },
   btnDisable: { borderColor: colors.danger, backgroundColor: "#fff" },
   btnDisableText: { color: colors.dangerDark, fontWeight: "800", fontSize: 12.5 },
   btnEnable: { borderColor: colors.green, backgroundColor: "#fff" },

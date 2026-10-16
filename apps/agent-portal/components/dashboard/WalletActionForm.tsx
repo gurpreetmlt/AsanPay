@@ -58,7 +58,7 @@ function PartyCard({
   );
 }
 
-/** Unified Transfer / Reverse for Super Distributor & Distributor (single entry → choose mode in popup). */
+/** Unified Transfer / Reverse for Super Distributor & Distributor (row buttons + switch in popup). */
 export function WalletActionForm({
   target,
   initialKind = "transfer",
@@ -96,6 +96,15 @@ export function WalletActionForm({
   useEffect(() => {
     attemptKey.current.clear();
   }, [kind]);
+
+  useEffect(() => {
+    setKind(initialKind === "reverse" && allowReverse ? "reverse" : "transfer");
+    setStep("form");
+    setAmount("");
+    setDescription("");
+    setTxnPin("");
+    attemptKey.current.clear();
+  }, [target.id, initialKind, allowReverse]);
 
   const myName = me?.name ?? "You";
   const myUid = me?.uid ?? "—";
@@ -215,35 +224,44 @@ export function WalletActionForm({
   }
 
   return (
-    <Modal title="Partner wallet" onClose={onClose}>
+    <Modal
+      title={`${kind === "transfer" ? "Transfer" : "Reverse"} — ${target.name}`}
+      onClose={onClose}
+    >
       <form onSubmit={review} className="space-y-3">
         <div className="grid grid-cols-2 gap-2">
           {(
             [
-              { key: "transfer" as const, label: "Transfer", Icon: Send, color: "#059669" },
-              { key: "reverse" as const, label: "Reverse", Icon: Undo2, color: "#D97706" },
+              { key: "transfer" as const, label: "Transfer", Icon: Send, color: "#2563EB" },
+              { key: "reverse" as const, label: "Reverse", Icon: Undo2, color: "#059669" },
             ] as const
-          )
-            .filter((k) => k.key === "transfer" || allowReverse)
-            .map(({ key, label, Icon, color }) => {
-              const active = kind === key;
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setKind(key)}
-                  className="flex items-center justify-center gap-2 rounded-xl border-2 px-3 py-2.5 text-sm font-bold transition"
-                  style={{
-                    borderColor: active ? color : B.border,
-                    background: active ? `${color}14` : "#fff",
-                    color: active ? color : B.muted,
-                  }}
-                >
-                  <Icon size={16} />
-                  {label}
-                </button>
-              );
-            })}
+          ).map(({ key, label, Icon, color }) => {
+            const active = kind === key;
+            const disabled = key === "reverse" && !allowReverse;
+            return (
+              <button
+                key={key}
+                type="button"
+                disabled={disabled}
+                onClick={() => {
+                  if (disabled) return;
+                  setKind(key);
+                  setStep("form");
+                  setTxnPin("");
+                  attemptKey.current.clear();
+                }}
+                className="flex items-center justify-center gap-2 rounded-xl border-2 px-3 py-2.5 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-40"
+                style={{
+                  borderColor: active ? color : B.border,
+                  background: active ? `${color}14` : "#fff",
+                  color: active ? color : B.muted,
+                }}
+              >
+                <Icon size={16} />
+                {label}
+              </button>
+            );
+          })}
         </div>
 
         <div className="flex items-stretch gap-2 rounded-2xl border p-2" style={{ borderColor: B.border, background: "#F8FAFC" }}>

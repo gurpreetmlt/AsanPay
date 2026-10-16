@@ -11,7 +11,6 @@ import {
   Crown,
   Network as NetworkIcon,
   Store,
-  ArrowRight,
   History,
   Power,
 } from "lucide-react";
@@ -213,6 +212,7 @@ export default function NetworkPage() {
   const [walletTarget, setWalletTarget] = useState<{
     user: DownlineUser;
     allowReverse: boolean;
+    initialKind: "transfer" | "reverse";
   } | null>(null);
   const [historyTarget, setHistoryTarget] = useState<DownlineItem | null>(null);
   const [historyRows, setHistoryRows] = useState<LedgerEntry[]>([]);
@@ -575,27 +575,52 @@ export default function NetworkPage() {
                             </StatusBadge>
                           </td>
                           <td className="px-4 py-3.5">
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                               <button
                                 type="button"
                                 title={
-                                  moneyOk || collectOk
-                                    ? `Wallet — transfer or reverse with ${m.name}`
+                                  moneyOk
+                                    ? `Transfer to ${m.name}`
                                     : m.isActive
-                                      ? "Only your direct downline can use wallet actions"
-                                      : "Agent is inactive — enable to use wallet"
+                                      ? "Only your direct downline can transfer"
+                                      : "Agent is inactive — enable to transfer"
                                 }
-                                disabled={!moneyOk && !collectOk}
+                                disabled={!moneyOk}
                                 onClick={() =>
                                   setWalletTarget({
                                     user: toDownlineUser(m),
                                     allowReverse: collectOk,
+                                    initialKind: "transfer",
+                                  })
+                                }
+                                className="inline-flex cursor-pointer items-center gap-1 whitespace-nowrap rounded-lg border-[1.5px] px-3 py-1.5 text-xs font-bold transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+                                style={{ borderColor: B.blue, color: B.blue }}
+                              >
+                                Transfer
+                              </button>
+                              <button
+                                type="button"
+                                title={
+                                  collectOk
+                                    ? `Reverse from ${m.name}`
+                                    : moneyOk
+                                      ? "Reverse needs their main balance above ₹0"
+                                      : m.isActive
+                                        ? "Only your direct downline can reverse"
+                                        : "Agent is inactive — enable to reverse"
+                                }
+                                disabled={!collectOk}
+                                onClick={() =>
+                                  setWalletTarget({
+                                    user: toDownlineUser(m),
+                                    allowReverse: collectOk,
+                                    initialKind: "reverse",
                                   })
                                 }
                                 className="inline-flex cursor-pointer items-center gap-1 whitespace-nowrap rounded-lg border-[1.5px] px-3 py-1.5 text-xs font-bold transition hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
                                 style={{ borderColor: "#16A34A", color: "#15803D" }}
                               >
-                                Wallet <ArrowRight size={13} strokeWidth={2.5} />
+                                Reverse
                               </button>
                               {canToggleChildren && isDirect ? (
                                 <button
@@ -652,6 +677,7 @@ export default function NetworkPage() {
       {walletTarget ? (
         <WalletActionForm
           target={walletTarget.user}
+          initialKind={walletTarget.initialKind}
           allowReverse={walletTarget.allowReverse}
           onClose={() => setWalletTarget(null)}
           onSuccess={() => void reloadNetwork()}
