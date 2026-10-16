@@ -577,7 +577,7 @@ function HeaderWalletBalances({
 
   return (
     <div
-      className={`inline-flex max-w-full items-center gap-0.5 rounded-full border bg-white py-1 pl-1.5 pr-1.5 shadow-[0_2px_14px_rgba(15,23,42,0.10)] ${className ?? ""}`}
+      className={`inline-flex max-w-full items-center gap-0.5 rounded-xl border bg-white py-1 pl-1.5 pr-1.5 shadow-[0_2px_14px_rgba(15,23,42,0.10)] ${className ?? ""}`}
       style={{ borderColor: "rgba(11,42,154,0.08)" }}
     >
       {loading && ordered.length === 0 ? (

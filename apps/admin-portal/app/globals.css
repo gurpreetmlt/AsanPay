@@ -1029,7 +1029,7 @@ html.dark .danger-confirm-icon {
   }
 }
 
-/* Animated date calendar popover (InstantPay-style) */
+/* Animated date calendar popover */
 @keyframes date-cal-pop-in {
   from {
     opacity: 0;

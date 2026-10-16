@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Dimensions,
   Keyboard,
-  KeyboardAvoidingView,
   Modal,
   PermissionsAndroid,
   Platform,
@@ -1004,6 +1004,15 @@ function dateToDisplay(d: Date): string {
   return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()} ${pad2(h12)}:${pad2(d.getMinutes())} ${ampm}`;
 }
 
+function bumpHour12(h24: number, delta: number): number {
+  const next12 = ((toHour12(h24) - 1 + delta + 12) % 12) + 1;
+  return fromHour12(next12, h24 >= 12);
+}
+
+function bumpMinute(m: number, delta: number): number {
+  return (m + delta + 60) % 60;
+}
+
 /** JS modal date+time — no native DateTimePicker (avoids Android crash on some devices). */
 function DepositDateTimeField({
   value,
@@ -1023,6 +1032,28 @@ function DepositDateTimeField({
   const [minute, setMinute] = useState(seed.getMinutes());
   const [typed, setTyped] = useState(value ? dateToDisplay(value) : "");
   const [pickerLevel, setPickerLevel] = useState<"day" | "month" | "year">("day");
+  const [kbHeight, setKbHeight] = useState(0);
+
+  useEffect(() => {
+    if (!open) {
+      setKbHeight(0);
+      return;
+    }
+    const showEvt = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvt = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showSub = Keyboard.addListener(showEvt, (e) => {
+      setKbHeight(e.endCoordinates.height);
+    });
+    const hideSub = Keyboard.addListener(hideEvt, () => setKbHeight(0));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [open]);
+
+  function syncTyped(nextHour: number, nextMinute: number, nextDay = day, nextMonth = viewMonth, nextYear = viewYear) {
+    setTyped(dateToDisplay(new Date(nextYear, nextMonth, nextDay, nextHour, nextMinute, 0, 0)));
+  }
 
   function openModal() {
     const s = value ?? new Date();
@@ -1033,6 +1064,7 @@ function DepositDateTimeField({
     setMinute(s.getMinutes());
     setTyped(value ? dateToDisplay(value) : "");
     setPickerLevel("day");
+    setKbHeight(0);
     setOpen(true);
   }
 
@@ -1111,22 +1143,28 @@ function DepositDateTimeField({
       </Pressable>
 
       <Modal visible={open} animationType="slide" transparent onRequestClose={() => setOpen(false)}>
-        <KeyboardAvoidingView
-          style={styles.dtKav}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 0}
-        >
+        <View style={styles.dtKav}>
           <Pressable
-            style={styles.dtBackdrop}
+            style={styles.dtBackdropFill}
             onPress={() => {
               Keyboard.dismiss();
               setOpen(false);
             }}
+          />
+          <View
+            style={[
+              styles.dtSheet,
+              {
+                backgroundColor: tokens.bg,
+                borderColor: tokens.cardBorder,
+                marginBottom: kbHeight,
+                maxHeight: Math.max(
+                  280,
+                  Dimensions.get("window").height - kbHeight - (kbHeight > 0 ? 12 : 40),
+                ),
+              },
+            ]}
           >
-            <Pressable
-              style={[styles.dtSheet, { backgroundColor: tokens.bg, borderColor: tokens.cardBorder }]}
-              onPress={(e) => e.stopPropagation()}
-            >
               <View style={styles.dtHeader}>
                 <Text style={[styles.dtTitle, { color: tokens.txt }]}>Deposit date & time</Text>
                 <Pressable
@@ -1286,6 +1324,7 @@ function DepositDateTimeField({
                                 onPress={() => {
                                   Keyboard.dismiss();
                                   setDay(d);
+                                  syncTyped(hour, minute, d);
                                 }}
                                 style={[styles.dtDay, { width: "14.28%" }, disabled && { opacity: 0.3 }]}
                               >
@@ -1309,36 +1348,63 @@ function DepositDateTimeField({
                 </Pressable>
 
                 <View style={styles.dtTimePanel}>
-                  <Text style={[styles.label, { color: tokens.sub, marginTop: 0 }]}>Time (12h)</Text>
+                  <Text style={[styles.label, { color: tokens.sub, marginTop: 0 }]}>Time (12h) — tap + / −</Text>
                   <View style={styles.dtTimeRow}>
-                    <TextInput
-                      style={[
-                        styles.dtTimeInput,
-                        { backgroundColor: "#fff", borderColor: "#C7D2FE", color: tokens.txt },
-                      ]}
-                      value={pad2(toHour12(hour))}
-                      onChangeText={(t) => {
-                        const n = Number(t.replace(/\D/g, "").slice(0, 2));
-                        if (!Number.isFinite(n) || n < 1 || n > 12) return;
-                        setHour(fromHour12(n, hour >= 12));
-                      }}
-                      keyboardType="number-pad"
-                      maxLength={2}
-                    />
-                    <Text style={{ color: tokens.txt, fontWeight: "800", fontSize: 18 }}>:</Text>
-                    <TextInput
-                      style={[
-                        styles.dtTimeInput,
-                        { backgroundColor: "#fff", borderColor: "#C7D2FE", color: tokens.txt },
-                      ]}
-                      value={pad2(minute)}
-                      onChangeText={(t) => {
-                        const n = Number(t.replace(/\D/g, "").slice(0, 2));
-                        if (Number.isFinite(n) && n <= 59) setMinute(n);
-                      }}
-                      keyboardType="number-pad"
-                      maxLength={2}
-                    />
+                    <View style={styles.dtStepper}>
+                      <Pressable
+                        style={styles.dtStepBtn}
+                        onPress={() => {
+                          Keyboard.dismiss();
+                          const next = bumpHour12(hour, 1);
+                          setHour(next);
+                          syncTyped(next, minute);
+                        }}
+                      >
+                        <Text style={styles.dtStepBtnTxt}>+</Text>
+                      </Pressable>
+                      <View style={styles.dtStepValue}>
+                        <Text style={[styles.dtStepValueTxt, { color: tokens.txt }]}>{pad2(toHour12(hour))}</Text>
+                      </View>
+                      <Pressable
+                        style={styles.dtStepBtn}
+                        onPress={() => {
+                          Keyboard.dismiss();
+                          const next = bumpHour12(hour, -1);
+                          setHour(next);
+                          syncTyped(next, minute);
+                        }}
+                      >
+                        <Text style={styles.dtStepBtnTxt}>−</Text>
+                      </Pressable>
+                    </View>
+                    <Text style={{ color: tokens.txt, fontWeight: "800", fontSize: 18, marginHorizontal: 2 }}>:</Text>
+                    <View style={styles.dtStepper}>
+                      <Pressable
+                        style={styles.dtStepBtn}
+                        onPress={() => {
+                          Keyboard.dismiss();
+                          const next = bumpMinute(minute, 1);
+                          setMinute(next);
+                          syncTyped(hour, next);
+                        }}
+                      >
+                        <Text style={styles.dtStepBtnTxt}>+</Text>
+                      </Pressable>
+                      <View style={styles.dtStepValue}>
+                        <Text style={[styles.dtStepValueTxt, { color: tokens.txt }]}>{pad2(minute)}</Text>
+                      </View>
+                      <Pressable
+                        style={styles.dtStepBtn}
+                        onPress={() => {
+                          Keyboard.dismiss();
+                          const next = bumpMinute(minute, -1);
+                          setMinute(next);
+                          syncTyped(hour, next);
+                        }}
+                      >
+                        <Text style={styles.dtStepBtnTxt}>−</Text>
+                      </Pressable>
+                    </View>
                     <View style={styles.dtAmPmRow}>
                       {(["AM", "PM"] as const).map((label) => {
                         const on = (hour >= 12 ? "PM" : "AM") === label;
@@ -1347,7 +1413,9 @@ function DepositDateTimeField({
                             key={label}
                             onPress={() => {
                               Keyboard.dismiss();
-                              setHour(fromHour12(toHour12(hour), label === "PM"));
+                              const next = fromHour12(toHour12(hour), label === "PM");
+                              setHour(next);
+                              syncTyped(next, minute);
                             }}
                             style={[styles.dtAmPmChip, on && styles.dtAmPmChipOn]}
                           >
@@ -1371,9 +1439,8 @@ function DepositDateTimeField({
                   <Text style={styles.submitText}>Use this date & time</Text>
                 </Pressable>
               </ScrollView>
-            </Pressable>
-          </Pressable>
-        </KeyboardAvoidingView>
+          </View>
+        </View>
       </Modal>
     </>
   );
@@ -1887,8 +1954,8 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     alignItems: "center",
   },
-  dtKav: { flex: 1, justifyContent: "flex-end" },
-  dtBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(15,23,42,0.45)" },
+  dtKav: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(15,23,42,0.45)" },
+  dtBackdropFill: { ...StyleSheet.absoluteFillObject },
   dtSheet: {
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
@@ -1896,11 +1963,31 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingHorizontal: 16,
     paddingBottom: 8,
-    maxHeight: "92%",
   },
   dtScrollContent: { paddingBottom: 28 },
   dtHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
   dtTitle: { fontSize: 17, fontWeight: "800" },
+  dtStepper: { alignItems: "center", gap: 4 },
+  dtStepBtn: {
+    width: 40,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: "#DBEAFE",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dtStepBtnTxt: { color: colors.blueFlat, fontWeight: "900", fontSize: 18, lineHeight: 20 },
+  dtStepValue: {
+    minWidth: 48,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#C7D2FE",
+    backgroundColor: "#fff",
+    alignItems: "center",
+  },
+  dtStepValueTxt: { fontSize: 18, fontWeight: "800" },
   dtCalPanel: {
     marginTop: 12,
     backgroundColor: "#F5F8FF",
@@ -1955,17 +2042,7 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 12,
   },
-  dtTimeRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 4 },
-  dtTimeInput: {
-    width: 64,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 18,
-    fontWeight: "800",
-    textAlign: "center",
-  },
+  dtTimeRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" },
   dtAmPmRow: { flexDirection: "row", gap: 6, marginLeft: 4 },
   dtAmPmChip: {
     borderRadius: 10,
