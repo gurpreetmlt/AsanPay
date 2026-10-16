@@ -93,6 +93,7 @@
 - [x] **Treasury search** (TB17): Bank & deposits search box — UTR / amount / agent / mobile. `GET /banking/search`.
 - [x] **Mobile-friendly recon** (TB18): Admin-web phone layout for Reconciliation (sticky bulk, touch targets, tile tips). Exception: no native admin app.
 - [x] **Test entries visual** (TB19): Amber row + Test badge on Bank entries / Fund requests / Activity. Admin list exposes `isTest`.
+- [x] **Treasury health score** (TB20): Bank & deposits top strip 0–100 (match / gap / freshness). `GET /banking/health-score`.
 - [x] **Daily summary export** (TB08): Daily close → PDF/CSV/XLS + email/WhatsApp send. `GET /banking/daily-summary`, `POST /banking/daily-summary/send`. Activity feed API rows titled `Provider · Service` (e.g. VyaparAPI · Recharge).
 - [x] **Duplicate / double-credit guard** (TB09): Statement verify returns soft `duplicateWarnings` (UTR already credited / amount+date); Import requires `confirmDuplicates`. Fund-request approve returns `DUPLICATE_CREDIT_CONFIRM` until `confirmDuplicate`. Admin UI checkboxes. No migration.
 - [x] **Wrong-bank detector** (TB10): Import blocked when statement points at another company bank (account/IFSC mismatch, more UTRs on other bank, opening continues other bank, or balance gap with no soft match). Soft continuity alone cannot override wrong-bank evidence unless account/IFSC hard-match. UI shows “Import is blocked” + Switch bank. No migration.

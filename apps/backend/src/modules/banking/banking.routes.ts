@@ -606,6 +606,13 @@ bankingRouter.post("/daily-close/reopen", requireRole("admin"), async (req, res)
   );
 });
 
+/** Treasury ops health score 0–100 (TB20). */
+bankingRouter.get("/health-score", requireRole("admin"), async (_req, res) => {
+  const tenantId = await resolveTenantId();
+  const { getTreasuryHealthScore } = await import("./treasuryHealth.service");
+  sendSuccess(res, await getTreasuryHealthScore({ tenantId }));
+});
+
 /** Global treasury search — UTR / amount / agent / mobile (TB17). */
 bankingRouter.get("/search", requireRole("admin"), async (req, res) => {
   const tenantId = await resolveTenantId();

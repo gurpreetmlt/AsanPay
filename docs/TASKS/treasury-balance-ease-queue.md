@@ -27,7 +27,7 @@
 | **TB17** | Search everywhere (UTR / amount / agent / mobile) | M | done | `GET /banking/search` · Bank & deposits box |
 | **TB18** | Mobile-friendly recon (admin light or owner) | L | done | Admin-web responsive only (no native admin app) |
 | **TB19** | Sandbox vs live / Test entries hardened | S | done | Amber row + Test badge · FR list `isTest` |
-| **TB20** | Treasury health score (%) | M | **CURRENT** | Matched % + gaps + stale statements |
+| **TB20** | Treasury health score (%) | M | done | Match 50% · Gap 25% · Fresh 25% · `GET /banking/health-score` |
 
 ## Already shipped (related, not in this queue)
 
@@ -59,7 +59,11 @@
 | TB17 | Bank & deposits → top search box | UTR / amount / agent / mobile | Hits → Reconciliation / Fund requests / Bank entries / agent profile. `GET /banking/search`. |
 | TB18 | Phone browser → Reconciliation | Touch + sticky bulk | Period 2×2, tile tips on phone, sticky bulk above bottom nav, min-w table, larger taps. Exception: admin-web only (no native admin). |
 | TB19 | Bank entries / Fund requests / Activity | Test visual | Amber row tint + Test badge. Admin FR list returns `isTest`. Activity shows “Credited · Test”. |
-| … | | | |
+| TB20 | Bank & deposits → top health strip | Score 0–100 | Match / Gap / Freshness chips. Optional −10 if daily close blockers open. `GET /banking/health-score`. |
+
+## Queue complete
+
+All TB01–TB20 shipped. No CURRENT row left in this queue.
 
 ## Prompt for next chat
 

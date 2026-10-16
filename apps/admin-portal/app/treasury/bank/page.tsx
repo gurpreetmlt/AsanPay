@@ -15,6 +15,7 @@ import { DailyClosePanel } from "@/components/bank-deposits/DailyClosePanel";
 import { AuditTrailPanel } from "@/components/bank-deposits/AuditTrailPanel";
 import { CategoryRulesPanel } from "@/components/bank-deposits/CategoryRulesPanel";
 import { TreasurySearchBox } from "@/components/bank-deposits/TreasurySearchBox";
+import { TreasuryHealthScore } from "@/components/bank-deposits/TreasuryHealthScore";
 import { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
@@ -251,6 +252,8 @@ function BankDepositsContent() {
             <TreasurySearchBox />
           </div>
         </div>
+
+        <TreasuryHealthScore />
 
         <section
           aria-label="Cash picture"
