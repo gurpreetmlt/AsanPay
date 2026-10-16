@@ -19,6 +19,7 @@ import { deviceRepairRouter } from "./modules/devices/deviceRepair.routes";
 import { disputeRouter } from "./modules/disputes/dispute.routes";
 import { adminRouter } from "./modules/admin/admin.routes";
 import { dashboardRouter } from "./modules/dashboard/dashboard.routes";
+import { earningsRouter } from "./modules/earnings/earnings.routes";
 import { onboardingRouter } from "./modules/onboarding/onboarding.routes";
 import { supportRouter } from "./modules/support/support.routes";
 import { fundRequestRouter } from "./modules/fund-requests/fundRequest.routes";
@@ -100,6 +101,7 @@ export function createApp(): Express {
   app.use("/api/disputes", disputeRouter);
   app.use("/api/admin", adminRouter);
   app.use("/api/dashboard", dashboardRouter);
+  app.use("/api/earnings", earningsRouter);
   app.use("/api/onboarding", onboardingRouter);
   app.use("/api/support", supportRouter);
   app.use("/api/fund-requests", fundRequestRouter);

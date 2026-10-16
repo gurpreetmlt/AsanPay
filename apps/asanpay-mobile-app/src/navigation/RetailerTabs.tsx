@@ -7,6 +7,7 @@ import { PartnerLedgerScreen } from "../screens/partner/PartnerLedgerScreen";
 import { FundRequestsScreen } from "../screens/shared/FundRequestScreen";
 import { WalletScreen } from "../screens/shared/WalletScreen";
 import { AccountScreen } from "../screens/shared/AccountScreen";
+import { MyEarningsScreen } from "../screens/shared/MyEarningsScreen";
 import { TabBarIcon } from "../components/TabBarIcon";
 import { useTheme } from "../theme/ThemeContext";
 import { useAuthStore } from "../store/auth";
@@ -46,6 +47,11 @@ export function RetailerTabs() {
       {fundOn ? <Tab.Screen name="Requests" component={FundRequestsScreen} /> : null}
       <Tab.Screen name="Balance" component={WalletScreen} />
       <Tab.Screen name="Account" component={AccountScreen} />
+      <Tab.Screen
+        name="MyEarnings"
+        component={MyEarningsScreen}
+        options={{ tabBarButton: () => null, tabBarItemStyle: { display: "none" } }}
+      />
     </Tab.Navigator>
   );
 }

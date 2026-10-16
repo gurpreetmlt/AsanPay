@@ -72,9 +72,9 @@
 | **TC04** | DMT fee GST in pricing path | M | done | `transactions.customer_fee_gst` · debit total includes GST · journal fee+GST |
 | **TC05** | Admin Tax settings UI | M | done | `/commission` Tax tab · `PATCH /admin/commission/tax-config/:id` |
 | **TC06** | Admin preview includes tax | S | done | Preview shows Gross · TDS · Net + tax flags |
-| **TC07** | Home: Balance · Earnings Report · Today's Earnings | M | **CURRENT** | Partial: Partner mobile already OK; Retailer mobile strip + SD/Dist web strip added (tap → Ledger/Reports until TC08 My Earnings). Finish: wire all entrypoints to My Earnings when TC08 ships |
-| **TC08** | My Earnings screen shell + APIs | M | pending | Date range, TOTAL card, active-count badge, empty state. Summary + list APIs. Roles: SD, Dist, **Retailer** (product summary). Shared screen OK with role flags |
-| **TC09** | My Earnings — Downline-wise tab | M | pending | **SD/Dist only** (hide for retailer). Web + mobile |
+| **TC07** | Home: Balance · Earnings Report · Today's Earnings | M | done | Home strips + Report → My Earnings (SD/Dist web+mobile; Retailer mobile). Retailer web parked (TC21) |
+| **TC08** | My Earnings screen shell + APIs | M | done | `/api/earnings/*` · mobile `MyEarnings` · web `/earnings` (SD/Dist). Product summary + empty; downline tab = Coming soon until TC09 |
+| **TC09** | My Earnings — Downline-wise tab | M | **CURRENT** | **SD/Dist only** (hide for retailer). Web + mobile |
 | **TC10** | My Earnings — Product-wise tab | M | pending | **SD + Dist + Retailer mobile.** Vol + Earning. Retailer: default / only tab |
 | **TC11** | My Earnings — row expand / detail | M | pending | Downline→products (SD/Dist); product→txns (all). Gross/TDS/Net when TC03 live. Retailer mobile included |
 | **TC12** | Nav wiring | S | pending | Home / Report / Earnings entry → My Earnings. SD/Dist web+mobile; **Retailer mobile** tabs/Account/Reports entry |
@@ -149,7 +149,7 @@
 
 ```
 @docs/TASKS/tax-commission-queue.md @AGENTS.md
-Implement CURRENT only (TC07). No explore. No MCP. Mac Terminal cmds in reply.
+Implement CURRENT only (TC09 My Earnings Downline-wise). No explore. No MCP. Mac Terminal cmds in reply.
 ```
 
 When retailer web is ready:

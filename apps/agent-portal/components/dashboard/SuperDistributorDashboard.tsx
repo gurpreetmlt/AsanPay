@@ -101,7 +101,11 @@ export function SuperDistributorDashboard() {
 
       <button
         type="button"
-        onClick={() => router.push("/reports")}
+        onClick={() => {
+          const d = new Date();
+          const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+          router.push(`/earnings?from=${ymd}&to=${ymd}`);
+        }}
         className="flex w-full items-center gap-3 rounded-2xl border bg-white px-4 py-3 text-left transition hover:shadow-sm"
         style={{ borderColor: B.border }}
       >

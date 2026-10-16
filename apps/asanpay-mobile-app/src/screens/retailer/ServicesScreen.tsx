@@ -255,13 +255,20 @@ export function ServicesScreen() {
           wallets={wallets}
           onAddMoney={openAddMoney}
           onWalletPress={() => navigation.navigate("Balance")}
-          onReports={() => navigation.navigate("Ledger")}
+          onReports={() => navigation.navigate("MyEarnings" as never)}
         />
       </ScreenHeader>
 
       <Pressable
         style={[styles.todayEarnCard, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
-        onPress={() => navigation.navigate("Ledger")}
+        onPress={() => {
+          const d = new Date();
+          const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+          (navigation as { navigate: (n: string, p?: object) => void }).navigate("MyEarnings", {
+            from: ymd,
+            to: ymd,
+          });
+        }}
         accessibilityRole="button"
         accessibilityLabel="Today's earnings"
       >

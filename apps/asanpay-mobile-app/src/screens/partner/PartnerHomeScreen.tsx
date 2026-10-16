@@ -84,6 +84,15 @@ export function PartnerHomeScreen() {
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
   const go = (name: string, params?: object) => navigation.navigate(name, params);
+  const goEarnings = (todayOnly = false) => {
+    if (todayOnly) {
+      const d = new Date();
+      const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      go("MyEarnings", { from: ymd, to: ymd });
+      return;
+    }
+    go("MyEarnings");
+  };
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -113,7 +122,7 @@ export function PartnerHomeScreen() {
   ];
 
   const reportTiles: Tile[] = [
-    { label: "Earnings", icon: ChartColumn, tint: "#6D28D9", onPress: () => go("Ledger") },
+    { label: "Earnings", icon: ChartColumn, tint: "#6D28D9", onPress: () => goEarnings() },
     { label: "Transfers", icon: ReceiptText, tint: colors.green, onPress: () => go("Ledger") },
     { label: "Referral", icon: Send, tint: "#0D9488", onPress: () => openInvite() },
     { label: "Invoices", icon: FileText, tint: colors.blueFlat, onPress: () => comingSoon("Invoices") },
@@ -128,7 +137,7 @@ export function PartnerHomeScreen() {
 
   const summaryRows: Tile[] = [
     { label: "Account Ledger", icon: BookText, tint: "#6D28D9", onPress: () => go("Ledger") },
-    { label: "Earnings Report", icon: TrendingUp, tint: colors.green, onPress: () => go("Ledger") },
+    { label: "Earnings Report", icon: TrendingUp, tint: colors.green, onPress: () => goEarnings() },
     { label: "My Invoices", icon: FileText, tint: colors.blueFlat, onPress: () => comingSoon("Invoices") },
   ];
 
@@ -214,7 +223,7 @@ export function PartnerHomeScreen() {
                 </Text>
               </View>
             </Pressable>
-            <Pressable style={[styles.statCard, cardStyle]} onPress={() => go("Ledger")}>
+            <Pressable style={[styles.statCard, cardStyle]} onPress={() => goEarnings()}>
               <View style={[styles.statIcon, { backgroundColor: colors.greenBg }]}>
                 <TrendingUp size={18} color={colors.green} strokeWidth={2.2} />
               </View>
@@ -225,7 +234,7 @@ export function PartnerHomeScreen() {
             </Pressable>
           </View>
 
-          <Pressable style={[styles.todayCard, cardStyle]} onPress={() => go("Ledger")}>
+          <Pressable style={[styles.todayCard, cardStyle]} onPress={() => goEarnings(true)}>
             <View style={[styles.statIcon, { backgroundColor: "#EEF2FF" }]}>
               <ChartColumn size={18} color={colors.blueFlat} strokeWidth={2.2} />
             </View>

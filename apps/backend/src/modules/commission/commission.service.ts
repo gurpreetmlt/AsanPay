@@ -1,4 +1,4 @@
-import { and, eq, gt, lte, isNull, or, desc, sql, asc, ilike } from "drizzle-orm";
+import { and, eq, gt, gte, lte, isNull, or, desc, sql, asc, ilike } from "drizzle-orm";
 import { db } from "../../db/postgres";
 import {
   commissionLedger,
@@ -247,6 +247,27 @@ async function findRoleDefaultRule(
 }
 
 // ── Earnings reads (retailer/distributor dashboards) ────────────────────────
+function istDayStart(ymd: string): Date {
+  return new Date(`${ymd}T00:00:00+05:30`);
+}
+
+function istDayEnd(ymd: string): Date {
+  return new Date(`${ymd}T23:59:59.999+05:30`);
+}
+
+function todayYmdIst(): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const y = parts.find((p) => p.type === "year")?.value ?? "1970";
+  const m = parts.find((p) => p.type === "month")?.value ?? "01";
+  const d = parts.find((p) => p.type === "day")?.value ?? "01";
+  return `${y}-${m}-${d}`;
+}
+
 export async function getEarningsSummary(userId: string, since: Date) {
   const [row] = await db
     .select({
@@ -273,6 +294,165 @@ export async function listEarnings(userId: string, limit = 50, offset = 0) {
     .orderBy(desc(commissionLedger.createdAt))
     .limit(Math.min(limit, 100))
     .offset(offset);
+}
+
+/** My Earnings shell (TC08) — net totals + active service / downline badges. */
+export async function getMyEarningsSummary(
+  userId: string,
+  role: UserRole,
+  fromYmd?: string,
+  toYmd?: string,
+) {
+  const from = fromYmd ?? todayYmdIst();
+  const to = toYmd ?? from;
+  if (from > to) {
+    throw new HttpError(400, "From date must be on or before To date", "INVALID_DATE_RANGE");
+  }
+  const since = istDayStart(from);
+  const until = istDayEnd(to);
+  const range = and(
+    eq(commissionLedger.beneficiaryUserId, userId),
+    gte(commissionLedger.createdAt, since),
+    lte(commissionLedger.createdAt, until),
+  );
+
+  const [totals] = await db
+    .select({
+      totalNet: sql<string>`coalesce(sum(${commissionLedger.amount}), '0')`,
+      totalGross: sql<string>`coalesce(sum(coalesce(${commissionLedger.grossAmount}, ${commissionLedger.amount})), '0')`,
+      totalTds: sql<string>`coalesce(sum(coalesce(${commissionLedger.tdsAmount}, 0)), '0')`,
+      creditCount: sql<number>`count(*)::int`,
+      activeServices: sql<number>`count(distinct ${transactions.serviceId})::int`,
+    })
+    .from(commissionLedger)
+    .innerJoin(transactions, eq(commissionLedger.transactionId, transactions.id))
+    .where(range);
+
+  let activeDownline: number | null = null;
+  if (role === "super_distributor" || role === "distributor") {
+    const [down] = await db
+      .select({
+        n: sql<number>`count(distinct ${transactions.userId})::int`,
+      })
+      .from(commissionLedger)
+      .innerJoin(transactions, eq(commissionLedger.transactionId, transactions.id))
+      .where(range);
+    activeDownline = down?.n ?? 0;
+  }
+
+  return {
+    from,
+    to,
+    totalNet: String(totals?.totalNet ?? "0"),
+    totalGross: String(totals?.totalGross ?? "0"),
+    totalTds: String(totals?.totalTds ?? "0"),
+    creditCount: totals?.creditCount ?? 0,
+    activeServices: totals?.activeServices ?? 0,
+    activeDownline,
+  };
+}
+
+export async function listMyEarnings(
+  userId: string,
+  opts: { from?: string; to?: string; limit?: number; offset?: number },
+) {
+  const from = opts.from ?? todayYmdIst();
+  const to = opts.to ?? from;
+  if (from > to) {
+    throw new HttpError(400, "From date must be on or before To date", "INVALID_DATE_RANGE");
+  }
+  const limit = Math.min(opts.limit ?? 50, 200);
+  const offset = opts.offset ?? 0;
+  const since = istDayStart(from);
+  const until = istDayEnd(to);
+
+  const rows = await db
+    .select({
+      id: commissionLedger.id,
+      netAmount: commissionLedger.amount,
+      grossAmount: commissionLedger.grossAmount,
+      tdsAmount: commissionLedger.tdsAmount,
+      transactionId: commissionLedger.transactionId,
+      txnRef: transactions.txnRef,
+      txnAmount: transactions.amount,
+      serviceId: transactions.serviceId,
+      serviceCode: services.code,
+      serviceName: services.name,
+      createdAt: commissionLedger.createdAt,
+    })
+    .from(commissionLedger)
+    .innerJoin(transactions, eq(commissionLedger.transactionId, transactions.id))
+    .innerJoin(services, eq(transactions.serviceId, services.id))
+    .where(
+      and(
+        eq(commissionLedger.beneficiaryUserId, userId),
+        gte(commissionLedger.createdAt, since),
+        lte(commissionLedger.createdAt, until),
+      ),
+    )
+    .orderBy(desc(commissionLedger.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  return rows.map((r) => ({
+    id: r.id,
+    netAmount: String(r.netAmount),
+    grossAmount: r.grossAmount != null ? String(r.grossAmount) : String(r.netAmount),
+    tdsAmount: r.tdsAmount != null ? String(r.tdsAmount) : "0",
+    transactionId: r.transactionId,
+    txnRef: r.txnRef,
+    txnAmount: String(r.txnAmount),
+    serviceId: r.serviceId,
+    serviceCode: r.serviceCode,
+    serviceName: r.serviceName,
+    createdAt: r.createdAt,
+  }));
+}
+
+/** Product-wise summary for My Earnings shell (retailer primary; SD/Dist shared). */
+export async function listMyEarningsByProduct(
+  userId: string,
+  fromYmd?: string,
+  toYmd?: string,
+) {
+  const from = fromYmd ?? todayYmdIst();
+  const to = toYmd ?? from;
+  if (from > to) {
+    throw new HttpError(400, "From date must be on or before To date", "INVALID_DATE_RANGE");
+  }
+  const since = istDayStart(from);
+  const until = istDayEnd(to);
+
+  const rows = await db
+    .select({
+      serviceId: services.id,
+      serviceCode: services.code,
+      serviceName: services.name,
+      volume: sql<string>`coalesce(sum(${transactions.amount}), '0')`,
+      netAmount: sql<string>`coalesce(sum(${commissionLedger.amount}), '0')`,
+      creditCount: sql<number>`count(*)::int`,
+    })
+    .from(commissionLedger)
+    .innerJoin(transactions, eq(commissionLedger.transactionId, transactions.id))
+    .innerJoin(services, eq(transactions.serviceId, services.id))
+    .where(
+      and(
+        eq(commissionLedger.beneficiaryUserId, userId),
+        gte(commissionLedger.createdAt, since),
+        lte(commissionLedger.createdAt, until),
+      ),
+    )
+    .groupBy(services.id, services.code, services.name)
+    .orderBy(desc(sql`sum(${commissionLedger.amount})`));
+
+  return rows.map((r) => ({
+    serviceId: r.serviceId,
+    serviceCode: r.serviceCode,
+    serviceName: r.serviceName,
+    volume: String(r.volume),
+    netAmount: String(r.netAmount),
+    creditCount: r.creditCount,
+  }));
 }
 
 /** Admin payout report — network-wide commission_ledger with optional role/date filters. */

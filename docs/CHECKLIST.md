@@ -26,6 +26,7 @@
 - [x] RN Android shell + login (OTP flow)
 - [x] Role-based home screen
 - [x] Bottom tab navigation (Retailer 4 tabs, Partner 3 tabs)
+- [x] My Earnings shell (TC07–08): Home Today’s Earnings / Report → `MyEarnings`; `/api/earnings` summary + by-product; SD/Dist web `/earnings`
 - [ ] Service flows (AEPS, DMT, BBPS)
 - [ ] Biometric SDK
 - [x] Txn PIN modal + wallet transfer PIN

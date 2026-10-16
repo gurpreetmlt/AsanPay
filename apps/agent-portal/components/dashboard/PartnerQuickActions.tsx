@@ -118,12 +118,12 @@ export function PartnerQuickActions({
     },
     {
       key: "reports",
-      label: "Reports",
-      hint: "Volume and commission",
+      label: "My Earnings",
+      hint: "Commission report",
       icon: <BarChart3 size={20} />,
       color: "#7C3AED",
       bg: "#EDE9FE",
-      onClick: () => router.push("/reports"),
+      onClick: () => router.push("/earnings"),
     },
   ];
 

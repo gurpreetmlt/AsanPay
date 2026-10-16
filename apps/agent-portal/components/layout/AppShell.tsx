@@ -145,6 +145,7 @@ function buildAgentNav(role: UserRole | undefined, fundRequestOn: boolean): NavI
         ...moneyExtra,
         { to: "/settlements", label: "Settlements", icon: Landmark },
         { to: "/float-planner", label: "Float & Earnings", icon: PiggyBank },
+        { to: "/earnings", label: "My Earnings", icon: BarChart3 },
         { to: "/passbook", label: "History", icon: History },
         { to: "/statements", label: "Statements", icon: FileText },
       ],
@@ -176,7 +177,7 @@ function mobileTabsForRole(role: string | undefined) {
     MOBILE_CORE[0],
     { icon: Network, label: "Network", to: "/network" },
     MOBILE_CORE[1],
-    { icon: BarChart3, label: "Reports", to: "/reports" },
+    { icon: BarChart3, label: "Earnings", to: "/earnings" },
     MOBILE_CORE[3],
   ];
 }
@@ -602,6 +603,7 @@ const HEADER_SEARCH_SERVICES = [
   { label: "UPI Cash Point", href: "/upi-cash-point", q: "upi cash point" },
   { label: "Add Money", href: "/fund-request", q: "fund add money wallet" },
   { label: "Settlements", href: "/settlements", q: "settlement bank withdraw" },
+  { label: "My Earnings", href: "/earnings", q: "earnings commission report today" },
   { label: "Reports", href: "/reports", q: "reports earnings commission" },
 ] as const;
 

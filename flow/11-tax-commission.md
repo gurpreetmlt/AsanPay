@@ -43,3 +43,4 @@ Web + mobile for SD/Dist. Retailer **web** earnings layout = later (TC21).
 - Payout: `distributeCommissionForTxn` · `commission_ledger`
 - Tax config: `tax_service_configs` (TC02+)
 - Customer fee: `service_charges` · `transactions.customer_fee`
+- My Earnings: `GET /api/earnings/summary` · `/by-product` · `/` · mobile `MyEarnings` · web `/earnings` (SD/Dist)
