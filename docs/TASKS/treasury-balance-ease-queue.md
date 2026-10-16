@@ -18,8 +18,8 @@
 | **TB08** | Export + daily email / WhatsApp summary | M | done | Build on PDF/CSV/XLS |
 | **TB09** | Duplicate / double-credit guard (UTR / amount+date) | M | done | Warn before credit / import |
 | **TB10** | Wrong-bank detector stronger (block Import) | S | done | Verify strip exists — harden |
-| **TB11** | Partial / Likely match + 1-click Confirm | M | **CURRENT** | Amount match, UTR miss |
-| TB12 | Bulk resolve unmatched (ignore / entry / link) | M | partial | Bulk bank entry exists — extend |
+| **TB11** | Partial / Likely match + 1-click Confirm | M | done | Amount match, UTR miss |
+| **TB12** | Bulk resolve unmatched (ignore / entry / link) | M | **CURRENT** | Bulk bank entry exists — extend |
 | TB13 | Role views (admin full; agent own deposits only) | M | pending | Agent portal + API gate |
 | TB14 | Audit trail (who match/unmatch/delete, when, why) | M | pending | Timeline UI |
 | TB15 | Opening / closing balance lock + mid-day drift | L | pending | Per bank per day |
@@ -50,6 +50,7 @@
 | TB08 | Daily close → Daily summary export | PDF / CSV / XLS + Send | `GET /banking/daily-summary`, `POST /banking/daily-summary/send` (email + WhatsApp). Activity API rows show provider name · service. |
 | TB09 | Reconcile import + Fund request Approve | Duplicate warn + confirm checkbox | Verify shows orange duplicate risks; Import needs “I understand these may be duplicates”. Approve without confirm → `DUPLICATE_CREDIT_CONFIRM`; tick “not a double credit” then credit. |
 | TB10 | Reconciliation → upload wrong bank | Import blocked + Switch CTA | Wrong account/IFSC, UTRs mostly on another bank, or opening continues another bank → `blocked` (no confirm override). Gap on selected with no soft match → blocked. Switch bank button. |
+| TB11 | Reconciliation → Likely match rows | Confirm / Confirm all | Amount + side + ≤3 days + UTR missing (or same UTR); unique candidate only. Hint under Why. Row Confirm match + Confirm all likely. |
 | … | | | |
 
 ## Prompt for next chat

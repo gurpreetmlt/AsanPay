@@ -74,6 +74,8 @@ export interface ReconRow {
   record: ReconRecord | null;
   /** True when the link was confirmed by hand and can be undone. */
   unlinkable: boolean;
+  /** Why this row is a likely match (amount + UTR miss / same UTR). */
+  hint?: string | null;
 }
 
 const TXN_LABELS: Record<string, string> = {
@@ -171,6 +173,23 @@ function toRecord(r: RecordRow): ReconRecord {
 
 function dayDiff(a: string, b: string): number {
   return Math.abs(Date.parse(`${a}T00:00:00Z`) - Date.parse(`${b}T00:00:00Z`)) / 86_400_000;
+}
+
+function recordUtrNorm(r: RecordRow): string | null {
+  return normaliseUtr(r.be_utr ?? r.fr_ref);
+}
+
+/** Human reason for a likely (amount) match — UTR miss is the main case. */
+function possibleHint(line: LineRow, rec: RecordRow): string {
+  const lineUtr = line.utr_norm;
+  const recUtr = recordUtrNorm(rec);
+  const days = dayDiff(rec.biz_date, line.txn_date);
+  const dayBit = days === 0 ? "same day" : `dates ${days} day(s) apart`;
+  if (!lineUtr && !recUtr) return `Same amount · UTR missing on both sides · ${dayBit}`;
+  if (!lineUtr) return `Same amount · UTR missing on statement · ${dayBit}`;
+  if (!recUtr) return `Same amount · UTR missing on AsanPay record · ${dayBit}`;
+  if (lineUtr === recUtr) return `Same amount and UTR · ${dayBit} — confirm to lock`;
+  return `Same amount · ${dayBit}`;
 }
 
 /**
@@ -291,14 +310,28 @@ export async function getReconciliation(params: {
     stillFree.push(l);
   }
 
+  // Likely match (TB11): same amount + side + within 3 days, and UTR missing on at least
+  // one side (or same UTR that auto-match did not lock). Exactly one candidate — no guessing
+  // when several records share the amount. Different non-empty UTRs are not "likely".
   for (const l of stillFree) {
     const candidates = freeRecords()
       .filter((r) => sameSide(l, r) && r.amount === l.amount && dayDiff(r.biz_date, l.txn_date) <= 3)
+      .filter((r) => {
+        const ru = recordUtrNorm(r);
+        if (!l.utr_norm || !ru) return true;
+        return l.utr_norm === ru;
+      })
       .sort((a, b) => dayDiff(a.biz_date, l.txn_date) - dayDiff(b.biz_date, l.txn_date));
-    const best = candidates[0];
-    if (best) {
+    if (candidates.length === 1) {
+      const best = candidates[0]!;
       usedRecords.add(best.entry_id);
-      rows.push({ kind: "possible", line: toLine(l), record: toRecord(best), unlinkable: false });
+      rows.push({
+        kind: "possible",
+        line: toLine(l),
+        record: toRecord(best),
+        unlinkable: false,
+        hint: possibleHint(l, best),
+      });
     } else {
       rows.push({ kind: "only_bank", line: toLine(l), record: null, unlinkable: false });
     }

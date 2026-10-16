@@ -58,6 +58,8 @@ interface ReconRow {
   line: ReconLine | null;
   record: ReconRecord | null;
   unlinkable: boolean;
+  /** Backend hint for likely matches (amount + UTR miss). */
+  hint?: string | null;
 }
 
 interface StatementImport {
@@ -287,7 +289,7 @@ function KindPill({ kind }: { kind: Kind }) {
   );
 }
 
-function RowExplain({ kind }: { kind: Kind }) {
+function RowExplain({ kind, hint }: { kind: Kind; hint?: string | null }) {
   const explain = ROW_EXPLAIN[kind] ?? ROW_EXPLAIN.only_bank;
   const meta = KIND_META[kind] ?? KIND_META.only_bank;
   return (
@@ -296,7 +298,7 @@ function RowExplain({ kind }: { kind: Kind }) {
         <span className="font-bold" style={{ color: meta.color }}>
           Why:{" "}
         </span>
-        {explain.why}
+        {hint?.trim() || explain.why}
       </p>
       <p style={{ color: B.muted }}>
         <span className="font-bold" style={{ color: B.blue }}>
@@ -800,6 +802,34 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
       await runReport();
     } catch (err) {
       toast.error(errMessage(err, "Could not confirm the match"));
+    } finally {
+      setBusyLine(null);
+    }
+  }
+
+  async function confirmAllLikely() {
+    if (!report || busyLine) return;
+    const likely = report.rows.filter((r) => r.kind === "possible" && r.line && r.record);
+    if (!likely.length) return;
+    setBusyLine("all-likely");
+    let ok = 0;
+    let fail = 0;
+    try {
+      for (const row of likely) {
+        try {
+          await api.post("/banking/reconciliation/link", {
+            lineId: row.line!.id,
+            journalId: row.record!.journalId,
+          });
+          ok += 1;
+        } catch {
+          fail += 1;
+        }
+      }
+      if (ok) toast.success(`Confirmed ${ok} likely match${ok === 1 ? "" : "es"}`);
+      if (fail) toast.error(`${fail} match${fail === 1 ? "" : "es"} could not be confirmed`);
+      void loadHistory();
+      await runReport();
     } finally {
       setBusyLine(null);
     }
@@ -1368,9 +1398,25 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                     );
                   })}
                 </div>
-                <p className="text-xs font-medium" style={{ color: B.muted }}>
-                  Showing {visibleRows.length} of {report.rows.length} transactions
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  {report.counts.possible > 0 ? (
+                    <button
+                      type="button"
+                      disabled={!!busyLine}
+                      onClick={() => void confirmAllLikely()}
+                      className="inline-flex h-9 items-center rounded-xl px-3 text-xs font-bold text-white disabled:opacity-60"
+                      style={{ background: B.badgeGrad }}
+                      title="Confirm every likely match (same amount, UTR missing or matching)"
+                    >
+                      {busyLine === "all-likely"
+                        ? "Confirming…"
+                        : `Confirm all likely · ${report.counts.possible}`}
+                    </button>
+                  ) : null}
+                  <p className="text-xs font-medium" style={{ color: B.muted }}>
+                    Showing {visibleRows.length} of {report.rows.length} transactions
+                  </p>
+                </div>
               </div>
 
               {selectedLines.length > 0 ? (
@@ -1506,7 +1552,9 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
                             </td>
                             <td className="px-3 py-2.5">
                               <KindPill kind={r.kind} />
-                              {r.kind !== "matched" && r.kind !== "ignored" ? <RowExplain kind={r.kind} /> : null}
+                              {r.kind !== "matched" && r.kind !== "ignored" ? (
+                                <RowExplain kind={r.kind} hint={r.hint} />
+                              ) : null}
                             </td>
                             <td className="px-3 py-2.5 text-right">
                               {r.kind === "possible" ? (
