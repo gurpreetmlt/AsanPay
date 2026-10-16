@@ -94,6 +94,7 @@
 - [x] **Likely match + Confirm** (TB11): Recon `possible` = same amount/side within 3 days when UTR missing on one/both sides (or same UTR); exactly one candidate. Row hint + Confirm match; Confirm all likely. No migration.
 - [x] **Bulk resolve unmatched** (TB12): Select In bank only + Likely match → Ignore / Confirm matches / Create entries. Per-row Ignore + Restore. `POST /banking/reconciliation/ignore`, `unignore`. No migration.
 - [x] **Role views** (TB13): Admin Bank & deposits = full tenant fund requests. Agents = own deposits only (API already scoped; hardened collection-only bank list). Agent web/mobile “My deposits” + status filters. No migration.
+- [x] **Banking audit trail** (TB14): Bank & deposits → Audit trail timeline (who / when / why for match, undo, ignore, delete, day close). `GET /banking/audit`. Statement delete audited with optional reason. No migration.
 - [x] Fund request rules: SD / Distributor on by default, Retailer off until admin enables per user (`users.fund_request_enabled`, migration 0051; switch in Retailers list + agent detail). Cash deposit only (web + mobile), bank + receipt required. Admin list shows agent, bank, deposit date; credited requests appear read-only in Bank entries + CA export
 - [x] Fund requests (company collection bank deposit) open to all agent roles — SD / Distributor / Retailer (API + web `/fund-request` + mobile Add Money / Request Funds); admin list shows requester role
 - [x] VAN assign (admin Banking tab + `POST /banking/van/assign`)

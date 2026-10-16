@@ -457,7 +457,10 @@ export async function linkStatementLine(params: {
     action: "admin.bank_recon_link",
     entityType: "bank_statement_line",
     entityId: String(params.lineId),
-    metadata: { journalId: String(params.journalId) },
+    metadata: {
+      journalId: String(params.journalId),
+      why: "Admin confirmed a likely or manual statement match",
+    },
   });
 }
 
@@ -484,7 +487,7 @@ export async function unlinkStatementLine(params: {
     action: "admin.bank_recon_unlink",
     entityType: "bank_statement_line",
     entityId: String(params.lineId),
-    metadata: {},
+    metadata: { why: "Admin undid a hand-confirmed reconciliation match" },
   });
 }
 
@@ -518,7 +521,11 @@ export async function ignoreStatementLines(params: {
       action: "admin.bank_recon_ignore",
       entityType: "bank_statement_line",
       entityId: params.lineIds[0]!,
-      metadata: { lineIds: params.lineIds, ignored },
+      metadata: {
+        lineIds: params.lineIds,
+        ignored,
+        why: `Skipped ${ignored} unmatched line(s) in Needs attention`,
+      },
     });
   }
   return { ignored };
@@ -545,6 +552,6 @@ export async function unignoreStatementLine(params: {
     action: "admin.bank_recon_unignore",
     entityType: "bank_statement_line",
     entityId: String(params.lineId),
-    metadata: {},
+    metadata: { why: "Admin restored an ignored line to Needs attention" },
   });
 }

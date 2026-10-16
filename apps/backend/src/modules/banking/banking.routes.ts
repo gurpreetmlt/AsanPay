@@ -365,11 +365,40 @@ bankingRouter.post(
 );
 
 bankingRouter.delete("/statements/lines/:id", requireRole("admin"), async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
   const id = String(req.params.id || "");
   if (!/^\d+$/.test(id)) throw new HttpError(422, "Statement line id is invalid", "INVALID_ID");
   const tenantId = await resolveTenantId();
-  await deleteStatementLine({ tenantId, lineId: BigInt(id) });
+  const reason =
+    typeof req.query.reason === "string"
+      ? req.query.reason
+      : typeof req.body?.reason === "string"
+        ? req.body.reason
+        : undefined;
+  await deleteStatementLine({
+    tenantId,
+    lineId: BigInt(id),
+    adminId: req.auth.sub,
+    reason,
+  });
   sendSuccess(res, { ok: true }, "Statement line removed");
+});
+
+bankingRouter.get("/audit", requireRole("admin"), async (req, res) => {
+  const limit = typeof req.query.limit === "string" ? Number(req.query.limit) : 40;
+  const offset = typeof req.query.offset === "string" ? Number(req.query.offset) : 0;
+  const action = typeof req.query.action === "string" ? req.query.action : undefined;
+  const entityId = typeof req.query.entityId === "string" ? req.query.entityId : undefined;
+  const { listBankingAuditTrail } = await import("./bankingAudit.service");
+  sendSuccess(
+    res,
+    await listBankingAuditTrail({
+      limit: Number.isFinite(limit) ? limit : 40,
+      offset: Number.isFinite(offset) ? offset : 0,
+      action,
+      entityId,
+    }),
+  );
 });
 
 bankingRouter.get("/statement-imports", requireRole("admin"), async (req, res) => {

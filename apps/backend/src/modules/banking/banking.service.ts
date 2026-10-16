@@ -219,9 +219,21 @@ export async function registerBankAccount(params: {
  * Remove a statement line that should never have been imported (wrong bank, test paste). Only
  * unmatched lines: anything tied to a ledger posting must be unlinked or reversed first.
  */
-export async function deleteStatementLine(params: { tenantId: string; lineId: bigint }): Promise<void> {
+export async function deleteStatementLine(params: {
+  tenantId: string;
+  lineId: bigint;
+  adminId?: string;
+  reason?: string;
+}): Promise<void> {
   const [line] = await db
-    .select({ id: bankStatementLines.id, matchStatus: bankStatementLines.matchStatus })
+    .select({
+      id: bankStatementLines.id,
+      matchStatus: bankStatementLines.matchStatus,
+      utr: bankStatementLines.utr,
+      amount: bankStatementLines.amount,
+      txnDate: bankStatementLines.txnDate,
+      direction: bankStatementLines.direction,
+    })
     .from(bankStatementLines)
     .where(and(eq(bankStatementLines.id, params.lineId), eq(bankStatementLines.tenantId, params.tenantId)))
     .limit(1);
@@ -238,6 +250,26 @@ export async function deleteStatementLine(params: { tenantId: string; lineId: bi
   );
   if ((linked.rows[0]?.n ?? 0) > 0) {
     throw new HttpError(422, "A fund request still points to this line — void it first.", "LINE_IN_USE");
+  }
+  const why =
+    params.reason?.trim() ||
+    "Removed from statement — wrong bank, test paste, or does not belong on this account";
+  if (params.adminId) {
+    const { insertAuditLog } = await import("../../db/postgres/repositories/auditLog");
+    const { paiseToRupees } = await import("../../core/money");
+    await insertAuditLog({
+      userId: params.adminId,
+      action: "admin.bank_statement_delete",
+      entityType: "bank_statement_line",
+      entityId: String(params.lineId),
+      metadata: {
+        why,
+        utr: line.utr,
+        amount: paiseToRupees(line.amount),
+        txnDate: String(line.txnDate),
+        direction: line.direction,
+      },
+    });
   }
   await db.delete(bankStatementLines).where(eq(bankStatementLines.id, params.lineId));
 }

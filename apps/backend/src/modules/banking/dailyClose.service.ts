@@ -235,7 +235,10 @@ export async function closeBusinessDay(params: {
     action: "admin.treasury_daily_close",
     entityType: "treasury_daily_close",
     entityId: status.date,
-    metadata: { date: status.date },
+    metadata: {
+      date: status.date,
+      why: params.note?.trim() || `Soft-closed business day ${status.date}`,
+    },
   });
 
   return getDailyCloseStatus({ tenantId: params.tenantId, date: status.date });
@@ -259,7 +262,7 @@ export async function reopenBusinessDay(params: {
     action: "admin.treasury_daily_reopen",
     entityType: "treasury_daily_close",
     entityId: date,
-    metadata: { date },
+    metadata: { date, why: `Reopened soft-closed business day ${date}` },
   });
   return getDailyCloseStatus({ tenantId: params.tenantId, date });
 }

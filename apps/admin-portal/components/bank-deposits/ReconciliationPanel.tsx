@@ -581,6 +581,7 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
   const [filter, setFilter] = useState<"attention" | "matched" | "all">("attention");
   const [busyLine, setBusyLine] = useState<string | null>(null);
   const [removeRow, setRemoveRow] = useState<ReconRow | null>(null);
+  const [removeReason, setRemoveReason] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkLines, setBulkLines] = useState<ReconLine[] | null>(null);
   const [focusLine, setFocusLine] = useState<string | null>(null);
@@ -911,9 +912,13 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
     if (!row.line) return;
     setBusyLine(row.line.id);
     try {
-      await api.delete(`/banking/statements/lines/${row.line.id}`);
+      const reason = removeReason.trim() || undefined;
+      await api.delete(`/banking/statements/lines/${row.line.id}`, {
+        params: reason ? { reason } : undefined,
+      });
       toast.success("Statement line removed");
       setRemoveRow(null);
+      setRemoveReason("");
       void loadHistory();
       await runReport();
     } catch (err) {
@@ -1911,10 +1916,23 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
           title="Remove this statement line?"
           message={
             <>
-              {removeRow.line.direction === "CR" ? "Credit" : "Debit"} of ₹{removeRow.line.amount} on{" "}
-              {removeRow.line.date}
-              {removeRow.line.utr ? ` (UTR ${removeRow.line.utr})` : ""} will be deleted from this bank&apos;s statement.
-              Use this only when the line was uploaded to the wrong bank or was a test. Nothing in the ledger changes.
+              <p>
+                {removeRow.line.direction === "CR" ? "Credit" : "Debit"} of ₹{removeRow.line.amount} on{" "}
+                {removeRow.line.date}
+                {removeRow.line.utr ? ` (UTR ${removeRow.line.utr})` : ""} will be deleted from this
+                bank&apos;s statement. Use this only when the line was uploaded to the wrong bank or was a
+                test. Nothing in the ledger changes.
+              </p>
+              <label className="mt-3 block text-left text-xs font-semibold" style={{ color: B.muted }}>
+                Why (optional — saved on the audit trail)
+                <input
+                  value={removeReason}
+                  onChange={(e) => setRemoveReason(e.target.value.slice(0, 200))}
+                  placeholder="e.g. Wrong bank upload / test paste"
+                  className="mt-1 w-full rounded-lg border px-3 py-2 text-sm font-normal"
+                  style={{ borderColor: B.border, color: B.blue }}
+                />
+              </label>
             </>
           }
           confirmLabel="Remove line"
@@ -1923,7 +1941,10 @@ export function ReconciliationPanel({ onChanged }: { onChanged?: () => void }) {
           busyLabel="Removing…"
           onConfirm={() => void removeLine(removeRow)}
           onClose={() => {
-            if (!busyLine) setRemoveRow(null);
+            if (!busyLine) {
+              setRemoveRow(null);
+              setRemoveReason("");
+            }
           }}
         />
       ) : null}
