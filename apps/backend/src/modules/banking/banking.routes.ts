@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { z } from "zod";
 import { requireAuth } from "../../middleware/auth.middleware";
 import { requireRole } from "../../middleware/rbac.middleware";
 import { requireIdempotencyKey } from "../../middleware/idempotency.middleware";
@@ -417,6 +418,53 @@ bankingRouter.post(
     sendSuccess(res, { lineId: body.lineId }, "Match removed");
   },
 );
+
+/** Daily close checklist — Upload → Reconcile → Resolve → Close. */
+bankingRouter.get("/daily-close", requireRole("admin"), async (req, res) => {
+  const tenantId = await resolveTenantId();
+  const istToday = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+  const date = typeof req.query.date === "string" && req.query.date ? req.query.date : istToday;
+  const { getDailyCloseStatus } = await import("./dailyClose.service");
+  sendSuccess(res, await getDailyCloseStatus({ tenantId, date }));
+});
+
+bankingRouter.post("/daily-close", requireRole("admin"), async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const tenantId = await resolveTenantId();
+  const body = z
+    .object({
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD"),
+      note: z.string().trim().max(500).optional().nullable(),
+    })
+    .parse(req.body);
+  const { closeBusinessDay } = await import("./dailyClose.service");
+  sendSuccess(
+    res,
+    await closeBusinessDay({
+      tenantId,
+      date: body.date,
+      adminId: req.auth.sub,
+      note: body.note,
+    }),
+    "Business day closed",
+  );
+});
+
+bankingRouter.post("/daily-close/reopen", requireRole("admin"), async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const tenantId = await resolveTenantId();
+  const body = z
+    .object({
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD"),
+    })
+    .parse(req.body);
+  const { reopenBusinessDay } = await import("./dailyClose.service");
+  sendSuccess(
+    res,
+    await reopenBusinessDay({ tenantId, date: body.date, adminId: req.auth.sub }),
+    "Business day reopened",
+  );
+});
 
 /** Unified Bank / Agent / API activity for the admin Bank & deposits → Activity tab. */
 bankingRouter.get("/activity", requireRole("admin"), async (req, res) => {

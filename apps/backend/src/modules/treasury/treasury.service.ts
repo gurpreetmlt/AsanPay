@@ -220,6 +220,96 @@ export async function getTreasuryBankDetails(params: { tenantId: string; bankAcc
   };
 }
 
+/**
+ * Provider / API ledger movement for a date range — separate from bank statement CR/DR.
+ * In  = credits into float accounts (API wallets loaded / cash-in).
+ * Out = debits from float (services paid via provider).
+ * Fees = customer fee posted to COMMISSION_INCOME on those journals.
+ * Wallet impact = net drain on agent wallets from the same journals (positive = agents paid out).
+ */
+export async function getProviderLedgerStrip(params: {
+  tenantId: string;
+  from: string;
+  to: string;
+}): Promise<{
+  from: string;
+  to: string;
+  floatIn: string;
+  floatOut: string;
+  fees: string;
+  walletImpact: string;
+  netFloat: string;
+  journalCount: number;
+}> {
+  const from = params.from.slice(0, 10);
+  const to = params.to.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+    throw new HttpError(422, "from and to must be YYYY-MM-DD dates", "INVALID_DATE");
+  }
+  if (from > to) {
+    throw new HttpError(422, "from date must be on or before to date", "INVALID_DATE_RANGE");
+  }
+
+  const rows = await db.execute<{
+    float_in: string;
+    float_out: string;
+    fees: string;
+    wallet_impact: string;
+    journal_count: string;
+  }>(sql`
+    WITH scoped AS (
+      SELECT DISTINCT j.id
+      FROM journals j
+      JOIN ledger_entries le ON le.journal_id = j.id
+      JOIN accounts a ON a.id = le.account_id
+      WHERE j.tenant_id = ${params.tenantId}
+        AND (j.created_at AT TIME ZONE 'Asia/Kolkata')::date BETWEEN ${from}::date AND ${to}::date
+        AND (
+          a.account_type = 'float'
+          OR j.txn_type IN (
+            'DMT','BBPS','RECHARGE','AEPS_DEPOSIT','AEPS_WITHDRAWAL',
+            'MICRO_ATM','AADHAAR_PAY','FLOAT_TRANSFER_INIT','FLOAT_TRANSFER_CONFIRM'
+          )
+        )
+    )
+    SELECT
+      COALESCE(SUM(CASE WHEN a.account_type = 'float' AND le.direction = 'CR' THEN le.amount ELSE 0 END), 0)::text AS float_in,
+      COALESCE(SUM(CASE WHEN a.account_type = 'float' AND le.direction = 'DR' THEN le.amount ELSE 0 END), 0)::text AS float_out,
+      COALESCE(SUM(CASE WHEN a.code = 'COMMISSION_INCOME' AND le.direction = 'CR' THEN le.amount ELSE 0 END), 0)::text AS fees,
+      COALESCE(SUM(
+        CASE
+          WHEN a.account_type IN ('sd','distributor','retailer') AND le.direction = 'DR' THEN le.amount
+          WHEN a.account_type IN ('sd','distributor','retailer') AND le.direction = 'CR' THEN -le.amount
+          ELSE 0
+        END
+      ), 0)::text AS wallet_impact,
+      (SELECT COUNT(*)::text FROM scoped) AS journal_count
+    FROM scoped s
+    JOIN ledger_entries le ON le.journal_id = s.id
+    JOIN accounts a ON a.id = le.account_id
+  `);
+
+  const r = rows.rows[0] ?? {
+    float_in: "0",
+    float_out: "0",
+    fees: "0",
+    wallet_impact: "0",
+    journal_count: "0",
+  };
+  const floatIn = BigInt(r.float_in);
+  const floatOut = BigInt(r.float_out);
+  return {
+    from,
+    to,
+    floatIn: paiseToRupees(floatIn),
+    floatOut: paiseToRupees(floatOut),
+    fees: paiseToRupees(BigInt(r.fees)),
+    walletImpact: paiseToRupees(BigInt(r.wallet_impact)),
+    netFloat: paiseToRupees(floatIn - floatOut),
+    journalCount: Number(r.journal_count),
+  };
+}
+
 export async function setProviderLowBalanceThreshold(params: {
   providerId: string;
   threshold: Paise | null;

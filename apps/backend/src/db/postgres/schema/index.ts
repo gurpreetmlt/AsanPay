@@ -7,6 +7,7 @@ export * from "./ledger";
 export * from "./treasury";
 export * from "./banking";
 export * from "./bankEntries";
+export * from "./treasuryDailyCloses";
 export * from "./fundRequests";
 export * from "./signupInvites";
 export * from "./settlements";

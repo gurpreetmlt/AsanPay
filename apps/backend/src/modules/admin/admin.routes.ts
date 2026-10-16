@@ -566,6 +566,17 @@ adminRouter.get("/treasury/breakdown", async (_req, res) => {
   sendSuccess(res, await getTreasuryBreakdown(tenantId));
 });
 
+/** Provider / API ledger In·Out·Fees·wallet impact — not bank statement CR/DR. */
+adminRouter.get("/treasury/provider-ledger", async (req, res) => {
+  const { getProviderLedgerStrip } = await import("../treasury/treasury.service");
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const tenantId = await resolveTenantId();
+  const istToday = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+  const from = typeof req.query.from === "string" && req.query.from ? req.query.from : istToday;
+  const to = typeof req.query.to === "string" && req.query.to ? req.query.to : istToday;
+  sendSuccess(res, await getProviderLedgerStrip({ tenantId, from, to }));
+});
+
 adminRouter.get("/treasury/banks/:id/details", async (req, res) => {
   if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
   const raw = String(req.params.id);

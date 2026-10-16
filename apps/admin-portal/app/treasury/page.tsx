@@ -60,7 +60,19 @@ interface TreasuryBreakdown {
   mismatchCount: number;
 }
 
+interface ProviderLedgerStrip {
+  from: string;
+  to: string;
+  floatIn: string;
+  floatOut: string;
+  fees: string;
+  walletImpact: string;
+  netFloat: string;
+  journalCount: number;
+}
+
 type Section = "banks" | "providers";
+type LedgerPreset = "today" | "week" | "month";
 
 const PURPOSE_LABEL: Record<BankCard["purpose"], string> = {
   collection: "Collection",
@@ -72,6 +84,35 @@ function formatInr(amount: string | number) {
   const n = typeof amount === "number" ? amount : Number(amount);
   if (!Number.isFinite(n)) return "₹0";
   return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+}
+
+function signedInr(amount: string) {
+  const n = Number(amount);
+  if (!Number.isFinite(n)) return "—";
+  const text = formatInr(Math.abs(n));
+  if (n > 0) return `+${text}`;
+  if (n < 0) return `-${text}`;
+  return text;
+}
+
+function istToday(): string {
+  return new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
+function shiftDays(iso: string, days: number) {
+  const t = Date.parse(`${iso}T00:00:00Z`) + days * 86_400_000;
+  return new Date(t).toISOString().slice(0, 10);
+}
+
+function ledgerRange(preset: LedgerPreset): { from: string; to: string } {
+  const today = istToday();
+  if (preset === "today") return { from: today, to: today };
+  if (preset === "week") {
+    const dow = new Date(`${today}T00:00:00Z`).getUTCDay();
+    return { from: shiftDays(today, -((dow + 6) % 7)), to: today };
+  }
+  const [y, m] = today.split("-").map(Number) as [number, number];
+  return { from: `${y}-${String(m).padStart(2, "0")}-01`, to: today };
 }
 
 function errMessage(err: unknown, fallback: string) {
@@ -92,6 +133,9 @@ export default function TreasuryPage() {
   const [data, setData] = useState<TreasuryBreakdown | null>(null);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState<Section | null>(null);
+  const [ledgerPreset, setLedgerPreset] = useState<LedgerPreset>("today");
+  const [ledger, setLedger] = useState<ProviderLedgerStrip | null>(null);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -104,6 +148,19 @@ export default function TreasuryPage() {
     }
   }, []);
 
+  const loadLedger = useCallback(async (preset: LedgerPreset) => {
+    setLedgerLoading(true);
+    try {
+      const { from, to } = ledgerRange(preset);
+      setLedger(await fetchApi<ProviderLedgerStrip>("/admin/treasury/provider-ledger", { from, to }));
+    } catch (err) {
+      toast.error(errMessage(err, "Could not load provider ledger strip."));
+      setLedger(null);
+    } finally {
+      setLedgerLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!hydrated) return;
     if (!accessToken) {
@@ -111,7 +168,8 @@ export default function TreasuryPage() {
       return;
     }
     void load();
-  }, [hydrated, accessToken, router, load]);
+    void loadLedger(ledgerPreset);
+  }, [hydrated, accessToken, router, load, loadLedger, ledgerPreset]);
 
   if (!hydrated || !accessToken) return null;
 
@@ -142,16 +200,119 @@ export default function TreasuryPage() {
             </Link>
             <button
               type="button"
-              onClick={() => void load()}
-              disabled={loading}
+              onClick={() => {
+                void load();
+                void loadLedger(ledgerPreset);
+              }}
+              disabled={loading || ledgerLoading}
               className="flex items-center gap-1.5 rounded-xl border-2 bg-white px-4 py-2.5 text-sm font-semibold disabled:opacity-60"
               style={{ borderColor: B.border, color: B.muted }}
             >
-              <RefreshCcw size={16} className={loading ? "animate-spin" : undefined} />
+              <RefreshCcw size={16} className={loading || ledgerLoading ? "animate-spin" : undefined} />
               Refresh
             </button>
           </div>
         </div>
+
+        <section
+          aria-label="Provider ledger"
+          className="rounded-2xl border bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
+          style={{ borderColor: B.border }}
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3 border-b px-4 py-3" style={{ borderColor: B.border }}>
+            <div>
+              <h2 className="text-sm font-bold" style={{ color: B.blue }}>
+                Provider ledger
+              </h2>
+              <p className="mt-0.5 text-xs" style={{ color: B.muted }}>
+                API wallet movement — separate from bank statement credits and debits
+              </p>
+            </div>
+            <div className="inline-flex flex-wrap gap-1 rounded-xl p-1" style={{ background: "#F1F5F9" }}>
+              {(
+                [
+                  ["today", "Today"],
+                  ["week", "This week"],
+                  ["month", "This month"],
+                ] as const
+              ).map(([key, label]) => {
+                const active = ledgerPreset === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setLedgerPreset(key)}
+                    className="rounded-lg px-3 py-1.5 text-xs font-semibold transition"
+                    style={{
+                      background: active ? B.badgeGrad : "transparent",
+                      color: active ? "#fff" : B.muted,
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 xl:grid-cols-4">
+            {(
+              [
+                {
+                  label: "In",
+                  value: ledger ? `+${formatInr(ledger.floatIn)}` : "…",
+                  sub: "Into API wallets (float credit)",
+                  color: "#15803D",
+                },
+                {
+                  label: "Out",
+                  value: ledger ? `-${formatInr(ledger.floatOut)}` : "…",
+                  sub: "Out of API wallets (float debit)",
+                  color: B.danger,
+                },
+                {
+                  label: "Fees",
+                  value: ledger ? formatInr(ledger.fees) : "…",
+                  sub: "Customer fee income on these rails",
+                  color: B.blue,
+                },
+                {
+                  label: "Wallet impact",
+                  value: ledger ? signedInr(ledger.walletImpact) : "…",
+                  sub: "Net taken from agent wallets (+ = paid out)",
+                  color: ledger && Number(ledger.walletImpact) > 0 ? B.danger : "#15803D",
+                },
+              ] as const
+            ).map((cell, i) => (
+              <div
+                key={cell.label}
+                className={`min-w-0 px-4 py-3 ${i % 2 === 0 ? "border-r" : ""} ${i < 2 ? "border-b xl:border-b-0" : ""} ${i === 2 ? "xl:border-r" : ""}`}
+                style={{ borderColor: B.border }}
+              >
+                <p className="text-xs font-medium" style={{ color: B.muted }}>
+                  {cell.label}
+                </p>
+                <p className="mt-0.5 text-xl font-bold tabular-nums" style={{ color: cell.color }}>
+                  {cell.value}
+                </p>
+                <p className="truncate text-[11px]" style={{ color: B.muted }}>
+                  {cell.sub}
+                </p>
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-2 text-[11px]" style={{ borderColor: B.border, color: B.muted }}>
+            <span>
+              {ledger
+                ? `Net float ${signedInr(ledger.netFloat)} · ${ledger.journalCount} journal${ledger.journalCount === 1 ? "" : "s"}`
+                : ledgerLoading
+                  ? "Loading…"
+                  : "No provider movement loaded"}
+            </span>
+            <Link href="/treasury/bank?tab=activity" className="font-semibold hover:underline" style={{ color: B.blueLight }}>
+              Open Activity (API)
+            </Link>
+          </div>
+        </section>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <SummaryCard

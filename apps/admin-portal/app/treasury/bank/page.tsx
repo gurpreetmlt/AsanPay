@@ -11,6 +11,7 @@ import { ReconciliationPanel } from "@/components/bank-deposits/ReconciliationPa
 import { BankEntriesPanel, type OpenReconciliation } from "@/components/bank-deposits/BankEntriesPanel";
 import { BankingPanel } from "@/components/bank-deposits/BankingPanel";
 import { ActivityPanel } from "@/components/bank-deposits/ActivityPanel";
+import { DailyClosePanel } from "@/components/bank-deposits/DailyClosePanel";
 import { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
@@ -21,6 +22,7 @@ type TabKey =
   | "reconciliation"
   | "bank-entries"
   | "activity"
+  | "daily-close"
   | "bank-accounts"
   | "virtual-accounts";
 
@@ -29,6 +31,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "reconciliation", label: "Reconciliation" },
   { key: "bank-entries", label: "Bank entries" },
   { key: "activity", label: "Activity" },
+  { key: "daily-close", label: "Daily close" },
   { key: "bank-accounts", label: "Bank accounts" },
   { key: "virtual-accounts", label: "Virtual accounts" },
 ];
@@ -417,6 +420,8 @@ function BankDepositsContent() {
             <BankEntriesPanel onOpenReconciliation={openReconciliation} />
           ) : tab === "activity" ? (
             <ActivityPanel />
+          ) : tab === "daily-close" ? (
+            <DailyClosePanel />
           ) : tab === "bank-accounts" ? (
             <BankingPanel section="accounts" />
           ) : (
