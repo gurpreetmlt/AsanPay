@@ -24,6 +24,13 @@ import { AppShell } from "@/components/layout/AppShell";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { AgentAuthUiSkipButton } from "@/components/ui/AgentAuthUiSkipButton";
 import { ActionIconButton } from "@/components/ui/ActionIconButton";
+import {
+  DmtLayoutPicker,
+  readDmtUiLayout,
+  writeDmtUiLayout,
+  type DmtUiLayout,
+} from "@/components/dmt/DmtLayoutPicker";
+import { DmtLayout2 } from "@/components/dmt/DmtLayout2";
 import { B } from "@/lib/brand";
 import api from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
@@ -263,6 +270,11 @@ export default function DmtPage() {
   const [refundKey, setRefundKey] = useState("");
   const [refundOtpSent, setRefundOtpSent] = useState(false);
   const [refundBusy, setRefundBusy] = useState(false);
+  const [uiLayout, setUiLayout] = useState<DmtUiLayout>("1");
+
+  useEffect(() => {
+    setUiLayout(readDmtUiLayout());
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -1019,10 +1031,12 @@ export default function DmtPage() {
 
   /* ── Main DMT portal ─────────────────────────────────────────────── */
 
+  const layout2Transfer = uiLayout === "2" && tab === "Transfer";
+
   return (
     <AppShell>
       <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6">
-        <div className="mb-5 flex items-center gap-3">
+        <div className="mb-5 flex flex-wrap items-center gap-3">
           <button
             type="button"
             onClick={() => router.push("/dashboard")}
@@ -1030,7 +1044,7 @@ export default function DmtPage() {
           >
             <ArrowLeft size={18} />
           </button>
-          <div className="flex-1">
+          <div className="min-w-0 flex-1">
             <h1 className="text-xl font-bold" style={{ color: B.blue }}>
               Money Transfer (DMT)
             </h1>
@@ -1038,10 +1052,83 @@ export default function DmtPage() {
               IMPS / NEFT · ₹5,000 / txn · ₹25,000 / month per remitter
             </p>
           </div>
+          <DmtLayoutPicker
+            value={uiLayout}
+            onChange={(next) => {
+              setUiLayout(next);
+              writeDmtUiLayout(next);
+            }}
+          />
           <Banknote className="text-green-600" size={28} />
         </div>
 
-        {/* Remitter search */}
+        {layout2Transfer ? (
+          <div className="mb-4">
+            <DmtLayout2
+              mobile={mobile}
+              onMobileChange={(v) => {
+                setMobile(v);
+                setOtpSent(false);
+                setTxnRefKey("");
+                attemptKey.current.clear();
+              }}
+              onLookup={() => void lookupRemitter()}
+              lookingUp={lookingUp}
+              remitterLabel={
+                profile ? `${profile.firstName} ${profile.lastName}`.trim() || profile.mobileNumber : null
+              }
+              limitLine={
+                profile
+                  ? `Limit left ₹${profile.limitAvailable} / ₹${profile.limitTotal} · ₹${profile.limitPerTransaction} / txn`
+                  : null
+              }
+              beneficiaries={(profile?.beneficiaries ?? []).map((b) => ({
+                id: b.id,
+                name: b.name,
+                account: b.account,
+                bank: b.bank,
+              }))}
+              selectedBeneId={selectedBene?.id ?? ""}
+              onSelectBene={(id) => {
+                const b = profile?.beneficiaries.find((x) => x.id === id) ?? null;
+                setSelectedBene(b);
+                setOtpSent(false);
+                setTxnRefKey("");
+                attemptKey.current.clear();
+              }}
+              amount={amount}
+              onAmountChange={(v) => {
+                setAmount(v);
+                setOtpSent(false);
+                setTxnRefKey("");
+                attemptKey.current.clear();
+              }}
+              mode={mode}
+              onModeChange={setMode}
+              impsAllowed={profile?.isImpsAllowed !== false}
+              neftAllowed={profile?.isNeftAllowed !== false}
+              earnLine={earnLine}
+              otpSent={otpSent}
+              txnOtp={txnOtp}
+              onTxnOtpChange={setTxnOtp}
+              txnPin={txnPin}
+              onTxnPinChange={setTxnPin}
+              txnBusy={txnBusy}
+              onContinue={() => {
+                if (!profile) {
+                  void lookupRemitter();
+                  return;
+                }
+                void sendTransferOtp();
+              }}
+              onSubmitTransfer={() => void submitTransfer()}
+              lastTxnRef={lastTxnRef}
+            />
+          </div>
+        ) : null}
+
+        {/* Remitter search (Layout 1, or Layout 2 when not on Transfer) */}
+        {!layout2Transfer ? (
         <div className="mb-4 rounded-2xl border bg-white p-4 shadow-sm">
           <label className="text-xs font-bold tracking-wide text-gray-500">REMITTER MOBILE</label>
           <div className="mt-2 flex gap-2">
@@ -1080,6 +1167,7 @@ export default function DmtPage() {
             </div>
           )}
         </div>
+        ) : null}
 
         {/* Registration wizard */}
         {needsRegister && regStep && (
@@ -1178,7 +1266,7 @@ export default function DmtPage() {
               ))}
             </div>
 
-            {tab === "Transfer" && (
+            {tab === "Transfer" && !layout2Transfer && (
               <div className="space-y-4 rounded-2xl border bg-white p-4 shadow-sm">
                 <div>
                   <p className="mb-2 text-xs font-bold tracking-wide text-gray-500">SELECT BENEFICIARY</p>
@@ -1563,9 +1651,9 @@ export default function DmtPage() {
           </>
         )}
 
-        {!profile && !needsRegister && (
+        {!profile && !needsRegister && !layout2Transfer && (
           <div className="rounded-2xl border border-dashed bg-white p-10 text-center text-sm text-gray-500">
-            Remitter mobile search karo — profile / registration yahan dikhega.
+            Search remitter mobile — profile or registration will appear here.
           </div>
         )}
       </div>

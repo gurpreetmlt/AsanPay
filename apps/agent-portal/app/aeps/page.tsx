@@ -22,6 +22,13 @@ import {
 import { AppShell } from "@/components/layout/AppShell";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { AgentAuthUiSkipButton } from "@/components/ui/AgentAuthUiSkipButton";
+import {
+  AepsLayoutPicker,
+  readAepsUiLayout,
+  writeAepsUiLayout,
+  type AepsUiLayout,
+} from "@/components/aeps/AepsLayoutPicker";
+import { AepsNewLayout } from "@/components/aeps/AepsNewLayout";
 import { B } from "@/lib/brand";
 import api from "@/lib/api";
 import { aepsBankLogoUrl } from "@/lib/bankLogo";
@@ -445,6 +452,11 @@ function AepsPageInner() {
   const [agentAadhaarVisible, setAgentAadhaarVisible] = useState(false);
   const [agentAuthConsent, setAgentAuthConsent] = useState(false);
   const [agentAuthScanning, setAgentAuthScanning] = useState(false);
+  const [uiLayout, setUiLayout] = useState<AepsUiLayout>("new");
+
+  useEffect(() => {
+    setUiLayout(readAepsUiLayout());
+  }, []);
 
   useEffect(() => {
     const q = searchParams.get("tab");
@@ -987,8 +999,8 @@ function AepsPageInner() {
   return (
     <AppShell>
       <div className="mx-auto w-full max-w-[1600px] p-6">
-        {/* Back + Title */}
-        <div className="mb-6 flex items-center gap-3">
+        {/* Back + Title + layout picker */}
+        <div className="mb-6 flex flex-wrap items-center gap-3">
           <button
             type="button"
             onClick={() => router.push("/dashboard")}
@@ -996,17 +1008,67 @@ function AepsPageInner() {
           >
             <ArrowLeft size={18} />
           </button>
-          <div>
-            <h1 className="text-xl font-bold" style={{ color: B.blue }}>
-              AePS — Aadhaar Enabled Payment
-            </h1>
-            <p className="text-xs" style={{ color: B.muted }}>
-              Cash Withdraw, Balance Enquiry, Mini Statement & Deposit
-            </p>
-          </div>
+          {uiLayout !== "new" ? (
+            <div className="min-w-0 flex-1">
+              <h1 className="text-xl font-bold" style={{ color: B.blue }}>
+                AePS — Aadhaar Enabled Payment
+              </h1>
+              <p className="text-xs" style={{ color: B.muted }}>
+                Cash Withdraw, Balance Enquiry, Mini Statement & Deposit
+              </p>
+            </div>
+          ) : (
+            <div className="min-w-0 flex-1" />
+          )}
+          <AepsLayoutPicker
+            value={uiLayout}
+            onChange={(next) => {
+              setUiLayout(next);
+              writeAepsUiLayout(next);
+            }}
+          />
         </div>
 
-        <div className="grid items-start gap-6 md:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_380px]">
+        {uiLayout === "new" ? (
+          <AepsNewLayout
+            tab={tab}
+            onTabChange={setTab}
+            banks={BANKS}
+            selectedBank={selectedBank}
+            onBankChange={(bank) => {
+              if (!bank) {
+                setSelectedBank(null);
+                return;
+              }
+              const full = BANKS.find((b) => b.id === bank.id);
+              if (full) selectBank(full, true);
+            }}
+            aadhaar={aadhaar}
+            onAadhaarChange={setAadhaar}
+            aadhaarVisible={aadhaarVisible}
+            onToggleAadhaarVisible={() => setAadhaarVisible((v) => !v)}
+            mobile={mobile}
+            onMobileChange={setMobile}
+            amount={amount}
+            onAmountChange={setAmount}
+            showAmount={showAmount}
+            scanning={scanning}
+            onProceed={() => {
+              setConsent(true);
+              void handleScan();
+            }}
+          />
+        ) : null}
+
+        {uiLayout !== "new" ? (
+        <div
+          className={clsx(
+            "grid items-start gap-6",
+            uiLayout === "2"
+              ? "grid-cols-1"
+              : "md:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_380px]",
+          )}
+        >
           {/* ── Left: Form ─────────────────────────────────── */}
           <div className="min-w-0 space-y-5">
             {/* Tabs */}
@@ -1510,6 +1572,7 @@ function AepsPageInner() {
             </div>
           </aside>
         </div>
+        ) : null}
       </div>
 
       {/* Bank sidebar popup */}
