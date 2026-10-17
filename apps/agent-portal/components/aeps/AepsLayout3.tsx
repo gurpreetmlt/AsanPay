@@ -8,7 +8,9 @@ import {
   EyeOff,
   FileText,
   Fingerprint,
+  RefreshCw,
   Search,
+  Settings2,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
@@ -362,8 +364,8 @@ export function AepsLayout3({
           </div>
 
           {/* Fields + biometric panel */}
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-            <div className="space-y-3">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-stretch">
+            <div className="flex min-w-0 flex-col space-y-3">
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -436,7 +438,7 @@ export function AepsLayout3({
                 </div>
               ) : null}
 
-              <label className="flex cursor-pointer items-start gap-2.5 select-none pt-1">
+              <label className="mt-auto flex cursor-pointer items-start gap-2.5 select-none rounded-xl border border-gray-100 bg-slate-50/80 px-3 py-2.5">
                 <input
                   type="checkbox"
                   checked={consent}
@@ -452,55 +454,127 @@ export function AepsLayout3({
               </label>
             </div>
 
-            <div
-              className="flex flex-col justify-between gap-3 rounded-2xl border p-4"
-              style={{ borderColor: `${B.blueLight}33`, background: `${B.blue}08` }}
+            {/* Biometric capture card — status-driven chrome */}
+            <aside
+              className={clsx(
+                "flex flex-col overflow-hidden rounded-2xl border bg-white shadow-sm",
+                scannerReady && "border-emerald-200",
+                scannerLooking && "border-blue-200",
+                !scannerReady && !scannerLooking && "border-amber-200",
+              )}
             >
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Biometric device</p>
-                <p className="mt-1 text-sm font-bold text-gray-900">{deviceLabel}</p>
-                <p className="mt-1 text-xs font-semibold">
-                  {scannerLooking ? (
-                    <span className="text-blue-700">Connecting…</span>
-                  ) : scannerReady ? (
-                    <span className="text-emerald-700">L1 Ready</span>
-                  ) : (
-                    <span className="text-amber-700">Scanner not found</span>
+              <div
+                className={clsx(
+                  "flex items-center gap-3 px-4 py-3",
+                  scannerReady && "bg-emerald-50",
+                  scannerLooking && "bg-blue-50",
+                  !scannerReady && !scannerLooking && "bg-amber-50",
+                )}
+              >
+                <div
+                  className={clsx(
+                    "relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl",
+                    scannerReady && "bg-emerald-100 text-emerald-700",
+                    scannerLooking && "bg-blue-100 text-blue-700",
+                    !scannerReady && !scannerLooking && "bg-amber-100 text-amber-800",
                   )}
+                >
+                  <Fingerprint size={24} strokeWidth={2.2} />
+                  <span
+                    className={clsx(
+                      "absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full ring-2 ring-white",
+                      scannerReady && "bg-emerald-500",
+                      scannerLooking && "animate-pulse bg-blue-500",
+                      !scannerReady && !scannerLooking && "bg-amber-500",
+                    )}
+                  />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-500">
+                    Biometric capture
+                  </p>
+                  <p className="truncate text-sm font-extrabold text-gray-900">{deviceLabel}</p>
+                </div>
+                <span
+                  className={clsx(
+                    "shrink-0 rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide",
+                    scannerReady && "bg-emerald-100 text-emerald-800",
+                    scannerLooking && "bg-blue-100 text-blue-800",
+                    !scannerReady && !scannerLooking && "bg-amber-100 text-amber-900",
+                  )}
+                >
+                  {scannerLooking ? "Connecting" : scannerReady ? "Ready" : "Offline"}
+                </span>
+              </div>
+
+              <div className="flex flex-1 flex-col gap-3 p-4">
+                <p
+                  className={clsx(
+                    "text-xs font-semibold leading-relaxed",
+                    scannerReady && "text-emerald-800",
+                    scannerLooking && "text-blue-800",
+                    !scannerReady && !scannerLooking && "text-amber-900",
+                  )}
+                >
+                  {scannerLooking
+                    ? "Looking for RD Service on this PC…"
+                    : scannerReady
+                      ? "Device connected. Place finger when you tap Scan."
+                      : "Open Mantra / Morpho RD Service on this PC, then Retry."}
                 </p>
-                <div className="mt-2 flex flex-wrap gap-2">
+
+                <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={onChangeDevice}
-                    className="text-xs font-bold hover:underline"
-                    style={{ color: B.blueLight }}
+                    className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 transition hover:bg-gray-50"
                   >
-                    Change Device
+                    <Settings2 size={14} />
+                    Change
                   </button>
-                  {!scannerReady && !scannerLooking ? (
+                  {!scannerReady ? (
                     <button
                       type="button"
                       onClick={onRetryScanner}
-                      className="text-xs font-bold text-amber-800 hover:underline"
+                      disabled={scannerLooking}
+                      className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900 transition hover:bg-amber-100 disabled:opacity-60"
                     >
+                      <RefreshCw size={14} className={scannerLooking ? "animate-spin" : undefined} />
                       Retry
                     </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={onRetryScanner}
+                      className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 transition hover:bg-emerald-100"
+                    >
+                      <RefreshCw size={14} />
+                      Recheck
+                    </button>
+                  )}
+                </div>
+
+                <div className="mt-auto pt-1">
+                  <PrimaryButton
+                    type="button"
+                    variant="primary"
+                    loading={scanning}
+                    disabled={scanning || !scannerReady}
+                    onClick={onScan}
+                    showArrow={false}
+                    className="w-full !min-h-[48px]"
+                  >
+                    <Fingerprint size={18} />
+                    {scannerReady ? "Scan Finger & Submit" : "Connect scanner to scan"}
+                  </PrimaryButton>
+                  {!scannerReady ? (
+                    <p className="mt-2 text-center text-[11px] font-medium text-gray-500">
+                      Scan unlocks when the device shows Ready
+                    </p>
                   ) : null}
                 </div>
               </div>
-              <PrimaryButton
-                type="button"
-                variant="primary"
-                loading={scanning}
-                disabled={scanning || !scannerReady}
-                onClick={onScan}
-                showArrow={false}
-                className="w-full"
-              >
-                <Fingerprint size={18} />
-                Scan Finger &amp; Submit
-              </PrimaryButton>
-            </div>
+            </aside>
           </div>
         </div>
       </section>
