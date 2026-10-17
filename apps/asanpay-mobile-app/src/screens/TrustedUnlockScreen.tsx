@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Fingerprint, Lock } from "lucide-react-native";
-import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
+import { ROLE_LABELS, type ApiResponse, type AuthUser } from "@asanpay/shared-types";
 import { api, setAuthHeader } from "../lib/api";
 import { getBioUnlock, promptDeviceBiometric, updateBioRefreshToken } from "../lib/bioUnlock";
 import { useAuthStore } from "../store/auth";
@@ -12,14 +12,20 @@ import { PinInput } from "../components/PinInput";
 import { BrandMark } from "../components/BrandMark";
 import { colors } from "../theme/colors";
 import { showAlert } from "../components/AppAlert";
-import { touchRememberedLoginAuth } from "../lib/rememberedLogin";
+import { setRememberedLogin } from "../lib/rememberedLogin";
 import type { LoginRoleChip } from "./LoginScreen";
 
 interface Props {
   mobile: string;
   role: LoginRoleChip;
+  /** Optional display name for "Welcome back {Name}". */
+  name?: string;
   /** Trust window lapsed / PIN forgotten / biometric unavailable — fall back to full OTP login. */
   onFallbackToOtp: () => void;
+}
+
+function rolePillLabel(role: LoginRoleChip): string {
+  return ROLE_LABELS[role] ?? role;
 }
 
 /**
@@ -29,7 +35,7 @@ interface Props {
  * a de-emphasized "Use OTP instead" link, for when the trust window has actually lapsed or the
  * PIN is forgotten.
  */
-export function TrustedUnlockScreen({ mobile, role, onFallbackToOtp }: Props) {
+export function TrustedUnlockScreen({ mobile, role, name, onFallbackToOtp }: Props) {
   const setAuth = useAuthStore((s) => s.setAuth);
   const [pin, setPin] = useState("");
   const [loading, setLoading] = useState(false);
@@ -71,7 +77,12 @@ export function TrustedUnlockScreen({ mobile, role, onFallbackToOtp }: Props) {
         refreshToken: data.data.refreshToken,
       });
       await updateBioRefreshToken(data.data.refreshToken);
-      await touchRememberedLoginAuth();
+      await setRememberedLogin({
+        mobile,
+        role,
+        name: me.data.data.user.name,
+        lastAuthAt: Date.now(),
+      });
     } catch {
       // Silent — session may have expired since last use. PIN (or "Use OTP instead") still works.
     } finally {
@@ -90,7 +101,12 @@ export function TrustedUnlockScreen({ mobile, role, onFallbackToOtp }: Props) {
       if (!data.success) throw new Error(data.message);
       setAuthHeader(data.data.accessToken);
       setAuth(data.data.user, { accessToken: data.data.accessToken, refreshToken: data.data.refreshToken });
-      await touchRememberedLoginAuth();
+      await setRememberedLogin({
+        mobile,
+        role,
+        name: data.data.user.name,
+        lastAuthAt: Date.now(),
+      });
     } catch (err) {
       const code = (err as { response?: { data?: { code?: string } } })?.response?.data?.code;
       if (code === "DEVICE_NOT_TRUSTED" || code === "MPIN_NOT_SET") {
@@ -114,15 +130,12 @@ export function TrustedUnlockScreen({ mobile, role, onFallbackToOtp }: Props) {
           <Lock size={16} color={colors.textMuted} />
           <Text style={styles.title}>App locked</Text>
         </View>
-        <Text style={styles.subtitle}>Welcome back</Text>
-        <Text style={styles.roleLine}>
-          Role:{" "}
-          {role === "super_distributor"
-            ? "Super Distributor"
-            : role === "distributor"
-              ? "Distributor"
-              : "Retailer"}
+        <Text style={styles.subtitle}>
+          Welcome back{name?.trim() ? ` ${name.trim()}` : ""}
         </Text>
+        <View style={styles.rolePill}>
+          <Text style={styles.rolePillText}>{rolePillLabel(role)}</Text>
+        </View>
 
         <PinInput length={4} value={pin} onChange={setPin} autoFocus={!bioReady || bioTried} />
 
@@ -154,8 +167,15 @@ const styles = StyleSheet.create({
   content: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 14 },
   lockRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
   title: { fontSize: 18, fontWeight: "700", color: colors.blue },
-  subtitle: { fontSize: 13, color: colors.textMuted, marginBottom: 4 },
-  roleLine: { fontSize: 13, fontWeight: "700", color: colors.blue, marginBottom: 10 },
+  subtitle: { fontSize: 14, fontWeight: "600", color: colors.textMuted, marginBottom: 8 },
+  rolePill: {
+    borderRadius: 999,
+    backgroundColor: colors.blue,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    marginBottom: 10,
+  },
+  rolePillText: { fontSize: 12, fontWeight: "800", color: "#fff" },
   spinner: { marginTop: 16 },
   unlockBtn: {
     marginTop: 16,

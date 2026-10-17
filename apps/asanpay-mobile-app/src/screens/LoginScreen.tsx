@@ -79,7 +79,11 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
 
   function commitLogin(session: PendingSession) {
     setAuthHeader(session.accessToken);
-    void setRememberedLogin({ mobile: session.user.mobile, role: loginRoleOf(session.user) });
+    void setRememberedLogin({
+      mobile: session.user.mobile,
+      role: loginRoleOf(session.user),
+      name: session.user.name,
+    });
     setAuth(session.user, { accessToken: session.accessToken, refreshToken: session.refreshToken });
   }
 
@@ -228,10 +232,14 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
             <Lock size={16} color={colors.textMuted} />
             <Text style={styles.lockTitle}>Enter your PIN</Text>
           </View>
-          <Text style={styles.lockSubtitle}>Welcome, {pendingSession.user.name}</Text>
-          <Text style={styles.lockRole}>
-            Role: {ROLE_LABELS[pendingSession.user.role] ?? pendingSession.user.role}
+          <Text style={styles.lockSubtitle}>
+            Welcome back {pendingSession.user.name}
           </Text>
+          <View style={styles.lockRolePill}>
+            <Text style={styles.lockRolePillText}>
+              {ROLE_LABELS[pendingSession.user.role] ?? pendingSession.user.role}
+            </Text>
+          </View>
 
           <View style={styles.pinWrap}>
             <PinInput length={4} value={pin} onChange={setPin} />
@@ -556,12 +564,18 @@ const styles = StyleSheet.create({
   lockContent: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 14 },
   lockRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
   lockTitle: { fontSize: 18, fontWeight: "700", color: colors.blue },
-  lockSubtitle: { fontSize: 13, color: colors.textMuted, marginBottom: 4 },
-  lockRole: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: colors.blue,
+  lockSubtitle: { fontSize: 14, fontWeight: "600", color: colors.textMuted, marginBottom: 8 },
+  lockRolePill: {
+    borderRadius: 999,
+    backgroundColor: colors.blue,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
     marginBottom: 10,
+  },
+  lockRolePillText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#fff",
   },
   lockSpinner: { marginTop: 16 },
   lockUnlockBtn: {

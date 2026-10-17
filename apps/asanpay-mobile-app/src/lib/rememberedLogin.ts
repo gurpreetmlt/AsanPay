@@ -15,6 +15,8 @@ const KEY = "adhikari.lastLogin.v1";
 export interface RememberedLogin {
   mobile: string;
   role: LoginRoleChip;
+  /** Display name for lock-screen greeting (optional — older installs may not have it). */
+  name?: string;
   /** epoch ms of the last successful OTP/password/MPIN auth — local mirror of the backend's
    * rolling device-trust window (DEVICE_TRUST_WINDOW_MS), so the app can skip straight to full
    * login instead of showing PIN first and then bouncing off a DEVICE_NOT_TRUSTED response. */

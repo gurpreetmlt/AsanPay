@@ -10,6 +10,7 @@ export function AuthFlow() {
   const [step, setStep] = useState<AuthStep>("login");
   const [mobile, setMobile] = useState("");
   const [role, setRole] = useState<LoginRoleChip>("retailer");
+  const [displayName, setDisplayName] = useState("");
   // Gate first render until this check resolves, so logout never flashes the mobile-number
   // entry screen before jumping straight to Welcome-back PIN unlock (12h device-trust window).
   const [checkedRemembered, setCheckedRemembered] = useState(false);
@@ -23,6 +24,7 @@ export function AuthFlow() {
       if (alive && remembered && !isTrustWindowExpired(remembered)) {
         setMobile(remembered.mobile);
         setRole(remembered.role);
+        setDisplayName(remembered.name?.trim() || "");
         setStep("trustedUnlock");
       }
       if (alive) setCheckedRemembered(true);
@@ -39,6 +41,7 @@ export function AuthFlow() {
       <TrustedUnlockScreen
         mobile={mobile}
         role={role}
+        name={displayName}
         onFallbackToOtp={() => setStep("login")}
       />
     );
