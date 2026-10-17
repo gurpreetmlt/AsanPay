@@ -20,8 +20,6 @@ import { DmtScreen } from "./DmtScreen";
 import { NepalScreen } from "./NepalScreen";
 import { UpiCashPointScreen } from "./UpiCashPointScreen";
 import { RechargeScreen } from "./RechargeScreen";
-import { isFundRequestEnabled } from "@asanpay/shared-types";
-import { FundRequestModal } from "../shared/FundRequestScreen";
 import { showAlert } from "../../components/AppAlert";
 import { BrandLockup } from "../../components/BrandMark";
 import { PageEnter } from "../../components/PageEnter";
@@ -73,7 +71,6 @@ export function ServicesScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [homeEditMode, setHomeEditMode] = useState(false);
-  const [showFund, setShowFund] = useState(false);
   const [activeScreen, setActiveScreen] = useState<"home" | "aeps" | "dmt" | "nepal" | "upi_cp" | "recharge">("home");
   const [aepsServiceCode, setAepsServiceCode] = useState<string | undefined>();
   const [rechargeServiceCode, setRechargeServiceCode] = useState<"MOBILE_PREPAID" | "DTH">("MOBILE_PREPAID");
@@ -183,17 +180,6 @@ export function ServicesScreen() {
     .map((p) => p[0]?.toUpperCase() ?? "")
     .join("");
   const firstName = user.name.split(" ")[0] ?? user.name;
-  const fundOn = isFundRequestEnabled(user.role, user.fundRequestEnabled);
-  function openAddMoney() {
-    if (!fundOn) {
-      showAlert(
-        "Not enabled",
-        "Fund requests are not enabled for your account. Contact your sales manager to enable them.",
-      );
-      return;
-    }
-    setShowFund(true);
-  }
   return (
     <PageEnter>
     <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bg }]} edges={["top"]}>
@@ -226,9 +212,7 @@ export function ServicesScreen() {
       >
         <WalletBar
           wallets={wallets}
-          onAddMoney={openAddMoney}
           onWalletPress={() => navigation.navigate("Balance")}
-          onReports={() => navigation.navigate("MyEarnings" as never)}
         />
       </ScreenHeader>
 
@@ -426,7 +410,6 @@ export function ServicesScreen() {
           )}
         </View>
       </ScrollView>
-      <FundRequestModal visible={showFund} onClose={() => setShowFund(false)} />
     </SafeAreaView>
     </PageEnter>
   );

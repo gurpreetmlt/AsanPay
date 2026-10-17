@@ -340,19 +340,10 @@ export function AepsLayout3({
         <div className="space-y-6 p-5 sm:p-6">
           <SegmentTabs value={tab} onChange={onTabChange} />
 
-          {/* Banks — polished round strip */}
+          {/* Banks — polished round strip + green selected highlight */}
           <div className="rounded-2xl border border-gray-100 bg-slate-50/70 p-4">
             <div className="mb-3 flex items-center justify-between gap-2">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Select bank</p>
-                {selectedBank ? (
-                  <p className="mt-0.5 text-xs font-semibold" style={{ color: B.blue }}>
-                    {selectedBank.name}
-                  </p>
-                ) : (
-                  <p className="mt-0.5 text-xs text-gray-400">Tap a bank to continue</p>
-                )}
-              </div>
+              <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Select bank</p>
               <button
                 type="button"
                 onClick={onViewAllBanks}
@@ -389,9 +380,7 @@ export function AepsLayout3({
                       <span
                         className={clsx(
                           "absolute -bottom-0.5 -right-0.5 flex h-[18px] w-[18px] items-center justify-center rounded-full text-white shadow transition-all duration-250",
-                          active
-                            ? "scale-100 opacity-100"
-                            : "scale-50 opacity-0",
+                          active ? "scale-100 opacity-100" : "scale-50 opacity-0",
                         )}
                         style={{ background: B.blue }}
                       >
@@ -411,6 +400,26 @@ export function AepsLayout3({
                 );
               })}
             </div>
+            {selectedBank ? (
+              <div className="mt-3 flex items-center gap-3 rounded-xl border border-emerald-300 bg-gradient-to-r from-emerald-50 to-green-50 px-3.5 py-3 shadow-sm shadow-emerald-100/80 transition-all duration-300">
+                <RoundBankIcon bank={selectedBank} size={32} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-extrabold text-emerald-900">
+                    {selectedBank.name}
+                  </p>
+                  <p className="text-[11px] font-semibold text-emerald-700">
+                    Selected bank for this transaction
+                  </p>
+                </div>
+                <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-emerald-800">
+                  Selected
+                </span>
+              </div>
+            ) : (
+              <div className="mt-3 rounded-xl border border-dashed border-gray-200 bg-white/70 px-3.5 py-3 text-center text-xs font-semibold text-gray-400">
+                Tap a bank above to select
+              </div>
+            )}
           </div>
 
           {/* Customer details — Aadhaar + Mobile + Amount in one row on large screens */}
@@ -472,29 +481,26 @@ export function AepsLayout3({
                     placeholder={tab === "Deposit" ? "Amount to Deposit" : "Amount to Withdraw"}
                     className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-3 text-sm font-medium outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                   />
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {QUICK.map((a) => (
+                      <button
+                        key={a}
+                        type="button"
+                        onClick={() => onAmountChange(String(a))}
+                        className={clsx(
+                          "rounded-full border px-3.5 py-1.5 text-xs font-bold transition-all duration-200",
+                          amount === String(a)
+                            ? "scale-105 border-blue-400 bg-blue-50 text-blue-700 shadow-sm"
+                            : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50",
+                        )}
+                      >
+                        ₹{a.toLocaleString("en-IN")}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               ) : null}
             </div>
-
-            {showAmount ? (
-              <div className="flex flex-wrap gap-2">
-                {QUICK.map((a) => (
-                  <button
-                    key={a}
-                    type="button"
-                    onClick={() => onAmountChange(String(a))}
-                    className={clsx(
-                      "rounded-full border px-3.5 py-1.5 text-xs font-bold transition-all duration-200",
-                      amount === String(a)
-                        ? "scale-105 border-blue-400 bg-blue-50 text-blue-700 shadow-sm"
-                        : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50",
-                    )}
-                  >
-                    ₹{a.toLocaleString("en-IN")}
-                  </button>
-                ))}
-              </div>
-            ) : null}
 
             <label className="flex cursor-pointer items-start gap-2.5 select-none rounded-xl border border-gray-100 bg-slate-50/90 px-3.5 py-3">
               <input

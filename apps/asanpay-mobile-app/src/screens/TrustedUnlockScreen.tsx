@@ -115,6 +115,14 @@ export function TrustedUnlockScreen({ mobile, role, onFallbackToOtp }: Props) {
           <Text style={styles.title}>App locked</Text>
         </View>
         <Text style={styles.subtitle}>Welcome back</Text>
+        <Text style={styles.roleLine}>
+          Role:{" "}
+          {role === "super_distributor"
+            ? "Super Distributor"
+            : role === "distributor"
+              ? "Distributor"
+              : "Retailer"}
+        </Text>
 
         <PinInput length={4} value={pin} onChange={setPin} autoFocus={!bioReady || bioTried} />
 
@@ -146,7 +154,8 @@ const styles = StyleSheet.create({
   content: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 14 },
   lockRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
   title: { fontSize: 18, fontWeight: "700", color: colors.blue },
-  subtitle: { fontSize: 13, color: colors.textMuted, marginBottom: 10 },
+  subtitle: { fontSize: 13, color: colors.textMuted, marginBottom: 4 },
+  roleLine: { fontSize: 13, fontWeight: "700", color: colors.blue, marginBottom: 10 },
   spinner: { marginTop: 16 },
   unlockBtn: {
     marginTop: 16,

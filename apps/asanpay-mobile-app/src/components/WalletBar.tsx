@@ -6,21 +6,21 @@ import { Eye, EyeOff, Fingerprint, Wallet } from "lucide-react-native";
 import { formatINR } from "../lib/format";
 import type { WalletBalance } from "../lib/types";
 import { colors } from "../theme/colors";
-import { showAlert } from "./AppAlert";
-
 const BALANCE_VISIBLE_KEY = "asanpay_balance_visible";
 
 interface Props {
   wallets: WalletBalance[];
   onWalletPress?: () => void;
+  /** @deprecated Fund is request-only — quick actions removed from home. */
   onAddMoney?: () => void;
+  /** @deprecated Reports entry removed from home wallet bar. */
   onReports?: () => void;
   /** Super Distributor / Distributor hold only the main wallet (no AEPS). */
   single?: boolean;
 }
 
-/** Retailer-style twin wallet cards + Add Money / Reports — shared by home headers. */
-export function WalletBar({ wallets, onWalletPress, onAddMoney, onReports, single }: Props) {
+/** Retailer-style twin wallet cards — shared by home headers. */
+export function WalletBar({ wallets, onWalletPress, single }: Props) {
   const main = wallets.find((w) => w.walletType === "main");
   const aeps = wallets.find((w) => w.walletType === "aeps");
   const [visible, setVisible] = useState(true);
@@ -40,11 +40,7 @@ export function WalletBar({ wallets, onWalletPress, onAddMoney, onReports, singl
   }
 
   function openWallet() {
-    if (onWalletPress) {
-      onWalletPress();
-      return;
-    }
-    showAlert("Balance", "Open the Balance tab from bottom navigation.");
+    onWalletPress?.();
   }
 
   function amount(raw: string | undefined) {
@@ -104,21 +100,6 @@ export function WalletBar({ wallets, onWalletPress, onAddMoney, onReports, singl
           </LinearGradient>
         </Pressable>
         )}
-      </View>
-
-      <View style={styles.quickRow}>
-        <Pressable
-          onPress={onAddMoney ?? (() => showAlert("Coming soon", "Add money / load balance"))}
-          style={[styles.quickBtnWhite, { backgroundColor: colors.green }]}
-        >
-          <Text style={[styles.quickBtnTextDark, { color: "#fff" }]}>+ Add Money</Text>
-        </Pressable>
-        <Pressable
-          onPress={onReports ?? (() => showAlert("Coming soon", "Reports"))}
-          style={styles.quickBtnOutline}
-        >
-          <Text style={styles.quickBtnText}>Reports</Text>
-        </Pressable>
       </View>
     </View>
   );

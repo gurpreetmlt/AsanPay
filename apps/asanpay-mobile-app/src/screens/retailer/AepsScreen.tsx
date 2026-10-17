@@ -1280,17 +1280,6 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
           <View style={s.cardLabelRow}>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={[s.cardLabel, { color: tokens.sub, marginBottom: 0 }]}>SELECT BANK</Text>
-              <Text
-                style={{
-                  marginTop: 2,
-                  fontSize: 12,
-                  fontWeight: "700",
-                  color: selectedBank ? colors.blue : tokens.mute,
-                }}
-                numberOfLines={1}
-              >
-                {selectedBank ? selectedBank.name : "Tap a bank to continue"}
-              </Text>
             </View>
             <Pressable onPress={() => setBankModalOpen(true)} style={s.viewAllPill}>
               <Text style={s.viewAllText}>View All</Text>
@@ -1323,6 +1312,27 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
               ))}
             </ScrollView>
           </View>
+
+          {selectedBank ? (
+            <View style={s.selectedBankGreenStrip}>
+              <BankIcon bank={selectedBank} size={30} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={s.selectedBankGreenName} numberOfLines={1}>
+                  {selectedBank.name}
+                </Text>
+                <Text style={s.selectedBankGreenHint}>Selected bank for this transaction</Text>
+              </View>
+              <View style={s.selectedBankGreenBadge}>
+                <Text style={s.selectedBankGreenBadgeText}>Selected</Text>
+              </View>
+            </View>
+          ) : (
+            <View style={s.selectedBankStripEmpty}>
+              <Text style={{ fontSize: 12, color: tokens.mute, fontWeight: "600" }}>
+                Tap a bank above to select
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Form fields */}
@@ -1789,16 +1799,44 @@ const s = StyleSheet.create({
     paddingVertical: 10,
   },
   selectedBankStripEmpty: {
-    marginTop: 2,
-    borderRadius: 12,
+    marginTop: 10,
+    borderRadius: 14,
     borderWidth: 1,
     borderStyle: "dashed",
+    borderColor: "#CBD5E1",
     paddingHorizontal: 12,
     paddingVertical: 12,
     alignItems: "center",
+    backgroundColor: "#fff",
   },
   selectedBankName: { fontWeight: "800", fontSize: 13 },
   selectedBankHint: { fontSize: 10, color: "#64748B", marginTop: 1, fontWeight: "500" },
+  selectedBankGreenStrip: {
+    marginTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "#6EE7B7",
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+  },
+  selectedBankGreenName: { fontWeight: "800", fontSize: 13.5, color: "#065F46" },
+  selectedBankGreenHint: { fontSize: 11, fontWeight: "600", color: "#047857", marginTop: 1 },
+  selectedBankGreenBadge: {
+    borderRadius: 999,
+    backgroundColor: "#D1FAE5",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  selectedBankGreenBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#065F46",
+    textTransform: "uppercase",
+  },
   viewAllBtn: {
     flexDirection: "row",
     alignItems: "center",

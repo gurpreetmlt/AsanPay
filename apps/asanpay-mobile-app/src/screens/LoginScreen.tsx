@@ -3,7 +3,7 @@ import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollVie
 import LinearGradient from "react-native-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Eye, EyeOff, Fingerprint, Lock, ShieldCheck, Star } from "lucide-react-native";
-import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
+import { ROLE_LABELS, type ApiResponse, type AuthUser } from "@asanpay/shared-types";
 import { api, API_BASE, setAuthHeader } from "../lib/api";
 import { apiError } from "../utils/apiError";
 import { BrandLockup, BrandMark } from "../components/BrandMark";
@@ -229,6 +229,9 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
             <Text style={styles.lockTitle}>Enter your PIN</Text>
           </View>
           <Text style={styles.lockSubtitle}>Welcome, {pendingSession.user.name}</Text>
+          <Text style={styles.lockRole}>
+            Role: {ROLE_LABELS[pendingSession.user.role] ?? pendingSession.user.role}
+          </Text>
 
           <View style={styles.pinWrap}>
             <PinInput length={4} value={pin} onChange={setPin} />
@@ -553,7 +556,13 @@ const styles = StyleSheet.create({
   lockContent: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 14 },
   lockRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
   lockTitle: { fontSize: 18, fontWeight: "700", color: colors.blue },
-  lockSubtitle: { fontSize: 13, color: colors.textMuted, marginBottom: 10 },
+  lockSubtitle: { fontSize: 13, color: colors.textMuted, marginBottom: 4 },
+  lockRole: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.blue,
+    marginBottom: 10,
+  },
   lockSpinner: { marginTop: 16 },
   lockUnlockBtn: {
     marginTop: 16,
