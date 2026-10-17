@@ -128,7 +128,7 @@ function maskAadhaar(v: string) {
   return "XXXX XXXX " + d.slice(-4);
 }
 
-function RoundBankIcon({ bank, size = 44 }: { bank: Bank; size?: number }) {
+function RoundBankIcon({ bank, size = 52 }: { bank: Bank; size?: number }) {
   const [failed, setFailed] = useState(false);
   const logoUrl = aepsBankLogoUrl(bank);
 
@@ -144,8 +144,8 @@ function RoundBankIcon({ bank, size = 44 }: { bank: Bank; size?: number }) {
         style={{
           width: size,
           height: size,
-          padding: size * 0.16,
-          boxShadow: "0 0 0 1px rgba(15,23,42,0.08)",
+          padding: size * 0.18,
+          boxShadow: "0 2px 8px rgba(15,23,42,0.08), 0 0 0 1px rgba(15,23,42,0.06)",
         }}
         onError={() => setFailed(true)}
       />
@@ -158,9 +158,9 @@ function RoundBankIcon({ bank, size = 44 }: { bank: Bank; size?: number }) {
       style={{
         width: size,
         height: size,
-        backgroundColor: bank.color,
-        fontSize: size * 0.36,
-        boxShadow: "0 0 0 1px rgba(15,23,42,0.08)",
+        background: `linear-gradient(145deg, ${bank.color}ee, ${bank.color})`,
+        fontSize: size * 0.34,
+        boxShadow: "0 2px 8px rgba(15,23,42,0.12)",
       }}
     >
       {bank.letter}
@@ -301,28 +301,37 @@ export function AepsLayout3({
 
   return (
     <div className="space-y-5">
-      {/* Setup card */}
+      {/* Setup card — single column flow */}
       <section
         className="overflow-hidden rounded-2xl border bg-white shadow-sm"
         style={{ borderColor: B.border }}
       >
-        <div className="space-y-5 p-5">
+        <div className="space-y-6 p-5 sm:p-6">
           <SegmentTabs value={tab} onChange={onTabChange} />
 
-          {/* Banks — round icons */}
-          <div>
+          {/* Banks — polished round strip */}
+          <div className="rounded-2xl border border-gray-100 bg-slate-50/70 p-4">
             <div className="mb-3 flex items-center justify-between gap-2">
-              <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Select bank</p>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Select bank</p>
+                {selectedBank ? (
+                  <p className="mt-0.5 text-xs font-semibold" style={{ color: B.blue }}>
+                    {selectedBank.name}
+                  </p>
+                ) : (
+                  <p className="mt-0.5 text-xs text-gray-400">Tap a bank to continue</p>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={onViewAllBanks}
-                className="text-xs font-bold hover:underline"
+                className="rounded-full border border-blue-100 bg-white px-3 py-1.5 text-xs font-bold shadow-sm transition hover:bg-blue-50"
                 style={{ color: B.blueLight }}
               >
                 View All Banks
               </button>
             </div>
-            <div className="flex gap-3 overflow-x-auto pb-1">
+            <div className="flex gap-2.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {stripBanks.map((bank) => {
                 const active = selectedBank?.id === bank.id;
                 return (
@@ -331,27 +340,30 @@ export function AepsLayout3({
                     type="button"
                     onClick={() => onSelectBank(bank)}
                     className={clsx(
-                      "flex w-[76px] shrink-0 flex-col items-center gap-2 rounded-2xl border px-2 py-3 transition",
-                      active
-                        ? "border-blue-500 bg-blue-50/80 shadow-sm shadow-blue-100"
-                        : "border-gray-200 bg-white hover:border-blue-200 hover:bg-slate-50",
+                      "group flex w-[72px] shrink-0 flex-col items-center gap-2 rounded-2xl px-1.5 py-2.5 transition",
+                      active ? "bg-white shadow-md shadow-blue-100/80" : "hover:bg-white/80",
                     )}
                   >
-                    <span className="relative">
-                      <RoundBankIcon bank={bank} size={48} />
+                    <span
+                      className={clsx(
+                        "relative rounded-full p-0.5 transition",
+                        active ? "ring-[3px] ring-blue-500 ring-offset-2" : "ring-0",
+                      )}
+                    >
+                      <RoundBankIcon bank={bank} size={52} />
                       {active ? (
                         <span
-                          className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full text-white"
+                          className="absolute -bottom-0.5 -right-0.5 flex h-[18px] w-[18px] items-center justify-center rounded-full text-white shadow"
                           style={{ background: B.blue }}
                         >
-                          <Check size={10} strokeWidth={3} />
+                          <Check size={11} strokeWidth={3} />
                         </span>
                       ) : null}
                     </span>
                     <span
                       className={clsx(
                         "w-full truncate text-center text-[11px] leading-tight",
-                        active ? "font-bold" : "font-medium text-gray-600",
+                        active ? "font-extrabold" : "font-semibold text-gray-600 group-hover:text-gray-800",
                       )}
                       style={active ? { color: B.blue } : undefined}
                     >
@@ -363,123 +375,115 @@ export function AepsLayout3({
             </div>
           </div>
 
-          {/* Fields + biometric panel */}
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-stretch">
-            <div className="flex min-w-0 flex-col space-y-3">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    Aadhaar or VID number
-                  </label>
-                  <div className="flex items-center rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-3">
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={aadhaarVisible ? formatAadhaar(aadhaar) : maskAadhaar(aadhaar)}
-                      onChange={(e) => onAadhaarChange(e.target.value.replace(/\D/g, "").slice(0, 12))}
-                      placeholder="XXXX XXXX XXXX"
-                      className="flex-1 bg-transparent text-sm font-medium outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={onToggleAadhaarVisible}
-                      className="ml-2 text-gray-400 hover:text-gray-600"
-                      aria-label={aadhaarVisible ? "Hide Aadhaar" : "Show Aadhaar"}
-                    >
-                      {aadhaarVisible ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    Mobile number
-                  </label>
-                  <input
-                    type="tel"
-                    inputMode="numeric"
-                    value={mobile}
-                    onChange={(e) => onMobileChange(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                    placeholder="Mobile Number"
-                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-3 text-sm font-medium outline-none focus:border-blue-300"
-                  />
-                </div>
-              </div>
-
-              {showAmount ? (
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    Amount to {tab === "Deposit" ? "deposit" : "withdraw"}
-                  </label>
+          {/* Customer details — full width */}
+          <div className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Aadhaar or VID number
+                </label>
+                <div className="flex items-center rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-3 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100">
                   <input
                     type="text"
                     inputMode="numeric"
-                    value={amount}
-                    onChange={(e) => onAmountChange(e.target.value.replace(/\D/g, ""))}
-                    placeholder={tab === "Deposit" ? "Amount to Deposit" : "Amount to Withdraw"}
-                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-3 text-sm font-medium outline-none focus:border-blue-300"
+                    value={aadhaarVisible ? formatAadhaar(aadhaar) : maskAadhaar(aadhaar)}
+                    onChange={(e) => onAadhaarChange(e.target.value.replace(/\D/g, "").slice(0, 12))}
+                    placeholder="XXXX XXXX XXXX"
+                    className="flex-1 bg-transparent text-sm font-medium outline-none"
                   />
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {QUICK.map((a) => (
-                      <button
-                        key={a}
-                        type="button"
-                        onClick={() => onAmountChange(String(a))}
-                        className={clsx(
-                          "rounded-full border px-3.5 py-1.5 text-xs font-bold transition",
-                          amount === String(a)
-                            ? "border-blue-400 bg-blue-50 text-blue-700"
-                            : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50",
-                        )}
-                      >
-                        ₹{a.toLocaleString("en-IN")}
-                      </button>
-                    ))}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={onToggleAadhaarVisible}
+                    className="ml-2 text-gray-400 hover:text-gray-600"
+                    aria-label={aadhaarVisible ? "Hide Aadhaar" : "Show Aadhaar"}
+                  >
+                    {aadhaarVisible ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
                 </div>
-              ) : null}
-
-              <label className="mt-auto flex cursor-pointer items-start gap-2.5 select-none rounded-xl border border-gray-100 bg-slate-50/80 px-3 py-2.5">
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Mobile number
+                </label>
                 <input
-                  type="checkbox"
-                  checked={consent}
-                  onChange={(e) => onConsentChange(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 accent-blue-600"
+                  type="tel"
+                  inputMode="numeric"
+                  value={mobile}
+                  onChange={(e) => onMobileChange(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  placeholder="Mobile Number"
+                  className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-3 text-sm font-medium outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                 />
-                <span className="text-xs leading-relaxed text-gray-600">
-                  I (the customer) accept{" "}
-                  <span className="font-semibold text-blue-700 underline">Aadhaar Consent</span> and
-                  have read the{" "}
-                  <span className="font-semibold text-blue-700 underline">AePS Advisory</span>
-                </span>
-              </label>
+              </div>
             </div>
 
-            {/* Biometric capture card — status-driven chrome */}
-            <aside
-              className={clsx(
-                "flex flex-col overflow-hidden rounded-2xl border bg-white shadow-sm",
-                scannerReady && "border-emerald-200",
-                scannerLooking && "border-blue-200",
-                !scannerReady && !scannerLooking && "border-amber-200",
-              )}
-            >
-              <div
-                className={clsx(
-                  "flex items-center gap-3 px-4 py-3",
-                  scannerReady && "bg-emerald-50",
-                  scannerLooking && "bg-blue-50",
-                  !scannerReady && !scannerLooking && "bg-amber-50",
-                )}
-              >
+            {showAmount ? (
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Amount to {tab === "Deposit" ? "deposit" : "withdraw"}
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={amount}
+                  onChange={(e) => onAmountChange(e.target.value.replace(/\D/g, ""))}
+                  placeholder={tab === "Deposit" ? "Amount to Deposit" : "Amount to Withdraw"}
+                  className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-3 text-sm font-medium outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 md:max-w-md"
+                />
+                <div className="mt-2.5 flex flex-wrap gap-2">
+                  {QUICK.map((a) => (
+                    <button
+                      key={a}
+                      type="button"
+                      onClick={() => onAmountChange(String(a))}
+                      className={clsx(
+                        "rounded-full border px-3.5 py-1.5 text-xs font-bold transition",
+                        amount === String(a)
+                          ? "border-blue-400 bg-blue-50 text-blue-700 shadow-sm"
+                          : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50",
+                      )}
+                    >
+                      ₹{a.toLocaleString("en-IN")}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <label className="flex cursor-pointer items-start gap-2.5 select-none rounded-xl border border-gray-100 bg-slate-50/90 px-3.5 py-3">
+              <input
+                type="checkbox"
+                checked={consent}
+                onChange={(e) => onConsentChange(e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-blue-600"
+              />
+              <span className="text-xs leading-relaxed text-gray-600">
+                I (the customer) accept{" "}
+                <span className="font-semibold text-blue-700 underline">Aadhaar Consent</span> and have
+                read the <span className="font-semibold text-blue-700 underline">AePS Advisory</span>
+              </span>
+            </label>
+          </div>
+
+          {/* Biometric — full width BELOW form */}
+          <div
+            className={clsx(
+              "overflow-hidden rounded-2xl border",
+              scannerReady && "border-emerald-200 bg-emerald-50/40",
+              scannerLooking && "border-blue-200 bg-blue-50/40",
+              !scannerReady && !scannerLooking && "border-amber-200 bg-amber-50/50",
+            )}
+          >
+            <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:gap-5">
+              <div className="flex min-w-0 flex-1 items-start gap-3 sm:items-center">
                 <div
                   className={clsx(
-                    "relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl",
+                    "relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl",
                     scannerReady && "bg-emerald-100 text-emerald-700",
                     scannerLooking && "bg-blue-100 text-blue-700",
                     !scannerReady && !scannerLooking && "bg-amber-100 text-amber-800",
                   )}
                 >
-                  <Fingerprint size={24} strokeWidth={2.2} />
+                  <Fingerprint size={26} strokeWidth={2.2} />
                   <span
                     className={clsx(
                       "absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full ring-2 ring-white",
@@ -490,91 +494,78 @@ export function AepsLayout3({
                   />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-500">
-                    Biometric capture
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-500">
+                      Biometric capture
+                    </p>
+                    <span
+                      className={clsx(
+                        "rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide",
+                        scannerReady && "bg-emerald-100 text-emerald-800",
+                        scannerLooking && "bg-blue-100 text-blue-800",
+                        !scannerReady && !scannerLooking && "bg-amber-100 text-amber-900",
+                      )}
+                    >
+                      {scannerLooking ? "Connecting" : scannerReady ? "Ready" : "Offline"}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 truncate text-sm font-extrabold text-gray-900">{deviceLabel}</p>
+                  <p
+                    className={clsx(
+                      "mt-1 text-xs font-semibold leading-relaxed",
+                      scannerReady && "text-emerald-800",
+                      scannerLooking && "text-blue-800",
+                      !scannerReady && !scannerLooking && "text-amber-900",
+                    )}
+                  >
+                    {scannerLooking
+                      ? "Looking for RD Service on this PC…"
+                      : scannerReady
+                        ? "Device connected. Place finger when you tap Scan."
+                        : "Open Mantra / Morpho RD Service on this PC, then Retry."}
                   </p>
-                  <p className="truncate text-sm font-extrabold text-gray-900">{deviceLabel}</p>
                 </div>
-                <span
-                  className={clsx(
-                    "shrink-0 rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide",
-                    scannerReady && "bg-emerald-100 text-emerald-800",
-                    scannerLooking && "bg-blue-100 text-blue-800",
-                    !scannerReady && !scannerLooking && "bg-amber-100 text-amber-900",
-                  )}
-                >
-                  {scannerLooking ? "Connecting" : scannerReady ? "Ready" : "Offline"}
-                </span>
               </div>
 
-              <div className="flex flex-1 flex-col gap-3 p-4">
-                <p
-                  className={clsx(
-                    "text-xs font-semibold leading-relaxed",
-                    scannerReady && "text-emerald-800",
-                    scannerLooking && "text-blue-800",
-                    !scannerReady && !scannerLooking && "text-amber-900",
-                  )}
-                >
-                  {scannerLooking
-                    ? "Looking for RD Service on this PC…"
-                    : scannerReady
-                      ? "Device connected. Place finger when you tap Scan."
-                      : "Open Mantra / Morpho RD Service on this PC, then Retry."}
-                </p>
-
+              <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:min-w-[260px]">
                 <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={onChangeDevice}
-                    className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 transition hover:bg-gray-50"
+                    className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-xs font-bold text-gray-700 transition hover:bg-gray-50"
                   >
                     <Settings2 size={14} />
                     Change
                   </button>
-                  {!scannerReady ? (
-                    <button
-                      type="button"
-                      onClick={onRetryScanner}
-                      disabled={scannerLooking}
-                      className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900 transition hover:bg-amber-100 disabled:opacity-60"
-                    >
-                      <RefreshCw size={14} className={scannerLooking ? "animate-spin" : undefined} />
-                      Retry
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={onRetryScanner}
-                      className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 transition hover:bg-emerald-100"
-                    >
-                      <RefreshCw size={14} />
-                      Recheck
-                    </button>
-                  )}
-                </div>
-
-                <div className="mt-auto pt-1">
-                  <PrimaryButton
+                  <button
                     type="button"
-                    variant="primary"
-                    loading={scanning}
-                    disabled={scanning || !scannerReady}
-                    onClick={onScan}
-                    showArrow={false}
-                    className="w-full !min-h-[48px]"
+                    onClick={onRetryScanner}
+                    disabled={scannerLooking}
+                    className={clsx(
+                      "inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs font-bold transition disabled:opacity-60",
+                      scannerReady
+                        ? "border-emerald-200 bg-white text-emerald-800 hover:bg-emerald-50"
+                        : "border-amber-300 bg-white text-amber-900 hover:bg-amber-50",
+                    )}
                   >
-                    <Fingerprint size={18} />
-                    {scannerReady ? "Scan Finger & Submit" : "Connect scanner to scan"}
-                  </PrimaryButton>
-                  {!scannerReady ? (
-                    <p className="mt-2 text-center text-[11px] font-medium text-gray-500">
-                      Scan unlocks when the device shows Ready
-                    </p>
-                  ) : null}
+                    <RefreshCw size={14} className={scannerLooking ? "animate-spin" : undefined} />
+                    {scannerReady ? "Recheck" : "Retry"}
+                  </button>
                 </div>
+                <PrimaryButton
+                  type="button"
+                  variant="primary"
+                  loading={scanning}
+                  disabled={scanning || !scannerReady}
+                  onClick={onScan}
+                  showArrow={false}
+                  className="w-full !min-h-[48px]"
+                >
+                  <Fingerprint size={18} />
+                  {scannerReady ? "Scan Finger & Submit" : "Connect scanner to scan"}
+                </PrimaryButton>
               </div>
-            </aside>
+            </div>
           </div>
         </div>
       </section>
