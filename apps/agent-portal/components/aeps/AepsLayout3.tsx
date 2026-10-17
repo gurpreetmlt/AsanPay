@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import {
   Check,
@@ -182,7 +182,7 @@ function StatusPill({ status }: { status: DemoRow["status"] }) {
   );
 }
 
-/** Segmented control — white elevated pill on soft track (date-filter style). */
+/** Segmented control — sliding white pill on soft track. */
 function SegmentTabs({
   value,
   onChange,
@@ -190,14 +190,44 @@ function SegmentTabs({
   value: AepsLayout3Tab;
   onChange: (t: AepsLayout3Tab) => void;
 }) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const btnRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const [pill, setPill] = useState({ left: 4, width: 0, ready: false });
+
+  const measure = useCallback(() => {
+    const idx = TABS.indexOf(value);
+    const btn = btnRefs.current[idx];
+    const track = trackRef.current;
+    if (!btn || !track) return;
+    const tRect = track.getBoundingClientRect();
+    const bRect = btn.getBoundingClientRect();
+    setPill({ left: bRect.left - tRect.left, width: bRect.width, ready: true });
+  }, [value]);
+
+  useLayoutEffect(() => {
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [measure]);
+
   return (
     <div
-      className="inline-flex max-w-full flex-wrap gap-0.5 rounded-full p-1"
+      ref={trackRef}
+      className="relative inline-flex max-w-full rounded-full p-1"
       style={{ background: "#E8EEF8" }}
       role="tablist"
       aria-label="AePS service type"
     >
-      {TABS.map((t) => {
+      <span
+        aria-hidden
+        className="pointer-events-none absolute top-1 bottom-1 rounded-full bg-white shadow-[0_2px_8px_rgba(15,23,42,0.10)] transition-[left,width,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
+        style={{
+          left: pill.left,
+          width: pill.width,
+          opacity: pill.ready ? 1 : 0,
+        }}
+      />
+      {TABS.map((t, i) => {
         const active = value === t;
         return (
           <button
@@ -205,12 +235,13 @@ function SegmentTabs({
             type="button"
             role="tab"
             aria-selected={active}
+            ref={(el) => {
+              btnRefs.current[i] = el;
+            }}
             onClick={() => onChange(t)}
             className={clsx(
-              "rounded-full px-4 py-2 text-sm font-semibold transition",
-              active
-                ? "bg-white shadow-[0_1px_3px_rgba(15,23,42,0.12)]"
-                : "bg-transparent hover:bg-white/50",
+              "relative z-10 rounded-full px-4 py-2 text-sm font-semibold transition-colors duration-200",
+              active ? "font-bold" : "hover:text-[#1e4bb8]",
             )}
             style={{ color: B.blueLight }}
           >
@@ -340,29 +371,36 @@ export function AepsLayout3({
                     type="button"
                     onClick={() => onSelectBank(bank)}
                     className={clsx(
-                      "group flex w-[72px] shrink-0 flex-col items-center gap-2 rounded-2xl px-1.5 py-2.5 transition",
-                      active ? "bg-white shadow-md shadow-blue-100/80" : "hover:bg-white/80",
+                      "group flex w-[72px] shrink-0 flex-col items-center gap-2 rounded-2xl px-1.5 py-2.5 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                      active
+                        ? "scale-[1.04] bg-white shadow-md shadow-blue-100/80"
+                        : "scale-100 hover:bg-white/80 hover:scale-[1.02]",
                     )}
                   >
                     <span
                       className={clsx(
-                        "relative rounded-full p-0.5 transition",
-                        active ? "ring-[3px] ring-blue-500 ring-offset-2" : "ring-0",
+                        "relative rounded-full p-0.5 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                        active
+                          ? "scale-105 ring-[3px] ring-blue-500 ring-offset-2"
+                          : "scale-100 ring-0",
                       )}
                     >
                       <RoundBankIcon bank={bank} size={52} />
-                      {active ? (
-                        <span
-                          className="absolute -bottom-0.5 -right-0.5 flex h-[18px] w-[18px] items-center justify-center rounded-full text-white shadow"
-                          style={{ background: B.blue }}
-                        >
-                          <Check size={11} strokeWidth={3} />
-                        </span>
-                      ) : null}
+                      <span
+                        className={clsx(
+                          "absolute -bottom-0.5 -right-0.5 flex h-[18px] w-[18px] items-center justify-center rounded-full text-white shadow transition-all duration-250",
+                          active
+                            ? "scale-100 opacity-100"
+                            : "scale-50 opacity-0",
+                        )}
+                        style={{ background: B.blue }}
+                      >
+                        <Check size={11} strokeWidth={3} />
+                      </span>
                     </span>
                     <span
                       className={clsx(
-                        "w-full truncate text-center text-[11px] leading-tight",
+                        "w-full truncate text-center text-[11px] leading-tight transition-colors duration-200",
                         active ? "font-extrabold" : "font-semibold text-gray-600 group-hover:text-gray-800",
                       )}
                       style={active ? { color: B.blue } : undefined}
@@ -375,10 +413,17 @@ export function AepsLayout3({
             </div>
           </div>
 
-          {/* Customer details — full width */}
+          {/* Customer details — Aadhaar + Mobile + Amount in one row on large screens */}
           <div className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-2">
-              <div>
+            <div
+              className={clsx(
+                "grid gap-3",
+                showAmount
+                  ? "grid-cols-1 md:grid-cols-2 xl:grid-cols-3"
+                  : "grid-cols-1 md:grid-cols-2",
+              )}
+            >
+              <div className="min-w-0">
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
                   Aadhaar or VID number
                 </label>
@@ -401,7 +446,7 @@ export function AepsLayout3({
                   </button>
                 </div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
                   Mobile number
                 </label>
@@ -414,38 +459,40 @@ export function AepsLayout3({
                   className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-3 text-sm font-medium outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                 />
               </div>
+              {showAmount ? (
+                <div className="min-w-0 md:col-span-2 xl:col-span-1">
+                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Amount to {tab === "Deposit" ? "deposit" : "withdraw"}
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={amount}
+                    onChange={(e) => onAmountChange(e.target.value.replace(/\D/g, ""))}
+                    placeholder={tab === "Deposit" ? "Amount to Deposit" : "Amount to Withdraw"}
+                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-3 text-sm font-medium outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+              ) : null}
             </div>
 
             {showAmount ? (
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  Amount to {tab === "Deposit" ? "deposit" : "withdraw"}
-                </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={amount}
-                  onChange={(e) => onAmountChange(e.target.value.replace(/\D/g, ""))}
-                  placeholder={tab === "Deposit" ? "Amount to Deposit" : "Amount to Withdraw"}
-                  className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-3 text-sm font-medium outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 md:max-w-md"
-                />
-                <div className="mt-2.5 flex flex-wrap gap-2">
-                  {QUICK.map((a) => (
-                    <button
-                      key={a}
-                      type="button"
-                      onClick={() => onAmountChange(String(a))}
-                      className={clsx(
-                        "rounded-full border px-3.5 py-1.5 text-xs font-bold transition",
-                        amount === String(a)
-                          ? "border-blue-400 bg-blue-50 text-blue-700 shadow-sm"
-                          : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50",
-                      )}
-                    >
-                      ₹{a.toLocaleString("en-IN")}
-                    </button>
-                  ))}
-                </div>
+              <div className="flex flex-wrap gap-2">
+                {QUICK.map((a) => (
+                  <button
+                    key={a}
+                    type="button"
+                    onClick={() => onAmountChange(String(a))}
+                    className={clsx(
+                      "rounded-full border px-3.5 py-1.5 text-xs font-bold transition-all duration-200",
+                      amount === String(a)
+                        ? "scale-105 border-blue-400 bg-blue-50 text-blue-700 shadow-sm"
+                        : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50",
+                    )}
+                  >
+                    ₹{a.toLocaleString("en-IN")}
+                  </button>
+                ))}
               </div>
             ) : null}
 

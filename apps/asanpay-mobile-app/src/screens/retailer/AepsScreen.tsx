@@ -289,11 +289,16 @@ function BankIcon({ bank, size = 44 }: { bank: Bank; size?: number }) {
           overflow: "hidden",
           borderWidth: 1,
           borderColor: "rgba(15,23,42,0.08)",
+          shadowColor: "#0F172A",
+          shadowOpacity: 0.08,
+          shadowRadius: 4,
+          shadowOffset: { width: 0, height: 2 },
+          elevation: 2,
         }}
       >
         <Image
           source={{ uri: logoUrl }}
-          style={{ width: size * 0.72, height: size * 0.72 }}
+          style={{ width: size * 0.68, height: size * 0.68 }}
           resizeMode="contain"
           onError={() => setFailed(true)}
         />
@@ -310,12 +315,96 @@ function BankIcon({ bank, size = 44 }: { bank: Bank; size?: number }) {
         backgroundColor: bank.color,
         alignItems: "center",
         justifyContent: "center",
+        shadowColor: "#0F172A",
+        shadowOpacity: 0.12,
+        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 2,
       }}
     >
       <Text style={{ color: "#fff", fontWeight: "800", fontSize: size * 0.38 }}>
         {bank.letter}
       </Text>
     </View>
+  );
+}
+
+/** Round bank chip with spring select animation (matches agent Layout 3). */
+function AnimatedBankChip({
+  bank,
+  active,
+  onPress,
+  labelColor,
+}: {
+  bank: Bank;
+  active: boolean;
+  onPress: () => void;
+  labelColor: string;
+}) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const check = useRef(new Animated.Value(active ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(scale, {
+        toValue: active ? 1.08 : 1,
+        friction: 6,
+        tension: 140,
+        useNativeDriver: true,
+      }),
+      Animated.timing(check, {
+        toValue: active ? 1 : 0,
+        duration: 220,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [active, check, scale]);
+
+  return (
+    <Pressable onPress={onPress} style={s.bankItemWrap}>
+      <Animated.View
+        style={[
+          s.bankItem,
+          active && s.bankItemActive,
+          { transform: [{ scale }] },
+        ]}
+      >
+        <View style={s.bankIconWrap}>
+          <View style={[s.bankRing, active && s.bankRingActive]}>
+            <BankIcon bank={bank} size={48} />
+          </View>
+          <Animated.View
+            style={[
+              s.bankCheckBadge,
+              {
+                opacity: check,
+                transform: [
+                  {
+                    scale: check.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.4, 1],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <Check size={11} color="#fff" strokeWidth={3} />
+          </Animated.View>
+        </View>
+        <Text
+          style={[
+            s.bankShort,
+            { color: active ? colors.blue : labelColor },
+            active && s.bankShortActive,
+          ]}
+          numberOfLines={1}
+        >
+          {bank.shortName.replace(/\.\.\.$/, "")}
+        </Text>
+      </Animated.View>
+    </Pressable>
   );
 }
 
@@ -520,8 +609,8 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
   /** Delay before scroll — longer after View All so modal close finishes first. */
   const bankScrollDelayMs = useRef(32);
   /** Must match styles.bankItemWrap width + bankStrip.gap */
-  const BANK_ITEM_W = 66;
-  const BANK_GAP = 6;
+  const BANK_ITEM_W = 72;
+  const BANK_GAP = 8;
   const BANK_STRIDE = BANK_ITEM_W + BANK_GAP;
 
   // Live IIN overrides from GET /txn/aeps/banks (keyed by normalized bank name).
@@ -1164,107 +1253,76 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Tabs */}
+        {/* Tabs — segmented pill track (matches web Layout 3) */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={s.tabRow}
+          contentContainerStyle={s.tabTrackWrap}
         >
-          {AEPS_TABS.map((t) => {
-            const active = tab === t;
-            return (
-              <Pressable
-                key={t}
-                onPress={() => setTab(t)}
-                style={[s.tab, active && { backgroundColor: colors.blue }]}
-              >
-                <Text style={[s.tabText, active && s.tabTextActive]}>{t}</Text>
-              </Pressable>
-            );
-          })}
+          <View style={s.tabTrack}>
+            {AEPS_TABS.map((t) => {
+              const active = tab === t;
+              return (
+                <Pressable
+                  key={t}
+                  onPress={() => setTab(t)}
+                  style={[s.tabSeg, active && s.tabSegActive]}
+                >
+                  <Text style={[s.tabSegText, active && s.tabSegTextActive]}>{t}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </ScrollView>
 
-        {/* Bank selector strip */}
-        <View style={[s.card, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
+        {/* Bank selector strip — Layout 3 style + spring select */}
+        <View style={[s.bankCard, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
           <View style={s.cardLabelRow}>
-            <Text style={[s.cardLabel, { color: tokens.sub, marginBottom: 0 }]}>SELECT BANK</Text>
-            <Pressable onPress={() => setBankModalOpen(true)} style={s.viewAllBtn}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={[s.cardLabel, { color: tokens.sub, marginBottom: 0 }]}>SELECT BANK</Text>
+              <Text
+                style={{
+                  marginTop: 2,
+                  fontSize: 12,
+                  fontWeight: "700",
+                  color: selectedBank ? colors.blue : tokens.mute,
+                }}
+                numberOfLines={1}
+              >
+                {selectedBank ? selectedBank.name : "Tap a bank to continue"}
+              </Text>
+            </View>
+            <Pressable onPress={() => setBankModalOpen(true)} style={s.viewAllPill}>
               <Text style={s.viewAllText}>View All</Text>
               <ChevronRight size={14} color={colors.blueLight} />
             </Pressable>
           </View>
 
-          <ScrollView
-            ref={bankScrollRef}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={s.bankStrip}
-            onLayout={(e) => {
-              bankViewportW.current = e.nativeEvent.layout.width;
-            }}
-            onScroll={(e) => {
-              bankScrollX.current = e.nativeEvent.contentOffset.x;
-            }}
-            scrollEventThrottle={16}
-          >
-            {stripBanks.map((bank) => {
-              const active = selectedBank?.id === bank.id;
-              return (
-                <Pressable
+          <View style={s.bankStripWell}>
+            <ScrollView
+              ref={bankScrollRef}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={s.bankStrip}
+              onLayout={(e) => {
+                bankViewportW.current = e.nativeEvent.layout.width;
+              }}
+              onScroll={(e) => {
+                bankScrollX.current = e.nativeEvent.contentOffset.x;
+              }}
+              scrollEventThrottle={16}
+            >
+              {stripBanks.map((bank) => (
+                <AnimatedBankChip
                   key={bank.id}
+                  bank={bank}
+                  active={selectedBank?.id === bank.id}
                   onPress={() => selectBank(bank, false)}
-                  style={s.bankItemWrap}
-                >
-                  <View style={[s.bankItem, active && s.bankItemActive]}>
-                    <View style={s.bankIconWrap}>
-                      <BankIcon bank={bank} size={40} />
-                      {active ? (
-                        <View style={s.bankCheckBadge}>
-                          <Check size={10} color="#fff" strokeWidth={3} />
-                        </View>
-                      ) : null}
-                    </View>
-                    <Text
-                      style={[
-                        s.bankShort,
-                        { color: active ? colors.blue : tokens.txt2 },
-                        active && s.bankShortActive,
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {bank.shortName}
-                    </Text>
-                  </View>
-                  <View style={s.bankCaretSlot}>
-                    {active ? (
-                      <ChevronDown size={16} color={colors.blueLight} strokeWidth={2.6} />
-                    ) : null}
-                  </View>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-
-          {selectedBank ? (
-            <View style={[s.selectedBankStrip, { backgroundColor: colors.bluePale, borderColor: `${colors.blueLight}55` }]}>
-              <BankIcon bank={selectedBank} size={28} />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={[s.selectedBankName, { color: colors.blue }]} numberOfLines={1}>
-                  {selectedBank.name}
-                </Text>
-                <Text style={s.selectedBankHint}>Selected bank for this transaction</Text>
-              </View>
-              <Pressable onPress={() => setBankModalOpen(true)} hitSlop={8}>
-                <Text style={[s.viewAllText, { fontSize: 11 }]}>Change</Text>
-              </Pressable>
-            </View>
-          ) : (
-            <View style={[s.selectedBankStripEmpty, { borderColor: tokens.cardBorder }]}>
-              <Text style={{ fontSize: 12, color: tokens.mute, fontWeight: "600" }}>
-                Tap a bank above to select
-              </Text>
-            </View>
-          )}
+                  labelColor={tokens.txt2}
+                />
+              ))}
+            </ScrollView>
+          </View>
         </View>
 
         {/* Form fields */}
@@ -1611,6 +1669,30 @@ const s = StyleSheet.create({
   },
   tabText: { fontSize: 13, fontWeight: "700", color: "#6b7280" },
   tabTextActive: { color: "#fff" },
+  tabTrackWrap: { paddingBottom: 12, paddingRight: 4 },
+  tabTrack: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#E8EEF8",
+    borderRadius: 999,
+    padding: 4,
+    gap: 2,
+  },
+  tabSeg: {
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 999,
+  },
+  tabSegActive: {
+    backgroundColor: "#fff",
+    shadowColor: "#0F172A",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 2,
+  },
+  tabSegText: { fontSize: 12.5, fontWeight: "700", color: colors.blueLight },
+  tabSegTextActive: { fontWeight: "800", color: colors.blue },
 
   // Card
   card: { borderWidth: 1, borderRadius: 18, padding: 16, marginBottom: 14 },
@@ -1622,38 +1704,73 @@ const s = StyleSheet.create({
     marginBottom: 10,
   },
 
-  // Bank strip — ~4 icons fit fully; gap matches BANK_GAP in scroll math
-  bankStrip: { gap: 6, alignItems: "flex-start", paddingBottom: 2, paddingRight: 4 },
-  bankItemWrap: { alignItems: "center", width: 66 },
+  bankCard: {
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 14,
+  },
+  viewAllPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#DBEAFE",
+  },
+  bankStripWell: {
+    marginTop: 4,
+    borderRadius: 16,
+    backgroundColor: "#F1F5F9",
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+  },
+  // Bank strip — width + gap must match scroll centering math
+  bankStrip: { gap: 8, alignItems: "flex-start", paddingBottom: 2, paddingRight: 4 },
+  bankItemWrap: { alignItems: "center", width: 72 },
   bankItem: {
     alignItems: "center",
-    width: 60,
-    paddingTop: 6,
+    width: 68,
+    paddingTop: 4,
     paddingBottom: 4,
-    paddingHorizontal: 3,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: "transparent",
+    paddingHorizontal: 2,
+    borderRadius: 16,
   },
   bankItemActive: {
-    backgroundColor: "#EFF6FF",
-    borderColor: colors.blueLight,
+    backgroundColor: "#fff",
+    shadowColor: "#2A5CDD",
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
   bankIconWrap: { position: "relative" },
+  bankRing: {
+    borderRadius: 999,
+    padding: 2,
+  },
+  bankRingActive: {
+    borderWidth: 3,
+    borderColor: colors.blue,
+    padding: 0,
+  },
   bankCheckBadge: {
     position: "absolute",
     right: -2,
     bottom: -2,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     backgroundColor: colors.blue,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1.5,
     borderColor: "#fff",
   },
-  bankShort: { fontSize: 9.5, fontWeight: "600", textAlign: "center", marginTop: 4 },
+  bankShort: { fontSize: 10, fontWeight: "600", textAlign: "center", marginTop: 6 },
   bankShortActive: { fontWeight: "800" },
   bankCaretSlot: {
     height: 16,
