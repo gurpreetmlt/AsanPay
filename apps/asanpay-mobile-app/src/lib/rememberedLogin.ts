@@ -58,6 +58,27 @@ export async function touchRememberedLoginAuth(): Promise<void> {
   await setRememberedLogin({ ...existing, lastAuthAt: Date.now() });
 }
 
+/**
+ * Keep mobile / role / display name in sync while a session is active so cold-start
+ * "Welcome back {Name}" works even if an older install saved login without `name`.
+ */
+export async function syncRememberedLoginProfile(input: {
+  mobile: string;
+  role: LoginRoleChip;
+  name?: string | null;
+  /** When true, refresh the local trust-window clock (successful auth). */
+  touchAuth?: boolean;
+}): Promise<void> {
+  const existing = await getRememberedLogin();
+  const name = (input.name?.trim() || existing?.name?.trim() || undefined);
+  await setRememberedLogin({
+    mobile: input.mobile,
+    role: input.role,
+    ...(name ? { name } : {}),
+    lastAuthAt: input.touchAuth ? Date.now() : (existing?.lastAuthAt ?? Date.now()),
+  });
+}
+
 export async function clearRememberedLogin(): Promise<void> {
   try {
     await storage.removeItem(KEY);

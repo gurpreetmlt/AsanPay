@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Fingerprint, Lock } from "lucide-react-native";
-import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
+import { ROLE_LABELS, type ApiResponse, type AuthUser } from "@asanpay/shared-types";
 import { api, setAuthHeader } from "../lib/api";
 import { getBioUnlock, promptDeviceBiometric, updateBioRefreshToken } from "../lib/bioUnlock";
 import { useAuthStore } from "../store/auth";
@@ -12,7 +12,8 @@ import { PinInput } from "../components/PinInput";
 import { BrandMark } from "../components/BrandMark";
 import { colors } from "../theme/colors";
 import { showAlert } from "../components/AppAlert";
-import { touchRememberedLoginAuth } from "../lib/rememberedLogin";
+import { syncRememberedLoginProfile } from "../lib/rememberedLogin";
+import type { LoginRoleChip } from "./LoginScreen";
 
 interface Props {
   onUnlock: () => void;
@@ -68,7 +69,15 @@ export function AppLockScreen({ onUnlock }: Props) {
         refreshToken: data.data.refreshToken,
       });
       await updateBioRefreshToken(data.data.refreshToken);
-      await touchRememberedLoginAuth();
+      const u = me.data.data.user;
+      const role: LoginRoleChip =
+        u.role === "super_distributor" || u.role === "distributor" ? u.role : "retailer";
+      await syncRememberedLoginProfile({
+        mobile: u.mobile,
+        role,
+        name: u.name,
+        touchAuth: true,
+      });
       onUnlock();
     } catch {
       // Silent — user can still fall back to PIN below. A stale/revoked token here shouldn't
@@ -89,7 +98,14 @@ export function AppLockScreen({ onUnlock }: Props) {
       if (!data.success) throw new Error(data.message);
       setAuthHeader(data.data.accessToken);
       setAuth(user, { accessToken: data.data.accessToken, refreshToken: data.data.refreshToken });
-      await touchRememberedLoginAuth();
+      const role: LoginRoleChip =
+        user.role === "super_distributor" || user.role === "distributor" ? user.role : "retailer";
+      await syncRememberedLoginProfile({
+        mobile: user.mobile,
+        role,
+        name: user.name,
+        touchAuth: true,
+      });
       onUnlock();
     } catch (err) {
       const code = (err as { response?: { data?: { code?: string } } })?.response?.data?.code;
@@ -114,8 +130,15 @@ export function AppLockScreen({ onUnlock }: Props) {
           <Text style={styles.title}>App locked</Text>
         </View>
         <Text style={styles.subtitle}>
-          {user?.name ? `Welcome back, ${user.name.split(" ")[0]}` : "Unlock to continue"}
+          {user?.name?.trim() ? `Welcome back ${user.name.trim()}` : "Welcome back"}
         </Text>
+        {user?.role ? (
+          <View style={styles.rolePill}>
+            <Text style={styles.rolePillText}>
+              {ROLE_LABELS[user.role] ?? user.role}
+            </Text>
+          </View>
+        ) : null}
 
         <PinInput length={4} value={pin} onChange={setPin} autoFocus={!bioReady || bioTried} />
 
@@ -147,7 +170,15 @@ const styles = StyleSheet.create({
   content: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 14 },
   lockRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
   title: { fontSize: 18, fontWeight: "700", color: colors.blue },
-  subtitle: { fontSize: 13, color: colors.textMuted, marginBottom: 10 },
+  subtitle: { fontSize: 14, fontWeight: "600", color: colors.textMuted, marginBottom: 8 },
+  rolePill: {
+    borderRadius: 999,
+    backgroundColor: colors.blue,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    marginBottom: 10,
+  },
+  rolePillText: { fontSize: 12, fontWeight: "800", color: "#fff" },
   spinner: { marginTop: 16 },
   unlockBtn: {
     marginTop: 16,

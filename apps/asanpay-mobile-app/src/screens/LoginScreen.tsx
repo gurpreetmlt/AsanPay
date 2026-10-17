@@ -82,7 +82,8 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
     void setRememberedLogin({
       mobile: session.user.mobile,
       role: loginRoleOf(session.user),
-      name: session.user.name,
+      name: session.user.name?.trim() || undefined,
+      lastAuthAt: Date.now(),
     });
     setAuth(session.user, { accessToken: session.accessToken, refreshToken: session.refreshToken });
   }

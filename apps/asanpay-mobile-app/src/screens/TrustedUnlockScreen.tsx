@@ -41,6 +41,11 @@ export function TrustedUnlockScreen({ mobile, role, name, onFallbackToOtp }: Pro
   const [loading, setLoading] = useState(false);
   const [bioReady, setBioReady] = useState(false);
   const [bioTried, setBioTried] = useState(false);
+  const [greetingName, setGreetingName] = useState(name?.trim() || "");
+
+  useEffect(() => {
+    if (name?.trim()) setGreetingName(name.trim());
+  }, [name]);
 
   useEffect(() => {
     void getBioUnlock().then((rec) => {
@@ -59,9 +64,7 @@ export function TrustedUnlockScreen({ mobile, role, name, onFallbackToOtp }: Pro
 
     setLoading(true);
     try {
-      const result = await promptDeviceBiometric("Unlock AsanPay");
-      if (result !== "success") return;
-
+      // Prefetch profile so "Welcome back {Name}" shows before / during the fingerprint prompt.
       const { data } = await api.post<ApiResponse<{ accessToken: string; refreshToken: string }>>(
         "/auth/refresh",
         { refreshToken: record.refreshToken },
@@ -71,6 +74,18 @@ export function TrustedUnlockScreen({ mobile, role, name, onFallbackToOtp }: Pro
       setAuthHeader(data.data.accessToken);
       const me = await api.get<ApiResponse<{ user: AuthUser }>>("/auth/me");
       if (!me.data.success) throw new Error(me.data.message);
+
+      const nextName = me.data.data.user.name?.trim() || "";
+      if (nextName) {
+        setGreetingName(nextName);
+        await setRememberedLogin({ mobile, role, name: nextName });
+      }
+
+      const result = await promptDeviceBiometric("Unlock AsanPay");
+      if (result !== "success") {
+        setAuthHeader(null);
+        return;
+      }
 
       setAuth(me.data.data.user, {
         accessToken: data.data.accessToken,
@@ -84,6 +99,7 @@ export function TrustedUnlockScreen({ mobile, role, name, onFallbackToOtp }: Pro
         lastAuthAt: Date.now(),
       });
     } catch {
+      setAuthHeader(null);
       // Silent — session may have expired since last use. PIN (or "Use OTP instead") still works.
     } finally {
       setLoading(false);
@@ -131,7 +147,7 @@ export function TrustedUnlockScreen({ mobile, role, name, onFallbackToOtp }: Pro
           <Text style={styles.title}>App locked</Text>
         </View>
         <Text style={styles.subtitle}>
-          Welcome back{name?.trim() ? ` ${name.trim()}` : ""}
+          Welcome back{greetingName.trim() ? ` ${greetingName.trim()}` : ""}
         </Text>
         <View style={styles.rolePill}>
           <Text style={styles.rolePillText}>{rolePillLabel(role)}</Text>

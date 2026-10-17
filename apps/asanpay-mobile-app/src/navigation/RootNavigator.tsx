@@ -11,6 +11,8 @@ import { AuthFlow } from "./AuthFlow";
 import { PartnerTabs } from "./PartnerTabs";
 import { RetailerTabs } from "./RetailerTabs";
 import { SignupScreen } from "../screens/signup/SignupScreen";
+import { syncRememberedLoginProfile } from "../lib/rememberedLogin";
+import type { LoginRoleChip } from "../screens/LoginScreen";
 
 // Bank-app-style resume lock: background the app for this long or more, and coming back to the
 // foreground requires PIN/fingerprint again — closes the "left it on the table, someone else
@@ -27,6 +29,18 @@ export function RootNavigator() {
 
   const backgroundedAtRef = useRef<number | null>(null);
   const [locked, setLocked] = useState(false);
+
+  // Persist agent name for the cold-start lock greeting ("Welcome back {Name}").
+  useEffect(() => {
+    if (!user?.mobile) return;
+    const role: LoginRoleChip =
+      user.role === "super_distributor" || user.role === "distributor" ? user.role : "retailer";
+    void syncRememberedLoginProfile({
+      mobile: user.mobile,
+      role,
+      name: user.name,
+    });
+  }, [user?.mobile, user?.name, user?.role]);
 
   useEffect(() => {
     function handleChange(next: AppStateStatus) {
