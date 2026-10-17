@@ -4,9 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown, LayoutTemplate } from "lucide-react";
 import { B } from "@/lib/brand";
 
-export type AepsUiLayout = "new" | "1" | "2";
+export type AepsUiLayout = "new" | "1" | "2" | "3";
 
 const OPTIONS: { id: AepsUiLayout; label: string; hint: string }[] = [
+  { id: "3", label: "Layout 3", hint: "Compact form + history (round banks)" },
   { id: "new", label: "New layout", hint: "Form + transaction history" },
   { id: "1", label: "Layout 1", hint: "Current (form + help sidebar)" },
   { id: "2", label: "Layout 2", hint: "Full-width form, help below" },
@@ -15,10 +16,10 @@ const OPTIONS: { id: AepsUiLayout; label: string; hint: string }[] = [
 const STORAGE_KEY = "asanpay.aeps.uiLayout";
 
 export function readAepsUiLayout(): AepsUiLayout {
-  if (typeof window === "undefined") return "new";
+  if (typeof window === "undefined") return "3";
   const v = window.localStorage.getItem(STORAGE_KEY);
-  if (v === "new" || v === "1" || v === "2") return v;
-  return "new";
+  if (v === "new" || v === "1" || v === "2" || v === "3") return v;
+  return "3";
 }
 
 export function writeAepsUiLayout(next: AepsUiLayout) {
@@ -33,7 +34,7 @@ type Props = {
 export function AepsLayoutPicker({ value, onChange }: Props) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const current = OPTIONS.find((o) => o.id === value) ?? OPTIONS[1]!;
+  const current = OPTIONS.find((o) => o.id === value) ?? OPTIONS[0]!;
 
   useEffect(() => {
     if (!open) return;
@@ -68,7 +69,7 @@ export function AepsLayoutPicker({ value, onChange }: Props) {
       {open ? (
         <div
           role="listbox"
-          className="absolute right-0 z-40 mt-1.5 w-64 overflow-hidden rounded-xl border bg-white py-1 shadow-lg"
+          className="absolute right-0 z-40 mt-1.5 w-72 overflow-hidden rounded-xl border bg-white py-1 shadow-lg"
           style={{ borderColor: B.border }}
         >
           {OPTIONS.map((opt) => {

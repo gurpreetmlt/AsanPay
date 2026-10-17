@@ -29,6 +29,7 @@ import {
   type AepsUiLayout,
 } from "@/components/aeps/AepsLayoutPicker";
 import { AepsNewLayout } from "@/components/aeps/AepsNewLayout";
+import { AepsLayout3 } from "@/components/aeps/AepsLayout3";
 import { B } from "@/lib/brand";
 import api from "@/lib/api";
 import { aepsBankLogoUrl } from "@/lib/bankLogo";
@@ -452,7 +453,7 @@ function AepsPageInner() {
   const [agentAadhaarVisible, setAgentAadhaarVisible] = useState(false);
   const [agentAuthConsent, setAgentAuthConsent] = useState(false);
   const [agentAuthScanning, setAgentAuthScanning] = useState(false);
-  const [uiLayout, setUiLayout] = useState<AepsUiLayout>("new");
+  const [uiLayout, setUiLayout] = useState<AepsUiLayout>("3");
 
   useEffect(() => {
     setUiLayout(readAepsUiLayout());
@@ -1008,7 +1009,7 @@ function AepsPageInner() {
           >
             <ArrowLeft size={18} />
           </button>
-          {uiLayout !== "new" ? (
+          {uiLayout === "1" || uiLayout === "2" || uiLayout === "3" ? (
             <div className="min-w-0 flex-1">
               <h1 className="text-xl font-bold" style={{ color: B.blue }}>
                 AePS — Aadhaar Enabled Payment
@@ -1060,7 +1061,38 @@ function AepsPageInner() {
           />
         ) : null}
 
-        {uiLayout !== "new" ? (
+        {uiLayout === "3" ? (
+          <AepsLayout3
+            tab={tab}
+            onTabChange={setTab}
+            banks={BANKS}
+            selectedBank={selectedBank}
+            onSelectBank={(bank) => selectBank(bank, true)}
+            onViewAllBanks={() => setBankSidebarOpen(true)}
+            aadhaar={aadhaar}
+            onAadhaarChange={setAadhaar}
+            aadhaarVisible={aadhaarVisible}
+            onToggleAadhaarVisible={() => setAadhaarVisible((v) => !v)}
+            mobile={mobile}
+            onMobileChange={setMobile}
+            amount={amount}
+            onAmountChange={setAmount}
+            showAmount={showAmount}
+            consent={consent}
+            onConsentChange={setConsent}
+            deviceLabel={
+              rdEndpoint ? formatRdDeviceLabel(rdEndpoint) : activeDevice.name
+            }
+            scannerReady={rdStatus === "ready"}
+            scannerLooking={rdStatus === "looking"}
+            onRetryScanner={() => void retryRdWarm()}
+            onChangeDevice={() => setDeviceSidebarOpen(true)}
+            scanning={scanning}
+            onScan={() => void handleScan()}
+          />
+        ) : null}
+
+        {uiLayout === "1" || uiLayout === "2" ? (
         <div
           className={clsx(
             "grid items-start gap-6",
