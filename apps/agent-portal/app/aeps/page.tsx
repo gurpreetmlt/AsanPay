@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
+import { AgentAuthUiSkipButton } from "@/components/ui/AgentAuthUiSkipButton";
 import { B } from "@/lib/brand";
 import api from "@/lib/api";
 import { aepsBankLogoUrl } from "@/lib/bankLogo";
@@ -932,6 +933,10 @@ function AepsPageInner() {
                 <Fingerprint size={18} />
                 Scan Finger
               </PrimaryButton>
+              <AgentAuthUiSkipButton
+                serviceLabel="AePS"
+                onSkip={() => setAgentAuthReady(true)}
+              />
             </div>
           </div>
 

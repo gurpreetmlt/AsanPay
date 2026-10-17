@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
+import { AgentAuthUiSkipButton } from "@/components/ui/AgentAuthUiSkipButton";
 import { ActionIconButton } from "@/components/ui/ActionIconButton";
 import { B } from "@/lib/brand";
 import api from "@/lib/api";
@@ -966,6 +967,10 @@ export default function DmtPage() {
                 <Fingerprint size={18} />
                 Scan Finger
               </PrimaryButton>
+              <AgentAuthUiSkipButton
+                serviceLabel="DMT"
+                onSkip={() => setAgentAuthReady(true)}
+              />
             </div>
           </div>
 

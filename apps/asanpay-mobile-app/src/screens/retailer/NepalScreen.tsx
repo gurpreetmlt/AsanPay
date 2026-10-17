@@ -8,6 +8,7 @@ import { api } from "../../lib/api";
 import { apiError } from "../../utils/apiError";
 import { createAttemptKeyHolder } from "../../lib/idempotencyKey";
 import { captureFingerprint } from "../../lib/rdServiceFingerprint";
+import { allowAgentAuthUiSkip } from "../../lib/allowAgentAuthUiSkip";
 import { useTxnPin } from "../../hooks/useTxnPin";
 import { useTheme } from "../../theme/ThemeContext";
 import { colors, gradientDirection } from "../../theme/colors";
@@ -856,6 +857,25 @@ export function NepalScreen({ onBack }: NepalScreenProps) {
             <Pressable onPress={() => void verifyDailyAuth()} disabled={authBusy} style={styles.primaryBtn}>
               {authBusy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Verify now</Text>}
             </Pressable>
+            {allowAgentAuthUiSkip() ? (
+              <>
+                <Pressable
+                  onPress={() => {
+                    setAgentAuthReady(true);
+                    showAlert(
+                      "Nepal UI unlocked (dev)",
+                      "This session only. Real transactions still need fingerprint verification.",
+                    );
+                  }}
+                  style={styles.secondaryBtn}
+                >
+                  <Text style={styles.secondaryBtnText}>Skip for now (dev)</Text>
+                </Pressable>
+                <Text style={styles.devSkipHint}>
+                  Dev only — money moves will still fail until fingerprint verification succeeds.
+                </Text>
+              </>
+            ) : null}
           </View>
         ) : null}
 
@@ -1213,4 +1233,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
   secondaryBtnText: { color: colors.blueFlat, fontSize: 13.5, fontWeight: "800" },
+  devSkipHint: {
+    marginTop: 8,
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#B45309",
+    textAlign: "center",
+    lineHeight: 16,
+  },
 });

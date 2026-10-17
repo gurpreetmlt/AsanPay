@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
+import { AgentAuthUiSkipButton } from "@/components/ui/AgentAuthUiSkipButton";
 import { DateField } from "@/components/ui/DateField";
 import { B } from "@/lib/brand";
 import api from "@/lib/api";
@@ -1244,6 +1245,10 @@ export default function NepalPage() {
                 <Fingerprint size={18} />
                 Scan Finger
               </PrimaryButton>
+              <AgentAuthUiSkipButton
+                serviceLabel="Nepal"
+                onSkip={() => setAgentAuthReady(true)}
+              />
             </div>
           </div>
 
