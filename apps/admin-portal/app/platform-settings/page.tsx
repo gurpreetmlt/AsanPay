@@ -140,7 +140,7 @@ export default function PlatformSettingsPage() {
                   label="Support email"
                   value={form.supportEmail}
                   onChange={(v) => setField("supportEmail", v)}
-                  placeholder="care@asanpay.in"
+                  placeholder="help@asanpay.in"
                 />
                 <Field
                   label="WhatsApp number"

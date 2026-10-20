@@ -135,7 +135,7 @@ export default function PrivacyPolicyPage() {
               <ol className="list-decimal pl-5 space-y-2">
                 <li>
                   Email{' '}
-                  <strong className="text-brand-blue-light dark:text-brand-green-light">support@asanpay.in</strong>{' '}
+                  <strong className="text-brand-blue-light dark:text-brand-green-light">help@asanpay.in</strong>{' '}
                   from the mobile number or email registered on your account.
                 </li>
                 <li>
@@ -167,7 +167,7 @@ export default function PrivacyPolicyPage() {
               If you have any questions about this Privacy Policy or data handling, you can contact our grievance officer at:
               <br />
               <strong className="block mt-2 text-brand-blue-light dark:text-brand-green-light">
-                Email: support@asanpay.in
+                Email: help@asanpay.in
               </strong>
               <span>Corporate Address: AsanPay Fintech Private Limited, Level 4, fintech hub, Sector 62, Noida, Uttar Pradesh, India.</span>
             </p>

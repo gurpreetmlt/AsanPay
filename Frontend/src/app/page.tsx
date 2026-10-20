@@ -783,7 +783,7 @@ export default function Home() {
                 </li>
                 <li className="flex items-center justify-center md:justify-start gap-2">
                   <Mail className="w-3.5 h-3.5 text-neutral-400 dark:text-neutral-500" />
-                  support@asanpay.in
+                  help@asanpay.in
                 </li>
               </ul>
             </div>
