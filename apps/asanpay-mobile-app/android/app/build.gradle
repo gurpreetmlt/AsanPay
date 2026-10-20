@@ -9,7 +9,7 @@ apply plugin: "com.facebook.react"
 react {
     root = file("../../")
     reactNativeDir = file("../../node_modules/react-native")
-    codegenDir = file("../../../../node_modules/@react-native/codegen")
+    codegenDir = file("../../node_modules/@react-native/codegen")
     cliFile = file("../../node_modules/react-native/cli.js")
     autolinkLibrariesWithApp()
 }
@@ -48,10 +48,16 @@ android {
         applicationId "com.asanpay.mobile"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 4
-        versionName "1.0.3"
+        versionCode 5
+        versionName "1.0.4"
         // Block screenshots on release builds for Play / production.
         buildConfigField "boolean", "ENABLE_SECURE_SCREEN", "true"
+    }
+    // Uncompressed .so + AGP 8.5.1+ → 16 KB zip alignment in Play-generated APKs.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = false
+        }
     }
     signingConfigs {
         debug {
@@ -95,6 +101,7 @@ dependencies {
     implementation("com.facebook.react:react-android")
     implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("androidx.activity:activity-ktx:1.9.3")
     implementation("androidx.core:core-splashscreen:1.0.1")
 
     if (hermesEnabled.toBoolean()) {
