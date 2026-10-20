@@ -114,6 +114,22 @@ export const changePasswordSchema = z.object({
 });
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 
+export const forgotPasswordRequestSchema = z.object({
+  mobile: mobileSchema,
+  portal: z.enum(AUTH_PORTALS).default("agent"),
+  role: z.enum(AGENT_LOGIN_ROLES).optional(),
+});
+export type ForgotPasswordRequestInput = z.infer<typeof forgotPasswordRequestSchema>;
+
+export const forgotPasswordResetSchema = z.object({
+  mobile: mobileSchema,
+  otp: z.string().regex(/^\d{6}$/, "OTP must be 6 digits"),
+  newPassword: passwordSchema,
+  portal: z.enum(AUTH_PORTALS).default("agent"),
+  role: z.enum(AGENT_LOGIN_ROLES).optional(),
+});
+export type ForgotPasswordResetInput = z.infer<typeof forgotPasswordResetSchema>;
+
 /** Pre-KYC-submit identity edits (name / mobile) while onboarding. */
 export const preKycProfileSchema = z.object({
   name: z.string().trim().min(2, "Full name is required").max(120),

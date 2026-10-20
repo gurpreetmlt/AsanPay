@@ -484,6 +484,13 @@
       "when": 1791900000000,
       "tag": "0068_tax_commission_rich",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1792000000000,
+      "tag": "0069_password_reset_otp",
+      "breakpoints": true
     }
   ]
 }

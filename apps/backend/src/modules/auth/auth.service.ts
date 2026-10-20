@@ -55,6 +55,8 @@ import type {
   SignupCompleteInput,
   SignupChildRole,
   SponsorSearchRole,
+  ForgotPasswordRequestInput,
+  ForgotPasswordResetInput,
 } from "./auth.validators";
 
 /** Public signup: child role → required sponsor (parent) role. */
@@ -852,6 +854,157 @@ export async function changePassword(
   });
 
   return getAuthMe(userId);
+}
+
+export async function requestPasswordResetOtp(
+  input: ForgotPasswordRequestInput,
+  context: AuthContext,
+): Promise<{ message: string; otp?: string; expiresInSeconds: number }> {
+  if (input.portal === "admin") {
+    return { ...GENERIC_OTP_SENT };
+  }
+
+  const [row] = await db
+    .select({
+      id: users.id,
+      role: users.role,
+      isActive: users.isActive,
+      telegramChatId: users.telegramChatId,
+    })
+    .from(users)
+    .where(eq(users.mobile, input.mobile));
+
+  if (!row) {
+    throw new HttpError(
+      404,
+      "This mobile number is not registered. Sign up to create an account.",
+      "MOBILE_NOT_REGISTERED",
+    );
+  }
+  if (!row.isActive) {
+    throw new HttpError(403, "This account is inactive. Contact support.", "ACCOUNT_INACTIVE");
+  }
+  if (isAdminRole(row.role)) {
+    throw new HttpError(
+      401,
+      "This mobile cannot reset password on the agent portal. Use the admin portal.",
+      "WRONG_PORTAL",
+    );
+  }
+
+  const exposeOtp = shouldExposeOtpInResponse();
+  const otp = getTestOtpOverride(input.mobile) ?? randomInt(100000, 1000000).toString();
+
+  await insertOtpRequest({
+    mobile: input.mobile,
+    otpHash: hashToken(otp),
+    purpose: "password_reset",
+    expiresAt: new Date(Date.now() + OTP_TTL_MS),
+  });
+
+  if (input.role && row.role !== input.role) {
+    const label = ROLE_LABELS[row.role] ?? row.role;
+    throw new HttpError(
+      401,
+      `This mobile is registered as ${label}. Select the correct role and try again.`,
+      "ROLE_MISMATCH",
+    );
+  }
+
+  await insertAuditLog({
+    userId: row.id,
+    action: "auth.password_reset_otp_requested",
+    entityType: "user",
+    entityId: row.id,
+    ipAddress: context.ipAddress,
+    userAgent: context.userAgent,
+    metadata: {},
+  });
+
+  const delivery = await deliverAuthOtp({
+    mobile: input.mobile,
+    otp,
+    purpose: "password_reset",
+    telegramChatId: row.telegramChatId ?? null,
+  });
+
+  return {
+    ...GENERIC_OTP_SENT,
+    message:
+      delivery.via === "whatsapp"
+        ? "OTP has been sent on WhatsApp"
+        : delivery.via === "telegram"
+          ? "OTP sent to your linked Telegram"
+          : GENERIC_OTP_SENT.message,
+    ...(exposeOtp ? { otp } : {}),
+  };
+}
+
+export async function resetPasswordWithOtp(
+  input: ForgotPasswordResetInput,
+  context: AuthContext,
+): Promise<{ message: string }> {
+  if (input.portal === "admin") {
+    throw new HttpError(401, "Invalid credentials", "INVALID_CREDENTIALS");
+  }
+
+  const record = await findLatestActiveOtp({ mobile: input.mobile, purpose: "password_reset" });
+  if (!record) {
+    const latest = await findLatestOtpAny({ mobile: input.mobile, purpose: "password_reset" });
+    if (!latest) {
+      throw new HttpError(
+        401,
+        "No OTP was requested for this number. Tap Continue to send a new OTP.",
+        "OTP_NOT_REQUESTED",
+      );
+    }
+    if (latest.consumedAt) {
+      throw new HttpError(
+        401,
+        "This OTP was already used. Tap Continue to request a new OTP.",
+        "OTP_ALREADY_USED",
+      );
+    }
+    throw new HttpError(
+      401,
+      "OTP has expired. Tap Continue to request a new OTP.",
+      "OTP_EXPIRED",
+    );
+  }
+
+  if (record.attempts >= MAX_OTP_ATTEMPTS) {
+    throw new HttpError(401, "Too many incorrect attempts — request a new OTP", "OTP_LOCKED");
+  }
+
+  if (!otpHashesEqual(record.otpHash, input.otp)) {
+    await incrementOtpAttempts(record.id);
+    throw new HttpError(401, "Incorrect OTP. Check the code and try again.", "OTP_INCORRECT");
+  }
+
+  const [row] = await db.select().from(users).where(eq(users.mobile, input.mobile));
+  if (!row || !row.isActive || isAdminRole(row.role)) {
+    throw new HttpError(401, "Invalid credentials", "INVALID_CREDENTIALS");
+  }
+  if (input.role) {
+    assertExpectedLoginRole(row.role, input.role);
+  }
+
+  const passwordHash = await hashPassword(input.newPassword);
+  await db.update(users).set({ passwordHash, updatedAt: new Date() }).where(eq(users.id, row.id));
+  await markOtpConsumed(record.id);
+  await revokeAllSessionsForUser(row.id);
+
+  await insertAuditLog({
+    userId: row.id,
+    action: "auth.password_reset",
+    entityType: "user",
+    entityId: row.id,
+    ipAddress: context.ipAddress,
+    userAgent: context.userAgent,
+    metadata: {},
+  });
+
+  return { message: "Password updated. Sign in with your new password." };
 }
 
 function assertAgentPreKycEditable(row: typeof users.$inferSelect): void {

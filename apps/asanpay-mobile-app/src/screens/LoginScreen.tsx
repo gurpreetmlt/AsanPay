@@ -38,6 +38,10 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
   const [method, setMethod] = useState<"otp" | "password">("otp");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [forgotMode, setForgotMode] = useState(false);
+  const [forgotStep, setForgotStep] = useState<"mobile" | "otp">("mobile");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [pendingSession, setPendingSession] = useState<PendingSession | null>(null);
   const [pendingBioReady, setPendingBioReady] = useState(false);
 
@@ -203,6 +207,98 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
     }
   }
 
+  function openForgotPassword() {
+    setForgotMode(true);
+    setForgotStep("mobile");
+    setOtp("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setDevOtp(null);
+    setResendIn(0);
+  }
+
+  function closeForgotPassword() {
+    setForgotMode(false);
+    setForgotStep("mobile");
+    setOtp("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setDevOtp(null);
+    setMethod("password");
+  }
+
+  async function requestForgotOtp() {
+    if (mobile.length !== 10) {
+      showAlert("Mobile required", "Enter a valid 10-digit mobile");
+      return;
+    }
+    setLoading(true);
+    try {
+      const { data } = await api.post<ApiResponse<{ otp?: string; message: string }>>(
+        "/auth/password/forgot/request",
+        { mobile, portal: "agent" },
+      );
+      if (!data.success) throw new Error(data.message);
+      setForgotStep("otp");
+      setOtp("");
+      setResendIn(30);
+      setDevOtp(data.data.otp ?? null);
+      showAlert(
+        "OTP sent",
+        data.data.otp
+          ? `Dev OTP: ${data.data.otp}`
+          : data.data.message || data.message || "OTP has been sent on WhatsApp",
+      );
+    } catch (err) {
+      showAlert("OTP request failed", apiError(err, "Could not send OTP"));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitForgotReset() {
+    if (otp.length !== 6) {
+      showAlert("OTP required", "Enter the 6-digit OTP");
+      return;
+    }
+    if (newPassword.length < 8) {
+      showAlert("Invalid password", "Password must be at least 8 characters");
+      return;
+    }
+    if (!/[A-Za-z]/.test(newPassword)) {
+      showAlert("Invalid password", "Password must contain a letter");
+      return;
+    }
+    if (!/\d/.test(newPassword)) {
+      showAlert("Invalid password", "Password must contain a number");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      showAlert("Password mismatch", "New password and confirm password do not match");
+      return;
+    }
+    setLoading(true);
+    try {
+      const { data } = await api.post<ApiResponse<{ message: string }>>("/auth/password/forgot/reset", {
+        mobile,
+        otp,
+        newPassword,
+        portal: "agent",
+      });
+      if (!data.success) throw new Error(data.message);
+      showAlert(
+        "Password updated",
+        data.data.message || data.message || "Password updated. Sign in with your new password.",
+      );
+      setPassword("");
+      closeForgotPassword();
+    } catch (err) {
+      showAlert("Password reset failed", apiError(err, "Could not reset password"));
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function verifyPinAndFinish() {
     if (!pendingSession || pin.length !== 4) return;
     setLoading(true);
@@ -319,6 +415,142 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
 
           <View style={styles.panel}>
             <>
+                {forgotMode ? (
+                  <>
+                    <Text style={[styles.label, styles.labelSpaced]}>RESET PASSWORD</Text>
+                    <Text style={styles.otpHint}>
+                      We will send a 6-digit OTP to verify your mobile, then you set a new password.
+                    </Text>
+                    <Text style={[styles.label, styles.labelSpaced]}>MOBILE NUMBER</Text>
+                    <View style={styles.inputRow}>
+                      <Text style={styles.prefix}>+91</Text>
+                      <View style={styles.divider} />
+                      <TextInput
+                        style={styles.input}
+                        keyboardType="number-pad"
+                        maxLength={10}
+                        editable={forgotStep === "mobile"}
+                        value={mobile}
+                        onChangeText={(t) => setMobile(t.replace(/\D/g, ""))}
+                        placeholder="98765 43210"
+                        placeholderTextColor="rgba(255,255,255,0.4)"
+                      />
+                    </View>
+                    {forgotStep === "mobile" ? (
+                      <>
+                        <Pressable
+                          onPress={() => void requestForgotOtp()}
+                          disabled={mobile.length !== 10 || loading}
+                          style={styles.buttonPress}
+                        >
+                          <LinearGradient
+                            colors={[...colors.gradientButton]}
+                            style={[
+                              styles.button,
+                              (mobile.length !== 10 || loading) && styles.buttonDisabled,
+                            ]}
+                          >
+                            {loading ? (
+                              <ActivityIndicator color="#fff" />
+                            ) : (
+                              <Text style={styles.buttonText}>Send OTP  →</Text>
+                            )}
+                          </LinearGradient>
+                        </Pressable>
+                        <Pressable onPress={closeForgotPassword} style={styles.signupRow}>
+                          <Text style={styles.signupText}>Back to login</Text>
+                        </Pressable>
+                      </>
+                    ) : (
+                      <>
+                        {devOtp ? (
+                          <View style={styles.devOtpBanner}>
+                            <Text style={styles.devOtpText}>Dev OTP: {devOtp}</Text>
+                          </View>
+                        ) : null}
+                        <Text style={[styles.label, styles.labelSpaced]}>6-DIGIT OTP</Text>
+                        <View style={styles.inputRow}>
+                          <TextInput
+                            style={styles.input}
+                            keyboardType="number-pad"
+                            maxLength={6}
+                            value={otp}
+                            onChangeText={(t) => setOtp(t.replace(/\D/g, ""))}
+                            placeholder="••••••"
+                            placeholderTextColor="rgba(255,255,255,0.4)"
+                          />
+                        </View>
+                        <Text style={[styles.label, styles.labelSpaced]}>NEW PASSWORD</Text>
+                        <View style={styles.inputRow}>
+                          <TextInput
+                            style={styles.input}
+                            secureTextEntry={!showPassword}
+                            value={newPassword}
+                            onChangeText={setNewPassword}
+                            placeholder="New password"
+                            placeholderTextColor="rgba(255,255,255,0.4)"
+                          />
+                          <Pressable onPress={() => setShowPassword((v) => !v)}>
+                            {showPassword ? (
+                              <EyeOff size={17} color="rgba(255,255,255,0.6)" />
+                            ) : (
+                              <Eye size={17} color="rgba(255,255,255,0.6)" />
+                            )}
+                          </Pressable>
+                        </View>
+                        <Text style={styles.otpHint}>
+                          Min 8 characters · include a letter and a number (e.g. Test1234)
+                        </Text>
+                        <Text style={[styles.label, styles.labelSpaced]}>CONFIRM PASSWORD</Text>
+                        <View style={styles.inputRow}>
+                          <TextInput
+                            style={styles.input}
+                            secureTextEntry={!showPassword}
+                            value={confirmPassword}
+                            onChangeText={setConfirmPassword}
+                            placeholder="Confirm new password"
+                            placeholderTextColor="rgba(255,255,255,0.4)"
+                          />
+                        </View>
+                        <Pressable
+                          onPress={() => void submitForgotReset()}
+                          disabled={otp.length !== 6 || !newPassword || !confirmPassword || loading}
+                          style={styles.buttonPress}
+                        >
+                          <LinearGradient
+                            colors={[...colors.gradientButton]}
+                            style={[
+                              styles.button,
+                              (otp.length !== 6 || !newPassword || !confirmPassword || loading) &&
+                                styles.buttonDisabled,
+                            ]}
+                          >
+                            {loading ? (
+                              <ActivityIndicator color="#fff" />
+                            ) : (
+                              <Text style={styles.buttonText}>Update password  →</Text>
+                            )}
+                          </LinearGradient>
+                        </Pressable>
+                        <Pressable
+                          onPress={() => void requestForgotOtp()}
+                          disabled={loading || resendIn > 0}
+                          style={styles.signupRow}
+                        >
+                          <Text style={resendIn > 0 ? styles.signupText : styles.signupLink}>
+                            {resendIn > 0
+                              ? `Resend OTP in 0:${String(resendIn).padStart(2, "0")}`
+                              : "Resend OTP"}
+                          </Text>
+                        </Pressable>
+                        <Pressable onPress={closeForgotPassword} style={styles.signupRow}>
+                          <Text style={styles.signupText}>Back to login</Text>
+                        </Pressable>
+                      </>
+                    )}
+                  </>
+                ) : (
+                <>
                 <View style={styles.methodRow}>
                   {(["otp", "password"] as const).map((m) => {
                     const active = method === m;
@@ -438,6 +670,10 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
                       </Pressable>
                     </View>
 
+                    <Pressable onPress={openForgotPassword} style={styles.signupRow}>
+                      <Text style={styles.signupLink}>Forgot password?</Text>
+                    </Pressable>
+
                     <Pressable
                       onPress={() => void loginWithPassword()}
                       disabled={mobile.length !== 10 || !password || loading}
@@ -485,6 +721,8 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
                       </Text>
                     ) : null}
                   </View>
+                )}
+                </>
                 )}
               </>
           </View>

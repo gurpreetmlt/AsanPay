@@ -11,7 +11,6 @@ import {
   EyeOff,
   Fingerprint,
   KeyRound,
-  Sparkles,
 } from "lucide-react";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import { AsanPayLockup } from "@/components/brand/Logo";
@@ -44,6 +43,11 @@ export default function LoginPage() {
   const [otpStep, setOtpStep] = useState<OtpStep>("mobile");
   const [devOtp, setDevOtp] = useState<string | null>(null);
   const [resendIn, setResendIn] = useState(0);
+  const [forgotMode, setForgotMode] = useState(false);
+  const [forgotStep, setForgotStep] = useState<"mobile" | "otp">("mobile");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNewPass, setShowNewPass] = useState(false);
 
   useEffect(() => {
     if (resendIn <= 0) return;
@@ -298,6 +302,100 @@ export default function LoginPage() {
     setOtp("");
     setPin("");
     setDevOtp(null);
+    setForgotMode(false);
+    setForgotStep("mobile");
+    setNewPassword("");
+    setConfirmPassword("");
+  }
+
+  function openForgotPassword() {
+    setForgotMode(true);
+    setForgotStep("mobile");
+    setOtp("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setDevOtp(null);
+    setResendIn(0);
+  }
+
+  function closeForgotPassword() {
+    setForgotMode(false);
+    setForgotStep("mobile");
+    setOtp("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setDevOtp(null);
+    setMethod("password");
+  }
+
+  async function requestForgotOtp(e?: FormEvent) {
+    e?.preventDefault();
+    if (!mobile || mobile.length !== 10) {
+      toast.error("Enter a valid 10-digit mobile");
+      return;
+    }
+    setLoading(true);
+    try {
+      const { data } = await api.post<ApiResponse<{ otp?: string; message: string }>>(
+        "/auth/password/forgot/request",
+        { mobile, portal: "agent" },
+      );
+      if (!data.success) throw new Error(data.message);
+      setForgotStep("otp");
+      setOtp("");
+      setResendIn(30);
+      setDevOtp(data.data.otp ?? null);
+      toast.success(
+        data.data.otp
+          ? `Dev OTP: ${data.data.otp}`
+          : data.data.message || data.message || "OTP has been sent on WhatsApp",
+      );
+    } catch (err) {
+      toast.error(extractApiError(err, "OTP request failed"));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitForgotReset(e?: FormEvent) {
+    e?.preventDefault();
+    if (otp.length !== 6) {
+      toast.error("Enter the 6-digit OTP");
+      return;
+    }
+    if (newPassword.length < 8) {
+      toast.error("Password must be at least 8 characters");
+      return;
+    }
+    if (!/[A-Za-z]/.test(newPassword)) {
+      toast.error("Password must contain a letter");
+      return;
+    }
+    if (!/\d/.test(newPassword)) {
+      toast.error("Password must contain a number");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("New password and confirm password do not match");
+      return;
+    }
+    setLoading(true);
+    try {
+      const { data } = await api.post<ApiResponse<{ message: string }>>("/auth/password/forgot/reset", {
+        mobile,
+        otp,
+        newPassword,
+        portal: "agent",
+      });
+      if (!data.success) throw new Error(data.message);
+      toast.success(data.data.message || data.message || "Password updated. Sign in with your new password.");
+      setPassword("");
+      closeForgotPassword();
+    } catch (err) {
+      toast.error(extractApiError(err, "Password reset failed"));
+    } finally {
+      setLoading(false);
+    }
   }
 
   if (!checkedRemembered) return null;
@@ -336,7 +434,110 @@ export default function LoginPage() {
             <AsanPayLockup width={250} light={false} animate showTagline />
           </div>
 
-          {unlockMode && remembered ? (
+          {forgotMode ? (
+            <>
+              <h2 className="mb-1 text-2xl font-bold" style={{ color: B.blue }}>
+                Reset password
+              </h2>
+              <p className="mb-7 text-sm" style={{ color: B.muted }}>
+                We will send a 6-digit OTP to verify your mobile, then you set a new password.
+              </p>
+              {forgotStep === "mobile" ? (
+                <form onSubmit={requestForgotOtp} className="mb-6 space-y-4">
+                  <MobileField mobile={mobile} setMobile={setMobile} />
+                  <SubmitBtn loading={loading} label="Send OTP" />
+                  <button
+                    type="button"
+                    className="w-full text-xs font-medium"
+                    style={{ color: B.muted }}
+                    onClick={closeForgotPassword}
+                  >
+                    Back to login
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={submitForgotReset} className="mb-6 space-y-4">
+                  {devOtp ? (
+                    <div className="rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: `${B.green}15`, color: B.greenDark }}>
+                      Dev OTP: {devOtp}
+                    </div>
+                  ) : null}
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider" style={{ color: B.muted }}>
+                      6-digit OTP
+                    </label>
+                    <input
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      className="w-full rounded-2xl border-2 bg-white px-4 py-3 text-center text-lg tracking-[0.35em] outline-none"
+                      style={{ borderColor: B.border, color: B.blue }}
+                      placeholder="••••••"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider" style={{ color: B.muted }}>
+                      New password
+                    </label>
+                    <div className="flex items-center gap-2 rounded-2xl border-2 bg-white px-4 py-3" style={{ borderColor: B.border }}>
+                      <Lock size={15} style={{ color: B.muted }} />
+                      <input
+                        type={showNewPass ? "text" : "password"}
+                        required
+                        placeholder="New password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        className="flex-1 bg-transparent text-sm outline-none"
+                        style={{ color: B.blue }}
+                      />
+                      <button type="button" onClick={() => setShowNewPass(!showNewPass)} aria-label={showNewPass ? "Hide password" : "Show password"}>
+                        {showNewPass ? <EyeOff size={15} style={{ color: B.muted }} /> : <Eye size={15} style={{ color: B.muted }} />}
+                      </button>
+                    </div>
+                    <p className="mt-1.5 text-xs" style={{ color: B.muted }}>
+                      Min 8 characters · include a letter and a number (e.g. Test1234)
+                    </p>
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider" style={{ color: B.muted }}>
+                      Confirm password
+                    </label>
+                    <div className="flex items-center gap-2 rounded-2xl border-2 bg-white px-4 py-3" style={{ borderColor: B.border }}>
+                      <Lock size={15} style={{ color: B.muted }} />
+                      <input
+                        type={showNewPass ? "text" : "password"}
+                        required
+                        placeholder="Confirm new password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="flex-1 bg-transparent text-sm outline-none"
+                        style={{ color: B.blue }}
+                      />
+                    </div>
+                  </div>
+                  <SubmitBtn loading={loading} label="Update password" />
+                  <button
+                    type="button"
+                    className="w-full text-xs font-medium"
+                    style={{ color: B.muted }}
+                    disabled={loading || resendIn > 0}
+                    onClick={() => void requestForgotOtp()}
+                  >
+                    {resendIn > 0 ? `Resend OTP in 0:${String(resendIn).padStart(2, "0")}` : "Resend OTP"}
+                  </button>
+                  <button
+                    type="button"
+                    className="w-full text-xs font-medium"
+                    style={{ color: B.muted }}
+                    onClick={closeForgotPassword}
+                  >
+                    Back to login
+                  </button>
+                </form>
+              )}
+            </>
+          ) : unlockMode && remembered ? (
             <form onSubmit={unlockWithMpin}>
               <h2 className="mb-1 text-2xl font-bold" style={{ color: B.blue }}>
                 Welcome back, {remembered.name.split(" ")[0]}
@@ -452,13 +653,14 @@ export default function LoginPage() {
                   </button>
                 </div>
               </div>
-              <div
-                className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium"
-                style={{ background: `${B.green}12`, color: B.greenDark }}
+              <button
+                type="button"
+                className="text-xs font-semibold underline-offset-2 hover:underline"
+                style={{ color: B.blue }}
+                onClick={openForgotPassword}
               >
-                <Sparkles size={14} />
-                Forgot your password? OTP is the faster way in.
-              </div>
+                Forgot password?
+              </button>
               <SubmitBtn loading={loading} label="Login" />
             </form>
           ) : otpStep === "pin" && pending ? (

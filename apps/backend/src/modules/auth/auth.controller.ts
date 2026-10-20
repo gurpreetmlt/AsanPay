@@ -17,6 +17,8 @@ import {
   mpinLoginSchema,
   setLoginMpinSchema,
   changePasswordSchema,
+  forgotPasswordRequestSchema,
+  forgotPasswordResetSchema,
   preKycProfileSchema,
   preKycMobileOtpSchema,
   preKycMobileConfirmSchema,
@@ -35,6 +37,8 @@ import {
   loginWithMpin,
   setLoginMpin,
   changePassword,
+  requestPasswordResetOtp,
+  resetPasswordWithOtp,
   updatePreKycProfile,
   requestPreKycMobileChangeOtp,
   confirmPreKycMobileChange,
@@ -159,6 +163,24 @@ export async function changePasswordHandler(req: Request, res: Response): Promis
   const input = changePasswordSchema.parse(req.body);
   const user = await changePassword(req.auth.sub, input);
   sendSuccess(res, { user }, "Password changed successfully");
+}
+
+export async function requestPasswordResetOtpHandler(req: Request, res: Response): Promise<void> {
+  const input = forgotPasswordRequestSchema.parse(req.body);
+  const result = await requestPasswordResetOtp(input, {
+    ipAddress: req.ip ?? null,
+    userAgent: req.headers["user-agent"] ?? null,
+  });
+  sendSuccess(res, result, result.message);
+}
+
+export async function resetPasswordWithOtpHandler(req: Request, res: Response): Promise<void> {
+  const input = forgotPasswordResetSchema.parse(req.body);
+  const result = await resetPasswordWithOtp(input, {
+    ipAddress: req.ip ?? null,
+    userAgent: req.headers["user-agent"] ?? null,
+  });
+  sendSuccess(res, result, result.message);
 }
 
 export async function updatePreKycProfileHandler(req: Request, res: Response): Promise<void> {

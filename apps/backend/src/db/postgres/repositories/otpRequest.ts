@@ -10,7 +10,8 @@ export type OtpPurpose =
   | "wallet_pull"
   | "email_verify"
   | "settlement_bank"
-  | "device_register";
+  | "device_register"
+  | "password_reset";
 
 export interface InsertOtpRequestInput {
   mobile: string;

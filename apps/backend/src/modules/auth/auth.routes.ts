@@ -11,6 +11,8 @@ import {
   mpinLogin,
   setMpin,
   changePasswordHandler,
+  requestPasswordResetOtpHandler,
+  resetPasswordWithOtpHandler,
   updatePreKycProfileHandler,
   requestPreKycMobileOtpHandler,
   confirmPreKycMobileHandler,
@@ -55,6 +57,8 @@ authRouter.post("/mpin/login", authLimiter, mpinLogin);
 authRouter.post("/mpin/set", requireAuth, setMpin);
 
 authRouter.post("/password", requireAuth, authLimiter, changePasswordHandler);
+authRouter.post("/password/forgot/request", otpRequestLimiter, requestPasswordResetOtpHandler);
+authRouter.post("/password/forgot/reset", authLimiter, resetPasswordWithOtpHandler);
 authRouter.patch("/profile/pre-kyc", requireAuth, authLimiter, updatePreKycProfileHandler);
 authRouter.post("/profile/pre-kyc/mobile/otp", requireAuth, otpRequestLimiter, requestPreKycMobileOtpHandler);
 authRouter.post("/profile/pre-kyc/mobile/confirm", requireAuth, authLimiter, confirmPreKycMobileHandler);

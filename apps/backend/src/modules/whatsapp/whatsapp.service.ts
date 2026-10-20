@@ -247,11 +247,11 @@ export async function sendWhatsAppTemplateMessage(
   );
 }
 
-/** Send login/signup OTP to the user's own WhatsApp number (not a fixed env recipient). */
+/** Send login/signup/password-reset OTP to the user's own WhatsApp number (not a fixed env recipient). */
 export async function sendWhatsAppOtp(
   mobile: string,
   otp: string,
-  purpose: "login" | "signup",
+  purpose: "login" | "signup" | "password_reset",
 ): Promise<WhatsAppSendResult> {
   const template = env.WHATSAPP_OTP_TEMPLATE_NAME?.trim();
   if (template) {
@@ -283,7 +283,8 @@ export async function sendWhatsAppOtp(
     return result;
   }
 
-  const label = purpose === "signup" ? "signup" : "login";
+  const label =
+    purpose === "signup" ? "signup" : purpose === "password_reset" ? "password reset" : "login";
   const result = await sendWhatsAppText(
     mobile,
     `AsanPay ${label} OTP: ${otp}\nValid for 15 minutes. Do not share this code.`,

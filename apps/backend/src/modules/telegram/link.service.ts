@@ -20,25 +20,33 @@ export function wantsTelegramOtp(): boolean {
   return otpDeliveryChannels().includes("telegram");
 }
 
-function hasFixedOtp(mobile: string, purpose: "login" | "signup"): boolean {
+type AuthOtpPurpose = "login" | "signup" | "password_reset";
+
+function hasFixedOtp(mobile: string, purpose: AuthOtpPurpose): boolean {
   return purpose === "signup"
     ? Boolean(getTestSignupOtpOverride(mobile))
     : Boolean(getTestOtpOverride(mobile));
 }
 
+function authOtpLabel(purpose: AuthOtpPurpose): string {
+  if (purpose === "signup") return "signup";
+  if (purpose === "password_reset") return "password reset";
+  return "login";
+}
+
 /**
- * Deliver login/signup OTP. Recipient is the user's own mobile (WhatsApp) or linked Telegram.
+ * Deliver login/signup/password-reset OTP. Recipient is the user's own mobile (WhatsApp) or linked Telegram.
  * Channel order follows OTP_DELIVERY (first match wins; telegram skips to next if not linked).
  * TEST_OTP_* overrides only fix the OTP digits — WhatsApp/Telegram still deliver when configured.
  */
 export async function deliverAuthOtp(params: {
   mobile: string;
   otp: string;
-  purpose: "login" | "signup";
+  purpose: AuthOtpPurpose;
   telegramChatId?: string | null;
 }): Promise<{ via: "whatsapp" | "telegram" | "none" }> {
   const channels = otpDeliveryChannels();
-  const label = params.purpose === "signup" ? "signup" : "login";
+  const label = authOtpLabel(params.purpose);
 
   if (channels.length === 0) {
     logger.info({ purpose: params.purpose }, "OTP delivery skipped (OTP_DELIVERY empty)");
@@ -66,11 +74,17 @@ export async function deliverAuthOtp(params: {
     }
   }
 
-  if (channels.includes("telegram") && !params.telegramChatId && params.purpose === "login") {
+  if (
+    channels.includes("telegram") &&
+    !params.telegramChatId &&
+    (params.purpose === "login" || params.purpose === "password_reset")
+  ) {
     if (!hasFixedOtp(params.mobile, params.purpose)) {
       throw new HttpError(
         422,
-        "Telegram is not linked. Log in with password, then open Account → Link Telegram.",
+        params.purpose === "password_reset"
+          ? "Telegram is not linked. Contact support to reset your password, or use WhatsApp OTP delivery."
+          : "Telegram is not linked. Log in with password, then open Account → Link Telegram.",
         "TELEGRAM_NOT_LINKED",
       );
     }
