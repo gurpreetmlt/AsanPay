@@ -119,10 +119,49 @@ export default function PrivacyPolicyPage() {
             </p>
           </div>
 
-          {/* Section 5 */}
+          {/* Section 5 — required for Google Play account-deletion URL */}
+          <div
+            id="account-deletion"
+            className="glass-card rounded-2xl p-6 md:p-8 border border-neutral-200/50 dark:border-white/10 shadow-lg scroll-mt-24"
+          >
+            <h2 className="font-sora font-bold text-lg md:text-xl text-brand-blue-dark dark:text-neutral-100 flex items-center gap-3 mb-4">
+              5. Account and data deletion
+            </h2>
+            <div className="font-poppins text-sm md:text-base text-neutral-600 dark:text-neutral-300 space-y-3 leading-relaxed">
+              <p>
+                You can request deletion of your AsanPay agent account and associated personal data at any time.
+              </p>
+              <p className="font-semibold text-brand-blue-dark dark:text-neutral-100">How to request deletion</p>
+              <ol className="list-decimal pl-5 space-y-2">
+                <li>
+                  Email{' '}
+                  <strong className="text-brand-blue-light dark:text-brand-green-light">support@asanpay.in</strong>{' '}
+                  from the mobile number or email registered on your account.
+                </li>
+                <li>
+                  Use the subject line: <strong>Account deletion request</strong>.
+                </li>
+                <li>
+                  Include your registered 10-digit mobile number, full name, and (if known) your AsanPay UID.
+                </li>
+              </ol>
+              <p>
+                We will verify the request and delete or anonymize personal account data within{' '}
+                <strong>30 days</strong>, unless a longer retention period is required by law or for fraud prevention,
+                dispute resolution, tax, or RBI / NPCI compliance (for example, transaction and settlement records).
+              </p>
+              <p>
+                Data typically deleted: profile details (name, mobile, email, shop address), KYC document copies we
+                store, device trust records, and login credentials. Data that may be retained as required: transaction
+                ledgers, settlement records, and audit logs needed for regulatory compliance.
+              </p>
+            </div>
+          </div>
+
+          {/* Section 6 */}
           <div className="glass-card rounded-2xl p-6 md:p-8 border border-neutral-200/50 dark:border-white/10 shadow-lg">
             <h2 className="font-sora font-bold text-lg md:text-xl text-brand-blue-dark dark:text-neutral-100 flex items-center gap-3 mb-4">
-              5. Contact Us
+              6. Contact Us
             </h2>
             <p className="font-poppins text-sm md:text-base text-neutral-600 dark:text-neutral-300 leading-relaxed">
               If you have any questions about this Privacy Policy or data handling, you can contact our grievance officer at:
