@@ -1,5 +1,10 @@
 import { createApp } from "./app";
-import { assertAepsProviderConfig, assertPaySprintProviderConfig, env } from "./config/env";
+import {
+  assertAepsProviderConfig,
+  assertNobleAepsProviderConfig,
+  assertPaySprintProviderConfig,
+  env,
+} from "./config/env";
 import { pgPool } from "./db/postgres";
 import { bootstrapLedger } from "./modules/bootstrap/systemAccounts";
 import { logger } from "./utils/logger";
@@ -7,6 +12,7 @@ import { logger } from "./utils/logger";
 async function main() {
   assertAepsProviderConfig();
   assertPaySprintProviderConfig();
+  assertNobleAepsProviderConfig();
   logger.info({ aepsMode: env.AEPS_PROVIDER_MODE }, "AEPS provider mode");
 
   await pgPool.query("SELECT 1");

@@ -10,7 +10,12 @@
  * correction still goes through postJournal() as a RECON_ADJUSTMENT raised by a human.
  */
 import { eq } from "drizzle-orm";
-import { assertAepsProviderConfig, assertPaySprintProviderConfig, env } from "../config/env";
+import {
+  assertAepsProviderConfig,
+  assertNobleAepsProviderConfig,
+  assertPaySprintProviderConfig,
+  env,
+} from "../config/env";
 import { db, pgPool } from "../db/postgres";
 import { tenants } from "../db/postgres/schema";
 import { deleteExpiredOtpRequests } from "../db/postgres/repositories/otpRequest";
@@ -82,6 +87,7 @@ async function main() {
   // The txn sweeps call provider status APIs, so the same config the API asserts must hold here.
   assertAepsProviderConfig();
   assertPaySprintProviderConfig();
+  assertNobleAepsProviderConfig();
 
   await pgPool.query("SELECT 1");
   logger.info("Jobs worker: PostgreSQL connected");

@@ -49,6 +49,13 @@ export const users = pgTable(
     kycStatus: kycStatusEnum("kyc_status").notNull().default("pending"),
     /** InstantPay merchant outlet id from onboarding — required for sandbox/live AEPS. */
     instantpayOutletId: varchar("instantpay_outlet_id", { length: 64 }),
+    /**
+     * Noble Web Studio AEPS agent id from agent_onboarding / agent_onboarding_status.
+     * Required for Noble AEPS / Aadhaar Pay / CD / UPI QR rails.
+     */
+    nobleUniqueAgentId: varchar("noble_unique_agent_id", { length: 255 }),
+    /** Noble agentCode (max 10) — used to recover uniqueAgentId via onboarding status. */
+    nobleAgentCode: varchar("noble_agent_code", { length: 10 }),
     /** Registered business geo (degrees). Used for AEPS geofence checks. */
     outletLatitude: varchar("outlet_latitude", { length: 32 }),
     outletLongitude: varchar("outlet_longitude", { length: 32 }),

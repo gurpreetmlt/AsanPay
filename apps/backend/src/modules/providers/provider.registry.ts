@@ -1,4 +1,5 @@
 import { InstantPayAdapter } from "./adapters/instantpay.adapter";
+import { NobleAdapter } from "./adapters/noble.adapter";
 import { PaySprintAdapter } from "./adapters/paysprint.adapter";
 import { VyaparApiAdapter } from "./adapters/vyaparapi.adapter";
 import type { ProviderAdapter } from "./types";
@@ -9,6 +10,7 @@ import type { ProviderAdapter } from "./types";
 const adapters: Record<string, ProviderAdapter> = {
   paysprint: new PaySprintAdapter(),
   instantpay: new InstantPayAdapter(),
+  noble: new NobleAdapter(),
   vyaparapi: new VyaparApiAdapter(),
 };
 

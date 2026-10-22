@@ -175,7 +175,7 @@ export async function verifyAndRecordAgentAuth(
         biometricPayload: input.biometricPayload,
         latitude: input.latitude ?? user.outletLatitude ?? undefined,
         longitude: input.longitude ?? user.outletLongitude ?? undefined,
-        outletId: user.instantpayOutletId ?? undefined,
+        outletId: user.nobleUniqueAgentId ?? user.instantpayOutletId ?? undefined,
         endpointIp: input.endpointIp ?? context.ipAddress ?? undefined,
       }),
   );

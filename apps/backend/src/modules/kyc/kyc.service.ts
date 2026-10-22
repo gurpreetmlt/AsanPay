@@ -31,6 +31,7 @@ function toAuthUser(row: typeof users.$inferSelect): AuthUser {
     isActive: row.isActive,
     hasKycDocs: Boolean(row.panNumberEncrypted && row.aadhaarNumberEncrypted),
     hasInstantpayOutlet: Boolean(row.instantpayOutletId),
+    hasNobleAgent: Boolean(row.nobleUniqueAgentId),
     hasTxnPin: Boolean(row.txnPinHash),
     hasLoginMpin: Boolean(row.loginMpinHash),
     telegramLinked: Boolean(row.telegramChatId),

@@ -60,6 +60,8 @@ ios/build/
 **/android/.gradle/
 **/android/app/build/
 **/android/build/
+.tmp-aab-check/
+.tmp-aab-check2/
 
 # DB / tooling
 drizzle/meta/

@@ -160,7 +160,16 @@ const envSchema = z.object({
    */
   AEPS_PROVIDER_MODE: z.preprocess(
     (v) => (v === "dummy" ? "off" : v),
-    z.enum(["off", "instantpay_sandbox", "instantpay_live", "paysprint_sandbox", "paysprint_live"]).default("off"),
+    z
+      .enum([
+        "off",
+        "instantpay_sandbox",
+        "instantpay_live",
+        "paysprint_sandbox",
+        "paysprint_live",
+        "noble",
+      ])
+      .default("off"),
   ),
   INSTANTPAY_CLIENT_ID: z.string().optional(),
   INSTANTPAY_CLIENT_SECRET: z.string().optional(),
@@ -173,6 +182,17 @@ const envSchema = z.object({
   INSTANTPAY_AES_KEY: z.string().optional(),
   /** Optional override; default is InstantPay production host for both sandbox and live accounts. */
   INSTANTPAY_BASE_URL: z.string().url().optional(),
+  /**
+   * Noble Web Studio (NOBLE APIs). Optional until keys are issued — client fails closed with a
+   * clear message when missing. See NobleWebStudio/OVERVIEW.md.
+   */
+  NOBLE_API_KEY: z.string().optional(),
+  NOBLE_API_VALUE: z.string().optional(),
+  NOBLE_BASE_SERVICE: z.string().url().default("https://service.noblewebstudio.in"),
+  NOBLE_BASE_AEPS: z.string().url().default("https://aeapi.noblewebstudio.in"),
+  NOBLE_BASE_DMT: z.string().url().default("https://dmt.noblewebstudio.in"),
+  NOBLE_BASE_RECHARGE: z.string().url().default("https://rcapi.noblewebstudio.in"),
+  NOBLE_BASE_CMS: z.string().url().default("https://cms.noblewebstudio.in"),
   /**
    * PaySprint AEPS credentials. Docs (PaySprint/Unimplemented/) leave UAT base URL and AES
    * mode/padding as "confirm with PaySprint" — AES-128-CBC/PKCS7 is a best-effort default until
@@ -329,6 +349,25 @@ export function isInstantPayAepsMode(): boolean {
 
 export function isPaySprintAepsMode(): boolean {
   return env.AEPS_PROVIDER_MODE === "paysprint_sandbox" || env.AEPS_PROVIDER_MODE === "paysprint_live";
+}
+
+/** True when both Noble API credentials are non-empty (keys may arrive after code lands). */
+export function isNobleConfigured(): boolean {
+  return Boolean(env.NOBLE_API_KEY?.trim() && env.NOBLE_API_VALUE?.trim());
+}
+
+export function isNobleAepsMode(): boolean {
+  return env.AEPS_PROVIDER_MODE === "noble";
+}
+
+/** Fail-closed: noble mode requires API credentials for live money rails. */
+export function assertNobleAepsProviderConfig(): void {
+  if (!isNobleAepsMode()) return;
+  if (isNobleConfigured()) return;
+  throw new Error(
+    "AEPS_PROVIDER_MODE=noble requires NOBLE_API_KEY and NOBLE_API_VALUE. " +
+      "Set them in Coolify, or switch AEPS_PROVIDER_MODE to another rail.",
+  );
 }
 
 /** Fail-closed: PaySprint sandbox/live must have all credentials — never silent-fallback. */

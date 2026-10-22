@@ -67,7 +67,15 @@ async function resolveAepsProvider(serviceCode: string): Promise<RoutedProvider[
     // Ensure a providers row exists so txn.providerId FK stays valid.
     const [created] = await db
       .insert(providers)
-      .values({ code, name: code === "instantpay" ? "InstantPay" : "PaySprint" })
+      .values({
+        code,
+        name:
+          code === "instantpay"
+            ? "InstantPay"
+            : code === "noble"
+              ? "Noble Web Studio"
+              : "PaySprint",
+      })
       .returning({ id: providers.id, isActive: providers.isActive });
     row = created!;
   }

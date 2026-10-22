@@ -1,4 +1,4 @@
-import { env, isInstantPayAepsMode, isPaySprintAepsMode } from "../../config/env";
+import { env, isInstantPayAepsMode, isNobleAepsMode, isPaySprintAepsMode } from "../../config/env";
 
 /**
  * Service codes that STILL follow AEPS_PROVIDER_MODE (single env switch).
@@ -38,9 +38,10 @@ export function isAepsRoutedService(serviceCode: string): boolean {
 }
 
 /** Adapter registry code for the current AEPS mode. */
-export function aepsAdapterCode(): "instantpay" | "paysprint" | null {
+export function aepsAdapterCode(): "instantpay" | "paysprint" | "noble" | null {
   if (isInstantPayAepsMode()) return "instantpay";
   if (isPaySprintAepsMode()) return "paysprint";
+  if (isNobleAepsMode()) return "noble";
   return null;
 }
 

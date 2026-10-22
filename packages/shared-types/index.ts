@@ -64,6 +64,8 @@ export interface AuthUser {
   hasKycDocs: boolean;
   /** True once InstantPay Register Outlet (min-KYC) saved an outlet id. */
   hasInstantpayOutlet: boolean;
+  /** True once Noble AEPS agent_onboarding saved a uniqueAgentId. */
+  hasNobleAgent: boolean;
   /** True once transaction PIN is set. */
   hasTxnPin: boolean;
   /** True once login MPIN is set (mobile quick unlock). */

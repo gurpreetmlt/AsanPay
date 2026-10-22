@@ -17,7 +17,7 @@ react {
 /**
  * Set this to true to Run Proguard on Release builds to minify the Java bytecode.
  */
-def enableProguardInReleaseBuilds = false
+def enableProguardInReleaseBuilds = true
 
 /**
  * The preferred build flavor of JavaScriptCore (JSC)
@@ -48,7 +48,7 @@ android {
         applicationId "com.asanpay.mobile"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 5
+        versionCode 7
         versionName "1.0.4"
         // Block screenshots on release builds for Play / production.
         buildConfigField "boolean", "ENABLE_SECURE_SCREEN", "true"

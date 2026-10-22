@@ -11,6 +11,12 @@ import {
   mobileChangeVerifySchema,
 } from "./onboarding.validators";
 import {
+  nobleAgentKycSchema,
+  nobleAgentOnboardSchema,
+  nobleAgentStatusSchema,
+  nobleLoadAgentSchema,
+} from "./nobleOnboarding.validators";
+import {
   instantpayBioKycStatus,
   instantpayBioKycSubmit,
   instantpayMerchantList,
@@ -18,6 +24,11 @@ import {
   instantpayMobileChangeVerify,
   instantpaySignup,
   instantpayStatus,
+  nobleAgentKycHandler,
+  nobleLoadAgentHandler,
+  nobleSignup,
+  nobleStatus,
+  nobleStatusRecover,
 } from "./onboarding.controller";
 
 export const onboardingRouter = Router();
@@ -70,4 +81,33 @@ onboardingRouter.post(
   requireRole("admin"),
   validateBody(merchantListSchema),
   instantpayMerchantList,
+);
+
+// Noble Web Studio AEPS agent onboarding → uniqueAgentId (keys optional; mock when unset).
+onboardingRouter.post(
+  "/noble",
+  requireRole("retailer"),
+  validateBody(nobleAgentOnboardSchema),
+  nobleSignup,
+);
+onboardingRouter.get("/noble/status", requireRole("retailer"), nobleStatus);
+onboardingRouter.post(
+  "/noble/status",
+  requireRole("retailer"),
+  validateBody(nobleAgentStatusSchema),
+  nobleStatusRecover,
+);
+
+// Noble AEPS session gates (after uniqueAgentId is saved).
+onboardingRouter.post(
+  "/noble/aeps/load",
+  requireRole("retailer"),
+  validateBody(nobleLoadAgentSchema),
+  nobleLoadAgentHandler,
+);
+onboardingRouter.post(
+  "/noble/aeps/kyc",
+  requireRole("retailer"),
+  validateBody(nobleAgentKycSchema),
+  nobleAgentKycHandler,
 );

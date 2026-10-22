@@ -45,6 +45,9 @@ import { SupportModal } from "./SupportModal";
 import { SettlementsModal } from "./SettlementsModal";
 import { FundRequestModal } from "./FundRequestScreen";
 import { RegisterOutletModal } from "./RegisterOutletModal";
+import { NobleAgentOnboardModal } from "./NobleAgentOnboardModal";
+import { NobleCmsModal } from "./NobleCmsModal";
+import { NobleUpiQrModal } from "./NobleUpiQrModal";
 import { BioKycModal } from "./BioKycModal";
 import { BiometricDevicesModal } from "./BiometricDevicesModal";
 import { DeviceRepairModal } from "./DeviceRepairModal";
@@ -173,6 +176,9 @@ export function AccountScreen() {
   const [showSettlements, setShowSettlements] = useState(false);
   const [showFund, setShowFund] = useState(false);
   const [showRegisterOutlet, setShowRegisterOutlet] = useState(false);
+  const [showNobleOnboard, setShowNobleOnboard] = useState(false);
+  const [showNobleCms, setShowNobleCms] = useState(false);
+  const [showNobleUpiQr, setShowNobleUpiQr] = useState(false);
   const [showBioKyc, setShowBioKyc] = useState(false);
   const [telegramBusy, setTelegramBusy] = useState(false);
   const [tdsSummary, setTdsSummary] = useState<{
@@ -460,6 +466,33 @@ export function AccountScreen() {
             tokens={tokens}
             onPress={() => setShowDevicesHub(true)}
           />
+          {user.role === "retailer" && !user.hasNobleAgent ? (
+            <MenuRow
+              icon={ShieldCheck}
+              label="AEPS agent onboarding"
+              subtitle="one-time setup for AEPS services"
+              tokens={tokens}
+              onPress={() => setShowNobleOnboard(true)}
+            />
+          ) : null}
+          {user.role === "retailer" ? (
+            <MenuRow
+              icon={ShieldCheck}
+              label="UPI QR"
+              subtitle="generate collection QR"
+              tokens={tokens}
+              onPress={() => setShowNobleUpiQr(true)}
+            />
+          ) : null}
+          {user.role === "retailer" ? (
+            <MenuRow
+              icon={ShieldCheck}
+              label="CMS"
+              subtitle="Airtel CMS start and status"
+              tokens={tokens}
+              onPress={() => setShowNobleCms(true)}
+            />
+          ) : null}
           {user.role === "retailer" && !user.hasInstantpayOutlet ? (
             <MenuRow
               icon={ShieldCheck}
@@ -644,11 +677,18 @@ export function AccountScreen() {
           setShowProfile(false);
           setShowRegisterOutlet(true);
         }}
+        onNobleOnboard={() => {
+          setShowProfile(false);
+          setShowNobleOnboard(true);
+        }}
       />
       <SupportModal visible={showSupport} onClose={() => setShowSupport(false)} />
       <SettlementsModal visible={showSettlements} onClose={() => setShowSettlements(false)} />
       <FundRequestModal visible={showFund} onClose={() => setShowFund(false)} />
       <RegisterOutletModal visible={showRegisterOutlet} onClose={() => setShowRegisterOutlet(false)} />
+      <NobleAgentOnboardModal visible={showNobleOnboard} onClose={() => setShowNobleOnboard(false)} />
+      <NobleUpiQrModal visible={showNobleUpiQr} onClose={() => setShowNobleUpiQr(false)} />
+      <NobleCmsModal visible={showNobleCms} onClose={() => setShowNobleCms(false)} />
       <BioKycModal visible={showBioKyc} onClose={() => setShowBioKyc(false)} />
     </SafeAreaView>
     </PageEnter>
@@ -760,12 +800,14 @@ function ProfileModal({
   user,
   onBioKyc,
   onRegisterOutlet,
+  onNobleOnboard,
 }: {
   visible: boolean;
   onClose: () => void;
   user: AuthUser;
   onBioKyc: () => void;
   onRegisterOutlet: () => void;
+  onNobleOnboard: () => void;
 }) {
   const { tokens } = useTheme();
   const [loading, setLoading] = useState(false);
@@ -873,6 +915,19 @@ function ProfileModal({
             ))}
           </View>
         )}
+
+        {user.role === "retailer" && !user.hasNobleAgent ? (
+          <Pressable
+            onPress={onNobleOnboard}
+            style={[styles.linkRow, { borderColor: tokens.cardBorder, backgroundColor: tokens.card }]}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.linkTitle, { color: tokens.txt }]}>AEPS agent onboarding</Text>
+              <Text style={{ color: tokens.mute, fontSize: 12 }}>One-time setup for AEPS services</Text>
+            </View>
+            <ChevronRight size={16} color={colors.blueFlat} />
+          </Pressable>
+        ) : null}
 
         {user.role === "retailer" && !user.hasInstantpayOutlet ? (
           <Pressable

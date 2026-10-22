@@ -586,6 +586,28 @@ export default function SettingsPage() {
                         </>
                       )}
 
+                      {user?.role === "retailer" && user.hasNobleAgent !== true ? (
+                        <button
+                          type="button"
+                          onClick={() => router.push("/onboarding/noble")}
+                          className="flex w-full items-center justify-between rounded-xl border px-3 py-2.5"
+                          style={{ borderColor: B.border, background: `${B.blue}06` }}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <FileText size={16} style={{ color: B.blue }} />
+                            <div className="text-left">
+                              <div className="text-sm font-bold" style={{ color: B.blue }}>
+                                AEPS agent onboarding
+                              </div>
+                              <div className="text-xs" style={{ color: B.muted }}>
+                                One-time setup for AEPS services
+                              </div>
+                            </div>
+                          </div>
+                          <ArrowRight size={14} style={{ color: B.blueLight }} />
+                        </button>
+                      ) : null}
+
                       {user?.role === "retailer" && user.hasInstantpayOutlet !== true ? (
                         <button
                           type="button"

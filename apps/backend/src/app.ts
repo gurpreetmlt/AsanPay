@@ -21,6 +21,7 @@ import { adminRouter } from "./modules/admin/admin.routes";
 import { dashboardRouter } from "./modules/dashboard/dashboard.routes";
 import { earningsRouter } from "./modules/earnings/earnings.routes";
 import { onboardingRouter } from "./modules/onboarding/onboarding.routes";
+import { nobleRouter } from "./modules/providers/noble/noble.routes";
 import { supportRouter } from "./modules/support/support.routes";
 import { fundRequestRouter } from "./modules/fund-requests/fundRequest.routes";
 import { bankingRouter } from "./modules/banking/banking.routes";
@@ -103,6 +104,7 @@ export function createApp(): Express {
   app.use("/api/dashboard", dashboardRouter);
   app.use("/api/earnings", earningsRouter);
   app.use("/api/onboarding", onboardingRouter);
+  app.use("/api/noble", nobleRouter);
   app.use("/api/support", supportRouter);
   app.use("/api/fund-requests", fundRequestRouter);
   app.use("/api/banking", bankingRouter);
