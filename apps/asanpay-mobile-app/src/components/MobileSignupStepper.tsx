@@ -14,7 +14,14 @@ import {
 } from "lucide-react-native";
 import { colors } from "../theme/colors";
 
-export const MOBILE_SIGNUP_STEPS: { id: string; label: string; short: string; icon: LucideIcon }[] = [
+export interface MobileStepperStep {
+  id: string;
+  label: string;
+  short: string;
+  icon: LucideIcon;
+}
+
+export const MOBILE_SIGNUP_STEPS: MobileStepperStep[] = [
   { id: "mobile", label: "Mobile Verification", short: "Mobile", icon: Phone },
   { id: "role", label: "Role Identification", short: "Role", icon: UserRound },
   { id: "pan", label: "PAN Details", short: "PAN", icon: CreditCard },
@@ -27,15 +34,21 @@ export const MOBILE_SIGNUP_STEPS: { id: string; label: string; short: string; ic
 ];
 
 /** Show only a 3-step window (prev / current / next) — avoids the cramped 9-icon line. */
-export function MobileSignupStepper({ currentIndex }: { currentIndex: number }) {
-  const total = MOBILE_SIGNUP_STEPS.length;
+export function MobileSignupStepper({
+  currentIndex,
+  steps = MOBILE_SIGNUP_STEPS,
+}: {
+  currentIndex: number;
+  steps?: readonly MobileStepperStep[];
+}) {
+  const total = steps.length;
   const idx = Math.max(0, Math.min(currentIndex, total - 1));
   const progress = ((idx + 1) / total) * 100;
 
   let start = Math.max(0, idx - 1);
   let end = Math.min(total - 1, start + 2);
   start = Math.max(0, end - 2);
-  const visible = MOBILE_SIGNUP_STEPS.slice(start, end + 1).map((step, offset) => ({
+  const visible = steps.slice(start, end + 1).map((step, offset) => ({
     ...step,
     index: start + offset,
   }));
@@ -47,7 +60,7 @@ export function MobileSignupStepper({ currentIndex }: { currentIndex: number }) 
           Step {idx + 1} of {total}
         </Text>
         <Text style={styles.currentLabel} numberOfLines={1}>
-          {MOBILE_SIGNUP_STEPS[idx]?.short}
+          {steps[idx]?.short}
         </Text>
       </View>
 

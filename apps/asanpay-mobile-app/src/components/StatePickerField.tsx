@@ -10,9 +10,11 @@ interface Props {
   label: string;
   value: string;
   onChange: (code: string) => void;
+  error?: string;
+  disabled?: boolean;
 }
 
-export function StatePickerField({ label, value, onChange }: Props) {
+export function StatePickerField({ label, value, onChange, error, disabled }: Props) {
   const { tokens } = useTheme();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -28,7 +30,15 @@ export function StatePickerField({ label, value, onChange }: Props) {
     <View style={styles.field}>
       <Text style={[styles.label, { color: tokens.sub }]}>{label}</Text>
       <Pressable
-        style={[styles.input, { borderColor: tokens.cardBorder, backgroundColor: tokens.card }]}
+        style={[
+          styles.input,
+          {
+            borderColor: error ? colors.danger : tokens.cardBorder,
+            backgroundColor: tokens.card,
+            opacity: disabled ? 0.6 : 1,
+          },
+        ]}
+        disabled={disabled}
         onPress={() => setOpen(true)}
       >
         <Text style={{ color: selected ? tokens.txt : tokens.mute, fontSize: 15, flex: 1 }} numberOfLines={1}>
@@ -36,6 +46,7 @@ export function StatePickerField({ label, value, onChange }: Props) {
         </Text>
         <ChevronDown size={16} color={tokens.mute} />
       </Pressable>
+      {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <ModalSheet visible={open} title={label} onClose={close}>
         <View style={[styles.searchRow, { borderColor: tokens.cardBorder }]}>
@@ -108,4 +119,5 @@ const styles = StyleSheet.create({
   list: { maxHeight: 360 },
   row: { flexDirection: "row", alignItems: "center", paddingVertical: 12 },
   empty: { paddingVertical: 16, textAlign: "center", fontSize: 13 },
+  error: { color: colors.danger, fontSize: 12, marginTop: 4 },
 });

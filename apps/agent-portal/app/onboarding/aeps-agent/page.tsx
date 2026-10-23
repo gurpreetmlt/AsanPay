@@ -3,9 +3,17 @@
 import { useEffect, useState, type FormEvent, type InputHTMLAttributes } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { MapPin, Store } from "lucide-react";
-import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
+import { ArrowLeft, Landmark, MapPin, Store, UserRound } from "lucide-react";
+import {
+  AEPS_ONBOARDING_STEPS,
+  EMPTY_AEPS_ONBOARDING_FORM,
+  validateAepsOnboardingStep,
+  type AepsOnboardingForm,
+  type ApiResponse,
+  type AuthUser,
+} from "@asanpay/shared-types";
 import { AppShell } from "@/components/layout/AppShell";
+import { SignupStepper, type StepperStep } from "@/components/signup/SignupStepper";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { StateSelect } from "@/components/ui/StateSelect";
 import api from "@/lib/api";
@@ -15,6 +23,18 @@ import { extractApiError, markAepsOnboardingSkipped } from "@/lib/onboarding";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 
+const STEP_ICONS = [UserRound, Landmark, Store];
+const STEPS: StepperStep[] = AEPS_ONBOARDING_STEPS.map((s, i) => ({ ...s, icon: STEP_ICONS[i]! }));
+const LAST_STEP = STEPS.length - 1;
+const ERR_RED = "#DC2626";
+
+type FieldKey = keyof AepsOnboardingForm;
+
+function safeNext(): string {
+  const next = new URLSearchParams(window.location.search).get("next") ?? "";
+  return next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+}
+
 export default function NobleAgentOnboardPage() {
   const router = useRouter();
   const hydrated = useAuthHydrated();
@@ -22,32 +42,12 @@ export default function NobleAgentOnboardPage() {
   const user = useAuthStore((s) => s.user);
   const setUser = useAuthStore((s) => s.setUser);
 
+  const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [geoBusy, setGeoBusy] = useState(false);
-  const [form, setForm] = useState({
-    firstName: "",
-    middleName: "",
-    lastName: "",
-    mobileNumber: "",
-    email: "",
-    panNumber: "",
-    aadhaarNumber: "",
-    dob: "",
-    agentAddress: "",
-    agentStateCode: "",
-    agentCity: "",
-    agentPinCode: "",
-    agentBankName: "",
-    agentBankAccountNumber: "",
-    agentBankIFSC: "",
-    shopName: "",
-    shopAddress: "",
-    shopStateCode: "",
-    shopCity: "",
-    shopPinCode: "",
-    shopLatitude: "",
-    shopLongitude: "",
-  });
+  const [sameAsResidential, setSameAsResidential] = useState(false);
+  const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({});
+  const [form, setForm] = useState<AepsOnboardingForm>(EMPTY_AEPS_ONBOARDING_FORM);
 
   useEffect(() => {
     if (hydrated && !accessToken) router.replace("/login");
@@ -67,17 +67,31 @@ export default function NobleAgentOnboardPage() {
 
   useEffect(() => {
     if (!hydrated || !accessToken || !user) return;
-    if (user.role !== "retailer") {
-      router.replace("/dashboard");
-      return;
-    }
-    if (user.hasNobleAgent) {
-      router.replace("/dashboard");
-    }
+    if (user.role !== "retailer" || user.hasNobleAgent) router.replace("/dashboard");
   }, [hydrated, accessToken, user, router]);
 
-  function setField<K extends keyof typeof form>(key: K, value: string) {
+  useEffect(() => {
+    if (!sameAsResidential) return;
+    setForm((f) => ({
+      ...f,
+      shopAddress: f.agentAddress,
+      shopStateCode: f.agentStateCode,
+      shopCity: f.agentCity,
+      shopPinCode: f.agentPinCode,
+    }));
+  }, [sameAsResidential, form.agentAddress, form.agentStateCode, form.agentCity, form.agentPinCode]);
+
+  function setField(key: FieldKey, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
+    setErrors((e) => (e[key] ? { ...e, [key]: undefined } : e));
+  }
+
+  function checkStep(index: number): boolean {
+    const err = validateAepsOnboardingStep(index, form);
+    if (!err) return true;
+    setErrors({ [err.field]: err.message });
+    toast.error(err.message);
+    return false;
   }
 
   function captureLocation() {
@@ -103,18 +117,27 @@ export default function NobleAgentOnboardPage() {
 
   function skipForNow() {
     markAepsOnboardingSkipped();
-    const next = new URLSearchParams(window.location.search).get("next") ?? "";
-    router.replace(next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard");
+    router.replace(safeNext());
+  }
+
+  function goBack() {
+    setErrors({});
+    setStep((s) => Math.max(0, s - 1));
   }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (loading) return;
-    const lat = Number(form.shopLatitude);
-    const lng = Number(form.shopLongitude);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      toast.error("Allow location access before continuing");
+    if (!checkStep(step)) return;
+    if (step < LAST_STEP) {
+      setStep(step + 1);
       return;
+    }
+    for (let i = 0; i < LAST_STEP; i++) {
+      if (!checkStep(i)) {
+        setStep(i);
+        return;
+      }
     }
     setLoading(true);
     try {
@@ -129,7 +152,7 @@ export default function NobleAgentOnboardPage() {
         aadhaarNumber: stripAadhaar(form.aadhaarNumber),
         dob: form.dob.trim(),
         agentAddress: form.agentAddress.trim(),
-        agentStateCode: form.agentStateCode.toUpperCase().trim(),
+        agentStateCode: form.agentStateCode,
         agentCity: form.agentCity.trim(),
         agentPinCode: form.agentPinCode.replace(/\D/g, "").slice(0, 6),
         agentBankName: form.agentBankName.trim(),
@@ -137,18 +160,17 @@ export default function NobleAgentOnboardPage() {
         agentBankIFSC: form.agentBankIFSC.toUpperCase().trim(),
         shopName: form.shopName.trim(),
         shopAddress: form.shopAddress.trim(),
-        shopStateCode: form.shopStateCode.toUpperCase().trim(),
+        shopStateCode: form.shopStateCode,
         shopCity: form.shopCity.trim(),
         shopPinCode: form.shopPinCode.replace(/\D/g, "").slice(0, 6),
-        shopLatitude: lat,
-        shopLongitude: lng,
+        shopLatitude: Number(form.shopLatitude),
+        shopLongitude: Number(form.shopLongitude),
         isPhysicalVerified: "YES",
       });
       const me = await api.get<ApiResponse<{ user: AuthUser }>>("/auth/me");
       if (me.data.success) setUser(me.data.data.user);
       toast.success("AEPS agent onboarding complete");
-      const next = new URLSearchParams(window.location.search).get("next") ?? "";
-      router.replace(next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard");
+      router.replace(safeNext());
     } catch (err) {
       toast.error(extractApiError(err, "AEPS agent onboarding failed"));
     } finally {
@@ -157,22 +179,43 @@ export default function NobleAgentOnboardPage() {
   }
 
   const inputClass =
-    "w-full rounded-xl border px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[var(--focus)]";
+    "w-full rounded-xl border px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[var(--focus)] disabled:bg-slate-50";
   const labelClass = "mb-1 block text-xs font-medium";
-  const field = (label: string, key: keyof typeof form, props?: InputHTMLAttributes<HTMLInputElement>) => (
+
+  const field = (label: string, key: FieldKey, props?: InputHTMLAttributes<HTMLInputElement>) => (
     <label className="block">
       <span className={labelClass} style={{ color: B.muted }}>
         {label}
       </span>
       <input
         className={inputClass}
-        style={{ borderColor: B.border, color: B.blue }}
+        style={{ borderColor: errors[key] ? ERR_RED : B.border, color: B.blue }}
         value={form[key]}
         onChange={(ev) => setField(key, ev.target.value)}
+        aria-invalid={Boolean(errors[key])}
         {...props}
       />
+      {errors[key] ? (
+        <span className="mt-1 block text-xs" style={{ color: ERR_RED }}>
+          {errors[key]}
+        </span>
+      ) : null}
     </label>
   );
+
+  const stateField = (label: string, key: "agentStateCode" | "shopStateCode", disabled?: boolean) => (
+    <div className={disabled ? "pointer-events-none opacity-70" : undefined}>
+      <StateSelect label={label} value={form[key]} onChange={(code) => setField(key, code)} />
+      {errors[key] ? (
+        <span className="mt-1 block text-xs" style={{ color: ERR_RED }}>
+          {errors[key]}
+        </span>
+      ) : null}
+    </div>
+  );
+
+  const current = STEPS[step]!;
+  const StepIcon = current.icon;
 
   return (
     <AppShell>
@@ -187,100 +230,153 @@ export default function NobleAgentOnboardPage() {
           </p>
         </div>
 
-        <form onSubmit={onSubmit} className="space-y-4 rounded-2xl border p-4" style={{ borderColor: B.border, background: "#fff" }}>
-          <div className="grid gap-3 sm:grid-cols-3">
-            {field("First name", "firstName", { required: true, maxLength: 50 })}
-            {field("Middle name", "middleName", { maxLength: 50 })}
-            {field("Last name", "lastName", { maxLength: 50 })}
+        <form
+          onSubmit={onSubmit}
+          noValidate
+          className="rounded-2xl border p-5"
+          style={{ borderColor: B.border, background: "#fff" }}
+        >
+          <SignupStepper currentIndex={step} steps={STEPS} />
+
+          <div className="mb-4 flex items-center gap-2">
+            <span
+              className="flex h-8 w-8 items-center justify-center rounded-lg"
+              style={{ background: `${B.blue}10`, color: B.blue }}
+            >
+              <StepIcon size={16} />
+            </span>
+            <h2 className="text-base font-bold" style={{ color: B.blue }}>
+              {current.label}
+            </h2>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {field("Mobile", "mobileNumber", { required: true, inputMode: "numeric", maxLength: 10 })}
-            {field("Email", "email", { required: true, type: "email" })}
+
+          <div key={step} className="dash-page-animate space-y-3">
+            {step === 0 ? (
+              <>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {field("First name", "firstName", { maxLength: 50 })}
+                  {field("Middle name", "middleName", { maxLength: 50 })}
+                  {field("Last name", "lastName", { maxLength: 50 })}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {field("Mobile", "mobileNumber", { inputMode: "numeric", maxLength: 10 })}
+                  {field("Email", "email", { type: "email" })}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {field("PAN", "panNumber", {
+                    maxLength: 10,
+                    style: {
+                      borderColor: errors.panNumber ? ERR_RED : B.border,
+                      color: B.blue,
+                      textTransform: "uppercase",
+                    },
+                    onChange: (ev) => setField("panNumber", ev.target.value.toUpperCase()),
+                  })}
+                  {field("Aadhaar", "aadhaarNumber", {
+                    inputMode: "numeric",
+                    maxLength: 14,
+                    value: formatAadhaar(form.aadhaarNumber),
+                    onChange: (ev) => setField("aadhaarNumber", stripAadhaar(ev.target.value)),
+                  })}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {field("Date of birth (DD-MM-YYYY)", "dob", { placeholder: "20-10-1985", maxLength: 10 })}
+                </div>
+              </>
+            ) : null}
+
+            {step === 1 ? (
+              <>
+                {field("Residential address", "agentAddress", { maxLength: 250 })}
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {stateField("State", "agentStateCode")}
+                  {field("City", "agentCity")}
+                  {field("PIN", "agentPinCode", { inputMode: "numeric", maxLength: 6 })}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {field("Bank name", "agentBankName")}
+                  {field("IFSC", "agentBankIFSC", {
+                    maxLength: 11,
+                    style: {
+                      borderColor: errors.agentBankIFSC ? ERR_RED : B.border,
+                      color: B.blue,
+                      textTransform: "uppercase",
+                    },
+                    onChange: (ev) => setField("agentBankIFSC", ev.target.value.toUpperCase()),
+                  })}
+                </div>
+                {field("Bank account number", "agentBankAccountNumber", { inputMode: "numeric" })}
+              </>
+            ) : null}
+
+            {step === 2 ? (
+              <>
+                {field("Shop name", "shopName")}
+                <label className="flex cursor-pointer items-center gap-2 text-sm" style={{ color: B.blue }}>
+                  <input
+                    type="checkbox"
+                    checked={sameAsResidential}
+                    onChange={(e) => setSameAsResidential(e.target.checked)}
+                    className="h-4 w-4 cursor-pointer"
+                  />
+                  Shop address is same as residential address
+                </label>
+                {field("Shop address", "shopAddress", { maxLength: 250, disabled: sameAsResidential })}
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {stateField("Shop state", "shopStateCode", sameAsResidential)}
+                  {field("Shop city", "shopCity", { disabled: sameAsResidential })}
+                  {field("Shop PIN", "shopPinCode", {
+                    inputMode: "numeric",
+                    maxLength: 6,
+                    disabled: sameAsResidential,
+                  })}
+                </div>
+                <div
+                  className="rounded-xl border p-3"
+                  style={{ borderColor: errors.shopLatitude ? ERR_RED : B.border, background: `${B.blue}04` }}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="text-sm" style={{ color: B.blue }}>
+                      <div className="font-semibold">Shop location</div>
+                      <div className="text-xs" style={{ color: B.muted }}>
+                        {form.shopLatitude && form.shopLongitude
+                          ? `${form.shopLatitude}, ${form.shopLongitude}`
+                          : "Stand inside your shop and tap Use GPS"}
+                      </div>
+                    </div>
+                    <PrimaryButton type="button" variant="secondary" onClick={captureLocation} disabled={geoBusy}>
+                      <MapPin size={14} className="mr-1 inline" />
+                      {geoBusy ? "Locating…" : form.shopLatitude ? "Update GPS" : "Use GPS"}
+                    </PrimaryButton>
+                  </div>
+                  {errors.shopLatitude ? (
+                    <span className="mt-2 block text-xs" style={{ color: ERR_RED }}>
+                      {errors.shopLatitude}
+                    </span>
+                  ) : null}
+                </div>
+              </>
+            ) : null}
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block">
-              <span className={labelClass} style={{ color: B.muted }}>
-                PAN
-              </span>
-              <input
-                className={inputClass}
-                style={{ borderColor: B.border, color: B.blue, textTransform: "uppercase" }}
-                value={form.panNumber}
-                onChange={(ev) => setField("panNumber", ev.target.value.toUpperCase())}
-                required
-                maxLength={10}
-              />
-            </label>
-            <label className="block">
-              <span className={labelClass} style={{ color: B.muted }}>
-                Aadhaar
-              </span>
-              <input
-                className={inputClass}
-                style={{ borderColor: B.border, color: B.blue }}
-                value={formatAadhaar(form.aadhaarNumber)}
-                onChange={(ev) => setField("aadhaarNumber", stripAadhaar(ev.target.value))}
-                inputMode="numeric"
-                required
-                maxLength={14}
-              />
-            </label>
-          </div>
-          {field("Date of birth (DD-MM-YYYY)", "dob", { required: true, placeholder: "20-10-1985" })}
-          {field("Residential address", "agentAddress", { required: true, maxLength: 250 })}
-          <div className="grid gap-3 sm:grid-cols-3">
-            <StateSelect
-              label="State"
-              value={form.agentStateCode}
-              onChange={(code) => setField("agentStateCode", code)}
-              required
-            />
-            {field("City", "agentCity", { required: true })}
-            {field("PIN", "agentPinCode", { required: true, inputMode: "numeric", maxLength: 6 })}
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {field("Bank name", "agentBankName", { required: true })}
-            <label className="block">
-              <span className={labelClass} style={{ color: B.muted }}>
-                IFSC
-              </span>
-              <input
-                className={inputClass}
-                style={{ borderColor: B.border, color: B.blue, textTransform: "uppercase" }}
-                value={form.agentBankIFSC}
-                onChange={(ev) => setField("agentBankIFSC", ev.target.value.toUpperCase())}
-                required
-                maxLength={11}
-              />
-            </label>
-          </div>
-          {field("Bank account number", "agentBankAccountNumber", { required: true, inputMode: "numeric" })}
-          {field("Shop name", "shopName", { required: true })}
-          {field("Shop address", "shopAddress", { required: true, maxLength: 250 })}
-          <div className="grid gap-3 sm:grid-cols-3">
-            <StateSelect
-              label="Shop state"
-              value={form.shopStateCode}
-              onChange={(code) => setField("shopStateCode", code)}
-              required
-            />
-            {field("Shop city", "shopCity", { required: true })}
-            {field("Shop PIN", "shopPinCode", { required: true, inputMode: "numeric", maxLength: 6 })}
-          </div>
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="grid flex-1 gap-3 sm:grid-cols-2">
-              {field("Latitude", "shopLatitude", { required: true, readOnly: true })}
-              {field("Longitude", "shopLongitude", { required: true, readOnly: true })}
-            </div>
-            <PrimaryButton type="button" variant="secondary" onClick={captureLocation} disabled={geoBusy}>
-              <MapPin size={14} className="mr-1 inline" />
-              {geoBusy ? "Locating…" : "Use GPS"}
+
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
+            {step > 0 ? (
+              <PrimaryButton type="button" variant="secondary" onClick={goBack} disabled={loading}>
+                <ArrowLeft size={14} className="mr-1 inline" />
+                Back
+              </PrimaryButton>
+            ) : null}
+            <PrimaryButton type="submit" variant="primary" disabled={loading} className="sm:flex-1">
+              {step < LAST_STEP ? "Continue" : loading ? "Submitting…" : "Submit onboarding"}
             </PrimaryButton>
           </div>
-          <PrimaryButton type="submit" variant="primary" disabled={loading} className="w-full">
-            {loading ? "Submitting…" : "Submit onboarding"}
-          </PrimaryButton>
-          <PrimaryButton type="button" variant="ghost" onClick={skipForNow} disabled={loading} className="w-full">
+          <PrimaryButton
+            type="button"
+            variant="ghost"
+            onClick={skipForNow}
+            disabled={loading}
+            className="mt-2 w-full"
+          >
             Skip for now
           </PrimaryButton>
         </form>

@@ -26,16 +26,26 @@ export const SIGNUP_STEPS = [
 
 export type SignupStepId = (typeof SIGNUP_STEPS)[number]["id"];
 
-/** Web only: all 9 steps fit inside the card — equal columns, no overflow. */
+export interface StepperStep {
+  id: string;
+  label: string;
+  short: string;
+  icon: LucideIcon;
+}
+
+/** Web only: all steps fit inside the card — equal columns, no overflow. */
 export function SignupStepper({
   currentIndex,
+  steps = SIGNUP_STEPS,
 }: {
   currentIndex: number;
+  steps?: readonly StepperStep[];
 }) {
-  const total = SIGNUP_STEPS.length;
+  const total = steps.length;
   const idx = Math.max(0, Math.min(currentIndex, total - 1));
   const progress = ((idx + 1) / total) * 100;
   const lineFillPct = total <= 1 ? 0 : (idx / (total - 1)) * 100;
+  const lineInsetPct = `${100 / (2 * total)}%`;
 
   return (
     <div className="mb-8 min-w-0 overflow-hidden">
@@ -44,7 +54,7 @@ export function SignupStepper({
           Step {idx + 1} of {total}
         </p>
         <p className="truncate text-xs font-semibold" style={{ color: B.muted }}>
-          {SIGNUP_STEPS[idx]?.short}
+          {steps[idx]?.short}
         </p>
       </div>
       <div className="mb-4 h-1.5 overflow-hidden rounded-full" style={{ background: B.border }}>
@@ -54,7 +64,7 @@ export function SignupStepper({
       <div className="relative w-full min-w-0 px-0.5">
         <div
           className="pointer-events-none absolute top-[14px] h-[2px] overflow-hidden rounded-full"
-          style={{ left: "5.555%", right: "5.555%", background: B.border }}
+          style={{ left: lineInsetPct, right: lineInsetPct, background: B.border }}
           aria-hidden
         >
           <div
@@ -63,9 +73,12 @@ export function SignupStepper({
           />
         </div>
 
-        <ol className="relative z-[1] grid w-full grid-cols-9 gap-0">
-          {SIGNUP_STEPS.map((step, stepIndex) => {
-            const Icon = step.icon as LucideIcon;
+        <ol
+          className="relative z-[1] grid w-full gap-0"
+          style={{ gridTemplateColumns: `repeat(${total}, minmax(0, 1fr))` }}
+        >
+          {steps.map((step, stepIndex) => {
+            const Icon = step.icon;
             const done = stepIndex < idx;
             const active = stepIndex === idx;
             const bg = done ? B.green : active ? B.blue : "#F8FAFC";
