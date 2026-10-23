@@ -589,7 +589,7 @@ export default function SettingsPage() {
                       {user?.role === "retailer" && user.hasNobleAgent !== true ? (
                         <button
                           type="button"
-                          onClick={() => router.push("/onboarding/noble")}
+                          onClick={() => router.push("/onboarding/aeps-agent")}
                           className="flex w-full items-center justify-between rounded-xl border px-3 py-2.5"
                           style={{ borderColor: B.border, background: `${B.blue}06` }}
                         >

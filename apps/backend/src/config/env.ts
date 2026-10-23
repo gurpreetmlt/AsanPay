@@ -183,8 +183,8 @@ const envSchema = z.object({
   /** Optional override; default is InstantPay production host for both sandbox and live accounts. */
   INSTANTPAY_BASE_URL: z.string().url().optional(),
   /**
-   * Noble Web Studio (NOBLE APIs). Optional until keys are issued — client fails closed with a
-   * clear message when missing. See NobleWebStudio/OVERVIEW.md.
+   * AEPS / DMT / recharge / CMS provider. Optional until keys are issued — client fails closed
+   * with a clear message when missing.
    */
   NOBLE_API_KEY: z.string().optional(),
   NOBLE_API_VALUE: z.string().optional(),
@@ -351,7 +351,7 @@ export function isPaySprintAepsMode(): boolean {
   return env.AEPS_PROVIDER_MODE === "paysprint_sandbox" || env.AEPS_PROVIDER_MODE === "paysprint_live";
 }
 
-/** True when both Noble API credentials are non-empty (keys may arrive after code lands). */
+/** True when both provider API credentials are non-empty (keys may arrive after code lands). */
 export function isNobleConfigured(): boolean {
   return Boolean(env.NOBLE_API_KEY?.trim() && env.NOBLE_API_VALUE?.trim());
 }

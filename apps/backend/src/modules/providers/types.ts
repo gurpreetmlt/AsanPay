@@ -35,7 +35,7 @@ export interface AepsParams {
   externalRef?: string;
   /** Transaction-OTP referenceKey — mandatory for withdrawals above ₹5,000 (InstantPay). */
   otpReferenceKey?: string;
-  /** Noble Aadhaar Pay OTP extras (from ap_generate_otp). */
+  /** Aadhaar Pay OTP extras (from ap_generate_otp). */
   otpTransactionId?: string;
   otpTransactionToken?: string;
 }

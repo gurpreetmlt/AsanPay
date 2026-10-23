@@ -42,7 +42,7 @@ nobleWebhookRouter.post("/callback", async (req, res) => {
 
   logger.info(
     { txnRef, keys: Object.keys(payload).slice(0, 20), ip: req.ip },
-    "Noble callback received",
+    "AEPS provider callback received",
   );
 
   await insertProviderLog({
@@ -58,7 +58,7 @@ nobleWebhookRouter.post("/callback", async (req, res) => {
     responsePayload: {},
     status: "received",
     durationMs: 0,
-  }).catch((err: unknown) => logger.error({ err }, "failed to store Noble callback"));
+  }).catch((err: unknown) => logger.error({ err }, "failed to store AEPS provider callback"));
 
   res.status(200).json({ status: 1, statusCode: "SS0000", message: "Callback received" });
 });

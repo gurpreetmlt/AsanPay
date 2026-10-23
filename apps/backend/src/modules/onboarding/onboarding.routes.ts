@@ -83,7 +83,7 @@ onboardingRouter.post(
   instantpayMerchantList,
 );
 
-// Noble Web Studio AEPS agent onboarding → uniqueAgentId (keys optional; mock when unset).
+// AEPS agent onboarding → uniqueAgentId (keys optional; mock when unset).
 onboardingRouter.post(
   "/noble",
   requireRole("retailer"),
@@ -98,7 +98,7 @@ onboardingRouter.post(
   nobleStatusRecover,
 );
 
-// Noble AEPS session gates (after uniqueAgentId is saved).
+// AEPS session gates (after uniqueAgentId is saved).
 onboardingRouter.post(
   "/noble/aeps/load",
   requireRole("retailer"),

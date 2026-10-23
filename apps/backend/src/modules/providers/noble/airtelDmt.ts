@@ -77,7 +77,7 @@ export async function resolveAirtelMerchantCtx(
   if (!isNobleConfigured()) {
     throw new HttpError(
       503,
-      "Noble is not configured. Set NOBLE_API_KEY and NOBLE_API_VALUE in Coolify (or local .env).",
+      "AEPS provider is not configured on the server. Contact support.",
       "NOBLE_NOT_CONFIGURED",
     );
   }

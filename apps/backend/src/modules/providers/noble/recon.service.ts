@@ -6,7 +6,7 @@ import { noblePost } from "./client";
 export type NobleReconTxnType = "CW" | "MT" | "QR" | "CD";
 
 /**
- * Submit daily recon to Noble (mandatory for month-end commission).
+ * Submit daily recon to the provider (mandatory for month-end commission).
  * reconData entries: "status~clientTxnId~apiTxnId" (vendor format).
  */
 export async function nobleSubmitRecon(input: {
@@ -19,7 +19,7 @@ export async function nobleSubmitRecon(input: {
   if (!isNobleConfigured()) {
     throw new HttpError(
       503,
-      "Noble is not configured. Set NOBLE_API_KEY and NOBLE_API_VALUE in Coolify (or local .env).",
+      "AEPS provider is not configured on the server. Contact support.",
       "NOBLE_NOT_CONFIGURED",
     );
   }
@@ -47,7 +47,7 @@ export async function nobleSubmitRecon(input: {
   if (!nobleOk(json, httpStatus)) {
     throw new HttpError(
       502,
-      (typeof json.description === "string" && json.description) || "Noble recon failed",
+      (typeof json.description === "string" && json.description) || "Recon submission failed",
       typeof json.statusCode === "string" ? json.statusCode : "NOBLE_RECON_FAILED",
     );
   }

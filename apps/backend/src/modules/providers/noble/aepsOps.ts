@@ -81,7 +81,7 @@ export function requireNobleGeo(ctx: NobleAgentContext): void {
   }
 }
 
-/** Device + geo fields shared by most Noble AEPS POSTs. */
+/** Device + geo fields shared by most AEPS POSTs. */
 export function nobleDeviceBody(ctx: NobleAgentContext): Record<string, string> {
   return {
     uniqueAgentId: ctx.uniqueAgentId,

@@ -7,7 +7,7 @@ const lettersSpaces = (label: string, max: number) =>
     .max(max, `${label} must be at most ${max} characters`)
     .regex(/^[A-Za-z ]+$/, `${label} may only contain letters and spaces`);
 
-/** Noble AEPS agent_onboarding body (AsanPay → backend). */
+/** AEPS agent_onboarding body (AsanPay → backend). */
 export const nobleAgentOnboardSchema = z.object({
   channel: z.enum(["APP", "WEB"]).default("APP"),
   firstName: lettersSpaces("First name", 50),
@@ -27,7 +27,7 @@ export const nobleAgentOnboardSchema = z.object({
   email: z.string().email("Enter a valid email").max(150),
   panNumber: z.string().regex(/^[A-Z]{5}\d{4}[A-Z]$/, "Enter a valid PAN (e.g. ABCDE1234F)"),
   aadhaarNumber: z.string().regex(/^\d{12}$/, "Aadhaar must be 12 digits"),
-  /** DD-MM-YYYY (Noble sample) or DD/MM/YYYY */
+  /** DD-MM-YYYY (provider sample) or DD/MM/YYYY */
   dob: z
     .string()
     .regex(/^\d{2}[-/]\d{2}[-/]\d{4}$/, "Date of birth must be DD-MM-YYYY or DD/MM/YYYY"),

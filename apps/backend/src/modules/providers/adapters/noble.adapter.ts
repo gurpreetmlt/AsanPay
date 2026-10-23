@@ -85,7 +85,7 @@ import type {
 } from "../types";
 
 /**
- * Noble Web Studio — AEPS family (CW / BE / MS + daily 2FA).
+ * Primary AEPS provider — AEPS family (CW / BE / MS + daily 2FA).
  * Load-agent / merchant KYC are separate HTTP routes under /api/onboarding/noble/aeps/*.
  * Non-AEPS rails throw 501 until wired.
  */
@@ -94,7 +94,7 @@ export class NobleAdapter implements ProviderAdapter {
   readonly isStub = false;
 
   private notImplemented(op: string): never {
-    throw new HttpError(501, `Noble adapter: ${op} not implemented yet`, "PROVIDER_NOT_IMPLEMENTED");
+    throw new HttpError(501, `${op} is not available on this provider yet`, "PROVIDER_NOT_IMPLEMENTED");
   }
 
   private mapTxnStatus(row: Record<string, unknown>, json: NobleApiResponse): ProviderTxnStatus {
@@ -136,7 +136,7 @@ export class NobleAdapter implements ProviderAdapter {
     };
   }
 
-  /** Static fallback — Noble docs do not expose a bank-list endpoint in AEPS V2. */
+  /** Static fallback — provider docs do not expose a bank-list endpoint in AEPS V2. */
   async aepsBankList(_params: AepsBankListParams): Promise<ProviderResult<{ banks: AepsBank[] }>> {
     const banks: AepsBank[] = [
       {
@@ -172,7 +172,7 @@ export class NobleAdapter implements ProviderAdapter {
       status: "success",
       providerTxnId: null,
       amount: null,
-      message: "Static bank list (Noble has no AEPS bank-list API)",
+      message: "Static bank list",
       data: { banks },
       raw: { static: true },
     };
@@ -188,7 +188,7 @@ export class NobleAdapter implements ProviderAdapter {
         status: "success",
         providerTxnId: `MOCK-2FA-${randomUUID().slice(0, 8)}`,
         amount: null,
-        message: "Daily 2FA recorded locally (Noble keys not configured)",
+        message: "Daily 2FA recorded locally (provider keys not configured)",
         data: {},
         raw: { mock: true },
       };
@@ -371,7 +371,7 @@ export class NobleAdapter implements ProviderAdapter {
   async checkStatus(params: CheckStatusParams): Promise<ProviderResult> {
     const transactionId = params.clientRef || params.providerTxnId;
     if (!transactionId) {
-      throw new HttpError(400, "transactionId is required for Noble status check", "NOBLE_TXN_ID_REQUIRED");
+      throw new HttpError(400, "transactionId is required for status check", "NOBLE_TXN_ID_REQUIRED");
     }
     const code = String(params.serviceCode ?? "");
     if (code.startsWith("dmt") || code === "MONEY_TRANSFER") {
@@ -402,19 +402,19 @@ export class NobleAdapter implements ProviderAdapter {
     if (live) return;
     throw new HttpError(
       503,
-      "Noble is not configured. Set NOBLE_API_KEY and NOBLE_API_VALUE in Coolify (or local .env).",
+      "AEPS provider is not configured on the server. Contact support.",
       "NOBLE_NOT_CONFIGURED",
     );
   }
 
   async dmtBankList(_p: DmtBankListParams): Promise<ProviderResult<{ banks: DmtBank[] }>> {
-    // Noble Airtel DMT has no live bank-list API in docs — UI can use IFSC + account entry.
+    // Provider DMT has no live bank-list API in docs — UI can use IFSC + account entry.
     return {
       success: true,
       status: "success",
       providerTxnId: null,
       amount: null,
-      message: "Enter beneficiary bank IFSC manually (Noble has no DMT bank-list API)",
+      message: "Enter the beneficiary bank IFSC manually",
       data: { banks: [] },
       raw: { static: true },
     };
@@ -554,13 +554,13 @@ export class NobleAdapter implements ProviderAdapter {
   async dmtAddBeneficiaryVerify(
     params: DmtBeneficiaryVerifyParams,
   ): Promise<ProviderResult<{ beneficiaryId: string }>> {
-    // Noble bene/add is single-step.
+    // bene/add is single-step.
     return {
       success: true,
       status: "success",
       providerTxnId: null,
       amount: null,
-      message: "Beneficiary already added (Noble add is single-step)",
+      message: "Beneficiary already added",
       data: { beneficiaryId: params.beneficiaryId },
       raw: {},
     };
@@ -572,7 +572,7 @@ export class NobleAdapter implements ProviderAdapter {
     const { httpStatus, json } = await noblePost("dmt", "/api/v1.0/bene/delete", {
       remitterMobile: params.customerMobile,
       accountNumber: params.beneficiaryId,
-      // Noble requires IFSC; InstantPay delete only sends beneficiary id (often account no).
+      // Provider requires IFSC on delete; beneficiary id here is the account number.
       ifsc: "HDFC0000001",
     });
     assertNobleDmtOk(httpStatus, json, "Delete beneficiary failed");
@@ -595,7 +595,7 @@ export class NobleAdapter implements ProviderAdapter {
       status: "success",
       providerTxnId: null,
       amount: null,
-      message: "Beneficiary already deleted (Noble delete is single-step)",
+      message: "Beneficiary already deleted",
       data: { beneficiaryId: params.beneficiaryId },
       raw: {},
     };
@@ -671,10 +671,10 @@ export class NobleAdapter implements ProviderAdapter {
   dmtTransactionRefundOtp(
     _p: DmtRefundOtpParams,
   ): Promise<ProviderResult<{ referenceKey: string; validity: string }>> {
-    this.notImplemented("dmtTransactionRefundOtp (not in Noble Airtel DMT docs)");
+    this.notImplemented("dmtTransactionRefundOtp");
   }
   dmtTransactionRefund(_p: DmtRefundParams): Promise<ProviderResult> {
-    this.notImplemented("dmtTransactionRefund (not in Noble Airtel DMT docs)");
+    this.notImplemented("dmtTransactionRefund");
   }
 
   nepalStaticData(
@@ -778,7 +778,7 @@ export class NobleAdapter implements ProviderAdapter {
     if (!isNobleConfigured()) {
       throw new HttpError(
         503,
-        "Noble is not configured. Set NOBLE_API_KEY and NOBLE_API_VALUE in Coolify (or local .env).",
+        "AEPS provider is not configured on the server. Contact support.",
         "NOBLE_NOT_CONFIGURED",
       );
     }

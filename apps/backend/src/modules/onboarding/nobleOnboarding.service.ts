@@ -12,7 +12,7 @@ import type { NobleAgentOnboardInput, NobleAgentStatusInput } from "./nobleOnboa
 export interface NobleAgentProfile {
   uniqueAgentId: string;
   agentCode: string;
-  /** true when Noble API was called; false when keys missing (local mock id). */
+  /** true when the provider API was called; false when keys missing (local mock id). */
   live: boolean;
 }
 
@@ -58,8 +58,8 @@ async function persistNobleAgent(
 }
 
 /**
- * Registers the retailer on Noble AEPS (agent_onboarding) and stores uniqueAgentId.
- * Without NOBLE_API_* keys, stores a MOCK id so UI can be developed before credentials land.
+ * Registers the retailer with the AEPS provider (agent_onboarding) and stores uniqueAgentId.
+ * Without provider API keys, stores a MOCK id so UI can be developed before credentials land.
  */
 export async function nobleAgentOnboard(
   userId: string,
@@ -94,7 +94,7 @@ export async function nobleAgentOnboard(
         ? user.nobleUniqueAgentId
         : `MOCK${randomUUID().replace(/-/g, "").slice(0, 24)}`;
     await persistNobleAgent(userId, input, agentCode, uniqueAgentId);
-    logger.info({ userId, agentCode, live: false }, "Noble agent onboarded (mock — keys not set)");
+    logger.info({ userId, agentCode, live: false }, "AEPS agent onboarded (mock — keys not set)");
     return { uniqueAgentId, agentCode, live: false };
   }
 
@@ -134,7 +134,7 @@ export async function nobleAgentOnboard(
     const detail =
       (typeof json.description === "string" && json.description) ||
       (typeof json.message === "string" && json.message) ||
-      "Noble agent onboarding failed";
+      "AEPS agent onboarding failed";
     throw new HttpError(
       httpStatus >= 400 && httpStatus < 600 ? httpStatus : 502,
       detail,
@@ -143,12 +143,12 @@ export async function nobleAgentOnboard(
   }
 
   await persistNobleAgent(userId, input, agentCode, uniqueAgentId);
-  logger.info({ userId, agentCode, live: true }, "Noble agent onboarded");
+  logger.info({ userId, agentCode, live: true }, "AEPS agent onboarded");
   return { uniqueAgentId, agentCode, live: true };
 }
 
 /**
- * Recovers uniqueAgentId via Noble agent_onboarding_status (agentCode + PAN).
+ * Recovers uniqueAgentId via provider agent_onboarding_status (agentCode + PAN).
  * Also returns local status when already stored.
  */
 export async function nobleAgentOnboardStatus(
@@ -186,7 +186,7 @@ export async function nobleAgentOnboardStatus(
   if (!panNumber) {
     throw new HttpError(
       400,
-      "PAN is required to recover Noble agent id. Enter PAN or complete onboarding first.",
+      "PAN is required to recover your AEPS agent id. Enter PAN or complete onboarding first.",
       "NOBLE_PAN_REQUIRED",
     );
   }
@@ -194,7 +194,7 @@ export async function nobleAgentOnboardStatus(
   if (!isNobleConfigured()) {
     throw new HttpError(
       503,
-      "Noble is not configured. Set NOBLE_API_KEY and NOBLE_API_VALUE in Coolify (or local .env).",
+      "AEPS provider is not configured on the server. Contact support.",
       "NOBLE_NOT_CONFIGURED",
     );
   }
@@ -209,7 +209,7 @@ export async function nobleAgentOnboardStatus(
     const detail =
       (typeof json.description === "string" && json.description) ||
       (typeof json.message === "string" && json.message) ||
-      "Noble agent onboarding status failed";
+      "AEPS agent onboarding status check failed";
     throw new HttpError(
       httpStatus >= 400 && httpStatus < 600 ? httpStatus : 502,
       detail,

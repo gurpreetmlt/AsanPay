@@ -37,7 +37,7 @@ export function nobleBaseUrl(host: NobleHost): string {
 }
 
 /**
- * Noble requires IST wall-clock: yyyy-MM-dd'T'HH:mm:ss (skew ~15s).
+ * Provider requires IST wall-clock: yyyy-MM-dd'T'HH:mm:ss (skew ~15s).
  * Built via Asia/Kolkata so the server TZ does not matter.
  */
 export function nobleTimestamp(now: Date = new Date()): string {
@@ -60,7 +60,7 @@ export function assertNobleConfigured(): void {
   if (isNobleConfigured()) return;
   throw new HttpError(
     503,
-    "Noble is not configured. Set NOBLE_API_KEY and NOBLE_API_VALUE in Coolify (or local .env).",
+    "AEPS provider is not configured on the server. Contact support.",
     "NOBLE_NOT_CONFIGURED",
   );
 }
@@ -110,8 +110,8 @@ async function loginForToken(): Promise<string> {
       }),
     });
   } catch (err) {
-    logger.error({ err, path: LOGIN_PATH }, "Noble login network error");
-    throw new HttpError(502, "Noble login network error. Try again.", "NOBLE_LOGIN_NETWORK");
+    logger.error({ err, path: LOGIN_PATH }, "Provider login network error");
+    throw new HttpError(502, "Could not reach the AEPS provider. Try again.", "NOBLE_LOGIN_NETWORK");
   }
 
   const text = await res.text();
@@ -121,9 +121,9 @@ async function loginForToken(): Promise<string> {
   } catch {
     logger.warn(
       { path: LOGIN_PATH, httpStatus: res.status, bodyLen: text.length },
-      "Noble login non-JSON body",
+      "Provider login non-JSON body",
     );
-    throw new HttpError(502, "Noble login returned an invalid response", "NOBLE_LOGIN_INVALID");
+    throw new HttpError(502, "AEPS provider login returned an invalid response. Try again.", "NOBLE_LOGIN_INVALID");
   }
 
   const data = Array.isArray(json.responseData) ? json.responseData[0] : null;
@@ -141,14 +141,14 @@ async function loginForToken(): Promise<string> {
       tokenLen: token.length,
       durationMs: Date.now() - started,
     },
-    "Noble login response",
+    "Provider login response",
   );
 
   if (!res.ok || json.status !== 1 || !token) {
     const detail =
       (typeof json.description === "string" && json.description) ||
       (typeof json.message === "string" && json.message) ||
-      "Noble login failed";
+      "AEPS provider login failed";
     throw new HttpError(
       res.status === 401 ? 401 : 502,
       detail,
@@ -190,8 +190,8 @@ export async function noblePost(
         body: JSON.stringify(body),
       });
     } catch (err) {
-      logger.error({ err, host, path }, "Noble network error");
-      throw new HttpError(502, "Noble network error. Try again.", "NOBLE_NETWORK");
+      logger.error({ err, host, path }, "Provider network error");
+      throw new HttpError(502, "Could not reach the AEPS provider. Try again.", "NOBLE_NETWORK");
     }
 
     const text = await res.text();
@@ -211,7 +211,7 @@ export async function noblePost(
         statusCode: json.statusCode,
         durationMs: Date.now() - started,
       },
-      "Noble response",
+      "Provider response",
     );
     return { httpStatus: res.status, json };
   };

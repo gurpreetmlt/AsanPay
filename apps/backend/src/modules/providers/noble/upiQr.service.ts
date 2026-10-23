@@ -56,7 +56,7 @@ export async function nobleUpiQrKyc(
   });
   requireNobleGeo(ctx);
   if (!ctx.live) {
-    throw new HttpError(503, "Noble is not configured. Set NOBLE_API_KEY and NOBLE_API_VALUE.", "NOBLE_NOT_CONFIGURED");
+    throw new HttpError(503, "AEPS provider is not configured on the server. Contact support.", "NOBLE_NOT_CONFIGURED");
   }
   const transactionId = nobleTxnId("NUQK");
   const { httpStatus, json } = await noblePost("aeps", "/v2.0/aeps/upiqr_kyc", {
@@ -98,7 +98,7 @@ export async function nobleUpiQrGenerate(
   });
   requireNobleGeo(ctx);
   if (!ctx.live) {
-    throw new HttpError(503, "Noble is not configured. Set NOBLE_API_KEY and NOBLE_API_VALUE.", "NOBLE_NOT_CONFIGURED");
+    throw new HttpError(503, "AEPS provider is not configured on the server. Contact support.", "NOBLE_NOT_CONFIGURED");
   }
   const transactionId = nobleTxnId("NUQR");
   const { httpStatus, json } = await noblePost("aeps", "/v2.0/aeps/upiqr_generate", {

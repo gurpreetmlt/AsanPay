@@ -51,7 +51,7 @@ export async function nobleLoadAgent(
     const detail =
       (typeof json.description === "string" && json.description) ||
       (typeof json.message === "string" && json.message) ||
-      "Noble load agent failed";
+      "AEPS load agent failed";
     throw new HttpError(
       httpStatus >= 400 && httpStatus < 600 ? httpStatus : 502,
       detail,
@@ -93,7 +93,7 @@ export async function nobleAgentKyc(userId: string, input: NobleKycInput) {
   if (!ctx.live) {
     throw new HttpError(
       503,
-      "Noble is not configured. Set NOBLE_API_KEY and NOBLE_API_VALUE in Coolify (or local .env).",
+      "AEPS provider is not configured on the server. Contact support.",
       "NOBLE_NOT_CONFIGURED",
     );
   }
@@ -112,7 +112,7 @@ export async function nobleAgentKyc(userId: string, input: NobleKycInput) {
     const detail =
       (typeof json.description === "string" && json.description) ||
       (typeof json.message === "string" && json.message) ||
-      "Noble KYC failed";
+      "AEPS KYC failed";
     throw new HttpError(
       httpStatus >= 400 && httpStatus < 600 ? httpStatus : 502,
       detail,
@@ -127,7 +127,7 @@ export async function nobleAgentKyc(userId: string, input: NobleKycInput) {
   };
 }
 
-/** Ensure retailer has a Noble uniqueAgentId on the user row. */
+/** Ensure retailer has a provider uniqueAgentId on the user row. */
 export async function requireNobleAgentId(userId: string): Promise<string> {
   const [user] = await db
     .select({ nobleUniqueAgentId: users.nobleUniqueAgentId })
