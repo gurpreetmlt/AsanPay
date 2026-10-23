@@ -22,6 +22,7 @@ import {
   getNobleOnboardingStatus,
   nobleAgentOnboard,
   nobleAgentOnboardStatus,
+  revealMyKycIdentity,
 } from "./nobleOnboarding.service";
 import { nobleAgentKyc, nobleLoadAgent } from "./nobleAepsSession.service";
 import type {
@@ -74,6 +75,11 @@ export async function nobleSignup(req: Request, res: Response): Promise<void> {
 
 export async function noblePrefill(req: Request, res: Response): Promise<void> {
   sendSuccess(res, await getNobleOnboardingPrefill(req.auth!.sub));
+}
+
+export async function nobleRevealIdentity(req: Request, res: Response): Promise<void> {
+  res.setHeader("Cache-Control", "no-store");
+  sendSuccess(res, await revealMyKycIdentity(req.auth!.sub, req.ip ?? null));
 }
 
 export async function nobleStatus(req: Request, res: Response): Promise<void> {

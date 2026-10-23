@@ -4,7 +4,7 @@ import { isNobleConfigured, isUsableNobleAgentId } from "../../config/env";
 import { db } from "../../db/postgres";
 import { users } from "../../db/postgres/schema";
 import { stateCodeFromName, type AepsOnboardingPrefill } from "@asanpay/shared-types";
-import { findLatestAuditLog } from "../../db/postgres/repositories/auditLog";
+import { findLatestAuditLog, insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import { encryptPII, decryptPII } from "../../utils/aes";
 import { HttpError } from "../../utils/httpError";
 import { logger } from "../../utils/logger";
@@ -96,6 +96,29 @@ async function withKycIdentity(userId: string, input: NobleAgentOnboardInput): P
     throw new HttpError(400, "Bank account number must be 5–30 digits", "NOBLE_BANK_ACCOUNT_REQUIRED");
   }
   return { ...input, panNumber: pan, aadhaarNumber: aadhaar, agentBankAccountNumber: account };
+}
+
+/** Full PAN + Aadhaar for the signed-in agent's own eye toggle. Every reveal is audit-logged (no values). */
+export async function revealMyKycIdentity(
+  userId: string,
+  ipAddress: string | null,
+): Promise<{ pan: string | null; aadhaar: string | null }> {
+  const [row] = await db
+    .select({ pan: users.panNumberEncrypted, aadhaar: users.aadhaarNumberEncrypted })
+    .from(users)
+    .where(eq(users.id, userId));
+  if (!row) throw new HttpError(404, "User not found", "USER_NOT_FOUND");
+  const pan = decryptOrNull(row.pan, PAN_RE, cleanPan);
+  const aadhaar = decryptOrNull(row.aadhaar, AADHAAR_RE, cleanDigits);
+  await insertAuditLog({
+    userId,
+    action: "kyc.identity_reveal",
+    entityType: "user",
+    entityId: userId,
+    ipAddress,
+    metadata: { pan: Boolean(pan), aadhaar: Boolean(aadhaar) },
+  }).catch((err: unknown) => logger.error({ err }, "failed to audit KYC identity reveal"));
+  return { pan, aadhaar };
 }
 
 /** Own signup / KYC values for the onboarding form — PAN, Aadhaar and bank account masked. */

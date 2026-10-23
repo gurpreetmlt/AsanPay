@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Geolocation from "@react-native-community/geolocation";
-import { ArrowLeft, Landmark, Lock, MapPin, Store, UserRound, X } from "lucide-react-native";
+import { ArrowLeft, Eye, EyeOff, Landmark, Lock, MapPin, Store, UserRound, X } from "lucide-react-native";
 import {
   AEPS_ONBOARDING_STEPS,
   EMPTY_AEPS_ONBOARDING_FORM,
@@ -43,6 +43,8 @@ const STEPS: MobileStepperStep[] = AEPS_ONBOARDING_STEPS.map((s, i) => ({
   icon: STEP_ICONS[i]!,
 }));
 const LAST_STEP = STEPS.length - 1;
+/** Full PAN / Aadhaar re-mask automatically after this long. */
+const REVEAL_MS = 30_000;
 
 type FieldKey = keyof AepsOnboardingForm;
 
@@ -68,6 +70,22 @@ export function NobleAgentOnboardModal({
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({});
   const [form, setForm] = useState<AepsOnboardingForm>(EMPTY_AEPS_ONBOARDING_FORM);
   const [prefill, setPrefill] = useState<AepsOnboardingPrefill | null>(null);
+  const [revealed, setRevealed] = useState<{ pan: string | null; aadhaar: string | null } | null>(null);
+  const [revealBusy, setRevealBusy] = useState(false);
+  const revealTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (visible) return;
+    if (revealTimer.current) clearTimeout(revealTimer.current);
+    setRevealed(null);
+  }, [visible]);
+
+  useEffect(
+    () => () => {
+      if (revealTimer.current) clearTimeout(revealTimer.current);
+    },
+    [],
+  );
 
   const locks = {
     panLocked: Boolean(prefill?.panMasked),
@@ -154,6 +172,27 @@ export function NobleAgentOnboardModal({
     );
   }
 
+  async function toggleReveal() {
+    if (revealTimer.current) clearTimeout(revealTimer.current);
+    if (revealed) {
+      setRevealed(null);
+      return;
+    }
+    setRevealBusy(true);
+    try {
+      const { data } = await api.get<ApiResponse<{ pan: string | null; aadhaar: string | null }>>(
+        "/onboarding/noble/identity",
+      );
+      if (!data.success) return;
+      setRevealed(data.data);
+      revealTimer.current = setTimeout(() => setRevealed(null), REVEAL_MS);
+    } catch (err) {
+      showAlert("Could not show details", apiError(err, "Could not load your PAN and Aadhaar. Try again."));
+    } finally {
+      setRevealBusy(false);
+    }
+  }
+
   function goBack() {
     setErrors({});
     setStep((s) => Math.max(0, s - 1));
@@ -234,14 +273,29 @@ export function NobleAgentOnboardModal({
     </View>
   );
 
-  const locked = (label: string, masked: string) => (
+  const locked = (label: string, masked: string, full: string | null) => (
     <View style={styles.field}>
       <Text style={[styles.label, { color: tokens.sub }]}>{label}</Text>
       <View style={[styles.input, styles.lockedBox, { borderColor: tokens.cardBorder, backgroundColor: tokens.bg }]}>
-        <Text style={[styles.lockedText, { color: tokens.txt }]}>{masked}</Text>
+        <Text style={[styles.lockedText, { color: tokens.txt }]}>{revealed && full ? full : masked}</Text>
         <View style={styles.lockedTag}>
           <Lock size={12} color={tokens.sub} />
           <Text style={{ color: tokens.sub, fontSize: 11, fontWeight: "600" }}>From KYC</Text>
+          <Pressable
+            onPress={() => void toggleReveal()}
+            disabled={revealBusy}
+            hitSlop={10}
+            style={styles.eyeBtn}
+            accessibilityLabel={revealed ? `Hide ${label}` : `Show full ${label}`}
+          >
+            {revealBusy ? (
+              <ActivityIndicator size="small" color={tokens.sub} />
+            ) : revealed ? (
+              <EyeOff size={16} color={tokens.sub} />
+            ) : (
+              <Eye size={16} color={tokens.sub} />
+            )}
+          </Pressable>
         </View>
       </View>
     </View>
@@ -297,14 +351,18 @@ export function NobleAgentOnboardModal({
                   {input("Mobile", "mobileNumber", { keyboardType: "number-pad", maxLength: 10 })}
                   {input("Email", "email", { keyboardType: "email-address", autoCapitalize: "none" })}
                   {prefill?.panMasked
-                    ? locked("PAN", prefill.panMasked)
+                    ? locked("PAN", prefill.panMasked, revealed?.pan ?? null)
                     : input("PAN", "panNumber", {
                         autoCapitalize: "characters",
                         maxLength: 10,
                         onChangeText: (t) => setField("panNumber", t.toUpperCase()),
                       })}
                   {prefill?.aadhaarMasked
-                    ? locked("Aadhaar", prefill.aadhaarMasked)
+                    ? locked(
+                        "Aadhaar",
+                        prefill.aadhaarMasked,
+                        revealed?.aadhaar ? revealed.aadhaar.replace(/(\d{4})(?=\d)/g, "$1 ") : null,
+                      )
                     : input("Aadhaar", "aadhaarNumber", { keyboardType: "number-pad", maxLength: 12 })}
                   {input("Date of birth (DD-MM-YYYY)", "dob", { placeholder: "20-10-1985", maxLength: 10 })}
                 </>
@@ -495,6 +553,7 @@ const styles = StyleSheet.create({
   lockedBox: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   lockedText: { fontSize: 15, fontWeight: "700", letterSpacing: 0.5 },
   lockedTag: { flexDirection: "row", alignItems: "center", gap: 4 },
+  eyeBtn: { marginLeft: 6, padding: 2 },
   error: { color: colors.danger, fontSize: 12, marginTop: 4 },
   divider: { height: 1, backgroundColor: "#EEF2FF", marginVertical: 6, marginBottom: 14 },
   sameRow: {

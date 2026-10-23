@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, type FormEvent, type InputHTMLAttributes } from "react";
+import { useEffect, useRef, useState, type FormEvent, type InputHTMLAttributes } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { ArrowLeft, Landmark, Lock, MapPin, Store, UserRound } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, Landmark, Lock, MapPin, Store, UserRound } from "lucide-react";
 import {
   AEPS_ONBOARDING_STEPS,
   EMPTY_AEPS_ONBOARDING_FORM,
@@ -28,6 +28,8 @@ const STEP_ICONS = [UserRound, Landmark, Store];
 const STEPS: StepperStep[] = AEPS_ONBOARDING_STEPS.map((s, i) => ({ ...s, icon: STEP_ICONS[i]! }));
 const LAST_STEP = STEPS.length - 1;
 const ERR_RED = "#DC2626";
+/** Full PAN / Aadhaar re-mask automatically after this long. */
+const REVEAL_MS = 30_000;
 
 type FieldKey = keyof AepsOnboardingForm;
 
@@ -50,6 +52,16 @@ export default function NobleAgentOnboardPage() {
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({});
   const [form, setForm] = useState<AepsOnboardingForm>(EMPTY_AEPS_ONBOARDING_FORM);
   const [prefill, setPrefill] = useState<AepsOnboardingPrefill | null>(null);
+  const [revealed, setRevealed] = useState<{ pan: string | null; aadhaar: string | null } | null>(null);
+  const [revealBusy, setRevealBusy] = useState(false);
+  const revealTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (revealTimer.current) clearTimeout(revealTimer.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (hydrated && !accessToken) router.replace("/login");
@@ -148,6 +160,27 @@ export default function NobleAgentOnboardPage() {
     );
   }
 
+  async function toggleReveal() {
+    if (revealTimer.current) clearTimeout(revealTimer.current);
+    if (revealed) {
+      setRevealed(null);
+      return;
+    }
+    setRevealBusy(true);
+    try {
+      const res = await api.get<ApiResponse<{ pan: string | null; aadhaar: string | null }>>(
+        "/onboarding/noble/identity",
+      );
+      if (!res.data.success) return;
+      setRevealed(res.data.data);
+      revealTimer.current = setTimeout(() => setRevealed(null), REVEAL_MS);
+    } catch (err) {
+      toast.error(extractApiError(err, "Could not load your PAN and Aadhaar. Try again."));
+    } finally {
+      setRevealBusy(false);
+    }
+  }
+
   function skipForNow() {
     markAepsOnboardingSkipped();
     router.replace(safeNext());
@@ -236,19 +269,31 @@ export default function NobleAgentOnboardPage() {
     </label>
   );
 
-  const lockedField = (label: string, masked: string) => (
+  const lockedField = (label: string, masked: string, full: string | null) => (
     <div className="block">
       <span className={labelClass} style={{ color: B.muted }}>
         {label}
       </span>
       <div
-        className="flex items-center justify-between rounded-xl border px-3 py-2.5 text-sm"
+        className="flex items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-sm"
         style={{ borderColor: B.border, background: "#F8FAFC", color: B.blue }}
       >
-        <span className="font-semibold tracking-wide">{masked}</span>
-        <span className="flex items-center gap-1 text-xs" style={{ color: B.muted }}>
-          <Lock size={12} />
-          From KYC
+        <span className="font-semibold tracking-wide">{revealed && full ? full : masked}</span>
+        <span className="flex items-center gap-2 text-xs" style={{ color: B.muted }}>
+          <span className="flex items-center gap-1">
+            <Lock size={12} />
+            From KYC
+          </span>
+          <button
+            type="button"
+            onClick={() => void toggleReveal()}
+            disabled={revealBusy}
+            className="icon-tooltip cursor-pointer rounded-md p-1 hover:bg-slate-100"
+            aria-label={revealed ? `Hide ${label}` : `Show full ${label}`}
+            data-tooltip={revealed ? "Hide" : "Show full number"}
+          >
+            {revealed ? <EyeOff size={14} /> : <Eye size={14} />}
+          </button>
         </span>
       </div>
     </div>
@@ -320,7 +365,7 @@ export default function NobleAgentOnboardPage() {
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {prefill?.panMasked
-                    ? lockedField("PAN", prefill.panMasked)
+                    ? lockedField("PAN", prefill.panMasked, revealed?.pan ?? null)
                     : field("PAN", "panNumber", {
                         maxLength: 10,
                         style: {
@@ -331,7 +376,11 @@ export default function NobleAgentOnboardPage() {
                         onChange: (ev) => setField("panNumber", ev.target.value.toUpperCase()),
                       })}
                   {prefill?.aadhaarMasked
-                    ? lockedField("Aadhaar", prefill.aadhaarMasked)
+                    ? lockedField(
+                        "Aadhaar",
+                        prefill.aadhaarMasked,
+                        revealed?.aadhaar ? formatAadhaar(revealed.aadhaar) : null,
+                      )
                     : field("Aadhaar", "aadhaarNumber", {
                         inputMode: "numeric",
                         maxLength: 14,

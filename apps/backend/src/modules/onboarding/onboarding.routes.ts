@@ -27,6 +27,7 @@ import {
   nobleAgentKycHandler,
   nobleLoadAgentHandler,
   noblePrefill,
+  nobleRevealIdentity,
   nobleSignup,
   nobleStatus,
   nobleStatusRecover,
@@ -93,6 +94,7 @@ onboardingRouter.post(
 );
 onboardingRouter.get("/noble/status", requireRole("retailer"), nobleStatus);
 onboardingRouter.get("/noble/prefill", requireRole("retailer"), noblePrefill);
+onboardingRouter.get("/noble/identity", requireRole("retailer"), nobleRevealIdentity);
 onboardingRouter.post(
   "/noble/status",
   requireRole("retailer"),
