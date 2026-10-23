@@ -380,20 +380,21 @@ export class NobleAdapter implements ProviderAdapter {
       });
       return this.toResult(httpStatus, json, "DMT status", null, {});
     }
+    const istDate =
+      params.txnDate || new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
     if (code.includes("recharge") || code === "MOBILE_PREPAID" || code === "DTH") {
       const { httpStatus, json } = await noblePost("recharge", "/v1.0/recharge/recharge_status", {
-        transactionId,
+        statusBy: "TI_TD",
+        apiTransactionId: "",
+        transactionId: transactionId.slice(0, 25),
+        transactionDate: istDate,
       });
       return this.toResult(httpStatus, json, "Recharge status", null, {});
     }
-    const now = new Date();
-    const dd = String(now.getDate()).padStart(2, "0");
-    const mm = String(now.getMonth() + 1).padStart(2, "0");
-    const yyyy = String(now.getFullYear());
-    const transactionDate = `${dd}/${mm}/${yyyy}`;
+    const [yyyy, mm, dd] = istDate.split("-");
     const { httpStatus, json } = await noblePost("aeps", "/v2.0/aeps/transaction_status", {
       transactionId,
-      transactionDate,
+      transactionDate: `${dd}/${mm}/${yyyy}`,
     });
     return this.toResult(httpStatus, json, "AEPS status", null, {});
   }
