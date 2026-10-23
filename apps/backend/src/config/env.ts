@@ -362,6 +362,10 @@ export function isUsableNobleAgentId(id: string | null | undefined): id is strin
   return !(isNobleConfigured() && id.startsWith("MOCK"));
 }
 
+export function isAepsOnboardingRequired(role: string, nobleAgentId: string | null | undefined): boolean {
+  return role === "retailer" && env.AEPS_PROVIDER_MODE === "noble" && !isUsableNobleAgentId(nobleAgentId);
+}
+
 export function isNobleAepsMode(): boolean {
   return env.AEPS_PROVIDER_MODE === "noble";
 }

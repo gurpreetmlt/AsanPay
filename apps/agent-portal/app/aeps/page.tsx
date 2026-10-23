@@ -460,6 +460,12 @@ function AepsPageInner() {
   }, []);
 
   useEffect(() => {
+    if (!user?.aepsOnboardingRequired) return;
+    toast("Complete AEPS agent onboarding to start using AEPS services");
+    router.replace(`/onboarding/aeps-agent?next=${encodeURIComponent("/aeps")}`);
+  }, [user?.aepsOnboardingRequired, router]);
+
+  useEffect(() => {
     const q = searchParams.get("tab");
     if (q && (AEPS_TABS as readonly string[]).includes(q)) setTab(q as AepsTab);
   }, [searchParams]);

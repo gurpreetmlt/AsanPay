@@ -33,6 +33,12 @@ export default function UpiQrPage() {
   }, [hydrated, accessToken, router]);
 
   useEffect(() => {
+    if (!user?.aepsOnboardingRequired) return;
+    toast("Complete AEPS agent onboarding to start using UPI QR");
+    router.replace(`/onboarding/aeps-agent?next=${encodeURIComponent("/upi-qr")}`);
+  }, [user?.aepsOnboardingRequired, router]);
+
+  useEffect(() => {
     if (user?.mobile) setForm((f) => ({ ...f, mobileNumber: f.mobileNumber || user.mobile }));
   }, [user]);
 

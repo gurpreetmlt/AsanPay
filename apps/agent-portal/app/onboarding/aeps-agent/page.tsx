@@ -7,6 +7,7 @@ import { MapPin, Store } from "lucide-react";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import { AppShell } from "@/components/layout/AppShell";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
+import { StateSelect } from "@/components/ui/StateSelect";
 import api from "@/lib/api";
 import { formatAadhaar, stripAadhaar } from "@/lib/aadhaar";
 import { B } from "@/lib/brand";
@@ -140,7 +141,8 @@ export default function NobleAgentOnboardPage() {
       const me = await api.get<ApiResponse<{ user: AuthUser }>>("/auth/me");
       if (me.data.success) setUser(me.data.data.user);
       toast.success("AEPS agent onboarding complete");
-      router.replace("/dashboard");
+      const next = new URLSearchParams(window.location.search).get("next") ?? "";
+      router.replace(next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard");
     } catch (err) {
       toast.error(extractApiError(err, "AEPS agent onboarding failed"));
     } finally {
@@ -221,7 +223,12 @@ export default function NobleAgentOnboardPage() {
           {field("Date of birth (DD-MM-YYYY)", "dob", { required: true, placeholder: "20-10-1985" })}
           {field("Residential address", "agentAddress", { required: true, maxLength: 250 })}
           <div className="grid gap-3 sm:grid-cols-3">
-            {field("State code", "agentStateCode", { required: true, maxLength: 2, placeholder: "RJ" })}
+            <StateSelect
+              label="State"
+              value={form.agentStateCode}
+              onChange={(code) => setField("agentStateCode", code)}
+              required
+            />
             {field("City", "agentCity", { required: true })}
             {field("PIN", "agentPinCode", { required: true, inputMode: "numeric", maxLength: 6 })}
           </div>
@@ -245,7 +252,12 @@ export default function NobleAgentOnboardPage() {
           {field("Shop name", "shopName", { required: true })}
           {field("Shop address", "shopAddress", { required: true, maxLength: 250 })}
           <div className="grid gap-3 sm:grid-cols-3">
-            {field("Shop state", "shopStateCode", { required: true, maxLength: 2, placeholder: "RJ" })}
+            <StateSelect
+              label="Shop state"
+              value={form.shopStateCode}
+              onChange={(code) => setField("shopStateCode", code)}
+              required
+            />
             {field("Shop city", "shopCity", { required: true })}
             {field("Shop PIN", "shopPinCode", { required: true, inputMode: "numeric", maxLength: 6 })}
           </div>

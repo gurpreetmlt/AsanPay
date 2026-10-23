@@ -25,6 +25,7 @@ import { BrandLockup } from "../../components/BrandMark";
 import { PageEnter } from "../../components/PageEnter";
 import { TodayEarningsCard } from "../../components/TodayEarningsCard";
 import { PanMissingBanner } from "../../components/PanMissingBanner";
+import { NobleAgentOnboardModal } from "../shared/NobleAgentOnboardModal";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 
@@ -73,6 +74,7 @@ export function ServicesScreen() {
   const [homeEditMode, setHomeEditMode] = useState(false);
   const [activeScreen, setActiveScreen] = useState<"home" | "aeps" | "dmt" | "nepal" | "upi_cp" | "recharge">("home");
   const [aepsServiceCode, setAepsServiceCode] = useState<string | undefined>();
+  const [pendingAepsCode, setPendingAepsCode] = useState<string | null>(null);
   const [rechargeServiceCode, setRechargeServiceCode] = useState<"MOBILE_PREPAID" | "DTH">("MOBILE_PREPAID");
 
   const { entries: recent, loading: recentLoading, reload: reloadRecent } = useRecentLedger(6);
@@ -134,6 +136,10 @@ export function ServicesScreen() {
       return;
     }
     if (AEPS_CODES.has(code)) {
+      if (user.aepsOnboardingRequired) {
+        setPendingAepsCode(code);
+        return;
+      }
       setAepsServiceCode(code);
       setActiveScreen("aeps");
       return;
@@ -156,6 +162,15 @@ export function ServicesScreen() {
       return;
     }
     showAlert(code.replace(/_/g, " "), "This service will be available soon.");
+  }
+
+  function closeAepsOnboarding() {
+    const code = pendingAepsCode;
+    setPendingAepsCode(null);
+    if (code && !useAuthStore.getState().user?.aepsOnboardingRequired) {
+      setAepsServiceCode(code);
+      setActiveScreen("aeps");
+    }
   }
 
   function backToHome() {
@@ -410,6 +425,7 @@ export function ServicesScreen() {
           )}
         </View>
       </ScrollView>
+      <NobleAgentOnboardModal visible={pendingAepsCode !== null} onClose={closeAepsOnboarding} />
     </SafeAreaView>
     </PageEnter>
   );

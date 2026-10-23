@@ -14,6 +14,7 @@ import {
   getTestOtpOverride,
   getTestSignupOtpOverride,
   isUsableNobleAgentId,
+  isAepsOnboardingRequired,
 } from "../../config/env";
 import { logger } from "../../utils/logger";
 import { assertStrongPin } from "../../utils/weakPin";
@@ -119,6 +120,7 @@ function toAuthUser(row: typeof users.$inferSelect): AuthUser {
     hasKycDocs,
     hasInstantpayOutlet: Boolean(row.instantpayOutletId),
     hasNobleAgent: isUsableNobleAgentId(row.nobleUniqueAgentId),
+    aepsOnboardingRequired: isAepsOnboardingRequired(row.role, row.nobleUniqueAgentId),
     hasTxnPin: Boolean(row.txnPinHash),
     hasLoginMpin: Boolean(row.loginMpinHash),
     telegramLinked: Boolean(row.telegramChatId),

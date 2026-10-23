@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { isUsableNobleAgentId } from "../../config/env";
+import { isAepsOnboardingRequired, isUsableNobleAgentId } from "../../config/env";
 import { db } from "../../db/postgres";
 import { users } from "../../db/postgres/schema";
 import { decryptPII, encryptPII } from "../../utils/aes";
@@ -33,6 +33,7 @@ function toAuthUser(row: typeof users.$inferSelect): AuthUser {
     hasKycDocs: Boolean(row.panNumberEncrypted && row.aadhaarNumberEncrypted),
     hasInstantpayOutlet: Boolean(row.instantpayOutletId),
     hasNobleAgent: isUsableNobleAgentId(row.nobleUniqueAgentId),
+    aepsOnboardingRequired: isAepsOnboardingRequired(row.role, row.nobleUniqueAgentId),
     hasTxnPin: Boolean(row.txnPinHash),
     hasLoginMpin: Boolean(row.loginMpinHash),
     telegramLinked: Boolean(row.telegramChatId),

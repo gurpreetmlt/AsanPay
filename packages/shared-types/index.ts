@@ -66,6 +66,8 @@ export interface AuthUser {
   hasInstantpayOutlet: boolean;
   /** True once Noble AEPS agent_onboarding saved a uniqueAgentId. */
   hasNobleAgent: boolean;
+  /** Retailer must finish AEPS agent onboarding before opening AEPS services. */
+  aepsOnboardingRequired?: boolean;
   /** True once transaction PIN is set. */
   hasTxnPin: boolean;
   /** True once login MPIN is set (mobile quick unlock). */
@@ -407,3 +409,4 @@ function rowLabelTitle(key: string): string {
 }
 
 export { TERMS_BODY, PRIVACY_BODY, buildLegalDownloadText } from "./legalCopy";
+export { INDIAN_STATES, findIndianState, searchIndianStates, type IndianState } from "./indianStates";

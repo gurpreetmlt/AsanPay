@@ -14,6 +14,7 @@ import Geolocation from "@react-native-community/geolocation";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import { api } from "../../lib/api";
 import { showAlert } from "../../components/AppAlert";
+import { StatePickerField } from "../../components/StatePickerField";
 import { apiError } from "../../utils/apiError";
 import { useAuthStore } from "../../store/auth";
 import { useTheme } from "../../theme/ThemeContext";
@@ -108,6 +109,14 @@ export function NobleAgentOnboardModal({
       showAlert("Email required", "Enter a valid email");
       return;
     }
+    if (!form.agentStateCode) {
+      showAlert("State required", "Select the state of your residential address");
+      return;
+    }
+    if (!form.shopStateCode) {
+      showAlert("Shop state required", "Select the state of your shop address");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -183,7 +192,11 @@ export function NobleAgentOnboardModal({
           {input("Aadhaar", "aadhaarNumber", { keyboardType: "number-pad", maxLength: 12 })}
           {input("Date of birth (DD-MM-YYYY)", "dob", { placeholder: "20-10-1985" })}
           {input("Residential address", "agentAddress")}
-          {input("State code", "agentStateCode", { autoCapitalize: "characters", maxLength: 2 })}
+          <StatePickerField
+            label="State"
+            value={form.agentStateCode}
+            onChange={(code) => setField("agentStateCode", code)}
+          />
           {input("City", "agentCity")}
           {input("PIN", "agentPinCode", { keyboardType: "number-pad", maxLength: 6 })}
           {input("Bank name", "agentBankName")}
@@ -191,7 +204,11 @@ export function NobleAgentOnboardModal({
           {input("IFSC", "agentBankIFSC", { autoCapitalize: "characters", maxLength: 11 })}
           {input("Shop name", "shopName")}
           {input("Shop address", "shopAddress")}
-          {input("Shop state code", "shopStateCode", { autoCapitalize: "characters", maxLength: 2 })}
+          <StatePickerField
+            label="Shop state"
+            value={form.shopStateCode}
+            onChange={(code) => setField("shopStateCode", code)}
+          />
           {input("Shop city", "shopCity")}
           {input("Shop PIN", "shopPinCode", { keyboardType: "number-pad", maxLength: 6 })}
 
