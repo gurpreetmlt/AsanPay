@@ -3,6 +3,8 @@ import { eq } from "drizzle-orm";
 import { isNobleConfigured, isUsableNobleAgentId } from "../../config/env";
 import { db } from "../../db/postgres";
 import { users } from "../../db/postgres/schema";
+import { stateCodeFromName, type AepsOnboardingPrefill } from "@asanpay/shared-types";
+import { findLatestAuditLog } from "../../db/postgres/repositories/auditLog";
 import { encryptPII, decryptPII } from "../../utils/aes";
 import { HttpError } from "../../utils/httpError";
 import { logger } from "../../utils/logger";
@@ -26,6 +28,123 @@ function normalizeDob(dob: string): string {
 
 function toFourDecimals(n: number): string {
   return n.toFixed(4);
+}
+
+function decryptOrNull(value: string | null, pattern: RegExp, clean: (v: string) => string): string | null {
+  if (!value) return null;
+  try {
+    const v = clean(decryptPII(value));
+    return pattern.test(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+const PAN_RE = /^[A-Z]{5}\d{4}[A-Z]$/;
+const AADHAAR_RE = /^\d{12}$/;
+const cleanPan = (v: string) => v.toUpperCase().replace(/[^A-Z0-9]/g, "");
+const cleanDigits = (v: string) => v.replace(/\D/g, "");
+
+async function kycSubmitMeta(userId: string): Promise<Record<string, unknown>> {
+  const audit = await findLatestAuditLog({ userId, action: "kyc.submit" });
+  return (audit?.metadata ?? {}) as Record<string, unknown>;
+}
+
+function metaText(meta: Record<string, unknown>, key: string): string {
+  const v = meta[key];
+  if (typeof v === "string") return v.trim();
+  if (typeof v === "number" && Number.isFinite(v)) return String(v);
+  return "";
+}
+
+function geo4(...candidates: (string | null | undefined)[]): string {
+  for (const c of candidates) {
+    const n = Number(c);
+    if (c && Number.isFinite(n) && n !== 0) return n.toFixed(4);
+  }
+  return "";
+}
+
+/** Signup DOB (YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY) → DD-MM-YYYY; empty when unrecognised. */
+function toDdMmYyyy(dob: string): string {
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(dob);
+  if (iso) return `${iso[3]}-${iso[2]}-${iso[1]}`;
+  const dmy = /^(\d{2})[-/](\d{2})[-/](\d{4})$/.exec(dob);
+  return dmy ? `${dmy[1]}-${dmy[2]}-${dmy[3]}` : "";
+}
+
+/**
+ * PAN + Aadhaar always come from KYC when on file (the agent cannot swap identity here).
+ * An empty bank account keeps the KYC account.
+ */
+async function withKycIdentity(userId: string, input: NobleAgentOnboardInput): Promise<NobleAgentOnboardInput> {
+  const [row] = await db
+    .select({ pan: users.panNumberEncrypted, aadhaar: users.aadhaarNumberEncrypted })
+    .from(users)
+    .where(eq(users.id, userId));
+  const pan = decryptOrNull(row?.pan ?? null, PAN_RE, cleanPan) ?? input.panNumber;
+  const aadhaar = decryptOrNull(row?.aadhaar ?? null, AADHAAR_RE, cleanDigits) ?? input.aadhaarNumber;
+  if (!PAN_RE.test(pan)) {
+    throw new HttpError(400, "Enter a valid PAN (e.g. ABCDE1234F)", "NOBLE_PAN_REQUIRED");
+  }
+  if (!AADHAAR_RE.test(aadhaar)) {
+    throw new HttpError(400, "Aadhaar must be 12 digits", "NOBLE_AADHAAR_REQUIRED");
+  }
+  let account = input.agentBankAccountNumber;
+  if (!account) account = cleanDigits(metaText(await kycSubmitMeta(userId), "bankAccountNumber"));
+  if (account.length < 5 || account.length > 30) {
+    throw new HttpError(400, "Bank account number must be 5–30 digits", "NOBLE_BANK_ACCOUNT_REQUIRED");
+  }
+  return { ...input, panNumber: pan, aadhaarNumber: aadhaar, agentBankAccountNumber: account };
+}
+
+/** Own signup / KYC values for the onboarding form — PAN, Aadhaar and bank account masked. */
+export async function getNobleOnboardingPrefill(userId: string): Promise<AepsOnboardingPrefill> {
+  const [user] = await db
+    .select({
+      name: users.name,
+      mobile: users.mobile,
+      email: users.email,
+      pan: users.panNumberEncrypted,
+      aadhaar: users.aadhaarNumberEncrypted,
+      lat: users.outletLatitude,
+      lng: users.outletLongitude,
+    })
+    .from(users)
+    .where(eq(users.id, userId));
+  if (!user) throw new HttpError(404, "User not found", "USER_NOT_FOUND");
+
+  const meta = await kycSubmitMeta(userId);
+  const pan = decryptOrNull(user.pan, PAN_RE, cleanPan);
+  const aadhaar = decryptOrNull(user.aadhaar, AADHAAR_RE, cleanDigits);
+  const account = cleanDigits(metaText(meta, "bankAccountNumber"));
+  const parts = user.name.trim().split(/\s+/);
+
+  return {
+    panMasked: pan ? `${pan.slice(0, 5)}****${pan.slice(-1)}` : null,
+    aadhaarMasked: aadhaar ? `XXXX XXXX ${aadhaar.slice(-4)}` : null,
+    bankAccountMasked: account.length >= 5 ? `****${account.slice(-4)}` : null,
+    form: {
+      firstName: parts[0] ?? "",
+      lastName: parts.length > 1 ? parts.slice(1).join(" ") : "",
+      mobileNumber: user.mobile,
+      email: user.email ?? "",
+      dob: toDdMmYyyy(metaText(meta, "dob")),
+      agentAddress: metaText(meta, "address"),
+      agentStateCode: stateCodeFromName(metaText(meta, "state")) ?? "",
+      agentCity: metaText(meta, "city") || metaText(meta, "district"),
+      agentPinCode: metaText(meta, "pincode"),
+      agentBankName: metaText(meta, "bankName"),
+      agentBankIFSC: metaText(meta, "bankIfsc").toUpperCase(),
+      shopName: metaText(meta, "businessName"),
+      shopAddress: metaText(meta, "businessAddress") || metaText(meta, "address"),
+      shopStateCode: stateCodeFromName(metaText(meta, "businessState") || metaText(meta, "state")) ?? "",
+      shopCity: metaText(meta, "businessDistrict") || metaText(meta, "city") || metaText(meta, "district"),
+      shopPinCode: metaText(meta, "businessPincode") || metaText(meta, "pincode"),
+      shopLatitude: geo4(user.lat, metaText(meta, "shopPhotoLatitude"), metaText(meta, "latitude")),
+      shopLongitude: geo4(user.lng, metaText(meta, "shopPhotoLongitude"), metaText(meta, "longitude")),
+    },
+  };
 }
 
 function extractUniqueAgentId(responseData: unknown): string | null {
@@ -63,9 +182,10 @@ async function persistNobleAgent(
  */
 export async function nobleAgentOnboard(
   userId: string,
-  input: NobleAgentOnboardInput,
+  rawInput: NobleAgentOnboardInput,
   ipAddress: string,
 ): Promise<NobleAgentProfile> {
+  const input = await withKycIdentity(userId, rawInput);
   const [user] = await db
     .select({
       mobile: users.mobile,

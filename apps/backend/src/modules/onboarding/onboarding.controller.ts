@@ -18,6 +18,7 @@ import type {
   MobileChangeVerifyInput,
 } from "./onboarding.validators";
 import {
+  getNobleOnboardingPrefill,
   getNobleOnboardingStatus,
   nobleAgentOnboard,
   nobleAgentOnboardStatus,
@@ -69,6 +70,10 @@ export async function nobleSignup(req: Request, res: Response): Promise<void> {
   const body = req.body as NobleAgentOnboardInput;
   const profile = await nobleAgentOnboard(req.auth!.sub, body, req.ip ?? "127.0.0.1");
   sendSuccess(res, profile);
+}
+
+export async function noblePrefill(req: Request, res: Response): Promise<void> {
+  sendSuccess(res, await getNobleOnboardingPrefill(req.auth!.sub));
 }
 
 export async function nobleStatus(req: Request, res: Response): Promise<void> {

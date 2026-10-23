@@ -409,11 +409,19 @@ function rowLabelTitle(key: string): string {
 }
 
 export { TERMS_BODY, PRIVACY_BODY, buildLegalDownloadText } from "./legalCopy";
-export { INDIAN_STATES, findIndianState, searchIndianStates, type IndianState } from "./indianStates";
+export {
+  INDIAN_STATES,
+  findIndianState,
+  searchIndianStates,
+  stateCodeFromName,
+  type IndianState,
+} from "./indianStates";
 export {
   AEPS_ONBOARDING_STEPS,
   EMPTY_AEPS_ONBOARDING_FORM,
   validateAepsOnboardingStep,
   type AepsOnboardingError,
   type AepsOnboardingForm,
+  type AepsOnboardingLocks,
+  type AepsOnboardingPrefill,
 } from "./aepsOnboarding";

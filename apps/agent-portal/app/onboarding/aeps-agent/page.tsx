@@ -3,12 +3,13 @@
 import { useEffect, useState, type FormEvent, type InputHTMLAttributes } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { ArrowLeft, Landmark, MapPin, Store, UserRound } from "lucide-react";
+import { ArrowLeft, Landmark, Lock, MapPin, Store, UserRound } from "lucide-react";
 import {
   AEPS_ONBOARDING_STEPS,
   EMPTY_AEPS_ONBOARDING_FORM,
   validateAepsOnboardingStep,
   type AepsOnboardingForm,
+  type AepsOnboardingPrefill,
   type ApiResponse,
   type AuthUser,
 } from "@asanpay/shared-types";
@@ -48,6 +49,7 @@ export default function NobleAgentOnboardPage() {
   const [sameAsResidential, setSameAsResidential] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({});
   const [form, setForm] = useState<AepsOnboardingForm>(EMPTY_AEPS_ONBOARDING_FORM);
+  const [prefill, setPrefill] = useState<AepsOnboardingPrefill | null>(null);
 
   useEffect(() => {
     if (hydrated && !accessToken) router.replace("/login");
@@ -64,6 +66,37 @@ export default function NobleAgentOnboardPage() {
       email: f.email || user.email || "",
     }));
   }, [user]);
+
+  useEffect(() => {
+    if (!hydrated || !accessToken) return;
+    let cancelled = false;
+    void api
+      .get<ApiResponse<AepsOnboardingPrefill>>("/onboarding/noble/prefill")
+      .then((res) => {
+        if (cancelled || !res.data.success) return;
+        const p = res.data.data;
+        setPrefill(p);
+        setForm((f) => {
+          const merged = { ...f };
+          for (const [k, v] of Object.entries(p.form) as [FieldKey, string][]) {
+            if (v && !merged[k]) merged[k] = v;
+          }
+          return merged;
+        });
+      })
+      .catch(() => {
+        /* prefill is a convenience — the form still works empty */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrated, accessToken]);
+
+  const locks = {
+    panLocked: Boolean(prefill?.panMasked),
+    aadhaarLocked: Boolean(prefill?.aadhaarMasked),
+    bankAccountOnFile: Boolean(prefill?.bankAccountMasked),
+  };
 
   useEffect(() => {
     if (!hydrated || !accessToken || !user) return;
@@ -87,7 +120,7 @@ export default function NobleAgentOnboardPage() {
   }
 
   function checkStep(index: number): boolean {
-    const err = validateAepsOnboardingStep(index, form);
+    const err = validateAepsOnboardingStep(index, form, locks);
     if (!err) return true;
     setErrors({ [err.field]: err.message });
     toast.error(err.message);
@@ -148,8 +181,8 @@ export default function NobleAgentOnboardPage() {
         lastName: form.lastName.trim(),
         mobileNumber: form.mobileNumber.replace(/\D/g, "").slice(0, 10),
         email: form.email.trim(),
-        panNumber: form.panNumber.toUpperCase().trim(),
-        aadhaarNumber: stripAadhaar(form.aadhaarNumber),
+        panNumber: locks.panLocked ? "" : form.panNumber.toUpperCase().trim(),
+        aadhaarNumber: locks.aadhaarLocked ? "" : stripAadhaar(form.aadhaarNumber),
         dob: form.dob.trim(),
         agentAddress: form.agentAddress.trim(),
         agentStateCode: form.agentStateCode,
@@ -203,6 +236,24 @@ export default function NobleAgentOnboardPage() {
     </label>
   );
 
+  const lockedField = (label: string, masked: string) => (
+    <div className="block">
+      <span className={labelClass} style={{ color: B.muted }}>
+        {label}
+      </span>
+      <div
+        className="flex items-center justify-between rounded-xl border px-3 py-2.5 text-sm"
+        style={{ borderColor: B.border, background: "#F8FAFC", color: B.blue }}
+      >
+        <span className="font-semibold tracking-wide">{masked}</span>
+        <span className="flex items-center gap-1 text-xs" style={{ color: B.muted }}>
+          <Lock size={12} />
+          From KYC
+        </span>
+      </div>
+    </div>
+  );
+
   const stateField = (label: string, key: "agentStateCode" | "shopStateCode", disabled?: boolean) => (
     <div className={disabled ? "pointer-events-none opacity-70" : undefined}>
       <StateSelect label={label} value={form[key]} onChange={(code) => setField(key, code)} />
@@ -228,6 +279,11 @@ export default function NobleAgentOnboardPage() {
           <p className="text-xs" style={{ color: B.muted }}>
             One-time form. Required before using AEPS, Aadhaar Pay, Cash Deposit, and UPI QR.
           </p>
+          {prefill ? (
+            <p className="mt-2 text-xs font-semibold" style={{ color: B.greenDark }}>
+              Filled from your KYC — check each step before submitting.
+            </p>
+          ) : null}
         </div>
 
         <form
@@ -263,21 +319,25 @@ export default function NobleAgentOnboardPage() {
                   {field("Email", "email", { type: "email" })}
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  {field("PAN", "panNumber", {
-                    maxLength: 10,
-                    style: {
-                      borderColor: errors.panNumber ? ERR_RED : B.border,
-                      color: B.blue,
-                      textTransform: "uppercase",
-                    },
-                    onChange: (ev) => setField("panNumber", ev.target.value.toUpperCase()),
-                  })}
-                  {field("Aadhaar", "aadhaarNumber", {
-                    inputMode: "numeric",
-                    maxLength: 14,
-                    value: formatAadhaar(form.aadhaarNumber),
-                    onChange: (ev) => setField("aadhaarNumber", stripAadhaar(ev.target.value)),
-                  })}
+                  {prefill?.panMasked
+                    ? lockedField("PAN", prefill.panMasked)
+                    : field("PAN", "panNumber", {
+                        maxLength: 10,
+                        style: {
+                          borderColor: errors.panNumber ? ERR_RED : B.border,
+                          color: B.blue,
+                          textTransform: "uppercase",
+                        },
+                        onChange: (ev) => setField("panNumber", ev.target.value.toUpperCase()),
+                      })}
+                  {prefill?.aadhaarMasked
+                    ? lockedField("Aadhaar", prefill.aadhaarMasked)
+                    : field("Aadhaar", "aadhaarNumber", {
+                        inputMode: "numeric",
+                        maxLength: 14,
+                        value: formatAadhaar(form.aadhaarNumber),
+                        onChange: (ev) => setField("aadhaarNumber", stripAadhaar(ev.target.value)),
+                      })}
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {field("Date of birth (DD-MM-YYYY)", "dob", { placeholder: "20-10-1985", maxLength: 10 })}
@@ -305,7 +365,12 @@ export default function NobleAgentOnboardPage() {
                     onChange: (ev) => setField("agentBankIFSC", ev.target.value.toUpperCase()),
                   })}
                 </div>
-                {field("Bank account number", "agentBankAccountNumber", { inputMode: "numeric" })}
+                {field("Bank account number", "agentBankAccountNumber", {
+                  inputMode: "numeric",
+                  placeholder: prefill?.bankAccountMasked
+                    ? `${prefill.bankAccountMasked} (from KYC) — type to change`
+                    : undefined,
+                })}
               </>
             ) : null}
 

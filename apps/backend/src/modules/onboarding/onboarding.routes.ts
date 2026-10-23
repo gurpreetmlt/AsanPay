@@ -26,6 +26,7 @@ import {
   instantpayStatus,
   nobleAgentKycHandler,
   nobleLoadAgentHandler,
+  noblePrefill,
   nobleSignup,
   nobleStatus,
   nobleStatusRecover,
@@ -91,6 +92,7 @@ onboardingRouter.post(
   nobleSignup,
 );
 onboardingRouter.get("/noble/status", requireRole("retailer"), nobleStatus);
+onboardingRouter.get("/noble/prefill", requireRole("retailer"), noblePrefill);
 onboardingRouter.post(
   "/noble/status",
   requireRole("retailer"),

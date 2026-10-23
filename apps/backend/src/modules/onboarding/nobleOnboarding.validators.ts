@@ -25,8 +25,15 @@ export const nobleAgentOnboardSchema = z.object({
     .default(""),
   mobileNumber: z.string().regex(/^\d{10}$/, "Enter a valid 10-digit mobile"),
   email: z.string().email("Enter a valid email").max(150),
-  panNumber: z.string().regex(/^[A-Z]{5}\d{4}[A-Z]$/, "Enter a valid PAN (e.g. ABCDE1234F)"),
-  aadhaarNumber: z.string().regex(/^\d{12}$/, "Aadhaar must be 12 digits"),
+  /** Empty = use the PAN / Aadhaar on file from KYC (always preferred when present). */
+  panNumber: z
+    .union([z.literal(""), z.string().regex(/^[A-Z]{5}\d{4}[A-Z]$/, "Enter a valid PAN (e.g. ABCDE1234F)")])
+    .optional()
+    .default(""),
+  aadhaarNumber: z
+    .union([z.literal(""), z.string().regex(/^\d{12}$/, "Aadhaar must be 12 digits")])
+    .optional()
+    .default(""),
   /** DD-MM-YYYY (provider sample) or DD/MM/YYYY */
   dob: z
     .string()
@@ -40,13 +47,24 @@ export const nobleAgentOnboardSchema = z.object({
   agentStateCode: z.string().regex(/^[A-Z]{2}$/, "Agent state code must be 2 letters (e.g. RJ)"),
   agentCity: lettersSpaces("Agent city", 80),
   agentPinCode: z.string().regex(/^\d{6}$/, "Agent PIN must be 6 digits"),
-  agentBankName: z.string().min(2).max(100),
-  agentBankAccountNumber: z.string().min(5).max(30).regex(/^\d+$/, "Bank account must be numeric"),
+  agentBankName: z.string().min(2, "Bank name is required").max(100),
+  /** Empty = keep the bank account from KYC. */
+  agentBankAccountNumber: z
+    .union([
+      z.literal(""),
+      z
+        .string()
+        .regex(/^\d+$/, "Bank account must be numeric")
+        .min(5, "Bank account number must be 5–30 digits")
+        .max(30, "Bank account number must be 5–30 digits"),
+    ])
+    .optional()
+    .default(""),
   agentBankIFSC: z
     .string()
     .regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, "Enter a valid IFSC (e.g. ICIC0000012)"),
-  shopName: z.string().min(2).max(100),
-  shopAddress: z.string().min(5).max(250),
+  shopName: z.string().min(2, "Shop name is required").max(100),
+  shopAddress: z.string().min(5, "Shop address must be at least 5 characters").max(250),
   shopStateCode: z.string().regex(/^[A-Z]{2}$/, "Shop state code must be 2 letters (e.g. RJ)"),
   shopCity: lettersSpaces("Shop city", 80),
   shopPinCode: z.string().regex(/^\d{6}$/, "Shop PIN must be 6 digits"),

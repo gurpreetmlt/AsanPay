@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,12 +15,13 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Geolocation from "@react-native-community/geolocation";
-import { ArrowLeft, Landmark, MapPin, Store, UserRound } from "lucide-react-native";
+import { ArrowLeft, Landmark, Lock, MapPin, Store, UserRound, X } from "lucide-react-native";
 import {
   AEPS_ONBOARDING_STEPS,
   EMPTY_AEPS_ONBOARDING_FORM,
   validateAepsOnboardingStep,
   type AepsOnboardingForm,
+  type AepsOnboardingPrefill,
   type ApiResponse,
   type AuthUser,
 } from "@asanpay/shared-types";
@@ -32,7 +35,13 @@ import { useTheme } from "../../theme/ThemeContext";
 import { colors } from "../../theme/colors";
 
 const STEP_ICONS = [UserRound, Landmark, Store];
-const STEPS: MobileStepperStep[] = AEPS_ONBOARDING_STEPS.map((s, i) => ({ ...s, icon: STEP_ICONS[i]! }));
+/** Shorter labels than web so the three dots fit on narrow phones. */
+const STEP_SHORT = ["Personal", "Address", "Shop"];
+const STEPS: MobileStepperStep[] = AEPS_ONBOARDING_STEPS.map((s, i) => ({
+  ...s,
+  short: STEP_SHORT[i] ?? s.short,
+  icon: STEP_ICONS[i]!,
+}));
 const LAST_STEP = STEPS.length - 1;
 
 type FieldKey = keyof AepsOnboardingForm;
@@ -54,9 +63,17 @@ export function NobleAgentOnboardModal({
 
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [geoBusy, setGeoBusy] = useState(false);
   const [sameAsResidential, setSameAsResidential] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({});
   const [form, setForm] = useState<AepsOnboardingForm>(EMPTY_AEPS_ONBOARDING_FORM);
+  const [prefill, setPrefill] = useState<AepsOnboardingPrefill | null>(null);
+
+  const locks = {
+    panLocked: Boolean(prefill?.panMasked),
+    aadhaarLocked: Boolean(prefill?.aadhaarMasked),
+    bankAccountOnFile: Boolean(prefill?.bankAccountMasked),
+  };
 
   useEffect(() => {
     if (!visible || !user) return;
@@ -69,6 +86,30 @@ export function NobleAgentOnboardModal({
       email: f.email || user.email || "",
     }));
   }, [visible, user]);
+
+  useEffect(() => {
+    if (!visible) return;
+    let cancelled = false;
+    void api
+      .get<ApiResponse<AepsOnboardingPrefill>>("/onboarding/noble/prefill")
+      .then(({ data }) => {
+        if (cancelled || !data.success) return;
+        setPrefill(data.data);
+        setForm((f) => {
+          const merged = { ...f };
+          for (const [k, v] of Object.entries(data.data.form) as [FieldKey, string][]) {
+            if (v && !merged[k]) merged[k] = v;
+          }
+          return merged;
+        });
+      })
+      .catch(() => {
+        /* prefill is a convenience — the form still works empty */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [visible]);
 
   useEffect(() => {
     if (!sameAsResidential) return;
@@ -91,19 +132,24 @@ export function NobleAgentOnboardModal({
   }
 
   function checkStep(index: number): boolean {
-    const err = validateAepsOnboardingStep(index, form);
+    const err = validateAepsOnboardingStep(index, form, locks);
     if (!err) return true;
     setErrors({ [err.field]: err.message });
     return false;
   }
 
   function captureLocation() {
+    setGeoBusy(true);
     Geolocation.getCurrentPosition(
       (pos) => {
         setField("shopLatitude", pos.coords.latitude.toFixed(4));
         setField("shopLongitude", pos.coords.longitude.toFixed(4));
+        setGeoBusy(false);
       },
-      (err) => showAlert("Location failed", err.message || "Allow location access before continuing"),
+      (err) => {
+        setGeoBusy(false);
+        showAlert("Location failed", err.message || "Allow location access before continuing");
+      },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 },
     );
   }
@@ -136,8 +182,8 @@ export function NobleAgentOnboardModal({
         lastName: form.lastName.trim(),
         mobileNumber: form.mobileNumber.replace(/\D/g, "").slice(0, 10),
         email: form.email.trim(),
-        panNumber: form.panNumber.toUpperCase().trim(),
-        aadhaarNumber: form.aadhaarNumber.replace(/\D/g, ""),
+        panNumber: locks.panLocked ? "" : form.panNumber.toUpperCase().trim(),
+        aadhaarNumber: locks.aadhaarLocked ? "" : form.aadhaarNumber.replace(/\D/g, ""),
         dob: form.dob.trim(),
         agentAddress: form.agentAddress.trim(),
         agentStateCode: form.agentStateCode,
@@ -168,7 +214,7 @@ export function NobleAgentOnboardModal({
   }
 
   const input = (label: string, key: FieldKey, props?: TextInputProps) => (
-    <View style={styles.field} key={key}>
+    <View style={styles.field}>
       <Text style={[styles.label, { color: tokens.sub }]}>{label}</Text>
       <TextInput
         style={[
@@ -176,8 +222,7 @@ export function NobleAgentOnboardModal({
           {
             color: tokens.txt,
             borderColor: errors[key] ? colors.danger : tokens.cardBorder,
-            backgroundColor: tokens.card,
-            opacity: props?.editable === false ? 0.6 : 1,
+            backgroundColor: props?.editable === false ? tokens.bg : tokens.card,
           },
         ]}
         value={form[key]}
@@ -189,6 +234,19 @@ export function NobleAgentOnboardModal({
     </View>
   );
 
+  const locked = (label: string, masked: string) => (
+    <View style={styles.field}>
+      <Text style={[styles.label, { color: tokens.sub }]}>{label}</Text>
+      <View style={[styles.input, styles.lockedBox, { borderColor: tokens.cardBorder, backgroundColor: tokens.bg }]}>
+        <Text style={[styles.lockedText, { color: tokens.txt }]}>{masked}</Text>
+        <View style={styles.lockedTag}>
+          <Lock size={12} color={tokens.sub} />
+          <Text style={{ color: tokens.sub, fontSize: 11, fontWeight: "600" }}>From KYC</Text>
+        </View>
+      </View>
+    </View>
+  );
+
   const current = STEPS[step]!;
   const StepIcon = current.icon;
   const hasGeo = Boolean(form.shopLatitude && form.shopLongitude);
@@ -197,143 +255,186 @@ export function NobleAgentOnboardModal({
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bg }]} edges={["top", "bottom"]}>
         <View style={styles.header}>
-          <Text style={[styles.title, { color: tokens.txt }]}>AEPS agent onboarding</Text>
-          <Pressable onPress={onClose} hitSlop={10}>
-            <Text style={{ color: colors.blueFlat, fontWeight: "600" }}>Close</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.title, { color: tokens.txt }]}>AEPS agent onboarding</Text>
+            <Text style={[styles.hint, { color: tokens.sub }]}>One-time form for AEPS, Aadhaar Pay, Cash Deposit, and UPI QR</Text>
+          </View>
+          <Pressable
+            onPress={onClose}
+            hitSlop={12}
+            style={[styles.closeBtn, { borderColor: tokens.cardBorder }]}
+            accessibilityLabel="Close"
+          >
+            <X size={18} color={tokens.txt} />
           </Pressable>
         </View>
-        <ScrollView ref={scrollRef} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Text style={[styles.hint, { color: tokens.sub }]}>
-            One-time form. Required before using AEPS, Aadhaar Pay, Cash Deposit, and UPI QR.
-          </Text>
 
-          <MobileSignupStepper currentIndex={step} steps={STEPS} />
-
-          <View style={styles.stepTitleRow}>
-            <View style={styles.stepIcon}>
-              <StepIcon size={16} color={colors.blue} strokeWidth={2.4} />
-            </View>
-            <Text style={[styles.stepTitle, { color: tokens.txt }]}>{current.label}</Text>
-          </View>
-
-          {step === 0 ? (
-            <>
-              {input("First name", "firstName", { maxLength: 50 })}
-              {input("Middle name", "middleName", { maxLength: 50 })}
-              {input("Last name", "lastName", { maxLength: 50 })}
-              {input("Mobile", "mobileNumber", { keyboardType: "number-pad", maxLength: 10 })}
-              {input("Email", "email", { keyboardType: "email-address", autoCapitalize: "none" })}
-              {input("PAN", "panNumber", {
-                autoCapitalize: "characters",
-                maxLength: 10,
-                onChangeText: (t) => setField("panNumber", t.toUpperCase()),
-              })}
-              {input("Aadhaar", "aadhaarNumber", { keyboardType: "number-pad", maxLength: 12 })}
-              {input("Date of birth (DD-MM-YYYY)", "dob", { placeholder: "20-10-1985", maxLength: 10 })}
-            </>
-          ) : null}
-
-          {step === 1 ? (
-            <>
-              {input("Residential address", "agentAddress", { maxLength: 250 })}
-              <StatePickerField
-                label="State"
-                value={form.agentStateCode}
-                onChange={(code) => setField("agentStateCode", code)}
-                error={errors.agentStateCode}
-              />
-              {input("City", "agentCity")}
-              {input("PIN", "agentPinCode", { keyboardType: "number-pad", maxLength: 6 })}
-              {input("Bank name", "agentBankName")}
-              {input("IFSC", "agentBankIFSC", {
-                autoCapitalize: "characters",
-                maxLength: 11,
-                onChangeText: (t) => setField("agentBankIFSC", t.toUpperCase()),
-              })}
-              {input("Bank account number", "agentBankAccountNumber", { keyboardType: "number-pad" })}
-            </>
-          ) : null}
-
-          {step === 2 ? (
-            <>
-              {input("Shop name", "shopName")}
-              <View style={styles.sameRow}>
-                <Text style={[styles.sameText, { color: tokens.txt }]}>
-                  Shop address is same as residential address
-                </Text>
-                <Switch
-                  value={sameAsResidential}
-                  onValueChange={setSameAsResidential}
-                  trackColor={{ true: colors.green, false: tokens.cardBorder }}
-                />
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+          <ScrollView ref={scrollRef} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+            {prefill ? (
+              <View style={styles.kycBanner}>
+                <Text style={styles.kycBannerText}>Filled from your KYC — check each step before submitting.</Text>
               </View>
-              {input("Shop address", "shopAddress", { maxLength: 250, editable: !sameAsResidential })}
-              <StatePickerField
-                label="Shop state"
-                value={form.shopStateCode}
-                onChange={(code) => setField("shopStateCode", code)}
-                error={errors.shopStateCode}
-                disabled={sameAsResidential}
-              />
-              {input("Shop city", "shopCity", { editable: !sameAsResidential })}
-              {input("Shop PIN", "shopPinCode", {
-                keyboardType: "number-pad",
-                maxLength: 6,
-                editable: !sameAsResidential,
-              })}
+            ) : null}
 
-              <View
-                style={[
-                  styles.geoCard,
-                  { borderColor: errors.shopLatitude ? colors.danger : tokens.cardBorder, backgroundColor: tokens.card },
-                ]}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.geoTitle, { color: tokens.txt }]}>Shop location</Text>
-                  <Text style={{ color: tokens.sub, fontSize: 12 }}>
-                    {hasGeo ? `${form.shopLatitude}, ${form.shopLongitude}` : "Stand inside your shop and tap Use GPS"}
-                  </Text>
+            <View style={[styles.card, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
+              <MobileSignupStepper currentIndex={step} steps={STEPS} />
+
+              <View style={styles.stepTitleRow}>
+                <View style={styles.stepIcon}>
+                  <StepIcon size={16} color={colors.blue} strokeWidth={2.4} />
                 </View>
-                <Pressable style={[styles.geoBtn, { borderColor: tokens.cardBorder }]} onPress={captureLocation}>
-                  <MapPin size={14} color={colors.blueFlat} />
-                  <Text style={{ color: colors.blueFlat, fontWeight: "700", marginLeft: 4 }}>
-                    {hasGeo ? "Update GPS" : "Use GPS"}
-                  </Text>
-                </Pressable>
+                <Text style={[styles.stepTitle, { color: tokens.txt }]}>{current.label}</Text>
               </View>
-              {errors.shopLatitude ? <Text style={styles.error}>{errors.shopLatitude}</Text> : null}
-            </>
-          ) : null}
 
-          <View style={styles.navRow}>
-            {step > 0 ? (
+              {step === 0 ? (
+                <>
+                  <View style={styles.row}>
+                    <View style={styles.col}>{input("First name", "firstName", { maxLength: 50 })}</View>
+                    <View style={styles.col}>{input("Last name", "lastName", { maxLength: 50 })}</View>
+                  </View>
+                  {input("Middle name (optional)", "middleName", { maxLength: 50 })}
+                  {input("Mobile", "mobileNumber", { keyboardType: "number-pad", maxLength: 10 })}
+                  {input("Email", "email", { keyboardType: "email-address", autoCapitalize: "none" })}
+                  {prefill?.panMasked
+                    ? locked("PAN", prefill.panMasked)
+                    : input("PAN", "panNumber", {
+                        autoCapitalize: "characters",
+                        maxLength: 10,
+                        onChangeText: (t) => setField("panNumber", t.toUpperCase()),
+                      })}
+                  {prefill?.aadhaarMasked
+                    ? locked("Aadhaar", prefill.aadhaarMasked)
+                    : input("Aadhaar", "aadhaarNumber", { keyboardType: "number-pad", maxLength: 12 })}
+                  {input("Date of birth (DD-MM-YYYY)", "dob", { placeholder: "20-10-1985", maxLength: 10 })}
+                </>
+              ) : null}
+
+              {step === 1 ? (
+                <>
+                  {input("Residential address", "agentAddress", { maxLength: 250, multiline: true })}
+                  <StatePickerField
+                    label="State"
+                    value={form.agentStateCode}
+                    onChange={(code) => setField("agentStateCode", code)}
+                    error={errors.agentStateCode}
+                  />
+                  <View style={styles.row}>
+                    <View style={styles.col}>{input("City", "agentCity")}</View>
+                    <View style={styles.colSmall}>
+                      {input("PIN", "agentPinCode", { keyboardType: "number-pad", maxLength: 6 })}
+                    </View>
+                  </View>
+                  <View style={styles.divider} />
+                  {input("Bank name", "agentBankName")}
+                  {input("IFSC", "agentBankIFSC", {
+                    autoCapitalize: "characters",
+                    maxLength: 11,
+                    onChangeText: (t) => setField("agentBankIFSC", t.toUpperCase()),
+                  })}
+                  {input("Bank account number", "agentBankAccountNumber", {
+                    keyboardType: "number-pad",
+                    placeholder: prefill?.bankAccountMasked
+                      ? `${prefill.bankAccountMasked} (from KYC) — type to change`
+                      : undefined,
+                  })}
+                </>
+              ) : null}
+
+              {step === 2 ? (
+                <>
+                  {input("Shop name", "shopName")}
+                  <View style={[styles.sameRow, { borderColor: tokens.cardBorder }]}>
+                    <Text style={[styles.sameText, { color: tokens.txt }]}>Same as residential address</Text>
+                    <Switch
+                      value={sameAsResidential}
+                      onValueChange={setSameAsResidential}
+                      trackColor={{ true: colors.green, false: tokens.cardBorder }}
+                    />
+                  </View>
+                  {input("Shop address", "shopAddress", {
+                    maxLength: 250,
+                    multiline: true,
+                    editable: !sameAsResidential,
+                  })}
+                  <StatePickerField
+                    label="Shop state"
+                    value={form.shopStateCode}
+                    onChange={(code) => setField("shopStateCode", code)}
+                    error={errors.shopStateCode}
+                    disabled={sameAsResidential}
+                  />
+                  <View style={styles.row}>
+                    <View style={styles.col}>{input("Shop city", "shopCity", { editable: !sameAsResidential })}</View>
+                    <View style={styles.colSmall}>
+                      {input("Shop PIN", "shopPinCode", {
+                        keyboardType: "number-pad",
+                        maxLength: 6,
+                        editable: !sameAsResidential,
+                      })}
+                    </View>
+                  </View>
+
+                  <View
+                    style={[
+                      styles.geoCard,
+                      { borderColor: errors.shopLatitude ? colors.danger : tokens.cardBorder, backgroundColor: tokens.bg },
+                    ]}
+                  >
+                    <View style={styles.geoIcon}>
+                      <MapPin size={16} color={colors.blue} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.geoTitle, { color: tokens.txt }]}>Shop location</Text>
+                      <Text style={{ color: tokens.sub, fontSize: 12 }}>
+                        {hasGeo ? `${form.shopLatitude}, ${form.shopLongitude}` : "Stand inside your shop and tap Use GPS"}
+                      </Text>
+                    </View>
+                    <Pressable style={styles.geoBtn} onPress={captureLocation} disabled={geoBusy}>
+                      {geoBusy ? (
+                        <ActivityIndicator size="small" color={colors.blueFlat} />
+                      ) : (
+                        <Text style={styles.geoBtnText}>{hasGeo ? "Update" : "Use GPS"}</Text>
+                      )}
+                    </Pressable>
+                  </View>
+                  {errors.shopLatitude ? <Text style={styles.error}>{errors.shopLatitude}</Text> : null}
+                </>
+              ) : null}
+            </View>
+          </ScrollView>
+
+          <View style={[styles.footer, { backgroundColor: tokens.card, borderTopColor: tokens.cardBorder }]}>
+            <View style={styles.navRow}>
+              {step > 0 ? (
+                <Pressable
+                  style={[styles.backBtn, { borderColor: tokens.cardBorder }]}
+                  disabled={saving}
+                  onPress={goBack}
+                >
+                  <ArrowLeft size={16} color={tokens.txt} />
+                  <Text style={{ color: tokens.txt, fontWeight: "700", marginLeft: 4 }}>Back</Text>
+                </Pressable>
+              ) : null}
               <Pressable
-                style={[styles.backBtn, { borderColor: tokens.cardBorder }]}
+                style={[styles.primaryBtn, { opacity: saving ? 0.6 : 1 }]}
                 disabled={saving}
-                onPress={goBack}
+                onPress={() => void next()}
               >
-                <ArrowLeft size={16} color={tokens.txt} />
-                <Text style={{ color: tokens.txt, fontWeight: "700", marginLeft: 4 }}>Back</Text>
+                {saving ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.primaryText}>{step < LAST_STEP ? "Continue" : "Submit onboarding"}</Text>
+                )}
+              </Pressable>
+            </View>
+            {onSkip ? (
+              <Pressable style={styles.skipBtn} disabled={saving} onPress={onSkip} hitSlop={6}>
+                <Text style={{ color: tokens.sub, fontWeight: "600", fontSize: 14 }}>Skip for now</Text>
               </Pressable>
             ) : null}
-            <Pressable
-              style={[styles.primaryBtn, { opacity: saving ? 0.6 : 1 }]}
-              disabled={saving}
-              onPress={() => void next()}
-            >
-              {saving ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.primaryText}>{step < LAST_STEP ? "Continue" : "Submit onboarding"}</Text>
-              )}
-            </Pressable>
           </View>
-          {onSkip ? (
-            <Pressable style={styles.skipBtn} disabled={saving} onPress={onSkip}>
-              <Text style={{ color: tokens.sub, fontWeight: "600", fontSize: 15 }}>Skip for now</Text>
-            </Pressable>
-          ) : null}
-        </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </Modal>
   );
@@ -344,14 +445,32 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 8,
+    paddingBottom: 10,
+    gap: 12,
   },
-  title: { fontSize: 18, fontWeight: "700" },
-  content: { padding: 16, paddingBottom: 40, gap: 4 },
-  hint: { fontSize: 13, marginBottom: 12, lineHeight: 18 },
-  stepTitleRow: { flexDirection: "row", alignItems: "center", marginTop: 4, marginBottom: 12, gap: 8 },
+  title: { fontSize: 18, fontWeight: "800" },
+  hint: { fontSize: 12, marginTop: 2, lineHeight: 16 },
+  closeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  content: { paddingHorizontal: 16, paddingBottom: 24 },
+  kycBanner: {
+    backgroundColor: "#E8F8F0",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 12,
+  },
+  kycBannerText: { color: colors.greenDark, fontSize: 12, fontWeight: "700" },
+  card: { borderWidth: 1, borderRadius: 18, padding: 16 },
+  stepTitleRow: { flexDirection: "row", alignItems: "center", marginTop: 4, marginBottom: 14, gap: 8 },
   stepIcon: {
     width: 30,
     height: 30,
@@ -361,21 +480,32 @@ const styles = StyleSheet.create({
     backgroundColor: "#EEF2FF",
   },
   stepTitle: { fontSize: 16, fontWeight: "800" },
-  field: { marginBottom: 10 },
-  label: { fontSize: 12, fontWeight: "600", marginBottom: 4 },
+  row: { flexDirection: "row", gap: 10 },
+  col: { flex: 1 },
+  colSmall: { width: 110 },
+  field: { marginBottom: 12 },
+  label: { fontSize: 12, fontWeight: "600", marginBottom: 6 },
   input: {
     borderWidth: 1,
     borderRadius: 12,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 11,
     fontSize: 15,
   },
+  lockedBox: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  lockedText: { fontSize: 15, fontWeight: "700", letterSpacing: 0.5 },
+  lockedTag: { flexDirection: "row", alignItems: "center", gap: 4 },
   error: { color: colors.danger, fontSize: 12, marginTop: 4 },
+  divider: { height: 1, backgroundColor: "#EEF2FF", marginVertical: 6, marginBottom: 14 },
   sameRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 10,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginBottom: 12,
     gap: 12,
   },
   sameText: { flex: 1, fontSize: 14, fontWeight: "600" },
@@ -387,16 +517,26 @@ const styles = StyleSheet.create({
     padding: 12,
     gap: 10,
   },
+  geoIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#EEF2FF",
+  },
   geoTitle: { fontSize: 14, fontWeight: "700", marginBottom: 2 },
   geoBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
     borderRadius: 10,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 8,
+    backgroundColor: "#EEF2FF",
+    minWidth: 72,
+    alignItems: "center",
   },
-  navRow: { flexDirection: "row", gap: 10, marginTop: 16 },
+  geoBtnText: { color: colors.blueFlat, fontWeight: "700" },
+  footer: { borderTopWidth: 1, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 },
+  navRow: { flexDirection: "row", gap: 10 },
   backBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -414,5 +554,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   primaryText: { color: "#fff", fontWeight: "700", fontSize: 15 },
-  skipBtn: { marginTop: 8, paddingVertical: 12, alignItems: "center" },
+  skipBtn: { marginTop: 6, paddingVertical: 8, alignItems: "center" },
 });

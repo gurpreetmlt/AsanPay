@@ -48,6 +48,31 @@ export function findIndianState(code: string): IndianState | undefined {
   return INDIAN_STATES.find((s) => s.code === c);
 }
 
+const STATE_NAME_ALIASES: Record<string, string> = {
+  orissa: "OD",
+  uttaranchal: "UK",
+  pondicherry: "PY",
+  "andaman and nicobar": "AN",
+  "andaman & nicobar islands": "AN",
+  "jammu & kashmir": "JK",
+  "dadra and nagar haveli": "DD",
+  "daman and diu": "DD",
+  "nct of delhi": "DL",
+  "new delhi": "DL",
+  telengana: "TS",
+};
+
+/** Map a free-text state name (signup / KYC) to its 2-letter code; null when unknown. */
+export function stateCodeFromName(name: string | null | undefined): string | null {
+  const n = (name ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+  if (!n) return null;
+  const byCode = findIndianState(n);
+  if (byCode) return byCode.code;
+  const byName = INDIAN_STATES.find((s) => s.name.toLowerCase() === n);
+  if (byName) return byName.code;
+  return STATE_NAME_ALIASES[n] ?? STATE_NAME_ALIASES[n.replace(/&/g, "and")] ?? null;
+}
+
 export function searchIndianStates(query: string): readonly IndianState[] {
   const q = query.trim().toLowerCase();
   if (!q) return INDIAN_STATES;
