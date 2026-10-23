@@ -22,6 +22,25 @@ export function needsSignupKycCompletion(user: AuthUser | null | undefined): boo
   return !user.hasKycDocs;
 }
 
+const AEPS_ONBOARDING_SKIP_KEY = "aepsOnboardingSkipped";
+
+/** Session-only: AEPS / UPI QR stop redirecting to onboarding until the tab is closed. */
+export function markAepsOnboardingSkipped(): void {
+  try {
+    sessionStorage.setItem(AEPS_ONBOARDING_SKIP_KEY, "1");
+  } catch {
+    /* storage blocked — redirect will just show again */
+  }
+}
+
+export function wasAepsOnboardingSkipped(): boolean {
+  try {
+    return sessionStorage.getItem(AEPS_ONBOARDING_SKIP_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 export function extractApiError(err: unknown, fallback: string): string {
   const status = (err as { response?: { status?: number } }).response?.status;
   if (status === 429) return "Too many requests — wait a moment and retry";

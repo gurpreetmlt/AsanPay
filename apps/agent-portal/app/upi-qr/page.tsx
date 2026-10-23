@@ -9,7 +9,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import api from "@/lib/api";
 import { B } from "@/lib/brand";
-import { extractApiError } from "@/lib/onboarding";
+import { extractApiError, wasAepsOnboardingSkipped } from "@/lib/onboarding";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 
@@ -33,7 +33,7 @@ export default function UpiQrPage() {
   }, [hydrated, accessToken, router]);
 
   useEffect(() => {
-    if (!user?.aepsOnboardingRequired) return;
+    if (!user?.aepsOnboardingRequired || wasAepsOnboardingSkipped()) return;
     toast("Complete AEPS agent onboarding to start using UPI QR");
     router.replace(`/onboarding/aeps-agent?next=${encodeURIComponent("/upi-qr")}`);
   }, [user?.aepsOnboardingRequired, router]);

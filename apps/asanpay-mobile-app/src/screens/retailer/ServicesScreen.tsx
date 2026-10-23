@@ -79,6 +79,7 @@ export function ServicesScreen() {
   const [activeScreen, setActiveScreen] = useState<"home" | "aeps" | "dmt" | "nepal" | "upi_cp" | "recharge">("home");
   const [aepsServiceCode, setAepsServiceCode] = useState<string | undefined>();
   const [pendingAepsCode, setPendingAepsCode] = useState<string | null>(null);
+  const [onboardingSkipped, setOnboardingSkipped] = useState(false);
   const [showUpiQr, setShowUpiQr] = useState(false);
   const [showCms, setShowCms] = useState(false);
   const [rechargeServiceCode, setRechargeServiceCode] = useState<"MOBILE_PREPAID" | "DTH">("MOBILE_PREPAID");
@@ -141,13 +142,12 @@ export function ServicesScreen() {
       );
       return;
     }
-    if (AEPS_CODES.has(code)) {
-      if (user.aepsOnboardingRequired) {
+    if (AEPS_CODES.has(code) || UPI_QR_CODES.has(code)) {
+      if (user.aepsOnboardingRequired && !onboardingSkipped) {
         setPendingAepsCode(code);
         return;
       }
-      setAepsServiceCode(code);
-      setActiveScreen("aeps");
+      openAepsFamily(code);
       return;
     }
     if (DMT_CODES.has(code)) {
@@ -162,14 +162,6 @@ export function ServicesScreen() {
       setActiveScreen("upi_cp");
       return;
     }
-    if (UPI_QR_CODES.has(code)) {
-      if (user.aepsOnboardingRequired) {
-        setPendingAepsCode(code);
-        return;
-      }
-      setShowUpiQr(true);
-      return;
-    }
     if (CMS_CODES.has(code)) {
       setShowCms(true);
       return;
@@ -182,17 +174,26 @@ export function ServicesScreen() {
     showAlert(code.replace(/_/g, " "), "This service will be available soon.");
   }
 
+  function openAepsFamily(code: string) {
+    if (UPI_QR_CODES.has(code)) {
+      setShowUpiQr(true);
+      return;
+    }
+    setAepsServiceCode(code);
+    setActiveScreen("aeps");
+  }
+
   function closeAepsOnboarding() {
     const code = pendingAepsCode;
     setPendingAepsCode(null);
-    if (code && !useAuthStore.getState().user?.aepsOnboardingRequired) {
-      if (UPI_QR_CODES.has(code)) {
-        setShowUpiQr(true);
-        return;
-      }
-      setAepsServiceCode(code);
-      setActiveScreen("aeps");
-    }
+    if (code && !useAuthStore.getState().user?.aepsOnboardingRequired) openAepsFamily(code);
+  }
+
+  function skipAepsOnboarding() {
+    const code = pendingAepsCode;
+    setPendingAepsCode(null);
+    setOnboardingSkipped(true);
+    if (code) openAepsFamily(code);
   }
 
   function backToHome() {
@@ -447,7 +448,11 @@ export function ServicesScreen() {
           )}
         </View>
       </ScrollView>
-      <NobleAgentOnboardModal visible={pendingAepsCode !== null} onClose={closeAepsOnboarding} />
+      <NobleAgentOnboardModal
+        visible={pendingAepsCode !== null}
+        onClose={closeAepsOnboarding}
+        onSkip={skipAepsOnboarding}
+      />
       <NobleUpiQrModal visible={showUpiQr} onClose={() => setShowUpiQr(false)} />
       <NobleCmsModal visible={showCms} onClose={() => setShowCms(false)} />
     </SafeAreaView>

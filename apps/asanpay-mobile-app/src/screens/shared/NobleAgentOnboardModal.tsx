@@ -23,9 +23,12 @@ import { colors } from "../../theme/colors";
 export function NobleAgentOnboardModal({
   visible,
   onClose,
+  onSkip,
 }: {
   visible: boolean;
   onClose: () => void;
+  /** When set, shows "Skip for now" so the service opens without onboarding. */
+  onSkip?: () => void;
 }) {
   const { tokens } = useTheme();
   const user = useAuthStore((s) => s.user);
@@ -229,6 +232,11 @@ export function NobleAgentOnboardModal({
               <Text style={styles.primaryText}>Submit onboarding</Text>
             )}
           </Pressable>
+          {onSkip ? (
+            <Pressable style={styles.skipBtn} disabled={saving} onPress={onSkip}>
+              <Text style={{ color: tokens.sub, fontWeight: "600", fontSize: 15 }}>Skip for now</Text>
+            </Pressable>
+          ) : null}
         </ScrollView>
       </SafeAreaView>
     </Modal>
@@ -271,4 +279,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   primaryText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  skipBtn: { marginTop: 8, paddingVertical: 12, alignItems: "center" },
 });

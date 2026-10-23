@@ -11,7 +11,7 @@ import { StateSelect } from "@/components/ui/StateSelect";
 import api from "@/lib/api";
 import { formatAadhaar, stripAadhaar } from "@/lib/aadhaar";
 import { B } from "@/lib/brand";
-import { extractApiError } from "@/lib/onboarding";
+import { extractApiError, markAepsOnboardingSkipped } from "@/lib/onboarding";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 
@@ -99,6 +99,12 @@ export default function NobleAgentOnboardPage() {
       },
       { enableHighAccuracy: true, timeout: 15000 },
     );
+  }
+
+  function skipForNow() {
+    markAepsOnboardingSkipped();
+    const next = new URLSearchParams(window.location.search).get("next") ?? "";
+    router.replace(next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard");
   }
 
   async function onSubmit(e: FormEvent) {
@@ -273,6 +279,9 @@ export default function NobleAgentOnboardPage() {
           </div>
           <PrimaryButton type="submit" variant="primary" disabled={loading} className="w-full">
             {loading ? "Submitting…" : "Submit onboarding"}
+          </PrimaryButton>
+          <PrimaryButton type="button" variant="ghost" onClick={skipForNow} disabled={loading} className="w-full">
+            Skip for now
           </PrimaryButton>
         </form>
       </div>

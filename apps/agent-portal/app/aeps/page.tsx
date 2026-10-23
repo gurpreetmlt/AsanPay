@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useRouter, useSearchParams } from "next/navigation";
 import clsx from "clsx";
 import { toast } from "react-hot-toast";
+import { wasAepsOnboardingSkipped } from "@/lib/onboarding";
 import {
   ArrowLeft,
   Check,
@@ -460,7 +461,7 @@ function AepsPageInner() {
   }, []);
 
   useEffect(() => {
-    if (!user?.aepsOnboardingRequired) return;
+    if (!user?.aepsOnboardingRequired || wasAepsOnboardingSkipped()) return;
     toast("Complete AEPS agent onboarding to start using AEPS services");
     router.replace(`/onboarding/aeps-agent?next=${encodeURIComponent("/aeps")}`);
   }, [user?.aepsOnboardingRequired, router]);
