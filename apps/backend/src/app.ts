@@ -29,6 +29,7 @@ import { settlementRouter } from "./modules/settlements/settlement.routes";
 import { floatRouter } from "./modules/float/float.routes";
 import { promosRouter } from "./modules/promos/promos.routes";
 import { vyaparapiWebhookRouter } from "./modules/providers/vyaparapi/webhook.routes";
+import { nobleWebhookRouter } from "./modules/providers/noble/webhook.routes";
 import { telegramWebhookRouter } from "./modules/telegram/webhook.routes";
 import { whatsappRouter } from "./modules/whatsapp/whatsapp.routes";
 import { whatsappWebhookRouter } from "./modules/whatsapp/support/webhook.routes";
@@ -112,6 +113,7 @@ export function createApp(): Express {
   app.use("/api/float", floatRouter);
   app.use("/api/promos", promosRouter);
   app.use("/api/webhooks/vyaparapi", vyaparapiWebhookRouter);
+  app.use("/api/webhooks/noble", nobleWebhookRouter);
   app.use("/api/webhooks/telegram", telegramWebhookRouter);
   app.use("/api/whatsapp/webhook", whatsappWebhookRouter);
   app.use("/api/whatsapp", whatsappRouter);

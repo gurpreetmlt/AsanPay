@@ -23,6 +23,11 @@
 -keepclassmembers class * { @com.facebook.react.uimanager.annotations.ReactProp <methods>; }
 -keepclassmembers class * { @com.facebook.react.uimanager.annotations.ReactPropGroup <methods>; }
 
+# RN Modal (Login/Signup) — R8 was stripping ReactModalHostView → ClassNotFoundException crash
+-keep class com.facebook.react.views.modal.** { *; }
+-keep class com.facebook.react.uimanager.** { *; }
+-keep class com.facebook.react.views.** { *; }
+
 -dontwarn com.facebook.react.**
 -dontwarn com.facebook.hermes.**
 -dontwarn com.facebook.jni.**
