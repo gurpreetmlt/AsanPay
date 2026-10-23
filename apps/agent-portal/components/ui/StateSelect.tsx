@@ -106,13 +106,10 @@ export function StateSelect({ label, value, onChange, required }: StateSelectPro
                     role="option"
                     aria-selected={s.code === value}
                     onClick={() => pick(s.code)}
-                    className="flex w-full cursor-pointer items-center justify-between px-3 py-2 text-left text-sm hover:bg-slate-50"
+                    className="flex w-full cursor-pointer items-center px-3 py-2 text-left text-sm hover:bg-slate-50"
                     style={{ color: B.blue, fontWeight: s.code === value ? 700 : 400 }}
                   >
-                    <span>{s.name}</span>
-                    <span className="text-xs" style={{ color: B.muted }}>
-                      {s.code}
-                    </span>
+                    {s.name}
                   </button>
                 </li>
               ))

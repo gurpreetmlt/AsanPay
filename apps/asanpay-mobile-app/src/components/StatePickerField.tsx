@@ -76,7 +76,6 @@ export function StatePickerField({ label, value, onChange }: Props) {
               >
                 {item.name}
               </Text>
-              <Text style={{ color: tokens.mute, fontSize: 12 }}>{item.code}</Text>
             </Pressable>
           )}
         />
