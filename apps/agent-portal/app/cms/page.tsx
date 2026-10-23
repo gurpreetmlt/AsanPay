@@ -82,7 +82,7 @@ export default function CmsPage() {
           CMS
         </h1>
         <p className="text-sm" style={{ color: B.muted }}>
-          Airtel CMS — start opens the bank plugin; then check status with the same transaction id.
+          Cash collection — start opens the bank page; then check status with the same transaction id.
         </p>
         <form
           onSubmit={start}

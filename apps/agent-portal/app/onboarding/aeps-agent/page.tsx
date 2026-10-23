@@ -177,7 +177,7 @@ export default function NobleAgentOnboardPage() {
             Register for AEPS services
           </div>
           <p className="text-xs" style={{ color: B.muted }}>
-            One-time form. Unlocks AEPS, Aadhaar Pay, Cash Deposit, and UPI QR after approval.
+            One-time form. Required before using AEPS, Aadhaar Pay, Cash Deposit, and UPI QR.
           </p>
         </div>
 

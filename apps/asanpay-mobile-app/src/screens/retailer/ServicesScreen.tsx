@@ -26,6 +26,8 @@ import { PageEnter } from "../../components/PageEnter";
 import { TodayEarningsCard } from "../../components/TodayEarningsCard";
 import { PanMissingBanner } from "../../components/PanMissingBanner";
 import { NobleAgentOnboardModal } from "../shared/NobleAgentOnboardModal";
+import { NobleCmsModal } from "../shared/NobleCmsModal";
+import { NobleUpiQrModal } from "../shared/NobleUpiQrModal";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 
@@ -49,6 +51,8 @@ const DMT_CODES = new Set(["MONEY_TRANSFER"]);
 const NEPAL_CODES = new Set(["NEPAL", "NEPAL_REMITTANCE"]);
 const UPI_CP_CODES = new Set(["UPI_CASH_POINT"]);
 const RECHARGE_CODES = new Set(["MOBILE_PREPAID", "DTH"]);
+const UPI_QR_CODES = new Set(["UPI_QR", "UPIQR"]);
+const CMS_CODES = new Set(["CMS", "AIRTEL_CMS"]);
 
 function greetingName(name: string): string {
   const first = name.split(" ")[0] ?? name;
@@ -75,6 +79,8 @@ export function ServicesScreen() {
   const [activeScreen, setActiveScreen] = useState<"home" | "aeps" | "dmt" | "nepal" | "upi_cp" | "recharge">("home");
   const [aepsServiceCode, setAepsServiceCode] = useState<string | undefined>();
   const [pendingAepsCode, setPendingAepsCode] = useState<string | null>(null);
+  const [showUpiQr, setShowUpiQr] = useState(false);
+  const [showCms, setShowCms] = useState(false);
   const [rechargeServiceCode, setRechargeServiceCode] = useState<"MOBILE_PREPAID" | "DTH">("MOBILE_PREPAID");
 
   const { entries: recent, loading: recentLoading, reload: reloadRecent } = useRecentLedger(6);
@@ -156,6 +162,18 @@ export function ServicesScreen() {
       setActiveScreen("upi_cp");
       return;
     }
+    if (UPI_QR_CODES.has(code)) {
+      if (user.aepsOnboardingRequired) {
+        setPendingAepsCode(code);
+        return;
+      }
+      setShowUpiQr(true);
+      return;
+    }
+    if (CMS_CODES.has(code)) {
+      setShowCms(true);
+      return;
+    }
     if (RECHARGE_CODES.has(code) || code === "MOBILE_RECHARGE") {
       setRechargeServiceCode(code === "DTH" ? "DTH" : "MOBILE_PREPAID");
       setActiveScreen("recharge");
@@ -168,6 +186,10 @@ export function ServicesScreen() {
     const code = pendingAepsCode;
     setPendingAepsCode(null);
     if (code && !useAuthStore.getState().user?.aepsOnboardingRequired) {
+      if (UPI_QR_CODES.has(code)) {
+        setShowUpiQr(true);
+        return;
+      }
       setAepsServiceCode(code);
       setActiveScreen("aeps");
     }
@@ -426,6 +448,8 @@ export function ServicesScreen() {
         </View>
       </ScrollView>
       <NobleAgentOnboardModal visible={pendingAepsCode !== null} onClose={closeAepsOnboarding} />
+      <NobleUpiQrModal visible={showUpiQr} onClose={() => setShowUpiQr(false)} />
+      <NobleCmsModal visible={showCms} onClose={() => setShowCms(false)} />
     </SafeAreaView>
     </PageEnter>
   );

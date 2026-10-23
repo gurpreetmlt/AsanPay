@@ -19,10 +19,12 @@ const PROVIDERS = [
   { code: "instantpay", name: "InstantPay" },
   { code: "paysprint", name: "PaySprint" },
   { code: "vyaparapi", name: "VyaparAPI" },
+  { code: "noble", name: "Noble Web Studio" },
 ] as const;
 
 /** BBPS catalog services VyaparAPI can recharge today (mobile + DTH). */
 const VYAPARAPI_RECHARGE_SERVICE_CODES = ["MOBILE_PREPAID", "DTH"] as const;
+const NOBLE_RECHARGE_SERVICE_CODES = ["MOBILE_PREPAID", "DTH"] as const;
 
 // Hidden from the retailer-facing catalog (category isActive: false) — these are internal
 // operation codes for provider routing, not customer-visible tiles.
@@ -130,7 +132,11 @@ async function seedOperationProviders(
   providerIds: Record<string, string>,
   activeAdapterCode: string,
 ) {
-  const order: (keyof typeof providerIds)[] = ["instantpay", "paysprint"];
+  const order: (keyof typeof providerIds)[] = ["instantpay", "paysprint", "noble"];
+  // Existing services keep their current primary — new rows land inactive; switch via switchRailProvider.ts.
+  const hadRowsBefore =
+    (await db.select({ id: providerServices.id }).from(providerServices).where(eq(providerServices.serviceId, serviceId)))
+      .length > 0;
   let created = 0;
   for (let i = 0; i < order.length; i++) {
     const code = order[i]!;
@@ -140,7 +146,7 @@ async function seedOperationProviders(
       .where(eq(providerServices.serviceId, serviceId));
     if (existing.some((r) => r.providerId === providerIds[code])) continue;
 
-    const isActive = code === activeAdapterCode;
+    const isActive = !hadRowsBefore && code === activeAdapterCode;
     await db.insert(providerServices).values({
       serviceId,
       providerId: providerIds[code]!,
@@ -190,6 +196,29 @@ async function main() {
     vyaparCreated++;
   }
   console.log(`VyaparAPI: ${vyaparCreated} provider_services created for ${VYAPARAPI_RECHARGE_SERVICE_CODES.join(", ")}`);
+
+  // Noble on Mobile Prepaid + DTH (inactive by default — switch with scripts/switchRailProvider.ts)
+  let nobleRechargeCreated = 0;
+  for (const code of NOBLE_RECHARGE_SERVICE_CODES) {
+    const svc = bbpsServices.find((s) => s.code === code);
+    if (!svc) {
+      console.warn(`Noble recharge seed skipped — service ${code} missing from catalog`);
+      continue;
+    }
+    const existing = await db.select().from(providerServices).where(eq(providerServices.serviceId, svc.id));
+    if (existing.some((r) => r.providerId === providerIds.noble)) continue;
+    const maxPriority = existing.reduce((m, r) => Math.max(m, r.priority ?? 0), -1);
+    await db.insert(providerServices).values({
+      serviceId: svc.id,
+      providerId: providerIds.noble!,
+      providerServiceCode: `noble:${code}`,
+      isPrimary: false,
+      priority: maxPriority + 1,
+      isActive: false,
+    });
+    nobleRechargeCreated++;
+  }
+  console.log(`Noble: ${nobleRechargeCreated} recharge provider_services created`);
 
   // AEPS + DMT (migrated 2026-07-21)
   const aepsCategoryId = await upsertHiddenCategory(AEPS_CATEGORY, 900);

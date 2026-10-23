@@ -181,7 +181,7 @@ export function NobleAgentOnboardModal({
         </View>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Text style={[styles.hint, { color: tokens.sub }]}>
-            One-time setup for AEPS, Aadhaar Pay, Cash Deposit, and UPI QR.
+            One-time form. Required before using AEPS, Aadhaar Pay, Cash Deposit, and UPI QR.
           </Text>
           {input("First name", "firstName")}
           {input("Middle name", "middleName")}

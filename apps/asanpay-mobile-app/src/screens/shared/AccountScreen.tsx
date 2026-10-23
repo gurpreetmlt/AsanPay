@@ -488,7 +488,7 @@ export function AccountScreen() {
             <MenuRow
               icon={ShieldCheck}
               label="CMS"
-              subtitle="Airtel CMS start and status"
+              subtitle="Cash collection start and status"
               tokens={tokens}
               onPress={() => setShowNobleCms(true)}
             />

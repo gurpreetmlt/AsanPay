@@ -80,7 +80,7 @@ export function NobleCmsModal({ visible, onClose }: { visible: boolean; onClose:
         </View>
         <View style={styles.body}>
           <Text style={[styles.hint, { color: tokens.sub }]}>
-            Airtel CMS — start opens the bank plugin, then check status.
+            Cash collection — start opens the bank page, then check status with the same transaction id.
           </Text>
           <Text style={[styles.label, { color: tokens.sub }]}>Merchant id</Text>
           <TextInput
