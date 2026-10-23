@@ -356,6 +356,12 @@ export function isNobleConfigured(): boolean {
   return Boolean(env.NOBLE_API_KEY?.trim() && env.NOBLE_API_VALUE?.trim());
 }
 
+/** MOCK ids saved before keys were set do not count once live keys exist — agent must re-onboard. */
+export function isUsableNobleAgentId(id: string | null | undefined): id is string {
+  if (!id) return false;
+  return !(isNobleConfigured() && id.startsWith("MOCK"));
+}
+
 export function isNobleAepsMode(): boolean {
   return env.AEPS_PROVIDER_MODE === "noble";
 }

@@ -8,7 +8,13 @@ import { encryptPII } from "../../utils/aes";
 import { allocateUid, hashToken } from "../../utils/uid";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../../utils/jwt";
 import { HttpError } from "../../utils/httpError";
-import { env, shouldExposeOtpInResponse, getTestOtpOverride, getTestSignupOtpOverride } from "../../config/env";
+import {
+  env,
+  shouldExposeOtpInResponse,
+  getTestOtpOverride,
+  getTestSignupOtpOverride,
+  isUsableNobleAgentId,
+} from "../../config/env";
 import { logger } from "../../utils/logger";
 import { assertStrongPin } from "../../utils/weakPin";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
@@ -112,7 +118,7 @@ function toAuthUser(row: typeof users.$inferSelect): AuthUser {
     isActive: row.isActive,
     hasKycDocs,
     hasInstantpayOutlet: Boolean(row.instantpayOutletId),
-    hasNobleAgent: Boolean(row.nobleUniqueAgentId),
+    hasNobleAgent: isUsableNobleAgentId(row.nobleUniqueAgentId),
     hasTxnPin: Boolean(row.txnPinHash),
     hasLoginMpin: Boolean(row.loginMpinHash),
     telegramLinked: Boolean(row.telegramChatId),

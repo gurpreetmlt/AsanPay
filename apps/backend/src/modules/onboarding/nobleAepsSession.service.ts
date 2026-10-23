@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { isUsableNobleAgentId } from "../../config/env";
 import { db } from "../../db/postgres";
 import { users } from "../../db/postgres/schema";
 import { HttpError } from "../../utils/httpError";
@@ -133,12 +134,13 @@ export async function requireNobleAgentId(userId: string): Promise<string> {
     .select({ nobleUniqueAgentId: users.nobleUniqueAgentId })
     .from(users)
     .where(eq(users.id, userId));
-  if (!user?.nobleUniqueAgentId) {
+  const agentId = user?.nobleUniqueAgentId;
+  if (!isUsableNobleAgentId(agentId)) {
     throw new HttpError(
       422,
       "Complete AEPS agent onboarding before using this service",
       "NOBLE_AGENT_REQUIRED",
     );
   }
-  return user.nobleUniqueAgentId;
+  return agentId;
 }

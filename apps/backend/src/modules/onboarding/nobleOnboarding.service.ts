@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { isNobleConfigured } from "../../config/env";
+import { isNobleConfigured, isUsableNobleAgentId } from "../../config/env";
 import { db } from "../../db/postgres";
 import { users } from "../../db/postgres/schema";
 import { encryptPII, decryptPII } from "../../utils/aes";
@@ -166,7 +166,7 @@ export async function nobleAgentOnboardStatus(
     .where(eq(users.id, userId));
   if (!user) throw new HttpError(404, "User not found", "USER_NOT_FOUND");
 
-  if (user.nobleUniqueAgentId) {
+  if (isUsableNobleAgentId(user.nobleUniqueAgentId)) {
     return {
       onboarded: true,
       uniqueAgentId: user.nobleUniqueAgentId,
@@ -245,7 +245,7 @@ export async function getNobleOnboardingStatus(userId: string): Promise<{
   if (!user) throw new HttpError(404, "User not found", "USER_NOT_FOUND");
   const id = user.nobleUniqueAgentId;
   return {
-    onboarded: Boolean(id),
+    onboarded: isUsableNobleAgentId(id),
     uniqueAgentId: id,
     agentCode: user.nobleAgentCode,
     live: Boolean(id && !id.startsWith("MOCK")),

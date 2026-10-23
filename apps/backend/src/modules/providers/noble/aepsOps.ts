@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { isNobleConfigured } from "../../../config/env";
+import { isNobleConfigured, isUsableNobleAgentId } from "../../../config/env";
 import { db } from "../../../db/postgres";
 import { users } from "../../../db/postgres/schema";
 import { HttpError } from "../../../utils/httpError";
@@ -49,7 +49,7 @@ export async function resolveNobleAgentContext(params: {
     .where(eq(users.id, params.retailerUserId));
 
   const uniqueAgentId = (params.outletId || user?.nobleUniqueAgentId || "").trim();
-  if (!uniqueAgentId) {
+  if (!isUsableNobleAgentId(uniqueAgentId)) {
     throw new HttpError(
       422,
       "Complete AEPS agent onboarding before using this service",
