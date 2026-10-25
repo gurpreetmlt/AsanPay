@@ -31,6 +31,11 @@ import {
 } from "@/components/aeps/AepsLayoutPicker";
 import { AepsNewLayout } from "@/components/aeps/AepsNewLayout";
 import { AepsLayout3 } from "@/components/aeps/AepsLayout3";
+import {
+  AadhaarPayConfirmModal,
+  AadhaarPaySetupCard,
+  useAadhaarPaySession,
+} from "@/components/aeps/AadhaarPayFlow";
 import { B } from "@/lib/brand";
 import api from "@/lib/api";
 import { aepsBankLogoUrl } from "@/lib/bankLogo";
@@ -52,34 +57,41 @@ interface Bank {
   shortName: string;
   color: string;
   letter: string;
+  /** NPCI bank IIN. Overridden at runtime by GET /txn/aeps/banks (same as mobile). */
+  iin: string;
 }
 
 const BANKS: Bank[] = [
-  { id: "bob", name: "Bank of Baroda", shortName: "Bank of Barod...", color: "#E64A19", letter: "B" },
-  { id: "pnb", name: "Punjab National Bank", shortName: "Punjab Nationa...", color: "#D32F2F", letter: "P" },
-  { id: "psb", name: "Punjab & Sind Bank", shortName: "Punjab & Sind...", color: "#7B1FA2", letter: "P" },
-  { id: "sbi", name: "State Bank of India", shortName: "State Bank of...", color: "#1565C0", letter: "S" },
-  { id: "hdfc", name: "HDFC Bank", shortName: "HDFC Bank", color: "#00338D", letter: "H" },
-  { id: "airtel", name: "Airtel Payment Bank", shortName: "Airtel Paymen...", color: "#E53935", letter: "A" },
-  { id: "icici", name: "ICICI Bank", shortName: "ICICI Bank", color: "#F57C00", letter: "I" },
-  { id: "pgb", name: "Punjab Gramin Bank", shortName: "Punjab Gramin...", color: "#E91E63", letter: "P" },
-  { id: "uco", name: "UCO Bank", shortName: "UCO Bank", color: "#7B1FA2", letter: "U" },
-  { id: "boi", name: "Bank of India", shortName: "Bank of India", color: "#E65100", letter: "B" },
-  { id: "canara", name: "Canara Bank", shortName: "Canara Bank", color: "#1976D2", letter: "C" },
-  { id: "indian", name: "Indian Bank", shortName: "Indian Bank", color: "#0D47A1", letter: "I" },
-  { id: "union", name: "Union Bank of India", shortName: "Union Bank", color: "#F57C00", letter: "U" },
-  { id: "kotak", name: "Kotak Mahindra Bank", shortName: "Kotak Bank", color: "#E53935", letter: "K" },
-  { id: "axis", name: "Axis Bank", shortName: "Axis Bank", color: "#6A1B9A", letter: "A" },
-  { id: "bob_vijaya", name: "Bank of Baroda Plus Vijaya Bank Plus Dena Bank", shortName: "BOB + Vijaya", color: "#E64A19", letter: "B" },
-  { id: "pnb_obc", name: "Punjab National Bank Plus Oriental Bank of Commerce", shortName: "PNB + OBC", color: "#D32F2F", letter: "P" },
-  { id: "iob", name: "Indian Overseas Bank", shortName: "IOB", color: "#C62828", letter: "I" },
-  { id: "central", name: "Central Bank of India", shortName: "Central Bank", color: "#B71C1C", letter: "C" },
-  { id: "bom", name: "Bank of Maharashtra", shortName: "Bank of Mahar...", color: "#4A148C", letter: "B" },
-  { id: "idbi", name: "IDBI Bank", shortName: "IDBI Bank", color: "#00695C", letter: "I" },
-  { id: "yes", name: "Yes Bank", shortName: "Yes Bank", color: "#1565C0", letter: "Y" },
-  { id: "fino", name: "Fino Payments Bank", shortName: "Fino Bank", color: "#FF6F00", letter: "F" },
-  { id: "paytm", name: "Paytm Payments Bank", shortName: "Paytm Bank", color: "#00BCD4", letter: "P" },
+  { id: "bob", name: "Bank of Baroda", shortName: "Bank of Barod...", color: "#E64A19", letter: "B", iin: "606985" },
+  { id: "pnb", name: "Punjab National Bank", shortName: "Punjab Nationa...", color: "#D32F2F", letter: "P", iin: "607027" },
+  { id: "psb", name: "Punjab & Sind Bank", shortName: "Punjab & Sind...", color: "#7B1FA2", letter: "P", iin: "607087" },
+  { id: "sbi", name: "State Bank of India", shortName: "State Bank of...", color: "#1565C0", letter: "S", iin: "607094" },
+  { id: "hdfc", name: "HDFC Bank", shortName: "HDFC Bank", color: "#00338D", letter: "H", iin: "607152" },
+  { id: "airtel", name: "Airtel Payment Bank", shortName: "Airtel Paymen...", color: "#E53935", letter: "A", iin: "990320" },
+  { id: "icici", name: "ICICI Bank", shortName: "ICICI Bank", color: "#F57C00", letter: "I", iin: "508534" },
+  { id: "pgb", name: "Punjab Gramin Bank", shortName: "Punjab Gramin...", color: "#E91E63", letter: "P", iin: "607138" },
+  { id: "uco", name: "UCO Bank", shortName: "UCO Bank", color: "#7B1FA2", letter: "U", iin: "607066" },
+  { id: "boi", name: "Bank of India", shortName: "Bank of India", color: "#E65100", letter: "B", iin: "508505" },
+  { id: "canara", name: "Canara Bank", shortName: "Canara Bank", color: "#1976D2", letter: "C", iin: "607396" },
+  { id: "indian", name: "Indian Bank", shortName: "Indian Bank", color: "#0D47A1", letter: "I", iin: "607105" },
+  { id: "union", name: "Union Bank of India", shortName: "Union Bank", color: "#F57C00", letter: "U", iin: "607161" },
+  { id: "kotak", name: "Kotak Mahindra Bank", shortName: "Kotak Bank", color: "#E53935", letter: "K", iin: "990309" },
+  { id: "axis", name: "Axis Bank", shortName: "Axis Bank", color: "#6A1B9A", letter: "A", iin: "607153" },
+  { id: "bob_vijaya", name: "Bank of Baroda Plus Vijaya Bank Plus Dena Bank", shortName: "BOB + Vijaya", color: "#E64A19", letter: "B", iin: "606985" },
+  { id: "pnb_obc", name: "Punjab National Bank Plus Oriental Bank of Commerce", shortName: "PNB + OBC", color: "#D32F2F", letter: "P", iin: "607027" },
+  { id: "iob", name: "Indian Overseas Bank", shortName: "IOB", color: "#C62828", letter: "I", iin: "607126" },
+  { id: "central", name: "Central Bank of India", shortName: "Central Bank", color: "#B71C1C", letter: "C", iin: "607264" },
+  { id: "bom", name: "Bank of Maharashtra", shortName: "Bank of Mahar...", color: "#4A148C", letter: "B", iin: "607387" },
+  { id: "idbi", name: "IDBI Bank", shortName: "IDBI Bank", color: "#00695C", letter: "I", iin: "607095" },
+  { id: "yes", name: "Yes Bank", shortName: "Yes Bank", color: "#1565C0", letter: "Y", iin: "YES000" },
+  { id: "fino", name: "Fino Payments Bank", shortName: "Fino Bank", color: "#FF6F00", letter: "F", iin: "608001" },
+  { id: "paytm", name: "Paytm Payments Bank", shortName: "Paytm Bank", color: "#00BCD4", letter: "P", iin: "PAYTM0" },
 ];
+
+/** Normalize a bank name for matching our list against the provider bank list. */
+function bankKey(name: string): string {
+  return name.toLowerCase().replace(/payments?/g, "").replace(/[^a-z]/g, "");
+}
 
 /** Shared with mobile — persisted via GET/PUT /auth/aeps-favourite-banks */
 const DEFAULT_AEPS_FAV_BANKS = ["bob", "pnb", "sbi", "hdfc", "airtel", "icici"] as const;
@@ -95,7 +107,7 @@ function sanitizeAepsFavIds(ids: string[]): string[] {
   return out;
 }
 
-const AEPS_TABS = ["Withdraw", "Mini Statement", "Deposit", "Balance Enquiry"] as const;
+const AEPS_TABS = ["Withdraw", "Mini Statement", "Deposit", "Balance Enquiry", "Aadhaar Pay"] as const;
 type AepsTab = (typeof AEPS_TABS)[number];
 
 const QUICK_AMOUNTS = [1000, 3000, 5000, 10000];
@@ -455,10 +467,40 @@ function AepsPageInner() {
   const [agentAuthConsent, setAgentAuthConsent] = useState(false);
   const [agentAuthScanning, setAgentAuthScanning] = useState(false);
   const [uiLayout, setUiLayout] = useState<AepsUiLayout>("3");
+  const [liveIinByName, setLiveIinByName] = useState<Record<string, string>>({});
+  const [apConfirmOpen, setApConfirmOpen] = useState(false);
+  const isAadhaarPay = tab === "Aadhaar Pay";
+  const ap = useAadhaarPaySession(isAadhaarPay && agentAuthReady === true);
 
   useEffect(() => {
     setUiLayout(readAepsUiLayout());
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void api
+      .get<ApiResponse<{ data?: { banks?: { name: string; iin: string }[] } }>>("/txn/aeps/banks")
+      .then(({ data }) => {
+        if (cancelled || !data.success) return;
+        const rows = data.data?.data?.banks ?? [];
+        if (rows.length === 0) return;
+        const map: Record<string, string> = {};
+        for (const r of rows) {
+          if (r.iin) map[bankKey(r.name)] = r.iin;
+        }
+        setLiveIinByName(map);
+      })
+      .catch(() => {
+        /* non-fatal — static IINs still work */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const selectedBankIin = selectedBank
+    ? (liveIinByName[bankKey(selectedBank.name)] ?? selectedBank.iin)
+    : "";
 
   useEffect(() => {
     if (!user?.aepsOnboardingRequired || wasAepsOnboardingSkipped()) return;
@@ -584,7 +626,7 @@ function AepsPageInner() {
     };
   }, [favBanks]);
 
-  const showAmount = tab === "Withdraw" || tab === "Deposit";
+  const showAmount = tab === "Withdraw" || tab === "Deposit" || tab === "Aadhaar Pay";
 
   async function retryRdWarm() {
     setRdStatus("looking");
@@ -668,6 +710,35 @@ function AepsPageInner() {
     }
     if (rdStatus === "missing") {
       toast.error("Mantra RD not found. Open RDService on this PC, then tap Retry.");
+      return;
+    }
+
+    if (isAadhaarPay) {
+      if (aadhaar.replace(/\D/g, "").length !== 12) {
+        toast.error("Enter the customer's 12-digit Aadhaar number");
+        return;
+      }
+      if (mobile.replace(/\D/g, "").length !== 10) {
+        toast.error("Enter a valid 10-digit mobile");
+        return;
+      }
+      if (!Number(amount) || Number(amount) <= 0) {
+        toast.error("Enter an amount greater than ₹0");
+        return;
+      }
+      if (ap.loading || (!ap.session && !ap.error)) {
+        toast.error("Checking Aadhaar Pay status — wait a moment");
+        return;
+      }
+      if (!ap.session) {
+        toast.error(ap.error ?? "Could not load Aadhaar Pay status. Tap Retry.");
+        return;
+      }
+      if (ap.needsSetup) {
+        toast.error("Complete Aadhaar Pay activation above before taking a payment");
+        return;
+      }
+      setApConfirmOpen(true);
       return;
     }
 
@@ -1022,7 +1093,7 @@ function AepsPageInner() {
                 AePS — Aadhaar Enabled Payment
               </h1>
               <p className="text-xs" style={{ color: B.muted }}>
-                Cash Withdraw, Balance Enquiry, Mini Statement & Deposit
+                Cash Withdraw, Balance Enquiry, Mini Statement, Deposit & Aadhaar Pay
               </p>
             </div>
           ) : (
@@ -1036,6 +1107,20 @@ function AepsPageInner() {
             }}
           />
         </div>
+
+        {isAadhaarPay && (ap.needsSetup || ap.error || (ap.loading && !ap.session)) ? (
+          <AadhaarPaySetupCard
+            session={ap.session}
+            loading={ap.loading}
+            error={ap.error}
+            onReload={ap.reload}
+            deviceLabel={rdEndpoint ? formatRdDeviceLabel(rdEndpoint) : activeDevice.name}
+            scannerReady={rdStatus === "ready"}
+            scannerLooking={rdStatus === "looking"}
+            onRetryScanner={() => void retryRdWarm()}
+            onChangeDevice={() => setDeviceSidebarOpen(true)}
+          />
+        ) : null}
 
         {uiLayout === "new" ? (
           <AepsNewLayout
@@ -1074,7 +1159,10 @@ function AepsPageInner() {
             onTabChange={setTab}
             banks={BANKS}
             selectedBank={selectedBank}
-            onSelectBank={(bank) => selectBank(bank, true)}
+            onSelectBank={(bank) => {
+              const full = BANKS.find((b) => b.id === bank.id);
+              if (full) selectBank(full, true);
+            }}
             onViewAllBanks={() => setBankSidebarOpen(true)}
             aadhaar={aadhaar}
             onAadhaarChange={setAadhaar}
@@ -1351,14 +1439,16 @@ function AepsPageInner() {
               {showAmount && (
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Amount to {tab}
+                    {isAadhaarPay ? "Amount to Pay" : `Amount to ${tab}`}
                   </label>
                   <input
                     type="text"
                     inputMode="numeric"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))}
-                    placeholder={tab === "Deposit" ? "Amount to Deposit" : "Amount to Withdraw"}
+                    placeholder={
+                      tab === "Deposit" ? "Amount to Deposit" : isAadhaarPay ? "Amount to Pay" : "Amount to Withdraw"
+                    }
                     className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium outline-none placeholder:text-gray-400 focus:border-blue-300 focus:ring-1 focus:ring-blue-200"
                   />
                   <div className="mt-3 flex gap-2">
@@ -1629,6 +1719,21 @@ function AepsPageInner() {
         onClose={() => setDeviceSidebarOpen(false)}
         activeDeviceId={activeDevice.id}
         onSelect={setActiveDevice}
+      />
+
+      <AadhaarPayConfirmModal
+        open={apConfirmOpen && isAadhaarPay && Boolean(selectedBank)}
+        onClose={() => setApConfirmOpen(false)}
+        onDone={() => {
+          setApConfirmOpen(false);
+          setAmount("");
+        }}
+        session={ap.session}
+        bankName={selectedBank?.name ?? ""}
+        bankIin={selectedBankIin}
+        aadhaar={aadhaar.replace(/\D/g, "")}
+        mobile={mobile}
+        amount={amount}
       />
     </AppShell>
   );

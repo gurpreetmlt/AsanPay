@@ -19,6 +19,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ArrowLeft,
   Check,
+  CheckCircle2,
   ChevronDown,
   ChevronRight,
   CircleDot,
@@ -108,7 +109,7 @@ function bankKey(name: string): string {
   return name.toLowerCase().replace(/payments?/g, "").replace(/[^a-z]/g, "");
 }
 
-const AEPS_TABS = ["Withdraw", "Mini Statement", "Deposit", "Balance Enquiry"] as const;
+const AEPS_TABS = ["Withdraw", "Mini Statement", "Deposit", "Balance Enquiry", "Aadhaar Pay"] as const;
 type AepsTab = (typeof AEPS_TABS)[number];
 
 const AEPS_TAB_MAP: Record<string, AepsTab> = {
@@ -116,7 +117,29 @@ const AEPS_TAB_MAP: Record<string, AepsTab> = {
   MINI_STATEMENT: "Mini Statement",
   CASH_DEPOSIT: "Deposit",
   BALANCE_ENQUIRY: "Balance Enquiry",
+  AADHAAR_PAY: "Aadhaar Pay",
 };
+
+/** Airtel Payments Bank customers never need the Aadhaar Pay OTP. */
+const AIRTEL_BANK_IIN = "990320";
+
+/** POST /onboarding/noble/ap/load — Aadhaar Pay has its own KYC + daily 2FA session. */
+interface AadhaarPaySession {
+  kycRequired: boolean;
+  daily2faRequired: boolean;
+  kycWadhValue: string;
+  amountForOtp: number | null;
+  tranTypeForOtp: string | null;
+}
+
+interface AadhaarPayOtp {
+  amount: string;
+  bankIin: string;
+  required: boolean;
+  otpReference: string;
+  otpTransactionId: string;
+  otpTransactionToken: string;
+}
 
 const QUICK_AMOUNTS = [1000, 3000, 5000, 10000];
 
@@ -646,6 +669,12 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
   const [txnOtp, setTxnOtp] = useState("");
   const [otpRef, setOtpRef] = useState<{ referenceKey: string; amount: string } | null>(null);
   const withdrawAttemptKey = useRef(createAttemptKeyHolder("aeps-wd"));
+  const [apSession, setApSession] = useState<AadhaarPaySession | null>(null);
+  const [apLoading, setApLoading] = useState(false);
+  const [apError, setApError] = useState<string | null>(null);
+  const [apScanning, setApScanning] = useState(false);
+  const [apOtp, setApOtp] = useState<AadhaarPayOtp | null>(null);
+  const apAttemptKey = useRef(createAttemptKeyHolder("aeps-ap"));
   const scanAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -753,7 +782,34 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
     };
   }, [favBanks]);
 
-  const showAmount = tab === "Withdraw" || tab === "Deposit";
+  const showAmount = tab === "Withdraw" || tab === "Deposit" || tab === "Aadhaar Pay";
+  const isAadhaarPay = tab === "Aadhaar Pay";
+
+  const loadApSession = useCallback(async () => {
+    setApLoading(true);
+    setApError(null);
+    try {
+      const { data } = await api.post<ApiResponse<AadhaarPaySession>>("/onboarding/noble/ap/load", {});
+      if (!data.success) throw new Error(data.message);
+      setApSession(data.data);
+    } catch (err) {
+      setApError(apiError(err, "Could not load Aadhaar Pay status. Tap Retry."));
+    } finally {
+      setApLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isAadhaarPay || agentAuthReady !== true) return;
+    if (apSession || apLoading || apError) return;
+    void loadApSession();
+  }, [isAadhaarPay, agentAuthReady, apSession, apLoading, apError, loadApSession]);
+
+  const apNeedsSetup = Boolean(apSession && (apSession.kycRequired || apSession.daily2faRequired));
+
+  useEffect(() => {
+    apAttemptKey.current.clear();
+  }, [selectedBank?.id, aadhaar, mobile]);
 
   // Fetch the provider bank directory once; override our static IINs with live ones by name.
   useEffect(() => {
@@ -896,11 +952,102 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
   const needsTxnOtp = tab === "Withdraw" && Number(amount || 0) > 5000;
   const otpRequested = otpRef !== null && otpRef.amount === amount;
 
+  // Aadhaar Pay OTP: only for MT at or above the provider's amountForOtp, never for Airtel.
+  const needsApOtp =
+    isAadhaarPay &&
+    !!apSession &&
+    apSession.amountForOtp != null &&
+    (apSession.tranTypeForOtp ?? "").toUpperCase() === "MT" &&
+    !!selectedBank &&
+    selectedBank.iin !== AIRTEL_BANK_IIN &&
+    Number(amount || 0) >= apSession.amountForOtp;
+  const apOtpFresh =
+    apOtp !== null && !!selectedBank && apOtp.amount === amount && apOtp.bankIin === selectedBank.iin;
+  const useApOtp = needsApOtp && apOtpFresh && apOtp !== null && apOtp.required;
+  const showOtpField = needsTxnOtp || (needsApOtp && !(apOtpFresh && apOtp !== null && !apOtp.required));
+  const otpSent = needsTxnOtp ? otpRequested : apOtpFresh;
+
   function updateAmount(v: string) {
     setAmount(v.replace(/\D/g, ""));
     // Amount changed → old OTP/referenceKey is no longer valid for this txn.
     setOtpRef(null);
+    setApOtp(null);
     setTxnOtp("");
+    apAttemptKey.current.clear();
+  }
+
+  async function requestApOtp() {
+    if (!selectedBank || submitting) return;
+    setSubmitting(true);
+    try {
+      const geo = await getAepsGeoTag();
+      const { data } = await api.post<
+        ApiResponse<{ otpRequired: boolean; otpReference: string; otpTransactionId: string; otpTransactionToken: string }>
+      >("/txn/aeps/aadhaar-pay/otp", {
+        aadhaarNumber: aadhaar,
+        bankIin: selectedBank.iin,
+        mobile,
+        amount,
+        ...(geo ?? {}),
+      });
+      if (!data.success) throw new Error(data.message);
+      setApOtp({
+        amount,
+        bankIin: selectedBank.iin,
+        required: data.data.otpRequired,
+        otpReference: data.data.otpReference,
+        otpTransactionId: data.data.otpTransactionId,
+        otpTransactionToken: data.data.otpTransactionToken,
+      });
+      setTxnOtp("");
+      Alert.alert(
+        data.data.otpRequired ? "OTP Sent" : "No OTP needed",
+        data.data.otpRequired
+          ? "An OTP was sent to the customer's mobile. Enter it, then tap Scan Finger."
+          : "This payment does not need an OTP. Tap Scan Finger to continue.",
+      );
+    } catch (err) {
+      Alert.alert("OTP request failed", apiError(err, "Could not send the Aadhaar Pay OTP. Try again."));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function runApSetupScan() {
+    if (!apSession || apScanning) return;
+    const isKyc = apSession.kycRequired;
+    setApScanning(true);
+    try {
+      const detected = await detectConnectedDevice();
+      const device = detected ?? activeDevice;
+      if (detected) setActiveDevice(detected);
+      const geoPromise = getAepsGeoTag();
+      const biometricPayload = await captureFingerprint(
+        device.rdPackage,
+        isKyc && apSession.kycWadhValue ? { wadh: apSession.kycWadhValue } : undefined,
+      );
+      const geo = await geoPromise;
+      const { data } = await api.post<ApiResponse<unknown>>(
+        isKyc ? "/onboarding/noble/ap/kyc" : "/onboarding/noble/ap/2fa",
+        {
+          biometricPayload,
+          ...(geo ? { latitude: geo.latitude, longitude: geo.longitude } : {}),
+        },
+      );
+      if (!data.success) throw new Error(data.message);
+      Alert.alert(
+        isKyc ? "Aadhaar Pay KYC completed" : "Aadhaar Pay unlocked",
+        isKyc ? "One more fingerprint unlocks Aadhaar Pay for today." : "You can take Aadhaar Pay payments today.",
+      );
+      await loadApSession();
+    } catch (err) {
+      Alert.alert(
+        isKyc ? "Aadhaar Pay KYC failed" : "Aadhaar Pay verification failed",
+        apiError(err, "Fingerprint verification failed. Try again."),
+      );
+    } finally {
+      setApScanning(false);
+    }
   }
 
   async function requestWithdrawOtp() {
@@ -922,7 +1069,7 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
       if (!data.success || !referenceKey) throw new Error(data.message || "OTP request failed");
       setOtpRef({ referenceKey, amount });
       setTxnOtp("");
-      Alert.alert("OTP Sent", "Customer ke mobile par OTP bheja gaya hai. OTP enter karke scan karein.");
+      Alert.alert("OTP Sent", "An OTP was sent to the customer's mobile. Enter it, then tap Scan Finger.");
     } catch (err) {
       Alert.alert("OTP request failed", apiError(err, "Please try again"));
     } finally {
@@ -941,8 +1088,37 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
         return;
       }
       if (txnOtp.replace(/\D/g, "").length < 4) {
-        Alert.alert("OTP required", "Customer ko mila OTP enter karein (₹5,000+ withdrawal).");
+        Alert.alert("OTP required", "Enter the OTP the customer received (₹5,000+ withdrawal).");
         return;
+      }
+    }
+
+    if (isAadhaarPay) {
+      if (aadhaar.length !== 12) {
+        Alert.alert("Aadhaar required", "Enter the customer's 12-digit Aadhaar number");
+        return;
+      }
+      if (!Number(amount) || Number(amount) <= 0) {
+        Alert.alert("Amount required", "Enter an amount greater than ₹0");
+        return;
+      }
+      if (!apSession) {
+        Alert.alert("Aadhaar Pay", apError ?? "Checking Aadhaar Pay status — wait a moment");
+        return;
+      }
+      if (apNeedsSetup) {
+        Alert.alert("Activate Aadhaar Pay", "Complete Aadhaar Pay activation above before taking a payment");
+        return;
+      }
+      if (needsApOtp) {
+        if (!apOtpFresh) {
+          await requestApOtp();
+          return;
+        }
+        if (useApOtp && txnOtp.replace(/\D/g, "").length < 4) {
+          Alert.alert("OTP required", "Enter the OTP the customer received (4–8 digits)");
+          return;
+        }
       }
     }
 
@@ -953,7 +1129,10 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
     const geoPromise = getAepsGeoTag();
     let pidData: string;
     try {
-      pidData = await captureFingerprint(activeDevice.rdPackage, needsTxnOtp ? txnOtp : undefined);
+      pidData = await captureFingerprint(
+        activeDevice.rdPackage,
+        needsTxnOtp || useApOtp ? txnOtp : undefined,
+      );
     } catch (err) {
       setScanning(false);
       const detail = err instanceof Error ? err.message : "Unknown error";
@@ -1000,6 +1179,50 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
         setAmount("");
         setOtpRef(null);
         setTxnOtp("");
+      } else if (isAadhaarPay) {
+        let txnAuth: string;
+        try {
+          txnAuth = await promptPin();
+        } catch {
+          return;
+        }
+        setSubmitting(true);
+        const idempotencyKey = apAttemptKey.current.get();
+        const geo = await geoPromise;
+        const { data } = await api.post<ApiResponse<{ txn: { txnRef: string; status: string } }>>(
+          "/txn/aeps/aadhaar-pay",
+          {
+            idempotencyKey,
+            txnAuth,
+            aadhaarNumber: aadhaar,
+            bankIin: selectedBank.iin,
+            mobile,
+            biometricPayload: pidData,
+            amount,
+            ...(useApOtp && apOtp
+              ? {
+                  otpReferenceKey: apOtp.otpReference,
+                  otpTransactionId: apOtp.otpTransactionId,
+                  otpTransactionToken: apOtp.otpTransactionToken,
+                }
+              : {}),
+            ...(geo ?? {}),
+          },
+        );
+        if (!data.success) throw new Error(data.message);
+        apAttemptKey.current.clear();
+        const ref = data.data.txn?.txnRef ?? idempotencyKey;
+        if ((data.data.txn?.status ?? "").toLowerCase() === "pending") {
+          Alert.alert(
+            "Aadhaar Pay Pending",
+            `${formatINR(amount)} — Ref: ${ref}\nCheck Transactions for the final status.`,
+          );
+        } else {
+          Alert.alert("Aadhaar Pay Successful", `${formatINR(amount)} — Ref: ${ref}`);
+        }
+        setAmount("");
+        setApOtp(null);
+        setTxnOtp("");
       } else if (tab === "Balance Enquiry" || tab === "Mini Statement") {
         setSubmitting(true);
         const isMini = tab === "Mini Statement";
@@ -1041,7 +1264,13 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
     } catch (err) {
       if (err) {
         const title =
-          tab === "Withdraw" ? "Withdrawal failed" : tab === "Deposit" ? "Deposit failed" : "Request failed";
+          tab === "Withdraw"
+            ? "Withdrawal failed"
+            : tab === "Deposit"
+              ? "Deposit failed"
+              : tab === "Aadhaar Pay"
+                ? "Aadhaar Pay failed"
+                : "Request failed";
         Alert.alert(title, apiError(err, "Please try again"));
       }
     } finally {
@@ -1275,6 +1504,94 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
           </View>
         </ScrollView>
 
+        {isAadhaarPay && (apNeedsSetup || apError || (apLoading && !apSession)) ? (
+          <View style={[s.card, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
+            <View style={s.apHeader}>
+              <View style={s.apHeaderIcon}>
+                <Fingerprint size={20} color="#fff" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.apHeaderTitle}>Activate Aadhaar Pay</Text>
+                <Text style={s.apHeaderSub}>
+                  Aadhaar Pay needs its own retailer fingerprint — KYC once, then one scan each day.
+                </Text>
+              </View>
+            </View>
+
+            {apLoading && !apSession ? (
+              <View style={s.apLoadingRow}>
+                <ActivityIndicator color={colors.blueFlat} />
+                <Text style={[s.apStepText, { color: tokens.sub }]}>Checking Aadhaar Pay status…</Text>
+              </View>
+            ) : null}
+
+            {apError ? (
+              <View style={s.apErrorBox}>
+                <Text style={s.apErrorText}>{apError}</Text>
+                <Pressable onPress={() => void loadApSession()} style={s.apRetryBtn}>
+                  <Text style={s.apRetryText}>Retry</Text>
+                </Pressable>
+              </View>
+            ) : null}
+
+            {apSession ? (
+              <>
+                {[
+                  { pending: apSession.kycRequired, n: "1", label: "One-time Aadhaar Pay KYC" },
+                  { pending: apSession.daily2faRequired, n: "2", label: "Today's Aadhaar Pay fingerprint" },
+                ].map((step) => (
+                  <View key={step.n} style={s.apStepRow}>
+                    {step.pending ? (
+                      <View style={s.apStepNum}>
+                        <Text style={s.apStepNumText}>{step.n}</Text>
+                      </View>
+                    ) : (
+                      <CheckCircle2 size={20} color={colors.green} />
+                    )}
+                    <Text style={[s.apStepText, { color: step.pending ? tokens.txt : tokens.mute }]}>
+                      {step.label}
+                    </Text>
+                  </View>
+                ))}
+
+                <View style={s.dailyDeviceRow}>
+                  <View style={[s.bioIconCircle, { backgroundColor: activeDevice.color }]}>
+                    <Text style={s.bioIconLetter}>{activeDevice.letter}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.bioDevice, { color: tokens.txt }]}>{activeDevice.name}</Text>
+                    <Pressable onPress={() => setDeviceModalOpen(true)}>
+                      <Text style={[s.bioChange, { color: colors.blueLight }]}>Change Device</Text>
+                    </Pressable>
+                  </View>
+                </View>
+
+                <Pressable
+                  onPress={() => void runApSetupScan()}
+                  disabled={apScanning}
+                  style={[s.scanBtn, apScanning && s.scanBtnDisabled]}
+                >
+                  <LinearGradient
+                    colors={[colors.greenLight, colors.greenDark]}
+                    start={gradientDirection.diagonal.start}
+                    end={gradientDirection.diagonal.end}
+                    style={s.scanBtnGradient}
+                  >
+                    {apScanning ? <ActivityIndicator color="#fff" /> : <Fingerprint size={18} color="#fff" />}
+                    <Text style={s.scanBtnText}>
+                      {apScanning
+                        ? "Place finger on scanner…"
+                        : apSession.kycRequired
+                          ? "Scan Finger for Aadhaar Pay KYC"
+                          : "Scan Finger to unlock Aadhaar Pay"}
+                    </Text>
+                  </LinearGradient>
+                </Pressable>
+              </>
+            ) : null}
+          </View>
+        ) : null}
+
         {/* Bank selector strip — Layout 3 style + spring select */}
         <View style={[s.bankCard, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
           <View style={s.cardLabelRow}>
@@ -1443,13 +1760,13 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
                 })}
               </View>
 
-              {/* Transaction OTP — mandatory above ₹5,000 (sent to customer's mobile) */}
-              {needsTxnOtp && (
+              {/* Customer OTP — ₹5,000+ withdrawal, or Aadhaar Pay at/above the provider limit */}
+              {showOtpField && (
                 <>
                   <Text style={[s.fieldLabel, s.fieldLabelSpaced, { color: tokens.sub }]}>
-                    TRANSACTION OTP (₹5,000+ WITHDRAWAL)
+                    {needsTxnOtp ? "TRANSACTION OTP (₹5,000+ WITHDRAWAL)" : "CUSTOMER OTP (AADHAAR PAY)"}
                   </Text>
-                  {otpRequested ? (
+                  {otpSent ? (
                     <View style={[s.inputRow, { borderColor: tokens.inputBorder, backgroundColor: tokens.inputBg }]}>
                       <TextInput
                         value={txnOtp}
@@ -1460,13 +1777,16 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
                         maxLength={8}
                         style={[s.input, { color: tokens.txt }]}
                       />
-                      <Pressable onPress={requestWithdrawOtp} disabled={submitting}>
+                      <Pressable
+                        onPress={() => void (needsTxnOtp ? requestWithdrawOtp() : requestApOtp())}
+                        disabled={submitting}
+                      >
                         <Text style={{ color: colors.blueLight, fontWeight: "700", fontSize: 12 }}>Resend</Text>
                       </Pressable>
                     </View>
                   ) : (
                     <Text style={{ color: tokens.mute, fontSize: 12, marginTop: 2 }}>
-                      Scan button dabane par pehle customer ke mobile par OTP jayega.
+                      Tapping Scan Finger first sends an OTP to the customer's mobile.
                     </Text>
                   )}
                 </>
@@ -1940,6 +2260,56 @@ const s = StyleSheet.create({
     textAlign: "center",
     lineHeight: 16,
   },
+
+  // Aadhaar Pay activation
+  apHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 14,
+    backgroundColor: colors.blue,
+  },
+  apHeaderIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.16)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  apHeaderTitle: { color: "#fff", fontWeight: "800", fontSize: 15 },
+  apHeaderSub: { color: "rgba(255,255,255,0.78)", fontSize: 11.5, marginTop: 2, lineHeight: 16 },
+  apLoadingRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 6 },
+  apErrorBox: {
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    backgroundColor: "#FEF2F2",
+    borderRadius: 12,
+    padding: 12,
+    gap: 10,
+  },
+  apErrorText: { color: "#991B1B", fontSize: 12.5, fontWeight: "600", lineHeight: 18 },
+  apRetryBtn: {
+    alignSelf: "flex-start",
+    backgroundColor: colors.blue,
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  apRetryText: { color: "#fff", fontWeight: "800", fontSize: 13 },
+  apStepRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 5 },
+  apStepNum: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.bluePale,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  apStepNumText: { fontSize: 11, fontWeight: "800", color: colors.blue },
+  apStepText: { fontSize: 13, fontWeight: "600" },
 
   // Commission
   commTitle: { fontWeight: "800", fontSize: 14, marginBottom: 10 },

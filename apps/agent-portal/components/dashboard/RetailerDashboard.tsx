@@ -50,7 +50,7 @@ const AEPS_TAB_MAP: Record<string, string> = {
   MINI_STATEMENT: "Mini Statement",
   CASH_DEPOSIT: "Deposit",
   BALANCE_ENQUIRY: "Balance Enquiry",
-  AADHAAR_PAY: "Withdraw",
+  AADHAAR_PAY: "Aadhaar Pay",
 };
 
 function resolveServiceRoute(code: string): string | null {

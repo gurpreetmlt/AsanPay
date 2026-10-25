@@ -40,7 +40,7 @@ const AEPS_TAB_MAP: Record<string, string> = {
   MINI_STATEMENT: "Mini Statement",
   CASH_DEPOSIT: "Deposit",
   BALANCE_ENQUIRY: "Balance Enquiry",
-  AADHAAR_PAY: "Withdraw",
+  AADHAAR_PAY: "Aadhaar Pay",
 };
 
 const CASH_COLLECTION_CODES = new Set(["CASH_COLLECTION", "AGENT_COLLECTION", "CMS", "AIRTEL_CMS"]);

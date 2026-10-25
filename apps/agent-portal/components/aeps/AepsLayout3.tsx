@@ -20,7 +20,7 @@ import { aepsBankLogoUrl } from "@/lib/bankLogo";
 import { downloadBrandedExcel, openBrandedPdf, type BrandedReport } from "@/lib/brandedExport";
 import { downloadCsv } from "@/components/reports/reportUtils";
 
-export type AepsLayout3Tab = "Withdraw" | "Mini Statement" | "Deposit" | "Balance Enquiry";
+export type AepsLayout3Tab = "Withdraw" | "Mini Statement" | "Deposit" | "Balance Enquiry" | "Aadhaar Pay";
 
 type Bank = {
   id: string;
@@ -71,7 +71,7 @@ type DemoRow = {
   status: "success" | "failed" | "pending";
 };
 
-const TABS: AepsLayout3Tab[] = ["Withdraw", "Mini Statement", "Deposit", "Balance Enquiry"];
+const TABS: AepsLayout3Tab[] = ["Withdraw", "Mini Statement", "Deposit", "Balance Enquiry", "Aadhaar Pay"];
 const QUICK = [1000, 2000, 5000, 10000];
 
 const DEMO_ROWS: DemoRow[] = [
@@ -471,14 +471,16 @@ export function AepsLayout3({
               {showAmount ? (
                 <div className="min-w-0 md:col-span-2 xl:col-span-1">
                   <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    Amount to {tab === "Deposit" ? "deposit" : "withdraw"}
+                    Amount to {tab === "Deposit" ? "deposit" : tab === "Aadhaar Pay" ? "pay" : "withdraw"}
                   </label>
                   <input
                     type="text"
                     inputMode="numeric"
                     value={amount}
                     onChange={(e) => onAmountChange(e.target.value.replace(/\D/g, ""))}
-                    placeholder={tab === "Deposit" ? "Amount to Deposit" : "Amount to Withdraw"}
+                    placeholder={
+                      tab === "Deposit" ? "Amount to Deposit" : tab === "Aadhaar Pay" ? "Amount to Pay" : "Amount to Withdraw"
+                    }
                     className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-3 text-sm font-medium outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                   />
                   <div className="mt-2 flex flex-wrap gap-2">

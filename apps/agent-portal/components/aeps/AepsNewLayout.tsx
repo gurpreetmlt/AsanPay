@@ -22,7 +22,7 @@ import { useBalanceVisibility } from "@/lib/balanceVisibility";
 import { downloadBrandedExcel, openBrandedPdf, type BrandedReport } from "@/lib/brandedExport";
 import { downloadCsv } from "@/components/reports/reportUtils";
 
-type AepsTab = "Withdraw" | "Mini Statement" | "Deposit" | "Balance Enquiry";
+type AepsTab = "Withdraw" | "Mini Statement" | "Deposit" | "Balance Enquiry" | "Aadhaar Pay";
 
 type Bank = {
   id: string;
@@ -68,6 +68,7 @@ const TAB_CHIPS: { id: AepsTab; label: string }[] = [
   { id: "Balance Enquiry", label: "Balance enquiry" },
   { id: "Mini Statement", label: "Mini statement" },
   { id: "Deposit", label: "Deposit" },
+  { id: "Aadhaar Pay", label: "Aadhaar Pay" },
 ];
 
 const DEMO_ROWS: DemoRow[] = [

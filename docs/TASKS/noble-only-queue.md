@@ -17,8 +17,8 @@
 |---|-------|--------|
 | P1 | Route AEPS + DMT to Noble in DB (ops only) | done (25 Oct) — owner to confirm What-if margins |
 | P2a | Aadhaar Pay setup + Cash Deposit status — backend | done (25 Oct) |
-| P2b | Aadhaar Pay tab on web `/aeps` + mobile `AepsScreen` (AP load → KYC → 2FA → OTP → txn) | **CURRENT** |
-| P3 | Recharge operator / circle mapping → switch recharge | todo |
+| P2b | Aadhaar Pay tab on web `/aeps` + mobile `AepsScreen` (AP load → KYC → 2FA → OTP → txn) | done (25 Oct) |
+| P3 | Recharge operator / circle mapping → switch recharge | **CURRENT** |
 | P4 | DMT `bene/get` + admin Noble wallet balance | todo |
 | P5 | Delete PaySprint | todo |
 | P6 | Delete InstantPay backend (adapter, client, onboarding, env, tests) | todo |
@@ -58,6 +58,13 @@ Read: `apps/backend/src/modules/providers/adapters/noble.adapter.ts` (`aadhaarPa
 
 **P2b (UI) — read:** `apps/agent-portal/app/aeps/page.tsx` (+ `components/aeps/AepsLayout3.tsx`), `apps/asanpay-mobile-app/src/screens/retailer/AepsScreen.tsx`.
 Today the `AADHAAR_PAY` tile opens the Withdraw tab and no client calls `/txn/aeps/aadhaar-pay` — add an "Aadhaar Pay" tab on both. The txn still also requires the normal AEPS daily 2FA (`assertAgentAuthFresh`).
+
+**P2b done (UI):**
+- `AADHAAR_PAY` tile → `/aeps?tab=Aadhaar Pay` (web) / `Aadhaar Pay` tab (mobile).
+- Tab calls AP load; "Activate Aadhaar Pay" card runs KYC (PID with `kycWadhValue`) then daily AP 2FA until both are clear.
+- OTP only when `tranTypeForOtp=MT`, amount ≥ `amountForOtp`, bank ≠ Airtel `990320`; OTP rides in the PID capture.
+- Web: `components/aeps/AadhaarPayFlow.tsx` (session hook, setup card, confirm modal with TPIN). Web bank list now carries IINs (+ live `/txn/aeps/banks` override).
+- AP session + txn calls send no `channel` (API defaults `APP`) so the AP session and `ap_transaction` use the same channel. Other web AePS tabs still only capture the fingerprint — not wired to txn APIs yet.
 
 ### P3 — Recharge operator / circle mapping
 Read: `noble.adapter.ts` `recharge()`, `NobleWebStudio/RECHARGE.md`, web `app/recharge/page.tsx`, mobile `RechargeScreen.tsx`.
