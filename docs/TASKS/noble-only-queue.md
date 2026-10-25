@@ -18,8 +18,8 @@
 | P1 | Route AEPS + DMT to Noble in DB (ops only) | done (25 Oct) — owner to confirm What-if margins |
 | P2a | Aadhaar Pay setup + Cash Deposit status — backend | done (25 Oct) |
 | P2b | Aadhaar Pay tab on web `/aeps` + mobile `AepsScreen` (AP load → KYC → 2FA → OTP → txn) | done (25 Oct) |
-| P3 | Recharge operator / circle mapping → switch recharge | **CURRENT** |
-| P4 | DMT `bene/get` + admin Noble wallet balance | todo |
+| P3 | Recharge operator / circle mapping → switch recharge | done (25 Oct) — owner to run recharge switch on EC2 |
+| P4 | DMT `bene/get` + admin Noble wallet balance | **CURRENT** |
 | P5 | Delete PaySprint | todo |
 | P6 | Delete InstantPay backend (adapter, client, onboarding, env, tests) | todo |
 | P7 | Delete InstantPay UI (outlet / bio-KYC pages + mobile modals) + Nepal → Coming soon | todo |
@@ -71,6 +71,13 @@ Read: `noble.adapter.ts` `recharge()`, `NobleWebStudio/RECHARGE.md`, web `app/re
 - Call `operator_and_circle` (cache in memory/redis) → map our operator code + circle to provider `operatorCodeB2B` + `circleCode`. Remove hard-coded `circleCode: "50"`.
 - Then ops: `switchRailProvider.ts --to noble --scope recharge`.
 
+**P3 done (backend only — clients already send `AT|BL|JIO|VI` / `ATV|DTV|TTV|STV|VTV`, no UI change):**
+- `providers/noble/rechargeOperators.ts` → `resolveRechargeRoute()`; `operator_and_circle` cached 6h per number (Redis if `REDIS_URL`, else memory).
+- Mobile: detected `operatorCodeB2B` + `circleCode` are sent. If the number is on another operator → txn fails before the provider call with `This number is on Jio, not Airtel. Select Jio and try again.` (wallet reversed). Lookup down → static code + circle `50` (provider default).
+- DTH: static map, circle `50`. Only `AIRTELTV_B2B` / `DISHTV_B2B` are in the docs — `TATASKY_B2B`, `SUNTV_B2B`, `VIDEOCON_B2B`, and mobile fallbacks `JIO_B2B` / `VI_B2B` / `BSNL_B2B` are unconfirmed (see open questions).
+- `RechargeParams.serviceCode` added; txn data now carries `providerOperatorCode`, `providerCircleCode`, `routeSource`.
+- Test: `test/nobleRechargeOperators.test.ts`.
+
 ### P4 — Beneficiary list + admin balance
 - `bene/get` → DMT beneficiary list (web `app/dmt`, mobile `DmtScreen`).
 - `GET /api/v1.0/common/balance_check` (GET, Bearer) → admin dashboard tile "Provider wallet".
@@ -105,3 +112,4 @@ Needs a real callback sample from the provider. Map payload → `settleTxnFromPr
 - Commission chart per service
 - Which services are assigned (Fino / Jio DMT, Verification, OCR)
 - Callback sample payload per service
+- Full recharge operator code list (DTH: Tata Play, Sun, d2h; mobile: Jio, Vi, BSNL B2B codes)

@@ -105,6 +105,7 @@ export async function recharge(req: Request, res: Response): Promise<void> {
     invoke: (routed, txnRef) =>
       routed.adapter.recharge({
         retailerUserId: actor(req).id,
+        serviceCode: body.serviceCode,
         operatorCode: body.operatorCode,
         accountRef: body.accountRef,
         amount: body.amount,

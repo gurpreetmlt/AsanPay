@@ -182,6 +182,7 @@
 - [ ] AePS block/dormancy were one-way doors until 2026-08-07 (task #9) — a blocked or dormant merchant had no path back. Fixed; watch for the same pattern (a flag that's only ever set, never cleared) elsewhere.
 
 ## Last updated
+2026-10-25 — Recharge operator/circle mapping: provider number lookup (cached 6h) picks operator + circle; wrong-operator recharges fail before the provider call with a clear message; DTH static codes; no UI change
 2026-10-25 — Aadhaar Pay tab (web `/aeps` + mobile AePS): AP load → one-time KYC → daily AP 2FA → optional customer OTP → `/txn/aeps/aadhaar-pay`; AADHAAR_PAY tile opens it
 2026-08-08 — httpOnly cookie BFF ticked done: web portals already used cookie-based sessions; fixed the one real gap (biometric login storing a raw refresh token in localStorage, already dead post-cutover) and widened proxy refresh-retry to cover GET /auth/* (needed for /auth/me self-heal)
 2026-08-07 — Security list corrected: Keystore + history-purge were already done, ticked. Cert pinning still open. Added: fallback-to-app-storage bio path should fail closed; graded restrictions (blockServices/blockLogin) now enforced (task #14); AePS block/dormancy one-way-door fixed (task #9)

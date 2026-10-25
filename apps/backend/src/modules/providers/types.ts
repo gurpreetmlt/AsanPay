@@ -757,6 +757,8 @@ export interface BbpsPayBillParams extends BbpsFetchBillParams {
 
 export interface RechargeParams {
   retailerUserId: string;
+  /** `MOBILE_PREPAID` | `DTH` — lets adapters pick operator / circle mapping. */
+  serviceCode?: string;
   operatorCode: string;
   accountRef: string; // mobile number / DTH subscriber id
   amount: string;

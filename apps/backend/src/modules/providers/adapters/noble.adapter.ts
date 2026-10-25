@@ -21,6 +21,7 @@ import {
   resolveNobleAgentContext,
 } from "../noble/aepsOps";
 import { noblePost, type NobleApiResponse } from "../noble/client";
+import { resolveRechargeRoute } from "../noble/rechargeOperators";
 import type {
   AepsBank,
   AepsBankListParams,
@@ -789,15 +790,35 @@ export class NobleAdapter implements ProviderAdapter {
     if (transactionId.length < 12) {
       throw new HttpError(400, "Recharge transaction id must be 12–25 characters", "NOBLE_RECHARGE_TXN_ID");
     }
+    const route = await resolveRechargeRoute({
+      serviceCode: params.serviceCode,
+      operatorCode: params.operatorCode,
+      accountRef: params.accountRef,
+    });
+    if (!route.ok) {
+      // Refused before the provider call — safe to fail (wallet is reversed).
+      return {
+        success: false,
+        status: "failed",
+        providerTxnId: null,
+        amount: params.amount,
+        message: route.message,
+        data: { clientTransactionId: transactionId },
+        raw: { refused: route.code },
+      };
+    }
     const { httpStatus, json } = await noblePost("recharge", "/v1.0/recharge/recharge_b2b", {
-      operatorCode: params.operatorCode.toUpperCase(),
-      circleCode: "50",
+      operatorCode: route.operatorCode,
+      circleCode: route.circleCode,
       rechargeNumber: params.accountRef,
       amount: params.amount,
       transactionId,
     });
     return this.toResult(httpStatus, json, "Recharge", params.amount, {
       clientTransactionId: transactionId,
+      providerOperatorCode: route.operatorCode,
+      providerCircleCode: route.circleCode,
+      routeSource: route.source,
     });
   }
 
