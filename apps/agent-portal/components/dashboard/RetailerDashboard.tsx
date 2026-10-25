@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ChevronDown,
   ChevronRight,
   Wallet,
   Activity,
@@ -23,6 +22,7 @@ import { fetchApi } from "@/lib/api";
 import { B, roleFromUserRole } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { maskBalance, useBalanceVisibility } from "@/lib/balanceVisibility";
+import { useHomeWalletPins } from "@/lib/homeWalletPins";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -116,9 +116,9 @@ export function RetailerDashboard() {
   const [recent, setRecent] = useState<TxnRow[]>([]);
   const [stats, setStats] = useState<RetailerStats | null>(null);
   const [loading, setLoading] = useState(true);
-  /** MAIN / AEPS detail cards — closed by default; click to expand. */
-  const [walletsOpen, setWalletsOpen] = useState(false);
   const balanceVisible = useBalanceVisibility((s) => s.visible);
+  const pinMain = useHomeWalletPins((s) => s.pins.main);
+  const pinAeps = useHomeWalletPins((s) => s.pins.aeps);
 
   useEffect(() => {
     let alive = true;
@@ -149,7 +149,8 @@ export function RetailerDashboard() {
     return a.walletType.localeCompare(b.walletType);
   });
   const primary = orderedWallets[0];
-  const secondary = orderedWallets[1];
+  const mainWallet = wallets.find((w) => w.walletType === "main");
+  const aepsWallet = wallets.find((w) => w.walletType === "aeps");
   const totalPending = wallets.reduce(
     (s, w) => s + (parseFloat(w.pendingBalance ?? "0") || 0), 0,
   );
@@ -240,65 +241,10 @@ export function RetailerDashboard() {
           </PrimaryButton>
         </div>
       ) : null}
-      {/* Full stats strip: MAIN + AEPS + Transactions + Success — one open/close, default closed */}
-      <div className="dash-stagger">
-        <button
-          type="button"
-          onClick={() => setWalletsOpen((v) => !v)}
-          aria-expanded={walletsOpen}
-          className="flex w-full items-center gap-2 rounded-xl border bg-white px-3.5 py-2.5 text-left shadow-[0_2px_10px_rgba(15,23,42,0.08)] transition-colors hover:bg-slate-50"
-          style={{ borderColor: B.border }}
-        >
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-2">
-            <span className="flex min-w-0 flex-col">
-              <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
-                {primary ? walletDisplayName(primary.walletType) : "Main"}
-              </span>
-              <span className="truncate text-sm font-extrabold tabular-nums" style={{ color: B.blueLight }}>
-                {loading ? "…" : maskBalance(balanceVisible, formatInr(primary?.balance ?? "0"))}
-              </span>
-            </span>
-            {secondary ? (
-              <>
-                <span className="hidden h-7 w-px sm:block" style={{ background: "rgba(11,42,154,0.12)" }} />
-                <span className="flex min-w-0 flex-col">
-                  <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
-                    {walletDisplayName(secondary.walletType)}
-                  </span>
-                  <span className="truncate text-sm font-extrabold tabular-nums" style={{ color: B.green }}>
-                    {loading ? "…" : maskBalance(balanceVisible, formatInr(secondary.balance))}
-                  </span>
-                </span>
-              </>
-            ) : null}
-            <span className="hidden h-7 w-px sm:block" style={{ background: "rgba(11,42,154,0.12)" }} />
-            <span className="flex min-w-0 flex-col">
-              <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
-                Transactions
-              </span>
-              <span className="truncate text-sm font-extrabold tabular-nums" style={{ color: B.blue }}>
-                {loading ? "…" : String(stats?.today.txnCount ?? 0)}
-              </span>
-            </span>
-            <span className="hidden h-7 w-px sm:block" style={{ background: "rgba(11,42,154,0.12)" }} />
-            <span className="flex min-w-0 flex-col">
-              <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
-                Success Rate
-              </span>
-              <span className="truncate text-sm font-extrabold tabular-nums" style={{ color: B.blue }}>
-                {loading ? "…" : `${stats?.today.successRate ?? 0}%`}
-              </span>
-            </span>
-          </div>
-          <ChevronDown
-            size={16}
-            className={`shrink-0 transition-transform ${walletsOpen ? "rotate-180" : ""}`}
-            style={{ color: B.muted }}
-          />
-        </button>
-
-        {walletsOpen ? (
-          <div className="mt-3 grid grid-cols-1 items-stretch gap-3 md:grid-cols-2 lg:grid-cols-4">
+      {/* Wallet cards pinned from Settings → Home page (off by default) */}
+      {pinMain || (pinAeps && aepsWallet) ? (
+          <div className="dash-stagger grid grid-cols-1 items-stretch gap-3 md:grid-cols-2">
+            {pinMain ? (
             <div
               className="dash-card-hover relative flex h-full min-h-[108px] flex-col overflow-hidden rounded-xl p-3.5 text-white"
               style={{ background: role.gradient, boxShadow: `0 2px 10px ${role.color}22` }}
@@ -306,18 +252,19 @@ export function RetailerDashboard() {
               <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white opacity-10" />
               <div className="mb-1 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-white/70">
                 <Wallet size={12} />
-                {primary ? walletDisplayName(primary.walletType) : "Main"}
+                {walletDisplayName("main")}
               </div>
               <div className="mb-2.5 text-2xl font-bold leading-none tracking-tight">
-                {loading ? "…" : maskBalance(balanceVisible, formatInr(primary?.balance ?? "0"))}
+                {loading ? "…" : maskBalance(balanceVisible, formatInr(mainWallet?.balance ?? "0"))}
               </div>
               <div className="mt-auto flex min-h-[28px] items-center gap-1.5 border-t border-white/15 pt-2">
                 <Activity size={11} className="text-white/80" />
                 <span className="text-[11px] text-white/90">Ready to use</span>
               </div>
             </div>
+            ) : null}
 
-            {secondary ? (
+            {pinAeps && aepsWallet ? (
               <div
                 className="dash-card-hover relative flex h-full min-h-[108px] flex-col overflow-hidden rounded-xl p-3.5 text-white"
                 style={{ background: B.green, boxShadow: `0 2px 10px ${B.green}22` }}
@@ -325,10 +272,10 @@ export function RetailerDashboard() {
                 <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white opacity-10" />
                 <div className="mb-1 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-white/70">
                   <Wallet size={12} />
-                  {walletDisplayName(secondary.walletType)}
+                  {walletDisplayName(aepsWallet.walletType)}
                 </div>
                 <div className="mb-2.5 text-2xl font-bold leading-none tracking-tight">
-                  {loading ? "…" : maskBalance(balanceVisible, formatInr(secondary.balance))}
+                  {loading ? "…" : maskBalance(balanceVisible, formatInr(aepsWallet.balance))}
                 </div>
                 <div className="mt-auto flex min-h-[28px] items-center gap-1.5 border-t border-white/15 pt-2">
                   <Activity size={11} className="text-white/80" />
@@ -338,24 +285,8 @@ export function RetailerDashboard() {
                 </div>
               </div>
             ) : null}
-
-            <StatCard
-              icon={<Activity size={18} />}
-              label="Transactions"
-              value={loading ? "…" : String(stats?.today.txnCount ?? 0)}
-              sub={`${formatInr(stats?.today.volume ?? "0")} volume`}
-              accent={B.blue}
-            />
-            <StatCard
-              icon={<CheckCircle2 size={18} />}
-              label="Success Rate"
-              value={loading ? "…" : `${stats?.today.successRate ?? 0}%`}
-              sub={Number(stats?.today.successRate ?? 0) >= 90 ? "Excellent" : "Track carefully"}
-              accent={B.green}
-            />
           </div>
-        ) : null}
-      </div>
+      ) : null}
 
       {/* All services — favourites pin removed from home */}
       <ServiceCards title="All Services" enableFavorites={false} />
@@ -595,21 +526,6 @@ export function RetailerDashboard() {
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-function StatCard({ icon, label, value, sub, accent }: {
-  icon: React.ReactNode; label: string; value: string; sub: string; accent: string;
-}) {
-  return (
-    <div className="ui-card dash-card-hover flex h-full min-h-[108px] flex-col p-3.5">
-      <div className="mb-1 flex items-center gap-2">
-        <span style={{ color: accent }}>{icon}</span>
-        <span className="text-[11px] font-medium uppercase tracking-wider" style={{ color: B.muted }}>{label}</span>
-      </div>
-      <div className="text-xl font-bold leading-tight" style={{ color: B.blue }}>{value}</div>
-      <div className="mt-auto pt-2 text-[11px] font-medium" style={{ color: B.muted }}>{sub}</div>
     </div>
   );
 }

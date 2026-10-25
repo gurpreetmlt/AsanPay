@@ -17,6 +17,7 @@ import {
   FileText,
   Info,
   Landmark,
+  LayoutDashboard,
   LifeBuoy,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
@@ -35,6 +36,7 @@ import { SignupStepper, SIGNUP_STEPS } from "@/components/signup/SignupStepper";
 import { extractApiError, needsSignupKycCompletion } from "@/lib/onboarding";
 import { getSignupResumeStep, loadSignupDraft } from "@/lib/signupDraft";
 import { useAuthStore } from "@/lib/store";
+import { useHomeWalletPins } from "@/lib/homeWalletPins";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 import { enableBiometricLogin, isWebAuthnAvailable } from "@/lib/webauthn";
 
@@ -43,6 +45,7 @@ const SECTIONS = [
   { id: "security", icon: Lock, label: "Security" },
   { id: "banks", icon: Landmark, label: "Settlement banks" },
   { id: "notify", icon: Bell, label: "Notifications" },
+  { id: "home", icon: LayoutDashboard, label: "Home page" },
   { id: "devices", icon: Smartphone, label: "Devices" },
   { id: "legal", icon: LifeBuoy, label: "Legal and Help" },
 ];
@@ -147,6 +150,8 @@ export default function SettingsPage() {
   const setUser = useAuthStore((s) => s.setUser);
   const role = roleFromUserRole(user?.role);
   const [active, setActive] = useState("profile");
+  const walletPins = useHomeWalletPins((s) => s.pins);
+  const toggleWalletPin = useHomeWalletPins((s) => s.toggle);
   const [signupStepIndex, setSignupStepIndex] = useState(2);
   const [kycProfile, setKycProfile] = useState<{
     uid: string;
@@ -971,6 +976,39 @@ export default function SettingsPage() {
                         on={notifs[n.key]}
                         onToggle={() => setNotifs((p) => ({ ...p, [n.key]: !p[n.key] }))}
                       />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {active === "home" && (
+              <div className="rounded-2xl border bg-white p-6" style={{ borderColor: B.border }}>
+                <h2 className="text-lg font-bold" style={{ color: B.blue }}>
+                  Home page
+                </h2>
+                <p className="mb-5 mt-1 text-xs" style={{ color: B.muted }}>
+                  Pin wallet balance cards to the top of your dashboard. Saved on this browser.
+                </p>
+                <div className="space-y-4">
+                  {[
+                    { key: "main" as const, label: "Pin Main wallet", sub: "Show the Main wallet balance card on Home" },
+                    { key: "aeps" as const, label: "Pin AEPS wallet", sub: "Show the AEPS wallet balance card on Home" },
+                  ].map((p) => (
+                    <div
+                      key={p.key}
+                      className="flex items-center justify-between rounded-xl border p-4"
+                      style={{ borderColor: B.border }}
+                    >
+                      <div>
+                        <div className="text-sm font-semibold" style={{ color: B.blue }}>
+                          {p.label}
+                        </div>
+                        <div className="mt-0.5 text-xs" style={{ color: B.muted }}>
+                          {p.sub}
+                        </div>
+                      </div>
+                      <Toggle on={walletPins[p.key]} onToggle={() => toggleWalletPin(p.key)} />
                     </div>
                   ))}
                 </div>
