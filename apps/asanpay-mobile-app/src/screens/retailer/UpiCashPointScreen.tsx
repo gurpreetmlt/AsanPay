@@ -16,7 +16,7 @@ import LinearGradient from "react-native-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Geolocation from "@react-native-community/geolocation";
 import RawQRCode from "react-native-qrcode-svg";
-import { ArrowLeft, Check, Copy, Info, QrCode, X } from "lucide-react-native";
+import { ArrowLeft, Check, Copy, Info, QrCode, RefreshCw, X } from "lucide-react-native";
 import type { ApiResponse } from "@asanpay/shared-types";
 import { api } from "../../lib/api";
 import { apiError } from "../../utils/apiError";
@@ -66,6 +66,46 @@ const NOTES = [
 ];
 
 type Stage = "input" | "qr";
+
+const UPI_CP_CODES = new Set(["UPI_CASH_POINT", "UPI_QR", "UPIQR"]);
+
+type TxnRow = {
+  id: string;
+  txnRef: string;
+  amount: string;
+  status: string;
+  serviceCode: string;
+  createdAt: string;
+  providerTxnId?: string | null;
+  metadata?: Record<string, unknown> | null;
+};
+
+function statusBucket(status: string): "success" | "pending" | "failed" {
+  const s = status.toLowerCase();
+  if (s === "success" || s === "completed") return "success";
+  if (s === "failed" || s === "reversed" || s === "refunded") return "failed";
+  return "pending";
+}
+
+const STATUS_STYLE = {
+  success: { bg: "#ECFDF5", fg: "#047857", label: "Success" },
+  pending: { bg: "#FFFBEB", fg: "#92400E", label: "Pending" },
+  failed: { bg: "#FEF2F2", fg: "#B91C1C", label: "Failed" },
+} as const;
+
+function maskedCustomer(row: TxnRow): string {
+  const m = row.metadata?.mobileNumber ?? row.metadata?.customerMobile;
+  return typeof m === "string" && m.length >= 4 ? `XXXXXX${m.slice(-4)}` : "—";
+}
+
+function formatAt(iso: string): string {
+  return new Date(iso).toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 /** `upi://pay?pa=<vpa>&...` → `<vpa>` */
 function upiIdFromQr(qr: string): string {
@@ -132,7 +172,25 @@ export function UpiCashPointScreen({ onBack }: Props) {
   const [qrValue, setQrValue] = useState("");
   const [txnId, setTxnId] = useState("");
   const [copied, setCopied] = useState(false);
+  const [history, setHistory] = useState<TxnRow[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const upiId = upiIdFromQr(qrValue);
+
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    try {
+      const { data } = await api.get<ApiResponse<TxnRow[]>>("/txn", { params: { limit: 100, offset: 0 } });
+      if (data.success) setHistory((data.data ?? []).filter((r) => UPI_CP_CODES.has(r.serviceCode)).slice(0, 20));
+    } catch {
+      /* list stays empty; pull back into the screen to retry */
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadHistory();
+  }, [loadHistory]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const earnAnim = useRef(new Animated.Value(0)).current;
 
@@ -210,6 +268,7 @@ export function UpiCashPointScreen({ onBack }: Props) {
       setTxnId(data.data.transactionId || "");
       setStage("qr");
       startTimer();
+      void loadHistory();
     } catch (err) {
       showAlert("UPI QR failed", apiError(err, "Could not generate the UPI QR. Try again."));
     } finally {
@@ -415,6 +474,48 @@ export function UpiCashPointScreen({ onBack }: Props) {
                   <Text style={[s.noteText, { color: tokens.txt2 }]}>{note}</Text>
                 </View>
               ))}
+            </View>
+
+            <View style={[s.notesCard, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
+              <View style={s.historyHead}>
+                <Text style={s.notesTitle}>Recent transactions</Text>
+                <Pressable onPress={() => void loadHistory()} hitSlop={10} disabled={historyLoading}>
+                  {historyLoading ? (
+                    <ActivityIndicator size="small" color={colors.blueFlat} />
+                  ) : (
+                    <RefreshCw size={16} color={colors.blueFlat} />
+                  )}
+                </Pressable>
+              </View>
+              {history.map((r) => {
+                const st = STATUS_STYLE[statusBucket(r.status)];
+                return (
+                  <View key={r.id} style={[s.historyRow, { borderTopColor: tokens.cardBorder }]}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={[s.historyAmt, { color: tokens.txt }]}>
+                        ₹{(parseFloat(r.amount) || 0).toLocaleString("en-IN")}
+                      </Text>
+                      <Text style={s.historyMeta} numberOfLines={1}>
+                        {formatAt(r.createdAt)} · {maskedCustomer(r)}
+                      </Text>
+                      <Text style={s.historyRef} numberOfLines={1}>
+                        {r.txnRef}
+                        {r.providerTxnId ? ` · RRN ${r.providerTxnId}` : ""}
+                      </Text>
+                    </View>
+                    <Text style={[s.historyPill, { backgroundColor: st.bg, color: st.fg }]}>{st.label}</Text>
+                  </View>
+                );
+              })}
+              {!historyLoading && history.length === 0 ? (
+                <View style={s.historyEmpty}>
+                  <QrCode size={22} color={colors.blueFlat} />
+                  <Text style={[s.historyEmptyTitle, { color: tokens.txt }]}>No UPI Cash Point transactions yet</Text>
+                  <Text style={s.historyEmptyText}>
+                    Paid QR withdrawals will be listed here with their status and bank RRN.
+                  </Text>
+                </View>
+              ) : null}
             </View>
           </>
         ) : (
@@ -694,6 +795,28 @@ const s = StyleSheet.create({
     marginTop: 6,
   },
   noteText: { flex: 1, fontSize: 12.5, lineHeight: 18, fontWeight: "500" },
+  historyHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  historyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderTopWidth: 1,
+    paddingVertical: 10,
+  },
+  historyAmt: { fontSize: 15, fontWeight: "800" },
+  historyMeta: { fontSize: 12, color: "#6B7280", marginTop: 2 },
+  historyRef: { fontSize: 11, color: "#9CA3AF", marginTop: 2 },
+  historyPill: {
+    fontSize: 11,
+    fontWeight: "700",
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 999,
+    overflow: "hidden",
+  },
+  historyEmpty: { alignItems: "center", paddingVertical: 14, gap: 6 },
+  historyEmptyTitle: { fontSize: 14, fontWeight: "700", textAlign: "center" },
+  historyEmptyText: { fontSize: 12, color: "#6B7280", textAlign: "center", lineHeight: 17 },
 
   card: { borderWidth: 1, borderRadius: 18, padding: 16, marginBottom: 14 },
 
