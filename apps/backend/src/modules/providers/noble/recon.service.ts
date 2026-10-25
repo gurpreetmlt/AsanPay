@@ -7,7 +7,7 @@ export type NobleReconTxnType = "CW" | "MT" | "QR" | "CD";
 
 /**
  * Submit daily recon to the provider (mandatory for month-end commission).
- * reconData entries: "status~clientTxnId~apiTxnId" (vendor format).
+ * reconData entries: "status~clientTxnId~rrn" (vendor format, e.g. 1~ABC1001075834771579~555552824276).
  */
 export async function nobleSubmitRecon(input: {
   uniqueDateTransactionId: string;

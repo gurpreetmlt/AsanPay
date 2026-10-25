@@ -23,6 +23,7 @@ import { runReconciliation } from "../modules/reconciliation/checks";
 import { reconcileStaleTransactions, runDailyReconciliation } from "../modules/transactions/txn.service";
 import { runStatementEmailJobs } from "../modules/notifications/userEmail.service";
 import { sweepLogPartitions } from "./logPartitions";
+import { runNobleReconTick } from "../modules/providers/noble/reconJob";
 import { sweepExpiringRdLicenses } from "../modules/risk/riskSignal.service";
 import { listOverdueDisputes } from "../modules/disputes/dispute.service";
 import { sendSlackAlert } from "../utils/alert";
@@ -32,6 +33,7 @@ const OTP_SWEEP_INTERVAL_MS = 30 * 60 * 1000;
 const DAILY_RECONCILE_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const PARTITION_SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const RD_LICENSE_SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const AEPS_RECON_TICK_MS = 15 * 60 * 1000;
 
 /** Ledger recon across every active tenant. Detection only — never mutates balances. */
 export async function runLedgerReconciliationSweep(): Promise<void> {
@@ -167,6 +169,12 @@ async function main() {
 
   void runRdLicenseSweep();
   timers.push(setInterval(() => void runRdLicenseSweep(), RD_LICENSE_SWEEP_INTERVAL_MS));
+
+  // Daily AEPS recon upload — the provider withholds month-end commission without it.
+  const runAepsRecon = () =>
+    runNobleReconTick().catch((err: unknown) => logger.error({ err }, "AEPS recon tick failed"));
+  void runAepsRecon();
+  timers.push(setInterval(() => void runAepsRecon(), AEPS_RECON_TICK_MS));
 
   logger.info({ timers: timers.length }, "AsanPay jobs worker started");
 

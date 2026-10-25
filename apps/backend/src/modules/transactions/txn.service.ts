@@ -369,6 +369,34 @@ export function resolveCreditSettlementAmount(
   }
 }
 
+const PROVIDER_ECONOMICS_KEYS = [
+  "rrn",
+  "commission",
+  "surcharge",
+  "charges",
+  "transactionId",
+  "apiTransactionId",
+] as const;
+
+/**
+ * Small scalar fields from the provider response kept on the txn row — provider commission /
+ * charges for margin reports and the RRN + provider transaction id the daily recon upload needs.
+ */
+export function withProviderEconomics(
+  metadata: Record<string, unknown> | null,
+  result: ProviderResult,
+): Record<string, unknown> | null {
+  const data = (result.data ?? {}) as Record<string, unknown>;
+  const picked: Record<string, string> = {};
+  for (const key of PROVIDER_ECONOMICS_KEYS) {
+    const v = data[key];
+    if ((typeof v === "string" && v.trim()) || typeof v === "number") picked[key] = String(v).trim().slice(0, 100);
+  }
+  if (Object.keys(picked).length === 0) return metadata;
+  const prev = (metadata?.provider ?? {}) as Record<string, unknown>;
+  return { ...(metadata ?? {}), provider: { ...prev, ...picked } };
+}
+
 // Settles a transaction exactly once. The whole thing runs in a single DB transaction that
 // FIRST locks the txn row and re-checks its status: if a concurrent call (a second /recheck,
 // or recheck racing the initial submit) already moved it to a terminal state, this call moves
@@ -429,6 +457,7 @@ async function finalizeTxn(txn: TxnRow, result: ProviderResult, ctx: FinalizeCon
           status: "success",
           amount: needsMoney && ctx.direction === "credit" ? creditAmount : locked.amount,
           providerTxnId: result.providerTxnId,
+          metadata: withProviderEconomics(locked.metadata, result),
           completedAt: new Date(),
           updatedAt: new Date(),
         })
@@ -461,6 +490,7 @@ async function finalizeTxn(txn: TxnRow, result: ProviderResult, ctx: FinalizeCon
         .set({
           status: "failed",
           providerTxnId: result.providerTxnId,
+          metadata: withProviderEconomics(locked.metadata, result),
           failureReason: result.message,
           completedAt: new Date(),
           updatedAt: new Date(),
@@ -473,7 +503,12 @@ async function finalizeTxn(txn: TxnRow, result: ProviderResult, ctx: FinalizeCon
     // pending: money (if any) stays held with the system wallet until recheck resolves it.
     const [updated] = await tx
       .update(transactions)
-      .set({ status: "pending", providerTxnId: result.providerTxnId, updatedAt: new Date() })
+      .set({
+        status: "pending",
+        providerTxnId: result.providerTxnId,
+        metadata: withProviderEconomics(locked.metadata, result),
+        updatedAt: new Date(),
+      })
       .where(eq(transactions.id, locked.id))
       .returning();
     return { row: updated!, didSettleSuccess: false };
