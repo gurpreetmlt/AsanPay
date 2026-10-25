@@ -11,7 +11,6 @@ import {
   AlertTriangle,
   Bell,
   ShieldCheck,
-  PlusCircle,
   Share2,
   RotateCcw,
   LifeBuoy,

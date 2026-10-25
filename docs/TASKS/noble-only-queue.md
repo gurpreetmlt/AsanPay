@@ -15,8 +15,8 @@
 
 | # | Phase | Status |
 |---|-------|--------|
-| P1 | Route AEPS + DMT to Noble in DB (ops only) | **CURRENT** |
-| P2 | Aadhaar Pay setup + Cash Deposit status | todo |
+| P1 | Route AEPS + DMT to Noble in DB (ops only) | done (25 Oct) — owner to confirm What-if margins |
+| P2 | Aadhaar Pay setup + Cash Deposit status | **CURRENT** |
 | P3 | Recharge operator / circle mapping → switch recharge | todo |
 | P4 | DMT `bene/get` + admin Noble wallet balance | todo |
 | P5 | Delete PaySprint | todo |
@@ -36,6 +36,10 @@ EC2 SSH, inside the backend container, one at a time:
 3. same with `--apply`
 4. Admin → Tax & Commission → What-if: check margins for CW / DMT before agents transact.
 Do **not** switch `recharge` until P3.
+
+Done 25 Oct 2026: seed created 20 AEPS/DMT + 2 recharge `provider_services`; switch applied 19 services `none -> noble`.
+Jobs worker (`api-asanpay-in-jobs`) needed the same env as the API: `AEPS_PROVIDER_MODE=noble`, `NOBLE_API_KEY`, `NOBLE_API_VALUE`.
+Commission rules must have provider = Noble or All providers, or Noble txns pay no commission.
 
 ### P2 — Aadhaar Pay setup + Cash Deposit status
 Read: `apps/backend/src/modules/providers/adapters/noble.adapter.ts` (`aadhaarPay`, `aepsCashDeposit`, `checkStatus`), `apps/backend/src/modules/onboarding/nobleAepsSession.service.ts`, `NobleWebStudio/AEPS.md` (endpoints 7–14).
