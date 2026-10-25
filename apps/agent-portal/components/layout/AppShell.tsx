@@ -85,7 +85,7 @@ function buildAgentNav(role: UserRole | undefined, fundRequestOn: boolean): NavI
           { to: "/dashboard", label: "Home", icon: LayoutDashboard, exact: true },
           { to: "/aeps", label: "AePS", icon: Fingerprint },
           { to: "/dmt", label: "DMT", icon: Banknote },
-          { to: "/cms", label: "CMS", icon: Banknote },
+          { to: "/cms", label: "Cash Collection", icon: Banknote },
           { to: "/upi-cash-point", label: "UPI Cash Point", icon: MapPin },
           { to: "/nepal", label: "Nepal", icon: MapPin },
         ],

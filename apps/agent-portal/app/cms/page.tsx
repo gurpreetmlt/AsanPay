@@ -43,9 +43,9 @@ export default function CmsPage() {
       const tid = data.data.transactionId;
       setLastTxn(tid);
       if (url) window.open(url, "_blank", "noopener,noreferrer");
-      toast.success("CMS session started — complete payment in the opened window");
+      toast.success("Cash collection started — complete payment in the opened window");
     } catch (err) {
-      toast.error(extractApiError(err, "CMS start failed"));
+      toast.error(extractApiError(err, "Could not start cash collection. Check the merchant id and try again."));
     } finally {
       setBusy(false);
     }
@@ -54,7 +54,7 @@ export default function CmsPage() {
   async function checkStatus() {
     const tid = lastTxn || transactionId.trim();
     if (!tid) {
-      toast.error("Enter or start a CMS transaction id first");
+      toast.error("Start a cash collection or enter its transaction id first");
       return;
     }
     setBusy(true);
@@ -66,7 +66,7 @@ export default function CmsPage() {
       const d = data.data;
       setStatusText(`Status: ${d.tranStatus || "—"} · Amount: ${d.amount || "—"} · UTR: ${d.utr || "—"}`);
     } catch (err) {
-      toast.error(extractApiError(err, "CMS status failed"));
+      toast.error(extractApiError(err, "Could not fetch the cash collection status. Try again."));
     } finally {
       setBusy(false);
     }
@@ -79,10 +79,10 @@ export default function CmsPage() {
     <AppShell>
       <div className="mx-auto max-w-lg space-y-4 pb-10">
         <h1 className="text-lg font-bold" style={{ color: B.blue }}>
-          CMS
+          Cash Collection
         </h1>
         <p className="text-sm" style={{ color: B.muted }}>
-          Cash collection — start opens the bank page; then check status with the same transaction id.
+          Start opens the bank page; then check status with the same transaction id.
         </p>
         <form
           onSubmit={start}
@@ -116,7 +116,7 @@ export default function CmsPage() {
             />
           </label>
           <PrimaryButton type="submit" variant="primary" disabled={busy} className="w-full">
-            {busy ? "Starting…" : "Start CMS"}
+            {busy ? "Starting…" : "Start collection"}
           </PrimaryButton>
           <PrimaryButton type="button" variant="secondary" disabled={busy} className="w-full" onClick={() => void checkStatus()}>
             Check status

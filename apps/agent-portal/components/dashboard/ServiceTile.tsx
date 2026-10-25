@@ -65,8 +65,12 @@ export function ServiceTile({
       router.push(`/aeps?tab=${encodeURIComponent(aepsTab)}`);
       return;
     }
-    if (code === "UPI_CASH_POINT") {
+    if (code === "UPI_CASH_POINT" || code === "UPI_QR" || code === "UPIQR") {
       router.push("/upi-cash-point");
+      return;
+    }
+    if (["CASH_COLLECTION", "AGENT_COLLECTION", "CMS", "AIRTEL_CMS"].includes(code)) {
+      router.push("/cms");
       return;
     }
     if (code === "MONEY_TRANSFER" || code === "DMT") {

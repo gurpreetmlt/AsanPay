@@ -43,6 +43,8 @@ const AEPS_TAB_MAP: Record<string, string> = {
   AADHAAR_PAY: "Withdraw",
 };
 
+const CASH_COLLECTION_CODES = new Set(["CASH_COLLECTION", "AGENT_COLLECTION", "CMS", "AIRTEL_CMS"]);
+
 /** Collapsed BBPS shows 2×7; View all expands the rest. */
 const BBPS_PREVIEW = 14;
 
@@ -50,7 +52,7 @@ function resolveServiceRoute(code: string): string | null {
   const aepsTab = AEPS_TAB_MAP[code];
   if (aepsTab) return `/aeps?tab=${encodeURIComponent(aepsTab)}`;
   if (code === "UPI_CASH_POINT" || code === "UPI_QR" || code === "UPIQR") return "/upi-cash-point";
-  if (code === "CMS" || code === "AIRTEL_CMS") return "/cms";
+  if (CASH_COLLECTION_CODES.has(code)) return "/cms";
   if (code === "MONEY_TRANSFER" || code === "DMT") return "/dmt";
   if (code === "NEPAL" || code === "NEPAL_REMITTANCE") return "/nepal";
   if (code === "MOBILE_PREPAID") return "/recharge?service=MOBILE_PREPAID";

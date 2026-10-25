@@ -38,9 +38,12 @@ export function NobleCmsModal({ visible, onClose }: { visible: boolean; onClose:
       setLastTxn(data.data.transactionId);
       const url = data.data.redirectionUrl;
       if (url) await Linking.openURL(url);
-      showAlert("CMS started", "Complete the payment in the opened bank page, then check status.");
+      showAlert("Cash collection started", "Complete the payment in the opened bank page, then check status.");
     } catch (err) {
-      showAlert("CMS start failed", apiError(err, "Could not start CMS"));
+      showAlert(
+        "Cash collection failed",
+        apiError(err, "Could not start cash collection. Check the merchant id and try again."),
+      );
     } finally {
       setBusy(false);
     }
@@ -49,7 +52,7 @@ export function NobleCmsModal({ visible, onClose }: { visible: boolean; onClose:
   async function status() {
     const tid = lastTxn || transactionId.trim();
     if (!tid) {
-      showAlert("Transaction id required", "Start CMS first or enter a transaction id");
+      showAlert("Transaction id required", "Start a cash collection or enter its transaction id first");
       return;
     }
     setBusy(true);
@@ -59,11 +62,11 @@ export function NobleCmsModal({ visible, onClose }: { visible: boolean; onClose:
       >("/noble/cms/status", { transactionId: tid });
       if (!data.success) throw new Error(data.message);
       showAlert(
-        "CMS status",
+        "Cash collection status",
         `Status: ${data.data.tranStatus || "—"}\nAmount: ${data.data.amount || "—"}\nUTR: ${data.data.utr || "—"}`,
       );
     } catch (err) {
-      showAlert("CMS status failed", apiError(err, "Could not fetch CMS status"));
+      showAlert("Status check failed", apiError(err, "Could not fetch the cash collection status. Try again."));
     } finally {
       setBusy(false);
     }
@@ -73,14 +76,14 @@ export function NobleCmsModal({ visible, onClose }: { visible: boolean; onClose:
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bg }]} edges={["top", "bottom"]}>
         <View style={styles.header}>
-          <Text style={[styles.title, { color: tokens.txt }]}>CMS</Text>
+          <Text style={[styles.title, { color: tokens.txt }]}>Cash Collection</Text>
           <Pressable onPress={onClose}>
             <Text style={{ color: colors.blueFlat, fontWeight: "600" }}>Close</Text>
           </Pressable>
         </View>
         <View style={styles.body}>
           <Text style={[styles.hint, { color: tokens.sub }]}>
-            Cash collection — start opens the bank page, then check status with the same transaction id.
+            Start opens the bank page, then check status with the same transaction id.
           </Text>
           <Text style={[styles.label, { color: tokens.sub }]}>Merchant id</Text>
           <TextInput
@@ -100,7 +103,7 @@ export function NobleCmsModal({ visible, onClose }: { visible: boolean; onClose:
             placeholderTextColor={tokens.mute}
           />
           <Pressable style={[styles.primary, { opacity: busy ? 0.6 : 1 }]} disabled={busy} onPress={() => void start()}>
-            {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Start CMS</Text>}
+            {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Start collection</Text>}
           </Pressable>
           <Pressable style={[styles.secondary, { borderColor: tokens.cardBorder }]} disabled={busy} onPress={() => void status()}>
             <Text style={{ color: colors.blueFlat, fontWeight: "700" }}>Check status</Text>

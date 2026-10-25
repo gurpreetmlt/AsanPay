@@ -9,6 +9,14 @@ import { ArrowLeft, Copy, Check, Info, QrCode, X } from "lucide-react";
 import type { ApiResponse } from "@asanpay/shared-types";
 import { AppShell } from "@/components/layout/AppShell";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
+import { UpiCashPointHistory, type UpiCashPointHistoryHandle } from "@/components/upi/UpiCashPointHistory";
+import {
+  UpiLayoutPicker,
+  readUpiUiLayout,
+  writeUpiUiLayout,
+  type UpiUiLayout,
+} from "@/components/upi/UpiLayoutPicker";
+import { UpiNewLayoutForm } from "@/components/upi/UpiNewLayoutForm";
 import api from "@/lib/api";
 import { B } from "@/lib/brand";
 import { extractApiError, wasAepsOnboardingSkipped } from "@/lib/onboarding";
@@ -28,6 +36,12 @@ const QUICK_AMOUNTS = [
 const MIN_AMOUNT = 200;
 const MAX_AMOUNT = 5000;
 const QR_EXPIRY_SECONDS = 120;
+
+const NOTES = [
+  "Daily withdrawal limit per customer is ₹10,000",
+  "Minimum gap between 2 transactions of same customer should be 30 minutes",
+  "No commission will be paid for transactions made using your own UPI ID",
+];
 
 const UPI_APPS = [
   { name: "Google Pay", short: "GPay", color: "#4285F4" },
@@ -112,7 +126,13 @@ export default function UpiCashPointPage() {
   const [txnId, setTxnId] = useState("");
   const [copied, setCopied] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const historyRef = useRef<UpiCashPointHistoryHandle>(null);
+  const [uiLayout, setUiLayout] = useState<UpiUiLayout>("new");
   const upiId = upiIdFromQr(qr);
+
+  useEffect(() => {
+    setUiLayout(readUpiUiLayout());
+  }, []);
 
   useEffect(() => {
     if (hydrated && !accessToken) router.replace("/login");
@@ -173,6 +193,7 @@ export default function UpiCashPointPage() {
       setTxnId(data.data.transactionId || "");
       setStage("qr");
       startTimer();
+      historyRef.current?.reload();
     } catch (err) {
       toast.error(extractApiError(err, "Could not generate the UPI QR. Try again."));
     } finally {
@@ -209,25 +230,54 @@ export default function UpiCashPointPage() {
     <AppShell>
       <div className="mx-auto w-full max-w-[1600px] p-6">
         {/* Header */}
-        <div className="mb-6 flex items-center gap-3">
+        <div className="mb-6 flex flex-wrap items-center gap-3">
           <button
             type="button"
             onClick={() => (stage === "qr" ? handleNewQr() : router.push("/dashboard"))}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border hover:bg-gray-50"
+            className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border hover:bg-gray-50"
+            aria-label="Back"
           >
             <ArrowLeft size={18} />
           </button>
-          <div>
-            <h1 className="text-xl font-bold" style={{ color: B.blue }}>
-              UPI Cash Point
-            </h1>
-            <p className="text-xs" style={{ color: B.muted }}>
-              QR-based cash withdrawal via UPI
-            </p>
-          </div>
+          {uiLayout === "classic" || stage === "qr" ? (
+            <div className="min-w-0 flex-1">
+              <h1 className="text-xl font-bold" style={{ color: B.blue }}>
+                UPI Cash Point
+              </h1>
+              <p className="text-xs" style={{ color: B.muted }}>
+                QR-based cash withdrawal via UPI
+              </p>
+            </div>
+          ) : (
+            <div className="min-w-0 flex-1" />
+          )}
+          <UpiLayoutPicker
+            value={uiLayout}
+            onChange={(next) => {
+              setUiLayout(next);
+              writeUpiUiLayout(next);
+            }}
+          />
         </div>
 
-        {stage === "input" ? (
+        {stage === "input" && uiLayout === "new" ? (
+          <UpiNewLayoutForm
+            quickAmounts={QUICK_AMOUNTS}
+            amount={amount}
+            onAmountChange={(v) => {
+              setAmount(v);
+              setEarnDismissed(false);
+            }}
+            amountError={amountError}
+            amountHint={amountNum > 0 ? amountInWords(amountNum) : "Enter amount in multiples of ₹100 (₹200 – ₹5,000)"}
+            customerMobile={customerMobile}
+            onMobileChange={setCustomerMobile}
+            canGenerate={amountValid && mobileValid && !busy}
+            busy={busy}
+            onGenerate={() => void handleGenerate()}
+            notes={NOTES}
+          />
+        ) : stage === "input" ? (
           /* Clean spacious layout — roomy type, same outer shell */
           <div className="grid items-start gap-6 md:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_340px]">
             <div className="min-w-0">
@@ -584,6 +634,10 @@ export default function UpiCashPointPage() {
             </aside>
           </div>
         )}
+
+        <div className="mt-8">
+          <UpiCashPointHistory ref={historyRef} />
+        </div>
       </div>
     </AppShell>
   );

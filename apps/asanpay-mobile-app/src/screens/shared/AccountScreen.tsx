@@ -487,8 +487,8 @@ export function AccountScreen() {
           {user.role === "retailer" ? (
             <MenuRow
               icon={ShieldCheck}
-              label="CMS"
-              subtitle="Cash collection start and status"
+              label="Cash Collection"
+              subtitle="Start a collection and check status"
               tokens={tokens}
               onPress={() => setShowNobleCms(true)}
             />

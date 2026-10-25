@@ -50,7 +50,7 @@ const DMT_CODES = new Set(["MONEY_TRANSFER"]);
 const NEPAL_CODES = new Set(["NEPAL", "NEPAL_REMITTANCE"]);
 const UPI_CP_CODES = new Set(["UPI_CASH_POINT", "UPI_QR", "UPIQR"]);
 const RECHARGE_CODES = new Set(["MOBILE_PREPAID", "DTH"]);
-const CMS_CODES = new Set(["CMS", "AIRTEL_CMS"]);
+const CMS_CODES = new Set(["CASH_COLLECTION", "AGENT_COLLECTION", "CMS", "AIRTEL_CMS"]);
 
 function greetingName(name: string): string {
   const first = name.split(" ")[0] ?? name;
