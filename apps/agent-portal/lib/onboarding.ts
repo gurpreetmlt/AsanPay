@@ -24,7 +24,7 @@ export function needsSignupKycCompletion(user: AuthUser | null | undefined): boo
 
 const AEPS_ONBOARDING_SKIP_KEY = "aepsOnboardingSkipped";
 
-/** Session-only: AEPS / UPI QR stop redirecting to onboarding until the tab is closed. */
+/** Session-only: AEPS / UPI Cash Point stop redirecting to onboarding until the tab is closed. */
 export function markAepsOnboardingSkipped(): void {
   try {
     sessionStorage.setItem(AEPS_ONBOARDING_SKIP_KEY, "1");

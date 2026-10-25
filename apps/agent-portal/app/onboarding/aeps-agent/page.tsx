@@ -30,6 +30,7 @@ const LAST_STEP = STEPS.length - 1;
 const ERR_RED = "#DC2626";
 /** Full PAN / Aadhaar re-mask automatically after this long. */
 const REVEAL_MS = 30_000;
+const GPS_REQUIRED_MSG = "Tap Use GPS inside your shop to capture the shop location";
 
 type FieldKey = keyof AepsOnboardingForm;
 
@@ -48,6 +49,8 @@ export default function NobleAgentOnboardPage() {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [geoBusy, setGeoBusy] = useState(false);
+  /** Prefilled coordinates are not trusted — the agent must capture GPS inside the shop. */
+  const [gpsCaptured, setGpsCaptured] = useState(false);
   const [sameAsResidential, setSameAsResidential] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({});
   const [form, setForm] = useState<AepsOnboardingForm>(EMPTY_AEPS_ONBOARDING_FORM);
@@ -149,6 +152,7 @@ export default function NobleAgentOnboardPage() {
       (pos) => {
         setField("shopLatitude", pos.coords.latitude.toFixed(4));
         setField("shopLongitude", pos.coords.longitude.toFixed(4));
+        setGpsCaptured(true);
         toast.success("Shop location captured");
         setGeoBusy(false);
       },
@@ -204,6 +208,11 @@ export default function NobleAgentOnboardPage() {
         setStep(i);
         return;
       }
+    }
+    if (!gpsCaptured) {
+      setErrors({ shopLatitude: GPS_REQUIRED_MSG });
+      toast.error(GPS_REQUIRED_MSG);
+      return;
     }
     setLoading(true);
     try {
@@ -322,7 +331,7 @@ export default function NobleAgentOnboardPage() {
             Register for AEPS services
           </div>
           <p className="text-xs" style={{ color: B.muted }}>
-            One-time form. Required before using AEPS, Aadhaar Pay, Cash Deposit, and UPI QR.
+            One-time form. Required before using AEPS, Aadhaar Pay, Cash Deposit, and UPI Cash Point.
           </p>
           {prefill ? (
             <p className="mt-2 text-xs font-semibold" style={{ color: B.greenDark }}>
@@ -446,21 +455,41 @@ export default function NobleAgentOnboardPage() {
                   })}
                 </div>
                 <div
-                  className="rounded-xl border p-3"
-                  style={{ borderColor: errors.shopLatitude ? ERR_RED : B.border, background: `${B.blue}04` }}
+                  className="rounded-xl border-2 p-3"
+                  style={{
+                    borderColor: errors.shopLatitude ? ERR_RED : gpsCaptured ? B.green : B.blue,
+                    background: gpsCaptured ? `${B.green}0D` : `${B.blue}0A`,
+                  }}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="text-sm" style={{ color: B.blue }}>
-                      <div className="font-semibold">Shop location</div>
+                      <div className="flex items-center gap-2 font-semibold">
+                        Shop location
+                        <span
+                          className="rounded-full px-2 py-0.5 text-[11px] font-bold"
+                          style={
+                            gpsCaptured
+                              ? { background: `${B.green}1F`, color: B.greenDark }
+                              : { background: `${ERR_RED}14`, color: ERR_RED }
+                          }
+                        >
+                          {gpsCaptured ? "Captured" : "Required"}
+                        </span>
+                      </div>
                       <div className="text-xs" style={{ color: B.muted }}>
-                        {form.shopLatitude && form.shopLongitude
+                        {gpsCaptured
                           ? `${form.shopLatitude}, ${form.shopLongitude}`
-                          : "Stand inside your shop and tap Use GPS"}
+                          : "Stand inside your shop and tap Use GPS before submitting"}
                       </div>
                     </div>
-                    <PrimaryButton type="button" variant="secondary" onClick={captureLocation} disabled={geoBusy}>
+                    <PrimaryButton
+                      type="button"
+                      variant={gpsCaptured ? "secondary" : "primary"}
+                      onClick={captureLocation}
+                      disabled={geoBusy}
+                    >
                       <MapPin size={14} className="mr-1 inline" />
-                      {geoBusy ? "Locating…" : form.shopLatitude ? "Update GPS" : "Use GPS"}
+                      {geoBusy ? "Locating…" : gpsCaptured ? "Update GPS" : "Use GPS"}
                     </PrimaryButton>
                   </div>
                   {errors.shopLatitude ? (

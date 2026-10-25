@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Linking, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import LinearGradient from "react-native-linear-gradient";
@@ -47,7 +47,7 @@ import { FundRequestModal } from "./FundRequestScreen";
 import { RegisterOutletModal } from "./RegisterOutletModal";
 import { NobleAgentOnboardModal } from "./NobleAgentOnboardModal";
 import { NobleCmsModal } from "./NobleCmsModal";
-import { NobleUpiQrModal } from "./NobleUpiQrModal";
+import { UpiCashPointScreen } from "../retailer/UpiCashPointScreen";
 import { BioKycModal } from "./BioKycModal";
 import { BiometricDevicesModal } from "./BiometricDevicesModal";
 import { DeviceRepairModal } from "./DeviceRepairModal";
@@ -478,8 +478,8 @@ export function AccountScreen() {
           {user.role === "retailer" ? (
             <MenuRow
               icon={ShieldCheck}
-              label="UPI QR"
-              subtitle="generate collection QR"
+              label="UPI Cash Point"
+              subtitle="QR-based cash withdrawal via UPI"
               tokens={tokens}
               onPress={() => setShowNobleUpiQr(true)}
             />
@@ -687,7 +687,9 @@ export function AccountScreen() {
       <FundRequestModal visible={showFund} onClose={() => setShowFund(false)} />
       <RegisterOutletModal visible={showRegisterOutlet} onClose={() => setShowRegisterOutlet(false)} />
       <NobleAgentOnboardModal visible={showNobleOnboard} onClose={() => setShowNobleOnboard(false)} />
-      <NobleUpiQrModal visible={showNobleUpiQr} onClose={() => setShowNobleUpiQr(false)} />
+      <Modal visible={showNobleUpiQr} animationType="slide" onRequestClose={() => setShowNobleUpiQr(false)}>
+        <UpiCashPointScreen onBack={() => setShowNobleUpiQr(false)} />
+      </Modal>
       <NobleCmsModal visible={showNobleCms} onClose={() => setShowNobleCms(false)} />
       <BioKycModal visible={showBioKyc} onClose={() => setShowBioKyc(false)} />
     </SafeAreaView>

@@ -49,8 +49,7 @@ const BBPS_PREVIEW = 14;
 function resolveServiceRoute(code: string): string | null {
   const aepsTab = AEPS_TAB_MAP[code];
   if (aepsTab) return `/aeps?tab=${encodeURIComponent(aepsTab)}`;
-  if (code === "UPI_CASH_POINT") return "/upi-cash-point";
-  if (code === "UPI_QR" || code === "UPIQR") return "/upi-qr";
+  if (code === "UPI_CASH_POINT" || code === "UPI_QR" || code === "UPIQR") return "/upi-cash-point";
   if (code === "CMS" || code === "AIRTEL_CMS") return "/cms";
   if (code === "MONEY_TRANSFER" || code === "DMT") return "/dmt";
   if (code === "NEPAL" || code === "NEPAL_REMITTANCE") return "/nepal";

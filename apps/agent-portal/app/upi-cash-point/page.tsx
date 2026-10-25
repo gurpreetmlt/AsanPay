@@ -3,10 +3,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
+import { toast } from "react-hot-toast";
+import { QRCodeSVG } from "qrcode.react";
 import { ArrowLeft, Copy, Check, Info, QrCode, X } from "lucide-react";
+import type { ApiResponse } from "@asanpay/shared-types";
 import { AppShell } from "@/components/layout/AppShell";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
+import api from "@/lib/api";
 import { B } from "@/lib/brand";
+import { extractApiError, wasAepsOnboardingSkipped } from "@/lib/onboarding";
+import { useAuthStore } from "@/lib/store";
+import { useAuthHydrated } from "@/lib/useAuthHydrated";
 
 const QUICK_AMOUNTS = [
   { amount: 200, hint: "min. limit" },
@@ -35,76 +42,24 @@ const UPI_APPS = [
 
 type Stage = "input" | "qr";
 
-function generateMockUpiId(): string {
-  const num = Math.floor(10000 + Math.random() * 90000);
-  return `asanpay.ucp${num}@yesbankltd`;
+/** `upi://pay?pa=<vpa>&...` → `<vpa>` */
+function upiIdFromQr(qr: string): string {
+  const match = /[?&]pa=([^&]+)/.exec(qr);
+  return match ? decodeURIComponent(match[1]!) : "";
 }
 
-function QrPlaceholder({ amount }: { amount: number }) {
-  const cells = 21;
-  const size = 200;
-  const cellSize = size / cells;
-
-  const patternRef = useRef<boolean[][]>([]);
-  if (patternRef.current.length === 0) {
-    const pattern: boolean[][] = [];
-    for (let r = 0; r < cells; r++) {
-      pattern[r] = [];
-      for (let c = 0; c < cells; c++) {
-        const inFinder =
-          (r < 7 && c < 7) ||
-          (r < 7 && c >= cells - 7) ||
-          (r >= cells - 7 && c < 7);
-        if (inFinder) {
-          const isOuterBorder = r === 0 || r === 6 || c === 0 || c === 6 ||
-            (r >= cells - 7 && (r === cells - 7 || r === cells - 1)) ||
-            (c >= cells - 7 && (c === cells - 7 || c === cells - 1));
-          const isInner = (r >= 2 && r <= 4 && c >= 2 && c <= 4) ||
-            (r >= 2 && r <= 4 && c >= cells - 5 && c <= cells - 3) ||
-            (r >= cells - 5 && r <= cells - 3 && c >= 2 && c <= 4);
-          pattern[r]![c] = isOuterBorder || isInner;
-        } else {
-          pattern[r]![c] = Math.random() > 0.55;
-        }
-      }
+function currentPosition(): Promise<{ latitude: number; longitude: number }> {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error("no-geo"));
+      return;
     }
-    patternRef.current = pattern;
-  }
-
-  const rects: React.ReactNode[] = [];
-  for (let r = 0; r < cells; r++) {
-    for (let c = 0; c < cells; c++) {
-      if (patternRef.current[r]?.[c]) {
-        rects.push(
-          <rect
-            key={`${r}-${c}`}
-            x={c * cellSize}
-            y={r * cellSize}
-            width={cellSize}
-            height={cellSize}
-            fill={B.blue}
-          />,
-        );
-      }
-    }
-  }
-
-  return (
-    <div className="relative">
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        <rect width={size} height={size} fill="white" />
-        {rects}
-      </svg>
-      <div
-        className="absolute inset-0 flex items-center justify-center"
-        style={{ pointerEvents: "none" }}
-      >
-        <div className="flex h-10 w-10 items-center justify-center rounded-md bg-white shadow-sm">
-          <span className="text-lg font-black" style={{ color: B.blue }}>₹</span>
-        </div>
-      </div>
-    </div>
-  );
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+      reject,
+      { enableHighAccuracy: true, timeout: 15000 },
+    );
+  });
 }
 
 function amountInWords(n: number): string {
@@ -144,13 +99,30 @@ function amountErrorMessage(n: number): string | null {
 
 export default function UpiCashPointPage() {
   const router = useRouter();
+  const hydrated = useAuthHydrated();
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const user = useAuthStore((s) => s.user);
   const [stage, setStage] = useState<Stage>("input");
   const [amount, setAmount] = useState("");
+  const [customerMobile, setCustomerMobile] = useState("");
+  const [busy, setBusy] = useState(false);
   const [earnDismissed, setEarnDismissed] = useState(false);
   const [timer, setTimer] = useState(QR_EXPIRY_SECONDS);
-  const [upiId, setUpiId] = useState("");
+  const [qr, setQr] = useState("");
+  const [txnId, setTxnId] = useState("");
   const [copied, setCopied] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const upiId = upiIdFromQr(qr);
+
+  useEffect(() => {
+    if (hydrated && !accessToken) router.replace("/login");
+  }, [hydrated, accessToken, router]);
+
+  useEffect(() => {
+    if (!user?.aepsOnboardingRequired || wasAepsOnboardingSkipped()) return;
+    toast("Complete AEPS agent onboarding to start using UPI Cash Point");
+    router.replace(`/onboarding/aeps-agent?next=${encodeURIComponent("/upi-cash-point")}`);
+  }, [user?.aepsOnboardingRequired, router]);
 
   const startTimer = useCallback(() => {
     setTimer(QR_EXPIRY_SECONDS);
@@ -172,17 +144,48 @@ export default function UpiCashPointPage() {
     };
   }, []);
 
-  function handleGenerate() {
+  async function handleGenerate() {
+    if (busy) return;
     const amt = parseInt(amount, 10);
     if (!amt || amountErrorMessage(amt)) return;
-    setUpiId(generateMockUpiId());
-    setStage("qr");
-    startTimer();
+    const mobile = customerMobile.replace(/\D/g, "");
+    if (mobile.length !== 10) {
+      toast.error("Enter a valid 10-digit customer mobile");
+      return;
+    }
+    setBusy(true);
+    try {
+      let geo: { latitude: number; longitude: number };
+      try {
+        geo = await currentPosition();
+      } catch {
+        toast.error("Allow location access before continuing");
+        return;
+      }
+      await api.post("/noble/upi-qr/load", { channel: "WEB" });
+      const { data } = await api.post<ApiResponse<{ qr: string; transactionId: string }>>(
+        "/noble/upi-qr/generate",
+        { amount: String(amt), mobileNumber: mobile, ...geo, channel: "WEB" },
+      );
+      if (!data.success) throw new Error(data.message);
+      if (!data.data.qr) throw new Error("The provider did not return a QR code. Try again.");
+      setQr(data.data.qr);
+      setTxnId(data.data.transactionId || "");
+      setStage("qr");
+      startTimer();
+    } catch (err) {
+      toast.error(extractApiError(err, "Could not generate the UPI QR. Try again."));
+    } finally {
+      setBusy(false);
+    }
   }
 
   function handleNewQr() {
     setStage("input");
     setAmount("");
+    setCustomerMobile("");
+    setQr("");
+    setTxnId("");
     if (timerRef.current) clearInterval(timerRef.current);
   }
 
@@ -199,6 +202,7 @@ export default function UpiCashPointPage() {
   const isExpired = timer === 0;
   const amountError = amountErrorMessage(amountNum);
   const amountValid = amountNum > 0 && !amountError;
+  const mobileValid = customerMobile.length === 10;
   const showEarnStrip = amountValid && !earnDismissed;
 
   return (
@@ -303,25 +307,41 @@ export default function UpiCashPointPage() {
                     ))}
                   </div>
 
-                  <div className="mt-9 flex justify-center">
+                  <label className="mx-auto mt-8 block w-full max-w-[280px]">
+                    <span className="mb-1 block text-center text-xs font-semibold text-gray-500">
+                      Customer mobile
+                    </span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={customerMobile}
+                      onChange={(e) => setCustomerMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                      placeholder="10-digit mobile"
+                      maxLength={10}
+                      className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-center text-base font-semibold tracking-wide text-gray-900 outline-none focus:border-blue-500"
+                    />
+                  </label>
+
+                  <div className="mt-6 flex justify-center">
                     <PrimaryButton
                       type="button"
                       variant="primary"
                       size="md"
                       showArrow={false}
-                      disabled={!amountValid}
-                      onClick={handleGenerate}
+                      disabled={!amountValid || !mobileValid || busy}
+                      onClick={() => void handleGenerate()}
                       className="!w-auto min-w-[240px]"
                     >
-                      Generate QR
+                      {busy ? "Generating…" : "Generate QR"}
                       <QrCode size={18} strokeWidth={2.4} />
                     </PrimaryButton>
                   </div>
+                  <p className="mt-2 text-center text-xs text-gray-400">
+                    Your shop location is captured when you tap Generate QR
+                  </p>
 
                   <div className="mt-5 flex items-center justify-center gap-4 text-xs font-semibold tracking-wide text-gray-400">
                     <span>AsanPay</span>
-                    <span className="text-gray-300">·</span>
-                    <span>YES BANK</span>
                     <span className="text-gray-300">·</span>
                     <span>UPI</span>
                   </div>
@@ -460,10 +480,11 @@ export default function UpiCashPointPage() {
 
               {/* QR Code */}
               <div className={clsx("mx-auto mb-5 inline-block rounded-xl border-2 p-3", isExpired && "opacity-30")}>
-                <QrPlaceholder amount={amountNum} />
+                <QRCodeSVG value={qr} size={200} fgColor={B.blue} marginSize={1} />
               </div>
 
               {/* UPI ID */}
+              {upiId ? (
               <div className="mx-auto flex w-fit items-center gap-2 rounded-lg bg-gray-50 px-4 py-2">
                 <span className="text-xs text-gray-500">UPI ID:</span>
                 <span className="text-xs font-bold text-gray-700">{upiId}</span>
@@ -481,18 +502,18 @@ export default function UpiCashPointPage() {
                   )}
                 </button>
               </div>
+              ) : null}
+              {txnId ? <p className="mt-2 text-xs text-gray-400">Txn ID: {txnId}</p> : null}
 
               {isExpired && (
                 <button
                   type="button"
-                  onClick={() => {
-                    setUpiId(generateMockUpiId());
-                    startTimer();
-                  }}
-                  className="mt-4 rounded-xl px-8 py-2.5 text-sm font-bold text-white"
-                  style={{ background: `linear-gradient(135deg, ${B.green} 0%, ${B.greenDark} 100%)` }}
+                  onClick={() => void handleGenerate()}
+                  disabled={busy}
+                  className="mt-4 rounded-xl px-8 py-2.5 text-sm font-bold text-white disabled:opacity-60"
+                  style={{ background: `linear-gradient(135deg, ${B.blueLight} 0%, ${B.blue} 100%)` }}
                 >
-                  Regenerate QR
+                  {busy ? "Generating…" : "Regenerate QR"}
                 </button>
               )}
             </div>

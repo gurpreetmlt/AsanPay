@@ -45,6 +45,7 @@ const STEPS: MobileStepperStep[] = AEPS_ONBOARDING_STEPS.map((s, i) => ({
 const LAST_STEP = STEPS.length - 1;
 /** Full PAN / Aadhaar re-mask automatically after this long. */
 const REVEAL_MS = 30_000;
+const GPS_REQUIRED_MSG = "Tap Use GPS inside your shop to capture the shop location";
 
 type FieldKey = keyof AepsOnboardingForm;
 
@@ -66,6 +67,8 @@ export function NobleAgentOnboardModal({
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [geoBusy, setGeoBusy] = useState(false);
+  /** Prefilled coordinates are not trusted — the agent must capture GPS inside the shop. */
+  const [gpsCaptured, setGpsCaptured] = useState(false);
   const [sameAsResidential, setSameAsResidential] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({});
   const [form, setForm] = useState<AepsOnboardingForm>(EMPTY_AEPS_ONBOARDING_FORM);
@@ -162,6 +165,7 @@ export function NobleAgentOnboardModal({
       (pos) => {
         setField("shopLatitude", pos.coords.latitude.toFixed(4));
         setField("shopLongitude", pos.coords.longitude.toFixed(4));
+        setGpsCaptured(true);
         setGeoBusy(false);
       },
       (err) => {
@@ -210,6 +214,11 @@ export function NobleAgentOnboardModal({
         setStep(i);
         return;
       }
+    }
+    if (!gpsCaptured) {
+      setErrors({ shopLatitude: GPS_REQUIRED_MSG });
+      showAlert("Shop location required", GPS_REQUIRED_MSG);
+      return;
     }
 
     setSaving(true);
@@ -303,15 +312,13 @@ export function NobleAgentOnboardModal({
 
   const current = STEPS[step]!;
   const StepIcon = current.icon;
-  const hasGeo = Boolean(form.shopLatitude && form.shopLongitude);
-
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bg }]} edges={["top", "bottom"]}>
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
             <Text style={[styles.title, { color: tokens.txt }]}>AEPS agent onboarding</Text>
-            <Text style={[styles.hint, { color: tokens.sub }]}>One-time form for AEPS, Aadhaar Pay, Cash Deposit, and UPI QR</Text>
+            <Text style={[styles.hint, { color: tokens.sub }]}>One-time form for AEPS, Aadhaar Pay, Cash Deposit, and UPI Cash Point</Text>
           </View>
           <Pressable
             onPress={onClose}
@@ -436,23 +443,39 @@ export function NobleAgentOnboardModal({
                   <View
                     style={[
                       styles.geoCard,
-                      { borderColor: errors.shopLatitude ? colors.danger : tokens.cardBorder, backgroundColor: tokens.bg },
+                      {
+                        borderColor: errors.shopLatitude ? colors.danger : gpsCaptured ? colors.green : colors.blueFlat,
+                        backgroundColor: gpsCaptured ? "#ECFDF3" : "#EEF2FF",
+                      },
                     ]}
                   >
                     <View style={styles.geoIcon}>
                       <MapPin size={16} color={colors.blue} />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={[styles.geoTitle, { color: tokens.txt }]}>Shop location</Text>
+                      <View style={styles.geoTitleRow}>
+                        <Text style={[styles.geoTitle, { color: tokens.txt }]}>Shop location</Text>
+                        <Text style={[styles.geoBadge, gpsCaptured ? styles.geoBadgeOk : styles.geoBadgeReq]}>
+                          {gpsCaptured ? "Captured" : "Required"}
+                        </Text>
+                      </View>
                       <Text style={{ color: tokens.sub, fontSize: 12 }}>
-                        {hasGeo ? `${form.shopLatitude}, ${form.shopLongitude}` : "Stand inside your shop and tap Use GPS"}
+                        {gpsCaptured
+                          ? `${form.shopLatitude}, ${form.shopLongitude}`
+                          : "Stand inside your shop and tap Use GPS before submitting"}
                       </Text>
                     </View>
-                    <Pressable style={styles.geoBtn} onPress={captureLocation} disabled={geoBusy}>
+                    <Pressable
+                      style={[styles.geoBtn, !gpsCaptured && styles.geoBtnStrong]}
+                      onPress={captureLocation}
+                      disabled={geoBusy}
+                    >
                       {geoBusy ? (
-                        <ActivityIndicator size="small" color={colors.blueFlat} />
+                        <ActivityIndicator size="small" color={gpsCaptured ? colors.blueFlat : "#fff"} />
                       ) : (
-                        <Text style={styles.geoBtnText}>{hasGeo ? "Update" : "Use GPS"}</Text>
+                        <Text style={[styles.geoBtnText, !gpsCaptured && styles.geoBtnTextStrong]}>
+                          {gpsCaptured ? "Update GPS" : "Use GPS"}
+                        </Text>
                       )}
                     </Pressable>
                   </View>
@@ -571,7 +594,7 @@ const styles = StyleSheet.create({
   geoCard: {
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1,
+    borderWidth: 2,
     borderRadius: 12,
     padding: 12,
     gap: 10,
@@ -584,7 +607,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#EEF2FF",
   },
-  geoTitle: { fontSize: 14, fontWeight: "700", marginBottom: 2 },
+  geoTitleRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 },
+  geoTitle: { fontSize: 14, fontWeight: "700" },
+  geoBadge: {
+    fontSize: 11,
+    fontWeight: "700",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    overflow: "hidden",
+  },
+  geoBadgeReq: { backgroundColor: "#FEE2E2", color: colors.danger },
+  geoBadgeOk: { backgroundColor: "#D1FAE5", color: colors.green },
+  geoBtnStrong: { backgroundColor: colors.blueFlat },
+  geoBtnTextStrong: { color: "#fff" },
   geoBtn: {
     borderRadius: 10,
     paddingHorizontal: 12,

@@ -27,7 +27,6 @@ import { TodayEarningsCard } from "../../components/TodayEarningsCard";
 import { PanMissingBanner } from "../../components/PanMissingBanner";
 import { NobleAgentOnboardModal } from "../shared/NobleAgentOnboardModal";
 import { NobleCmsModal } from "../shared/NobleCmsModal";
-import { NobleUpiQrModal } from "../shared/NobleUpiQrModal";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 
@@ -49,9 +48,8 @@ if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental
 const AEPS_CODES = new Set(["AADHAAR_PAY", "CASH_WITHDRAW", "BALANCE_ENQUIRY", "MINI_STATEMENT", "CASH_DEPOSIT"]);
 const DMT_CODES = new Set(["MONEY_TRANSFER"]);
 const NEPAL_CODES = new Set(["NEPAL", "NEPAL_REMITTANCE"]);
-const UPI_CP_CODES = new Set(["UPI_CASH_POINT"]);
+const UPI_CP_CODES = new Set(["UPI_CASH_POINT", "UPI_QR", "UPIQR"]);
 const RECHARGE_CODES = new Set(["MOBILE_PREPAID", "DTH"]);
-const UPI_QR_CODES = new Set(["UPI_QR", "UPIQR"]);
 const CMS_CODES = new Set(["CMS", "AIRTEL_CMS"]);
 
 function greetingName(name: string): string {
@@ -80,7 +78,6 @@ export function ServicesScreen() {
   const [aepsServiceCode, setAepsServiceCode] = useState<string | undefined>();
   const [pendingAepsCode, setPendingAepsCode] = useState<string | null>(null);
   const [onboardingSkipped, setOnboardingSkipped] = useState(false);
-  const [showUpiQr, setShowUpiQr] = useState(false);
   const [showCms, setShowCms] = useState(false);
   const [rechargeServiceCode, setRechargeServiceCode] = useState<"MOBILE_PREPAID" | "DTH">("MOBILE_PREPAID");
 
@@ -142,7 +139,7 @@ export function ServicesScreen() {
       );
       return;
     }
-    if (AEPS_CODES.has(code) || UPI_QR_CODES.has(code)) {
+    if (AEPS_CODES.has(code) || UPI_CP_CODES.has(code)) {
       if (user.aepsOnboardingRequired && !onboardingSkipped) {
         setPendingAepsCode(code);
         return;
@@ -158,10 +155,6 @@ export function ServicesScreen() {
       setActiveScreen("nepal");
       return;
     }
-    if (UPI_CP_CODES.has(code)) {
-      setActiveScreen("upi_cp");
-      return;
-    }
     if (CMS_CODES.has(code)) {
       setShowCms(true);
       return;
@@ -175,8 +168,8 @@ export function ServicesScreen() {
   }
 
   function openAepsFamily(code: string) {
-    if (UPI_QR_CODES.has(code)) {
-      setShowUpiQr(true);
+    if (UPI_CP_CODES.has(code)) {
+      setActiveScreen("upi_cp");
       return;
     }
     setAepsServiceCode(code);
@@ -453,7 +446,6 @@ export function ServicesScreen() {
         onClose={closeAepsOnboarding}
         onSkip={skipAepsOnboarding}
       />
-      <NobleUpiQrModal visible={showUpiQr} onClose={() => setShowUpiQr(false)} />
       <NobleCmsModal visible={showCms} onClose={() => setShowCms(false)} />
     </SafeAreaView>
     </PageEnter>

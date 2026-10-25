@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Animated,
   LayoutAnimation,
   Platform,
@@ -13,11 +14,23 @@ import {
 } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
-import Svg, { Rect } from "react-native-svg";
+import Geolocation from "@react-native-community/geolocation";
+import RawQRCode from "react-native-qrcode-svg";
 import { ArrowLeft, Check, Copy, Info, QrCode, X } from "lucide-react-native";
+import type { ApiResponse } from "@asanpay/shared-types";
+import { api } from "../../lib/api";
+import { apiError } from "../../utils/apiError";
 import { useTheme } from "../../theme/ThemeContext";
 import { colors, gradientDirection } from "../../theme/colors";
 import { showAlert } from "../../components/AppAlert";
+
+// Hoisted React 19 types make the library's class component look invalid to TS; it renders fine.
+const QRCode = RawQRCode as unknown as React.ComponentType<{
+  value: string;
+  size: number;
+  color?: string;
+  backgroundColor?: string;
+}>;
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -54,9 +67,20 @@ const NOTES = [
 
 type Stage = "input" | "qr";
 
-function generateMockUpiId(): string {
-  const num = Math.floor(10000 + Math.random() * 90000);
-  return `asanpay.ucp${num}@yesbankltd`;
+/** `upi://pay?pa=<vpa>&...` → `<vpa>` */
+function upiIdFromQr(qr: string): string {
+  const match = /[?&]pa=([^&]+)/.exec(qr);
+  return match ? decodeURIComponent(match[1]!) : "";
+}
+
+function currentPosition(): Promise<{ latitude: number; longitude: number }> {
+  return new Promise((resolve, reject) => {
+    Geolocation.getCurrentPosition(
+      (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+      reject,
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 },
+    );
+  });
 }
 
 function amountInWords(n: number): string {
@@ -93,91 +117,6 @@ function amountErrorMessage(n: number): string | null {
   return null;
 }
 
-function generateQrPattern(): boolean[][] {
-  const cells = 21;
-  const pattern: boolean[][] = [];
-  for (let r = 0; r < cells; r++) {
-    pattern[r] = [];
-    for (let c = 0; c < cells; c++) {
-      const inFinder =
-        (r < 7 && c < 7) ||
-        (r < 7 && c >= cells - 7) ||
-        (r >= cells - 7 && c < 7);
-      if (inFinder) {
-        const isOuterBorder =
-          r === 0 || r === 6 || c === 0 || c === 6 ||
-          (r >= cells - 7 && (r === cells - 7 || r === cells - 1)) ||
-          (c >= cells - 7 && (c === cells - 7 || c === cells - 1));
-        const isInner =
-          (r >= 2 && r <= 4 && c >= 2 && c <= 4) ||
-          (r >= 2 && r <= 4 && c >= cells - 5 && c <= cells - 3) ||
-          (r >= cells - 5 && r <= cells - 3 && c >= 2 && c <= 4);
-        pattern[r]![c] = isOuterBorder || isInner;
-      } else {
-        pattern[r]![c] = Math.random() > 0.55;
-      }
-    }
-  }
-  return pattern;
-}
-
-function QrPlaceholder() {
-  const patternRef = useRef<boolean[][]>(generateQrPattern());
-  const cells = 21;
-  const size = 180;
-  const cellSize = size / cells;
-  const pattern = patternRef.current;
-
-  const rects: React.ReactNode[] = [];
-  for (let r = 0; r < cells; r++) {
-    for (let c = 0; c < cells; c++) {
-      if (pattern[r]?.[c]) {
-        rects.push(
-          <Rect
-            key={`${r}-${c}`}
-            x={c * cellSize}
-            y={r * cellSize}
-            width={cellSize}
-            height={cellSize}
-            fill={colors.blue}
-          />,
-        );
-      }
-    }
-  }
-
-  return (
-    <View style={qr.wrap}>
-      <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        <Rect width={size} height={size} fill="white" />
-        {rects}
-      </Svg>
-      <View style={qr.center}>
-        <Text style={qr.rupee}>₹</Text>
-      </View>
-    </View>
-  );
-}
-
-const qr = StyleSheet.create({
-  wrap: { position: "relative", alignItems: "center", justifyContent: "center" },
-  center: {
-    position: "absolute",
-    width: 34,
-    height: 34,
-    borderRadius: 8,
-    backgroundColor: "#fff",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 3,
-  },
-  rupee: { fontSize: 18, fontWeight: "900", color: colors.blue },
-});
-
 interface Props {
   onBack: () => void;
 }
@@ -186,10 +125,14 @@ export function UpiCashPointScreen({ onBack }: Props) {
   const { tokens } = useTheme();
   const [stage, setStage] = useState<Stage>("input");
   const [amount, setAmount] = useState("");
+  const [customerMobile, setCustomerMobile] = useState("");
+  const [busy, setBusy] = useState(false);
   const [earnDismissed, setEarnDismissed] = useState(false);
   const [timer, setTimer] = useState(QR_EXPIRY_SECONDS);
-  const [upiId, setUpiId] = useState("");
+  const [qrValue, setQrValue] = useState("");
+  const [txnId, setTxnId] = useState("");
   const [copied, setCopied] = useState(false);
+  const upiId = upiIdFromQr(qrValue);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const earnAnim = useRef(new Animated.Value(0)).current;
 
@@ -216,6 +159,7 @@ export function UpiCashPointScreen({ onBack }: Props) {
   const amountNum = parseInt(amount, 10) || 0;
   const amountError = amountErrorMessage(amountNum);
   const amountValid = amountNum > 0 && !amountError;
+  const canGenerate = amountValid && customerMobile.length === 10 && !busy;
   const showEarnStrip = amountValid && !earnDismissed;
   const isExpired = timer === 0;
 
@@ -233,16 +177,52 @@ export function UpiCashPointScreen({ onBack }: Props) {
     setEarnDismissed(false);
   }
 
-  function handleGenerate() {
-    if (!amountValid) return;
-    setUpiId(generateMockUpiId());
-    setStage("qr");
-    startTimer();
+  async function handleGenerate() {
+    if (busy || !amountValid) return;
+    if (customerMobile.length !== 10) {
+      showAlert("Customer mobile", "Enter a valid 10-digit customer mobile");
+      return;
+    }
+    setBusy(true);
+    try {
+      let geo: { latitude: number; longitude: number };
+      try {
+        geo = await currentPosition();
+      } catch {
+        showAlert("Location required", "Allow location access before continuing");
+        return;
+      }
+      await api.post("/noble/upi-qr/load", { channel: "APP" });
+      const { data } = await api.post<ApiResponse<{ qr: string; transactionId: string }>>(
+        "/noble/upi-qr/generate",
+        {
+          amount: String(amountNum),
+          mobileNumber: customerMobile,
+          ...geo,
+          channel: "APP",
+          deviceOsType: "ANDROID",
+          deviceOsVersion: String(Platform.Version),
+        },
+      );
+      if (!data.success) throw new Error(data.message);
+      if (!data.data.qr) throw new Error("The provider did not return a QR code. Try again.");
+      setQrValue(data.data.qr);
+      setTxnId(data.data.transactionId || "");
+      setStage("qr");
+      startTimer();
+    } catch (err) {
+      showAlert("UPI QR failed", apiError(err, "Could not generate the UPI QR. Try again."));
+    } finally {
+      setBusy(false);
+    }
   }
 
   function handleNewQr() {
     setStage("input");
     setAmount("");
+    setCustomerMobile("");
+    setQrValue("");
+    setTxnId("");
     setEarnDismissed(false);
     if (timerRef.current) clearInterval(timerRef.current);
   }
@@ -340,30 +320,48 @@ export function UpiCashPointScreen({ onBack }: Props) {
                   })}
                 </View>
 
+                <View style={s.mobileBlock}>
+                  <Text style={s.mobileLabel}>Customer mobile</Text>
+                  <TextInput
+                    value={customerMobile}
+                    onChangeText={(t) => setCustomerMobile(t.replace(/\D/g, "").slice(0, 10))}
+                    placeholder="10-digit mobile"
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="number-pad"
+                    maxLength={10}
+                    style={s.mobileInput}
+                  />
+                </View>
+
                 <Pressable
-                  onPress={handleGenerate}
-                  disabled={!amountValid}
+                  onPress={() => void handleGenerate()}
+                  disabled={!canGenerate}
                   style={({ pressed }) => [
                     s.generateBtn,
-                    !amountValid && s.generateBtnDisabled,
-                    pressed && amountValid && { opacity: 0.9 },
+                    !canGenerate && s.generateBtnDisabled,
+                    pressed && canGenerate && { opacity: 0.9 },
                   ]}
                 >
                   <LinearGradient
-                    colors={amountValid ? [colors.blueLight, colors.blue] : ["#94a3b8", "#94a3b8"]}
+                    colors={canGenerate || busy ? [colors.blueLight, colors.blue] : ["#94a3b8", "#94a3b8"]}
                     start={gradientDirection.diagonal.start}
                     end={gradientDirection.diagonal.end}
                     style={s.generateGradient}
                   >
-                    <Text style={s.generateText}>Generate QR</Text>
-                    <QrCode size={18} color="#fff" strokeWidth={2.4} />
+                    {busy ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <>
+                        <Text style={s.generateText}>Generate QR</Text>
+                        <QrCode size={18} color="#fff" strokeWidth={2.4} />
+                      </>
+                    )}
                   </LinearGradient>
                 </Pressable>
+                <Text style={s.geoHint}>Your shop location is captured when you tap Generate QR</Text>
 
                 <View style={s.partnerRow}>
                   <Text style={s.partnerText}>AsanPay</Text>
-                  <Text style={s.partnerDot}>·</Text>
-                  <Text style={s.partnerText}>YES BANK</Text>
                   <Text style={s.partnerDot}>·</Text>
                   <Text style={s.partnerText}>UPI</Text>
                 </View>
@@ -435,24 +433,25 @@ export function UpiCashPointScreen({ onBack }: Props) {
               {!isExpired && <Text style={s.refreshWarn}>Do not refresh the page</Text>}
 
               <View style={[s.qrBorder, isExpired && { opacity: 0.3 }]}>
-                <QrPlaceholder />
+                {qrValue ? <QRCode value={qrValue} size={180} color={colors.blue} backgroundColor="#fff" /> : null}
               </View>
 
-              <View style={s.upiRow}>
-                <Text style={s.upiLabel}>UPI ID: </Text>
-                <Text style={s.upiValue}>{upiId}</Text>
-                <Pressable onPress={handleCopyUpi} hitSlop={10} style={s.copyBtn}>
-                  {copied ? <Check size={14} color={colors.green} /> : <Copy size={14} color={tokens.mute} />}
-                </Pressable>
-              </View>
+              {upiId ? (
+                <View style={s.upiRow}>
+                  <Text style={s.upiLabel}>UPI ID: </Text>
+                  <Text style={s.upiValue}>{upiId}</Text>
+                  <Pressable onPress={handleCopyUpi} hitSlop={10} style={s.copyBtn}>
+                    {copied ? <Check size={14} color={colors.green} /> : <Copy size={14} color={tokens.mute} />}
+                  </Pressable>
+                </View>
+              ) : null}
+              {txnId ? <Text style={s.txnText}>Txn ID: {txnId}</Text> : null}
 
               {isExpired && (
                 <Pressable
-                  onPress={() => {
-                    setUpiId(generateMockUpiId());
-                    startTimer();
-                  }}
-                  style={s.regenBtn}
+                  onPress={() => void handleGenerate()}
+                  disabled={busy}
+                  style={[s.regenBtn, busy && { opacity: 0.6 }]}
                 >
                   <LinearGradient
                     colors={[colors.blueLight, colors.blue]}
@@ -460,7 +459,7 @@ export function UpiCashPointScreen({ onBack }: Props) {
                     end={gradientDirection.diagonal.end}
                     style={s.regenGradient}
                   >
-                    <Text style={s.regenText}>Regenerate QR</Text>
+                    <Text style={s.regenText}>{busy ? "Generating…" : "Regenerate QR"}</Text>
                   </LinearGradient>
                 </Pressable>
               )}
@@ -616,7 +615,23 @@ const s = StyleSheet.create({
     color: "#9CA3AF",
   },
 
-  generateBtn: { borderRadius: 14, overflow: "hidden", marginTop: 28, alignSelf: "center" },
+  mobileBlock: { alignSelf: "center", width: "100%", maxWidth: 280, marginTop: 24 },
+  mobileLabel: { fontSize: 12, fontWeight: "700", color: "#6B7280", textAlign: "center", marginBottom: 6 },
+  mobileInput: {
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111827",
+    textAlign: "center",
+    letterSpacing: 0.5,
+  },
+  geoHint: { marginTop: 8, fontSize: 11, color: "#9CA3AF", textAlign: "center", fontWeight: "500" },
+  txnText: { marginTop: 8, fontSize: 11, color: "#9CA3AF" },
+  generateBtn: { borderRadius: 14, overflow: "hidden", marginTop: 20, alignSelf: "center" },
   generateBtnDisabled: { opacity: 0.55 },
   generateGradient: {
     flexDirection: "row",
