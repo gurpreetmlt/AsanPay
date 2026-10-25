@@ -451,17 +451,21 @@ function walletAmountColor(walletType: string): string {
   return B.blueLight;
 }
 
+const LOW_MAIN_BALANCE = 500;
+
 /** Unified header wallet bar: MAIN | AEPS | eye | refresh (no click menu on balances). */
 function HeaderWalletBalances({
   wallets,
   loading,
   onRefresh,
   className,
+  lowMain = false,
 }: {
   wallets: WalletBalance[];
   loading: boolean;
   onRefresh: () => void;
   className?: string;
+  lowMain?: boolean;
 }) {
   const ordered = [...wallets].sort((a, b) => {
     if (a.walletType === "main") return -1;
@@ -493,8 +497,20 @@ function HeaderWalletBalances({
                 />
               ) : null}
               <span className="flex min-w-[4.5rem] flex-col items-start gap-0.5 px-2.5 py-0.5">
-                <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
-                  {walletDisplayName(w.walletType)}
+                <span className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+                    {walletDisplayName(w.walletType)}
+                  </span>
+                  {lowMain && w.walletType === "main" ? (
+                    <Link
+                      href="/fund-request"
+                      className="icon-tooltip rounded-full bg-red-50 px-1.5 text-[9px] font-extrabold uppercase leading-[14px] text-red-600 ring-1 ring-red-200 hover:bg-red-100"
+                      data-tooltip={`Balance under ₹${LOW_MAIN_BALANCE} — Add Money`}
+                      aria-label={`Main balance is under ₹${LOW_MAIN_BALANCE}. Add Money`}
+                    >
+                      Low
+                    </Link>
+                  ) : null}
                 </span>
                 <span
                   className="text-sm font-extrabold tabular-nums leading-tight"
@@ -569,11 +585,27 @@ export function AppShell({ children }: { children: ReactNode }) {
   const isPartner = user?.role === "super_distributor" || user?.role === "distributor";
 
   const fundRequestOn = user ? isFundRequestEnabled(user.role, user.fundRequestEnabled) : false;
+  const mainWallet = wallets.find((w) => w.walletType === "main");
+  const lowMain =
+    user?.role === "retailer" &&
+    fundRequestOn &&
+    Boolean(mainWallet) &&
+    (parseFloat(mainWallet?.balance ?? "0") || 0) < LOW_MAIN_BALANCE;
 
   const alertItems = useMemo(() => {
     const r = user?.role;
     if (r === "retailer") {
       return [
+        ...(lowMain
+          ? [
+              {
+                href: "/fund-request",
+                title: "Low Main balance",
+                body: `Balance is under ₹${LOW_MAIN_BALANCE}. Add Money so services are not interrupted.`,
+                urgent: true,
+              },
+            ]
+          : []),
         { href: "/settings", title: "KYC & profile", body: "Complete KYC, bank, and MPIN" },
         ...(fundRequestOn
           ? [{ href: "/fund-request", title: "Add money", body: "Top up main wallet for services" }]
@@ -591,7 +623,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         : []),
       { href: "/settlements", title: "Settlements", body: "Bank verify and withdrawals" },
     ];
-  }, [user?.role, fundRequestOn]);
+  }, [user?.role, fundRequestOn, lowMain]);
 
   const searchMatches = useMemo(() => {
     const q = headerSearch.trim().toLowerCase();
@@ -797,6 +829,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               wallets={wallets}
               loading={walletsLoading}
               onRefresh={() => void loadWallets()}
+              lowMain={lowMain}
             />
             <div className="relative" ref={notifRef}>
               <button
@@ -807,7 +840,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                 aria-label="Notifications"
               >
                 <Bell size={17} style={{ color: B.blue }} />
-                <span className="absolute right-1 top-1 h-2 w-2 rounded-full" style={{ background: B.green }} />
+                <span
+                  className="absolute right-1 top-1 h-2 w-2 rounded-full"
+                  style={{ background: lowMain ? "#DC2626" : B.green }}
+                />
               </button>
               {notifOpen ? (
                 <div
@@ -829,8 +865,12 @@ export function AppShell({ children }: { children: ReactNode }) {
                           href={item.href}
                           onClick={() => setNotifOpen(false)}
                           className="block px-4 py-2.5 hover:bg-slate-50"
+                          style={"urgent" in item && item.urgent ? { background: "#FFF7ED" } : undefined}
                         >
-                          <p className="text-sm font-semibold" style={{ color: B.blue }}>
+                          <p
+                            className="text-sm font-semibold"
+                            style={{ color: "urgent" in item && item.urgent ? "#C2410C" : B.blue }}
+                          >
                             {item.title}
                           </p>
                           <p className="text-[11px]" style={{ color: B.muted }}>
@@ -873,6 +913,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               loading={walletsLoading}
               onRefresh={() => void loadWallets()}
               className="w-full justify-between sm:w-auto"
+              lowMain={lowMain}
             />
           </div>
         )}

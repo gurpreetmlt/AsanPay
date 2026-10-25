@@ -17,7 +17,6 @@ import {
   LifeBuoy,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { isFundRequestEnabled } from "@asanpay/shared-types";
 import { fetchApi } from "@/lib/api";
 import { B, roleFromUserRole } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
@@ -143,12 +142,6 @@ export function RetailerDashboard() {
     return () => { alive = false; };
   }, []);
 
-  const orderedWallets = [...wallets].sort((a, b) => {
-    if (a.walletType === "main") return -1;
-    if (b.walletType === "main") return 1;
-    return a.walletType.localeCompare(b.walletType);
-  });
-  const primary = orderedWallets[0];
   const mainWallet = wallets.find((w) => w.walletType === "main");
   const aepsWallet = wallets.find((w) => w.walletType === "aeps");
   const totalPending = wallets.reduce(
@@ -156,11 +149,7 @@ export function RetailerDashboard() {
   );
 
   const kycDone = user?.kycStatus === "verified";
-  const mainBal = parseFloat(primary?.balance ?? "0") || 0;
-  const lowBalance = !loading && mainBal < 500;
   const todayEarn = stats?.today.commissionEarned ?? "0";
-
-  const fundOn = user ? isFundRequestEnabled(user.role, user.fundRequestEnabled) : false;
 
   function shareReceipt(t: TxnRow) {
     const lines = [
@@ -215,32 +204,6 @@ export function RetailerDashboard() {
       />
       <PanMissingBanner />
 
-      {lowBalance && fundOn ? (
-        <div
-          className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3"
-          style={{ borderColor: "#FDBA74", background: "#FFF7ED" }}
-        >
-          <div>
-            <p className="text-sm font-bold" style={{ color: "#C2410C" }}>
-              Low Main balance
-            </p>
-            <p className="text-xs" style={{ color: "#9A3412" }}>
-              Balance is under ₹500. Add Money so services are not interrupted.
-            </p>
-          </div>
-          <PrimaryButton
-            type="button"
-            variant="success"
-            size="sm"
-            showArrow={false}
-            className="!w-auto"
-            onClick={() => router.push("/fund-request")}
-          >
-            <PlusCircle size={14} />
-            Add Money
-          </PrimaryButton>
-        </div>
-      ) : null}
       {/* Wallet cards pinned from Settings → Home page (off by default) */}
       {pinMain || (pinAeps && aepsWallet) ? (
           <div className="dash-stagger grid grid-cols-1 items-stretch gap-3 md:grid-cols-2">
