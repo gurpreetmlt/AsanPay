@@ -473,16 +473,20 @@ export default function NobleAgentOnboardPage() {
             ) : null}
           </div>
 
-          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
+          <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-stretch">
             {step > 0 ? (
-              <PrimaryButton type="button" variant="secondary" onClick={goBack} disabled={loading}>
-                <ArrowLeft size={14} className="mr-1 inline" />
-                Back
-              </PrimaryButton>
+              <div className="sm:w-36 sm:shrink-0">
+                <PrimaryButton type="button" variant="secondary" onClick={goBack} disabled={loading}>
+                  <ArrowLeft size={14} className="mr-1 inline" />
+                  Back
+                </PrimaryButton>
+              </div>
             ) : null}
-            <PrimaryButton type="submit" variant="primary" disabled={loading} className="sm:flex-1">
-              {step < LAST_STEP ? "Continue" : loading ? "Submitting…" : "Submit onboarding"}
-            </PrimaryButton>
+            <div className="min-w-0 sm:flex-1">
+              <PrimaryButton type="submit" variant="primary" disabled={loading}>
+                {step < LAST_STEP ? "Continue" : loading ? "Submitting…" : "Submit onboarding"}
+              </PrimaryButton>
+            </div>
           </div>
           <PrimaryButton
             type="button"
