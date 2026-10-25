@@ -14,6 +14,8 @@ import {
   nobleAgentKycSchema,
   nobleAgentOnboardSchema,
   nobleAgentStatusSchema,
+  nobleAp2faSchema,
+  nobleApKycSchema,
   nobleLoadAgentSchema,
 } from "./nobleOnboarding.validators";
 import {
@@ -25,6 +27,9 @@ import {
   instantpaySignup,
   instantpayStatus,
   nobleAgentKycHandler,
+  nobleAp2faHandler,
+  nobleApKycHandler,
+  nobleApLoadAgentHandler,
   nobleLoadAgentHandler,
   noblePrefill,
   nobleRevealIdentity,
@@ -115,3 +120,13 @@ onboardingRouter.post(
   validateBody(nobleAgentKycSchema),
   nobleAgentKycHandler,
 );
+
+// Aadhaar Pay has its own merchant session: load → KYC (once) → daily 2FA, before /txn/aeps/aadhaar-pay.
+onboardingRouter.post(
+  "/noble/ap/load",
+  requireRole("retailer"),
+  validateBody(nobleLoadAgentSchema),
+  nobleApLoadAgentHandler,
+);
+onboardingRouter.post("/noble/ap/kyc", requireRole("retailer"), validateBody(nobleApKycSchema), nobleApKycHandler);
+onboardingRouter.post("/noble/ap/2fa", requireRole("retailer"), validateBody(nobleAp2faSchema), nobleAp2faHandler);

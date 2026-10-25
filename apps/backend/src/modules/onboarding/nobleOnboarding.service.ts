@@ -73,6 +73,11 @@ function toDdMmYyyy(dob: string): string {
   return dmy ? `${dmy[1]}-${dmy[2]}-${dmy[3]}` : "";
 }
 
+/** Agent DOB from signup KYC as DD/MM/YYYY (Aadhaar Pay KYC format); empty when unknown. */
+export async function kycDobSlashed(userId: string): Promise<string> {
+  return toDdMmYyyy(metaText(await kycSubmitMeta(userId), "dob")).replace(/-/g, "/");
+}
+
 /**
  * PAN + Aadhaar always come from KYC when on file (the agent cannot swap identity here).
  * An empty bank account keeps the KYC account.

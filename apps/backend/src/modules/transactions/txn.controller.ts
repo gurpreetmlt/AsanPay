@@ -4,6 +4,7 @@ import { streamTxnReceiptPdf } from "./receiptPdf";
 import { streamTxnReceiptEscPos } from "./receiptEscPos";
 import { assertTxnAuthorization } from "../auth/txnPin";
 import { assertAgentAuthFresh } from "../auth/agentAuth";
+import { nobleApGenerateOtp } from "../onboarding/nobleAepsSession.service";
 import { assertFreshBiometric } from "./biometricReplay";
 import { resolveProvidersForService, callProvider } from "../providers/provider.router";
 import {
@@ -1182,6 +1183,9 @@ export async function aadhaarPay(req: Request, res: Response): Promise<void> {
         amount: body.amount,
         latitude: body.latitude,
         longitude: body.longitude,
+        otpReferenceKey: body.otpReferenceKey,
+        otpTransactionId: body.otpTransactionId,
+        otpTransactionToken: body.otpTransactionToken,
         externalRef: txnRef,
         endpointIp: req.ip ?? undefined,
       }),
@@ -1190,6 +1194,35 @@ export async function aadhaarPay(req: Request, res: Response): Promise<void> {
     await afterAepsProviderResult(userId, body.aadhaarNumber, outcome.provider);
   }
   sendSuccess(res, { txn: outcome.txn, provider: outcome.provider });
+}
+
+/** Aadhaar Pay OTP — only when AP load agent returned tranTypeForOtp=MT and amount ≥ amountForOtp. Moves no money. */
+export async function aadhaarPayOtp(req: Request, res: Response): Promise<void> {
+  const body = req.body as z.infer<typeof aepsTxnOtpSchema>;
+  const userId = actor(req).id;
+  await assertAepsCompliance(
+    userId,
+    body.latitude && body.longitude
+      ? {
+          latitude: body.latitude,
+          longitude: body.longitude,
+          accuracyMeters: body.accuracyMeters,
+          isMockLocation: body.isMockLocation,
+        }
+      : null,
+  );
+  sendSuccess(
+    res,
+    await nobleApGenerateOtp(userId, {
+      amount: body.amount,
+      bankIin: body.bankIin,
+      mobile: body.mobile,
+      aadhaarNumber: body.aadhaarNumber,
+      latitude: body.latitude,
+      longitude: body.longitude,
+      endpointIp: req.ip ?? undefined,
+    }),
+  );
 }
 
 // ── History / receipt / recheck ─────────────────────────────────────────────

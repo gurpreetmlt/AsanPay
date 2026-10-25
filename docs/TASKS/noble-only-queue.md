@@ -16,7 +16,8 @@
 | # | Phase | Status |
 |---|-------|--------|
 | P1 | Route AEPS + DMT to Noble in DB (ops only) | done (25 Oct) — owner to confirm What-if margins |
-| P2 | Aadhaar Pay setup + Cash Deposit status | **CURRENT** |
+| P2a | Aadhaar Pay setup + Cash Deposit status — backend | done (25 Oct) |
+| P2b | Aadhaar Pay tab on web `/aeps` + mobile `AepsScreen` (AP load → KYC → 2FA → OTP → txn) | **CURRENT** |
 | P3 | Recharge operator / circle mapping → switch recharge | todo |
 | P4 | DMT `bene/get` + admin Noble wallet balance | todo |
 | P5 | Delete PaySprint | todo |
@@ -46,6 +47,17 @@ Read: `apps/backend/src/modules/providers/adapters/noble.adapter.ts` (`aadhaarPa
 - Add `ap_load_agent`, `ap_kyc`, `ap_daily_2fa`, `ap_generate_otp` mirroring the AEPS session flow.
 - `checkStatus` for `aeps_cash_deposit` → `/v2.0/aeps/cd_transaction_status`.
 - UI: Aadhaar Pay screen runs AP 2FA before txn (web `/aeps?tab=…` + mobile `AepsScreen`).
+
+**P2a done (backend):**
+- `POST /api/onboarding/noble/ap/load` `{channel}` → `{kycRequired, daily2faRequired, kycWadhValue, amountForOtp, tranTypeForOtp}`
+- `POST /api/onboarding/noble/ap/kyc` `{biometricPayload, dob?(DD/MM/YYYY, default = KYC dob), latitude, longitude, channel}` — PID captured with `kycWadhValue`
+- `POST /api/onboarding/noble/ap/2fa` `{biometricPayload, latitude, longitude, channel}`
+- `POST /api/txn/aeps/aadhaar-pay/otp` (same body as `/aeps/withdraw/otp`) → `{otpRequired, otpReference, otpTransactionId, otpTransactionToken}` — call only when `tranTypeForOtp === "MT"` and amount ≥ `amountForOtp`
+- `POST /api/txn/aeps/aadhaar-pay` now also accepts `otpReferenceKey`, `otpTransactionId`, `otpTransactionToken`
+- Recheck of `aeps_cash_deposit` uses `/v2.0/aeps/cd_transaction_status`
+
+**P2b (UI) — read:** `apps/agent-portal/app/aeps/page.tsx` (+ `components/aeps/AepsLayout3.tsx`), `apps/asanpay-mobile-app/src/screens/retailer/AepsScreen.tsx`.
+Today the `AADHAAR_PAY` tile opens the Withdraw tab and no client calls `/txn/aeps/aadhaar-pay` — add an "Aadhaar Pay" tab on both. The txn still also requires the normal AEPS daily 2FA (`assertAgentAuthFresh`).
 
 ### P3 — Recharge operator / circle mapping
 Read: `noble.adapter.ts` `recharge()`, `NobleWebStudio/RECHARGE.md`, web `app/recharge/page.tsx`, mobile `RechargeScreen.tsx`.

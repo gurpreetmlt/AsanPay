@@ -50,6 +50,7 @@ import {
   aepsWithdrawOtp,
   aepsDeposit,
   aadhaarPay,
+  aadhaarPayOtp,
   history,
   receipt,
   receiptPdf,
@@ -255,6 +256,7 @@ txnRouter.post("/aeps/mini-statement", retailerOnly, validateBody(aepsEnquirySch
 txnRouter.post("/aeps/withdraw/otp", retailerOnly, walletTxnLimiter, validateBody(aepsTxnOtpSchema), aepsWithdrawOtp);
 txnRouter.post("/aeps/withdraw", retailerOnly, walletTxnLimiter, validateBody(aepsWithdrawSchema), aepsWithdraw);
 txnRouter.post("/aeps/deposit", retailerOnly, walletTxnLimiter, validateBody(aepsDepositSchema), aepsDeposit);
+txnRouter.post("/aeps/aadhaar-pay/otp", retailerOnly, walletTxnLimiter, validateBody(aepsTxnOtpSchema), aadhaarPayOtp);
 txnRouter.post("/aeps/aadhaar-pay", retailerOnly, walletTxnLimiter, validateBody(aadhaarPaySchema), aadhaarPay);
 
 txnRouter.get("/", history);

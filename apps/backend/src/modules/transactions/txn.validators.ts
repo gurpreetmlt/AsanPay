@@ -562,5 +562,9 @@ export const aadhaarPaySchema = z
     ...txnAuthFields,
     ...aepsBase,
     amount,
+    /** From /aeps/aadhaar-pay/otp — only when the provider asks for an OTP at this amount. */
+    otpReferenceKey: z.string().min(1).max(200).optional(),
+    otpTransactionId: z.string().min(1).max(200).optional(),
+    otpTransactionToken: z.string().min(1).max(1000).optional(),
   })
   .superRefine(requireTxnProof);

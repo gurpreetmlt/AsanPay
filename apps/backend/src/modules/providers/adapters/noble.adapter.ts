@@ -392,11 +392,13 @@ export class NobleAdapter implements ProviderAdapter {
       return this.toResult(httpStatus, json, "Recharge status", null, {});
     }
     const [yyyy, mm, dd] = istDate.split("-");
-    const { httpStatus, json } = await noblePost("aeps", "/v2.0/aeps/transaction_status", {
-      transactionId,
-      transactionDate: `${dd}/${mm}/${yyyy}`,
-    });
-    return this.toResult(httpStatus, json, "AEPS status", null, {});
+    const isCashDeposit = code === "aeps_cash_deposit" || code === "CASH_DEPOSIT";
+    const { httpStatus, json } = await noblePost(
+      "aeps",
+      isCashDeposit ? "/v2.0/aeps/cd_transaction_status" : "/v2.0/aeps/transaction_status",
+      { transactionId, transactionDate: `${dd}/${mm}/${yyyy}` },
+    );
+    return this.toResult(httpStatus, json, isCashDeposit ? "Cash deposit status" : "AEPS status", null, {});
   }
 
   private assertLive(live: boolean): void {

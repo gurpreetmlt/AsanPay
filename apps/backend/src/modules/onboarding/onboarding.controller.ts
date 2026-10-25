@@ -24,11 +24,20 @@ import {
   nobleAgentOnboardStatus,
   revealMyKycIdentity,
 } from "./nobleOnboarding.service";
-import { nobleAgentKyc, nobleLoadAgent } from "./nobleAepsSession.service";
+import {
+  nobleAgentKyc,
+  nobleApDaily2fa,
+  nobleApKyc,
+  nobleApLoadAgent,
+  nobleLoadAgent,
+} from "./nobleAepsSession.service";
+import { kycDobSlashed } from "./nobleOnboarding.service";
 import type {
   NobleAgentKycInput,
   NobleAgentOnboardInput,
   NobleAgentStatusInput,
+  NobleAp2faInput,
+  NobleApKycInput,
   NobleLoadAgentInput,
 } from "./nobleOnboarding.validators";
 
@@ -115,5 +124,41 @@ export async function nobleAgentKycHandler(req: Request, res: Response): Promise
       channel: body.channel,
       endpointIp: req.ip ?? undefined,
     }),
+  );
+}
+
+export async function nobleApLoadAgentHandler(req: Request, res: Response): Promise<void> {
+  const body = req.body as NobleLoadAgentInput;
+  sendSuccess(res, await nobleApLoadAgent(req.auth!.sub, { endpointIp: req.ip ?? undefined, channel: body.channel }));
+}
+
+export async function nobleApKycHandler(req: Request, res: Response): Promise<void> {
+  const body = req.body as NobleApKycInput;
+  const dob = body.dob ?? (await kycDobSlashed(req.auth!.sub));
+  sendSuccess(
+    res,
+    await nobleApKyc(req.auth!.sub, {
+      biometricPayload: body.biometricPayload,
+      dob,
+      latitude: body.latitude != null ? String(body.latitude) : undefined,
+      longitude: body.longitude != null ? String(body.longitude) : undefined,
+      channel: body.channel,
+      endpointIp: req.ip ?? undefined,
+    }),
+  );
+}
+
+export async function nobleAp2faHandler(req: Request, res: Response): Promise<void> {
+  const body = req.body as NobleAp2faInput;
+  sendSuccess(
+    res,
+    await nobleApDaily2fa(req.auth!.sub, {
+      biometricPayload: body.biometricPayload,
+      latitude: body.latitude != null ? String(body.latitude) : undefined,
+      longitude: body.longitude != null ? String(body.longitude) : undefined,
+      channel: body.channel,
+      endpointIp: req.ip ?? undefined,
+    }),
+    "Aadhaar Pay fingerprint verified for today",
   );
 }
