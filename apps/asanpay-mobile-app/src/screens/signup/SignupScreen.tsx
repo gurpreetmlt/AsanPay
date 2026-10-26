@@ -431,6 +431,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
   const [loading, setLoading] = useState(false);
   const [draftReady, setDraftReady] = useState(false);
   const [sponsorOk, setSponsorOk] = useState(false);
+  const [sponsorLookup, setSponsorLookup] = useState<"idle" | "loading" | "ok" | "notfound">("idle");
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [locationBusy, setLocationBusy] = useState(false);
@@ -845,14 +846,17 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
   useEffect(() => {
     if (!needsUpline) {
       setSponsorOk(false);
+      setSponsorLookup("idle");
       return;
     }
     const phone = draft.sponsorMobile.replace(/\D/g, "").slice(0, 10);
+    setSponsorOk(false);
     if (phone.length !== 10) {
-      setSponsorOk(false);
+      setSponsorLookup("idle");
       return;
     }
     let cancelled = false;
+    setSponsorLookup("loading");
     const t = setTimeout(async () => {
       try {
         const { data } = await api.get<
@@ -863,11 +867,12 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         if (match) {
           patch({ sponsorUid: match.uid, sponsorName: match.name });
           setSponsorOk(true);
+          setSponsorLookup("ok");
         } else {
-          setSponsorOk(false);
+          setSponsorLookup("notfound");
         }
       } catch {
-        if (!cancelled) setSponsorOk(false);
+        if (!cancelled) setSponsorLookup("notfound");
       }
     }, 250);
     return () => {
@@ -1605,7 +1610,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
   function next() {
     const err = validateStep();
     if (err) {
-      showAlert("Incomplete", err);
+      showAlert("Fix this to continue", err);
       return;
     }
     if (stepIndex === 0) {
@@ -1677,6 +1682,11 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         : stepIndex === 8
           ? "Submit application"
           : "Continue";
+  // Role step: keep Create account disabled until the upline lookup finds an active account.
+  const uplineBlocked =
+    stepIndex === 1 && needsUpline && !draft.accountCreated && !(sponsorOk && draft.sponsorUid);
+  const nextDisabled =
+    loading || Boolean(mobileError) || (stepIndex === 0 && otpSent && otp.length !== 6) || uplineBlocked;
 
   const inputStyle = [
     styles.input,
@@ -1913,11 +1923,24 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                         placeholderTextColor={tokens.mute}
                         style={[inputStyle, draft.accountCreated ? { opacity: 0.75 } : null]}
                       />
-                      {sponsorOk || draft.sponsorName ? (
+                      {sponsorOk || (draft.accountCreated && draft.sponsorName) ? (
                         <Text style={{ color: colors.greenDark, fontSize: 12, fontWeight: "700", marginTop: 4 }}>
                           ✓ {draft.sponsorName}
                           {draft.sponsorUid ? ` · ${draft.sponsorUid}` : ""}
                         </Text>
+                      ) : null}
+                      {!draft.accountCreated && sponsorLookup === "loading" ? (
+                        <Text style={[styles.hint, { color: tokens.mute }]}>Checking upline…</Text>
+                      ) : null}
+                      {!draft.accountCreated && sponsorLookup === "notfound" ? (
+                        <Text style={[styles.hint, { color: colors.danger }]}>
+                          {draft.role === "retailer"
+                            ? "No active Distributor found for this mobile. Check the number, or choose Direct Retailer if you have no Distributor."
+                            : "No active Super Distributor found for this mobile. Check the number with your Super Distributor."}
+                        </Text>
+                      ) : null}
+                      {!draft.accountCreated && sponsorLookup === "idle" && draft.sponsorMobile.length > 0 ? (
+                        <Text style={[styles.hint, { color: tokens.mute }]}>Enter a valid 10-digit upline mobile</Text>
                       ) : null}
                       {draft.accountCreated ? (
                         <Text style={[styles.hint, { color: tokens.mute }]}>
@@ -2577,17 +2600,8 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                 </Pressable>
                 <Pressable
                   onPress={next}
-                  disabled={loading || Boolean(mobileError) || (stepIndex === 0 && otpSent && otp.length !== 6)}
-                  style={[
-                    styles.cta,
-                    styles.ctaFlex,
-                    {
-                      opacity:
-                        loading || Boolean(mobileError) || (stepIndex === 0 && otpSent && otp.length !== 6)
-                          ? 0.6
-                          : 1,
-                    },
-                  ]}
+                  disabled={nextDisabled}
+                  style={[styles.cta, styles.ctaFlex, { opacity: nextDisabled ? 0.6 : 1 }]}
                 >
                   <Text style={styles.ctaText}>{primaryLabel}</Text>
                 </Pressable>

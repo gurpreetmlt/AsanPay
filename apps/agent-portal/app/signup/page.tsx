@@ -1850,7 +1850,8 @@ function SignupPageInner() {
                       disabled={draft.accountCreated || loggedInContinue || Boolean(invite)}
                       placeholder="10-digit upline mobile"
                     />
-                    {(sponsorStatus === "ok" && sponsor) || draft.sponsorName ? (
+                    {(sponsorStatus === "ok" && sponsor) ||
+                    ((draft.accountCreated || loggedInContinue) && draft.sponsorName) ? (
                       <p className="mt-1 text-xs font-semibold" style={{ color: B.green }}>
                         <CheckCircle2 size={12} className="mr-1 inline" />
                         {sponsor?.name || draft.sponsorName}
@@ -1862,10 +1863,24 @@ function SignupPageInner() {
                         Upline is locked after account create.
                       </p>
                     ) : null}
+                    {!(draft.accountCreated || loggedInContinue) && sponsorStatus === "loading" ? (
+                      <p className="mt-1 text-xs" style={{ color: B.muted }}>
+                        Checking upline…
+                      </p>
+                    ) : null}
                     {!(draft.accountCreated || loggedInContinue) &&
                     (sponsorStatus === "empty" || sponsorStatus === "error") ? (
-                      <p className="mt-1 text-xs" style={{ color: "#B45309" }}>
-                        Upline not found
+                      <p className="mt-1 text-xs" style={{ color: "#B91C1C" }}>
+                        {draft.role === "retailer"
+                          ? "No active Distributor found for this mobile. Check the number, or choose Direct Retailer if you have no Distributor."
+                          : "No active Super Distributor found for this mobile. Check the number with your Super Distributor."}
+                      </p>
+                    ) : null}
+                    {!(draft.accountCreated || loggedInContinue) &&
+                    sponsorStatus === "idle" &&
+                    draft.sponsorMobile.length > 0 ? (
+                      <p className="mt-1 text-xs" style={{ color: B.muted }}>
+                        Enter a valid 10-digit upline mobile
                       </p>
                     ) : null}
                   </Field>
@@ -2511,7 +2526,14 @@ function SignupPageInner() {
                 type="button"
                 onClick={next}
                 loading={loading}
-                disabled={Boolean(mobileError) || (stepIndex === 0 && otpSent && otp.length !== 6)}
+                disabled={
+                  Boolean(mobileError) ||
+                  (stepIndex === 0 && otpSent && otp.length !== 6) ||
+                  (stepIndex === 1 &&
+                    needsUpline &&
+                    !(draft.accountCreated || loggedInContinue) &&
+                    !(sponsorStatus === "ok" && sponsor))
+                }
                 loopGlow={stepIndex === 0}
                 className="!w-auto min-w-0 flex-[2]"
               >
