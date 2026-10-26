@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { CheckCircle2, Link2, ShieldCheck, XCircle } from "lucide-react-native";
+import { CheckCircle2, Link2, ShieldAlert, ShieldCheck, XCircle } from "lucide-react-native";
 import type { LinkCheckResult, LinkedAccountSummary, LinkedAccountsResponse } from "@asanpay/shared-types";
 import { ModalSheet } from "../ModalSheet";
 import { apiError } from "../../utils/apiError";
 import { checkLink, startLink, verifyLink, type OtpSent } from "../../lib/linkedAccounts";
 import { colors } from "../../theme/colors";
-import { AccountAvatar, CodeField, InlineError, LaButton, RoleChip, laStyles } from "./parts";
+import { AccountAvatar, CodeField, InlineError, LaButton, PulseIcon, RoleChip, laStyles } from "./parts";
 
 const RESEND_SECONDS = 30;
 
@@ -136,13 +136,11 @@ export function LinkAccountSheet({
     const a = check.account;
     const cells: Array<{ label: string; value: string; full?: boolean }> = a
       ? [
-          { label: "Name", value: a.name, full: true },
-          { label: "Mobile", value: a.mobileMasked },
           { label: "UID", value: a.uid },
-          { label: "Role", value: a.roleLabel },
           { label: "KYC", value: "Verified" },
         ]
       : [{ label: "Mobile", value: `XXXXXX${mobile.slice(-4)}`, full: true }];
+    const matchedCount = [check.checks.pan, check.checks.aadhaar, check.checks.name].filter(Boolean).length;
     const matches = [
       { label: "PAN", ok: check.checks.pan },
       { label: "Aadhaar", ok: check.checks.aadhaar },
@@ -153,16 +151,35 @@ export function LinkAccountSheet({
         <ScrollView>
           <Text style={styles.step}>Step 2 of 2</Text>
           <View style={styles.verifyHead}>
-            <View style={styles.verifyIcon}>
-              <ShieldCheck size={22} color={check.eligible ? colors.greenDark : colors.danger} />
-            </View>
+            <PulseIcon
+              bg={check.eligible ? "#E7F8EF" : colors.dangerBg}
+              accent={check.eligible ? colors.greenDark : colors.danger}
+            >
+              {check.eligible ? (
+                <ShieldCheck size={22} color={colors.greenDark} />
+              ) : (
+                <ShieldAlert size={22} color={colors.danger} />
+              )}
+            </PulseIcon>
             <Text style={[laStyles.muted, { flex: 1, marginTop: 0 }]}>
               {check.eligible
                 ? "PAN, Aadhaar and name match your verified KYC."
                 : "This account cannot be linked to you."}
             </Text>
           </View>
-          <View style={styles.grid}>
+          {a ? (
+            <View style={styles.accountHead}>
+              <AccountAvatar name={a.name} role={a.role} size={46} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={laStyles.name} numberOfLines={1}>
+                  {a.name}
+                </Text>
+                <RoleChip role={a.role} roleLabel={a.roleLabel} uid={a.uid} />
+                <Text style={[laStyles.muted, { marginTop: 3 }]}>{a.mobileMasked}</Text>
+              </View>
+            </View>
+          ) : null}
+          <View style={[styles.grid, a ? styles.gridAttached : null]}>
             {cells.map((c) => (
               <View key={c.label} style={[styles.cell, c.full ? styles.cellFull : styles.cellHalf]}>
                 <Text style={styles.cellLabel}>{c.label}</Text>
@@ -184,6 +201,12 @@ export function LinkAccountSheet({
                 </View>
               </View>
             ))}
+          </View>
+          <View style={[styles.summary, { backgroundColor: check.eligible ? colors.greenDark : colors.danger }]}>
+            {check.eligible ? <ShieldCheck size={14} color="#fff" /> : <ShieldAlert size={14} color="#fff" />}
+            <Text style={styles.summaryText}>
+              {check.eligible ? "All 3 details matched" : `${matchedCount} of 3 details matched`}
+            </Text>
           </View>
           <InlineError message={check.message} />
 
@@ -292,14 +315,29 @@ export function LinkAccountSheet({
 const styles = StyleSheet.create({
   step: { fontSize: 11.5, color: colors.textMuted, marginBottom: 14, fontWeight: "600" },
   verifyHead: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 14 },
-  verifyIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: "#F0F4FF",
+  accountHead: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    gap: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    borderColor: "rgba(11,42,154,0.12)",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    backgroundColor: "#F7F9FF",
   },
+  gridAttached: { borderTopLeftRadius: 0, borderTopRightRadius: 0 },
+  summary: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 12,
+  },
+  summaryText: { color: "#fff", fontSize: 12, fontWeight: "800" },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",

@@ -1,5 +1,15 @@
-import React from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useEffect, useRef } from "react";
+import {
+  AccessibilityInfo,
+  ActivityIndicator,
+  Animated,
+  Easing,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import type { UserRole } from "@asanpay/shared-types";
 import { initialsOf, roleTheme } from "../../lib/linkedAccounts";
@@ -26,6 +36,39 @@ export function RoleChip({ role, roleLabel, uid }: { role: UserRole; roleLabel: 
         {roleLabel} · {uid}
       </Text>
     </View>
+  );
+}
+
+/** Icon tile with the same 1.4 s pulse as web popups; still when reduce-motion is on. */
+export function PulseIcon({ children, bg, accent }: { children: React.ReactNode; bg: string; accent: string }) {
+  const scale = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    let loop: Animated.CompositeAnimation | null = null;
+    let cancelled = false;
+    void AccessibilityInfo.isReduceMotionEnabled().then((reduced) => {
+      if (reduced || cancelled) return;
+      loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(scale, { toValue: 1.08, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          Animated.timing(scale, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        ]),
+      );
+      loop.start();
+    });
+    return () => {
+      cancelled = true;
+      loop?.stop();
+    };
+  }, [scale]);
+  return (
+    <Animated.View
+      style={[
+        styles.pulse,
+        { backgroundColor: bg, shadowColor: accent, transform: [{ scale }] },
+      ]}
+    >
+      {children}
+    </Animated.View>
   );
 }
 
@@ -148,4 +191,15 @@ const styles = StyleSheet.create({
     color: colors.blue,
   },
   codeFieldFilled: { fontWeight: "800", letterSpacing: 6 },
+  pulse: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 4,
+  },
 });

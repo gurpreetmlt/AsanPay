@@ -1,7 +1,17 @@
 "use client";
 
 import { useState, type FormEvent, type ReactNode } from "react";
-import { CheckCircle2, Link2, ShieldCheck, XCircle } from "lucide-react";
+import {
+  BadgeCheck,
+  CheckCircle2,
+  CreditCard,
+  Fingerprint,
+  Link2,
+  ShieldAlert,
+  ShieldCheck,
+  UserRound,
+  XCircle,
+} from "lucide-react";
 import type { LinkCheckResult, LinkedAccountSummary, LinkedAccountsResponse } from "@asanpay/shared-types";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { B } from "@/lib/brand";
@@ -24,34 +34,119 @@ function AccountMini({ account }: { account: LinkedAccountSummary }) {
   );
 }
 
-function MatchValue({ ok }: { ok: boolean }) {
-  return ok ? (
-    <span className="inline-flex items-center gap-1 font-bold" style={{ color: B.greenDark }}>
-      <CheckCircle2 size={14} /> Matched
-    </span>
-  ) : (
-    <span className="inline-flex items-center gap-1 font-bold" style={{ color: "#DC2626" }}>
-      <XCircle size={14} /> Not matched
-    </span>
+function CardLabel({ children }: { children: ReactNode }) {
+  return (
+    <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.12em]" style={{ color: B.muted }}>
+      {children}
+    </p>
   );
 }
 
-/** Label / value table — same layout as the admin user-detail popups. */
-function DetailTable({ rows }: { rows: Array<{ label: string; value: ReactNode }> }) {
+function Fact({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="overflow-hidden rounded-2xl border" style={{ borderColor: "rgba(11,42,154,0.12)" }}>
-      {rows.map((r, i) => (
-        <div
-          key={r.label}
-          className="grid grid-cols-[100px_1fr] items-center gap-3 px-4 py-2.5 text-xs"
-          style={{ borderTop: i === 0 ? undefined : "1px solid rgba(11,42,154,0.08)" }}
-        >
-          <span style={{ color: B.muted }}>{r.label}</span>
-          <span className="font-bold" style={{ color: B.blue }}>
-            {r.value}
-          </span>
-        </div>
-      ))}
+    <div className="min-w-0 rounded-xl bg-white px-3 py-2" style={{ border: "1px solid rgba(11,42,154,0.08)" }}>
+      <p className="text-[10px]" style={{ color: B.muted }}>
+        {label}
+      </p>
+      <p className="truncate text-xs font-bold" style={{ color: B.blue }}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+/** Other account: shown only when PAN + Aadhaar matched (API returns null otherwise). */
+function AccountCard({ check, mobile }: { check: LinkCheckResult; mobile: string }) {
+  const a = check.account;
+  return (
+    <div className="rounded-2xl border p-4" style={{ borderColor: "rgba(11,42,154,0.12)", background: "linear-gradient(180deg,#F7F9FF 0%,#FFFFFF 100%)" }}>
+      <CardLabel>Account to link</CardLabel>
+      {a ? (
+        <>
+          <div className="flex items-center gap-3">
+            <AccountAvatar name={a.name} role={a.role} size={48} />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold" style={{ color: B.blue }}>
+                {a.name}
+              </p>
+              <RoleChip role={a.role} roleLabel={a.roleLabel} uid={a.uid} />
+              <p className="mt-0.5 text-[11px]" style={{ color: B.muted }}>
+                {a.mobileMasked}
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <Fact label="UID" value={a.uid} />
+            <Fact
+              label="KYC"
+              value={
+                <span className="inline-flex items-center gap-1" style={{ color: B.greenDark }}>
+                  <BadgeCheck size={13} /> Verified
+                </span>
+              }
+            />
+          </div>
+        </>
+      ) : (
+        <>
+          <Fact label="Mobile" value={`XXXXXX${mobile.slice(-4)}`} />
+          <p className="mt-3 text-[11px]" style={{ color: B.muted }}>
+            Account details stay hidden because this account does not belong to you.
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
+const CHECK_ROWS = [
+  { key: "pan", label: "PAN", Icon: CreditCard },
+  { key: "aadhaar", label: "Aadhaar", Icon: Fingerprint },
+  { key: "name", label: "Name", Icon: UserRound },
+] as const;
+
+function IdentityCard({ check }: { check: LinkCheckResult }) {
+  const matched = CHECK_ROWS.filter((r) => check.checks[r.key]).length;
+  return (
+    <div className="flex h-full flex-col rounded-2xl border p-4" style={{ borderColor: "rgba(11,42,154,0.12)" }}>
+      <CardLabel>Identity check</CardLabel>
+      <div className="space-y-2">
+        {CHECK_ROWS.map(({ key, label, Icon }, i) => {
+          const ok = check.checks[key];
+          return (
+            <div
+              key={key}
+              className="la-check-row flex items-center gap-3 rounded-xl px-3 py-2"
+              style={{ background: ok ? "#F0FBF5" : "#FEF2F2", animationDelay: `${i * 120}ms` }}
+            >
+              <span
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white"
+                style={{ color: ok ? B.greenDark : "#DC2626" }}
+              >
+                <Icon size={16} />
+              </span>
+              <span className="flex-1 text-xs font-semibold" style={{ color: B.blue }}>
+                {label}
+              </span>
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold" style={{ color: ok ? B.greenDark : "#DC2626" }}>
+                {ok ? <CheckCircle2 size={14} /> : <XCircle size={14} />}
+                {ok ? "Matched" : "Not matched"}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <div
+        className="la-check-row mt-3 flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] font-semibold"
+        style={{
+          animationDelay: "360ms",
+          background: check.eligible ? B.greenDark : "#DC2626",
+          color: "#fff",
+        }}
+      >
+        {check.eligible ? <ShieldCheck size={14} /> : <ShieldAlert size={14} />}
+        {check.eligible ? "All 3 details matched" : `${matched} of 3 details matched`}
+      </div>
     </div>
   );
 }
@@ -173,25 +268,11 @@ export function LinkAccountModal({
   }
 
   if (step === "verify" && check) {
-    const a = check.account;
-    const detailRows = a
-      ? [
-          { label: "Name", value: a.name },
-          { label: "Mobile", value: a.mobileMasked },
-          { label: "UID", value: a.uid },
-          { label: "Role", value: a.roleLabel },
-          { label: "KYC", value: "Verified" },
-        ]
-      : [{ label: "Mobile", value: `XXXXXX${mobile.slice(-4)}` }];
-    const matchRows = [
-      { label: "PAN match", value: <MatchValue ok={check.checks.pan} /> },
-      { label: "Aadhaar match", value: <MatchValue ok={check.checks.aadhaar} /> },
-      { label: "Name match", value: <MatchValue ok={check.checks.name} /> },
-    ];
     return (
       <LaDialog
         wide
-        icon={<ShieldCheck size={22} />}
+        iconTone={check.eligible ? "green" : "red"}
+        icon={check.eligible ? <ShieldCheck size={22} /> : <ShieldAlert size={22} />}
         eyebrow="Step 2 of 2"
         title="Verify account"
         subtitle={
@@ -203,14 +284,14 @@ export function LinkAccountModal({
         closeDisabled={busy}
       >
         <form onSubmit={submitLink}>
-          <div className="grid items-start gap-3 sm:grid-cols-2">
-            <DetailTable rows={detailRows} />
-            <DetailTable rows={matchRows} />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <AccountCard check={check} mobile={mobile} />
+            <IdentityCard check={check} />
           </div>
           {check.message ? <InlineError message={check.message} /> : null}
 
           {check.eligible ? (
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <div className="mt-4 grid gap-4 rounded-2xl p-4 sm:grid-cols-2" style={{ background: B.bg }}>
               <div>
                 <label htmlFor="la-otp" className="mb-2 block text-xs font-semibold" style={{ color: B.blue }}>
                   {sent ? `OTP sent to ${sent.mobileMasked}` : "Sending OTP…"}
