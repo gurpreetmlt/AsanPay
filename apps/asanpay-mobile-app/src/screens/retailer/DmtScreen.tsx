@@ -24,7 +24,6 @@ import { apiError } from "../../utils/apiError";
 import { formatINR } from "../../lib/format";
 import { createAttemptKeyHolder } from "../../lib/idempotencyKey";
 import { captureFingerprint } from "../../lib/rdServiceFingerprint";
-import { allowAgentAuthUiSkip } from "../../lib/allowAgentAuthUiSkip";
 import { useTxnPin } from "../../hooks/useTxnPin";
 import { useTheme } from "../../theme/ThemeContext";
 import { colors, gradientDirection } from "../../theme/colors";
@@ -737,25 +736,6 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
                 <Text style={styles.primaryBtnText}>Verify now</Text>
               )}
             </Pressable>
-            {allowAgentAuthUiSkip() ? (
-              <>
-                <Pressable
-                  onPress={() => {
-                    setAgentAuthReady(true);
-                    showAlert(
-                      "DMT UI unlocked (dev)",
-                      "This session only. Real transactions still need fingerprint verification.",
-                    );
-                  }}
-                  style={styles.secondaryBtn}
-                >
-                  <Text style={styles.secondaryBtnText}>Skip for now (dev)</Text>
-                </Pressable>
-                <Text style={styles.devSkipHint}>
-                  Dev only — money moves will still fail until fingerprint verification succeeds.
-                </Text>
-              </>
-            ) : null}
           </View>
         ) : (
           <>
@@ -1335,14 +1315,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   secondaryBtnText: { color: colors.blueFlat, fontWeight: "700", fontSize: 14 },
-  devSkipHint: {
-    marginTop: 8,
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#B45309",
-    textAlign: "center",
-    lineHeight: 16,
-  },
   benefRow: {
     borderWidth: 1,
     borderRadius: 14,

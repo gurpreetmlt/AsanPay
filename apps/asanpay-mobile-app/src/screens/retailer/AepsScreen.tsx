@@ -47,7 +47,6 @@ import {
   openFaceRdInstall,
   type BiometricCaptureType,
 } from "../../lib/faceRd";
-import { allowAgentAuthUiSkip } from "../../lib/allowAgentAuthUiSkip";
 import { getAepsGeoTag } from "../../lib/geoCapture";
 import { useTxnPin } from "../../hooks/useTxnPin";
 import { useAuthStore } from "../../store/auth";
@@ -1512,25 +1511,6 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
                 </Text>
               </LinearGradient>
             </Pressable>
-            {allowAgentAuthUiSkip() ? (
-              <>
-                <Pressable
-                  onPress={() => {
-                    setAgentAuthReady(true);
-                    Alert.alert(
-                      "AePS UI unlocked (dev)",
-                      "This session only. Real transactions still need fingerprint verification.",
-                    );
-                  }}
-                  style={s.devSkipBtn}
-                >
-                  <Text style={s.devSkipBtnText}>Skip for now (dev)</Text>
-                </Pressable>
-                <Text style={s.devSkipHint}>
-                  Dev only — money moves will still fail until Scan Finger succeeds.
-                </Text>
-              </>
-            ) : null}
           </View>
         </ScrollView>
 
@@ -2407,25 +2387,6 @@ const s = StyleSheet.create({
     borderRadius: 16,
   },
   scanBtnText: { color: "#fff", fontWeight: "800", fontSize: 15 },
-  devSkipBtn: {
-    marginTop: 10,
-    height: 46,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: "#B9C6F2",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  devSkipBtnText: { color: colors.blueFlat, fontWeight: "700", fontSize: 14 },
-  devSkipHint: {
-    marginTop: 8,
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#B45309",
-    textAlign: "center",
-    lineHeight: 16,
-  },
-
   // Aadhaar Pay activation
   apHeader: {
     flexDirection: "row",
