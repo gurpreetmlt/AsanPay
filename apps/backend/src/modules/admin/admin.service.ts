@@ -44,7 +44,7 @@ import {
   loadKycPhotoBytes,
   KYC_DOC_KEY_TO_SLOT,
 } from "../kyc/kycDocuments.service";
-import { kycDecisionEmailTemplate, notifyUserEmail } from "../../utils/mailer";
+import { kycDecisionEmailTemplate, kycResetEmailTemplate, notifyUserEmail } from "../../utils/mailer";
 import { findLatestAuditLog, insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import { assertCommissionMonthUnlocked, recordRateChangeEvent } from "../commission/commission.guards";
 import { resyncUidCounter } from "../../utils/uid";
@@ -1126,6 +1126,53 @@ export async function decideKyc(adminId: string, userId: string, decision: "veri
     notifyUserEmail(user.email, () =>
       kycDecisionEmailTemplate({ name: user.name, decision }),
     );
+  }
+
+  return {
+    id: updated!.id,
+    uid: updated!.uid,
+    kycStatus: updated!.kycStatus,
+  };
+}
+
+/**
+ * Sends the agent back through KYC: status → pending and PAN / Aadhaar cleared, so both apps treat
+ * the account as "KYC not submitted" and reopen the KYC wizard. Earlier submissions stay in the
+ * audit log; services that need verified KYC stay locked until the new submission is approved.
+ */
+export async function resetKyc(adminId: string, userId: string, reason: string) {
+  const [user] = await db.select().from(users).where(eq(users.id, userId));
+  if (!user) throw new HttpError(404, "User not found", "USER_NOT_FOUND");
+  if (user.role === "admin") throw new HttpError(400, "Cannot reset admin KYC", "INVALID_TARGET");
+
+  const [updated] = await db
+    .update(users)
+    .set({
+      kycStatus: "pending",
+      panNumberEncrypted: null,
+      aadhaarNumberEncrypted: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, userId))
+    .returning();
+
+  await insertAuditLog({
+    userId: adminId,
+    action: "kyc.reset",
+    entityType: "user",
+    entityId: userId,
+    metadata: { previous: user.kycStatus, reason },
+  });
+
+  void sendSlackAlert("KYC reset by admin", "general", {
+    retailerId: user.id,
+    retailerName: user.name,
+    previousStatus: user.kycStatus,
+    reason,
+  });
+
+  if (user.email && user.emailVerifiedAt) {
+    notifyUserEmail(user.email, () => kycResetEmailTemplate({ name: user.name, reason }));
   }
 
   return {

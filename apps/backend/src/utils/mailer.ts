@@ -361,6 +361,45 @@ export function kycDecisionEmailTemplate(input: {
   };
 }
 
+export function kycResetEmailTemplate(input: { name: string; reason: string }): SendMailInput {
+  const name = input.name.trim() || "there";
+  const reason = input.reason.trim();
+  const text = [
+    `Hi ${name},`,
+    ``,
+    `Your AsanPay KYC has been reopened and needs to be submitted again.`,
+    `Reason: ${reason}`,
+    ``,
+    `Open the AsanPay app or website, log in, and complete the KYC steps again with clear photos of your PAN and Aadhaar.`,
+    ``,
+    `— Team AsanPay`,
+  ].join("\n");
+
+  const bodyHtml = `
+    <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${BRAND.amber}">KYC</p>
+    <h1 style="margin:0 0 12px;font-size:26px;line-height:1.2;font-weight:800;letter-spacing:-0.03em;color:${BRAND.blueDeep}">Please submit KYC again</h1>
+    <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:${BRAND.muted}">Hi ${escapeHtml(name)},</p>
+    <p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:${BRAND.muted}">
+      Your AsanPay KYC has been reopened. <strong>Reason:</strong> ${escapeHtml(reason)}
+    </p>
+    <p style="margin:0;font-size:15px;line-height:1.6;color:${BRAND.muted}">
+      Log in to the AsanPay app or website and complete the KYC steps again with clear photos of your PAN and Aadhaar.
+    </p>
+  `;
+
+  return {
+    to: "",
+    subject: "AsanPay KYC — please submit again",
+    text,
+    html: brandedEmailHtml({
+      preheader: "Your KYC needs to be submitted again.",
+      title: "AsanPay KYC — please submit again",
+      bodyHtml,
+      accent: "amber",
+    }),
+  };
+}
+
 export function statementEmailTemplate(input: {
   name: string;
   period: "daily" | "monthly";

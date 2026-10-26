@@ -86,6 +86,14 @@ export const RESTRICT_REASON_PRESETS = [
   "Upline / network risk review",
 ];
 
+export const KYC_RESET_REASON_PRESETS = [
+  "Wrong or unclear Aadhaar photo uploaded",
+  "Wrong or unclear PAN photo uploaded",
+  "Name does not match between PAN and Aadhaar",
+  "Agent requested KYC correction",
+  "Compliance re-verification required",
+];
+
 export const AEPS_REACTIVATE_REASON_PRESETS = [
   "Biometric device repaired",
   "KYC verified — clear dormancy",

@@ -22,6 +22,7 @@ import {
   setRestrictionLevel,
   listKycQueue,
   decideKyc,
+  resetKyc,
   listAdminTransactions,
   listCatalogAdmin,
   updateServiceSiteControl,
@@ -214,6 +215,17 @@ adminRouter.post("/kyc/:id/decide", async (req, res) => {
   const body = z.object({ decision: z.enum(["verified", "rejected"]) }).parse(req.body);
   const result = await decideKyc(req.auth.sub, req.params.id, body.decision);
   sendSuccess(res, result, body.decision === "verified" ? "KYC approved" : "KYC rejected");
+});
+
+adminRouter.post("/kyc/:id/reset", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const body = z
+    .object({
+      reason: z.string().trim().min(8, "Reason must be at least 8 characters").max(500),
+    })
+    .parse(req.body);
+  const result = await resetKyc(req.auth.sub, req.params.id, body.reason);
+  sendSuccess(res, result, "KYC reset — the agent will be asked to submit KYC again");
 });
 
 adminRouter.get("/transactions", async (req, res) => {

@@ -31,6 +31,7 @@ import {
   ReasonSelect,
   RESTRICT_REASON_PRESETS,
   AEPS_REACTIVATE_REASON_PRESETS,
+  KYC_RESET_REASON_PRESETS,
 } from "@/components/users/ReasonSelect";
 import { AgentCommissionPanel } from "@/components/users/AgentCommissionPanel";
 import { FundRequestSwitch } from "@/components/users/FundRequestSwitch";
@@ -168,6 +169,7 @@ export default function AgentDetailPage() {
   const [moveOpen, setMoveOpen] = useState(false);
   const [aepsReason, setAepsReason] = useState("");
   const [restrictReason, setRestrictReason] = useState("");
+  const [kycResetReason, setKycResetReason] = useState("");
   const [recentTxns, setRecentTxns] = useState<RecentTxn[]>([]);
   const [activeBank, setActiveBank] = useState<SettlementBankBrief | null>(null);
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
@@ -219,6 +221,51 @@ export default function AgentDetailPage() {
       toast.error(
         (err as { response?: { data?: { message?: string } } }).response?.data?.message ??
           "Decision failed",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function askResetKyc() {
+    if (!agent) return;
+    const reason = kycResetReason.trim();
+    if (reason.length < 8) {
+      toast.error("Select a reset reason (custom reason must be at least 8 characters)");
+      return;
+    }
+    setPendingConfirm({
+      title: "Reset KYC for this agent?",
+      message: (
+        <div className="space-y-2">
+          <p>
+            KYC goes back to <strong>Pending</strong> and the saved PAN / Aadhaar are cleared. {agent.name} will be
+            asked to complete KYC again on next login.
+          </p>
+          <p>Services that need verified KYC (AePS, DMT, etc.) stay locked until the new KYC is approved.</p>
+          <p>
+            Reason: <strong>{reason}</strong>
+          </p>
+        </div>
+      ),
+      confirmLabel: "Reset KYC",
+      tone: "danger",
+      action: () => resetKycNow(reason),
+    });
+  }
+
+  async function resetKycNow(reason: string) {
+    if (!agent) return;
+    setBusy(true);
+    try {
+      await api.post(`/admin/kyc/${agent.id}/reset`, { reason });
+      toast.success("KYC reset — the agent will be asked to submit KYC again");
+      setKycResetReason("");
+      setPendingConfirm(null);
+      await load();
+    } catch (err) {
+      toast.error(
+        (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? "KYC reset failed",
       );
     } finally {
       setBusy(false);
@@ -600,6 +647,31 @@ export default function AgentDetailPage() {
                           Reject KYC
                         </button>
                       </>
+                    ) : null}
+                    {agent.kycStatus !== "pending" || agent.hasKycDocs ? (
+                      <div className="space-y-2 rounded-xl border p-3" style={{ borderColor: B.border }}>
+                        <div className="text-sm font-semibold" style={{ color: B.blue }}>
+                          Reset KYC
+                        </div>
+                        <p className="text-xs" style={{ color: B.muted }}>
+                          Clears PAN / Aadhaar and asks the agent to submit KYC again (e.g. wrong photo uploaded).
+                        </p>
+                        <ReasonSelect
+                          value={kycResetReason}
+                          onChange={setKycResetReason}
+                          presets={KYC_RESET_REASON_PRESETS}
+                          placeholder="Select reset reason"
+                        />
+                        <button
+                          type="button"
+                          disabled={busy || kycResetReason.trim().length < 8}
+                          onClick={askResetKyc}
+                          className="w-full rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                          style={{ background: B.danger }}
+                        >
+                          Reset KYC
+                        </button>
+                      </div>
                     ) : null}
                     {agent.isFrozen ? (
                       <button
