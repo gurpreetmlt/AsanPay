@@ -27,7 +27,15 @@ import { IfscBankDetailsFields } from "../../components/IfscBankDetailsFields";
 import { LabelText } from "../../components/RequiredMark";
 import { MobileSignupStepper, MOBILE_SIGNUP_STEPS } from "../../components/MobileSignupStepper";
 import { TermsAcceptModal } from "../../components/TermsAcceptModal";
-import { SIGNUP_POLICY_VERSION } from "@asanpay/shared-types";
+import {
+  SIGNUP_POLICY_VERSION,
+  kycDocCheckBlocksStep,
+  kycDocCheckLabel,
+  kycDocCheckToUi,
+  type KycDocCheckResult,
+  type KycDocCheckSlot,
+  type KycDocCheckUi,
+} from "@asanpay/shared-types";
 import {
   clearMobileSignupDraft,
   EMPTY_MOBILE_SIGNUP_DRAFT,
@@ -441,6 +449,9 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
   const [locationLabel, setLocationLabel] = useState<string | null>(null);
   const [addressFetchBusy, setAddressFetchBusy] = useState(false);
   const [photoCaptureBusy, setPhotoCaptureBusy] = useState(false);
+  const [docChecks, setDocChecks] = useState<Partial<Record<KycDocCheckSlot, KycDocCheckUi>>>({});
+  /** Latest check per field — stale responses (photo re-picked) are ignored. */
+  const docCheckSeqRef = useRef<Partial<Record<KycDocCheckSlot, number>>>({});
   const [emailError, setEmailError] = useState<string | null>(null);
   const [aadhaarOtp, setAadhaarOtp] = useState("");
   const [aadhaarOtpBusy, setAadhaarOtpBusy] = useState<"send" | "verify" | null>(null);
@@ -1021,10 +1032,44 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
       const mime = asset.type || "image/jpeg";
       const dataUrl = asset.base64 ? `data:${mime};base64,${asset.base64}` : undefined;
       patch({ [key]: { name, uri: asset.uri, dataUrl } });
+      if (key !== "cancelledCheque") {
+        void runDocCheck(key, dataUrl);
+        if (dataUrl && accessToken) return;
+      }
       showAlert("Uploaded", dataUrl ? `${name} ready for KYC submit` : `${name} selected`);
     } catch (err) {
       showAlert("Upload failed", err instanceof Error ? err.message : "Could not pick image");
     }
+  }
+
+  /** Check a PAN / Aadhaar photo on the server. `fail` clears the photo; `flag` keeps it. */
+  async function runDocCheck(slot: KycDocCheckSlot, dataUrl: string | undefined) {
+    const seq = (docCheckSeqRef.current[slot] ?? 0) + 1;
+    docCheckSeqRef.current[slot] = seq;
+    if (!dataUrl || !accessToken) {
+      setDocChecks((c) => {
+        const next = { ...c };
+        delete next[slot];
+        return next;
+      });
+      return;
+    }
+    setDocChecks((c) => ({ ...c, [slot]: { state: "checking" } }));
+    let result: KycDocCheckResult | null = null;
+    try {
+      const { data } = await api.post<ApiResponse<KycDocCheckResult>>(
+        "/kyc/documents/check",
+        { slot, dataUrl },
+        { timeout: 20_000 },
+      );
+      if (data.success) result = data.data;
+    } catch {
+      result = null;
+    }
+    if (docCheckSeqRef.current[slot] !== seq) return;
+    const ui = kycDocCheckToUi(slot, result);
+    setDocChecks((c) => ({ ...c, [slot]: ui }));
+    if (ui.state === "fail") patch({ [slot]: null });
   }
 
   async function captureLivePhoto(kind: "personalPhoto" | "shopPhoto") {
@@ -1685,8 +1730,16 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
   // Role step: keep Create account disabled until the upline lookup finds an active account.
   const uplineBlocked =
     stepIndex === 1 && needsUpline && !draft.accountCreated && !(sponsorOk && draft.sponsorUid);
+  const docCheckBlocked =
+    (stepIndex === 2 && kycDocCheckBlocksStep(docChecks.panImage)) ||
+    (stepIndex === 3 &&
+      (kycDocCheckBlocksStep(docChecks.aadhaarFront) || kycDocCheckBlocksStep(docChecks.aadhaarBack)));
   const nextDisabled =
-    loading || Boolean(mobileError) || (stepIndex === 0 && otpSent && otp.length !== 6) || uplineBlocked;
+    loading ||
+    Boolean(mobileError) ||
+    (stepIndex === 0 && otpSent && otp.length !== 6) ||
+    uplineBlocked ||
+    docCheckBlocked;
 
   const inputStyle = [
     styles.input,
@@ -2119,6 +2172,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                     name={draft.panImage?.name}
                     onPress={() => void pickDocImage("panImage", "pan")}
                     tokens={tokens}
+                    check={docChecks.panImage}
                   />
                 </>
               )}
@@ -2247,6 +2301,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                         name={draft.aadhaarFront?.name}
                         onPress={() => void pickDocImage("aadhaarFront", "aadhaar-front")}
                         tokens={tokens}
+                        check={docChecks.aadhaarFront}
                         compact
                       />
                     </View>
@@ -2257,6 +2312,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                         name={draft.aadhaarBack?.name}
                         onPress={() => void pickDocImage("aadhaarBack", "aadhaar-back")}
                         tokens={tokens}
+                        check={docChecks.aadhaarBack}
                         compact
                       />
                     </View>
@@ -2694,6 +2750,7 @@ function UploadRow({
   tokens,
   actionLabel,
   compact,
+  check,
 }: {
   label: string;
   done: boolean;
@@ -2702,7 +2759,18 @@ function UploadRow({
   tokens: { mute: string; card: string; cardBorder: string; txt2: string };
   actionLabel?: string;
   compact?: boolean;
+  /** KYC photo check result shown under the row */
+  check?: KycDocCheckUi;
 }) {
+  const checkFailed = check?.state === "fail";
+  const checkColor =
+    check?.state === "fail"
+      ? colors.danger
+      : check?.state === "flag"
+        ? "#B45309"
+        : check?.state === "pass"
+          ? colors.greenDark
+          : tokens.mute;
   return (
     <View style={{ marginBottom: compact ? 4 : 10 }}>
       <FieldLabel text={label} color={tokens.mute} />
@@ -2712,8 +2780,8 @@ function UploadRow({
           styles.upload,
           compact ? styles.uploadCompact : null,
           {
-            backgroundColor: tokens.card,
-            borderColor: done ? colors.green : tokens.cardBorder,
+            backgroundColor: checkFailed ? colors.dangerBg : tokens.card,
+            borderColor: checkFailed ? colors.danger : done ? colors.green : tokens.cardBorder,
           },
         ]}
       >
@@ -2731,6 +2799,14 @@ function UploadRow({
         </Text>
         <Text style={{ color: done ? colors.greenDark : tokens.mute, fontWeight: "800" }}>{done ? "✓" : "+"}</Text>
       </Pressable>
+      {check ? (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 }}>
+          {check.state === "checking" ? <ActivityIndicator size="small" color={tokens.mute} /> : null}
+          <Text style={{ flex: 1, color: checkColor, fontSize: 12, fontWeight: "600" }} accessibilityLiveRegion="polite">
+            {kycDocCheckLabel(check)}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }

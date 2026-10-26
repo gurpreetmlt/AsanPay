@@ -225,6 +225,7 @@
 2026-09-21 — Agent UIDs: remap script `npm run remap:uids` → ASPRT/ASPD/ASPSD/ASPAD; hard-delete resyncs uid_counters
 2026-09-20 — Txn refs: new `ASP`+`YYMMDD`+agent last6+6hex (e.g. ASP260920100001A1B2C3); legacy `LKP…` unchanged
 2026-09-20 — Agent public UIDs: new accounts get `ASPRT`/`ASPD`/`ASPSD`/`ASPAD` + 6-digit seq from 100001 (migration `0046_uid_counters`); legacy RT/DS/MD unchanged
+2026-10-26 — KYC photo check UX (PL-05 chat 2): web signup + mobile signup call `/kyc/documents/check` after PAN / Aadhaar photo pick — "Checking photo…", red fail (photo cleared, Continue blocked), amber flag, green pass; shared copy in `@asanpay/shared-types`
 2026-10-26 — KYC photo check engine (PL-05 chat 1, backend only): `POST /api/kyc/documents/check` — quality (size/dark/blur), Aadhaar Secure QR + UIDAI signature, tesseract OCR (eng+hin, bundled data), PAN / Aadhaar data match; result saved in `kyc.submit` → `docChecks`. Web/mobile UX + admin labels pending (chats 2–3)
 2026-09-16 — PAN KYC verify: BestAPI pan-verify on signup PAN step (web + mobile)
 2026-09-16 — Aadhaar KYC OTP: BestAPI send/verify on signup Aadhaar step (web + mobile); no full Aadhaar in logs

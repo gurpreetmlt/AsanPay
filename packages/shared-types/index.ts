@@ -478,6 +478,16 @@ export {
   type IndianState,
 } from "./indianStates";
 export {
+  KYC_DOC_CHECK_COPY,
+  kycDocCheckBlocksStep,
+  kycDocCheckLabel,
+  kycDocCheckToUi,
+  type KycDocCheckResult,
+  type KycDocCheckSlot,
+  type KycDocCheckStatus,
+  type KycDocCheckUi,
+} from "./kycDocCheck";
+export {
   AEPS_ONBOARDING_STEPS,
   EMPTY_AEPS_ONBOARDING_FORM,
   validateAepsOnboardingStep,

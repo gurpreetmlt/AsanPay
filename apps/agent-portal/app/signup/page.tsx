@@ -5,7 +5,17 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { ArrowLeft, CheckCircle2, Eye, EyeOff } from "lucide-react";
-import { SIGNUP_POLICY_VERSION, type ApiResponse, type AuthUser } from "@asanpay/shared-types";
+import {
+  SIGNUP_POLICY_VERSION,
+  kycDocCheckBlocksStep,
+  kycDocCheckLabel,
+  kycDocCheckToUi,
+  type ApiResponse,
+  type AuthUser,
+  type KycDocCheckResult,
+  type KycDocCheckSlot,
+  type KycDocCheckUi,
+} from "@asanpay/shared-types";
 import { AsanPayLockup } from "@/components/brand/Logo";
 import { EmailVerifyField } from "@/components/EmailVerifyField";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
@@ -171,6 +181,7 @@ function FileUpload({
   onClear,
   error,
   compact,
+  check,
 }: {
   label: string;
   meta: SignupFileMeta | null;
@@ -182,7 +193,18 @@ function FileUpload({
   error?: boolean;
   /** Tighter box for 2-up grids */
   compact?: boolean;
+  /** KYC photo check result shown under the box */
+  check?: KycDocCheckUi;
 }) {
+  const checkFailed = check?.state === "fail";
+  const checkColor =
+    check?.state === "fail"
+      ? "#DC2626"
+      : check?.state === "flag"
+        ? "#B45309"
+        : check?.state === "pass"
+          ? "#15803D"
+          : B.muted;
   return (
     <div className="min-w-0">
       <Label>{label}</Label>
@@ -191,8 +213,8 @@ function FileUpload({
           compact ? "min-h-[5.5rem] gap-1 px-3 py-3" : "min-h-[6.5rem] gap-2 px-4 py-4"
         }`}
         style={{
-          borderColor: error ? "#DC2626" : meta ? B.green : B.border,
-          background: error ? "#FEF2F2" : B.bg,
+          borderColor: error || checkFailed ? "#DC2626" : meta ? B.green : B.border,
+          background: error || checkFailed ? "#FEF2F2" : B.bg,
         }}
       >
         <input
@@ -220,9 +242,14 @@ function FileUpload({
           {compact ? "JPG / PNG / PDF · 2 MB" : "JPG, PNG, WEBP, HEIC or PDF · max 2 MB"}
         </span>
       </label>
-      {error && !meta ? (
+      {error && !meta && !check ? (
         <p className="mt-1 text-xs font-semibold" style={{ color: "#DC2626" }}>
           {label.replace(/\s*\*.*$/, "")} is required
+        </p>
+      ) : null}
+      {check ? (
+        <p className="mt-1 text-xs font-semibold" style={{ color: checkColor }} role="status" aria-live="polite">
+          {kycDocCheckLabel(check)}
         </p>
       ) : null}
       {meta ? (
@@ -531,6 +558,9 @@ function SignupPageInner() {
   const [panVerifyBusy, setPanVerifyBusy] = useState(false);
   const [panVerifyFailed, setPanVerifyFailed] = useState(false);
   const panAutoAttemptRef = useRef("");
+  const [docChecks, setDocChecks] = useState<Partial<Record<KycDocCheckSlot, KycDocCheckUi>>>({});
+  /** Latest check per field — stale responses (photo re-picked / removed) are ignored. */
+  const docCheckSeqRef = useRef<Partial<Record<KycDocCheckSlot, number>>>({});
 
   const stepIndex = draft.stepIndex;
   const needsUpline = draft.role !== "super_distributor" && draft.role !== "direct_retailer";
@@ -931,6 +961,10 @@ function SignupPageInner() {
         return { ...p, [key]: url };
       });
     }
+    if (isDocCheckSlot(key)) {
+      void runDocCheck(key, meta.dataUrl);
+      if (meta.dataUrl && accessToken) return;
+    }
     toast.success(
       geo
         ? `${file.name} captured · ${Number(geo.latitude).toFixed(5)}, ${Number(geo.longitude).toFixed(5)}`
@@ -980,6 +1014,7 @@ function SignupPageInner() {
       SignupDraft,
       "panImage" | "aadhaarFront" | "aadhaarBack" | "cancelledCheque" | "shopPhoto" | "personalPhoto"
     >,
+    opts?: { keepCheck?: boolean },
   ) {
     patch({ [key]: null });
     setPreviews((p) => {
@@ -988,6 +1023,48 @@ function SignupPageInner() {
       delete next[key];
       return next;
     });
+    if (isDocCheckSlot(key) && !opts?.keepCheck) {
+      docCheckSeqRef.current[key] = (docCheckSeqRef.current[key] ?? 0) + 1;
+      setDocChecks((c) => {
+        const next = { ...c };
+        delete next[key];
+        return next;
+      });
+    }
+  }
+
+  function isDocCheckSlot(key: string): key is KycDocCheckSlot {
+    return key === "panImage" || key === "aadhaarFront" || key === "aadhaarBack";
+  }
+
+  /** Check a PAN / Aadhaar photo on the server. `fail` clears the photo; `flag` keeps it. */
+  async function runDocCheck(slot: KycDocCheckSlot, dataUrl: string | undefined) {
+    const seq = (docCheckSeqRef.current[slot] ?? 0) + 1;
+    docCheckSeqRef.current[slot] = seq;
+    if (!dataUrl || !accessToken) {
+      setDocChecks((c) => {
+        const next = { ...c };
+        delete next[slot];
+        return next;
+      });
+      return;
+    }
+    setDocChecks((c) => ({ ...c, [slot]: { state: "checking" } }));
+    let result: KycDocCheckResult | null = null;
+    try {
+      const { data } = await api.post<ApiResponse<KycDocCheckResult>>(
+        "/kyc/documents/check",
+        { slot, dataUrl },
+        { timeout: 20_000 },
+      );
+      if (data.success) result = data.data;
+    } catch {
+      result = null;
+    }
+    if (docCheckSeqRef.current[slot] !== seq) return;
+    const ui = kycDocCheckToUi(slot, result);
+    setDocChecks((c) => ({ ...c, [slot]: ui }));
+    if (ui.state === "fail") clearFile(slot, { keepCheck: true });
   }
 
   function validateStep(): string | null {
@@ -2053,6 +2130,7 @@ function SignupPageInner() {
                   onPick={(f) => pickFile("panImage", f)}
                   onClear={() => clearFile("panImage")}
                   error={stepErrorKey === "panImage"}
+                  check={docChecks.panImage}
                 />
               </>
             )}
@@ -2168,6 +2246,7 @@ function SignupPageInner() {
                     onPick={(f) => pickFile("aadhaarFront", f)}
                     onClear={() => clearFile("aadhaarFront")}
                     error={stepErrorKey === "aadhaarFront"}
+                    check={docChecks.aadhaarFront}
                     compact
                   />
                   <FileUpload
@@ -2178,6 +2257,7 @@ function SignupPageInner() {
                     onPick={(f) => pickFile("aadhaarBack", f)}
                     onClear={() => clearFile("aadhaarBack")}
                     error={stepErrorKey === "aadhaarBack"}
+                    check={docChecks.aadhaarBack}
                     compact
                   />
                 </div>
@@ -2532,7 +2612,11 @@ function SignupPageInner() {
                   (stepIndex === 1 &&
                     needsUpline &&
                     !(draft.accountCreated || loggedInContinue) &&
-                    !(sponsorStatus === "ok" && sponsor))
+                    !(sponsorStatus === "ok" && sponsor)) ||
+                  (stepIndex === 2 && kycDocCheckBlocksStep(docChecks.panImage)) ||
+                  (stepIndex === 3 &&
+                    (kycDocCheckBlocksStep(docChecks.aadhaarFront) ||
+                      kycDocCheckBlocksStep(docChecks.aadhaarBack)))
                 }
                 loopGlow={stepIndex === 0}
                 className="!w-auto min-w-0 flex-[2]"

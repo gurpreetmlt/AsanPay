@@ -38,7 +38,12 @@ publishes a new one, add the `.cer` there. A signed-QR Aadhaar last-4 mismatch i
 - Save result per slot in `kyc.submit` metadata (`docChecks`) — no new table needed. Never log Aadhaar numbers in plain text.
 - Timeout 8 s → treat as `flag` (never block signup because our checker is slow).
 
-## Chat 2 — web + mobile upload UX (same change, both apps)
+## Chat 2 — web + mobile upload UX (same change, both apps) ✅ done (26 Oct)
+
+Shared copy + result → UI mapping in `packages/shared-types/kycDocCheck.ts` (both apps import it).
+Continue is disabled while a photo on the step is checking or was rejected; picking a new photo
+(or Remove on web) clears the red state. Network / server error → amber (never blocks).
+PDF uploads and photos picked before the account exists are not checked.
 
 - After choosing a photo, call the check; show "Checking photo…".
 - `fail` → red text under that field with the exact `message`, clear the photo, Continue stays disabled for that step.
