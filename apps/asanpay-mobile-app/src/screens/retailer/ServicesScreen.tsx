@@ -23,6 +23,7 @@ import { RechargeScreen } from "./RechargeScreen";
 import { showAlert } from "../../components/AppAlert";
 import { BrandLockup } from "../../components/BrandMark";
 import { SupportCallButton } from "../../components/SupportCallButton";
+import { ScanQrModal } from "../shared/ScanQrModal";
 import { PageEnter } from "../../components/PageEnter";
 import { TodayEarningsCard } from "../../components/TodayEarningsCard";
 import { PanMissingBanner } from "../../components/PanMissingBanner";
@@ -74,6 +75,7 @@ export function ServicesScreen() {
   const [todayTds, setTodayTds] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
   const [homeEditMode, setHomeEditMode] = useState(false);
   const [activeScreen, setActiveScreen] = useState<"home" | "aeps" | "dmt" | "nepal" | "upi_cp" | "recharge">("home");
   const [aepsServiceCode, setAepsServiceCode] = useState<string | undefined>();
@@ -235,7 +237,11 @@ export function ServicesScreen() {
         }
         topRight={
           <View style={styles.headerIconRow}>
-            <Pressable style={styles.headerIconBtn} onPress={() => showAlert("Coming soon", "QR scan")}>
+            <Pressable
+              style={styles.headerIconBtn}
+              onPress={() => setScanOpen(true)}
+              accessibilityLabel="Scan QR"
+            >
               <Scan size={18} color="#fff" strokeWidth={2.1} />
             </Pressable>
             <Pressable style={styles.headerIconBtn} onPress={() => showAlert("Coming soon", "Notifications")}>
@@ -451,6 +457,7 @@ export function ServicesScreen() {
         onSkip={skipAepsOnboarding}
       />
       <CashManagementModal visible={showCms} onClose={() => setShowCms(false)} />
+      <ScanQrModal visible={scanOpen} onClose={() => setScanOpen(false)} />
     </SafeAreaView>
     </PageEnter>
   );

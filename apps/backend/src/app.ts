@@ -24,6 +24,7 @@ import { earningsRouter } from "./modules/earnings/earnings.routes";
 import { onboardingRouter } from "./modules/onboarding/onboarding.routes";
 import { nobleRouter } from "./modules/providers/noble/noble.routes";
 import { supportRouter } from "./modules/support/support.routes";
+import { geoLinkRouter } from "./modules/geoLink/geoLink.routes";
 import { fundRequestRouter } from "./modules/fund-requests/fundRequest.routes";
 import { bankingRouter } from "./modules/banking/banking.routes";
 import { settlementRouter } from "./modules/settlements/settlement.routes";
@@ -118,6 +119,7 @@ export function createApp(): Express {
   app.use("/api/onboarding", onboardingRouter);
   app.use("/api/noble", nobleRouter);
   app.use("/api/support", supportRouter);
+  app.use("/api/geo-link", geoLinkRouter);
   app.use("/api/fund-requests", fundRequestRouter);
   app.use("/api/banking", bankingRouter);
   app.use("/api/settlements", settlementRouter);

@@ -39,6 +39,7 @@ import {
 import { B } from "@/lib/brand";
 import api from "@/lib/api";
 import { aepsBankLogoUrl } from "@/lib/bankLogo";
+import { PhoneLocationBar } from "@/components/location/PhoneLocationBar";
 import { useAuthStore } from "@/lib/store";
 import type { ApiResponse } from "@asanpay/shared-types";
 import {
@@ -1123,6 +1124,8 @@ function AepsPageInner() {
             }}
           />
         </div>
+
+        <PhoneLocationBar />
 
         {isAadhaarPay && (ap.needsSetup || ap.error || (ap.loading && !ap.session)) ? (
           <AadhaarPaySetupCard

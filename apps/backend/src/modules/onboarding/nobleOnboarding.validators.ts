@@ -70,6 +70,8 @@ export const nobleAgentOnboardSchema = z.object({
   shopPinCode: z.string().regex(/^\d{6}$/, "Shop PIN must be 6 digits"),
   shopLatitude: z.coerce.number().min(-90).max(90),
   shopLongitude: z.coerce.number().min(-180).max(180),
+  /** Web only: phone-verified shop location (QR hand-off); its coordinates replace the body's. */
+  geoLinkToken: z.string().regex(/^[a-f0-9]{48}$/).optional(),
   isPhysicalVerified: z.enum(["YES", "NO"]).default("YES"),
 });
 

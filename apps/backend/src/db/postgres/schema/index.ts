@@ -13,6 +13,7 @@ export * from "./bankEntryCategoryRules";
 export * from "./fundRequests";
 export * from "./signupInvites";
 export * from "./settlements";
+export * from "./geoLink";
 export * from "./float";
 export * from "./reconciliation";
 export * from "./devices";

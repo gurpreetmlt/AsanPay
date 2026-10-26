@@ -15,6 +15,7 @@ import {
 } from "@asanpay/shared-types";
 import { AppShell } from "@/components/layout/AppShell";
 import { SignupStepper, type StepperStep } from "@/components/signup/SignupStepper";
+import { PhoneLocationModal, type VerifiedPhoneLocation } from "@/components/location/PhoneLocationModal";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { StateSelect } from "@/components/ui/StateSelect";
 import api from "@/lib/api";
@@ -30,7 +31,8 @@ const LAST_STEP = STEPS.length - 1;
 const ERR_RED = "#DC2626";
 /** Full PAN / Aadhaar re-mask automatically after this long. */
 const REVEAL_MS = 30_000;
-const GPS_REQUIRED_MSG = "Tap Use GPS inside your shop to capture the shop location";
+const GPS_REQUIRED_MSG =
+  "Tap Fetch Location and scan the QR with the AsanPay app on your phone, inside your shop";
 
 type FieldKey = keyof AepsOnboardingForm;
 
@@ -48,9 +50,10 @@ export default function NobleAgentOnboardPage() {
 
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [geoBusy, setGeoBusy] = useState(false);
-  /** Prefilled coordinates are not trusted — the agent must capture GPS inside the shop. */
+  const [locationModalOpen, setLocationModalOpen] = useState(false);
+  /** Prefilled coordinates are not trusted — the agent must capture phone GPS inside the shop. */
   const [gpsCaptured, setGpsCaptured] = useState(false);
+  const [geoLinkToken, setGeoLinkToken] = useState("");
   const [sameAsResidential, setSameAsResidential] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({});
   const [form, setForm] = useState<AepsOnboardingForm>(EMPTY_AEPS_ONBOARDING_FORM);
@@ -142,25 +145,14 @@ export default function NobleAgentOnboardPage() {
     return false;
   }
 
-  function captureLocation() {
-    if (!navigator.geolocation) {
-      toast.error("Allow location access before continuing");
-      return;
-    }
-    setGeoBusy(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setField("shopLatitude", pos.coords.latitude.toFixed(4));
-        setField("shopLongitude", pos.coords.longitude.toFixed(4));
-        setGpsCaptured(true);
-        toast.success("Shop location captured");
-        setGeoBusy(false);
-      },
-      () => {
-        toast.error("Allow location access before continuing");
-        setGeoBusy(false);
-      },
-      { enableHighAccuracy: true, timeout: 15000 },
+  function onPhoneLocation(loc: VerifiedPhoneLocation) {
+    setField("shopLatitude", loc.latitude);
+    setField("shopLongitude", loc.longitude);
+    setGeoLinkToken(loc.token);
+    setGpsCaptured(true);
+    setLocationModalOpen(false);
+    toast.success(
+      `Shop location captured from your phone${loc.accuracyMeters != null ? ` (±${loc.accuracyMeters} m)` : ""}`,
     );
   }
 
@@ -209,7 +201,7 @@ export default function NobleAgentOnboardPage() {
         return;
       }
     }
-    if (!gpsCaptured) {
+    if (!gpsCaptured || !geoLinkToken) {
       setErrors({ shopLatitude: GPS_REQUIRED_MSG });
       toast.error(GPS_REQUIRED_MSG);
       return;
@@ -240,6 +232,7 @@ export default function NobleAgentOnboardPage() {
         shopPinCode: form.shopPinCode.replace(/\D/g, "").slice(0, 6),
         shopLatitude: Number(form.shopLatitude),
         shopLongitude: Number(form.shopLongitude),
+        geoLinkToken,
         isPhysicalVerified: "YES",
       });
       const me = await api.get<ApiResponse<{ user: AuthUser }>>("/auth/me");
@@ -477,17 +470,16 @@ export default function NobleAgentOnboardPage() {
                       <div className="text-xs" style={{ color: B.muted }}>
                         {gpsCaptured
                           ? `${form.shopLatitude}, ${form.shopLongitude}`
-                          : "Stand inside your shop and tap Use GPS before submitting"}
+                          : "Stand inside your shop, tap Fetch Location and scan the QR with your phone"}
                       </div>
                     </div>
                     <PrimaryButton
                       type="button"
                       variant={gpsCaptured ? "secondary" : "primary"}
-                      onClick={captureLocation}
-                      disabled={geoBusy}
+                      onClick={() => setLocationModalOpen(true)}
                     >
                       <MapPin size={14} className="mr-1 inline" />
-                      {geoBusy ? "Locating…" : gpsCaptured ? "Update GPS" : "Use GPS"}
+                      {gpsCaptured ? "Fetch again" : "Fetch Location"}
                     </PrimaryButton>
                   </div>
                   {errors.shopLatitude ? (
@@ -510,9 +502,18 @@ export default function NobleAgentOnboardPage() {
               </div>
             ) : null}
             <div className="min-w-0 sm:flex-1">
-              <PrimaryButton type="submit" variant="primary" disabled={loading}>
+              <PrimaryButton
+                type="submit"
+                variant="primary"
+                disabled={loading || (step === LAST_STEP && !gpsCaptured)}
+              >
                 {step < LAST_STEP ? "Continue" : loading ? "Submitting…" : "Submit onboarding"}
               </PrimaryButton>
+              {step === LAST_STEP && !gpsCaptured ? (
+                <p className="mt-1.5 text-center text-xs" style={{ color: B.muted }}>
+                  Fetch the shop location first to enable Submit
+                </p>
+              ) : null}
             </div>
           </div>
           <PrimaryButton
@@ -525,6 +526,13 @@ export default function NobleAgentOnboardPage() {
             Skip for now
           </PrimaryButton>
         </form>
+        <PhoneLocationModal
+          open={locationModalOpen}
+          purpose="onboarding"
+          title="Fetch shop location"
+          onClose={() => setLocationModalOpen(false)}
+          onVerified={onPhoneLocation}
+        />
       </div>
     </AppShell>
   );

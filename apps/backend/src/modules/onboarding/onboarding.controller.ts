@@ -16,6 +16,7 @@ import {
   nobleLoadAgent,
 } from "./nobleAepsSession.service";
 import { kycDobSlashed } from "./nobleOnboarding.service";
+import { markGeoLinkUsed, readVerifiedGeoLink } from "../geoLink/geoLink.service";
 import type {
   NobleAgentKycInput,
   NobleAgentOnboardInput,
@@ -36,7 +37,24 @@ export async function retiredOutletOnboarding(_req: Request, _res: Response): Pr
 
 export async function nobleSignup(req: Request, res: Response): Promise<void> {
   const body = req.body as NobleAgentOnboardInput;
-  const profile = await nobleAgentOnboard(req.auth!.sub, body, req.ip ?? "127.0.0.1");
+  const userId = req.auth!.sub;
+  // Web browsers guess location from IP; web onboarding must use the phone-verified fix.
+  let geoLinkId: string | null = null;
+  if (body.channel === "WEB") {
+    if (!body.geoLinkToken) {
+      throw new HttpError(
+        422,
+        "Tap Fetch Location and scan the QR with the AsanPay app on your phone to capture the shop location",
+        "GEO_LINK_REQUIRED",
+      );
+    }
+    const geo = await readVerifiedGeoLink(userId, body.geoLinkToken, "onboarding");
+    body.shopLatitude = geo.latitude;
+    body.shopLongitude = geo.longitude;
+    geoLinkId = geo.id;
+  }
+  const profile = await nobleAgentOnboard(userId, body, req.ip ?? "127.0.0.1");
+  if (geoLinkId) await markGeoLinkUsed(geoLinkId);
   sendSuccess(res, profile);
 }
 

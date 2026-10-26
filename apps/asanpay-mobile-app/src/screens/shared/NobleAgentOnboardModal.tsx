@@ -496,8 +496,11 @@ export function NobleAgentOnboardModal({
                 </Pressable>
               ) : null}
               <Pressable
-                style={[styles.primaryBtn, { opacity: saving ? 0.6 : 1 }]}
-                disabled={saving}
+                style={[
+                  styles.primaryBtn,
+                  { opacity: saving || (step === LAST_STEP && !gpsCaptured) ? 0.5 : 1 },
+                ]}
+                disabled={saving || (step === LAST_STEP && !gpsCaptured)}
                 onPress={() => void next()}
               >
                 {saving ? (
@@ -507,6 +510,11 @@ export function NobleAgentOnboardModal({
                 )}
               </Pressable>
             </View>
+            {step === LAST_STEP && !gpsCaptured ? (
+              <Text style={{ color: tokens.sub, fontSize: 12, textAlign: "center", marginTop: 6 }}>
+                Capture the shop location first to enable Submit
+              </Text>
+            ) : null}
             {onSkip ? (
               <Pressable style={styles.skipBtn} disabled={saving} onPress={onSkip} hitSlop={6}>
                 <Text style={{ color: tokens.sub, fontWeight: "600", fontSize: 14 }}>Skip for now</Text>

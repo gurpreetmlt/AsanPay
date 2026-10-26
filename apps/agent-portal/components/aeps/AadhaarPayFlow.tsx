@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CheckCircle2, CircleDot, Fingerprint, Lock, RefreshCw, Settings2, X } from "lucide-react";
+import { todayPhoneLocation } from "@/lib/phoneLocation";
 import { toast } from "react-hot-toast";
 import type { ApiResponse } from "@asanpay/shared-types";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
@@ -35,8 +36,13 @@ export function aadhaarPayOtpNeeded(
   return Number(amount || 0) >= session.amountForOtp;
 }
 
-/** Best-effort browser location — the API falls back to the saved shop location. */
+/**
+ * Today's phone-verified location first (QR hand-off); otherwise best-effort browser location —
+ * the API falls back to the saved shop location.
+ */
 function currentGeo(): Promise<{ latitude: string; longitude: string } | null> {
+  const phone = todayPhoneLocation();
+  if (phone) return Promise.resolve({ latitude: phone.latitude, longitude: phone.longitude });
   return new Promise((resolve) => {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
       resolve(null);
