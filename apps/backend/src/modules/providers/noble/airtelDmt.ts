@@ -3,6 +3,7 @@ import { isNobleConfigured } from "../../../config/env";
 import { db } from "../../../db/postgres";
 import { users } from "../../../db/postgres/schema";
 import { HttpError } from "../../../utils/httpError";
+import { logger } from "../../../utils/logger";
 import { firstResponseRow, nobleOk, nobleTxnId } from "./aepsOps";
 import { noblePost, type NobleApiResponse } from "./client";
 
@@ -134,6 +135,42 @@ export async function airtelGetCustomer(
   const token = rowToken(json);
   if (token) rememberDmtSession(retailerUserId, customerMobile, token);
   return { httpStatus, json, merchant };
+}
+
+export interface NobleBene {
+  name: string;
+  accountNumber: string;
+  ifsc: string;
+  bank: string;
+  mobile: string;
+}
+
+/** Beneficiaries linked to a remitter. An empty list comes back as a non-success status, not an error. */
+export async function nobleBeneList(customerMobile: string): Promise<NobleBene[]> {
+  const { httpStatus, json } = await noblePost("dmt", "/api/v1.0/bene/get", {
+    remitterMobile: customerMobile,
+  });
+  if (!nobleOk(json, httpStatus) || !Array.isArray(json.responseData)) {
+    if (httpStatus >= 400) {
+      logger.warn({ httpStatus, statusCode: json.statusCode }, "Provider beneficiary list failed");
+    }
+    return [];
+  }
+  const out: NobleBene[] = [];
+  for (const raw of json.responseData) {
+    if (!raw || typeof raw !== "object") continue;
+    const r = raw as Record<string, unknown>;
+    const accountNumber = String(r.account_no ?? "").trim();
+    if (!accountNumber) continue;
+    out.push({
+      name: String(r.account_name ?? "").trim(),
+      accountNumber,
+      ifsc: String(r.ifsc ?? "").trim().toUpperCase(),
+      bank: String(r.bank ?? "").trim(),
+      mobile: String(r.bene_mobile ?? "").trim(),
+    });
+  }
+  return out;
 }
 
 export function requireSessionToken(retailerUserId: string, mobile: string, fallback?: string): string {

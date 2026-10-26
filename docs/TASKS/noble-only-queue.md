@@ -19,12 +19,12 @@
 | P2a | Aadhaar Pay setup + Cash Deposit status — backend | done (25 Oct) |
 | P2b | Aadhaar Pay tab on web `/aeps` + mobile `AepsScreen` (AP load → KYC → 2FA → OTP → txn) | done (25 Oct) |
 | P3 | Recharge operator / circle mapping → switch recharge | done (25 Oct) — switch applied on EC2; ₹10 live test recharge still pending |
-| P4 | DMT `bene/get` + admin Noble wallet balance | **CURRENT** |
+| P4 | DMT `bene/get` + admin Noble wallet balance | done (26 Oct) |
 | P5 | Delete PaySprint | done (25 Oct) |
 | P6 | Delete InstantPay backend (adapter, client, onboarding, env, tests) | done (25 Oct) |
 | P7 | Delete InstantPay UI (outlet / bio-KYC pages + mobile modals) + Nepal → Coming soon | done (26 Oct) |
 | P8 | DB cleanup migration (`instantpay_outlet_id`, provider rows) | done (26 Oct) — `0071` runs on EC2 after redeploy |
-| P9 | UPI QR collections → transactions + recon `QR` | todo |
+| P9 | UPI QR collections → transactions + recon `QR` | **CURRENT** |
 | P10 | Callback handler → settle txns (needs provider sample payload) | todo |
 
 ---
@@ -81,6 +81,14 @@ Read: `noble.adapter.ts` `recharge()`, `NobleWebStudio/RECHARGE.md`, web `app/re
 ### P4 — Beneficiary list + admin balance
 - `bene/get` → DMT beneficiary list (web `app/dmt`, mobile `DmtScreen`).
 - `GET /api/v1.0/common/balance_check` (GET, Bearer) → admin dashboard tile "Provider wallet".
+
+**P4 done:**
+- `noble/client.ts` → `nobleGet()` (shared request with `noblePost`). `airtelDmt.ts` → `nobleBeneList()`.
+- Remitter profile fills `beneficiaries` from `bene/get` (id = account number). List failure never blocks lookup (empty list).
+- Delete uses the real IFSC from the list (was hard-coded); 404 `Beneficiary not found for this remitter…` if missing. Transfer sends real bene name / bank / mobile when found.
+- Web `/dmt` + mobile `DmtScreen`: add / delete with empty `referenceKey` = done (no OTP step); delete now asks for confirmation first; OTP panel only when an OTP was sent.
+- Balance: `providerLiveBalance.ts` `noble` fetcher (Treasury provider card now shows live balance + mismatch). `GET /api/admin/provider-wallet` → `{status, balance, message, checkedAt}`; admin dashboard "Provider wallet" tile → `/treasury`.
+- Platform exception: admin tile = admin web only.
 
 ### P5 — Delete PaySprint
 Files: `providers/paysprint/`, `adapters/paysprint.adapter.ts`, `provider.registry.ts`, `aepsMode.ts`, `config/env.ts` (PAYSPRINT_*, `assertPaySprintProviderConfig`, `paysprint_*` modes), `jobs/index.ts`, `server.ts`, `scripts/seedProviders.ts`, tests, `packages/config`, admin `lib/providerBrand.ts`.

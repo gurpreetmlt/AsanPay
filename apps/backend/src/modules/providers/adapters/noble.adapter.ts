@@ -4,6 +4,8 @@ import { HttpError } from "../../../utils/httpError";
 import {
   assertNobleDmtOk,
   airtelGetCustomer,
+  nobleBeneList,
+  type NobleBene,
   rememberDmtAccessToken,
   rememberDmtVerifyToken,
   requireAccessToken,
@@ -368,6 +370,15 @@ export class NobleAdapter implements ProviderAdapter {
     return this.toResult(httpStatus, json, isCashDeposit ? "Cash deposit status" : "AEPS status", null, {});
   }
 
+  /** Beneficiary list must never block remitter lookup or transfer — empty on provider error. */
+  private async beneListSafe(customerMobile: string): Promise<NobleBene[]> {
+    try {
+      return await nobleBeneList(customerMobile);
+    } catch {
+      return [];
+    }
+  }
+
   private assertLive(live: boolean): void {
     if (live) return;
     throw new HttpError(
@@ -539,11 +550,21 @@ export class NobleAdapter implements ProviderAdapter {
   async dmtDeleteBeneficiary(
     params: DmtBeneficiaryDeleteParams,
   ): Promise<ProviderResult<{ beneficiaryId: string; referenceKey: string; validity: string }>> {
+    // Beneficiary id is the account number; the provider also needs its IFSC to delete.
+    const bene = (await this.beneListSafe(params.customerMobile)).find(
+      (b) => b.accountNumber === params.beneficiaryId,
+    );
+    if (!bene?.ifsc) {
+      throw new HttpError(
+        404,
+        "Beneficiary not found for this remitter. Search the remitter again to refresh the list.",
+        "NOBLE_DMT_BENE_NOT_FOUND",
+      );
+    }
     const { httpStatus, json } = await noblePost("dmt", "/api/v1.0/bene/delete", {
       remitterMobile: params.customerMobile,
       accountNumber: params.beneficiaryId,
-      // Provider requires IFSC on delete; beneficiary id here is the account number.
-      ifsc: "HDFC0000001",
+      ifsc: bene.ifsc,
     });
     assertNobleDmtOk(httpStatus, json, "Delete beneficiary failed");
     return {
@@ -613,6 +634,9 @@ export class NobleAdapter implements ProviderAdapter {
     const [tokenPart, txnPart] = params.referenceKey.split("~");
     const token = tokenPart || requireVerifyToken(params.retailerUserId, params.customerMobile);
     const transactionId = (txnPart || params.externalRef || nobleTxnId("NDMT")).slice(0, 25);
+    const bene = (await this.beneListSafe(params.customerMobile)).find(
+      (b) => b.accountNumber === params.accountNumber,
+    );
     const { httpStatus, json } = await noblePost(
       "dmt",
       "/api/v1.0/airtel_dmt/transaction_validate_otp",
@@ -625,11 +649,11 @@ export class NobleAdapter implements ProviderAdapter {
         transactionId,
         token,
         retailerId: merchant.retailerCode,
-        beneName: "Beneficiary",
-        bankName: "BANK",
+        beneName: bene?.name || "Beneficiary",
+        bankName: bene?.bank || "BANK",
         ifsc: params.ifsc,
         beneAccountNumber: params.accountNumber,
-        beneMobileNumber: params.customerMobile,
+        beneMobileNumber: bene?.mobile || params.customerMobile,
         transferMode: params.mode.toUpperCase() === "NEFT" ? "NEFT" : "IMPS",
       },
     );
@@ -733,7 +757,15 @@ export class NobleAdapter implements ProviderAdapter {
       limitConsumed: String(row.limitConsumed ?? "0"),
       limitAvailable: String(row.limitAvailable ?? row.dcmv ?? "0"),
       limitDetails: {},
-      beneficiaries: [],
+      beneficiaries: (await this.beneListSafe(params.customerMobile)).map((b) => ({
+        id: b.accountNumber,
+        name: b.name,
+        account: b.accountNumber,
+        ifsc: b.ifsc,
+        bank: b.bank,
+        beneficiaryMobileNumber: b.mobile,
+        verificationDt: "",
+      })),
       isTxnOtpRequired: true,
       isTxnBioAuthRequired: false,
       isImpsAllowed: true,

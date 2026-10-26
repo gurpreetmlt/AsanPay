@@ -1,6 +1,8 @@
+import { isNobleConfigured } from "../../config/env";
 import { rupeesToPaise, type Paise } from "../../core/money";
 import { HttpError } from "../../utils/httpError";
 import { logger } from "../../utils/logger";
+import { nobleGet } from "../providers/noble/client";
 import { vyaparApiKey, vyaparGet } from "../providers/vyaparapi/client";
 
 export interface LiveBalance {
@@ -83,9 +85,36 @@ async function fetchVyaparApiBalance(): Promise<LiveBalance> {
   };
 }
 
+async function fetchNobleBalance(): Promise<LiveBalance> {
+  if (!isNobleConfigured()) {
+    throw new HttpError(503, "AEPS / DMT provider keys are not set on the server", "NOBLE_NOT_CONFIGURED");
+  }
+  const { httpStatus, json } = await nobleGet("service", "/api/v1.0/common/balance_check");
+  if (httpStatus >= 400 || json.status !== 1) {
+    const detail = (typeof json.description === "string" && json.description) || json.message;
+    throw new HttpError(
+      502,
+      `Provider balance request failed (HTTP ${httpStatus})${detail ? `: ${String(detail).slice(0, 120)}` : ""}`,
+      "PROVIDER_BALANCE_FAILED",
+    );
+  }
+  const row = Array.isArray(json.responseData) ? json.responseData[0] : null;
+  const balance =
+    row && typeof row === "object" ? toPaise(pick(row as Record<string, unknown>, ["accountbalance", "balance"])) : null;
+  if (balance == null) {
+    throw new HttpError(
+      502,
+      `Provider balance response has no accountBalance (fields received: ${row && typeof row === "object" ? keysOf(row as Record<string, unknown>) : "none"})`,
+      "BAD_PROVIDER_RESPONSE",
+    );
+  }
+  return { balance, hold: null };
+}
+
 // Keyed by providers.code. A provider without an entry shows ledger float only.
 const FETCHERS: Record<string, Fetcher> = {
   vyaparapi: fetchVyaparApiBalance,
+  noble: fetchNobleBalance,
 };
 
 export function supportsLiveBalance(providerCode: string): boolean {

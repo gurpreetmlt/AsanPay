@@ -5,6 +5,8 @@ import { requireRole } from "../../middleware/rbac.middleware";
 import { sendSuccess } from "../../utils/apiResponse";
 import { HttpError } from "../../utils/httpError";
 import { KYC_STATUSES, TRANSACTION_STATUSES, USER_ROLES } from "@asanpay/shared-types";
+import { paiseToRupees } from "../../core/money";
+import { fetchProviderLiveBalance } from "../treasury/providerLiveBalance";
 import {
   getAdminStats,
   getAdminAlerts,
@@ -43,6 +45,17 @@ adminRouter.use(requireAuth, requireRole("admin"));
 
 adminRouter.get("/stats", async (_req, res) => {
   sendSuccess(res, await getAdminStats());
+});
+
+/** Live wallet balance held with the AEPS / DMT / recharge provider. */
+adminRouter.get("/provider-wallet", async (_req, res) => {
+  const live = await fetchProviderLiveBalance("noble");
+  sendSuccess(res, {
+    status: live.status,
+    balance: live.status === "ok" ? paiseToRupees(live.balance) : null,
+    message: live.status === "error" ? live.message : null,
+    checkedAt: new Date().toISOString(),
+  });
 });
 
 adminRouter.get("/alerts", async (_req, res) => {

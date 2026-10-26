@@ -52,6 +52,13 @@ interface AdminStats {
   transactions: { success: number; failed: number; pending: number; total: number };
 }
 
+interface ProviderWallet {
+  status: "ok" | "unsupported" | "error";
+  balance: string | null;
+  message: string | null;
+  checkedAt: string;
+}
+
 const QUICK = [
   { href: "/users", label: "Users", icon: Users },
   { href: "/kyc", label: "KYC Queue", icon: ShieldCheck },
@@ -70,6 +77,8 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [activity, setActivity] = useState<ActivityRow[]>([]);
+  const [providerWallet, setProviderWallet] = useState<ProviderWallet | null>(null);
+  const [providerWalletLoading, setProviderWalletLoading] = useState(true);
   const [showOnboard, setShowOnboard] = useState(false);
   const [showFundSelf, setShowFundSelf] = useState(false);
 
@@ -92,6 +101,21 @@ export default function DashboardPage() {
     }
   }, []);
 
+  const loadProviderWallet = useCallback(async () => {
+    try {
+      setProviderWallet(await fetchApi<ProviderWallet>("/admin/provider-wallet"));
+    } catch {
+      setProviderWallet({
+        status: "error",
+        balance: null,
+        message: "Could not load the provider wallet balance",
+        checkedAt: new Date().toISOString(),
+      });
+    } finally {
+      setProviderWalletLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!hydrated) return;
     if (!accessToken) {
@@ -100,7 +124,8 @@ export default function DashboardPage() {
     }
     void loadStats();
     void loadActivity();
-  }, [hydrated, accessToken, router, loadStats, loadActivity]);
+    void loadProviderWallet();
+  }, [hydrated, accessToken, router, loadStats, loadActivity, loadProviderWallet]);
 
   if (!hydrated || !accessToken || !user) return null;
 
@@ -111,6 +136,16 @@ export default function DashboardPage() {
   const txnSuccessRate = txnTotal > 0
     ? Math.round(((stats?.transactions.success ?? 0) / txnTotal) * 1000) / 10
     : 0;
+  const providerWalletValue =
+    providerWallet?.status === "ok" && providerWallet.balance != null
+      ? `₹${Number(providerWallet.balance).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : "—";
+  const providerWalletSub =
+    providerWallet?.status === "ok"
+      ? `Live · checked ${new Date(providerWallet.checkedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}`
+      : providerWallet?.status === "unsupported"
+        ? "Live balance not available"
+        : providerWallet?.message ?? "Live balance with the service provider";
 
   return (
     <AdminShell>
@@ -155,7 +190,16 @@ export default function DashboardPage() {
         </div>
 
         {/* Platform Stats */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          <PlatformStatCard
+            icon={Wallet}
+            label="Provider wallet"
+            value={providerWalletValue}
+            sub={providerWalletSub}
+            accent={providerWallet?.status === "error" ? "#DC2626" : B.green}
+            loading={providerWalletLoading}
+            href="/treasury"
+          />
           <PlatformStatCard
             icon={Users}
             label="Total Agents"
@@ -382,7 +426,7 @@ export default function DashboardPage() {
 }
 
 function PlatformStatCard({ icon: Icon, label, value, sub, accent, loading, href }: {
-  icon: typeof Users; label: string; value: number; sub: string; accent: string; loading: boolean; href?: string;
+  icon: typeof Users; label: string; value: number | string; sub: string; accent: string; loading: boolean; href?: string;
 }) {
   const inner = (
     <div className="rounded-2xl border p-5 transition hover:shadow-md" style={{ borderColor: B.border, background: B.card }}>
@@ -396,7 +440,7 @@ function PlatformStatCard({ icon: Icon, label, value, sub, accent, loading, href
         </span>
       </div>
       <div className="text-3xl font-bold tabular-nums" style={{ color: B.blue }}>
-        {loading ? "…" : value.toLocaleString("en-IN")}
+        {loading ? "…" : typeof value === "number" ? value.toLocaleString("en-IN") : value}
       </div>
       <div className="mt-1 flex items-center gap-1 text-xs" style={{ color: B.muted }}>
         <TrendingUp size={10} /> {sub}

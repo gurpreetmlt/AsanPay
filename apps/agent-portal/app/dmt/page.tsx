@@ -24,6 +24,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { AgentAuthUiSkipButton } from "@/components/ui/AgentAuthUiSkipButton";
 import { ActionIconButton } from "@/components/ui/ActionIconButton";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import {
   DmtLayoutPicker,
   readDmtUiLayout,
@@ -246,6 +247,7 @@ export default function DmtPage() {
 
   // Delete beneficiary
   const [deleteTarget, setDeleteTarget] = useState<DmtBeneficiary | null>(null);
+  const [confirmDeleteBene, setConfirmDeleteBene] = useState<DmtBeneficiary | null>(null);
   const [deleteOtp, setDeleteOtp] = useState("");
   const [deleteKey, setDeleteKey] = useState("");
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -576,6 +578,17 @@ export default function DmtPage() {
         beneficiaryMobile: beneMobile.replace(/\D/g, "") || undefined,
         bankId: selectedBank ? String(selectedBank.bankId) : undefined,
       });
+      if (!res.data.referenceKey) {
+        toast.success("Beneficiary added");
+        setShowAddBene(false);
+        setBeneName("");
+        setBeneAccount("");
+        setBeneIfsc("");
+        setBeneMobile("");
+        setSelectedBank(null);
+        await refreshProfile();
+        return;
+      }
       setPendingBeneId(res.data.beneficiaryId);
       setPendingBeneKey(res.data.referenceKey);
       toast.success("OTP sent to remitter — verify beneficiary");
@@ -633,6 +646,13 @@ export default function DmtPage() {
         customerMobile: m,
         beneficiaryId: b.id,
       });
+      if (!res.data.referenceKey) {
+        toast.success("Beneficiary deleted");
+        if (selectedBene?.id === b.id) setSelectedBene(null);
+        setDeleteTarget(null);
+        await refreshProfile();
+        return;
+      }
       setDeleteKey(res.data.referenceKey);
       toast.success("OTP sent to remitter — confirm delete");
     } catch (err) {
@@ -1546,7 +1566,7 @@ export default function DmtPage() {
                         title="Delete"
                         tone="red"
                         disabled={deleteBusy}
-                        onClick={() => void startDeleteBeneficiary(b)}
+                        onClick={() => setConfirmDeleteBene(b)}
                       >
                         <Trash2 size={16} strokeWidth={2.25} />
                       </ActionIconButton>
@@ -1554,7 +1574,28 @@ export default function DmtPage() {
                   ))}
                 </div>
 
-                {deleteTarget && (
+                {confirmDeleteBene && (
+                  <ConfirmModal
+                    title="Delete beneficiary?"
+                    tone="danger"
+                    confirmLabel="Delete"
+                    busy={deleteBusy}
+                    busyLabel="Deleting…"
+                    message={
+                      <>
+                        Remove <strong>{confirmDeleteBene.name || "this beneficiary"}</strong> (
+                        {confirmDeleteBene.account} · {confirmDeleteBene.ifsc}) from this remitter?
+                      </>
+                    }
+                    onConfirm={() => {
+                      const b = confirmDeleteBene;
+                      void startDeleteBeneficiary(b).finally(() => setConfirmDeleteBene(null));
+                    }}
+                    onClose={() => setConfirmDeleteBene(null)}
+                  />
+                )}
+
+                {deleteTarget && deleteKey && (
                   <div className="space-y-2 rounded-xl border border-red-200 bg-red-50 p-3">
                     <p className="text-sm font-semibold text-red-800">
                       Confirm delete: {deleteTarget.name}

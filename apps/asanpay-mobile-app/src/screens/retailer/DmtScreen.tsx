@@ -436,6 +436,17 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
         beneficiaryMobile: beneMobile.replace(/\D/g, "") || undefined,
         bankId: selectedBank ? String(selectedBank.bankId) : undefined,
       });
+      if (!res.data.referenceKey) {
+        showAlert("Beneficiary added", "Beneficiary added successfully.");
+        setShowAddBene(false);
+        setBeneName("");
+        setBeneAccount("");
+        setBeneIfsc("");
+        setBeneMobile("");
+        setSelectedBank(null);
+        await refreshProfile();
+        return;
+      }
       setPendingBeneId(res.data.beneficiaryId);
       setPendingBeneKey(res.data.referenceKey);
       showAlert("OTP sent", "Enter the OTP sent to remitter to verify beneficiary.");
@@ -492,6 +503,13 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
         customerMobile: m,
         beneficiaryId: b.id,
       });
+      if (!res.data.referenceKey) {
+        showAlert("Deleted", "Beneficiary removed.");
+        if (selectedBene?.id === b.id) setSelectedBene(null);
+        setDeleteTarget(null);
+        await refreshProfile();
+        return;
+      }
       setDeleteKey(res.data.referenceKey);
       showAlert("OTP sent", "Enter remitter OTP to confirm delete.");
     } catch (err) {
@@ -1005,7 +1023,20 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
                       </Text>
                     </View>
                     <Pressable
-                      onPress={() => void startDeleteBeneficiary(b)}
+                      onPress={() =>
+                        showAlert(
+                          "Delete beneficiary?",
+                          `Remove ${b.name || "this beneficiary"} (${b.account} · ${b.ifsc}) from this remitter?`,
+                          [
+                            { text: "Cancel", style: "cancel" },
+                            {
+                              text: "Delete",
+                              style: "destructive",
+                              onPress: () => void startDeleteBeneficiary(b),
+                            },
+                          ],
+                        )
+                      }
                       disabled={deleteBusy}
                       style={styles.iconBtn}
                     >
@@ -1014,7 +1045,7 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
                   </View>
                 ))}
 
-                {deleteTarget ? (
+                {deleteTarget && deleteKey ? (
                   <View style={{ marginTop: 8 }}>
                     <Text style={[styles.muted, { color: tokens.sub }]}>
                       Confirm delete {deleteTarget.name}

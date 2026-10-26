@@ -172,6 +172,24 @@ export async function noblePost(
   body: Record<string, unknown>,
   opts?: { retryOnUnauthorized?: boolean },
 ): Promise<{ httpStatus: number; json: NobleApiResponse }> {
+  return nobleRequest("POST", host, path, body, opts);
+}
+
+export async function nobleGet(
+  host: NobleHost,
+  path: string,
+  opts?: { retryOnUnauthorized?: boolean },
+): Promise<{ httpStatus: number; json: NobleApiResponse }> {
+  return nobleRequest("GET", host, path, null, opts);
+}
+
+async function nobleRequest(
+  method: "GET" | "POST",
+  host: NobleHost,
+  path: string,
+  body: Record<string, unknown> | null,
+  opts?: { retryOnUnauthorized?: boolean },
+): Promise<{ httpStatus: number; json: NobleApiResponse }> {
   assertNobleConfigured();
   const retryOnUnauthorized = opts?.retryOnUnauthorized !== false;
   const url = `${nobleBaseUrl(host)}${path.startsWith("/") ? path : `/${path}`}`;
@@ -181,13 +199,13 @@ export async function noblePost(
     let res: Response;
     try {
       res = await fetch(url, {
-        method: "POST",
+        method,
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
           "X-Timestamp": nobleTimestamp(),
         },
-        body: JSON.stringify(body),
+        body: body ? JSON.stringify(body) : undefined,
       });
     } catch (err) {
       logger.error({ err, host, path }, "Provider network error");
