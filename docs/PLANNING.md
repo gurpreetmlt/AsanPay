@@ -90,14 +90,14 @@ One row per feature; details in the section below the table. Newest at the top o
 **Plan**
 - **Link:** Dashboard → Linked accounts → Link another account → other account's mobile → OTP on that mobile + that account's MPIN / password.
 - **Same person only:** link allowed only when both accounts have the same KYC PAN / Aadhaar.
-- **Switch:** header profile menu → "Switch to Retailer" / "Switch to Distributor" → MPIN → fresh session for the other account (no logout).
+- **Switch:** header profile menu → "Switch to Retailer" / "Switch to Distributor" → MPIN → card flip animation (current → target account, 700 ms, web + mobile) → fresh session for the other account (no logout).
 - **Unlink:** Settings, any time. Every link / unlink / switch goes to the audit log.
 - Accounts stay separate: own mobile, wallet, ledger account, commission, daily 2FA.
 - Backend sketch: `linked_accounts` table; switch endpoint checks the link and issues tokens for the target account (role is re-read from the DB on every request already).
 - Admin: user detail shows "Linked accounts".
 
 **Open decisions (owner)**
-- [x] Self-commission: **no** — a linked upline earns no commission on its own Retailer's transactions (26 Oct).
+- [x] Self-commission: **yes** — linking does not change commission; the upline earns normally even on its own linked Retailer's transactions (26 Oct, changed from "no").
 - [ ] Can the same PAN / Aadhaar register two accounts today? (check signup in Phase A) — linking rules follow that answer.
 - [x] Max linked accounts per person: **2** (one Distributor + one Retailer) (26 Oct).
 - [x] MPIN on **every** switch — no grace window (26 Oct).
