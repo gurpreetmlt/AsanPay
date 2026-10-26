@@ -169,12 +169,32 @@ export function ScanQrModal({ visible, onClose }: { visible: boolean; onClose: (
             <View style={s.center}>
               <Text style={s.msg}>No camera found on this phone.</Text>
             </View>
-          ) : (
+          ) : phase.kind === "scanning" ? (
             <>
-              {/* Stays active while open: stopping the session on scan freezes some Android camera HALs. */}
+              {/* Unmounted (not paused) after a read: a paused session leaves a frozen last frame. */}
               <CameraView style={s.camera} device={device} isActive={visible} codeScanner={codeScanner} />
               <View style={s.frame} pointerEvents="none" />
             </>
+          ) : (
+            <View style={s.center}>
+              <View style={s.card}>
+                {phase.kind === "working" ? (
+                  <ActivityIndicator size="large" color={colors.blue} />
+                ) : phase.kind === "done" ? (
+                  <CheckCircle2 size={48} color={colors.green} />
+                ) : (
+                  <XCircle size={48} color={colors.danger} />
+                )}
+                <Text style={s.cardTitle}>
+                  {phase.kind === "working"
+                    ? "QR captured"
+                    : phase.kind === "done"
+                      ? "Location sent"
+                      : "Could not verify location"}
+                </Text>
+                <Text style={s.cardText}>{phase.text}</Text>
+              </View>
+            </View>
           )}
         </View>
 
@@ -184,32 +204,15 @@ export function ScanQrModal({ visible, onClose }: { visible: boolean; onClose: (
               <MapPin size={18} color={colors.blueLight} />
               <Text style={s.hint}>Point the camera at the QR on the AsanPay web screen. Keep GPS ON.</Text>
             </View>
-          ) : phase.kind === "working" ? (
-            <View style={s.row}>
-              <ActivityIndicator color={colors.blueLight} />
-              <Text style={s.hint}>{phase.text}</Text>
-            </View>
           ) : phase.kind === "done" ? (
-            <>
-              <View style={s.row}>
-                <CheckCircle2 size={22} color={colors.green} />
-                <Text style={[s.hint, { color: "#fff", fontWeight: "700" }]}>{phase.text}</Text>
-              </View>
-              <Pressable style={s.btn} onPress={onClose}>
-                <Text style={s.btnText}>Done</Text>
-              </Pressable>
-            </>
-          ) : (
-            <>
-              <View style={s.row}>
-                <XCircle size={22} color={colors.danger} />
-                <Text style={[s.hint, { color: "#fff" }]}>{phase.text}</Text>
-              </View>
-              <Pressable style={s.btn} onPress={scanAgain}>
-                <Text style={s.btnText}>Scan again</Text>
-              </Pressable>
-            </>
-          )}
+            <Pressable style={s.btn} onPress={onClose}>
+              <Text style={s.btnText}>Done</Text>
+            </Pressable>
+          ) : phase.kind === "error" ? (
+            <Pressable style={s.btn} onPress={scanAgain}>
+              <Text style={s.btnText}>Scan again</Text>
+            </Pressable>
+          ) : null}
         </View>
       </SafeAreaView>
     </Modal>
@@ -240,7 +243,19 @@ const s = StyleSheet.create({
     borderColor: "#fff",
     borderRadius: 18,
   },
-  footer: { padding: 18, gap: 14 },
+  card: {
+    width: "100%",
+    maxWidth: 320,
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    paddingVertical: 28,
+    paddingHorizontal: 22,
+  },
+  cardTitle: { fontSize: 18, fontWeight: "800", color: "#111827", textAlign: "center" },
+  cardText: { fontSize: 14, lineHeight: 20, color: "#4B5563", textAlign: "center" },
+  footer: { padding: 18, gap: 14, minHeight: 84, justifyContent: "center" },
   row: { flexDirection: "row", alignItems: "center", gap: 10 },
   hint: { flex: 1, color: "rgba(255,255,255,0.8)", fontSize: 13, lineHeight: 19 },
   btn: {
