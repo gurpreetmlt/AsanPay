@@ -178,19 +178,38 @@ export default function CmsPage() {
   async function initiate(p: CmsProvider) {
     if (startingCode) return;
     setStartingCode(p.code);
+    // The bank plugin disables its form inside a frame, so it opens as its own tab. The tab is
+    // opened inside the click (before the API await) or the browser treats it as a pop-up.
+    const tab = window.open("", "_blank");
+    if (tab) tab.opener = null;
     try {
       const { data } = await api.post<ApiResponse<CmsTxn & { redirectionUrl: string }>>("/noble/cms/start", {
         provider: p.code,
       });
       if (!data.success) throw new Error(data.message);
-      setOpenCms({ url: data.data.redirectionUrl, transactionId: data.data.transactionId, provider: p });
+      const url = data.data.redirectionUrl;
+      if (tab) tab.location.href = url;
+      else toast("Pop-up blocked — tap Open again to continue the collection");
+      setOpenCms({ url, transactionId: data.data.transactionId, provider: p });
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
+      tab?.close();
       toast.error(extractApiError(err, `Could not start ${p.name}. Try again.`));
     } finally {
       setStartingCode("");
     }
   }
+
+  // Coming back from the bank tab refreshes this collection's status.
+  useEffect(() => {
+    const tid = openCms?.transactionId;
+    if (!tid) return;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void checkStatus(tid, true);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [openCms?.transactionId]);
 
   async function checkStatus(transactionId: string, quiet = false) {
     setCheckingId(transactionId);
@@ -314,30 +333,56 @@ export default function CmsPage() {
                   <p className="truncate font-mono text-[11px] text-white/80">{openCms.transactionId}</p>
                 </div>
               </div>
-              <a
-                href={openCms.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold text-white/90 transition hover:bg-white/15"
-              >
-                <ExternalLink size={14} />
-                Open in new window
-              </a>
             </div>
-            <iframe
-              src={openCms.url}
-              title={openCms.provider.name}
-              className="block w-full border-0 bg-gray-50"
-              style={{ height: "calc(100vh - 260px)", minHeight: 520 }}
-              allow="camera; geolocation; clipboard-write"
-            />
-            <div
-              className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-2.5 text-[11px] text-gray-500"
-              style={{ borderColor: B.border }}
-            >
-              <span>Finish the collection, then tap Back to Cash Management — the status updates automatically.</span>
-              <span>Page blank? Use Open in new window.</span>
-            </div>
+            {(() => {
+              const current = rows.find((r) => r.transactionId === openCms.transactionId);
+              return (
+                <div className="flex flex-col items-center gap-4 px-6 py-12 text-center">
+                  <span
+                    className="flex h-14 w-14 items-center justify-center rounded-2xl"
+                    style={{ background: `${accent}14`, color: accent }}
+                  >
+                    <ExternalLink size={26} />
+                  </span>
+                  <div className="max-w-md">
+                    <p className="text-lg font-extrabold text-gray-900">
+                      {openCms.provider.name} is open in a new tab
+                    </p>
+                    <p className="mt-1 text-sm text-gray-500">
+                      Complete the collection there. When you come back to this tab the status updates
+                      automatically.
+                    </p>
+                  </div>
+                  {current ? <StatusPill status={current.status} /> : null}
+                  <div className="flex flex-wrap justify-center gap-3">
+                    <a
+                      href={openCms.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex cursor-pointer items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:opacity-90"
+                      style={{ background: accent }}
+                    >
+                      <ExternalLink size={16} />
+                      Open {openCms.provider.name}
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => void checkStatus(openCms.transactionId)}
+                      disabled={checkingId === openCms.transactionId}
+                      className="inline-flex cursor-pointer items-center gap-2 rounded-xl border bg-white px-5 py-2.5 text-sm font-bold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60"
+                      style={{ borderColor: B.border }}
+                    >
+                      {checkingId === openCms.transactionId ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <RefreshCw size={16} />
+                      )}
+                      Check status
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
           </section>
         </div>
       </AppShell>
