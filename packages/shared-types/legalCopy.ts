@@ -10,11 +10,11 @@ export const POLICY_VERSION = `T${LEGAL_VERSIONS.terms}-P${LEGAL_VERSIONS.privac
 /** Sign-up accepts Terms + Privacy only; the EULA is accepted at login. */
 export const SIGNUP_POLICY_VERSION = `T${LEGAL_VERSIONS.terms}-P${LEGAL_VERSIONS.privacy}`;
 
-export const TERMS_BODY = `Version 1.1  |  Effective Date: [INSERT DATE]
+export const TERMS_BODY = `Version 1.1  |  Effective Date: 26 October 2026
 
 1. GENERAL
 
-1.1 These terms and conditions (“Terms”), together with the Privacy Policy made available on the Platform, constitute an agreement between ASANPAY INNOVATION PRIVATE LIMITED, a company incorporated under the Companies Act, 2013, CIN [INSERT CIN], having its registered office at H No. 103, Street No. 10, Main Bazar, Birla Road, Malout, District Sri Muktsar Sahib, Punjab 152107 (“ASANPAY”, “we”, “us” or “our”) and its super distributors, distributors, retailers and agents (“You”, “Your” or “Retailer”), entitling You to provide the Services (defined below) to Customers in India through the AsanPay website/portal [CONFIRM OFFICIAL URL] and the AsanPay mobile application (together, the “Platform”). These Terms are in addition to any other agreement executed between ASANPAY and You for providing the Services. In case of any inconsistency between these Terms and such agreement, these Terms prevail to the extent of the inconsistency.
+1.1 These terms and conditions (“Terms”), together with the Privacy Policy made available on the Platform, constitute an agreement between ASANPAY INNOVATION PRIVATE LIMITED, a company incorporated under the Companies Act, 2013, having its registered office at H No. 103, Street No. 10, Main Bazar, Birla Road, Malout, District Sri Muktsar Sahib, Punjab 152107 (“ASANPAY”, “we”, “us” or “our”) and its super distributors, distributors, retailers and agents (“You”, “Your” or “Retailer”), entitling You to provide the Services (defined below) to Customers in India through the AsanPay website/portal https://asanpay.in and the AsanPay mobile application (together, the “Platform”). These Terms are in addition to any other agreement executed between ASANPAY and You for providing the Services. In case of any inconsistency between these Terms and such agreement, these Terms prevail to the extent of the inconsistency.
 
 1.2 You acknowledge that You propose to be engaged with ASANPAY as its Retailer in order to provide the Services to Customers in India and have therefore started to log in to the Platform. Before You start providing the Services, You must read and understand these Terms. You are shown these Terms at sign-up and login and must tick the box confirming that You have read and agree to them. By ticking the box, logging in, accessing the Platform or providing the Services, You agree to be bound by these Terms. If You do not agree, do not log in and leave the Platform immediately; You will then not be entitled to provide the Services or be associated with ASANPAY as its Retailer.
 
@@ -90,7 +90,7 @@ You must maintain honesty and transparency at every stage of carrying out the Se
 
 6. PHISHING NOTICE
 
-6.1 Always check for the correct website address [CONFIRM OFFICIAL URL] and use only the official AsanPay app [CONFIRM APP STORE LINK]. Do not enter Your login or other sensitive information on any other website or app.
+6.1 Always check for the correct website address https://asanpay.in and use only the official AsanPay app. Do not enter Your login or other sensitive information on any other website or app.
 
 6.2 Change Your password and MPIN periodically (recommended every 3 months). Do not share Your ID, password, MPIN or OTP with anyone.
 
@@ -350,7 +350,7 @@ Phone: 9780777781
 
 Email: help@asanpay.in
 
-Hours: [INSERT DAYS AND HOURS]
+Hours: Business days (except public holidays)
 
 Level 2
 
@@ -358,13 +358,13 @@ Grievance Officer
 
 If You are not satisfied with the resolution at Level 1, escalate by emailing our Grievance Officer, mentioning Your earlier complaint reference:
 
-Name: [INSERT NAME]
+Name: Ajay Kumar
 
-Designation: [INSERT DESIGNATION]
+Designation: Director & Grievance Officer
 
-Email: [INSERT EMAIL]
+Email: help@asanpay.in (subject: “Attn: Grievance Officer”)
 
-Hours: [INSERT DAYS AND HOURS]
+Hours: Business days (except public holidays)
 
 Level 3
 
@@ -372,15 +372,15 @@ Nodal Officer
 
 If Your issue remains unresolved after contacting the Grievance Officer, escalate to:
 
-Kind attention: [INSERT NAME]
+Kind attention: Ajay Kumar, Director
 
-Email: [INSERT EMAIL]
+Email: help@asanpay.in (subject: “Attn: Grievance Officer”)
 
 Address: ASANPAY INNOVATION PRIVATE LIMITED, H No. 103, Street No. 10, Main Bazar, Birla Road, Malout, District Sri Muktsar Sahib, Punjab 152107
 
-Phone: [INSERT NUMBER] ([INSERT DAYS AND HOURS])
+Phone: 9780777781 (business days, except public holidays)
 
-19.1 The Customer Grievance Policy is available at [INSERT LINK].
+19.1 Complaints are acknowledged within 24 hours and resolved within 15 days of receipt, or any shorter period required by law.
 
 20. ENTIRE AGREEMENT
 
@@ -478,11 +478,11 @@ E. Travel Bookings
 
 (b) For flight, bus and hotel bookings, the cancellation, refund and baggage rules of the relevant airline, operator or hotel apply, and You must explain them to the Customer before booking.`;
 
-export const PRIVACY_BODY = `Version 1.0  |  Effective Date: [INSERT DATE]
+export const PRIVACY_BODY = `Version 1.0  |  Effective Date: 26 October 2026
 
 A. INTRODUCTION
 
-This Privacy Policy (“Policy”) sets out the practices of ASANPAY INNOVATION PRIVATE LIMITED, CIN [INSERT CIN], having its registered office at H No. 103, Street No. 10, Main Bazar, Birla Road, Malout, District Sri Muktsar Sahib, Punjab 152107 (the “Company”, “We”, “Our” or “Us”, including its affiliates, if any), for the collection, use, processing, storage, retrieval, disclosure and transfer of Your (“You”, “Your” or “User”, meaning a super distributor, distributor, retailer or other user of the Platform, and where relevant a Customer served by them) information, including personal data and sensitive personal data or information (“Information”). This Information may be received through Your access to and use of the services provided by Us (“Services”) through Our portal, website or mobile application (“Platform”). This Policy is limited to Information collected or received by Us through Your use of the Platform or the Services.
+This Privacy Policy (“Policy”) sets out the practices of ASANPAY INNOVATION PRIVATE LIMITED, having its registered office at H No. 103, Street No. 10, Main Bazar, Birla Road, Malout, District Sri Muktsar Sahib, Punjab 152107 (the “Company”, “We”, “Our” or “Us”, including its affiliates, if any), for the collection, use, processing, storage, retrieval, disclosure and transfer of Your (“You”, “Your” or “User”, meaning a super distributor, distributor, retailer or other user of the Platform, and where relevant a Customer served by them) information, including personal data and sensitive personal data or information (“Information”). This Information may be received through Your access to and use of the services provided by Us (“Services”) through Our portal, website or mobile application (“Platform”). This Policy is limited to Information collected or received by Us through Your use of the Platform or the Services.
 
 By accessing or using the Platform or availing the Services, and by ticking the acceptance box at sign-up or login, You agree to this Policy. The collection, use, processing, storage, retrieval, disclosure and transfer of Your Information will be carried out in accordance with this Policy and with applicable laws, including the Digital Personal Data Protection Act, 2023 (“DPDPA”), the Information Technology Act, 2000 and the rules under them, and the directions, circulars and guidelines of the Reserve Bank of India (“RBI”), NPCI, UIDAI and other regulators in India (together, “Applicable Laws”). For the personal data of its users, the Company acts as a Data Fiduciary under the DPDPA.
 
@@ -572,7 +572,7 @@ F. RETENTION OF PERSONAL INFORMATION
 
 We retain Your Personal Information for as long as the purpose for which it was collected exists, or until You withdraw Your consent, whichever is earlier, after which it will be erased, except where retention is required under Applicable Laws. In particular, KYC records and Transaction records are retained for at least 5 (five) years after the end of the business relationship or the date of the Transaction, as required under the Prevention of Money Laundering Act, 2002 and related rules, or longer where required by RBI, a bank, a Service Partner, an investigation or a legal proceeding.
 
-Payment system data is stored only in India, as required by RBI directions. Our servers are located in India [CONFIRM HOSTING REGION].
+Payment system data is stored only in India, as required by RBI directions. Our servers are located in India.
 
 F.2 Sharing Personal Information
 
@@ -612,11 +612,11 @@ Please contact Our Grievance Officer at the details below. We will acknowledge a
 
 Grievance Officer
 
-Name: [INSERT NAME]
+Name: Ajay Kumar
 
-Designation: [INSERT DESIGNATION]
+Designation: Director & Grievance Officer
 
-Email: [INSERT EMAIL], with a copy to help@asanpay.in
+Email: help@asanpay.in (subject: “Attn: Grievance Officer”)
 
 Address: ASANPAY INNOVATION PRIVATE LIMITED, H No. 103, Street No. 10, Main Bazar, Birla Road, Malout, District Sri Muktsar Sahib, Punjab 152107
 
@@ -626,7 +626,7 @@ Phone: 9780777781
 
 Email: help@asanpay.in
 
-Hours: [INSERT DAYS AND HOURS]
+Hours: Business days (except public holidays)
 
 L. GOVERNING LAW AND DISPUTE RESOLUTION
 
@@ -637,11 +637,11 @@ This Policy is governed by and construed in accordance with the laws of India. D
 /** Short permission notice shown above the full EULA (popup header + docx top). */
 export const EULA_SUMMARY = `We ask permission to access your mobile number, email ID, device ID, location, camera (for KYC and QR scan) and connected biometric device. This is required to verify your identity, secure your account, geo-tag transactions as required by banks, and give you a seamless experience.`;
 
-export const EULA_BODY = `Version 1.0  |  Effective Date: [INSERT DATE]
+export const EULA_BODY = `Version 1.0  |  Effective Date: 26 October 2026
 
 1. AGREEMENT
 
-1.1 This End User Licence Agreement (“EULA”) is a legal agreement between You (a super distributor, distributor, retailer or other authorised user) and ASANPAY INNOVATION PRIVATE LIMITED, CIN [INSERT CIN], having its registered office at H No. 103, Street No. 10, Main Bazar, Birla Road, Malout, District Sri Muktsar Sahib, Punjab 152107 (“ASANPAY”, “we” or “us”), for the use of the AsanPay mobile application, web portal and related software, updates and documentation (together, the “Software”).
+1.1 This End User Licence Agreement (“EULA”) is a legal agreement between You (a super distributor, distributor, retailer or other authorised user) and ASANPAY INNOVATION PRIVATE LIMITED, having its registered office at H No. 103, Street No. 10, Main Bazar, Birla Road, Malout, District Sri Muktsar Sahib, Punjab 152107 (“ASANPAY”, “we” or “us”), for the use of the AsanPay mobile application, web portal and related software, updates and documentation (together, the “Software”).
 
 1.2 By ticking the acceptance box at login or sign-up, or by installing, accessing or using the Software, You agree to this EULA. If You do not agree, do not install or use the Software and uninstall it from Your device.
 
@@ -681,7 +681,7 @@ export const EULA_BODY = `Version 1.0  |  Effective Date: [INSERT DATE]
 
 6.2 ASANPAY may change, suspend or discontinue any feature of the Software at any time, including to comply with law or the requirements of a Service Partner.
 
-6.3 The Software should be downloaded only from the official app store listing or link published by ASANPAY [CONFIRM APP STORE LINK]. ASANPAY is not responsible for copies obtained from any other source.
+6.3 The Software should be downloaded only from the official app store listing or link published by ASANPAY. ASANPAY is not responsible for copies obtained from any other source.
 
 7. THIRD-PARTY SOFTWARE AND SERVICES
 

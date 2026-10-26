@@ -20,6 +20,7 @@
 | — | Wallet hierarchy | M | [wallet-hierarchy.md](wallet-hierarchy.md) |
 | — | Network table actions | M | [network-table-actions.md](network-table-actions.md) |
 | — | Retailer activity metric | M | [retailer-activity-metric.md](retailer-activity-metric.md) |
+| — | Linked accounts + role switch (PL-01) | M ⚠️ 1 phase/chat | [linked-accounts.md](linked-accounts.md) |
 | — | InstantPay outlet onboarding | L ⚠️ split | [instantpay-outlet-onboarding.md](instantpay-outlet-onboarding.md) |
 | — | **Noble-only queue** (remove old rails, finish provider) | XL ⚠️ 1 phase/chat | [noble-only-queue.md](noble-only-queue.md) |
 | — | **Compliance queue** (KYC data, agreements, onboarding states, AEPS re-KYC, audit) | XL ⚠️ 1 phase/chat | [compliance-queue.md](compliance-queue.md) |

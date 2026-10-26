@@ -10,7 +10,7 @@ One row per feature; details in the section below the table. Newest at the top o
 | PL-04 | Terms, Privacy & EULA acceptance checkbox at login (per-version record) | Backend, web, mobile | M | building (built 26 Oct, migrate `0075` + APK + live test pending) | — | — |
 | PL-03 | Web location via phone QR (AEPS + onboarding) | Backend, web, mobile | M | building (built 26 Oct, migrate `0074` + APK + live test pending) | — | — |
 | PL-02 | Cash Management page (CMS provider cards, in-app CMS, CMS transactions) | Backend, web, mobile | M | building (built 26 Oct, live test pending) | — | — |
-| PL-01 | Linked accounts + role switch (same person, Distributor + Retailer) | Backend, web, mobile, admin | M | design | [Figma prompt](PROMPTS/figma-linked-accounts.md) | — |
+| PL-01 | Linked accounts + role switch (same person, Distributor + Retailer) | Backend, web, mobile, admin | M | ready | [Figma prompt](PROMPTS/figma-linked-accounts.md) · Figma URL pending | [linked-accounts.md](TASKS/linked-accounts.md) |
 
 ---
 
@@ -97,9 +97,9 @@ One row per feature; details in the section below the table. Newest at the top o
 - Admin: user detail shows "Linked accounts".
 
 **Open decisions (owner)**
-- [ ] Self-commission: if the Retailer sits under the same Distributor, may the Distributor earn commission on their own Retailer's transactions?
-- [ ] Can the same PAN / Aadhaar register two accounts today? (check signup) — linking rules follow that answer.
-- [ ] Max linked accounts per person (suggest 2: one Distributor + one Retailer).
-- [ ] MPIN on every switch, or only when the last switch was > 15 min ago?
+- [x] Self-commission: **no** — a linked upline earns no commission on its own Retailer's transactions (26 Oct).
+- [ ] Can the same PAN / Aadhaar register two accounts today? (check signup in Phase A) — linking rules follow that answer.
+- [x] Max linked accounts per person: **2** (one Distributor + one Retailer) (26 Oct).
+- [x] MPIN on **every** switch — no grace window (26 Oct).
 
 **Notes:** AEPS (provider agent id + daily 2FA) stays on the Retailer account only. Wallet transfers between the two follow the normal hierarchy rule.
