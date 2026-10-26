@@ -3,6 +3,7 @@
 import { useRef, useState, type FormEvent } from "react";
 import { toast } from "react-hot-toast";
 import api from "@/lib/api";
+import { Undo2 } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { extractApiError } from "@/lib/onboarding";
@@ -70,7 +71,13 @@ export function PullForm({ target, onClose, onSuccess }: PullFormProps) {
 
   if (step === "confirm") {
     return (
-      <Modal title="Confirm reverse" onClose={onClose}>
+      <Modal
+        title="Confirm reverse"
+        onClose={onClose}
+        icon={<Undo2 size={20} />}
+        iconTone="amber"
+        subtitle="Check the details before you confirm."
+      >
         <TransferConfirm
           amount={amount}
           amountCaption="You are reversing"
@@ -97,7 +104,7 @@ export function PullForm({ target, onClose, onSuccess }: PullFormProps) {
   }
 
   return (
-    <Modal title={`Reverse ${target.name}`} onClose={onClose}>
+    <Modal title={`Reverse ${target.name}`} onClose={onClose} icon={<Undo2 size={20} />} iconTone="amber">
       <form onSubmit={review} className="space-y-3">
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">Amount (₹)</label>

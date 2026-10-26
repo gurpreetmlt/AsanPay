@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
-import { Crown, Network as NetworkIcon, Store } from "lucide-react";
+import { ArrowRightLeft, Crown, Network as NetworkIcon, Store } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { AgentConfirmModal, ConfirmRow } from "@/components/users/AgentConfirmModal";
 import api, { fetchApi } from "@/lib/api";
@@ -127,7 +127,11 @@ export function MoveAgentModal({
   const targetRoleLabel = primary.role === "retailer" ? "Distributor" : "Super Distributor";
 
   return (
-    <Modal title={isBulk ? `Move ${agents.length} ${ROLE_LABEL[primary.role]}s` : `Move ${primary.name}`} onClose={onClose}>
+    <Modal
+      title={isBulk ? `Move ${agents.length} ${ROLE_LABEL[primary.role]}s` : `Move ${primary.name}`}
+      onClose={onClose}
+      icon={<ArrowRightLeft size={20} />}
+    >
       <div className="p-1">
         {isBulk ? (
           <div className="max-h-28 space-y-1 overflow-y-auto rounded-lg border px-3 py-2" style={{ borderColor: B.border, background: B.secondary }}>

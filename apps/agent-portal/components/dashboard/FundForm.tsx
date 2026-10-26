@@ -3,6 +3,7 @@
 import { useRef, useState, type FormEvent } from "react";
 import { toast } from "react-hot-toast";
 import api from "@/lib/api";
+import { Send, Wallet } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { extractApiError } from "@/lib/onboarding";
@@ -67,7 +68,12 @@ export function FundForm({ target, onClose, onSuccess }: FundFormProps) {
 
   if (step === "confirm") {
     return (
-      <Modal title="Confirm transfer" onClose={onClose}>
+      <Modal
+        title="Confirm transfer"
+        onClose={onClose}
+        icon={<Send size={20} />}
+        subtitle="Check the details before you confirm."
+      >
         <TransferConfirm
           amount={amount}
           recipient={{
@@ -91,7 +97,7 @@ export function FundForm({ target, onClose, onSuccess }: FundFormProps) {
   }
 
   return (
-    <Modal title={`Fund ${target.name}`} onClose={onClose}>
+    <Modal title={`Fund ${target.name}`} onClose={onClose} icon={<Wallet size={20} />}>
       <form onSubmit={review} className="space-y-3">
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">Amount (₹)</label>

@@ -205,7 +205,7 @@ function DownlinePicker({
   }, [q, rows]);
 
   return (
-    <Modal title={title} onClose={onClose}>
+    <Modal title={title} onClose={onClose} icon={<Users size={20} />}>
       {rows.length === 0 ? (
         <p className="py-6 text-center text-sm" style={{ color: B.muted }}>
           {emptyText}

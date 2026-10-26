@@ -193,7 +193,13 @@ export function WalletActionForm({
 
   if (step === "confirm") {
     return (
-      <Modal title={kind === "transfer" ? "Confirm transfer" : "Confirm reverse"} onClose={onClose}>
+      <Modal
+        title={kind === "transfer" ? "Confirm transfer" : "Confirm reverse"}
+        onClose={onClose}
+        icon={kind === "transfer" ? <Send size={20} /> : <Undo2 size={20} />}
+        iconTone={kind === "transfer" ? "blue" : "amber"}
+        subtitle="Check the details before you confirm."
+      >
         <TransferConfirm
           amount={amount}
           amountCaption={kind === "transfer" ? "You are sending" : "You are reversing"}
@@ -227,6 +233,8 @@ export function WalletActionForm({
     <Modal
       title={`${kind === "transfer" ? "Transfer" : "Reverse"} — ${target.name}`}
       onClose={onClose}
+      icon={kind === "transfer" ? <Send size={20} /> : <Undo2 size={20} />}
+      iconTone={kind === "transfer" ? "blue" : "amber"}
     >
       <form onSubmit={review} className="space-y-3">
         <div className="grid grid-cols-2 gap-2">

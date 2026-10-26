@@ -1,0 +1,38 @@
+---
+description: Popup / modal / bottom-sheet design standard for AsanPay (web, admin, mobile)
+alwaysApply: true
+---
+
+# Popup design (AsanPay)
+
+Every new popup must look like the Linked accounts "Verify account" popup. Never ship a bare title + X box.
+
+## Use the shared shell — don't hand-roll
+
+| Surface | Component |
+|---|---|
+| Agent web | `apps/agent-portal/components/ui/Modal.tsx` (`icon`, `iconTone`, `eyebrow`, `subtitle`, `wide`) |
+| Admin web | `apps/admin-portal/components/ui/Modal.tsx` (same props, dark-mode safe) |
+| Confirm / delete | `ConfirmModal` (agent) · `DangerConfirmModal` (admin) |
+| Mobile | `ModalSheet` (bottom sheet) + `PulseIcon` from `components/linkedAccounts/parts.tsx` |
+
+## Required anatomy
+
+1. **Icon tile** left of the title: 48 px, rounded-2xl, soft tone background, **pulse animation** (`confirm-modal-icon` agent / `modal-icon-pulse` admin / `PulseIcon` mobile). Pick an icon that names the action (Send, Undo2, Wallet, UserPlus, ShieldCheck, History…).
+2. **Tone = intent**: blue info / submit · green success / add · amber reverse / warning · red danger / failed check.
+3. **Eyebrow** (optional, `Step 2 of 2`) → **Title** (text-xl) → **Subtitle** (one line: what to check / what happens).
+4. **Body** in cards (rounded-2xl, light border, `#F7F9FF` gradient for the main card). Related facts as small label/value tiles, not long one-column tables.
+5. **Wide content** (> ~6 rows) → `wide` + `sm:grid-cols-2`; must stack to one column below `sm`. Balance column heights — no empty blank area inside a card (use `h-full flex-col` + a bottom summary / helper strip with `mt-auto`).
+6. **Status lists** (checks, steps): row per item with icon + label + status pill; stagger in with `la-check-row` (`animationDelay` 120 ms steps) and end with a summary strip (green all good / red what failed).
+7. **Inputs**: full-width fields like the mobile number field (not digit boxes) unless the design explicitly shows boxes; group related inputs in a `B.bg` panel, side by side on `sm+`.
+8. **Footer**: two equal buttons per `button-color-semantics` (Back = secondary, Cancel = red, Submit = blue, Add/Link = green). Disabled until valid.
+9. **Motion**: panel pop-in (`confirm-modal-panel`), backdrop blur; respect `prefers-reduced-motion` / `AccessibilityInfo.isReduceMotionEnabled()`.
+10. **Copy**: English only, field-specific errors inline (`clear-error-messages`), never show another person's data in a failed check.
+
+## Parity
+
+Same popup on web and mobile in the same change (`web-mobile-parity`). Mobile may stack instead of two columns — note it as a platform exception.
+
+## When touching an old popup
+
+If it still uses a plain title + X layout, upgrade it to this anatomy in the same change (at minimum: icon tile + tone + subtitle).

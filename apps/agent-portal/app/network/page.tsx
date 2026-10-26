@@ -684,7 +684,11 @@ export default function NetworkPage() {
         />
       ) : null}
       {historyTarget && (
-        <Modal title={`History — ${historyTarget.name}`} onClose={() => setHistoryTarget(null)}>
+        <Modal
+          title={`History — ${historyTarget.name}`}
+          onClose={() => setHistoryTarget(null)}
+          icon={<History size={20} />}
+        >
           {historyLoading ? (
             <p className="text-sm text-gray-500">Loading…</p>
           ) : historyRows.length === 0 ? (

@@ -910,10 +910,16 @@ html.dark .danger-confirm-icon {
   animation: danger-btn-glow 1.6s ease-in-out infinite;
 }
 
+/* Standard Modal icon tile — same pulse as the danger popup, accent from --confirm-accent */
+.modal-icon-pulse {
+  animation: danger-icon-pulse 1.4s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .danger-confirm-backdrop,
   .danger-confirm-panel,
   .danger-confirm-icon,
+  .modal-icon-pulse,
   .danger-confirm-btn {
     animation: none !important;
   }

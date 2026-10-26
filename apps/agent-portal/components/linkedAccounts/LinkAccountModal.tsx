@@ -2,8 +2,10 @@
 
 import { useState, type FormEvent, type ReactNode } from "react";
 import {
+  ArrowLeftRight,
   BadgeCheck,
   CheckCircle2,
+  EyeOff,
   CreditCard,
   Fingerprint,
   Link2,
@@ -12,7 +14,14 @@ import {
   UserRound,
   XCircle,
 } from "lucide-react";
-import type { LinkCheckResult, LinkedAccountSummary, LinkedAccountsResponse } from "@asanpay/shared-types";
+import {
+  ROLE_LABELS,
+  type LinkCheckResult,
+  type LinkedAccountSummary,
+  type LinkedAccountsResponse,
+  type UserRole,
+} from "@asanpay/shared-types";
+import { useAuthStore } from "@/lib/store";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { B } from "@/lib/brand";
 import { extractApiError } from "@/lib/onboarding";
@@ -56,26 +65,62 @@ function Fact({ label, value }: { label: string; value: ReactNode }) {
 }
 
 /** Other account: shown only when PAN + Aadhaar matched (API returns null otherwise). */
+/** "You ⇄ Linking" strip at the bottom of the account card. */
+function LinkPair({ toName, toRole, toRoleLabel }: { toName: string; toRole: UserRole; toRoleLabel: string }) {
+  const me = useAuthStore((s) => s.user);
+  if (!me) return null;
+  const side = (name: string, role: UserRole, caption: string) => (
+    <div className="flex min-w-0 flex-1 items-center gap-2">
+      <AccountAvatar name={name} role={role} size={30} />
+      <div className="min-w-0">
+        <p className="text-[9px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+          {caption}
+        </p>
+        <p className="truncate text-[11px] font-bold" style={{ color: B.blue }}>
+          {ROLE_LABELS[role] ?? role}
+        </p>
+      </div>
+    </div>
+  );
+  return (
+    <div className="la-check-row mt-auto flex items-center gap-2 rounded-xl px-3 py-2.5" style={{ background: B.bg, animationDelay: "240ms" }}>
+      {side(me.name, me.role, "You")}
+      <span className="la-link-pulse flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white" style={{ color: B.blueLight }}>
+        <ArrowLeftRight size={14} />
+      </span>
+      {side(toName, toRole, "Linking")}
+      <span className="sr-only">
+        Linking your {ROLE_LABELS[me.role]} account with the {toRoleLabel} account
+      </span>
+    </div>
+  );
+}
+
 function AccountCard({ check, mobile }: { check: LinkCheckResult; mobile: string }) {
   const a = check.account;
   return (
-    <div className="rounded-2xl border p-4" style={{ borderColor: "rgba(11,42,154,0.12)", background: "linear-gradient(180deg,#F7F9FF 0%,#FFFFFF 100%)" }}>
-      <CardLabel>Account to link</CardLabel>
+    <div
+      className="flex h-full flex-col gap-4 rounded-2xl border p-4"
+      style={{ borderColor: "rgba(11,42,154,0.12)", background: "linear-gradient(180deg,#F7F9FF 0%,#FFFFFF 100%)" }}
+    >
       {a ? (
         <>
-          <div className="flex items-center gap-3">
-            <AccountAvatar name={a.name} role={a.role} size={48} />
-            <div className="min-w-0">
-              <p className="truncate text-sm font-bold" style={{ color: B.blue }}>
-                {a.name}
-              </p>
-              <RoleChip role={a.role} roleLabel={a.roleLabel} uid={a.uid} />
-              <p className="mt-0.5 text-[11px]" style={{ color: B.muted }}>
-                {a.mobileMasked}
-              </p>
+          <div>
+            <CardLabel>Account to link</CardLabel>
+            <div className="flex items-center gap-3">
+              <AccountAvatar name={a.name} role={a.role} size={48} />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-bold" style={{ color: B.blue }}>
+                  {a.name}
+                </p>
+                <RoleChip role={a.role} roleLabel={a.roleLabel} uid={a.uid} />
+                <p className="mt-0.5 text-[11px]" style={{ color: B.muted }}>
+                  {a.mobileMasked}
+                </p>
+              </div>
             </div>
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <Fact label="UID" value={a.uid} />
             <Fact
               label="KYC"
@@ -86,13 +131,20 @@ function AccountCard({ check, mobile }: { check: LinkCheckResult; mobile: string
               }
             />
           </div>
+          <LinkPair toName={a.name} toRole={a.role} toRoleLabel={a.roleLabel} />
         </>
       ) : (
         <>
-          <Fact label="Mobile" value={`XXXXXX${mobile.slice(-4)}`} />
-          <p className="mt-3 text-[11px]" style={{ color: B.muted }}>
-            Account details stay hidden because this account does not belong to you.
-          </p>
+          <div>
+            <CardLabel>Account to link</CardLabel>
+            <Fact label="Mobile" value={`XXXXXX${mobile.slice(-4)}`} />
+          </div>
+          <div className="mt-auto flex items-start gap-2 rounded-xl px-3 py-2.5" style={{ background: "#FEF2F2" }}>
+            <EyeOff size={14} className="mt-0.5 shrink-0" style={{ color: "#DC2626" }} />
+            <p className="text-[11px]" style={{ color: "#B91C1C" }}>
+              Account details stay hidden because this account does not belong to you.
+            </p>
+          </div>
         </>
       )}
     </div>

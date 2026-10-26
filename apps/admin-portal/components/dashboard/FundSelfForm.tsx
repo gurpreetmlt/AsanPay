@@ -3,6 +3,7 @@
 import { useRef, useState, type FormEvent } from "react";
 import { toast } from "react-hot-toast";
 import api from "@/lib/api";
+import { Wallet } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { createAttemptKeyHolder } from "@/lib/idempotencyKey";
 
@@ -53,7 +54,7 @@ export function FundSelfForm({ onClose, onSuccess }: FundSelfFormProps) {
   }
 
   return (
-    <Modal title="Fund My Balance" onClose={onClose}>
+    <Modal title="Fund My Balance" onClose={onClose} icon={<Wallet size={20} />} iconTone="green">
       <form onSubmit={handleSubmit} className="space-y-3">
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">Amount (₹)</label>

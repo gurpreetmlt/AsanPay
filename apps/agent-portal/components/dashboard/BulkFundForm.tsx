@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState, type FormEvent } from "react";
 import { toast } from "react-hot-toast";
 import api from "@/lib/api";
+import { Send, Users } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { extractApiError } from "@/lib/onboarding";
@@ -113,7 +114,12 @@ export function BulkFundForm({
   if (step === "confirm") {
     const names = active.filter((t) => selected.has(t.id)).map((t) => t.name).join(", ");
     return (
-      <Modal title="Confirm bulk transfer" onClose={onClose}>
+      <Modal
+        title="Confirm bulk transfer"
+        onClose={onClose}
+        icon={<Send size={20} />}
+        subtitle="Check the details before you confirm."
+      >
         <TransferConfirm
           amount={total}
           amountCaption="Total to transfer"
@@ -134,7 +140,7 @@ export function BulkFundForm({
   }
 
   return (
-    <Modal title={title} onClose={onClose}>
+    <Modal title={title} onClose={onClose} icon={<Users size={20} />}>
       <form onSubmit={review} className="space-y-3">
         <p className="text-xs" style={{ color: B.muted }}>
           Same amount to each selected partner. Each transfer uses its own Idempotency-Key.

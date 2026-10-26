@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { ChevronDown, Info, List } from "lucide-react";
+import { ChevronDown, Info, List, PowerOff } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { Modal } from "@/components/ui/Modal";
 import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
@@ -473,7 +473,12 @@ export default function ProvidersPage() {
       </div>
 
       {confirmDisableTarget && (
-        <Modal title="Confirm: Disable all providers" onClose={() => setConfirmDisableTarget(null)}>
+        <Modal
+          title="Confirm: Disable all providers"
+          onClose={() => setConfirmDisableTarget(null)}
+          icon={<PowerOff size={20} />}
+          iconTone="red"
+        >
           <div className="p-1">
             <p className="text-sm" style={{ color: B.muted }}>
               This will disable <strong style={{ color: B.blue }}>every</strong> provider for{" "}

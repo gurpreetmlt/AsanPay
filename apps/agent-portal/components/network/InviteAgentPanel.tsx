@@ -272,7 +272,12 @@ export function InviteModal({
   }
 
   return (
-        <Modal title={created ? "Invite link ready" : `Invite ${roleLabel}`} onClose={onClose}>
+        <Modal
+          title={created ? "Invite link ready" : `Invite ${roleLabel}`}
+          onClose={onClose}
+          icon={<MailPlus size={20} />}
+          iconTone={created ? "green" : "blue"}
+        >
           {created ? (
             <div className="space-y-4">
               <p className="text-sm" style={{ color: B.muted }}>

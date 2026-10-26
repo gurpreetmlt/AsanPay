@@ -3,6 +3,7 @@
 import { useRef, useState, type FormEvent } from "react";
 import { toast } from "react-hot-toast";
 import api from "@/lib/api";
+import { Wallet } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { AgentConfirmModal, ConfirmRow } from "@/components/users/AgentConfirmModal";
 import { createAttemptKeyHolder } from "@/lib/idempotencyKey";
@@ -63,7 +64,7 @@ export function FundForm({ target, onClose, onSuccess }: FundFormProps) {
 
   return (
     <>
-      <Modal title={`Load float · ${target.name}`} onClose={onClose}>
+      <Modal title={`Load float · ${target.name}`} onClose={onClose} icon={<Wallet size={20} />}>
         <form onSubmit={handleSubmit} className="space-y-3">
           <p className="text-xs text-gray-500">
             Mints float into this Super Distributor balance (admin does not transfer from own balance).

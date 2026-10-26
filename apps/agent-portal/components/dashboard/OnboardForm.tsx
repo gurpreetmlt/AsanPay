@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { toast } from "react-hot-toast";
 import api from "@/lib/api";
+import { UserPlus } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import type { UserRole } from "@asanpay/shared-types";
@@ -45,7 +46,7 @@ export function OnboardForm({ childRole, childRoleLabel, onClose, onSuccess }: O
   }
 
   return (
-    <Modal title={`Onboard New ${childRoleLabel}`} onClose={onClose}>
+    <Modal title={`Onboard New ${childRoleLabel}`} onClose={onClose} icon={<UserPlus size={20} />} iconTone="green">
       <form onSubmit={handleSubmit} className="space-y-3">
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">Name</label>
