@@ -50,8 +50,8 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 7
         versionName "1.0.4"
-        // Block screenshots on release builds for Play / production.
-        buildConfigField "boolean", "ENABLE_SECURE_SCREEN", "true"
+        // true = FLAG_SECURE on every screen (no screenshots / blank recent-apps thumbnail).
+        buildConfigField "boolean", "ENABLE_SECURE_SCREEN", "false"
     }
     // Uncompressed .so + AGP 8.5.1+ → 16 KB zip alignment in Play-generated APKs.
     packaging {

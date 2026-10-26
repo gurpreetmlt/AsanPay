@@ -479,6 +479,7 @@ export {
 } from "./indianStates";
 export {
   KYC_DOC_CHECK_COPY,
+  PAN_FORMAT_ERROR,
   kycDocCheckBlocksStep,
   kycDocCheckLabel,
   kycDocCheckToUi,

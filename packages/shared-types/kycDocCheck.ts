@@ -18,6 +18,9 @@ export type KycDocCheckResult = {
   qr?: { verified: boolean };
 };
 
+/** Shown under the PAN field when 10 characters are entered but the format is wrong (e.g. letter O for zero). */
+export const PAN_FORMAT_ERROR = "PAN must be 5 letters, 4 numbers, then 1 letter (e.g. ABCDE1234F)";
+
 /** UI state per photo field. */
 export type KycDocCheckUi =
   | { state: "checking" }

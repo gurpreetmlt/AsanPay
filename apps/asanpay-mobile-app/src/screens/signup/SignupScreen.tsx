@@ -28,6 +28,7 @@ import { LabelText } from "../../components/RequiredMark";
 import { MobileSignupStepper, MOBILE_SIGNUP_STEPS } from "../../components/MobileSignupStepper";
 import { TermsAcceptModal } from "../../components/TermsAcceptModal";
 import {
+  PAN_FORMAT_ERROR,
   SIGNUP_POLICY_VERSION,
   kycDocCheckBlocksStep,
   kycDocCheckLabel,
@@ -1192,7 +1193,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
       }
     }
     if (stepIndex === 2) {
-      if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(draft.pan)) return "Enter a valid PAN";
+      if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(draft.pan)) return PAN_FORMAT_ERROR;
       if (!draft.panVerified) return "Verify PAN before continuing";
       if (!draft.gender) return "Select gender";
       if (!draft.dob || !/^\d{4}-\d{2}-\d{2}$/.test(draft.dob)) {
@@ -2051,8 +2052,8 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                     Enter your 10-character PAN — verification starts automatically. Then fill
                     personal details as on the PAN.
                   </Text>
-                  <View style={styles.fieldRow}>
-                    <View style={[styles.fieldHalf, { flex: 1.35 }]}>
+                  <View>
+                    <View>
                       <FieldLabel text="PAN Number *" color={tokens.mute} />
                       <TextInput
                         value={draft.pan}
@@ -2087,8 +2088,12 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                           </Text>
                         </View>
                       ) : !accessToken ? (
-                        <Text style={{ color: "#C2410C", fontSize: 10, fontWeight: "700", marginTop: 6 }}>
+                        <Text style={{ color: "#C2410C", fontSize: 11, fontWeight: "700", marginTop: 6 }}>
                           Create account first, then enter PAN.
+                        </Text>
+                      ) : draft.pan.length === 10 && !/^[A-Z]{5}\d{4}[A-Z]$/.test(draft.pan) ? (
+                        <Text style={{ color: colors.danger, fontSize: 11, fontWeight: "700", marginTop: 6 }}>
+                          {PAN_FORMAT_ERROR}
                         </Text>
                       ) : panVerifyFailed && /^[A-Z]{5}\d{4}[A-Z]$/.test(draft.pan) ? (
                         <Pressable
@@ -2101,14 +2106,14 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                           <Text style={styles.verifyBtnText}>Retry verify</Text>
                         </Pressable>
                       ) : (
-                        <Text style={{ color: tokens.mute, fontSize: 10, marginTop: 6 }}>
+                        <Text style={{ color: tokens.mute, fontSize: 11, marginTop: 6 }}>
                           Auto-verifies when complete
                         </Text>
                       )}
                     </View>
-                    <View style={styles.fieldHalf}>
+                    <View style={{ marginTop: 6 }}>
                       <FieldLabel text="Gender *" color={tokens.mute} />
-                      <View style={{ gap: 6 }}>
+                      <View style={{ flexDirection: "row", gap: 8 }}>
                         {["Male", "Female", "Other"].map((g) => (
                           <Pressable
                             key={g}
@@ -2133,30 +2138,28 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                       </View>
                     </View>
                   </View>
-                  <View style={[styles.fieldRow, { marginTop: 8 }]}>
-                    <View style={styles.fieldHalf}>
-                      <DateTextField
-                        label="Date of Birth *"
-                        isoValue={draft.dob}
-                        onIsoChange={(iso) => patch({ dob: iso })}
-                        placeholder="DD/MM/YYYY"
-                        hint="As on PAN"
-                        tokens={tokens}
-                        inputStyle={inputStyle}
-                      />
-                    </View>
-                    <View style={styles.fieldHalf}>
-                      <DateTextField
-                        label="Anniversary"
-                        isoValue={draft.anniversaryDate}
-                        onIsoChange={(iso) => patch({ anniversaryDate: iso })}
-                        placeholder="Optional"
-                        hint="Optional"
-                        tokens={tokens}
-                        inputStyle={inputStyle}
-                        optional
-                      />
-                    </View>
+                  <View style={{ marginTop: 8 }}>
+                    <DateTextField
+                      label="Date of Birth *"
+                      isoValue={draft.dob}
+                      onIsoChange={(iso) => patch({ dob: iso })}
+                      placeholder="DD/MM/YYYY"
+                      hint="As on PAN"
+                      tokens={tokens}
+                      inputStyle={inputStyle}
+                    />
+                  </View>
+                  <View style={{ marginTop: 4 }}>
+                    <DateTextField
+                      label="Anniversary"
+                      isoValue={draft.anniversaryDate}
+                      onIsoChange={(iso) => patch({ anniversaryDate: iso })}
+                      placeholder="DD/MM/YYYY"
+                      hint="Optional"
+                      tokens={tokens}
+                      inputStyle={inputStyle}
+                      optional
+                    />
                   </View>
                   <FieldLabel text="Father Name *" color={tokens.mute} />
                   <TextInput

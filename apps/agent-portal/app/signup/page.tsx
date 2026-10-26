@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { ArrowLeft, CheckCircle2, Eye, EyeOff } from "lucide-react";
 import {
+  PAN_FORMAT_ERROR,
   SIGNUP_POLICY_VERSION,
   kycDocCheckBlocksStep,
   kycDocCheckLabel,
@@ -1086,7 +1087,7 @@ function SignupPageInner() {
       }
     }
     if (stepIndex === 2) {
-      if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(draft.pan)) return "Enter a valid PAN";
+      if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(draft.pan)) return PAN_FORMAT_ERROR;
       if (!draft.panVerified) return "Verify PAN before continuing";
       if (!draft.gender) return "Select gender";
       if (!draft.dob) return "Date of birth is required";
@@ -2049,6 +2050,11 @@ function SignupPageInner() {
                       </p>
                     ) : (
                       <div className="mt-1.5 space-y-1">
+                        {draft.pan.length === 10 && !/^[A-Z]{5}\d{4}[A-Z]$/.test(draft.pan) ? (
+                          <p className="text-[11px] font-semibold" style={{ color: "#DC2626" }}>
+                            {PAN_FORMAT_ERROR}
+                          </p>
+                        ) : null}
                         {panVerifyFailed &&
                         /^[A-Z]{5}\d{4}[A-Z]$/.test(draft.pan) &&
                         accessToken ? (
