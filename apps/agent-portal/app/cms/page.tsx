@@ -291,7 +291,7 @@ export default function CmsPage() {
     const accent = openCms.provider.accent;
     return (
       <AppShell>
-        <div className="mx-auto max-w-6xl pb-6">
+        <div className="mx-auto w-full max-w-[1600px] px-4 py-5 sm:px-6 lg:px-8">
           <section className="overflow-hidden rounded-2xl border bg-white shadow-sm" style={{ borderColor: B.border }}>
             <div
               className="flex flex-wrap items-center gap-3 px-4 py-3 text-white"
@@ -328,7 +328,7 @@ export default function CmsPage() {
               src={openCms.url}
               title={openCms.provider.name}
               className="block w-full border-0 bg-gray-50"
-              style={{ height: "calc(100vh - 230px)", minHeight: 560 }}
+              style={{ height: "calc(100vh - 260px)", minHeight: 520 }}
               allow="camera; geolocation; clipboard-write"
             />
             <div
@@ -346,7 +346,7 @@ export default function CmsPage() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-6xl space-y-6 pb-10">
+      <div className="mx-auto w-full max-w-[1600px] space-y-6 px-4 py-5 sm:px-6 lg:px-8">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
             <span
@@ -480,15 +480,11 @@ export default function CmsPage() {
                 onChange={(e) => setTo(e.target.value)}
               />
             </label>
-            <PrimaryButton
-              type="button"
-              variant="primary"
-              loading={loading}
-              className="md:w-auto md:px-8"
-              onClick={() => void loadRows(from, to)}
-            >
-              Fetch Data
-            </PrimaryButton>
+            <div className="md:w-44">
+              <PrimaryButton type="button" variant="primary" loading={loading} onClick={() => void loadRows(from, to)}>
+                Fetch Data
+              </PrimaryButton>
+            </div>
             <div className="md:ml-auto">
               <ExportMenu
                 disabled={rows.length === 0}
