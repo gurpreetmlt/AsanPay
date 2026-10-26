@@ -40,6 +40,7 @@ import { B } from "@/lib/brand";
 import api from "@/lib/api";
 import { aepsBankLogoUrl } from "@/lib/bankLogo";
 import { PhoneLocationBar } from "@/components/location/PhoneLocationBar";
+import { todayPhoneLocation } from "@/lib/phoneLocation";
 import { useAuthStore } from "@/lib/store";
 import type { ApiResponse } from "@asanpay/shared-types";
 import {
@@ -668,9 +669,14 @@ function AepsPageInner() {
     setAgentAuthScanning(true);
     try {
       const biometricPayload = await captureFingerprintWeb();
+      // Today's phone-verified location; without it the API uses the saved shop location.
+      const phone = todayPhoneLocation();
+      const geo = phone ? { latitude: phone.latitude, longitude: phone.longitude } : {};
       const { data } = await api.post<ApiResponse<{ verifiedAt: string }>>(
         "/auth/agent-auth",
-        agentAadhaarLastFour ? { biometricPayload } : { aadhaarNumber: typedAadhaar, biometricPayload },
+        agentAadhaarLastFour
+          ? { biometricPayload, ...geo }
+          : { aadhaarNumber: typedAadhaar, biometricPayload, ...geo },
       );
       if (!data.success) throw new Error(data.message);
       setAgentAuthReady(true);
@@ -888,6 +894,8 @@ function AepsPageInner() {
               </p>
             </div>
           </div>
+
+          <PhoneLocationBar />
 
           <div className="grid items-start gap-6 md:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
           <div className="min-w-0 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
