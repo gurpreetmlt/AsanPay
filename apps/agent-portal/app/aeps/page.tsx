@@ -38,6 +38,8 @@ import {
 import { B } from "@/lib/brand";
 import api from "@/lib/api";
 import { aepsBankLogoUrl } from "@/lib/bankLogo";
+import { wasAepsOnboardingSkipped } from "@/lib/onboarding";
+import { OnboardingPendingBanner } from "@/components/aeps/OnboardingPendingBanner";
 import { PhoneLocationBar } from "@/components/location/PhoneLocationBar";
 import { todayPhoneLocation } from "@/lib/phoneLocation";
 import { useAuthStore } from "@/lib/store";
@@ -505,12 +507,24 @@ function AepsPageInner() {
     ? (liveIinByName[bankKey(selectedBank.name)] ?? selectedBank.iin)
     : "";
 
-  // Daily 2FA needs the provider agent id, so the onboarding form replaces the 2FA screen.
+  // Daily 2FA needs the provider agent id: the onboarding form opens first; after Skip the page
+  // opens without the 2FA screen and transactions point back to onboarding.
+  const onboardingPending = Boolean(user?.aepsOnboardingRequired);
+  const [onboardingSkipped, setOnboardingSkipped] = useState(false);
   useEffect(() => {
     if (!user?.aepsOnboardingRequired) return;
+    if (wasAepsOnboardingSkipped()) {
+      setOnboardingSkipped(true);
+      return;
+    }
     toast("Complete AEPS agent onboarding to start using AEPS services");
     router.replace(`/onboarding/aeps-agent?next=${encodeURIComponent("/aeps")}`);
   }, [user?.aepsOnboardingRequired, router]);
+
+  function goToOnboarding() {
+    toast.error("Complete AEPS agent onboarding before doing AEPS transactions");
+    router.push(`/onboarding/aeps-agent?next=${encodeURIComponent("/aeps")}`);
+  }
 
   useEffect(() => {
     const q = searchParams.get("tab");
@@ -694,6 +708,10 @@ function AepsPageInner() {
 
   async function handleScan() {
     if (scanning) return;
+    if (onboardingPending) {
+      goToOnboarding();
+      return;
+    }
     if (authMode === "iris") {
       toast.error("Iris capture is not enabled yet. Use Fingerprint.");
       return;
@@ -854,20 +872,20 @@ function AepsPageInner() {
     return "XXXX XXXX " + digits.slice(-4);
   }
 
-  if (agentAuthReady === null || user?.aepsOnboardingRequired) {
+  if ((onboardingPending && !onboardingSkipped) || (!onboardingPending && agentAuthReady === null)) {
     return (
       <AppShell>
         <div className="mx-auto flex max-w-xl flex-col items-center gap-3 p-10">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
           <p className="text-sm font-medium text-gray-500">
-            {user?.aepsOnboardingRequired ? "Opening AEPS onboarding…" : "Checking today\u2019s AePS verification…"}
+            {onboardingPending ? "Opening AEPS onboarding…" : "Checking today\u2019s AePS verification…"}
           </p>
         </div>
       </AppShell>
     );
   }
 
-  if (!agentAuthReady) {
+  if (!agentAuthReady && !onboardingPending) {
     const retailerLabel = user?.name?.trim() || "Retailer";
     const aadhaarDigits = agentAadhaar.replace(/\D/g, "").length;
     const canScan =
@@ -1135,7 +1153,7 @@ function AepsPageInner() {
           />
         </div>
 
-        <PhoneLocationBar />
+        {onboardingPending ? <OnboardingPendingBanner next="/aeps" /> : <PhoneLocationBar />}
 
         {isAadhaarPay && (ap.needsSetup || ap.error || (ap.loading && !ap.session)) ? (
           <AadhaarPaySetupCard

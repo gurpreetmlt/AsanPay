@@ -29,6 +29,9 @@ import { useTheme } from "../../theme/ThemeContext";
 import { colors, gradientDirection } from "../../theme/colors";
 import { showAlert } from "../../components/AppAlert";
 import { formatEarnEstimateLine, useEarnEstimate } from "../../hooks/useEarnEstimate";
+import { useAuthStore } from "../../store/auth";
+import { OnboardingPendingBanner } from "../../components/OnboardingPendingBanner";
+import { NobleAgentOnboardModal } from "../shared/NobleAgentOnboardModal";
 
 interface DmtScreenProps {
   onBack: () => void;
@@ -141,6 +144,9 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
   const attemptKey = useRef(createAttemptKeyHolder("dmt-mobile"));
 
   const [tab, setTab] = useState<DmtTab>("Transfer");
+  // Skipped onboarding: no 2FA gate (provider 2FA needs the agent id); sending money opens the form.
+  const onboardingPending = useAuthStore((s) => Boolean(s.user?.aepsOnboardingRequired));
+  const [onboardOpen, setOnboardOpen] = useState(false);
   const [agentAuthReady, setAgentAuthReady] = useState<boolean | null>(null);
   const [agentAuthKycReady, setAgentAuthKycReady] = useState(true);
   const [agentAadhaar, setAgentAadhaar] = useState("");
@@ -230,7 +236,7 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
   }, []);
 
   useEffect(() => {
-    if (agentAuthReady !== true) return;
+    if (agentAuthReady !== true && !onboardingPending) return;
     let cancelled = false;
     void getProvider<{ banks: DmtBank[] }>("/txn/dmt/banks")
       .then((res) => {
@@ -242,7 +248,7 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
     return () => {
       cancelled = true;
     };
-  }, [agentAuthReady]);
+  }, [agentAuthReady, onboardingPending]);
 
   async function verifyDailyAuth() {
     if (!agentAuthKycReady) {
@@ -553,6 +559,10 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
   }
 
   async function sendTransferOtp() {
+    if (onboardingPending) {
+      setOnboardOpen(true);
+      return;
+    }
     const m = mobile.replace(/\D/g, "");
     if (!profile?.referenceKey) {
       showAlert("Refresh profile", "Look up remitter again to get a fresh profile key.");
@@ -706,12 +716,13 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
       </LinearGradient>
 
       <ScrollView contentContainerStyle={styles.content}>
-        {agentAuthReady === null ? (
+        {onboardingPending ? <OnboardingPendingBanner onComplete={() => setOnboardOpen(true)} /> : null}
+        {agentAuthReady === null && !onboardingPending ? (
           <View style={styles.centerBox}>
             <ActivityIndicator color={colors.blueFlat} />
             <Text style={[styles.muted, { color: tokens.mute }]}>Checking DMT verification for today…</Text>
           </View>
-        ) : agentAuthReady !== true ? (
+        ) : agentAuthReady !== true && !onboardingPending ? (
           <View style={[styles.heroCard, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
             <View style={styles.heroIconWrap}>
               <ShieldCheck size={24} color={colors.blueLight} strokeWidth={2.2} />
@@ -1196,6 +1207,7 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
         )}
       </ScrollView>
       <TxnPinPrompt />
+      <NobleAgentOnboardModal visible={onboardOpen} onClose={() => setOnboardOpen(false)} />
     </SafeAreaView>
   );
 }

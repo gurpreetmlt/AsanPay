@@ -40,6 +40,8 @@ import { formatINR } from "../../lib/format";
 import { aepsBankLogoUrl } from "../../lib/bankLogo";
 import { createAttemptKeyHolder } from "../../lib/idempotencyKey";
 import { captureFingerprint, listInstalledRdPackages } from "../../lib/rdServiceFingerprint";
+import { OnboardingPendingBanner } from "../../components/OnboardingPendingBanner";
+import { NobleAgentOnboardModal } from "../shared/NobleAgentOnboardModal";
 import {
   captureFace,
   isFaceRdInstalled,
@@ -620,6 +622,9 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
   const { tokens } = useTheme();
   const { promptPin, TxnPinPrompt } = useTxnPin();
   const userName = useAuthStore((s) => s.user?.name?.trim() || "Retailer");
+  // Skipped onboarding: no 2FA gate (provider 2FA needs the agent id); transactions open the form.
+  const onboardingPending = useAuthStore((s) => Boolean(s.user?.aepsOnboardingRequired));
+  const [onboardOpen, setOnboardOpen] = useState(false);
 
   const resolvedInitial = useMemo(() => {
     if (initialTab) return initialTab;
@@ -1120,6 +1125,10 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
   }
 
   async function handleScan() {
+    if (onboardingPending) {
+      setOnboardOpen(true);
+      return;
+    }
     if (!canScan || !selectedBank) return;
 
     // High-value withdrawal: OTP must be requested first and typed before the finger scan,
@@ -1327,7 +1336,7 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
 
   const scanTranslate = scanAnim.interpolate({ inputRange: [0, 1], outputRange: [-38, 38] });
 
-  if (agentAuthReady === null) {
+  if (agentAuthReady === null && !onboardingPending) {
     return (
       <SafeAreaView style={[s.safe, s.authLoading, { backgroundColor: tokens.bg }]} edges={["top", "bottom"]}>
         <ActivityIndicator size="large" color={colors.blueFlat} />
@@ -1336,7 +1345,7 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
     );
   }
 
-  if (!agentAuthReady) {
+  if (!agentAuthReady && !onboardingPending) {
     return (
       <SafeAreaView style={[s.safe, { backgroundColor: tokens.bg }]} edges={["top", "bottom"]}>
         <LinearGradient
@@ -1702,6 +1711,8 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
             ) : null}
           </View>
         ) : null}
+
+        {onboardingPending ? <OnboardingPendingBanner onComplete={() => setOnboardOpen(true)} /> : null}
 
         {/* Bank selector strip — Layout 3 style + spring select */}
         <View style={[s.bankCard, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
@@ -2091,6 +2102,7 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
         onSelect={setActiveDevice}
       />
 
+      <NobleAgentOnboardModal visible={onboardOpen} onClose={() => setOnboardOpen(false)} />
     </SafeAreaView>
   );
 }

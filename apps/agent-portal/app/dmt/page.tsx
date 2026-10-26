@@ -35,7 +35,8 @@ import { B } from "@/lib/brand";
 import api from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 import type { ApiResponse } from "@asanpay/shared-types";
-import { extractApiError } from "@/lib/onboarding";
+import { extractApiError, wasAepsOnboardingSkipped } from "@/lib/onboarding";
+import { OnboardingPendingBanner } from "@/components/aeps/OnboardingPendingBanner";
 import { createAttemptKeyHolder } from "@/lib/idempotencyKey";
 import {
   captureFingerprintWeb,
@@ -279,9 +280,16 @@ export default function DmtPage() {
     setUiLayout(readDmtUiLayout());
   }, []);
 
-  // Daily 2FA runs on the provider agent id — the onboarding form replaces the 2FA screen.
+  // Daily 2FA runs on the provider agent id: the onboarding form opens first; after Skip the page
+  // opens without the 2FA screen and the transfer points back to onboarding.
+  const onboardingPending = Boolean(user?.aepsOnboardingRequired);
+  const [onboardingSkipped, setOnboardingSkipped] = useState(false);
   useEffect(() => {
     if (!user?.aepsOnboardingRequired) return;
+    if (wasAepsOnboardingSkipped()) {
+      setOnboardingSkipped(true);
+      return;
+    }
     toast("Complete AEPS agent onboarding to start using Money Transfer");
     router.replace(`/onboarding/aeps-agent?next=${encodeURIComponent("/dmt")}`);
   }, [user?.aepsOnboardingRequired, router]);
@@ -700,6 +708,11 @@ export default function DmtPage() {
   }
 
   async function sendTransferOtp() {
+    if (onboardingPending) {
+      toast.error("Complete AEPS agent onboarding before sending money");
+      router.push(`/onboarding/aeps-agent?next=${encodeURIComponent("/dmt")}`);
+      return;
+    }
     const m = mobile.replace(/\D/g, "");
     if (!profile?.referenceKey) {
       toast.error("Refresh remitter profile first");
@@ -828,20 +841,20 @@ export default function DmtPage() {
 
   /* ── Loading / agent auth gates ──────────────────────────────────── */
 
-  if (agentAuthReady === null || user?.aepsOnboardingRequired) {
+  if ((onboardingPending && !onboardingSkipped) || (!onboardingPending && agentAuthReady === null)) {
     return (
       <AppShell>
         <div className="mx-auto flex max-w-xl flex-col items-center gap-3 p-10">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
           <p className="text-sm font-medium text-gray-500">
-            {user?.aepsOnboardingRequired ? "Opening AEPS onboarding…" : "Checking today\u2019s DMT verification…"}
+            {onboardingPending ? "Opening AEPS onboarding…" : "Checking today\u2019s DMT verification…"}
           </p>
         </div>
       </AppShell>
     );
   }
 
-  if (!agentAuthReady) {
+  if (!agentAuthReady && !onboardingPending) {
     const retailerLabel = user?.name?.trim() || "Retailer";
     const aadhaarDigits = agentAadhaar.replace(/\D/g, "").length;
     const canScan =
@@ -1097,6 +1110,8 @@ export default function DmtPage() {
           />
           <Banknote className="text-green-600" size={28} />
         </div>
+
+        {onboardingPending ? <OnboardingPendingBanner next="/dmt" /> : null}
 
         {layout2Transfer ? (
           <div className="mb-4">

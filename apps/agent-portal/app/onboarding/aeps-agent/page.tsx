@@ -177,10 +177,10 @@ export default function NobleAgentOnboardPage() {
     }
   }
 
-  /** Back to the dashboard — the requested service would only show a 2FA that cannot work yet. */
+  /** Opens the requested service without the 2FA screen; transactions there ask for onboarding. */
   function skipForNow() {
     markAepsOnboardingSkipped();
-    router.replace("/dashboard");
+    router.replace(safeNext());
   }
 
   function goBack() {

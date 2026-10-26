@@ -20,7 +20,7 @@ import { UpiNewLayoutForm } from "@/components/upi/UpiNewLayoutForm";
 import api from "@/lib/api";
 import { B } from "@/lib/brand";
 import { newIdempotencyKey } from "@/lib/idempotencyKey";
-import { extractApiError } from "@/lib/onboarding";
+import { extractApiError, wasAepsOnboardingSkipped } from "@/lib/onboarding";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 
@@ -147,7 +147,7 @@ export default function UpiCashPointPage() {
   }, [hydrated, accessToken, router]);
 
   useEffect(() => {
-    if (!user?.aepsOnboardingRequired) return;
+    if (!user?.aepsOnboardingRequired || wasAepsOnboardingSkipped()) return;
     toast("Complete AEPS agent onboarding to start using UPI Cash Point");
     router.replace(`/onboarding/aeps-agent?next=${encodeURIComponent("/upi-cash-point")}`);
   }, [user?.aepsOnboardingRequired, router]);
