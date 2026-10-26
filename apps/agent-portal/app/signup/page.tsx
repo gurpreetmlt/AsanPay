@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { ArrowLeft, CheckCircle2, Eye, EyeOff } from "lucide-react";
-import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
+import { SIGNUP_POLICY_VERSION, type ApiResponse, type AuthUser } from "@asanpay/shared-types";
 import { AsanPayLockup } from "@/components/brand/Logo";
 import { EmailVerifyField } from "@/components/EmailVerifyField";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
@@ -1181,6 +1181,8 @@ function SignupPageInner() {
         portal: "agent",
         latitude: draft.latitude,
         longitude: draft.longitude,
+        acceptedPolicyVersion: SIGNUP_POLICY_VERSION,
+        policyChannel: "web",
         ...(sponsor ? { sponsorUid: sponsor.uid } : {}),
         ...(invite ? { inviteToken } : {}),
         ...(draft.password ? { password: draft.password } : {}),
@@ -1758,7 +1760,7 @@ function SignupPageInner() {
                     disabled={otpSent}
                   />
                   <span>
-                    I agree to the{" "}
+                    I have read and agree to the{" "}
                     <button
                       type="button"
                       className="font-semibold underline"
@@ -1772,7 +1774,7 @@ function SignupPageInner() {
                         setShowTermsModal(true);
                       }}
                     >
-                      Terms &amp; Privacy Policy
+                      Terms &amp; Conditions and Privacy Policy
                     </button>
                   </span>
                 </label>

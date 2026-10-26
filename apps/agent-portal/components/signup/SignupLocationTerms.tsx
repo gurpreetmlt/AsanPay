@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ChevronDown, Download, MapPin, X } from "lucide-react";
-import { TERMS_BODY, PRIVACY_BODY, buildLegalDownloadText } from "@asanpay/shared-types";
+import { TERMS_BODY, PRIVACY_BODY, buildSignupLegalDownloadText } from "@asanpay/shared-types";
 import { B } from "@/lib/brand";
 
 export type GeoCoords = { latitude: string; longitude: string };
@@ -102,7 +102,7 @@ export function requestBrowserLocation(): Promise<GeoCoords> {
 }
 
 function downloadLegalDocs() {
-  const content = buildLegalDownloadText();
+  const content = buildSignupLegalDownloadText();
   const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -281,7 +281,8 @@ export function TermsAcceptModal({
                 Terms &amp; Privacy Policy
               </h2>
               <p className="mt-1 text-xs" style={{ color: B.muted }}>
-                Please read the information below and confirm your agreement.
+                Please read the information below and confirm your agreement. No eSign is needed — accepting here is
+                your electronic acceptance.
               </p>
             </div>
             <button type="button" onClick={onCancel} aria-label="Close" className="rounded-lg p-1" style={{ color: B.muted }}>

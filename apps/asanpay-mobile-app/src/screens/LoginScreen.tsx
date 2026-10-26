@@ -14,6 +14,14 @@ import { setRememberedLogin } from "../lib/rememberedLogin";
 import { enableBioUnlock, getBioUnlock, promptDeviceBiometric } from "../lib/bioUnlock";
 import { getDeviceId, getDeviceLabel } from "../lib/deviceId";
 import { useAuthStore } from "../store/auth";
+import { LoginPolicyConsent } from "../components/LoginPolicyConsent";
+import {
+  POLICY_PAYLOAD,
+  forgetPolicyAccepted,
+  hasAcceptedCurrentPolicy,
+  isPolicyRequiredError,
+  rememberPolicyAccepted,
+} from "../lib/policyConsent";
 
 export type LoginRoleChip = "retailer" | "distributor" | "super_distributor";
 
@@ -44,6 +52,16 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [pendingSession, setPendingSession] = useState<PendingSession | null>(null);
   const [pendingBioReady, setPendingBioReady] = useState(false);
+  const [policyAccepted, setPolicyAccepted] = useState(false);
+
+  useEffect(() => {
+    void hasAcceptedCurrentPolicy().then(setPolicyAccepted);
+  }, []);
+
+  function onPolicyRequired() {
+    void forgetPolicyAccepted();
+    setPolicyAccepted(false);
+  }
 
   useEffect(() => {
     if (!pendingSession) {
@@ -82,6 +100,7 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
   }, [resendIn]);
 
   function commitLogin(session: PendingSession) {
+    void rememberPolicyAccepted();
     setAuthHeader(session.accessToken);
     void setRememberedLogin({
       mobile: session.user.mobile,
@@ -122,6 +141,10 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
       showAlert("Invalid mobile", "Enter a valid 10-digit mobile number");
       return;
     }
+    if (!policyAccepted) {
+      showAlert("Accept to continue", "Tick the box to accept the Terms & Conditions, Privacy Policy and EULA");
+      return;
+    }
     setLoading(true);
     try {
       const { data } = await api.post<ApiResponse<{ message: string; otp?: string }>>(
@@ -153,7 +176,7 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
   }, [mobile]);
 
   async function verifyOtp() {
-    if (otp.length !== 6) return;
+    if (otp.length !== 6 || !policyAccepted) return;
     setLoading(true);
     try {
       const { data } = await api.post<ApiResponse<PendingSession>>("/auth/otp/verify", {
@@ -162,6 +185,7 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
         portal: "agent",
         deviceId: await getDeviceId(),
         deviceLabel: getDeviceLabel(),
+        ...POLICY_PAYLOAD,
       });
       if (!data.success) throw new Error(data.message);
 
@@ -171,6 +195,11 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
         finishLogin(data.data);
       }
     } catch (err) {
+      if (isPolicyRequiredError(err)) {
+        onPolicyRequired();
+        showAlert("Accept to continue", apiError(err, "Accept the Terms & Conditions, Privacy Policy and EULA"));
+        return;
+      }
       showAlert("Verification failed", apiError(err, "Invalid OTP"));
       setOtp("");
     } finally {
@@ -183,6 +212,10 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
       showAlert("Missing details", "Enter your mobile number and password");
       return;
     }
+    if (!policyAccepted) {
+      showAlert("Accept to continue", "Tick the box to accept the Terms & Conditions, Privacy Policy and EULA");
+      return;
+    }
     setLoading(true);
     try {
       const { data } = await api.post<ApiResponse<PendingSession>>("/auth/login", {
@@ -191,6 +224,7 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
         portal: "agent",
         deviceId: await getDeviceId(),
         deviceLabel: getDeviceLabel(),
+        ...POLICY_PAYLOAD,
       });
       if (!data.success) throw new Error(data.message);
 
@@ -201,6 +235,7 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
         finishLogin(data.data);
       }
     } catch (err) {
+      if (isPolicyRequiredError(err)) onPolicyRequired();
       showAlert("Login failed", apiError(err, "Incorrect mobile number or password"));
     } finally {
       setLoading(false);
@@ -612,14 +647,18 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
                       OTP is sent on WhatsApp. Not received? Tap Resend OTP or use Password login.
                     </Text>
 
+                    <LoginPolicyConsent checked={policyAccepted} onChange={setPolicyAccepted} />
                     <Pressable
                       onPress={() => void verifyOtp()}
-                      disabled={otp.length !== 6 || loading}
+                      disabled={otp.length !== 6 || loading || !policyAccepted}
                       style={styles.buttonPress}
                     >
                       <LinearGradient
                         colors={[...colors.gradientButton]}
-                        style={[styles.button, (otp.length !== 6 || loading) && styles.buttonDisabled]}
+                        style={[
+                          styles.button,
+                          (otp.length !== 6 || loading || !policyAccepted) && styles.buttonDisabled,
+                        ]}
                       >
                         {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Verify OTP  →</Text>}
                       </LinearGradient>
@@ -674,16 +713,17 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
                       <Text style={styles.signupLink}>Forgot password?</Text>
                     </Pressable>
 
+                    <LoginPolicyConsent checked={policyAccepted} onChange={setPolicyAccepted} />
                     <Pressable
                       onPress={() => void loginWithPassword()}
-                      disabled={mobile.length !== 10 || !password || loading}
+                      disabled={mobile.length !== 10 || !password || loading || !policyAccepted}
                       style={styles.buttonPress}
                     >
                       <LinearGradient
                         colors={[...colors.gradientButton]}
                         style={[
                           styles.button,
-                          (mobile.length !== 10 || !password || loading) && styles.buttonDisabled,
+                          (mobile.length !== 10 || !password || loading || !policyAccepted) && styles.buttonDisabled,
                         ]}
                       >
                         {loading ? (
@@ -696,16 +736,17 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
                   </>
                 ) : (
                   <View style={{ marginTop: 14 }}>
+                    <LoginPolicyConsent checked={policyAccepted} onChange={setPolicyAccepted} />
                     <Pressable
                       onPress={() => void requestOtp()}
-                      disabled={mobile.length !== 10 || loading}
+                      disabled={mobile.length !== 10 || loading || !policyAccepted}
                       style={styles.buttonPress}
                     >
                       <LinearGradient
                         colors={[...colors.gradientButton]}
                         style={[
                           styles.button,
-                          (mobile.length !== 10 || loading) && styles.buttonDisabled,
+                          (mobile.length !== 10 || loading || !policyAccepted) && styles.buttonDisabled,
                         ]}
                       >
                         {loading ? (

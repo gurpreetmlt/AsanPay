@@ -9,7 +9,7 @@ import {
   View,
 } from "react-native";
 import { ChevronDown, Download, X } from "lucide-react-native";
-import { TERMS_BODY, PRIVACY_BODY, buildLegalDownloadText } from "@asanpay/shared-types";
+import { TERMS_BODY, PRIVACY_BODY, buildSignupLegalDownloadText } from "@asanpay/shared-types";
 import { colors } from "../theme/colors";
 import { showAlert } from "./AppAlert";
 
@@ -117,7 +117,7 @@ export function TermsAcceptModal({
     try {
       await Share.share({
         title: "AsanPay Terms and Privacy Policy",
-        message: buildLegalDownloadText(),
+        message: buildSignupLegalDownloadText(),
       });
     } catch {
       showAlert("Share failed", "Could not open the share sheet. Try again.");
@@ -140,7 +140,8 @@ export function TermsAcceptModal({
               <View style={{ flex: 1, paddingRight: 8 }}>
                 <Text style={[styles.title, { color: tokens.txt }]}>Terms & Privacy Policy</Text>
                 <Text style={[styles.subtitle, { color: tokens.mute }]}>
-                  Please read the information below and confirm your agreement.
+                  Please read the information below and confirm your agreement. No eSign is needed — accepting here is
+                  your electronic acceptance.
                 </Text>
               </View>
               <Pressable onPress={handleClose} hitSlop={8}>

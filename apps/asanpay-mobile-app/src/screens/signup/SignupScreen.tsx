@@ -27,6 +27,7 @@ import { IfscBankDetailsFields } from "../../components/IfscBankDetailsFields";
 import { LabelText } from "../../components/RequiredMark";
 import { MobileSignupStepper, MOBILE_SIGNUP_STEPS } from "../../components/MobileSignupStepper";
 import { TermsAcceptModal } from "../../components/TermsAcceptModal";
+import { SIGNUP_POLICY_VERSION } from "@asanpay/shared-types";
 import {
   clearMobileSignupDraft,
   EMPTY_MOBILE_SIGNUP_DRAFT,
@@ -1316,6 +1317,8 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         password: draft.password,
         latitude: draft.latitude,
         longitude: draft.longitude,
+        acceptedPolicyVersion: SIGNUP_POLICY_VERSION,
+        policyChannel: "app",
         ...(needsUpline ? { sponsorUid: draft.sponsorUid } : {}),
       });
       if (!data.success) throw new Error(data.message);
@@ -1835,9 +1838,9 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                       {draft.termsAccepted ? <CheckCircle2 size={14} color="#fff" /> : null}
                     </View>
                     <Text style={{ color: tokens.txt2, flex: 1, fontSize: 13, lineHeight: 18 }}>
-                      I agree to the{" "}
+                      I have read and agree to the{" "}
                       <Text style={{ color: colors.blueFlat, fontWeight: "800" }}>
-                        Terms & Privacy Policy
+                        Terms & Conditions and Privacy Policy
                       </Text>
                     </Text>
                   </Pressable>

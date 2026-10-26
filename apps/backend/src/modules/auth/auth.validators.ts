@@ -31,6 +31,12 @@ export type RegisterInput = z.infer<typeof registerSchema>;
 const deviceIdSchema = z.string().trim().min(8).max(100);
 const deviceLabelSchema = z.string().trim().max(150).optional();
 
+/** Sent when the agent ticked "I have read and agree…" — see ensurePolicyAccepted in auth.service. */
+const policyAcceptanceFields = {
+  acceptedPolicyVersion: z.string().trim().max(40).optional(),
+  policyChannel: z.enum(["web", "app"]).optional(),
+};
+
 /** Agent: 10-digit mobile. Admin: username `admin` only (no OTP, no mobile login). */
 export const loginSchema = z
   .object({
@@ -41,6 +47,7 @@ export const loginSchema = z
     /** After password login, trust this browser/device for MPIN (same as OTP verify). */
     deviceId: deviceIdSchema.optional(),
     deviceLabel: deviceLabelSchema,
+    ...policyAcceptanceFields,
   })
   .superRefine((data, ctx) => {
     if (data.portal === "admin") {
@@ -88,6 +95,7 @@ export const otpVerifySchema = z.object({
    * older/unwired client still completes OTP login; it just won't get MPIN-only trust. */
   deviceId: deviceIdSchema.optional(),
   deviceLabel: deviceLabelSchema,
+  ...policyAcceptanceFields,
 });
 export type OtpVerifyInput = z.infer<typeof otpVerifySchema>;
 
@@ -98,6 +106,7 @@ export const mpinLoginSchema = z.object({
   role: z.enum(AGENT_LOGIN_ROLES).optional(),
   /** Server rejects with DEVICE_NOT_TRUSTED if this device hasn't completed OTP recently. */
   deviceId: deviceIdSchema,
+  ...policyAcceptanceFields,
 });
 export type MpinLoginInput = z.infer<typeof mpinLoginSchema>;
 
@@ -272,6 +281,7 @@ export const signupCompleteSchema = z
     portal: z.enum(AUTH_PORTALS).default("agent"),
     latitude: geoCoordSchema,
     longitude: geoCoordSchema,
+    ...policyAcceptanceFields,
   })
   .superRefine((data, ctx) => {
     if (signupNeedsSponsorUid(data.role) && !data.sponsorUid) {

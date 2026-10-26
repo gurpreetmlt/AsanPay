@@ -1,7 +1,7 @@
 import { randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import { eq, and, isNull, like, sql } from "drizzle-orm";
 import { db } from "../../db/postgres";
-import { users, userHierarchy, refreshTokens } from "../../db/postgres/schema";
+import { users, userHierarchy, refreshTokens, policyAcceptances } from "../../db/postgres/schema";
 import { provisionWalletsForUser } from "../wallet/wallet.service";
 import { hashPassword, comparePassword } from "../../utils/password";
 import { encryptPII } from "../../utils/aes";
@@ -47,7 +47,14 @@ import {
   releaseEmailIfUnused,
 } from "./emailVerify.service";
 import type { AuthPortal, AuthUser, UserRole } from "@asanpay/shared-types";
-import { isAdminRole, isAgentPortalRole, isFundRequestEnabled, ROLE_LABELS } from "@asanpay/shared-types";
+import {
+  isAdminRole,
+  isAgentPortalRole,
+  isFundRequestEnabled,
+  POLICY_VERSION,
+  ROLE_LABELS,
+  SIGNUP_POLICY_VERSION,
+} from "@asanpay/shared-types";
 import { deliverAuthOtp } from "../telegram/link.service";
 import { assertInviteForSignup, markInviteAccepted } from "../invites/invite.service";
 import type {
@@ -256,6 +263,81 @@ function assertPortalAccess(role: UserRole, portal: AuthPortal): void {
   }
 }
 
+function isMissingPolicyTable(err: unknown): boolean {
+  let current: unknown = err;
+  for (let depth = 0; depth < 4 && current; depth++) {
+    if (current instanceof Error && /"?policy_acceptances"? does not exist/i.test(current.message)) return true;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
+}
+
+type PolicyAcceptanceInput = {
+  acceptedPolicyVersion?: string;
+  policyChannel?: "web" | "app";
+};
+
+/**
+ * Agent login gate for Terms & Conditions + Privacy Policy + EULA. Records a new acceptance when
+ * the client sends the current version; otherwise passes only if this user already accepted it.
+ * Called before any OTP is consumed so a 409 never burns the user's OTP.
+ */
+async function recordPolicyAcceptance(
+  userId: string,
+  policyVersion: string,
+  channel: "web" | "app",
+  method: "password" | "otp" | "mpin" | "signup",
+  context: AuthContext,
+): Promise<void> {
+  await db
+    .insert(policyAcceptances)
+    .values({
+      userId,
+      policyVersion,
+      channel,
+      loginMethod: method,
+      ipAddress: context.ipAddress?.slice(0, 64) ?? null,
+      userAgent: context.userAgent?.slice(0, 300) ?? null,
+    })
+    .onConflictDoNothing();
+}
+
+async function ensurePolicyAccepted(
+  row: typeof users.$inferSelect,
+  input: PolicyAcceptanceInput,
+  context: AuthContext,
+  method: "password" | "otp" | "mpin",
+): Promise<void> {
+  if (!isAgentPortalRole(row.role)) return;
+
+  try {
+    if (input.acceptedPolicyVersion === POLICY_VERSION) {
+      await recordPolicyAcceptance(row.id, POLICY_VERSION, input.policyChannel ?? "web", method, context);
+      return;
+    }
+
+    const [existing] = await db
+      .select({ id: policyAcceptances.id })
+      .from(policyAcceptances)
+      .where(and(eq(policyAcceptances.userId, row.id), eq(policyAcceptances.policyVersion, POLICY_VERSION)))
+      .limit(1);
+    if (existing) return;
+  } catch (err) {
+    // Deploy can land before migration 0075 — don't lock every agent out of login meanwhile.
+    if (isMissingPolicyTable(err)) {
+      logger.warn({ userId: row.id }, "[POLICY] policy_acceptances table missing — run db:migrate");
+      return;
+    }
+    throw err;
+  }
+
+  throw new HttpError(
+    409,
+    "Tick “I agree to the Terms & Conditions, Privacy Policy and EULA” to continue. If you don't see the checkbox, update the AsanPay app.",
+    "POLICY_ACCEPTANCE_REQUIRED",
+  );
+}
+
 // Shared by password login and OTP login — both end with the same result: a fresh
 // access/refresh token pair and an audit trail entry, just reached via a different factor.
 async function issueSession(
@@ -429,6 +511,7 @@ export async function loginUser(
   }
 
   assertPortalAccess(row.role, input.portal);
+  await ensurePolicyAccepted(row, input, context, "password");
 
   // Password login on a known browser should establish the same device trust as OTP,
   // otherwise Welcome-back MPIN always fails until the user does OTP once.
@@ -627,6 +710,7 @@ export async function verifyLoginOtp(
   if (input.role) {
     assertExpectedLoginRole(row.role, input.role);
   }
+  await ensurePolicyAccepted(row, input, context, "otp");
 
   await markOtpConsumed(record.id);
 
@@ -740,6 +824,7 @@ export async function loginWithMpin(
     throw new HttpError(401, "Incorrect MPIN", "MPIN_INCORRECT");
   }
 
+  await ensurePolicyAccepted(row, input, context, "mpin");
   await touchDeviceAuth(device.id);
   return issueSession(row, context, "mpin");
 }
@@ -1742,6 +1827,14 @@ export async function completeSignup(
     sponsorUid = sponsorRow.uid;
   }
 
+  if (input.acceptedPolicyVersion !== SIGNUP_POLICY_VERSION) {
+    throw new HttpError(
+      422,
+      "Accept the Terms & Conditions and Privacy Policy to sign up. If you don't see them, update the AsanPay app.",
+      "POLICY_ACCEPTANCE_REQUIRED",
+    );
+  }
+
   await markOtpConsumed(record.id);
 
   const expectedSponsorRole: UserRole =
@@ -1783,6 +1876,12 @@ export async function completeSignup(
     .returning();
   if (!row) throw new HttpError(500, "User created but not found");
   if (invite) await markInviteAccepted(invite.inviteId, row.id);
+  try {
+    await recordPolicyAcceptance(row.id, SIGNUP_POLICY_VERSION, input.policyChannel ?? "web", "signup", context);
+  } catch (err) {
+    if (!isMissingPolicyTable(err)) throw err;
+    logger.warn({ userId: row.id }, "[POLICY] policy_acceptances table missing — run db:migrate");
+  }
 
   await insertAuditLog({
     userId: row.id,

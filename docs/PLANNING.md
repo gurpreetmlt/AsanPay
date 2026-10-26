@@ -7,7 +7,7 @@ One row per feature; details in the section below the table. Newest at the top o
 
 | # | Feature | Surfaces | Size | Status | Design | Task file |
 |---|---------|----------|------|--------|--------|-----------|
-| PL-04 | Terms & Privacy acceptance checkbox at login (per-version record) | Backend, web, mobile | M | planned (T&C v1.1 + Privacy v1.0 docs written 26 Oct) | — | — |
+| PL-04 | Terms, Privacy & EULA acceptance checkbox at login (per-version record) | Backend, web, mobile | M | building (built 26 Oct, migrate `0075` + APK + live test pending) | — | — |
 | PL-03 | Web location via phone QR (AEPS + onboarding) | Backend, web, mobile | M | building (built 26 Oct, migrate `0074` + APK + live test pending) | — | — |
 | PL-02 | Cash Management page (CMS provider cards, in-app CMS, CMS transactions) | Backend, web, mobile | M | building (built 26 Oct, live test pending) | — | — |
 | PL-01 | Linked accounts + role switch (same person, Distributor + Retailer) | Backend, web, mobile, admin | M | design | [Figma prompt](PROMPTS/figma-linked-accounts.md) | — |
@@ -28,10 +28,17 @@ One row per feature; details in the section below the table. Newest at the top o
 - Backend stores acceptance per user + document version (timestamp, method web/app). Once accepted, the checkbox is pre-cleared on future logins until the T&C or Privacy version changes, then shown again.
 - Never store OTP or password in the acceptance record.
 
+**Built (26 Oct)**
+- Docs: T&C v1.1, Privacy v1.0, `AsanPay_EULA_v1.0.docx`. Text shared via `packages/shared-types/legalCopy.ts` (`TERMS_BODY`, `PRIVACY_BODY`, `EULA_BODY`, `POLICY_VERSION`).
+- Checkbox above every login button — web: OTP, Password, Welcome-back MPIN; mobile: OTP, Password. Links open the full text in a modal. Button disabled until ticked; pre-ticked when this device already accepted the current version.
+- Backend `ensurePolicyAccepted` on password / OTP / MPIN login (before OTP is consumed): records `policy_acceptances` (user, version, channel, method, IP, UA) or returns 409 `POLICY_ACCEPTANCE_REQUIRED`. Skips with a warning if migration `0075` hasn't run yet.
+- Mobile MPIN unlock screens send the stored acceptance; on 409 → fall back to OTP / log out.
+- Bump `LEGAL_VERSIONS` in `legalCopy.ts` → every agent must accept again.
+
 **Open decisions**
-- [ ] Fill placeholders in both docs (CIN, Grievance Officer, support hours, official URL / app link, effective date).
+- [ ] Fill placeholders in the docs (CIN, Grievance Officer, support hours, official URL / app link, effective date) — then regenerate `legalCopy.ts`.
 - [ ] Legal review before go-live.
-- [ ] Also show on sign-up (same checkbox) — recommended.
+- [x] Sign-up: popup has Terms + Privacy only (EULA is login-only); `/auth/signup/complete` requires `SIGNUP_POLICY_VERSION` (`T1.1-P1.0`) and records `login_method = signup`. First login still asks for the full `POLICY_VERSION` (adds EULA). No eSign — checkbox acceptance only (T&C 26.1).
 
 ## PL-03 — Web location via phone QR
 

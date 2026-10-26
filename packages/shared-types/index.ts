@@ -406,7 +406,17 @@ function rowLabelTitle(key: string): string {
   return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export { TERMS_BODY, PRIVACY_BODY, buildLegalDownloadText } from "./legalCopy";
+export {
+  TERMS_BODY,
+  PRIVACY_BODY,
+  EULA_BODY,
+  EULA_SUMMARY,
+  LEGAL_VERSIONS,
+  POLICY_VERSION,
+  SIGNUP_POLICY_VERSION,
+  buildLegalDownloadText,
+  buildSignupLegalDownloadText,
+} from "./legalCopy";
 export {
   INDIAN_STATES,
   findIndianState,

@@ -1,7 +1,8 @@
 import { eq } from "drizzle-orm";
 import { db } from "../../db/postgres";
 import { users } from "../../db/postgres/schema";
-import { env } from "../../config/env";
+import { env, isUsableNobleAgentId } from "../../config/env";
+import { nobleLoadAgent } from "../onboarding/nobleAepsSession.service";
 import { HttpError } from "../../utils/httpError";
 import { decryptPII } from "../../utils/aes";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
@@ -32,16 +33,42 @@ export interface AgentAuthStatus {
   outlet: null;
 }
 
-export async function getAgentAuthStatus(userId: string): Promise<AgentAuthStatus> {
+/**
+ * The provider owns the real daily 2FA. When our record says "done today" but the provider's
+ * load_agent says daily2faRequired, our record is stale (different day reset, session expiry):
+ * clear it so the 2FA screen shows and money endpoints block. Never loosens — a provider error
+ * keeps our own record.
+ */
+async function providerStillNeeds2fa(userId: string, nobleUniqueAgentId: string | null): Promise<boolean> {
+  if (env.AEPS_PROVIDER_MODE !== "noble" || !isUsableNobleAgentId(nobleUniqueAgentId)) return false;
+  try {
+    const load = await nobleLoadAgent(userId);
+    return load.live && load.daily2faRequired;
+  } catch {
+    return false;
+  }
+}
+
+export async function getAgentAuthStatus(
+  userId: string,
+  opts: { checkProvider?: boolean } = {},
+): Promise<AgentAuthStatus> {
   const [user] = await db
     .select({
       lastAgentAuthAt: users.lastAgentAuthAt,
       aadhaarNumberEncrypted: users.aadhaarNumberEncrypted,
+      nobleUniqueAgentId: users.nobleUniqueAgentId,
     })
     .from(users)
     .where(eq(users.id, userId));
-  const last = user?.lastAgentAuthAt ?? null;
-  const localVerifiedToday = Boolean(last && indiaDayKey(last) === indiaDayKey(new Date()));
+  let last = user?.lastAgentAuthAt ?? null;
+  let localVerifiedToday = Boolean(last && indiaDayKey(last) === indiaDayKey(new Date()));
+
+  if (localVerifiedToday && opts.checkProvider && (await providerStillNeeds2fa(userId, user?.nobleUniqueAgentId ?? null))) {
+    await db.update(users).set({ lastAgentAuthAt: null, updatedAt: new Date() }).where(eq(users.id, userId));
+    last = null;
+    localVerifiedToday = false;
+  }
 
   let aadhaarLastFour: string | null = null;
   if (user?.aadhaarNumberEncrypted) {

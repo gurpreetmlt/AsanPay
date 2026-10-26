@@ -396,7 +396,8 @@ export async function agentAuth(req: Request, res: Response): Promise<void> {
 
 export async function agentAuthStatus(req: Request, res: Response): Promise<void> {
   if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
-  sendSuccess(res, await getAgentAuthStatus(req.auth.sub));
+  // Screens open with the provider's view of today's 2FA (load_agent daily2faRequired).
+  sendSuccess(res, await getAgentAuthStatus(req.auth.sub, { checkProvider: true }));
 }
 
 export async function createTelegramLinkHandler(req: Request, res: Response): Promise<void> {

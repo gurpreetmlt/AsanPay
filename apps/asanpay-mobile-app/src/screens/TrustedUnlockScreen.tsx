@@ -13,6 +13,7 @@ import { BrandMark } from "../components/BrandMark";
 import { colors } from "../theme/colors";
 import { showAlert } from "../components/AppAlert";
 import { setRememberedLogin } from "../lib/rememberedLogin";
+import { POLICY_PAYLOAD, hasAcceptedCurrentPolicy, isPolicyRequiredError } from "../lib/policyConsent";
 import type { LoginRoleChip } from "./LoginScreen";
 
 interface Props {
@@ -112,7 +113,14 @@ export function TrustedUnlockScreen({ mobile, role, name, onFallbackToOtp }: Pro
     try {
       const { data } = await api.post<ApiResponse<{ user: AuthUser; accessToken: string; refreshToken: string }>>(
         "/auth/mpin/login",
-        { mobile, mpin: pin, portal: "agent", role, deviceId: await getDeviceId() },
+        {
+          mobile,
+          mpin: pin,
+          portal: "agent",
+          role,
+          deviceId: await getDeviceId(),
+          ...((await hasAcceptedCurrentPolicy()) ? POLICY_PAYLOAD : {}),
+        },
       );
       if (!data.success) throw new Error(data.message);
       setAuthHeader(data.data.accessToken);
@@ -124,6 +132,14 @@ export function TrustedUnlockScreen({ mobile, role, name, onFallbackToOtp }: Pro
         lastAuthAt: Date.now(),
       });
     } catch (err) {
+      if (isPolicyRequiredError(err)) {
+        showAlert(
+          "Accept updated terms",
+          "Log in once with OTP or password and tick the box to accept the Terms & Conditions, Privacy Policy and EULA.",
+          [{ text: "Use OTP", style: "primary", onPress: onFallbackToOtp }],
+        );
+        return;
+      }
       const code = (err as { response?: { data?: { code?: string } } })?.response?.data?.code;
       if (code === "DEVICE_NOT_TRUSTED" || code === "MPIN_NOT_SET") {
         showAlert("Verify with OTP", "This device needs a fresh OTP login before PIN unlock works again.", [

@@ -13,6 +13,7 @@ import { BrandMark } from "../components/BrandMark";
 import { colors } from "../theme/colors";
 import { showAlert } from "../components/AppAlert";
 import { syncRememberedLoginProfile } from "../lib/rememberedLogin";
+import { POLICY_PAYLOAD, hasAcceptedCurrentPolicy, isPolicyRequiredError } from "../lib/policyConsent";
 import type { LoginRoleChip } from "./LoginScreen";
 
 interface Props {
@@ -93,7 +94,14 @@ export function AppLockScreen({ onUnlock }: Props) {
     try {
       const { data } = await api.post<ApiResponse<{ accessToken: string; refreshToken: string }>>(
         "/auth/mpin/login",
-        { mobile: user.mobile, mpin: pin, portal: "agent", role: user.role, deviceId: await getDeviceId() },
+        {
+          mobile: user.mobile,
+          mpin: pin,
+          portal: "agent",
+          role: user.role,
+          deviceId: await getDeviceId(),
+          ...((await hasAcceptedCurrentPolicy()) ? POLICY_PAYLOAD : {}),
+        },
       );
       if (!data.success) throw new Error(data.message);
       setAuthHeader(data.data.accessToken);
@@ -108,6 +116,14 @@ export function AppLockScreen({ onUnlock }: Props) {
       });
       onUnlock();
     } catch (err) {
+      if (isPolicyRequiredError(err)) {
+        showAlert(
+          "Accept updated terms",
+          "Log in again and tick the box to accept the Terms & Conditions, Privacy Policy and EULA.",
+        );
+        logout();
+        return;
+      }
       const code = (err as { response?: { data?: { code?: string } } })?.response?.data?.code;
       if (code === "DEVICE_NOT_TRUSTED") {
         showAlert("Incorrect PIN", apiError(err, "Please try again"));

@@ -526,6 +526,13 @@
       "when": 1792500000000,
       "tag": "0074_geo_link_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1792600000000,
+      "tag": "0075_policy_acceptances",
+      "breakpoints": true
     }
   ]
 }

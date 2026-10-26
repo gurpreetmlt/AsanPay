@@ -12,8 +12,9 @@ import {
   Fingerprint,
   KeyRound,
 } from "lucide-react";
-import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
+import { POLICY_VERSION, type ApiResponse, type AuthUser } from "@asanpay/shared-types";
 import { AsanPayLockup } from "@/components/brand/Logo";
+import { LoginPolicyConsent } from "@/components/auth/LoginPolicyConsent";
 import { PromoSlider } from "@/components/promos/PromoSlider";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import api from "@/lib/api";
@@ -23,6 +24,13 @@ import { extractApiError, nextOnboardingPath } from "@/lib/onboarding";
 import { authenticateBiometric, clearBiometricStore, getBiometricStore } from "@/lib/webauthn";
 import { getDeviceId, getDeviceLabel } from "@/lib/deviceId";
 import { clearRememberedLogin, getRememberedLogin, setRememberedLogin, type RememberedLogin } from "@/lib/rememberedLogin";
+import { forgetPolicyAccepted, hasAcceptedCurrentPolicy, rememberPolicyAccepted } from "@/lib/policyConsent";
+
+const POLICY_PAYLOAD = { acceptedPolicyVersion: POLICY_VERSION, policyChannel: "web" } as const;
+
+function isPolicyRequiredError(err: unknown): boolean {
+  return (err as { response?: { data?: { code?: string } } })?.response?.data?.code === "POLICY_ACCEPTANCE_REQUIRED";
+}
 
 interface LoginResponseData {
   user: AuthUser;
@@ -65,6 +73,7 @@ export default function LoginPage() {
   // Gate first paint until the localStorage check below runs, so the page never flashes the
   // full OTP form for a moment before flipping to Welcome-back (or vice versa) right after logout.
   const [checkedRemembered, setCheckedRemembered] = useState(false);
+  const [policyAccepted, setPolicyAccepted] = useState(false);
   const lastOtpSentKey = useRef<string | null>(null);
 
   useEffect(() => {
@@ -73,8 +82,14 @@ export default function LoginPage() {
       setRemembered(saved);
       setUnlockMode(true);
     }
+    setPolicyAccepted(hasAcceptedCurrentPolicy());
     setCheckedRemembered(true);
   }, []);
+
+  function onPolicyRequired() {
+    forgetPolicyAccepted();
+    setPolicyAccepted(false);
+  }
 
   // lastOtpSentKey cleared when mobile shortened — used to avoid stale resend state.
   useEffect(() => {
@@ -85,6 +100,7 @@ export default function LoginPage() {
     setAuth(data.user, { accessToken: data.accessToken, refreshToken: data.refreshToken });
     // Remember this agent so next time (on this trusted browser) we can offer MPIN, not OTP.
     setRememberedLogin({ mobile: data.user.mobile, name: data.user.name });
+    rememberPolicyAccepted();
     toast.success(`Welcome back, ${data.user.name}`);
     router.replace(nextOnboardingPath(data.user) ?? "/dashboard");
   }
@@ -112,7 +128,7 @@ export default function LoginPage() {
 
   async function unlockWithMpin(e?: FormEvent) {
     e?.preventDefault();
-    if (!remembered || mpin.length !== 4) return;
+    if (!remembered || mpin.length !== 4 || !policyAccepted) return;
     setLoading(true);
     try {
       const { data } = await api.post<ApiResponse<LoginResponseData>>("/auth/mpin/login", {
@@ -120,11 +136,17 @@ export default function LoginPage() {
         mpin,
         portal: "agent",
         deviceId: getDeviceId(),
+        ...POLICY_PAYLOAD,
       });
       if (!data.success) throw new Error(data.message);
       setMpinFails(0);
       finishLogin(data.data);
     } catch (err) {
+      if (isPolicyRequiredError(err)) {
+        onPolicyRequired();
+        toast.error(extractApiError(err, "Accept the Terms & Conditions, Privacy Policy and EULA to continue"));
+        return;
+      }
       const status = (err as { response?: { status?: number } })?.response?.status;
       const body = (err as { response?: { data?: { code?: string; message?: string } } })?.response?.data;
       const code = body?.code;
@@ -170,7 +192,7 @@ export default function LoginPage() {
 
   async function handlePasswordLogin(e?: FormEvent) {
     e?.preventDefault();
-    if (!mobile || !password) return;
+    if (!mobile || !password || !policyAccepted) return;
     setLoading(true);
     try {
       const { data } = await api.post<ApiResponse<LoginResponseData>>("/auth/login", {
@@ -179,10 +201,12 @@ export default function LoginPage() {
         portal: "agent",
         deviceId: getDeviceId(),
         deviceLabel: getDeviceLabel(),
+        ...POLICY_PAYLOAD,
       });
       if (!data.success) throw new Error(data.message);
       finishLogin(data.data);
     } catch (err) {
+      if (isPolicyRequiredError(err)) onPolicyRequired();
       toast.error(extractApiError(err, "Login failed"));
     } finally {
       setLoading(false);
@@ -194,6 +218,10 @@ export default function LoginPage() {
     if (e) lastOtpSentKey.current = null;
     if (!mobile || mobile.length !== 10) {
       toast.error("Enter a valid 10-digit mobile");
+      return;
+    }
+    if (!policyAccepted) {
+      toast.error("Tick the box to accept the Terms & Conditions, Privacy Policy and EULA");
       return;
     }
     setLoading(true);
@@ -223,7 +251,7 @@ export default function LoginPage() {
 
   async function verifyOtp(e?: FormEvent) {
     e?.preventDefault();
-    if (!mobile || otp.length !== 6) return;
+    if (!mobile || otp.length !== 6 || !policyAccepted) return;
     setLoading(true);
     try {
       const { data } = await api.post<ApiResponse<LoginResponseData>>("/auth/otp/verify", {
@@ -232,6 +260,7 @@ export default function LoginPage() {
         portal: "agent",
         deviceId: getDeviceId(),
         deviceLabel: getDeviceLabel(),
+        ...POLICY_PAYLOAD,
       });
       if (!data.success) throw new Error(data.message);
 
@@ -244,6 +273,7 @@ export default function LoginPage() {
         finishLogin(data.data);
       }
     } catch (err) {
+      if (isPolicyRequiredError(err)) onPolicyRequired();
       toast.error(extractApiError(err, "Incorrect OTP"));
     } finally {
       setLoading(false);
@@ -558,13 +588,16 @@ export default function LoginPage() {
                 style={{ borderColor: B.border, color: B.blue }}
                 placeholder="••••"
               />
-              <SubmitBtn loading={loading} label="Unlock with MPIN" />
+              <div className="mb-4">
+                <LoginPolicyConsent checked={policyAccepted} onChange={setPolicyAccepted} />
+              </div>
+              <SubmitBtn loading={loading} label="Unlock with MPIN" disabled={!policyAccepted} />
               {getBiometricStore() ? (
                 <PrimaryButton
                   type="button"
                   variant="secondary"
                   showArrow={false}
-                  disabled={loading}
+                  disabled={loading || !policyAccepted}
                   onClick={handleBiometric}
                   className="mt-3 gap-2"
                 >
@@ -661,7 +694,8 @@ export default function LoginPage() {
               >
                 Forgot password?
               </button>
-              <SubmitBtn loading={loading} label="Login" />
+              <LoginPolicyConsent checked={policyAccepted} onChange={setPolicyAccepted} />
+              <SubmitBtn loading={loading} label="Login" disabled={!policyAccepted} />
             </form>
           ) : otpStep === "pin" && pending ? (
             <form onSubmit={verifyPin} className="mb-6 space-y-4">
@@ -739,9 +773,10 @@ export default function LoginPage() {
                   </div>
                 </>
               )}
+              <LoginPolicyConsent checked={policyAccepted} onChange={setPolicyAccepted} />
               <SubmitBtn
                 loading={loading}
-                disabled={otpStep === "mobile" && mobile.length !== 10}
+                disabled={!policyAccepted || (otpStep === "mobile" && mobile.length !== 10)}
                 label={otpStep === "otp" ? "Verify OTP" : "Continue"}
               />
               {otpStep === "mobile" && mobile.length < 10 ? (
@@ -786,7 +821,7 @@ export default function LoginPage() {
             type="button"
             variant="secondary"
             showArrow={false}
-            disabled={loading}
+            disabled={loading || !policyAccepted}
             onClick={handleBiometric}
             className="mb-4 gap-2"
           >
