@@ -89,7 +89,7 @@ One row per feature; details in the section below the table. Newest at the top o
 
 **Plan**
 - **Link:** Dashboard → Linked accounts → Link another account → other account's mobile → OTP on that mobile + that account's MPIN / password.
-- **Same person only:** link allowed only when both accounts have the same KYC PAN / Aadhaar.
+- **Same person only:** link allowed only when both accounts have **verified** KYC and the same verified PAN / Aadhaar (server-side records only, never user-typed). Nobody can link another person's account.
 - **Switch:** header profile menu → "Switch to Retailer" / "Switch to Distributor" → MPIN → card flip animation (current → target account, 700 ms, web + mobile) → fresh session for the other account (no logout).
 - **Unlink:** Settings, any time. Every link / unlink / switch goes to the audit log.
 - Accounts stay separate: own mobile, wallet, ledger account, commission, daily 2FA.
