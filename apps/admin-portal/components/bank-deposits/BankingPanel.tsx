@@ -413,8 +413,7 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
                   onClick={cancelEdit}
                   disabled={saving}
                   aria-label="Close"
-                  className="rounded-lg p-1.5"
-                  style={{ color: B.muted }}
+                  className="popup-close"
                 >
                   <X size={18} />
                 </button>

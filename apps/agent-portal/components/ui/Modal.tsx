@@ -88,8 +88,7 @@ export function Modal({
             type="button"
             onClick={onClose}
             disabled={closeDisabled}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition hover:bg-slate-50 disabled:opacity-40"
-            style={{ borderColor: B.border, color: B.blue }}
+            className="popup-close"
             aria-label="Close"
           >
             <X size={18} />

@@ -8,7 +8,8 @@ import {
   Text,
   View,
 } from "react-native";
-import { ChevronDown, Download, X } from "lucide-react-native";
+import { ChevronDown, Download } from "lucide-react-native";
+import { PopupCloseButton } from "./PopupCloseButton";
 import { TERMS_BODY, PRIVACY_BODY, buildSignupLegalDownloadText } from "@asanpay/shared-types";
 import { colors } from "../theme/colors";
 import { showAlert } from "./AppAlert";
@@ -144,9 +145,7 @@ export function TermsAcceptModal({
                   your electronic acceptance.
                 </Text>
               </View>
-              <Pressable onPress={handleClose} hitSlop={8}>
-                <X size={18} color={tokens.mute} />
-              </Pressable>
+              <PopupCloseButton onPress={handleClose} />
             </View>
             <Text style={[styles.hint, { color: tokens.mute }]}>
               Expand each section, read, then Accept.

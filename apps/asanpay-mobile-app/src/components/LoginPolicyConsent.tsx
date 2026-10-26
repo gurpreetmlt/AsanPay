@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Modal, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
-import { Download, X } from "lucide-react-native";
+import { Download } from "lucide-react-native";
+import { PopupCloseButton } from "./PopupCloseButton";
 import { EULA_BODY, EULA_SUMMARY, PRIVACY_BODY, TERMS_BODY, buildLegalDownloadText } from "@asanpay/shared-types";
 import { colors } from "../theme/colors";
 import { showAlert } from "./AppAlert";
@@ -30,9 +31,7 @@ function LegalDocModal({ doc, onClose }: { doc: LegalDoc | null; onClose: () => 
         <View style={styles.card}>
           <View style={styles.header}>
             <Text style={styles.title}>{current?.title}</Text>
-            <Pressable onPress={onClose} hitSlop={10}>
-              <X size={18} color={colors.textMuted} />
-            </Pressable>
+            <PopupCloseButton onPress={onClose} />
           </View>
           <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 12 }}>
             {doc === "eula" ? <Text style={styles.summary}>{EULA_SUMMARY}</Text> : null}

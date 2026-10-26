@@ -213,7 +213,7 @@ export function BulkBankEntryModal({
               {bank.bankName} ••{bank.last4} · money {direction === "credit" ? "in" : "out"} · total {inr(String(total))}
             </p>
           </div>
-          <button type="button" onClick={onClose} disabled={saving} aria-label="Close" style={{ color: B.muted }}>
+          <button type="button" onClick={onClose} disabled={saving} aria-label="Close" className="popup-close">
             <X size={18} />
           </button>
         </div>

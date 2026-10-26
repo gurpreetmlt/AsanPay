@@ -90,8 +90,7 @@ export function Modal({ title, onClose, children, icon, iconTone = "blue", eyebr
           <button
             type="button"
             onClick={onClose}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition hover:opacity-80"
-            style={{ borderColor: B.border, color: B.blue }}
+            className="popup-close"
             aria-label="Close"
           >
             <X size={18} />

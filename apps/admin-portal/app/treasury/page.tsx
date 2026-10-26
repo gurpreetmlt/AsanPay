@@ -695,8 +695,7 @@ function BankDetailsModal({ bank, onClose }: { bank: BankCard; onClose: () => vo
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5"
-            style={{ color: CARD_MUTED }}
+            className="popup-close"
             aria-label="Close"
           >
             <X size={18} />

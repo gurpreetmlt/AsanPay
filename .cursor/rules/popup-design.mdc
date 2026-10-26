@@ -25,9 +25,10 @@ Every new popup must look like the Linked accounts "Verify account" popup. Never
 5. **Wide content** (> ~6 rows) → `wide` + `sm:grid-cols-2`; must stack to one column below `sm`. Balance column heights — no empty blank area inside a card (use `h-full flex-col` + a bottom summary / helper strip with `mt-auto`).
 6. **Status lists** (checks, steps): row per item with icon + label + status pill; stagger in with `la-check-row` (`animationDelay` 120 ms steps) and end with a summary strip (green all good / red what failed).
 7. **Inputs**: full-width fields like the mobile number field (not digit boxes) unless the design explicitly shows boxes; group related inputs in a `B.bg` panel, side by side on `sm+`.
-8. **Footer**: two equal buttons per `button-color-semantics` (Back = secondary, Cancel = red, Submit = blue, Add/Link = green). Disabled until valid.
-9. **Motion**: panel pop-in (`confirm-modal-panel`), backdrop blur; respect `prefers-reduced-motion` / `AccessibilityInfo.isReduceMotionEnabled()`.
-10. **Copy**: English only, field-specific errors inline (`clear-error-messages`), never show another person's data in a failed check.
+8. **Close (✕)**: always the red tile — web `className="popup-close"` (light red, fills red + rotates on hover), mobile `<PopupCloseButton />`. Never a plain grey ✕.
+9. **Footer**: two equal buttons per `button-color-semantics` (Back = secondary, Cancel = red, Submit = blue, Add/Link = green). Disabled until valid.
+10. **Motion**: panel pop-in (`confirm-modal-panel`), backdrop blur; respect `prefers-reduced-motion` / `AccessibilityInfo.isReduceMotionEnabled()`.
+11. **Copy**: English only, field-specific errors inline (`clear-error-messages`), never show another person's data in a failed check.
 
 ## Parity
 

@@ -438,10 +438,10 @@ export function AadhaarPayConfirmModal({
             type="button"
             onClick={onClose}
             disabled={paying}
-            className="rounded-lg p-1.5 hover:bg-gray-100 disabled:opacity-50"
+            className="popup-close"
             aria-label="Close"
           >
-            <X size={20} className="text-gray-500" />
+            <X size={18} />
           </button>
         </div>
 

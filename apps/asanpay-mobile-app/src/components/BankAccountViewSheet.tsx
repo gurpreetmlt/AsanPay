@@ -1,7 +1,8 @@
 import React from "react";
 import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Clipboard from "@react-native-clipboard/clipboard";
-import { Copy, X } from "lucide-react-native";
+import { Copy } from "lucide-react-native";
+import { PopupCloseButton } from "./PopupCloseButton";
 import { bankLogoUrl, formatSettlementBankCopy } from "../lib/bankLogo";
 import { showAlert } from "./AppAlert";
 import { useTheme } from "../theme/ThemeContext";
@@ -70,9 +71,7 @@ export function BankAccountViewSheet({ bank, onClose }: { bank: BankViewDetails 
               </Text>
               <Text style={[styles.subtitle, { color: tokens.mute }]}>Company bank account details</Text>
             </View>
-            <Pressable onPress={onClose} hitSlop={8} accessibilityLabel="Close">
-              <X size={20} color={tokens.mute} />
-            </Pressable>
+            <PopupCloseButton onPress={onClose} />
           </View>
 
           <ScrollView style={[styles.list, { borderColor: tokens.cardBorder }]}>

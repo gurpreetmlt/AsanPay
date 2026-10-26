@@ -38,7 +38,7 @@ export function LegalDocModal({ doc, onClose }: { doc: LegalDoc; onClose: () => 
           <h2 className="text-base font-bold" style={{ color: B.blue }}>
             {title}
           </h2>
-          <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg p-1" style={{ color: B.muted }}>
+          <button type="button" onClick={onClose} aria-label="Close" className="popup-close">
             <X size={18} />
           </button>
         </div>

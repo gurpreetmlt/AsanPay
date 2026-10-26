@@ -41,10 +41,10 @@ import {
   Plus,
   Search,
   Wallet,
-  X,
   Zap,
 } from "lucide-react-native";
 import { PartnerTopBar } from "../../components/PartnerTopBar";
+import { PopupCloseButton } from "../../components/PopupCloseButton";
 import { LabelText } from "../../components/RequiredMark";
 import { DateRangeFields, toYmd } from "../../components/DateRangeCard";
 import { api, fetchApi } from "../../lib/api";
@@ -299,9 +299,7 @@ function ScreenTop({
       )}
       <Text style={[topStyles.title, { color: tokens.txt }]}>{title}</Text>
       {onClose ? (
-        <Pressable onPress={onClose} hitSlop={10} style={topStyles.iconBtn}>
-          <X size={20} color={tokens.txt} />
-        </Pressable>
+        <PopupCloseButton onPress={onClose} />
       ) : (
         <View style={topStyles.iconBtn} />
       )}
@@ -1334,15 +1332,12 @@ function DepositDateTimeField({
           >
               <View style={styles.dtHeader}>
                 <Text style={[styles.dtTitle, { color: tokens.txt }]}>Deposit date & time</Text>
-                <Pressable
+                <PopupCloseButton
                   onPress={() => {
                     Keyboard.dismiss();
                     setOpen(false);
                   }}
-                  hitSlop={12}
-                >
-                  <X size={20} color={tokens.sub} />
-                </Pressable>
+                />
               </View>
 
               <ScrollView

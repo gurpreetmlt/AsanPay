@@ -12,8 +12,8 @@ import {
   Text,
   View,
 } from "react-native";
-import { X } from "lucide-react-native";
 import { colors } from "../theme/colors";
+import { PopupCloseButton } from "./PopupCloseButton";
 import { POPUP_TONE, PulseIcon, type PopupTone } from "./PulseIcon";
 
 interface Props {
@@ -88,9 +88,7 @@ export function ModalSheet({
               <Text style={styles.title}>{title}</Text>
               {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
             </View>
-            <Pressable onPress={onClose} hitSlop={10} style={styles.close} accessibilityRole="button" accessibilityLabel="Close">
-              <X size={18} color={colors.blue} />
-            </Pressable>
+            <PopupCloseButton onPress={onClose} />
           </View>
           {scroll ? (
             <ScrollView
@@ -131,15 +129,6 @@ const styles = StyleSheet.create({
   eyebrow: { fontSize: 10.5, fontWeight: "800", letterSpacing: 1.2, textTransform: "uppercase", color: colors.blueLight },
   title: { fontSize: 18, fontWeight: "800", color: colors.blue },
   subtitle: { marginTop: 3, fontSize: 12.5, color: colors.textMuted },
-  close: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   bodyScroll: { flexGrow: 0, flexShrink: 1 },
   body: { padding: 20, paddingTop: 16 },
 });

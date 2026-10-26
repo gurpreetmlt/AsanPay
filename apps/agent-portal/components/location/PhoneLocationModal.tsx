@@ -130,7 +130,7 @@ export function PhoneLocationModal({
           <button
             type="button"
             onClick={onClose}
-            className="absolute right-3 top-3 cursor-pointer rounded-lg p-1.5 text-gray-500 hover:bg-gray-100"
+            className="popup-close absolute right-3 top-3"
             aria-label="Close"
           >
             <X size={18} />

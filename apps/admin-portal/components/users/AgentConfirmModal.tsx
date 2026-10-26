@@ -126,8 +126,7 @@ export function AgentConfirmModal({
             aria-label="Close"
             disabled={busy}
             onClick={onClose}
-            className="rounded-lg p-1.5 transition hover:rotate-90 hover:bg-slate-100"
-            style={{ color: B.muted }}
+            className="popup-close"
           >
             <X size={18} />
           </button>

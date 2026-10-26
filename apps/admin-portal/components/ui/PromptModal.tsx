@@ -152,8 +152,7 @@ export function PromptModal({
             data-tooltip="Close"
             disabled={busy}
             onClick={onClose}
-            className="icon-tooltip rounded-lg p-1.5 transition disabled:opacity-40"
-            style={{ color: B.muted }}
+            className="icon-tooltip popup-close"
           >
             <X size={18} />
           </button>

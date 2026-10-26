@@ -285,7 +285,7 @@ export function TermsAcceptModal({
                 your electronic acceptance.
               </p>
             </div>
-            <button type="button" onClick={onCancel} aria-label="Close" className="rounded-lg p-1" style={{ color: B.muted }}>
+            <button type="button" onClick={onCancel} aria-label="Close" className="popup-close">
               <X size={18} />
             </button>
           </div>

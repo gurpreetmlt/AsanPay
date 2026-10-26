@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Geolocation from "@react-native-community/geolocation";
-import { ArrowLeft, Eye, EyeOff, Landmark, Lock, MapPin, Store, UserRound, X } from "lucide-react-native";
+import { ArrowLeft, Eye, EyeOff, Landmark, Lock, MapPin, Store, UserRound } from "lucide-react-native";
 import {
   AEPS_ONBOARDING_STEPS,
   EMPTY_AEPS_ONBOARDING_FORM,
@@ -27,6 +27,7 @@ import {
 } from "@asanpay/shared-types";
 import { api } from "../../lib/api";
 import { showAlert } from "../../components/AppAlert";
+import { PopupCloseButton } from "../../components/PopupCloseButton";
 import { MobileSignupStepper, type MobileStepperStep } from "../../components/MobileSignupStepper";
 import { StatePickerField } from "../../components/StatePickerField";
 import { apiError } from "../../utils/apiError";
@@ -322,14 +323,7 @@ export function NobleAgentOnboardModal({
             <Text style={[styles.title, { color: tokens.txt }]}>AEPS agent onboarding</Text>
             <Text style={[styles.hint, { color: tokens.sub }]}>One-time form for AEPS, Aadhaar Pay, Cash Deposit, and UPI Cash Point</Text>
           </View>
-          <Pressable
-            onPress={onClose}
-            hitSlop={12}
-            style={[styles.closeBtn, { borderColor: tokens.cardBorder }]}
-            accessibilityLabel="Close"
-          >
-            <X size={18} color={tokens.txt} />
-          </Pressable>
+          <PopupCloseButton onPress={onClose} />
         </View>
 
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>

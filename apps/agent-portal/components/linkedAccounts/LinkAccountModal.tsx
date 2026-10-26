@@ -394,7 +394,14 @@ export function LinkAccountModal({
   }
 
   return (
-    <LaDialog eyebrow="Linked accounts" title="Link another account" subtitle="Step 1 of 2" onClose={onClose} closeDisabled={busy}>
+    <LaDialog
+      icon={<Link2 size={22} />}
+      eyebrow="Step 1 of 2"
+      title="Link another account"
+      subtitle="Switch between your accounts without logging out."
+      onClose={onClose}
+      closeDisabled={busy}
+    >
       <form onSubmit={runCheck}>
         <div className="flex items-center gap-3 rounded-2xl p-4" style={{ background: B.bg }}>
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white" style={{ color: B.blueLight }}>

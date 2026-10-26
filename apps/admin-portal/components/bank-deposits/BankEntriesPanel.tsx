@@ -761,8 +761,7 @@ export function BankEntriesPanel({ onOpenReconciliation }: { onOpenReconciliatio
               aria-label="Close"
               disabled={saving}
               onClick={() => setShowForm(false)}
-              className="rounded-lg p-1.5 transition hover:rotate-90 hover:bg-red-50 disabled:opacity-50"
-              style={{ color: RED }}
+              className="popup-close"
             >
               <X size={18} />
             </button>

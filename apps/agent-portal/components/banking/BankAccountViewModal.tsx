@@ -93,7 +93,7 @@ export function BankAccountViewModal({ bank, onClose }: { bank: BankViewDetails;
           <button
             type="button"
             onClick={onClose}
-            className="icon-tooltip rounded-lg p-1.5 text-gray-400 hover:text-gray-600"
+            className="icon-tooltip popup-close"
             aria-label="Close"
             data-tooltip="Close"
           >

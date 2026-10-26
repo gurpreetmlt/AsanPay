@@ -779,7 +779,7 @@ export function FundRequestForm({
                     type="button"
                     onClick={() => setFormOpen(false)}
                     disabled={submitting}
-                    className="icon-tooltip rounded-lg p-1.5 text-gray-400 hover:text-gray-600"
+                    className="icon-tooltip popup-close"
                     aria-label="Close"
                     data-tooltip="Close"
                   >

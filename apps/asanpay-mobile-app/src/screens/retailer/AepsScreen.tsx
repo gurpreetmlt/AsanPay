@@ -31,7 +31,6 @@ import {
   ScanFace,
   Search,
   Star,
-  X,
 } from "lucide-react-native";
 import type { ApiResponse } from "@asanpay/shared-types";
 import { api, fetchApi } from "../../lib/api";
@@ -41,6 +40,7 @@ import { aepsBankLogoUrl } from "../../lib/bankLogo";
 import { createAttemptKeyHolder } from "../../lib/idempotencyKey";
 import { captureFingerprint, listInstalledRdPackages } from "../../lib/rdServiceFingerprint";
 import { OnboardingPendingBanner } from "../../components/OnboardingPendingBanner";
+import { PopupCloseButton } from "../../components/PopupCloseButton";
 import { NobleAgentOnboardModal } from "../shared/NobleAgentOnboardModal";
 import {
   captureFace,
@@ -242,9 +242,7 @@ function DeviceModal({
           <SafeAreaView style={{ flex: 1 }} edges={["top", "bottom"]}>
             <View style={dm.header}>
               <Text style={[dm.headerTitle, { color: colors.blue }]}>Select Biometric Device</Text>
-              <Pressable onPress={handleClose} hitSlop={12} style={dm.closeBtn}>
-                <X size={20} color={tokens.mute} />
-              </Pressable>
+              <PopupCloseButton onPress={handleClose} />
             </View>
 
             <ScrollView style={{ flex: 1 }}>
@@ -510,9 +508,7 @@ function BankModal({
             {/* Header */}
             <View style={ms.header}>
               <Text style={[ms.headerTitle, { color: colors.blue }]}>Select Customer's Bank</Text>
-              <Pressable onPress={handleClose} hitSlop={12} style={ms.closeBtn}>
-                <X size={20} color={tokens.mute} />
-              </Pressable>
+              <PopupCloseButton onPress={handleClose} />
             </View>
 
             {/* Search */}

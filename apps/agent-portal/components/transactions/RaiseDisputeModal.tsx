@@ -63,8 +63,8 @@ export function RaiseDisputeModal({ transactionId, txnRef, onClose, onRaised }: 
               Txn {txnRef}
             </p>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close">
-            <X size={18} style={{ color: B.muted }} />
+          <button type="button" onClick={onClose} aria-label="Close" className="popup-close">
+            <X size={18} />
           </button>
         </div>
 

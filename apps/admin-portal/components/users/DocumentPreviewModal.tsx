@@ -115,8 +115,7 @@ export function DocumentPreviewModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl p-2 transition hover:bg-[var(--admin-secondary)]"
-            style={{ color: B.muted }}
+            className="popup-close"
             aria-label="Close"
           >
             <X className="h-5 w-5" />

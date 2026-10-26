@@ -41,6 +41,7 @@ import { api } from "../../lib/api";
 import { createAttemptKeyHolder } from "../../lib/idempotencyKey";
 import { apiError } from "../../utils/apiError";
 import { showAlert } from "../../components/AppAlert";
+import { PopupCloseButton } from "../../components/PopupCloseButton";
 import { useTheme } from "../../theme/ThemeContext";
 import { colors } from "../../theme/colors";
 import { formatEarnEstimateLine, useEarnEstimate } from "../../hooks/useEarnEstimate";
@@ -1080,16 +1081,12 @@ export function RechargeScreen({ serviceCode, onBack }: Props) {
                     : "Tap a pack to fill amount"}
               </Text>
             </View>
-            <Pressable
+            <PopupCloseButton
               onPress={() => {
                 animateLayout();
                 setPanelOpen(false);
               }}
-              style={[styles.closeBtn, { backgroundColor: "#F1F5F9" }]}
-              hitSlop={10}
-            >
-              <X size={18} color={tokens.sub} />
-            </Pressable>
+            />
           </View>
           <View style={[styles.catalogBtnRow, { backgroundColor: "#fff", paddingTop: 10 }]}>
             <View style={[styles.catalogSegment, { backgroundColor: "#EEF1F6", borderColor: tokens.cardBorder }]}>

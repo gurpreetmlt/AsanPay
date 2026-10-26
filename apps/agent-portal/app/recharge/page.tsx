@@ -1360,8 +1360,7 @@ function RechargeInner() {
                 </div>
                 <button
                   type="button"
-                  className="flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-slate-200"
-                  style={{ background: "#F1F5F9", color: B.muted }}
+                  className="popup-close"
                   onClick={() => setPanelOpen(false)}
                   aria-label="Close"
                 >

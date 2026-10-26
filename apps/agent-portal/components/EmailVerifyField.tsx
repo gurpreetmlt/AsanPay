@@ -272,10 +272,10 @@ export function EmailVerifyField({
               <button
                 type="button"
                 onClick={() => setModalOpen(false)}
-                className="rounded-lg p-1"
+                className="popup-close"
                 aria-label="Close"
               >
-                <X size={18} style={{ color: B.muted }} />
+                <X size={18} />
               </button>
             </div>
 

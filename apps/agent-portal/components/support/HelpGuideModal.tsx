@@ -17,8 +17,8 @@ export function HelpGuideModal({ guide, onClose }: { guide: HelpGuide; onClose: 
               {guide.title}
             </h2>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close">
-            <X size={18} style={{ color: B.muted }} />
+          <button type="button" onClick={onClose} aria-label="Close" className="popup-close">
+            <X size={18} />
           </button>
         </div>
         <ol className="space-y-3">
