@@ -1,9 +1,15 @@
 import { and, eq, desc, sql, lt, or } from "drizzle-orm";
 import { db } from "../../db/postgres";
-import { services, transactions, users, wallets } from "../../db/postgres/schema";
+import { providers, services, transactions, users, wallets } from "../../db/postgres/schema";
 import { transferBetweenWallets, adjustWalletHold } from "../wallet/wallet.ledger";
 import { toPaise, fromPaise } from "../wallet/decimal";
-import { resolveProvidersForService, callProvider, type RoutedProvider } from "../providers/provider.router";
+import {
+  resolveProvidersForService,
+  callProvider,
+  isStubBlocked,
+  type RoutedProvider,
+} from "../providers/provider.router";
+import { getAdapterByCode } from "../providers/provider.registry";
 import type { ProviderOperation, ProviderResult } from "../providers/types";
 import { HttpError } from "../../utils/httpError";
 import { generateTxnRef } from "../../utils/uid";
@@ -546,6 +552,28 @@ export function canRecheckInitiated(createdAt: Date, now: Date): boolean {
 }
 
 // ── Status recheck (pending -> success/failed) ─────────────────────────────
+
+/**
+ * Status must come from the provider that processed the txn — after a rail switch the current
+ * primary has never seen it, and a "not found" there would refund a txn that may have succeeded.
+ */
+async function resolveRecheckProvider(providerId: string | null, serviceCode: string): Promise<RoutedProvider> {
+  if (!providerId) {
+    const routedProviders = await resolveProvidersForService(serviceCode);
+    return routedProviders[0]!;
+  }
+  const [row] = await db.select({ id: providers.id, code: providers.code }).from(providers).where(eq(providers.id, providerId));
+  const adapter = row ? getAdapterByCode(row.code) : null;
+  if (!row || !adapter || isStubBlocked(adapter, env.NODE_ENV, env.ALLOW_STUB_PROVIDERS)) {
+    throw new HttpError(
+      409,
+      "This transaction was processed by a provider that is no longer connected. Contact support to settle it manually.",
+      "TXN_PROVIDER_UNAVAILABLE",
+    );
+  }
+  return { adapter, providerId: row.id, providerServiceCode: `${row.code}:${serviceCode}` };
+}
+
 export async function recheckTxnStatus(actor: Actor, txnRef: string): Promise<TxnOutcome> {
   const [txn] = await db.select().from(transactions).where(eq(transactions.txnRef, txnRef));
   if (!txn) throw new HttpError(404, "Transaction not found", "TXN_NOT_FOUND");
@@ -564,8 +592,7 @@ export async function recheckTxnStatus(actor: Actor, txnRef: string): Promise<Tx
   const [service] = await db.select().from(services).where(eq(services.id, txn.serviceId));
   if (!service) throw new HttpError(500, "Service missing for transaction", "SERVICE_MISSING");
 
-  const routedProviders = await resolveProvidersForService(service.code);
-  const routed = routedProviders[0]!;
+  const routed = await resolveRecheckProvider(txn.providerId, service.code);
 
   const result = await callProvider(routed, "check_status", txn.txnRef, { txnRef: txn.txnRef }, (adapter) =>
     adapter.checkStatus({
