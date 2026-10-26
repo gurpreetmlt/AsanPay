@@ -29,6 +29,7 @@ Same person (same KYC PAN / Aadhaar) links their Distributor + Retailer accounts
 
 ## Phase B — Agent web (`apps/agent-portal`)
 - Header profile menu: linked rows + Switch / Link another account / Manage. Settings → **Linked accounts** page (list, Switch, Unlink red, empty state, Link green). Switch modal: 4 MPIN boxes, Cancel red, Switch account blue, toast `You are now using your Retailer account`. Link flow: mobile → OTP + MPIN → success.
+- Link modal step 1 (owner screenshot): eyebrow `LINKED ACCOUNTS`, title `Link another account`, `Step 1 of 2`; blue info box `Link your other AsanPay account (same PAN / Aadhaar) to switch without logging out.`; field `Mobile number of the other account` with `+91` prefix, helper `We will send an OTP to this number.`; green box `Identity check` / `The PAN or Aadhaar on both accounts must match.`; Cancel (red) · Send OTP (blue).
 
 ## Phase C — Mobile (`apps/asanpay-mobile-app`)
 - Same as Phase B with bottom sheets; switcher from the avatar in the top bar. Same English copy. APK rebuild.
