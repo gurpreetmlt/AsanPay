@@ -1,0 +1,27 @@
+---
+description: Every feature the owner plans in chat goes into docs/PLANNING.md
+alwaysApply: true
+---
+
+# Planning list
+
+Single source of truth for planned work: **`docs/PLANNING.md`**.
+
+## When to add / update
+
+- Owner discusses a new feature and agrees to do it ("isko plan karo", "ye banayenge", "planning list me dalo", asks for a Figma prompt) → add a row **in the same reply**.
+- Status changes (design started, task file written, built, shipped) → update that row's Status / Design / Task file columns.
+- Owner drops an idea → set Status `dropped` with one line why; don't delete the row.
+
+## How
+
+1. Next id `PL-NN`, row at the **top** of the table: feature, surfaces, size (S / M / L / XL), status, design link, task file.
+2. Add a `## PL-NN — Title` section: Problem, Plan (bullets), Open decisions (checkboxes), Notes.
+3. Figma prompt requested → save as `docs/PROMPTS/figma-<slug>.md` and link it in the Design column.
+4. When it becomes buildable → write `docs/TASKS/<slug>.md`, add it to `docs/TASKS/INDEX.md`, set Status `ready`.
+5. Mention in the reply: "Added to planning list as PL-NN."
+
+## Don't
+
+- Don't put competitor names in the planning list or Figma prompts (reference brands stay in chat).
+- Don't start building a `planned` / `design` item unless the owner asks.

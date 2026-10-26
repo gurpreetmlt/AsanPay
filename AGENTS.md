@@ -10,6 +10,7 @@ AI editor token bachane ke liye **poori repo mat padho**. Sirf is file + relevan
 | Login / URLs | [`LOGIN.md`](LOGIN.md) |
 | **AI efficiency (global + project)** | [`docs/AGENT_PLAN.md`](docs/AGENT_PLAN.md) · Claude: [`CLAUDE.md`](CLAUDE.md) |
 | What's next (phases) | [`docs/ROADMAP.md`](docs/ROADMAP.md) |
+| **Planned features (owner)** | [`docs/PLANNING.md`](docs/PLANNING.md) |
 | Done / pending | [`docs/CHECKLIST.md`](docs/CHECKLIST.md) |
 | Task index | [`docs/TASKS/INDEX.md`](docs/TASKS/INDEX.md) |
 | Architecture map | [`docs/PROJECT_MAP.md`](docs/PROJECT_MAP.md) |
