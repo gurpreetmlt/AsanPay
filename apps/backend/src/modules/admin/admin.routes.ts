@@ -207,7 +207,8 @@ adminRouter.get("/kyc", async (req, res) => {
       : "pending";
   const limit = Math.min(Number(req.query.limit) || 50, 200);
   const offset = Number(req.query.offset) || 0;
-  sendSuccess(res, await listKycQueue({ status, limit, offset }));
+  const flagged = req.query.flagged === "1" || req.query.flagged === "true";
+  sendSuccess(res, await listKycQueue({ status, flagged, limit, offset }));
 });
 
 adminRouter.post("/kyc/:id/decide", async (req, res) => {

@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { Eye } from "lucide-react";
+import { AlertTriangle, Eye } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { AlertCountBadge } from "@/components/layout/AlertCountBadge";
 import { useAdminAlerts } from "@/components/layout/AdminAlertsProvider";
 import { Badge } from "@/components/ui/Badge";
 import { TableActionButtons } from "@/components/ui/TableActionButtons";
 import { DocumentPreviewModal } from "@/components/users/DocumentPreviewModal";
+import { DocCheckSummary, type DocCheckLabelMap } from "@/components/users/DocCheckLabels";
 import api, { fetchApi } from "@/lib/api";
 import { B, ROLE_LABEL } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
@@ -27,6 +28,7 @@ interface KycRow {
   hasKycDocs: boolean;
   updatedAt: string;
   createdAt: string;
+  docCheckLabels?: DocCheckLabelMap;
 }
 
 function resolvePreviewSrc(url: string) {
@@ -74,6 +76,7 @@ export default function KycPage() {
   const { badges, refresh: refreshAlerts } = useAdminAlerts();
 
   const [tab, setTab] = useState<KycTab>("pending");
+  const [flaggedOnly, setFlaggedOnly] = useState(false);
   const [rows, setRows] = useState<KycRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
@@ -85,13 +88,15 @@ export default function KycPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setRows(await fetchApi<KycRow[]>("/admin/kyc", { status: tab }));
+      setRows(
+        await fetchApi<KycRow[]>("/admin/kyc", { status: tab, ...(flaggedOnly ? { flagged: "1" } : {}) }),
+      );
     } catch {
       toast.error("Failed to load KYC queue");
     } finally {
       setLoading(false);
     }
-  }, [tab]);
+  }, [tab, flaggedOnly]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -169,6 +174,10 @@ export default function KycPage() {
 
   if (!hydrated || !accessToken) return null;
 
+  const emptyText = flaggedOnly
+    ? `No ${tab} KYC entries with flagged or rejected photos`
+    : `No ${tab} KYC entries`;
+
   return (
     <AdminShell>
       <div className="mx-auto w-full max-w-[1600px] space-y-5 p-4 md:p-6">
@@ -199,6 +208,21 @@ export default function KycPage() {
               {t.key === "pending" ? <AlertCountBadge count={pendingCount} /> : null}
             </button>
           ))}
+          <span className="mx-1 hidden w-px self-stretch sm:block" style={{ background: B.border }} />
+          <button
+            type="button"
+            onClick={() => setFlaggedOnly((v) => !v)}
+            aria-pressed={flaggedOnly}
+            className="inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-sm font-semibold"
+            style={
+              flaggedOnly
+                ? { background: "#FFFBEB", borderColor: "#F59E0B", color: "#B45309" }
+                : { background: "transparent", borderColor: B.border, color: B.muted }
+            }
+          >
+            <AlertTriangle size={15} />
+            Flagged photos
+          </button>
         </div>
 
         {/* Desktop table */}
@@ -232,7 +256,7 @@ export default function KycPage() {
                 {!loading && rows.length === 0 && (
                   <tr>
                     <td colSpan={6} className="px-4 py-8 text-center text-sm" style={{ color: B.muted }}>
-                      No {tab} KYC entries
+                      {emptyText}
                     </td>
                   </tr>
                 )}
@@ -276,6 +300,7 @@ export default function KycPage() {
                         ) : (
                           "Missing"
                         )}
+                        <DocCheckSummary map={r.docCheckLabels} />
                       </td>
                       <td className="px-4 py-3 text-xs whitespace-nowrap" style={{ color: B.muted }}>
                         {new Date(r.updatedAt).toLocaleString("en-IN")}
@@ -317,7 +342,7 @@ export default function KycPage() {
               className="rounded-2xl border bg-white px-4 py-8 text-center text-sm"
               style={{ borderColor: B.border, color: B.muted }}
             >
-              No {tab} KYC entries
+              {emptyText}
             </div>
           )}
           {!loading &&
@@ -390,6 +415,7 @@ export default function KycPage() {
                   )}{" "}
                   · Updated {new Date(r.updatedAt).toLocaleString("en-IN")}
                 </p>
+                <DocCheckSummary map={r.docCheckLabels} />
               </div>
             ))}
         </div>

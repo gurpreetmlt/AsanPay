@@ -8,7 +8,7 @@ One row per feature; details in the section below the table. Newest at the top o
 | # | Feature | Surfaces | Size | Status | Design | Task file |
 |---|---------|----------|------|--------|--------|-----------|
 | PL-06 | KYC face match (selfie vs card photo) + original vs xerox / screen photo / edited image | Backend, web, mobile, admin | L | planned — **remind owner after PL-05 ships** (needs Indian KYC vendor) | — | — |
-| PL-05 | KYC document photo checks, in-house (Aadhaar QR verify, quality, doc type, PAN / Aadhaar data match) | Backend, web, mobile, admin | L | building — chats 1–2 (engine + web/mobile UX) done; chat 3 (admin) next | — | [kyc-doc-checks.md](TASKS/kyc-doc-checks.md) |
+| PL-05 | KYC document photo checks, in-house (Aadhaar QR verify, quality, doc type, PAN / Aadhaar data match) | Backend, web, mobile, admin | L | done (26 Oct) — engine, web/mobile UX, admin labels + Flagged photos filter; device smoke pending | — | [kyc-doc-checks.md](TASKS/kyc-doc-checks.md) |
 | PL-04 | Terms, Privacy & EULA acceptance checkbox at login (per-version record) | Backend, web, mobile | M | building (built 26 Oct, migrate `0075` + APK + live test pending) | — | — |
 | PL-03 | Web location via phone QR (AEPS + onboarding) | Backend, web, mobile | M | building (built 26 Oct, migrate `0074` + APK + live test pending) | — | — |
 | PL-02 | Cash Management page (CMS provider cards, in-app CMS, CMS transactions) | Backend, web, mobile | M | building (built 26 Oct, live test pending) | — | — |

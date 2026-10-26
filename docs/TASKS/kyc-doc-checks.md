@@ -51,7 +51,12 @@ PDF uploads and photos picked before the account exists are not checked.
 - `pass` → green "✓ PAN card verified" / "✓ Aadhaar QR verified".
 - English copy only; same strings on web + mobile.
 
-## Chat 3 — admin
+## Chat 3 — admin ✅ done (26 Oct)
+
+Labels built server-side in `apps/backend/src/modules/kyc/docCheck/docCheckLabels.ts` (raw QR name / DOB
+never reach the browser) → `docCheckLabels` on `GET /admin/users/:id` and each `GET /admin/kyc` row.
+`GET /admin/kyc?flagged=1` = latest submit has any slot `flag` / `fail`. Admin chips:
+`components/users/DocCheckLabels.tsx`. Submits before chat 1 have no `docChecks` → no labels.
 
 - KYC queue + user page: labels per doc: "✓ PAN photo matched", "✓ Aadhaar QR verified", "⚠ Name mismatch (72%)", "✗ Wrong document".
 - Filter in KYC queue: "Flagged photos".
@@ -61,5 +66,5 @@ PDF uploads and photos picked before the account exists are not checked.
 - [ ] Wrong image in PAN field → blocked with clear message (web + mobile)
 - [ ] Real Aadhaar back with clear QR → "Aadhaar QR verified"
 - [ ] Blurry photo → retake message
-- [ ] Admin sees labels; nothing sent to third parties
-- [ ] `docs/CHECKLIST.md` + PLANNING PL-05 → done; then **remind owner about PL-06**
+- [x] Admin sees labels; nothing sent to third parties
+- [x] `docs/CHECKLIST.md` + PLANNING PL-05 → done; then **remind owner about PL-06**

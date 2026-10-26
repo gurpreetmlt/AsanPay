@@ -12,6 +12,7 @@ import {
   nameSimilarity,
   normalizeDob,
 } from "../src/modules/kyc/docCheck/docText";
+import { docCheckLabelsFromMeta } from "../src/modules/kyc/docCheck/docCheckLabels";
 import { laplacianVariance } from "../src/modules/kyc/docCheck/imageQuality";
 
 const PAN_TEXT = `INCOME TAX DEPARTMENT GOVT. OF INDIA
@@ -168,5 +169,54 @@ describe("blur metric", () => {
     const checker = new Uint8Array(w * h).map((_, i) => ((i % w) + Math.floor(i / w)) % 2 ? 255 : 0);
     expect(laplacianVariance(flat, w, h)).toBe(0);
     expect(laplacianVariance(checker, w, h)).toBeGreaterThan(1000);
+  });
+});
+
+describe("admin doc check labels", () => {
+  const at = "2026-10-26T00:00:00.000Z";
+
+  it("labels pass, QR, name mismatch and wrong document", () => {
+    const labels = docCheckLabelsFromMeta({
+      docChecks: {
+        panImage: {
+          status: "pass",
+          docType: "pan",
+          message: "",
+          checkedAt: at,
+          checks: [
+            { id: "docType", label: "PAN card", status: "pass" },
+            { id: "name", label: "Name match", status: "pass", score: 96 },
+          ],
+        },
+        aadhaarBack: {
+          status: "flag",
+          docType: "aadhaar_back",
+          message: "",
+          checkedAt: at,
+          checks: [
+            { id: "aadhaarQr", label: "Aadhaar QR", status: "pass" },
+            { id: "name", label: "Name match", status: "flag", score: 72 },
+          ],
+        },
+        aadhaarFront: {
+          status: "fail",
+          docType: "pan",
+          message: "",
+          checkedAt: at,
+          checks: [{ id: "docType", label: "Aadhaar card", status: "fail" }],
+        },
+      },
+    });
+    expect(labels.panCard).toEqual([{ tone: "pass", text: "✓ PAN photo matched" }]);
+    expect(labels.aadhaarBack).toEqual([
+      { tone: "pass", text: "✓ Aadhaar QR verified" },
+      { tone: "flag", text: "⚠ Name mismatch (72%)" },
+    ]);
+    expect(labels.aadhaarFront).toEqual([{ tone: "fail", text: "✗ Wrong document" }]);
+  });
+
+  it("returns nothing for old submits without docChecks", () => {
+    expect(docCheckLabelsFromMeta({ city: "Jaipur" })).toEqual({});
+    expect(docCheckLabelsFromMeta(null)).toEqual({});
   });
 });

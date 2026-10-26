@@ -27,6 +27,7 @@ import { ConfirmModal, type ConfirmTone } from "@/components/ui/ConfirmModal";
 import { DetailSection, InfoRow } from "@/components/users/DetailSection";
 import { AgentSettlementBanksCard } from "@/components/users/AgentSettlementBanksCard";
 import { KycDocumentGrid } from "@/components/users/KycDocumentGrid";
+import type { DocCheckLabelMap } from "@/components/users/DocCheckLabels";
 import {
   ReasonSelect,
   RESTRICT_REASON_PRESETS,
@@ -152,6 +153,7 @@ interface AgentDetail {
       string | null
     >
   >;
+  docCheckLabels?: DocCheckLabelMap;
   wallets: { walletType: string; balance: string }[];
   parent: { id: string; uid: string | null; name: string | null; role: string | null } | null;
 }
@@ -812,7 +814,11 @@ export default function AgentDetailPage() {
               </DetailSection>
 
               <DetailSection title="KYC Documents" icon={Banknote}>
-                <KycDocumentGrid documents={agent.documents} documentFiles={agent.documentFiles} />
+                <KycDocumentGrid
+                  documents={agent.documents}
+                  documentFiles={agent.documentFiles}
+                  checkLabels={agent.docCheckLabels}
+                />
               </DetailSection>
             </div>
           </div>

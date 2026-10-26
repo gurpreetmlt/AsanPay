@@ -44,6 +44,7 @@ import {
   loadKycPhotoBytes,
   KYC_DOC_KEY_TO_SLOT,
 } from "../kyc/kycDocuments.service";
+import { docCheckLabelsFromMeta } from "../kyc/docCheck/docCheckLabels";
 import { kycDecisionEmailTemplate, kycResetEmailTemplate, notifyUserEmail } from "../../utils/mailer";
 import { findLatestAuditLog, insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import { assertCommissionMonthUnlocked, recordRateChangeEvent } from "../commission/commission.guards";
@@ -204,6 +205,7 @@ export async function getAdminUserDetail(userId: string) {
     },
     documents,
     documentFiles,
+    docCheckLabels: docCheckLabelsFromMeta(meta),
     wallets: walletRows.map((w) => ({
       walletType: w.walletType,
       balance: String(w.balance),
@@ -1065,9 +1067,19 @@ export async function reassignUserParent(
   };
 }
 
-export async function listKycQueue(opts: { status?: KycStatus; limit: number; offset: number }) {
+export async function listKycQueue(opts: {
+  status?: KycStatus;
+  flagged?: boolean;
+  limit: number;
+  offset: number;
+}) {
   const status = opts.status ?? "pending";
-  return db
+  const latestDocChecks = sql<Record<string, unknown> | null>`(
+    select ${auditLogs.metadata} -> 'docChecks' from ${auditLogs}
+    where ${auditLogs.userId} = ${users.id} and ${auditLogs.action} = 'kyc.submit'
+    order by ${auditLogs.createdAt} desc limit 1
+  )`;
+  const rows = await db
     .select({
       id: users.id,
       uid: users.uid,
@@ -1078,12 +1090,28 @@ export async function listKycQueue(opts: { status?: KycStatus; limit: number; of
       hasKycDocs: sql<boolean>`(${users.panNumberEncrypted} is not null and ${users.aadhaarNumberEncrypted} is not null)`,
       updatedAt: users.updatedAt,
       createdAt: users.createdAt,
+      docChecks: latestDocChecks,
     })
     .from(users)
-    .where(and(eq(users.kycStatus, status), sql`${users.role} <> 'admin'`))
+    .where(
+      and(
+        eq(users.kycStatus, status),
+        sql`${users.role} <> 'admin'`,
+        opts.flagged
+          ? sql`exists (
+              select 1 from jsonb_each(coalesce(${latestDocChecks}, '{}'::jsonb)) as d
+              where d.value ->> 'status' in ('flag', 'fail')
+            )`
+          : undefined,
+      ),
+    )
     .orderBy(desc(users.updatedAt))
     .limit(opts.limit)
     .offset(opts.offset);
+  return rows.map(({ docChecks, ...row }) => ({
+    ...row,
+    docCheckLabels: docCheckLabelsFromMeta(docChecks ? { docChecks } : null),
+  }));
 }
 
 export async function decideKyc(adminId: string, userId: string, decision: "verified" | "rejected") {
