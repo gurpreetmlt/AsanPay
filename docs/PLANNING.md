@@ -101,5 +101,6 @@ One row per feature; details in the section below the table. Newest at the top o
 - [ ] Can the same PAN / Aadhaar register two accounts today? (check signup in Phase A) — linking rules follow that answer.
 - [x] Max linked accounts per person: **2** (one Distributor + one Retailer) (26 Oct).
 - [x] MPIN on **every** switch — no grace window (26 Oct).
+- [x] 24-hour re-verify: link stays permanent; first switch after 24 h needs OTP on the target mobile + MPIN, then MPIN only for 24 h (26 Oct).
 
 **Notes:** AEPS (provider agent id + daily 2FA) stays on the Retailer account only. Wallet transfers between the two follow the normal hierarchy rule.

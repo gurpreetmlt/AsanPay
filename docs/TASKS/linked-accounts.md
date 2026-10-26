@@ -9,6 +9,7 @@ Same person (same KYC PAN / Aadhaar) links their Distributor + Retailer accounts
 ## Decisions (owner, 26 Oct)
 - **Max linked:** 2 accounts per person (one Distributor + one Retailer). Third link → `You can link only 2 accounts (one Distributor and one Retailer).`
 - **MPIN on every switch:** yes — no grace window.
+- **24-hour OTP re-verify (owner, 26 Oct):** the link stays permanent (no daily relink). The first switch into an account after its last OTP verify is > 24 h old needs **OTP on that account's mobile + MPIN**; for the next 24 h, MPIN only. Tracked per target account in `linked_accounts.otp_verified_at`. Copy: `For your security, verify with OTP once every 24 hours.`
 - **Self-commission:** yes — linking does not change commission. Every account in the chain earns its normal commission, even when the Retailer is linked to its own upline. No change in the commission code.
 - Accounts stay separate: own mobile, wallet, ledger, commission, daily 2FA. AEPS stays on the Retailer account only.
 
@@ -33,6 +34,14 @@ Same person (same KYC PAN / Aadhaar) links their Distributor + Retailer accounts
 - Either account's KYC not verified → `Complete KYC on both accounts before linking.` Mismatch → `This account belongs to a different PAN / Aadhaar and cannot be linked.`
 - Re-check on every `/switch`: KYC revoked / changed or account blocked → switch refused, link stays visible as `Needs review`.
 - API responses mask PAN / Aadhaar (last 4 only); never return or log full values.
+
+### Security — hardening (owner, 26 Oct)
+- **MPIN lockout:** 5 wrong MPINs on switch → switch locked 30 min for that target (`Too many wrong MPIN attempts. Try again in 30 minutes.`).
+- **Server-side target:** `/switch` loads the link group from the DB; `targetUserId` must be an active, non-unlinked member of the caller's group.
+- **Switch = login:** target must pass the same gates as login (active, not blocked, policy acceptance PL-04). No bypass of daily 2FA / AEPS rules.
+- **Session:** switch issues new tokens for the target and revokes the caller's refresh token. Clients clear all cached data before loading the target dashboard.
+- **OTP limits:** link / re-verify OTP reuses the login OTP limits + expiry.
+- **Notify:** link and unlink send an SMS / notification to both mobiles.
 
 ## Phase B — Agent web (`apps/agent-portal`)
 - Sidebar: **Linked accounts** item (link icon) right above **Settings**; also reachable from Settings. Header profile menu: linked rows + Switch / Link another account / Manage. **Linked accounts** page (list, Switch, Unlink red, empty state, Link green). Switch modal: 4 MPIN boxes, Cancel red, Switch account blue, toast `You are now using your Retailer account`.
