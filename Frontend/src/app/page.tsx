@@ -779,7 +779,7 @@ export default function Home() {
               <ul className="space-y-2.5 font-poppins text-xs text-neutral-500 dark:text-neutral-400">
                 <li className="flex items-center justify-center md:justify-start gap-2">
                   <Phone className="w-3.5 h-3.5 text-neutral-400 dark:text-neutral-500" />
-                  +91 98765 43210 (Toll Free)
+                  +91 97807 77781
                 </li>
                 <li className="flex items-center justify-center md:justify-start gap-2">
                   <Mail className="w-3.5 h-3.5 text-neutral-400 dark:text-neutral-500" />
