@@ -279,6 +279,13 @@ export default function DmtPage() {
     setUiLayout(readDmtUiLayout());
   }, []);
 
+  // Daily 2FA runs on the provider agent id — the onboarding form replaces the 2FA screen.
+  useEffect(() => {
+    if (!user?.aepsOnboardingRequired) return;
+    toast("Complete AEPS agent onboarding to start using Money Transfer");
+    router.replace(`/onboarding/aeps-agent?next=${encodeURIComponent("/dmt")}`);
+  }, [user?.aepsOnboardingRequired, router]);
+
   useEffect(() => {
     let cancelled = false;
     void api
@@ -821,12 +828,14 @@ export default function DmtPage() {
 
   /* ── Loading / agent auth gates ──────────────────────────────────── */
 
-  if (agentAuthReady === null) {
+  if (agentAuthReady === null || user?.aepsOnboardingRequired) {
     return (
       <AppShell>
         <div className="mx-auto flex max-w-xl flex-col items-center gap-3 p-10">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
-          <p className="text-sm font-medium text-gray-500">Checking today&apos;s DMT verification…</p>
+          <p className="text-sm font-medium text-gray-500">
+            {user?.aepsOnboardingRequired ? "Opening AEPS onboarding…" : "Checking today\u2019s DMT verification…"}
+          </p>
         </div>
       </AppShell>
     );

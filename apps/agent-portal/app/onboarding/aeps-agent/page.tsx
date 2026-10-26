@@ -177,9 +177,10 @@ export default function NobleAgentOnboardPage() {
     }
   }
 
+  /** Back to the dashboard — the requested service would only show a 2FA that cannot work yet. */
   function skipForNow() {
     markAepsOnboardingSkipped();
-    router.replace(safeNext());
+    router.replace("/dashboard");
   }
 
   function goBack() {

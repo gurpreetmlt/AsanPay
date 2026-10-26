@@ -4,7 +4,6 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useRouter, useSearchParams } from "next/navigation";
 import clsx from "clsx";
 import { toast } from "react-hot-toast";
-import { wasAepsOnboardingSkipped } from "@/lib/onboarding";
 import {
   ArrowLeft,
   Check,
@@ -506,8 +505,9 @@ function AepsPageInner() {
     ? (liveIinByName[bankKey(selectedBank.name)] ?? selectedBank.iin)
     : "";
 
+  // Daily 2FA needs the provider agent id, so the onboarding form replaces the 2FA screen.
   useEffect(() => {
-    if (!user?.aepsOnboardingRequired || wasAepsOnboardingSkipped()) return;
+    if (!user?.aepsOnboardingRequired) return;
     toast("Complete AEPS agent onboarding to start using AEPS services");
     router.replace(`/onboarding/aeps-agent?next=${encodeURIComponent("/aeps")}`);
   }, [user?.aepsOnboardingRequired, router]);
@@ -854,12 +854,14 @@ function AepsPageInner() {
     return "XXXX XXXX " + digits.slice(-4);
   }
 
-  if (agentAuthReady === null) {
+  if (agentAuthReady === null || user?.aepsOnboardingRequired) {
     return (
       <AppShell>
         <div className="mx-auto flex max-w-xl flex-col items-center gap-3 p-10">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
-          <p className="text-sm font-medium text-gray-500">Checking today&apos;s AePS verification…</p>
+          <p className="text-sm font-medium text-gray-500">
+            {user?.aepsOnboardingRequired ? "Opening AEPS onboarding…" : "Checking today\u2019s AePS verification…"}
+          </p>
         </div>
       </AppShell>
     );

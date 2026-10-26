@@ -80,7 +80,6 @@ export function ServicesScreen() {
   const [activeScreen, setActiveScreen] = useState<"home" | "aeps" | "dmt" | "nepal" | "upi_cp" | "recharge">("home");
   const [aepsServiceCode, setAepsServiceCode] = useState<string | undefined>();
   const [pendingAepsCode, setPendingAepsCode] = useState<string | null>(null);
-  const [onboardingSkipped, setOnboardingSkipped] = useState(false);
   const [showCms, setShowCms] = useState(false);
   const [rechargeServiceCode, setRechargeServiceCode] = useState<"MOBILE_PREPAID" | "DTH">("MOBILE_PREPAID");
 
@@ -142,16 +141,14 @@ export function ServicesScreen() {
       );
       return;
     }
-    if (AEPS_CODES.has(code) || UPI_CP_CODES.has(code)) {
-      if (user.aepsOnboardingRequired && !onboardingSkipped) {
+    // These need the provider agent id: daily 2FA (and AEPS itself) fail without onboarding,
+    // so the onboarding form opens instead of the service until it is done.
+    if (AEPS_CODES.has(code) || UPI_CP_CODES.has(code) || DMT_CODES.has(code)) {
+      if (user.aepsOnboardingRequired) {
         setPendingAepsCode(code);
         return;
       }
       openAepsFamily(code);
-      return;
-    }
-    if (DMT_CODES.has(code)) {
-      setActiveScreen("dmt");
       return;
     }
     if (NEPAL_CODES.has(code)) {
@@ -171,6 +168,10 @@ export function ServicesScreen() {
   }
 
   function openAepsFamily(code: string) {
+    if (DMT_CODES.has(code)) {
+      setActiveScreen("dmt");
+      return;
+    }
     if (UPI_CP_CODES.has(code)) {
       setActiveScreen("upi_cp");
       return;
@@ -185,11 +186,9 @@ export function ServicesScreen() {
     if (code && !useAuthStore.getState().user?.aepsOnboardingRequired) openAepsFamily(code);
   }
 
+  /** Skip stays on Home — opening the service would only show a 2FA that cannot work yet. */
   function skipAepsOnboarding() {
-    const code = pendingAepsCode;
     setPendingAepsCode(null);
-    setOnboardingSkipped(true);
-    if (code) openAepsFamily(code);
   }
 
   function backToHome() {
