@@ -13,6 +13,8 @@ interface Props {
   leading?: React.ReactNode;
   /** Optional brand lockup above the title row (YouTube-style logo). */
   brand?: React.ReactNode;
+  /** Optional element on the brand row, opposite the logo (e.g. support call pill). */
+  brandRight?: React.ReactNode;
   /** Optional icon row rendered top-right, alongside the title/avatar block. */
   topRight?: React.ReactNode;
   children?: React.ReactNode;
@@ -27,6 +29,7 @@ export function ScreenHeader({
   avatarLetter,
   leading,
   brand,
+  brandRight,
   topRight,
   children,
   style,
@@ -41,7 +44,14 @@ export function ScreenHeader({
       <View style={styles.glowTop} pointerEvents="none" />
       <View style={styles.rail} pointerEvents="none" />
 
-      {brand ? <View style={styles.brandSlot}>{brand}</View> : null}
+      {brand && brandRight ? (
+        <View style={styles.brandRow}>
+          <View style={[styles.brandSlot, styles.brandSlotInRow]}>{brand}</View>
+          {brandRight}
+        </View>
+      ) : brand ? (
+        <View style={styles.brandSlot}>{brand}</View>
+      ) : null}
 
       {variant === "profile" ? (
         <View style={styles.profile}>
@@ -130,6 +140,14 @@ const styles = StyleSheet.create({
     overflow: "visible",
     zIndex: 2,
   },
+  brandRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+    zIndex: 2,
+  },
+  brandSlotInRow: { marginBottom: 0, flexShrink: 1 },
   textBlock: { marginBottom: 2, flexShrink: 1 },
   eyebrow: {
     color: colors.onGradientMuted,

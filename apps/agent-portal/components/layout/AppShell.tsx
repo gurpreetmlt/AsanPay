@@ -45,6 +45,7 @@ import { formatInr, walletDisplayName } from "@/lib/walletLabels";
 import { maskBalance, useBalanceVisibility } from "@/lib/balanceVisibility";
 import { CHILD_ROLE, ROLE_LABEL, isRetailerRole } from "@/lib/roles";
 import { AlertCountBadge } from "@/components/layout/AlertCountBadge";
+import { SupportCallLink } from "@/components/layout/SupportCallLink";
 
 const ACTION_QUEUE_POLL_MS = 60_000;
 const LOW_BALANCE_THRESHOLD = 200;
@@ -831,6 +832,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               onRefresh={() => void loadWallets()}
               lowMain={lowMain}
             />
+            <SupportCallLink />
             <div className="relative" ref={notifRef}>
               <button
                 type="button"

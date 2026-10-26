@@ -22,6 +22,7 @@ import { UpiCashPointScreen } from "./UpiCashPointScreen";
 import { RechargeScreen } from "./RechargeScreen";
 import { showAlert } from "../../components/AppAlert";
 import { BrandLockup } from "../../components/BrandMark";
+import { SupportCallButton } from "../../components/SupportCallButton";
 import { PageEnter } from "../../components/PageEnter";
 import { TodayEarningsCard } from "../../components/TodayEarningsCard";
 import { PanMissingBanner } from "../../components/PanMissingBanner";
@@ -219,6 +220,7 @@ export function ServicesScreen() {
       <ScreenHeader
         variant="profile"
         brand={<BrandLockup iconSize={44} animate light showTagline />}
+        brandRight={<SupportCallButton />}
         avatarLetter={initials || firstName.charAt(0).toUpperCase()}
         eyebrow={greetingName(user.name)}
         title={user.name}

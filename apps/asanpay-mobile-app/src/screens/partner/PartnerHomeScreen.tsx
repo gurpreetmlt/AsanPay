@@ -34,6 +34,7 @@ import { PageEnter } from "../../components/PageEnter";
 import { TodayEarningsCard } from "../../components/TodayEarningsCard";
 import { PanMissingBanner } from "../../components/PanMissingBanner";
 import { BrandLockup } from "../../components/BrandMark";
+import { SupportCallButton } from "../../components/SupportCallButton";
 import { FundRequestModal } from "../shared/FundRequestScreen";
 import { InviteModal, type InviteResult } from "./NetworkScreen";
 
@@ -171,6 +172,7 @@ export function PartnerHomeScreen() {
                 </Text>
               </View>
             </View>
+            <SupportCallButton />
             <Pressable style={styles.bellBtn} onPress={() => comingSoon("Notifications")}>
               <Bell size={18} color="#fff" strokeWidth={2.1} />
               <View style={styles.bellDot} />
