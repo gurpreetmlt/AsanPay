@@ -281,7 +281,7 @@ export function LinkedAccountsHost({ view, onClose }: { view: LinkedAccountsView
               <View style={{ flex: 1 }}>
                 <Text style={styles.bannerTitle}>How account linking works</Text>
                 <Text style={[laStyles.muted, { marginTop: 2 }]}>
-                  Verify your other mobile number once. We match your PAN and Aadhaar, then ask for MPIN whenever you
+                  We match your PAN, Aadhaar and name, verify your other mobile once, then ask for MPIN whenever you
                   switch. Once every 24 hours we also ask for an OTP. Wallets, ledgers, commission and daily 2FA stay
                   separate for each account.
                 </Text>

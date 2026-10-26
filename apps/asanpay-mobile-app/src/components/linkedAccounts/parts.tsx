@@ -1,5 +1,5 @@
 import React from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import type { UserRole } from "@asanpay/shared-types";
 import { initialsOf, roleTheme } from "../../lib/linkedAccounts";
@@ -69,6 +69,39 @@ export function LaButton({
   );
 }
 
+/** Single numeric field (same look as the mobile number field) for OTP / MPIN. */
+export function CodeField({
+  length,
+  value,
+  onChange,
+  masked = false,
+  autoFocus = false,
+  placeholder,
+}: {
+  length: number;
+  value: string;
+  onChange: (next: string) => void;
+  masked?: boolean;
+  autoFocus?: boolean;
+  placeholder: string;
+}) {
+  return (
+    <TextInput
+      value={value}
+      onChangeText={(t) => onChange(t.replace(/\D/g, "").slice(0, length))}
+      keyboardType="number-pad"
+      maxLength={length}
+      secureTextEntry={masked}
+      autoFocus={autoFocus}
+      placeholder={placeholder}
+      placeholderTextColor={colors.textLight}
+      textContentType={masked ? "none" : "oneTimeCode"}
+      importantForAutofill={masked ? "no" : "auto"}
+      style={[styles.codeField, value ? styles.codeFieldFilled : null]}
+    />
+  );
+}
+
 export function InlineError({ message }: { message: string | null }) {
   if (!message) return null;
   return <Text style={styles.error}>{message}</Text>;
@@ -105,4 +138,14 @@ const styles = StyleSheet.create({
   chip: { alignSelf: "flex-start", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, marginTop: 4 },
   chipText: { fontSize: 11, fontWeight: "700" },
   error: { marginTop: 10, fontSize: 12.5, fontWeight: "600", color: colors.danger },
+  codeField: {
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    fontSize: 16,
+    color: colors.blue,
+  },
+  codeFieldFilled: { fontWeight: "800", letterSpacing: 6 },
 });

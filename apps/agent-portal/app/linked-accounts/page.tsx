@@ -272,7 +272,7 @@ export default function LinkedAccountsPage() {
                 How account linking works
               </p>
               <p className="text-xs" style={{ color: B.muted }}>
-                Verify your other mobile number once. We match your PAN and Aadhaar, then ask for MPIN whenever you switch.
+                We match your PAN, Aadhaar and name, verify your other mobile once, then ask for MPIN whenever you switch.
               </p>
             </div>
             <span className="hidden shrink-0 items-center gap-1 text-xs font-semibold sm:inline-flex" style={{ color: B.blue }}>
@@ -281,8 +281,8 @@ export default function LinkedAccountsPage() {
           </button>
           {howOpen ? (
             <ol className="mt-4 list-decimal space-y-1.5 pl-16 text-xs" style={{ color: B.muted }}>
-              <li>Enter the mobile number of your other AsanPay account and confirm the OTP sent to it.</li>
-              <li>Enter that account&apos;s MPIN. Both accounts must have verified KYC with the same PAN and Aadhaar.</li>
+              <li>Enter the mobile number of your other AsanPay account. We check that its verified PAN, Aadhaar and name match yours.</li>
+              <li>Confirm the OTP sent to that number and enter that account&apos;s MPIN.</li>
               <li>Switch any time with that account&apos;s MPIN. Once every 24 hours we also ask for an OTP.</li>
               <li>Wallets, ledgers, commission and daily 2FA stay separate for each account.</li>
             </ol>

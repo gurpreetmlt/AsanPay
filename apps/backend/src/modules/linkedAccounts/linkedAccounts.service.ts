@@ -27,6 +27,8 @@ import {
   ROLE_LABELS,
   isAgentPortalRole,
   type AuthUser,
+  type LinkCheckResult,
+  type LinkIdentityChecks,
   type LinkedAccountSummary,
   type LinkedAccountsResponse,
 } from "@asanpay/shared-types";
@@ -44,6 +46,8 @@ const SWITCH_LOCK_MS = 30 * 60 * 1000;
 const MSG = {
   kycRequired: "Complete KYC on both accounts before linking.",
   identityMismatch: "This account belongs to a different PAN / Aadhaar and cannot be linked.",
+  nameMismatch:
+    "PAN and Aadhaar match, but the name on the other account is different. Contact support to correct the name, then try again.",
   limit: `You can link only ${MAX_LINKED_ACCOUNTS} accounts (one Distributor and one Retailer).`,
   otpEvery24h: "For your security, verify with OTP once every 24 hours.",
   notLinked: "This account is not linked to you.",
@@ -85,6 +89,69 @@ function isSamePerson(a: UserRow, b: UserRow): boolean {
   const aadhaarB = safeDecrypt(b.aadhaarNumberEncrypted)?.replace(/\D/g, "");
   if (!panA || !panB || !aadhaarA || !aadhaarB) return false;
   return panA === panB && aadhaarA === aadhaarB;
+}
+
+/** Case / punctuation / word-order insensitive ("Singh, Gurpreet" = "Gurpreet Singh"). */
+function normalizeName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .sort()
+    .join(" ");
+}
+
+/** Name is compared only once PAN + Aadhaar match, so a stranger's name is never tested. */
+function identityChecks(a: UserRow, b: UserRow): LinkIdentityChecks {
+  const panA = safeDecrypt(a.panNumberEncrypted)?.trim().toUpperCase();
+  const panB = safeDecrypt(b.panNumberEncrypted)?.trim().toUpperCase();
+  const aadhaarA = safeDecrypt(a.aadhaarNumberEncrypted)?.replace(/\D/g, "");
+  const aadhaarB = safeDecrypt(b.aadhaarNumberEncrypted)?.replace(/\D/g, "");
+  const pan = Boolean(panA && panB && panA === panB);
+  const aadhaar = Boolean(aadhaarA && aadhaarB && aadhaarA === aadhaarB);
+  const name = pan && aadhaar && normalizeName(a.name) === normalizeName(b.name);
+  return { pan, aadhaar, name };
+}
+
+type LinkBlock = { status: number; message: string; code: string; reason: string };
+
+/** First rule that stops `caller` linking `target`, in the order the user should fix them. */
+async function linkBlocker(caller: UserRow, target: UserRow): Promise<LinkBlock | null> {
+  if (!target.isActive) {
+    return { status: 403, message: "The other account is inactive. Contact support.", code: "ACCOUNT_INACTIVE", reason: "inactive" };
+  }
+  if (!hasVerifiedKyc(caller) || !hasVerifiedKyc(target)) {
+    return { status: 409, message: MSG.kycRequired, code: "KYC_REQUIRED", reason: "kyc_not_verified" };
+  }
+  const checks = identityChecks(caller, target);
+  if (!checks.pan || !checks.aadhaar) {
+    return { status: 403, message: MSG.identityMismatch, code: "IDENTITY_MISMATCH", reason: "identity_mismatch" };
+  }
+  if (!checks.name) {
+    return { status: 403, message: MSG.nameMismatch, code: "NAME_MISMATCH", reason: "name_mismatch" };
+  }
+  if (target.role === caller.role) {
+    const label = ROLE_LABELS[caller.role] ?? caller.role;
+    return {
+      status: 422,
+      message: `Both accounts are ${label} accounts. You can link only accounts with different roles (for example one Distributor and one Retailer).`,
+      code: "SAME_ROLE",
+      reason: "same_role",
+    };
+  }
+  if (await findLink(target.id)) {
+    return {
+      status: 409,
+      message: "This account is already linked to another account. Unlink it there first.",
+      code: "TARGET_ALREADY_LINKED",
+      reason: "target_linked",
+    };
+  }
+  if (await findLink(caller.id)) {
+    return { status: 409, message: MSG.limit, code: "LINK_LIMIT", reason: "limit" };
+  }
+  return null;
 }
 
 function isUniqueViolation(err: unknown): boolean {
@@ -266,11 +333,8 @@ async function checkLinkOtp(
   return record;
 }
 
-export async function startLink(
-  callerId: string,
-  input: LinkStartInput,
-  context: AuthContext,
-): Promise<{ message: string; expiresInSeconds: number; mobileMasked: string; otp?: string }> {
+/** Caller-side gates + target lookup shared by /link/check and /link/start. */
+async function loadLinkTarget(callerId: string, mobile: string): Promise<{ caller: UserRow; target: UserRow }> {
   const caller = await loadActiveAgent(callerId);
   if (!hasVerifiedKyc(caller)) {
     throw new HttpError(409, MSG.kycRequired, "KYC_REQUIRED");
@@ -278,7 +342,7 @@ export async function startLink(
   if (await findLink(callerId)) {
     throw new HttpError(409, MSG.limit, "LINK_LIMIT");
   }
-  if (input.mobile === caller.mobile) {
+  if (mobile === caller.mobile) {
     throw new HttpError(
       422,
       "Enter the mobile number of your other AsanPay account, not this one.",
@@ -286,17 +350,70 @@ export async function startLink(
     );
   }
 
-  const [target] = await db.select().from(users).where(eq(users.mobile, input.mobile));
+  const [target] = await db.select().from(users).where(eq(users.mobile, mobile));
   if (!target) {
     throw new HttpError(404, "This mobile number is not registered on AsanPay.", "MOBILE_NOT_REGISTERED");
   }
   if (!isAgentPortalRole(target.role)) {
     throw new HttpError(422, "This mobile number cannot be linked.", "LINK_NOT_ALLOWED");
   }
-  if (!target.isActive) {
-    throw new HttpError(403, "The other account is inactive. Contact support.", "ACCOUNT_INACTIVE");
+  return { caller, target };
+}
+
+/**
+ * Verify popup data (before any OTP). Details of the other account are returned only when PAN and
+ * Aadhaar match the caller's own verified KYC, so a stranger's name / UID is never exposed.
+ */
+export async function checkLink(
+  callerId: string,
+  input: LinkStartInput,
+  context: AuthContext,
+): Promise<LinkCheckResult> {
+  const { caller, target } = await loadLinkTarget(callerId, input.mobile);
+  const block = await linkBlocker(caller, target);
+  const identityOnly = block?.code === "IDENTITY_MISMATCH" || block?.code === "NAME_MISMATCH";
+  if (block && !identityOnly) {
+    throw new HttpError(block.status, block.message, block.code);
   }
 
+  const checks = identityChecks(caller, target);
+  const samePerson = checks.pan && checks.aadhaar;
+  await insertAuditLog({
+    userId: caller.id,
+    action: "linked_accounts.link_checked",
+    entityType: "user",
+    entityId: samePerson ? target.id : null,
+    ipAddress: context.ipAddress,
+    userAgent: context.userAgent,
+    metadata: { pan: checks.pan, aadhaar: checks.aadhaar, name: checks.name },
+  });
+
+  return {
+    eligible: !block,
+    message: block?.message ?? null,
+    checks,
+    account: samePerson
+      ? {
+          name: target.name,
+          uid: target.uid,
+          role: target.role,
+          roleLabel: ROLE_LABELS[target.role] ?? target.role,
+          mobileMasked: maskMobile(target.mobile),
+          kycStatus: "verified",
+        }
+      : null,
+  };
+}
+
+/** OTP goes out only after the full identity match (no OTP to a stranger's mobile). */
+export async function startLink(
+  callerId: string,
+  input: LinkStartInput,
+  context: AuthContext,
+): Promise<{ message: string; expiresInSeconds: number; mobileMasked: string; otp?: string }> {
+  const { caller, target } = await loadLinkTarget(callerId, input.mobile);
+  const block = await linkBlocker(caller, target);
+  if (block) throw new HttpError(block.status, block.message, block.code);
   return sendLinkOtp(caller, target, "link", context);
 }
 
@@ -335,8 +452,9 @@ export async function verifyLink(
 
   await markOtpConsumed(record.id);
 
-  // Identity rules run only after OTP + MPIN prove ownership of the other account.
-  const fail = async (status: number, message: string, code: string, reason: string): Promise<never> => {
+  // Re-run every rule — KYC / identity can change between the Verify popup and this call.
+  const block = await linkBlocker(caller, target);
+  if (block) {
     await insertAuditLog({
       userId: caller.id,
       action: "linked_accounts.link_failed",
@@ -344,32 +462,10 @@ export async function verifyLink(
       entityId: target.id,
       ipAddress: context.ipAddress,
       userAgent: context.userAgent,
-      metadata: { reason },
+      metadata: { reason: block.reason },
     });
-    throw new HttpError(status, message, code);
-  };
-
-  if (!target.isActive) await fail(403, "The other account is inactive. Contact support.", "ACCOUNT_INACTIVE", "inactive");
-  if (target.role === caller.role) {
-    const label = ROLE_LABELS[caller.role] ?? caller.role;
-    await fail(
-      422,
-      `Both accounts are ${label} accounts. You can link only accounts with different roles (for example one Distributor and one Retailer).`,
-      "SAME_ROLE",
-      "same_role",
-    );
+    throw new HttpError(block.status, block.message, block.code);
   }
-  if (!hasVerifiedKyc(caller) || !hasVerifiedKyc(target)) await fail(409, MSG.kycRequired, "KYC_REQUIRED", "kyc_not_verified");
-  if (!isSamePerson(caller, target)) await fail(403, MSG.identityMismatch, "IDENTITY_MISMATCH", "identity_mismatch");
-  if (await findLink(target.id)) {
-    await fail(
-      409,
-      "This account is already linked to another account. Unlink it there first.",
-      "TARGET_ALREADY_LINKED",
-      "target_linked",
-    );
-  }
-  if (await findLink(caller.id)) await fail(409, MSG.limit, "LINK_LIMIT", "limit");
 
   const now = new Date();
   const groupId = randomUUID();

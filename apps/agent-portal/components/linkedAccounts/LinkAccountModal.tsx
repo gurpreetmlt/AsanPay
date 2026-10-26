@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
-import { CheckCircle2, Link2, ShieldCheck } from "lucide-react";
-import type { LinkedAccountSummary, LinkedAccountsResponse } from "@asanpay/shared-types";
+import { useState, type FormEvent, type ReactNode } from "react";
+import { CheckCircle2, Link2, ShieldCheck, XCircle } from "lucide-react";
+import type { LinkCheckResult, LinkedAccountSummary, LinkedAccountsResponse } from "@asanpay/shared-types";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { B } from "@/lib/brand";
 import { extractApiError } from "@/lib/onboarding";
-import { startLink, verifyLink, type OtpSent } from "@/lib/linkedAccounts";
+import { checkLink, startLink, verifyLink, type OtpSent } from "@/lib/linkedAccounts";
 import { LaDialog } from "./LaDialog";
-import { AccountAvatar, DigitBoxes, InlineError, RoleChip, formatCountdown, useCountdown } from "./parts";
+import { AccountAvatar, CodeField, InlineError, RoleChip, formatCountdown, useCountdown } from "./parts";
 
 const RESEND_SECONDS = 30;
 
@@ -24,6 +24,38 @@ function AccountMini({ account }: { account: LinkedAccountSummary }) {
   );
 }
 
+function MatchValue({ ok }: { ok: boolean }) {
+  return ok ? (
+    <span className="inline-flex items-center gap-1 font-bold" style={{ color: B.greenDark }}>
+      <CheckCircle2 size={14} /> Matched
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1 font-bold" style={{ color: "#DC2626" }}>
+      <XCircle size={14} /> Not matched
+    </span>
+  );
+}
+
+/** Label / value table — same layout as the admin user-detail popups. */
+function DetailTable({ rows }: { rows: Array<{ label: string; value: ReactNode }> }) {
+  return (
+    <div className="overflow-hidden rounded-2xl border" style={{ borderColor: "rgba(11,42,154,0.12)" }}>
+      {rows.map((r, i) => (
+        <div
+          key={r.label}
+          className="grid grid-cols-[110px_1fr] items-center gap-3 px-4 py-2.5 text-xs"
+          style={{ borderTop: i === 0 ? undefined : "1px solid rgba(11,42,154,0.08)" }}
+        >
+          <span style={{ color: B.muted }}>{r.label}</span>
+          <span className="font-bold" style={{ color: B.blue }}>
+            {r.value}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function LinkAccountModal({
   onClose,
   onLinked,
@@ -33,8 +65,9 @@ export function LinkAccountModal({
   onLinked: (res: LinkedAccountsResponse) => void;
   onSwitchNow: (target: LinkedAccountSummary) => void;
 }) {
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<"mobile" | "verify" | "done">("mobile");
   const [mobile, setMobile] = useState("");
+  const [check, setCheck] = useState<LinkCheckResult | null>(null);
   const [otp, setOtp] = useState("");
   const [mpin, setMpin] = useState("");
   const [sent, setSent] = useState<OtpSent | null>(null);
@@ -45,7 +78,7 @@ export function LinkAccountModal({
 
   const mobileValid = /^[6-9]\d{9}$/.test(mobile);
 
-  async function sendOtp(e?: FormEvent) {
+  async function runCheck(e?: FormEvent) {
     e?.preventDefault();
     if (!mobileValid) {
       setError("Enter a valid 10-digit mobile");
@@ -53,12 +86,29 @@ export function LinkAccountModal({
     }
     setBusy(true);
     setError(null);
+    let result: LinkCheckResult;
+    try {
+      result = await checkLink(mobile);
+      setCheck(result);
+      setStep("verify");
+    } catch (err) {
+      setError(extractApiError(err, "Could not verify this account. Try again."));
+      setBusy(false);
+      return;
+    }
+    setBusy(false);
+    // OTP goes out automatically once every detail matched.
+    if (result.eligible) await sendOtp();
+  }
+
+  async function sendOtp() {
+    setBusy(true);
+    setError(null);
     try {
       const res = await startLink(mobile);
       setSent(res);
       setOtp(res.otp ?? "");
       countdown.start();
-      setStep(2);
     } catch (err) {
       setError(extractApiError(err, "Could not send the OTP. Try again."));
     } finally {
@@ -75,7 +125,7 @@ export function LinkAccountModal({
       const res = await verifyLink({ mobile, otp, mpin });
       setLinked(res);
       onLinked(res);
-      setStep(3);
+      setStep("done");
     } catch (err) {
       setError(extractApiError(err, "Could not link the account. Try again."));
       setMpin("");
@@ -84,7 +134,16 @@ export function LinkAccountModal({
     }
   }
 
-  if (step === 3 && linked) {
+  function goBack() {
+    setStep("mobile");
+    setCheck(null);
+    setSent(null);
+    setError(null);
+    setOtp("");
+    setMpin("");
+  }
+
+  if (step === "done" && linked) {
     const current = linked.accounts.find((a) => a.isCurrent);
     const other = linked.accounts.find((a) => !a.isCurrent);
     return (
@@ -113,50 +172,79 @@ export function LinkAccountModal({
     );
   }
 
-  if (step === 2) {
+  if (step === "verify" && check) {
+    const a = check.account;
+    const rows = [
+      ...(a
+        ? [
+            { label: "Name", value: a.name },
+            { label: "Mobile", value: a.mobileMasked },
+            { label: "UID", value: a.uid },
+            { label: "Role", value: a.roleLabel },
+            { label: "KYC", value: "Verified" },
+          ]
+        : [{ label: "Mobile", value: `XXXXXX${mobile.slice(-4)}` }]),
+      { label: "PAN match", value: <MatchValue ok={check.checks.pan} /> },
+      { label: "Aadhaar match", value: <MatchValue ok={check.checks.aadhaar} /> },
+      { label: "Name match", value: <MatchValue ok={check.checks.name} /> },
+    ];
     return (
-      <LaDialog eyebrow="Linked accounts" title="Link another account" subtitle="Step 2 of 2" onClose={onClose} closeDisabled={busy}>
+      <LaDialog
+        icon={<ShieldCheck size={22} />}
+        eyebrow="Step 2 of 2"
+        title="Verify account"
+        subtitle={
+          check.eligible
+            ? "PAN, Aadhaar and name match your verified KYC."
+            : "This account cannot be linked to you."
+        }
+        onClose={onClose}
+        closeDisabled={busy}
+      >
         <form onSubmit={submitLink}>
-          <p className="mb-2 text-xs font-semibold" style={{ color: B.blue }}>
-            Enter 6-digit OTP sent to {sent?.mobileMasked ?? `XXXXXX${mobile.slice(-4)}`}
-          </p>
-          <DigitBoxes length={6} value={otp} onChange={setOtp} autoFocus label="OTP" disabled={busy} />
-          <div className="mt-2 text-right text-[11px]">
-            {countdown.left > 0 ? (
-              <span className="font-semibold" style={{ color: B.muted }}>
-                Resend OTP in {formatCountdown(countdown.left)}
-              </span>
-            ) : (
-              <button type="button" onClick={() => void sendOtp()} disabled={busy} className="font-semibold disabled:opacity-50" style={{ color: B.blueLight }}>
-                Resend OTP
-              </button>
-            )}
-          </div>
+          <DetailTable rows={rows} />
+          {check.message ? <InlineError message={check.message} /> : null}
 
-          <p className="mb-2 mt-4 text-xs font-semibold" style={{ color: B.blue }}>
-            MPIN of the other account
-          </p>
-          <DigitBoxes length={4} value={mpin} onChange={setMpin} masked label="MPIN of the other account" disabled={busy} />
-          <p className="mt-2 text-[11px]" style={{ color: B.muted }}>
-            The 4-digit MPIN you use to log in to that account.
-          </p>
+          {check.eligible ? (
+            <>
+              <label htmlFor="la-otp" className="mb-2 mt-5 block text-xs font-semibold" style={{ color: B.blue }}>
+                {sent ? `Enter 6-digit OTP sent to ${sent.mobileMasked}` : "Sending OTP…"}
+              </label>
+              <CodeField id="la-otp" length={6} value={otp} onChange={setOtp} autoFocus placeholder="6-digit OTP" />
+              <div className="mt-2 text-right text-[11px]">
+                {countdown.left > 0 ? (
+                  <span className="font-semibold" style={{ color: B.muted }}>
+                    Resend OTP in {formatCountdown(countdown.left)}
+                  </span>
+                ) : (
+                  <button type="button" onClick={() => void sendOtp()} disabled={busy} className="font-semibold disabled:opacity-50" style={{ color: B.blueLight }}>
+                    {sent ? "Resend OTP" : "Send OTP"}
+                  </button>
+                )}
+              </div>
+
+              <label htmlFor="la-mpin" className="mb-2 mt-3 block text-xs font-semibold" style={{ color: B.blue }}>
+                MPIN of the other account
+              </label>
+              <CodeField id="la-mpin" length={4} value={mpin} onChange={setMpin} masked placeholder="4-digit MPIN" />
+              <p className="mt-2 text-[11px]" style={{ color: B.muted }}>
+                The 4-digit MPIN you use to log in to that account.
+              </p>
+            </>
+          ) : null}
 
           <InlineError message={error} />
 
           <div className="mt-6 grid grid-cols-2 gap-3">
-            <PrimaryButton
-              variant="secondary"
-              onClick={() => {
-                setStep(1);
-                setError(null);
-                setOtp("");
-                setMpin("");
-              }}
-              disabled={busy}
-            >
+            <PrimaryButton variant="secondary" onClick={() => goBack()} disabled={busy}>
               Back
             </PrimaryButton>
-            <PrimaryButton type="submit" variant="success" loading={busy} disabled={otp.length !== 6 || mpin.length !== 4}>
+            <PrimaryButton
+              type="submit"
+              variant="success"
+              loading={busy}
+              disabled={!check.eligible || otp.length !== 6 || mpin.length !== 4}
+            >
               Link account
             </PrimaryButton>
           </div>
@@ -167,7 +255,7 @@ export function LinkAccountModal({
 
   return (
     <LaDialog eyebrow="Linked accounts" title="Link another account" subtitle="Step 1 of 2" onClose={onClose} closeDisabled={busy}>
-      <form onSubmit={sendOtp}>
+      <form onSubmit={runCheck}>
         <div className="flex items-center gap-3 rounded-2xl p-4" style={{ background: B.bg }}>
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white" style={{ color: B.blueLight }}>
             <Link2 size={18} />
@@ -200,7 +288,7 @@ export function LinkAccountModal({
           />
         </div>
         <p className="mt-1.5 text-[11px]" style={{ color: B.muted }}>
-          We will send an OTP to this number.
+          We first check PAN, Aadhaar and name. The OTP is sent after they match.
         </p>
 
         <div className="mt-4 flex items-start gap-3 rounded-2xl border p-4" style={{ background: "#F0FBF5", borderColor: "#C8EED9" }}>
@@ -210,7 +298,7 @@ export function LinkAccountModal({
               Identity check
             </p>
             <p className="text-[11px]" style={{ color: B.muted }}>
-              The PAN and Aadhaar on both accounts must match.
+              The PAN, Aadhaar and name on both accounts must match.
             </p>
           </div>
         </div>
@@ -222,7 +310,7 @@ export function LinkAccountModal({
             Cancel
           </PrimaryButton>
           <PrimaryButton type="submit" loading={busy} disabled={!mobileValid} showArrow={false}>
-            Send OTP
+            Verify
           </PrimaryButton>
         </div>
       </form>

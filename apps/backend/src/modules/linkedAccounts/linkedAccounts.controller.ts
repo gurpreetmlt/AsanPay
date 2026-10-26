@@ -10,6 +10,7 @@ import {
   unlinkParamSchema,
 } from "./linkedAccounts.validators";
 import {
+  checkLink,
   listLinkedAccounts,
   requestSwitchOtp,
   startLink,
@@ -29,6 +30,11 @@ function context(req: Request) {
 
 export async function list(req: Request, res: Response): Promise<void> {
   sendSuccess(res, await listLinkedAccounts(callerId(req)), "OK");
+}
+
+export async function linkCheck(req: Request, res: Response): Promise<void> {
+  const input = linkStartSchema.parse(req.body);
+  sendSuccess(res, await checkLink(callerId(req), input, context(req)), "OK");
 }
 
 export async function linkStart(req: Request, res: Response): Promise<void> {

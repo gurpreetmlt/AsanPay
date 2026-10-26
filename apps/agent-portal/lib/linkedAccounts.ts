@@ -1,4 +1,4 @@
-import type { ApiResponse, AuthUser, LinkedAccountsResponse, UserRole } from "@asanpay/shared-types";
+import type { ApiResponse, AuthUser, LinkCheckResult, LinkedAccountsResponse, UserRole } from "@asanpay/shared-types";
 import api from "@/lib/api";
 import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
@@ -12,6 +12,11 @@ function unwrap<T>(res: ApiResponse<T>): { data: T; message: string } {
 
 export async function fetchLinkedAccounts(): Promise<LinkedAccountsResponse> {
   const { data } = await api.get<ApiResponse<LinkedAccountsResponse>>("/linked-accounts");
+  return unwrap(data).data;
+}
+
+export async function checkLink(mobile: string): Promise<LinkCheckResult> {
+  const { data } = await api.post<ApiResponse<LinkCheckResult>>("/linked-accounts/link/check", { mobile });
   return unwrap(data).data;
 }
 

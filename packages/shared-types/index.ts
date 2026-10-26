@@ -105,6 +105,30 @@ export interface LinkedAccountsResponse {
   maxLinked: number;
 }
 
+/** Verified-KYC comparison with the logged-in account. Name is checked only after PAN + Aadhaar match. */
+export interface LinkIdentityChecks {
+  pan: boolean;
+  aadhaar: boolean;
+  name: boolean;
+}
+
+/** POST /api/linked-accounts/link/check — Verify popup before OTP. */
+export interface LinkCheckResult {
+  eligible: boolean;
+  /** Why linking is blocked (identity / name), else null. */
+  message: string | null;
+  checks: LinkIdentityChecks;
+  /** Other account details — only when PAN and Aadhaar match (same person). */
+  account: {
+    name: string;
+    uid: string;
+    role: UserRole;
+    roleLabel: string;
+    mobileMasked: string;
+    kycStatus: "verified";
+  } | null;
+}
+
 /** SD / Distributor may raise fund requests by default; a retailer only when admin enables it. */
 export function isFundRequestEnabled(role: UserRole, override: boolean | null | undefined): boolean {
   if (role === "admin") return false;

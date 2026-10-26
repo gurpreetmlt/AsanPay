@@ -94,8 +94,12 @@ export function DigitBoxes({
           value={value[i] ?? ""}
           onPaste={onPaste}
           onKeyDown={(e) => onKeyDown(i, e)}
-          onFocus={() => {
-            if (i > value.length) focusAt(value.length);
+          onMouseDown={(e) => {
+            // A click past the first empty box lands on it instead (keeps digits contiguous).
+            if (i > value.length) {
+              e.preventDefault();
+              focusAt(value.length);
+            }
           }}
           onChange={(e) => {
             const digit = e.target.value.replace(/\D/g, "").slice(-1);
@@ -112,6 +116,41 @@ export function DigitBoxes({
         />
       ))}
     </div>
+  );
+}
+
+/** Single numeric field (same look as the mobile number field) for OTP / MPIN. */
+export function CodeField({
+  id,
+  length,
+  value,
+  onChange,
+  masked = false,
+  autoFocus = false,
+  placeholder,
+}: {
+  id: string;
+  length: number;
+  value: string;
+  onChange: (next: string) => void;
+  masked?: boolean;
+  autoFocus?: boolean;
+  placeholder: string;
+}) {
+  return (
+    <input
+      id={id}
+      type={masked ? "password" : "text"}
+      inputMode="numeric"
+      autoComplete={masked ? "off" : "one-time-code"}
+      maxLength={length}
+      autoFocus={autoFocus}
+      value={value}
+      onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, length))}
+      placeholder={placeholder}
+      className="w-full rounded-xl border px-4 py-3 text-sm font-semibold tracking-[0.3em] outline-none transition placeholder:font-normal placeholder:tracking-normal focus:border-[#2A5CDD]"
+      style={{ borderColor: "rgba(11,42,154,0.18)", color: B.blue }}
+    />
   );
 }
 

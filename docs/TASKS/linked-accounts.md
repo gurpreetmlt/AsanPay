@@ -33,7 +33,7 @@ Same person (same KYC PAN / Aadhaar) links their Distributor + Retailer accounts
 ### Security — same person only (owner, 26 Oct)
 - Link only when **both** accounts have **verified** KYC and the verified PAN **and** verified Aadhaar on both match (any conflict = different person). Nobody can link someone else's account.
 - Match only on server-side verified KYC records. Never accept PAN / Aadhaar in the request body and never compare user-typed numbers.
-- Run the match in `/link/verify` **after** OTP + MPIN pass, so a stranger can't probe whose PAN a mobile has.
+- **Verify popup first (owner, 26 Oct):** `POST /link/check { mobile }` → `LinkCheckResult` (PAN / Aadhaar / Name match + other account's name, UID, role, masked mobile). Details are returned **only** when PAN + Aadhaar match the caller's own KYC; on mismatch only "Not matched" rows (no stranger data). Name is compared (case / punctuation / word-order insensitive) only after PAN + Aadhaar match, and must match too. `/link/start` sends the OTP only after the full match; `/link/verify` re-runs every rule after OTP + MPIN.
 - Either account's KYC not verified → `Complete KYC on both accounts before linking.` Mismatch → `This account belongs to a different PAN / Aadhaar and cannot be linked.`
 - Re-check on every `/switch`: KYC revoked / changed or account blocked → switch refused, link stays visible as `Needs review`.
 - API responses mask PAN / Aadhaar (last 4 only); never return or log full values.
