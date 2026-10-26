@@ -22,8 +22,9 @@ Face match + original-vs-copy detection are **out of scope** (PL-06).
 Built in `apps/backend/src/modules/kyc/docCheck/` (`docCheck.service.ts` engine, `docText.ts` rules,
 `aadhaarSecureQr.ts`, `imageQuality.ts`, `ocr.ts`); tests `test/kycDocCheck.test.ts`.
 Response also has `qr` (name, dob, gender, aadhaarLast4, address, verified) when a Secure QR is read.
-UIDAI cert: drop `.cer` / `.pem` into `apps/backend/assets/uidai/` — until then QR data is parsed but
-the `aadhaarQr` check is `skip` (never "verified"). A signed-QR Aadhaar last-4 mismatch is a hard `fail`.
+UIDAI certs bundled in `apps/backend/assets/uidai/` (all offline e-KYC + Secure QR certs from
+uidai.gov.in/en/data-and-download; old ones kept — older cards are signed with older keys). When UIDAI
+publishes a new one, add the `.cer` there. A signed-QR Aadhaar last-4 mismatch is a hard `fail`.
 
 - New `POST /api/kyc/documents/check` `{ slot: "panImage" | "aadhaarFront" | "aadhaarBack", dataUrl }` → `{ ok, status: "pass" | "flag" | "fail", docType, checks: [...], message }`.
 - **Quality:** reject tiny (< 600 px short side), very dark, or blurry (Laplacian variance) images → `fail` "Photo is blurry. Retake it in good light with the full card visible."
