@@ -22,12 +22,20 @@ class RdServiceModule(private val reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext), ActivityEventListener {
 
   private var capturePromise: Promise? = null
+  private var facePromise: Promise? = null
 
   companion object {
     private const val ACTION_CAPTURE = "in.gov.uidai.rdservice.fp.CAPTURE"
     private const val EXTRA_PID_OPTIONS = "PID_OPTIONS"
     private const val EXTRA_PID_DATA = "PID_DATA"
     private const val REQUEST_CAPTURE = 9911
+
+    // UIDAI FaceRD: fixed package, its own action, and "request" / "response" extras.
+    private const val ACTION_FACE_CAPTURE = "in.gov.uidai.rdservice.face.CAPTURE"
+    private const val FACE_RD_PACKAGE = "in.gov.uidai.facerd"
+    private const val EXTRA_FACE_REQUEST = "request"
+    private const val EXTRA_FACE_RESPONSE = "response"
+    private const val REQUEST_FACE_CAPTURE = 9912
 
     private val ALLOWED_RD_PREFIXES =
         listOf(
@@ -140,8 +148,8 @@ class RdServiceModule(private val reactContext: ReactApplicationContext) :
       promise.reject("NO_ACTIVITY", "App activity not available")
       return
     }
-    if (capturePromise != null) {
-      promise.reject("CAPTURE_BUSY", "Fingerprint capture already in progress")
+    if (capturePromise != null || facePromise != null) {
+      promise.reject("CAPTURE_BUSY", "A biometric capture is already in progress")
       return
     }
 
@@ -166,12 +174,65 @@ class RdServiceModule(private val reactContext: ReactApplicationContext) :
     }
   }
 
+  private fun faceCaptureIntent(): Intent =
+      Intent(ACTION_FACE_CAPTURE).apply { setPackage(FACE_RD_PACKAGE) }
+
+  @Suppress("DEPRECATION")
+  private fun isFaceRdInstalled(): Boolean =
+      reactContext.packageManager.queryIntentActivities(faceCaptureIntent(), 0).isNotEmpty()
+
+  @ReactMethod
+  fun isFaceRdAvailable(promise: Promise) {
+    try {
+      promise.resolve(isFaceRdInstalled())
+    } catch (e: Exception) {
+      promise.reject("FACE_RD_CHECK_FAILED", e.message, e)
+    }
+  }
+
+  @ReactMethod
+  fun captureFace(pidOptions: String, promise: Promise) {
+    val activity = reactContext.currentActivity
+    if (activity == null) {
+      promise.reject("NO_ACTIVITY", "App activity not available")
+      return
+    }
+    if (facePromise != null || capturePromise != null) {
+      promise.reject("CAPTURE_BUSY", "A biometric capture is already in progress")
+      return
+    }
+    try {
+      if (!isFaceRdInstalled()) {
+        promise.reject("FACE_RD_NOT_FOUND", "Aadhaar FaceRD app is not installed")
+        return
+      }
+      val intent = faceCaptureIntent()
+      intent.putExtra(EXTRA_FACE_REQUEST, pidOptions)
+      facePromise = promise
+      activity.startActivityForResult(intent, REQUEST_FACE_CAPTURE)
+    } catch (e: Exception) {
+      facePromise = null
+      promise.reject("CAPTURE_START_FAILED", "Failed to start Aadhaar FaceRD: ${e.message}", e)
+    }
+  }
+
   override fun onActivityResult(
     activity: Activity,
     requestCode: Int,
     resultCode: Int,
     data: Intent?,
   ) {
+    if (requestCode == REQUEST_FACE_CAPTURE) {
+      val promise = facePromise ?: return
+      facePromise = null
+      val pid = data?.getStringExtra(EXTRA_FACE_RESPONSE)
+      when {
+        !pid.isNullOrBlank() -> promise.resolve(pid)
+        resultCode != Activity.RESULT_OK -> promise.reject("CAPTURE_CANCELLED", "Face capture was cancelled")
+        else -> promise.reject("CAPTURE_FAILED", "Aadhaar FaceRD returned no face data")
+      }
+      return
+    }
     if (requestCode != REQUEST_CAPTURE) return
 
     val promise = capturePromise ?: return

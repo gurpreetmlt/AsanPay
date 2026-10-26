@@ -16,6 +16,7 @@ import {
 } from "../noble/airtelDmt";
 import {
   firstResponseRow,
+  nobleBioType,
   nobleDeviceBody,
   nobleOk,
   nobleTxnId,
@@ -169,7 +170,7 @@ export class NobleAdapter implements ProviderAdapter {
       ...nobleDeviceBody(ctx),
       transactionId,
       serviceType: "AEPS",
-      bioType: "0",
+      bioType: nobleBioType(params.captureType),
       pidData: params.biometricPayload,
     });
     return this.toResult(httpStatus, json, "Daily 2FA", null, {});
@@ -331,7 +332,7 @@ export class NobleAdapter implements ProviderAdapter {
       otpReference: params.otpReferenceKey ?? "",
       otpTransactionId: params.otpTransactionId ?? "",
       otpTransactionToken: params.otpTransactionToken ?? "",
-      bioType: "0",
+      bioType: nobleBioType(params.captureType),
       pidData: params.biometricPayload,
     });
     return this.toResult(httpStatus, json, "Aadhaar Pay", params.amount ?? null, {
@@ -524,7 +525,7 @@ export class NobleAdapter implements ProviderAdapter {
       merchantMobileNo: merchant.merchantMobile,
       transactionId,
       token: accessToken,
-      bioType: params.captureType === "FACE" ? "2" : "0",
+      bioType: nobleBioType(params.captureType),
       pidData: params.biometricPayload,
     });
     assertNobleDmtOk(httpStatus, json, "Remitter eKYC failed");

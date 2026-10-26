@@ -55,7 +55,7 @@ export default function NobleAgentOnboardPage() {
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({});
   const [form, setForm] = useState<AepsOnboardingForm>(EMPTY_AEPS_ONBOARDING_FORM);
   const [prefill, setPrefill] = useState<AepsOnboardingPrefill | null>(null);
-  const [revealed, setRevealed] = useState<{ pan: string | null; aadhaar: string | null } | null>(null);
+  const [revealed, setRevealed] = useState<{ pan: string | null } | null>(null);
   const [revealBusy, setRevealBusy] = useState(false);
   const revealTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -172,7 +172,7 @@ export default function NobleAgentOnboardPage() {
     }
     setRevealBusy(true);
     try {
-      const res = await api.get<ApiResponse<{ pan: string | null; aadhaar: string | null }>>(
+      const res = await api.get<ApiResponse<{ pan: string | null }>>(
         "/onboarding/noble/identity",
       );
       if (!res.data.success) return;
@@ -278,7 +278,7 @@ export default function NobleAgentOnboardPage() {
     </label>
   );
 
-  const lockedField = (label: string, masked: string, full: string | null) => (
+  const lockedField = (label: string, masked: string, full: string | null, revealable = true) => (
     <div className="block">
       <span className={labelClass} style={{ color: B.muted }}>
         {label}
@@ -293,16 +293,18 @@ export default function NobleAgentOnboardPage() {
             <Lock size={12} />
             From KYC
           </span>
-          <button
-            type="button"
-            onClick={() => void toggleReveal()}
-            disabled={revealBusy}
-            className="icon-tooltip cursor-pointer rounded-md p-1 hover:bg-slate-100"
-            aria-label={revealed ? `Hide ${label}` : `Show full ${label}`}
-            data-tooltip={revealed ? "Hide" : "Show full number"}
-          >
-            {revealed ? <EyeOff size={14} /> : <Eye size={14} />}
-          </button>
+          {revealable ? (
+            <button
+              type="button"
+              onClick={() => void toggleReveal()}
+              disabled={revealBusy}
+              className="icon-tooltip cursor-pointer rounded-md p-1 hover:bg-slate-100"
+              aria-label={revealed ? `Hide ${label}` : `Show full ${label}`}
+              data-tooltip={revealed ? "Hide" : "Show full number"}
+            >
+              {revealed ? <EyeOff size={14} /> : <Eye size={14} />}
+            </button>
+          ) : null}
         </span>
       </div>
     </div>
@@ -385,11 +387,7 @@ export default function NobleAgentOnboardPage() {
                         onChange: (ev) => setField("panNumber", ev.target.value.toUpperCase()),
                       })}
                   {prefill?.aadhaarMasked
-                    ? lockedField(
-                        "Aadhaar",
-                        prefill.aadhaarMasked,
-                        revealed?.aadhaar ? formatAadhaar(revealed.aadhaar) : null,
-                      )
+                    ? lockedField("Aadhaar", prefill.aadhaarMasked, null, false)
                     : field("Aadhaar", "aadhaarNumber", {
                         inputMode: "numeric",
                         maxLength: 14,

@@ -28,6 +28,7 @@ import {
   Fingerprint,
   Plus,
   ScanEye,
+  ScanFace,
   Search,
   Star,
   X,
@@ -39,6 +40,13 @@ import { formatINR } from "../../lib/format";
 import { aepsBankLogoUrl } from "../../lib/bankLogo";
 import { createAttemptKeyHolder } from "../../lib/idempotencyKey";
 import { captureFingerprint, listInstalledRdPackages } from "../../lib/rdServiceFingerprint";
+import {
+  captureFace,
+  isFaceRdInstalled,
+  kycWadhFor,
+  openFaceRdInstall,
+  type BiometricCaptureType,
+} from "../../lib/faceRd";
 import { allowAgentAuthUiSkip } from "../../lib/allowAgentAuthUiSkip";
 import { getAepsGeoTag } from "../../lib/geoCapture";
 import { useTxnPin } from "../../hooks/useTxnPin";
@@ -181,7 +189,7 @@ async function detectConnectedDevice(): Promise<BiometricDevice | null> {
   return null;
 }
 
-type AuthMode = "fingerprint" | "iris";
+type AuthMode = "fingerprint" | "iris" | "face";
 
 /* ── Device selector modal ─────────────────────────────────────────── */
 
@@ -644,7 +652,7 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
   const [amount, setAmount] = useState("");
   const [aadhaarVisible, setAadhaarVisible] = useState(false);
   const [aadhaarFocused, setAadhaarFocused] = useState(false);
-  const [consent, setConsent] = useState(true);
+  const [consent, setConsent] = useState(false);
   const [activeDevice, setActiveDevice] = useState<BiometricDevice>(BIOMETRIC_DEVICES[0]);
   const [deviceModalOpen, setDeviceModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>("fingerprint");
@@ -657,6 +665,8 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
   const [agentAadhaarVisible, setAgentAadhaarVisible] = useState(false);
   const [agentAuthConsent, setAgentAuthConsent] = useState(false);
   const [agentAuthScanning, setAgentAuthScanning] = useState(false);
+  const [agentAuthCapture, setAgentAuthCapture] = useState<BiometricCaptureType>("FINGER");
+  const [apSetupCapture, setApSetupCapture] = useState<BiometricCaptureType>("FINGER");
   const [favBanks, setFavBanks] = useState<string[]>([...DEFAULT_AEPS_FAV_BANKS]);
   const favHydrated = useRef(false);
   const favSkipNextSave = useRef(true);
@@ -697,24 +707,17 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
     void fetchApi<{
       verifiedToday: boolean;
       kycReady: boolean;
-      aadhaarNumber?: string | null;
+      aadhaarLastFour?: string | null;
       outlet?: { aadhaarLastFour?: string | null } | null;
     }>("/auth/agent-auth/status")
       .then((payload) => {
         if (!mounted) return;
         setAgentAuthReady(Boolean(payload.verifiedToday));
         setAgentAuthKycReady(payload.kycReady !== false);
-        const digits = String(payload.aadhaarNumber ?? "")
-          .replace(/\D/g, "")
-          .slice(0, 12);
-        const last4 = String(payload.outlet?.aadhaarLastFour ?? "")
+        const last4 = String(payload.aadhaarLastFour ?? payload.outlet?.aadhaarLastFour ?? "")
           .replace(/\D/g, "")
           .slice(-4);
-        if (digits.length === 12) {
-          setAgentAadhaar(digits);
-          setAgentAadhaarFromKyc(true);
-          setAgentAadhaarLastFour(digits.slice(-4));
-        } else if (payload.kycReady) {
+        if (payload.kycReady) {
           setAgentAadhaarFromKyc(true);
           if (last4.length === 4) setAgentAadhaarLastFour(last4);
         }
@@ -784,6 +787,10 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
 
   const showAmount = tab === "Withdraw" || tab === "Deposit" || tab === "Aadhaar Pay";
   const isAadhaarPay = tab === "Aadhaar Pay";
+
+  useEffect(() => {
+    if (!isAadhaarPay) setAuthMode((m) => (m === "face" ? "fingerprint" : m));
+  }, [isAadhaarPay]);
 
   const loadApSession = useCallback(async () => {
     setApLoading(true);
@@ -926,24 +933,51 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
     !scanning &&
     !submitting;
 
+  /** FaceRD must be installed before a face capture; offers the Play Store page when missing. */
+  async function ensureFaceRd(): Promise<boolean> {
+    if (await isFaceRdInstalled()) return true;
+    Alert.alert(
+      "Aadhaar FaceRD required",
+      "Install the free Aadhaar FaceRD app from Play Store to use face authentication, then try again.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Install", onPress: () => void openFaceRdInstall() },
+      ],
+    );
+    return false;
+  }
+
+  /** Agent's own biometric: fingerprint via RD device, face via FaceRD. */
+  async function captureAgentBiometric(type: BiometricCaptureType, wadh?: string): Promise<string> {
+    if (type === "FACE") return captureFace(wadh ? { wadh } : {});
+    const detected = await detectConnectedDevice();
+    const device = detected ?? activeDevice;
+    if (detected) setActiveDevice(detected);
+    return captureFingerprint(device.rdPackage, wadh ? { wadh } : undefined);
+  }
+
   async function verifyDailyAgentAuth() {
     if (!agentAuthConsent || agentAuthScanning || !agentAuthKycReady) return;
     const digits = agentAadhaar.replace(/\D/g, "");
     if (!agentAadhaarFromKyc && digits.length !== 12) return;
+    const captureType = agentAuthCapture;
+    if (captureType === "FACE" && !(await ensureFaceRd())) return;
     setAgentAuthScanning(true);
     try {
-      const detected = await detectConnectedDevice();
-      const device = detected ?? activeDevice;
-      if (detected) setActiveDevice(detected);
-
-      const biometricPayload = await captureFingerprint(device.rdPackage);
-      const body: { biometricPayload: string; aadhaarNumber?: string } = { biometricPayload };
+      const biometricPayload = await captureAgentBiometric(captureType);
+      const body: { biometricPayload: string; aadhaarNumber?: string; captureType: BiometricCaptureType } = {
+        biometricPayload,
+        captureType,
+      };
       if (digits.length === 12) body.aadhaarNumber = digits;
       const { data } = await api.post<ApiResponse<{ verifiedAt: string }>>("/auth/agent-auth", body);
       if (!data.success) throw new Error(data.message);
       setAgentAuthReady(true);
     } catch (err) {
-      Alert.alert("Daily verification failed", apiError(err, "Fingerprint verification failed."));
+      Alert.alert(
+        "Daily verification failed",
+        apiError(err, captureType === "FACE" ? "Face verification failed." : "Fingerprint verification failed."),
+      );
     } finally {
       setAgentAuthScanning(false);
     }
@@ -1003,8 +1037,8 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
       Alert.alert(
         data.data.otpRequired ? "OTP Sent" : "No OTP needed",
         data.data.otpRequired
-          ? "An OTP was sent to the customer's mobile. Enter it, then tap Scan Finger."
-          : "This payment does not need an OTP. Tap Scan Finger to continue.",
+          ? "An OTP was sent to the customer's mobile. Enter it, then tap Scan Finger or Scan Face."
+          : "This payment does not need an OTP. Tap Scan Finger or Scan Face to continue.",
       );
     } catch (err) {
       Alert.alert("OTP request failed", apiError(err, "Could not send the Aadhaar Pay OTP. Try again."));
@@ -1016,34 +1050,43 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
   async function runApSetupScan() {
     if (!apSession || apScanning) return;
     const isKyc = apSession.kycRequired;
+    const captureType = apSetupCapture;
+    const isFace = captureType === "FACE";
+    // KYC capture must carry the provider wadh for the chosen biometric; blank = not allowed.
+    const wadh = isKyc ? kycWadhFor(apSession.kycWadhValue, captureType) : "";
+    if (isKyc && isFace && !wadh) {
+      Alert.alert(
+        "Face KYC not available",
+        "Face authentication is not enabled for Aadhaar Pay KYC on this account. Use fingerprint for the KYC step.",
+      );
+      return;
+    }
+    if (isFace && !(await ensureFaceRd())) return;
     setApScanning(true);
     try {
-      const detected = await detectConnectedDevice();
-      const device = detected ?? activeDevice;
-      if (detected) setActiveDevice(detected);
       const geoPromise = getAepsGeoTag();
-      const biometricPayload = await captureFingerprint(
-        device.rdPackage,
-        isKyc && apSession.kycWadhValue ? { wadh: apSession.kycWadhValue } : undefined,
-      );
+      const biometricPayload = await captureAgentBiometric(captureType, wadh || undefined);
       const geo = await geoPromise;
       const { data } = await api.post<ApiResponse<unknown>>(
         isKyc ? "/onboarding/noble/ap/kyc" : "/onboarding/noble/ap/2fa",
         {
           biometricPayload,
+          captureType,
           ...(geo ? { latitude: geo.latitude, longitude: geo.longitude } : {}),
         },
       );
       if (!data.success) throw new Error(data.message);
       Alert.alert(
         isKyc ? "Aadhaar Pay KYC completed" : "Aadhaar Pay unlocked",
-        isKyc ? "One more fingerprint unlocks Aadhaar Pay for today." : "You can take Aadhaar Pay payments today.",
+        isKyc
+          ? "One more fingerprint or face check unlocks Aadhaar Pay for today."
+          : "You can take Aadhaar Pay payments today.",
       );
       await loadApSession();
     } catch (err) {
       Alert.alert(
         isKyc ? "Aadhaar Pay KYC failed" : "Aadhaar Pay verification failed",
-        apiError(err, "Fingerprint verification failed. Try again."),
+        apiError(err, isFace ? "Face verification failed. Try again." : "Fingerprint verification failed. Try again."),
       );
     } finally {
       setApScanning(false);
@@ -1122,17 +1165,21 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
       }
     }
 
+    // Face is wired for Aadhaar Pay only; other tabs always capture a fingerprint.
+    const faceCapture = isAadhaarPay && authMode === "face";
+    if (faceCapture && !(await ensureFaceRd())) return;
+
     setScanning(true);
     // Kicked off alongside the fingerprint capture (not after) so the ~5s location timeout
     // overlaps with the capture instead of adding to it. Never blocks the transaction — see
     // getAepsGeoTag's contract.
     const geoPromise = getAepsGeoTag();
+    const captureOtp = needsTxnOtp || useApOtp ? txnOtp : undefined;
     let pidData: string;
     try {
-      pidData = await captureFingerprint(
-        activeDevice.rdPackage,
-        needsTxnOtp || useApOtp ? txnOtp : undefined,
-      );
+      pidData = faceCapture
+        ? await captureFace(captureOtp ? { otp: captureOtp } : {})
+        : await captureFingerprint(activeDevice.rdPackage, captureOtp);
     } catch (err) {
       setScanning(false);
       const detail = err instanceof Error ? err.message : "Unknown error";
@@ -1198,6 +1245,7 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
             bankIin: selectedBank.iin,
             mobile,
             biometricPayload: pidData,
+            captureType: faceCapture ? "FACE" : "FINGER",
             amount,
             ...(useApOtp && apOtp
               ? {
@@ -1372,11 +1420,30 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
             <View style={[s.dailyModeCard, { borderColor: tokens.cardBorder }]}>
               <Text style={[s.fieldLabel, { color: tokens.sub }]}>AUTHENTICATION MODE</Text>
               <View style={s.dailyModeRow}>
-                <View style={s.dailyModeSelected}>
-                  <Fingerprint size={34} color={colors.blueFlat} />
-                  <Text style={[s.authModeText, { color: colors.blue }]}>Fingerprint</Text>
-                  <CircleDot size={15} color={colors.green} />
-                </View>
+                {(
+                  [
+                    { type: "FINGER", label: "Fingerprint", Icon: Fingerprint },
+                    { type: "FACE", label: "Face", Icon: ScanFace },
+                  ] as const
+                ).map(({ type, label, Icon }) => {
+                  const selected = agentAuthCapture === type;
+                  return (
+                    <Pressable
+                      key={type}
+                      onPress={() => setAgentAuthCapture(type)}
+                      disabled={agentAuthScanning}
+                      style={s.dailyModeSelected}
+                    >
+                      <Icon size={34} color={selected ? colors.blueFlat : tokens.mute} />
+                      <Text style={[s.authModeText, { color: selected ? colors.blue : tokens.txt2 }]}>{label}</Text>
+                      {selected ? (
+                        <CircleDot size={15} color={colors.green} />
+                      ) : (
+                        <View style={s.dailyModeDot} />
+                      )}
+                    </Pressable>
+                  );
+                })}
                 <View style={s.dailyModeDisabled}>
                   <ScanEye size={34} color={tokens.mute} />
                   <Text style={[s.authModeText, { color: tokens.mute }]}>Eye Scan</Text>
@@ -1385,17 +1452,24 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
               </View>
             </View>
 
-            <View style={s.dailyDeviceRow}>
-              <View style={[s.bioIconCircle, { backgroundColor: activeDevice.color }]}>
-                <Text style={s.bioIconLetter}>{activeDevice.letter}</Text>
+            {agentAuthCapture === "FACE" ? (
+              <Text style={[s.faceRdHint, { color: tokens.mute }]}>
+                Uses the Aadhaar FaceRD app on this phone. Face the front camera in good light, without glasses or
+                mask.
+              </Text>
+            ) : (
+              <View style={s.dailyDeviceRow}>
+                <View style={[s.bioIconCircle, { backgroundColor: activeDevice.color }]}>
+                  <Text style={s.bioIconLetter}>{activeDevice.letter}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.bioDevice, { color: tokens.txt }]}>{activeDevice.name}</Text>
+                  <Pressable onPress={() => setDeviceModalOpen(true)}>
+                    <Text style={[s.bioChange, { color: colors.blueLight }]}>Change Device</Text>
+                  </Pressable>
+                </View>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[s.bioDevice, { color: tokens.txt }]}>{activeDevice.name}</Text>
-                <Pressable onPress={() => setDeviceModalOpen(true)}>
-                  <Text style={[s.bioChange, { color: colors.blueLight }]}>Change Device</Text>
-                </Pressable>
-              </View>
-            </View>
+            )}
 
             <Pressable
               onPress={() => void verifyDailyAgentAuth()}
@@ -1420,9 +1494,21 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
                 end={gradientDirection.diagonal.end}
                 style={s.scanBtnGradient}
               >
-                {agentAuthScanning ? <ActivityIndicator color="#fff" /> : <Fingerprint size={18} color="#fff" />}
+                {agentAuthScanning ? (
+                  <ActivityIndicator color="#fff" />
+                ) : agentAuthCapture === "FACE" ? (
+                  <ScanFace size={18} color="#fff" />
+                ) : (
+                  <Fingerprint size={18} color="#fff" />
+                )}
                 <Text style={s.scanBtnText}>
-                  {agentAuthScanning ? "Place finger on scanner…" : "Scan Finger"}
+                  {agentAuthScanning
+                    ? agentAuthCapture === "FACE"
+                      ? "Look at the camera…"
+                      : "Place finger on scanner…"
+                    : agentAuthCapture === "FACE"
+                      ? "Scan Face"
+                      : "Scan Finger"}
                 </Text>
               </LinearGradient>
             </Pressable>
@@ -1538,7 +1624,7 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
               <>
                 {[
                   { pending: apSession.kycRequired, n: "1", label: "One-time Aadhaar Pay KYC" },
-                  { pending: apSession.daily2faRequired, n: "2", label: "Today's Aadhaar Pay fingerprint" },
+                  { pending: apSession.daily2faRequired, n: "2", label: "Today's Aadhaar Pay fingerprint or face check" },
                 ].map((step) => (
                   <View key={step.n} style={s.apStepRow}>
                     {step.pending ? (
@@ -1554,17 +1640,54 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
                   </View>
                 ))}
 
-                <View style={s.dailyDeviceRow}>
-                  <View style={[s.bioIconCircle, { backgroundColor: activeDevice.color }]}>
-                    <Text style={s.bioIconLetter}>{activeDevice.letter}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[s.bioDevice, { color: tokens.txt }]}>{activeDevice.name}</Text>
-                    <Pressable onPress={() => setDeviceModalOpen(true)}>
-                      <Text style={[s.bioChange, { color: colors.blueLight }]}>Change Device</Text>
-                    </Pressable>
-                  </View>
+                <View style={s.apCaptureRow}>
+                  {(
+                    [
+                      { type: "FINGER", label: "Fingerprint", Icon: Fingerprint },
+                      { type: "FACE", label: "Face", Icon: ScanFace },
+                    ] as const
+                  ).map(({ type, label, Icon }) => {
+                    const selected = apSetupCapture === type;
+                    return (
+                      <Pressable
+                        key={type}
+                        onPress={() => setApSetupCapture(type)}
+                        disabled={apScanning}
+                        style={[
+                          s.authModeBtn,
+                          {
+                            borderColor: selected ? colors.blueLight : tokens.cardBorder,
+                            backgroundColor: selected ? colors.bluePale : tokens.card,
+                          },
+                        ]}
+                      >
+                        <Icon size={20} color={selected ? colors.blue : tokens.mute} />
+                        <Text style={[s.authModeText, { color: selected ? colors.blue : tokens.txt2 }]}>{label}</Text>
+                        {selected && <CircleDot size={14} color={colors.green} />}
+                      </Pressable>
+                    );
+                  })}
                 </View>
+
+                {apSetupCapture === "FACE" ? (
+                  <Text style={[s.faceRdHint, { color: tokens.mute }]}>
+                    {apSession.kycRequired && !kycWadhFor(apSession.kycWadhValue, "FACE")
+                      ? "Face is not enabled for Aadhaar Pay KYC on this account. Use fingerprint for the KYC step."
+                      : "Uses the Aadhaar FaceRD app on this phone. Face the front camera in good light."}
+                  </Text>
+                ) : (
+                  <View style={s.dailyDeviceRow}>
+                    <View style={[s.bioIconCircle, { backgroundColor: activeDevice.color }]}>
+                      <Text style={s.bioIconLetter}>{activeDevice.letter}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.bioDevice, { color: tokens.txt }]}>{activeDevice.name}</Text>
+                      <Pressable onPress={() => setDeviceModalOpen(true)}>
+                        <Text style={[s.bioChange, { color: colors.blueLight }]}>Change Device</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                )}
 
                 <Pressable
                   onPress={() => void runApSetupScan()}
@@ -1577,13 +1700,21 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
                     end={gradientDirection.diagonal.end}
                     style={s.scanBtnGradient}
                   >
-                    {apScanning ? <ActivityIndicator color="#fff" /> : <Fingerprint size={18} color="#fff" />}
+                    {apScanning ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : apSetupCapture === "FACE" ? (
+                      <ScanFace size={18} color="#fff" />
+                    ) : (
+                      <Fingerprint size={18} color="#fff" />
+                    )}
                     <Text style={s.scanBtnText}>
                       {apScanning
-                        ? "Place finger on scanner…"
-                        : apSession.kycRequired
-                          ? "Scan Finger for Aadhaar Pay KYC"
-                          : "Scan Finger to unlock Aadhaar Pay"}
+                        ? apSetupCapture === "FACE"
+                          ? "Look at the camera…"
+                          : "Place finger on scanner…"
+                        : `${apSetupCapture === "FACE" ? "Scan Face" : "Scan Finger"} ${
+                            apSession.kycRequired ? "for Aadhaar Pay KYC" : "to unlock Aadhaar Pay"
+                          }`}
                     </Text>
                   </LinearGradient>
                 </Pressable>
@@ -1844,7 +1975,30 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
               </Text>
               {authMode === "iris" && <CircleDot size={14} color={colors.green} />}
             </Pressable>
+            {isAadhaarPay ? (
+              <Pressable
+                onPress={() => setAuthMode("face")}
+                style={[
+                  s.authModeBtn,
+                  {
+                    borderColor: authMode === "face" ? colors.blueLight : tokens.cardBorder,
+                    backgroundColor: authMode === "face" ? colors.bluePale : tokens.card,
+                  },
+                ]}
+              >
+                <ScanFace size={20} color={authMode === "face" ? colors.blue : tokens.mute} />
+                <Text style={[s.authModeText, { color: authMode === "face" ? colors.blue : tokens.txt2 }]}>
+                  Face
+                </Text>
+                {authMode === "face" && <CircleDot size={14} color={colors.green} />}
+              </Pressable>
+            ) : null}
           </View>
+          {authMode === "face" ? (
+            <Text style={[s.faceRdHint, { color: tokens.mute, marginBottom: 0 }]}>
+              Customer looks at this phone's front camera. Uses the Aadhaar FaceRD app.
+            </Text>
+          ) : null}
         </View>
 
         {/* Biometric device + Scan */}
@@ -1866,6 +2020,8 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
             <View style={[s.scanCircle, { backgroundColor: colors.bluePale }]}>
               {authMode === "fingerprint" ? (
                 <Fingerprint size={48} color={colors.blueFlat} strokeWidth={1.6} />
+              ) : authMode === "face" ? (
+                <ScanFace size={48} color={colors.blueFlat} strokeWidth={1.6} />
               ) : (
                 <ScanEye size={48} color={colors.blueFlat} strokeWidth={1.6} />
               )}
@@ -1890,17 +2046,23 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
             >
               {authMode === "fingerprint" ? (
                 <Fingerprint size={18} color="#fff" strokeWidth={2.4} />
+              ) : authMode === "face" ? (
+                <ScanFace size={18} color="#fff" strokeWidth={2.4} />
               ) : (
                 <ScanEye size={18} color="#fff" strokeWidth={2.4} />
               )}
               <Text style={s.scanBtnText}>
                 {scanning
-                  ? "Place finger on scanner..."
+                  ? authMode === "face"
+                    ? "Look at the camera..."
+                    : "Place finger on scanner..."
                   : submitting
                     ? "Processing..."
                     : authMode === "fingerprint"
                       ? "Scan Finger"
-                      : "Scan Iris"}
+                      : authMode === "face"
+                        ? "Scan Face"
+                        : "Scan Iris"}
               </Text>
             </LinearGradient>
           </Pressable>
@@ -1965,6 +2127,9 @@ const s = StyleSheet.create({
   dailyModeRow: { flexDirection: "row", marginTop: 14 },
   dailyModeSelected: { flex: 1, alignItems: "center", gap: 6 },
   dailyModeDisabled: { flex: 1, alignItems: "center", gap: 6, opacity: 0.65 },
+  dailyModeDot: { width: 15, height: 15 },
+  faceRdHint: { fontSize: 12, lineHeight: 17, marginVertical: 16, textAlign: "center" },
+  apCaptureRow: { flexDirection: "row", gap: 10, marginTop: 14 },
   dailySoon: { fontSize: 9, fontWeight: "700" },
   dailyDeviceRow: { flexDirection: "row", alignItems: "center", gap: 12, marginVertical: 18 },
   header: {

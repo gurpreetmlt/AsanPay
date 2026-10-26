@@ -7,6 +7,7 @@ import { env } from "./config/env";
 import { apiLimiter } from "./middleware/rateLimiter";
 import { hardenRequest } from "./middleware/harden";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
+import { redactUrlQuery } from "./utils/redact";
 import { authRouter } from "./modules/auth/auth.routes";
 import { walletRouter } from "./modules/wallet/wallet.routes";
 import { catalogRouter } from "./modules/catalog/catalog.routes";
@@ -82,14 +83,24 @@ export function createApp(): Express {
   app.use(express.json({ limit: "10mb" }));
   app.use(express.urlencoded({ extended: true, limit: "10mb" }));
   app.use(hardenRequest);
-  app.use(morgan(env.NODE_ENV === "development" ? "dev" : "combined"));
+  // Same as morgan's "dev" / "combined" formats, but with credential-like query params redacted.
+  morgan.token("safe-url", (req) => redactUrlQuery((req as express.Request).originalUrl || req.url || ""));
+  app.use(
+    morgan(
+      env.NODE_ENV === "development"
+        ? ":method :safe-url :status :response-time ms - :res[content-length]"
+        : ':remote-addr - :remote-user [:date[clf]] ":method :safe-url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent"',
+    ),
+  );
   app.use(apiLimiter);
 
   app.get("/health", (_req, res) => {
     res.json({ success: true, data: { status: "ok", timestamp: new Date().toISOString() } });
   });
 
-  app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+  // Only promo banners are public. KYC images (uploads/kyc) are served solely through the
+  // authenticated /api/kyc/documents/:docKey (owner) and /api/admin/users/:id/kyc-documents/:docKey routes.
+  app.use("/uploads/promos", express.static(path.join(process.cwd(), "uploads", "promos")));
 
   app.use("/api/auth", authRouter);
   app.use("/api/wallet", walletRouter);

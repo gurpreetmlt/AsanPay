@@ -125,9 +125,9 @@ export function AadhaarPaySetupCard({
     try {
       const geo = await currentGeo();
       if (kycPending) {
-        const biometricPayload = await captureFingerprintWeb(
-          session.kycWadhValue ? { wadh: session.kycWadhValue } : undefined,
-        );
+        // kycWadhValue is `finger~iris~face`; a fingerprint capture takes the first part only.
+        const fingerWadh = session.kycWadhValue.split("~")[0]?.trim() ?? "";
+        const biometricPayload = await captureFingerprintWeb(fingerWadh ? { wadh: fingerWadh } : undefined);
         const { data } = await api.post<ApiResponse<unknown>>("/onboarding/noble/ap/kyc", {
           biometricPayload,
           ...(geo ?? {}),
@@ -258,6 +258,9 @@ export function AadhaarPaySetupCard({
               <Fingerprint size={18} />
               {kycPending ? "Scan Finger for Aadhaar Pay KYC" : "Scan Finger to unlock Aadhaar Pay"}
             </PrimaryButton>
+            <p className="text-center text-xs text-gray-500">
+              Face authentication is available in the AsanPay mobile app (Aadhaar FaceRD).
+            </p>
           </>
         ) : null}
       </div>

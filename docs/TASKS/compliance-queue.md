@@ -15,8 +15,8 @@
 
 | # | Phase | Gaps | Needs | Status |
 |---|-------|------|-------|--------|
-| C1 | Security exposure fixes: remove public `/uploads`, owner/admin-only document routes, last-4 Aadhaar in API responses, pino redact + strip query tokens from access log, customer consent unchecked by default, refuse test-OTP flags in production | G1 G2 G4 G6 G20 | — | **CURRENT** |
-| C2 | KYC data model: `kyc_submissions`, `kyc_documents` (private storage ref + sha256), `kyc_verification_events` (PAN / Aadhaar OTP results), reject reason required, approve needs verification events; backfill from `audit_logs` **before the next partition drop** | G3 G11 | — | todo |
+| C1 | Security exposure fixes: remove public `/uploads`, owner/admin-only document routes, last-4 Aadhaar in API responses, pino redact + strip query tokens from access log, customer consent unchecked by default, refuse test-OTP flags in production | G1 G2 G4 G6 G20 | — | done |
+| C2 | KYC data model: `kyc_submissions`, `kyc_documents` (private storage ref + sha256), `kyc_verification_events` (PAN / Aadhaar OTP results), reject reason required, approve needs verification events; backfill from `audit_logs` **before the next partition drop** | G3 G11 | — | **CURRENT** |
 | C3 | `compliance_audit_logs`: append-only trigger + hash chain, ≥ 1 year retention; reason required on reassignment / restriction; dual approval for compliance overrides | G15 G16 | Q7 (retention) | todo |
 | C4 | Agreement module backend: `agreements`, `agreement_versions` (immutable, sha256, effective dates, draft/published, signing policy), `user_agreement_acceptances`, re-acceptance on material change, click-accept + OTP confirm methods, PDF copy | G10 | Q6 Q13 (policy defaults) | todo |
 | C5 | Agreement UI: signup + re-accept gate (web + mobile), admin template / version management, download copy | G10 | C4 | todo |

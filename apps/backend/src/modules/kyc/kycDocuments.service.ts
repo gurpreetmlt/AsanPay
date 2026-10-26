@@ -40,12 +40,16 @@ function parseDataUrl(dataUrl: string): { mime: string; buffer: Buffer } | null 
   return { mime, buffer: Buffer.from(m[3], "base64") };
 }
 
-/** Validate data-URL image; persist under uploads/kyc and keep data URL for Coolify disk wipe. */
+/**
+ * Validate data-URL image; persist under uploads/kyc and keep data URL for Coolify disk wipe.
+ * `storagePath` is an internal reference only — uploads/kyc is never served statically; bytes
+ * go out through the authenticated owner / admin document routes.
+ */
 export async function saveKycDocumentDataUrl(
   userId: string,
   slot: KycDocSlot,
   dataUrl: string,
-): Promise<{ dataUrl: string; fileName: string; publicPath: string }> {
+): Promise<{ dataUrl: string; fileName: string; storagePath: string }> {
   const parsed = parseDataUrl(dataUrl);
   if (!parsed) {
     throw new HttpError(422, "Upload a JPG, PNG, WEBP, or HEIC image", "INVALID_IMAGE_UPLOAD");
@@ -69,9 +73,9 @@ export async function saveKycDocumentDataUrl(
   await mkdir(dir, { recursive: true });
   await writeFile(path.join(dir, fileName), parsed.buffer);
 
-  const publicPath = `/uploads/kyc/${safeUser}/${fileName}`;
+  const storagePath = `/uploads/kyc/${safeUser}/${fileName}`;
   const storedDataUrl = dataUrl.trim().slice(0, 2_000_000);
-  return { dataUrl: storedDataUrl, fileName, publicPath };
+  return { dataUrl: storedDataUrl, fileName, storagePath };
 }
 
 export function metaDataUrlKey(slot: KycDocSlot): string {

@@ -73,7 +73,7 @@ export function NobleAgentOnboardModal({
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({});
   const [form, setForm] = useState<AepsOnboardingForm>(EMPTY_AEPS_ONBOARDING_FORM);
   const [prefill, setPrefill] = useState<AepsOnboardingPrefill | null>(null);
-  const [revealed, setRevealed] = useState<{ pan: string | null; aadhaar: string | null } | null>(null);
+  const [revealed, setRevealed] = useState<{ pan: string | null } | null>(null);
   const [revealBusy, setRevealBusy] = useState(false);
   const revealTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -184,7 +184,7 @@ export function NobleAgentOnboardModal({
     }
     setRevealBusy(true);
     try {
-      const { data } = await api.get<ApiResponse<{ pan: string | null; aadhaar: string | null }>>(
+      const { data } = await api.get<ApiResponse<{ pan: string | null }>>(
         "/onboarding/noble/identity",
       );
       if (!data.success) return;
@@ -282,7 +282,7 @@ export function NobleAgentOnboardModal({
     </View>
   );
 
-  const locked = (label: string, masked: string, full: string | null) => (
+  const locked = (label: string, masked: string, full: string | null, revealable = true) => (
     <View style={styles.field}>
       <Text style={[styles.label, { color: tokens.sub }]}>{label}</Text>
       <View style={[styles.input, styles.lockedBox, { borderColor: tokens.cardBorder, backgroundColor: tokens.bg }]}>
@@ -290,21 +290,23 @@ export function NobleAgentOnboardModal({
         <View style={styles.lockedTag}>
           <Lock size={12} color={tokens.sub} />
           <Text style={{ color: tokens.sub, fontSize: 11, fontWeight: "600" }}>From KYC</Text>
-          <Pressable
-            onPress={() => void toggleReveal()}
-            disabled={revealBusy}
-            hitSlop={10}
-            style={styles.eyeBtn}
-            accessibilityLabel={revealed ? `Hide ${label}` : `Show full ${label}`}
-          >
-            {revealBusy ? (
-              <ActivityIndicator size="small" color={tokens.sub} />
-            ) : revealed ? (
-              <EyeOff size={16} color={tokens.sub} />
-            ) : (
-              <Eye size={16} color={tokens.sub} />
-            )}
-          </Pressable>
+          {revealable ? (
+            <Pressable
+              onPress={() => void toggleReveal()}
+              disabled={revealBusy}
+              hitSlop={10}
+              style={styles.eyeBtn}
+              accessibilityLabel={revealed ? `Hide ${label}` : `Show full ${label}`}
+            >
+              {revealBusy ? (
+                <ActivityIndicator size="small" color={tokens.sub} />
+              ) : revealed ? (
+                <EyeOff size={16} color={tokens.sub} />
+              ) : (
+                <Eye size={16} color={tokens.sub} />
+              )}
+            </Pressable>
+          ) : null}
         </View>
       </View>
     </View>
@@ -365,11 +367,7 @@ export function NobleAgentOnboardModal({
                         onChangeText: (t) => setField("panNumber", t.toUpperCase()),
                       })}
                   {prefill?.aadhaarMasked
-                    ? locked(
-                        "Aadhaar",
-                        prefill.aadhaarMasked,
-                        revealed?.aadhaar ? revealed.aadhaar.replace(/(\d{4})(?=\d)/g, "$1 ") : null,
-                      )
+                    ? locked("Aadhaar", prefill.aadhaarMasked, null, false)
                     : input("Aadhaar", "aadhaarNumber", { keyboardType: "number-pad", maxLength: 12 })}
                   {input("Date of birth (DD-MM-YYYY)", "dob", { placeholder: "20-10-1985", maxLength: 10 })}
                 </>

@@ -25,6 +25,10 @@
         <intent>
             <action android:name="in.gov.uidai.rdservice.iris.CAPTURE" />
         </intent>
+        <intent>
+            <action android:name="in.gov.uidai.rdservice.face.CAPTURE" />
+        </intent>
+        <package android:name="in.gov.uidai.facerd" />
         <package android:name="com.mantra.mfs110.rdservice" />
         <package android:name="com.mantra.rdservice" />
         <package android:name="com.idemia.l1rdservice" />

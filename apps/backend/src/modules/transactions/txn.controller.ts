@@ -729,6 +729,7 @@ export async function aadhaarPay(req: Request, res: Response): Promise<void> {
       customerMobile: body.mobile,
       latitude: body.latitude,
       longitude: body.longitude,
+      captureType: body.captureType ?? "FINGER",
     },
     invoke: (routed, txnRef) =>
       routed.adapter.aadhaarPay({
@@ -737,6 +738,7 @@ export async function aadhaarPay(req: Request, res: Response): Promise<void> {
         bankIin: body.bankIin,
         mobile: body.mobile,
         biometricPayload: body.biometricPayload,
+        captureType: body.captureType,
         amount: body.amount,
         latitude: body.latitude,
         longitude: body.longitude,

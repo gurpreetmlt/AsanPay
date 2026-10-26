@@ -10,6 +10,8 @@ import type { AuthUser } from "@asanpay/shared-types";
 import { isFundRequestEnabled } from "@asanpay/shared-types";
 import type { KycSubmitInput } from "../auth/auth.validators";
 import {
+  KYC_DOC_KEY_TO_SLOT,
+  loadKycPhotoBytes,
   metaDataUrlKey,
   metaFileNameKey,
   metaPublicPathKey,
@@ -149,6 +151,28 @@ export async function getMyKycProfile(userId: string): Promise<MyKycProfile> {
   };
 }
 
+/** Signed-in agent's own KYC photo. There is no user id input, so it can only ever return the caller's file. */
+export async function getMyKycDocument(
+  userId: string,
+  docKey: string,
+): Promise<{ contentType: string; buffer: Buffer }> {
+  const slot = KYC_DOC_KEY_TO_SLOT[docKey];
+  if (!slot) {
+    throw new HttpError(404, "KYC document not found", "KYC_DOC_NOT_FOUND");
+  }
+  const audit = await findLatestAuditLog({ userId, action: "kyc.submit" });
+  const meta = (audit?.metadata ?? {}) as Record<string, unknown>;
+  const loaded = await loadKycPhotoBytes(meta, slot);
+  if (!loaded) {
+    throw new HttpError(
+      404,
+      "This KYC photo is not on file. Re-submit KYC with the photo attached.",
+      "KYC_PHOTO_MISSING",
+    );
+  }
+  return loaded;
+}
+
 /** Stores KYC PII encrypted. Status stays pending until admin verifies (Task 18). */
 export async function submitKyc(userId: string, input: KycSubmitInput): Promise<AuthUser> {
   const [user] = await db.select().from(users).where(eq(users.id, userId));
@@ -207,7 +231,7 @@ export async function submitKyc(userId: string, input: KycSubmitInput): Promise<
       const saved = await saveKycDocumentDataUrl(userId, slot, raw);
       docMeta[metaFileNameKey(slot)] = saved.fileName;
       docMeta[metaDataUrlKey(slot)] = saved.dataUrl;
-      docMeta[metaPublicPathKey(slot)] = saved.publicPath;
+      docMeta[metaPublicPathKey(slot)] = saved.storagePath;
     } catch (err) {
       if (err instanceof HttpError) throw err;
       throw new HttpError(422, `Could not save ${slot} image`, "KYC_IMAGE_SAVE_FAILED");

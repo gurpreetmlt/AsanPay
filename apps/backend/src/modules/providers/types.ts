@@ -26,6 +26,8 @@ export interface AepsParams {
   mobile: string;
   /** PidData XML from the RD-service biometric device (or JSON biometric blob in tests). */
   biometricPayload: string;
+  /** FACE = PID from UIDAI FaceRD (customer face); default fingerprint. */
+  captureType?: "FINGER" | "FACE";
   amount?: string;
   latitude?: string;
   longitude?: string;
@@ -303,6 +305,8 @@ export interface AgentAuthParams {
   retailerUserId: string;
   aadhaarNumber: string;
   biometricPayload: string;
+  /** FACE = PID from UIDAI FaceRD; default fingerprint. */
+  captureType?: "FINGER" | "FACE";
   latitude?: string;
   longitude?: string;
   outletId?: string;

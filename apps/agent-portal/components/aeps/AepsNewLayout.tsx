@@ -45,6 +45,8 @@ type Props = {
   amount: string;
   onAmountChange: (v: string) => void;
   showAmount: boolean;
+  consent: boolean;
+  onConsentChange: (v: boolean) => void;
   scanning: boolean;
   onProceed: () => void;
 };
@@ -164,6 +166,8 @@ export function AepsNewLayout({
   amount,
   onAmountChange,
   showAmount,
+  consent,
+  onConsentChange,
   scanning,
   onProceed,
 }: Props) {
@@ -411,6 +415,19 @@ export function AepsNewLayout({
               Proceed to biometric
             </PrimaryButton>
           </div>
+
+          <label className="flex cursor-pointer items-start gap-2.5 select-none rounded-xl border border-gray-100 bg-slate-50/90 px-3.5 py-3">
+            <input
+              type="checkbox"
+              checked={consent}
+              onChange={(e) => onConsentChange(e.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-blue-600"
+            />
+            <span className="text-xs leading-relaxed text-gray-600">
+              I (the customer) accept <span className="font-semibold text-blue-700">Aadhaar Consent</span> and
+              have read the <span className="font-semibold text-blue-700">AePS Advisory</span>
+            </span>
+          </label>
 
           <p className="flex items-start gap-2 text-xs text-gray-500">
             <Info size={14} className="mt-0.5 shrink-0 text-blue-500" />

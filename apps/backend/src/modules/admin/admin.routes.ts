@@ -85,7 +85,7 @@ adminRouter.get("/users/:id", async (req, res) => {
 adminRouter.get("/users/:id/kyc-documents/:docKey", async (req, res) => {
   const doc = await getAdminKycDocument(req.params.id, req.params.docKey);
   res.setHeader("Content-Type", doc.contentType);
-  res.setHeader("Cache-Control", "private, max-age=120");
+  res.setHeader("Cache-Control", "private, no-store");
   res.send(doc.buffer);
 });
 

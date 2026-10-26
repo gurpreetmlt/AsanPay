@@ -5,6 +5,7 @@ import { users } from "../../db/postgres/schema";
 import { HttpError } from "../../utils/httpError";
 import {
   firstResponseRow,
+  nobleBioType,
   nobleDeviceBody,
   nobleOk,
   nobleTxnId,
@@ -192,7 +193,15 @@ export async function nobleApLoadAgent(
 
 export async function nobleApKyc(
   userId: string,
-  input: { biometricPayload: string; dob: string; latitude?: string; longitude?: string; channel?: "APP" | "WEB"; endpointIp?: string },
+  input: {
+    biometricPayload: string;
+    captureType?: "FINGER" | "FACE";
+    dob: string;
+    latitude?: string;
+    longitude?: string;
+    channel?: "APP" | "WEB";
+    endpointIp?: string;
+  },
 ) {
   const ctx = await resolveNobleAgentContext({
     retailerUserId: userId,
@@ -211,7 +220,7 @@ export async function nobleApKyc(
     ...nobleDeviceBody(ctx),
     transactionId,
     dob: input.dob,
-    bioType: "0",
+    bioType: nobleBioType(input.captureType),
     pidData: input.biometricPayload,
   });
   if (!nobleOk(json, httpStatus)) {
@@ -222,7 +231,14 @@ export async function nobleApKyc(
 
 export async function nobleApDaily2fa(
   userId: string,
-  input: { biometricPayload: string; latitude?: string; longitude?: string; channel?: "APP" | "WEB"; endpointIp?: string },
+  input: {
+    biometricPayload: string;
+    captureType?: "FINGER" | "FACE";
+    latitude?: string;
+    longitude?: string;
+    channel?: "APP" | "WEB";
+    endpointIp?: string;
+  },
 ) {
   const ctx = await resolveNobleAgentContext({
     retailerUserId: userId,
@@ -235,18 +251,24 @@ export async function nobleApDaily2fa(
   if (!ctx.live) {
     return { transactionId: `MOCK-AP2FA-${Date.now()}`, live: false, raw: { mock: true } };
   }
+  const isFace = input.captureType === "FACE";
   const transactionId = nobleTxnId("NAP2F");
   const { httpStatus, json } = await noblePost("aeps", "/v2.0/aeps/ap_daily_2fa", {
     ...nobleDeviceBody(ctx),
     transactionId,
     serviceType: "AP",
-    bioType: "0",
+    bioType: nobleBioType(input.captureType),
     pidData: input.biometricPayload,
   });
   const row = firstResponseRow(json);
   const tran = String(row.tranStatus ?? "").toLowerCase();
   if (!nobleOk(json, httpStatus) || (tran && tran !== "success")) {
-    throw nobleFailure(json, httpStatus, "Aadhaar Pay daily fingerprint verification failed", "NOBLE_AP_2FA_FAILED");
+    throw nobleFailure(
+      json,
+      httpStatus,
+      isFace ? "Aadhaar Pay daily face verification failed" : "Aadhaar Pay daily fingerprint verification failed",
+      "NOBLE_AP_2FA_FAILED",
+    );
   }
   return { transactionId, live: true, raw: row };
 }

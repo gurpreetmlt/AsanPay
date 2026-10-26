@@ -36,7 +36,7 @@ export async function assertFreshBiometric(payload: string): Promise<void> {
       // also reject a timestamp implausibly in the future (clock skew abuse)
       throw new HttpError(
         401,
-        "Fingerprint scan has expired — scan again to continue.",
+        "Fingerprint / face capture has expired — capture again to continue.",
         "STALE_BIOMETRIC_TIMESTAMP",
       );
     }
@@ -49,7 +49,7 @@ export async function assertFreshBiometric(payload: string): Promise<void> {
     // Unique-constraint violation == this exact payload was already used for a prior attempt.
     throw new HttpError(
       401,
-      "This fingerprint scan was already used — scan again to retry.",
+      "This fingerprint / face capture was already used — capture again to retry.",
       "STALE_BIOMETRIC_RETRY_REQUIRED",
     );
   }

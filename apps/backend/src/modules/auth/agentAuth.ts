@@ -23,8 +23,10 @@ export interface AgentAuthStatus {
   verifiedToday: boolean;
   lastVerifiedAt: Date | null;
   kycReady: boolean;
-  /** Retailer's own KYC Aadhaar (signup) — clients auto-fill daily 2FA from this. */
-  aadhaarNumber: string | null;
+  /** Last 4 digits of the retailer's KYC Aadhaar; the server uses the full number for 2FA. */
+  aadhaarLastFour: string | null;
+  /** Always null — the full number never leaves the server. Kept for older app builds. */
+  aadhaarNumber: null;
   providerMode: string;
   /** Always null — kept so older app builds that read it keep working. */
   outlet: null;
@@ -41,21 +43,22 @@ export async function getAgentAuthStatus(userId: string): Promise<AgentAuthStatu
   const last = user?.lastAgentAuthAt ?? null;
   const localVerifiedToday = Boolean(last && indiaDayKey(last) === indiaDayKey(new Date()));
 
-  let aadhaarNumber: string | null = null;
+  let aadhaarLastFour: string | null = null;
   if (user?.aadhaarNumberEncrypted) {
     try {
       const digits = decryptPII(user.aadhaarNumberEncrypted).replace(/\D/g, "");
-      aadhaarNumber = /^\d{12}$/.test(digits) ? digits : null;
+      aadhaarLastFour = /^\d{12}$/.test(digits) ? digits.slice(-4) : null;
     } catch {
-      aadhaarNumber = null;
+      aadhaarLastFour = null;
     }
   }
 
   const base: AgentAuthStatus = {
     verifiedToday: localVerifiedToday,
     lastVerifiedAt: last,
-    kycReady: Boolean(aadhaarNumber),
-    aadhaarNumber,
+    kycReady: Boolean(aadhaarLastFour),
+    aadhaarLastFour,
+    aadhaarNumber: null,
     providerMode: env.AEPS_PROVIDER_MODE,
     outlet: null,
   };
@@ -78,6 +81,7 @@ export interface AgentAuthInput {
   /** When omitted, the retailer's signup KYC Aadhaar is used. */
   aadhaarNumber?: string;
   biometricPayload: string;
+  captureType?: "FINGER" | "FACE";
   latitude?: string;
   longitude?: string;
   endpointIp?: string | null;
@@ -129,6 +133,7 @@ export async function verifyAndRecordAgentAuth(
         retailerUserId: actor.id,
         aadhaarNumber,
         biometricPayload: input.biometricPayload,
+        captureType: input.captureType,
         latitude: input.latitude ?? user.outletLatitude ?? undefined,
         longitude: input.longitude ?? user.outletLongitude ?? undefined,
         outletId: user.nobleUniqueAgentId ?? undefined,
@@ -139,7 +144,10 @@ export async function verifyAndRecordAgentAuth(
   if (!result.success || result.status !== "success") {
     throw new HttpError(
       401,
-      result.message || "Daily fingerprint verification failed at provider",
+      result.message ||
+        (input.captureType === "FACE"
+          ? "Daily face verification failed at provider"
+          : "Daily fingerprint verification failed at provider"),
       "AGENT_AUTH_PROVIDER_FAILED",
     );
   }
@@ -157,6 +165,7 @@ export async function verifyAndRecordAgentAuth(
       mode: env.AEPS_PROVIDER_MODE,
       provider: routedProviders[0]!.adapter.code,
       providerTxnId: result.providerTxnId,
+      captureType: input.captureType ?? "FINGER",
     },
   });
 

@@ -109,6 +109,7 @@ function Field({
   placeholder,
   keyboardType,
   autoCapitalize,
+  editable,
 }: {
   label: string;
   value: string;
@@ -116,6 +117,7 @@ function Field({
   placeholder: string;
   keyboardType?: "default" | "number-pad" | "numeric";
   autoCapitalize?: "none" | "characters";
+  editable?: boolean;
 }) {
   return (
     <View style={{ marginBottom: 14 }}>
@@ -126,6 +128,7 @@ function Field({
         placeholder={placeholder}
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}
+        editable={editable}
         placeholderTextColor="#94A3B8"
         style={styles.input}
       />
@@ -142,6 +145,8 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
   const [agentAuthReady, setAgentAuthReady] = useState<boolean | null>(null);
   const [agentAuthKycReady, setAgentAuthKycReady] = useState(true);
   const [agentAadhaar, setAgentAadhaar] = useState("");
+  /** Last 4 of the signup KYC Aadhaar — the server fills the full number for daily 2FA. */
+  const [agentAadhaarLastFour, setAgentAadhaarLastFour] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
 
   const [mobile, setMobile] = useState("");
@@ -201,7 +206,7 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
   useEffect(() => {
     let cancelled = false;
     void api
-      .get<ApiResponse<{ verifiedToday: boolean; kycReady: boolean; aadhaarNumber?: string | null }>>(
+      .get<ApiResponse<{ verifiedToday: boolean; kycReady: boolean; aadhaarLastFour?: string | null }>>(
         "/auth/agent-auth/status",
       )
       .then(({ data }) => {
@@ -209,10 +214,10 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
         if (data.success) {
           setAgentAuthReady(Boolean(data.data.verifiedToday));
           setAgentAuthKycReady(data.data.kycReady !== false);
-          const digits = String(data.data.aadhaarNumber ?? "")
+          const last4 = String(data.data.aadhaarLastFour ?? "")
             .replace(/\D/g, "")
-            .slice(0, 12);
-          if (digits.length === 12) setAgentAadhaar(digits);
+            .slice(-4);
+          setAgentAadhaarLastFour(last4.length === 4 ? last4 : null);
         } else {
           setAgentAuthReady(false);
         }
@@ -245,17 +250,18 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
       showAlert("KYC pending", "Complete retailer KYC Aadhaar before DMT access.");
       return;
     }
-    if (agentAadhaar.replace(/\D/g, "").length !== 12) {
+    const typedAadhaar = agentAadhaar.replace(/\D/g, "");
+    if (!agentAadhaarLastFour && typedAadhaar.length !== 12) {
       showAlert("Aadhaar required", "Enter retailer 12-digit Aadhaar.");
       return;
     }
     setAuthBusy(true);
     try {
       const biometricPayload = await captureFingerprint();
-      const { data } = await api.post<ApiResponse<{ verifiedAt: string }>>("/auth/agent-auth", {
-        aadhaarNumber: agentAadhaar.replace(/\D/g, ""),
-        biometricPayload,
-      });
+      const { data } = await api.post<ApiResponse<{ verifiedAt: string }>>(
+        "/auth/agent-auth",
+        agentAadhaarLastFour ? { biometricPayload } : { aadhaarNumber: typedAadhaar, biometricPayload },
+      );
       if (!data.success) throw new Error(data.message);
       setAgentAuthReady(true);
       showAlert("Verification complete", "Money Transfer unlocked for today.");
@@ -718,16 +724,11 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
             </Text>
             <Field
               label="RETAILER AADHAAR"
-              value={agentAadhaar}
+              value={agentAadhaarLastFour ? `XXXX XXXX ${agentAadhaarLastFour}` : agentAadhaar}
               onChangeText={(v) => setAgentAadhaar(v.replace(/\D/g, "").slice(0, 12))}
-              placeholder={
-                agentAuthKycReady
-                  ? agentAadhaar.length === 12
-                    ? "From signup KYC"
-                    : "12-digit Aadhaar"
-                  : "KYC Aadhaar not found"
-              }
+              placeholder={agentAuthKycReady ? "12-digit Aadhaar" : "KYC Aadhaar not found"}
               keyboardType="number-pad"
+              editable={!agentAadhaarLastFour}
             />
             <Pressable onPress={() => void verifyDailyAuth()} disabled={authBusy} style={styles.primaryBtn}>
               {authBusy ? (

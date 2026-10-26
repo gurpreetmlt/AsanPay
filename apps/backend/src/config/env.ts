@@ -59,7 +59,8 @@ const envSchema = z.object({
   TEST_OTP_OVERRIDES: z.string().default(""),
   /**
    * Same format as TEST_OTP_OVERRIDES, but only for public signup OTPs.
-   * Example: "*:242424" → every mobile gets signup OTP 242424 (pre-launch).
+   * Example: "*:242424" → every mobile gets signup OTP 242424 (non-production only —
+   * wildcard / bare entries make the server refuse to boot when NODE_ENV=production).
    * Login OTPs still use TEST_OTP_OVERRIDES only.
    */
   TEST_SIGNUP_OTP_OVERRIDES: z.string().default(""),
@@ -285,6 +286,47 @@ if (!parsed.success) {
 }
 
 export const env = parsed.data;
+
+const otpProblems = testOtpProductionViolations(env);
+if (otpProblems.length > 0) {
+  console.error("Refusing to start with test OTP settings in production:", otpProblems);
+  throw new Error(`Test OTP settings are not allowed in production: ${otpProblems.join("; ")}`);
+}
+
+/**
+ * Production must never run with OTP shortcuts that work for every number or leak the OTP.
+ * Exact-number review accounts in TEST_*_OTP_OVERRIDES stay allowed. Returns problems; empty = OK.
+ */
+export function testOtpProductionViolations(cfg: {
+  NODE_ENV: string;
+  EXPOSE_OTP_IN_RESPONSE: boolean;
+  TEST_OTP_OVERRIDES: string;
+  TEST_SIGNUP_OTP_OVERRIDES: string;
+}): string[] {
+  if (cfg.NODE_ENV !== "production") return [];
+  const problems: string[] = [];
+  if (cfg.EXPOSE_OTP_IN_RESPONSE) {
+    problems.push("EXPOSE_OTP_IN_RESPONSE must be false or unset");
+  }
+  for (const key of ["TEST_OTP_OVERRIDES", "TEST_SIGNUP_OTP_OVERRIDES"] as const) {
+    if (hasWildcardOtpOverride(cfg[key])) {
+      problems.push(`${key} must not contain a "*:" or bare OTP entry — list exact test numbers only, or clear it`);
+    }
+  }
+  return problems;
+}
+
+/** Mirrors parseOtpOverrides: a "*:otp" pair or a bare 6-digit OTP applies to every number. */
+function hasWildcardOtpOverride(raw: string): boolean {
+  const cleaned = raw.trim().replace(/^["']|["']$/g, "");
+  if (!cleaned) return false;
+  return cleaned.split(",").some((pair) => {
+    const trimmed = pair.trim().replace(/^["']|["']$/g, "");
+    const colon = trimmed.indexOf(":");
+    if (colon <= 0) return /^\d{6}$/.test(trimmed);
+    return trimmed.slice(0, colon).trim().replace(/^["']|["']$/g, "") === "*";
+  });
+}
 
 /** True when both provider API credentials are non-empty (keys may arrive after code lands). */
 export function isNobleConfigured(): boolean {

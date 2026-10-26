@@ -222,6 +222,8 @@ export const aadhaarPaySchema = z
     ...txnAuthFields,
     ...aepsBase,
     amount,
+    /** FACE = customer PID from UIDAI FaceRD (mobile); default fingerprint. */
+    captureType: z.enum(["FINGER", "FACE"]).optional(),
     /** From /aeps/aadhaar-pay/otp — only when the provider asks for an OTP at this amount. */
     otpReferenceKey: z.string().min(1).max(200).optional(),
     otpTransactionId: z.string().min(1).max(200).optional(),

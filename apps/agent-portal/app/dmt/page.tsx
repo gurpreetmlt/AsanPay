@@ -209,6 +209,8 @@ export default function DmtPage() {
   const [agentAuthReady, setAgentAuthReady] = useState<boolean | null>(null);
   const [agentAuthKycReady, setAgentAuthKycReady] = useState(true);
   const [agentAadhaar, setAgentAadhaar] = useState("");
+  /** Last 4 of the signup KYC Aadhaar — the server fills the full number for daily 2FA. */
+  const [agentAadhaarLastFour, setAgentAadhaarLastFour] = useState<string | null>(null);
   const [agentAadhaarVisible, setAgentAadhaarVisible] = useState(false);
   const [agentAuthConsent, setAgentAuthConsent] = useState(false);
   const [agentAuthScanning, setAgentAuthScanning] = useState(false);
@@ -281,7 +283,7 @@ export default function DmtPage() {
   useEffect(() => {
     let cancelled = false;
     void api
-      .get<ApiResponse<{ verifiedToday: boolean; kycReady: boolean; aadhaarNumber?: string | null }>>(
+      .get<ApiResponse<{ verifiedToday: boolean; kycReady: boolean; aadhaarLastFour?: string | null }>>(
         "/auth/agent-auth/status",
       )
       .then(({ data }) => {
@@ -289,8 +291,8 @@ export default function DmtPage() {
         if (data.success) {
           setAgentAuthReady(Boolean(data.data.verifiedToday));
           setAgentAuthKycReady(data.data.kycReady !== false);
-          const digits = (data.data.aadhaarNumber ?? "").replace(/\D/g, "").slice(0, 12);
-          if (digits.length === 12) setAgentAadhaar(digits);
+          const last4 = (data.data.aadhaarLastFour ?? "").replace(/\D/g, "").slice(-4);
+          setAgentAadhaarLastFour(last4.length === 4 ? last4 : null);
         } else {
           setAgentAuthReady(false);
         }
@@ -373,7 +375,8 @@ export default function DmtPage() {
       toast.error("Complete KYC Aadhaar before DMT access");
       return;
     }
-    if (agentAadhaar.replace(/\D/g, "").length !== 12) {
+    const typedAadhaar = agentAadhaar.replace(/\D/g, "");
+    if (!agentAadhaarLastFour && typedAadhaar.length !== 12) {
       toast.error("Enter retailer's 12-digit Aadhaar");
       return;
     }
@@ -393,10 +396,10 @@ export default function DmtPage() {
     setAgentAuthScanning(true);
     try {
       const biometricPayload = await captureFingerprintWeb();
-      const { data } = await api.post<ApiResponse<{ verifiedAt: string }>>("/auth/agent-auth", {
-        aadhaarNumber: agentAadhaar.replace(/\D/g, ""),
-        biometricPayload,
-      });
+      const { data } = await api.post<ApiResponse<{ verifiedAt: string }>>(
+        "/auth/agent-auth",
+        agentAadhaarLastFour ? { biometricPayload } : { aadhaarNumber: typedAadhaar, biometricPayload },
+      );
       if (!data.success) throw new Error(data.message);
       setAgentAuthReady(true);
       toast.success("DMT unlocked for today");
@@ -833,7 +836,11 @@ export default function DmtPage() {
   if (!agentAuthReady) {
     const retailerLabel = user?.name?.trim() || "Retailer";
     const aadhaarDigits = agentAadhaar.replace(/\D/g, "").length;
-    const canScan = agentAuthKycReady && agentAuthConsent && aadhaarDigits === 12 && !agentAuthScanning;
+    const canScan =
+      agentAuthKycReady &&
+      agentAuthConsent &&
+      (Boolean(agentAadhaarLastFour) || aadhaarDigits === 12) &&
+      !agentAuthScanning;
 
     return (
       <AppShell>
@@ -882,35 +889,40 @@ export default function DmtPage() {
                   className="mt-2 flex items-center gap-2 rounded-xl border-2 px-3.5 py-3 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-50"
                   style={{ borderColor: B.border }}
                 >
-                  <input
-                    value={
-                      agentAadhaarVisible
-                        ? formatAadhaar(agentAadhaar)
-                        : maskAadhaar(agentAadhaar)
-                    }
-                    onChange={(e) => setAgentAadhaar(e.target.value.replace(/\D/g, "").slice(0, 12))}
-                    onFocus={() => setAgentAadhaarVisible(true)}
-                    placeholder={
-                      agentAuthKycReady
-                        ? agentAadhaar.length === 12
-                          ? "From signup KYC"
-                          : "Enter 12-digit Aadhaar"
-                        : "KYC Aadhaar not found"
-                    }
-                    disabled={!agentAuthKycReady || agentAuthScanning}
-                    inputMode="numeric"
-                    className="flex-1 bg-transparent text-sm font-semibold tracking-wide outline-none disabled:text-gray-400"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setAgentAadhaarVisible((v) => !v)}
-                    className="icon-tooltip text-gray-400 transition hover:text-gray-600"
-                    aria-label={agentAadhaarVisible ? "Hide Aadhaar" : "Show Aadhaar"}
-                    data-tooltip={agentAadhaarVisible ? "Hide Aadhaar" : "Show Aadhaar"}
-                  >
-                    {agentAadhaarVisible ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
+                  {agentAadhaarLastFour ? (
+                    <span className="flex-1 text-sm font-semibold tracking-wide text-gray-700">
+                      XXXX XXXX {agentAadhaarLastFour}
+                    </span>
+                  ) : (
+                    <>
+                      <input
+                        value={
+                          agentAadhaarVisible
+                            ? formatAadhaar(agentAadhaar)
+                            : maskAadhaar(agentAadhaar)
+                        }
+                        onChange={(e) => setAgentAadhaar(e.target.value.replace(/\D/g, "").slice(0, 12))}
+                        onFocus={() => setAgentAadhaarVisible(true)}
+                        placeholder={agentAuthKycReady ? "Enter 12-digit Aadhaar" : "KYC Aadhaar not found"}
+                        disabled={!agentAuthKycReady || agentAuthScanning}
+                        inputMode="numeric"
+                        className="flex-1 bg-transparent text-sm font-semibold tracking-wide outline-none disabled:text-gray-400"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setAgentAadhaarVisible((v) => !v)}
+                        className="icon-tooltip text-gray-400 transition hover:text-gray-600"
+                        aria-label={agentAadhaarVisible ? "Hide Aadhaar" : "Show Aadhaar"}
+                        data-tooltip={agentAadhaarVisible ? "Hide Aadhaar" : "Show Aadhaar"}
+                      >
+                        {agentAadhaarVisible ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </>
+                  )}
                 </div>
+                {agentAadhaarLastFour ? (
+                  <p className="mt-1.5 text-[11px] text-gray-500">Auto-filled from Aadhaar saved at retailer signup</p>
+                ) : null}
               </div>
 
               <label

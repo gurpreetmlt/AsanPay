@@ -12,7 +12,7 @@ import {
   verifyAadhaarKycOtp,
 } from "./aadhaarOtp.service";
 import { panVerifySchema, verifyPanKyc } from "./panVerify.service";
-import { getMyKycProfile, submitKyc } from "./kyc.service";
+import { getMyKycDocument, getMyKycProfile, submitKyc } from "./kyc.service";
 import { isKycDocSlot, saveKycDocumentDataUrl } from "./kycDocuments.service";
 import { z } from "zod";
 
@@ -38,7 +38,15 @@ kycRouter.post("/documents/upload", async (req, res) => {
     throw new HttpError(422, "Invalid document slot", "INVALID_KYC_SLOT");
   }
   const saved = await saveKycDocumentDataUrl(req.auth.sub, body.slot, body.dataUrl);
-  sendSuccess(res, saved, "Document uploaded");
+  sendSuccess(res, { slot: body.slot, fileName: saved.fileName }, "Document uploaded");
+});
+
+kycRouter.get("/documents/:docKey", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const doc = await getMyKycDocument(req.auth.sub, String(req.params.docKey ?? ""));
+  res.setHeader("Content-Type", doc.contentType);
+  res.setHeader("Cache-Control", "private, no-store");
+  res.send(doc.buffer);
 });
 
 kycRouter.get("/ifsc/:code", async (req, res) => {

@@ -366,6 +366,8 @@ const agentAuthSchema = z.object({
     .regex(/^\d{12}$/, "Aadhaar number must be 12 digits")
     .optional(),
   biometricPayload: z.string().min(1),
+  /** FACE = PID from UIDAI FaceRD (mobile); default fingerprint. */
+  captureType: z.enum(["FINGER", "FACE"]).optional(),
   latitude: z.string().min(1).max(32).optional(),
   longitude: z.string().min(1).max(32).optional(),
 });
@@ -378,13 +380,18 @@ export async function agentAuth(req: Request, res: Response): Promise<void> {
     {
       aadhaarNumber: input.aadhaarNumber,
       biometricPayload: input.biometricPayload,
+      captureType: input.captureType,
       latitude: input.latitude,
       longitude: input.longitude,
       endpointIp: req.ip ?? null,
     },
     { ipAddress: req.ip ?? null, userAgent: req.headers["user-agent"] ?? null },
   );
-  sendSuccess(res, result, "Fingerprint verified — session unlocked");
+  sendSuccess(
+    res,
+    result,
+    input.captureType === "FACE" ? "Face verified — session unlocked" : "Fingerprint verified — session unlocked",
+  );
 }
 
 export async function agentAuthStatus(req: Request, res: Response): Promise<void> {

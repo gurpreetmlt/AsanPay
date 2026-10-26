@@ -46,6 +46,7 @@
 - [x] Wallet `pendingBalance` on `/wallet/me` (from pending/initiated txns)
 - [x] AEPS dummy↔live switch (`AEPS_PROVIDER_MODE`) + InstantPay adapter skeleton
 - [x] AEPS compliance gates (geofence, bio-mismatch/EDD, dormancy, cash receipt)
+- [x] Compliance C1 — KYC files not public (`/uploads/promos` only; owner `GET /api/kyc/documents/:docKey`), Aadhaar last-4 only in agent-auth status + identity reveal, pino redact + redacted query tokens in access log, AePS customer consent unchecked by default (web + mobile), production refuses `EXPOSE_OTP_IN_RESPONSE` / wildcard test OTPs
 - [x] Email verification OTP (`/auth/email/otp/*`) + web Verify UI (KYC, outlet, settings)
 - [x] Aadhaar KYC OTP via BestAPI (`/kyc/aadhaar/otp/*`) — web + mobile signup Aadhaar step
 - [x] PAN verify via BestAPI (`POST /kyc/pan/verify`) — web + mobile signup PAN step
@@ -182,6 +183,7 @@
 - [ ] AePS block/dormancy were one-way doors until 2026-08-07 (task #9) — a blocked or dormant merchant had no path back. Fixed; watch for the same pattern (a flag that's only ever set, never cleared) elsewhere.
 
 ## Last updated
+2026-10-26 — Face authentication (UIDAI Aadhaar FaceRD, mobile): AEPS daily 2FA, Aadhaar Pay KYC + daily 2FA, Aadhaar Pay customer txn send `bioType 2`; Fingerprint / Face picker on mobile, web shows "Mobile app only". Fixed Aadhaar Pay KYC sending the whole `finger~iris~face` wadh (web + mobile) — fingerprint now uses the finger part only. Other AEPS txns (CW / BE / MS / CD) stay fingerprint
 2026-10-26 — UPI Cash Point QR is now a real txn (`UPI_CASH_POINT`, pending until paid, AEPS wallet credit + commission on success); web + mobile watch payment status and show paid / failed; daily recon sends `QR`. Ledger type map fixed for `aadhaar_pay` + `aeps_cash_deposit` rail codes. Ops script `failUnsubmittedTxn.ts` settles stuck never-submitted txns via the txn service: auto-reversal (ledger debit), close against an approved recon adjustment (pre-ledger debit), or `--never-charged` close (no money on record). LKP20260801F7A0A83F closed as never charged (no ledger, wallet-book or hold entry)
 2026-10-26 — DMT beneficiary list now loads from the provider on remitter lookup (web + mobile); add/delete finish in one step with a delete confirmation; delete uses the real IFSC. Admin dashboard "Provider wallet" tile + live provider balance on Treasury
 2026-10-26 — Old outlet / bio-KYC UI removed (web + mobile), Nepal → Coming soon on both; migration 0071 drops `instantpay_outlet_id` and deactivates old provider rows

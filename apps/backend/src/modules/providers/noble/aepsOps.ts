@@ -17,6 +17,11 @@ export interface NobleAgentContext {
   live: boolean;
 }
 
+/** Provider bioType: 0 = fingerprint (FMR/FIR), 1 = iris, 2 = face (FID). */
+export function nobleBioType(captureType?: "FINGER" | "FACE"): "0" | "2" {
+  return captureType === "FACE" ? "2" : "0";
+}
+
 export function nobleTxnId(prefix = "NWS"): string {
   return `${prefix}${randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase()}`.slice(0, 25);
 }

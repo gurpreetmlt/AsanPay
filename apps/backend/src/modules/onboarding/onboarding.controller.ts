@@ -97,6 +97,7 @@ export async function nobleApKycHandler(req: Request, res: Response): Promise<vo
     res,
     await nobleApKyc(req.auth!.sub, {
       biometricPayload: body.biometricPayload,
+      captureType: body.captureType,
       dob,
       latitude: body.latitude != null ? String(body.latitude) : undefined,
       longitude: body.longitude != null ? String(body.longitude) : undefined,
@@ -112,11 +113,12 @@ export async function nobleAp2faHandler(req: Request, res: Response): Promise<vo
     res,
     await nobleApDaily2fa(req.auth!.sub, {
       biometricPayload: body.biometricPayload,
+      captureType: body.captureType,
       latitude: body.latitude != null ? String(body.latitude) : undefined,
       longitude: body.longitude != null ? String(body.longitude) : undefined,
       channel: body.channel,
       endpointIp: req.ip ?? undefined,
     }),
-    "Aadhaar Pay fingerprint verified for today",
+    body.captureType === "FACE" ? "Aadhaar Pay face verified for today" : "Aadhaar Pay fingerprint verified for today",
   );
 }

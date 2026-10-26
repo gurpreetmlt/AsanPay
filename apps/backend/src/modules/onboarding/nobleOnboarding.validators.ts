@@ -112,6 +112,8 @@ export const nobleApKycSchema = z.object({
     .string()
     .regex(/^\d{2}\/\d{2}\/\d{4}$/, "Date of birth must be DD/MM/YYYY (e.g. 20/10/1985)")
     .optional(),
+  /** FACE = PID from UIDAI FaceRD captured with the face part of `kycWadhValue`. */
+  captureType: z.enum(["FINGER", "FACE"]).optional(),
   latitude: z.coerce.number().min(-90).max(90).optional(),
   longitude: z.coerce.number().min(-180).max(180).optional(),
   channel: z.enum(["APP", "WEB"]).optional().default("APP"),
@@ -121,6 +123,7 @@ export type NobleApKycInput = z.infer<typeof nobleApKycSchema>;
 
 export const nobleAp2faSchema = z.object({
   biometricPayload: z.string().min(20, "Biometric PID data is required"),
+  captureType: z.enum(["FINGER", "FACE"]).optional(),
   latitude: z.coerce.number().min(-90).max(90).optional(),
   longitude: z.coerce.number().min(-180).max(180).optional(),
   channel: z.enum(["APP", "WEB"]).optional().default("APP"),

@@ -103,27 +103,29 @@ async function withKycIdentity(userId: string, input: NobleAgentOnboardInput): P
   return { ...input, panNumber: pan, aadhaarNumber: aadhaar, agentBankAccountNumber: account };
 }
 
-/** Full PAN + Aadhaar for the signed-in agent's own eye toggle. Every reveal is audit-logged (no values). */
+/**
+ * Full PAN for the signed-in agent's own eye toggle. Aadhaar is never revealed (last-4 only,
+ * via the prefill) — `aadhaar` stays in the shape for older app builds. Audit-logged (no values).
+ */
 export async function revealMyKycIdentity(
   userId: string,
   ipAddress: string | null,
-): Promise<{ pan: string | null; aadhaar: string | null }> {
+): Promise<{ pan: string | null; aadhaar: null }> {
   const [row] = await db
-    .select({ pan: users.panNumberEncrypted, aadhaar: users.aadhaarNumberEncrypted })
+    .select({ pan: users.panNumberEncrypted })
     .from(users)
     .where(eq(users.id, userId));
   if (!row) throw new HttpError(404, "User not found", "USER_NOT_FOUND");
   const pan = decryptOrNull(row.pan, PAN_RE, cleanPan);
-  const aadhaar = decryptOrNull(row.aadhaar, AADHAAR_RE, cleanDigits);
   await insertAuditLog({
     userId,
     action: "kyc.identity_reveal",
     entityType: "user",
     entityId: userId,
     ipAddress,
-    metadata: { pan: Boolean(pan), aadhaar: Boolean(aadhaar) },
+    metadata: { pan: Boolean(pan) },
   }).catch((err: unknown) => logger.error({ err }, "failed to audit KYC identity reveal"));
-  return { pan, aadhaar };
+  return { pan, aadhaar: null };
 }
 
 /** Own signup / KYC values for the onboarding form — PAN, Aadhaar and bank account masked. */
