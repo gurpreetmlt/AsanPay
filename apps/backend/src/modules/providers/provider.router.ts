@@ -6,7 +6,7 @@ import { getAdapterByCode } from "./provider.registry";
 import { aepsAdapterCode, isAepsRoutedService } from "./aepsMode";
 import { HttpError } from "../../utils/httpError";
 import { logger } from "../../utils/logger";
-import { env, isInstantPayAepsMode } from "../../config/env";
+import { env } from "../../config/env";
 import type { ProviderAdapter, ProviderOperation, ProviderResult } from "./types";
 
 /**
@@ -30,8 +30,7 @@ export interface RoutedProvider {
 
 /**
  * AEPS services honour AEPS_PROVIDER_MODE:
- * - instantpay_* → InstantPay adapter
- * - paysprint_* → PaySprint adapter
+ * - noble → Noble adapter
  * - off → 503 (no AePS provider configured yet)
  */
 async function resolveAepsProvider(serviceCode: string): Promise<RoutedProvider[]> {
@@ -50,12 +49,9 @@ async function resolveAepsProvider(serviceCode: string): Promise<RoutedProvider[
   if (isStubBlocked(adapter, env.NODE_ENV, env.ALLOW_STUB_PROVIDERS)) {
     throw new HttpError(
       503,
-      "Stub AEPS provider blocked in production — set AEPS_PROVIDER_MODE=instantpay_live (or ALLOW_STUB_PROVIDERS for staging)",
+      "Stub AEPS provider blocked in production — set AEPS_PROVIDER_MODE=noble (or ALLOW_STUB_PROVIDERS for staging)",
       "STUB_PROVIDER_BLOCKED",
     );
-  }
-  if (isInstantPayAepsMode() && adapter.isStub) {
-    throw new HttpError(503, "InstantPay mode resolved a stub adapter — refusing", "AEPS_MODE_MISMATCH");
   }
 
   let [row] = await db
@@ -69,12 +65,7 @@ async function resolveAepsProvider(serviceCode: string): Promise<RoutedProvider[
       .insert(providers)
       .values({
         code,
-        name:
-          code === "instantpay"
-            ? "InstantPay"
-            : code === "noble"
-              ? "Noble Web Studio"
-              : "PaySprint",
+        name: "Noble Web Studio",
       })
       .returning({ id: providers.id, isActive: providers.isActive });
     row = created!;
@@ -99,26 +90,7 @@ async function resolveAepsProvider(serviceCode: string): Promise<RoutedProvider[
     serviceCode === "dmt_delete_beneficiary_verify" ||
     serviceCode === "dmt_txn_otp" ||
     serviceCode === "dmt_refund_otp" ||
-    serviceCode === "dmt_refund" ||
-    serviceCode === "nepal_static_data" ||
-    serviceCode === "nepal_payment_locations" ||
-    serviceCode === "nepal_state_district" ||
-    serviceCode === "nepal_outlet_status" ||
-    serviceCode === "nepal_outlet_registration" ||
-    serviceCode === "nepal_outlet_ekyc_initiate" ||
-    serviceCode === "nepal_outlet_ekyc_status" ||
-    serviceCode === "nepal_outlet_ekyc_process" ||
-    serviceCode === "nepal_remitter_profile" ||
-    serviceCode === "nepal_otp_request" ||
-    serviceCode === "nepal_remitter_registration" ||
-    serviceCode === "nepal_remitter_ekyc_initiate" ||
-    serviceCode === "nepal_remitter_ekyc_status" ||
-    serviceCode === "nepal_remitter_ekyc_process" ||
-    serviceCode === "nepal_remitter_update" ||
-    serviceCode === "nepal_beneficiary_registration" ||
-    serviceCode === "nepal_service_charge" ||
-    serviceCode === "nepal_fund_transfer" ||
-    serviceCode === "nepal_fetch_txn_status";
+    serviceCode === "dmt_refund";
   if (!skipServiceGate) {
     const [svc] = await db
       .select({ id: services.id, isActive: services.isActive })

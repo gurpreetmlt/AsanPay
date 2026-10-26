@@ -18,10 +18,10 @@
 | P1 | Route AEPS + DMT to Noble in DB (ops only) | done (25 Oct) — owner to confirm What-if margins |
 | P2a | Aadhaar Pay setup + Cash Deposit status — backend | done (25 Oct) |
 | P2b | Aadhaar Pay tab on web `/aeps` + mobile `AepsScreen` (AP load → KYC → 2FA → OTP → txn) | done (25 Oct) |
-| P3 | Recharge operator / circle mapping → switch recharge | done (25 Oct) — owner to run recharge switch on EC2 |
+| P3 | Recharge operator / circle mapping → switch recharge | done (25 Oct) — switch applied on EC2; ₹10 live test recharge still pending |
 | P4 | DMT `bene/get` + admin Noble wallet balance | **CURRENT** |
-| P5 | Delete PaySprint | todo |
-| P6 | Delete InstantPay backend (adapter, client, onboarding, env, tests) | todo |
+| P5 | Delete PaySprint | done (25 Oct) |
+| P6 | Delete InstantPay backend (adapter, client, onboarding, env, tests) | done (25 Oct) |
 | P7 | Delete InstantPay UI (outlet / bio-KYC pages + mobile modals) + Nepal → Coming soon | todo |
 | P8 | DB cleanup migration (`instantpay_outlet_id`, provider rows) | todo |
 | P9 | UPI QR collections → transactions + recon `QR` | todo |
@@ -86,10 +86,22 @@ Read: `noble.adapter.ts` `recharge()`, `NobleWebStudio/RECHARGE.md`, web `app/re
 Files: `providers/paysprint/`, `adapters/paysprint.adapter.ts`, `provider.registry.ts`, `aepsMode.ts`, `config/env.ts` (PAYSPRINT_*, `assertPaySprintProviderConfig`, `paysprint_*` modes), `jobs/index.ts`, `server.ts`, `scripts/seedProviders.ts`, tests, `packages/config`, admin `lib/providerBrand.ts`.
 Grep `-i paysprint` must return only migrations afterwards.
 
+**P5 done:** adapter + client deleted; env keys / modes / assert gone; admin PaySprint-DMT confirm modal + brand removed; `packages/config` defaults → `noble`. Old `paysprint_*` mode values boot as `off`. Leftover `provider_services` rows for PaySprint are skipped by the router (no adapter registered) until P8 marks them inactive. Vendor docs (`PaySprint/`, old task notes) left as history.
+
 ### P6 — Delete InstantPay backend
 Files (largest first): `adapters/instantpay.adapter.ts`, `onboarding/onboarding.service.ts` + routes/controller/validators (InstantPay outlet + bio-KYC + mobile change + merchant list), `providers/instantpay/`, `config/env.ts`, `providers/types.ts` (Nepal types), `auth/agentAuth.ts`, `transactions/txn.validators.ts` + controller, `aeps/compliance.ts`, `users.service.ts`, `admin.service.ts`, tests `aepsProviderMode.test.ts` / `aepsCompliance.test.ts`.
 Nepal API routes → return 503 `Nepal remittance is coming soon` (keep route so old apps get a clear message).
 `AEPS_PROVIDER_MODE` → only `off | noble`.
+
+**P6 done:**
+- Deleted: `adapters/instantpay.adapter.ts`, `providers/instantpay/` (client, crypto, pidXml), `onboarding/onboarding.service.ts` + `onboarding.validators.ts`.
+- `AEPS_PROVIDER_MODE`: any value other than `noble` boots as `off`. `INSTANTPAY_*` env + `assertAepsProviderConfig` / `isInstantPayAepsMode` removed.
+- `/api/onboarding/instantpay*` → 410 `Outlet registration is no longer required. Complete AEPS onboarding from the AEPS screen instead.`
+- `/api/txn/nepal/*` → 503 `Nepal remittance is coming soon`. Nepal handlers, validators, adapter methods and types removed. `AEPS_ROUTED_SERVICE_CODES` = `agent_auth` only.
+- `agentAuth`: provider outlet-login check removed; status `outlet` is always `null` (it was already null on the current provider).
+- Compliance: certified-device check (only ran on the old rail) removed; dormancy anchor unchanged on the current provider.
+- **Kept for P7 / P8:** `users.instantpay_outlet_id` column + reads (`auth.service`, `kyc.service`, `users.service` `hasOutlet`), `AuthUser.hasInstantpayOutlet`. Drop them together with the P8 migration.
+- Tests: `aepsProviderMode.test.ts` rewritten for `off | noble`; InstantPay cases removed from `aepsCompliance.test.ts`.
 
 ### P7 — Delete InstantPay UI + Nepal Coming soon
 Web: `app/onboarding/outlet`, `app/onboarding/bio-kyc`, `app/settings` (outlet / bio-KYC buttons), `app/nepal` → Coming soon page, `app/dmt`, `lib/rdServiceFingerprint.ts`.

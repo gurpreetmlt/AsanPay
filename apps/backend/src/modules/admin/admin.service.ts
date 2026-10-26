@@ -1572,10 +1572,8 @@ export async function upsertAdminUserCommissions(
 //
 // AEPS + DMT (2026-07-21): migrated onto this table — see aepsMode.ts. They appear as normal
 // category rows below (hidden from the retailer catalog via serviceCategories.isActive=false,
-// but still listed here). Nepal remittance + merchant onboarding/eKYC still call
-// InstantPay-specific endpoints directly (no generic adapter method to route through), so they
-// stay on AEPS_PROVIDER_MODE — surfaced via the read-only getAepsDmtRailInfo() banner below so
-// admin isn't left guessing why Nepal isn't in this list.
+// but still listed here). Daily 2FA stays on AEPS_PROVIDER_MODE — surfaced via the read-only
+// getAepsDmtRailInfo() banner below.
 //
 // Pinned display order (2026-07-21, user request): AEPS, then DMT, then everything else in
 // catalog displayOrder. Deliberately NOT changing serviceCategories.displayOrder itself for
@@ -1657,7 +1655,7 @@ export async function listProvidersAdmin() {
       }
 
       // Per-service breakdown — lets admin toggle ONE biller's provider independently
-      // (e.g. move just "DTH" to PaySprint while the rest of BBPS stays on VyaparAPI).
+      // (e.g. move just "DTH" to Noble while the rest of BBPS stays on VyaparAPI).
       //
       // NOT for AEPS/DMT (2026-07-21, user-flagged risk): those are multi-step sequential
       // flows (remitter register → verify → KYC → beneficiary → transfer, all sharing a
@@ -1812,7 +1810,7 @@ export function getAepsDmtRailInfo() {
   return {
     mode: env.AEPS_PROVIDER_MODE,
     activeProviderCode: aepsAdapterCode(),
-    note: "Nepal remittance + merchant onboarding/eKYC still route via AEPS_PROVIDER_MODE (env) — InstantPay-specific, no generic adapter yet. AEPS/DMT transactions below are provider-agnostic and controlled by the rows underneath.",
+    note: "Daily fingerprint 2FA follows AEPS_PROVIDER_MODE (env). AEPS/DMT transactions below are provider-agnostic and controlled by the rows underneath. Nepal remittance is coming soon.",
   };
 }
 

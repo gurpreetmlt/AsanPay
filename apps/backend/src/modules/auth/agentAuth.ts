@@ -1,14 +1,12 @@
 import { eq } from "drizzle-orm";
 import { db } from "../../db/postgres";
 import { users } from "../../db/postgres/schema";
-import { env, isInstantPayAepsMode } from "../../config/env";
+import { env } from "../../config/env";
 import { HttpError } from "../../utils/httpError";
 import { decryptPII } from "../../utils/aes";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
-import { logger } from "../../utils/logger";
 import { assertFreshBiometric } from "../transactions/biometricReplay";
 import { resolveProvidersForService, callProvider } from "../providers/provider.router";
-import { instantPayOutletLoginStatus } from "../providers/instantpay/client";
 
 // Retailer-own-identity proof-of-presence, distinct from the customer's AEPS biometric.
 // NPCI daily 2FA is based on the Indian calendar day, not a rolling-hour window.
@@ -28,24 +26,15 @@ export interface AgentAuthStatus {
   /** Retailer's own KYC Aadhaar (signup) — clients auto-fill daily 2FA from this. */
   aadhaarNumber: string | null;
   providerMode: string;
-  /** InstantPay outletLoginStatus extras (null on non-InstantPay rails / provider unreachable). */
-  outlet?: {
-    registered: boolean;
-    actcode: string | null;
-    aadhaarLastFour: string | null;
-    isFaceAuthAvailable: boolean;
-  } | null;
+  /** Always null — kept so older app builds that read it keep working. */
+  outlet: null;
 }
 
-export async function getAgentAuthStatus(
-  userId: string,
-  opts: { checkProvider?: boolean; endpointIp?: string | null } = {},
-): Promise<AgentAuthStatus> {
+export async function getAgentAuthStatus(userId: string): Promise<AgentAuthStatus> {
   const [user] = await db
     .select({
       lastAgentAuthAt: users.lastAgentAuthAt,
       aadhaarNumberEncrypted: users.aadhaarNumberEncrypted,
-      instantpayOutletId: users.instantpayOutletId,
     })
     .from(users)
     .where(eq(users.id, userId));
@@ -70,38 +59,6 @@ export async function getAgentAuthStatus(
     providerMode: env.AEPS_PROVIDER_MODE,
     outlet: null,
   };
-
-  // InstantPay mode: provider is the source of truth for today's 2FA. LOGGEDIN can arrive
-  // from another channel; LOGINREQUIRED can appear even when our local record says verified
-  // (midnight expiry, provider-side reset). Only the explicit status endpoint pays the HTTP
-  // round-trip — per-txn gating stays on the fast local check.
-  if (opts.checkProvider && isInstantPayAepsMode()) {
-    if (!user?.instantpayOutletId) {
-      return { ...base, verifiedToday: false, outlet: { registered: false, actcode: null, aadhaarLastFour: null, isFaceAuthAvailable: false } };
-    }
-    try {
-      const st = await instantPayOutletLoginStatus(user.instantpayOutletId, opts.endpointIp || "127.0.0.1");
-      if (st.loggedIn && !localVerifiedToday) {
-        // Sync local record so per-txn assertAgentAuthFresh passes without another scan.
-        const now = new Date();
-        await db.update(users).set({ lastAgentAuthAt: now, updatedAt: now }).where(eq(users.id, userId));
-        base.lastVerifiedAt = now;
-      }
-      return {
-        ...base,
-        verifiedToday: st.loggedIn,
-        outlet: {
-          registered: st.actcode !== "OUI",
-          actcode: st.actcode,
-          aadhaarLastFour: st.aadhaarLastFour,
-          isFaceAuthAvailable: st.isFaceAuthAvailable,
-        },
-      };
-    } catch (err) {
-      logger.error({ err, userId }, "outletLoginStatus check failed — falling back to local record");
-      return base;
-    }
-  }
 
   return base;
 }
@@ -129,8 +86,7 @@ export interface AgentAuthInput {
 /**
  * Daily retailer 2FA before AEPS.
  * - Always: KYC Aadhaar match + fresh PID (replay guard)
- * - paysprint: provider agentAuth succeeds → unlock day
- * - instantpay_*: unlock only after InstantPay outletLogin success
+ * - provider agentAuth succeeds → unlock day
  */
 export async function verifyAndRecordAgentAuth(
   actor: { id: string },
@@ -175,7 +131,7 @@ export async function verifyAndRecordAgentAuth(
         biometricPayload: input.biometricPayload,
         latitude: input.latitude ?? user.outletLatitude ?? undefined,
         longitude: input.longitude ?? user.outletLongitude ?? undefined,
-        outletId: user.nobleUniqueAgentId ?? user.instantpayOutletId ?? undefined,
+        outletId: user.nobleUniqueAgentId ?? undefined,
         endpointIp: input.endpointIp ?? context.ipAddress ?? undefined,
       }),
   );

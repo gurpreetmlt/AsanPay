@@ -4,7 +4,7 @@ import { transactions } from "./transactions";
 
 /**
  * Per-(retailer, customer-Aadhaar) biometric mismatch streak.
- * InstantPay best practice: after 2 consecutive mismatches on one Aadhaar, block merchant + EDD.
+ * Best practice: after 2 consecutive mismatches on one Aadhaar, block merchant + EDD.
  */
 export const aepsBioMismatchCounters = pgTable(
   "aeps_bio_mismatch_counters",

@@ -12,12 +12,9 @@ import { aepsAdapterCode } from "../src/modules/providers/aepsMode";
 // 2026-07-21: AEPS/DMT product operations were migrated OFF the single AEPS_PROVIDER_MODE env
 // switch onto this table (see aepsMode.ts). To seed without silently changing live behaviour,
 // this reads the CURRENT AEPS_PROVIDER_MODE and marks that adapter primary+active for every
-// AEPS/DMT operation, with the other two present but inactive — admin can then flip via the
-// panel. Nepal remittance + merchant onboarding/eKYC stay on the env switch (InstantPay-specific
-// endpoints, no generic adapter method to route through yet) — not seeded here.
+// AEPS/DMT operation, with the others present but inactive — admin can then flip via the
+// panel. Daily 2FA (agent_auth) also follows the env switch.
 const PROVIDERS = [
-  { code: "instantpay", name: "InstantPay" },
-  { code: "paysprint", name: "PaySprint" },
   { code: "vyaparapi", name: "VyaparAPI" },
   { code: "noble", name: "Noble Web Studio" },
 ] as const;
@@ -123,7 +120,7 @@ async function cleanupEmptyCategories(canonicalCodes: string[]) {
 }
 
 /**
- * Seed all 3 providers for one operation code, marking whichever matches the CURRENT
+ * Seed every AEPS/DMT provider for one operation code, marking whichever matches the CURRENT
  * AEPS_PROVIDER_MODE as primary+active (preserves today's behaviour at migration time).
  */
 async function seedOperationProviders(
@@ -132,7 +129,7 @@ async function seedOperationProviders(
   providerIds: Record<string, string>,
   activeAdapterCode: string,
 ) {
-  const order: (keyof typeof providerIds)[] = ["instantpay", "paysprint", "noble"];
+  const order: (keyof typeof providerIds)[] = ["noble"];
   // Existing services keep their current primary — new rows land inactive; switch via switchRailProvider.ts.
   const hadRowsBefore =
     (await db.select({ id: providerServices.id }).from(providerServices).where(eq(providerServices.serviceId, serviceId)))

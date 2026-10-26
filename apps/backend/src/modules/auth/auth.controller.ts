@@ -389,8 +389,7 @@ export async function agentAuth(req: Request, res: Response): Promise<void> {
 
 export async function agentAuthStatus(req: Request, res: Response): Promise<void> {
   if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
-  // InstantPay mode: hit outletLoginStatus so UI knows LOGGEDIN vs LOGINREQUIRED before scanning.
-  sendSuccess(res, await getAgentAuthStatus(req.auth.sub, { checkProvider: true, endpointIp: req.ip ?? null }));
+  sendSuccess(res, await getAgentAuthStatus(req.auth.sub));
 }
 
 export async function createTelegramLinkHandler(req: Request, res: Response): Promise<void> {

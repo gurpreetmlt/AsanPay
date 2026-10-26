@@ -45,7 +45,7 @@ export const services = pgTable(
   (table) => [index("services_category_idx").on(table.categoryId)],
 );
 
-// InstantPay, PaySprint, VyaparAPI, etc. — the swappable side of the wrapper API architecture.
+// Noble, VyaparAPI, etc. — the swappable side of the wrapper API architecture.
 export const providers = pgTable("providers", {
   id: uuid("id").primaryKey().defaultRandom(),
   code: varchar("code", { length: 40 }).notNull().unique(),

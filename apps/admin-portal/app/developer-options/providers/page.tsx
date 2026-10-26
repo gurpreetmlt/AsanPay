@@ -76,14 +76,6 @@ export default function ProvidersPage() {
   const [busyGroup, setBusyGroup] = useState<Record<string, boolean>>({});
   const [confirmDisableTarget, setConfirmDisableTarget] = useState<CategoryGroup | null>(null);
   const [confirmText, setConfirmText] = useState("");
-  const [confirmActivate, setConfirmActivate] = useState<{ categoryId: string; categoryName: string; row: ProviderRow } | null>(null);
-
-  // Known-incomplete provider/rail combos (Task 22 — PaySprint DMT registration gap) that must
-  // never be activated with a single careless click.
-  function isRiskyActivation(categoryCode: string, providerCode: string) {
-    return categoryCode === "DMT_RAIL" && providerCode === "paysprint";
-  }
-
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -395,13 +387,7 @@ export default function ProvidersPage() {
                                   <ToggleSwitch
                                     checked={p.isActive}
                                     disabled={busyRow[key]}
-                                    onChange={(next) => {
-                                      if (next && isRiskyActivation(group.categoryCode, p.providerCode)) {
-                                        setConfirmActivate({ categoryId: group.categoryId, categoryName: group.categoryName, row: p });
-                                        return;
-                                      }
-                                      void toggleRowActive(group.categoryId, p, next);
-                                    }}
+                                    onChange={(next) => void toggleRowActive(group.categoryId, p, next)}
                                     label={`${p.providerName} status`}
                                   />
                                 </td>
@@ -532,41 +518,6 @@ export default function ProvidersPage() {
         </Modal>
       )}
 
-      {confirmActivate && (
-        <Modal title="Confirm: activate an unverified provider" onClose={() => setConfirmActivate(null)}>
-          <div className="p-1">
-            <p className="text-sm" style={{ color: B.muted }}>
-              <strong style={{ color: B.blue }}>{confirmActivate.row.providerName}</strong> for{" "}
-              <strong style={{ color: B.blue }}>{confirmActivate.categoryName}</strong> has known gaps
-              (see <span className="font-mono">docs/TASKS/22-paysprint-adapter.md</span>) — some
-              operations will fail loudly rather than fake success, but activating it now will route
-              real retailer traffic through the incomplete parts. Only proceed if you&apos;ve confirmed
-              on UAT.
-            </p>
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setConfirmActivate(null)}
-                className="rounded-lg border px-4 py-2 text-sm font-medium"
-                style={{ borderColor: B.border, color: B.muted }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  await toggleRowActive(confirmActivate.categoryId, confirmActivate.row, true);
-                  setConfirmActivate(null);
-                }}
-                className="rounded-lg px-4 py-2 text-sm font-medium text-white"
-                style={{ background: "#dc2626" }}
-              >
-                Activate anyway
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
     </AdminShell>
   );
 }

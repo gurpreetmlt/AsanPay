@@ -20,25 +20,7 @@ import {
   dmtTransactionRefund,
   dmtTransfer,
   dmtBankList,
-  nepalStaticData,
-  nepalPaymentLocationList,
-  nepalStateDistrict,
-  nepalOutletStatus,
-  nepalOutletRegistration,
-  nepalOutletEkycInitiate,
-  nepalOutletEkycInitiateStatus,
-  nepalOutletEkycProcess,
-  nepalRemitterProfile,
-  nepalOtpRequest,
-  nepalRemitterRegistration,
-  nepalRemitterEkycInitiate,
-  nepalRemitterEkycInitiateStatus,
-  nepalRemitterEkycProcess,
-  nepalRemitterUpdate,
-  nepalBeneficiaryRegistration,
-  nepalServiceCharge,
-  nepalFundTransfer,
-  nepalFetchTransactionStatus,
+  nepalComingSoon,
   dmtRemitterProfile,
   dmtRemitterRegister,
   dmtRemitterRegisterVerify,
@@ -76,24 +58,6 @@ import {
   dmtRemitterKycSchema,
   dmtRefundOtpSchema,
   dmtRefundSchema,
-  nepalStaticDataSchema,
-  nepalPaymentLocationListSchema,
-  nepalStateDistrictSchema,
-  nepalOutletStatusSchema,
-  nepalOutletRegistrationSchema,
-  nepalOutletEkycStatusSchema,
-  nepalOutletEkycProcessSchema,
-  nepalRemitterProfileSchema,
-  nepalOtpRequestSchema,
-  nepalRemitterRegistrationSchema,
-  nepalRemitterEkycInitiateSchema,
-  nepalRemitterEkycStatusSchema,
-  nepalRemitterEkycProcessSchema,
-  nepalRemitterUpdateSchema,
-  nepalBeneficiaryRegistrationSchema,
-  nepalServiceChargeSchema,
-  nepalFundTransferSchema,
-  nepalFetchTransactionStatusSchema,
   dmtTransferSchema,
   aepsEnquirySchema,
   aepsTxnOtpSchema,
@@ -159,96 +123,8 @@ txnRouter.post("/dmt/transfer", retailerOnly, walletTxnLimiter, validateBody(dmt
 txnRouter.post("/dmt/refund/otp", retailerOnly, validateBody(dmtRefundOtpSchema), dmtTransactionRefundOtp);
 txnRouter.post("/dmt/refund", retailerOnly, validateBody(dmtRefundSchema), dmtTransactionRefund);
 
-txnRouter.post("/nepal/static-data", retailerOnly, validateBody(nepalStaticDataSchema), nepalStaticData);
-txnRouter.post(
-  "/nepal/payment-locations",
-  retailerOnly,
-  validateBody(nepalPaymentLocationListSchema),
-  nepalPaymentLocationList,
-);
-txnRouter.post("/nepal/state-district", retailerOnly, validateBody(nepalStateDistrictSchema), nepalStateDistrict);
-txnRouter.post("/nepal/outlet-status", retailerOnly, validateBody(nepalOutletStatusSchema), nepalOutletStatus);
-txnRouter.post(
-  "/nepal/outlet-registration",
-  retailerOnly,
-  validateBody(nepalOutletRegistrationSchema),
-  nepalOutletRegistration,
-);
-txnRouter.post("/nepal/outlet-ekyc/initiate", retailerOnly, nepalOutletEkycInitiate);
-txnRouter.post(
-  "/nepal/outlet-ekyc/status",
-  retailerOnly,
-  validateBody(nepalOutletEkycStatusSchema),
-  nepalOutletEkycInitiateStatus,
-);
-txnRouter.post(
-  "/nepal/outlet-ekyc/process",
-  retailerOnly,
-  validateBody(nepalOutletEkycProcessSchema),
-  nepalOutletEkycProcess,
-);
-txnRouter.post(
-  "/nepal/remitter/profile",
-  retailerOnly,
-  validateBody(nepalRemitterProfileSchema),
-  nepalRemitterProfile,
-);
-txnRouter.post("/nepal/otp", retailerOnly, validateBody(nepalOtpRequestSchema), nepalOtpRequest);
-txnRouter.post(
-  "/nepal/remitter/register",
-  retailerOnly,
-  validateBody(nepalRemitterRegistrationSchema),
-  nepalRemitterRegistration,
-);
-txnRouter.post(
-  "/nepal/remitter/ekyc/initiate",
-  retailerOnly,
-  validateBody(nepalRemitterEkycInitiateSchema),
-  nepalRemitterEkycInitiate,
-);
-txnRouter.post(
-  "/nepal/remitter/ekyc/status",
-  retailerOnly,
-  validateBody(nepalRemitterEkycStatusSchema),
-  nepalRemitterEkycInitiateStatus,
-);
-txnRouter.post(
-  "/nepal/remitter/ekyc/process",
-  retailerOnly,
-  validateBody(nepalRemitterEkycProcessSchema),
-  nepalRemitterEkycProcess,
-);
-txnRouter.post(
-  "/nepal/remitter/update",
-  retailerOnly,
-  validateBody(nepalRemitterUpdateSchema),
-  nepalRemitterUpdate,
-);
-txnRouter.post(
-  "/nepal/beneficiary/register",
-  retailerOnly,
-  validateBody(nepalBeneficiaryRegistrationSchema),
-  nepalBeneficiaryRegistration,
-);
-txnRouter.post(
-  "/nepal/service-charge",
-  retailerOnly,
-  validateBody(nepalServiceChargeSchema),
-  nepalServiceCharge,
-);
-txnRouter.post(
-  "/nepal/fund-transfer",
-  retailerOnly,
-  walletTxnLimiter,
-  validateBody(nepalFundTransferSchema),
-  nepalFundTransfer,
-);
-txnRouter.post(
-  "/nepal/txn-status",
-  retailerOnly,
-  validateBody(nepalFetchTransactionStatusSchema),
-  nepalFetchTransactionStatus,
-);
+// Older app builds still call these — answer with a clear message instead of 404.
+txnRouter.all(["/nepal", "/nepal/*splat"], retailerOnly, nepalComingSoon);
 
 txnRouter.get("/aeps/banks", retailerOnly, aepsBankList);
 txnRouter.post("/aeps/balance-enquiry", retailerOnly, validateBody(aepsEnquirySchema), aepsBalanceEnquiry);

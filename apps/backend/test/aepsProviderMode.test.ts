@@ -1,20 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 /**
- * Fail-closed AEPS mode config: sandbox/live without InstantPay creds must throw at boot.
- * Reloads the env module with a fresh process.env snapshot per case.
+ * AEPS mode config: only `off | noble`; any retired value boots as `off`, and `noble`
+ * without credentials fails closed. Reloads the env module per case.
  */
 
 async function loadEnvModule(overrides: Record<string, string | undefined>) {
   vi.resetModules();
-  const keys = [
-    "AEPS_PROVIDER_MODE",
-    "INSTANTPAY_CLIENT_ID",
-    "INSTANTPAY_CLIENT_SECRET",
-    "INSTANTPAY_AES_KEY",
-    "INSTANTPAY_AUTH_CODE",
-    "INSTANTPAY_BASE_URL",
-  ];
+  const keys = ["AEPS_PROVIDER_MODE", "NOBLE_API_KEY", "NOBLE_API_VALUE"];
   for (const k of keys) {
     if (overrides[k] === undefined) delete process.env[k];
     else process.env[k] = overrides[k];
@@ -29,34 +22,33 @@ async function loadEnvModule(overrides: Record<string, string | undefined>) {
 afterEach(() => {
   vi.resetModules();
   delete process.env.AEPS_PROVIDER_MODE;
+  delete process.env.NOBLE_API_KEY;
+  delete process.env.NOBLE_API_VALUE;
 });
 
-describe("assertAepsProviderConfig", () => {
-  it("reads the retired dummy value as off and boots without credentials", async () => {
-    const { assertAepsProviderConfig, env } = await loadEnvModule({ AEPS_PROVIDER_MODE: "dummy" });
-    expect(env.AEPS_PROVIDER_MODE).toBe("off");
-    expect(() => assertAepsProviderConfig()).not.toThrow();
+describe("AEPS_PROVIDER_MODE", () => {
+  it.each(["dummy", "instantpay_live", "instantpay_sandbox", "paysprint_live", "paysprint_sandbox"])(
+    "reads the retired value %s as off",
+    async (mode) => {
+      const { env, assertNobleAepsProviderConfig } = await loadEnvModule({ AEPS_PROVIDER_MODE: mode });
+      expect(env.AEPS_PROVIDER_MODE).toBe("off");
+      expect(() => assertNobleAepsProviderConfig()).not.toThrow();
+    },
+  );
+
+  it("fails closed when noble mode lacks credentials", async () => {
+    const { assertNobleAepsProviderConfig } = await loadEnvModule({ AEPS_PROVIDER_MODE: "noble" });
+    expect(() => assertNobleAepsProviderConfig()).toThrow(/NOBLE_API_KEY/);
   });
 
-  it("fails closed when sandbox mode lacks credentials", async () => {
-    const { assertAepsProviderConfig } = await loadEnvModule({
-      AEPS_PROVIDER_MODE: "instantpay_sandbox",
-      INSTANTPAY_CLIENT_ID: undefined,
-      INSTANTPAY_CLIENT_SECRET: "secret",
-      INSTANTPAY_AES_KEY: "12345678901234567890123456789012",
+  it("passes noble mode when credentials are set", async () => {
+    const { assertNobleAepsProviderConfig, env } = await loadEnvModule({
+      AEPS_PROVIDER_MODE: "noble",
+      NOBLE_API_KEY: "k",
+      NOBLE_API_VALUE: "v",
     });
-    expect(() => assertAepsProviderConfig()).toThrow(/INSTANTPAY_CLIENT_ID/);
-  });
-
-  it("passes sandbox mode when all InstantPay credentials are set", async () => {
-    const { assertAepsProviderConfig, isInstantPayAepsMode } = await loadEnvModule({
-      AEPS_PROVIDER_MODE: "instantpay_sandbox",
-      INSTANTPAY_CLIENT_ID: "client",
-      INSTANTPAY_CLIENT_SECRET: "secret",
-      INSTANTPAY_AES_KEY: "12345678901234567890123456789012",
-    });
-    expect(() => assertAepsProviderConfig()).not.toThrow();
-    expect(isInstantPayAepsMode()).toBe(true);
+    expect(env.AEPS_PROVIDER_MODE).toBe("noble");
+    expect(() => assertNobleAepsProviderConfig()).not.toThrow();
   });
 });
 
@@ -67,14 +59,9 @@ describe("aepsAdapterCode", () => {
     expect(aepsAdapterCode()).toBeNull();
   });
 
-  it("maps instantpay_live → instantpay", async () => {
-    await loadEnvModule({
-      AEPS_PROVIDER_MODE: "instantpay_live",
-      INSTANTPAY_CLIENT_ID: "c",
-      INSTANTPAY_CLIENT_SECRET: "s",
-      INSTANTPAY_AES_KEY: "12345678901234567890123456789012",
-    });
+  it("maps noble → noble", async () => {
+    await loadEnvModule({ AEPS_PROVIDER_MODE: "noble", NOBLE_API_KEY: "k", NOBLE_API_VALUE: "v" });
     const { aepsAdapterCode } = await import("../src/modules/providers/aepsMode");
-    expect(aepsAdapterCode()).toBe("instantpay");
+    expect(aepsAdapterCode()).toBe("noble");
   });
 });

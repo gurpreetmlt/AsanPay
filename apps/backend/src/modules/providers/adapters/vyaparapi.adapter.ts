@@ -21,25 +21,6 @@ import type {
   DmtRemitterRegistrationVerifyParams,
   DmtTransactionOtpParams,
   DmtTransferParams,
-  NepalBeneficiaryRegistrationParams,
-  NepalFetchTransactionStatusParams,
-  NepalFundTransferParams,
-  NepalOtpRequestParams,
-  NepalOutletEkycInitiateParams,
-  NepalOutletEkycInitiateStatusParams,
-  NepalOutletEkycProcessParams,
-  NepalOutletRegistrationParams,
-  NepalOutletStatusParams,
-  NepalPaymentLocationListParams,
-  NepalRemitterEkycInitiateParams,
-  NepalRemitterEkycInitiateStatusParams,
-  NepalRemitterEkycProcessParams,
-  NepalRemitterProfileParams,
-  NepalRemitterRegistrationParams,
-  NepalRemitterUpdateParams,
-  NepalServiceChargeParams,
-  NepalStateDistrictParams,
-  NepalStaticDataParams,
   ProviderAdapter,
   ProviderResult,
   RechargeParams,
@@ -181,63 +162,6 @@ export class VyaparApiAdapter implements ProviderAdapter {
   }
   dmtTransactionRefund(_p: DmtRefundParams) {
     return this.ni("dmtTransactionRefund");
-  }
-  nepalStaticData(_p: NepalStaticDataParams) {
-    return this.ni("nepalStaticData");
-  }
-  nepalPaymentLocationList(_p: NepalPaymentLocationListParams) {
-    return this.ni("nepalPaymentLocationList");
-  }
-  nepalStateDistrict(_p: NepalStateDistrictParams) {
-    return this.ni("nepalStateDistrict");
-  }
-  nepalOutletStatus(_p: NepalOutletStatusParams) {
-    return this.ni("nepalOutletStatus");
-  }
-  nepalOutletRegistration(_p: NepalOutletRegistrationParams) {
-    return this.ni("nepalOutletRegistration");
-  }
-  nepalOutletEkycInitiate(_p: NepalOutletEkycInitiateParams) {
-    return this.ni("nepalOutletEkycInitiate");
-  }
-  nepalOutletEkycInitiateStatus(_p: NepalOutletEkycInitiateStatusParams) {
-    return this.ni("nepalOutletEkycInitiateStatus");
-  }
-  nepalOutletEkycProcess(_p: NepalOutletEkycProcessParams) {
-    return this.ni("nepalOutletEkycProcess");
-  }
-  nepalOtpRequest(_p: NepalOtpRequestParams) {
-    return this.ni("nepalOtpRequest");
-  }
-  nepalRemitterRegistration(_p: NepalRemitterRegistrationParams) {
-    return this.ni("nepalRemitterRegistration");
-  }
-  nepalRemitterEkycInitiate(_p: NepalRemitterEkycInitiateParams) {
-    return this.ni("nepalRemitterEkycInitiate");
-  }
-  nepalRemitterEkycInitiateStatus(_p: NepalRemitterEkycInitiateStatusParams) {
-    return this.ni("nepalRemitterEkycInitiateStatus");
-  }
-  nepalRemitterEkycProcess(_p: NepalRemitterEkycProcessParams) {
-    return this.ni("nepalRemitterEkycProcess");
-  }
-  nepalRemitterUpdate(_p: NepalRemitterUpdateParams) {
-    return this.ni("nepalRemitterUpdate");
-  }
-  nepalBeneficiaryRegistration(_p: NepalBeneficiaryRegistrationParams) {
-    return this.ni("nepalBeneficiaryRegistration");
-  }
-  nepalServiceCharge(_p: NepalServiceChargeParams) {
-    return this.ni("nepalServiceCharge");
-  }
-  nepalFundTransfer(_p: NepalFundTransferParams) {
-    return this.ni("nepalFundTransfer");
-  }
-  nepalFetchTransactionStatus(_p: NepalFetchTransactionStatusParams) {
-    return this.ni("nepalFetchTransactionStatus");
-  }
-  nepalRemitterProfile(_p: NepalRemitterProfileParams) {
-    return this.ni("nepalRemitterProfile");
   }
   bbpsFetchBill(_p: BbpsFetchBillParams) {
     return this.ni("bbpsFetchBill");

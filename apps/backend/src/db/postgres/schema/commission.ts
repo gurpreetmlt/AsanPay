@@ -21,7 +21,7 @@ import { tenants } from "./tenants";
 
 // Config: "for service X (optionally, only via provider P), role Y earns flat/percentage Z".
 // providerId is nullable: a null-provider rule is the default for that service+role; a
-// provider-specific row (e.g. a PaySprint-only slab) is preferred when one matches — see
+// provider-specific row (e.g. a Noble-only slab) is preferred when one matches — see
 // findActiveRule's ordering in commission.service.ts. Evaluated top-down by effectiveFrom.
 export const commissionRules = pgTable(
   "commission_rules",

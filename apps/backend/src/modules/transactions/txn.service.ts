@@ -571,7 +571,7 @@ export async function recheckTxnStatus(actor: Actor, txnRef: string): Promise<Tx
     adapter.checkStatus({
       providerTxnId: txn.providerTxnId,
       clientRef: txn.txnRef,
-      // InstantPay reports API needs the txn date in IST (YYYY-MM-DD).
+      // Provider status APIs need the txn date in IST (YYYY-MM-DD).
       txnDate: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(txn.createdAt),
       serviceCode: service.code,
     }),

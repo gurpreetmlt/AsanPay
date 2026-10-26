@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { db } from "../../db/postgres";
 import { aepsBioMismatchCounters, aepsCashReceipts, users } from "../../db/postgres/schema";
-import { env, isInstantPayAepsMode } from "../../config/env";
+import { env } from "../../config/env";
 import { HttpError } from "../../utils/httpError";
 import { logger } from "../../utils/logger";
 import { evaluateGeoSignal } from "../risk/riskSignal.service";
@@ -76,15 +76,14 @@ export async function assertAepsCompliance(
   }
 
   // RBI's AePS Touchpoint Operator Directions (in force 1 Jan 2026) require fresh KYC after
-  // three consecutive months with no transactions. Non-InstantPay rails only flag merchants who
-  // previously did AEPS then went idle (so seed/test accounts aren't locked by createdAt).
+  // three consecutive months with no transactions. Only merchants who previously did AEPS then
+  // went idle are flagged (so seed/test accounts aren't locked by createdAt).
   //
   // The anchor is the LATER of the last transaction and the last admin reactivation. Anchoring
   // on the transaction alone made this a one-way door: a dormant merchant cannot transact, so
   // that timestamp could never advance and the block was permanent.
   const dormantMs = env.AEPS_DORMANCY_DAYS * 24 * 60 * 60 * 1000;
-  const txnAnchor = user.lastAepsTxnAt ?? (isInstantPayAepsMode() ? user.createdAt : null);
-  const anchor = laterOf(txnAnchor, user.aepsReactivatedAt);
+  const anchor = laterOf(user.lastAepsTxnAt, user.aepsReactivatedAt);
   if (anchor && Date.now() - anchor.getTime() > dormantMs) {
     throw new HttpError(
       403,
@@ -218,28 +217,6 @@ export async function recordCashReceipt(input: {
     latitude: input.latitude ?? null,
     longitude: input.longitude ?? null,
   });
-}
-
-/**
- * Reject biometric captures from RD-service devices whose declared device-provider id (dpId)
- * isn't on our STQC-certified allowlist (Mantra, Morpho/IDEMIA, Precision, etc.). Enforced on the
- * InstantPay rail only. Configurable via
- * AEPS_CERTIFIED_DEVICE_PROVIDERS so ops can add a newly certified vendor without a code change.
- */
-export function assertCertifiedBiometricDevice(dpId: string): void {
-  if (!isInstantPayAepsMode()) return;
-  const allowlist = env.AEPS_CERTIFIED_DEVICE_PROVIDERS;
-  if (allowlist.length === 0) return;
-
-  const normalized = (dpId || "").trim().toUpperCase();
-  const isCertified = normalized.length > 0 && allowlist.some((prefix) => normalized.startsWith(prefix));
-  if (!isCertified) {
-    throw new HttpError(
-      403,
-      `Biometric device provider "${dpId || "unknown"}" is not an STQC-certified RD service`,
-      "AEPS_DEVICE_NOT_CERTIFIED",
-    );
-  }
 }
 
 /** Pure helper for unit tests — geofence decision without DB. */

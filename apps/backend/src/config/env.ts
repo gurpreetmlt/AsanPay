@@ -154,34 +154,13 @@ const envSchema = z.object({
   /**
    * AEPS rail mode. Same UI/API; only the provider behind the adapter changes.
    * - off: no AePS provider configured — AePS requests fail with a clear 503
-   * - instantpay_sandbox / instantpay_live: real InstantPay adapter (fail-closed if creds missing)
-   * - paysprint_sandbox / paysprint_live: real PaySprint adapter (fail-closed if creds missing)
-   * The retired `dummy` value is read as `off` so an old env cannot stop the server booting.
+   * - noble: Noble adapter (fail-closed if creds missing)
+   * Any retired value (`dummy`, old provider modes) is read as `off` so an old env cannot stop the server booting.
    */
   AEPS_PROVIDER_MODE: z.preprocess(
-    (v) => (v === "dummy" ? "off" : v),
-    z
-      .enum([
-        "off",
-        "instantpay_sandbox",
-        "instantpay_live",
-        "paysprint_sandbox",
-        "paysprint_live",
-        "noble",
-      ])
-      .default("off"),
+    (v) => (String(v ?? "").trim().toLowerCase() === "noble" ? "noble" : "off"),
+    z.enum(["off", "noble"]),
   ),
-  INSTANTPAY_CLIENT_ID: z.string().optional(),
-  INSTANTPAY_CLIENT_SECRET: z.string().optional(),
-  /** Auth code header — InstantPay docs use fixed "1". */
-  INSTANTPAY_AUTH_CODE: z.string().default("1"),
-  /**
-   * AES-256 key (32 utf8 chars OR base64 of 32 bytes) used to encrypt Aadhaar for InstantPay
-   * biometricData.encryptedAadhaar (aes-256-cbc). Required in sandbox/live modes.
-   */
-  INSTANTPAY_AES_KEY: z.string().optional(),
-  /** Optional override; default is InstantPay production host for both sandbox and live accounts. */
-  INSTANTPAY_BASE_URL: z.string().url().optional(),
   /**
    * AEPS / DMT / recharge / CMS provider. Optional until keys are issued — client fails closed
    * with a clear message when missing.
@@ -193,28 +172,7 @@ const envSchema = z.object({
   NOBLE_BASE_DMT: z.string().url().default("https://dmt.noblewebstudio.in"),
   NOBLE_BASE_RECHARGE: z.string().url().default("https://rcapi.noblewebstudio.in"),
   NOBLE_BASE_CMS: z.string().url().default("https://cms.noblewebstudio.in"),
-  /**
-   * PaySprint AEPS credentials. Docs (PaySprint/Unimplemented/) leave UAT base URL and AES
-   * mode/padding as "confirm with PaySprint" — AES-128-CBC/PKCS7 is a best-effort default until
-   * confirmed. Fail-closed: sandbox/live modes refuse to start without all of these set.
-   */
-  PAYSPRINT_PARTNER_ID: z.string().optional(),
-  PAYSPRINT_JWT_SECRET: z.string().optional(),
-  PAYSPRINT_AES_KEY: z.string().optional(),
-  PAYSPRINT_AES_IV: z.string().optional(),
-  /** Required on UAT per provider docs; not required on Live. */
-  PAYSPRINT_AUTHORISED_KEY: z.string().optional(),
-  /** Not in docs (marked "confirm with PaySprint") — must be set explicitly before sandbox/live use. */
-  PAYSPRINT_UAT_BASE_URL: z.string().url().optional(),
-  PAYSPRINT_LIVE_BASE_URL: z.string().url().default("https://api.paysprint.in/service-api/api/v1/service"),
-  /**
-   * JWT payload timestamp unit — PaySprint's Authentication doc prose states "Timestamp is in
-   * seconds ... valid for <=5 minutes" (confirmed 2026-07-21), even though one of their own C#
-   * code samples uses milliseconds. Trusting the prose over the sample code, per the docs' own
-   * gotcha ("trust partner sample over polluted reference material").
-   */
-  PAYSPRINT_JWT_TIMESTAMP_UNIT: z.enum(["ms", "s"]).default("s"),
-  /** Max km from registered outlet for AEPS txns (InstantPay best practice: 2–3 km). */
+  /** Max km from registered outlet for AEPS txns (2–3 km is the usual bank guidance). */
   AEPS_GEOFENCE_KM: z.coerce.number().positive().default(3),
   /** Days without AEPS activity before merchant is treated as dormant. */
   // RBI "AePS — Due Diligence of AePS Touchpoint Operators" Directions (26 Jun 2025, in force
@@ -328,29 +286,6 @@ if (!parsed.success) {
 
 export const env = parsed.data;
 
-/** Fail-closed: sandbox/live must have InstantPay credentials — never silently fall back to another rail. */
-export function assertAepsProviderConfig(): void {
-  if (!isInstantPayAepsMode()) return;
-  const missing: string[] = [];
-  if (!env.INSTANTPAY_CLIENT_ID) missing.push("INSTANTPAY_CLIENT_ID");
-  if (!env.INSTANTPAY_CLIENT_SECRET) missing.push("INSTANTPAY_CLIENT_SECRET");
-  if (!env.INSTANTPAY_AES_KEY) missing.push("INSTANTPAY_AES_KEY");
-  if (missing.length) {
-    throw new Error(
-      `AEPS_PROVIDER_MODE=${env.AEPS_PROVIDER_MODE} requires ${missing.join(", ")}. ` +
-        "Set the credentials in Coolify, or switch AEPS_PROVIDER_MODE to a rail whose credentials are set.",
-    );
-  }
-}
-
-export function isInstantPayAepsMode(): boolean {
-  return env.AEPS_PROVIDER_MODE === "instantpay_sandbox" || env.AEPS_PROVIDER_MODE === "instantpay_live";
-}
-
-export function isPaySprintAepsMode(): boolean {
-  return env.AEPS_PROVIDER_MODE === "paysprint_sandbox" || env.AEPS_PROVIDER_MODE === "paysprint_live";
-}
-
 /** True when both provider API credentials are non-empty (keys may arrive after code lands). */
 export function isNobleConfigured(): boolean {
   return Boolean(env.NOBLE_API_KEY?.trim() && env.NOBLE_API_VALUE?.trim());
@@ -378,26 +313,6 @@ export function assertNobleAepsProviderConfig(): void {
     "AEPS_PROVIDER_MODE=noble requires NOBLE_API_KEY and NOBLE_API_VALUE. " +
       "Set them in Coolify, or switch AEPS_PROVIDER_MODE to another rail.",
   );
-}
-
-/** Fail-closed: PaySprint sandbox/live must have all credentials — never silent-fallback. */
-export function assertPaySprintProviderConfig(): void {
-  if (!isPaySprintAepsMode()) return;
-  const missing: string[] = [];
-  if (!env.PAYSPRINT_PARTNER_ID) missing.push("PAYSPRINT_PARTNER_ID");
-  if (!env.PAYSPRINT_JWT_SECRET) missing.push("PAYSPRINT_JWT_SECRET");
-  if (!env.PAYSPRINT_AES_KEY) missing.push("PAYSPRINT_AES_KEY");
-  if (!env.PAYSPRINT_AES_IV) missing.push("PAYSPRINT_AES_IV");
-  if (env.AEPS_PROVIDER_MODE === "paysprint_sandbox") {
-    if (!env.PAYSPRINT_AUTHORISED_KEY) missing.push("PAYSPRINT_AUTHORISED_KEY");
-    if (!env.PAYSPRINT_UAT_BASE_URL) missing.push("PAYSPRINT_UAT_BASE_URL");
-  }
-  if (missing.length) {
-    throw new Error(
-      `AEPS_PROVIDER_MODE=${env.AEPS_PROVIDER_MODE} requires ${missing.join(", ")}. ` +
-        "Set the credentials in Coolify, or switch AEPS_PROVIDER_MODE to a rail whose credentials are set.",
-    );
-  }
 }
 
 /** Never expose OTP over the wire in production, even if the env flag is mis-set. */

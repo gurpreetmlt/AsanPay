@@ -1,6 +1,4 @@
-import { InstantPayAdapter } from "./adapters/instantpay.adapter";
 import { NobleAdapter } from "./adapters/noble.adapter";
-import { PaySprintAdapter } from "./adapters/paysprint.adapter";
 import { VyaparApiAdapter } from "./adapters/vyaparapi.adapter";
 import type { ProviderAdapter } from "./types";
 
@@ -8,8 +6,6 @@ import type { ProviderAdapter } from "./types";
 // here + a `providers` row in Postgres; the routing layer picks it up from
 // provider_services with zero changes anywhere else.
 const adapters: Record<string, ProviderAdapter> = {
-  paysprint: new PaySprintAdapter(),
-  instantpay: new InstantPayAdapter(),
   noble: new NobleAdapter(),
   vyaparapi: new VyaparApiAdapter(),
 };

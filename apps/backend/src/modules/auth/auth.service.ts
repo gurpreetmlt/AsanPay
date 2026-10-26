@@ -457,7 +457,7 @@ export async function loginUser(
 const OTP_TTL_MS = 15 * 60 * 1000;
 
 // No SMS provider is wired yet (that's a provider-wrapper integration, same shape as the
-// InstantPay/PaySprint slots already modeled in the service catalog) — in dev we log + echo the OTP
+// provider slots already modeled in the service catalog) — in dev we log + echo the OTP
 // back in the response so the flow is fully testable end-to-end, for ANY mobile number (same as
 // typical fintech dev OTP — no real SMS goes out).
 // In production the `otp` field is omitted and generation is gated to registered numbers only,

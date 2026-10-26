@@ -45,40 +45,6 @@ import type {
   DmtRemitterRegistrationVerifyParams,
   DmtTransactionOtpParams,
   DmtTransferParams,
-  NepalBeneficiaryRegistrationParams,
-  NepalFetchTransactionStatusParams,
-  NepalFetchTransactionStatusResult,
-  NepalFundTransferParams,
-  NepalOtpRequestParams,
-  NepalOutletEkycInitiateParams,
-  NepalOutletEkycInitiateResult,
-  NepalOutletEkycInitiateStatusParams,
-  NepalOutletEkycInitiateStatusResult,
-  NepalOutletEkycProcessParams,
-  NepalOutletEkycProcessResult,
-  NepalOutletRegistrationParams,
-  NepalOutletRegistrationResult,
-  NepalOutletStatus,
-  NepalOutletStatusParams,
-  NepalPaymentLocation,
-  NepalPaymentLocationListParams,
-  NepalRemitterEkycInitiateParams,
-  NepalRemitterEkycInitiateResult,
-  NepalRemitterEkycInitiateStatusParams,
-  NepalRemitterEkycInitiateStatusResult,
-  NepalRemitterEkycProcessParams,
-  NepalRemitterProfile,
-  NepalRemitterProfileParams,
-  NepalRemitterRegistrationParams,
-  NepalRemitterUpdateParams,
-  NepalRemitterUpdateResult,
-  NepalServiceChargeParams,
-  NepalServiceChargeQuote,
-  NepalStateDistrict,
-  NepalStateDistrictParams,
-  NepalStaticDataParams,
-  NepalStaticDataType,
-  NepalStaticOption,
   ProviderAdapter,
   ProviderResult,
   ProviderTxnStatus,
@@ -681,93 +647,6 @@ export class NobleAdapter implements ProviderAdapter {
     this.notImplemented("dmtTransactionRefund");
   }
 
-  nepalStaticData(
-    _p: NepalStaticDataParams,
-  ): Promise<ProviderResult<{ items: NepalStaticOption[]; type: NepalStaticDataType }>> {
-    this.notImplemented("nepalStaticData");
-  }
-  nepalPaymentLocationList(
-    _p: NepalPaymentLocationListParams,
-  ): Promise<ProviderResult<{ locations: NepalPaymentLocation[] }>> {
-    this.notImplemented("nepalPaymentLocationList");
-  }
-  nepalStateDistrict(_p: NepalStateDistrictParams): Promise<ProviderResult<{ items: NepalStateDistrict[] }>> {
-    this.notImplemented("nepalStateDistrict");
-  }
-  nepalOutletStatus(_p: NepalOutletStatusParams): Promise<ProviderResult<{ outlet: NepalOutletStatus }>> {
-    this.notImplemented("nepalOutletStatus");
-  }
-  nepalOutletRegistration(
-    _p: NepalOutletRegistrationParams,
-  ): Promise<ProviderResult<{ registration: NepalOutletRegistrationResult }>> {
-    this.notImplemented("nepalOutletRegistration");
-  }
-  nepalOutletEkycInitiate(
-    _p: NepalOutletEkycInitiateParams,
-  ): Promise<ProviderResult<{ ekyc: NepalOutletEkycInitiateResult }>> {
-    this.notImplemented("nepalOutletEkycInitiate");
-  }
-  nepalOutletEkycInitiateStatus(
-    _p: NepalOutletEkycInitiateStatusParams,
-  ): Promise<ProviderResult<{ ekycStatus: NepalOutletEkycInitiateStatusResult }>> {
-    this.notImplemented("nepalOutletEkycInitiateStatus");
-  }
-  nepalOutletEkycProcess(
-    _p: NepalOutletEkycProcessParams,
-  ): Promise<ProviderResult<{ process: NepalOutletEkycProcessResult }>> {
-    this.notImplemented("nepalOutletEkycProcess");
-  }
-  nepalRemitterProfile(
-    _p: NepalRemitterProfileParams,
-  ): Promise<ProviderResult<{ profile: NepalRemitterProfile | null }>> {
-    this.notImplemented("nepalRemitterProfile");
-  }
-  nepalOtpRequest(_p: NepalOtpRequestParams): Promise<ProviderResult<{ otpReference: string }>> {
-    this.notImplemented("nepalOtpRequest");
-  }
-  nepalRemitterRegistration(
-    _p: NepalRemitterRegistrationParams,
-  ): Promise<ProviderResult<{ profile: NepalRemitterProfile }>> {
-    this.notImplemented("nepalRemitterRegistration");
-  }
-  nepalRemitterEkycInitiate(
-    _p: NepalRemitterEkycInitiateParams,
-  ): Promise<ProviderResult<{ ekyc: NepalRemitterEkycInitiateResult }>> {
-    this.notImplemented("nepalRemitterEkycInitiate");
-  }
-  nepalRemitterEkycInitiateStatus(
-    _p: NepalRemitterEkycInitiateStatusParams,
-  ): Promise<ProviderResult<{ ekycStatus: NepalRemitterEkycInitiateStatusResult }>> {
-    this.notImplemented("nepalRemitterEkycInitiateStatus");
-  }
-  nepalRemitterEkycProcess(
-    _p: NepalRemitterEkycProcessParams,
-  ): Promise<ProviderResult<{ process: NepalOutletEkycProcessResult }>> {
-    this.notImplemented("nepalRemitterEkycProcess");
-  }
-  nepalRemitterUpdate(
-    _p: NepalRemitterUpdateParams,
-  ): Promise<ProviderResult<{ update: NepalRemitterUpdateResult }>> {
-    this.notImplemented("nepalRemitterUpdate");
-  }
-  nepalBeneficiaryRegistration(
-    _p: NepalBeneficiaryRegistrationParams,
-  ): Promise<ProviderResult<{ profile: NepalRemitterProfile; beneficiaryId: string }>> {
-    this.notImplemented("nepalBeneficiaryRegistration");
-  }
-  nepalServiceCharge(
-    _p: NepalServiceChargeParams,
-  ): Promise<ProviderResult<{ quote: NepalServiceChargeQuote }>> {
-    this.notImplemented("nepalServiceCharge");
-  }
-  nepalFundTransfer(_p: NepalFundTransferParams): Promise<ProviderResult> {
-    this.notImplemented("nepalFundTransfer");
-  }
-  nepalFetchTransactionStatus(
-    _p: NepalFetchTransactionStatusParams,
-  ): Promise<ProviderResult<{ txnStatus: NepalFetchTransactionStatusResult }>> {
-    this.notImplemented("nepalFetchTransactionStatus");
-  }
   bbpsFetchBill(
     _p: BbpsFetchBillParams,
   ): Promise<

@@ -26,8 +26,7 @@ export enum Service {
 }
 
 export enum AggregatorProvider {
-  InstantPay = 'instantpay',
-  PaySprint = 'paysprint',
+  Noble = 'noble',
   Setu = 'setu',
   Decentro = 'decentro',
 }
@@ -101,31 +100,31 @@ export const DEFAULT_SERVICE_CONFIG: Record<
 > = {
   [Service.Aeps]: {
     enabled: true,
-    aggregator: AggregatorProvider.InstantPay,
+    aggregator: AggregatorProvider.Noble,
     minAmount: 100,
     maxAmount: 10_000,
   },
   [Service.Dmt]: {
     enabled: true,
-    aggregator: AggregatorProvider.PaySprint,
+    aggregator: AggregatorProvider.Noble,
     minAmount: 100,
     maxAmount: 49_990,
   },
   [Service.Bbps]: {
     enabled: true,
-    aggregator: AggregatorProvider.PaySprint,
+    aggregator: AggregatorProvider.Noble,
     minAmount: 1,
     maxAmount: 100_000,
   },
   [Service.Recharge]: {
     enabled: true,
-    aggregator: AggregatorProvider.PaySprint,
+    aggregator: AggregatorProvider.Noble,
     minAmount: 10,
     maxAmount: 10_000,
   },
   [Service.AadhaarPay]: {
     enabled: true,
-    aggregator: AggregatorProvider.InstantPay,
+    aggregator: AggregatorProvider.Noble,
     minAmount: 1,
     maxAmount: 10_000,
   },

@@ -4,8 +4,6 @@ export const envSchema = z.object({
   MONGODB_URI: z.string().min(1, 'MONGODB_URI is required'),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
   JWT_EXPIRES_IN: z.string().default('7d'),
-  PAYSPRINT_API_KEY: z.string().optional(),
-  PAYSPRINT_API_SECRET: z.string().optional(),
   DIGILOCKER_CLIENT_ID: z.string().optional(),
   DIGILOCKER_CLIENT_SECRET: z.string().optional(),
   SUREPASS_API_KEY: z.string().optional(),
@@ -29,16 +27,6 @@ export function getEnv(): Env {
   }
   cachedEnv = parsed.data;
   return cachedEnv;
-}
-
-export function isAggregatorConfigured(provider: 'paysprint'): boolean {
-  const env = getEnv();
-  switch (provider) {
-    case 'paysprint':
-      return Boolean(env.PAYSPRINT_API_KEY && env.PAYSPRINT_API_SECRET);
-    default:
-      return false;
-  }
 }
 
 export function resetEnvCache(): void {
