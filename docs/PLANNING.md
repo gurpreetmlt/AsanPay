@@ -7,7 +7,33 @@ One row per feature; details in the section below the table. Newest at the top o
 
 | # | Feature | Surfaces | Size | Status | Design | Task file |
 |---|---------|----------|------|--------|--------|-----------|
+| PL-02 | Cash Management page (CMS provider cards, in-app CMS, CMS transactions) | Backend, web, mobile | M | planned | — | — |
 | PL-01 | Linked accounts + role switch (same person, Distributor + Retailer) | Backend, web, mobile, admin | M | design | [Figma prompt](PROMPTS/figma-linked-accounts.md) | — |
+
+---
+
+## PL-02 — Cash Management page
+
+**Problem:** Cash collection today is a modal that asks the retailer for a merchant id, then opens the Airtel CMS page in the phone browser — the user leaves the app and nothing is recorded on our side.
+
+**Plan**
+- **Page:** Services → Cash Collection → "Cash Management" page (web + mobile).
+  - One card per CMS provider: icon, name, one-line description, **Initiate** button. Airtel CMS now; list is config-driven so new providers are one entry each.
+  - Below: **CMS Transactions** — From date / To date / Fetch → list (txn id, provider, amount, status, UTR, time) + Export (PDF · Excel · CSV).
+- **No merchant id input:** backend fills `merchantId` from the logged-in retailer (value to confirm with provider) and generates `transactionId`.
+- **In-app CMS:**
+  - Mobile: new WebView screen (our header + back, status bar / nav bar in brand color). Needs `react-native-webview` → APK rebuild.
+  - Web: open inside the portal (iframe) if the bank page allows framing; otherwise a centered popup window and the portal polls status.
+- **Record every CMS txn:** new `cms_transactions` table (retailer, provider, txn id, status, amount, UTR, raw). Status via status-check on return from the CMS page; provider callback later.
+- Mobile + web parity; "hover cursor" is web only.
+
+**Open decisions (owner)**
+- [ ] Merchant id = retailer's registered mobile, or a provider-issued merchant id? (ask provider)
+- [ ] Does Airtel's CMS page allow iframe on web? (test once built)
+- [ ] Commission / charges on CMS collections?
+- [ ] Does a CMS collection credit any AsanPay wallet, or is it record-only?
+
+**Notes:** Only one CMS provider live today; don't hard-code provider names in UI layout.
 
 ---
 
