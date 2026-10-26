@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState, type FormEvent, type ReactNode }
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { ArrowLeft, CheckCircle2, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Check, CheckCircle2, Eye, EyeOff, Loader2 } from "lucide-react";
 import {
   PAN_FORMAT_ERROR,
   SIGNUP_POLICY_VERSION,
@@ -23,6 +23,7 @@ import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { LabelText } from "@/components/ui/RequiredMark";
 import { DateField } from "@/components/ui/DateField";
 import { SignupStepper, SIGNUP_STEPS } from "@/components/signup/SignupStepper";
+import { loadImage, PhotoCropModal } from "@/components/signup/PhotoCropModal";
 import {
   LocationPermissionModal,
   TermsAcceptModal,
@@ -95,6 +96,14 @@ const UPLINE_LABEL: Record<"distributor" | "retailer", string> = {
   distributor: "Super Distributor mobile no.",
   retailer: "Distributor mobile no.",
 };
+
+const CROP_TITLE: Record<KycDocCheckSlot, string> = {
+  panImage: "Crop PAN card",
+  aadhaarFront: "Crop Aadhaar front",
+  aadhaarBack: "Crop Aadhaar back",
+};
+const DOC_PHOTO_ACCEPT = "image/jpeg,image/png,image/webp";
+const DOC_PHOTO_HINT = "Photo · JPG, PNG or WEBP · crop & rotate next";
 
 const BUSINESS_TYPES = ["Sole Proprietorship", "Partnership", "Private Limited", "Other"];
 const BUSINESS_CATEGORIES = ["Mobile Handsets", "Kirana", "Electronics", "Pharmacy", "Other"];
@@ -172,6 +181,25 @@ async function fileMeta(
   };
 }
 
+/** Corner badge on a checked KYC photo: spinner → green tick (verified) / orange tick (review). */
+function DocCheckBadge({ check }: { check?: KycDocCheckUi }) {
+  if (!check || check.state === "fail") return null;
+  const bg = check.state === "pass" ? "#16A34A" : check.state === "flag" ? "#F59E0B" : "#FFFFFF";
+  return (
+    <span
+      className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full shadow-md"
+      style={{ background: bg }}
+      aria-hidden
+    >
+      {check.state === "checking" ? (
+        <Loader2 size={16} className="animate-spin" style={{ color: B.muted }} />
+      ) : (
+        <Check size={18} strokeWidth={3} color="#FFFFFF" />
+      )}
+    </span>
+  );
+}
+
 function FileUpload({
   label,
   meta,
@@ -183,12 +211,18 @@ function FileUpload({
   error,
   compact,
   check,
+  formatHint,
+  largePreview,
 }: {
   label: string;
   meta: SignupFileMeta | null;
   previewUrl?: string | null;
   accept?: string;
   emptyHint?: string;
+  /** Replaces the default "JPG, PNG … PDF" line under the box */
+  formatHint?: string;
+  /** Full-width photo preview (KYC card photos) instead of a thumbnail */
+  largePreview?: boolean;
   onPick: (file: File) => void;
   onClear: () => void;
   error?: boolean;
@@ -229,18 +263,21 @@ function FileUpload({
           }}
         />
         {previewUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={previewUrl}
-            alt=""
-            className={`rounded-xl object-contain ${compact ? "max-h-20" : "max-h-28"}`}
-          />
+          <div className="relative w-full">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={previewUrl}
+              alt={label}
+              className={`w-full rounded-xl bg-white object-contain ${largePreview ? (compact ? "max-h-44" : "max-h-60") : compact ? "max-h-20" : "max-h-28"}`}
+            />
+            <DocCheckBadge check={check} />
+          </div>
         ) : null}
         <span className={`font-semibold ${compact ? "text-xs" : "text-sm"}`} style={{ color: error ? "#DC2626" : B.blue }}>
           {meta ? meta.name : emptyHint}
         </span>
         <span className="text-[11px] leading-snug" style={{ color: B.muted }}>
-          {compact ? "JPG / PNG / PDF · 2 MB" : "JPG, PNG, WEBP, HEIC or PDF · max 2 MB"}
+          {formatHint ?? (compact ? "JPG / PNG / PDF · 2 MB" : "JPG, PNG, WEBP, HEIC or PDF · max 2 MB")}
         </span>
       </label>
       {error && !meta && !check ? (
@@ -562,6 +599,7 @@ function SignupPageInner() {
   const [docChecks, setDocChecks] = useState<Partial<Record<KycDocCheckSlot, KycDocCheckUi>>>({});
   /** Latest check per field — stale responses (photo re-picked / removed) are ignored. */
   const docCheckSeqRef = useRef<Partial<Record<KycDocCheckSlot, number>>>({});
+  const [cropTarget, setCropTarget] = useState<{ slot: KycDocCheckSlot; src: string; name: string } | null>(null);
 
   const stepIndex = draft.stepIndex;
   const needsUpline = draft.role !== "super_distributor" && draft.role !== "direct_retailer";
@@ -962,10 +1000,6 @@ function SignupPageInner() {
         return { ...p, [key]: url };
       });
     }
-    if (isDocCheckSlot(key)) {
-      void runDocCheck(key, meta.dataUrl);
-      if (meta.dataUrl && accessToken) return;
-    }
     toast.success(
       geo
         ? `${file.name} captured · ${Number(geo.latitude).toFixed(5)}, ${Number(geo.longitude).toFixed(5)}`
@@ -973,6 +1007,56 @@ function SignupPageInner() {
           ? `${file.name} ready for KYC submit`
           : `${file.name} selected`,
     );
+  }
+
+  /** PAN / Aadhaar photo → crop + rotate popup → doc check. Photos only (no PDF) so every upload is checked. */
+  async function pickDocPhoto(slot: KycDocCheckSlot, file: File) {
+    const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+    const ok =
+      /^image\/(jpeg|jpg|png|webp)$/i.test(file.type) ||
+      (!file.type && ["jpg", "jpeg", "png", "webp"].includes(ext));
+    if (!ok) {
+      toast.error("Upload a photo of the card (JPG, PNG or WEBP)");
+      return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error("Photo must be under 15 MB");
+      return;
+    }
+    const src = URL.createObjectURL(file);
+    try {
+      await loadImage(src);
+    } catch {
+      URL.revokeObjectURL(src);
+      toast.error("This photo could not be opened. Upload a JPG or PNG photo.");
+      return;
+    }
+    setCropTarget({ slot, src, name: file.name });
+  }
+
+  function cancelCrop() {
+    if (cropTarget) URL.revokeObjectURL(cropTarget.src);
+    setCropTarget(null);
+  }
+
+  function finishCrop(dataUrl: string) {
+    const target = cropTarget;
+    if (!target) return;
+    URL.revokeObjectURL(target.src);
+    setCropTarget(null);
+    const meta: SignupFileMeta = {
+      name: `${target.name.replace(/\.[^.]+$/, "") || target.slot}.jpg`,
+      mime: "image/jpeg",
+      size: Math.round(dataUrl.length * 0.75),
+      dataUrl,
+    };
+    patch({ [target.slot]: meta });
+    setStepErrorKey(null);
+    setPreviews((p) => {
+      if (p[target.slot]) URL.revokeObjectURL(p[target.slot]);
+      return { ...p, [target.slot]: dataUrl };
+    });
+    void runDocCheck(target.slot, dataUrl);
   }
 
   async function captureLivePhoto(
@@ -1092,10 +1176,13 @@ function SignupPageInner() {
       if (!draft.gender) return "Select gender";
       if (!draft.dob) return "Date of birth is required";
       if (!draft.fatherName.trim()) return "Father name is required";
+      if (!draft.panImage) return "Upload PAN card image to continue";
     }
     if (stepIndex === 3) {
       if (draft.aadhaar.replace(/\D/g, "").length !== 12) return "Enter a valid 12-digit Aadhaar";
       if (!draft.aadhaarOtpVerified) return "Verify Aadhaar OTP before continuing";
+      if (!draft.aadhaarFront) return "Upload Aadhaar front photo to continue";
+      if (!draft.aadhaarBack) return "Upload Aadhaar back photo to continue";
     }
     if (stepIndex === 4) {
       if (!draft.email.trim()) return "Email is required";
@@ -2129,11 +2216,14 @@ function SignupPageInner() {
                   />
                 </Field>
                 <FileUpload
-                  label="PAN Card Image (optional)"
+                  label="PAN Card Image *"
                   meta={draft.panImage}
-                  previewUrl={previews.panImage}
+                  previewUrl={previews.panImage ?? draft.panImage?.dataUrl}
+                  largePreview
                   emptyHint="Tap to upload PAN card"
-                  onPick={(f) => pickFile("panImage", f)}
+                  accept={DOC_PHOTO_ACCEPT}
+                  formatHint={DOC_PHOTO_HINT}
+                  onPick={(f) => void pickDocPhoto("panImage", f)}
                   onClear={() => clearFile("panImage")}
                   error={stepErrorKey === "panImage"}
                   check={docChecks.panImage}
@@ -2192,7 +2282,7 @@ function SignupPageInner() {
                 </Field>
                 <p className="text-xs" style={{ color: B.muted }}>
                   OTP is sent to the mobile registered with this Aadhaar (UIDAI). Verify before continuing.
-                  Front and back images are optional.
+                  Then upload clear photos of the front and back of your Aadhaar card.
                 </p>
                 {draft.aadhaarOtpVerified ? (
                   <div
@@ -2245,22 +2335,28 @@ function SignupPageInner() {
                   className="mb-2 grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5"
                 >
                   <FileUpload
-                    label="Aadhaar Front (optional)"
+                    label="Aadhaar Front *"
                     meta={draft.aadhaarFront}
-                    previewUrl={previews.aadhaarFront}
+                    previewUrl={previews.aadhaarFront ?? draft.aadhaarFront?.dataUrl}
+                    largePreview
                     emptyHint="Tap to upload front"
-                    onPick={(f) => pickFile("aadhaarFront", f)}
+                    accept={DOC_PHOTO_ACCEPT}
+                    formatHint={DOC_PHOTO_HINT}
+                    onPick={(f) => void pickDocPhoto("aadhaarFront", f)}
                     onClear={() => clearFile("aadhaarFront")}
                     error={stepErrorKey === "aadhaarFront"}
                     check={docChecks.aadhaarFront}
                     compact
                   />
                   <FileUpload
-                    label="Aadhaar Back (optional)"
+                    label="Aadhaar Back *"
                     meta={draft.aadhaarBack}
-                    previewUrl={previews.aadhaarBack}
+                    previewUrl={previews.aadhaarBack ?? draft.aadhaarBack?.dataUrl}
+                    largePreview
                     emptyHint="Tap to upload back"
-                    onPick={(f) => pickFile("aadhaarBack", f)}
+                    accept={DOC_PHOTO_ACCEPT}
+                    formatHint={DOC_PHOTO_HINT}
+                    onPick={(f) => void pickDocPhoto("aadhaarBack", f)}
                     onClear={() => clearFile("aadhaarBack")}
                     error={stepErrorKey === "aadhaarBack"}
                     check={docChecks.aadhaarBack}
@@ -2660,6 +2756,15 @@ function SignupPageInner() {
             setShowTermsModal(false);
           }}
           onCancel={() => setShowTermsModal(false)}
+        />
+      ) : null}
+
+      {cropTarget ? (
+        <PhotoCropModal
+          src={cropTarget.src}
+          title={CROP_TITLE[cropTarget.slot]}
+          onCancel={cancelCrop}
+          onConfirm={finishCrop}
         />
       ) : null}
     </div>

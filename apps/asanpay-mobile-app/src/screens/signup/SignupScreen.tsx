@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Modal,
   PermissionsAndroid,
@@ -14,7 +15,7 @@ import {
 } from "react-native";
 import Geolocation from "@react-native-community/geolocation";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ArrowLeft, Calendar, CheckCircle2, Eye, EyeOff, MapPin, X } from "lucide-react-native";
+import { ArrowLeft, Calendar, Check, CheckCircle2, Eye, EyeOff, MapPin, X } from "lucide-react-native";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import { api, AADHAAR_OTP_TIMEOUT_MS } from "../../lib/api";
 import { apiError } from "../../utils/apiError";
@@ -88,6 +89,12 @@ const SPONSOR_ROLE: Record<Exclude<SignupRole, "direct_retailer">, SponsorRole> 
 const UPLINE_LABEL: Record<"distributor" | "retailer", string> = {
   distributor: "Super Distributor mobile",
   retailer: "Distributor mobile",
+};
+
+const CROP_TITLE: Record<KycDocCheckSlot, string> = {
+  panImage: "Crop PAN card",
+  aadhaarFront: "Crop Aadhaar front",
+  aadhaarBack: "Crop Aadhaar back",
 };
 
 const BUSINESS_TYPES = ["Sole Proprietorship", "Partnership", "Private Limited", "Other"];
@@ -984,6 +991,11 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         }
       }
 
+      if (key !== "cancelledCheque") {
+        await pickAndCropDocPhoto(key);
+        return;
+      }
+
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { launchImageLibrary } = require("react-native-image-picker") as {
         launchImageLibrary: (opts: Record<string, unknown>) => Promise<{
@@ -1033,14 +1045,60 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
       const mime = asset.type || "image/jpeg";
       const dataUrl = asset.base64 ? `data:${mime};base64,${asset.base64}` : undefined;
       patch({ [key]: { name, uri: asset.uri, dataUrl } });
-      if (key !== "cancelledCheque") {
-        void runDocCheck(key, dataUrl);
-        if (dataUrl && accessToken) return;
-      }
       showAlert("Uploaded", dataUrl ? `${name} ready for KYC submit` : `${name} selected`);
     } catch (err) {
       showAlert("Upload failed", err instanceof Error ? err.message : "Could not pick image");
     }
+  }
+
+  /** PAN / Aadhaar: gallery → native crop screen (free crop + rotate) → JPEG ≤ 1600 px → doc check. */
+  async function pickAndCropDocPhoto(slot: KycDocCheckSlot) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const ImageCropPicker = require("react-native-image-crop-picker") as {
+      openPicker: (opts: Record<string, unknown>) => Promise<{
+        path: string;
+        mime: string;
+        size: number;
+        data?: string | null;
+      }>;
+    };
+    let image;
+    try {
+      image = await ImageCropPicker.openPicker({
+        mediaType: "photo",
+        cropping: true,
+        freeStyleCropEnabled: true,
+        // Output box + starting frame = ID card shape; free crop can still change it.
+        width: 1600,
+        height: 1010,
+        includeBase64: true,
+        forceJpg: true,
+        compressImageQuality: 0.85,
+        cropperToolbarTitle: CROP_TITLE[slot],
+        cropperToolbarColor: "#FFFFFF",
+        cropperToolbarWidgetColor: colors.blue,
+        cropperActiveWidgetColor: colors.blue,
+        showCropGuidelines: true,
+        hideBottomControls: false,
+      });
+    } catch (err) {
+      const code = (err as { code?: string })?.code;
+      if (code === "E_PICKER_CANCELLED") return;
+      showAlert(
+        code === "E_NO_LIBRARY_PERMISSION" ? "Photos required" : "Upload failed",
+        code === "E_NO_LIBRARY_PERMISSION"
+          ? "Allow photo access in phone Settings → Apps → AsanPay → Permissions, then try again."
+          : "Could not open the photo. Try another photo.",
+      );
+      return;
+    }
+    if (!image?.data) {
+      showAlert("Upload failed", "Could not read the cropped photo. Try again.");
+      return;
+    }
+    const dataUrl = `data:${image.mime || "image/jpeg"};base64,${image.data}`;
+    patch({ [slot]: { name: `${slot}.jpg`, uri: image.path, dataUrl } });
+    void runDocCheck(slot, dataUrl);
   }
 
   /** Check a PAN / Aadhaar photo on the server. `fail` clears the photo; `flag` keeps it. */
@@ -1200,11 +1258,13 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         return "Enter date of birth as DD/MM/YYYY";
       }
       if (!draft.fatherName.trim()) return "Father name is required";
-      // Document images optional — gallery pick stores filename for KYC meta.
+      if (!draft.panImage) return "Upload PAN card image to continue";
     }
     if (stepIndex === 3) {
       if (draft.aadhaar.replace(/\D/g, "").length !== 12) return "Enter a valid 12-digit Aadhaar";
       if (!draft.aadhaarOtpVerified) return "Verify Aadhaar OTP before continuing";
+      if (!draft.aadhaarFront) return "Upload Aadhaar front photo to continue";
+      if (!draft.aadhaarBack) return "Upload Aadhaar back photo to continue";
     }
     if (stepIndex === 4) {
       if (!draft.email.trim()) return "Email is required";
@@ -2170,12 +2230,14 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                     style={inputStyle}
                   />
                   <UploadRow
-                    label="PAN Card Image (optional)"
+                    label="PAN Card Image *"
+                    actionLabel="Tap to upload · crop & rotate next"
                     done={Boolean(draft.panImage)}
                     name={draft.panImage?.name}
                     onPress={() => void pickDocImage("panImage", "pan")}
                     tokens={tokens}
                     check={docChecks.panImage}
+                    previewUri={draft.panImage?.dataUrl || draft.panImage?.uri}
                   />
                 </>
               )}
@@ -2185,7 +2247,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                   <Text style={styles.sectionTitle}>Aadhaar Verification</Text>
                   <Text style={[styles.hint, { color: tokens.mute }]}>
                     OTP is sent to the mobile registered with this Aadhaar (UIDAI). Verify before
-                    continuing. Front and back images are optional.
+                    continuing. Then upload clear photos of the front and back of your Aadhaar card.
                   </Text>
                   <FieldLabel text="Aadhaar Number *" color={tokens.mute} />
                   <View style={styles.emailRow}>
@@ -2296,30 +2358,26 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                       ) : null}
                     </>
                   )}
-                  <View style={styles.fieldRow}>
-                    <View style={styles.fieldHalf}>
-                      <UploadRow
-                        label="Aadhaar Front"
-                        done={Boolean(draft.aadhaarFront)}
-                        name={draft.aadhaarFront?.name}
-                        onPress={() => void pickDocImage("aadhaarFront", "aadhaar-front")}
-                        tokens={tokens}
-                        check={docChecks.aadhaarFront}
-                        compact
-                      />
-                    </View>
-                    <View style={styles.fieldHalf}>
-                      <UploadRow
-                        label="Aadhaar Back"
-                        done={Boolean(draft.aadhaarBack)}
-                        name={draft.aadhaarBack?.name}
-                        onPress={() => void pickDocImage("aadhaarBack", "aadhaar-back")}
-                        tokens={tokens}
-                        check={docChecks.aadhaarBack}
-                        compact
-                      />
-                    </View>
-                  </View>
+                  <UploadRow
+                    label="Aadhaar Front *"
+                    done={Boolean(draft.aadhaarFront)}
+                    name={draft.aadhaarFront?.name}
+                    actionLabel="Tap to upload · crop & rotate next"
+                    onPress={() => void pickDocImage("aadhaarFront", "aadhaar-front")}
+                    tokens={tokens}
+                    check={docChecks.aadhaarFront}
+                    previewUri={draft.aadhaarFront?.dataUrl || draft.aadhaarFront?.uri}
+                  />
+                  <UploadRow
+                    label="Aadhaar Back *"
+                    done={Boolean(draft.aadhaarBack)}
+                    name={draft.aadhaarBack?.name}
+                    actionLabel="Tap to upload · crop & rotate next"
+                    onPress={() => void pickDocImage("aadhaarBack", "aadhaar-back")}
+                    tokens={tokens}
+                    check={docChecks.aadhaarBack}
+                    previewUri={draft.aadhaarBack?.dataUrl || draft.aadhaarBack?.uri}
+                  />
                 </>
               )}
 
@@ -2754,9 +2812,12 @@ function UploadRow({
   actionLabel,
   compact,
   check,
+  previewUri,
 }: {
   label: string;
   done: boolean;
+  /** Full-width photo preview with check badge (KYC card photos) */
+  previewUri?: string;
   name?: string;
   onPress: () => void;
   tokens: { mute: string; card: string; cardBorder: string; txt2: string };
@@ -2802,6 +2863,52 @@ function UploadRow({
         </Text>
         <Text style={{ color: done ? colors.greenDark : tokens.mute, fontWeight: "800" }}>{done ? "✓" : "+"}</Text>
       </Pressable>
+      {done && previewUri ? (
+        <Pressable
+          onPress={onPress}
+          accessibilityLabel={`${label} photo — tap to change`}
+          style={{
+            marginTop: 8,
+            borderRadius: 14,
+            borderWidth: 1.5,
+            borderColor: checkFailed ? colors.danger : check?.state === "flag" ? "#F59E0B" : colors.green,
+            backgroundColor: "#FFFFFF",
+            padding: 6,
+          }}
+        >
+          <Image
+            source={{ uri: previewUri }}
+            resizeMode="contain"
+            style={{ width: "100%", aspectRatio: 85.6 / 54, borderRadius: 10 }}
+          />
+          {check && check.state !== "fail" ? (
+            <View
+              style={{
+                position: "absolute",
+                top: 12,
+                right: 12,
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor:
+                  check.state === "pass" ? colors.green : check.state === "flag" ? "#F59E0B" : "#FFFFFF",
+                elevation: 3,
+              }}
+            >
+              {check.state === "checking" ? (
+                <ActivityIndicator size="small" color={tokens.mute} />
+              ) : (
+                <Check size={18} strokeWidth={3} color="#FFFFFF" />
+              )}
+            </View>
+          ) : null}
+          <Text style={{ color: tokens.mute, fontSize: 11, fontWeight: "600", textAlign: "center", marginTop: 6 }}>
+            Tap to change photo
+          </Text>
+        </Pressable>
+      ) : null}
       {check ? (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 }}>
           {check.state === "checking" ? <ActivityIndicator size="small" color={tokens.mute} /> : null}

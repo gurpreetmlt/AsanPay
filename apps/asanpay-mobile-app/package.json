@@ -24,6 +24,7 @@
     "react": "18.3.1",
     "react-native": "0.77.3",
     "react-native-biometrics": "^3.0.1",
+    "react-native-image-crop-picker": "^0.52.0",
     "react-native-image-picker": "^7.2.3",
     "react-native-keychain": "^10.0.0",
     "react-native-linear-gradient": "^2.8.3",

@@ -21,6 +21,13 @@ buildscript {
 
 apply plugin: "com.facebook.react.rootproject"
 
+// uCrop (crop screen used by react-native-image-crop-picker) is published on JitPack only.
+allprojects {
+    repositories {
+        maven { url "https://jitpack.io" }
+    }
+}
+
 // AsyncStorage (and other libs) still depend on legacy `react-native` maven artifact.
 // Force `react-android` so RN resources (catalyst_*, material) merge correctly.
 subprojects { subproject ->

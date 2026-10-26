@@ -44,6 +44,9 @@ Shared copy + result → UI mapping in `packages/shared-types/kycDocCheck.ts` (b
 Continue is disabled while a photo on the step is checking or was rejected; picking a new photo
 (or Remove on web) clears the red state. Network / server error → amber (never blocks).
 PDF uploads and photos picked before the account exists are not checked.
+PAN / Aadhaar front / back photos are **required** (photos only, no PDF) and go through crop + rotate
+first: web `components/signup/PhotoCropModal.tsx` (react-easy-crop, card frame, rotate ±90°, zoom);
+mobile `react-native-image-crop-picker` native crop screen (free crop + rotate). Output JPEG ≤ 1600 px.
 
 - After choosing a photo, call the check; show "Checking photo…".
 - `fail` → red text under that field with the exact `message`, clear the photo, Continue stays disabled for that step.
