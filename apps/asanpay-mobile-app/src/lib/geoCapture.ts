@@ -20,7 +20,7 @@ export interface AepsGeoTag {
   isMockLocation?: boolean;
 }
 
-async function detectMockLocation(): Promise<boolean | undefined> {
+export async function detectMockLocation(): Promise<boolean | undefined> {
   if (Platform.OS !== "android" || !MockLocation) return undefined;
   try {
     const result = await MockLocation.isMockLocation();

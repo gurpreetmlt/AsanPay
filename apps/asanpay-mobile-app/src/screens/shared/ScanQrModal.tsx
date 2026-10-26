@@ -1,5 +1,16 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Linking, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Linking,
+  Modal,
+  PermissionsAndroid,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import Geolocation, { type GeolocationResponse } from "@react-native-community/geolocation";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   Camera,
@@ -13,7 +24,7 @@ import { CheckCircle2, MapPin, X, XCircle } from "lucide-react-native";
 import type { ApiResponse } from "@asanpay/shared-types";
 import { api } from "../../lib/api";
 import { apiError } from "../../utils/apiError";
-import { getAepsGeoTag } from "../../lib/geoCapture";
+import { detectMockLocation } from "../../lib/geoCapture";
 import { colors } from "../../theme/colors";
 
 // Hoisted React 19 types make the library's class component look invalid to TS; it renders fine.
@@ -26,6 +37,47 @@ const CameraView = Camera as unknown as React.ComponentType<{
 
 /** QR shown on the web "Verify your location" / "Fetch shop location" screens. */
 const GEO_PREFIX = "asanpay:geo:";
+
+type Fix = { latitude: number; longitude: number; accuracyMeters?: number; isMockLocation?: boolean };
+
+function position(highAccuracy: boolean, timeout: number): Promise<GeolocationResponse> {
+  return new Promise((resolve, reject) =>
+    Geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: highAccuracy, timeout, maximumAge: 15000 }),
+  );
+}
+
+/** Asks for location permission, then a GPS fix (one low-accuracy retry). Throws an agent-readable message. */
+async function exactLocation(): Promise<Fix> {
+  if (Platform.OS === "android") {
+    const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION, {
+      title: "Location permission",
+      message: "AsanPay needs your exact location to verify your shop for the web.",
+      buttonPositive: "Allow",
+    });
+    if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+      throw new Error("Location permission is off. Allow location for AsanPay in Settings, then scan again.");
+    }
+  }
+  let pos: GeolocationResponse;
+  try {
+    pos = await position(true, 20000);
+  } catch (err) {
+    const code = (err as { code?: number })?.code;
+    if (code === 1) throw new Error("Location permission is off. Allow location for AsanPay in Settings, then scan again.");
+    if (code === 2) throw new Error("Phone location (GPS) is off. Turn on Location in quick settings, then scan again.");
+    try {
+      pos = await position(false, 10000);
+    } catch {
+      throw new Error("Could not get a GPS fix. Step near a window or outside the shop door, then scan again.");
+    }
+  }
+  return {
+    latitude: pos.coords.latitude,
+    longitude: pos.coords.longitude,
+    accuracyMeters: typeof pos.coords.accuracy === "number" ? Math.round(pos.coords.accuracy) : undefined,
+    isMockLocation: await detectMockLocation(),
+  };
+}
 
 type Phase =
   | { kind: "scanning" }
@@ -55,18 +107,20 @@ export function ScanQrModal({ visible, onClose }: { visible: boolean; onClose: (
       return;
     }
     const token = value.slice(GEO_PREFIX.length).trim();
-    setPhase({ kind: "working", text: "Getting your exact location…" });
-    const geo = await getAepsGeoTag();
-    if (!geo) {
-      setPhase({ kind: "error", text: "Allow location access and turn on GPS, then scan again." });
+    setPhase({ kind: "working", text: "Getting your exact location… (up to 20 seconds)" });
+    let geo: Fix;
+    try {
+      geo = await exactLocation();
+    } catch (err) {
+      setPhase({ kind: "error", text: err instanceof Error ? err.message : "Could not get your location. Scan again." });
       return;
     }
     setPhase({ kind: "working", text: "Sending location to the web…" });
     try {
       const { data } = await api.post<ApiResponse<{ accuracyMeters: number | null }>>("/geo-link/confirm", {
         token,
-        latitude: Number(geo.latitude),
-        longitude: Number(geo.longitude),
+        latitude: geo.latitude,
+        longitude: geo.longitude,
         accuracyMeters: geo.accuracyMeters,
         isMockLocation: geo.isMockLocation,
       });
@@ -117,12 +171,8 @@ export function ScanQrModal({ visible, onClose }: { visible: boolean; onClose: (
             </View>
           ) : (
             <>
-              <CameraView
-                style={s.camera}
-                device={device}
-                isActive={visible && phase.kind === "scanning"}
-                codeScanner={codeScanner}
-              />
+              {/* Stays active while open: stopping the session on scan freezes some Android camera HALs. */}
+              <CameraView style={s.camera} device={device} isActive={visible} codeScanner={codeScanner} />
               <View style={s.frame} pointerEvents="none" />
             </>
           )}

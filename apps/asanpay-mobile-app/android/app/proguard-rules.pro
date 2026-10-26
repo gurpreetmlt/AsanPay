@@ -28,6 +28,14 @@
 -keep class com.facebook.react.uimanager.** { *; }
 -keep class com.facebook.react.views.** { *; }
 
+# QR scanner (VisionCamera + CameraX + ML Kit barcode) — loaded via reflection / JNI
+-keep class com.mrousavy.camera.** { *; }
+-keep class androidx.camera.** { *; }
+-keep class com.google.mlkit.** { *; }
+-keep class com.google.android.gms.internal.mlkit_vision_barcode.** { *; }
+-dontwarn com.mrousavy.camera.**
+-dontwarn com.google.mlkit.**
+
 -dontwarn com.facebook.react.**
 -dontwarn com.facebook.hermes.**
 -dontwarn com.facebook.jni.**
