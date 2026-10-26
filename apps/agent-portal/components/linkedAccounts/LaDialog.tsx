@@ -13,6 +13,7 @@ export function LaDialog({
   icon,
   onClose,
   closeDisabled = false,
+  wide = false,
   children,
 }: {
   eyebrow?: string;
@@ -21,6 +22,8 @@ export function LaDialog({
   icon?: ReactNode;
   onClose: () => void;
   closeDisabled?: boolean;
+  /** Two-column content on ≥ sm screens. */
+  wide?: boolean;
   children: ReactNode;
 }) {
   useEffect(() => {
@@ -37,7 +40,7 @@ export function LaDialog({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="confirm-modal-panel max-h-[92vh] w-full max-w-[440px] overflow-y-auto rounded-[20px] bg-white shadow-2xl"
+        className={`confirm-modal-panel max-h-[92vh] w-full ${wide ? "max-w-[720px]" : "max-w-[440px]"} overflow-y-auto rounded-[20px] bg-white shadow-2xl`}
       >
         <div className="flex items-start justify-between gap-3 px-6 pt-6">
           <div className="min-w-0">

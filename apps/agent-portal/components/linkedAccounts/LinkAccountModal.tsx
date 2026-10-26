@@ -43,7 +43,7 @@ function DetailTable({ rows }: { rows: Array<{ label: string; value: ReactNode }
       {rows.map((r, i) => (
         <div
           key={r.label}
-          className="grid grid-cols-[110px_1fr] items-center gap-3 px-4 py-2.5 text-xs"
+          className="grid grid-cols-[100px_1fr] items-center gap-3 px-4 py-2.5 text-xs"
           style={{ borderTop: i === 0 ? undefined : "1px solid rgba(11,42,154,0.08)" }}
         >
           <span style={{ color: B.muted }}>{r.label}</span>
@@ -174,22 +174,23 @@ export function LinkAccountModal({
 
   if (step === "verify" && check) {
     const a = check.account;
-    const rows = [
-      ...(a
-        ? [
-            { label: "Name", value: a.name },
-            { label: "Mobile", value: a.mobileMasked },
-            { label: "UID", value: a.uid },
-            { label: "Role", value: a.roleLabel },
-            { label: "KYC", value: "Verified" },
-          ]
-        : [{ label: "Mobile", value: `XXXXXX${mobile.slice(-4)}` }]),
+    const detailRows = a
+      ? [
+          { label: "Name", value: a.name },
+          { label: "Mobile", value: a.mobileMasked },
+          { label: "UID", value: a.uid },
+          { label: "Role", value: a.roleLabel },
+          { label: "KYC", value: "Verified" },
+        ]
+      : [{ label: "Mobile", value: `XXXXXX${mobile.slice(-4)}` }];
+    const matchRows = [
       { label: "PAN match", value: <MatchValue ok={check.checks.pan} /> },
       { label: "Aadhaar match", value: <MatchValue ok={check.checks.aadhaar} /> },
       { label: "Name match", value: <MatchValue ok={check.checks.name} /> },
     ];
     return (
       <LaDialog
+        wide
         icon={<ShieldCheck size={22} />}
         eyebrow="Step 2 of 2"
         title="Verify account"
@@ -202,35 +203,41 @@ export function LinkAccountModal({
         closeDisabled={busy}
       >
         <form onSubmit={submitLink}>
-          <DetailTable rows={rows} />
+          <div className="grid items-start gap-3 sm:grid-cols-2">
+            <DetailTable rows={detailRows} />
+            <DetailTable rows={matchRows} />
+          </div>
           {check.message ? <InlineError message={check.message} /> : null}
 
           {check.eligible ? (
-            <>
-              <label htmlFor="la-otp" className="mb-2 mt-5 block text-xs font-semibold" style={{ color: B.blue }}>
-                {sent ? `Enter 6-digit OTP sent to ${sent.mobileMasked}` : "Sending OTP…"}
-              </label>
-              <CodeField id="la-otp" length={6} value={otp} onChange={setOtp} autoFocus placeholder="6-digit OTP" />
-              <div className="mt-2 text-right text-[11px]">
-                {countdown.left > 0 ? (
-                  <span className="font-semibold" style={{ color: B.muted }}>
-                    Resend OTP in {formatCountdown(countdown.left)}
-                  </span>
-                ) : (
-                  <button type="button" onClick={() => void sendOtp()} disabled={busy} className="font-semibold disabled:opacity-50" style={{ color: B.blueLight }}>
-                    {sent ? "Resend OTP" : "Send OTP"}
-                  </button>
-                )}
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="la-otp" className="mb-2 block text-xs font-semibold" style={{ color: B.blue }}>
+                  {sent ? `OTP sent to ${sent.mobileMasked}` : "Sending OTP…"}
+                </label>
+                <CodeField id="la-otp" length={6} value={otp} onChange={setOtp} autoFocus placeholder="6-digit OTP" />
+                <div className="mt-2 text-right text-[11px]">
+                  {countdown.left > 0 ? (
+                    <span className="font-semibold" style={{ color: B.muted }}>
+                      Resend OTP in {formatCountdown(countdown.left)}
+                    </span>
+                  ) : (
+                    <button type="button" onClick={() => void sendOtp()} disabled={busy} className="font-semibold disabled:opacity-50" style={{ color: B.blueLight }}>
+                      {sent ? "Resend OTP" : "Send OTP"}
+                    </button>
+                  )}
+                </div>
               </div>
-
-              <label htmlFor="la-mpin" className="mb-2 mt-3 block text-xs font-semibold" style={{ color: B.blue }}>
-                MPIN of the other account
-              </label>
-              <CodeField id="la-mpin" length={4} value={mpin} onChange={setMpin} masked placeholder="4-digit MPIN" />
-              <p className="mt-2 text-[11px]" style={{ color: B.muted }}>
-                The 4-digit MPIN you use to log in to that account.
-              </p>
-            </>
+              <div>
+                <label htmlFor="la-mpin" className="mb-2 block text-xs font-semibold" style={{ color: B.blue }}>
+                  MPIN of the other account
+                </label>
+                <CodeField id="la-mpin" length={4} value={mpin} onChange={setMpin} masked placeholder="4-digit MPIN" />
+                <p className="mt-2 text-[11px]" style={{ color: B.muted }}>
+                  The MPIN you use to log in to that account.
+                </p>
+              </div>
+            </div>
           ) : null}
 
           <InlineError message={error} />

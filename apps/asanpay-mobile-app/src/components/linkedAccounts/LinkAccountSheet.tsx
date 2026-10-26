@@ -134,19 +134,19 @@ export function LinkAccountSheet({
 
   if (step === "verify" && check) {
     const a = check.account;
-    const rows: Array<{ label: string; value?: string; match?: boolean }> = [
-      ...(a
-        ? [
-            { label: "Name", value: a.name },
-            { label: "Mobile", value: a.mobileMasked },
-            { label: "UID", value: a.uid },
-            { label: "Role", value: a.roleLabel },
-            { label: "KYC", value: "Verified" },
-          ]
-        : [{ label: "Mobile", value: `XXXXXX${mobile.slice(-4)}` }]),
-      { label: "PAN match", match: check.checks.pan },
-      { label: "Aadhaar match", match: check.checks.aadhaar },
-      { label: "Name match", match: check.checks.name },
+    const cells: Array<{ label: string; value: string; full?: boolean }> = a
+      ? [
+          { label: "Name", value: a.name, full: true },
+          { label: "Mobile", value: a.mobileMasked },
+          { label: "UID", value: a.uid },
+          { label: "Role", value: a.roleLabel },
+          { label: "KYC", value: "Verified" },
+        ]
+      : [{ label: "Mobile", value: `XXXXXX${mobile.slice(-4)}`, full: true }];
+    const matches = [
+      { label: "PAN", ok: check.checks.pan },
+      { label: "Aadhaar", ok: check.checks.aadhaar },
+      { label: "Name", ok: check.checks.name },
     ];
     return (
       <ModalSheet visible title="Verify account" onClose={close}>
@@ -162,24 +162,26 @@ export function LinkAccountSheet({
                 : "This account cannot be linked to you."}
             </Text>
           </View>
-          <View style={styles.table}>
-            {rows.map((r, i) => (
-              <View key={r.label} style={[styles.tableRow, i > 0 && styles.tableRowBorder]}>
-                <Text style={styles.tableLabel}>{r.label}</Text>
-                {r.match === undefined ? (
-                  <Text style={styles.tableValue}>{r.value}</Text>
-                ) : (
-                  <View style={styles.matchCell}>
-                    {r.match ? (
-                      <CheckCircle2 size={14} color={colors.greenDark} />
-                    ) : (
-                      <XCircle size={14} color={colors.danger} />
-                    )}
-                    <Text style={[styles.tableValue, { color: r.match ? colors.greenDark : colors.danger }]}>
-                      {r.match ? "Matched" : "Not matched"}
-                    </Text>
-                  </View>
-                )}
+          <View style={styles.grid}>
+            {cells.map((c) => (
+              <View key={c.label} style={[styles.cell, c.full ? styles.cellFull : styles.cellHalf]}>
+                <Text style={styles.cellLabel}>{c.label}</Text>
+                <Text style={styles.cellValue} numberOfLines={1}>
+                  {c.value}
+                </Text>
+              </View>
+            ))}
+          </View>
+          <View style={styles.matchRow}>
+            {matches.map((m) => (
+              <View key={m.label} style={[styles.matchChip, m.ok ? styles.matchOk : styles.matchBad]}>
+                {m.ok ? <CheckCircle2 size={14} color={colors.greenDark} /> : <XCircle size={14} color={colors.danger} />}
+                <View>
+                  <Text style={styles.matchLabel}>{m.label}</Text>
+                  <Text style={[styles.matchValue, { color: m.ok ? colors.greenDark : colors.danger }]}>
+                    {m.ok ? "Matched" : "Not matched"}
+                  </Text>
+                </View>
               </View>
             ))}
           </View>
@@ -298,12 +300,39 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  table: { borderWidth: 1, borderColor: "rgba(11,42,154,0.12)", borderRadius: 16, overflow: "hidden" },
-  tableRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 11 },
-  tableRowBorder: { borderTopWidth: 1, borderTopColor: "rgba(11,42,154,0.08)" },
-  tableLabel: { width: 116, fontSize: 12.5, color: colors.textMuted },
-  tableValue: { flex: 1, fontSize: 13, fontWeight: "800", color: colors.blue },
-  matchCell: { flex: 1, flexDirection: "row", alignItems: "center", gap: 6 },
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    borderWidth: 1,
+    borderColor: "rgba(11,42,154,0.12)",
+    borderRadius: 16,
+    overflow: "hidden",
+  },
+  cell: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(11,42,154,0.08)",
+  },
+  cellFull: { width: "100%" },
+  cellHalf: { width: "50%" },
+  cellLabel: { fontSize: 11, color: colors.textMuted },
+  cellValue: { marginTop: 2, fontSize: 13.5, fontWeight: "800", color: colors.blue },
+  matchRow: { flexDirection: "row", gap: 8, marginTop: 10 },
+  matchChip: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  matchOk: { backgroundColor: "#F0FBF5", borderColor: "#C8EED9" },
+  matchBad: { backgroundColor: colors.dangerBg, borderColor: "#FECACA" },
+  matchLabel: { fontSize: 10.5, color: colors.textMuted },
+  matchValue: { fontSize: 11.5, fontWeight: "800" },
   info: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 16, backgroundColor: "#F0F4FF" },
   infoIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
   mobileRow: {
