@@ -691,6 +691,8 @@ export interface UnsubmittedTxnCheck {
   legacyDebitAmount: string;
   /** A pre-ledger reversal already exists for this txn. */
   legacyReversed: boolean;
+  /** Wallet-book lines of any kind referencing this txn on the retailer's wallets. */
+  walletBookEntries: number;
   /** The retailer's ledger account — the credit side of a manual refund. */
   agentAccountCode: string | null;
   /** Part of the wallet hold that still belongs to this txn. */
@@ -750,21 +752,22 @@ export async function checkUnsubmittedTxn(txnRef: string): Promise<UnsubmittedTx
     .from(wallets)
     .where(and(eq(wallets.userId, txn.userId), eq(wallets.walletType, walletType)));
 
-  const legacyRows = userWallet
-    ? await db
-        .select({
-          referenceType: walletLedgerGroups.referenceType,
-          entryType: walletLedgerEntries.entryType,
-          amount: walletLedgerEntries.amount,
-        })
-        .from(walletLedgerEntries)
-        .innerJoin(walletLedgerGroups, eq(walletLedgerGroups.id, walletLedgerEntries.groupId))
-        .where(and(eq(walletLedgerGroups.referenceId, txn.id), eq(walletLedgerEntries.walletId, userWallet.id)))
-    : [];
+  // Any of the retailer's wallets — older code did not always debit the wallet the row names.
+  const legacyRows = await db
+    .select({
+      referenceType: walletLedgerGroups.referenceType,
+      entryType: walletLedgerEntries.entryType,
+      amount: walletLedgerEntries.amount,
+    })
+    .from(walletLedgerEntries)
+    .innerJoin(walletLedgerGroups, eq(walletLedgerGroups.id, walletLedgerEntries.groupId))
+    .innerJoin(wallets, eq(wallets.id, walletLedgerEntries.walletId))
+    .where(and(eq(walletLedgerGroups.referenceId, txn.id), eq(wallets.userId, txn.userId)));
   const legacyDebitPaise = legacyRows
     .filter((r) => r.referenceType === "service_txn" && r.entryType === "debit")
     .reduce((sum, r) => sum + toPaise(r.amount), 0);
   const legacyReversed = legacyRows.some((r) => r.referenceType === "reversal");
+  const walletBookEntries = legacyRows.length;
 
   const [account] = await db
     .select({ code: accounts.code })
@@ -810,6 +813,7 @@ export async function checkUnsubmittedTxn(txnRef: string): Promise<UnsubmittedTx
     hasDebitJournal: Boolean(debitJournal),
     legacyDebitAmount: fromPaise(legacyDebitPaise),
     legacyReversed,
+    walletBookEntries,
     agentAccountCode: account?.code ?? null,
     heldForThisTxn,
   };
@@ -851,6 +855,46 @@ export async function failUnsubmittedTxn(txnRef: string, reason: string): Promis
   });
 
   return finalized;
+}
+
+/**
+ * Ops: close a stuck txn that never took any money — no ledger journal, no wallet-book line and
+ * no wallet hold. Moves no money; marks the txn failed with an audit trail.
+ */
+export async function closeTxnNeverCharged(txnRef: string, reason: string): Promise<TxnRow> {
+  const check = await checkUnsubmittedTxn(txnRef);
+  if (check.hasDebitJournal || check.walletBookEntries > 0 || toPaise(check.heldForThisTxn) > 0) {
+    throw new HttpError(
+      409,
+      `Transaction ${txnRef} has money on record (ledger debit, wallet-book entry or hold). Use the refund path instead.`,
+      "TXN_WAS_CHARGED",
+    );
+  }
+
+  const closed = await db.transaction(async (tx) => {
+    const [locked] = await tx.select().from(transactions).where(eq(transactions.id, check.txn.id)).for("update");
+    if (!locked || (locked.status !== "pending" && locked.status !== "initiated")) {
+      throw new HttpError(409, `Transaction ${txnRef} is already ${locked?.status ?? "gone"}`, "TXN_ALREADY_SETTLED");
+    }
+    const [updated] = await tx
+      .update(transactions)
+      .set({ status: "failed", failureReason: reason, completedAt: new Date(), updatedAt: new Date() })
+      .where(eq(transactions.id, locked.id))
+      .returning();
+    return updated!;
+  });
+
+  await insertAuditLog({
+    userId: null,
+    action: "txn.manual_close_never_charged",
+    entityType: "transaction",
+    entityId: check.txn.id,
+    ipAddress: null,
+    userAgent: null,
+    metadata: { from: check.txn.status, to: closed.status, amount: check.txn.amount, reason },
+  });
+
+  return closed;
 }
 
 /**
