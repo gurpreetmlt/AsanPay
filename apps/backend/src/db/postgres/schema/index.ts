@@ -28,6 +28,7 @@ export * from "./commission";
 export * from "./apiClients";
 export * from "./logs";
 export * from "./aepsCompliance";
+export * from "./cmsTransactions";
 export * from "./support";
 export * from "./whatsappSupport";
 export * from "./relations";

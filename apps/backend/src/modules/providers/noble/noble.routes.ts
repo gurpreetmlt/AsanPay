@@ -6,7 +6,12 @@ import { validateBody } from "../../../middleware/validate";
 import { sendSuccess } from "../../../utils/apiResponse";
 import { HttpError } from "../../../utils/httpError";
 import { executeServiceTxn, recheckTxnStatus } from "../../transactions/txn.service";
-import { nobleCmsStart, nobleCmsStatus } from "./cms.service";
+import {
+  CMS_PROVIDERS,
+  checkCashCollection,
+  listCashCollections,
+  startCashCollection,
+} from "./cms.service";
 import { nobleSubmitRecon } from "./recon.service";
 import {
   nobleUpiQrCollect,
@@ -51,13 +56,20 @@ const upiStatusSchema = z.object({
 });
 
 const cmsStartSchema = z.object({
-  merchantId: z.string().min(1).max(10),
-  transactionId: z.string().min(12).max(25).optional(),
+  provider: z.enum(["airtel"]).optional().default("airtel"),
 });
 
 const cmsStatusSchema = z.object({
-  transactionId: z.string().min(12).max(25),
+  transactionId: z.string().min(12, "Enter a valid cash collection transaction id").max(25),
 });
+
+const ymd = /^\d{4}-\d{2}-\d{2}$/;
+const cmsListSchema = z
+  .object({
+    from: z.string().regex(ymd, "From date must be YYYY-MM-DD"),
+    to: z.string().regex(ymd, "To date must be YYYY-MM-DD"),
+  })
+  .refine((q) => q.from <= q.to, { message: "From date must be on or before To date", path: ["from"] });
 
 const reconSchema = z.object({
   uniqueDateTransactionId: z.string().min(10).max(15),
@@ -170,15 +182,27 @@ nobleRouter.post("/upi-qr/status", retailer, validateBody(upiStatusSchema), asyn
   });
 });
 
-// ── Airtel CMS ──────────────────────────────────────────────────────────
+// ── Cash Management (CMS) ───────────────────────────────────────────────
+nobleRouter.get("/cms/providers", retailer, (_req, res) => {
+  sendSuccess(res, CMS_PROVIDERS);
+});
+
 nobleRouter.post("/cms/start", retailer, validateBody(cmsStartSchema), async (req, res) => {
   const body = req.body as z.infer<typeof cmsStartSchema>;
-  sendSuccess(res, await nobleCmsStart(body));
+  sendSuccess(res, await startCashCollection(req.auth!.sub, body.provider));
 });
 
 nobleRouter.post("/cms/status", retailer, validateBody(cmsStatusSchema), async (req, res) => {
   const body = req.body as z.infer<typeof cmsStatusSchema>;
-  sendSuccess(res, await nobleCmsStatus(body.transactionId));
+  sendSuccess(res, await checkCashCollection(req.auth!.sub, body.transactionId));
+});
+
+nobleRouter.get("/cms/transactions", retailer, async (req, res) => {
+  const parsed = cmsListSchema.safeParse(req.query);
+  if (!parsed.success) {
+    throw new HttpError(400, parsed.error.issues[0]?.message ?? "Select a valid date range", "CMS_RANGE_INVALID");
+  }
+  sendSuccess(res, await listCashCollections(req.auth!.sub, parsed.data.from, parsed.data.to));
 });
 
 // ── Recon (admin or retailer ops) ───────────────────────────────────────

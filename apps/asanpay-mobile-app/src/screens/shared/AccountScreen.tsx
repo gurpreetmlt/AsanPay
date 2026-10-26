@@ -45,7 +45,7 @@ import { SupportModal } from "./SupportModal";
 import { SettlementsModal } from "./SettlementsModal";
 import { FundRequestModal } from "./FundRequestScreen";
 import { NobleAgentOnboardModal } from "./NobleAgentOnboardModal";
-import { NobleCmsModal } from "./NobleCmsModal";
+import { CashManagementModal } from "./CashManagementModal";
 import { UpiCashPointScreen } from "../retailer/UpiCashPointScreen";
 import { BiometricDevicesModal } from "./BiometricDevicesModal";
 import { DeviceRepairModal } from "./DeviceRepairModal";
@@ -484,7 +484,7 @@ export function AccountScreen() {
             <MenuRow
               icon={ShieldCheck}
               label="Cash Collection"
-              subtitle="Start a collection and check status"
+              subtitle="Collect cash for partner companies"
               tokens={tokens}
               onPress={() => setShowNobleCms(true)}
             />
@@ -659,7 +659,7 @@ export function AccountScreen() {
       <Modal visible={showNobleUpiQr} animationType="slide" onRequestClose={() => setShowNobleUpiQr(false)}>
         <UpiCashPointScreen onBack={() => setShowNobleUpiQr(false)} />
       </Modal>
-      <NobleCmsModal visible={showNobleCms} onClose={() => setShowNobleCms(false)} />
+      <CashManagementModal visible={showNobleCms} onClose={() => setShowNobleCms(false)} />
     </SafeAreaView>
     </PageEnter>
   );

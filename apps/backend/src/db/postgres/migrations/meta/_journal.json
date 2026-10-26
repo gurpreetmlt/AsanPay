@@ -512,6 +512,13 @@
       "when": 1792300000000,
       "tag": "0072_upi_cash_point_route",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1792400000000,
+      "tag": "0073_cms_transactions",
+      "breakpoints": true
     }
   ]
 }

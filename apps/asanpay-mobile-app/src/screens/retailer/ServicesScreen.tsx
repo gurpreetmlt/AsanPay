@@ -27,7 +27,7 @@ import { PageEnter } from "../../components/PageEnter";
 import { TodayEarningsCard } from "../../components/TodayEarningsCard";
 import { PanMissingBanner } from "../../components/PanMissingBanner";
 import { NobleAgentOnboardModal } from "../shared/NobleAgentOnboardModal";
-import { NobleCmsModal } from "../shared/NobleCmsModal";
+import { CashManagementModal } from "../shared/CashManagementModal";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 
@@ -450,7 +450,7 @@ export function ServicesScreen() {
         onClose={closeAepsOnboarding}
         onSkip={skipAepsOnboarding}
       />
-      <NobleCmsModal visible={showCms} onClose={() => setShowCms(false)} />
+      <CashManagementModal visible={showCms} onClose={() => setShowCms(false)} />
     </SafeAreaView>
     </PageEnter>
   );
