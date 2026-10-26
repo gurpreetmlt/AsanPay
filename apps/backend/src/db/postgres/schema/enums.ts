@@ -37,6 +37,7 @@ export const otpPurposeEnum = pgEnum("otp_purpose", [
   "settlement_bank",
   "device_register",
   "password_reset",
+  "account_link",
 ]);
 
 export const supportTicketStatusEnum = pgEnum("support_ticket_status", ["open", "resolved"]);

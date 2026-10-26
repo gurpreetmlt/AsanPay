@@ -11,7 +11,8 @@ export type OtpPurpose =
   | "email_verify"
   | "settlement_bank"
   | "device_register"
-  | "password_reset";
+  | "password_reset"
+  | "account_link";
 
 export interface InsertOtpRequestInput {
   mobile: string;

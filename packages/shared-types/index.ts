@@ -76,6 +76,35 @@ export interface AuthUser {
   fundRequestEnabled: boolean;
 }
 
+/** Max accounts in one linked group (one Distributor + one Retailer). */
+export const MAX_LINKED_ACCOUNTS = 2;
+
+/** GET /api/linked-accounts row. Never carries PAN / Aadhaar. */
+export interface LinkedAccountSummary {
+  userId: string;
+  uid: string;
+  name: string;
+  role: UserRole;
+  roleLabel: string;
+  /** e.g. XXXXXX4521 */
+  mobileMasked: string;
+  isCurrent: boolean;
+  /** ISO time the link was created; null when the current account has no links. */
+  linkedAt: string | null;
+  linkMethod: "otp" | null;
+  /** Switching into this account needs OTP on its mobile (last OTP verify is older than 24 h). */
+  otpRequiredForSwitch: boolean;
+  /** ISO time until which switching into this account is locked after wrong MPINs. */
+  switchLockedUntil: string | null;
+  /** `needs_review` = inactive, KYC no longer verified, or identity no longer matches. */
+  status: "active" | "needs_review";
+}
+
+export interface LinkedAccountsResponse {
+  accounts: LinkedAccountSummary[];
+  maxLinked: number;
+}
+
 /** SD / Distributor may raise fund requests by default; a retailer only when admin enables it. */
 export function isFundRequestEnabled(role: UserRole, override: boolean | null | undefined): boolean {
   if (role === "admin") return false;

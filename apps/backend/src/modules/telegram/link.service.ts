@@ -20,7 +20,7 @@ export function wantsTelegramOtp(): boolean {
   return otpDeliveryChannels().includes("telegram");
 }
 
-type AuthOtpPurpose = "login" | "signup" | "password_reset";
+type AuthOtpPurpose = "login" | "signup" | "password_reset" | "account_link";
 
 function hasFixedOtp(mobile: string, purpose: AuthOtpPurpose): boolean {
   return purpose === "signup"
@@ -31,6 +31,7 @@ function hasFixedOtp(mobile: string, purpose: AuthOtpPurpose): boolean {
 function authOtpLabel(purpose: AuthOtpPurpose): string {
   if (purpose === "signup") return "signup";
   if (purpose === "password_reset") return "password reset";
+  if (purpose === "account_link") return "account linking";
   return "login";
 }
 
@@ -77,14 +78,16 @@ export async function deliverAuthOtp(params: {
   if (
     channels.includes("telegram") &&
     !params.telegramChatId &&
-    (params.purpose === "login" || params.purpose === "password_reset")
+    (params.purpose === "login" || params.purpose === "password_reset" || params.purpose === "account_link")
   ) {
     if (!hasFixedOtp(params.mobile, params.purpose)) {
       throw new HttpError(
         422,
         params.purpose === "password_reset"
           ? "Telegram is not linked. Contact support to reset your password, or use WhatsApp OTP delivery."
-          : "Telegram is not linked. Log in with password, then open Account → Link Telegram.",
+          : params.purpose === "account_link"
+            ? "Telegram is not linked on the other account. Log in to it once and open Account → Link Telegram."
+            : "Telegram is not linked. Log in with password, then open Account → Link Telegram.",
         "TELEGRAM_NOT_LINKED",
       );
     }

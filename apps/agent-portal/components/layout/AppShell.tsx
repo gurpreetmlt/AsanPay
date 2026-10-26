@@ -46,6 +46,9 @@ import { maskBalance, useBalanceVisibility } from "@/lib/balanceVisibility";
 import { CHILD_ROLE, ROLE_LABEL, isRetailerRole } from "@/lib/roles";
 import { AlertCountBadge } from "@/components/layout/AlertCountBadge";
 import { SupportCallLink } from "@/components/layout/SupportCallLink";
+import { ProfileMenu } from "@/components/linkedAccounts/ProfileMenu";
+import { takeSwitchToast } from "@/lib/linkedAccounts";
+import { toast } from "react-hot-toast";
 
 const ACTION_QUEUE_POLL_MS = 60_000;
 const LOW_BALANCE_THRESHOLD = 200;
@@ -672,6 +675,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [pathname]);
 
   useEffect(() => {
+    const msg = takeSwitchToast();
+    if (msg) toast.success(msg);
+  }, []);
+
+  useEffect(() => {
     function onDocClick(e: MouseEvent) {
       if (!notifRef.current?.contains(e.target as Node)) setNotifOpen(false);
       if (!searchRef.current?.contains(e.target as Node)) setSearchOpen(false);
@@ -885,22 +893,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </div>
               ) : null}
             </div>
-            <div className="flex items-center gap-2 border-l pl-3" style={{ borderColor: B.border }}>
-              <div
-                className="flex h-9 w-9 items-center justify-center rounded-xl text-xs font-bold text-white"
-                style={{ background: role.gradient }}
-              >
-                {av}
-              </div>
-              <div className="hidden sm:block">
-                <div className="text-sm font-bold" style={{ color: B.blue }}>
-                  {name}
-                </div>
-                <div className="text-[11px]" style={{ color: B.muted }}>
-                  {role.label}
-                </div>
-              </div>
-            </div>
+            <ProfileMenu />
           </div>
         </header>
 

@@ -20,6 +20,7 @@ import {
   Sun,
   TrendingUp,
   UserCircle,
+  Users,
   Wallet,
 } from "lucide-react-native";
 import { isFundRequestEnabled, ROLE_LABELS, type ApiResponse, type AuthUser } from "@asanpay/shared-types";
@@ -49,6 +50,7 @@ import { CashManagementModal } from "./CashManagementModal";
 import { UpiCashPointScreen } from "../retailer/UpiCashPointScreen";
 import { BiometricDevicesModal } from "./BiometricDevicesModal";
 import { DeviceRepairModal } from "./DeviceRepairModal";
+import { LinkedAccountsHost, type LinkedAccountsView } from "../../components/linkedAccounts/LinkedAccountsHost";
 
 /** Decorative cover art behind the profile banner — waves + soft dots, brand blue/green only. */
 function BannerCover() {
@@ -176,6 +178,7 @@ export function AccountScreen() {
   const [showNobleOnboard, setShowNobleOnboard] = useState(false);
   const [showNobleCms, setShowNobleCms] = useState(false);
   const [showNobleUpiQr, setShowNobleUpiQr] = useState(false);
+  const [accountsView, setAccountsView] = useState<LinkedAccountsView | null>(null);
   const [telegramBusy, setTelegramBusy] = useState(false);
   const [tdsSummary, setTdsSummary] = useState<{
     month: string;
@@ -456,6 +459,13 @@ export function AccountScreen() {
             onPress={() => setShowProfile(true)}
           />
           <MenuRow
+            icon={Users}
+            label="Linked accounts"
+            subtitle="switch between your accounts with MPIN"
+            tokens={tokens}
+            onPress={() => setAccountsView("manage")}
+          />
+          <MenuRow
             icon={Smartphone}
             label="Devices"
             subtitle="add, activate or repair your devices"
@@ -660,6 +670,7 @@ export function AccountScreen() {
         <UpiCashPointScreen onBack={() => setShowNobleUpiQr(false)} />
       </Modal>
       <CashManagementModal visible={showNobleCms} onClose={() => setShowNobleCms(false)} />
+      <LinkedAccountsHost view={accountsView} onClose={() => setAccountsView(null)} />
     </SafeAreaView>
     </PageEnter>
   );

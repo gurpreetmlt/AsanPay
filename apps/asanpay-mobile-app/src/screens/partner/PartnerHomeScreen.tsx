@@ -37,6 +37,7 @@ import { BrandLockup } from "../../components/BrandMark";
 import { SupportCallButton } from "../../components/SupportCallButton";
 import { FundRequestModal } from "../shared/FundRequestScreen";
 import { InviteModal, type InviteResult } from "./NetworkScreen";
+import { LinkedAccountsHost, type LinkedAccountsView } from "../../components/linkedAccounts/LinkedAccountsHost";
 
 interface PartnerStats {
   revenue?: { todayCommission?: string };
@@ -70,6 +71,7 @@ export function PartnerHomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showFund, setShowFund] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
+  const [accountsView, setAccountsView] = useState<LinkedAccountsView | null>(null);
   const [inviteResult, setInviteResult] = useState<InviteResult | null>(null);
   const openInvite = () => {
     setInviteResult(null);
@@ -159,7 +161,7 @@ export function PartnerHomeScreen() {
           <View style={[styles.bubble, styles.bubbleA]} />
           <View style={[styles.bubble, styles.bubbleB]} />
           <View style={styles.headerRow}>
-            <Pressable style={styles.avatar} onPress={() => go("Settings")}>
+            <Pressable style={styles.avatar} onPress={() => setAccountsView("menu")} accessibilityLabel="Your accounts">
               <Text style={styles.avatarText}>{initials}</Text>
             </Pressable>
             <View style={{ flex: 1, minWidth: 0 }}>
@@ -320,6 +322,7 @@ export function PartnerHomeScreen() {
             void load(true);
           }}
         />
+        <LinkedAccountsHost view={accountsView} onClose={() => setAccountsView(null)} />
       </SafeAreaView>
     </PageEnter>
   );

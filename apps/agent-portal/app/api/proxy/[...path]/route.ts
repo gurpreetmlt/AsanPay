@@ -48,9 +48,15 @@ function clientIpHeaders(req: NextRequest): Record<string, string> {
   };
 }
 
-async function forward(req: NextRequest, path: string[], accessToken: string | null): Promise<Response> {
+async function forward(
+  req: NextRequest,
+  path: string[],
+  accessToken: string | null,
+  bodyOverride?: string,
+): Promise<Response> {
   const url = `${BACKEND_URL}/${path.join("/")}${req.nextUrl.search}`;
-  const body = req.method === "GET" || req.method === "HEAD" ? undefined : await req.text();
+  const body =
+    bodyOverride ?? (req.method === "GET" || req.method === "HEAD" ? undefined : await req.text());
 
   const idempotencyKey = req.headers.get("idempotency-key");
   const contentType = req.headers.get("content-type");
@@ -86,9 +92,21 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
   try {
     const { path } = await ctx.params;
     const isAuth = path[0] === "auth";
+    // Linked-account switch issues a new session: tokens go into cookies (never to browser JS),
+    // and the current refresh cookie is sent along so the backend can revoke it.
+    const isAccountSwitch =
+      req.method === "POST" && path.length === 2 && path[0] === "linked-accounts" && path[1] === "switch";
     const { accessToken, refreshToken } = await getAuthCookies();
 
-    let upstream = await forward(req, path, accessToken);
+    let switchBody: Record<string, unknown> | null = null;
+    if (isAccountSwitch) {
+      switchBody = ((await req.json().catch(() => null)) as Record<string, unknown> | null) ?? {};
+      delete switchBody.refreshToken;
+    }
+    const switchBodyWith = (token: string | null) =>
+      switchBody ? JSON.stringify(token ? { ...switchBody, refreshToken: token } : switchBody) : undefined;
+
+    let upstream = await forward(req, path, accessToken, switchBodyWith(refreshToken));
 
     // Credential-entry endpoints (login/otp/mpin/signup) are always POST and a 401 there means
     // "wrong credentials", not "expired access token" — never retry those. GET auth endpoints
@@ -100,13 +118,13 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
 
       if (refreshed) {
         await setAuthCookies(refreshed.accessToken, refreshed.refreshToken);
-        upstream = await forward(req, path, refreshed.accessToken);
+        upstream = await forward(req, path, refreshed.accessToken, switchBodyWith(refreshed.refreshToken));
       } else {
         await clearAuthCookies();
       }
     }
 
-    if (isAuth) {
+    if (isAuth || isAccountSwitch) {
       const json = await upstream.json().catch(() => null);
 
       if (path[1] === "logout") {

@@ -89,6 +89,9 @@ export interface OtpMeta {
   userId?: string;
   /** Pre-KYC submit mobile change — authenticated user id */
   preKycMobileChangeUserId?: string;
+  /** Linked accounts OTP — logged-in user who asked for it, and for which step */
+  linkRequestedByUserId?: string;
+  linkAction?: "link" | "switch";
 }
 
 // Login/signup OTPs. No native TTL in Postgres — rows are filtered by expiresAt on

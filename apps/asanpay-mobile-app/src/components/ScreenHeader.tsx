@@ -1,5 +1,5 @@
 import React from "react";
-import { StyleSheet, Text, View, ViewStyle } from "react-native";
+import { Pressable, StyleSheet, Text, View, ViewStyle } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import { colors, gradientDirection } from "../theme/colors";
 
@@ -17,6 +17,8 @@ interface Props {
   brandRight?: React.ReactNode;
   /** Optional icon row rendered top-right, alongside the title/avatar block. */
   topRight?: React.ReactNode;
+  /** Tap on the letter avatar (profile variant) — e.g. account switcher. */
+  onAvatarPress?: () => void;
   children?: React.ReactNode;
   style?: ViewStyle;
 }
@@ -31,6 +33,7 @@ export function ScreenHeader({
   brand,
   brandRight,
   topRight,
+  onAvatarPress,
   children,
   style,
 }: Props) {
@@ -56,9 +59,16 @@ export function ScreenHeader({
       {variant === "profile" ? (
         <View style={styles.profile}>
           {leading ?? (
-            <View style={styles.avatar}>
+            <Pressable
+              style={styles.avatar}
+              onPress={onAvatarPress}
+              disabled={!onAvatarPress}
+              hitSlop={6}
+              accessibilityRole={onAvatarPress ? "button" : undefined}
+              accessibilityLabel={onAvatarPress ? "Your accounts" : undefined}
+            >
               <Text style={styles.avatarText}>{avatarLetter ?? "?"}</Text>
-            </View>
+            </Pressable>
           )}
           <View style={styles.profileText}>
             {eyebrow ? (

@@ -24,6 +24,7 @@ import { showAlert } from "../../components/AppAlert";
 import { BrandLockup } from "../../components/BrandMark";
 import { SupportCallButton } from "../../components/SupportCallButton";
 import { ScanQrModal } from "../shared/ScanQrModal";
+import { LinkedAccountsHost, type LinkedAccountsView } from "../../components/linkedAccounts/LinkedAccountsHost";
 import { PageEnter } from "../../components/PageEnter";
 import { TodayEarningsCard } from "../../components/TodayEarningsCard";
 import { PanMissingBanner } from "../../components/PanMissingBanner";
@@ -76,6 +77,7 @@ export function ServicesScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
+  const [accountsView, setAccountsView] = useState<LinkedAccountsView | null>(null);
   const [homeEditMode, setHomeEditMode] = useState(false);
   const [activeScreen, setActiveScreen] = useState<"home" | "aeps" | "dmt" | "nepal" | "upi_cp" | "recharge">("home");
   const [aepsServiceCode, setAepsServiceCode] = useState<string | undefined>();
@@ -227,6 +229,7 @@ export function ServicesScreen() {
         brand={<BrandLockup iconSize={44} animate light showTagline />}
         brandRight={<SupportCallButton />}
         avatarLetter={initials || firstName.charAt(0).toUpperCase()}
+        onAvatarPress={() => setAccountsView("menu")}
         eyebrow={greetingName(user.name)}
         title={user.name}
         subtitle={
@@ -461,6 +464,7 @@ export function ServicesScreen() {
       />
       <CashManagementModal visible={showCms} onClose={() => setShowCms(false)} />
       <ScanQrModal visible={scanOpen} onClose={() => setScanOpen(false)} />
+      <LinkedAccountsHost view={accountsView} onClose={() => setAccountsView(null)} />
     </SafeAreaView>
     </PageEnter>
   );

@@ -57,14 +57,18 @@ function LegalDocModal({ doc, onClose }: { doc: LegalDoc | null; onClose: () => 
 export function LoginPolicyConsent({
   checked,
   onChange,
+  tone = "dark",
 }: {
   checked: boolean;
   onChange: (next: boolean) => void;
+  /** `light` = on a white card / sheet. */
+  tone?: "dark" | "light";
 }) {
   const [openDoc, setOpenDoc] = useState<LegalDoc | null>(null);
+  const light = tone === "light";
 
   const link = (doc: LegalDoc, label: string) => (
-    <Text style={styles.link} onPress={() => setOpenDoc(doc)} suppressHighlighting>
+    <Text style={[styles.link, light && styles.linkLight]} onPress={() => setOpenDoc(doc)} suppressHighlighting>
       {label}
     </Text>
   );
@@ -77,16 +81,16 @@ export function LoginPolicyConsent({
           hitSlop={10}
           accessibilityRole="checkbox"
           accessibilityState={{ checked }}
-          style={[styles.box, checked && styles.boxChecked]}
+          style={[styles.box, light && styles.boxLight, checked && styles.boxChecked]}
         >
           {checked ? <Text style={styles.tick}>✓</Text> : null}
         </Pressable>
-        <Text style={styles.label} onPress={() => onChange(!checked)}>
+        <Text style={[styles.label, light && styles.labelLight]} onPress={() => onChange(!checked)}>
           I agree to the {link("terms", "Terms & Conditions")}, {link("privacy", "Privacy Policy")} and{" "}
           {link("eula", "EULA")}.
         </Text>
       </View>
-      {!checked ? <Text style={styles.hint}>Tick the box to continue.</Text> : null}
+      {!checked ? <Text style={[styles.hint, light && styles.hintLight]}>Tick the box to continue.</Text> : null}
       <LegalDocModal doc={openDoc} onClose={() => setOpenDoc(null)} />
     </View>
   );
@@ -110,6 +114,10 @@ const styles = StyleSheet.create({
   label: { flex: 1, fontSize: 12.5, lineHeight: 18, color: "#B9C6F2" },
   link: { color: "#3BE39A", fontWeight: "700", textDecorationLine: "underline" },
   hint: { marginTop: 6, marginLeft: 30, fontSize: 11, color: "rgba(255,255,255,.5)" },
+  boxLight: { borderColor: colors.border },
+  labelLight: { color: colors.text },
+  linkLight: { color: colors.blueLight },
+  hintLight: { color: colors.textMuted },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 14 },
   card: { maxHeight: "88%", borderRadius: 16, backgroundColor: colors.card, overflow: "hidden" },
   header: {

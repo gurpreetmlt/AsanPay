@@ -1014,6 +1014,62 @@ body {
   }
 }
 
+/* Linked accounts: switch card flip (700ms, same timing on mobile) */
+@keyframes la-flip {
+  from {
+    transform: rotateY(0deg);
+  }
+  to {
+    transform: rotateY(180deg);
+  }
+}
+
+@keyframes la-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.la-flip-overlay {
+  animation: la-fade-in 0.15s ease-out both;
+}
+
+.la-flip-scene {
+  perspective: 1000px;
+}
+
+.la-flip-card {
+  transform-style: preserve-3d;
+  animation: la-flip 0.7s ease-in-out both;
+}
+
+.la-flip-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.la-flip-back {
+  transform: rotateY(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .la-flip-card {
+    animation: none;
+  }
+  .la-flip-front {
+    display: none;
+  }
+  .la-flip-back {
+    transform: none;
+    animation: la-fade-in 0.15s ease-out both;
+  }
+}
+
 /* Confirm / prompt modal animations (delete popup parity) */
 @keyframes confirm-backdrop-in {
   from {

@@ -7,6 +7,8 @@ interface PinInputProps {
   value: string;
   onChange: (value: string) => void;
   autoFocus?: boolean;
+  /** false = show digits (OTP). */
+  masked?: boolean;
 }
 
 /**
@@ -16,7 +18,7 @@ interface PinInputProps {
  * focused, so with two PIN fields on one screen (e.g. New PIN + Confirm PIN) it's obvious which
  * one is currently receiving keystrokes.
  */
-export function PinInput({ length = 4, value, onChange, autoFocus = true }: PinInputProps) {
+export function PinInput({ length = 4, value, onChange, autoFocus = true, masked = true }: PinInputProps) {
   const inputRef = useRef<TextInput>(null);
   const [focused, setFocused] = useState(false);
   const digits = value.padEnd(length, " ").slice(0, length).split("");
@@ -38,7 +40,7 @@ export function PinInput({ length = 4, value, onChange, autoFocus = true }: PinI
               focused && i === cursorIndex ? styles.boxCursor : null,
             ]}
           >
-            <Text style={styles.dot}>{d.trim() ? "●" : ""}</Text>
+            <Text style={styles.dot}>{d.trim() ? (masked ? "●" : d) : ""}</Text>
           </View>
         ))}
       </View>
@@ -52,7 +54,7 @@ export function PinInput({ length = 4, value, onChange, autoFocus = true }: PinI
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         autoFocus={autoFocus}
-        secureTextEntry
+        secureTextEntry={masked}
         caretHidden
         showSoftInputOnFocus
         textContentType="oneTimeCode"

@@ -532,6 +532,48 @@ export function securityPinChangedEmailTemplate(input: {
   };
 }
 
+export function accountLinkEmailTemplate(input: {
+  name: string;
+  event: "linked" | "unlinked";
+  otherAccountLabel: string;
+}): SendMailInput {
+  const name = input.name.trim() || "there";
+  const title = input.event === "linked" ? "Account linked" : "Account unlinked";
+  const sentence =
+    input.event === "linked"
+      ? `Your AsanPay account was linked to ${input.otherAccountLabel}. You can now switch between them with your MPIN.`
+      : `Your AsanPay account was unlinked from ${input.otherAccountLabel}.`;
+  const text = [
+    `Hi ${name},`,
+    ``,
+    sentence,
+    `If this was not you, contact support immediately.`,
+    ``,
+    `— Team AsanPay`,
+  ].join("\n");
+
+  const bodyHtml = `
+    <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${BRAND.amber}">Security</p>
+    <h1 style="margin:0 0 12px;font-size:26px;line-height:1.2;font-weight:800;letter-spacing:-0.03em;color:${BRAND.blueDeep}">${escapeHtml(title)}</h1>
+    <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:${BRAND.muted}">Hi ${escapeHtml(name)},</p>
+    <p style="margin:0;font-size:15px;line-height:1.6;color:${BRAND.muted}">
+      ${escapeHtml(sentence)} If this was not you, contact support immediately.
+    </p>
+  `;
+
+  return {
+    to: "",
+    subject: `AsanPay ${title.toLowerCase()}`,
+    text,
+    html: brandedEmailHtml({
+      preheader: sentence,
+      title: `AsanPay ${title.toLowerCase()}`,
+      bodyHtml,
+      accent: "amber",
+    }),
+  };
+}
+
 export function largeDebitAlertEmailTemplate(input: {
   name: string;
   amount: string;

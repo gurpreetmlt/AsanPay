@@ -286,7 +286,7 @@ async function recordPolicyAcceptance(
   userId: string,
   policyVersion: string,
   channel: "web" | "app",
-  method: "password" | "otp" | "mpin" | "signup",
+  method: "password" | "otp" | "mpin" | "signup" | "switch",
   context: AuthContext,
 ): Promise<void> {
   await db
@@ -302,11 +302,11 @@ async function recordPolicyAcceptance(
     .onConflictDoNothing();
 }
 
-async function ensurePolicyAccepted(
+export async function ensurePolicyAccepted(
   row: typeof users.$inferSelect,
   input: PolicyAcceptanceInput,
   context: AuthContext,
-  method: "password" | "otp" | "mpin",
+  method: "password" | "otp" | "mpin" | "switch",
 ): Promise<void> {
   if (!isAgentPortalRole(row.role)) return;
 
@@ -340,10 +340,10 @@ async function ensurePolicyAccepted(
 
 // Shared by password login and OTP login — both end with the same result: a fresh
 // access/refresh token pair and an audit trail entry, just reached via a different factor.
-async function issueSession(
+export async function issueSession(
   row: typeof users.$inferSelect,
   context: AuthContext,
-  method: "password" | "otp" | "mpin",
+  method: "password" | "otp" | "mpin" | "switch",
 ): Promise<{ user: AuthUser; accessToken: string; refreshToken: string }> {
   const healed = await healIncompleteVerifiedKyc(row);
   const accessToken = signAccessToken({ id: healed.id, uid: healed.uid, role: healed.role });

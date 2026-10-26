@@ -10,7 +10,7 @@ One row per feature; details in the section below the table. Newest at the top o
 | PL-04 | Terms, Privacy & EULA acceptance checkbox at login (per-version record) | Backend, web, mobile | M | building (built 26 Oct, migrate `0075` + APK + live test pending) | — | — |
 | PL-03 | Web location via phone QR (AEPS + onboarding) | Backend, web, mobile | M | building (built 26 Oct, migrate `0074` + APK + live test pending) | — | — |
 | PL-02 | Cash Management page (CMS provider cards, in-app CMS, CMS transactions) | Backend, web, mobile | M | building (built 26 Oct, live test pending) | — | — |
-| PL-01 | Linked accounts + role switch (same person, Distributor + Retailer) | Backend, web, mobile, admin | M | ready | [Figma prompt](PROMPTS/figma-linked-accounts.md) · Figma URL pending | [linked-accounts.md](TASKS/linked-accounts.md) |
+| PL-01 | Linked accounts + role switch (same person, Distributor + Retailer) | Backend, web, mobile, admin | M | building (backend + web + mobile built 26 Oct; migrate `0076` + APK + live test pending; admin card next) | [Figma prompt](PROMPTS/figma-linked-accounts.md) · Figma URL pending | [linked-accounts.md](TASKS/linked-accounts.md) |
 
 ---
 
@@ -36,7 +36,8 @@ One row per feature; details in the section below the table. Newest at the top o
 - Bump `LEGAL_VERSIONS` in `legalCopy.ts` → every agent must accept again.
 
 **Open decisions**
-- [ ] Fill placeholders in the docs (CIN, Grievance Officer, support hours, official URL / app link, effective date) — then regenerate `legalCopy.ts`.
+- [x] Placeholders filled (26 Oct): Grievance Officer Ajay Kumar (Director), help@asanpay.in, effective date 26 Oct 2026, https://asanpay.in, business-day hours. Marketing site privacy page + footer phone fixed too.
+- [ ] Add CIN to T&C / Privacy / EULA + marketing privacy page when available (then bump `LEGAL_VERSIONS` if already live).
 - [ ] Legal review before go-live.
 - [x] Sign-up: popup has Terms + Privacy only (EULA is login-only); `/auth/signup/complete` requires `SIGNUP_POLICY_VERSION` (`T1.1-P1.0`) and records `login_method = signup`. First login still asks for the full `POLICY_VERSION` (adds EULA). No eSign — checkbox acceptance only (T&C 26.1).
 

@@ -95,9 +95,9 @@ export function RootNavigator() {
   return (
     <NavigationContainer theme={navTheme}>
       {isRetailerRole(user.role) ? (
-        <RetailerTabs />
+        <RetailerTabs key={user.id} />
       ) : isPartnerRole(user.role) ? (
-        <PartnerTabs />
+        <PartnerTabs key={user.id} />
       ) : (
         <AuthFlow />
       )}

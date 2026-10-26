@@ -2,6 +2,7 @@ import { and, eq, gte, isNotNull, lt, sql } from "drizzle-orm";
 import { db } from "../../db/postgres";
 import { transactions, users } from "../../db/postgres/schema";
 import {
+  accountLinkEmailTemplate,
   commissionCreditEmailTemplate,
   deviceNewLoginEmailTemplate,
   largeDebitAlertEmailTemplate,
@@ -48,6 +49,16 @@ export function notifyNewDeviceLogin(input: {
 export function notifyMpinChanged(userId: string): void {
   void notifyVerifiedUser(userId, ({ name }) =>
     securityPinChangedEmailTemplate({ name, kind: "mpin" }),
+  );
+}
+
+export function notifyAccountLinkChange(input: {
+  userId: string;
+  event: "linked" | "unlinked";
+  otherAccountLabel: string;
+}): void {
+  void notifyVerifiedUser(input.userId, ({ name }) =>
+    accountLinkEmailTemplate({ name, event: input.event, otherAccountLabel: input.otherAccountLabel }),
   );
 }
 
