@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { toast } from "react-hot-toast";
 import { QRCodeSVG } from "qrcode.react";
-import { ArrowLeft, Copy, Check, Info, QrCode, X } from "lucide-react";
+import { ArrowLeft, Copy, Check, CheckCircle2, Info, QrCode, X, XCircle } from "lucide-react";
 import type { ApiResponse } from "@asanpay/shared-types";
 import { AppShell } from "@/components/layout/AppShell";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
@@ -19,6 +19,7 @@ import {
 import { UpiNewLayoutForm } from "@/components/upi/UpiNewLayoutForm";
 import api from "@/lib/api";
 import { B } from "@/lib/brand";
+import { newIdempotencyKey } from "@/lib/idempotencyKey";
 import { extractApiError, wasAepsOnboardingSkipped } from "@/lib/onboarding";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
@@ -36,6 +37,11 @@ const QUICK_AMOUNTS = [
 const MIN_AMOUNT = 200;
 const MAX_AMOUNT = 5000;
 const QR_EXPIRY_SECONDS = 120;
+const STATUS_POLL_MS = 5000;
+/** Keep checking a little past the QR timer — a payment made at the last second settles late. */
+const STATUS_POLL_GRACE_SECONDS = 60;
+
+type PaymentState = "pending" | "success" | "failed";
 
 const NOTES = [
   "Daily withdrawal limit per customer is ₹10,000",
@@ -124,6 +130,8 @@ export default function UpiCashPointPage() {
   const [timer, setTimer] = useState(QR_EXPIRY_SECONDS);
   const [qr, setQr] = useState("");
   const [txnId, setTxnId] = useState("");
+  const [payment, setPayment] = useState<PaymentState>("pending");
+  const [paymentMessage, setPaymentMessage] = useState("");
   const [copied, setCopied] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const historyRef = useRef<UpiCashPointHistoryHandle>(null);
@@ -164,6 +172,39 @@ export default function UpiCashPointPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (stage !== "qr" || !txnId || payment !== "pending") return;
+    const startedAt = Date.now();
+    let stopped = false;
+    const poll = setInterval(async () => {
+      if (Date.now() - startedAt > (QR_EXPIRY_SECONDS + STATUS_POLL_GRACE_SECONDS) * 1000) {
+        clearInterval(poll);
+        return;
+      }
+      try {
+        const { data } = await api.post<ApiResponse<{ status: string; message: string | null }>>(
+          "/noble/upi-qr/status",
+          { txnRef: txnId },
+        );
+        if (stopped || !data.success) return;
+        const status = data.data.status;
+        if (status === "success" || status === "failed") {
+          clearInterval(poll);
+          setPayment(status);
+          setPaymentMessage(data.data.message ?? "");
+          if (timerRef.current) clearInterval(timerRef.current);
+          historyRef.current?.reload();
+        }
+      } catch {
+        /* keep polling; a dropped request must not end the payment watch */
+      }
+    }, STATUS_POLL_MS);
+    return () => {
+      stopped = true;
+      clearInterval(poll);
+    };
+  }, [stage, txnId, payment]);
+
   async function handleGenerate() {
     if (busy) return;
     const amt = parseInt(amount, 10);
@@ -185,12 +226,20 @@ export default function UpiCashPointPage() {
       await api.post("/noble/upi-qr/load", { channel: "WEB" });
       const { data } = await api.post<ApiResponse<{ qr: string; transactionId: string }>>(
         "/noble/upi-qr/generate",
-        { amount: String(amt), mobileNumber: mobile, ...geo, channel: "WEB" },
+        {
+          amount: String(amt),
+          mobileNumber: mobile,
+          ...geo,
+          channel: "WEB",
+          idempotencyKey: newIdempotencyKey("upi-qr"),
+        },
       );
       if (!data.success) throw new Error(data.message);
-      if (!data.data.qr) throw new Error("The provider did not return a QR code. Try again.");
+      if (!data.data.qr) throw new Error("The bank did not return a UPI QR. Tap Generate QR to try again.");
       setQr(data.data.qr);
       setTxnId(data.data.transactionId || "");
+      setPayment("pending");
+      setPaymentMessage("");
       setStage("qr");
       startTimer();
       historyRef.current?.reload();
@@ -207,6 +256,8 @@ export default function UpiCashPointPage() {
     setCustomerMobile("");
     setQr("");
     setTxnId("");
+    setPayment("pending");
+    setPaymentMessage("");
     if (timerRef.current) clearInterval(timerRef.current);
   }
 
@@ -221,6 +272,8 @@ export default function UpiCashPointPage() {
   const timerStr = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
   const amountNum = parseInt(amount, 10) || 0;
   const isExpired = timer === 0;
+  const paid = payment === "success";
+  const paymentFailed = payment === "failed";
   const amountError = amountErrorMessage(amountNum);
   const amountValid = amountNum > 0 && !amountError;
   const mobileValid = customerMobile.length === 10;
@@ -504,37 +557,62 @@ export default function UpiCashPointPage() {
                 ₹{amountNum.toLocaleString("en-IN")}
               </p>
 
-              {/* Timer */}
-              <div
-                className={clsx(
-                  "mx-auto mb-5 flex w-fit items-center gap-2 rounded-full px-4 py-2",
-                  isExpired ? "bg-red-50" : "bg-amber-50",
-                )}
-              >
-                <Info size={14} className={isExpired ? "text-red-500" : "text-amber-600"} />
-                <span
-                  className={clsx(
-                    "text-sm font-bold",
-                    isExpired ? "text-red-600" : "text-amber-700",
-                  )}
-                >
-                  {isExpired ? "QR Expired" : `QR expiring in ${timerStr}`}
-                </span>
-              </div>
+              {paid ? (
+                <div className="mx-auto mb-5 flex max-w-sm flex-col items-center gap-2 rounded-2xl bg-green-50 px-5 py-6">
+                  <CheckCircle2 size={44} className="text-green-600" />
+                  <p className="text-lg font-bold text-green-700">Payment received</p>
+                  <p className="text-sm text-green-800">
+                    ₹{amountNum.toLocaleString("en-IN")} added to your AEPS wallet. Hand over the cash to the
+                    customer now.
+                  </p>
+                </div>
+              ) : paymentFailed ? (
+                <div className="mx-auto mb-5 flex w-fit items-center gap-2 rounded-full bg-red-50 px-4 py-2">
+                  <XCircle size={14} className="text-red-500" />
+                  <span className="text-sm font-bold text-red-600">
+                    {paymentMessage || "Payment not received"}. Do not hand over cash.
+                  </span>
+                </div>
+              ) : (
+                <>
+                  {/* Timer */}
+                  <div
+                    className={clsx(
+                      "mx-auto mb-5 flex w-fit items-center gap-2 rounded-full px-4 py-2",
+                      isExpired ? "bg-red-50" : "bg-amber-50",
+                    )}
+                  >
+                    <Info size={14} className={isExpired ? "text-red-500" : "text-amber-600"} />
+                    <span
+                      className={clsx(
+                        "text-sm font-bold",
+                        isExpired ? "text-red-600" : "text-amber-700",
+                      )}
+                    >
+                      {isExpired ? "QR Expired" : `QR expiring in ${timerStr}`}
+                    </span>
+                  </div>
 
-              {!isExpired && (
-                <p className="mb-5 text-xs font-medium text-gray-400">
-                  Do not refresh the page
-                </p>
+                  <p className="mb-5 text-xs font-medium text-gray-400">
+                    {isExpired ? "Still checking for a late payment…" : "Waiting for payment · Do not refresh the page"}
+                  </p>
+                </>
               )}
 
               {/* QR Code */}
-              <div className={clsx("mx-auto mb-5 inline-block rounded-xl border-2 p-3", isExpired && "opacity-30")}>
-                <QRCodeSVG value={qr} size={200} fgColor={B.blue} marginSize={1} />
-              </div>
+              {!paid ? (
+                <div
+                  className={clsx(
+                    "mx-auto mb-5 inline-block rounded-xl border-2 p-3",
+                    (isExpired || paymentFailed) && "opacity-30",
+                  )}
+                >
+                  <QRCodeSVG value={qr} size={200} fgColor={B.blue} marginSize={1} />
+                </div>
+              ) : null}
 
               {/* UPI ID */}
-              {upiId ? (
+              {upiId && !paid ? (
               <div className="mx-auto flex w-fit items-center gap-2 rounded-lg bg-gray-50 px-4 py-2">
                 <span className="text-xs text-gray-500">UPI ID:</span>
                 <span className="text-xs font-bold text-gray-700">{upiId}</span>
@@ -555,7 +633,7 @@ export default function UpiCashPointPage() {
               ) : null}
               {txnId ? <p className="mt-2 text-xs text-gray-400">Txn ID: {txnId}</p> : null}
 
-              {isExpired && (
+              {!paid && (isExpired || paymentFailed) && (
                 <button
                   type="button"
                   onClick={() => void handleGenerate()}

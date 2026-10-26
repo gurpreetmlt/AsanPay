@@ -53,6 +53,8 @@ import type {
   RechargeParams,
 } from "../types";
 
+const UPI_QR_NO_RECORD_GRACE_MS = 15 * 60 * 1000;
+
 /**
  * Primary AEPS provider — AEPS family (CW / BE / MS + daily 2FA).
  * Load-agent / merchant KYC are separate HTTP routes under /api/onboarding/noble/aeps/*.
@@ -361,6 +363,9 @@ export class NobleAdapter implements ProviderAdapter {
       return this.toResult(httpStatus, json, "Recharge status", null, {});
     }
     const [yyyy, mm, dd] = istDate.split("-");
+    if (code === "UPI_CASH_POINT") {
+      return this.upiQrStatus(params, transactionId, `${dd}/${mm}/${yyyy}`);
+    }
     const isCashDeposit = code === "aeps_cash_deposit" || code === "CASH_DEPOSIT";
     const { httpStatus, json } = await noblePost(
       "aeps",
@@ -368,6 +373,38 @@ export class NobleAdapter implements ProviderAdapter {
       { transactionId, transactionDate: `${dd}/${mm}/${yyyy}` },
     );
     return this.toResult(httpStatus, json, isCashDeposit ? "Cash deposit status" : "AEPS status", null, {});
+  }
+
+  /** UPI Cash Point QR payment status; the generic AEPS mapping would read "QR generated" as paid. */
+  private async upiQrStatus(
+    params: CheckStatusParams,
+    transactionId: string,
+    transactionDate: string,
+  ): Promise<ProviderResult> {
+    const { json } = await noblePost("aeps", "/v2.0/aeps/upiqr_status", { transactionId, transactionDate });
+    const row = firstResponseRow(json);
+    const tran = String(row.tranStatus ?? "").toLowerCase();
+    const raw = json as unknown as Record<string, unknown>;
+    const settled = (status: ProviderTxnStatus, message: string): ProviderResult => ({
+      success: status === "success",
+      status,
+      providerTxnId: (typeof row.apiTransactionId === "string" && row.apiTransactionId) || params.providerTxnId,
+      amount: null,
+      message,
+      data: { ...row },
+      raw,
+    });
+
+    // Only an explicit final tranStatus is terminal; provider errors keep the txn pending.
+    if (json.status === 1 && tran === "success") return settled("success", "Payment received");
+    if (json.status === 1 && tran === "expired") return settled("failed", "QR expired before the customer paid");
+    if (json.status === 1 && tran === "failed") return settled("failed", "The customer's UPI payment failed");
+    if (json.statusCode === "AG0003") {
+      // No record: right after generate this is lag; long after, the QR was never paid.
+      const ageMs = params.createdAt ? Date.now() - params.createdAt.getTime() : Infinity;
+      if (ageMs >= UPI_QR_NO_RECORD_GRACE_MS) return settled("failed", "The customer did not pay this QR");
+    }
+    return settled("pending", "Waiting for the customer to pay");
   }
 
   /** Beneficiary list must never block remitter lookup or transfer — empty on provider error. */

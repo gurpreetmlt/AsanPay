@@ -182,6 +182,7 @@
 - [ ] AePS block/dormancy were one-way doors until 2026-08-07 (task #9) — a blocked or dormant merchant had no path back. Fixed; watch for the same pattern (a flag that's only ever set, never cleared) elsewhere.
 
 ## Last updated
+2026-10-26 — UPI Cash Point QR is now a real txn (`UPI_CASH_POINT`, pending until paid, AEPS wallet credit + commission on success); web + mobile watch payment status and show paid / failed; daily recon sends `QR`. Ledger type map fixed for `aadhaar_pay` + `aeps_cash_deposit` rail codes. Ops script `failUnsubmittedTxn.ts` fails a stuck never-submitted txn through the normal reversal path
 2026-10-26 — DMT beneficiary list now loads from the provider on remitter lookup (web + mobile); add/delete finish in one step with a delete confirmation; delete uses the real IFSC. Admin dashboard "Provider wallet" tile + live provider balance on Treasury
 2026-10-26 — Old outlet / bio-KYC UI removed (web + mobile), Nepal → Coming soon on both; migration 0071 drops `instantpay_outlet_id` and deactivates old provider rows
 2026-10-25 — Removed PaySprint + InstantPay backend code (adapters, clients, onboarding, env, Nepal handlers). Old onboarding routes → 410, Nepal routes → 503 Coming soon; AEPS mode only `off | noble`. UI cleanup (P7) + DB migration (P8) still pending

@@ -6,11 +6,12 @@ import { insertProviderLog } from "../../../db/postgres/repositories/providerLog
 import { logger } from "../../../utils/logger";
 import { nobleSubmitRecon, type NobleReconTxnType } from "./recon.service";
 
-/** Recon types we hold txn rows for. UPI QR collections are not recorded as transactions yet. */
+/** Recon types we hold txn rows for. */
 const RECON_SERVICES: { type: NobleReconTxnType; serviceCode: string }[] = [
   { type: "CW", serviceCode: "aeps_cash_withdrawal" },
   { type: "MT", serviceCode: "aadhaar_pay" },
   { type: "CD", serviceCode: "aeps_cash_deposit" },
+  { type: "QR", serviceCode: "UPI_CASH_POINT" },
 ];
 
 const BATCH_SIZE = 500;

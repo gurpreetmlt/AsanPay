@@ -4,13 +4,16 @@ import { requireAuth } from "../../../middleware/auth.middleware";
 import { requireRole } from "../../../middleware/rbac.middleware";
 import { validateBody } from "../../../middleware/validate";
 import { sendSuccess } from "../../../utils/apiResponse";
+import { HttpError } from "../../../utils/httpError";
+import { executeServiceTxn, recheckTxnStatus } from "../../transactions/txn.service";
 import { nobleCmsStart, nobleCmsStatus } from "./cms.service";
 import { nobleSubmitRecon } from "./recon.service";
 import {
-  nobleUpiQrGenerate,
+  nobleUpiQrCollect,
   nobleUpiQrKyc,
   nobleUpiQrLoad,
-  nobleUpiQrStatus,
+  prepareNobleUpiQr,
+  type UpiQrGenerateInput,
 } from "./upiQr.service";
 
 export const nobleRouter = Router();
@@ -40,12 +43,11 @@ const upiGenerateSchema = z.object({
   deviceOsType: z.string().max(20).optional(),
   deviceOsVersion: z.string().max(20).optional(),
   deviceModel: z.string().max(40).optional(),
+  idempotencyKey: z.string().min(8, "idempotencyKey is required").max(100),
 });
 
 const upiStatusSchema = z.object({
-  transactionId: z.string().min(8).max(40),
-  /** DD/MM/YYYY */
-  transactionDate: z.string().regex(/^\d{2}\/\d{2}\/\d{4}$/, "transactionDate must be DD/MM/YYYY"),
+  txnRef: z.string().min(8, "txnRef is required").max(40),
 });
 
 const cmsStartSchema = z.object({
@@ -89,27 +91,83 @@ nobleRouter.post("/upi-qr/kyc", retailer, validateBody(upiKycSchema), async (req
   );
 });
 
+// Each QR is a UPI Cash Point txn: pending until paid, then the AEPS wallet is credited on settle.
 nobleRouter.post("/upi-qr/generate", retailer, validateBody(upiGenerateSchema), async (req, res) => {
   const body = req.body as z.infer<typeof upiGenerateSchema>;
-  sendSuccess(
-    res,
-    await nobleUpiQrGenerate(req.auth!.sub, {
-      amount: body.amount,
-      mobileNumber: body.mobileNumber,
-      latitude: String(body.latitude),
-      longitude: String(body.longitude),
+  const userId = req.auth!.sub;
+  const input: UpiQrGenerateInput = {
+    amount: body.amount,
+    mobileNumber: body.mobileNumber,
+    latitude: String(body.latitude),
+    longitude: String(body.longitude),
+    channel: body.channel,
+    endpointIp: req.ip ?? undefined,
+    deviceOsType: body.deviceOsType,
+    deviceOsVersion: body.deviceOsVersion,
+    deviceModel: body.deviceModel,
+  };
+  const ctx = await prepareNobleUpiQr(userId, input);
+
+  const outcome = await executeServiceTxn({
+    actor: { id: userId, role: req.auth!.role },
+    serviceCode: "UPI_CASH_POINT",
+    amount: body.amount,
+    idempotencyKey: body.idempotencyKey,
+    operation: "upi_qr_collect",
+    direction: "credit",
+    walletType: "aeps",
+    metadata: {
+      customerMobile: body.mobileNumber,
+      latitude: input.latitude,
+      longitude: input.longitude,
       channel: body.channel,
-      endpointIp: req.ip ?? undefined,
-      deviceOsType: body.deviceOsType,
-      deviceOsVersion: body.deviceOsVersion,
-      deviceModel: body.deviceModel,
-    }),
-  );
+    },
+    invoke: async (routed, txnRef) =>
+      routed.adapter.code === "noble"
+        ? nobleUpiQrCollect(ctx, { ...input, transactionId: txnRef })
+        : {
+            success: false,
+            status: "failed",
+            providerTxnId: null,
+            amount: null,
+            message: "UPI Cash Point is not available on the active provider. Contact support.",
+            data: {},
+            raw: { provider: routed.adapter.code },
+          },
+  });
+
+  if (outcome.txn.status === "failed") {
+    throw new HttpError(
+      502,
+      outcome.txn.failureReason || "The bank did not return a UPI QR. Try again.",
+      "UPI_QR_NOT_GENERATED",
+    );
+  }
+  const qr = typeof outcome.provider?.data.qr === "string" ? outcome.provider.data.qr : "";
+  if (!qr) {
+    throw new HttpError(
+      502,
+      "The bank did not return a UPI QR. Tap Generate QR to try again.",
+      "UPI_QR_NOT_GENERATED",
+    );
+  }
+  sendSuccess(res, {
+    txn: outcome.txn,
+    qr,
+    transactionId: outcome.txn.txnRef,
+    referenceNumber: String(outcome.provider?.data.referenceNumber ?? ""),
+  });
 });
 
 nobleRouter.post("/upi-qr/status", retailer, validateBody(upiStatusSchema), async (req, res) => {
   const body = req.body as z.infer<typeof upiStatusSchema>;
-  sendSuccess(res, await nobleUpiQrStatus(body));
+  const outcome = await recheckTxnStatus({ id: req.auth!.sub, role: req.auth!.role }, body.txnRef);
+  sendSuccess(res, {
+    txnRef: outcome.txn.txnRef,
+    status: outcome.txn.status,
+    amount: outcome.txn.amount,
+    message: outcome.txn.failureReason ?? outcome.provider?.message ?? null,
+  });
 });
 
 // ── Airtel CMS ──────────────────────────────────────────────────────────

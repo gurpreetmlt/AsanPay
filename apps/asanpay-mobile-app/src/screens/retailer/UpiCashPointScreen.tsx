@@ -16,9 +16,10 @@ import LinearGradient from "react-native-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Geolocation from "@react-native-community/geolocation";
 import RawQRCode from "react-native-qrcode-svg";
-import { ArrowLeft, Check, Copy, Info, QrCode, RefreshCw, X } from "lucide-react-native";
+import { ArrowLeft, Check, CheckCircle2, Copy, Info, QrCode, RefreshCw, X, XCircle } from "lucide-react-native";
 import type { ApiResponse } from "@asanpay/shared-types";
 import { api } from "../../lib/api";
+import { newIdempotencyKey } from "../../lib/idempotencyKey";
 import { apiError } from "../../utils/apiError";
 import { useTheme } from "../../theme/ThemeContext";
 import { colors, gradientDirection } from "../../theme/colors";
@@ -49,6 +50,11 @@ const QUICK_AMOUNTS = [
   { amount: 5000, hint: "max limit" },
 ] as const;
 const QR_EXPIRY_SECONDS = 120;
+const STATUS_POLL_MS = 5000;
+/** Keep checking a little past the QR timer — a payment made at the last second settles late. */
+const STATUS_POLL_GRACE_SECONDS = 60;
+
+type PaymentState = "pending" | "success" | "failed";
 
 const UPI_APPS = [
   { name: "Google Pay", short: "GPay", color: "#4285F4" },
@@ -96,6 +102,11 @@ const STATUS_STYLE = {
 function maskedCustomer(row: TxnRow): string {
   const m = row.metadata?.mobileNumber ?? row.metadata?.customerMobile;
   return typeof m === "string" && m.length >= 4 ? `XXXXXX${m.slice(-4)}` : "—";
+}
+
+function bankRrn(row: TxnRow): string {
+  const provider = row.metadata?.provider as Record<string, unknown> | undefined;
+  return typeof provider?.rrn === "string" ? provider.rrn : "";
 }
 
 function formatAt(iso: string): string {
@@ -171,6 +182,8 @@ export function UpiCashPointScreen({ onBack }: Props) {
   const [timer, setTimer] = useState(QR_EXPIRY_SECONDS);
   const [qrValue, setQrValue] = useState("");
   const [txnId, setTxnId] = useState("");
+  const [payment, setPayment] = useState<PaymentState>("pending");
+  const [paymentMessage, setPaymentMessage] = useState("");
   const [copied, setCopied] = useState(false);
   const [history, setHistory] = useState<TxnRow[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
@@ -214,12 +227,47 @@ export function UpiCashPointScreen({ onBack }: Props) {
     };
   }, []);
 
+  useEffect(() => {
+    if (stage !== "qr" || !txnId || payment !== "pending") return;
+    const startedAt = Date.now();
+    let stopped = false;
+    const poll = setInterval(async () => {
+      if (Date.now() - startedAt > (QR_EXPIRY_SECONDS + STATUS_POLL_GRACE_SECONDS) * 1000) {
+        clearInterval(poll);
+        return;
+      }
+      try {
+        const { data } = await api.post<ApiResponse<{ status: string; message: string | null }>>(
+          "/noble/upi-qr/status",
+          { txnRef: txnId },
+        );
+        if (stopped || !data.success) return;
+        const status = data.data.status;
+        if (status === "success" || status === "failed") {
+          clearInterval(poll);
+          setPayment(status);
+          setPaymentMessage(data.data.message ?? "");
+          if (timerRef.current) clearInterval(timerRef.current);
+          void loadHistory();
+        }
+      } catch {
+        /* keep polling; a dropped request must not end the payment watch */
+      }
+    }, STATUS_POLL_MS);
+    return () => {
+      stopped = true;
+      clearInterval(poll);
+    };
+  }, [stage, txnId, payment, loadHistory]);
+
   const amountNum = parseInt(amount, 10) || 0;
   const amountError = amountErrorMessage(amountNum);
   const amountValid = amountNum > 0 && !amountError;
   const canGenerate = amountValid && customerMobile.length === 10 && !busy;
   const showEarnStrip = amountValid && !earnDismissed;
   const isExpired = timer === 0;
+  const paid = payment === "success";
+  const paymentFailed = payment === "failed";
 
   useEffect(() => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -260,12 +308,15 @@ export function UpiCashPointScreen({ onBack }: Props) {
           channel: "APP",
           deviceOsType: "ANDROID",
           deviceOsVersion: String(Platform.Version),
+          idempotencyKey: newIdempotencyKey("upi-qr"),
         },
       );
       if (!data.success) throw new Error(data.message);
-      if (!data.data.qr) throw new Error("The provider did not return a QR code. Try again.");
+      if (!data.data.qr) throw new Error("The bank did not return a UPI QR. Tap Generate QR to try again.");
       setQrValue(data.data.qr);
       setTxnId(data.data.transactionId || "");
+      setPayment("pending");
+      setPaymentMessage("");
       setStage("qr");
       startTimer();
       void loadHistory();
@@ -282,6 +333,8 @@ export function UpiCashPointScreen({ onBack }: Props) {
     setCustomerMobile("");
     setQrValue("");
     setTxnId("");
+    setPayment("pending");
+    setPaymentMessage("");
     setEarnDismissed(false);
     if (timerRef.current) clearInterval(timerRef.current);
   }
@@ -500,7 +553,7 @@ export function UpiCashPointScreen({ onBack }: Props) {
                       </Text>
                       <Text style={s.historyRef} numberOfLines={1}>
                         {r.txnRef}
-                        {r.providerTxnId ? ` · RRN ${r.providerTxnId}` : ""}
+                        {bankRrn(r) ? ` · RRN ${bankRrn(r)}` : ""}
                       </Text>
                     </View>
                     <Text style={[s.historyPill, { backgroundColor: st.bg, color: st.fg }]}>{st.label}</Text>
@@ -524,20 +577,43 @@ export function UpiCashPointScreen({ onBack }: Props) {
               <Text style={s.scanLabel}>Scan QR to withdraw</Text>
               <Text style={s.qrAmount}>₹{amountNum.toLocaleString("en-IN")}</Text>
 
-              <View style={[s.timerPill, { backgroundColor: isExpired ? "#FEF2F2" : "#FFFBEB" }]}>
-                <Info size={14} color={isExpired ? "#EF4444" : "#D97706"} />
-                <Text style={[s.timerText, { color: isExpired ? "#DC2626" : "#B45309" }]}>
-                  {isExpired ? "QR Expired" : `QR expiring in ${timerStr}`}
-                </Text>
-              </View>
+              {paid ? (
+                <View style={s.paidBox}>
+                  <CheckCircle2 size={44} color={colors.green} />
+                  <Text style={s.paidTitle}>Payment received</Text>
+                  <Text style={s.paidText}>
+                    ₹{amountNum.toLocaleString("en-IN")} added to your AEPS wallet. Hand over the cash to the customer
+                    now.
+                  </Text>
+                </View>
+              ) : paymentFailed ? (
+                <View style={[s.timerPill, { backgroundColor: "#FEF2F2" }]}>
+                  <XCircle size={14} color="#EF4444" />
+                  <Text style={[s.timerText, s.failedText]}>
+                    {paymentMessage || "Payment not received"}. Do not hand over cash.
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  <View style={[s.timerPill, { backgroundColor: isExpired ? "#FEF2F2" : "#FFFBEB" }]}>
+                    <Info size={14} color={isExpired ? "#EF4444" : "#D97706"} />
+                    <Text style={[s.timerText, { color: isExpired ? "#DC2626" : "#B45309" }]}>
+                      {isExpired ? "QR Expired" : `QR expiring in ${timerStr}`}
+                    </Text>
+                  </View>
+                  <Text style={s.refreshWarn}>
+                    {isExpired ? "Still checking for a late payment…" : "Waiting for payment · Do not refresh the page"}
+                  </Text>
+                </>
+              )}
 
-              {!isExpired && <Text style={s.refreshWarn}>Do not refresh the page</Text>}
+              {!paid ? (
+                <View style={[s.qrBorder, (isExpired || paymentFailed) && { opacity: 0.3 }]}>
+                  {qrValue ? <QRCode value={qrValue} size={180} color={colors.blue} backgroundColor="#fff" /> : null}
+                </View>
+              ) : null}
 
-              <View style={[s.qrBorder, isExpired && { opacity: 0.3 }]}>
-                {qrValue ? <QRCode value={qrValue} size={180} color={colors.blue} backgroundColor="#fff" /> : null}
-              </View>
-
-              {upiId ? (
+              {upiId && !paid ? (
                 <View style={s.upiRow}>
                   <Text style={s.upiLabel}>UPI ID: </Text>
                   <Text style={s.upiValue}>{upiId}</Text>
@@ -548,7 +624,7 @@ export function UpiCashPointScreen({ onBack }: Props) {
               ) : null}
               {txnId ? <Text style={s.txnText}>Txn ID: {txnId}</Text> : null}
 
-              {isExpired && (
+              {!paid && (isExpired || paymentFailed) && (
                 <Pressable
                   onPress={() => void handleGenerate()}
                   disabled={busy}
@@ -832,6 +908,19 @@ const s = StyleSheet.create({
     marginBottom: 8,
   },
   timerText: { fontSize: 13, fontWeight: "700" },
+  failedText: { color: "#DC2626", flexShrink: 1 },
+  paidBox: {
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#F0FDF4",
+    borderRadius: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 22,
+    marginBottom: 14,
+    alignSelf: "stretch",
+  },
+  paidTitle: { fontSize: 18, fontWeight: "800", color: "#15803D" },
+  paidText: { fontSize: 13, color: "#166534", textAlign: "center", lineHeight: 19, fontWeight: "500" },
   refreshWarn: { fontSize: 11, fontWeight: "500", color: "#9CA3AF", marginBottom: 14 },
   qrBorder: {
     borderWidth: 2,

@@ -1,6 +1,6 @@
 import { and, eq, desc, sql, lt, or } from "drizzle-orm";
 import { db } from "../../db/postgres";
-import { providers, services, transactions, users, wallets } from "../../db/postgres/schema";
+import { journals, providers, services, transactions, users, wallets } from "../../db/postgres/schema";
 import { transferBetweenWallets, adjustWalletHold } from "../wallet/wallet.ledger";
 import { toPaise, fromPaise } from "../wallet/decimal";
 import {
@@ -353,6 +353,8 @@ export async function executeServiceTxn(input: ExecuteTxnInput): Promise<TxnOutc
 interface FinalizeContext {
   direction: MoneyDirection;
   walletType: WalletType;
+  /** Skip the critical failure alert (expected outcomes such as an unpaid QR). */
+  quietFailure?: boolean;
 }
 
 /**
@@ -524,7 +526,7 @@ async function finalizeTxn(txn: TxnRow, result: ProviderResult, ctx: FinalizeCon
   // after that commit — never for a concurrent no-op finalize. Fire-and-forget: a payout failure
   // must not fail the customer's transaction.
   if (didSettleSuccess) distributeCommissionSafe(settled);
-  if (settled.status === "failed") {
+  if (settled.status === "failed" && !ctx.quietFailure) {
     void sendSlackAlert("Transaction failure", "critical", {
       retailerId: settled.userId,
       txnRef: settled.txnRef,
@@ -601,6 +603,7 @@ export async function recheckTxnStatus(actor: Actor, txnRef: string): Promise<Tx
       // Provider status APIs need the txn date in IST (YYYY-MM-DD).
       txnDate: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(txn.createdAt),
       serviceCode: service.code,
+      createdAt: txn.createdAt,
     }),
   );
 
@@ -608,7 +611,12 @@ export async function recheckTxnStatus(actor: Actor, txnRef: string): Promise<Tx
   const direction: MoneyDirection = inferDirectionFromServiceCode(service.code);
   const walletType: WalletType =
     (txn.walletType as WalletType | null) ?? (direction === "credit" ? "aeps" : "main");
-  const finalized = await finalizeTxn(txn, result, { direction, walletType });
+  // An unpaid UPI QR expiring is routine, not an incident.
+  const finalized = await finalizeTxn(txn, result, {
+    direction,
+    walletType,
+    quietFailure: service.code === "UPI_CASH_POINT",
+  });
 
   await insertAuditLog({
     userId: actor.id,
@@ -656,6 +664,106 @@ export async function settleTxnFromProviderCallback(
   });
 
   return { txn: finalized, provider: result };
+}
+
+export interface UnsubmittedTxnCheck {
+  txn: TxnRow;
+  serviceCode: string;
+  direction: MoneyDirection;
+  walletType: WalletType;
+  /** What a failed settlement returns to the retailer wallet (principal + fee + GST for debits). */
+  refundAmount: string;
+}
+
+/**
+ * Guards for manually failing a stuck txn that no provider can answer for: it must still be in
+ * flight, past the submit window, carry no provider order id, and its provider (if any) must be
+ * disconnected — otherwise a status recheck is the only safe path.
+ */
+export async function checkUnsubmittedTxn(txnRef: string): Promise<UnsubmittedTxnCheck> {
+  const [txn] = await db.select().from(transactions).where(eq(transactions.txnRef, txnRef));
+  if (!txn) throw new HttpError(404, `Transaction ${txnRef} not found`, "TXN_NOT_FOUND");
+  if (txn.status !== "pending" && txn.status !== "initiated") {
+    throw new HttpError(409, `Transaction ${txnRef} is already ${txn.status}`, "TXN_ALREADY_SETTLED");
+  }
+  if (!canRecheckInitiated(txn.createdAt, new Date())) {
+    throw new HttpError(409, `Transaction ${txnRef} is still being submitted. Try again in 2 minutes.`, "TXN_IN_FLIGHT");
+  }
+  if (txn.providerTxnId) {
+    throw new HttpError(
+      409,
+      `Transaction ${txnRef} has a provider order ID. Run a status recheck instead of failing it manually.`,
+      "TXN_HAS_PROVIDER_REF",
+    );
+  }
+  if (txn.providerId) {
+    const [row] = await db.select({ code: providers.code }).from(providers).where(eq(providers.id, txn.providerId));
+    const adapter = row ? getAdapterByCode(row.code) : null;
+    if (row && adapter && !isStubBlocked(adapter, env.NODE_ENV, env.ALLOW_STUB_PROVIDERS)) {
+      throw new HttpError(
+        409,
+        `Transaction ${txnRef} is routed to ${row.code}, which is still connected. Run a status recheck instead.`,
+        "TXN_PROVIDER_CONNECTED",
+      );
+    }
+  }
+
+  const [service] = await db.select().from(services).where(eq(services.id, txn.serviceId));
+  if (!service) throw new HttpError(500, "Service missing for transaction", "SERVICE_MISSING");
+
+  const direction = inferDirectionFromServiceCode(service.code);
+  const walletType: WalletType =
+    (txn.walletType as WalletType | null) ?? (direction === "credit" ? "aeps" : "main");
+  const movesMoney = direction === "debit" && toPaise(txn.amount) > 0;
+  const refundAmount = movesMoney ? serviceChargeTotal(txn.amount, txn.customerFee, txn.customerFeeGst) : "0.00";
+
+  // A reversal mirrors the original debit journal; without one the ledger refuses the refund.
+  if (movesMoney) {
+    const [debitJournal] = await db
+      .select({ id: journals.id })
+      .from(journals)
+      .where(eq(journals.idemKey, `TXN_DR:${txn.id}`))
+      .limit(1);
+    if (!debitJournal) {
+      throw new HttpError(
+        409,
+        `Transaction ${txnRef} has no ledger debit entry, so it cannot be auto-reversed. Refund ${refundAmount} with a recon adjustment instead.`,
+        "TXN_NO_DEBIT_JOURNAL",
+      );
+    }
+  }
+
+  return { txn, serviceCode: service.code, direction, walletType, refundAmount };
+}
+
+/** Ops: fail a txn that never reached a provider, through the normal reversal path. */
+export async function failUnsubmittedTxn(txnRef: string, reason: string): Promise<TxnRow> {
+  const check = await checkUnsubmittedTxn(txnRef);
+  const finalized = await finalizeTxn(
+    check.txn,
+    {
+      success: false,
+      status: "failed",
+      providerTxnId: null,
+      amount: null,
+      message: reason,
+      data: {},
+      raw: { source: "manual_unsubmitted_fail" },
+    },
+    { direction: check.direction, walletType: check.walletType },
+  );
+
+  await insertAuditLog({
+    userId: null,
+    action: "txn.manual_fail_unsubmitted",
+    entityType: "transaction",
+    entityId: check.txn.id,
+    ipAddress: null,
+    userAgent: null,
+    metadata: { from: check.txn.status, to: finalized.status, refundAmount: check.refundAmount, reason },
+  });
+
+  return finalized;
 }
 
 /** Pending older than this may be auto-reconciled (provider already acknowledged). */
@@ -783,7 +891,7 @@ export function inferDirectionFromServiceCode(code: string): MoneyDirection {
   if (code === "aeps_balance_enquiry" || code === "aeps_mini_statement") return "none";
   // Deposit is the odd AEPS one out: retailer wallet funds the customer's bank credit (debit).
   if (code === "aeps_cash_deposit") return "debit";
-  if (code.startsWith("aeps_") || code === "aadhaar_pay") return "credit";
+  if (code.startsWith("aeps_") || code === "aadhaar_pay" || code === "UPI_CASH_POINT") return "credit";
   return "debit";
 }
 

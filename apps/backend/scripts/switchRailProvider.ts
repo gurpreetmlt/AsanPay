@@ -19,6 +19,7 @@ const SCOPES: Record<string, readonly string[]> = {
     "aeps_bank_list",
     "aeps_mini_statement",
     "aadhaar_pay",
+    "UPI_CASH_POINT",
   ],
   dmt: [
     "dmt_bank_list",

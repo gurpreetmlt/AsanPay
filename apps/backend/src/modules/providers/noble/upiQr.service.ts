@@ -8,6 +8,7 @@ import {
 } from "./aepsOps";
 import { noblePost } from "./client";
 import { HttpError } from "../../../utils/httpError";
+import type { ProviderResult } from "../types";
 
 export async function nobleUpiQrLoad(userId: string, opts: { endpointIp?: string; channel?: "APP" | "WEB" }) {
   const ctx = await resolveNobleAgentContext({
@@ -75,20 +76,20 @@ export async function nobleUpiQrKyc(
   return { transactionId, live: true, raw: firstResponseRow(json) };
 }
 
-export async function nobleUpiQrGenerate(
-  userId: string,
-  input: {
-    amount: string;
-    mobileNumber: string;
-    latitude?: string;
-    longitude?: string;
-    channel?: "APP" | "WEB";
-    endpointIp?: string;
-    deviceOsType?: string;
-    deviceOsVersion?: string;
-    deviceModel?: string;
-  },
-) {
+export interface UpiQrGenerateInput {
+  amount: string;
+  mobileNumber: string;
+  latitude?: string;
+  longitude?: string;
+  channel?: "APP" | "WEB";
+  endpointIp?: string;
+  deviceOsType?: string;
+  deviceOsVersion?: string;
+  deviceModel?: string;
+}
+
+/** Agent id, geo and provider keys — checked before a txn row exists so setup errors never record one. */
+export async function prepareNobleUpiQr(userId: string, input: UpiQrGenerateInput) {
   const ctx = await resolveNobleAgentContext({
     retailerUserId: userId,
     endpointIp: input.endpointIp,
@@ -100,45 +101,58 @@ export async function nobleUpiQrGenerate(
   if (!ctx.live) {
     throw new HttpError(503, "AEPS provider is not configured on the server. Contact support.", "NOBLE_NOT_CONFIGURED");
   }
-  const transactionId = nobleTxnId("NUQR");
+  return ctx;
+}
+
+/**
+ * Generates the QR for a recorded UPI Cash Point txn (`transactionId` = our txnRef). A generated
+ * QR is `pending` until the customer pays; a provider rejection is `failed` (no money has moved).
+ */
+export async function nobleUpiQrCollect(
+  ctx: Awaited<ReturnType<typeof prepareNobleUpiQr>>,
+  input: UpiQrGenerateInput & { transactionId: string },
+): Promise<ProviderResult> {
   const { httpStatus, json } = await noblePost("aeps", "/v2.0/aeps/upiqr_generate", {
     ...nobleDeviceBody(ctx),
-    transactionId,
+    transactionId: input.transactionId,
     amount: input.amount,
     mobileNumber: input.mobileNumber,
     deviceOsType: input.deviceOsType || "ANDROID",
     deviceOsVersion: input.deviceOsVersion || "13",
     deviceModel: input.deviceModel || "AsanPay",
   });
-  if (!nobleOk(json, httpStatus)) {
-    throw new HttpError(
-      502,
-      (typeof json.description === "string" && json.description) || "UPI QR generate failed",
-      typeof json.statusCode === "string" ? json.statusCode : "NOBLE_UPIQR_GENERATE_FAILED",
-    );
-  }
   const row = firstResponseRow(json);
-  return {
-    transactionId: String(row.transactionId ?? transactionId),
-    apiTransactionId: String(row.apiTransactionId ?? ""),
-    referenceNumber: String(row.referenceNumber ?? ""),
-    qr: String(row.qr ?? ""),
-    live: true,
-    raw: row,
-  };
-}
-
-export async function nobleUpiQrStatus(input: { transactionId: string; transactionDate: string }) {
-  const { httpStatus, json } = await noblePost("aeps", "/v2.0/aeps/upiqr_status", {
-    transactionId: input.transactionId,
-    transactionDate: input.transactionDate,
-  });
-  if (!nobleOk(json, httpStatus) && json.status !== 1) {
-    throw new HttpError(
-      502,
-      (typeof json.description === "string" && json.description) || "UPI QR status failed",
-      typeof json.statusCode === "string" ? json.statusCode : "NOBLE_UPIQR_STATUS_FAILED",
-    );
+  const qr = String(row.qr ?? "");
+  const raw = json as unknown as Record<string, unknown>;
+  const rejected = !nobleOk(json, httpStatus);
+  if (rejected || !qr) {
+    const providerMessage = typeof json.description === "string" ? json.description.trim() : "";
+    return {
+      success: false,
+      status: "failed",
+      providerTxnId: null,
+      amount: null,
+      message:
+        rejected && providerMessage
+          ? `UPI QR not generated: ${providerMessage}`
+          : "The bank did not return a UPI QR. Try again.",
+      data: {},
+      raw,
+    };
   }
-  return { live: true, raw: firstResponseRow(json), httpStatus, json };
+  const apiTransactionId = String(row.apiTransactionId ?? "");
+  return {
+    success: false,
+    status: "pending",
+    providerTxnId: apiTransactionId || null,
+    amount: null,
+    message: "QR generated. Waiting for the customer to pay.",
+    data: {
+      qr,
+      transactionId: String(row.transactionId ?? input.transactionId),
+      apiTransactionId,
+      referenceNumber: String(row.referenceNumber ?? ""),
+    },
+    raw,
+  };
 }

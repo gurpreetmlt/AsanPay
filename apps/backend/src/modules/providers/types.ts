@@ -294,6 +294,8 @@ export interface CheckStatusParams {
   txnDate?: string;
   /** Service code of the original txn — lets adapters pick rail-specific query params. */
   serviceCode?: string;
+  /** When our txn row was created — lets adapters tell "not registered yet" from "never will be". */
+  createdAt?: Date;
 }
 
 /** Retailer proving THEIR OWN identity (not the customer's) — see modules/auth/agentAuth.ts. */
@@ -406,6 +408,7 @@ export type ProviderOperation =
   | "aeps_txn_otp"
   | "aeps_mini_statement"
   | "aadhaar_pay"
+  | "upi_qr_collect"
   | "dmt_bank_list"
   | "dmt_remitter_profile"
   | "dmt_remitter_register"

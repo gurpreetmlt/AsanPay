@@ -67,11 +67,16 @@ const SERVICE_TXN_TYPE: Readonly<Record<string, TxnType>> = {
   CASH_WITHDRAW: "AEPS_WITHDRAWAL",
   SHG_WITHDRAW_CASH: "AEPS_WITHDRAWAL",
   AADHAAR_PAY: "AADHAAR_PAY",
+  // Rail codes used by executeServiceTxn; the `aeps` prefix fallback would type a deposit
+  // (a debit) as a withdrawal, which the flow matrix rejects.
+  aadhaar_pay: "AADHAAR_PAY",
+  aeps_cash_deposit: "AEPS_DEPOSIT",
   CASH_DEPOSIT: "AEPS_DEPOSIT",
   SHG_DEPOSIT_CASH: "AEPS_DEPOSIT",
   MONEY_TRANSFER: "DMT",
   NEPAL_REMITTANCE: "DMT",
-  UPI_CASH_POINT: "DMT",
+  // Customer pays by UPI, retailer hands over cash: same float -> retailer credit as AePS cash-out.
+  UPI_CASH_POINT: "AEPS_WITHDRAWAL",
   AGENT_COLLECTION: "DMT",
   CASH_COLLECTION: "DMT",
   MOBILE_PREPAID: "RECHARGE",

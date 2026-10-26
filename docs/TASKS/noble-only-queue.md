@@ -24,8 +24,8 @@
 | P6 | Delete InstantPay backend (adapter, client, onboarding, env, tests) | done (25 Oct) |
 | P7 | Delete InstantPay UI (outlet / bio-KYC pages + mobile modals) + Nepal → Coming soon | done (26 Oct) |
 | P8 | DB cleanup migration (`instantpay_outlet_id`, provider rows) | done (26 Oct) — `0071` runs on EC2 after redeploy |
-| P9 | UPI QR collections → transactions + recon `QR` | **CURRENT** |
-| P10 | Callback handler → settle txns (needs provider sample payload) | todo |
+| P9 | UPI QR collections → transactions + recon `QR` | done (26 Oct) — `0072` runs on EC2 after redeploy |
+| P10 | Callback handler → settle txns (needs provider sample payload) | **CURRENT** |
 
 ---
 
@@ -132,6 +132,17 @@ New migration (register in `meta/_journal.json`!): drop `users.instantpay_outlet
 ### P9 — UPI QR collections
 Read: `providers/noble/upiQr.service.ts`, `noble.routes.ts`, `reconJob.ts`.
 Record generated QR + status as a `transactions` row (credit to AEPS wallet on success), then add `QR` to `RECON_SERVICES`.
+
+**P9 done:**
+- Txn service code = catalog `UPI_CASH_POINT` (history lists already filtered on it). Credit direction, `aeps` wallet; ledger type `AEPS_WITHDRAWAL` (only float → retailer credits allowed by the flow matrix; `DMT` would have been rejected).
+- `POST /api/noble/upi-qr/generate` now needs `idempotencyKey`; runs `executeServiceTxn` with provider `transactionId` = our txnRef. QR generated → `pending`; provider rejection → `failed` + 502 with the provider reason. Agent/geo/keys checked before any row is written.
+- `POST /api/noble/upi-qr/status` `{txnRef}` → `recheckTxnStatus` (own txns only; no money rate limiter so clients can poll). Adapter `checkStatus` for `UPI_CASH_POINT` → `upiqr_status`: only explicit `tranStatus` SUCCESS / FAILED / EXPIRED is terminal; `AG0003 No Records Found` = pending for 15 min then failed; other errors stay pending. Unpaid-QR failures skip the critical Slack alert.
+- Recon: `{ QR, UPI_CASH_POINT }` added; RRN from `metadata.provider.rrn`.
+- Migration `0072_upi_cash_point_route.sql`: `UPI_CASH_POINT` min ₹200 / max ₹5,000 (if unset) + Noble primary route (if none).
+- Web `/upi-cash-point` + mobile `UpiCashPointScreen`: poll status every 5s (QR timer + 60s), show "Payment received — added to your AEPS wallet, hand over cash" or the failure reason + Regenerate. History "Bank RRN" now reads the real RRN.
+- Also fixed: ledger map `aadhaar_pay → AADHAAR_PAY`, `aeps_cash_deposit → AEPS_DEPOSIT` (both rail codes had no valid journal type).
+- Commission: add a rule for UPI Cash Point (provider Noble or All) — the "You will earn ₹2" strip is static copy.
+- Test: `test/nobleUpiQr.test.ts`.
 
 ### P10 — Callback → settle
 Needs a real callback sample from the provider. Map payload → `settleTxnFromProviderCallback` (same pattern as `providers/vyaparapi/webhook.routes.ts`). Add a shared-secret query token.

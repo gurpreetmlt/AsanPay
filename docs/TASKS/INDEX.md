@@ -22,6 +22,7 @@
 | — | Retailer activity metric | M | [retailer-activity-metric.md](retailer-activity-metric.md) |
 | — | InstantPay outlet onboarding | L ⚠️ split | [instantpay-outlet-onboarding.md](instantpay-outlet-onboarding.md) |
 | — | **Noble-only queue** (remove old rails, finish provider) | XL ⚠️ 1 phase/chat | [noble-only-queue.md](noble-only-queue.md) |
+| — | **Compliance queue** (KYC data, agreements, onboarding states, AEPS re-KYC, audit) | XL ⚠️ 1 phase/chat | [compliance-queue.md](compliance-queue.md) |
 
 ## Web UI
 | # | Task | Size | File |

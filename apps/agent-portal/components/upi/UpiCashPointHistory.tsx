@@ -59,6 +59,11 @@ function customerMobile(row: TxnRow): string {
   return `XXXXXX${m.slice(-4)}`;
 }
 
+function bankRrn(row: TxnRow): string {
+  const provider = row.metadata?.provider as Record<string, unknown> | undefined;
+  return typeof provider?.rrn === "string" && provider.rrn ? provider.rrn : "—";
+}
+
 function StatusPill({ status }: { status: string }) {
   const bucket = statusBucket(status);
   const map = {
@@ -109,7 +114,7 @@ export const UpiCashPointHistory = forwardRef<UpiCashPointHistoryHandle>(functio
       if (!q) return true;
       return (
         r.txnRef.toLowerCase().includes(q) ||
-        (r.providerTxnId ?? "").toLowerCase().includes(q) ||
+        bankRrn(r).toLowerCase().includes(q) ||
         customerMobile(r).includes(q)
       );
     });
@@ -127,7 +132,7 @@ export const UpiCashPointHistory = forwardRef<UpiCashPointHistoryHandle>(functio
       customerMobile(r),
       formatInr(r.amount),
       statusBucket(r.status),
-      r.providerTxnId ?? "—",
+      bankRrn(r),
     ]);
 
   function buildReport(): BrandedReport {
@@ -158,7 +163,7 @@ export const UpiCashPointHistory = forwardRef<UpiCashPointHistoryHandle>(functio
             text: bucket === "success" ? "Success" : bucket === "pending" ? "Pending" : "Failed",
             tone: bucket === "success" ? "approved" : bucket === "pending" ? "requested" : "rejected",
           },
-          { text: r.providerTxnId ?? "—", mono: true },
+          { text: bankRrn(r), mono: true },
         ];
       }),
     };
@@ -281,7 +286,7 @@ export const UpiCashPointHistory = forwardRef<UpiCashPointHistoryHandle>(functio
                   <td className="px-3 py-3.5">
                     <StatusPill status={r.status} />
                   </td>
-                  <td className="px-5 py-3.5 font-mono text-xs text-gray-600">{r.providerTxnId ?? "—"}</td>
+                  <td className="px-5 py-3.5 font-mono text-xs text-gray-600">{bankRrn(r)}</td>
                 </tr>
               ))}
               {!loading && rows.length === 0 ? (
