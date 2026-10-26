@@ -12,7 +12,7 @@ import {
   View,
 } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
-import { WebView, type WebViewNavigation } from "react-native-webview";
+import { WebView, type WebViewNavigation, type WebViewProps } from "react-native-webview";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ArrowLeft, Building2, CirclePlay, Download, RefreshCw, Wallet } from "lucide-react-native";
 import type { ApiResponse } from "@asanpay/shared-types";
@@ -23,6 +23,9 @@ import { DateRangeFields, toYmd } from "../../components/DateRangeCard";
 import { apiError } from "../../utils/apiError";
 import { useTheme } from "../../theme/ThemeContext";
 import { colors, gradientDirection } from "../../theme/colors";
+
+// react-native-webview is hoisted to the repo root and type-checks against the web portal's React 19 types.
+const CmsWebView = WebView as unknown as React.ComponentType<WebViewProps & React.RefAttributes<WebView>>;
 
 type CmsProvider = { code: string; name: string; description: string; accent: string };
 type CmsStatus = "initiated" | "pending" | "success" | "failed";
@@ -206,6 +209,7 @@ export function CashManagementModal({ visible, onClose }: { visible: boolean; on
   const successTotal = rows
     .filter((r) => r.status === "success")
     .reduce((sum, r) => sum + (parseFloat(r.amount ?? "0") || 0), 0);
+  const openCount = rows.filter((r) => r.status === "initiated" || r.status === "pending").length;
 
   return (
     <Modal
@@ -240,7 +244,7 @@ export function CashManagementModal({ visible, onClose }: { visible: boolean; on
         </LinearGradient>
 
         {openCms ? (
-          <WebView
+          <CmsWebView
             ref={webRef}
             source={{ uri: openCms.url }}
             style={styles.web}
@@ -259,22 +263,46 @@ export function CashManagementModal({ visible, onClose }: { visible: boolean; on
           />
         ) : (
           <ScrollView contentContainerStyle={styles.body}>
+            <View style={styles.statRow}>
+              {[
+                { label: "Collections", value: String(rows.length), tone: colors.blueLight },
+                { label: "Successful", value: formatINR(successTotal), tone: colors.green },
+                { label: "In progress", value: String(openCount), tone: "#D97706" },
+              ].map((s) => (
+                <View key={s.label} style={[styles.stat, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}>
+                  <View style={[styles.statBar, { backgroundColor: s.tone }]} />
+                  <Text style={[styles.statLabel, { color: tokens.sub }]}>{s.label}</Text>
+                  <Text style={[styles.statValue, { color: tokens.txt }]} numberOfLines={1} adjustsFontSizeToFit>
+                    {s.value}
+                  </Text>
+                </View>
+              ))}
+            </View>
+
+            <Text style={[styles.sectionLabel, { color: tokens.mute }]}>PROVIDERS</Text>
             {providers.map((p) => (
               <LinearGradient
                 key={p.code}
-                colors={[p.accent, `${p.accent}cc`]}
+                colors={[p.accent, `${p.accent}c7`]}
                 start={gradientDirection.diagonal.start}
                 end={gradientDirection.diagonal.end}
                 style={styles.providerCard}
               >
+                <View style={styles.circleBig} pointerEvents="none" />
+                <View style={styles.circleSmall} pointerEvents="none" />
                 <View style={styles.providerIcon}>
                   <Building2 size={26} color={p.accent} />
                 </View>
                 <View style={styles.providerText}>
-                  <Text style={styles.providerName} numberOfLines={1}>
-                    {p.name}
-                  </Text>
-                  <Text style={styles.providerDesc} numberOfLines={1}>
+                  <View style={styles.nameRow}>
+                    <Text style={styles.providerName} numberOfLines={1}>
+                      {p.name}
+                    </Text>
+                    <View style={styles.liveChip}>
+                      <Text style={styles.liveText}>LIVE</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.providerDesc} numberOfLines={2}>
                     {p.description}
                   </Text>
                 </View>
@@ -312,7 +340,14 @@ export function CashManagementModal({ visible, onClose }: { visible: boolean; on
                 </Pressable>
               </View>
 
-              <DateRangeFields from={range.from} to={range.to} onChange={setRange} hidePresets />
+              <DateRangeFields
+                from={range.from}
+                to={range.to}
+                onChange={(r) => {
+                  setRange(r);
+                  void loadRows(r.from, r.to);
+                }}
+              />
               <Pressable
                 onPress={() => void loadRows(range.from, range.to)}
                 disabled={loading}
@@ -328,6 +363,7 @@ export function CashManagementModal({ visible, onClose }: { visible: boolean; on
                       {r.amount ? formatINR(r.amount) : "—"}
                     </Text>
                     <View style={[styles.pill, { backgroundColor: STATUS_COLORS[r.status].bg }]}>
+                      <View style={[styles.pillDot, { backgroundColor: STATUS_COLORS[r.status].fg }]} />
                       <Text style={[styles.pillText, { color: STATUS_COLORS[r.status].fg }]}>
                         {STATUS_LABEL[r.status]}
                       </Text>
@@ -390,12 +426,40 @@ const styles = StyleSheet.create({
   web: { flex: 1 },
   webLoading: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center" },
   body: { padding: 16, gap: 14 },
+  statRow: { flexDirection: "row", gap: 10 },
+  stat: { flex: 1, borderWidth: 1, borderRadius: 16, padding: 12, overflow: "hidden" },
+  statBar: { position: "absolute", left: 0, top: 12, bottom: 12, width: 3, borderRadius: 3 },
+  statLabel: { fontSize: 11, fontWeight: "700" },
+  statValue: { fontSize: 17, fontWeight: "800", marginTop: 4 },
+  sectionLabel: { fontSize: 11, fontWeight: "800", letterSpacing: 1.4, marginTop: 4, marginBottom: -4 },
+  circleBig: {
+    position: "absolute",
+    right: -30,
+    top: -40,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: "rgba(255,255,255,0.1)",
+  },
+  circleSmall: {
+    position: "absolute",
+    right: 70,
+    bottom: -45,
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: "rgba(255,255,255,0.1)",
+  },
+  nameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  liveChip: { backgroundColor: "rgba(255,255,255,0.22)", borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2 },
+  liveText: { color: colors.white, fontSize: 9, fontWeight: "800", letterSpacing: 0.6 },
   providerCard: {
     flexDirection: "row",
     alignItems: "center",
     borderRadius: 22,
     padding: 16,
     gap: 12,
+    overflow: "hidden",
     elevation: 4,
     shadowColor: "#000",
     shadowOpacity: 0.15,
@@ -448,7 +512,8 @@ const styles = StyleSheet.create({
   rowTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   rowAmount: { fontSize: 16, fontWeight: "800" },
   rowMeta: { fontSize: 12 },
-  pill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
+  pill: { flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
+  pillDot: { width: 6, height: 6, borderRadius: 3 },
   pillText: { fontSize: 11, fontWeight: "800" },
   checkBtn: {
     alignSelf: "flex-start",
