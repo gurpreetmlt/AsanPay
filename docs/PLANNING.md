@@ -7,12 +7,44 @@ One row per feature; details in the section below the table. Newest at the top o
 
 | # | Feature | Surfaces | Size | Status | Design | Task file |
 |---|---------|----------|------|--------|--------|-----------|
+| PL-06 | KYC face match (selfie vs card photo) + original vs xerox / screen photo / edited image | Backend, web, mobile, admin | L | planned — **remind owner after PL-05 ships** (needs Indian KYC vendor) | — | — |
+| PL-05 | KYC document photo checks, in-house (Aadhaar QR verify, quality, doc type, PAN / Aadhaar data match) | Backend, web, mobile, admin | L | building — chat 1 (backend engine) done; chats 2–3 next | — | [kyc-doc-checks.md](TASKS/kyc-doc-checks.md) |
 | PL-04 | Terms, Privacy & EULA acceptance checkbox at login (per-version record) | Backend, web, mobile | M | building (built 26 Oct, migrate `0075` + APK + live test pending) | — | — |
 | PL-03 | Web location via phone QR (AEPS + onboarding) | Backend, web, mobile | M | building (built 26 Oct, migrate `0074` + APK + live test pending) | — | — |
 | PL-02 | Cash Management page (CMS provider cards, in-app CMS, CMS transactions) | Backend, web, mobile | M | building (built 26 Oct, live test pending) | — | — |
 | PL-01 | Linked accounts + role switch (same person, Distributor + Retailer) | Backend, web, mobile, admin | M | building (backend + web + mobile built 26 Oct; migrate `0076` + APK + live test pending; admin card next) | [Figma prompt](PROMPTS/figma-linked-accounts.md) · Figma URL pending | [linked-accounts.md](TASKS/linked-accounts.md) |
 
 ---
+
+## PL-06 — KYC face match + original-vs-copy detection
+
+**Problem:** PL-05 proves the photo is the right document with the right data, but not that the person uploading is the card holder, or that the photo is of the original card (not a xerox, a phone-screen photo or an edited image).
+
+**Plan**
+- Face match: live selfie (`personalPhoto`) vs card photo (Aadhaar QR photo from PL-05, or PAN photo) → match score.
+- Tamper / liveness: detect photocopy, screen recapture, edited image.
+- Via an Indian KYC vendor (data stays in India — UIDAI / DPDPA). First ask BestAPI if they offer face match / tamper APIs; else pick a vendor.
+- Show scores in the admin KYC queue next to PL-05 labels; auto-flag below threshold.
+
+**Open decisions**
+- [ ] Vendor + per-check cost (~₹0.5–3).
+- [ ] Auto-reject threshold vs admin review only.
+
+**Notes:** Owner asked to be reminded after PL-05 ships (26 Oct).
+
+## PL-05 — KYC document photo checks (in-house)
+
+**Problem:** PAN number (BestAPI) and Aadhaar (OTP) are verified, but the uploaded photos are not — an agent can put any image in the PAN / Aadhaar front / Aadhaar back fields.
+
+**Plan** — all on our own server, no vendor, no per-check cost: see [kyc-doc-checks.md](TASKS/kyc-doc-checks.md).
+- Aadhaar Secure QR verify (UIDAI signature) → name, DOB, gender, last 4, photo.
+- Quality check (blur / size / dark) → ask to retake.
+- Document type via OCR (Tesseract) + keyword rules: PAN / Aadhaar front / Aadhaar back / other.
+- Data match: PAN number + name vs verified PAN; Aadhaar name / DOB / last 4 vs OTP eKYC.
+- Clear fail → red message under the field, upload not accepted. Doubtful → accepted but flagged. Admin KYC queue + user page show match labels.
+
+**Open decisions**
+- [ ] Mismatch on name only (spelling) → flag, not block (recommended).
 
 ## PL-04 — Terms & Privacy acceptance at login
 

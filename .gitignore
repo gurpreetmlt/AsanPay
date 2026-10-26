@@ -39,6 +39,10 @@ apps/login.text
 *.mobileprovision
 *.cer
 *.crt
+# UIDAI public certs (Aadhaar Secure QR signature check) — public, safe to commit
+!apps/backend/assets/uidai/*.cer
+!apps/backend/assets/uidai/*.crt
+!apps/backend/assets/uidai/*.pem
 
 # Cloud / SaaS credentials
 firebase-adminsdk*.json

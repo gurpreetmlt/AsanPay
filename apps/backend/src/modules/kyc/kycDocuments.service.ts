@@ -25,10 +25,15 @@ export const KYC_DOC_KEY_TO_SLOT: Record<string, KycDocSlot> = {
 };
 
 const UPLOAD_DIR = path.join(process.cwd(), "uploads", "kyc");
-const MAX_BYTES = 1_500_000;
+export const KYC_DOC_MAX_BYTES = 1_500_000;
+const MAX_BYTES = KYC_DOC_MAX_BYTES;
 
 export function isKycDocSlot(v: string): v is KycDocSlot {
   return (KYC_DOC_SLOTS as readonly string[]).includes(v);
+}
+
+export function parseKycDataUrl(dataUrl: string): { mime: string; buffer: Buffer } | null {
+  return parseDataUrl(dataUrl);
 }
 
 function parseDataUrl(dataUrl: string): { mime: string; buffer: Buffer } | null {

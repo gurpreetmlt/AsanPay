@@ -3,6 +3,7 @@ import { bestApiConfigured, bestApiPost, type BestApiJson } from "../providers/b
 import { HttpError } from "../../utils/httpError";
 import { logger } from "../../utils/logger";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
+import { encryptPII } from "../../utils/aes";
 
 const VERIFY_PATH = "/api/gw/identity-verify/pan/pan-verify";
 const PAN_RE = /^[A-Z]{5}\d{4}[A-Z]$/;
@@ -146,7 +147,14 @@ export async function verifyPanKyc(
     action: "kyc.pan_verified",
     entityType: "user",
     entityId: userId,
-    metadata: { panMasked: maskPan(pan), hasName: Boolean(fullName), category: category ?? null },
+    metadata: {
+      panMasked: maskPan(pan),
+      // KYC photo check compares the PAN on the card against this.
+      panEncrypted: encryptPII(pan),
+      fullName: fullName || null,
+      hasName: Boolean(fullName),
+      category: category ?? null,
+    },
   });
 
   return {

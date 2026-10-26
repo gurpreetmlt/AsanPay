@@ -26,6 +26,10 @@ async function main() {
     telegramSetWebhookIfConfigured(),
   );
 
+  if (env.NODE_ENV === "production") {
+    void import("./modules/kyc/docCheck/ocr").then(({ warmKycOcr }) => warmKycOcr());
+  }
+
   // Scheduled work runs in its own process — see src/jobs/index.ts and spec §11.1. Nothing
   // here may hold a pg connection on a timer: this pool belongs to request handlers.
 

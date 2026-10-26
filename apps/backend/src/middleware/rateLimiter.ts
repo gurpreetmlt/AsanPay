@@ -81,6 +81,17 @@ export const signupMobileCheckLimiter = rateLimit({
   validate: sharedValidate,
 });
 
+/** KYC photo checks run OCR on our CPU — cap per signed-in user. */
+export const kycDocCheckLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: isDev ? 200 : 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) =>
+    `kyc-doc-check:${(req as Request & { auth?: { sub?: string } }).auth?.sub ?? clientIp(req)}`,
+  validate: sharedValidate,
+});
+
 export const walletTxnLimiter = rateLimit({
   windowMs: 60 * 1000,
   limit: isDev ? 200 : 10,

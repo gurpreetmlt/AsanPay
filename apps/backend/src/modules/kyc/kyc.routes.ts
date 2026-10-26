@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requireAuth } from "../../middleware/auth.middleware";
-import { otpRequestLimiter } from "../../middleware/rateLimiter";
+import { kycDocCheckLimiter, otpRequestLimiter } from "../../middleware/rateLimiter";
 import { validateBody } from "../../middleware/validate";
 import { sendSuccess } from "../../utils/apiResponse";
 import { HttpError } from "../../utils/httpError";
@@ -14,6 +14,7 @@ import {
 import { panVerifySchema, verifyPanKyc } from "./panVerify.service";
 import { getMyKycDocument, getMyKycProfile, submitKyc } from "./kyc.service";
 import { isKycDocSlot, saveKycDocumentDataUrl } from "./kycDocuments.service";
+import { checkKycDocument, DOC_CHECK_SLOTS } from "./docCheck/docCheck.service";
 import { z } from "zod";
 
 export const kycRouter = Router();
@@ -39,6 +40,20 @@ kycRouter.post("/documents/upload", async (req, res) => {
   }
   const saved = await saveKycDocumentDataUrl(req.auth.sub, body.slot, body.dataUrl);
   sendSuccess(res, { slot: body.slot, fileName: saved.fileName }, "Document uploaded");
+});
+
+const docCheckSchema = z.object({
+  slot: z.enum(DOC_CHECK_SLOTS, {
+    message: "Document must be one of: PAN card, Aadhaar front, Aadhaar back",
+  }),
+  dataUrl: z.string().min(32, "Choose a photo to check").max(2_100_000, "Image must be under 1.5 MB"),
+});
+
+kycRouter.post("/documents/check", kycDocCheckLimiter, validateBody(docCheckSchema), async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const body = req.body as z.infer<typeof docCheckSchema>;
+  const result = await checkKycDocument(req.auth.sub, body.slot, body.dataUrl);
+  sendSuccess(res, result, result.message);
 });
 
 kycRouter.get("/documents/:docKey", async (req, res) => {

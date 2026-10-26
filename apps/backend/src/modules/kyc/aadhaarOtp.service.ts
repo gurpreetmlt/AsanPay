@@ -357,6 +357,9 @@ export async function verifyAadhaarKycOtp(
   const address =
     pickString(asRecord(res.json) ?? {}, ["address", "Address"]) ??
     deepFindString(res.json, ["address", "Address"]);
+  const dob =
+    pickString(asRecord(res.json) ?? {}, ["dob", "date_of_birth", "dateOfBirth"]) ??
+    deepFindString(res.json, ["dob", "date_of_birth", "dateOfBirth"]);
   const linkedMobileRaw =
     pickString(asRecord(res.json) ?? {}, ["mobile", "phone", "registered_mobile"]) ??
     deepFindString(res.json, ["mobile", "phone", "registered_mobile"]);
@@ -397,7 +400,8 @@ export async function verifyAadhaarKycOtp(
     action: "kyc.aadhaar_otp_verified",
     entityType: "user",
     entityId: userId,
-    metadata: { aadhaarLast4: pending.last4, mobileMatched },
+    // fullName + dob feed the KYC photo check (name / DOB match on the Aadhaar photo).
+    metadata: { aadhaarLast4: pending.last4, mobileMatched, fullName: fullName || null, dob: dob || null },
   });
 
   return {

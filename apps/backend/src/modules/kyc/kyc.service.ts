@@ -18,6 +18,12 @@ import {
   saveKycDocumentDataUrl,
   type KycDocSlot,
 } from "./kycDocuments.service";
+import {
+  checkKycDocument,
+  DOC_CHECK_SLOTS,
+  toStoredDocCheck,
+  type StoredDocCheck,
+} from "./docCheck/docCheck.service";
 
 function toAuthUser(row: typeof users.$inferSelect): AuthUser {
   return {
@@ -238,6 +244,17 @@ export async function submitKyc(userId: string, input: KycSubmitInput): Promise<
     }
   }
 
+  // Usually a cache hit from POST /documents/check; otherwise capped at 8 s per photo (parallel).
+  const docChecks: Partial<Record<(typeof DOC_CHECK_SLOTS)[number], StoredDocCheck>> = {};
+  await Promise.all(
+    DOC_CHECK_SLOTS.map(async (slot) => {
+      const raw = dataUrlInputs[slot]?.trim();
+      if (!raw || !raw.startsWith("data:image")) return;
+      const result = await checkKycDocument(userId, slot, raw).catch(() => null);
+      if (result) docChecks[slot] = toStoredDocCheck(result);
+    }),
+  );
+
   await insertAuditLog({
     userId,
     action: "kyc.submit",
@@ -275,6 +292,7 @@ export async function submitKyc(userId: string, input: KycSubmitInput): Promise<
       latitude,
       longitude,
       ...docMeta,
+      ...(Object.keys(docChecks).length ? { docChecks } : {}),
     },
   });
 

@@ -15,9 +15,12 @@ WORKDIR /app/apps/backend
 # Runtime only needs production deps + tsx (start/migrate). Installing full
 # devDependencies pulls eslint/typescript-eslint, which can break Coolify builds
 # when a meta-package publishes before its subpackages (ETARGET on scope-manager).
+# Optional deps must stay included: sharp (KYC photo checks) ships its native binary as an
+# optional @img/sharp-linux-* package and fails at runtime without it.
 RUN npm pkg set dependencies.@asanpay/shared-types="file:../../packages/shared-types" \
   && node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('package.json','utf8')); p.dependencies=p.dependencies||{}; const d=p.devDependencies||{}; if (d.tsx) p.dependencies.tsx=d.tsx; delete p.devDependencies; fs.writeFileSync('package.json', JSON.stringify(p, null, 2));" \
-  && npm install --omit=optional
+  && npm install \
+  && node -e "require('sharp')"
 
 ENV NODE_ENV=production
 ENV PORT=4000
