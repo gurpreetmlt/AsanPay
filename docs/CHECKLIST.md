@@ -182,6 +182,7 @@
 - [ ] AePS block/dormancy were one-way doors until 2026-08-07 (task #9) — a blocked or dormant merchant had no path back. Fixed; watch for the same pattern (a flag that's only ever set, never cleared) elsewhere.
 
 ## Last updated
+2026-10-26 — Old outlet / bio-KYC UI removed (web + mobile), Nepal → Coming soon on both; migration 0071 drops `instantpay_outlet_id` and deactivates old provider rows
 2026-10-25 — Removed PaySprint + InstantPay backend code (adapters, clients, onboarding, env, Nepal handlers). Old onboarding routes → 410, Nepal routes → 503 Coming soon; AEPS mode only `off | noble`. UI cleanup (P7) + DB migration (P8) still pending
 2026-10-25 — Recharge operator/circle mapping: provider number lookup (cached 6h) picks operator + circle; wrong-operator recharges fail before the provider call with a clear message; DTH static codes; no UI change
 2026-10-25 — Aadhaar Pay tab (web `/aeps` + mobile AePS): AP load → one-time KYC → daily AP 2FA → optional customer OTP → `/txn/aeps/aadhaar-pay`; AADHAAR_PAY tile opens it

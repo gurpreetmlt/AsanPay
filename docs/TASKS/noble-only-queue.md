@@ -22,8 +22,8 @@
 | P4 | DMT `bene/get` + admin Noble wallet balance | **CURRENT** |
 | P5 | Delete PaySprint | done (25 Oct) |
 | P6 | Delete InstantPay backend (adapter, client, onboarding, env, tests) | done (25 Oct) |
-| P7 | Delete InstantPay UI (outlet / bio-KYC pages + mobile modals) + Nepal → Coming soon | todo |
-| P8 | DB cleanup migration (`instantpay_outlet_id`, provider rows) | todo |
+| P7 | Delete InstantPay UI (outlet / bio-KYC pages + mobile modals) + Nepal → Coming soon | done (26 Oct) |
+| P8 | DB cleanup migration (`instantpay_outlet_id`, provider rows) | done (26 Oct) — `0071` runs on EC2 after redeploy |
 | P9 | UPI QR collections → transactions + recon `QR` | todo |
 | P10 | Callback handler → settle txns (needs provider sample payload) | todo |
 
@@ -108,6 +108,15 @@ Web: `app/onboarding/outlet`, `app/onboarding/bio-kyc`, `app/settings` (outlet /
 Mobile: `RegisterOutletModal.tsx`, `BioKycModal.tsx`, `AccountScreen.tsx` entries, `NepalScreen.tsx` → Coming soon, `DmtScreen.tsx`, `AepsScreen.tsx`, `lib/rdServiceFingerprint.ts`.
 Admin: `developer-options/providers` brand list.
 `AuthUser.hasInstantpayOutlet` → remove from `packages/shared-types`.
+
+**P7 done:**
+- Web: deleted `app/onboarding/outlet` + `app/onboarding/bio-kyc`; Settings outlet / bio-KYC rows removed; "Onboard partner" (network page + quick links) → `/signup`; `app/nepal` → Coming soon page with "Open Money Transfer".
+- Mobile: deleted `RegisterOutletModal` + `BioKycModal`; Account screen rows removed; `NepalScreen` → Coming soon with "Open Money Transfer" (→ DMT).
+- DMT refund copy: "Provider order ID" on web + mobile. KYC assistant "Outlet registration" → "AEPS onboarding" (backend `hasOutlet` = usable AEPS agent id). Web only screen.
+- `AuthUser.hasInstantpayOutlet` removed (shared-types, auth, kyc).
+- Platform exception: none — Nepal, Account/Settings, DMT copy changed on both.
+
+**P8 done:** `0071_retire_old_providers.sql` (journal idx 71) drops `users.instantpay_outlet_id`, marks old provider rows + their `provider_services` inactive. Run only **after** backend + jobs redeploy (old code still selects the column).
 
 ### P8 — DB cleanup
 New migration (register in `meta/_journal.json`!): drop `users.instantpay_outlet_id`; mark `providers` rows `instantpay` / `paysprint` inactive (keep rows — old txns reference them).

@@ -296,10 +296,10 @@ async function discoverRdEndpoint(force = false): Promise<RdEndpoint | null> {
   return null;
 }
 
-/** Transaction OTP and InstantPay bio-KYC `wadh` ride inside PidOptions Opts. */
+/** Transaction OTP and KYC `wadh` ride inside PidOptions Opts. */
 export type FingerprintCaptureOptions = {
   otp?: string;
-  /** InstantPay bio-KYC status `pidOptionWadh` — required for merchant eKYC capture. */
+  /** Provider-issued `wadh` value — required for merchant eKYC capture. */
   wadh?: string;
 };
 

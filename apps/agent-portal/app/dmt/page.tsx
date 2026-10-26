@@ -1606,7 +1606,7 @@ export default function DmtPage() {
                   After refund, recheck the txn from History — balance is credited automatically.
                 </p>
                 <div>
-                  <label className="text-xs font-bold text-gray-500">INSTANTPAY ORDER ID (ipayId)</label>
+                  <label className="text-xs font-bold text-gray-500">PROVIDER ORDER ID</label>
                   <input
                     value={refundIpayId}
                     onChange={(e) => {

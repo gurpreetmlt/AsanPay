@@ -3,6 +3,7 @@ import { db } from "../../db/postgres";
 import { accounts, users, wallets } from "../../db/postgres/schema";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import { HttpError } from "../../utils/httpError";
+import { isUsableNobleAgentId } from "../../config/env";
 import type { UserRole } from "@asanpay/shared-types";
 
 /** SD / Distributor may activate or deactivate only their direct children. */
@@ -55,7 +56,7 @@ export async function getDownline(actorId: string): Promise<DownlineUserView[]> 
       createdAt: users.createdAt,
       panNumberEncrypted: users.panNumberEncrypted,
       aadhaarNumberEncrypted: users.aadhaarNumberEncrypted,
-      instantpayOutletId: users.instantpayOutletId,
+      nobleUniqueAgentId: users.nobleUniqueAgentId,
       outletLatitude: users.outletLatitude,
     })
     .from(users)
@@ -83,7 +84,7 @@ export async function getDownline(actorId: string): Promise<DownlineUserView[]> 
     aepsBalance: aepsByUser.get(r.id) ?? "0",
     hasPan: r.panNumberEncrypted !== null,
     hasAadhaar: r.aadhaarNumberEncrypted !== null,
-    hasOutlet: r.instantpayOutletId !== null,
+    hasOutlet: isUsableNobleAgentId(r.nobleUniqueAgentId),
     hasOutletGeo: r.outletLatitude !== null,
   }));
 }
@@ -126,7 +127,7 @@ export async function getAdminFullNetworkTree(): Promise<DownlineTreeNode[]> {
       createdAt: users.createdAt,
       panNumberEncrypted: users.panNumberEncrypted,
       aadhaarNumberEncrypted: users.aadhaarNumberEncrypted,
-      instantpayOutletId: users.instantpayOutletId,
+      nobleUniqueAgentId: users.nobleUniqueAgentId,
       outletLatitude: users.outletLatitude,
     })
     .from(users)
@@ -157,7 +158,7 @@ export async function getAdminFullNetworkTree(): Promise<DownlineTreeNode[]> {
       aepsBalance: aepsByUser.get(root.id) ?? "0",
       hasPan: root.panNumberEncrypted !== null,
       hasAadhaar: root.aadhaarNumberEncrypted !== null,
-      hasOutlet: root.instantpayOutletId !== null,
+      hasOutlet: isUsableNobleAgentId(root.nobleUniqueAgentId),
       hasOutletGeo: root.outletLatitude !== null,
       children,
     });

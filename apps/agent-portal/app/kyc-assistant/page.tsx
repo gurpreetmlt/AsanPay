@@ -31,7 +31,7 @@ interface NetworkData {
 const FIELD_META = [
   { key: "hasPan" as const, label: "PAN", icon: CreditCard },
   { key: "hasAadhaar" as const, label: "Aadhaar", icon: Fingerprint },
-  { key: "hasOutlet" as const, label: "Outlet registration", icon: Store },
+  { key: "hasOutlet" as const, label: "AEPS onboarding", icon: Store },
   { key: "hasOutletGeo" as const, label: "Outlet location", icon: MapPin },
 ];
 

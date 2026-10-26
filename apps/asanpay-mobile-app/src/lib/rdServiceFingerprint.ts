@@ -18,10 +18,10 @@ const RdService = NativeModules.RdService as RdServiceNative | undefined;
 
 let lastProbeLog: string[] = [];
 
-/** Transaction OTP and InstantPay bio-KYC `wadh` ride inside PidOptions Opts. */
+/** Transaction OTP and KYC `wadh` ride inside PidOptions Opts. */
 export type FingerprintCaptureOptions = {
   otp?: string;
-  /** InstantPay bio-KYC status `pidOptionWadh` — required for merchant eKYC capture. */
+  /** Provider-issued `wadh` value — required for merchant eKYC capture. */
   wadh?: string;
 };
 
@@ -35,7 +35,7 @@ export function normalizeFingerprintOpts(
 // L1 RD services (Morpho/IDEMIA, Mantra MFS110) need fType="2" and reject extra blocks
 // like <Demo> — strict parsers fail silently and capture never starts (no sensor light).
 // otp: Transaction OTP for ₹5,000+ AEPS withdrawals — RD embeds it in the PID block.
-// wadh: InstantPay merchant bio-KYC — must match status API pidOptionWadh.
+// wadh: merchant eKYC — must match the provider-issued wadh value.
 function buildPidOptionsXml(timeoutMs: number, opts: FingerprintCaptureOptions = {}): string {
   const otp = opts.otp?.trim();
   const wadh = opts.wadh?.trim().replace(/"/g, "");

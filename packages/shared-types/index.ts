@@ -62,8 +62,6 @@ export interface AuthUser {
   isActive: boolean;
   /** True once PAN/Aadhaar docs have been submitted (admin may still verify). */
   hasKycDocs: boolean;
-  /** True once InstantPay Register Outlet (min-KYC) saved an outlet id. */
-  hasInstantpayOutlet: boolean;
   /** True once Noble AEPS agent_onboarding saved a uniqueAgentId. */
   hasNobleAgent: boolean;
   /** Retailer must finish AEPS agent onboarding before opening AEPS services. */

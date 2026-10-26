@@ -601,7 +601,7 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
       setAmount("");
       showAlert(
         "Transfer submitted",
-        (txnRef ? `Reference ${txnRef}` : "Transfer submitted to InstantPay.") +
+        (txnRef ? `Reference ${txnRef}` : "Transfer submitted.") +
           (receiptEarn ? `\n${receiptEarn}` : ""),
       );
       await refreshProfile();
@@ -614,7 +614,7 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
 
   async function sendRefundOtp() {
     if (refundIpayId.trim().length < 6) {
-      showAlert("ipayId required", "Enter InstantPay order id (ipayId).");
+      showAlert("Order ID required", "Enter the provider order ID of the pending transfer.");
       return;
     }
     setRefundBusy(true);
@@ -1144,7 +1144,7 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
                   label="IPAY ID"
                   value={refundIpayId}
                   onChangeText={setRefundIpayId}
-                  placeholder="InstantPay order id"
+                  placeholder="Provider order ID"
                 />
                 {!refundOtpSent ? (
                   <Pressable onPress={() => void sendRefundOtp()} disabled={refundBusy} style={styles.primaryBtn}>

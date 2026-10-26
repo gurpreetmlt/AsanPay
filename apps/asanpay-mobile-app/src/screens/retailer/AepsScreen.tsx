@@ -664,7 +664,7 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
 
   const [scanning, setScanning] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  // ₹5,000+ withdrawals: InstantPay needs an SMS Transaction OTP. referenceKey goes in the
+  // ₹5,000+ withdrawals: the provider needs an SMS Transaction OTP. referenceKey goes in the
   // withdraw body; the OTP the customer receives rides inside the PID capture (RD otp attr).
   const [txnOtp, setTxnOtp] = useState("");
   const [otpRef, setOtpRef] = useState<{ referenceKey: string; amount: string } | null>(null);
@@ -825,7 +825,7 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
         }
         setLiveIinByName(map);
       } catch {
-        // Non-fatal — fall back to static IINs (the non-InstantPay rails already match).
+        // Non-fatal — fall back to static IINs.
       }
     })();
     return () => {

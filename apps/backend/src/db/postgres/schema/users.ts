@@ -47,8 +47,6 @@ export const users = pgTable(
     panNumberEncrypted: text("pan_number_encrypted"),
     aadhaarNumberEncrypted: text("aadhaar_number_encrypted"),
     kycStatus: kycStatusEnum("kyc_status").notNull().default("pending"),
-    /** InstantPay merchant outlet id from onboarding — required for sandbox/live AEPS. */
-    instantpayOutletId: varchar("instantpay_outlet_id", { length: 64 }),
     /**
      * AEPS provider agent id from agent_onboarding / agent_onboarding_status.
      * Required for AEPS / Aadhaar Pay / CD / UPI QR rails.

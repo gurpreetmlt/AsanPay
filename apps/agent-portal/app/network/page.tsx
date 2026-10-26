@@ -446,7 +446,7 @@ export default function NetworkPage() {
                       size="sm"
                       showArrow={false}
                       className="!w-auto"
-                      onClick={() => router.push("/onboarding/outlet")}
+                      onClick={() => router.push("/signup")}
                     >
                       Onboard partner
                     </PrimaryButton>
@@ -494,7 +494,7 @@ export default function NetworkPage() {
                       size="sm"
                       showArrow={false}
                       className="!w-auto"
-                      onClick={() => router.push("/onboarding/outlet")}
+                      onClick={() => router.push("/signup")}
                     >
                       Onboard partner
                     </PrimaryButton>

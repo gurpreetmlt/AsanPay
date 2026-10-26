@@ -198,7 +198,9 @@ export function ServicesScreen() {
 
   if (activeScreen === "aeps") return <AepsScreen onBack={backToHome} serviceCode={aepsServiceCode} />;
   if (activeScreen === "dmt") return <DmtScreen onBack={backToHome} />;
-  if (activeScreen === "nepal") return <NepalScreen onBack={backToHome} />;
+  if (activeScreen === "nepal") {
+    return <NepalScreen onBack={backToHome} onOpenDmt={() => setActiveScreen("dmt")} />;
+  }
   if (activeScreen === "upi_cp") return <UpiCashPointScreen onBack={backToHome} />;
   if (activeScreen === "recharge") {
     return <RechargeScreen serviceCode={rechargeServiceCode} onBack={backToHome} />;

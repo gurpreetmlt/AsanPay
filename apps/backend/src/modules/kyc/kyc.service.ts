@@ -31,7 +31,6 @@ function toAuthUser(row: typeof users.$inferSelect): AuthUser {
     kycStatus: row.kycStatus,
     isActive: row.isActive,
     hasKycDocs: Boolean(row.panNumberEncrypted && row.aadhaarNumberEncrypted),
-    hasInstantpayOutlet: Boolean(row.instantpayOutletId),
     hasNobleAgent: isUsableNobleAgentId(row.nobleUniqueAgentId),
     aepsOnboardingRequired: isAepsOnboardingRequired(row.role, row.nobleUniqueAgentId),
     hasTxnPin: Boolean(row.txnPinHash),

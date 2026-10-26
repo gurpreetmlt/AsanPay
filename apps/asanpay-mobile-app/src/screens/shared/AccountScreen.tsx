@@ -44,11 +44,9 @@ import type { LoginRoleChip } from "../LoginScreen";
 import { SupportModal } from "./SupportModal";
 import { SettlementsModal } from "./SettlementsModal";
 import { FundRequestModal } from "./FundRequestScreen";
-import { RegisterOutletModal } from "./RegisterOutletModal";
 import { NobleAgentOnboardModal } from "./NobleAgentOnboardModal";
 import { NobleCmsModal } from "./NobleCmsModal";
 import { UpiCashPointScreen } from "../retailer/UpiCashPointScreen";
-import { BioKycModal } from "./BioKycModal";
 import { BiometricDevicesModal } from "./BiometricDevicesModal";
 import { DeviceRepairModal } from "./DeviceRepairModal";
 
@@ -175,11 +173,9 @@ export function AccountScreen() {
   const [showSupport, setShowSupport] = useState(false);
   const [showSettlements, setShowSettlements] = useState(false);
   const [showFund, setShowFund] = useState(false);
-  const [showRegisterOutlet, setShowRegisterOutlet] = useState(false);
   const [showNobleOnboard, setShowNobleOnboard] = useState(false);
   const [showNobleCms, setShowNobleCms] = useState(false);
   const [showNobleUpiQr, setShowNobleUpiQr] = useState(false);
-  const [showBioKyc, setShowBioKyc] = useState(false);
   const [telegramBusy, setTelegramBusy] = useState(false);
   const [tdsSummary, setTdsSummary] = useState<{
     month: string;
@@ -493,24 +489,6 @@ export function AccountScreen() {
               onPress={() => setShowNobleCms(true)}
             />
           ) : null}
-          {user.role === "retailer" && !user.hasInstantpayOutlet ? (
-            <MenuRow
-              icon={ShieldCheck}
-              label="Register InstantPay outlet"
-              subtitle="onboard your outlet for InstantPay"
-              tokens={tokens}
-              onPress={() => setShowRegisterOutlet(true)}
-            />
-          ) : null}
-          {user.role === "retailer" && user.hasInstantpayOutlet ? (
-            <MenuRow
-              icon={Fingerprint}
-              label="Outlet biometric KYC"
-              subtitle="verify your outlet with biometrics"
-              tokens={tokens}
-              onPress={() => setShowBioKyc(true)}
-            />
-          ) : null}
         </SectionCard>
 
         <Text style={[styles.section, { color: tokens.sub }]}>Security</Text>
@@ -669,14 +647,6 @@ export function AccountScreen() {
         visible={showProfile}
         onClose={() => setShowProfile(false)}
         user={user}
-        onBioKyc={() => {
-          setShowProfile(false);
-          setShowBioKyc(true);
-        }}
-        onRegisterOutlet={() => {
-          setShowProfile(false);
-          setShowRegisterOutlet(true);
-        }}
         onNobleOnboard={() => {
           setShowProfile(false);
           setShowNobleOnboard(true);
@@ -685,13 +655,11 @@ export function AccountScreen() {
       <SupportModal visible={showSupport} onClose={() => setShowSupport(false)} />
       <SettlementsModal visible={showSettlements} onClose={() => setShowSettlements(false)} />
       <FundRequestModal visible={showFund} onClose={() => setShowFund(false)} />
-      <RegisterOutletModal visible={showRegisterOutlet} onClose={() => setShowRegisterOutlet(false)} />
       <NobleAgentOnboardModal visible={showNobleOnboard} onClose={() => setShowNobleOnboard(false)} />
       <Modal visible={showNobleUpiQr} animationType="slide" onRequestClose={() => setShowNobleUpiQr(false)}>
         <UpiCashPointScreen onBack={() => setShowNobleUpiQr(false)} />
       </Modal>
       <NobleCmsModal visible={showNobleCms} onClose={() => setShowNobleCms(false)} />
-      <BioKycModal visible={showBioKyc} onClose={() => setShowBioKyc(false)} />
     </SafeAreaView>
     </PageEnter>
   );
@@ -800,15 +768,11 @@ function ProfileModal({
   visible,
   onClose,
   user,
-  onBioKyc,
-  onRegisterOutlet,
   onNobleOnboard,
 }: {
   visible: boolean;
   onClose: () => void;
   user: AuthUser;
-  onBioKyc: () => void;
-  onRegisterOutlet: () => void;
   onNobleOnboard: () => void;
 }) {
   const { tokens } = useTheme();
@@ -926,35 +890,6 @@ function ProfileModal({
             <View style={{ flex: 1 }}>
               <Text style={[styles.linkTitle, { color: tokens.txt }]}>AEPS agent onboarding</Text>
               <Text style={{ color: tokens.mute, fontSize: 12 }}>One-time setup for AEPS services</Text>
-            </View>
-            <ChevronRight size={16} color={colors.blueFlat} />
-          </Pressable>
-        ) : null}
-
-        {user.role === "retailer" && !user.hasInstantpayOutlet ? (
-          <Pressable
-            onPress={onRegisterOutlet}
-            style={[styles.linkRow, { borderColor: tokens.cardBorder, backgroundColor: tokens.card }]}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.linkTitle, { color: tokens.txt }]}>Register outlet</Text>
-              <Text style={{ color: tokens.mute, fontSize: 12 }}>InstantPay Min-KYC</Text>
-            </View>
-            <ChevronRight size={16} color={colors.blueFlat} />
-          </Pressable>
-        ) : null}
-
-        {user.role === "retailer" && user.hasInstantpayOutlet ? (
-          <Pressable
-            onPress={onBioKyc}
-            style={[styles.linkRow, { borderColor: tokens.cardBorder, backgroundColor: tokens.card }]}
-          >
-            <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <Fingerprint size={18} color={colors.blueFlat} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.linkTitle, { color: tokens.txt }]}>Biometric KYC</Text>
-                <Text style={{ color: tokens.mute, fontSize: 12 }}>Fingerprint eKYC for AePS / DMT</Text>
-              </View>
             </View>
             <ChevronRight size={16} color={colors.blueFlat} />
           </Pressable>
