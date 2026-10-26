@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { ShieldCheck } from "lucide-react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { RefreshCw, ShieldCheck } from "lucide-react-native";
 import { POLICY_VERSION, type LinkedAccountSummary } from "@asanpay/shared-types";
 import { ModalSheet } from "../ModalSheet";
 import { showAlert } from "../AppAlert";
@@ -111,10 +111,13 @@ export function SwitchFlow({
   }
 
   return (
-    <ModalSheet visible title={`Switch to ${target.roleLabel} account?`} onClose={busy ? () => undefined : onClose}>
-      <ScrollView keyboardShouldPersistTaps="handled">
-        <Text style={styles.subtitle}>Your dashboard, balance and permissions will update.</Text>
-
+    <ModalSheet
+      visible
+      title={`Switch to ${target.roleLabel} account?`}
+      subtitle="Your dashboard, balance and permissions will update."
+      icon={<RefreshCw />}
+      onClose={busy ? () => undefined : onClose}
+    >
         <View style={laStyles.targetCard}>
           <AccountAvatar name={target.name} role={target.role} size={44} />
           <View style={{ flex: 1, minWidth: 0 }}>
@@ -162,13 +165,11 @@ export function SwitchFlow({
           <LaButton label="Cancel" tone="red" onPress={onClose} disabled={busy} />
           <LaButton label="Switch account" tone="blue" onPress={() => void submit()} disabled={!canSubmit} loading={busy} />
         </View>
-      </ScrollView>
     </ModalSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  subtitle: { fontSize: 13, color: colors.textMuted, marginBottom: 14 },
   block: { marginTop: 18 },
   otpRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 10 },
   resend: { fontSize: 12, fontWeight: "800", color: colors.blueLight },

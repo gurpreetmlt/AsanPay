@@ -865,7 +865,7 @@ function ProfileModal({
   ];
 
   return (
-    <ModalSheet visible={visible} title="Profile & KYC" onClose={onClose}>
+    <ModalSheet visible={visible} title="Profile & KYC" icon={<UserCircle />} onClose={onClose}>
       <ScrollView
         style={{ maxHeight: 520 }}
         contentContainerStyle={{ paddingBottom: 24 }}
@@ -934,7 +934,7 @@ function DevicesHubModal({
 }) {
   const { tokens } = useTheme();
   return (
-    <ModalSheet visible={visible} title="Devices" onClose={onClose}>
+    <ModalSheet visible={visible} title="Devices" icon={<Smartphone />} onClose={onClose}>
       <SectionCard tokens={tokens}>
         <MenuRow
           icon={Smartphone}
@@ -1011,7 +1011,12 @@ function SetLoginMpinModal({
   }
 
   return (
-    <ModalSheet visible={visible} title={hasMpin ? "Change login MPIN" : "Set login MPIN"} onClose={onClose}>
+    <ModalSheet
+      visible={visible}
+      title={hasMpin ? "Change login MPIN" : "Set login MPIN"}
+      icon={<KeyRound />}
+      onClose={onClose}
+    >
       <Text style={styles.pinSub}>
         4-digit MPIN se Welcome back screen pe jaldi login hoga. Transaction PIN alag hai.
       </Text>
@@ -1103,7 +1108,7 @@ function TrustedDevicesModal({ visible, onClose }: { visible: boolean; onClose: 
   }
 
   return (
-    <ModalSheet visible={visible} title="Trusted devices" onClose={onClose}>
+    <ModalSheet visible={visible} title="Trusted devices" icon={<ShieldCheck />} iconTone="green" onClose={onClose}>
       <Text style={styles.pinSub}>
         Ye devices bina OTP ke sirf MPIN se login kar sakte hain (12 ghante rolling window). Naya
         device pehli baar OTP maangega.
@@ -1188,7 +1193,7 @@ function ChangePasswordModal({ visible, onClose }: { visible: boolean; onClose: 
   }
 
   return (
-    <ModalSheet visible={visible} title="Change Password" onClose={onClose}>
+    <ModalSheet visible={visible} title="Change Password" icon={<Lock />} onClose={onClose}>
       <Text style={styles.fieldLabel}>Current Password</Text>
       <TextInput
         style={styles.fieldInput}
@@ -1253,7 +1258,7 @@ function SetTxnPinModal({ visible, onClose }: { visible: boolean; onClose: () =>
   }
 
   return (
-    <ModalSheet visible={visible} title="Set Transaction PIN" onClose={onClose}>
+    <ModalSheet visible={visible} title="Set Transaction PIN" icon={<KeyRound />} onClose={onClose}>
       <Text style={styles.pinSub}>Login password confirm karein, phir naya 4-digit PIN set karein</Text>
       <Text style={styles.fieldLabel}>Login Password</Text>
       <TextInput

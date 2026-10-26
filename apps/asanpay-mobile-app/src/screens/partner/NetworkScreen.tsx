@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import LinearGradient from "react-native-linear-gradient";
-import { ArrowRight, Clock, Search, Zap } from "lucide-react-native";
+import { ArrowRight, Clock, Search, Send, Undo2, UserPlus, Zap } from "lucide-react-native";
 import { DownlineCard, type WalletActionKind } from "../../components/DownlineCard";
 import { ModalSheet } from "../../components/ModalSheet";
 import { PartnerTopBar } from "../../components/PartnerTopBar";
@@ -558,7 +558,13 @@ export function InviteModal({
   }
 
   return (
-    <ModalSheet visible={visible} title={result ? "Invite link ready" : `Invite ${label}`} onClose={close}>
+    <ModalSheet
+      visible={visible}
+      title={result ? "Invite link ready" : `Invite ${label}`}
+      icon={<UserPlus />}
+      iconTone={result ? "green" : "blue"}
+      onClose={close}
+    >
       {result ? (
         <InviteLinkView result={result} roleLabel={label} />
       ) : (
@@ -756,6 +762,9 @@ function WalletModal({
             : "Confirm transfer"
           : `${isReverse ? "Reverse" : "Transfer"} — ${target.name}`
       }
+      subtitle={step === "confirm" ? "Check the details before you confirm." : undefined}
+      icon={isReverse ? <Undo2 /> : <Send />}
+      iconTone={isReverse ? "amber" : "blue"}
       onClose={close}
     >
       {step === "form" ? (
@@ -1001,6 +1010,8 @@ function BulkFundModal({
     <ModalSheet
       visible={visible}
       title={step === "confirm" ? "Confirm bulk transfer" : `Bulk transfer (${targets.length})`}
+      subtitle={step === "confirm" ? "Check the details before you confirm." : undefined}
+      icon={<Send />}
       onClose={close}
     >
       {step === "form" ? (

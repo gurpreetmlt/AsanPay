@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { ChevronDown, Search } from "lucide-react-native";
+import { ChevronDown, MapPin, Search } from "lucide-react-native";
 import { findIndianState, searchIndianStates } from "@asanpay/shared-types";
 import { ModalSheet } from "./ModalSheet";
 import { useTheme } from "../theme/ThemeContext";
@@ -48,7 +48,7 @@ export function StatePickerField({ label, value, onChange, error, disabled }: Pr
       </Pressable>
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      <ModalSheet visible={open} title={label} onClose={close}>
+      <ModalSheet visible={open} title={label} icon={<MapPin />} scroll={false} onClose={close}>
         <View style={[styles.searchRow, { borderColor: tokens.cardBorder }]}>
           <Search size={16} color={tokens.mute} />
           <TextInput

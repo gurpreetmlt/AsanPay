@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
+import { KeyRound } from "lucide-react-native";
 import { ModalSheet } from "./ModalSheet";
 import { PinInput } from "./PinInput";
 import { api } from "../lib/api";
@@ -51,8 +52,13 @@ export function TxnPinModal({
   }
 
   return (
-    <ModalSheet visible={visible} title={title} onClose={onClose}>
-      <Text style={styles.sub}>Money transfer ke liye PIN confirm karein</Text>
+    <ModalSheet
+      visible={visible}
+      title={title}
+      subtitle="Enter your PIN to confirm this money transfer."
+      icon={<KeyRound />}
+      onClose={onClose}
+    >
       <PinInput value={pin} onChange={setPin} />
       <Pressable onPress={verify} disabled={loading || pin.length !== 4} style={styles.btnWrap}>
         <LinearGradient colors={[...colors.gradient]} style={styles.btn}>
@@ -68,7 +74,6 @@ export function TxnPinModal({
 }
 
 const styles = StyleSheet.create({
-  sub: { fontSize: 13, color: colors.textMuted, textAlign: "center", marginBottom: 20 },
   btnWrap: { marginTop: 24 },
   btn: { borderRadius: 12, paddingVertical: 14, alignItems: "center" },
   btnText: { color: "#fff", fontSize: 16, fontWeight: "700" },

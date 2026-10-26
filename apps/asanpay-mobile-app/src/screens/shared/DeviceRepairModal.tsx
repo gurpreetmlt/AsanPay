@@ -135,7 +135,7 @@ export function DeviceRepairModal({ visible, onClose }: Props) {
   }
 
   return (
-    <ModalSheet visible={visible} title="Device Repair & Replacement" onClose={onClose}>
+    <ModalSheet visible={visible} title="Device Repair & Replacement" icon={<Wrench />} iconTone="amber" onClose={onClose}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={[styles.sub, { color: tokens.sub }]}>
           Report a broken device separately from de-registering it.

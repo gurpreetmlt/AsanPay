@@ -137,7 +137,13 @@ export function LinkedAccountsHost({ view, onClose }: { view: LinkedAccountsView
 
   return (
     <>
-      <ModalSheet visible={current === "menu"} title="Your accounts" onClose={closeAll}>
+      <ModalSheet
+        visible={current === "menu"}
+        title="Your accounts"
+        subtitle="Switch without logging out."
+        icon={<Users />}
+        onClose={closeAll}
+      >
         <View style={styles.menuRow}>
           <AccountAvatar name={user.name} role={user.role} size={42} />
           <View style={{ flex: 1, minWidth: 0 }}>

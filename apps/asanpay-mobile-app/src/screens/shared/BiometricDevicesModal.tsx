@@ -142,7 +142,7 @@ export function BiometricDevicesModal({ visible, onClose }: Props) {
   const atLimit = devices.length >= MAX_DEVICES;
 
   return (
-    <ModalSheet visible={visible} title="Biometric Devices" onClose={onClose}>
+    <ModalSheet visible={visible} title="Biometric Devices" icon={<Fingerprint />} onClose={onClose}>
       <Text style={[modalStyles.sub, { color: tokens.sub }]}>
         Up to {MAX_DEVICES} devices can be registered at a time.
       </Text>

@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { CheckCircle2, Link2, ShieldAlert, ShieldCheck, XCircle } from "lucide-react-native";
 import type { LinkCheckResult, LinkedAccountSummary, LinkedAccountsResponse } from "@asanpay/shared-types";
 import { ModalSheet } from "../ModalSheet";
 import { apiError } from "../../utils/apiError";
 import { checkLink, startLink, verifyLink, type OtpSent } from "../../lib/linkedAccounts";
 import { colors } from "../../theme/colors";
-import { AccountAvatar, CodeField, InlineError, LaButton, PulseIcon, RoleChip, laStyles } from "./parts";
+import { AccountAvatar, CodeField, InlineError, LaButton, RoleChip, laStyles } from "./parts";
 
 const RESEND_SECONDS = 30;
 
@@ -111,15 +111,14 @@ export function LinkAccountSheet({
     const current = linked.accounts.find((a) => a.isCurrent);
     const other = linked.accounts.find((a) => !a.isCurrent);
     return (
-      <ModalSheet visible title="Accounts linked" onClose={onClose}>
-        <View style={{ alignItems: "center" }}>
-          <View style={styles.successIcon}>
-            <CheckCircle2 size={30} color={colors.green} />
-          </View>
-          <Text style={[laStyles.muted, { textAlign: "center" }]}>
-            You can now switch between these accounts with your MPIN.
-          </Text>
-        </View>
+      <ModalSheet
+        visible
+        title="Accounts linked"
+        subtitle="You can now switch between these accounts with your MPIN."
+        icon={<CheckCircle2 />}
+        iconTone="green"
+        onClose={onClose}
+      >
         <View style={styles.miniRow}>
           {current ? <AccountMini account={current} /> : null}
           {other ? <AccountMini account={other} /> : null}
@@ -147,26 +146,17 @@ export function LinkAccountSheet({
       { label: "Name", ok: check.checks.name },
     ];
     return (
-      <ModalSheet visible title="Verify account" onClose={close}>
-        <ScrollView>
-          <Text style={styles.step}>Step 2 of 2</Text>
-          <View style={styles.verifyHead}>
-            <PulseIcon
-              bg={check.eligible ? "#E7F8EF" : colors.dangerBg}
-              accent={check.eligible ? colors.greenDark : colors.danger}
-            >
-              {check.eligible ? (
-                <ShieldCheck size={22} color={colors.greenDark} />
-              ) : (
-                <ShieldAlert size={22} color={colors.danger} />
-              )}
-            </PulseIcon>
-            <Text style={[laStyles.muted, { flex: 1, marginTop: 0 }]}>
-              {check.eligible
-                ? "PAN, Aadhaar and name match your verified KYC."
-                : "This account cannot be linked to you."}
-            </Text>
-          </View>
+      <ModalSheet
+        visible
+        title="Verify account"
+        eyebrow="Step 2 of 2"
+        subtitle={
+          check.eligible ? "PAN, Aadhaar and name match your verified KYC." : "This account cannot be linked to you."
+        }
+        icon={check.eligible ? <ShieldCheck /> : <ShieldAlert />}
+        iconTone={check.eligible ? "green" : "red"}
+        onClose={close}
+      >
           {a ? (
             <View style={styles.accountHead}>
               <AccountAvatar name={a.name} role={a.role} size={46} />
@@ -256,15 +246,19 @@ export function LinkAccountSheet({
               loading={busy}
             />
           </View>
-        </ScrollView>
       </ModalSheet>
     );
   }
 
   return (
-    <ModalSheet visible title="Link another account" onClose={close}>
-      <ScrollView keyboardShouldPersistTaps="handled">
-        <Text style={styles.step}>Step 1 of 2</Text>
+    <ModalSheet
+      visible
+      title="Link another account"
+      eyebrow="Step 1 of 2"
+      subtitle="Switch between your accounts without logging out."
+      icon={<Link2 />}
+      onClose={close}
+    >
         <View style={styles.info}>
           <View style={styles.infoIcon}>
             <Link2 size={18} color={colors.blueLight} />
@@ -307,14 +301,11 @@ export function LinkAccountSheet({
           <LaButton label="Cancel" tone="red" onPress={onClose} disabled={busy} />
           <LaButton label="Verify" tone="blue" onPress={() => void runCheck()} disabled={!mobileValid} loading={busy} />
         </View>
-      </ScrollView>
     </ModalSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  step: { fontSize: 11.5, color: colors.textMuted, marginBottom: 14, fontWeight: "600" },
-  verifyHead: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 14 },
   accountHead: {
     flexDirection: "row",
     alignItems: "center",
@@ -404,16 +395,7 @@ const styles = StyleSheet.create({
   identityTitle: { fontSize: 13, fontWeight: "800", color: colors.greenDark },
   resend: { fontSize: 12, fontWeight: "800", color: colors.blueLight },
   resendMuted: { fontSize: 12, fontWeight: "700", color: colors.textMuted },
-  successIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "#E7F8EF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 10,
-  },
-  miniRow: { flexDirection: "row", gap: 12, marginTop: 18 },
+  miniRow: { flexDirection: "row", gap: 12 },
   mini: {
     flex: 1,
     alignItems: "center",

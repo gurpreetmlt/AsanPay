@@ -14,7 +14,7 @@ Every new popup must look like the Linked accounts "Verify account" popup. Never
 | Agent web | `apps/agent-portal/components/ui/Modal.tsx` (`icon`, `iconTone`, `eyebrow`, `subtitle`, `wide`) |
 | Admin web | `apps/admin-portal/components/ui/Modal.tsx` (same props, dark-mode safe) |
 | Confirm / delete | `ConfirmModal` (agent) · `DangerConfirmModal` (admin) |
-| Mobile | `ModalSheet` (bottom sheet) + `PulseIcon` from `components/linkedAccounts/parts.tsx` |
+| Mobile | `components/ModalSheet.tsx` — **centered** popup (not a bottom sheet), same props (`icon`, `iconTone`, `eyebrow`, `subtitle`); body scrolls so footer buttons always show. `scroll={false}` only when the body has its own FlatList. `PulseIcon` lives in `components/PulseIcon.tsx`. |
 
 ## Required anatomy
 
@@ -31,7 +31,7 @@ Every new popup must look like the Linked accounts "Verify account" popup. Never
 
 ## Parity
 
-Same popup on web and mobile in the same change (`web-mobile-parity`). Mobile may stack instead of two columns — note it as a platform exception.
+Same popup on web and mobile in the same change (`web-mobile-parity`). Mobile may stack instead of two columns — note it as a platform exception. No bottom-sheet popups on mobile; never put a ScrollView inside `ModalSheet` (it already scrolls).
 
 ## When touching an old popup
 
