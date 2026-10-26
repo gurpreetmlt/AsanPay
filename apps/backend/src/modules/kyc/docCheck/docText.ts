@@ -79,10 +79,34 @@ export function dobMatches(a: string | null, b: string | null): boolean | null {
   return a === b;
 }
 
+const DOB_LABEL_RE = /DOB|D\.O\.B|DATE\s*OF\s*BIRTH|YEAR\s*OF\s*BIRTH|जन्म/;
+const FULL_DATE_RE = /\b\d{1,2}[/\-.]\d{1,2}[/\-.](?:19|20)\d{2}\b/;
+
+/**
+ * DOB from OCR text. Aadhaar prints it on the label line; PAN prints it on the line *below*
+ * "Date of Birth". Without a label, the first full date not on an issue / download line.
+ */
+export function extractDob(text: string): string | null {
+  const lines = text.toUpperCase().split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    if (!DOB_LABEL_RE.test(lines[i]!)) continue;
+    for (const line of [lines[i]!, lines[i + 1] ?? ""]) {
+      const date = FULL_DATE_RE.exec(line)?.[0] ?? (/YEAR\s*OF\s*BIRTH/.test(lines[i]!) ? line : null);
+      const dob = date ? normalizeDob(date) : null;
+      if (dob) return dob;
+    }
+  }
+  for (const line of lines) {
+    if (/ISSUE|DOWNLOAD|PRINT|GENERAT/.test(line)) continue;
+    const date = FULL_DATE_RE.exec(line)?.[0];
+    if (date) return normalizeDob(date);
+  }
+  return null;
+}
+
 export function analyzeDocText(text: string, confidence: number): DocTextAnalysis {
   const up = text.toUpperCase();
   const alnum = up.replace(/[^A-Z0-9]/g, "").length;
-  const dobLine = /(?:DOB|D\.O\.B|DATE\s*OF\s*BIRTH|YEAR\s*OF\s*BIRTH|जन्म)[^\n]*/.exec(up)?.[0] ?? "";
   return {
     readable: alnum >= MIN_READABLE_CHARS && confidence >= MIN_READABLE_CONFIDENCE,
     panKeyword: /INCOME\s*TAX|PERMANENT\s*ACCOUNT|आयकर/.test(up),
@@ -91,10 +115,10 @@ export function analyzeDocText(text: string, confidence: number): DocTextAnalysi
     aadhaarWord: /AADHAA?R|आधार/.test(up),
     uidai: /UNIQUE\s*IDENTIFICATION|IDENTIFICATION\s*AUTHORITY|विशिष्ट\s*पहचान/.test(up),
     address: /\bADDRESS\b|पता/.test(up),
-    dobLabel: dobLine.length > 0,
+    dobLabel: DOB_LABEL_RE.test(up),
     gender: /\b(?:MALE|FEMALE|TRANSGENDER)\b|पुरुष|महिला/.test(up),
     aadhaarLast4: extractAadhaarLast4(up),
-    dob: normalizeDob(dobLine || null),
+    dob: extractDob(text),
     lines: text
       .split(/\r?\n/)
       .map((l) => l.trim())

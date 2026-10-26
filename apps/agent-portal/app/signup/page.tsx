@@ -1139,7 +1139,7 @@ function SignupPageInner() {
     try {
       const { data } = await api.post<ApiResponse<KycDocCheckResult>>(
         "/kyc/documents/check",
-        { slot, dataUrl },
+        { slot, dataUrl, dob: draft.dob || undefined },
         { timeout: 20_000 },
       );
       if (data.success) result = data.data;

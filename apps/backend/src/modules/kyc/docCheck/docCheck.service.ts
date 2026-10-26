@@ -99,6 +99,8 @@ type RefData = {
   aadhaarName: string | null;
   aadhaarDob: string | null;
   userName: string | null;
+  /** DOB the agent typed on the PAN step (sent with the check). */
+  enteredDob: string | null;
 };
 
 const EMPTY_REFS: RefData = {
@@ -108,6 +110,7 @@ const EMPTY_REFS: RefData = {
   aadhaarName: null,
   aadhaarDob: null,
   userName: null,
+  enteredDob: null,
 };
 
 function safeDecrypt(v: unknown): string | null {
@@ -154,6 +157,7 @@ async function loadReferenceData(userId: string): Promise<RefData> {
     aadhaarName: metaStr(aadhaarMeta, "fullName"),
     aadhaarDob: normalizeDob(metaStr(aadhaarMeta, "dob")),
     userName: user?.name?.trim() || null,
+    enteredDob: null,
   };
 }
 
@@ -198,7 +202,9 @@ function nameCheck(expected: string | null, score: number | null, source: string
       };
 }
 
-function dobCheck(matched: boolean | null, source: string): DocCheckItem {
+/** DOB printed on the card vs the DOB the agent entered (or Aadhaar eKYC). Unreadable on the card → skip. */
+function dobCheck(cardDob: string | null, expectedDob: string | null, source: string): DocCheckItem {
+  const matched = dobMatches(cardDob, expectedDob);
   if (matched == null) {
     return { id: "dob", label: "Date of birth match", status: "skip" };
   }
@@ -208,7 +214,7 @@ function dobCheck(matched: boolean | null, source: string): DocCheckItem {
         id: "dob",
         label: "Date of birth match",
         status: "flag",
-        detail: `Date of birth on the ${source} doesn't match your Aadhaar eKYC — it will be reviewed.`,
+        detail: `Date of birth on the ${source} doesn't match the date of birth you entered — it will be reviewed.`,
       };
 }
 
@@ -279,6 +285,7 @@ async function checkPan(buffer: Buffer, refs: RefData, checks: DocCheckItem[], s
 
   const expected = refs.panName ?? refs.userName;
   checks.push(nameCheck(expected, expected ? bestNameMatch(expected, text.lines) : null, "PAN card"));
+  checks.push(dobCheck(text.dob, refs.enteredDob ?? refs.aadhaarDob, "PAN card"));
   return finalize(slot, "pan", checks, started);
 }
 
@@ -306,6 +313,7 @@ async function checkAadhaar(
   const side = SIDE[slot];
   const sideDocType: DocType = slot === "aadhaarFront" ? "aadhaar_front" : "aadhaar_back";
   const expectedName = refs.aadhaarName ?? refs.userName;
+  const expectedDob = refs.enteredDob ?? refs.aadhaarDob;
 
   const scan: AadhaarQrScan = await scanAadhaarQr(buffer).catch(() => ({ found: false }) as const);
   const qrData = scan.found && scan.secure ? scan.data : null;
@@ -348,7 +356,7 @@ async function checkAadhaar(
       );
     }
     checks.push(nameCheck(expectedName, expectedName ? nameSimilarity(expectedName, qrData.name) : null, "Aadhaar QR"));
-    checks.push(dobCheck(dobMatches(normalizeDob(qrData.dob), refs.aadhaarDob), "Aadhaar QR"));
+    checks.push(dobCheck(normalizeDob(qrData.dob), expectedDob, "Aadhaar QR"));
     return finalize(slot, sideDocType, checks, started, "Aadhaar QR verified", qr);
   }
 
@@ -408,7 +416,7 @@ async function checkAadhaar(
       id: "docType",
       label: "Aadhaar front",
       status: "flag",
-      detail: "We couldn't read the date of birth on this photo — it will be reviewed.",
+      detail: "We couldn't confirm this is the front of the Aadhaar card — it will be reviewed.",
     });
   } else {
     checks.push({ id: "docType", label: slot === "aadhaarFront" ? "Aadhaar front" : "Aadhaar back", status: "pass" });
@@ -440,10 +448,10 @@ async function checkAadhaar(
 
   if (qrData) {
     checks.push(nameCheck(expectedName, expectedName ? nameSimilarity(expectedName, qrData.name) : null, "Aadhaar QR"));
-    checks.push(dobCheck(dobMatches(normalizeDob(qrData.dob), refs.aadhaarDob), "Aadhaar QR"));
+    checks.push(dobCheck(normalizeDob(qrData.dob), expectedDob, "Aadhaar QR"));
   } else if (slot === "aadhaarFront") {
     checks.push(nameCheck(expectedName, expectedName ? bestNameMatch(expectedName, text.lines) : null, "Aadhaar card"));
-    checks.push(dobCheck(dobMatches(text.dob, refs.aadhaarDob), "Aadhaar card"));
+    checks.push(dobCheck(text.dob, expectedDob, "Aadhaar card"));
   }
 
   return finalize(slot, sideDocType, checks, started, undefined, qr);
@@ -451,7 +459,12 @@ async function checkAadhaar(
 
 // ── Engine ───────────────────────────────────────────────────────────────────
 
-async function runDocCheck(userId: string, slot: DocCheckSlot, buffer: Buffer): Promise<DocCheckResult> {
+async function runDocCheck(
+  userId: string,
+  slot: DocCheckSlot,
+  buffer: Buffer,
+  enteredDob: string | null,
+): Promise<DocCheckResult> {
   const started = Date.now();
   const checks: DocCheckItem[] = [];
   const refsPromise = loadReferenceData(userId).catch((err) => {
@@ -472,7 +485,7 @@ async function runDocCheck(userId: string, slot: DocCheckSlot, buffer: Buffer): 
   );
   if (qualityFail) return finalize(slot, "unknown", checks, started);
 
-  const refs = await refsPromise;
+  const refs: RefData = { ...(await refsPromise), enteredDob };
   return slot === "panImage"
     ? checkPan(buffer, refs, checks, started)
     : checkAadhaar(slot, buffer, refs, checks, started);
@@ -487,9 +500,9 @@ function timeoutResult(slot: DocCheckSlot, started: number): DocCheckResult {
 const memoryCache = new Map<string, { result: DocCheckResult; expiresAt: number }>();
 const inFlight = new Map<string, Promise<DocCheckResult>>();
 
-function cacheKey(userId: string, slot: DocCheckSlot, buffer: Buffer): string {
+function cacheKey(userId: string, slot: DocCheckSlot, buffer: Buffer, enteredDob: string | null): string {
   const hash = createHash("sha256").update(buffer).digest("hex").slice(0, 32);
-  return `${CACHE_KEY_PREFIX}${userId}:${slot}:${hash}`;
+  return `${CACHE_KEY_PREFIX}${userId}:${slot}:${hash}:${enteredDob ?? "-"}`;
 }
 
 async function remember(key: string, result: DocCheckResult): Promise<void> {
@@ -523,7 +536,9 @@ export async function checkKycDocument(
   userId: string,
   slot: DocCheckSlot,
   dataUrl: string,
+  hints?: { dob?: string | null },
 ): Promise<DocCheckResult> {
+  const enteredDob = normalizeDob(hints?.dob);
   const parsed = parseKycDataUrl(dataUrl);
   if (!parsed) {
     throw new HttpError(422, "Upload a JPG, PNG, WEBP, or HEIC image", "INVALID_IMAGE_UPLOAD");
@@ -532,14 +547,14 @@ export async function checkKycDocument(
     throw new HttpError(422, "Image must be under 1.5 MB", "IMAGE_TOO_LARGE");
   }
 
-  const key = cacheKey(userId, slot, parsed.buffer);
+  const key = cacheKey(userId, slot, parsed.buffer, enteredDob);
   const cached = await recall(key);
   if (cached) return cached;
 
   const started = Date.now();
   let run = inFlight.get(key);
   if (!run) {
-    run = runDocCheck(userId, slot, parsed.buffer)
+    run = runDocCheck(userId, slot, parsed.buffer, enteredDob)
       .catch((err) => {
         logger.warn({ userId, slot, err: (err as Error).message }, "KYC doc check crashed");
         return timeoutResult(slot, started);

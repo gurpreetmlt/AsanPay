@@ -250,7 +250,7 @@ export async function submitKyc(userId: string, input: KycSubmitInput): Promise<
     DOC_CHECK_SLOTS.map(async (slot) => {
       const raw = dataUrlInputs[slot]?.trim();
       if (!raw || !raw.startsWith("data:image")) return;
-      const result = await checkKycDocument(userId, slot, raw).catch(() => null);
+      const result = await checkKycDocument(userId, slot, raw, { dob: input.dob }).catch(() => null);
       if (result) docChecks[slot] = toStoredDocCheck(result);
     }),
   );

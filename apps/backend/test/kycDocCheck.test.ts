@@ -6,6 +6,7 @@ import {
   bestNameMatch,
   classifyDocType,
   dobMatches,
+  extractDob,
   extractPanCandidates,
   isAadhaarLike,
   isPanLike,
@@ -94,6 +95,12 @@ describe("KYC name / DOB match", () => {
 
   it("scores a different person below 0.8", () => {
     expect(bestNameMatch("Priya Verma", PAN_TEXT.split("\n"))).toBeLessThan(0.8);
+  });
+
+  it("reads PAN DOB from the line below the label and skips issue dates", () => {
+    expect(analyzeDocText(PAN_TEXT, 85).dob).toBe("1990-02-01");
+    expect(extractDob("Issue Date: 12/03/2021\nRahul Kumar\nDOB: 01/02/1990")).toBe("1990-02-01");
+    expect(extractDob("Download Date: 12/03/2021\nGovernment of India")).toBeNull();
   });
 
   it("normalises DOB formats", () => {

@@ -47,6 +47,11 @@ PDF uploads and photos picked before the account exists are not checked.
 PAN / Aadhaar front / back photos are **required** (photos only, no PDF) and go through crop + rotate
 first: web `components/signup/PhotoCropModal.tsx` (react-easy-crop, card frame, rotate ±90°, zoom);
 mobile `react-native-image-crop-picker` native crop screen (free crop + rotate). Output JPEG ≤ 1600 px.
+Full photo preview under each field with a corner badge: spinner → green tick (pass) / orange tick (flag).
+Owner decision (26 Oct): data match = **name (both docs) + PAN number (PAN) + Aadhaar last 4 (Aadhaar)
++ DOB (both docs)**. DOB on the card is compared with the DOB the agent entered (client sends `dob`
+with the check; submit passes `input.dob`), falling back to Aadhaar eKYC DOB; mismatch = orange.
+Never remove a check without asking the owner first.
 
 - After choosing a photo, call the check; show "Checking photo…".
 - `fail` → red text under that field with the exact `message`, clear the photo, Continue stays disabled for that step.
