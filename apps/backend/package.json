@@ -2,7 +2,7 @@
   "name": "@asanpay/backend",
   "version": "0.1.0",
   "private": true,
-  "description": "AsanPay API \u2014 wallet, ledger, commission engine, provider wrapper layer",
+  "description": "AsanPay API — wallet, ledger, commission engine, provider wrapper layer",
   "type": "module",
   "main": "src/server.ts",
   "engines": {
@@ -41,7 +41,6 @@
   "dependencies": {
     "@asanpay/shared-types": "*",
     "@tesseract.js-data/eng": "^1.0.0",
-    "@tesseract.js-data/hin": "^1.0.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
