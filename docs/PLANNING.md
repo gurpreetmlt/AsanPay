@@ -7,11 +7,31 @@ One row per feature; details in the section below the table. Newest at the top o
 
 | # | Feature | Surfaces | Size | Status | Design | Task file |
 |---|---------|----------|------|--------|--------|-----------|
+| PL-04 | Terms & Privacy acceptance checkbox at login (per-version record) | Backend, web, mobile | M | planned (T&C v1.1 + Privacy v1.0 docs written 26 Oct) | — | — |
 | PL-03 | Web location via phone QR (AEPS + onboarding) | Backend, web, mobile | M | building (built 26 Oct, migrate `0074` + APK + live test pending) | — | — |
 | PL-02 | Cash Management page (CMS provider cards, in-app CMS, CMS transactions) | Backend, web, mobile | M | building (built 26 Oct, live test pending) | — | — |
 | PL-01 | Linked accounts + role switch (same person, Distributor + Retailer) | Backend, web, mobile, admin | M | design | [Figma prompt](PROMPTS/figma-linked-accounts.md) | — |
 
 ---
+
+## PL-04 — Terms & Privacy acceptance at login
+
+**Problem:** Agents use the platform without ever accepting the Retailer Terms or the Privacy Policy, so there is no proof of consent (needed under DPDPA and by banking partners).
+
+**Docs (26 Oct)**
+- `Policies/Login-Policy/AsanPay_Retailer_Terms_and_Conditions_v1.1.docx`
+- `Policies/Login-Policy/AsanPay_Privacy_Policy_v1.0.docx`
+
+**Plan**
+- Checkbox above the Login button (agent web + mobile): "I have read and agree to the Terms & Conditions and Privacy Policy" — both links open the full text (web page `/terms`, `/privacy`; mobile screen).
+- Login button disabled until ticked; inline helper text if the user taps Login without ticking.
+- Backend stores acceptance per user + document version (timestamp, method web/app). Once accepted, the checkbox is pre-cleared on future logins until the T&C or Privacy version changes, then shown again.
+- Never store OTP or password in the acceptance record.
+
+**Open decisions**
+- [ ] Fill placeholders in both docs (CIN, Grievance Officer, support hours, official URL / app link, effective date).
+- [ ] Legal review before go-live.
+- [ ] Also show on sign-up (same checkbox) — recommended.
 
 ## PL-03 — Web location via phone QR
 
