@@ -1,7 +1,19 @@
-import { and, eq, desc, sql, lt, or } from "drizzle-orm";
+import { and, eq, desc, sql, lt, or, inArray, ne } from "drizzle-orm";
 import { db } from "../../db/postgres";
-import { journals, providers, services, transactions, users, wallets } from "../../db/postgres/schema";
-import { transferBetweenWallets, adjustWalletHold } from "../wallet/wallet.ledger";
+import {
+  accounts,
+  journals,
+  providers,
+  reconAdjustments,
+  services,
+  tenants,
+  transactions,
+  users,
+  walletLedgerEntries,
+  walletLedgerGroups,
+  wallets,
+} from "../../db/postgres/schema";
+import { transferBetweenWallets, adjustWalletHold, legacyTenantCode } from "../wallet/wallet.ledger";
 import { toPaise, fromPaise } from "../wallet/decimal";
 import {
   resolveProvidersForService,
@@ -673,6 +685,16 @@ export interface UnsubmittedTxnCheck {
   walletType: WalletType;
   /** What a failed settlement returns to the retailer wallet (principal + fee + GST for debits). */
   refundAmount: string;
+  /** Debit posted by the double-entry ledger — only these can be auto-reversed. */
+  hasDebitJournal: boolean;
+  /** Debit recorded for this txn in the pre-ledger wallet book ("0.00" when none). */
+  legacyDebitAmount: string;
+  /** A pre-ledger reversal already exists for this txn. */
+  legacyReversed: boolean;
+  /** The retailer's ledger account — the credit side of a manual refund. */
+  agentAccountCode: string | null;
+  /** Part of the wallet hold that still belongs to this txn. */
+  heldForThisTxn: string;
 }
 
 /**
@@ -717,28 +739,93 @@ export async function checkUnsubmittedTxn(txnRef: string): Promise<UnsubmittedTx
   const movesMoney = direction === "debit" && toPaise(txn.amount) > 0;
   const refundAmount = movesMoney ? serviceChargeTotal(txn.amount, txn.customerFee, txn.customerFeeGst) : "0.00";
 
-  // A reversal mirrors the original debit journal; without one the ledger refuses the refund.
-  if (movesMoney) {
-    const [debitJournal] = await db
-      .select({ id: journals.id })
-      .from(journals)
-      .where(eq(journals.idemKey, `TXN_DR:${txn.id}`))
-      .limit(1);
-    if (!debitJournal) {
-      throw new HttpError(
-        409,
-        `Transaction ${txnRef} has no ledger debit entry, so it cannot be auto-reversed. Refund ${refundAmount} with a recon adjustment instead.`,
-        "TXN_NO_DEBIT_JOURNAL",
+  const [debitJournal] = await db
+    .select({ id: journals.id })
+    .from(journals)
+    .where(eq(journals.idemKey, `TXN_DR:${txn.id}`))
+    .limit(1);
+
+  const [userWallet] = await db
+    .select({ id: wallets.id, holdBalance: wallets.holdBalance })
+    .from(wallets)
+    .where(and(eq(wallets.userId, txn.userId), eq(wallets.walletType, walletType)));
+
+  const legacyRows = userWallet
+    ? await db
+        .select({
+          referenceType: walletLedgerGroups.referenceType,
+          entryType: walletLedgerEntries.entryType,
+          amount: walletLedgerEntries.amount,
+        })
+        .from(walletLedgerEntries)
+        .innerJoin(walletLedgerGroups, eq(walletLedgerGroups.id, walletLedgerEntries.groupId))
+        .where(and(eq(walletLedgerGroups.referenceId, txn.id), eq(walletLedgerEntries.walletId, userWallet.id)))
+    : [];
+  const legacyDebitPaise = legacyRows
+    .filter((r) => r.referenceType === "service_txn" && r.entryType === "debit")
+    .reduce((sum, r) => sum + toPaise(r.amount), 0);
+  const legacyReversed = legacyRows.some((r) => r.referenceType === "reversal");
+
+  const [account] = await db
+    .select({ code: accounts.code })
+    .from(accounts)
+    .innerJoin(tenants, eq(tenants.id, accounts.tenantId))
+    .where(and(eq(accounts.userId, txn.userId), eq(tenants.code, legacyTenantCode())))
+    .limit(1);
+
+  // The wallet hold is one number across all in-flight debits; only the excess over the other
+  // open debits can belong to this txn.
+  let heldForThisTxn = "0.00";
+  if (movesMoney && userWallet) {
+    const others = await db
+      .select({
+        code: services.code,
+        amount: transactions.amount,
+        customerFee: transactions.customerFee,
+        customerFeeGst: transactions.customerFeeGst,
+      })
+      .from(transactions)
+      .innerJoin(services, eq(services.id, transactions.serviceId))
+      .where(
+        and(
+          eq(transactions.userId, txn.userId),
+          eq(transactions.walletType, walletType),
+          inArray(transactions.status, ["pending", "initiated"]),
+          ne(transactions.id, txn.id),
+        ),
       );
-    }
+    const otherHeld = others
+      .filter((o) => inferDirectionFromServiceCode(o.code) === "debit")
+      .reduce((sum, o) => sum + toPaise(serviceChargeTotal(o.amount, o.customerFee, o.customerFeeGst)), 0);
+    const mine = toPaise(userWallet.holdBalance) - otherHeld;
+    heldForThisTxn = fromPaise(Math.max(0, Math.min(mine, toPaise(refundAmount))));
   }
 
-  return { txn, serviceCode: service.code, direction, walletType, refundAmount };
+  return {
+    txn,
+    serviceCode: service.code,
+    direction,
+    walletType,
+    refundAmount,
+    hasDebitJournal: Boolean(debitJournal),
+    legacyDebitAmount: fromPaise(legacyDebitPaise),
+    legacyReversed,
+    agentAccountCode: account?.code ?? null,
+    heldForThisTxn,
+  };
 }
 
 /** Ops: fail a txn that never reached a provider, through the normal reversal path. */
 export async function failUnsubmittedTxn(txnRef: string, reason: string): Promise<TxnRow> {
   const check = await checkUnsubmittedTxn(txnRef);
+  // A reversal mirrors the original debit journal; without one the ledger refuses the refund.
+  if (check.direction === "debit" && toPaise(check.refundAmount) > 0 && !check.hasDebitJournal) {
+    throw new HttpError(
+      409,
+      `Transaction ${txnRef} has no ledger debit entry, so it cannot be auto-reversed. Refund ${check.refundAmount} to ${check.agentAccountCode ?? "the retailer's ledger account"} with an approved recon adjustment, then close it with --refund-adjustment.`,
+      "TXN_NO_DEBIT_JOURNAL",
+    );
+  }
   const finalized = await finalizeTxn(
     check.txn,
     {
@@ -764,6 +851,102 @@ export async function failUnsubmittedTxn(txnRef: string, reason: string): Promis
   });
 
   return finalized;
+}
+
+/**
+ * Ops: close a pre-ledger debit txn whose refund was already paid by an approved recon
+ * adjustment. Moves no money itself — it only verifies the adjustment matches this txn exactly,
+ * releases this txn's share of the wallet hold, and marks the txn failed.
+ */
+export async function closeTxnRefundedByAdjustment(
+  txnRef: string,
+  adjustmentId: bigint,
+  reason: string,
+): Promise<TxnRow> {
+  const check = await checkUnsubmittedTxn(txnRef);
+  const refundPaise = toPaise(check.refundAmount);
+  if (check.direction !== "debit" || refundPaise <= 0 || check.hasDebitJournal) {
+    throw new HttpError(
+      409,
+      `Transaction ${txnRef} can be auto-reversed. Run the script without --refund-adjustment.`,
+      "TXN_AUTO_REVERSIBLE",
+    );
+  }
+  if (check.legacyReversed || toPaise(check.legacyDebitAmount) !== refundPaise) {
+    throw new HttpError(
+      409,
+      `Transaction ${txnRef}: wallet debit on record is ${check.legacyDebitAmount}${check.legacyReversed ? " and it was already reversed" : ""}, not ${check.refundAmount}. Do not refund it.`,
+      "TXN_LEGACY_DEBIT_MISMATCH",
+    );
+  }
+
+  const [adj] = await db.select().from(reconAdjustments).where(eq(reconAdjustments.id, adjustmentId));
+  if (!adj || adj.status !== "approved" || adj.journalId == null) {
+    throw new HttpError(409, `Recon adjustment ${adjustmentId} is not approved yet`, "ADJUSTMENT_NOT_APPROVED");
+  }
+  if (adj.amount !== BigInt(refundPaise)) {
+    throw new HttpError(409, `Recon adjustment ${adjustmentId} amount does not equal ${check.refundAmount}`, "ADJUSTMENT_AMOUNT_MISMATCH");
+  }
+  if (!check.agentAccountCode || adj.creditCode !== check.agentAccountCode) {
+    throw new HttpError(
+      409,
+      `Recon adjustment ${adjustmentId} must credit ${check.agentAccountCode ?? "the retailer's ledger account"}`,
+      "ADJUSTMENT_ACCOUNT_MISMATCH",
+    );
+  }
+  const [reused] = await db
+    .select({ txnRef: transactions.txnRef })
+    .from(transactions)
+    .where(sql`${transactions.metadata} -> 'manualRefund' ->> 'adjustmentId' = ${String(adjustmentId)}`)
+    .limit(1);
+  if (reused) {
+    throw new HttpError(409, `Recon adjustment ${adjustmentId} already closed ${reused.txnRef}`, "ADJUSTMENT_ALREADY_USED");
+  }
+
+  const closed = await db.transaction(async (tx) => {
+    const [locked] = await tx.select().from(transactions).where(eq(transactions.id, check.txn.id)).for("update");
+    if (!locked || (locked.status !== "pending" && locked.status !== "initiated")) {
+      throw new HttpError(409, `Transaction ${txnRef} is already ${locked?.status ?? "gone"}`, "TXN_ALREADY_SETTLED");
+    }
+    if (toPaise(check.heldForThisTxn) > 0) {
+      const userWallet = await getUserWallet(locked.userId, check.walletType);
+      await adjustWalletHold(tx, userWallet.walletId, check.heldForThisTxn, "release");
+    }
+    const [updated] = await tx
+      .update(transactions)
+      .set({
+        status: "failed",
+        failureReason: reason,
+        metadata: {
+          ...(locked.metadata ?? {}),
+          manualRefund: { adjustmentId: String(adjustmentId), journalId: String(adj.journalId) },
+        },
+        completedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(transactions.id, locked.id))
+      .returning();
+    return updated!;
+  });
+
+  await insertAuditLog({
+    userId: null,
+    action: "txn.manual_close_refunded",
+    entityType: "transaction",
+    entityId: check.txn.id,
+    ipAddress: null,
+    userAgent: null,
+    metadata: {
+      from: check.txn.status,
+      to: closed.status,
+      refundAmount: check.refundAmount,
+      adjustmentId: String(adjustmentId),
+      holdReleased: check.heldForThisTxn,
+      reason,
+    },
+  });
+
+  return closed;
 }
 
 /** Pending older than this may be auto-reconciled (provider already acknowledged). */
