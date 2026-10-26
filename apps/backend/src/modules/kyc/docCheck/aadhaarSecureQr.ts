@@ -162,7 +162,7 @@ export function verifySecureQrSignature(signed: Buffer, signature: Buffer): bool
 
 /** Find and decode an Aadhaar Secure QR in a photo. Tries a few sizes — the QR is dense. */
 export async function scanAadhaarQr(buffer: Buffer): Promise<AadhaarQrScan> {
-  const frames = await rgbaFrames(buffer, [1800, 1200, 2600]);
+  const frames = await rgbaFrames(buffer, [1600, 1100]);
   let sawQr = false;
   let legacyAadhaar = false;
   for (const frame of frames) {

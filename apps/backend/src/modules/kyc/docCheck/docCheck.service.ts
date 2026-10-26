@@ -64,7 +64,7 @@ export type StoredDocCheck = Omit<DocCheckResult, "ok" | "durationMs" | "qr"> & 
   qr?: Omit<DocCheckQr, "address">;
 };
 
-const CHECK_TIMEOUT_MS = 8_000;
+const CHECK_TIMEOUT_MS = 12_000;
 const NAME_MATCH_MIN = 0.8;
 const CACHE_TTL_SEC = 2 * 60 * 60;
 const MEMORY_CACHE_MAX = 500;
@@ -218,23 +218,36 @@ function dobCheck(cardDob: string | null, expectedDob: string | null, source: st
       };
 }
 
-async function readText(buffer: Buffer): Promise<DocTextAnalysis | null> {
-  const png = await ocrReadyPng(buffer);
-  if (!png) return null;
-  try {
-    const { text, confidence } = await ocrImage(png);
-    return analyzeDocText(text, confidence);
-  } catch (err) {
-    logger.warn({ err: (err as Error).message }, "KYC OCR failed");
-    return null;
+/**
+ * OCR the card. A second black / white pass runs only when the first misses what the slot needs
+ * (busy coloured backgrounds); both passes' text is merged before the rules run.
+ */
+async function readText(
+  buffer: Buffer,
+  enough: (a: DocTextAnalysis) => boolean,
+): Promise<DocTextAnalysis | null> {
+  const passes: { text: string; confidence: number }[] = [];
+  const merged = () =>
+    analyzeDocText(passes.map((p) => p.text).join("\n"), Math.max(...passes.map((p) => p.confidence)));
+  for (const variant of ["sharp", "bw"] as const) {
+    const png = await ocrReadyPng(buffer, variant);
+    if (!png) continue;
+    try {
+      passes.push(await ocrImage(png));
+    } catch (err) {
+      logger.warn({ err: (err as Error).message }, "KYC OCR failed");
+      continue;
+    }
+    if (enough(merged())) break;
   }
+  return passes.length ? merged() : null;
 }
 
 // ── PAN ─────────────────────────────────────────────────────────────────────
 
 async function checkPan(buffer: Buffer, refs: RefData, checks: DocCheckItem[], started: number) {
   const slot = "panImage" as const;
-  const text = await readText(buffer);
+  const text = await readText(buffer, (a) => looksLikePan(a) && a.panNumbers.length > 0);
   if (!text) {
     checks.push({ id: "ocr", label: "Read card text", status: "flag", detail: MSG_FLAG });
     return finalize(slot, "unknown", checks, started);
@@ -249,7 +262,7 @@ async function checkPan(buffer: Buffer, refs: RefData, checks: DocCheckItem[], s
         status: "fail",
         detail: "This looks like an Aadhaar card. Upload a photo of your PAN card here.",
       });
-    } else if (!text.readable) {
+    } else if (!text.clearlyReadable) {
       checks.push({ id: "ocr", label: "Read card text", status: "flag", detail: MSG_FLAG });
     } else {
       checks.push({
@@ -360,7 +373,7 @@ async function checkAadhaar(
     return finalize(slot, sideDocType, checks, started, "Aadhaar QR verified", qr);
   }
 
-  const text = await readText(buffer);
+  const text = await readText(buffer, (a) => isAadhaarLike(a) && !looksLikePan(a) && a.aadhaarLast4.length > 0);
   const legacyQr = scan.found && !scan.secure && scan.legacyAadhaar;
   const pan = text ? looksLikePan(text) : false;
   const aadhaarEvidence = Boolean(qrData) || legacyQr || (text ? isAadhaarLike(text) && !pan : false);
@@ -378,7 +391,7 @@ async function checkAadhaar(
         status: "fail",
         detail: `This looks like a PAN card. Upload a photo of the ${side} of your Aadhaar card here.`,
       });
-    } else if (!text.readable) {
+    } else if (!text.clearlyReadable) {
       checks.push({ id: "ocr", label: "Read card text", status: "flag", detail: MSG_FLAG });
     } else {
       checks.push({
@@ -529,7 +542,7 @@ async function recall(key: string): Promise<DocCheckResult | null> {
 
 /**
  * Check a KYC photo (PAN / Aadhaar front / Aadhaar back) on our own server.
- * Never throws for checker problems and never takes longer than 8 s — slow or broken
+ * Never throws for checker problems and never takes longer than 12 s — slow or broken
  * checks come back as `flag` so signup is never blocked by the checker itself.
  */
 export async function checkKycDocument(

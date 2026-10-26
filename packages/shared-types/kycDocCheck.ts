@@ -21,10 +21,45 @@ export type KycDocCheckResult = {
 /** Shown under the PAN field when 10 characters are entered but the format is wrong (e.g. letter O for zero). */
 export const PAN_FORMAT_ERROR = "PAN must be 5 letters, 4 numbers, then 1 letter (e.g. ABCDE1234F)";
 
+/** One line in the per-field result list under a checked photo. */
+export type KycDocCheckItem = { tone: KycDocCheckStatus; text: string };
+
 /** UI state per photo field. */
 export type KycDocCheckUi =
   | { state: "checking" }
-  | { state: KycDocCheckStatus; message: string };
+  | { state: KycDocCheckStatus; message: string; items: KycDocCheckItem[] };
+
+/** "✓ PAN number matched", "⚠ Name 72% match" … — skipped checks and photo-quality rows are hidden. */
+function checkItem(c: KycDocCheckResult["checks"][number]): KycDocCheckItem | null {
+  if (c.status === "skip") return null;
+  const pass = c.status === "pass";
+  const tone = c.status;
+  switch (c.id) {
+    case "docType":
+      return pass ? { tone, text: `✓ ${c.label} detected` } : null;
+    case "panNumber":
+      if (pass) return { tone, text: "✓ PAN number matched" };
+      return c.status === "fail"
+        ? { tone, text: "✗ PAN number doesn't match" }
+        : { tone, text: "⚠ PAN number not readable" };
+    case "aadhaarNumber":
+      if (pass) return { tone, text: "✓ Aadhaar number matched" };
+      if (c.status === "fail") return { tone, text: "✗ Aadhaar number doesn't match" };
+      return /couldn't read/i.test(c.detail ?? "")
+        ? { tone, text: "⚠ Aadhaar number not readable" }
+        : { tone, text: "⚠ Aadhaar number doesn't match" };
+    case "name":
+      return pass
+        ? { tone, text: `✓ Name matched${c.score != null ? ` (${c.score}%)` : ""}` }
+        : { tone, text: `⚠ Name ${c.score != null ? `${c.score}% match` : "doesn't match"}` };
+    case "dob":
+      return pass ? { tone, text: "✓ Date of birth matched" } : { tone, text: "⚠ Date of birth doesn't match" };
+    case "aadhaarQr":
+      return pass ? { tone, text: "✓ Aadhaar QR verified" } : { tone, text: "⚠ Aadhaar QR signature not valid" };
+    default:
+      return null;
+  }
+}
 
 export const KYC_DOC_CHECK_COPY = {
   checking: "Checking photo…",
@@ -36,16 +71,17 @@ export const KYC_DOC_CHECK_COPY = {
 
 /** Map an API result to what the field shows. A failed / unreachable check is a non-blocking `flag`. */
 export function kycDocCheckToUi(slot: KycDocCheckSlot, result: KycDocCheckResult | null): KycDocCheckUi {
-  if (!result) return { state: "flag", message: KYC_DOC_CHECK_COPY.flag };
-  if (result.status === "fail") return { state: "fail", message: result.message };
-  if (result.status === "flag") return { state: "flag", message: KYC_DOC_CHECK_COPY.flag };
+  if (!result) return { state: "flag", message: KYC_DOC_CHECK_COPY.flag, items: [] };
+  const items = result.checks.map(checkItem).filter((i): i is KycDocCheckItem => i !== null);
+  if (result.status === "fail") return { state: "fail", message: result.message, items: [] };
+  if (result.status === "flag") return { state: "flag", message: KYC_DOC_CHECK_COPY.flag, items };
   const message =
     slot === "panImage"
       ? KYC_DOC_CHECK_COPY.panPass
       : result.qr?.verified
         ? KYC_DOC_CHECK_COPY.aadhaarQrPass
         : KYC_DOC_CHECK_COPY.aadhaarPass;
-  return { state: "pass", message };
+  return { state: "pass", message, items };
 }
 
 export function kycDocCheckLabel(ui: KycDocCheckUi): string {

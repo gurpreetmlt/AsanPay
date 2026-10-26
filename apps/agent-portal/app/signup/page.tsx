@@ -290,6 +290,19 @@ function FileUpload({
           {kycDocCheckLabel(check)}
         </p>
       ) : null}
+      {check && check.state !== "checking" && check.items.length ? (
+        <ul className="mt-1 space-y-0.5">
+          {check.items.map((item) => (
+            <li
+              key={item.text}
+              className="text-[11px] font-semibold"
+              style={{ color: item.tone === "pass" ? "#15803D" : item.tone === "flag" ? "#B45309" : "#DC2626" }}
+            >
+              {item.text}
+            </li>
+          ))}
+        </ul>
+      ) : null}
       {meta ? (
         <button type="button" className="mt-1 text-xs font-semibold underline" style={{ color: B.muted }} onClick={onClear}>
           Remove

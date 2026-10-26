@@ -80,6 +80,17 @@ describe("KYC doc text rules", () => {
     expect(a.aadhaarLast4).toEqual([]);
   });
 
+  it("treats DOB + gender as an Aadhaar front even when the number is unreadable", () => {
+    const noisy = analyzeDocText("AR bl mn\nAEH / DOB: 08/06/1994\nMale\n0324 0251 |", 36);
+    expect(isAadhaarLike(noisy)).toBe(true);
+    expect(isPanLike(noisy)).toBe(false);
+  });
+
+  it("only calls OCR output 'clearly readable' when confident and long", () => {
+    expect(analyzeDocText("AR जनरल ह्रलनललततर Ch EET 2 CEE Sena BV AEH DOB TES", 38).clearlyReadable).toBe(false);
+    expect(analyzeDocText(`${PAN_TEXT}\n${PAN_TEXT}`, 85).clearlyReadable).toBe(true);
+  });
+
   it("marks near-empty OCR output as unreadable", () => {
     expect(analyzeDocText("~ ~ ab", 90).readable).toBe(false);
     expect(analyzeDocText(PAN_TEXT, 10).readable).toBe(false);

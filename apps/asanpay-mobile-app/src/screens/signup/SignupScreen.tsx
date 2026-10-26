@@ -2917,6 +2917,22 @@ function UploadRow({
           </Text>
         </View>
       ) : null}
+      {check && check.state !== "checking" && check.items.length ? (
+        <View style={{ marginTop: 4, gap: 2 }}>
+          {check.items.map((item) => (
+            <Text
+              key={item.text}
+              style={{
+                fontSize: 11,
+                fontWeight: "600",
+                color: item.tone === "pass" ? colors.greenDark : item.tone === "flag" ? "#B45309" : colors.danger,
+              }}
+            >
+              {item.text}
+            </Text>
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }

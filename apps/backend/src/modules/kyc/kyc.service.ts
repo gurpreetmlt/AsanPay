@@ -244,7 +244,7 @@ export async function submitKyc(userId: string, input: KycSubmitInput): Promise<
     }
   }
 
-  // Usually a cache hit from POST /documents/check; otherwise capped at 8 s per photo (parallel).
+  // Usually a cache hit from POST /documents/check; otherwise capped at 12 s per photo (parallel).
   const docChecks: Partial<Record<(typeof DOC_CHECK_SLOTS)[number], StoredDocCheck>> = {};
   await Promise.all(
     DOC_CHECK_SLOTS.map(async (slot) => {

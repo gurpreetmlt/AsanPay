@@ -92,6 +92,7 @@ export async function rgbaFrames(
         .ensureAlpha()
         .raw()
         .toBuffer({ resolveWithObject: true });
+      if (frames.some((f) => f.width === info.width)) continue;
       frames.push({
         data: new Uint8ClampedArray(data.buffer, data.byteOffset, data.byteLength),
         width: info.width,
@@ -104,16 +105,18 @@ export async function rgbaFrames(
   return frames;
 }
 
-/** Upright, greyscale, contrast-normalized PNG for OCR. */
-export async function ocrReadyPng(buffer: Buffer): Promise<Buffer | null> {
+/**
+ * Upright PNG for OCR. `sharp` = greyscale + contrast + sharpen (default pass);
+ * `bw` = black / white threshold — second pass for cards with busy coloured backgrounds.
+ */
+export async function ocrReadyPng(buffer: Buffer, variant: "sharp" | "bw" = "sharp"): Promise<Buffer | null> {
   try {
-    return await sharp(buffer, { failOn: "none" })
+    const base = sharp(buffer, { failOn: "none" })
       .rotate()
-      .resize({ width: 1400, withoutEnlargement: false })
+      .resize({ width: 1600, withoutEnlargement: false })
       .greyscale()
-      .normalize()
-      .png()
-      .toBuffer();
+      .normalize();
+    return await (variant === "bw" ? base.threshold(150) : base.sharpen()).png().toBuffer();
   } catch {
     return null;
   }

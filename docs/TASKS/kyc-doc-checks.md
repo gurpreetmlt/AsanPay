@@ -52,6 +52,10 @@ Owner decision (26 Oct): data match = **name (both docs) + PAN number (PAN) + Aa
 + DOB (both docs)**. DOB on the card is compared with the DOB the agent entered (client sends `dob`
 with the check; submit passes `input.dob`), falling back to Aadhaar eKYC DOB; mismatch = orange.
 Never remove a check without asking the owner first.
+OCR (26 Oct fix — real Aadhaar front was rejected): English-only tesseract (Hindi mixed Latin up, ~3×
+slower), sharpened pass + black/white second pass when the slot's key fields are missing. "Wrong
+document" red only when OCR is clearly readable (conf ≥ 60, ≥ 60 chars) with no markers; noisy real
+cards → orange. Timeout 12 s. UI lists per-field results (✓ PAN number matched, ⚠ Name 72% match …).
 
 - After choosing a photo, call the check; show "Checking photo…".
 - `fail` → red text under that field with the exact `message`, clear the photo, Continue stays disabled for that step.

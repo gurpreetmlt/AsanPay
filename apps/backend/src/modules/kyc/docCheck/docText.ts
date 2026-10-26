@@ -4,6 +4,11 @@ export type DocType = "pan" | "aadhaar_front" | "aadhaar_back" | "unknown";
 
 export type DocTextAnalysis = {
   readable: boolean;
+  /**
+   * OCR is confident and found plenty of text. Only then may "no card markers" mean "wrong
+   * document" — a real card with a busy background often OCRs as low-confidence noise.
+   */
+  clearlyReadable: boolean;
   panKeyword: boolean;
   panNumbers: string[];
   aadhaarGov: boolean;
@@ -21,6 +26,8 @@ export type DocTextAnalysis = {
 const PAN_RE = /^[A-Z]{5}\d{4}[A-Z]$/;
 const MIN_READABLE_CHARS = 25;
 const MIN_READABLE_CONFIDENCE = 30;
+const CLEAR_CHARS = 60;
+const CLEAR_CONFIDENCE = 60;
 
 const TO_LETTER: Record<string, string> = { "0": "O", "1": "I", "2": "Z", "5": "S", "8": "B", "6": "G" };
 const TO_DIGIT: Record<string, string> = { O: "0", D: "0", Q: "0", I: "1", L: "1", Z: "2", S: "5", B: "8", G: "6" };
@@ -109,11 +116,12 @@ export function analyzeDocText(text: string, confidence: number): DocTextAnalysi
   const alnum = up.replace(/[^A-Z0-9]/g, "").length;
   return {
     readable: alnum >= MIN_READABLE_CHARS && confidence >= MIN_READABLE_CONFIDENCE,
+    clearlyReadable: alnum >= CLEAR_CHARS && confidence >= CLEAR_CONFIDENCE,
     panKeyword: /INCOME\s*TAX|PERMANENT\s*ACCOUNT|आयकर/.test(up),
     panNumbers: extractPanCandidates(up),
     aadhaarGov: /GOVERNMENT\s*OF\s*INDIA|GOVT\.?\s*OF\s*INDIA|भारत\s*सरकार/.test(up),
     aadhaarWord: /AADHAA?R|आधार/.test(up),
-    uidai: /UNIQUE\s*IDENTIFICATION|IDENTIFICATION\s*AUTHORITY|विशिष्ट\s*पहचान/.test(up),
+    uidai: /UNIQUE\s*IDENTIFICATION|IDENTIFICATION\s*AUTHORITY|AUTHORITY\s*OF\s*INDIA|UIDAI|UIDAL\.GOV|विशिष्ट\s*पहचान/.test(up),
     address: /\bADDRESS\b|पता/.test(up),
     dobLabel: DOB_LABEL_RE.test(up),
     gender: /\b(?:MALE|FEMALE|TRANSGENDER)\b|पुरुष|महिला/.test(up),
@@ -156,7 +164,14 @@ export function classifyDocType(a: DocTextAnalysis): DocType {
 
 /** Needs an Aadhaar-only marker — "Government of India" + DOB also appear on PAN cards. */
 export function isAadhaarLike(a: DocTextAnalysis): boolean {
-  return a.aadhaarWord || a.uidai || a.aadhaarLast4.length > 0 || (a.aadhaarGov && a.gender);
+  // DOB + gender together = Aadhaar front (PAN has a DOB but never a gender).
+  return (
+    a.aadhaarWord ||
+    a.uidai ||
+    a.aadhaarLast4.length > 0 ||
+    (a.aadhaarGov && a.gender) ||
+    (a.dobLabel && a.gender)
+  );
 }
 
 export function isPanLike(a: DocTextAnalysis): boolean {

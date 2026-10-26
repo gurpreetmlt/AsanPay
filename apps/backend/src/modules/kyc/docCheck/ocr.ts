@@ -5,7 +5,11 @@ import path from "node:path";
 import Tesseract from "tesseract.js";
 import { logger } from "../../../utils/logger";
 
-const LANGS = ["eng", "hin"] as const;
+/**
+ * English only: every PAN / Aadhaar prints its key fields in English, and mixing in Hindi made
+ * Latin text read worse (Latin letters guessed as Devanagari) and OCR ~3× slower.
+ */
+const LANGS = ["eng"] as const;
 /** Matches tesseract.js default for OEM LSTM_ONLY. */
 const MODEL_DIR = "4.0.0_best_int";
 const TESSDATA_DIR = path.join(os.tmpdir(), "asanpay-tessdata");

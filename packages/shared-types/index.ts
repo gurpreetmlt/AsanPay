@@ -483,6 +483,7 @@ export {
   kycDocCheckBlocksStep,
   kycDocCheckLabel,
   kycDocCheckToUi,
+  type KycDocCheckItem,
   type KycDocCheckResult,
   type KycDocCheckSlot,
   type KycDocCheckStatus,
