@@ -52,19 +52,35 @@ export const SIGNUP_GEO_LOW_ACCURACY_MESSAGE =
 const GOOD_ACCURACY_M = 30;
 const WATCH_MS = 15_000;
 
-/** Best high-accuracy fix within WATCH_MS (stops early once it is good). */
+/** Recent cached fix (fused keeps one from Wi-Fi / cell even when GPS has no sky view). */
+function cachedFix(): Promise<GeolocationResponse> {
+  return new Promise((resolve, reject) =>
+    Geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: true,
+      timeout: 6000,
+      maximumAge: 120_000,
+    }),
+  );
+}
+
+/**
+ * Best high-accuracy fix within WATCH_MS (stops early once it is good). Fused reports
+ * "location not available" before its first fix indoors, so only a permission error ends
+ * the watch early; anything else keeps waiting until the window closes.
+ */
 function bestFix(): Promise<GeolocationResponse> {
-  return new Promise((resolve, reject) => {
+  const watch = new Promise<GeolocationResponse>((resolve, reject) => {
     let best: GeolocationResponse | null = null;
+    let lastErr: { code?: number } | undefined;
     let settled = false;
     let watchId: number | null = null;
-    const finish = (pos: GeolocationResponse | null, err?: { code?: number }) => {
+    const finish = (pos: GeolocationResponse | null) => {
       if (settled) return;
       settled = true;
       if (watchId != null) Geolocation.clearWatch(watchId);
       clearTimeout(timer);
       if (pos) resolve(pos);
-      else reject(err ?? { code: 3 });
+      else reject(lastErr ?? { code: 3 });
     };
     const timer = setTimeout(() => finish(best), WATCH_MS);
     watchId = Geolocation.watchPosition(
@@ -73,11 +89,19 @@ function bestFix(): Promise<GeolocationResponse> {
         if (pos.coords.accuracy <= GOOD_ACCURACY_M) finish(pos);
       },
       (err) => {
-        if (best) finish(best);
-        else finish(null, err);
+        lastErr = err;
+        if (err?.code === 1) finish(null);
       },
       { enableHighAccuracy: true, distanceFilter: 0, interval: 1000, fastestInterval: 500, maximumAge: 0, timeout: WATCH_MS + 5000 },
     );
+  });
+  return watch.catch(async (err: { code?: number }) => {
+    if (err?.code === 1) throw err;
+    try {
+      return await cachedFix();
+    } catch {
+      throw err;
+    }
   });
 }
 
@@ -102,7 +126,11 @@ export async function captureSignupLocation(place: "shop" | "home"): Promise<Sig
   } catch (err) {
     const code = (err as { code?: number })?.code;
     if (code === 1) throw new Error("Location permission is off. Allow location for AsanPay in Settings, then tap Fetch location again.");
-    if (code === 2) throw new Error("Phone location (GPS) is off. Turn on Location in quick settings, then tap Fetch location again.");
+    if (code === 2) {
+      throw new Error(
+        "Could not get your location. Check Location is on in quick settings, go near a window or step outside, then tap Fetch location again.",
+      );
+    }
     throw new Error(SIGNUP_GEO_LOW_ACCURACY_MESSAGE);
   }
   const jm = jailMonkey();
