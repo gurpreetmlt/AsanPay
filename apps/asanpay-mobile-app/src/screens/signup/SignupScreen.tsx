@@ -27,6 +27,8 @@ import { BrandMark } from "../../components/BrandMark";
 import { IfscBankDetailsFields } from "../../components/IfscBankDetailsFields";
 import { LabelText } from "../../components/RequiredMark";
 import { MobileSignupStepper, MOBILE_SIGNUP_STEPS } from "../../components/MobileSignupStepper";
+import { CardCameraModal } from "../../components/CardCameraModal";
+import { KycCardUpload, type KycCardStage } from "../../components/KycCardUpload";
 import { ModalSheet } from "../../components/ModalSheet";
 import { TermsAcceptModal } from "../../components/TermsAcceptModal";
 import {
@@ -98,6 +100,12 @@ const CROP_TITLE: Record<KycDocCheckSlot, string> = {
   panImage: "Crop PAN card",
   aadhaarFront: "Crop Aadhaar front",
   aadhaarBack: "Crop Aadhaar back",
+};
+
+const CAMERA_TITLE: Record<KycDocCheckSlot, string> = {
+  panImage: "Photo of PAN card",
+  aadhaarFront: "Photo of Aadhaar front",
+  aadhaarBack: "Photo of Aadhaar back",
 };
 
 const CROP_REVIEW_TITLE: Record<KycDocCheckSlot, string> = {
@@ -468,6 +476,8 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
   const [photoCaptureBusy, setPhotoCaptureBusy] = useState(false);
   const [docChecks, setDocChecks] = useState<Partial<Record<KycDocCheckSlot, KycDocCheckUi>>>({});
   const [autoCropping, setAutoCropping] = useState<KycDocCheckSlot | null>(null);
+  /** Slot the card-frame camera is open for. */
+  const [cameraSlot, setCameraSlot] = useState<KycDocCheckSlot | null>(null);
   /** Auto-cropped card waiting for the agent to confirm (Use photo) or adjust. */
   const [cropReview, setCropReview] = useState<{ slot: KycDocCheckSlot; dataUrl: string; path: string } | null>(null);
   /** Photo as picked, so "Adjust crop" re-crops from the full photo rather than the auto-crop. */
@@ -1096,9 +1106,12 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
       showAlert("Upload failed", "Could not read this photo. Try another photo.");
       return;
     }
-    docOriginalsRef.current[slot] = picked.path;
-    const original = `data:${picked.mime || "image/jpeg"};base64,${picked.data}`;
+    await processDocPhoto(slot, picked.path, `data:${picked.mime || "image/jpeg"};base64,${picked.data}`);
+  }
 
+  /** Gallery or camera photo → server auto-crop → review popup; no card found → manual crop. */
+  async function processDocPhoto(slot: KycDocCheckSlot, path: string, original: string) {
+    docOriginalsRef.current[slot] = path;
     if (accessToken) {
       setAutoCropping(slot);
       try {
@@ -1108,7 +1121,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
           { timeout: 25_000 },
         );
         if (data.success && data.data.detected) {
-          setCropReview({ slot, dataUrl: data.data.dataUrl, path: picked.path });
+          setCropReview({ slot, dataUrl: data.data.dataUrl, path });
           return;
         }
       } catch {
@@ -1117,7 +1130,43 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         setAutoCropping((s) => (s === slot ? null : s));
       }
     }
-    await manualCropDocPhoto(slot, picked.path);
+    await manualCropDocPhoto(slot, path);
+  }
+
+  /** Card-frame camera photo. Too large for the upload limit → the crop screen compresses it. */
+  async function onCardCaptured(path: string) {
+    const slot = cameraSlot;
+    setCameraSlot(null);
+    if (!slot) return;
+    const uri = path.startsWith("file://") ? path : `file://${path}`;
+    let dataUrl: string;
+    try {
+      dataUrl = await fileToJpegDataUrl(uri);
+    } catch {
+      showAlert("Upload failed", "Could not read the photo. Take it again or use Gallery.");
+      return;
+    }
+    if (dataUrl.length > MAX_UPLOAD_DATA_URL) {
+      await manualCropDocPhoto(slot, uri);
+      return;
+    }
+    await processDocPhoto(slot, uri, dataUrl);
+  }
+
+  function removeDocPhoto(slot: KycDocCheckSlot) {
+    delete docOriginalsRef.current[slot];
+    docCheckSeqRef.current[slot] = (docCheckSeqRef.current[slot] ?? 0) + 1;
+    setDocChecks((c) => {
+      const next = { ...c };
+      delete next[slot];
+      return next;
+    });
+    patch({ [slot]: null });
+  }
+
+  function docCardStage(slot: KycDocCheckSlot): KycCardStage {
+    if (autoCropping === slot) return "cropping";
+    return docChecks[slot]?.state === "checking" ? "checking" : null;
   }
 
   /** Native crop screen on the photo as picked (ID-card frame, free crop + rotate). */
@@ -2319,17 +2368,18 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                     placeholderTextColor={tokens.mute}
                     style={inputStyle}
                   />
-                  <UploadRow
+                  <KycCardUpload
                     label="PAN Card Image *"
-                    actionLabel="Tap to upload · card is cropped automatically"
-                    done={Boolean(draft.panImage)}
-                    name={draft.panImage?.name}
-                    onPress={() => void pickDocImage("panImage", "pan")}
-                    onAdjust={() => adjustDocCrop("panImage")}
-                    busyLabel={autoCropping === "panImage" ? "Cropping card…" : null}
-                    tokens={tokens}
-                    check={docChecks.panImage}
+                    title="PAN card"
+                    hint="Front side · clear photo"
                     previewUri={draft.panImage?.dataUrl || draft.panImage?.uri}
+                    stage={docCardStage("panImage")}
+                    check={docChecks.panImage}
+                    tokens={tokens}
+                    onCamera={() => setCameraSlot("panImage")}
+                    onGallery={() => void pickDocImage("panImage", "pan")}
+                    onAdjust={() => adjustDocCrop("panImage")}
+                    onRemove={() => removeDocPhoto("panImage")}
                   />
                 </>
               )}
@@ -2450,29 +2500,31 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                       ) : null}
                     </>
                   )}
-                  <UploadRow
+                  <KycCardUpload
                     label="Aadhaar Front *"
-                    done={Boolean(draft.aadhaarFront)}
-                    name={draft.aadhaarFront?.name}
-                    actionLabel="Tap to upload · card is cropped automatically"
-                    onPress={() => void pickDocImage("aadhaarFront", "aadhaar-front")}
-                    onAdjust={() => adjustDocCrop("aadhaarFront")}
-                    busyLabel={autoCropping === "aadhaarFront" ? "Cropping card…" : null}
-                    tokens={tokens}
-                    check={docChecks.aadhaarFront}
+                    title="Aadhaar front"
+                    hint="Side with your photo · clear photo"
                     previewUri={draft.aadhaarFront?.dataUrl || draft.aadhaarFront?.uri}
-                  />
-                  <UploadRow
-                    label="Aadhaar Back *"
-                    done={Boolean(draft.aadhaarBack)}
-                    name={draft.aadhaarBack?.name}
-                    actionLabel="Tap to upload · card is cropped automatically"
-                    onPress={() => void pickDocImage("aadhaarBack", "aadhaar-back")}
-                    onAdjust={() => adjustDocCrop("aadhaarBack")}
-                    busyLabel={autoCropping === "aadhaarBack" ? "Cropping card…" : null}
+                    stage={docCardStage("aadhaarFront")}
+                    check={docChecks.aadhaarFront}
                     tokens={tokens}
-                    check={docChecks.aadhaarBack}
+                    onCamera={() => setCameraSlot("aadhaarFront")}
+                    onGallery={() => void pickDocImage("aadhaarFront", "aadhaar-front")}
+                    onAdjust={() => adjustDocCrop("aadhaarFront")}
+                    onRemove={() => removeDocPhoto("aadhaarFront")}
+                  />
+                  <KycCardUpload
+                    label="Aadhaar Back *"
+                    title="Aadhaar back"
+                    hint="Side with address & QR code · clear photo"
                     previewUri={draft.aadhaarBack?.dataUrl || draft.aadhaarBack?.uri}
+                    stage={docCardStage("aadhaarBack")}
+                    check={docChecks.aadhaarBack}
+                    tokens={tokens}
+                    onCamera={() => setCameraSlot("aadhaarBack")}
+                    onGallery={() => void pickDocImage("aadhaarBack", "aadhaar-back")}
+                    onAdjust={() => adjustDocCrop("aadhaarBack")}
+                    onRemove={() => removeDocPhoto("aadhaarBack")}
                   />
                 </>
               )}
@@ -2835,6 +2887,13 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         </ScrollView>
       </KeyboardAvoidingView>
 
+      <CardCameraModal
+        visible={Boolean(cameraSlot)}
+        title={cameraSlot ? CAMERA_TITLE[cameraSlot] : ""}
+        onClose={() => setCameraSlot(null)}
+        onCaptured={(path) => void onCardCaptured(path)}
+      />
+
       <ModalSheet
         visible={Boolean(cropReview)}
         title={cropReview ? CROP_REVIEW_TITLE[cropReview.slot] : ""}
@@ -2951,6 +3010,23 @@ function FieldLabel({ text, color }: { text: string; color: string }) {
 
 type PickedImage = { path: string; mime: string; size: number; data?: string | null };
 
+/** Server KYC photo limit is 1.5 MB of image bytes ≈ 2 M base64 characters. */
+const MAX_UPLOAD_DATA_URL = 1_950_000;
+
+/** Local photo file → `data:image/jpeg;base64,…` (file blobs report a generic mime type). */
+async function fileToJpegDataUrl(uri: string): Promise<string> {
+  const blob = await (await fetch(uri)).blob();
+  const raw = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => (typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("read failed")));
+    reader.onerror = () => reject(new Error("read failed"));
+    reader.readAsDataURL(blob);
+  });
+  const base64 = raw.slice(raw.indexOf(",") + 1);
+  if (!base64) throw new Error("empty photo");
+  return `data:image/jpeg;base64,${base64}`;
+}
+
 function imageCropPicker() {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   return require("react-native-image-crop-picker") as {
@@ -2969,8 +3045,6 @@ function UploadRow({
   compact,
   check,
   previewUri,
-  busyLabel,
-  onAdjust,
 }: {
   label: string;
   done: boolean;
@@ -2978,10 +3052,6 @@ function UploadRow({
   previewUri?: string;
   name?: string;
   onPress: () => void;
-  /** Shown instead of the file name while the photo is processed (e.g. auto-crop) */
-  busyLabel?: string | null;
-  /** KYC card photos: reopen the manual crop on the original photo */
-  onAdjust?: () => void;
   tokens: { mute: string; card: string; cardBorder: string; txt2: string };
   actionLabel?: string;
   compact?: boolean;
@@ -3021,13 +3091,9 @@ function UploadRow({
           }}
           numberOfLines={compact ? 2 : 1}
         >
-          {busyLabel ?? (done ? name || "Uploaded" : actionLabel || "Tap to upload")}
+          {done ? name || "Uploaded" : actionLabel || "Tap to upload"}
         </Text>
-        {busyLabel ? (
-          <ActivityIndicator size="small" color={colors.blue} />
-        ) : (
-          <Text style={{ color: done ? colors.greenDark : tokens.mute, fontWeight: "800" }}>{done ? "✓" : "+"}</Text>
-        )}
+        <Text style={{ color: done ? colors.greenDark : tokens.mute, fontWeight: "800" }}>{done ? "✓" : "+"}</Text>
       </Pressable>
       {done && previewUri ? (
         <Pressable
@@ -3047,28 +3113,6 @@ function UploadRow({
             resizeMode="contain"
             style={{ width: "100%", aspectRatio: 85.6 / 54, borderRadius: 10 }}
           />
-          {onAdjust && !busyLabel ? (
-            <Pressable
-              onPress={onAdjust}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel={`Adjust crop of ${label.replace(/\s*\*.*$/, "")}`}
-              style={({ pressed }) => ({
-                position: "absolute",
-                top: 12,
-                left: 12,
-                width: 32,
-                height: 32,
-                borderRadius: 16,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: pressed ? "#F7F9FF" : "#FFFFFF",
-                elevation: 3,
-              })}
-            >
-              <Crop size={16} color={colors.blue} />
-            </Pressable>
-          ) : null}
           {check && check.state !== "fail" ? (
             <View
               style={{

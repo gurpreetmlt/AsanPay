@@ -26,6 +26,7 @@ import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { LabelText } from "@/components/ui/RequiredMark";
 import { DateField } from "@/components/ui/DateField";
 import { SignupStepper, SIGNUP_STEPS } from "@/components/signup/SignupStepper";
+import { KycCardUpload, type KycCardStage } from "@/components/signup/KycCardUpload";
 import { loadImage, PhotoCropModal, scaleImageToDataUrl } from "@/components/signup/PhotoCropModal";
 import {
   LocationPermissionModal,
@@ -105,9 +106,6 @@ const CROP_TITLE: Record<KycDocCheckSlot, string> = {
   aadhaarFront: "Crop Aadhaar front",
   aadhaarBack: "Crop Aadhaar back",
 };
-const DOC_PHOTO_ACCEPT = "image/jpeg,image/png,image/webp";
-const DOC_PHOTO_HINT = "Photo · JPG, PNG or WEBP · card is cropped automatically";
-
 const CROP_REVIEW_TITLE: Record<KycDocCheckSlot, string> = {
   panImage: "PAN card cropped",
   aadhaarFront: "Aadhaar front cropped",
@@ -222,15 +220,9 @@ function FileUpload({
   check,
   formatHint,
   largePreview,
-  busyLabel,
-  onAdjust,
 }: {
   label: string;
   meta: SignupFileMeta | null;
-  /** Shown instead of the file name while the photo is processed (e.g. auto-crop) */
-  busyLabel?: string | null;
-  /** KYC card photos: reopen the manual crop on the original photo */
-  onAdjust?: () => void;
   previewUrl?: string | null;
   accept?: string;
   emptyHint?: string;
@@ -286,30 +278,10 @@ function FileUpload({
               className={`w-full rounded-xl bg-white object-contain ${largePreview ? (compact ? "max-h-44" : "max-h-60") : compact ? "max-h-20" : "max-h-28"}`}
             />
             <DocCheckBadge check={check} />
-            {onAdjust && meta && !busyLabel ? (
-              <button
-                type="button"
-                title="Adjust crop"
-                aria-label={`Adjust crop of ${label.replace(/\s*\*.*$/, "")}`}
-                className="absolute left-2 top-2 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-white shadow-md transition hover:scale-105 hover:bg-[#F7F9FF]"
-                style={{ color: B.blue }}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onAdjust();
-                }}
-              >
-                <Crop size={16} />
-              </button>
-            ) : null}
           </div>
         ) : null}
-        <span
-          className={`inline-flex items-center gap-2 font-semibold ${compact ? "text-xs" : "text-sm"}`}
-          style={{ color: error ? "#DC2626" : B.blue }}
-        >
-          {busyLabel ? <Loader2 size={14} className="animate-spin" /> : null}
-          {busyLabel ?? (meta ? meta.name : emptyHint)}
+        <span className={`font-semibold ${compact ? "text-xs" : "text-sm"}`} style={{ color: error ? "#DC2626" : B.blue }}>
+          {meta ? meta.name : emptyHint}
         </span>
         <span className="text-[11px] leading-snug" style={{ color: B.muted }}>
           {formatHint ?? (compact ? "JPG / PNG / PDF · 2 MB" : "JPG, PNG, WEBP, HEIC or PDF · max 2 MB")}
@@ -1110,6 +1082,11 @@ function SignupPageInner() {
       }
     }
     setCropTarget({ slot, src: original, name: file.name });
+  }
+
+  function docCardStage(slot: KycDocCheckSlot): KycCardStage {
+    if (autoCropping === slot) return "cropping";
+    return docChecks[slot]?.state === "checking" ? "checking" : null;
   }
 
   function acceptReviewedCrop() {
@@ -2328,20 +2305,17 @@ function SignupPageInner() {
                     placeholder="As per PAN"
                   />
                 </Field>
-                <FileUpload
+                <KycCardUpload
                   label="PAN Card Image *"
-                  meta={draft.panImage}
-                  previewUrl={previews.panImage ?? draft.panImage?.dataUrl}
-                  largePreview
-                  emptyHint="Tap to upload PAN card"
-                  accept={DOC_PHOTO_ACCEPT}
-                  formatHint={DOC_PHOTO_HINT}
-                  onPick={(f) => void pickDocPhoto("panImage", f)}
-                  onClear={() => clearFile("panImage")}
-                  onAdjust={() => adjustDocCrop("panImage")}
-                  busyLabel={autoCropping === "panImage" ? "Cropping card…" : null}
-                  error={stepErrorKey === "panImage"}
+                  title="PAN card"
+                  hint="Front side · clear photo"
+                  previewUrl={draft.panImage ? (previews.panImage ?? draft.panImage.dataUrl) : null}
+                  stage={docCardStage("panImage")}
                   check={docChecks.panImage}
+                  missing={stepErrorKey === "panImage"}
+                  onPick={(f) => void pickDocPhoto("panImage", f)}
+                  onAdjust={() => adjustDocCrop("panImage")}
+                  onRemove={() => clearFile("panImage")}
                 />
               </>
             )}
@@ -2449,37 +2423,29 @@ function SignupPageInner() {
                 <div
                   className="mb-2 grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5"
                 >
-                  <FileUpload
+                  <KycCardUpload
                     label="Aadhaar Front *"
-                    meta={draft.aadhaarFront}
-                    previewUrl={previews.aadhaarFront ?? draft.aadhaarFront?.dataUrl}
-                    largePreview
-                    emptyHint="Tap to upload front"
-                    accept={DOC_PHOTO_ACCEPT}
-                    formatHint={DOC_PHOTO_HINT}
-                    onPick={(f) => void pickDocPhoto("aadhaarFront", f)}
-                    onClear={() => clearFile("aadhaarFront")}
-                    onAdjust={() => adjustDocCrop("aadhaarFront")}
-                    busyLabel={autoCropping === "aadhaarFront" ? "Cropping card…" : null}
-                    error={stepErrorKey === "aadhaarFront"}
+                    title="Aadhaar front"
+                    hint="Side with your photo · clear photo"
+                    previewUrl={draft.aadhaarFront ? (previews.aadhaarFront ?? draft.aadhaarFront.dataUrl) : null}
+                    stage={docCardStage("aadhaarFront")}
                     check={docChecks.aadhaarFront}
-                    compact
+                    missing={stepErrorKey === "aadhaarFront"}
+                    onPick={(f) => void pickDocPhoto("aadhaarFront", f)}
+                    onAdjust={() => adjustDocCrop("aadhaarFront")}
+                    onRemove={() => clearFile("aadhaarFront")}
                   />
-                  <FileUpload
+                  <KycCardUpload
                     label="Aadhaar Back *"
-                    meta={draft.aadhaarBack}
-                    previewUrl={previews.aadhaarBack ?? draft.aadhaarBack?.dataUrl}
-                    largePreview
-                    emptyHint="Tap to upload back"
-                    accept={DOC_PHOTO_ACCEPT}
-                    formatHint={DOC_PHOTO_HINT}
-                    onPick={(f) => void pickDocPhoto("aadhaarBack", f)}
-                    onClear={() => clearFile("aadhaarBack")}
-                    onAdjust={() => adjustDocCrop("aadhaarBack")}
-                    busyLabel={autoCropping === "aadhaarBack" ? "Cropping card…" : null}
-                    error={stepErrorKey === "aadhaarBack"}
+                    title="Aadhaar back"
+                    hint="Side with address & QR code · clear photo"
+                    previewUrl={draft.aadhaarBack ? (previews.aadhaarBack ?? draft.aadhaarBack.dataUrl) : null}
+                    stage={docCardStage("aadhaarBack")}
                     check={docChecks.aadhaarBack}
-                    compact
+                    missing={stepErrorKey === "aadhaarBack"}
+                    onPick={(f) => void pickDocPhoto("aadhaarBack", f)}
+                    onAdjust={() => adjustDocCrop("aadhaarBack")}
+                    onRemove={() => clearFile("aadhaarBack")}
                   />
                 </div>
               </>
