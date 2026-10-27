@@ -257,6 +257,7 @@ export async function submitKyc(userId: string, input: KycSubmitInput): Promise<
     dob: input.dob,
     gender: input.gender,
     aadhaarLast4: input.aadhaarNumber.replace(/\D/g, "").slice(-4),
+    pan: input.panNumber,
   };
   await Promise.all(
     DOC_CHECK_SLOTS.map(async (slot) => {

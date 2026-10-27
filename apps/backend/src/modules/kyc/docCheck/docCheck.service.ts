@@ -110,9 +110,16 @@ type EnteredData = {
   enteredDob: string | null;
   enteredGender: "male" | "female" | "other" | null;
   enteredAadhaarLast4: string | null;
+  /** PAN typed in the form; `undefined` = older app that doesn't send it, `null` = not typed yet. */
+  enteredPan?: string | null;
 };
 
-export type DocCheckHints = { dob?: string | null; gender?: string | null; aadhaarLast4?: string | null };
+export type DocCheckHints = {
+  dob?: string | null;
+  gender?: string | null;
+  aadhaarLast4?: string | null;
+  pan?: string | null;
+};
 
 const EMPTY_REFS: RefData = {
   pan: null,
@@ -128,11 +135,16 @@ const EMPTY_REFS: RefData = {
 
 function enteredFromHints(hints?: DocCheckHints): EnteredData {
   const last4 = (hints?.aadhaarLast4 ?? "").replace(/\D/g, "").slice(-4);
-  return {
+  const entered: EnteredData = {
     enteredDob: normalizeDob(hints?.dob),
     enteredGender: normalizeGender(hints?.gender),
     enteredAadhaarLast4: last4.length === 4 ? last4 : null,
   };
+  if (hints?.pan != null) {
+    const pan = hints.pan.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    entered.enteredPan = /^[A-Z]{5}\d{4}[A-Z]$/.test(pan) ? pan : null;
+  }
+  return entered;
 }
 
 function safeDecrypt(v: unknown): string | null {
@@ -329,6 +341,10 @@ async function checkPan(buffer: Buffer, refs: RefData, checks: DocCheckItem[], s
   }
   checks.push({ id: "docType", label: "PAN card", status: "pass" });
 
+  // Compare with the PAN typed in the form. A PAN verified on an earlier attempt only counts
+  // when it is the same number — otherwise an empty or changed form would match old details.
+  const refPan = refs.enteredPan === undefined ? refs.pan : refs.enteredPan;
+  const panVerified = refPan != null && refPan === refs.pan;
   let panMismatch = false;
   if (!text.panNumbers.length) {
     checks.push({
@@ -337,9 +353,9 @@ async function checkPan(buffer: Buffer, refs: RefData, checks: DocCheckItem[], s
       status: "flag",
       detail: "We couldn't read the PAN number on this photo — it will be reviewed.",
     });
-  } else if (!refs.pan) {
-    checks.push({ id: "panNumber", label: "PAN number", status: "skip", detail: "No verified PAN to compare yet" });
-  } else if (text.panNumbers.includes(refs.pan)) {
+  } else if (!refPan) {
+    checks.push({ id: "panNumber", label: "PAN number", status: "skip", detail: "No PAN number entered yet" });
+  } else if (text.panNumbers.includes(refPan)) {
     checks.push({ id: "panNumber", label: "PAN number", status: "pass" });
   } else {
     panMismatch = true;
@@ -347,15 +363,15 @@ async function checkPan(buffer: Buffer, refs: RefData, checks: DocCheckItem[], s
       id: "panNumber",
       label: "PAN number",
       status: "flag",
-      detail: "PAN number on this photo does not match your verified PAN.",
+      detail: "PAN number on this photo doesn't match the PAN number you entered — it will be reviewed.",
     });
   }
 
-  const expected = refs.panName ?? refs.userName;
+  const expected = (panVerified ? refs.panName : null) ?? refs.userName;
   checks.push(nameCheck(expected, expected ? bestNameMatch(expected, text.lines) : null, "PAN card"));
   checks.push(dobCheck(text.dob, refs.enteredDob ?? refs.aadhaarDob, "PAN card"));
-  // The verified PAN came from the provider, so a different number on the card is red on its own.
-  escalateDifferentPerson(checks, "PAN card", panMismatch, true);
+  // A provider-verified PAN that differs from the card is red on its own.
+  escalateDifferentPerson(checks, "PAN card", panMismatch, panVerified);
   return finalize(slot, "pan", checks, started);
 }
 
@@ -593,7 +609,8 @@ const inFlight = new Map<string, Promise<DocCheckResult>>();
 /** Result depends on the photo AND what was typed in the form, so both are in the key. */
 function cacheKey(userId: string, slot: DocCheckSlot, buffer: Buffer, entered: EnteredData): string {
   const hash = createHash("sha256").update(buffer).digest("hex").slice(0, 32);
-  const form = `${entered.enteredDob ?? "-"}:${entered.enteredGender ?? "-"}:${entered.enteredAadhaarLast4 ?? "-"}`;
+  const pan = entered.enteredPan === undefined ? "?" : (entered.enteredPan ?? "-");
+  const form = `${entered.enteredDob ?? "-"}:${entered.enteredGender ?? "-"}:${entered.enteredAadhaarLast4 ?? "-"}:${pan}`;
   return `${CACHE_KEY_PREFIX}${userId}:${slot}:${hash}:${form}`;
 }
 

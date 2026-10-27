@@ -98,13 +98,17 @@ export function kycDocCheckLabel(ui: KycDocCheckUi): string {
  * Form values sent with a photo check so the server can compare them with the card.
  * Only the Aadhaar last 4 digits — never the full number.
  */
-export function kycDocCheckHints(form: { dob?: string; gender?: string; aadhaar?: string }): {
+export function kycDocCheckHints(form: { dob?: string; gender?: string; aadhaar?: string; pan?: string }): {
+  pan: string;
   dob?: string;
   gender?: string;
   aadhaarLast4?: string;
 } {
   const digits = (form.aadhaar ?? "").replace(/\D/g, "");
+  const pan = (form.pan ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
   return {
+    // Always sent: empty means "no PAN typed yet", so the card is not compared with an older PAN.
+    pan: /^[A-Z]{5}\d{4}[A-Z]$/.test(pan) ? pan : "",
     ...(form.dob ? { dob: form.dob } : {}),
     ...(form.gender ? { gender: form.gender } : {}),
     ...(digits.length === 12 ? { aadhaarLast4: digits.slice(-4) } : {}),

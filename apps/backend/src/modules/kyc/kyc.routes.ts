@@ -51,6 +51,12 @@ const docCheckSchema = z.object({
   /** What the agent entered — compared with what is printed on the card. */
   dob: z.string().trim().max(20).optional(),
   gender: z.string().trim().max(20).optional(),
+  /** PAN typed in the form; "" = not typed yet. Omitted by older apps. */
+  pan: z
+    .string()
+    .trim()
+    .regex(/^([A-Za-z]{5}\d{4}[A-Za-z])?$/, "PAN must be 10 characters like ABCDE1234F")
+    .optional(),
   /** Last 4 digits only — the full Aadhaar number never travels with a photo check. */
   aadhaarLast4: z
     .string()
@@ -73,6 +79,7 @@ kycRouter.post("/documents/check", kycDocCheckLimiter, validateBody(docCheckSche
     dob: body.dob,
     gender: body.gender,
     aadhaarLast4: body.aadhaarLast4,
+    pan: body.pan,
   });
   await recordKycVerification(
     req.auth.sub,
