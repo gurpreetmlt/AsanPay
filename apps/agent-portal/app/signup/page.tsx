@@ -623,6 +623,8 @@ function SignupPageInner() {
   /** Photo as picked (≤ 1600 px), kept in memory so "Adjust crop" can re-crop from the full photo. */
   const [docOriginals, setDocOriginals] = useState<Partial<Record<KycDocCheckSlot, string>>>({});
   const [autoCropping, setAutoCropping] = useState<KycDocCheckSlot | null>(null);
+  /** Photo the server check refused, shown faded behind "Photo not accepted". Memory only. */
+  const [rejectedPhotos, setRejectedPhotos] = useState<Partial<Record<KycDocCheckSlot, string>>>({});
   /** Auto-cropped card waiting for the agent to confirm (Use photo) or adjust. */
   const [cropReview, setCropReview] = useState<{ slot: KycDocCheckSlot; dataUrl: string; name: string } | null>(null);
 
@@ -1191,6 +1193,11 @@ function SignupPageInner() {
         delete next[key];
         return next;
       });
+      setRejectedPhotos((r) => {
+        const next = { ...r };
+        delete next[key];
+        return next;
+      });
     }
   }
 
@@ -1225,6 +1232,13 @@ function SignupPageInner() {
     if (docCheckSeqRef.current[slot] !== seq) return;
     const ui = kycDocCheckToUi(slot, result);
     setDocChecks((c) => ({ ...c, [slot]: ui }));
+    setRejectedPhotos((r) => {
+      if (ui.state === "fail" && dataUrl) return { ...r, [slot]: dataUrl };
+      if (!r[slot]) return r;
+      const next = { ...r };
+      delete next[slot];
+      return next;
+    });
     if (ui.state === "fail") clearFile(slot, { keepCheck: true });
   }
 
@@ -2310,6 +2324,7 @@ function SignupPageInner() {
                   title="PAN card"
                   hint="Front side · clear photo"
                   previewUrl={draft.panImage ? (previews.panImage ?? draft.panImage.dataUrl) : null}
+                  rejectedUrl={rejectedPhotos.panImage}
                   stage={docCardStage("panImage")}
                   check={docChecks.panImage}
                   missing={stepErrorKey === "panImage"}
@@ -2428,6 +2443,7 @@ function SignupPageInner() {
                     title="Aadhaar front"
                     hint="Side with your photo · clear photo"
                     previewUrl={draft.aadhaarFront ? (previews.aadhaarFront ?? draft.aadhaarFront.dataUrl) : null}
+                    rejectedUrl={rejectedPhotos.aadhaarFront}
                     stage={docCardStage("aadhaarFront")}
                     check={docChecks.aadhaarFront}
                     missing={stepErrorKey === "aadhaarFront"}
@@ -2440,6 +2456,7 @@ function SignupPageInner() {
                     title="Aadhaar back"
                     hint="Side with address & QR code · clear photo"
                     previewUrl={draft.aadhaarBack ? (previews.aadhaarBack ?? draft.aadhaarBack.dataUrl) : null}
+                    rejectedUrl={rejectedPhotos.aadhaarBack}
                     stage={docCardStage("aadhaarBack")}
                     check={docChecks.aadhaarBack}
                     missing={stepErrorKey === "aadhaarBack"}

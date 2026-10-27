@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ChevronDown, Crop, CreditCard, ImagePlus, Loader2 } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { AlertTriangle, ChevronDown, Crop, CreditCard, ImagePlus, Loader2, ShieldCheck, Trash2, XCircle } from "lucide-react";
 import type { KycDocCheckUi } from "@asanpay/shared-types";
 import { B } from "@/lib/brand";
 
@@ -13,14 +13,15 @@ export type KycCardStage = "cropping" | "checking" | null;
 
 /**
  * One big card-shaped box per KYC photo (PAN / Aadhaar front / back): empty → loading (scan line in
- * the box) → done (photo + crop icon + status badge) → failed (red, retake). Checks collapse into a
- * one-line summary.
+ * the box) → done (photo + status badge + icon action bar) → failed (rejected photo faded behind a
+ * "Photo not accepted" panel). Checks collapse into a one-line summary strip.
  */
 export function KycCardUpload({
   label,
   title,
   hint,
   previewUrl,
+  rejectedUrl,
   stage,
   check,
   missing,
@@ -34,6 +35,8 @@ export function KycCardUpload({
   /** "Front side · clear photo" */
   hint: string;
   previewUrl?: string | null;
+  /** Photo the check refused, shown faded behind the failure message */
+  rejectedUrl?: string | null;
   stage: KycCardStage;
   check?: KycDocCheckUi;
   /** Required and still empty after Continue */
@@ -81,7 +84,7 @@ export function KycCardUpload({
         {label}
       </p>
       <div
-        className={`relative w-full overflow-hidden rounded-2xl border-2 transition ${hasPhoto ? "border-solid" : "border-dashed"} ${dragging ? "scale-[1.01]" : ""}`}
+        className={`relative w-full overflow-hidden rounded-2xl border-2 transition ${hasPhoto || failed ? "border-solid shadow-[0_6px_18px_rgba(11,42,154,0.10)]" : "border-dashed"} ${dragging ? "scale-[1.01]" : ""}`}
         style={{
           aspectRatio: CARD_ASPECT,
           borderColor: dragging ? B.blueLight : border,
@@ -119,64 +122,77 @@ export function KycCardUpload({
           </div>
         ) : hasPhoto ? (
           <>
-            <button
-              type="button"
-              title="Adjust crop"
-              aria-label={`Adjust crop of ${title}`}
-              className="absolute left-2 top-2 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-white shadow-md transition hover:scale-105 hover:bg-[#F7F9FF]"
-              style={{ color: B.blue }}
-              onClick={onAdjust}
-            >
-              <Crop size={17} />
-            </button>
             {check && check.state !== "checking" ? (
               <span
-                className={`absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-full text-base font-bold text-white shadow-md ${check.state === "pass" ? "kyc-badge-pulse" : ""}`}
+                className={`absolute right-2.5 top-2.5 flex h-9 w-9 items-center justify-center rounded-full text-base font-bold text-white shadow-md ${check.state === "pass" ? "kyc-badge-pulse" : ""}`}
                 style={{ background: check.state === "pass" ? "#16A34A" : "#F59E0B" }}
                 aria-hidden
               >
                 {check.state === "pass" ? "✓" : "!"}
               </span>
             ) : null}
-            <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-4 bg-white/90 py-1.5 text-xs font-semibold backdrop-blur-sm">
-              <label className="cursor-pointer underline" style={{ color: B.blue }}>
-                Change photo
+            <div className="absolute bottom-2.5 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full bg-white/95 p-1 shadow-[0_4px_14px_rgba(11,42,154,0.18)] backdrop-blur-sm">
+              <IconAction label={`Adjust crop of ${title}`} onClick={onAdjust}>
+                <Crop size={18} />
+              </IconAction>
+              <label
+                title="Change photo"
+                aria-label={`Change ${title} photo`}
+                className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full transition hover:bg-[#EEF2FF]"
+                style={{ color: B.blue }}
+              >
+                <ImagePlus size={18} />
                 {fileInput}
               </label>
-              <span style={{ color: B.border }}>·</span>
-              <button type="button" className="cursor-pointer underline" style={{ color: "#DC2626" }} onClick={onRemove}>
-                Remove
-              </button>
+              <span className="mx-0.5 h-5 w-px" style={{ background: "#E2E8F0" }} aria-hidden />
+              <IconAction label={`Remove ${title} photo`} onClick={onRemove} danger>
+                <Trash2 size={18} />
+              </IconAction>
+            </div>
+          </>
+        ) : failed && check?.state === "fail" ? (
+          <>
+            {rejectedUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={rejectedUrl} alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover opacity-[0.16]" />
+            ) : null}
+            <div
+              className="absolute inset-2.5 flex flex-col items-center justify-center gap-1.5 rounded-xl bg-white/90 px-4 text-center"
+              role="alert"
+            >
+              <p className="inline-flex items-center gap-1.5 text-[15px] font-bold" style={{ color: "#DC2626" }}>
+                <XCircle size={18} /> Photo not accepted
+              </p>
+              <p className="max-w-[28rem] text-xs font-semibold leading-snug" style={{ color: "#991B1B" }}>
+                {check.message}
+              </p>
+              <label
+                className="mt-1 inline-flex cursor-pointer items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110"
+                style={{ background: B.blue }}
+              >
+                <ImagePlus size={16} />
+                Retake photo
+                {fileInput}
+              </label>
             </div>
           </>
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center">
-            <span
-              className="flex h-12 w-12 items-center justify-center rounded-2xl"
-              style={{ background: failed ? "#FEE2E2" : B.secondary, color: failed ? "#DC2626" : B.blueLight }}
-            >
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl" style={{ background: B.secondary, color: B.blueLight }}>
               <CreditCard size={24} />
             </span>
-            {failed && check?.state === "fail" ? (
-              <p className="max-w-[26rem] text-sm font-semibold leading-snug" style={{ color: "#DC2626" }}>
-                {check.message}
-              </p>
-            ) : (
-              <>
-                <p className="text-base font-semibold" style={{ color: B.blue }}>
-                  Upload {title}
-                </p>
-                <p className="text-xs" style={{ color: B.muted }}>
-                  {hint}
-                </p>
-              </>
-            )}
+            <p className="text-base font-semibold" style={{ color: B.blue }}>
+              Upload {title}
+            </p>
+            <p className="text-xs" style={{ color: B.muted }}>
+              {hint}
+            </p>
             <label
               className="mt-1 inline-flex cursor-pointer items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110"
               style={{ background: B.blue }}
             >
               <ImagePlus size={16} />
-              {failed ? "Retake photo" : "Choose photo"}
+              Choose photo
               {fileInput}
             </label>
             <p className="hidden text-[11px] sm:block" style={{ color: B.muted }}>
@@ -199,6 +215,31 @@ export function KycCardUpload({
   );
 }
 
+function IconAction({
+  label,
+  onClick,
+  danger,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  danger?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      onClick={onClick}
+      className={`flex h-9 w-9 cursor-pointer items-center justify-center rounded-full transition ${danger ? "hover:bg-[#FEF2F2]" : "hover:bg-[#EEF2FF]"}`}
+      style={{ color: danger ? "#DC2626" : B.blue }}
+    >
+      {children}
+    </button>
+  );
+}
+
 function CheckSummary({
   check,
   open,
@@ -211,15 +252,15 @@ function CheckSummary({
   const passed = check.items.filter((i) => i.tone === "pass");
   const problems = check.items.filter((i) => i.tone !== "pass");
   const amber = check.state === "flag";
-  const summary = amber
-    ? check.message
-    : passed.length
-      ? `✓ All ${passed.length} checks passed`
-      : check.message;
+  const summary = amber ? check.message : passed.length ? `All ${passed.length} checks passed` : check.message;
   return (
-    <div className="mt-2">
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-xs font-semibold" style={{ color: amber ? "#B45309" : "#15803D" }} role="status" aria-live="polite">
+    <div
+      className="mt-2 rounded-xl border px-3 py-2"
+      style={amber ? { background: "#FFF7ED", borderColor: "#FED7AA" } : { background: "#ECFDF3", borderColor: "#BBF7D0" }}
+    >
+      <div className="flex items-center gap-2">
+        {amber ? <AlertTriangle size={16} color="#B45309" /> : <ShieldCheck size={16} color="#15803D" />}
+        <p className="flex-1 text-[13px] font-semibold" style={{ color: amber ? "#B45309" : "#15803D" }} role="status" aria-live="polite">
           {summary}
         </p>
         {passed.length ? (
@@ -235,22 +276,20 @@ function CheckSummary({
           </button>
         ) : null}
       </div>
-      {problems.length ? (
-        <ul className="mt-1 space-y-0.5">
+      {problems.length || open ? (
+        <ul className="mt-1 space-y-0.5 pl-6">
           {problems.map((item) => (
             <li key={item.text} className="text-[11px] font-semibold" style={{ color: item.tone === "flag" ? "#B45309" : "#DC2626" }}>
               {item.text}
             </li>
           ))}
-        </ul>
-      ) : null}
-      {open ? (
-        <ul className="mt-1 space-y-0.5">
-          {passed.map((item) => (
-            <li key={item.text} className="text-[11px] font-semibold" style={{ color: "#15803D" }}>
-              {item.text}
-            </li>
-          ))}
+          {open
+            ? passed.map((item) => (
+                <li key={item.text} className="text-[11px] font-semibold" style={{ color: "#15803D" }}>
+                  {item.text}
+                </li>
+              ))
+            : null}
         </ul>
       ) : null}
     </div>

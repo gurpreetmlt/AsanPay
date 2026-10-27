@@ -1,6 +1,16 @@
 import React, { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, ActivityIndicator, Animated, Easing, Image, Pressable, StyleSheet, Text, View } from "react-native";
-import { Camera, ChevronDown, CreditCard, Crop, Image as ImageIcon } from "lucide-react-native";
+import {
+  AlertTriangle,
+  Camera,
+  ChevronDown,
+  CreditCard,
+  Crop,
+  Image as ImageIcon,
+  ShieldCheck,
+  Trash2,
+  XCircle,
+} from "lucide-react-native";
 import type { KycDocCheckUi } from "@asanpay/shared-types";
 import { colors } from "../theme/colors";
 
@@ -13,14 +23,15 @@ type Tokens = { mute: string; card: string; cardBorder: string; txt2: string };
 
 /**
  * One big card-shaped box per KYC photo (PAN / Aadhaar front / back): empty → loading (scan line in
- * the box) → done (photo + crop icon + status badge) → failed (red, retake). Same states as web
- * `KycCardUpload`; mobile offers Camera + Gallery instead of a file chooser.
+ * the box) → done (photo + status badge + icon action bar) → failed (rejected photo faded behind a
+ * "Photo not accepted" panel). Same states as web `KycCardUpload`; mobile offers Camera + Gallery.
  */
 export function KycCardUpload({
   label,
   title,
   hint,
   previewUri,
+  rejectedUri,
   stage,
   check,
   missing,
@@ -34,6 +45,8 @@ export function KycCardUpload({
   title: string;
   hint: string;
   previewUri?: string | null;
+  /** Photo the check refused, shown faded behind the failure message */
+  rejectedUri?: string | null;
   stage: KycCardStage;
   check?: KycDocCheckUi;
   missing?: boolean;
@@ -98,9 +111,10 @@ export function KycCardUpload({
         onLayout={(e) => setBoxHeight(e.nativeEvent.layout.height)}
         style={[
           st.box,
+          hasPhoto || failed ? st.boxRaised : null,
           {
             borderColor,
-            borderStyle: hasPhoto ? "solid" : "dashed",
+            borderStyle: hasPhoto || failed ? "solid" : "dashed",
             backgroundColor: failed || missing ? colors.dangerBg : hasPhoto ? "#FFFFFF" : "#F7F9FF",
           },
         ]}
@@ -121,62 +135,64 @@ export function KycCardUpload({
           </View>
         ) : hasPhoto ? (
           <>
-            <Pressable
-              onPress={onAdjust}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel={`Adjust crop of ${title}`}
-              style={({ pressed }) => [st.roundBtn, { left: 10, backgroundColor: pressed ? "#F7F9FF" : "#FFFFFF" }]}
-            >
-              <Crop size={17} color={colors.blue} />
-            </Pressable>
             {check && check.state !== "checking" ? (
-              <View style={[st.roundBtn, { right: 10, backgroundColor: check.state === "pass" ? colors.green : "#F59E0B" }]}>
+              <View style={[st.badge, { backgroundColor: check.state === "pass" ? colors.green : "#F59E0B" }]}>
                 <Text style={st.badgeText}>{check.state === "pass" ? "✓" : "!"}</Text>
               </View>
             ) : null}
-            <View style={st.bottomBar}>
-              <Pressable onPress={onCamera} hitSlop={6} accessibilityRole="button">
-                <Text style={[st.barLink, { color: colors.blue }]}>Camera</Text>
-              </Pressable>
-              <Text style={{ color: tokens.cardBorder }}>·</Text>
-              <Pressable onPress={onGallery} hitSlop={6} accessibilityRole="button">
-                <Text style={[st.barLink, { color: colors.blue }]}>Gallery</Text>
-              </Pressable>
-              <Text style={{ color: tokens.cardBorder }}>·</Text>
-              <Pressable onPress={onRemove} hitSlop={6} accessibilityRole="button">
-                <Text style={[st.barLink, { color: colors.danger }]}>Remove</Text>
-              </Pressable>
+            <View style={st.actionBar}>
+              <IconAction label={`Adjust crop of ${title}`} onPress={onAdjust}>
+                <Crop size={18} color={colors.blue} />
+              </IconAction>
+              <IconAction label="Retake with camera" onPress={onCamera}>
+                <Camera size={18} color={colors.blue} />
+              </IconAction>
+              <IconAction label="Choose from gallery" onPress={onGallery}>
+                <ImageIcon size={18} color={colors.blue} />
+              </IconAction>
+              <View style={st.actionDivider} />
+              <IconAction label={`Remove ${title} photo`} onPress={onRemove} danger>
+                <Trash2 size={18} color={colors.danger} />
+              </IconAction>
+            </View>
+          </>
+        ) : failed && check?.state === "fail" ? (
+          <>
+            {rejectedUri ? (
+              <Image source={{ uri: rejectedUri }} resizeMode="cover" style={[StyleSheet.absoluteFill, { opacity: 0.16 }]} />
+            ) : null}
+            <View style={st.failPanel} accessibilityLiveRegion="polite">
+              <View style={st.failHead}>
+                <XCircle size={18} color={colors.danger} />
+                <Text style={st.failTitle}>Photo not accepted</Text>
+              </View>
+              <Text style={st.failText} numberOfLines={4}>
+                {check.message}
+              </Text>
+              <View style={st.btnRow}>
+                <PillButton primary label="Retake" onPress={onCamera}>
+                  <Camera size={15} color="#FFFFFF" />
+                </PillButton>
+                <PillButton label="Gallery" onPress={onGallery} border={tokens.cardBorder}>
+                  <ImageIcon size={15} color={colors.blue} />
+                </PillButton>
+              </View>
             </View>
           </>
         ) : (
           <View style={[st.center, { paddingHorizontal: 14 }]}>
-            <View style={[st.iconTile, { backgroundColor: failed ? "#FEE2E2" : "#E8EEFF" }]}>
-              <CreditCard size={24} color={failed ? colors.danger : colors.blueLight} />
+            <View style={[st.iconTile, { backgroundColor: "#E8EEFF" }]}>
+              <CreditCard size={24} color={colors.blueLight} />
             </View>
-            {failed && check?.state === "fail" ? (
-              <Text style={st.failText} numberOfLines={4}>
-                {check.message}
-              </Text>
-            ) : (
-              <>
-                <Text style={[st.emptyTitle, { color: colors.blue }]}>Upload {title}</Text>
-                <Text style={[st.emptyHint, { color: tokens.mute }]}>{hint}</Text>
-              </>
-            )}
+            <Text style={[st.emptyTitle, { color: colors.blue }]}>Upload {title}</Text>
+            <Text style={[st.emptyHint, { color: tokens.mute }]}>{hint}</Text>
             <View style={st.btnRow}>
-              <Pressable onPress={onCamera} accessibilityRole="button" style={({ pressed }) => [st.pill, st.pillBlue, pressed && { opacity: 0.85 }]}>
+              <PillButton primary label="Camera" onPress={onCamera}>
                 <Camera size={15} color="#FFFFFF" />
-                <Text style={st.pillBlueText}>{failed ? "Retake" : "Camera"}</Text>
-              </Pressable>
-              <Pressable
-                onPress={onGallery}
-                accessibilityRole="button"
-                style={({ pressed }) => [st.pill, { backgroundColor: pressed ? "#F7F9FF" : "#FFFFFF", borderColor: tokens.cardBorder, borderWidth: 1.5 }]}
-              >
+              </PillButton>
+              <PillButton label="Gallery" onPress={onGallery} border={tokens.cardBorder}>
                 <ImageIcon size={15} color={colors.blue} />
-                <Text style={[st.pillText, { color: colors.blue }]}>Gallery</Text>
-              </Pressable>
+              </PillButton>
             </View>
           </View>
         )}
@@ -188,6 +204,60 @@ export function KycCardUpload({
         <CheckSummary check={check} open={showDetails} onToggle={() => setShowDetails((v) => !v)} mute={tokens.mute} />
       ) : null}
     </View>
+  );
+}
+
+function IconAction({
+  label,
+  onPress,
+  danger,
+  children,
+}: {
+  label: string;
+  onPress: () => void;
+  danger?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      hitSlop={4}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={({ pressed }) => [st.iconAction, pressed && { backgroundColor: danger ? "#FEF2F2" : "#EEF2FF" }]}
+    >
+      {children}
+    </Pressable>
+  );
+}
+
+function PillButton({
+  label,
+  onPress,
+  primary,
+  border,
+  children,
+}: {
+  label: string;
+  onPress: () => void;
+  primary?: boolean;
+  border?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      style={({ pressed }) => [
+        st.pill,
+        primary
+          ? { backgroundColor: colors.blue, opacity: pressed ? 0.85 : 1 }
+          : { backgroundColor: pressed ? "#F7F9FF" : "#FFFFFF", borderColor: border, borderWidth: 1.5 },
+      ]}
+    >
+      {children}
+      <Text style={[st.pillText, { color: primary ? "#FFFFFF" : colors.blue }]}>{label}</Text>
+    </Pressable>
   );
 }
 
@@ -205,10 +275,11 @@ function CheckSummary({
   const passed = check.items.filter((i) => i.tone === "pass");
   const problems = check.items.filter((i) => i.tone !== "pass");
   const amber = check.state === "flag";
-  const summary = amber ? check.message : passed.length ? `✓ All ${passed.length} checks passed` : check.message;
+  const summary = amber ? check.message : passed.length ? `All ${passed.length} checks passed` : check.message;
   return (
-    <View style={{ marginTop: 6, gap: 2 }}>
-      <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
+    <View style={[st.strip, amber ? st.stripAmber : st.stripGreen]}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        {amber ? <AlertTriangle size={17} color="#B45309" /> : <ShieldCheck size={17} color={colors.greenDark} />}
         <Text style={[st.summary, { color: amber ? "#B45309" : colors.greenDark }]} accessibilityLiveRegion="polite">
           {summary}
         </Text>
@@ -238,6 +309,13 @@ function CheckSummary({
 const st = StyleSheet.create({
   label: { fontSize: 12, fontWeight: "700", letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 6 },
   box: { width: "100%", aspectRatio: CARD_ASPECT, borderRadius: 18, borderWidth: 2, overflow: "hidden" },
+  boxRaised: {
+    elevation: 3,
+    shadowColor: "#0B2A9A",
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+  },
   center: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", gap: 8 },
   scanLine: {
     position: "absolute",
@@ -262,40 +340,59 @@ const st = StyleSheet.create({
     borderRadius: 999,
     overflow: "hidden",
   },
-  roundBtn: {
+  badge: {
     position: "absolute",
     top: 10,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    right: 10,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
     elevation: 3,
   },
   badgeText: { color: "#FFFFFF", fontSize: 17, fontWeight: "900" },
-  bottomBar: {
+  actionBar: {
     position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
+    bottom: 10,
+    alignSelf: "center",
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-    paddingVertical: 7,
-    backgroundColor: "rgba(255,255,255,0.92)",
+    gap: 4,
+    padding: 4,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.96)",
+    elevation: 4,
+    shadowColor: "#0B2A9A",
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
   },
-  barLink: { fontSize: 12.5, fontWeight: "700", textDecorationLine: "underline" },
+  iconAction: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
+  actionDivider: { width: 1, height: 20, backgroundColor: "#E2E8F0", marginHorizontal: 2 },
+  failPanel: {
+    ...StyleSheet.absoluteFillObject,
+    margin: 10,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.88)",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+  },
+  failHead: { flexDirection: "row", alignItems: "center", gap: 6 },
+  failTitle: { color: colors.danger, fontSize: 15, fontWeight: "800" },
+  failText: { color: "#991B1B", fontSize: 12.5, fontWeight: "600", textAlign: "center", lineHeight: 17 },
   iconTile: { width: 48, height: 48, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   emptyTitle: { fontSize: 16, fontWeight: "800" },
   emptyHint: { fontSize: 12, textAlign: "center" },
-  failText: { color: colors.danger, fontSize: 13, fontWeight: "700", textAlign: "center", lineHeight: 18 },
   btnRow: { flexDirection: "row", gap: 10, marginTop: 4 },
   pill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 9, borderRadius: 999 },
-  pillBlue: { backgroundColor: colors.blue },
-  pillBlueText: { color: "#FFFFFF", fontSize: 13.5, fontWeight: "800" },
   pillText: { fontSize: 13.5, fontWeight: "800" },
   missing: { marginTop: 4, color: colors.danger, fontSize: 12, fontWeight: "700" },
-  summary: { flex: 1, fontSize: 12.5, fontWeight: "700" },
-  item: { fontSize: 11.5, fontWeight: "600" },
+  strip: { marginTop: 8, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 9, gap: 3 },
+  stripGreen: { backgroundColor: "#ECFDF3", borderColor: "#BBF7D0" },
+  stripAmber: { backgroundColor: "#FFF7ED", borderColor: "#FED7AA" },
+  summary: { flex: 1, fontSize: 13, fontWeight: "800" },
+  item: { fontSize: 11.5, fontWeight: "600", marginLeft: 25 },
 });

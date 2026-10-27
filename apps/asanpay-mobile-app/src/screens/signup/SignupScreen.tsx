@@ -478,6 +478,8 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
   const [autoCropping, setAutoCropping] = useState<KycDocCheckSlot | null>(null);
   /** Slot the card-frame camera is open for. */
   const [cameraSlot, setCameraSlot] = useState<KycDocCheckSlot | null>(null);
+  /** Photo the server check refused, shown faded behind "Photo not accepted". Memory only. */
+  const [rejectedPhotos, setRejectedPhotos] = useState<Partial<Record<KycDocCheckSlot, string>>>({});
   /** Auto-cropped card waiting for the agent to confirm (Use photo) or adjust. */
   const [cropReview, setCropReview] = useState<{ slot: KycDocCheckSlot; dataUrl: string; path: string } | null>(null);
   /** Photo as picked, so "Adjust crop" re-crops from the full photo rather than the auto-crop. */
@@ -1155,6 +1157,11 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
 
   function removeDocPhoto(slot: KycDocCheckSlot) {
     delete docOriginalsRef.current[slot];
+    setRejectedPhotos((r) => {
+      const next = { ...r };
+      delete next[slot];
+      return next;
+    });
     docCheckSeqRef.current[slot] = (docCheckSeqRef.current[slot] ?? 0) + 1;
     setDocChecks((c) => {
       const next = { ...c };
@@ -1253,6 +1260,13 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
     if (docCheckSeqRef.current[slot] !== seq) return;
     const ui = kycDocCheckToUi(slot, result);
     setDocChecks((c) => ({ ...c, [slot]: ui }));
+    setRejectedPhotos((r) => {
+      if (ui.state === "fail" && dataUrl) return { ...r, [slot]: dataUrl };
+      if (!r[slot]) return r;
+      const next = { ...r };
+      delete next[slot];
+      return next;
+    });
     if (ui.state === "fail") patch({ [slot]: null });
   }
 
@@ -2373,6 +2387,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                     title="PAN card"
                     hint="Front side · clear photo"
                     previewUri={draft.panImage?.dataUrl || draft.panImage?.uri}
+                    rejectedUri={rejectedPhotos.panImage}
                     stage={docCardStage("panImage")}
                     check={docChecks.panImage}
                     tokens={tokens}
@@ -2505,6 +2520,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                     title="Aadhaar front"
                     hint="Side with your photo · clear photo"
                     previewUri={draft.aadhaarFront?.dataUrl || draft.aadhaarFront?.uri}
+                    rejectedUri={rejectedPhotos.aadhaarFront}
                     stage={docCardStage("aadhaarFront")}
                     check={docChecks.aadhaarFront}
                     tokens={tokens}
@@ -2518,6 +2534,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                     title="Aadhaar back"
                     hint="Side with address & QR code · clear photo"
                     previewUri={draft.aadhaarBack?.dataUrl || draft.aadhaarBack?.uri}
+                    rejectedUri={rejectedPhotos.aadhaarBack}
                     stage={docCardStage("aadhaarBack")}
                     check={docChecks.aadhaarBack}
                     tokens={tokens}
