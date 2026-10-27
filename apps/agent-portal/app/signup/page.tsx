@@ -601,6 +601,8 @@ function SignupPageInner() {
   const [locationBusy, setLocationBusy] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [showTermsModal, setShowTermsModal] = useState(false);
+  /** After location Allow succeeds, open Terms (avoids stacking location + Terms modals). */
+  const openTermsAfterLocationRef = useRef(false);
   const [stepErrorKey, setStepErrorKey] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [mobileError, setMobileError] = useState<string | null>(null);
@@ -648,6 +650,23 @@ function SignupPageInner() {
     });
   }
 
+  function finishOpenTermsAfterLocation() {
+    if (!openTermsAfterLocationRef.current) return;
+    openTermsAfterLocationRef.current = false;
+    setShowTermsModal(true);
+  }
+
+  /** Step 0 Terms: fetch location first, then open Terms with coords filled. */
+  async function beginTermsAccept() {
+    if (draft.latitude && draft.longitude) {
+      setShowTermsModal(true);
+      return;
+    }
+    openTermsAfterLocationRef.current = true;
+    await ensureLocation();
+    // Success opens Terms via finishOpenTermsAfterLocation; failure shows location modal.
+  }
+
   async function ensureLocation() {
     setLocationBusy(true);
     setLocationError(null);
@@ -655,9 +674,13 @@ function SignupPageInner() {
       const coords = await requestBrowserLocation();
       patch({ latitude: coords.latitude, longitude: coords.longitude });
       setShowLocationModal(false);
+      finishOpenTermsAfterLocation();
       return true;
     } catch (err) {
-      setLocationError(err instanceof Error ? err.message : "Location access denied");
+      setLocationError(
+        err instanceof Error ? err.message : "Could not get location. Allow location access and try again.",
+      );
+      setShowTermsModal(false);
       setShowLocationModal(true);
       return false;
     } finally {
@@ -2041,7 +2064,7 @@ function SignupPageInner() {
                     checked={draft.termsAccepted}
                     onChange={(e) => {
                       if (e.target.checked) {
-                        setShowTermsModal(true);
+                        void beginTermsAccept();
                         return;
                       }
                       patch({ termsAccepted: false });
@@ -2055,7 +2078,7 @@ function SignupPageInner() {
                       type="button"
                       className="font-semibold underline"
                       style={{ color: B.blue }}
-                      onClick={() => setShowTermsModal(true)}
+                      onClick={() => void beginTermsAccept()}
                     >
                       Terms &amp; Conditions and Privacy Policy
                     </button>
@@ -2873,7 +2896,10 @@ function SignupPageInner() {
           error={locationError}
           busy={locationBusy}
           onAllow={() => void ensureLocation()}
-          onHome={() => router.push("/")}
+          onHome={() => {
+            openTermsAfterLocationRef.current = false;
+            router.push("/");
+          }}
         />
       ) : null}
 
@@ -2881,6 +2907,12 @@ function SignupPageInner() {
         <TermsAcceptModal
           latitude={draft.latitude}
           longitude={draft.longitude}
+          locationBusy={locationBusy}
+          onRetryLocation={() => {
+            openTermsAfterLocationRef.current = true;
+            setShowTermsModal(false);
+            void ensureLocation();
+          }}
           onAccept={() => {
             patch({ termsAccepted: true });
             setShowTermsModal(false);

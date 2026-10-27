@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Modal,
   Pressable,
   ScrollView,
@@ -8,7 +9,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { ChevronDown, Download } from "lucide-react-native";
+import { ChevronDown, Download, MapPin } from "lucide-react-native";
 import { PopupCloseButton } from "./PopupCloseButton";
 import { TERMS_BODY, PRIVACY_BODY, buildSignupLegalDownloadText } from "@asanpay/shared-types";
 import { colors } from "../theme/colors";
@@ -20,6 +21,9 @@ type Props = {
   longitude: string;
   onAccept: () => void;
   onCancel: () => void;
+  /** When lat/lng are empty, offer retry that reuses signup ensureLocation. */
+  onRetryLocation?: () => void;
+  locationBusy?: boolean;
   /** Theme tokens from signup screen */
   tokens: {
     card: string;
@@ -106,13 +110,16 @@ export function TermsAcceptModal({
   longitude,
   onAccept,
   onCancel,
+  onRetryLocation,
+  locationBusy = false,
   tokens,
 }: Props) {
   const [openSection, setOpenSection] = useState<"terms" | "privacy" | null>("terms");
   const [termsOk, setTermsOk] = useState(false);
   const [privacyOk, setPrivacyOk] = useState(false);
   const bothOk = termsOk && privacyOk;
-  const canAccept = bothOk && Boolean(latitude && longitude);
+  const hasCoords = Boolean(latitude && longitude);
+  const canAccept = bothOk && hasCoords;
 
   async function shareLegalDocs() {
     try {
@@ -193,6 +200,23 @@ export function TermsAcceptModal({
               <Text style={[styles.coords, { color: tokens.txt }]}>
                 Longitude : <Text style={{ fontWeight: "700" }}>{longitude || "—"}</Text>
               </Text>
+              {!hasCoords && onRetryLocation ? (
+                <Pressable
+                  onPress={onRetryLocation}
+                  disabled={locationBusy}
+                  style={[styles.locRetryBtn, { opacity: locationBusy ? 0.7 : 1 }]}
+                  accessibilityRole="button"
+                >
+                  {locationBusy ? (
+                    <ActivityIndicator size="small" color={colors.blueFlat} />
+                  ) : (
+                    <MapPin size={14} color={colors.blueFlat} />
+                  )}
+                  <Text style={styles.locRetryText}>
+                    {locationBusy ? "Getting location…" : "Allow location access"}
+                  </Text>
+                </Pressable>
+              ) : null}
             </View>
             <View style={styles.footerActions}>
               <Pressable
@@ -204,12 +228,18 @@ export function TermsAcceptModal({
               <Pressable
                 onPress={() => {
                   if (!canAccept) {
-                    showAlert(
-                      "Accept both sections",
-                      !bothOk
-                        ? "Accept both Terms and Privacy Policy first"
-                        : "Allow location access before continuing",
-                    );
+                    if (!bothOk) {
+                      showAlert("Accept both sections", "Accept both Terms and Privacy Policy first");
+                      return;
+                    }
+                    if (!hasCoords) {
+                      if (onRetryLocation) {
+                        onRetryLocation();
+                        return;
+                      }
+                      showAlert("Location required", "Allow location access before continuing");
+                      return;
+                    }
                     return;
                   }
                   setOpenSection("terms");
@@ -315,6 +345,14 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   coords: { fontSize: 11, fontFamily: "monospace", marginBottom: 2 },
+  locRetryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 8,
+    alignSelf: "flex-start",
+  },
+  locRetryText: { color: colors.blueFlat, fontSize: 12, fontWeight: "800" },
   footerActions: { flexDirection: "row", gap: 8 },
   cancelBtn: {
     borderWidth: 1.5,

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ChevronDown, Download, MapPin, X } from "lucide-react";
+import { toast } from "react-hot-toast";
 import { TERMS_BODY, PRIVACY_BODY, buildSignupLegalDownloadText } from "@asanpay/shared-types";
 import { B } from "@/lib/brand";
 
@@ -255,17 +256,23 @@ export function TermsAcceptModal({
   longitude,
   onAccept,
   onCancel,
+  onRetryLocation,
+  locationBusy = false,
 }: {
   latitude: string;
   longitude: string;
   onAccept: () => void;
   onCancel: () => void;
+  /** When lat/lng are empty, offer retry that reuses signup ensureLocation. */
+  onRetryLocation?: () => void;
+  locationBusy?: boolean;
 }) {
   const [openSection, setOpenSection] = useState<"terms" | "privacy" | null>("terms");
   const [termsOk, setTermsOk] = useState(false);
   const [privacyOk, setPrivacyOk] = useState(false);
   const bothOk = termsOk && privacyOk;
-  const canAccept = bothOk && Boolean(latitude && longitude);
+  const hasCoords = Boolean(latitude && longitude);
+  const canAccept = bothOk && hasCoords;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
@@ -341,6 +348,18 @@ export function TermsAcceptModal({
             <div>
               Longitude : <span className="font-semibold">{longitude || "—"}</span>
             </div>
+            {!hasCoords && onRetryLocation ? (
+              <button
+                type="button"
+                onClick={onRetryLocation}
+                disabled={locationBusy}
+                className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold disabled:opacity-60"
+                style={{ color: B.blue }}
+              >
+                <MapPin size={14} />
+                {locationBusy ? "Getting location…" : "Allow location access"}
+              </button>
+            ) : null}
           </div>
           <div className="flex gap-2">
             <button
@@ -353,11 +372,33 @@ export function TermsAcceptModal({
             </button>
             <button
               type="button"
-              onClick={onAccept}
-              disabled={!canAccept}
+              onClick={() => {
+                if (!canAccept) {
+                  if (!bothOk) {
+                    toast.error("Accept both Terms and Privacy Policy first");
+                    return;
+                  }
+                  if (!hasCoords) {
+                    if (onRetryLocation) {
+                      onRetryLocation();
+                      return;
+                    }
+                    toast.error("Allow location access before continuing");
+                    return;
+                  }
+                  return;
+                }
+                onAccept();
+              }}
               className="rounded-xl px-5 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
-              style={{ background: canAccept ? B.badgeGrad : "#9CA3AF" }}
-              title={!bothOk ? "Accept both Terms and Privacy Policy first" : undefined}
+              style={{ background: canAccept ? B.badgeGrad : "#9CA3AF", opacity: canAccept ? 1 : 0.7 }}
+              title={
+                !bothOk
+                  ? "Accept both Terms and Privacy Policy first"
+                  : !hasCoords
+                    ? "Allow location access before continuing"
+                    : undefined
+              }
             >
               Accept
             </button>

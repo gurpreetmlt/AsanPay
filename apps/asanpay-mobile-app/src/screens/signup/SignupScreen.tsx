@@ -465,6 +465,8 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
   const [sponsorLookup, setSponsorLookup] = useState<"idle" | "loading" | "ok" | "notfound">("idle");
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
+  /** After location Allow succeeds, open Terms (avoids stacking location + Terms modals). */
+  const openTermsAfterLocationRef = useRef(false);
   const [locationBusy, setLocationBusy] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -536,6 +538,28 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
     });
   }
 
+  function finishOpenTermsAfterLocation() {
+    if (!openTermsAfterLocationRef.current) return;
+    openTermsAfterLocationRef.current = false;
+    setShowTermsModal(true);
+  }
+
+  /** Step 0 Terms checkbox: fetch location first, then open Terms with coords filled. */
+  async function beginTermsAccept() {
+    if (otpSent) return;
+    if (draft.termsAccepted) {
+      patch({ termsAccepted: false });
+      return;
+    }
+    if (draft.latitude && draft.longitude) {
+      setShowTermsModal(true);
+      return;
+    }
+    openTermsAfterLocationRef.current = true;
+    await ensureLocation();
+    // Success opens Terms via finishOpenTermsAfterLocation; failure shows location modal.
+  }
+
   async function ensureLocation(): Promise<boolean> {
     if (locationBusy) return false;
     setLocationBusy(true);
@@ -553,6 +577,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         );
         if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
           setLocationError("Location permission denied. Enable it in Settings, then tap Allow again.");
+          setShowTermsModal(false);
           setShowLocationModal(true);
           return false;
         }
@@ -569,9 +594,11 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
       patch({ latitude: coords.latitude, longitude: coords.longitude });
       setLocationError(null);
       setShowLocationModal(false);
+      finishOpenTermsAfterLocation();
       return true;
     } catch {
       setLocationError("Could not get location. Turn on GPS / Location and try again.");
+      setShowTermsModal(false);
       setShowLocationModal(true);
       return false;
     } finally {
@@ -2137,14 +2164,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                     </>
                   ) : null}
                   <Pressable
-                    onPress={() => {
-                      if (otpSent) return;
-                      if (draft.termsAccepted) {
-                        patch({ termsAccepted: false });
-                        return;
-                      }
-                      setShowTermsModal(true);
-                    }}
+                    onPress={() => void beginTermsAccept()}
                     style={styles.checkRow}
                   >
                     <View style={[styles.check, draft.termsAccepted && styles.checkOn]}>
@@ -2990,7 +3010,13 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                 <Text style={styles.ctaText}>{locationError ? "Try again" : "Allow"}</Text>
               )}
             </Pressable>
-            <Pressable onPress={onBack} style={[styles.modalSecondary, { borderColor: colors.green }]}>
+            <Pressable
+              onPress={() => {
+                openTermsAfterLocationRef.current = false;
+                onBack();
+              }}
+              style={[styles.modalSecondary, { borderColor: colors.green }]}
+            >
               <Text style={{ color: colors.greenDark, fontWeight: "700" }}>Go back</Text>
             </Pressable>
           </View>
@@ -3001,6 +3027,12 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         visible={showTermsModal}
         latitude={draft.latitude}
         longitude={draft.longitude}
+        locationBusy={locationBusy}
+        onRetryLocation={() => {
+          openTermsAfterLocationRef.current = true;
+          setShowTermsModal(false);
+          void ensureLocation();
+        }}
         tokens={{
           card: tokens.card,
           cardBorder: tokens.cardBorder,
