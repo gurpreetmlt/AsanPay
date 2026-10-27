@@ -1673,23 +1673,25 @@ export async function listProvidersAdmin() {
   const categories = await db.select().from(serviceCategories).orderBy(serviceCategories.displayOrder);
   const allServices = await db.select().from(services);
   const health = await getProviderHealthStats();
-  const rows = await db
-    .select({
-      providerServiceId: providerServices.id,
-      serviceId: providerServices.serviceId,
-      providerId: providerServices.providerId,
-      isPrimary: providerServices.isPrimary,
-      priority: providerServices.priority,
-      mappingActive: providerServices.isActive,
-      providerCode: providers.code,
-      providerName: providers.name,
-      providerActive: providers.isActive,
-    })
-    .from(providerServices)
-    .innerJoin(providers, eq(providerServices.providerId, providers.id))
-    .orderBy(desc(providerServices.isPrimary), providerServices.priority);
-
   const registeredCodes = new Set(listAdapterCodes());
+  // Retired providers (switched off and no adapter in code) stay hidden until they are integrated.
+  const rows = (
+    await db
+      .select({
+        providerServiceId: providerServices.id,
+        serviceId: providerServices.serviceId,
+        providerId: providerServices.providerId,
+        isPrimary: providerServices.isPrimary,
+        priority: providerServices.priority,
+        mappingActive: providerServices.isActive,
+        providerCode: providers.code,
+        providerName: providers.name,
+        providerActive: providers.isActive,
+      })
+      .from(providerServices)
+      .innerJoin(providers, eq(providerServices.providerId, providers.id))
+      .orderBy(desc(providerServices.isPrimary), providerServices.priority)
+  ).filter((r) => r.providerActive || registeredCodes.has(r.providerCode));
 
   const sortedCategories = [...categories].sort((a, b) => {
     const ai = PINNED_CATEGORY_ORDER.indexOf(a.code);

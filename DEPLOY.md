@@ -164,11 +164,11 @@ Seed (tarteeb maayne rakhti hai):
 
 ```bash
 sudo docker exec $API npm run db:migrate
-sudo docker exec -e SEED_ADMIN_PASSWORD='<12+ char>' $API npm run seed:admin
+read -rs -p 'Admin password (12+ chars): ' P; echo; sudo docker exec -e SEED_ADMIN_PASSWORD="$P" $API npm run seed:admin; unset P
 sudo docker exec $API npm run seed:catalog
 sudo docker exec $API npm run seed:providers
-sudo docker exec -e SEED_NETWORK_PASSWORD='<password>' $API npm run seed:network
-sudo docker exec -e SEED_LOGIN_MPIN='<4 digit>' $API npm run seed:mpin
+read -rs -p 'Network password: ' P; echo; sudo docker exec -e SEED_NETWORK_PASSWORD="$P" $API npm run seed:network; unset P
+read -rs -p 'Login MPIN (4 digits): ' P; echo; sudo docker exec -e SEED_LOGIN_MPIN="$P" $API npm run seed:mpin; unset P
 sudo docker exec $API npm run seed:txns
 ```
 

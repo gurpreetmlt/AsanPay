@@ -93,6 +93,17 @@ New card (same data as the Rate card — one source):
 - Sticky save bar: "3 changes · Reason (required) · Save" → confirm popup (popup-design).
 - Field-specific errors (clear-error-messages), last 5 rate changes for this agent with a link to Rate audit.
 
+## RC6 — per-agent service on / off (owner ask 27 Oct)
+Today the only per-agent switch is the restriction level (soft / hard / freeze), which blocks **every**
+service. Owner needs: turn off one service (e.g. AEPS) for one retailer while others keep working.
+- New table `user_service_blocks` (user, service, reason, blocked_by, blocked_at, unblocked_at) — history kept.
+- Enforce server-side before the provider call (txn + AEPS / DMT / BBPS / recharge entrypoints):
+  `This service is turned off for your account. Contact your distributor or support.`
+- Admin agent card (RC5): per-service **On / Off** next to the commission row; Off needs a reason;
+  red "Off" chip; "Off for this agent" count in the card header.
+- Agent web + mobile: tile shows disabled with "Turned off for your account" (parity, same copy).
+- Audit log + rate-audit-style history on the agent page.
+
 ## Open decisions
 - [x] Provider income source → new `provider_payout_rules` table (no 33A table existed).
 - [x] Default shares per role → Retailer 60 % · Distributor 10 % · SD 5 % (seeded).

@@ -7,9 +7,10 @@ One row per feature; details in the section below the table. Newest at the top o
 
 | # | Feature | Surfaces | Size | Status | Design | Task file |
 |---|---------|----------|------|--------|--------|-----------|
+| PL-16 | Production Postgres on AWS RDS (Mumbai) + decide on a separate production EC2 | Infra | L | idea (27 Oct) — after admin work + RC1 deploy | — | — |
 | PL-15 | Admin "Services" setup page — one page per service (status · provider · limits · customer fee · commission · preview) | Backend, admin | L | idea (27 Oct) — after PL-14 | — | — |
 | PL-14 | Commission rate card + share % (one screen, live preview, safety, Advanced tab) + agent-page Commission card | Backend, admin | L | building — RC1 backend built 27 Oct (migrate + deploy pending); RC2 next | — | [commission-rate-card.md](TASKS/commission-rate-card.md) |
-| PL-13 | Daily 2FA redesign — Aadhaar-style card view (masked number, photo, status) + fingerprint / face verify | Web, mobile | L | ready (owner design screens 27 Oct) | [Figma prompt](PROMPTS/figma-daily-2fa.md) · owner screens in task file | [daily-2fa-redesign.md](TASKS/daily-2fa-redesign.md) |
+| PL-13 | Daily 2FA redesign — Aadhaar-style card view (masked number, photo, status) + fingerprint / face verify | Web, mobile | L | building — D1 web done 27 Oct, D2 mobile next | [Figma prompt](PROMPTS/figma-daily-2fa.md) · owner screens in task file | [daily-2fa-redesign.md](TASKS/daily-2fa-redesign.md) |
 | PL-12 | OCR model upgrade — PP-OCRv5 detection + PP-OCRv5 English recognition (test against today's v4) | Backend | S | building (built 27 Oct: v5 mobile det + v5 English rec default, `KYC_OCR_PADDLE_MODEL=v4` rollback; deploy + real-photo test pending) | — | — |
 | PL-11 | Card auto-crop + straighten (fix tilt / sideways / upside down), shown in the preview with "Adjust crop" (manual) | Backend, web, mobile | M | building (built 27 Oct; npm install + deploy + APK + real-photo test pending) | — | — |
 | PL-10 | DigiLocker KYC — fetch signed Aadhaar + PAN with agent consent (replaces photo OCR as primary proof) | Backend, web, mobile, admin | L | planned — long term, after PL-06 | — | — |
@@ -24,6 +25,21 @@ One row per feature; details in the section below the table. Newest at the top o
 | PL-01 | Linked accounts + role switch (same person, Distributor + Retailer) | Backend, web, mobile, admin | M | building (backend + web + mobile built 26 Oct; migrate `0076` + APK + live test pending; admin card next) | [Figma prompt](PROMPTS/figma-linked-accounts.md) · Figma URL pending | [linked-accounts.md](TASKS/linked-accounts.md) |
 
 ---
+
+## PL-16 — Production RDS + EC2
+
+**Problem:** Prod Postgres is on Neon with an undocumented region (compliance gap G14 wants DB,
+backups and logs in India). Owner asked about a production RDS DB and EC2.
+
+**Plan**
+- RDS Postgres in `ap-south-1`, private subnet, automated backups; only the EC2 security group can connect.
+- Maintenance window: `pg_dump` from Neon → restore to RDS → compare row counts + ledger totals.
+- Switch `DATABASE_URL` in Coolify, redeploy backend; keep Neon read-only a few days for rollback.
+- New EC2 only if the current one is too small or prod must be split from test.
+
+**Open decisions**
+- [ ] Main reason: India data residency, separate prod from test, or performance?
+- [ ] Keep the current EC2 (point it at RDS) or add a new production EC2?
 
 ## PL-15 — Admin "Services" setup page
 
@@ -45,7 +61,11 @@ and limits. A wrong provider in one place silently breaks another (e.g. ₹0 com
 a separate page, customer fee on another page.
 
 **Plan** — see [commission-rate-card.md](TASKS/commission-rate-card.md) (RC1 backend → RC2 screen →
-RC3 safety → RC4 navigation).
+RC3 safety → RC4 navigation → RC5 agent Commission card → RC6 per-agent service on / off).
+
+**Owner note (27 Oct):** admin must always be able to (a) fix one agent's commission and (b) turn off
+one service for one agent without blocking the others. (a) exists (`user_commission_rates`, redesigned
+in RC5); (b) is new — RC6.
 
 **Open decisions**
 - [x] Provider income source → new `provider_payout_rules` (no 33A table existed).
@@ -67,10 +87,12 @@ XXXX XXXX 1234, today's status) and verify from it.
   the daily auth check.
 
 **Open decisions**
-- [ ] Show the KYC selfie on the card, or initials only?
-- [ ] Face tile on web: hide it, or show as "Android app only"?
+- [x] Show the KYC selfie on the card, or initials only? — KYC personal photo when on file, initials fallback.
+- [x] Face tile on web: hide it, or show as "Android app only"? — shown as "Android app only".
 
 **Notes:** No official UIDAI logo or national emblem. Use a neutral placeholder emblem.
+D1 (web) shipped as `apps/agent-portal/components/aeps/DailyVerifyCard.tsx`, used by `/aeps` (AePS + Aadhaar Pay
+tab) and `/dmt`. D2 = mobile `components/DailyVerifyCard.tsx`.
 
 ## PL-12 — OCR model upgrade (PP-OCRv5)
 

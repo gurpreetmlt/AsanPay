@@ -44,3 +44,8 @@ Reduced motion: no float / pulse / stamp animation.
 - [ ] AePS, Aadhaar Pay, DMT gates use the same component on web and mobile
 - [ ] All 8 states reachable; copy English, errors field-specific
 - [ ] `tsc` clean (mobile: only pre-existing errors); PLANNING PL-13 + CHECKLIST updated
+
+**D1 web — done 27 Oct:** `components/aeps/DailyVerifyCard.tsx` on `/aeps` + `/dmt`. Web exceptions: Face tile and
+"Use face instead" show an "Android app only" toast; quality % comes from the RD `qScore` after capture
+(indeterminate bar while the finger is on the sensor). "Already verified" = `verifiedToday` prop (pages skip the
+gate when verified, so it is only reachable via the prop).

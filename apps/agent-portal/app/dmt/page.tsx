@@ -9,12 +9,7 @@ import {
   Banknote,
   Check,
   ChevronRight,
-  CircleDot,
-  Eye,
-  EyeOff,
-  Fingerprint,
   Plus,
-  ScanEye,
   Search,
   Trash2,
   UserPlus,
@@ -37,6 +32,7 @@ import { useAuthStore } from "@/lib/store";
 import type { ApiResponse } from "@asanpay/shared-types";
 import { extractApiError, wasAepsOnboardingSkipped } from "@/lib/onboarding";
 import { OnboardingPendingBanner } from "@/components/aeps/OnboardingPendingBanner";
+import { DailyVerifyCard } from "@/components/aeps/DailyVerifyCard";
 import { createAttemptKeyHolder } from "@/lib/idempotencyKey";
 import {
   captureFingerprintWeb,
@@ -208,12 +204,9 @@ export default function DmtPage() {
   // Agent auth (daily 2FA — required before transfer)
   const [agentAuthReady, setAgentAuthReady] = useState<boolean | null>(null);
   const [agentAuthKycReady, setAgentAuthKycReady] = useState(true);
-  const [agentAadhaar, setAgentAadhaar] = useState("");
   /** Last 4 of the signup KYC Aadhaar — the server fills the full number for daily 2FA. */
   const [agentAadhaarLastFour, setAgentAadhaarLastFour] = useState<string | null>(null);
-  const [agentAadhaarVisible, setAgentAadhaarVisible] = useState(false);
-  const [agentAuthConsent, setAgentAuthConsent] = useState(false);
-  const [agentAuthScanning, setAgentAuthScanning] = useState(false);
+  const [agentAuthLastAt, setAgentAuthLastAt] = useState<string | null>(null);
   const [activeDevice, setActiveDevice] = useState<BiometricDevice>(BIOMETRIC_DEVICES[0]!);
   const [deviceSidebarOpen, setDeviceSidebarOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>("fingerprint");
@@ -297,14 +290,20 @@ export default function DmtPage() {
   useEffect(() => {
     let cancelled = false;
     void api
-      .get<ApiResponse<{ verifiedToday: boolean; kycReady: boolean; aadhaarLastFour?: string | null }>>(
-        "/auth/agent-auth/status",
-      )
+      .get<
+        ApiResponse<{
+          verifiedToday: boolean;
+          kycReady: boolean;
+          aadhaarLastFour?: string | null;
+          lastVerifiedAt?: string | null;
+        }>
+      >("/auth/agent-auth/status")
       .then(({ data }) => {
         if (cancelled) return;
         if (data.success) {
           setAgentAuthReady(Boolean(data.data.verifiedToday));
           setAgentAuthKycReady(data.data.kycReady !== false);
+          setAgentAuthLastAt(data.data.lastVerifiedAt ?? null);
           const last4 = (data.data.aadhaarLastFour ?? "").replace(/\D/g, "").slice(-4);
           setAgentAadhaarLastFour(last4.length === 4 ? last4 : null);
         } else {
@@ -319,8 +318,8 @@ export default function DmtPage() {
     };
   }, []);
 
+  // The daily 2FA gate scans too, so discovery runs on mount — not only after unlock.
   useEffect(() => {
-    if (agentAuthReady !== true) return;
     let cancelled = false;
     void (async () => {
       setRdStatus("looking");
@@ -337,7 +336,7 @@ export default function DmtPage() {
     return () => {
       cancelled = true;
     };
-  }, [agentAuthReady, authMode]);
+  }, [authMode]);
 
   useEffect(() => {
     if (agentAuthReady !== true) return;
@@ -365,12 +364,6 @@ export default function DmtPage() {
     return digits.replace(/(\d{4})(?=\d)/g, "$1 ");
   }
 
-  function maskAadhaar(v: string) {
-    const digits = v.replace(/\D/g, "");
-    if (digits.length <= 4) return digits;
-    return "XXXX XXXX " + digits.slice(-4);
-  }
-
   async function retryRdWarm() {
     setRdStatus("looking");
     const ep = await warmRdService(true);
@@ -380,48 +373,6 @@ export default function DmtPage() {
     } else {
       setRdEndpoint(null);
       setRdStatus("missing");
-    }
-  }
-
-  async function verifyDailyAgentAuth() {
-    if (agentAuthScanning) return;
-    if (!agentAuthKycReady) {
-      toast.error("Complete KYC Aadhaar before DMT access");
-      return;
-    }
-    const typedAadhaar = agentAadhaar.replace(/\D/g, "");
-    if (!agentAadhaarLastFour && typedAadhaar.length !== 12) {
-      toast.error("Enter retailer's 12-digit Aadhaar");
-      return;
-    }
-    if (!agentAuthConsent) {
-      toast.error("Accept Aadhaar consent to continue");
-      return;
-    }
-    if (rdStatus === "looking") {
-      toast.error("Scanner still connecting — wait a moment");
-      return;
-    }
-    if (rdStatus === "missing") {
-      toast.error("RD Service not found. Open Mantra/Morpho RDService on this PC, then Retry.");
-      return;
-    }
-
-    setAgentAuthScanning(true);
-    try {
-      const biometricPayload = await captureFingerprintWeb();
-      const { data } = await api.post<ApiResponse<{ verifiedAt: string }>>(
-        "/auth/agent-auth",
-        agentAadhaarLastFour ? { biometricPayload } : { aadhaarNumber: typedAadhaar, biometricPayload },
-      );
-      if (!data.success) throw new Error(data.message);
-      setAgentAuthReady(true);
-      toast.success("DMT unlocked for today");
-    } catch (err) {
-      toast.error(extractApiError(err, "Fingerprint verification failed"), { duration: 10_000 });
-      void retryRdWarm();
-    } finally {
-      setAgentAuthScanning(false);
     }
   }
 
@@ -855,14 +806,6 @@ export default function DmtPage() {
   }
 
   if (!agentAuthReady && !onboardingPending) {
-    const retailerLabel = user?.name?.trim() || "Retailer";
-    const aadhaarDigits = agentAadhaar.replace(/\D/g, "").length;
-    const canScan =
-      agentAuthKycReady &&
-      agentAuthConsent &&
-      (Boolean(agentAadhaarLastFour) || aadhaarDigits === 12) &&
-      !agentAuthScanning;
-
     return (
       <AppShell>
         <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6">
@@ -884,189 +827,18 @@ export default function DmtPage() {
             </div>
           </div>
 
-          <div className="grid items-start gap-6 md:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
-          <div className="min-w-0 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-            <div
-              className="flex items-center gap-3 px-6 py-5"
-              style={{ background: `linear-gradient(135deg, ${B.blue}, ${B.blueMid})` }}
-            >
-              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-white/15">
-                <Fingerprint size={22} className="text-white" />
-              </div>
-              <div>
-                <h2 className="text-base font-bold text-white">Daily retailer verification</h2>
-                <p className="mt-0.5 text-xs text-white/70">
-                  Enter your KYC Aadhaar, then scan fingerprint on the connected RD device.
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-6 p-6">
-              <div>
-                <label className="text-xs font-bold tracking-wide text-gray-500">
-                  AADHAAR NUMBER OF {retailerLabel.toUpperCase()}
-                </label>
-                <div
-                  className="mt-2 flex items-center gap-2 rounded-xl border-2 px-3.5 py-3 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-50"
-                  style={{ borderColor: B.border }}
-                >
-                  {agentAadhaarLastFour ? (
-                    <span className="flex-1 text-sm font-semibold tracking-wide text-gray-700">
-                      XXXX XXXX {agentAadhaarLastFour}
-                    </span>
-                  ) : (
-                    <>
-                      <input
-                        value={
-                          agentAadhaarVisible
-                            ? formatAadhaar(agentAadhaar)
-                            : maskAadhaar(agentAadhaar)
-                        }
-                        onChange={(e) => setAgentAadhaar(e.target.value.replace(/\D/g, "").slice(0, 12))}
-                        onFocus={() => setAgentAadhaarVisible(true)}
-                        placeholder={agentAuthKycReady ? "Enter 12-digit Aadhaar" : "KYC Aadhaar not found"}
-                        disabled={!agentAuthKycReady || agentAuthScanning}
-                        inputMode="numeric"
-                        className="flex-1 bg-transparent text-sm font-semibold tracking-wide outline-none disabled:text-gray-400"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setAgentAadhaarVisible((v) => !v)}
-                        className="icon-tooltip text-gray-400 transition hover:text-gray-600"
-                        aria-label={agentAadhaarVisible ? "Hide Aadhaar" : "Show Aadhaar"}
-                        data-tooltip={agentAadhaarVisible ? "Hide Aadhaar" : "Show Aadhaar"}
-                      >
-                        {agentAadhaarVisible ? <EyeOff size={18} /> : <Eye size={18} />}
-                      </button>
-                    </>
-                  )}
-                </div>
-                {agentAadhaarLastFour ? (
-                  <p className="mt-1.5 text-[11px] text-gray-500">Auto-filled from Aadhaar saved at retailer signup</p>
-                ) : null}
-              </div>
-
-              <label
-                className="flex cursor-pointer items-start gap-3 rounded-xl border p-3.5 text-sm text-gray-700 transition hover:bg-gray-50"
-                style={{ borderColor: B.border }}
-              >
-                <input
-                  type="checkbox"
-                  checked={agentAuthConsent}
-                  onChange={(e) => setAgentAuthConsent(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 accent-blue-600"
-                />
-                <span>I accept Aadhaar Consent for today&apos;s DMT access.</span>
-              </label>
-
-              <div>
-                <p className="mb-3 text-xs font-bold tracking-wide text-gray-500">AUTHENTICATION MODE</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div
-                    className="relative flex flex-col items-center gap-2 rounded-xl border-2 p-4 shadow-sm"
-                    style={{ borderColor: B.blue, background: `${B.blue}0A` }}
-                  >
-                    <div className="absolute right-2.5 top-2.5">
-                      <CircleDot size={14} className="text-green-600" />
-                    </div>
-                    <Fingerprint size={28} style={{ color: B.blue }} />
-                    <span className="text-sm font-bold" style={{ color: B.blue }}>
-                      Fingerprint
-                    </span>
-                  </div>
-                  <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed p-4 opacity-60">
-                    <ScanEye size={28} className="text-gray-400" />
-                    <span className="text-sm font-bold text-gray-500">Eye Scan</span>
-                    <span className="text-[11px] font-bold tracking-wide text-gray-400">COMING SOON</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 rounded-xl border p-3.5" style={{ borderColor: B.border }}>
-                <div
-                  className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold text-white shadow-sm"
-                  style={{ backgroundColor: activeDevice.color }}
-                >
-                  {activeDevice.letter}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-bold text-gray-900">
-                    {rdEndpoint ? formatRdDeviceLabel(rdEndpoint) : activeDevice.name}
-                  </p>
-                  <p className="flex items-center gap-1.5 text-xs text-gray-500">
-                    <span
-                      className={`h-1.5 w-1.5 rounded-full ${
-                        rdStatus === "ready" ? "bg-green-500" : rdStatus === "looking" ? "bg-amber-400" : "bg-red-400"
-                      }`}
-                    />
-                    {rdStatus === "ready"
-                      ? "Device ready"
-                      : rdStatus === "looking"
-                        ? "Looking for RD Service…"
-                        : "RD Service not found"}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => void retryRdWarm()}
-                  className="flex-shrink-0 text-xs font-bold text-blue-600 hover:underline"
-                >
-                  Retry
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDeviceSidebarOpen(true)}
-                  className="flex-shrink-0 text-xs font-bold text-blue-600 hover:underline"
-                >
-                  Change Device
-                </button>
-              </div>
-
-              <PrimaryButton
-                type="button"
-                variant="primary"
-                disabled={!canScan}
-                loading={agentAuthScanning}
-                onClick={() => void verifyDailyAgentAuth()}
-              >
-                <Fingerprint size={18} />
-                Scan Finger
-              </PrimaryButton>
-            </div>
-          </div>
-
-          <aside className="min-w-0 space-y-4 md:sticky md:top-4">
-            <div className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
-              <h3 className="mb-3 text-sm font-bold" style={{ color: B.blue }}>
-                How daily 2FA works
-              </h3>
-              <ol className="space-y-2 text-xs leading-relaxed text-gray-600">
-                <li className="flex gap-2">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[11px] font-bold text-blue-700">1</span>
-                  Confirm your signup KYC Aadhaar (auto-filled)
-                </li>
-                <li className="flex gap-2">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[11px] font-bold text-blue-700">2</span>
-                  Accept Aadhaar consent for today&apos;s session
-                </li>
-                <li className="flex gap-2">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[11px] font-bold text-blue-700">3</span>
-                  Connect Morpho / Mantra L1 RD device
-                </li>
-                <li className="flex gap-2">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-green-50 text-[11px] font-bold text-green-700">✓</span>
-                  Scan finger once — DMT unlocks for the day
-                </li>
-              </ol>
-            </div>
-            <div className="rounded-2xl border bg-amber-50 p-4" style={{ borderColor: "#FDE68A" }}>
-              <p className="text-xs font-semibold leading-relaxed text-amber-800">
-                Open the RD Service app on this PC before scanning. Same device must be used for
-                DMT after unlock.
-              </p>
-            </div>
-          </aside>
-          </div>
+          <DailyVerifyCard
+            service="DMT"
+            continueLabel="Continue to Money Transfer"
+            kycReady={agentAuthKycReady}
+            aadhaarLastFour={agentAadhaarLastFour}
+            lastVerifiedAt={agentAuthLastAt}
+            rdStatus={rdStatus}
+            deviceLabel={rdEndpoint ? formatRdDeviceLabel(rdEndpoint) : activeDevice.name}
+            onRetryDevice={() => void retryRdWarm()}
+            onChangeDevice={() => setDeviceSidebarOpen(true)}
+            onVerified={() => setAgentAuthReady(true)}
+          />
         </div>
         <DeviceSidebar
           open={deviceSidebarOpen}
