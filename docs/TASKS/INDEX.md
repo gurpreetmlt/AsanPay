@@ -33,6 +33,7 @@
 | 17 | Admin dashboard stats | M | [17-admin-dashboard.md](17-admin-dashboard.md) |
 | 18 | KYC module | L | [18-kyc-module.md](18-kyc-module.md) |
 | — | KYC document photo checks, in-house (PL-05) | L ⚠️ 3 chats | [kyc-doc-checks.md](kyc-doc-checks.md) |
+| — | KYC verification statuses + admin review (PL-07) | L ⚠️ 2 chats | [kyc-verification-statuses.md](kyc-verification-statuses.md) |
 | 19 | Commission schemes | M | [19-commission-schemes.md](19-commission-schemes.md) |
 | 25 | Group AEPS rows on Commission page | M | [25-admin-service-grouping.md](25-admin-service-grouping.md) |
 | 28 | Commission payout report | M | [28-commission-payout-report.md](28-commission-payout-report.md) |

@@ -47,14 +47,25 @@ const docCheckSchema = z.object({
     message: "Document must be one of: PAN card, Aadhaar front, Aadhaar back",
   }),
   dataUrl: z.string().min(32, "Choose a photo to check").max(2_100_000, "Image must be under 1.5 MB"),
-  /** DOB the agent entered (YYYY-MM-DD) — compared with the DOB printed on the card. */
+  /** What the agent entered — compared with what is printed on the card. */
   dob: z.string().trim().max(20).optional(),
+  gender: z.string().trim().max(20).optional(),
+  /** Last 4 digits only — the full Aadhaar number never travels with a photo check. */
+  aadhaarLast4: z
+    .string()
+    .trim()
+    .regex(/^\d{4}$/, "Aadhaar last 4 must be 4 digits")
+    .optional(),
 });
 
 kycRouter.post("/documents/check", kycDocCheckLimiter, validateBody(docCheckSchema), async (req, res) => {
   if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
   const body = req.body as z.infer<typeof docCheckSchema>;
-  const result = await checkKycDocument(req.auth.sub, body.slot, body.dataUrl, { dob: body.dob });
+  const result = await checkKycDocument(req.auth.sub, body.slot, body.dataUrl, {
+    dob: body.dob,
+    gender: body.gender,
+    aadhaarLast4: body.aadhaarLast4,
+  });
   sendSuccess(res, result, result.message);
 });
 

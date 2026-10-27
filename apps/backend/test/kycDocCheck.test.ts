@@ -12,9 +12,11 @@ import {
   isPanLike,
   nameSimilarity,
   normalizeDob,
+  normalizeGender,
 } from "../src/modules/kyc/docCheck/docText";
 import { docCheckLabelsFromMeta } from "../src/modules/kyc/docCheck/docCheckLabels";
 import { laplacianVariance } from "../src/modules/kyc/docCheck/imageQuality";
+import { escalateDifferentPerson } from "../src/modules/kyc/docCheck/identityRules";
 
 const PAN_TEXT = `INCOME TAX DEPARTMENT GOVT. OF INDIA
 Permanent Account Number Card
@@ -176,6 +178,54 @@ describe("Aadhaar Secure QR parsing", () => {
   it("rejects non-Aadhaar QR text", () => {
     expect(parseSecureQrPayload("https://example.com/pan?ABCDE1234F")).toBeNull();
     expect(parseSecureQrPayload("1".repeat(300))).toBeNull();
+  });
+});
+
+describe("different-person rule", () => {
+  type Item = { id: string; status: "pass" | "flag" | "fail" | "skip"; detail?: string; score?: number };
+  const flagName = (score: number): Item => ({ id: "name", status: "flag", score });
+  const flagDob: Item = { id: "dob", status: "flag" };
+
+  it("keeps one soft mismatch amber", () => {
+    const checks: Item[] = [flagName(30), { id: "dob", status: "pass" }];
+    escalateDifferentPerson(checks, "Aadhaar card", false);
+    expect(checks.map((c) => c.status)).toEqual(["flag", "pass"]);
+  });
+
+  it("turns name < 50 % + DOB mismatch red", () => {
+    const checks: Item[] = [flagName(30), { ...flagDob }];
+    escalateDifferentPerson(checks, "Aadhaar card", false);
+    expect(checks.map((c) => c.status)).toEqual(["fail", "fail"]);
+    expect(checks[0]!.detail).toContain("belongs to someone else");
+  });
+
+  it("keeps name 50–80 % + DOB mismatch amber", () => {
+    const checks: Item[] = [flagName(65), { ...flagDob }];
+    escalateDifferentPerson(checks, "PAN card", false);
+    expect(checks.map((c) => c.status)).toEqual(["flag", "flag"]);
+  });
+
+  it("turns Aadhaar number mismatch + name mismatch red", () => {
+    const checks: Item[] = [{ id: "aadhaarNumber", status: "flag" }, flagName(70)];
+    escalateDifferentPerson(checks, "Aadhaar card", true);
+    expect(checks.map((c) => c.status)).toEqual(["fail", "fail"]);
+    expect(checks[0]!.detail).toContain("number and name");
+  });
+
+  it("keeps a lone Aadhaar number mismatch amber (OCR digit misread)", () => {
+    const checks: Item[] = [{ id: "aadhaarNumber", status: "flag" }, { id: "name", status: "pass", score: 96 }];
+    escalateDifferentPerson(checks, "Aadhaar card", true);
+    expect(checks.map((c) => c.status)).toEqual(["flag", "pass"]);
+  });
+});
+
+describe("gender on card", () => {
+  it("reads FEMALE before MALE and normalises form values", () => {
+    expect(analyzeDocText("Arzoo\nDOB: 22/09/1995\nFemale\n2666 7507 5127", 70).genderValue).toBe("female");
+    expect(analyzeDocText("Gurpreet Singh\nDOB: 08/06/1994\nMale", 70).genderValue).toBe("male");
+    expect(normalizeGender("Male")).toBe("male");
+    expect(normalizeGender("F")).toBe("female");
+    expect(normalizeGender("Other")).toBe("other");
   });
 });
 

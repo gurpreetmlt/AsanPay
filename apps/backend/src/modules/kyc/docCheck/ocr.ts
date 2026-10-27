@@ -1,6 +1,4 @@
-import { copyFile, mkdir } from "node:fs/promises";
 import { createRequire } from "node:module";
-import os from "node:os";
 import path from "node:path";
 import Tesseract from "tesseract.js";
 import { logger } from "../../../utils/logger";
@@ -9,57 +7,61 @@ import { logger } from "../../../utils/logger";
  * English only: every PAN / Aadhaar prints its key fields in English, and mixing in Hindi made
  * Latin text read worse (Latin letters guessed as Devanagari) and OCR ~3× slower.
  */
-const LANGS = ["eng"] as const;
+const LANG = "eng";
 /** Matches tesseract.js default for OEM LSTM_ONLY. */
 const MODEL_DIR = "4.0.0_best_int";
-const TESSDATA_DIR = path.join(os.tmpdir(), "asanpay-tessdata");
-
-let workerPromise: Promise<Tesseract.Worker> | null = null;
 
 /**
- * Language data comes from the @tesseract.js-data/* npm packages so OCR never fetches
- * from a CDN at runtime. tesseract.js takes a single langPath, so both files are copied
- * into one temp dir first.
+ * Two page-layout modes read different fields on ID cards: `auto` (PSM 3) gets block text such
+ * as names, `sparse` (PSM 11) gets scattered text such as the Aadhaar number and DOB. One worker
+ * per mode so concurrent checks never flip each other's parameters.
  */
-async function prepareLangPath(): Promise<string> {
+export type OcrMode = "auto" | "sparse";
+const PSM: Record<OcrMode, string> = { auto: "3", sparse: "11" };
+
+const workers = new Map<OcrMode, Promise<Tesseract.Worker>>();
+
+/** Language data ships in the @tesseract.js-data/eng npm package — OCR never fetches from a CDN. */
+function langPath(): string {
   const require = createRequire(import.meta.url);
-  await mkdir(TESSDATA_DIR, { recursive: true });
-  for (const lang of LANGS) {
-    const pkgDir = path.dirname(require.resolve(`@tesseract.js-data/${lang}/package.json`));
-    await copyFile(
-      path.join(pkgDir, MODEL_DIR, `${lang}.traineddata.gz`),
-      path.join(TESSDATA_DIR, `${lang}.traineddata.gz`),
-    );
-  }
-  return TESSDATA_DIR;
+  return path.join(path.dirname(require.resolve(`@tesseract.js-data/${LANG}/package.json`)), MODEL_DIR);
 }
 
-function getWorker(): Promise<Tesseract.Worker> {
-  if (!workerPromise) {
-    workerPromise = (async () => {
-      const langPath = await prepareLangPath();
-      const worker = await Tesseract.createWorker([...LANGS], Tesseract.OEM.LSTM_ONLY, {
-        langPath,
+function getWorker(mode: OcrMode): Promise<Tesseract.Worker> {
+  let worker = workers.get(mode);
+  if (!worker) {
+    worker = (async () => {
+      const w = await Tesseract.createWorker(LANG, Tesseract.OEM.LSTM_ONLY, {
+        langPath: langPath(),
         cacheMethod: "none",
         gzip: true,
       });
-      logger.info("KYC OCR worker ready");
-      return worker;
+      await w.setParameters({
+        tessedit_pageseg_mode: PSM[mode] as Tesseract.PSM,
+        user_defined_dpi: "300",
+      });
+      logger.info({ mode }, "KYC OCR worker ready");
+      return w;
     })().catch((err) => {
-      workerPromise = null;
+      workers.delete(mode);
       throw err;
     });
+    workers.set(mode, worker);
   }
-  return workerPromise;
+  return worker;
 }
 
-export async function ocrImage(png: Buffer): Promise<{ text: string; confidence: number }> {
-  const worker = await getWorker();
+export async function ocrImage(png: Buffer, mode: OcrMode = "auto"): Promise<{ text: string; confidence: number }> {
+  const worker = await getWorker(mode);
   const { data } = await worker.recognize(png);
   return { text: data.text ?? "", confidence: data.confidence ?? 0 };
 }
 
-/** Load the OCR model at boot so the first signup photo doesn't pay the startup cost. */
+/** Load both OCR models at boot so the first signup photo doesn't pay the startup cost. */
 export function warmKycOcr(): void {
-  void getWorker().catch((err) => logger.warn({ err: (err as Error).message }, "KYC OCR warm-up failed"));
+  for (const mode of ["auto", "sparse"] as const) {
+    void getWorker(mode).catch((err) =>
+      logger.warn({ mode, err: (err as Error).message }, "KYC OCR warm-up failed"),
+    );
+  }
 }

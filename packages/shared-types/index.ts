@@ -481,6 +481,8 @@ export {
   KYC_DOC_CHECK_COPY,
   PAN_FORMAT_ERROR,
   kycDocCheckBlocksStep,
+  kycDocCheckHints,
+  kycDocCheckSlotsForStep,
   kycDocCheckLabel,
   kycDocCheckToUi,
   type KycDocCheckItem,

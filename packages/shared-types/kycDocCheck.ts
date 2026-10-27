@@ -54,6 +54,8 @@ function checkItem(c: KycDocCheckResult["checks"][number]): KycDocCheckItem | nu
         : { tone, text: `⚠ Name ${c.score != null ? `${c.score}% match` : "doesn't match"}` };
     case "dob":
       return pass ? { tone, text: "✓ Date of birth matched" } : { tone, text: "⚠ Date of birth doesn't match" };
+    case "gender":
+      return pass ? { tone, text: "✓ Gender matched" } : { tone, text: "⚠ Gender doesn't match" };
     case "aadhaarQr":
       return pass ? { tone, text: "✓ Aadhaar QR verified" } : { tone, text: "⚠ Aadhaar QR signature not valid" };
     default:
@@ -86,6 +88,30 @@ export function kycDocCheckToUi(slot: KycDocCheckSlot, result: KycDocCheckResult
 
 export function kycDocCheckLabel(ui: KycDocCheckUi): string {
   return ui.state === "checking" ? KYC_DOC_CHECK_COPY.checking : ui.message;
+}
+
+/**
+ * Form values sent with a photo check so the server can compare them with the card.
+ * Only the Aadhaar last 4 digits — never the full number.
+ */
+export function kycDocCheckHints(form: { dob?: string; gender?: string; aadhaar?: string }): {
+  dob?: string;
+  gender?: string;
+  aadhaarLast4?: string;
+} {
+  const digits = (form.aadhaar ?? "").replace(/\D/g, "");
+  return {
+    ...(form.dob ? { dob: form.dob } : {}),
+    ...(form.gender ? { gender: form.gender } : {}),
+    ...(digits.length === 12 ? { aadhaarLast4: digits.slice(-4) } : {}),
+  };
+}
+
+/** Photo fields on a signup step (step 3 = PAN, step 4 = Aadhaar; 0-based index 2 / 3). */
+export function kycDocCheckSlotsForStep(stepIndex: number): KycDocCheckSlot[] {
+  if (stepIndex === 2) return ["panImage"];
+  if (stepIndex === 3) return ["aadhaarFront", "aadhaarBack"];
+  return [];
 }
 
 /** Continue stays disabled while a photo on this step is being checked or was rejected. */

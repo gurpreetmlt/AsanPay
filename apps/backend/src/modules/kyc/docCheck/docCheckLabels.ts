@@ -21,6 +21,7 @@ function failText(c: DocCheckItem): string {
   if (c.id === "panNumber") return "✗ PAN number mismatch";
   if (c.id === "aadhaarNumber") return "✗ Aadhaar number mismatch";
   if (c.id === "quality") return "✗ Poor photo quality";
+  if (c.id === "name" || c.id === "dob") return "✗ Card belongs to a different person";
   return `✗ ${c.label} failed`;
 }
 
@@ -32,7 +33,8 @@ function flagText(c: DocCheckItem): string {
   }
   if (c.id === "panNumber") return "⚠ PAN number unreadable";
   if (c.id === "aadhaarQr") return "⚠ Aadhaar QR signature not verified";
-  if (c.id === "docType") return "⚠ Date of birth unreadable";
+  if (c.id === "gender") return "⚠ Gender mismatch";
+  if (c.id === "docType") return "⚠ Card side not confirmed";
   return "⚠ Photo unreadable";
 }
 

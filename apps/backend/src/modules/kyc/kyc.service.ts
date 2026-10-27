@@ -179,6 +179,23 @@ export async function getMyKycDocument(
   return loaded;
 }
 
+const DOC_CHECK_LABEL: Record<(typeof DOC_CHECK_SLOTS)[number], string> = {
+  panImage: "PAN card photo",
+  aadhaarFront: "Aadhaar front photo",
+  aadhaarBack: "Aadhaar back photo",
+};
+
+function docDataUrl(input: KycSubmitInput, slot: (typeof DOC_CHECK_SLOTS)[number]): string | null {
+  const raw = (
+    slot === "panImage"
+      ? input.panImageDataUrl
+      : slot === "aadhaarFront"
+        ? input.aadhaarFrontDataUrl
+        : input.aadhaarBackDataUrl
+  )?.trim();
+  return raw && raw.startsWith("data:image") ? raw : null;
+}
+
 /** Stores KYC PII encrypted. Status stays pending until admin verifies (Task 18). */
 export async function submitKyc(userId: string, input: KycSubmitInput): Promise<AuthUser> {
   const [user] = await db.select().from(users).where(eq(users.id, userId));
@@ -187,6 +204,35 @@ export async function submitKyc(userId: string, input: KycSubmitInput): Promise<
   }
   if (user.kycStatus === "verified") {
     throw new HttpError(409, "KYC is already verified", "KYC_ALREADY_VERIFIED");
+  }
+
+  // Decisive photo checks run here on the server, before anything is saved — the app's own
+  // check only guides the agent and can be bypassed. Usually a cache hit from
+  // POST /documents/check; otherwise capped at 12 s per photo (parallel).
+  const docChecks: Partial<Record<(typeof DOC_CHECK_SLOTS)[number], StoredDocCheck>> = {};
+  const checkHints = {
+    dob: input.dob,
+    gender: input.gender,
+    aadhaarLast4: input.aadhaarNumber.replace(/\D/g, "").slice(-4),
+  };
+  await Promise.all(
+    DOC_CHECK_SLOTS.map(async (slot) => {
+      const raw = docDataUrl(input, slot);
+      if (!raw) {
+        throw new HttpError(422, `Upload ${DOC_CHECK_LABEL[slot]} to submit KYC`, "KYC_DOC_PHOTO_REQUIRED");
+      }
+      const result = await checkKycDocument(userId, slot, raw, checkHints).catch((err) => {
+        if (err instanceof HttpError) throw err;
+        return null;
+      });
+      if (result) docChecks[slot] = toStoredDocCheck(result);
+    }),
+  );
+  for (const slot of DOC_CHECK_SLOTS) {
+    const check = docChecks[slot];
+    if (check?.status === "fail") {
+      throw new HttpError(422, `${DOC_CHECK_LABEL[slot]}: ${check.message}`, "KYC_DOC_CHECK_FAILED");
+    }
   }
 
   const latitude =
@@ -243,17 +289,6 @@ export async function submitKyc(userId: string, input: KycSubmitInput): Promise<
       throw new HttpError(422, `Could not save ${slot} image`, "KYC_IMAGE_SAVE_FAILED");
     }
   }
-
-  // Usually a cache hit from POST /documents/check; otherwise capped at 12 s per photo (parallel).
-  const docChecks: Partial<Record<(typeof DOC_CHECK_SLOTS)[number], StoredDocCheck>> = {};
-  await Promise.all(
-    DOC_CHECK_SLOTS.map(async (slot) => {
-      const raw = dataUrlInputs[slot]?.trim();
-      if (!raw || !raw.startsWith("data:image")) return;
-      const result = await checkKycDocument(userId, slot, raw, { dob: input.dob }).catch(() => null);
-      if (result) docChecks[slot] = toStoredDocCheck(result);
-    }),
-  );
 
   await insertAuditLog({
     userId,

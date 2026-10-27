@@ -17,6 +17,8 @@ export type DocTextAnalysis = {
   address: boolean;
   dobLabel: boolean;
   gender: boolean;
+  /** Gender printed on the card (Aadhaar front), when readable. */
+  genderValue: "male" | "female" | "other" | null;
   /** Last 4 digits of every 12-digit (or XXXX-masked) Aadhaar number found. Full numbers are never kept. */
   aadhaarLast4: string[];
   dob: string | null;
@@ -79,6 +81,16 @@ export function normalizeDob(raw: string | null | undefined): string | null {
   return m ? m[1]! : null;
 }
 
+/** "Male" / "M" / "FEMALE" / "Transgender" / "Other" → male | female | other. */
+export function normalizeGender(raw: string | null | undefined): "male" | "female" | "other" | null {
+  const g = (raw ?? "").trim().toUpperCase();
+  if (!g) return null;
+  if (g === "F" || g.startsWith("FEMALE")) return "female";
+  if (g === "M" || g.startsWith("MALE")) return "male";
+  if (g === "T" || g.startsWith("TRANS") || g.startsWith("OTHER")) return "other";
+  return null;
+}
+
 /** True / false when both sides are known; null when one side is missing. Year-only compares the year. */
 export function dobMatches(a: string | null, b: string | null): boolean | null {
   if (!a || !b) return null;
@@ -125,6 +137,7 @@ export function analyzeDocText(text: string, confidence: number): DocTextAnalysi
     address: /\bADDRESS\b|पता/.test(up),
     dobLabel: DOB_LABEL_RE.test(up),
     gender: /\b(?:MALE|FEMALE|TRANSGENDER)\b|पुरुष|महिला/.test(up),
+    genderValue: normalizeGender(/\b(FEMALE|MALE|TRANSGENDER)\b/.exec(up)?.[1] ?? null),
     aadhaarLast4: extractAadhaarLast4(up),
     dob: extractDob(text),
     lines: text

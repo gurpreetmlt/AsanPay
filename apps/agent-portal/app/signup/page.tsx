@@ -9,7 +9,9 @@ import {
   PAN_FORMAT_ERROR,
   SIGNUP_POLICY_VERSION,
   kycDocCheckBlocksStep,
+  kycDocCheckHints,
   kycDocCheckLabel,
+  kycDocCheckSlotsForStep,
   kycDocCheckToUi,
   type ApiResponse,
   type AuthUser,
@@ -1152,7 +1154,7 @@ function SignupPageInner() {
     try {
       const { data } = await api.post<ApiResponse<KycDocCheckResult>>(
         "/kyc/documents/check",
-        { slot, dataUrl, dob: draft.dob || undefined },
+        { slot, dataUrl, ...docCheckHints },
         { timeout: 20_000 },
       );
       if (data.success) result = data.data;
@@ -1164,6 +1166,20 @@ function SignupPageInner() {
     setDocChecks((c) => ({ ...c, [slot]: ui }));
     if (ui.state === "fail") clearFile(slot, { keepCheck: true });
   }
+
+  const docCheckHints = kycDocCheckHints(draft);
+  const docCheckHintKey = JSON.stringify(docCheckHints);
+
+  // Results live in memory only: re-check photos already in the draft after a reload, and again
+  // when DOB / gender / Aadhaar number change (the server compares them with the card).
+  useEffect(() => {
+    if (!draftReady || !accessToken) return;
+    for (const slot of kycDocCheckSlotsForStep(stepIndex)) {
+      const dataUrl = draft[slot]?.dataUrl;
+      if (dataUrl) void runDocCheck(slot, dataUrl);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftReady, accessToken, stepIndex, docCheckHintKey]);
 
   function validateStep(): string | null {
     if (stepIndex === 0) {

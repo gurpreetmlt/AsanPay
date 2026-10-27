@@ -18,11 +18,13 @@ import {
   looksLikePan,
   nameSimilarity,
   normalizeDob,
+  normalizeGender,
   type DocTextAnalysis,
   type DocType,
 } from "./docText";
-import { checkImageQuality, ocrReadyPng } from "./imageQuality";
-import { ocrImage } from "./ocr";
+import { escalateDifferentPerson } from "./identityRules";
+import { checkImageQuality, ocrReadyPng, type OcrVariant } from "./imageQuality";
+import { ocrImage, type OcrMode } from "./ocr";
 
 export const DOC_CHECK_SLOTS = ["panImage", "aadhaarFront", "aadhaarBack"] as const;
 export type DocCheckSlot = (typeof DOC_CHECK_SLOTS)[number];
@@ -99,9 +101,16 @@ type RefData = {
   aadhaarName: string | null;
   aadhaarDob: string | null;
   userName: string | null;
-  /** DOB the agent typed on the PAN step (sent with the check). */
+} & EnteredData;
+
+/** What the agent typed in the form — sent with the check (only Aadhaar last 4, never the full number). */
+type EnteredData = {
   enteredDob: string | null;
+  enteredGender: "male" | "female" | "other" | null;
+  enteredAadhaarLast4: string | null;
 };
+
+export type DocCheckHints = { dob?: string | null; gender?: string | null; aadhaarLast4?: string | null };
 
 const EMPTY_REFS: RefData = {
   pan: null,
@@ -111,7 +120,18 @@ const EMPTY_REFS: RefData = {
   aadhaarDob: null,
   userName: null,
   enteredDob: null,
+  enteredGender: null,
+  enteredAadhaarLast4: null,
 };
+
+function enteredFromHints(hints?: DocCheckHints): EnteredData {
+  const last4 = (hints?.aadhaarLast4 ?? "").replace(/\D/g, "").slice(-4);
+  return {
+    enteredDob: normalizeDob(hints?.dob),
+    enteredGender: normalizeGender(hints?.gender),
+    enteredAadhaarLast4: last4.length === 4 ? last4 : null,
+  };
+}
 
 function safeDecrypt(v: unknown): string | null {
   if (typeof v !== "string" || !v) return null;
@@ -158,6 +178,8 @@ async function loadReferenceData(userId: string): Promise<RefData> {
     aadhaarDob: normalizeDob(metaStr(aadhaarMeta, "dob")),
     userName: user?.name?.trim() || null,
     enteredDob: null,
+    enteredGender: null,
+    enteredAadhaarLast4: null,
   };
 }
 
@@ -218,9 +240,29 @@ function dobCheck(cardDob: string | null, expectedDob: string | null, source: st
       };
 }
 
+/** Gender printed on the Aadhaar vs the gender the agent selected. Unreadable → skip. */
+function genderCheck(cardGender: string | null, enteredGender: string | null): DocCheckItem {
+  if (!cardGender || !enteredGender) return { id: "gender", label: "Gender match", status: "skip" };
+  return cardGender === enteredGender
+    ? { id: "gender", label: "Gender match", status: "pass" }
+    : {
+        id: "gender",
+        label: "Gender match",
+        status: "flag",
+        detail: "Gender on the Aadhaar card doesn't match the gender you selected — it will be reviewed.",
+      };
+}
+
+/** Complementary OCR passes — each reads fields the others miss on real card photos. */
+const OCR_PASSES: { variant: OcrVariant; mode: OcrMode }[] = [
+  { variant: "sharp", mode: "auto" },
+  { variant: "plain", mode: "sparse" },
+  { variant: "bw", mode: "auto" },
+];
+
 /**
- * OCR the card. A second black / white pass runs only when the first misses what the slot needs
- * (busy coloured backgrounds); both passes' text is merged before the rules run.
+ * OCR the card. Passes run in order until the slot's key fields are found; the text of every
+ * pass is merged before the rules run.
  */
 async function readText(
   buffer: Buffer,
@@ -229,11 +271,11 @@ async function readText(
   const passes: { text: string; confidence: number }[] = [];
   const merged = () =>
     analyzeDocText(passes.map((p) => p.text).join("\n"), Math.max(...passes.map((p) => p.confidence)));
-  for (const variant of ["sharp", "bw"] as const) {
+  for (const { variant, mode } of OCR_PASSES) {
     const png = await ocrReadyPng(buffer, variant);
     if (!png) continue;
     try {
-      passes.push(await ocrImage(png));
+      passes.push(await ocrImage(png, mode));
     } catch (err) {
       logger.warn({ err: (err as Error).message }, "KYC OCR failed");
       continue;
@@ -247,7 +289,7 @@ async function readText(
 
 async function checkPan(buffer: Buffer, refs: RefData, checks: DocCheckItem[], started: number) {
   const slot = "panImage" as const;
-  const text = await readText(buffer, (a) => looksLikePan(a) && a.panNumbers.length > 0);
+  const text = await readText(buffer, (a) => looksLikePan(a) && a.panNumbers.length > 0 && a.dob != null);
   if (!text) {
     checks.push({ id: "ocr", label: "Read card text", status: "flag", detail: MSG_FLAG });
     return finalize(slot, "unknown", checks, started);
@@ -299,6 +341,7 @@ async function checkPan(buffer: Buffer, refs: RefData, checks: DocCheckItem[], s
   const expected = refs.panName ?? refs.userName;
   checks.push(nameCheck(expected, expected ? bestNameMatch(expected, text.lines) : null, "PAN card"));
   checks.push(dobCheck(text.dob, refs.enteredDob ?? refs.aadhaarDob, "PAN card"));
+  escalateDifferentPerson(checks, "PAN card", false);
   return finalize(slot, "pan", checks, started);
 }
 
@@ -325,8 +368,14 @@ async function checkAadhaar(
 ) {
   const side = SIDE[slot];
   const sideDocType: DocType = slot === "aadhaarFront" ? "aadhaar_front" : "aadhaar_back";
-  const expectedName = refs.aadhaarName ?? refs.userName;
+  // Cross-check against the PAN holder (verified PAN name) and the Aadhaar eKYC name; best wins.
+  const expectedNames = [refs.panName ?? refs.userName, refs.aadhaarName].filter((n): n is string => Boolean(n));
+  const expectedName = expectedNames[0] ?? null;
+  const scoreName = (score: (expected: string) => number) =>
+    expectedNames.length ? Math.max(...expectedNames.map(score)) : null;
   const expectedDob = refs.enteredDob ?? refs.aadhaarDob;
+  // OTP-verified Aadhaar first; before OTP, the number typed in the form.
+  const refLast4 = refs.aadhaarLast4 ?? refs.enteredAadhaarLast4;
 
   const scan: AadhaarQrScan = await scanAadhaarQr(buffer).catch(() => ({ found: false }) as const);
   const qrData = scan.found && scan.secure ? scan.data : null;
@@ -356,24 +405,33 @@ async function checkAadhaar(
 
   // Signed QR = UIDAI data, so OCR is not needed and a different Aadhaar is a hard fail.
   if (qrData && qr?.verified) {
-    if (refs.aadhaarLast4) {
+    if (refLast4) {
       checks.push(
-        qrData.aadhaarLast4 === refs.aadhaarLast4
+        qrData.aadhaarLast4 === refLast4
           ? { id: "aadhaarNumber", label: "Aadhaar number", status: "pass" }
           : {
               id: "aadhaarNumber",
               label: "Aadhaar number",
               status: "fail",
-              detail: "This Aadhaar does not match your verified Aadhaar. Upload a photo of your own Aadhaar card.",
+              detail: "This Aadhaar does not match the Aadhaar number you entered. Upload a photo of your own Aadhaar card.",
             },
       );
     }
-    checks.push(nameCheck(expectedName, expectedName ? nameSimilarity(expectedName, qrData.name) : null, "Aadhaar QR"));
+    checks.push(nameCheck(expectedName, scoreName((n) => nameSimilarity(n, qrData.name)), "Aadhaar QR"));
     checks.push(dobCheck(normalizeDob(qrData.dob), expectedDob, "Aadhaar QR"));
+    checks.push(genderCheck(normalizeGender(qrData.gender), refs.enteredGender));
+    escalateDifferentPerson(checks, "Aadhaar card", false);
     return finalize(slot, sideDocType, checks, started, "Aadhaar QR verified", qr);
   }
 
-  const text = await readText(buffer, (a) => isAadhaarLike(a) && !looksLikePan(a) && a.aadhaarLast4.length > 0);
+  const text = await readText(
+    buffer,
+    (a) =>
+      isAadhaarLike(a) &&
+      !looksLikePan(a) &&
+      a.aadhaarLast4.length > 0 &&
+      (slot === "aadhaarBack" || (a.dob != null && a.genderValue != null)),
+  );
   const legacyQr = scan.found && !scan.secure && scan.legacyAadhaar;
   const pan = text ? looksLikePan(text) : false;
   const aadhaarEvidence = Boolean(qrData) || legacyQr || (text ? isAadhaarLike(text) && !pan : false);
@@ -435,9 +493,10 @@ async function checkAadhaar(
     checks.push({ id: "docType", label: slot === "aadhaarFront" ? "Aadhaar front" : "Aadhaar back", status: "pass" });
   }
 
-  // Unsigned QR data is more accurate than OCR but not trusted enough to hard-fail on.
+  // Unsigned QR data is more accurate than OCR but not trusted enough to hard-fail on alone.
   const last4s = qrData ? [qrData.aadhaarLast4] : text.aadhaarLast4;
-  if (refs.aadhaarLast4) {
+  let numberMismatch = false;
+  if (refLast4) {
     if (!last4s.length) {
       if (slot === "aadhaarFront") {
         checks.push({
@@ -447,26 +506,30 @@ async function checkAadhaar(
           detail: "We couldn't read the Aadhaar number on this photo — it will be reviewed.",
         });
       }
-    } else if (last4s.includes(refs.aadhaarLast4)) {
+    } else if (last4s.includes(refLast4)) {
       checks.push({ id: "aadhaarNumber", label: "Aadhaar number", status: "pass" });
     } else {
+      numberMismatch = true;
       checks.push({
         id: "aadhaarNumber",
         label: "Aadhaar number",
         status: "flag",
-        detail: "Aadhaar number on this photo doesn't match your verified Aadhaar — it will be reviewed.",
+        detail: "Aadhaar number on this photo doesn't match the Aadhaar number you entered — it will be reviewed.",
       });
     }
   }
 
   if (qrData) {
-    checks.push(nameCheck(expectedName, expectedName ? nameSimilarity(expectedName, qrData.name) : null, "Aadhaar QR"));
+    checks.push(nameCheck(expectedName, scoreName((n) => nameSimilarity(n, qrData.name)), "Aadhaar QR"));
     checks.push(dobCheck(normalizeDob(qrData.dob), expectedDob, "Aadhaar QR"));
+    checks.push(genderCheck(normalizeGender(qrData.gender), refs.enteredGender));
   } else if (slot === "aadhaarFront") {
-    checks.push(nameCheck(expectedName, expectedName ? bestNameMatch(expectedName, text.lines) : null, "Aadhaar card"));
+    checks.push(nameCheck(expectedName, scoreName((n) => bestNameMatch(n, text.lines)), "Aadhaar card"));
     checks.push(dobCheck(text.dob, expectedDob, "Aadhaar card"));
+    checks.push(genderCheck(text.genderValue, refs.enteredGender));
   }
 
+  escalateDifferentPerson(checks, "Aadhaar card", numberMismatch);
   return finalize(slot, sideDocType, checks, started, undefined, qr);
 }
 
@@ -476,7 +539,7 @@ async function runDocCheck(
   userId: string,
   slot: DocCheckSlot,
   buffer: Buffer,
-  enteredDob: string | null,
+  entered: EnteredData,
 ): Promise<DocCheckResult> {
   const started = Date.now();
   const checks: DocCheckItem[] = [];
@@ -498,7 +561,7 @@ async function runDocCheck(
   );
   if (qualityFail) return finalize(slot, "unknown", checks, started);
 
-  const refs: RefData = { ...(await refsPromise), enteredDob };
+  const refs: RefData = { ...(await refsPromise), ...entered };
   return slot === "panImage"
     ? checkPan(buffer, refs, checks, started)
     : checkAadhaar(slot, buffer, refs, checks, started);
@@ -513,9 +576,11 @@ function timeoutResult(slot: DocCheckSlot, started: number): DocCheckResult {
 const memoryCache = new Map<string, { result: DocCheckResult; expiresAt: number }>();
 const inFlight = new Map<string, Promise<DocCheckResult>>();
 
-function cacheKey(userId: string, slot: DocCheckSlot, buffer: Buffer, enteredDob: string | null): string {
+/** Result depends on the photo AND what was typed in the form, so both are in the key. */
+function cacheKey(userId: string, slot: DocCheckSlot, buffer: Buffer, entered: EnteredData): string {
   const hash = createHash("sha256").update(buffer).digest("hex").slice(0, 32);
-  return `${CACHE_KEY_PREFIX}${userId}:${slot}:${hash}:${enteredDob ?? "-"}`;
+  const form = `${entered.enteredDob ?? "-"}:${entered.enteredGender ?? "-"}:${entered.enteredAadhaarLast4 ?? "-"}`;
+  return `${CACHE_KEY_PREFIX}${userId}:${slot}:${hash}:${form}`;
 }
 
 async function remember(key: string, result: DocCheckResult): Promise<void> {
@@ -549,9 +614,9 @@ export async function checkKycDocument(
   userId: string,
   slot: DocCheckSlot,
   dataUrl: string,
-  hints?: { dob?: string | null },
+  hints?: DocCheckHints,
 ): Promise<DocCheckResult> {
-  const enteredDob = normalizeDob(hints?.dob);
+  const entered = enteredFromHints(hints);
   const parsed = parseKycDataUrl(dataUrl);
   if (!parsed) {
     throw new HttpError(422, "Upload a JPG, PNG, WEBP, or HEIC image", "INVALID_IMAGE_UPLOAD");
@@ -560,14 +625,14 @@ export async function checkKycDocument(
     throw new HttpError(422, "Image must be under 1.5 MB", "IMAGE_TOO_LARGE");
   }
 
-  const key = cacheKey(userId, slot, parsed.buffer, enteredDob);
+  const key = cacheKey(userId, slot, parsed.buffer, entered);
   const cached = await recall(key);
   if (cached) return cached;
 
   const started = Date.now();
   let run = inFlight.get(key);
   if (!run) {
-    run = runDocCheck(userId, slot, parsed.buffer, enteredDob)
+    run = runDocCheck(userId, slot, parsed.buffer, entered)
       .catch((err) => {
         logger.warn({ userId, slot, err: (err as Error).message }, "KYC doc check crashed");
         return timeoutResult(slot, started);

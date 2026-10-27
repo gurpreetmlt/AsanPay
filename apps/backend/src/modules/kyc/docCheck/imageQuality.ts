@@ -105,18 +105,21 @@ export async function rgbaFrames(
   return frames;
 }
 
+export type OcrVariant = "sharp" | "plain" | "bw";
+
 /**
- * Upright PNG for OCR. `sharp` = greyscale + contrast + sharpen (default pass);
- * `bw` = black / white threshold — second pass for cards with busy coloured backgrounds.
+ * Upright PNG for OCR. `sharp` = greyscale + contrast + sharpen; `plain` = greyscale + contrast;
+ * `bw` = black / white threshold (cards with busy coloured backgrounds).
  */
-export async function ocrReadyPng(buffer: Buffer, variant: "sharp" | "bw" = "sharp"): Promise<Buffer | null> {
+export async function ocrReadyPng(buffer: Buffer, variant: OcrVariant = "sharp"): Promise<Buffer | null> {
   try {
     const base = sharp(buffer, { failOn: "none" })
       .rotate()
       .resize({ width: 1600, withoutEnlargement: false })
       .greyscale()
       .normalize();
-    return await (variant === "bw" ? base.threshold(150) : base.sharpen()).png().toBuffer();
+    const img = variant === "bw" ? base.threshold(150) : variant === "sharp" ? base.sharpen() : base;
+    return await img.png().toBuffer();
   } catch {
     return null;
   }
