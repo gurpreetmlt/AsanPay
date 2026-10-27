@@ -78,11 +78,13 @@ function otpHashesEqual(storedHash: string, candidateOtp: string): boolean {
 export async function requestEmailVerifyOtp(input: {
   userId: string;
   email: string;
-}): Promise<{ message: string; expiresInSeconds: number }> {
-  if (!isMailerConfigured()) {
-    throw new HttpError(503, "Email is not configured on this server", "EMAIL_NOT_CONFIGURED");
-  }
-
+}): Promise<{
+  message: string;
+  expiresInSeconds: number;
+  alreadyVerified?: true;
+  email?: string;
+  emailVerifiedAt?: string;
+}> {
   const email = input.email.trim().toLowerCase();
 
   const [row] = await db
@@ -97,8 +99,19 @@ export async function requestEmailVerifyOtp(input: {
 
   if (!row) throw new HttpError(404, "User not found", "USER_NOT_FOUND");
 
-  if (row.email === email && row.emailVerifiedAt) {
-    throw new HttpError(409, "This email is already verified", "EMAIL_ALREADY_VERIFIED");
+  // KYC reset keeps the verified inbox; re-entering it during signup KYC must not block the step.
+  if ((row.email ?? "").toLowerCase() === email && row.emailVerifiedAt) {
+    return {
+      message: "Email already verified",
+      expiresInSeconds: 0,
+      alreadyVerified: true,
+      email,
+      emailVerifiedAt: row.emailVerifiedAt.toISOString(),
+    };
+  }
+
+  if (!isMailerConfigured()) {
+    throw new HttpError(503, "Email is not configured on this server", "EMAIL_NOT_CONFIGURED");
   }
 
   await releaseEmailIfUnused(email, input.userId);

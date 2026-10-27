@@ -838,6 +838,14 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
       setEmailError("Enter a valid email address");
       return;
     }
+    if (
+      authUser?.emailVerifiedAt &&
+      (authUser.email ?? "").toLowerCase() === value.toLowerCase()
+    ) {
+      setEmailError(null);
+      patch({ emailVerified: true, email: value.toLowerCase() });
+      return;
+    }
     let cancelled = false;
     const t = setTimeout(async () => {
       try {
@@ -863,7 +871,15 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [draft.email, draft.emailVerified, draftReady, stepIndex, phase]);
+  }, [
+    draft.email,
+    draft.emailVerified,
+    draftReady,
+    stepIndex,
+    phase,
+    authUser?.email,
+    authUser?.emailVerifiedAt,
+  ]);
 
   useEffect(() => {
     if (!needsUpline) {
@@ -1762,7 +1778,21 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
     }
     setLoading(true);
     try {
-      await api.post("/auth/email/otp/request", { email: draft.email.trim().toLowerCase() });
+      const { data } = await api.post<
+        ApiResponse<{ alreadyVerified?: boolean; email?: string; emailVerifiedAt?: string }>
+      >("/auth/email/otp/request", { email: draft.email.trim().toLowerCase() });
+      if (data.data?.alreadyVerified && data.data.email) {
+        patch({ emailVerified: true, email: data.data.email });
+        if (authUser && data.data.emailVerifiedAt) {
+          updateUser({
+            ...authUser,
+            email: data.data.email,
+            emailVerifiedAt: data.data.emailVerifiedAt,
+          });
+        }
+        showAlert("Verified", "This email is already verified on your account");
+        return;
+      }
       setPhase("emailOtp");
       showAlert("Code sent", "Check your email for the verification code");
     } catch (err) {

@@ -123,11 +123,25 @@ export function EmailVerifyField({
 
     void (async () => {
       try {
-        const { data } = await api.post<ApiResponse<{ message: string; expiresInSeconds: number }>>(
-          "/auth/email/otp/request",
-          { email: normalized },
-        );
+        const { data } = await api.post<
+          ApiResponse<{
+            message: string;
+            expiresInSeconds: number;
+            alreadyVerified?: boolean;
+            email?: string;
+            emailVerifiedAt?: string;
+          }>
+        >("/auth/email/otp/request", { email: normalized });
         if (!data.success) throw new Error(data.message);
+        if (data.data?.alreadyVerified && data.data.email) {
+          setModalOpen(false);
+          onChange(data.data.email);
+          if (user && data.data.emailVerifiedAt) {
+            setUser({ ...user, email: data.data.email, emailVerifiedAt: data.data.emailVerifiedAt });
+          }
+          toast.success("This email is already verified on your account");
+          return;
+        }
         toast.success(data.message ?? "Verification code sent");
       } catch (err) {
         setModalOpen(false);
