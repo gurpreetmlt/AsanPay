@@ -1588,9 +1588,13 @@ function SignupPageInner() {
       setAadhaarOtp("");
       toast.success(data.message || data.data.message || "OTP sent to the mobile registered with this Aadhaar");
     } catch (err) {
-      const e = err as { code?: string; message?: string; response?: { status?: number } };
+      const e = err as { code?: string; message?: string; response?: { status?: number; data?: { code?: string } } };
       const noReply =
-        !e.response || e.response.status === 504 || e.code === "ECONNABORTED" || /timeout/i.test(e.message ?? "");
+        !e.response ||
+        e.response.status === 504 ||
+        e.response.data?.code === "AADHAAR_OTP_UPSTREAM" ||
+        e.code === "ECONNABORTED" ||
+        /timeout/i.test(e.message ?? "");
       if (noReply) {
         patch({ aadhaarOtpRequestId: "", aadhaarOtpVerified: false, aadhaarVerifiedName: "" });
         setAadhaarOtpUnconfirmed(true);

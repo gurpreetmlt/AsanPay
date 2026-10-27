@@ -4,7 +4,8 @@ import { users } from "./users";
 /**
  * Web → phone location hand-off. The web shows a QR with `token`; the same user scans it in the
  * mobile app, which posts the phone's GPS. Browser geolocation on desktops is IP-based and easy
- * to fake, so web AEPS / onboarding use these coordinates instead.
+ * to fake, so web AEPS / onboarding use these coordinates instead. Signup `shop` / `home` links are
+ * opened by the phone camera in a browser (public page, no login) instead of the app.
  * status: pending → verified (phone posted GPS) → used (consumed by a web submit).
  */
 export const geoLinkRequests = pgTable(

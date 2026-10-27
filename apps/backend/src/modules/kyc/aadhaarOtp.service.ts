@@ -162,9 +162,13 @@ function isGatewayFailure(httpStatus: number, json: BestApiJson): boolean {
 }
 
 /** Status + short provider message only; long digit runs are masked so an Aadhaar never reaches logs. */
-function logSendFailure(userId: string, res: { httpStatus: number; json: BestApiJson }, note: string): void {
+function logSendFailure(userId: string, res: { httpStatus: number; json: BestApiJson }): void {
   const providerMsg = providerMessage(res.json, "").slice(0, 160).replace(/\d{6,}/g, "******");
-  logger.warn({ userId, httpStatus: res.httpStatus, providerMsg, note }, "Aadhaar OTP send failed at BestAPI");
+  const top = asRecord(res.json) ?? {};
+  logger.warn(
+    { userId, httpStatus: res.httpStatus, providerMsg, keys: Object.keys(top) },
+    "Aadhaar OTP send failed at BestAPI",
+  );
 }
 
 function extractProviderRequestId(json: BestApiJson): string | null {
@@ -240,7 +244,8 @@ async function loadPending(userId: string): Promise<PendingAadhaarOtp | null> {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as PendingAadhaarOtp;
-    if (!parsed?.providerId || !parsed?.aadhaarDigits || !parsed?.expiresAt) return null;
+    // providerId may be "" when the send gateway failed but the SMS still went out.
+    if (typeof parsed?.providerId !== "string" || !parsed?.aadhaarDigits || !parsed?.expiresAt) return null;
     if (parsed.expiresAt < Date.now()) {
       await cacheDel(`${CACHE_KEY_PREFIX}${userId}`);
       return null;
@@ -267,27 +272,24 @@ export async function sendAadhaarKycOtp(
     throw new HttpError(422, "Enter a valid 12-digit Aadhaar", "INVALID_AADHAAR");
   }
 
-  const started = Date.now();
-  let res = await bestApiPost(SEND_PATH, { Adhar: digits });
-  // A gateway error means the request never reached UIDAI (no SMS went out), so one quick retry is
-  // safe. Skipped when the first try was slow, to stay inside the app's 45 s request timeout.
-  if (
-    isFailurePayload(res.httpStatus, res.json) &&
-    isGatewayFailure(res.httpStatus, res.json) &&
-    Date.now() - started < 12_000
-  ) {
-    logSendFailure(userId, res, "retrying once");
-    await new Promise((r) => setTimeout(r, 1500));
-    res = await bestApiPost(SEND_PATH, { Adhar: digits }, undefined, 20_000);
-  }
+  const res = await bestApiPost(SEND_PATH, { Adhar: digits });
   if (isFailurePayload(res.httpStatus, res.json)) {
-    logSendFailure(userId, res, "giving up");
+    logSendFailure(userId, res);
     const raw = providerMessage(res.json, "Could not send Aadhaar OTP. Check the Aadhaar number and try again.");
     assertInPlan(res.httpStatus, raw);
     if (isGatewayFailure(res.httpStatus, res.json)) {
+      // The gateway can fail after UIDAI already sent the SMS (no retry: it would send a second OTP).
+      // Keep a pending session so an OTP that did arrive can still be verified.
+      await savePending(userId, {
+        providerId: extractProviderRequestId(res.json) ?? "",
+        aadhaarDigits: digits,
+        aadhaarHash: sha256(digits),
+        last4: digits.slice(-4),
+        expiresAt: Date.now() + SESSION_TTL_MS,
+      });
       throw new HttpError(
         502,
-        "Aadhaar OTP service (UIDAI) is not responding right now, so no OTP was sent. Wait a minute and tap Send OTP again.",
+        "Aadhaar OTP service is slow right now. If you received the OTP, enter it below and tap Verify. If not, tap Resend OTP in a minute.",
         "AADHAAR_OTP_UPSTREAM",
       );
     }
@@ -397,7 +399,7 @@ async function runAadhaarOtpVerify(
       "AADHAAR_OTP_EXPIRED",
     );
   }
-  if (requestId && pending.providerId !== requestId) {
+  if (requestId && pending.providerId && pending.providerId !== requestId) {
     logger.warn({ userId, aadhaarLast4: pending.last4 }, "Aadhaar OTP verify: request id mismatch");
     throw new HttpError(
       401,

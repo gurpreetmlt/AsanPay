@@ -30,6 +30,7 @@ import { MobileSignupStepper, MOBILE_SIGNUP_STEPS } from "../../components/Mobil
 import { CardCameraModal } from "../../components/CardCameraModal";
 import { KycCardUpload, type KycCardStage } from "../../components/KycCardUpload";
 import { TermsAcceptModal } from "../../components/TermsAcceptModal";
+import { SignupLocationCard } from "../../components/SignupLocationCard";
 import {
   PAN_FORMAT_ERROR,
   SIGNUP_POLICY_VERSION,
@@ -1660,9 +1661,13 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         data.message || data.data.message || "OTP sent to the mobile registered with this Aadhaar",
       );
     } catch (err) {
-      const e = err as { code?: string; message?: string; response?: { status?: number } };
+      const e = err as { code?: string; message?: string; response?: { status?: number; data?: { code?: string } } };
       const noReply =
-        !e.response || e.response.status === 504 || e.code === "ECONNABORTED" || /timeout/i.test(e.message ?? "");
+        !e.response ||
+        e.response.status === 504 ||
+        e.response.data?.code === "AADHAAR_OTP_UPSTREAM" ||
+        e.code === "ECONNABORTED" ||
+        /timeout/i.test(e.message ?? "");
       if (noReply) {
         patch({ aadhaarOtpRequestId: "", aadhaarOtpVerified: false, aadhaarVerifiedName: "" });
         setAadhaarOtpUnconfirmed(true);
@@ -2589,6 +2594,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                       />
                     </View>
                   </View>
+                  <SignupLocationCard place="home" value={draft.homeGeo} onChange={(homeGeo) => patch({ homeGeo })} />
                 </>
               )}
 
@@ -2703,6 +2709,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                       />
                     </View>
                   </View>
+                  <SignupLocationCard place="shop" value={draft.shopGeo} onChange={(shopGeo) => patch({ shopGeo })} />
                 </>
               )}
 
@@ -3162,16 +3169,6 @@ const styles = StyleSheet.create({
     width: 36,
   },
   block: { gap: 8 },
-  locBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 10,
-  },
   label: { fontSize: 11, fontWeight: "700", letterSpacing: 0.4, marginTop: 6, marginBottom: 4 },
   input: { borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14 },
   hint: { fontSize: 12, marginBottom: 6 },
