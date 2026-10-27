@@ -617,6 +617,32 @@ adminRouter.delete("/rate-card/provider-income/:id", async (req, res) => {
   sendSuccess(res, await endProviderIncomeRule(req.auth.sub, req.params.id, reason), "Provider income ended");
 });
 
+adminRouter.post("/rate-card/customer-fee", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { setCustomerFeeRule } = await import("../commission/rateCard.service");
+  const body = z
+    .object({
+      serviceId: z.string().uuid(),
+      providerId: z.string().uuid().nullable().optional(),
+      role: schemeRoleEnum.nullable().optional(),
+      ruleType: ruleTypeEnum,
+      value: z.string().min(1, "Enter the customer fee").max(20),
+      minAmount: z.string().max(20).nullable().optional(),
+      maxAmount: z.string().max(20).nullable().optional(),
+      effectiveFrom: z.string().max(40).nullable().optional(),
+      reason: z.string().max(500).nullable().optional(),
+    })
+    .parse(req.body);
+  sendSuccess(res, await setCustomerFeeRule(req.auth.sub, body), "Customer fee saved");
+});
+
+adminRouter.delete("/rate-card/customer-fee/:id", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { endCustomerFeeRule } = await import("../commission/rateCard.service");
+  const { reason } = z.object({ reason: z.string().max(500).nullable().optional() }).parse(req.body ?? {});
+  sendSuccess(res, await endCustomerFeeRule(req.auth.sub, req.params.id, reason), "Customer fee ended");
+});
+
 const pctString = (label: string) =>
   z.string({ error: `${label} is required` }).min(1, `${label} is required`).max(20);
 

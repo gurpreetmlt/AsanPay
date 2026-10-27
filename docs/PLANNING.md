@@ -7,6 +7,7 @@ One row per feature; details in the section below the table. Newest at the top o
 
 | # | Feature | Surfaces | Size | Status | Design | Task file |
 |---|---------|----------|------|--------|--------|-----------|
+| PL-17 | Admin cleanup — separate Commission / Tax / Support & Risk / Platform settings sidebar, one home per setting, action-first dashboard | Admin | L | building — step 1 (sidebar split) + regroup A (Daily work / Money / Setup) built 27 Oct; tab hubs (B), steps 2–4 planned | — | — |
 | PL-16 | Production Postgres on AWS RDS (Mumbai) + decide on a separate production EC2 | Infra | L | idea (27 Oct) — after admin work + RC1 deploy | — | — |
 | PL-15 | Admin "Services" setup page — one page per service (status · provider · limits · customer fee · commission · preview) | Backend, admin | L | idea (27 Oct) — after PL-14 | — | — |
 | PL-14 | Commission rate card + share % (one screen, live preview, safety, Advanced tab) + agent-page Commission card | Backend, admin | L | building — RC1 live 27 Oct (migrated, 65 services × 60/10/5); RC2 built 27 Oct (Rate card screen + editable GST/TDS + Suggested chips, migration 0079 — deploy pending); RC3 / RC6 next | — | [commission-rate-card.md](TASKS/commission-rate-card.md) |
@@ -25,6 +26,38 @@ One row per feature; details in the section below the table. Newest at the top o
 | PL-01 | Linked accounts + role switch (same person, Distributor + Retailer) | Backend, web, mobile, admin | M | building (backend + web + mobile built 26 Oct; migrate `0076` + APK + live test pending; admin card next) | [Figma prompt](PROMPTS/figma-linked-accounts.md) · Figma URL pending | [linked-accounts.md](TASKS/linked-accounts.md) |
 
 ---
+
+## PL-17 — Admin cleanup (Commission / Tax split, one home per setting, dashboard)
+
+**Problem:** The same thing is set or shown in 2–3 places: customer fee (Platform Control → Service charges
+and Rate card), tax (old Tax settings page edits in place, no audit; Rate card versioned), commission preview
+(What-if uses old fixed-rule math; Rate card uses live payout math), losses (Underwater with a hand-typed
+provider pool; Rate card "Company loses"). Three pages are called "Recon". Platform Control mixes settings with
+ops queues. Dashboard repeats sidebar links and shows no "needs action" or margin numbers.
+
+**Plan**
+1. ✅ Sidebar split: **Commission** (Rate card · Customer fees · Agent custom rates · Payouts · Underwater ·
+   Commission check · Rate history · Schemes · What-if), **Tax** (Tax settings · Tax registers · PAN gaps ·
+   CA pack · Month lock), **Support & Risk** (queues), **Platform settings**. URLs unchanged; Overview →
+   Rate card; clearer names (Agent bank accounts, Commission check, Rate history). Replaces RC4 navigation.
+   ✅ Regroup A (owner, 27 Oct — same pattern as Treasury & Balance): three headings **Daily work** (Dashboard ·
+   Agents · Transactions [All · Stuck & recovery · Disputes] · Support [Tickets · WhatsApp · Device repairs ·
+   Risk alerts · Support contacts]), **Money** (Treasury & Balance · Commission · Tax), **Setup** (Services
+   [Services & badges · Providers & routing] · Agent messages [Promotions · Announcements] · System [Audit log ·
+   Safety]). Platform Control / Developer Options groups removed; URLs unchanged.
+   Next (B): tabbed hubs — Agents role tabs, Commission "Checks & history" + "Advanced", Tax "Registers & CA pack".
+2. One home per setting: tax editing only under Tax → Tax settings (default + per-service table, versioned API);
+   Rate card shows tax read-only with "Edit in Tax". Service charges page saves through the versioned
+   customer-fee API (reason + Rate audit). Retire What-if (Rate card preview) and Underwater ("Loss & missing"
+   view on the Rate card).
+3. Dashboard: "Needs action" strip (fund requests, KYC, disputes, tickets, stuck txns, low provider balance,
+   missing commission, loss-making services), Money today (volume, fee income, commission paid, GST, company
+   keeps vs yesterday), Provider health; drop quick links that repeat the sidebar.
+4. Fixed ₹ / % rule editing inside the Rate card; Schemes stays as Advanced.
+
+**Decisions**
+- [x] Tax editing moves out of the Rate card into Tax → Tax settings (owner, 27 Oct) — done in step 2.
+- [ ] Step 3 metrics: confirm the "company keeps" definition for the dashboard (same as Rate card).
 
 ## PL-16 — Production RDS + EC2
 

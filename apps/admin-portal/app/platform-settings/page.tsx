@@ -104,7 +104,7 @@ export default function PlatformSettingsPage() {
       <div className="mx-auto w-full max-w-[1600px] space-y-5 p-4 md:p-6">
         <div>
           <h1 className="text-xl font-bold md:text-2xl" style={{ color: B.blue }}>
-            Platform Settings
+            Support contacts
           </h1>
           <p className="mt-1 text-sm" style={{ color: B.muted }}>
             Care contacts shown on agent Support (call, WhatsApp, email, website, nodal officer).

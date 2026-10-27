@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { IndianRupee, Pencil, Plus } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
+import { SectionTabs } from "@/components/layout/SectionTabs";
 import { ConfirmModal, type ConfirmTone } from "@/components/ui/ConfirmModal";
 import { TableActionButtons } from "@/components/ui/TableActionButtons";
 import { B } from "@/lib/brand";
@@ -268,6 +269,7 @@ export default function ServiceChargesPage() {
   return (
     <AdminShell>
       <div className="mx-auto w-full max-w-[1600px] space-y-6 p-6">
+        <SectionTabs group="commission" />
         <div className="flex flex-wrap items-center gap-3">
           <div
             className="flex h-12 w-12 items-center justify-center rounded-2xl text-white"
@@ -277,10 +279,17 @@ export default function ServiceChargesPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold" style={{ color: B.blue }}>
-              Service charges
+              Customer fees
             </h1>
             <p className="text-sm" style={{ color: B.muted }}>
               Customer fee on debit services (DMT, BBPS, recharge). Applied server-side — not set by agents.
+            </p>
+            <p className="mt-0.5 text-xs" style={{ color: B.muted }}>
+              Same fees are editable per service, next to provider income and shares, on the{" "}
+              <a href="/tax-commission/rate-card" className="font-semibold underline-offset-2 hover:underline" style={{ color: B.blueLight }}>
+                Rate card
+              </a>
+              .
             </p>
           </div>
         </div>

@@ -294,7 +294,7 @@ export const commissionRateChangeEvents = pgTable(
     adminId: uuid("admin_id")
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
-    /** `rule` (commission_rules) | `override` (user_commission_rates) | `share` | `provider_income` | `tax_config` */
+    /** `rule` (commission_rules) | `override` (user_commission_rates) | `share` | `provider_income` | `tax_config` | `customer_fee` */
     entityType: varchar("entity_type", { length: 20 }).notNull(),
     entityId: uuid("entity_id").notNull(),
     userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),

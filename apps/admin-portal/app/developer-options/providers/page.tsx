@@ -222,7 +222,7 @@ export default function ProvidersPage() {
     <AdminShell>
       <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6">
         <h1 className="text-xl font-bold" style={{ color: B.blue }}>
-          Providers
+          Providers &amp; routing
         </h1>
         <p className="mt-1 text-sm" style={{ color: B.muted }}>
           One row per rail (AEPS, DMT, BBPS, ...) — toggle, reorder priority, or disable a whole

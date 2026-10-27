@@ -50,7 +50,7 @@ export async function assertCommissionMonthUnlocked(
 
 export type RateChangeInput = {
   adminId: string;
-  entityType: "rule" | "override" | "share" | "provider_income" | "tax_config";
+  entityType: "rule" | "override" | "share" | "provider_income" | "tax_config" | "customer_fee";
   entityId: string;
   userId?: string | null;
   serviceId?: string | null;

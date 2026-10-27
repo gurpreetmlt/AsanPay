@@ -8,7 +8,7 @@ export default function TaxCommissionRegistersPage() {
   return (
     <AdminShell>
       <div className="mx-auto w-full max-w-[1600px] space-y-5 p-6">
-        <SectionTabs group="taxCommission" />
+        <SectionTabs group="tax" />
         <CommissionWorkbench tab="registers" />
       </div>
     </AdminShell>

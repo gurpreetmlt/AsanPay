@@ -11,19 +11,23 @@ import {
   ChevronDown,
   Crown,
   FileSpreadsheet,
+  Fingerprint,
   GitBranch,
   History,
   IdCard,
   IndianRupee,
   Landmark,
+  LayoutGrid,
   LifeBuoy,
   Lock,
+  Mail,
   Megaphone,
   MessageCircle,
   Network,
   Package,
   Percent,
   Plug,
+  Receipt,
   Scale,
   ScrollText,
   Settings,
@@ -68,13 +72,23 @@ const AGENTS: NavItem[] = [
       { href: "/users/distributors", label: "Distributors", icon: { lib: "lucide", icon: Network } },
       { href: "/users/retailers", label: "Retailers", icon: { lib: "lucide", icon: Store } },
       { href: "/kyc", label: "KYC Queue", icon: { lib: "md", name: "MdVerifiedUser" } },
-      { href: "/settlements", label: "Settlements / banks", icon: { lib: "lucide", icon: Landmark } },
+      { href: "/settlements", label: "Agent bank accounts", icon: { lib: "lucide", icon: Landmark } },
     ],
   },
 ];
 
 const TRANSACTIONS: NavItem[] = [
-  { type: "link", href: "/transactions", label: "All Transactions", icon: { lib: "fa", name: "FaExchangeAlt" } },
+  {
+    type: "group",
+    id: "transactions",
+    label: "Transactions",
+    icon: { lib: "fa", name: "FaExchangeAlt" },
+    children: [
+      { href: "/transactions", label: "All transactions", icon: { lib: "fa", name: "FaExchangeAlt" } },
+      { href: "/recovery-workbench", label: "Stuck & recovery", icon: { lib: "lucide", icon: Wrench } },
+      { href: "/disputes", label: "Disputes", icon: { lib: "lucide", icon: ShieldAlert } },
+    ],
+  },
 ];
 
 /** Company money: funding, fund-request queue, statements — under Treasury so ops never hunt. */
@@ -103,77 +117,110 @@ const TREASURY: NavItem[] = [
   },
 ];
 
-/** Agent commercials / TDS / fee GST — expandable group (same pattern as Treasury). */
-const TAX_COMMISSION: NavItem[] = [
+/** What agents earn and what customers pay. URLs stay under /tax-commission so old links keep working. */
+const COMMISSION: NavItem[] = [
   {
     type: "group",
-    id: "taxCommission",
-    label: "Tax & Commission",
+    id: "commission",
+    label: "Commission",
     icon: { lib: "lucide", icon: Percent },
     children: [
-      { href: "/tax-commission/rate-card", label: "Rate card", icon: { lib: "lucide", icon: TableProperties } },
       {
-        href: "/tax-commission",
-        label: "Overview",
-        icon: { lib: "lucide", icon: Building2 },
-        match: ["/commission", "/commissions"],
+        href: "/tax-commission/rate-card",
+        label: "Rate card",
+        icon: { lib: "lucide", icon: TableProperties },
+        match: ["/tax-commission", "/commission", "/commissions"],
       },
-      { href: "/tax-commission/schemes", label: "Schemes", icon: { lib: "lucide", icon: Percent } },
-      { href: "/tax-commission/overrides", label: "Overrides", icon: { lib: "lucide", icon: GitBranch } },
+      { href: "/service-charges", label: "Customer fees", icon: { lib: "lucide", icon: IndianRupee } },
+      { href: "/tax-commission/overrides", label: "Agent custom rates", icon: { lib: "lucide", icon: GitBranch } },
+      { href: "/tax-commission/payouts", label: "Payouts", icon: { lib: "lucide", icon: ScrollText } },
+      {
+        href: "/tax-commission/underwater",
+        label: "Underwater",
+        icon: { lib: "lucide", icon: AlertTriangle },
+      },
+      { href: "/tax-commission/recon", label: "Commission check", icon: { lib: "lucide", icon: Scale } },
+      { href: "/tax-commission/rate-audit", label: "Rate history", icon: { lib: "lucide", icon: History } },
+      { href: "/tax-commission/schemes", label: "Schemes (advanced)", icon: { lib: "lucide", icon: Percent } },
+      { href: "/tax-commission/what-if", label: "What-if (fixed rules)", icon: { lib: "lucide", icon: Calculator } },
+    ],
+  },
+];
+
+/** TDS on agent commission, GST on customer fee, filing registers. */
+const TAX: NavItem[] = [
+  {
+    type: "group",
+    id: "tax",
+    label: "Tax",
+    icon: { lib: "lucide", icon: Receipt },
+    children: [
       { href: "/tax-commission/tax", label: "Tax settings", icon: { lib: "lucide", icon: Calculator } },
       {
         href: "/tax-commission/registers",
         label: "Tax registers",
         icon: { lib: "lucide", icon: FileSpreadsheet },
       },
-      { href: "/tax-commission/payouts", label: "Payouts", icon: { lib: "lucide", icon: ScrollText } },
-      { href: "/tax-commission/what-if", label: "What-if", icon: { lib: "lucide", icon: Calculator } },
-      {
-        href: "/tax-commission/underwater",
-        label: "Underwater",
-        icon: { lib: "lucide", icon: AlertTriangle },
-      },
-      { href: "/tax-commission/ca-pack", label: "CA pack", icon: { lib: "lucide", icon: Package } },
       { href: "/tax-commission/pan-gaps", label: "PAN gaps", icon: { lib: "lucide", icon: IdCard } },
-      { href: "/tax-commission/rate-audit", label: "Rate audit", icon: { lib: "lucide", icon: History } },
-      { href: "/tax-commission/recon", label: "Recon", icon: { lib: "lucide", icon: Scale } },
+      { href: "/tax-commission/ca-pack", label: "CA pack", icon: { lib: "lucide", icon: Package } },
       { href: "/tax-commission/month-lock", label: "Month lock", icon: { lib: "lucide", icon: Lock } },
     ],
   },
 ];
 
-const SITE_CONTROL: NavItem[] = [
+/** Agent-facing help queues + the contacts agents see on their Support screen. */
+const SUPPORT: NavItem[] = [
   {
     type: "group",
-    id: "site",
-    label: "Platform Control",
-    icon: { lib: "fa", name: "FaGlobe" },
+    id: "support",
+    label: "Support",
+    icon: { lib: "lucide", icon: LifeBuoy },
     children: [
-      { href: "/platform-settings", label: "Platform Settings", icon: { lib: "lucide", icon: Settings } },
-      { href: "/promotions", label: "Promotions", icon: { lib: "lucide", icon: Megaphone } },
-      { href: "/announcements", label: "Announcements", icon: { lib: "lucide", icon: Megaphone } },
-      { href: "/site-control", label: "Service Badges", icon: { lib: "lucide", icon: Tags } },
-      { href: "/service-charges", label: "Service charges", icon: { lib: "lucide", icon: IndianRupee } },
-      { href: "/risk-alerts", label: "Risk Alerts", icon: { lib: "lucide", icon: ShieldAlert } },
-      { href: "/device-repairs", label: "Device Repairs", icon: { lib: "lucide", icon: Wrench } },
-      { href: "/disputes", label: "Disputes", icon: { lib: "lucide", icon: ShieldAlert } },
-      { href: "/recovery-workbench", label: "Recovery Workbench", icon: { lib: "lucide", icon: Wrench } },
-      { href: "/support-tickets", label: "Support Tickets", icon: { lib: "lucide", icon: LifeBuoy } },
+      { href: "/support-tickets", label: "Support tickets", icon: { lib: "lucide", icon: LifeBuoy } },
       { href: "/whatsapp", label: "WhatsApp", icon: { lib: "lucide", icon: MessageCircle } },
+      { href: "/device-repairs", label: "Device repairs", icon: { lib: "lucide", icon: Fingerprint } },
+      { href: "/risk-alerts", label: "Risk alerts", icon: { lib: "lucide", icon: AlertTriangle } },
+      { href: "/platform-settings", label: "Support contacts", icon: { lib: "lucide", icon: Settings } },
     ],
   },
 ];
 
-const DEVELOPER_OPTIONS: NavItem[] = [
+/** What agents can use: services on / off + which provider handles each one. */
+const SERVICES: NavItem[] = [
   {
     type: "group",
-    id: "developer",
-    label: "Developer Options",
-    icon: { lib: "lucide", icon: Plug },
+    id: "services",
+    label: "Services",
+    icon: { lib: "lucide", icon: LayoutGrid },
     children: [
-      { href: "/developer-options/providers", label: "Providers", icon: { lib: "lucide", icon: Plug } },
+      { href: "/site-control", label: "Services & badges", icon: { lib: "lucide", icon: Tags } },
+      { href: "/developer-options/providers", label: "Providers & routing", icon: { lib: "lucide", icon: Plug } },
+    ],
+  },
+];
+
+const AGENT_MESSAGES: NavItem[] = [
+  {
+    type: "group",
+    id: "messages",
+    label: "Agent messages",
+    icon: { lib: "lucide", icon: Megaphone },
+    children: [
+      { href: "/promotions", label: "Promotions", icon: { lib: "lucide", icon: Megaphone } },
+      { href: "/announcements", label: "Announcements", icon: { lib: "lucide", icon: Mail } },
+    ],
+  },
+];
+
+const SYSTEM: NavItem[] = [
+  {
+    type: "group",
+    id: "system",
+    label: "System",
+    icon: { lib: "lucide", icon: Settings },
+    children: [
+      { href: "/audit-logs", label: "Audit log", icon: { lib: "lucide", icon: ScrollText } },
       { href: "/developer-options/safety", label: "Safety", icon: { lib: "lucide", icon: Trash2 } },
-      { href: "/audit-logs", label: "Audit Log", icon: { lib: "lucide", icon: ScrollText } },
     ],
   },
 ];
@@ -358,8 +405,8 @@ function groupBadgeFor(
 ): number {
   if (id === "agents") return badges.kycPending + badges.settlementBanksPending;
   if (id === "treasury") return badges.fundRequestsPending;
-  if (id === "taxCommission") return badges.panGapCount ?? 0;
-  if (id === "site") return badges.supportTicketsOpen;
+  if (id === "tax") return badges.panGapCount ?? 0;
+  if (id === "support") return badges.supportTicketsOpen;
   return 0;
 }
 
@@ -378,13 +425,9 @@ function SidebarNav({
     <nav className="flex-1 space-y-4 overflow-y-auto px-2 py-3">
       {(
         [
-          { title: "Overview", items: TOP_LINKS },
-          { title: "Agents", items: AGENTS },
-          { title: "Transactions", items: TRANSACTIONS },
-          { title: "Treasury", items: TREASURY },
-          { title: "Tax & Commission", items: TAX_COMMISSION },
-          { title: "Platform", items: SITE_CONTROL },
-          { title: "Developer", items: DEVELOPER_OPTIONS },
+          { title: "Daily work", items: [...TOP_LINKS, ...AGENTS, ...TRANSACTIONS, ...SUPPORT] },
+          { title: "Money", items: [...TREASURY, ...COMMISSION, ...TAX] },
+          { title: "Setup", items: [...SERVICES, ...AGENT_MESSAGES, ...SYSTEM] },
         ] as const
       ).map((section) => (
         <div key={section.title}>
@@ -458,9 +501,13 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     agents: true,
     treasury: true,
-    taxCommission: true,
-    site: false,
-    developer: false,
+    transactions: false,
+    support: false,
+    commission: true,
+    tax: false,
+    services: false,
+    messages: false,
+    system: false,
   });
   const pathname = usePathname();
   const user = useAuthStore((s) => s.user);
@@ -475,9 +522,12 @@ export function AdminShell({ children }: { children: ReactNode }) {
     ...AGENTS,
     ...TRANSACTIONS,
     ...TREASURY,
-    ...TAX_COMMISSION,
-    ...SITE_CONTROL,
-    ...DEVELOPER_OPTIONS,
+    ...SUPPORT,
+    ...COMMISSION,
+    ...TAX,
+    ...SERVICES,
+    ...AGENT_MESSAGES,
+    ...SYSTEM,
   ];
 
   useEffect(() => {

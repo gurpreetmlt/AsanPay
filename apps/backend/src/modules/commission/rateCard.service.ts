@@ -12,7 +12,7 @@ import type { UserRole } from "@asanpay/shared-types";
 import { HttpError } from "../../utils/httpError";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import { toPaise, fromPaise } from "../wallet/decimal";
-import { computeCustomerFeePaise } from "../service-charges/serviceCharge.service";
+import { computeCustomerFeePaise, validateChargeValue } from "../service-charges/serviceCharge.service";
 import { resolveTenantId } from "../fund-requests/tenant";
 import {
   applyTdsToGrossPaise,
@@ -51,6 +51,7 @@ const DEFAULT_SAMPLE_AMOUNT = "2000.00";
 const FEE_PAYER_ROLE: UserRole = "retailer";
 
 type ChargeRow = {
+  id: string;
   serviceId: string;
   providerId: string | null;
   role: UserRole | null;
@@ -219,6 +220,7 @@ function computeSplit(ctx: SplitContext, serviceId: string, providerId: string |
 async function loadCharges(tenantId: string, serviceIds: string[] | null, at: Date): Promise<ChargeRow[]> {
   const rows = await db
     .select({
+      id: serviceCharges.id,
       serviceId: serviceCharges.serviceId,
       providerId: serviceCharges.providerId,
       role: serviceCharges.role,
@@ -396,12 +398,14 @@ export async function getRateCard(opts?: { providerId?: string | null }) {
         effectiveFrom: r.effectiveFrom.toISOString(),
       })),
       customerFeeRules: feeRules.map((c) => ({
+        id: c.id,
         providerId: c.providerId,
         role: c.role,
         ruleType: c.ruleType,
         value: c.value,
         minAmount: c.minAmount,
         maxAmount: c.maxAmount,
+        effectiveFrom: c.effectiveFrom.toISOString(),
       })),
       fixedRules: fixedRules.map((r) => ({
         id: r.id,
@@ -741,6 +745,143 @@ export async function endProviderIncomeRule(adminId: string, id: string, reasonR
     serviceId: existing.serviceId,
     before: providerIncomeSnapshot(existing),
     after: updated ? providerIncomeSnapshot(updated) : null,
+    reason,
+  });
+  return { id, ended: true };
+}
+
+// ── Customer fee (same service_charges rows as Platform Control → Service charges) ──
+
+export type CustomerFeeInput = {
+  serviceId: string;
+  providerId?: string | null;
+  /** null = all roles. Editing an existing row keeps its role. */
+  role?: string | null;
+  ruleType: RuleType;
+  value: string;
+  minAmount?: string | null;
+  maxAmount?: string | null;
+  effectiveFrom?: string | null;
+  reason?: string | null;
+};
+
+function customerFeeSnapshot(r: typeof serviceCharges.$inferSelect): Record<string, unknown> {
+  return {
+    serviceId: r.serviceId,
+    providerId: r.providerId,
+    role: r.role,
+    ruleType: r.ruleType,
+    value: String(r.value),
+    minAmount: r.minAmount != null ? String(r.minAmount) : null,
+    maxAmount: r.maxAmount != null ? String(r.maxAmount) : null,
+    effectiveFrom: r.effectiveFrom.toISOString(),
+    effectiveTo: r.effectiveTo ? r.effectiveTo.toISOString() : null,
+    isActive: r.isActive,
+  };
+}
+
+/** Versioned write: closes the open fee row for the same service / provider / role / slab, inserts the new one. */
+export async function setCustomerFeeRule(adminId: string, input: CustomerFeeInput) {
+  const reason = requireReason(input.reason);
+  await assertServiceExists(input.serviceId);
+  const providerId = input.providerId || null;
+  await assertProviderExists(providerId);
+  const role = input.role || null;
+  if (role !== null && !isSchemeRole(role)) {
+    throw new HttpError(400, "Role must be retailer, distributor, super_distributor, or all roles", "INVALID_ROLE");
+  }
+
+  const value = validateChargeValue(input.ruleType, input.value);
+  const minAmount = normalizeAmountBound(input.minAmount, "minAmount");
+  const maxAmount = normalizeAmountBound(input.maxAmount, "maxAmount");
+  if (minAmount != null && maxAmount != null && Number(minAmount) > Number(maxAmount)) {
+    throw new HttpError(400, "Min amount cannot be greater than max amount", "INVALID_AMOUNT");
+  }
+  const effectiveFrom = parseEffectiveFrom(input.effectiveFrom);
+  await assertCommissionMonthUnlocked([effectiveFrom]);
+  const tenantId = await resolveTenantId();
+
+  const sameScope = and(
+    eq(serviceCharges.tenantId, tenantId),
+    eq(serviceCharges.serviceId, input.serviceId),
+    providerId ? eq(serviceCharges.providerId, providerId) : isNull(serviceCharges.providerId),
+    role ? eq(serviceCharges.role, role) : isNull(serviceCharges.role),
+    minAmount != null ? eq(serviceCharges.minAmount, minAmount) : isNull(serviceCharges.minAmount),
+    maxAmount != null ? eq(serviceCharges.maxAmount, maxAmount) : isNull(serviceCharges.maxAmount),
+    eq(serviceCharges.isActive, true),
+    or(isNull(serviceCharges.effectiveTo), gt(serviceCharges.effectiveTo, effectiveFrom)),
+    lte(serviceCharges.effectiveFrom, effectiveFrom),
+  );
+
+  const { previous, created } = await db.transaction(async (tx) => {
+    const prev = await tx.select().from(serviceCharges).where(sameScope);
+    if (prev.length > 0) {
+      await tx.update(serviceCharges).set({ effectiveTo: effectiveFrom }).where(sameScope);
+    }
+    const [row] = await tx
+      .insert(serviceCharges)
+      .values({
+        tenantId,
+        serviceId: input.serviceId,
+        providerId,
+        role: role as SchemeRole | null,
+        ruleType: input.ruleType,
+        value,
+        minAmount,
+        maxAmount,
+        effectiveFrom,
+      })
+      .returning();
+    return { previous: prev[0] ?? null, created: row };
+  });
+  if (!created) throw new HttpError(500, "Customer fee was not saved. Try again.", "CUSTOMER_FEE_CREATE_FAILED");
+
+  await insertAuditLog({
+    userId: adminId,
+    action: "admin.service_charge_create",
+    entityType: "service_charge",
+    entityId: created.id,
+    metadata: { serviceId: input.serviceId, providerId, role, ruleType: input.ruleType, value, via: "rate_card" },
+  });
+  await recordRateChangeEvent({
+    adminId,
+    entityType: "customer_fee",
+    entityId: created.id,
+    serviceId: input.serviceId,
+    before: previous ? customerFeeSnapshot(previous) : null,
+    after: customerFeeSnapshot(created),
+    reason,
+  });
+  return { id: created.id, rule: customerFeeSnapshot(created) };
+}
+
+export async function endCustomerFeeRule(adminId: string, id: string, reasonRaw?: string | null) {
+  const reason = requireReason(reasonRaw);
+  const [existing] = await db.select().from(serviceCharges).where(eq(serviceCharges.id, id)).limit(1);
+  if (!existing) throw new HttpError(404, "Customer fee not found. Refresh the rate card.", "CUSTOMER_FEE_NOT_FOUND");
+  const now = new Date();
+  if (!existing.isActive || (existing.effectiveTo && existing.effectiveTo <= now)) {
+    throw new HttpError(409, "This customer fee has already ended", "CUSTOMER_FEE_ALREADY_ENDED");
+  }
+  await assertCommissionMonthUnlocked([]);
+
+  const patch = existing.effectiveFrom > now ? { isActive: false } : { effectiveTo: now };
+  const [updated] = await db.update(serviceCharges).set(patch).where(eq(serviceCharges.id, id)).returning();
+
+  await insertAuditLog({
+    userId: adminId,
+    action: "admin.service_charge_end",
+    entityType: "service_charge",
+    entityId: id,
+    metadata: { via: "rate_card" },
+  });
+  await recordRateChangeEvent({
+    adminId,
+    entityType: "customer_fee",
+    entityId: id,
+    serviceId: existing.serviceId,
+    before: customerFeeSnapshot(existing),
+    after: updated ? customerFeeSnapshot(updated) : null,
     reason,
   });
   return { id, ended: true };

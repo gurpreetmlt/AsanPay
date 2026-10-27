@@ -64,7 +64,9 @@ editor, default tax card, preview, confirm popup). Backend: migration `0079_rate
 `tax.service.ts` (`POST /admin/rate-card/tax`, `DELETE /admin/rate-card/tax/:serviceId`, rate audit `tax_config`),
 reference data `rateCard.reference.ts` (Suggested rows + provider costs; display only). Live debit stores the base
 fee + GST, so with "Included in fee" fee + GST = the configured fee. Fixed ₹ / % rules stay editable in Schemes
-(the rate card lists them read-only).
+(the rate card lists them read-only). Customer fee is editable in the row too (`POST /admin/rate-card/customer-fee`,
+`DELETE /admin/rate-card/customer-fee/:id`, versioned `service_charges` rows, rate audit `customer_fee`) — same data
+as Platform Control → Service charges, which links back to the Rate card.
 
 - Route `/tax-commission/rate-card`, first item in the Tax & Commission menu.
 - Table per service; inline edit; Save opens a confirm popup (popup-design rule) with a required reason.
@@ -111,7 +113,13 @@ Aadhaar Pay / BBPS rates; GST on DMT fee included vs on top (CA).
 - Locked month: inputs read-only with "March 2026 is locked for filing".
 - Effective-from defaults to now; scheduling a future date shows "Starts 1 Nov".
 
-## RC4 — navigation
+## RC4 — navigation (replaced by PL-17 step 1, built 27 Oct)
+Sidebar is now two groups: **Commission** (Rate card · Customer fees · Agent custom rates · Payouts ·
+Underwater · Commission check · Rate history · Schemes (advanced) · What-if (fixed rules)) and **Tax**
+(Tax settings · Tax registers · PAN gaps · CA pack · Month lock). URLs unchanged; `/tax-commission` →
+Rate card. Remaining cleanup (tax editing only under Tax, retire What-if / Underwater) = PL-17 step 2.
+
+Original plan:
 - Tax & Commission sidebar: **Rate card · Payouts · Tax · Advanced** (Advanced = Schemes (raw rules),
   Overrides, What-if, Underwater, Registers, CA pack, PAN gaps, Rate audit, Recon, Month lock as tabs).
 - Header search keeps every old keyword working; old URLs keep working.

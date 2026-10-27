@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { B } from "@/lib/brand";
 
-export type SectionGroup = "overview" | "reports" | "taxCommission";
+export type SectionGroup = "overview" | "reports" | "commission" | "tax";
 
 type SectionTab = { href: string; label: string };
 
@@ -31,24 +31,30 @@ export const SECTION_GROUPS: Record<
       { href: "/recon-adjustments", label: "Recon adjustments" },
     ],
   },
-  // Matches Tax & Commission sidebar children + in-page tabs.
-  taxCommission: {
-    root: "Tax & Commission",
-    title: "Tax & Commission",
+  // Matches the Commission / Tax sidebar groups.
+  commission: {
+    root: "Commission",
+    title: "Commission",
     tabs: [
       { href: "/tax-commission/rate-card", label: "Rate card" },
-      { href: "/tax-commission", label: "Overview" },
-      { href: "/tax-commission/schemes", label: "Schemes" },
-      { href: "/tax-commission/overrides", label: "Overrides" },
+      { href: "/service-charges", label: "Customer fees" },
+      { href: "/tax-commission/overrides", label: "Agent custom rates" },
+      { href: "/tax-commission/payouts", label: "Payouts" },
+      { href: "/tax-commission/underwater", label: "Underwater" },
+      { href: "/tax-commission/recon", label: "Commission check" },
+      { href: "/tax-commission/rate-audit", label: "Rate history" },
+      { href: "/tax-commission/schemes", label: "Schemes (advanced)" },
+      { href: "/tax-commission/what-if", label: "What-if (fixed rules)" },
+    ],
+  },
+  tax: {
+    root: "Tax",
+    title: "Tax",
+    tabs: [
       { href: "/tax-commission/tax", label: "Tax settings" },
       { href: "/tax-commission/registers", label: "Tax registers" },
-      { href: "/tax-commission/payouts", label: "Payouts" },
-      { href: "/tax-commission/what-if", label: "What-if" },
-      { href: "/tax-commission/underwater", label: "Underwater" },
-      { href: "/tax-commission/ca-pack", label: "CA pack" },
       { href: "/tax-commission/pan-gaps", label: "PAN gaps" },
-      { href: "/tax-commission/rate-audit", label: "Rate audit" },
-      { href: "/tax-commission/recon", label: "Recon" },
+      { href: "/tax-commission/ca-pack", label: "CA pack" },
       { href: "/tax-commission/month-lock", label: "Month lock" },
     ],
   },

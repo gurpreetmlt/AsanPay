@@ -332,10 +332,10 @@ export default function SiteControlPage() {
       <div className="mx-auto w-full max-w-[1600px] space-y-6 p-4 md:p-6">
         <div>
           <h1 className="text-xl font-bold md:text-2xl" style={{ color: B.blue }}>
-            Service Badges
+            Services &amp; badges
           </h1>
           <p className="mt-1 text-sm" style={{ color: B.muted }}>
-            Toggle auto-saves. Badge text — edit then tap Save. Badge Off clears instantly.
+            Turn services on or off for agents and set their badges. Toggle auto-saves. Badge text — edit then tap Save. Badge Off clears instantly.
           </p>
         </div>
 

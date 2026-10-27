@@ -2,11 +2,12 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { HelpCircle, Plus, Receipt, Sparkles, Trash2, Undo2, Users, Wallet, X } from "lucide-react";
+import { HelpCircle, IndianRupee, Pencil, Plus, Receipt, Sparkles, Trash2, Undo2, Users, Wallet, X } from "lucide-react";
 import { B } from "@/lib/brand";
 import {
   ROLE_LABEL,
   SCHEME_ROLES,
+  feePayerLabel,
   pct,
   ruleLabel,
   samePercent,
@@ -27,6 +28,18 @@ type IncomeDraft = {
   minAmount: string;
   maxAmount: string;
   note: string | null;
+};
+
+type FeeDraft = {
+  key: string;
+  /** Editing an existing row: same provider / role / slab, so saving closes that row. */
+  replacesId: string | null;
+  providerId: string | null;
+  role: SchemeRole | null;
+  ruleType: RuleType;
+  value: string;
+  minAmount: string;
+  maxAmount: string;
 };
 
 type TaxDraft = Pick<TaxView, "tdsApplies" | "gstOnFeeApplies" | "gstOnFeeInclusive"> & {
@@ -71,6 +84,18 @@ function incomeRowError(r: IncomeDraft): string | null {
   return null;
 }
 
+function feeRowError(r: FeeDraft): string | null {
+  const v = r.value.trim();
+  if (v === "") return "Enter the customer fee for this slab";
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0) return "Customer fee must be 0 or more";
+  if (r.ruleType === "percentage" && n > 100) return "Percentage cannot exceed 100";
+  if (r.minAmount.trim() !== "" && r.maxAmount.trim() !== "" && Number(r.minAmount) > Number(r.maxAmount)) {
+    return "Slab min cannot be more than slab max";
+  }
+  return null;
+}
+
 export function ServiceEditor({
   row,
   providerId,
@@ -85,6 +110,8 @@ export function ServiceEditor({
   const [shares, setShares] = useState(() => sharesDraftOf(row));
   const [pendingIncome, setPendingIncome] = useState<IncomeDraft[]>([]);
   const [endIncomeIds, setEndIncomeIds] = useState<string[]>([]);
+  const [pendingFees, setPendingFees] = useState<FeeDraft[]>([]);
+  const [endFeeIds, setEndFeeIds] = useState<string[]>([]);
   const [tax, setTax] = useState<TaxDraft>(() => taxDraftOf(row.tax));
   const [resetTax, setResetTax] = useState(false);
 
@@ -111,10 +138,12 @@ export function ServiceEditor({
       tax.gstOnFeeInclusive !== baseTax.gstOnFeeInclusive);
 
   const incomeErrors = pendingIncome.map(incomeRowError);
+  const feeErrors = pendingFees.map(feeRowError);
 
   const changes = useMemo<PendingChange[]>(() => {
     const out: PendingChange[] = [];
     const svc = row.serviceName;
+    const scopeName = (id: string | null) => (id ? providerName : "All providers");
 
     for (const id of endIncomeIds) {
       const r = row.providerIncomeRules.find((x) => x.id === id);
@@ -141,6 +170,37 @@ export function ServiceEditor({
           capAmount: p.capAmount.trim() || null,
           minAmount: p.minAmount.trim() || null,
           maxAmount: p.maxAmount.trim() || null,
+        },
+      });
+    }
+    for (const id of endFeeIds) {
+      const f = row.customerFeeRules.find((x) => x.id === id);
+      if (!f) continue;
+      out.push({
+        label: `${svc} · end customer fee (${scopeName(f.providerId)})`,
+        detail: `${slabLabel(f.minAmount, f.maxAmount)} · ${feePayerLabel(f.role)}: ${ruleLabel(f.ruleType, f.value)}`,
+        method: "delete",
+        url: `/admin/rate-card/customer-fee/${f.id}`,
+        body: {},
+      });
+    }
+    for (const f of pendingFees) {
+      const old = f.replacesId ? row.customerFeeRules.find((x) => x.id === f.replacesId) : null;
+      out.push({
+        label: `${svc} · customer fee (${scopeName(f.providerId)})`,
+        detail: `${slabLabel(f.minAmount || null, f.maxAmount || null)} · ${feePayerLabel(f.role)}: ${
+          old ? `${ruleLabel(old.ruleType, old.value)} → ` : ""
+        }${ruleLabel(f.ruleType, f.value)}`,
+        method: "post",
+        url: "/admin/rate-card/customer-fee",
+        body: {
+          serviceId: row.serviceId,
+          providerId: f.providerId,
+          role: f.role,
+          ruleType: f.ruleType,
+          value: f.value.trim(),
+          minAmount: f.minAmount.trim() || null,
+          maxAmount: f.maxAmount.trim() || null,
         },
       });
     }
@@ -193,10 +253,11 @@ export function ServiceEditor({
       });
     }
     return out;
-  }, [row, endIncomeIds, pendingIncome, shares, resetTax, taxDirty, tax, providerId, providerName, scopeLabel]);
+  }, [row, endIncomeIds, pendingIncome, endFeeIds, pendingFees, shares, resetTax, taxDirty, tax, providerId, providerName, scopeLabel]);
 
   const hasErrors =
     incomeErrors.some(Boolean) ||
+    feeErrors.some(Boolean) ||
     Object.values(shareErrors).some(Boolean) ||
     (!resetTax && (Boolean(taxErrors.tds) || Boolean(taxErrors.gst)));
 
@@ -204,6 +265,8 @@ export function ServiceEditor({
     setShares(sharesDraftOf(row));
     setPendingIncome([]);
     setEndIncomeIds([]);
+    setPendingFees([]);
+    setEndFeeIds([]);
     setTax(taxDraftOf(row.tax));
     setResetTax(false);
   }
@@ -215,6 +278,9 @@ export function ServiceEditor({
     }
     if (!hasIncome && pendingIncome.length > 0 && SCHEME_ROLES.some((r) => shares[r].trim() !== "")) {
       warnings.push("Saving provider income turns shares on for this service — payouts switch from fixed rules to shares.");
+    }
+    if (pendingFees.length > 0 || endFeeIds.length > 0) {
+      warnings.push("Customer fee changes what agents are charged on every new txn of this service.");
     }
     if (tax.gstOnFeeInclusive !== baseTax.gstOnFeeInclusive && taxDirty) {
       warnings.push("GST on fee mode changes what customers pay for this service. Confirm with your CA.");
@@ -239,6 +305,8 @@ export function ServiceEditor({
 
   const patchIncome = (key: string, patch: Partial<IncomeDraft>) =>
     setPendingIncome((rows) => rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  const patchFee = (key: string, patch: Partial<FeeDraft>) =>
+    setPendingFees((rows) => rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
 
   const sectionStyle = { borderColor: B.border, background: "var(--admin-card)" };
 
@@ -256,7 +324,7 @@ export function ServiceEditor({
         </div>
       ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid gap-4 xl:grid-cols-2">
         {/* Provider income */}
         <div className="flex h-full flex-col rounded-2xl border p-4" style={sectionStyle}>
           <div className="mb-3 flex items-center justify-between gap-2">
@@ -394,6 +462,190 @@ export function ServiceEditor({
             >
               <Plus size={14} /> Add slab
             </Btn>
+          </div>
+        </div>
+
+        {/* Customer fee — same rows as Commission → Customer fees */}
+        <div className="flex h-full flex-col rounded-2xl border p-4" style={sectionStyle}>
+          <p className="mb-3 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide" style={{ color: B.blueLight }}>
+            <IndianRupee size={14} /> Customer fee
+          </p>
+
+          {row.customerFeeRules.length === 0 && pendingFees.length === 0 ? (
+            <p className="text-xs" style={{ color: B.muted }}>
+              No customer fee — agents are charged ₹0 extra on this service.
+            </p>
+          ) : null}
+
+          <ul className="space-y-2">
+            {row.customerFeeRules
+              .filter((f) => !pendingFees.some((p) => p.replacesId === f.id))
+              .map((f) => {
+                const ending = endFeeIds.includes(f.id);
+                return (
+                  <li
+                    key={f.id}
+                    className="flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs"
+                    style={{ borderColor: B.border, opacity: ending ? 0.55 : 1 }}
+                  >
+                    <div className={ending ? "line-through" : ""}>
+                      <p className="font-semibold" style={{ color: B.blue }}>
+                        {ruleLabel(f.ruleType, f.value)}
+                      </p>
+                      <p style={{ color: B.muted }}>
+                        {slabLabel(f.minAmount, f.maxAmount)} · {feePayerLabel(f.role)} · {f.providerId ? providerName : "All providers"}
+                      </p>
+                    </div>
+                    {ending ? (
+                      <Btn variant="secondary" className="px-2 py-1 text-xs" onClick={() => setEndFeeIds((ids) => ids.filter((x) => x !== f.id))}>
+                        <Undo2 size={13} /> Keep
+                      </Btn>
+                    ) : (
+                      <div className="flex gap-1.5">
+                        <Btn
+                          variant="secondary"
+                          className="px-2 py-1 text-xs"
+                          onClick={() =>
+                            setPendingFees((rows) => [
+                              ...rows,
+                              {
+                                key: newKey(),
+                                replacesId: f.id,
+                                providerId: f.providerId,
+                                role: f.role,
+                                ruleType: f.ruleType,
+                                value: String(Number(f.value)),
+                                minAmount: f.minAmount ?? "",
+                                maxAmount: f.maxAmount ?? "",
+                              },
+                            ])
+                          }
+                        >
+                          <Pencil size={13} /> Edit
+                        </Btn>
+                        <Btn variant="destructive" className="px-2 py-1 text-xs" onClick={() => setEndFeeIds((ids) => [...ids, f.id])}>
+                          <Trash2 size={13} /> End
+                        </Btn>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+          </ul>
+
+          {pendingFees.length > 0 ? (
+            <div className="mt-2 space-y-2">
+              {pendingFees.map((f, i) => (
+                <div key={f.key} className="rounded-xl border p-3" style={{ borderColor: "#93C5FD", background: "rgba(42,92,221,0.04)" }}>
+                  <div className="mb-2 flex items-center justify-between">
+                    <Chip tone="blue">
+                      {f.replacesId ? "Editing" : "New"} · {f.providerId ? providerName : "All providers"}
+                    </Chip>
+                    <button
+                      type="button"
+                      aria-label={f.replacesId ? "Cancel this edit" : "Remove this slab"}
+                      onClick={() => setPendingFees((rows) => rows.filter((r) => r.key !== f.key))}
+                      className="rounded-lg p-1 transition hover:bg-red-50"
+                      style={{ color: B.danger }}
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block text-xs">
+                      <span className="mb-1 block font-semibold" style={{ color: B.muted }}>
+                        Type
+                      </span>
+                      <select
+                        className="w-full rounded-xl border px-2 py-2 text-sm"
+                        style={{ borderColor: B.border, background: "var(--admin-card)" }}
+                        value={f.ruleType}
+                        onChange={(e) => patchFee(f.key, { ruleType: e.target.value as RuleType })}
+                      >
+                        <option value="flat">Flat ₹</option>
+                        <option value="percentage">% of amount</option>
+                      </select>
+                    </label>
+                    <NumberField
+                      label={f.ruleType === "percentage" ? "Rate" : "Amount"}
+                      value={f.value}
+                      onChange={(v) => patchFee(f.key, { value: v })}
+                      suffix={f.ruleType === "percentage" ? "%" : undefined}
+                      prefix={f.ruleType === "flat" ? "₹" : undefined}
+                      placeholder={f.ruleType === "percentage" ? "e.g. 1" : "e.g. 10"}
+                    />
+                    <NumberField
+                      label="Slab from"
+                      value={f.minAmount}
+                      onChange={(v) => patchFee(f.key, { minAmount: v })}
+                      prefix="₹"
+                      placeholder="Any"
+                      disabled={Boolean(f.replacesId)}
+                    />
+                    <NumberField
+                      label="Slab to"
+                      value={f.maxAmount}
+                      onChange={(v) => patchFee(f.key, { maxAmount: v })}
+                      prefix="₹"
+                      placeholder="Any"
+                      disabled={Boolean(f.replacesId)}
+                    />
+                    <label className="col-span-2 block text-xs">
+                      <span className="mb-1 block font-semibold" style={{ color: B.muted }}>
+                        Charged to
+                      </span>
+                      <select
+                        className="w-full rounded-xl border px-2 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                        style={{ borderColor: B.border, background: "var(--admin-card)" }}
+                        value={f.role ?? ""}
+                        disabled={Boolean(f.replacesId)}
+                        onChange={(e) => patchFee(f.key, { role: (e.target.value || null) as SchemeRole | null })}
+                      >
+                        <option value="">All roles</option>
+                        {SCHEME_ROLES.map((r) => (
+                          <option key={r} value={r}>
+                            {ROLE_LABEL[r]} only
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  {f.replacesId ? (
+                    <p className="mt-2 text-[11px]" style={{ color: B.muted }}>
+                      Slab and role stay the same; end this fee and add a new slab to change them.
+                    </p>
+                  ) : null}
+                  {feeErrors[i] ? <p className="mt-1 text-xs font-semibold text-red-600">{feeErrors[i]}</p> : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          <div className="mt-auto space-y-2 pt-3">
+            <Btn
+              variant="success"
+              className="w-full"
+              onClick={() =>
+                setPendingFees((rows) => [
+                  ...rows,
+                  {
+                    key: newKey(),
+                    replacesId: null,
+                    providerId,
+                    role: null,
+                    ruleType: "flat",
+                    value: "",
+                    minAmount: "",
+                    maxAmount: "",
+                  },
+                ])
+              }
+            >
+              <Plus size={14} /> Add fee slab
+            </Btn>
+            <p className="text-[11px]" style={{ color: B.muted }}>
+              Same fees as Commission → Customer fees. GST on the fee follows the Tax panel.
+            </p>
           </div>
         </div>
 

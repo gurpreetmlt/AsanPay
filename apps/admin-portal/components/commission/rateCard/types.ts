@@ -83,6 +83,17 @@ export type IncomeRule = {
   effectiveFrom: string;
 };
 
+export type CustomerFeeRule = {
+  id: string;
+  providerId: string | null;
+  role: SchemeRole | null;
+  ruleType: RuleType;
+  value: string;
+  minAmount: string | null;
+  maxAmount: string | null;
+  effectiveFrom: string;
+};
+
 export type FixedRule = {
   id: string;
   providerId: string | null;
@@ -118,6 +129,7 @@ export type ServiceRow = {
   shares: Record<SchemeRole, ShareView | null>;
   shareTotalPercent: string;
   providerIncomeRules: IncomeRule[];
+  customerFeeRules: CustomerFeeRule[];
   fixedRules: FixedRule[];
   tax: TaxView;
   reference: Reference | null;
@@ -166,6 +178,10 @@ export function slabLabel(min: string | null, max: string | null): string {
   if (min == null) return `Up to ${inr(max)}`;
   if (max == null) return `${inr(min)}+`;
   return `${inr(min)} – ${inr(max)}`;
+}
+
+export function feePayerLabel(role: SchemeRole | null): string {
+  return role ? ROLE_LABEL[role] : "All roles";
 }
 
 export function ruleLabel(ruleType: RuleType, value: string | null, cap?: string | null): string {

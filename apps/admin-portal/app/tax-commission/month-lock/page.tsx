@@ -104,7 +104,7 @@ export default function TaxCommissionMonthLockPage() {
   return (
     <AdminShell>
       <div className="mx-auto w-full max-w-[1600px] space-y-5 p-6">
-        <SectionTabs group="taxCommission" />
+        <SectionTabs group="tax" />
 
         <div>
           <h1 className="text-2xl font-bold" style={{ color: B.blue }}>

@@ -29,7 +29,7 @@ function isSchemeRole(role: string): role is SchemeRole {
   return (SCHEME_ROLES as readonly string[]).includes(role);
 }
 
-function validateChargeValue(ruleType: RuleType, valueRaw: string): string {
+export function validateChargeValue(ruleType: RuleType, valueRaw: string): string {
   const valueNum = Number(valueRaw);
   if (!Number.isFinite(valueNum) || valueNum < 0) {
     throw new HttpError(400, "Service charge value must be a non-negative number", "INVALID_VALUE");

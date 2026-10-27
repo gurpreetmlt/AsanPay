@@ -39,6 +39,7 @@ const ENTITY_LABEL: Record<string, string> = {
   share: "Rate card share",
   provider_income: "Provider income",
   tax_config: "Tax settings",
+  customer_fee: "Customer fee",
 };
 
 function summarize(s: Snapshot): string {
@@ -104,7 +105,7 @@ export default function TaxCommissionRateAuditPage() {
   return (
     <AdminShell>
       <div className="mx-auto w-full max-w-[1600px] space-y-5 p-6">
-        <SectionTabs group="taxCommission" />
+        <SectionTabs group="commission" />
 
         <div>
           <h1 className="text-2xl font-bold" style={{ color: B.blue }}>
@@ -155,6 +156,7 @@ export default function TaxCommissionRateAuditPage() {
               <option value="share">Rate card shares</option>
               <option value="provider_income">Provider income</option>
               <option value="tax_config">Tax settings</option>
+              <option value="customer_fee">Customer fee</option>
             </select>
           </label>
         </div>

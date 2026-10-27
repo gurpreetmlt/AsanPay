@@ -8,7 +8,7 @@ export default function TaxCommissionPayoutsPage() {
   return (
     <AdminShell>
       <div className="mx-auto w-full max-w-[1600px] space-y-5 p-6">
-        <SectionTabs group="taxCommission" />
+        <SectionTabs group="commission" />
         <CommissionWorkbench tab="payouts" />
       </div>
     </AdminShell>

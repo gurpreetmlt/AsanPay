@@ -787,7 +787,7 @@ function ProviderList({ providers, onSaved }: { providers: ProviderCard[]; onSav
       <div className="rounded-2xl border bg-white p-5 text-sm" style={{ borderColor: B.border, color: B.muted }}>
         No API providers found. Add one in{" "}
         <Link href="/developer-options/providers" className="font-semibold underline" style={{ color: B.blueLight }}>
-          Developer Options → Providers
+          Services → Providers &amp; routing
         </Link>
         .
       </div>
