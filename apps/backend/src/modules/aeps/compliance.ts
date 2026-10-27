@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { db } from "../../db/postgres";
 import { aepsBioMismatchCounters, aepsCashReceipts, users } from "../../db/postgres/schema";
-import { env } from "../../config/env";
+import { env, shopGeofenceKm } from "../../config/env";
 import { HttpError } from "../../utils/httpError";
 import { logger } from "../../utils/logger";
 import { evaluateGeoSignal } from "../risk/riskSignal.service";
@@ -50,6 +50,8 @@ export async function assertAepsCompliance(
       createdAt: users.createdAt,
       outletLatitude: users.outletLatitude,
       outletLongitude: users.outletLongitude,
+      homeLatitude: users.homeLatitude,
+      homeLongitude: users.homeLongitude,
     })
     .from(users)
     .where(eq(users.id, userId));
@@ -101,46 +103,80 @@ export async function assertAepsCompliance(
     longitude: user.outletLongitude,
   }).catch((err: unknown) => logger.error({ err, userId }, "geo risk signal evaluation failed"));
 
-  if (geo && user.outletLatitude && user.outletLongitude) {
-    assertWithinOutletGeofence(user.outletLatitude, user.outletLongitude, geo);
-  }
-}
-
-/**
- * Shared geofence gate: rejects a transaction whose reported geo is further than
- * AEPS_GEOFENCE_KM from the user's registered outlet. Used by AePS (via assertAepsCompliance)
- * and directly by DMT, since cash-handling fraud risk applies to both rails.
- */
-export function assertWithinOutletGeofence(
-  outletLatitude: string,
-  outletLongitude: string,
-  geo: AepsGeoInput,
-): void {
-  const oLat = Number(outletLatitude);
-  const oLng = Number(outletLongitude);
-  const tLat = Number(geo.latitude);
-  const tLng = Number(geo.longitude);
-  if (![oLat, oLng, tLat, tLng].every((n) => Number.isFinite(n))) {
-    throw new HttpError(422, "Invalid geo coordinates", "GEO_INVALID");
-  }
-  const km = haversineKm(oLat, oLng, tLat, tLng);
-  if (km > env.AEPS_GEOFENCE_KM) {
-    throw new HttpError(
-      403,
-      `Transaction location is ${km.toFixed(2)} km from outlet (max ${env.AEPS_GEOFENCE_KM} km)`,
-      "GEOFENCE_VIOLATION",
+  if (geo) {
+    assertWithinServiceGeofence(
+      toServiceGeoAnchors(user.outletLatitude, user.outletLongitude, user.homeLatitude, user.homeLongitude),
+      geo,
     );
   }
 }
 
-/** Look up a user's registered outlet coordinates, if any. */
-export async function getOutletGeo(userId: string): Promise<{ latitude: string; longitude: string } | null> {
+type GeoPoint = { latitude: string; longitude: string };
+
+/** Registered points a transaction may happen near. Either may be missing (older accounts). */
+export interface ServiceGeoAnchors {
+  shop: GeoPoint | null;
+  home: GeoPoint | null;
+}
+
+function toServiceGeoAnchors(
+  outletLatitude: string | null,
+  outletLongitude: string | null,
+  homeLatitude: string | null,
+  homeLongitude: string | null,
+): ServiceGeoAnchors {
+  return {
+    shop: outletLatitude && outletLongitude ? { latitude: outletLatitude, longitude: outletLongitude } : null,
+    home: homeLatitude && homeLongitude ? { latitude: homeLatitude, longitude: homeLongitude } : null,
+  };
+}
+
+/**
+ * Shared geofence gate: allowed within SHOP_GEOFENCE_KM of the shop OR within HOME_GEOFENCE_KM
+ * of the home location. No-op when the user has neither point. Used by AePS (via
+ * assertAepsCompliance) and directly by DMT, since cash-handling fraud risk applies to both rails.
+ */
+export function assertWithinServiceGeofence(anchors: ServiceGeoAnchors, geo: AepsGeoInput): void {
+  if (!anchors.shop && !anchors.home) return;
+  const tLat = Number(geo.latitude);
+  const tLng = Number(geo.longitude);
+  const points = [anchors.shop, anchors.home].filter((p): p is GeoPoint => p != null);
+  const coords = points.flatMap((p) => [Number(p.latitude), Number(p.longitude)]);
+  if (![tLat, tLng, ...coords].every((n) => Number.isFinite(n))) {
+    throw new HttpError(422, "Invalid geo coordinates", "GEO_INVALID");
+  }
+  const decision = serviceGeofenceDecision(
+    {
+      shop: anchors.shop ? { lat: Number(anchors.shop.latitude), lng: Number(anchors.shop.longitude) } : null,
+      home: anchors.home ? { lat: Number(anchors.home.latitude), lng: Number(anchors.home.longitude) } : null,
+    },
+    tLat,
+    tLng,
+  );
+  if (decision.allowed) return;
+  const parts: string[] = [];
+  if (decision.shopKm != null) parts.push(`${decision.shopKm.toFixed(1)} km from your shop (max ${decision.shopMaxKm} km)`);
+  if (decision.homeKm != null) parts.push(`${decision.homeKm.toFixed(1)} km from your home (max ${decision.homeMaxKm} km)`);
+  throw new HttpError(
+    403,
+    `You are ${parts.join(" and ")}. Services work only near your registered shop or home location.`,
+    "GEOFENCE_VIOLATION",
+  );
+}
+
+/** Look up a user's registered shop + home coordinates. */
+export async function getServiceGeoAnchors(userId: string): Promise<ServiceGeoAnchors> {
   const [user] = await db
-    .select({ outletLatitude: users.outletLatitude, outletLongitude: users.outletLongitude })
+    .select({
+      outletLatitude: users.outletLatitude,
+      outletLongitude: users.outletLongitude,
+      homeLatitude: users.homeLatitude,
+      homeLongitude: users.homeLongitude,
+    })
     .from(users)
     .where(eq(users.id, userId));
-  if (!user?.outletLatitude || !user?.outletLongitude) return null;
-  return { latitude: user.outletLatitude, longitude: user.outletLongitude };
+  if (!user) return { shop: null, home: null };
+  return toServiceGeoAnchors(user.outletLatitude, user.outletLongitude, user.homeLatitude, user.homeLongitude);
 }
 
 /** Record a biometric mismatch; block + EDD after AEPS_BIO_MISMATCH_LIMIT consecutive fails. */
@@ -219,13 +255,33 @@ export async function recordCashReceipt(input: {
   });
 }
 
-/** Pure helper for unit tests — geofence decision without DB. */
+/** Pure helper for unit tests — single-point geofence decision without DB. */
 export function isWithinGeofence(
   outletLat: number,
   outletLng: number,
   txnLat: number,
   txnLng: number,
-  maxKm = env.AEPS_GEOFENCE_KM,
+  maxKm = shopGeofenceKm(),
 ): boolean {
   return haversineKm(outletLat, outletLng, txnLat, txnLng) <= maxKm;
+}
+
+type LatLng = { lat: number; lng: number };
+
+/** Pure helper — shop OR home decision. No anchors at all = allowed (nothing registered yet). */
+export function serviceGeofenceDecision(
+  anchors: { shop: LatLng | null; home: LatLng | null },
+  txnLat: number,
+  txnLng: number,
+  limits: { shopKm?: number; homeKm?: number } = {},
+): { allowed: boolean; shopKm: number | null; homeKm: number | null; shopMaxKm: number; homeMaxKm: number } {
+  const shopMaxKm = limits.shopKm ?? shopGeofenceKm();
+  const homeMaxKm = limits.homeKm ?? env.HOME_GEOFENCE_KM;
+  const shopKm = anchors.shop ? haversineKm(anchors.shop.lat, anchors.shop.lng, txnLat, txnLng) : null;
+  const homeKm = anchors.home ? haversineKm(anchors.home.lat, anchors.home.lng, txnLat, txnLng) : null;
+  const allowed =
+    (shopKm == null && homeKm == null) ||
+    (shopKm != null && shopKm <= shopMaxKm) ||
+    (homeKm != null && homeKm <= homeMaxKm);
+  return { allowed, shopKm, homeKm, shopMaxKm, homeMaxKm };
 }

@@ -13,6 +13,15 @@ export type SignupFileMeta = {
 };
 
 
+/** Shop / home GPS from the "Fetch location" button (high accuracy, mock-checked). */
+export type SignupGeoFix = {
+  latitude: number;
+  longitude: number;
+  accuracyMeters: number;
+  capturedAt: string;
+  isRooted?: boolean;
+};
+
 export type MobileSignupDraft = {
   stepIndex: number;
   /** Highest step reached — never decreases on Back. */
@@ -50,6 +59,7 @@ export type MobileSignupDraft = {
   city: string;
   district: string;
   state: string;
+  homeGeo: SignupGeoFix | null;
   businessName: string;
   businessType: string;
   businessCategory: string;
@@ -60,6 +70,7 @@ export type MobileSignupDraft = {
   businessCity: string;
   businessDistrict: string;
   businessState: string;
+  shopGeo: SignupGeoFix | null;
   bankName: string;
   bankBranch: string;
   ifsc: string;
@@ -108,6 +119,7 @@ export const EMPTY_MOBILE_SIGNUP_DRAFT: MobileSignupDraft = {
   city: "",
   district: "",
   state: "",
+  homeGeo: null,
   businessName: "",
   businessType: "",
   businessCategory: "",
@@ -118,6 +130,7 @@ export const EMPTY_MOBILE_SIGNUP_DRAFT: MobileSignupDraft = {
   businessCity: "",
   businessDistrict: "",
   businessState: "",
+  shopGeo: null,
   bankName: "",
   bankBranch: "",
   ifsc: "",

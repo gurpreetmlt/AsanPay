@@ -1,5 +1,6 @@
-import { NativeModules, Platform } from "react-native";
-import Geolocation from "@react-native-community/geolocation";
+import { NativeModules, PermissionsAndroid, Platform } from "react-native";
+import Geolocation, { type GeolocationResponse } from "@react-native-community/geolocation";
+import type { SignupGeoFix } from "./signupDraft";
 
 const { MockLocation } = NativeModules as {
   MockLocation?: { isMockLocation(): Promise<boolean | null> };
@@ -28,6 +29,109 @@ export async function detectMockLocation(): Promise<boolean | undefined> {
   } catch {
     return undefined;
   }
+}
+
+type JailMonkeyApi = { isJailBroken(): boolean; canMockLocation(): boolean };
+
+/** jail-monkey only when its native module is linked — requiring it without the APK rebuild would crash. */
+function jailMonkey(): JailMonkeyApi | null {
+  if (!(NativeModules as Record<string, unknown>).JailMonkey) return null;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const mod = require("jail-monkey") as { default?: JailMonkeyApi } & JailMonkeyApi;
+    return mod.default ?? mod;
+  } catch {
+    return null;
+  }
+}
+
+export const SIGNUP_GEO_MAX_ACCURACY_M = 150;
+export const SIGNUP_GEO_LOW_ACCURACY_MESSAGE =
+  "Location is not accurate enough. Turn on GPS, go near a window and try again.";
+
+const GOOD_ACCURACY_M = 30;
+const WATCH_MS = 15_000;
+
+/** Best high-accuracy fix within WATCH_MS (stops early once it is good). */
+function bestFix(): Promise<GeolocationResponse> {
+  return new Promise((resolve, reject) => {
+    let best: GeolocationResponse | null = null;
+    let settled = false;
+    let watchId: number | null = null;
+    const finish = (pos: GeolocationResponse | null, err?: { code?: number }) => {
+      if (settled) return;
+      settled = true;
+      if (watchId != null) Geolocation.clearWatch(watchId);
+      clearTimeout(timer);
+      if (pos) resolve(pos);
+      else reject(err ?? { code: 3 });
+    };
+    const timer = setTimeout(() => finish(best), WATCH_MS);
+    watchId = Geolocation.watchPosition(
+      (pos) => {
+        if (!best || pos.coords.accuracy < best.coords.accuracy) best = pos;
+        if (pos.coords.accuracy <= GOOD_ACCURACY_M) finish(pos);
+      },
+      (err) => {
+        if (best) finish(best);
+        else finish(null, err);
+      },
+      { enableHighAccuracy: true, distanceFilter: 0, interval: 1000, fastestInterval: 500, maximumAge: 0, timeout: WATCH_MS + 5000 },
+    );
+  });
+}
+
+/**
+ * Signup shop / home location: permission → high-accuracy GPS → mock check (native module +
+ * jail-monkey) → ±150 m rule. Throws an English, agent-readable message on any failure.
+ */
+export async function captureSignupLocation(place: "shop" | "home"): Promise<SignupGeoFix> {
+  if (Platform.OS === "android") {
+    const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION, {
+      title: "Location permission",
+      message: `AsanPay needs your exact location to save your ${place} location.`,
+      buttonPositive: "Allow",
+    });
+    if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+      throw new Error("Location permission is off. Allow location for AsanPay in Settings, then tap Fetch location again.");
+    }
+  }
+  let pos: GeolocationResponse;
+  try {
+    pos = await bestFix();
+  } catch (err) {
+    const code = (err as { code?: number })?.code;
+    if (code === 1) throw new Error("Location permission is off. Allow location for AsanPay in Settings, then tap Fetch location again.");
+    if (code === 2) throw new Error("Phone location (GPS) is off. Turn on Location in quick settings, then tap Fetch location again.");
+    throw new Error(SIGNUP_GEO_LOW_ACCURACY_MESSAGE);
+  }
+  const jm = jailMonkey();
+  let jmMock = false;
+  try {
+    jmMock = Boolean(jm?.canMockLocation());
+  } catch {
+    /* treat as unknown */
+  }
+  if ((await detectMockLocation()) || jmMock) {
+    throw new Error("Turn off mock / fake location apps on your phone, then tap Fetch location again.");
+  }
+  const accuracy = Math.round(pos.coords.accuracy);
+  if (!Number.isFinite(accuracy) || accuracy > SIGNUP_GEO_MAX_ACCURACY_M) {
+    throw new Error(SIGNUP_GEO_LOW_ACCURACY_MESSAGE);
+  }
+  let isRooted: boolean | undefined;
+  try {
+    isRooted = jm ? Boolean(jm.isJailBroken()) : undefined;
+  } catch {
+    isRooted = undefined;
+  }
+  return {
+    latitude: pos.coords.latitude,
+    longitude: pos.coords.longitude,
+    accuracyMeters: accuracy,
+    capturedAt: new Date().toISOString(),
+    ...(isRooted != null ? { isRooted } : {}),
+  };
 }
 
 /**

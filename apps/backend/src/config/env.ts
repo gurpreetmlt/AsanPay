@@ -173,8 +173,24 @@ const envSchema = z.object({
   NOBLE_BASE_DMT: z.string().url().default("https://dmt.noblewebstudio.in"),
   NOBLE_BASE_RECHARGE: z.string().url().default("https://rcapi.noblewebstudio.in"),
   NOBLE_BASE_CMS: z.string().url().default("https://cms.noblewebstudio.in"),
-  /** Max km from registered outlet for AEPS txns (2–3 km is the usual bank guidance). */
-  AEPS_GEOFENCE_KM: z.coerce.number().positive().default(3),
+  /**
+   * Service geofence: a txn is allowed within SHOP_GEOFENCE_KM of the shop (outlet) location OR
+   * within HOME_GEOFENCE_KM of the home location captured at signup.
+   */
+  SHOP_GEOFENCE_KM: z.coerce.number().positive().optional(),
+  HOME_GEOFENCE_KM: z.coerce.number().positive().default(5),
+  /** Legacy shop radius — used only when SHOP_GEOFENCE_KM is not set. */
+  AEPS_GEOFENCE_KM: z.coerce.number().positive().optional(),
+  /** Optional MaxMind GeoLite2 City/Country .mmdb path — country of the phone that captured a signup location. */
+  GEOLITE2_DB_PATH: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().optional(),
+  ),
+  /** Ask ip-api.com whether the capture IP is a proxy / VPN (free tier, HTTP, 45 req/min). Off by default. */
+  IP_PROXY_CHECK_ENABLED: z.preprocess(
+    (v) => ["1", "true", "yes", "on"].includes(String(v ?? "").trim().toLowerCase()),
+    z.boolean(),
+  ),
   /** Days without AEPS activity before merchant is treated as dormant. */
   // RBI "AePS — Due Diligence of AePS Touchpoint Operators" Directions (26 Jun 2025, in force
   // 1 Jan 2026): an operator with no transactions for three consecutive months must complete
@@ -351,6 +367,11 @@ export function isUsableNobleAgentId(id: string | null | undefined): id is strin
 
 export function isAepsOnboardingRequired(role: string, nobleAgentId: string | null | undefined): boolean {
   return role === "retailer" && env.AEPS_PROVIDER_MODE === "noble" && !isUsableNobleAgentId(nobleAgentId);
+}
+
+/** Shop geofence radius: SHOP_GEOFENCE_KM, else the legacy AEPS_GEOFENCE_KM, else 15. */
+export function shopGeofenceKm(): number {
+  return env.SHOP_GEOFENCE_KM ?? env.AEPS_GEOFENCE_KM ?? 15;
 }
 
 export function isNobleAepsMode(): boolean {

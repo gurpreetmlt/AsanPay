@@ -12,6 +12,12 @@ export const RISK_SIGNAL_TYPES = [
   "device_change_investigate",
   "rd_license_expiring",
   "txn_velocity_spike",
+  /** Signup shop GPS is far from the typed shop pincode. */
+  "shop_far_from_pincode",
+  /** Phone that captured a signup location used a foreign IP or a proxy / VPN. */
+  "possible_vpn",
+  /** App reported a rooted / jailbroken phone while capturing a signup location. */
+  "rooted_device",
 ] as const;
 export type RiskSignalType = (typeof RISK_SIGNAL_TYPES)[number];
 

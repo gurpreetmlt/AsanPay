@@ -57,6 +57,10 @@ export const users = pgTable(
     /** Registered business geo (degrees). Used for AEPS geofence checks. */
     outletLatitude: varchar("outlet_latitude", { length: 32 }),
     outletLongitude: varchar("outlet_longitude", { length: 32 }),
+    /** Agent's home GPS from signup. Services are also allowed within HOME_GEOFENCE_KM of it. */
+    homeLatitude: varchar("home_latitude", { length: 32 }),
+    homeLongitude: varchar("home_longitude", { length: 32 }),
+    homeLocationAt: timestamp("home_location_at", { withTimezone: true }),
     /** Last successful AEPS / Aadhaar Pay txn — dormancy = inactivity > AEPS_DORMANCY_DAYS. */
     lastAepsTxnAt: timestamp("last_aeps_txn_at", { withTimezone: true }),
     /** Extended Due Diligence required after repeated biometric mismatches. */

@@ -14,6 +14,7 @@ import { and, eq, gte, isNull, lt } from "drizzle-orm";
 import { db } from "../../db/postgres";
 import { agentDevices, agentRiskSignals } from "../../db/postgres/schema";
 import { haversineKm } from "../../core/geo";
+import { lookupIpIntel, pincodeCentroid } from "./geoIntel";
 import type { RiskSignalSeverity, RiskSignalType } from "../../db/postgres/schema/riskSignals";
 
 async function record(
@@ -104,6 +105,57 @@ export async function evaluateGeoSignal(
       txnRef,
     );
   }
+}
+
+const SHOP_PINCODE_MAX_KM = 25;
+
+/** Signup: shop GPS more than 25 km from the typed shop pincode → warn. Lookup failure = no flag. */
+export async function evaluateShopPincodeSignal(
+  userId: string,
+  shop: { latitude: string; longitude: string },
+  pincode: string | null | undefined,
+): Promise<void> {
+  if (!pincode) return;
+  const centre = await pincodeCentroid(pincode);
+  if (!centre) return;
+  const km = haversineKm(centre.lat, centre.lng, Number(shop.latitude), Number(shop.longitude));
+  if (!Number.isFinite(km) || km <= SHOP_PINCODE_MAX_KM) return;
+  await record(userId, "shop_far_from_pincode", "warn", {
+    pincode,
+    distanceKm: Number(km.toFixed(1)),
+    maxKm: SHOP_PINCODE_MAX_KM,
+  });
+}
+
+/** Signup: the phone that captured a shop / home location was on a foreign IP or a proxy → "Possible VPN". */
+export async function evaluateCaptureIpSignal(
+  userId: string,
+  ip: string | null | undefined,
+  purpose: string,
+  referenceId: string,
+): Promise<void> {
+  const intel = await lookupIpIntel(ip);
+  if (!intel) return;
+  const foreign = intel.country != null && intel.country !== "IN";
+  if (!foreign && !intel.proxy) return;
+  await record(
+    userId,
+    "possible_vpn",
+    "warn",
+    {
+      label: "Possible VPN",
+      purpose,
+      country: intel.country,
+      proxy: intel.proxy,
+      sources: intel.sources,
+    },
+    referenceId,
+  );
+}
+
+/** Signup: the app reported a rooted / jailbroken phone when it captured the shop or home location. */
+export async function recordRootedDeviceSignal(userId: string, purposes: string[]): Promise<void> {
+  await record(userId, "rooted_device", "warn", { purposes, source: "signup_location" });
 }
 
 /**

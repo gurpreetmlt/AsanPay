@@ -20,6 +20,8 @@ export const geoLinkRequests = pgTable(
     latitude: numeric("latitude", { precision: 9, scale: 6 }),
     longitude: numeric("longitude", { precision: 9, scale: 6 }),
     accuracyMeters: integer("accuracy_meters"),
+    /** Set only by the public phone-browser capture (signup shop / home). */
+    captureIp: varchar("capture_ip", { length: 64 }),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     verifiedAt: timestamp("verified_at", { withTimezone: true }),
     usedAt: timestamp("used_at", { withTimezone: true }),

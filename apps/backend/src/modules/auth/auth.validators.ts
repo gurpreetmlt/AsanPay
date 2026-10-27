@@ -208,24 +208,33 @@ export const geoCoordSchema = z
   .max(32)
   .refine((v) => Number.isFinite(Number(v)), { message: "Invalid coordinate" });
 
-/** Step 1 — mobile + location only (OTP before role / profile). */
+function checkOptionalLatLng(
+  data: { latitude?: string; longitude?: string },
+  ctx: z.RefinementCtx,
+): void {
+  if (data.latitude != null) {
+    const lat = Number(data.latitude);
+    if (lat < -90 || lat > 90) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid latitude", path: ["latitude"] });
+    }
+  }
+  if (data.longitude != null) {
+    const lng = Number(data.longitude);
+    if (lng < -180 || lng > 180) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid longitude", path: ["longitude"] });
+    }
+  }
+}
+
+/** Step 1 — mobile only. Older apps still send location; shop location is captured at KYC. */
 export const signupRequestSchema = z
   .object({
     mobile: mobileSchema,
     portal: z.enum(AUTH_PORTALS).default("agent"),
-    latitude: geoCoordSchema,
-    longitude: geoCoordSchema,
+    latitude: geoCoordSchema.optional(),
+    longitude: geoCoordSchema.optional(),
   })
-  .superRefine((data, ctx) => {
-    const lat = Number(data.latitude);
-    const lng = Number(data.longitude);
-    if (lat < -90 || lat > 90) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid latitude", path: ["latitude"] });
-    }
-    if (lng < -180 || lng > 180) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid longitude", path: ["longitude"] });
-    }
-  });
+  .superRefine(checkOptionalLatLng);
 export type SignupRequestInput = z.infer<typeof signupRequestSchema>;
 
 /** Public sponsor name lookup by UID. */
@@ -279,8 +288,8 @@ export const signupCompleteSchema = z
     role: z.enum(SIGNUP_CHILD_ROLES),
     password: passwordSchema.optional(),
     portal: z.enum(AUTH_PORTALS).default("agent"),
-    latitude: geoCoordSchema,
-    longitude: geoCoordSchema,
+    latitude: geoCoordSchema.optional(),
+    longitude: geoCoordSchema.optional(),
     ...policyAcceptanceFields,
   })
   .superRefine((data, ctx) => {
@@ -291,16 +300,20 @@ export const signupCompleteSchema = z
         path: ["sponsorUid"],
       });
     }
-    const lat = Number(data.latitude);
-    const lng = Number(data.longitude);
-    if (lat < -90 || lat > 90) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid latitude", path: ["latitude"] });
-    }
-    if (lng < -180 || lng > 180) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid longitude", path: ["longitude"] });
-    }
+    checkOptionalLatLng(data, ctx);
   });
 export type SignupCompleteInput = z.infer<typeof signupCompleteSchema>;
+
+const geoLinkTokenSchema = z.string().regex(/^[a-f0-9]{48}$/, "Location capture is not valid. Capture the location again.");
+
+const deviceGeoFixSchema = z.object({
+  latitude: z.coerce.number().min(-90, "Invalid latitude").max(90, "Invalid latitude"),
+  longitude: z.coerce.number().min(-180, "Invalid longitude").max(180, "Invalid longitude"),
+  accuracyMeters: z.coerce.number().min(0).max(100000).optional(),
+  isMockLocation: z.boolean().optional(),
+  /** App root / jailbreak check — risk flag only, never blocks. */
+  isRooted: z.boolean().optional(),
+});
 
 export const kycSubmitSchema = z.object({
   fullName: z.string().trim().min(2).max(120).optional(),
@@ -363,5 +376,11 @@ export const kycSubmitSchema = z.object({
   /** Signup / shop geo — updates outlet_latitude / outlet_longitude when provided. */
   latitude: geoCoordSchema.optional(),
   longitude: geoCoordSchema.optional(),
+  /** Web signup: phone-camera QR tokens; the server uses its own stored fix, never browser coords. */
+  shopGeoLinkToken: geoLinkTokenSchema.optional(),
+  homeGeoLinkToken: geoLinkTokenSchema.optional(),
+  /** Mobile signup: device GPS from the Shop / Home "Fetch location" buttons. */
+  shopLocation: deviceGeoFixSchema.optional(),
+  homeLocation: deviceGeoFixSchema.optional(),
 });
 export type KycSubmitInput = z.infer<typeof kycSubmitSchema>;

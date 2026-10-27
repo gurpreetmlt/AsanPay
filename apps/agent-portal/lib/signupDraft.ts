@@ -13,6 +13,13 @@ export type SignupFileMeta = {
 };
 
 
+/** Shop / home location captured on the phone (web: QR token; the server keeps the coordinates). */
+export type SignupGeoFix = {
+  token: string;
+  accuracyMeters: number | null;
+  capturedAt: string;
+};
+
 export type SignupDraft = {
   /** Current step being viewed / edited (may go backward). */
   stepIndex: number;
@@ -51,6 +58,7 @@ export type SignupDraft = {
   city: string;
   district: string;
   state: string;
+  homeGeo: SignupGeoFix | null;
   businessName: string;
   businessType: string;
   businessCategory: string;
@@ -61,6 +69,7 @@ export type SignupDraft = {
   businessCity: string;
   businessDistrict: string;
   businessState: string;
+  shopGeo: SignupGeoFix | null;
   bankName: string;
   bankBranch: string;
   ifsc: string;
@@ -108,6 +117,7 @@ export const EMPTY_SIGNUP_DRAFT: SignupDraft = {
   city: "",
   district: "",
   state: "",
+  homeGeo: null,
   businessName: "",
   businessType: "",
   businessCategory: "",
@@ -118,6 +128,7 @@ export const EMPTY_SIGNUP_DRAFT: SignupDraft = {
   businessCity: "",
   businessDistrict: "",
   businessState: "",
+  shopGeo: null,
   bankName: "",
   bankBranch: "",
   ifsc: "",

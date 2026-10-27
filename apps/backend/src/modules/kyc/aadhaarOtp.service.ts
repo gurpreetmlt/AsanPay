@@ -23,8 +23,29 @@ export const aadhaarOtpRequestSchema = z.object({
 
 export const aadhaarOtpVerifySchema = z.object({
   otp: z.string().regex(/^\d{4,8}$/, "Enter the Aadhaar OTP"),
-  requestId: z.string().trim().min(1, "Request a new Aadhaar OTP first").max(128),
+  /** Optional: when the send call timed out on the app, verify uses the latest pending request. */
+  requestId: z.string().trim().max(128).optional(),
 });
+
+/** Provider request-id keys seen across Aadhaar OTP gateways (BestAPI sample response is `{}`). */
+const REQUEST_ID_KEYS = [
+  "id",
+  "Id",
+  "requestId",
+  "request_id",
+  "reference_id",
+  "referenceId",
+  "ref_id",
+  "refId",
+  "client_id",
+  "clientId",
+  "txnid",
+  "txnId",
+  "txn_id",
+  "transaction_id",
+  "transactionId",
+  "otp_ref_id",
+];
 
 type PendingAadhaarOtp = {
   providerId: string;
@@ -134,16 +155,26 @@ function isFailurePayload(httpStatus: number, json: BestApiJson): boolean {
   return false;
 }
 
+function isGatewayFailure(httpStatus: number, json: BestApiJson): boolean {
+  if (httpStatus >= 500) return true;
+  const raw = providerMessage(json, "");
+  return Boolean(raw) && (isUpstreamUnreachable(raw) || /cloudflare|origin_bad|<!DOCTYPE/i.test(raw));
+}
+
+/** Status + short provider message only; long digit runs are masked so an Aadhaar never reaches logs. */
+function logSendFailure(userId: string, res: { httpStatus: number; json: BestApiJson }, note: string): void {
+  const providerMsg = providerMessage(res.json, "").slice(0, 160).replace(/\d{6,}/g, "******");
+  logger.warn({ userId, httpStatus: res.httpStatus, providerMsg, note }, "Aadhaar OTP send failed at BestAPI");
+}
+
 function extractProviderRequestId(json: BestApiJson): string | null {
   const rec = asRecord(json) ?? {};
   const data = asRecord(rec.data) ?? asRecord(rec.Data) ?? asRecord(rec.result) ?? asRecord(rec.Result);
-  const fromData = data
-    ? pickString(data, ["id", "Id", "requestId", "request_id", "txnid", "txnId", "client_id"])
-    : null;
+  const fromData = data ? pickString(data, REQUEST_ID_KEYS) : null;
   if (fromData && fromData !== "null") return fromData;
-  const top = pickString(rec, ["id", "Id", "requestId", "request_id", "txnid", "txnId"]);
+  const top = pickString(rec, REQUEST_ID_KEYS);
   if (top && top !== "null") return top;
-  const deep = deepFindString(json, ["requestId", "request_id", "Id", "id"]);
+  const deep = deepFindString(json, REQUEST_ID_KEYS);
   if (deep && deep !== "null") return deep;
   return null;
 }
@@ -236,14 +267,27 @@ export async function sendAadhaarKycOtp(
     throw new HttpError(422, "Enter a valid 12-digit Aadhaar", "INVALID_AADHAAR");
   }
 
-  const res = await bestApiPost(SEND_PATH, { Adhar: digits });
+  const started = Date.now();
+  let res = await bestApiPost(SEND_PATH, { Adhar: digits });
+  // A gateway error means the request never reached UIDAI (no SMS went out), so one quick retry is
+  // safe. Skipped when the first try was slow, to stay inside the app's 45 s request timeout.
+  if (
+    isFailurePayload(res.httpStatus, res.json) &&
+    isGatewayFailure(res.httpStatus, res.json) &&
+    Date.now() - started < 12_000
+  ) {
+    logSendFailure(userId, res, "retrying once");
+    await new Promise((r) => setTimeout(r, 1500));
+    res = await bestApiPost(SEND_PATH, { Adhar: digits }, undefined, 20_000);
+  }
   if (isFailurePayload(res.httpStatus, res.json)) {
+    logSendFailure(userId, res, "giving up");
     const raw = providerMessage(res.json, "Could not send Aadhaar OTP. Check the Aadhaar number and try again.");
     assertInPlan(res.httpStatus, raw);
-    if (isUpstreamUnreachable(raw)) {
+    if (isGatewayFailure(res.httpStatus, res.json)) {
       throw new HttpError(
         502,
-        "Aadhaar OTP service is temporarily unavailable. Try again in a minute.",
+        "Aadhaar OTP service (UIDAI) is not responding right now, so no OTP was sent. Wait a minute and tap Send OTP again.",
         "AADHAAR_OTP_UPSTREAM",
       );
     }
@@ -252,13 +296,20 @@ export async function sendAadhaarKycOtp(
 
   const requestId = extractProviderRequestId(res.json);
   if (!requestId) {
+    const top = asRecord(res.json) ?? {};
+    const dataRec = asRecord(top.data) ?? asRecord(top.Data) ?? asRecord(top.result) ?? {};
     logger.warn(
-      { userId, httpStatus: res.httpStatus, keys: Object.keys(asRecord(res.json) ?? {}) },
+      {
+        userId,
+        httpStatus: res.httpStatus,
+        keys: Object.keys(top),
+        dataKeys: Object.keys(dataRec),
+      },
       "Aadhaar OTP send: no request Id in BestAPI response",
     );
     throw new HttpError(
       502,
-      "Could not start Aadhaar OTP. Check the Aadhaar number and try again.",
+      "Aadhaar OTP service did not return a request reference. Tap Resend OTP in a minute.",
       "AADHAAR_OTP_NO_ID",
     );
   }
@@ -295,17 +346,22 @@ type AadhaarOtpVerifyResult = {
 
 export async function verifyAadhaarKycOtp(
   userId: string,
-  input: { otp: string; requestId: string },
+  input: { otp: string; requestId?: string },
 ): Promise<AadhaarOtpVerifyResult> {
   const ctx = { actorId: userId, source: "aadhaar_otp" as const };
   try {
     const result = await runAadhaarOtpVerify(userId, input);
     await recordKycVerification(
       userId,
-      { aadhaarOtp: "verified", aadhaarProviderRequestId: input.requestId.trim() },
+      { aadhaarOtp: "verified", aadhaarProviderRequestId: result.providerRequestId },
       ctx,
     );
-    return result;
+    return {
+      verified: result.verified,
+      fullName: result.fullName,
+      address: result.address,
+      mobileMatched: result.mobileMatched,
+    };
   } catch (err) {
     const failure = statusForKycError(err, {
       AADHAAR_MOBILE_MISMATCH: "failed",
@@ -326,19 +382,22 @@ export async function verifyAadhaarKycOtp(
 
 async function runAadhaarOtpVerify(
   userId: string,
-  input: { otp: string; requestId: string },
-): Promise<AadhaarOtpVerifyResult> {
+  input: { otp: string; requestId?: string },
+): Promise<AadhaarOtpVerifyResult & { providerRequestId: string }> {
   assertConfigured();
   const pending = await loadPending(userId);
+  const requestId = input.requestId?.trim() ?? "";
   if (!pending) {
-    logger.warn({ userId }, "Aadhaar OTP verify: no pending session (expired or lost on restart)");
+    logger.warn({ userId, hadRequestId: Boolean(requestId) }, "Aadhaar OTP verify: no pending session");
     throw new HttpError(
       401,
-      "Aadhaar OTP has expired. Tap Resend OTP to request a new code.",
+      requestId
+        ? "Aadhaar OTP has expired. Tap Resend OTP to request a new code."
+        : "No Aadhaar OTP was requested for this account. Tap Send OTP to get a new OTP.",
       "AADHAAR_OTP_EXPIRED",
     );
   }
-  if (pending.providerId !== input.requestId.trim()) {
+  if (requestId && pending.providerId !== requestId) {
     logger.warn({ userId, aadhaarLast4: pending.last4 }, "Aadhaar OTP verify: request id mismatch");
     throw new HttpError(
       401,
@@ -443,5 +502,6 @@ async function runAadhaarOtpVerify(
     fullName: fullName || null,
     address: address || null,
     mobileMatched,
+    providerRequestId: providerId,
   };
 }

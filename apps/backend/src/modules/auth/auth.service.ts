@@ -1849,11 +1849,11 @@ export async function completeSignup(
     input.password ??
     `Lp${randomBytes(9).toString("base64url")}9a`;
 
-  const latitude = input.latitude || String(record.meta?.latitude ?? "");
-  const longitude = input.longitude || String(record.meta?.longitude ?? "");
-  if (!latitude || !longitude) {
-    throw new HttpError(422, "Location is required for signup", "LOCATION_REQUIRED");
-  }
+  // Optional since signup v2: the shop location is captured on the Business step and saved at KYC
+  // submit. Older apps still send step-1 coordinates; keep them as the starting outlet point.
+  const latitude = input.latitude || String(record.meta?.latitude ?? "") || null;
+  const longitude = input.longitude || String(record.meta?.longitude ?? "") || null;
+  const hasStartGeo = Boolean(latitude && longitude);
 
   const user = await registerUser(
     { id: sponsor.id, role: sponsor.role },
@@ -1869,8 +1869,7 @@ export async function completeSignup(
   const [row] = await db
     .update(users)
     .set({
-      outletLatitude: latitude,
-      outletLongitude: longitude,
+      ...(hasStartGeo ? { outletLatitude: latitude, outletLongitude: longitude } : {}),
       updatedAt: new Date(),
     })
     .where(eq(users.id, user.id))

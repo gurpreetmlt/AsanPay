@@ -27,9 +27,20 @@ Anniversary date leaves signup (Profile, optional). Distributor / Super Distribu
   takes the PAN name on PAN verify. PAN / Aadhaar photo uploads locked until their fields are filled.
 
 ## Part 2 — shop + home location (next)
-- Location capture: mobile **Fetch location** button (high-accuracy GPS, mock check); web = existing
-  phone QR (`geo_link_requests`, PL-03). The QR flow needs the AsanPay app logged in to the same
-  account — account exists from step 2, so this works; show that hint next to the QR.
+- Location capture: mobile **Fetch location** button (high-accuracy GPS + mock check + jail-monkey).
+- **Web = phone camera QR, no app (owner decision 27 Oct):** QR encodes an https URL to a public
+  AsanPay page (e.g. agent-portal `/geo/<token>`). Phone camera / Lens opens it in the browser →
+  "Allow location" → phone GPS posted to the backend with the token. Token: bound to the signup user,
+  purpose `shop` | `home`, single use, 10 min expiry. Reject accuracy worse than ±150 m with
+  "Location is not accurate enough. Turn on GPS, go near a window and try again." Web polls and shows
+  "Location captured ✓ · accuracy N m". Reuse `geo_link_requests` (PL-03) where possible; the existing
+  app-scan flow keeps working.
+- **Risk flags (never block on their own, shown to admin):**
+  - Shop GPS > 25 km from the typed shop pincode → flag (pincode → lat/lng: OpenStreetMap Nominatim
+    with cache, or an offline pincode lat/lng list; free only).
+  - IP of the capture request: country/region via MaxMind GeoLite2 (optional, `GEOLITE2_DB_PATH`) and
+    VPN / proxy flag via ip-api.com (optional, env-gated). Foreign IP or proxy → "Possible VPN" flag.
+- VPN does not change phone GPS; the ±150 m rule rejects IP-only rough locations.
 - Step 5: Home location (required). Step 6: Shop location (required, "stand inside your shop").
 - Migration: `users.home_latitude`, `users.home_longitude` (+ captured-at). Shop stays in
   `outlet_latitude/longitude`. `submitKyc` takes server-stored geo-link coords, never browser coords.

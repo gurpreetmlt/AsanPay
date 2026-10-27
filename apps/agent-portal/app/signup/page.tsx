@@ -29,11 +29,11 @@ import { DateField } from "@/components/ui/DateField";
 import { SignupStepper, SIGNUP_STEPS } from "@/components/signup/SignupStepper";
 import { KycCardUpload, type KycCardStage } from "@/components/signup/KycCardUpload";
 import { loadImage, PhotoCropModal, scaleImageToDataUrl } from "@/components/signup/PhotoCropModal";
+import { SignupGeoCapture } from "@/components/signup/SignupGeoCapture";
 import {
   LocationPermissionModal,
   TermsAcceptModal,
   requestBrowserLocation,
-  reverseGeocodeAddress,
   reverseGeocodeDetails,
 } from "@/components/signup/SignupLocationTerms";
 import api, { AADHAAR_OTP_TIMEOUT_MS } from "@/lib/api";
@@ -603,11 +603,13 @@ function SignupPageInner() {
   const [showPassword, setShowPassword] = useState(false);
   const [mobileError, setMobileError] = useState<string | null>(null);
   const [mobileChecking, setMobileChecking] = useState(false);
-  const [locationLabel, setLocationLabel] = useState<string | null>(null);
   const [addressFetchBusy, setAddressFetchBusy] = useState(false);
   const [photoCaptureBusy, setPhotoCaptureBusy] = useState(false);
   const [aadhaarOtp, setAadhaarOtp] = useState("");
   const [aadhaarOtpBusy, setAadhaarOtpBusy] = useState<"send" | "verify" | null>(null);
+  /** Send timed out in the browser, but the OTP may already be on its way — verify uses the server's latest request. */
+  const [aadhaarOtpUnconfirmed, setAadhaarOtpUnconfirmed] = useState(false);
+  const aadhaarOtpStarted = Boolean(draft.aadhaarOtpRequestId) || aadhaarOtpUnconfirmed;
   const [panVerifyBusy, setPanVerifyBusy] = useState(false);
   const [panVerifyFailed, setPanVerifyFailed] = useState(false);
   const panAutoAttemptRef = useRef("");
@@ -648,8 +650,6 @@ function SignupPageInner() {
     try {
       const coords = await requestBrowserLocation();
       patch({ latitude: coords.latitude, longitude: coords.longitude });
-      const label = await reverseGeocodeAddress(Number(coords.latitude), Number(coords.longitude));
-      setLocationLabel(label);
       setShowLocationModal(false);
       return true;
     } catch (err) {
@@ -816,17 +816,6 @@ function SignupPageInner() {
   }, [draftReady, loggedInContinue, needsUpline, user?.id]);
 
   useEffect(() => {
-    if (!draftReady || stepIndex !== 0) return;
-    if (draft.latitude && draft.longitude) {
-      setShowLocationModal(false);
-      return;
-    }
-    setShowLocationModal(true);
-    void ensureLocation();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draftReady, stepIndex]);
-
-  useEffect(() => {
     if (!draftReady || stepIndex !== 0 || otpSent) return;
     const phone = draft.mobile.replace(/\D/g, "").slice(0, 10);
     if (phone.length !== 10) {
@@ -877,17 +866,6 @@ function SignupPageInner() {
       clearTimeout(timer);
     };
   }, [draft.mobile, draftReady, stepIndex, otpSent, loggedInContinue, user?.mobile]);
-
-  useEffect(() => {
-    if (!draft.latitude || !draft.longitude || locationLabel) return;
-    let cancelled = false;
-    void reverseGeocodeAddress(Number(draft.latitude), Number(draft.longitude)).then((label) => {
-      if (!cancelled && label) setLocationLabel(label);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [draft.latitude, draft.longitude, locationLabel]);
 
   useEffect(() => {
     if (!needsUpline) {
@@ -1246,7 +1224,6 @@ function SignupPageInner() {
 
   function validateStep(): string | null {
     if (stepIndex === 0) {
-      if (!draft.latitude || !draft.longitude) return "Allow location access before continuing";
       if (draft.mobile.replace(/\D/g, "").length !== 10) return "Enter a valid 10-digit mobile";
       if (!draft.termsAccepted) return "Please accept Terms and Conditions";
       if (!(draft.accountCreated || loggedInContinue)) {
@@ -1289,6 +1266,7 @@ function SignupPageInner() {
       if (!draft.city.trim()) return "City is required";
       if (!draft.district.trim()) return "District is required";
       if (!draft.state.trim()) return "State is required";
+      if (!draft.homeGeo?.token) return "Capture your home location to continue";
     }
     if (stepIndex === 5) {
       if (!draft.businessName.trim()) return "Business name is required";
@@ -1301,6 +1279,7 @@ function SignupPageInner() {
       if (!draft.businessCity.trim()) return "Business city is required";
       if (!draft.businessDistrict.trim()) return "Business district is required";
       if (!draft.businessState.trim()) return "Business state is required";
+      if (!draft.shopGeo?.token) return "Capture your shop location to continue";
     }
     if (stepIndex === 6) {
       if (draft.ifsc.length !== 11) return "Enter a valid IFSC";
@@ -1329,16 +1308,9 @@ function SignupPageInner() {
     setLoading(true);
     setMobileError(null);
     try {
-      if (!draft.latitude || !draft.longitude) {
-        toast.error("Allow location access before continuing");
-        setShowLocationModal(true);
-        return;
-      }
       const { data } = await api.post<ApiResponse<{ otp?: string; message: string }>>("/auth/signup/request", {
         mobile: draft.mobile.replace(/\D/g, "").slice(0, 10),
         portal: "agent",
-        latitude: draft.latitude,
-        longitude: draft.longitude,
       });
       if (!data.success) throw new Error(data.message);
       setDevOtp(data.data.otp ?? null);
@@ -1417,8 +1389,6 @@ function SignupPageInner() {
         mobile: draft.mobile.replace(/\D/g, "").slice(0, 10),
         role: draft.role,
         portal: "agent",
-        latitude: draft.latitude,
-        longitude: draft.longitude,
         acceptedPolicyVersion: SIGNUP_POLICY_VERSION,
         policyChannel: "web",
         ...(sponsor ? { sponsorUid: sponsor.uid } : {}),
@@ -1471,7 +1441,6 @@ function SignupPageInner() {
         toast.error("Could not fetch address from location. Enter address manually.");
         return;
       }
-      setLocationLabel(details.displayName);
       let city = details.city;
       let district = details.district;
       let state = details.state;
@@ -1615,18 +1584,31 @@ function SignupPageInner() {
         aadhaarOtpVerified: false,
         aadhaarVerifiedName: "",
       });
+      setAadhaarOtpUnconfirmed(false);
       setAadhaarOtp("");
       toast.success(data.message || data.data.message || "OTP sent to the mobile registered with this Aadhaar");
     } catch (err) {
-      toast.error(extractApiError(err, "Could not send Aadhaar OTP"));
+      const e = err as { code?: string; message?: string; response?: { status?: number } };
+      const noReply =
+        !e.response || e.response.status === 504 || e.code === "ECONNABORTED" || /timeout/i.test(e.message ?? "");
+      if (noReply) {
+        patch({ aadhaarOtpRequestId: "", aadhaarOtpVerified: false, aadhaarVerifiedName: "" });
+        setAadhaarOtpUnconfirmed(true);
+        setAadhaarOtp("");
+        toast("OTP is taking longer. If you received it, enter it below and tap Verify. If not, tap Resend OTP.", {
+          duration: 10_000,
+        });
+      } else {
+        toast.error(extractApiError(err, "Could not send Aadhaar OTP"));
+      }
     } finally {
       setAadhaarOtpBusy(null);
     }
   }
 
   async function verifyAadhaarOtp() {
-    if (!draft.aadhaarOtpRequestId) {
-      toast.error("Tap Send OTP first");
+    if (!aadhaarOtpStarted) {
+      toast.error("No Aadhaar OTP was requested yet. Tap Send OTP to get an OTP.");
       return;
     }
     if (aadhaarOtp.replace(/\D/g, "").length < 4) {
@@ -1641,11 +1623,12 @@ function SignupPageInner() {
         "/kyc/aadhaar/otp/verify",
         {
           otp: aadhaarOtp.replace(/\D/g, ""),
-          requestId: draft.aadhaarOtpRequestId,
+          ...(draft.aadhaarOtpRequestId ? { requestId: draft.aadhaarOtpRequestId } : {}),
         },
         { timeout: AADHAAR_OTP_TIMEOUT_MS },
       );
       if (!data.success) throw new Error(data.message);
+      setAadhaarOtpUnconfirmed(false);
       patch({
         aadhaarOtpVerified: true,
         aadhaarVerifiedName: data.data.fullName ?? "",
@@ -1708,6 +1691,8 @@ function SignupPageInner() {
         shopPhotoLongitude: draft.shopPhoto?.longitude,
         latitude: draft.shopPhoto?.latitude || draft.latitude || undefined,
         longitude: draft.shopPhoto?.longitude || draft.longitude || undefined,
+        shopGeoLinkToken: draft.shopGeo?.token,
+        homeGeoLinkToken: draft.homeGeo?.token,
       });
       if (!data.success) throw new Error(data.message);
       useAuthStore.getState().setUser(data.data.user);
@@ -1718,7 +1703,10 @@ function SignupPageInner() {
         new URLSearchParams(window.location.search).get("from") === "settings";
       router.replace(fromSettings ? "/settings?tab=profile" : "/dashboard");
     } catch (err) {
-      toast.error(extractApiError(err, "Submit failed"));
+      const code = (err as { response?: { data?: { code?: string } } }).response?.data?.code;
+      if (code === "HOME_LOCATION_REQUIRED") patch({ homeGeo: null, stepIndex: 4 });
+      else if (code === "SHOP_LOCATION_REQUIRED") patch({ shopGeo: null, stepIndex: 5 });
+      toast.error(extractApiError(err, "KYC could not be submitted. Check your internet and try again."));
     } finally {
       setLoading(false);
     }
@@ -1889,17 +1877,6 @@ function SignupPageInner() {
         <div className="space-y-4">
             {stepIndex === 0 && (
               <>
-                {!hasLocation ? (
-                  <p className="rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: "#FEF3C7", color: "#92400E" }}>
-                    Location must be allowed before you enter your mobile number.
-                  </p>
-                ) : (
-                  <p className="rounded-xl px-3 py-2 text-xs" style={{ background: `${B.green}12`, color: B.greenDark }}>
-                    {locationLabel
-                      ? `Location captured · ${locationLabel}`
-                      : "Location captured · resolving address…"}
-                  </p>
-                )}
                 {invite ? (
                   <p className="rounded-xl px-3 py-2 text-xs" style={{ background: B.secondary, color: B.blue }}>
                     Invited by <strong>{invite.sponsor.name}</strong> to join as{" "}
@@ -1921,12 +1898,11 @@ function SignupPageInner() {
                     className={inputCls}
                     style={{
                       ...inputStyle,
-                      opacity: hasLocation || loggedInContinue ? 1 : 0.55,
                       borderColor: mobileError ? "#DC2626" : undefined,
                     }}
                     inputMode="numeric"
                     placeholder="10-digit mobile"
-                    disabled={!hasLocation || otpSent || !canEditIdentity}
+                    disabled={otpSent || !canEditIdentity}
                     readOnly={!canEditIdentity || Boolean(invite)}
                   />
                 </Field>
@@ -1961,10 +1937,10 @@ function SignupPageInner() {
                         value={draft.password}
                         onChange={(e) => patch({ password: e.target.value })}
                         className={`${inputCls} pr-12`}
-                        style={{ ...inputStyle, opacity: hasLocation ? 1 : 0.55 }}
+                        style={inputStyle}
                         placeholder="e.g. Test1234"
                         autoComplete="new-password"
-                        disabled={!hasLocation || otpSent}
+                        disabled={otpSent}
                       />
                       <button
                         type="button"
@@ -2020,11 +1996,6 @@ function SignupPageInner() {
                     checked={draft.termsAccepted}
                     onChange={(e) => {
                       if (e.target.checked) {
-                        if (!hasLocation) {
-                          setShowLocationModal(true);
-                          void ensureLocation();
-                          return;
-                        }
                         setShowTermsModal(true);
                         return;
                       }
@@ -2039,14 +2010,7 @@ function SignupPageInner() {
                       type="button"
                       className="font-semibold underline"
                       style={{ color: B.blue }}
-                      onClick={() => {
-                        if (!hasLocation) {
-                          setShowLocationModal(true);
-                          void ensureLocation();
-                          return;
-                        }
-                        setShowTermsModal(true);
-                      }}
+                      onClick={() => setShowTermsModal(true)}
                     >
                       Terms &amp; Conditions and Privacy Policy
                     </button>
@@ -2338,6 +2302,7 @@ function SignupPageInner() {
                               }
                             : {}),
                         });
+                        setAadhaarOtpUnconfirmed(false);
                         setAadhaarOtp("");
                       }}
                       className={`${inputCls} min-w-0 flex-1 font-mono`}
@@ -2361,7 +2326,7 @@ function SignupPageInner() {
                         onClick={() => void sendAadhaarOtp()}
                         className="!w-auto shrink-0 self-stretch"
                       >
-                        {draft.aadhaarOtpRequestId ? "Resend OTP" : "Send OTP"}
+                        {aadhaarOtpStarted ? "Resend OTP" : "Send OTP"}
                       </PrimaryButton>
                     ) : null}
                   </div>
@@ -2388,7 +2353,7 @@ function SignupPageInner() {
                         Create your account on the previous step first, then send Aadhaar OTP.
                       </p>
                     ) : null}
-                    {draft.aadhaarOtpRequestId ? (
+                    {aadhaarOtpStarted ? (
                       <Field label="Aadhaar OTP *">
                         <div className="flex items-stretch gap-2">
                           <input
@@ -2528,6 +2493,11 @@ function SignupPageInner() {
                     />
                   </Field>
                 </div>
+                <SignupGeoCapture
+                  purpose="home"
+                  value={draft.homeGeo}
+                  onChange={(homeGeo) => patch({ homeGeo })}
+                />
               </>
             )}
 
@@ -2678,6 +2648,11 @@ function SignupPageInner() {
                     />
                   </Field>
                 </div>
+                <SignupGeoCapture
+                  purpose="shop"
+                  value={draft.shopGeo}
+                  onChange={(shopGeo) => patch({ shopGeo })}
+                />
               </>
             )}
 

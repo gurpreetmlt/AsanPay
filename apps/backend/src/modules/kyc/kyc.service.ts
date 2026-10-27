@@ -32,6 +32,16 @@ import {
   recordKycVerification,
   type KycVerificationView,
 } from "./kycVerification.service";
+import {
+  GEO_LINK_MAX_ACCURACY_M,
+  SIGNUP_GEO_LOW_ACCURACY_MESSAGE,
+  markGeoLinkUsed,
+  readSignupGeoLink,
+  type SignupGeoPurpose,
+} from "../geoLink/geoLink.service";
+import { evaluateShopPincodeSignal, recordRootedDeviceSignal } from "../risk/riskSignal.service";
+import { haversineKm } from "../../core/geo";
+import { logger } from "../../utils/logger";
 
 function toAuthUser(row: typeof users.$inferSelect): AuthUser {
   return {
@@ -255,6 +265,53 @@ async function verifiedPanName(userId: string, panNumber: string): Promise<strin
   return verifiedPan === submitted ? formatPanName(fullName) : null;
 }
 
+type SignupGeoFix = {
+  latitude: string;
+  longitude: string;
+  accuracyMeters: number | null;
+  source: "phone_qr" | "device";
+  geoLinkId: string | null;
+};
+
+/** Shop / home point from a web phone-QR token (server-stored fix) or the app's device GPS. */
+async function resolveSignupGeoFix(
+  userId: string,
+  purpose: SignupGeoPurpose,
+  token: string | undefined,
+  device: KycSubmitInput["shopLocation"],
+): Promise<SignupGeoFix | null> {
+  if (token) {
+    const link = await readSignupGeoLink(userId, token, purpose);
+    return {
+      latitude: link.latitude,
+      longitude: link.longitude,
+      accuracyMeters: link.accuracyMeters,
+      source: "phone_qr",
+      geoLinkId: link.id,
+    };
+  }
+  if (!device) return null;
+  const label = purpose === "shop" ? "shop" : "home";
+  if (device.isMockLocation) {
+    throw new HttpError(
+      422,
+      `Turn off mock / fake location apps on your phone, then fetch the ${label} location again.`,
+      "GEO_MOCK_LOCATION",
+    );
+  }
+  const accuracy = device.accuracyMeters != null ? Math.round(device.accuracyMeters) : null;
+  if (accuracy == null || accuracy > GEO_LINK_MAX_ACCURACY_M) {
+    throw new HttpError(422, SIGNUP_GEO_LOW_ACCURACY_MESSAGE, "GEO_LOW_ACCURACY");
+  }
+  return {
+    latitude: device.latitude.toFixed(6),
+    longitude: device.longitude.toFixed(6),
+    accuracyMeters: accuracy,
+    source: "device",
+    geoLinkId: null,
+  };
+}
+
 /** Stores KYC PII encrypted. Status stays pending until admin verifies (Task 18). */
 export async function submitKyc(userId: string, input: KycSubmitInput): Promise<AuthUser> {
   const [user] = await db.select().from(users).where(eq(users.id, userId));
@@ -264,6 +321,9 @@ export async function submitKyc(userId: string, input: KycSubmitInput): Promise<
   if (user.kycStatus === "verified") {
     throw new HttpError(409, "KYC is already verified", "KYC_ALREADY_VERIFIED");
   }
+
+  const shopFix = await resolveSignupGeoFix(userId, "shop", input.shopGeoLinkToken, input.shopLocation);
+  const homeFix = await resolveSignupGeoFix(userId, "home", input.homeGeoLinkToken, input.homeLocation);
 
   // Decisive photo checks run here on the server, before anything is saved — the app's own
   // check only guides the agent and can be bypassed. Usually a cache hit from
@@ -297,9 +357,17 @@ export async function submitKyc(userId: string, input: KycSubmitInput): Promise<
   }
 
   const latitude =
-    input.shopPhotoLatitude?.trim() || input.latitude?.trim() || user.outletLatitude || null;
+    shopFix?.latitude ||
+    input.shopPhotoLatitude?.trim() ||
+    input.latitude?.trim() ||
+    user.outletLatitude ||
+    null;
   const longitude =
-    input.shopPhotoLongitude?.trim() || input.longitude?.trim() || user.outletLongitude || null;
+    shopFix?.longitude ||
+    input.shopPhotoLongitude?.trim() ||
+    input.longitude?.trim() ||
+    user.outletLongitude ||
+    null;
 
   const panName = await verifiedPanName(userId, input.panNumber);
 
@@ -314,12 +382,44 @@ export async function submitKyc(userId: string, input: KycSubmitInput): Promise<
       ...(latitude && longitude
         ? { outletLatitude: latitude, outletLongitude: longitude }
         : {}),
+      ...(homeFix
+        ? { homeLatitude: homeFix.latitude, homeLongitude: homeFix.longitude, homeLocationAt: new Date() }
+        : {}),
       updatedAt: new Date(),
     })
     .where(eq(users.id, userId))
     .returning();
 
   if (!updated) throw new HttpError(500, "Failed to save KYC");
+
+  for (const fix of [shopFix, homeFix]) {
+    if (fix?.geoLinkId) await markGeoLinkUsed(fix.geoLinkId);
+  }
+  if (shopFix) {
+    void evaluateShopPincodeSignal(userId, shopFix, input.businessPincode ?? input.pincode).catch((err: unknown) =>
+      logger.error({ err, userId }, "shop pincode risk signal failed"),
+    );
+  }
+  const rootedOn = [
+    input.shopLocation?.isRooted ? "shop" : null,
+    input.homeLocation?.isRooted ? "home" : null,
+  ].filter((p): p is string => p != null);
+  if (rootedOn.length) {
+    void recordRootedDeviceSignal(userId, rootedOn).catch((err: unknown) =>
+      logger.error({ err, userId }, "rooted device risk signal failed"),
+    );
+  }
+  const homeToShopKm =
+    shopFix && homeFix
+      ? Number(
+          haversineKm(
+            Number(shopFix.latitude),
+            Number(shopFix.longitude),
+            Number(homeFix.latitude),
+            Number(homeFix.longitude),
+          ).toFixed(2),
+        )
+      : null;
 
   const docMeta: Record<string, string | null> = {
     cancelledChequeFileName: input.cancelledChequeFileName ?? null,
@@ -389,6 +489,18 @@ export async function submitKyc(userId: string, input: KycSubmitInput): Promise<
       shopPhotoLongitude: input.shopPhotoLongitude ?? null,
       latitude,
       longitude,
+      shopLocation: shopFix
+        ? { source: shopFix.source, accuracyMeters: shopFix.accuracyMeters }
+        : null,
+      homeLocation: homeFix
+        ? {
+            latitude: homeFix.latitude,
+            longitude: homeFix.longitude,
+            source: homeFix.source,
+            accuracyMeters: homeFix.accuracyMeters,
+          }
+        : null,
+      homeToShopKm,
       ...docMeta,
       ...(Object.keys(docChecks).length ? { docChecks } : {}),
     },

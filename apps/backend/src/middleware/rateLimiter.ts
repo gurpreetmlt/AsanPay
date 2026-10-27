@@ -92,6 +92,17 @@ export const kycDocCheckLimiter = rateLimit({
   validate: sharedValidate,
 });
 
+/** Public signup location page (no login) — the token is the only credential, so cap per IP. */
+export const geoLinkPublicLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: isDev ? 300 : 40,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: "Too many location attempts from this network. Wait 15 minutes and try again." },
+  keyGenerator: (req) => `geo-public:${clientIp(req)}`,
+  validate: sharedValidate,
+});
+
 export const walletTxnLimiter = rateLimit({
   windowMs: 60 * 1000,
   limit: isDev ? 200 : 10,

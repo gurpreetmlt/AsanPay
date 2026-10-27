@@ -466,7 +466,6 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
   const [locationError, setLocationError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [mobileError, setMobileError] = useState<string | null>(null);
-  const [locationLabel, setLocationLabel] = useState<string | null>(null);
   const [addressFetchBusy, setAddressFetchBusy] = useState(false);
   const [photoCaptureBusy, setPhotoCaptureBusy] = useState(false);
   const [docChecks, setDocChecks] = useState<Partial<Record<KycDocCheckSlot, KycDocCheckUi>>>({});
@@ -481,6 +480,9 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
   const [emailError, setEmailError] = useState<string | null>(null);
   const [aadhaarOtp, setAadhaarOtp] = useState("");
   const [aadhaarOtpBusy, setAadhaarOtpBusy] = useState<"send" | "verify" | null>(null);
+  /** Send timed out on the app, but the OTP may already be on its way — verify uses the server's latest request. */
+  const [aadhaarOtpUnconfirmed, setAadhaarOtpUnconfirmed] = useState(false);
+  const aadhaarOtpStarted = Boolean(draft.aadhaarOtpRequestId) || aadhaarOtpUnconfirmed;
   const [panVerifyBusy, setPanVerifyBusy] = useState(false);
   const [panVerifyFailed, setPanVerifyFailed] = useState(false);
   const panAutoAttemptRef = useRef("");
@@ -562,18 +564,6 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
       patch({ latitude: coords.latitude, longitude: coords.longitude });
       setLocationError(null);
       setShowLocationModal(false);
-      try {
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${coords.latitude}&lon=${coords.longitude}&addressdetails=1`,
-          { headers: { Accept: "application/json", "User-Agent": "AsanPayMobile/1.0" } },
-        );
-        if (res.ok) {
-          const data = (await res.json()) as { display_name?: string };
-          if (data.display_name) setLocationLabel(data.display_name);
-        }
-      } catch {
-        /* display-only */
-      }
       return true;
     } catch {
       setLocationError("Could not get location. Turn on GPS / Location and try again.");
@@ -641,7 +631,6 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         showAlert("Fetch failed", "Could not fetch address from location. Enter address manually.");
         return;
       }
-      if (displayName) setLocationLabel(displayName);
       if (pincode.length === 6) {
         try {
           const pinRes = await fetch(`https://api.postalpincode.in/pincode/${pincode}`);
@@ -789,16 +778,6 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftReady, draft.accountCreated, needsUpline, authUser?.id]);
-
-  // Show location modal on step 1 — do NOT auto-request (system dialog was hidden behind modal → stuck "Requesting…").
-  useEffect(() => {
-    if (!draftReady || stepIndex !== 0 || phase !== "steps") return;
-    if (draft.latitude && draft.longitude) {
-      setShowLocationModal(false);
-      return;
-    }
-    setShowLocationModal(true);
-  }, [draftReady, stepIndex, phase, draft.latitude, draft.longitude]);
 
   useEffect(() => {
     if (!draftReady || stepIndex !== 0 || otpSent || phase !== "steps") return;
@@ -1373,7 +1352,6 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
 
   function validateStep(): string | null {
     if (stepIndex === 0) {
-      if (!draft.latitude || !draft.longitude) return "Allow location access before continuing";
       if (draft.mobile.replace(/\D/g, "").length !== 10) return "Enter a valid 10-digit mobile";
       if (!draft.termsAccepted) return "Please accept Terms and Conditions";
       if (!draft.accountCreated) {
@@ -1418,6 +1396,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
       if (draft.pincode.length !== 6) return "Valid pincode required";
       if (!draft.city.trim()) return "City is required";
       if (!draft.district.trim() || !draft.state.trim()) return "District and state required";
+      if (!draft.homeGeo) return "Capture your home location to continue";
     }
     if (stepIndex === 5) {
       if (!draft.businessName.trim()) return "Business name required";
@@ -1427,6 +1406,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
       if (!draft.businessAddress.trim() || draft.businessPincode.length !== 6) return "Business address/pincode required";
       if (!draft.businessCity.trim()) return "Business city is required";
       if (!draft.businessDistrict.trim() || !draft.businessState.trim()) return "Business district and state required";
+      if (!draft.shopGeo) return "Capture your shop location to continue";
     }
     if (stepIndex === 6) {
       if (draft.ifsc.length !== 11 || !draft.bankName.trim()) return "IFSC and bank name required";
@@ -1452,16 +1432,9 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
   async function requestOtp() {
     setLoading(true);
     try {
-      if (!draft.latitude || !draft.longitude) {
-        showAlert("Location required", "Allow location access before continuing");
-        setShowLocationModal(true);
-        return;
-      }
       const { data } = await api.post<ApiResponse<{ otp?: string; message?: string }>>("/auth/signup/request", {
         mobile: draft.mobile.replace(/\D/g, "").slice(0, 10),
         portal: "agent",
-        latitude: draft.latitude,
-        longitude: draft.longitude,
       });
       if (!data.success) throw new Error(data.message);
       if (__DEV__ && data.data.otp) {
@@ -1548,8 +1521,6 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         role: draft.role,
         portal: "agent",
         password: draft.password,
-        latitude: draft.latitude,
-        longitude: draft.longitude,
         acceptedPolicyVersion: SIGNUP_POLICY_VERSION,
         policyChannel: "app",
         ...(needsUpline ? { sponsorUid: draft.sponsorUid } : {}),
@@ -1682,21 +1653,35 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         aadhaarOtpVerified: false,
         aadhaarVerifiedName: "",
       });
+      setAadhaarOtpUnconfirmed(false);
       setAadhaarOtp("");
       showAlert(
         "OTP sent",
         data.message || data.data.message || "OTP sent to the mobile registered with this Aadhaar",
       );
     } catch (err) {
-      showAlert("Aadhaar OTP failed", apiError(err, "Could not send Aadhaar OTP"));
+      const e = err as { code?: string; message?: string; response?: { status?: number } };
+      const noReply =
+        !e.response || e.response.status === 504 || e.code === "ECONNABORTED" || /timeout/i.test(e.message ?? "");
+      if (noReply) {
+        patch({ aadhaarOtpRequestId: "", aadhaarOtpVerified: false, aadhaarVerifiedName: "" });
+        setAadhaarOtpUnconfirmed(true);
+        setAadhaarOtp("");
+        showAlert(
+          "OTP is taking longer",
+          "If you received the Aadhaar OTP, enter it below and tap Verify. If not, tap Resend OTP.",
+        );
+      } else {
+        showAlert("Aadhaar OTP failed", apiError(err, "Could not send Aadhaar OTP"));
+      }
     } finally {
       setAadhaarOtpBusy(null);
     }
   }
 
   async function verifyAadhaarOtp() {
-    if (!draft.aadhaarOtpRequestId) {
-      showAlert("Send OTP first", "Tap Send OTP first");
+    if (!aadhaarOtpStarted) {
+      showAlert("Send OTP first", "No Aadhaar OTP was requested yet. Tap Send OTP to get an OTP.");
       return;
     }
     if (aadhaarOtp.replace(/\D/g, "").length < 4) {
@@ -1711,11 +1696,12 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         "/kyc/aadhaar/otp/verify",
         {
           otp: aadhaarOtp.replace(/\D/g, ""),
-          requestId: draft.aadhaarOtpRequestId,
+          ...(draft.aadhaarOtpRequestId ? { requestId: draft.aadhaarOtpRequestId } : {}),
         },
         { timeout: AADHAAR_OTP_TIMEOUT_MS },
       );
       if (!data.success) throw new Error(data.message);
+      setAadhaarOtpUnconfirmed(false);
       patch({
         aadhaarOtpVerified: true,
         aadhaarVerifiedName: data.data.fullName ?? "",
@@ -1829,6 +1815,8 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         shopPhotoLongitude: draft.shopPhoto?.longitude,
         latitude: draft.shopPhoto?.latitude || draft.latitude || undefined,
         longitude: draft.shopPhoto?.longitude || draft.longitude || undefined,
+        shopLocation: draft.shopGeo ?? undefined,
+        homeLocation: draft.homeGeo ?? undefined,
       });
       if (!data.success) throw new Error(data.message);
       updateUser(data.data.user);
@@ -1985,30 +1973,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
               {stepIndex === 0 && (
                 <>
                   <Text style={styles.sectionTitle}>Mobile Verification</Text>
-                  <Text style={[styles.hint, { color: tokens.mute }]}>Allow location, then enter your mobile number.</Text>
-                  <View
-                    style={[
-                      styles.locBanner,
-                      {
-                        backgroundColor: hasLocation ? colors.greenBg : "#FFF7ED",
-                        borderColor: hasLocation ? `${colors.green}55` : "#FDBA74",
-                      },
-                    ]}
-                  >
-                    <MapPin size={16} color={hasLocation ? colors.greenDark : "#C2410C"} />
-                    <Text style={{ flex: 1, color: hasLocation ? colors.greenDark : "#9A3412", fontSize: 12, fontWeight: "600" }}>
-                      {hasLocation
-                        ? locationLabel
-                          ? `Location ready · ${locationLabel}`
-                          : "Location ready · resolving address…"
-                        : "Allow location to unlock mobile number"}
-                    </Text>
-                    {!hasLocation ? (
-                      <Pressable onPress={() => setShowLocationModal(true)} hitSlop={8}>
-                        <Text style={{ color: colors.blueFlat, fontWeight: "800", fontSize: 12 }}>Enable</Text>
-                      </Pressable>
-                    ) : null}
-                  </View>
+                  <Text style={[styles.hint, { color: tokens.mute }]}>Enter your mobile number and set a password.</Text>
 
                   <FieldLabel text="Mobile Number *" color={tokens.mute} />
                   <TextInput
@@ -2024,10 +1989,10 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                     keyboardType="number-pad"
                     placeholder="10-digit mobile"
                     placeholderTextColor={tokens.mute}
-                    editable={hasLocation && !otpSent && canEditIdentity}
+                    editable={!otpSent && canEditIdentity}
                     style={[
                       inputStyle,
-                      ((!hasLocation || otpSent) || !canEditIdentity) && { opacity: 0.5 },
+                      (otpSent || !canEditIdentity) && { opacity: 0.5 },
                       mobileError ? { borderColor: "#DC2626" } : null,
                     ]}
                   />
@@ -2059,8 +2024,8 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                           secureTextEntry={!showPassword}
                           placeholder="e.g. Test1234"
                           placeholderTextColor={tokens.mute}
-                          editable={hasLocation && !otpSent}
-                          style={[inputStyle, { paddingRight: 44 }, !hasLocation || otpSent ? { opacity: 0.5 } : null]}
+                          editable={!otpSent}
+                          style={[inputStyle, { paddingRight: 44 }, otpSent ? { opacity: 0.5 } : null]}
                           autoCapitalize="none"
                           autoCorrect={false}
                         />
@@ -2106,10 +2071,6 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                       if (otpSent) return;
                       if (draft.termsAccepted) {
                         patch({ termsAccepted: false });
-                        return;
-                      }
-                      if (!hasLocation) {
-                        setShowLocationModal(true);
                         return;
                       }
                       setShowTermsModal(true);
@@ -2405,6 +2366,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                               }
                             : {}),
                         });
+                        setAadhaarOtpUnconfirmed(false);
                         setAadhaarOtp("");
                       }}
                       keyboardType="number-pad"
@@ -2432,7 +2394,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                           <ActivityIndicator color="#fff" />
                         ) : (
                           <Text style={styles.verifyBtnText}>
-                            {draft.aadhaarOtpRequestId ? "Resend OTP" : "Send OTP"}
+                            {aadhaarOtpStarted ? "Resend OTP" : "Send OTP"}
                           </Text>
                         )}
                       </Pressable>
@@ -2465,7 +2427,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                           Create your account on the previous step first, then send Aadhaar OTP.
                         </Text>
                       ) : null}
-                      {draft.aadhaarOtpRequestId ? (
+                      {aadhaarOtpStarted ? (
                         <>
                           <FieldLabel text="Aadhaar OTP *" color={tokens.mute} />
                           <View style={styles.emailRow}>

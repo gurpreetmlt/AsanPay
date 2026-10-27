@@ -174,7 +174,7 @@ kycRouter.post(
   validateBody(aadhaarOtpVerifySchema),
   async (req, res) => {
     if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
-    const body = req.body as { otp: string; requestId: string };
+    const body = req.body as { otp: string; requestId?: string };
     const data = await verifyAadhaarKycOtp(req.auth.sub, body);
     sendSuccess(res, data, "Aadhaar verified");
   },
