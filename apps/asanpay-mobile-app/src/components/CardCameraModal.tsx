@@ -21,6 +21,7 @@ const CameraView = Camera as unknown as React.ComponentType<{
   isActive: boolean;
   photo: boolean;
   photoQualityBalance?: "speed" | "balanced" | "quality";
+  outputOrientation?: "device" | "preview";
 }>;
 
 /** ID-1 card (PAN / Aadhaar PVC): 85.6 × 54 mm. */
@@ -100,6 +101,9 @@ export function CardCameraModal({
                 isActive={visible}
                 photo
                 photoQualityBalance="balanced"
+                // Cards are shot with the phone held flat over a table, where the tilt sensor cannot
+                // tell portrait from landscape ("device" then saves the photo turned 90°).
+                outputOrientation="preview"
               />
               <View style={s.frameWrap} pointerEvents="none">
                 <View style={s.frame}>
