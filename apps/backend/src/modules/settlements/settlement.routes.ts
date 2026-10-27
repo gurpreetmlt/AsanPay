@@ -9,6 +9,7 @@ import { HttpError } from "../../utils/httpError";
 import { resolveTenantId } from "../fund-requests/tenant";
 import {
   registerSettlementBank,
+  recheckSettlementBank,
   verifySettlementBank,
   activateSettlementBank,
   listSettlementBanks,
@@ -85,6 +86,7 @@ settlementRouter.post(
     const result = await registerSettlementBank({
       tenantId,
       userId: req.auth.sub,
+      role: req.auth.role,
       accountNumber: body.accountNumber,
       ifsc: body.ifsc,
       holderName: body.holderName,
@@ -96,12 +98,24 @@ settlementRouter.post(
         settlementAccountId: String(result.settlementAccountId),
         accountNumberLast4: result.accountNumberLast4,
         isActive: result.isActive,
+        bankCheck: result.bankCheck,
       },
       "Settlement bank account registered — awaiting verification",
       201,
     );
   },
 );
+
+settlementRouter.post("/banks/:id/bank-check", requireRole("admin"), walletTxnLimiter, async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const tenantId = await resolveTenantId();
+  const result = await recheckSettlementBank({
+    tenantId,
+    settlementAccountId: parseBankRowId(paramId(req.params.id)),
+    adminId: req.auth.sub,
+  });
+  sendSuccess(res, result, result.message);
+});
 
 settlementRouter.post(
   "/banks/:id/verify",

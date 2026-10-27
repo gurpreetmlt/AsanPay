@@ -31,6 +31,13 @@ import {
   markOtpConsumed,
 } from "../../db/postgres/repositories/otpRequest";
 import { getTenantSettings } from "../tenants/tenantSettings.service";
+import { bankNameMatch, type UserRole } from "@asanpay/shared-types";
+import {
+  assertAgentCanPay,
+  bankCheckPrices,
+  runBankNameCheck,
+  verifyBankAccount,
+} from "../transactions/bankNameCheck.service";
 
 const SETTLE_PAYABLE = "TREASURY_SETTLE_PAYABLE";
 const FEE_INCOME = "COMMISSION_INCOME";
@@ -103,18 +110,57 @@ async function mirrorAgentWallets(tx: Tx, tenantId: string, userId: string): Pro
 // Settlement bank accounts
 // ---------------------------------------------------------------------------------------
 
+export type SettlementBankCheckStatus = "verified" | "not_confirmed" | "pending" | "error";
+
+export interface SettlementBankCheck {
+  status: SettlementBankCheckStatus;
+  /** Account holder name as the bank returned it. */
+  bankName: string | null;
+  method: string | null;
+  message: string;
+  /** Rupees debited from the agent's main wallet for this check. */
+  charged: string;
+  cached: boolean;
+}
+
+async function saveBankCheck(
+  rowId: bigint,
+  check: { status: SettlementBankCheckStatus; bankName: string | null; method: string | null; refId: string | null; message: string },
+): Promise<void> {
+  await db
+    .update(agentSettlementAccounts)
+    .set({
+      bankCheckStatus: check.status,
+      bankHolderName: check.bankName?.slice(0, 160) ?? null,
+      bankCheckMethod: check.method,
+      bankCheckRef: check.status === "verified" ? check.refId : null,
+      bankCheckMessage: check.message.slice(0, 200),
+      bankCheckedAt: new Date(),
+    })
+    .where(eq(agentSettlementAccounts.id, rowId));
+}
+
 export async function registerSettlementBank(params: {
   tenantId: string;
   userId: string;
+  role: UserRole;
   accountNumber: string;
   ifsc: string;
   holderName: string;
   otp?: string;
-}): Promise<{ settlementAccountId: bigint; accountNumberLast4: string; isActive: boolean }> {
+}): Promise<{
+  settlementAccountId: bigint;
+  accountNumberLast4: string;
+  isActive: boolean;
+  bankCheck: SettlementBankCheck;
+}> {
   const digits = params.accountNumber.replace(/\s/g, "");
   if (!/^\d{6,18}$/.test(digits)) {
     throw new HttpError(422, "Account number must be 6–18 digits", "INVALID_ACCOUNT_NUMBER");
   }
+
+  // Before the OTP is used up: the agent pays for the bank check.
+  await assertAgentCanPay(params.userId, (await bankCheckPrices()).standard);
 
   const [active] = await db
     .select({ id: agentSettlementAccounts.id })
@@ -161,11 +207,74 @@ export async function registerSettlementBank(params: {
     throw new HttpError(500, "Could not register settlement bank account", "BANK_CREATE_FAILED");
   }
 
+  let bankCheck: SettlementBankCheck;
+  try {
+    const r = await runBankNameCheck(
+      { id: params.userId, role: params.role },
+      { accountNumber: digits, ifsc: params.ifsc, idempotencyKey: `settle-bank:${row.id}` },
+      "settlement_bank",
+    );
+    await saveBankCheck(row.id, r);
+    bankCheck = {
+      status: r.status,
+      bankName: r.bankName,
+      method: r.method,
+      message: r.message,
+      charged: r.charged,
+      cached: r.cached,
+    };
+  } catch (err) {
+    // The bank is saved either way; admin can run "Re-check with bank" from the pending list.
+    const message = `Bank check could not run: ${err instanceof Error ? err.message : String(err)}`;
+    await saveBankCheck(row.id, { status: "error", bankName: null, method: null, refId: null, message });
+    bankCheck = { status: "error", bankName: null, method: null, message, charged: "0.00", cached: false };
+  }
+
   return {
     settlementAccountId: row.id,
     accountNumberLast4: row.accountNumberLast4,
     isActive: row.isActive,
+    bankCheck,
   };
+}
+
+/** Admin "Re-check with bank" on a settlement bank — platform pays, the agent is not charged. */
+export async function recheckSettlementBank(params: {
+  tenantId: string;
+  settlementAccountId: bigint;
+  adminId: string;
+}): Promise<SettlementBankCheck> {
+  const [row] = await db
+    .select({
+      id: agentSettlementAccounts.id,
+      accountNumberEnc: agentSettlementAccounts.accountNumberEnc,
+      ifsc: agentSettlementAccounts.ifsc,
+    })
+    .from(agentSettlementAccounts)
+    .where(
+      and(
+        eq(agentSettlementAccounts.id, params.settlementAccountId),
+        eq(agentSettlementAccounts.tenantId, params.tenantId),
+      ),
+    )
+    .limit(1);
+  if (!row) throw new HttpError(404, "Settlement bank account not found", "NOT_FOUND");
+
+  let accountNumber: string;
+  try {
+    accountNumber = decryptPII(row.accountNumberEnc);
+  } catch {
+    throw new HttpError(500, "Could not decrypt account number", "DECRYPT_FAILED");
+  }
+
+  const v = await verifyBankAccount({
+    userId: params.adminId,
+    accountNumber,
+    ifsc: row.ifsc,
+    purpose: "settlement_bank",
+  });
+  await saveBankCheck(row.id, v);
+  return { status: v.status, bankName: v.bankName, method: v.method, message: v.message, charged: "0.00", cached: v.cached };
 }
 
 /** Send OTP before replacing an active settlement bank. */
@@ -275,11 +384,16 @@ export async function verifySettlementBank(params: {
 
     const activate = params.activate !== false;
     const verifiedAt = new Date();
-    // Automated penny-drop placeholder: when admin omits a ref we mint a stable stub so the
-    // row is auditable. Live bank penny-drop APIs plug in here later.
-    const verificationRef =
-      params.verificationRef?.trim() ||
-      `PENNYDROP-STUB-${row.id}-${verifiedAt.getTime()}`;
+    // A manual ref (admin's own penny drop / bank letter) wins; otherwise the bank check must have confirmed the name.
+    const manualRef = params.verificationRef?.trim();
+    if (!manualRef && (row.bankCheckStatus !== "verified" || !row.bankCheckRef)) {
+      throw new HttpError(
+        422,
+        "The bank has not confirmed this account yet. Use Re-check with bank, or enter a manual verification reference.",
+        "BANK_CHECK_REQUIRED",
+      );
+    }
+    const verificationRef = manualRef || `BANKCHECK-${row.bankCheckRef}`;
 
     let hadPriorActive = false;
     if (activate) {
@@ -448,6 +562,9 @@ export async function listSettlementBanks(params: {
     verified: boolean;
     effectiveFrom: string;
     coolingUntil: string | null;
+    bankCheckStatus: string | null;
+    bankHolderName: string | null;
+    bankCheckMessage: string | null;
   }[]
 > {
   const rows = await db
@@ -460,6 +577,9 @@ export async function listSettlementBanks(params: {
       verifiedAt: agentSettlementAccounts.verifiedAt,
       effectiveFrom: agentSettlementAccounts.effectiveFrom,
       coolingUntil: agentSettlementAccounts.coolingUntil,
+      bankCheckStatus: agentSettlementAccounts.bankCheckStatus,
+      bankHolderName: agentSettlementAccounts.bankHolderName,
+      bankCheckMessage: agentSettlementAccounts.bankCheckMessage,
     })
     .from(agentSettlementAccounts)
     .where(
@@ -479,6 +599,9 @@ export async function listSettlementBanks(params: {
     verified: r.verifiedAt != null,
     effectiveFrom: r.effectiveFrom.toISOString(),
     coolingUntil: r.coolingUntil ? r.coolingUntil.toISOString() : null,
+    bankCheckStatus: r.bankCheckStatus,
+    bankHolderName: r.bankHolderName,
+    bankCheckMessage: r.bankCheckMessage,
   }));
 }
 
@@ -1133,6 +1256,15 @@ export async function listPendingSettlementBanks(params: {
     ifsc: string;
     holderName: string;
     createdAt: string;
+    bankCheckStatus: string | null;
+    bankHolderName: string | null;
+    bankCheckMethod: string | null;
+    bankCheckMessage: string | null;
+    bankCheckedAt: string | null;
+    /** Bank name vs the agent's registered (PAN) name. */
+    panNameMatch: { percent: number; level: string } | null;
+    /** Bank name vs the holder name the agent typed. */
+    typedNameMatch: { percent: number; level: string } | null;
   }[]
 > {
   const limit = Math.min(params.limit ?? 50, 100);
@@ -1147,6 +1279,11 @@ export async function listPendingSettlementBanks(params: {
       ifsc: agentSettlementAccounts.ifsc,
       holderName: agentSettlementAccounts.holderName,
       createdAt: agentSettlementAccounts.createdAt,
+      bankCheckStatus: agentSettlementAccounts.bankCheckStatus,
+      bankHolderName: agentSettlementAccounts.bankHolderName,
+      bankCheckMethod: agentSettlementAccounts.bankCheckMethod,
+      bankCheckMessage: agentSettlementAccounts.bankCheckMessage,
+      bankCheckedAt: agentSettlementAccounts.bankCheckedAt,
     })
     .from(agentSettlementAccounts)
     .innerJoin(users, eq(users.id, agentSettlementAccounts.userId))
@@ -1169,6 +1306,13 @@ export async function listPendingSettlementBanks(params: {
     ifsc: r.ifsc,
     holderName: r.holderName,
     createdAt: r.createdAt.toISOString(),
+    bankCheckStatus: r.bankCheckStatus,
+    bankHolderName: r.bankHolderName,
+    bankCheckMethod: r.bankCheckMethod,
+    bankCheckMessage: r.bankCheckMessage,
+    bankCheckedAt: r.bankCheckedAt?.toISOString() ?? null,
+    panNameMatch: r.bankHolderName ? bankNameMatch(r.userName ?? "", r.bankHolderName) : null,
+    typedNameMatch: r.bankHolderName ? bankNameMatch(r.holderName, r.bankHolderName) : null,
   }));
 }
 

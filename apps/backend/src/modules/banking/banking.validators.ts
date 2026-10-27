@@ -47,6 +47,22 @@ export type UpdateBankAccountBody = z.infer<typeof updateBankAccountSchema>;
 export const setBankAccountActiveSchema = z.object({
   isActive: z.boolean(),
 });
+
+/** Typed account + IFSC (add form), or a saved bank id (edit with the account number left blank). */
+export const companyBankCheckSchema = z
+  .object({
+    accountNumber: z.string().trim().regex(/^\d{6,18}$/, "Account number must be 6–18 digits").optional(),
+    ifsc: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z]{4}0[A-Za-z0-9]{6}$/, "Enter a valid 11-character IFSC")
+      .optional(),
+    bankAccountId: z.string().regex(/^\d+$/, "Bank account id must be a number").optional(),
+  })
+  .refine((v) => Boolean(v.bankAccountId) || (Boolean(v.accountNumber) && Boolean(v.ifsc)), {
+    message: "Enter the account number and IFSC before checking with the bank",
+    path: ["accountNumber"],
+  });
 export type SetBankAccountActiveBody = z.infer<typeof setBankAccountActiveSchema>;
 
 export const importStatementSchema = z.object({

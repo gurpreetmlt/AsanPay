@@ -24,6 +24,7 @@ import { StatusBadge, toneFromStatus } from "../../components/StatusBadge";
 import { useTheme } from "../../theme/ThemeContext";
 import { colors } from "../../theme/colors";
 import Clipboard from "@react-native-clipboard/clipboard";
+import { BANK_NAME_MATCH_COPY, bankNameMatch, type ApiResponse } from "@asanpay/shared-types";
 
 interface SettlementBank {
   id: string;
@@ -32,6 +33,33 @@ interface SettlementBank {
   holderName: string;
   isActive: boolean;
   verified: boolean;
+  bankCheckStatus?: "verified" | "not_confirmed" | "pending" | "error" | null;
+  bankHolderName?: string | null;
+}
+
+interface BankCheckResult {
+  status: "verified" | "not_confirmed" | "pending" | "error";
+  bankName: string | null;
+  message: string;
+  charged: string;
+  cached: boolean;
+}
+
+const NOT_CONFIRMED_COPY = "Bank could not confirm this account. Check the account number and IFSC.";
+
+const rupees = (v: string) => `₹${Number(v).toFixed(2)}`;
+
+const PILL = {
+  match: { bg: colors.greenBg, fg: colors.greenDark },
+  partial: { bg: "#FFFBEB", fg: "#B45309" },
+  mismatch: { bg: colors.dangerBg, fg: colors.dangerDark },
+} as const;
+
+function bankNote(b: SettlementBank): string {
+  if (b.bankHolderName) return `Waiting for admin verification · Name as per bank: ${b.bankHolderName}`;
+  if (b.bankCheckStatus === "not_confirmed") return `Waiting for admin verification · ${NOT_CONFIRMED_COPY}`;
+  if (b.bankCheckStatus === "pending") return "Waiting for admin verification · The bank is still confirming this account";
+  return "Waiting for admin verification";
 }
 
 interface SettlementRequest {
@@ -62,7 +90,23 @@ export function SettlementsModal({ visible, onClose }: { visible: boolean; onClo
   const [otpSent, setOtpSent] = useState(false);
   const [revealed, setRevealed] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [lastCheck, setLastCheck] = useState<{ holderName: string; result: BankCheckResult } | null>(null);
+  const [prices, setPrices] = useState<{ standard: string; pennyDrop: string } | null>(null);
   const idemRef = useRef(newIdemKey());
+
+  useEffect(() => {
+    if (!visible) return;
+    let cancelled = false;
+    api
+      .get<ApiResponse<{ standard: string; pennyDrop: string }>>("/txn/dmt/beneficiary/bank-check/price")
+      .then(({ data }) => {
+        if (!cancelled && data.success) setPrices(data.data);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [visible]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -83,6 +127,7 @@ export function SettlementsModal({ visible, onClose }: { visible: boolean; onClo
   useEffect(() => {
     if (visible) {
       setRevealed({});
+      setLastCheck(null);
       void load();
     }
   }, [visible, load]);
@@ -231,13 +276,21 @@ export function SettlementsModal({ visible, onClose }: { visible: boolean; onClo
     }
     setSaving(true);
     try {
-      await api.post("/settlements/banks", {
+      const res = await api.post<ApiResponse<{ bankCheck: BankCheckResult }>>("/settlements/banks", {
         accountNumber: bankDetails.accountNumber.trim(),
         ifsc: bankDetails.ifsc.trim().toUpperCase(),
         holderName: bankDetails.holderName.trim(),
         ...(hasActiveBank ? { otp: otp.trim() } : {}),
       });
-      showAlert("Submitted", "Bank awaiting admin verification");
+      const check = res.data.success ? res.data.data.bankCheck : null;
+      if (check) setLastCheck({ holderName: bankDetails.holderName.trim(), result: check });
+      if (check?.status === "verified") {
+        showAlert("Submitted", `Name as per bank: ${check.bankName ?? "not returned"}. Awaiting admin verification.`);
+      } else if (check?.status === "not_confirmed") {
+        showAlert("Bank not confirmed", `${NOT_CONFIRMED_COPY} You were not charged.`);
+      } else {
+        showAlert("Submitted", "Bank awaiting admin verification");
+      }
       setShowBank(false);
       setBankDetails(emptyIfscBankDetails());
       setOtp("");
@@ -329,6 +382,8 @@ export function SettlementsModal({ visible, onClose }: { visible: boolean; onClo
               Verified accounts used for withdrawals. Add a bank below if needed.
             </Text>
 
+            {lastCheck ? <BankCheckSummary holderName={lastCheck.holderName} result={lastCheck.result} /> : null}
+
             {banks.length === 0 && !showBank ? (
               <Text style={{ color: tokens.sub, marginBottom: 8 }}>No settlement banks yet.</Text>
             ) : null}
@@ -355,7 +410,7 @@ export function SettlementsModal({ visible, onClose }: { visible: boolean; onClo
                       statusLabel={
                         active ? "Active" : b.verified ? "Verified" : "Pending verification"
                       }
-                      note={!b.verified ? "Waiting for admin verification" : undefined}
+                      note={!b.verified ? bankNote(b) : undefined}
                       onActivate={b.verified && !b.isActive ? () => requestActivate(b) : undefined}
                     />
                   </View>
@@ -414,6 +469,13 @@ export function SettlementsModal({ visible, onClose }: { visible: boolean; onClo
                     )}
                   </View>
                 ) : null}
+                <Text style={[styles.hint, { color: tokens.mute, marginTop: 4 }]}>
+                  On submit we confirm this account with the bank and get the account holder name.{" "}
+                  {prices
+                    ? `${rupees(prices.standard)} per check, or ${rupees(prices.pennyDrop)} if the bank needs a ₹1 test credit`
+                    : "A small fee per check"}{" "}
+                  — debited from your main wallet only when the bank confirms. Same account checked within 90 days is free.
+                </Text>
                 {hasActiveBank && !otpSent ? (
                   <Pressable
                     style={[styles.submit, { opacity: otpSending ? 0.6 : 1 }]}

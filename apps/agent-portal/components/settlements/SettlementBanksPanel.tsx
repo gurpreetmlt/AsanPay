@@ -17,6 +17,7 @@ import { bankNameFromIfsc, formatSettlementBankCopy } from "@/lib/bankLogo";
 import { B } from "@/lib/brand";
 import { lookupIndianIfsc, type IfscPlace } from "@/lib/ifsc";
 import { extractApiError } from "@/lib/onboarding";
+import { BANK_NAME_MATCH_COPY, bankNameMatch, type ApiResponse } from "@asanpay/shared-types";
 
 export interface SettlementBank {
   id: string;
@@ -27,6 +28,27 @@ export interface SettlementBank {
   verified: boolean;
   effectiveFrom?: string;
   coolingUntil?: string | null;
+  bankCheckStatus?: "verified" | "not_confirmed" | "pending" | "error" | null;
+  bankHolderName?: string | null;
+  bankCheckMessage?: string | null;
+}
+
+interface BankCheckResult {
+  status: "verified" | "not_confirmed" | "pending" | "error";
+  bankName: string | null;
+  message: string;
+  charged: string;
+  cached: boolean;
+}
+
+const NOT_CONFIRMED_COPY = "Bank could not confirm this account. Check the account number and IFSC.";
+
+const rupees = (v: string) => `₹${Number(v).toFixed(2)}`;
+
+function matchPill(level: string) {
+  if (level === "match") return "bg-green-100 text-green-800";
+  if (level === "partial") return "bg-amber-100 text-amber-800";
+  return "bg-red-100 text-red-700";
 }
 
 type PlaceMap = Record<string, IfscPlace>;
@@ -56,8 +78,24 @@ export function SettlementBanksPanel({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [activateTarget, setActivateTarget] = useState<SettlementBank | null>(null);
   const [activating, setActivating] = useState(false);
+  const [lastCheck, setLastCheck] = useState<{ holderName: string; result: BankCheckResult } | null>(null);
+  const [prices, setPrices] = useState<{ standard: string; pennyDrop: string } | null>(null);
 
   const needsOtp = banks.some((b) => b.isActive && b.verified);
+
+  useEffect(() => {
+    if (!allowAdd) return;
+    let cancelled = false;
+    void api
+      .get<ApiResponse<{ standard: string; pennyDrop: string }>>("/txn/dmt/beneficiary/bank-check/price")
+      .then(({ data }) => {
+        if (!cancelled && data.success) setPrices(data.data);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [allowAdd]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -240,13 +278,17 @@ export function SettlementBanksPanel({
     }
     setSaving(true);
     try {
-      await api.post("/settlements/banks", {
+      const { data } = await api.post<ApiResponse<{ bankCheck: BankCheckResult }>>("/settlements/banks", {
         accountNumber: bankDetails.accountNumber.trim(),
         ifsc: code,
         holderName: bankDetails.holderName.trim(),
         ...(needsOtp ? { otp: otp.trim() } : {}),
       });
-      toast.success("Bank submitted — awaiting admin verification");
+      const check = data.success ? data.data.bankCheck : null;
+      if (check) setLastCheck({ holderName: bankDetails.holderName.trim(), result: check });
+      if (check?.status === "verified") toast.success("Bank confirmed the account — awaiting admin verification");
+      else if (check?.status === "not_confirmed") toast.error(NOT_CONFIRMED_COPY);
+      else toast.success("Bank submitted — awaiting admin verification");
       setShowBankForm(false);
       resetForm();
       await load();
@@ -362,6 +404,14 @@ export function SettlementBanksPanel({
             }
           />
 
+          <p className="text-xs" style={{ color: B.muted }}>
+            On submit we confirm this account with the bank and get the account holder name.{" "}
+            {prices
+              ? `${rupees(prices.standard)} per check, or ${rupees(prices.pennyDrop)} if the bank needs a ₹1 test credit`
+              : "A small fee per check"}{" "}
+            — debited from your main wallet only when the bank confirms. Same account checked within 90 days is free.
+          </p>
+
           {needsOtp && !otpSent ? (
             <div className="flex justify-end">
               <PrimaryButton
@@ -404,6 +454,8 @@ export function SettlementBanksPanel({
           )}
         </form>
       ) : null}
+
+      {lastCheck ? <BankCheckSummary holderName={lastCheck.holderName} result={lastCheck.result} onDismiss={() => setLastCheck(null)} /> : null}
 
       {loading ? (
         <p className="text-sm" style={{ color: B.muted }}>
@@ -454,8 +506,17 @@ export function SettlementBanksPanel({
                 branch={place?.branch}
                 note={
                   !b.verified ? (
-                    <span className="text-[11px] font-semibold" style={{ color: B.muted }}>
+                    <span className="block text-[11px] font-semibold" style={{ color: B.muted }}>
                       Waiting for admin verification
+                      {b.bankHolderName ? (
+                        <span className="block" style={{ color: "#027A48" }}>
+                          Name as per bank: {b.bankHolderName}
+                        </span>
+                      ) : b.bankCheckStatus === "not_confirmed" ? (
+                        <span className="block text-red-600">{NOT_CONFIRMED_COPY}</span>
+                      ) : b.bankCheckStatus === "pending" ? (
+                        <span className="block text-amber-700">The bank is still confirming this account</span>
+                      ) : null}
                     </span>
                   ) : undefined
                 }
@@ -491,6 +552,69 @@ export function SettlementBanksPanel({
           onConfirm={() => void confirmActivate()}
         />
       ) : null}
+    </div>
+  );
+}
+
+function BankCheckSummary({
+  holderName,
+  result,
+  onDismiss,
+}: {
+  holderName: string;
+  result: BankCheckResult;
+  onDismiss: () => void;
+}) {
+  const match = result.status === "verified" && result.bankName ? bankNameMatch(holderName, result.bankName) : null;
+  return (
+    <div className="relative rounded-2xl border p-4" style={{ borderColor: B.border, background: "#F7F9FF" }}>
+      <button
+        type="button"
+        onClick={onDismiss}
+        aria-label="Dismiss"
+        className="absolute right-3 top-3 text-xs font-semibold"
+        style={{ color: B.muted }}
+      >
+        <X size={14} />
+      </button>
+      {result.status === "verified" ? (
+        <div className="space-y-2 pr-6">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: B.muted }}>
+              Name as per bank
+            </span>
+            {match ? (
+              <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${matchPill(match.level)}`}>
+                {match.percent}%
+              </span>
+            ) : null}
+          </div>
+          <p className="text-sm font-bold" style={{ color: B.blue }}>
+            {result.bankName ?? "Bank did not return a name"}
+          </p>
+          {match ? (
+            <p className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold ${matchPill(match.level)}`}>
+              {BANK_NAME_MATCH_COPY[match.level]}
+            </p>
+          ) : null}
+          <p className="text-[11px]" style={{ color: B.muted }}>
+            {result.cached || Number(result.charged) === 0
+              ? "Checked earlier — no charge."
+              : `${rupees(result.charged)} debited from your wallet.`}{" "}
+            Admin verifies the bank before you can withdraw.
+          </p>
+        </div>
+      ) : (
+        <p
+          className={`pr-6 text-xs font-semibold ${result.status === "pending" ? "text-amber-800" : "text-red-700"}`}
+        >
+          {result.status === "not_confirmed"
+            ? `${NOT_CONFIRMED_COPY} You were not charged.`
+            : result.status === "pending"
+              ? "The bank is still confirming this account. Admin will re-check it — you were not charged."
+              : "Bank check could not run right now. Admin will re-check it — you were not charged."}
+        </p>
+      )}
     </div>
   );
 }

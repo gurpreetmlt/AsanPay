@@ -21,7 +21,7 @@
 | — | Network table actions | M | [network-table-actions.md](network-table-actions.md) |
 | — | Retailer activity metric | M | [retailer-activity-metric.md](retailer-activity-metric.md) |
 | — | Linked accounts + role switch (PL-01) | M ⚠️ 1 phase/chat | [linked-accounts.md](linked-accounts.md) |
-| — | Agent settlement bank ₹1 penny drop check (PL-23) | M | [settlement-bank-penny-drop.md](settlement-bank-penny-drop.md) |
+| — | Bank account check on signup, settlement + company banks (PL-23 / PL-24) | M | [settlement-bank-penny-drop.md](settlement-bank-penny-drop.md) |
 | — | InstantPay outlet onboarding | L ⚠️ split | [instantpay-outlet-onboarding.md](instantpay-outlet-onboarding.md) |
 | — | **Noble-only queue** (remove old rails, finish provider) | XL ⚠️ 1 phase/chat | [noble-only-queue.md](noble-only-queue.md) |
 | — | **Compliance queue** (KYC data, agreements, onboarding states, AEPS re-KYC, audit) | XL ⚠️ 1 phase/chat | [compliance-queue.md](compliance-queue.md) |

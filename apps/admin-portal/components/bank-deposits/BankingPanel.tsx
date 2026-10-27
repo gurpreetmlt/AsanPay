@@ -3,7 +3,8 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "react-hot-toast";
-import { Plus, X } from "lucide-react";
+import { Landmark, Loader2, Plus, X } from "lucide-react";
+import { BANK_NAME_MATCH_COPY, bankNameMatch } from "@asanpay/shared-types";
 import {
   emptyIfscBankDetails,
   IfscBankDetailsFields,
@@ -41,6 +42,20 @@ interface BankAccount {
 
 type AccountType = "current" | "savings";
 
+interface BankCheck {
+  /** Account + IFSC (or saved id) this result belongs to; a stale result is hidden. */
+  details: string;
+  status: "verified" | "not_confirmed" | "pending";
+  bankName: string | null;
+  message: string;
+}
+
+function matchStyle(level: string) {
+  if (level === "match") return { background: "#ECFDF3", color: "#027A48" };
+  if (level === "partial") return { background: "#FFFAEB", color: "#B54708" };
+  return { background: "#FEF3F2", color: "#B42318" };
+}
+
 const COMPANY_ACCOUNT_NAME = "ASANPAY INNOVATION PRIVATE LIMITED";
 
 const emptyProfile = { holderName: COMPANY_ACCOUNT_NAME, accountType: "current" as AccountType, branchCode: "" };
@@ -64,6 +79,8 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
   const [supportsVan, setSupportsVan] = useState(false);
   const [profile, setProfile] = useState(emptyProfile);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [bankCheck, setBankCheck] = useState<BankCheck | null>(null);
+  const [checking, setChecking] = useState(false);
 
   const [olderThanHours, setOlderThanHours] = useState("48");
   const [vanUserId, setVanUserId] = useState("");
@@ -121,6 +138,42 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const typedAccount = bankDetails.accountNumber.trim();
+  const checkIfsc = bankDetails.ifsc.trim().toUpperCase();
+  const checkDetails = typedAccount ? `${typedAccount}|${checkIfsc}` : editingId ? `id:${editingId}|${checkIfsc}` : "";
+  const currentCheck = bankCheck && bankCheck.details === checkDetails ? bankCheck : null;
+  const checkMatch =
+    currentCheck?.status === "verified" && currentCheck.bankName && profile.holderName.trim()
+      ? bankNameMatch(profile.holderName, currentCheck.bankName)
+      : null;
+
+  async function checkWithBank() {
+    if (checkIfsc.length !== 11) {
+      toast.error("Enter a valid 11-character IFSC before checking with the bank");
+      return;
+    }
+    if (typedAccount && !/^\d{6,18}$/.test(typedAccount)) {
+      toast.error("Account number must be 6–18 digits");
+      return;
+    }
+    if (!typedAccount && !editingId) {
+      toast.error("Enter the account number before checking with the bank");
+      return;
+    }
+    setChecking(true);
+    try {
+      const { data } = await api.post<{ data: Omit<BankCheck, "details"> }>(
+        "/banking/accounts/bank-check",
+        typedAccount ? { accountNumber: typedAccount, ifsc: checkIfsc } : { bankAccountId: editingId, ifsc: checkIfsc },
+      );
+      setBankCheck({ ...data.data, details: checkDetails });
+    } catch (err) {
+      toast.error(errMessage(err, "Bank check could not run. Try again in a minute."));
+    } finally {
+      setChecking(false);
+    }
+  }
 
   async function registerBank(e: FormEvent) {
     e.preventDefault();
@@ -192,6 +245,7 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
       }
       setReviewOpen(false);
       setFormOpen(false);
+      setBankCheck(null);
       setBankDetails(emptyIfscBankDetails());
       setSupportsVan(false);
       setProfile(emptyProfile);
@@ -227,6 +281,7 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
 
   function cancelEdit() {
     setFormOpen(false);
+    setBankCheck(null);
     setEditingId(null);
     setBankDetails(emptyIfscBankDetails());
     setPurpose("collection");
@@ -499,6 +554,73 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
                   </>
                 }
               />
+              <div
+                className="rounded-2xl border p-3"
+                style={{ borderColor: B.border, background: "#F7F9FF" }}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs" style={{ color: B.muted }}>
+                    Optional · confirms the account with the bank and returns the account holder name. Platform pays;
+                    the same account is free to re-check for 90 days.
+                  </p>
+                  <button
+                    type="button"
+                    disabled={checking || saving || checkIfsc.length !== 11 || (!typedAccount && !editingId)}
+                    onClick={() => void checkWithBank()}
+                    className="inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-sm font-bold disabled:opacity-50"
+                    style={{ borderColor: "#B2CCFF", color: B.blueLight, background: "#EFF4FF" }}
+                  >
+                    {checking ? <Loader2 size={14} className="animate-spin" /> : <Landmark size={14} />}
+                    {checking ? "Checking with bank…" : "Check with bank"}
+                  </button>
+                </div>
+                {currentCheck ? (
+                  currentCheck.status === "verified" ? (
+                    <div className="mt-2 space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-2 text-sm">
+                        <span style={{ color: B.muted }}>Name as per bank:</span>
+                        <span className="font-bold" style={{ color: B.blue }}>
+                          {currentCheck.bankName}
+                        </span>
+                        {checkMatch ? (
+                          <span
+                            className="rounded-full px-2 py-0.5 text-[11px] font-bold"
+                            style={matchStyle(checkMatch.level)}
+                          >
+                            {checkMatch.percent}%
+                          </span>
+                        ) : null}
+                      </div>
+                      {checkMatch ? (
+                        <p className="text-xs font-semibold" style={matchStyle(checkMatch.level)}>
+                          {BANK_NAME_MATCH_COPY[checkMatch.level]} (compared with Account name)
+                        </p>
+                      ) : null}
+                      {currentCheck.bankName && checkMatch?.level !== "match" ? (
+                        <button
+                          type="button"
+                          onClick={() => setProfile((p) => ({ ...p, holderName: currentCheck.bankName ?? p.holderName }))}
+                          className="rounded-lg border px-2.5 py-1 text-xs font-bold"
+                          style={{ borderColor: "#B2CCFF", color: B.blueLight }}
+                        >
+                          Use bank name as Account name
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <p
+                      className="mt-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold"
+                      style={
+                        currentCheck.status === "pending"
+                          ? { background: "#FFFAEB", color: "#B54708" }
+                          : { background: "#FEF3F2", color: "#B42318" }
+                      }
+                    >
+                      {currentCheck.message}
+                    </p>
+                  )
+                ) : null}
+              </div>
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
@@ -818,6 +940,20 @@ export function BankingPanel({ section }: { section: "accounts" | "van" }) {
                 purpose={purpose}
                 supportsVan={supportsVan}
               />
+              <p
+                className="mt-3 rounded-xl px-3 py-2 text-xs font-semibold"
+                style={
+                  currentCheck?.status === "verified" && checkMatch
+                    ? matchStyle(checkMatch.level)
+                    : { background: "var(--admin-secondary)", color: B.muted }
+                }
+              >
+                {currentCheck?.status === "verified"
+                  ? `Bank check: ${currentCheck.bankName ?? "name not returned"}${checkMatch ? ` · ${checkMatch.percent}% match with Account name` : ""}`
+                  : currentCheck
+                    ? `Bank check: ${currentCheck.message}`
+                    : "Not checked with the bank"}
+              </p>
               <p
                 className="mt-3 rounded-xl px-3 py-2 text-xs font-semibold"
                 style={{ background: "#FEF3C7", color: "#92400E" }}

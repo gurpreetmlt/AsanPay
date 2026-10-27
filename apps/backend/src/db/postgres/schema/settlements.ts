@@ -52,6 +52,15 @@ export const agentSettlementAccounts = pgTable(
     holderName: varchar("holder_name", { length: 160 }).notNull(),
     verifiedAt: timestamp("verified_at", { withTimezone: true }),
     verificationRef: varchar("verification_ref", { length: 80 }),
+    /** Bank account check: verified | not_confirmed | pending | error (null = never checked). */
+    bankCheckStatus: varchar("bank_check_status", { length: 16 }),
+    /** Account holder name as the bank returned it. */
+    bankHolderName: varchar("bank_holder_name", { length: 160 }),
+    bankCheckMethod: varchar("bank_check_method", { length: 12 }),
+    /** bank_name_checks.id of the hit that confirmed the name — the verification ref admins approve with. */
+    bankCheckRef: varchar("bank_check_ref", { length: 40 }),
+    bankCheckMessage: varchar("bank_check_message", { length: 200 }),
+    bankCheckedAt: timestamp("bank_checked_at", { withTimezone: true }),
     isActive: boolean("is_active").notNull().default(false),
     effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull().defaultNow(),
     createdBy: uuid("created_by")

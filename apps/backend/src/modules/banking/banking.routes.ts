@@ -16,6 +16,7 @@ import { rematchPending } from "../fund-requests/fundRequest.service";
 import { notifyVanDepositCredit } from "../notifications/userEmail.service";
 import {
   registerBankAccount,
+  checkCompanyBankAccount,
   importStatementLines,
   parkUnmatchedCreditsInSuspense,
   unmatchedCreditCount,
@@ -32,6 +33,7 @@ import {
 } from "./banking.service";
 import {
   registerBankAccountSchema,
+  companyBankCheckSchema,
   updateBankAccountSchema,
   setBankAccountActiveSchema,
   importStatementSchema,
@@ -195,6 +197,26 @@ bankingRouter.post(
       "Bank account registered",
       201,
     );
+  },
+);
+
+bankingRouter.post(
+  "/accounts/bank-check",
+  requireRole("admin"),
+  walletTxnLimiter,
+  validateBody(companyBankCheckSchema),
+  async (req, res) => {
+    if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+    const body = req.body as ReturnType<typeof companyBankCheckSchema.parse>;
+    const tenantId = await resolveTenantId();
+    const result = await checkCompanyBankAccount({
+      tenantId,
+      adminId: req.auth.sub,
+      accountNumber: body.accountNumber,
+      ifsc: body.ifsc?.toUpperCase(),
+      bankAccountId: body.bankAccountId ? BigInt(body.bankAccountId) : undefined,
+    });
+    sendSuccess(res, result, result.message);
   },
 );
 

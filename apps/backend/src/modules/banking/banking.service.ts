@@ -215,6 +215,38 @@ export async function registerBankAccount(params: {
   });
 }
 
+/** Bank account check for a company bank (platform pays). Saved rows are checked by id so the number is never re-typed. */
+export async function checkCompanyBankAccount(params: {
+  tenantId: string;
+  adminId: string;
+  accountNumber?: string;
+  ifsc?: string;
+  bankAccountId?: bigint;
+}) {
+  let accountNumber = params.accountNumber;
+  let ifsc = params.ifsc;
+  if (params.bankAccountId) {
+    const [row] = await db
+      .select({ accountNumberEnc: bankAccounts.accountNumberEnc, ifsc: bankAccounts.ifsc })
+      .from(bankAccounts)
+      .where(and(eq(bankAccounts.id, params.bankAccountId), eq(bankAccounts.tenantId, params.tenantId)))
+      .limit(1);
+    if (!row) throw new HttpError(404, "Bank account not found", "NOT_FOUND");
+    try {
+      accountNumber = accountNumber || decryptPII(row.accountNumberEnc);
+    } catch {
+      throw new HttpError(500, "Could not decrypt account number", "DECRYPT_FAILED");
+    }
+    ifsc = ifsc || row.ifsc;
+  }
+  if (!accountNumber || !ifsc) {
+    throw new HttpError(422, "Enter the account number and IFSC before checking with the bank", "VALIDATION_ERROR");
+  }
+  const { verifyBankAccount } = await import("../transactions/bankNameCheck.service");
+  const v = await verifyBankAccount({ userId: params.adminId, accountNumber, ifsc, purpose: "company_bank" });
+  return { status: v.status, bankName: v.bankName, method: v.method, cached: v.cached, message: v.message };
+}
+
 /**
  * Remove a statement line that should never have been imported (wrong bank, test paste). Only
  * unmatched lines: anything tied to a ledger posting must be unlinked or reversed first.

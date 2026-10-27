@@ -48,7 +48,10 @@ so a wrong account number sends money to the wrong person.
   cost). Charge = one debit txn (`BANK_NAME_CHECK` / `BANK_PENNY_DROP`, ledger `VERIFICATION`): provider cost →
   float, rest → income (GST carved out).
 - "Name as per bank" + match pill (green ≥ 80 %, amber 50–79 %, red below) + "Use bank name"; 90-day free re-check.
-- Next: same check on agent settlement bank (PL-23) and admin company bank accounts (no agent charge).
+- Next (task file `TASKS/settlement-bank-penny-drop.md`): agent bank (signup step + settlement bank) runs
+  BestAPI only (free, warn only); admin can run pennyless / ₹1 penny drop from KYC review / Agent bank accounts,
+  charged to the agent's wallet at Bank check prices, company pays when the wallet is too low (owner, 27 Oct).
+  Company bank accounts: full chain, company pays.
 
 **Open decisions**
 - [ ] Make the DMT check mandatory later (owner chose optional, 27 Oct)?

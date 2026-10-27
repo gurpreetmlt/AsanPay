@@ -17,6 +17,9 @@ type SettlementBankRow = {
   isActive: boolean;
   verified: boolean;
   coolingUntil: string | null;
+  bankCheckStatus: "verified" | "not_confirmed" | "pending" | "error" | null;
+  bankHolderName: string | null;
+  bankCheckMessage: string | null;
 };
 
 function statusMeta(bank: SettlementBankRow): {
@@ -77,6 +80,23 @@ export function AgentSettlementBanksCard({ userId }: { userId: string }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  async function recheck(bank: SettlementBankRow) {
+    setActing(bank.id);
+    try {
+      const { data } = await api.post<{ data?: { status: string; message: string } }>(
+        `/settlements/banks/${bank.id}/bank-check`,
+      );
+      if (data.data?.status === "verified") toast.success(data.data.message);
+      else toast.error(data.data?.message || "The bank could not confirm this account");
+      await load();
+    } catch (err) {
+      const ax = err as { response?: { data?: { message?: string } }; message?: string };
+      toast.error(ax?.response?.data?.message || ax?.message || "Bank check could not run. Try again in a minute.");
+    } finally {
+      setActing(null);
+    }
+  }
 
   async function runVerify() {
     if (!confirm) return;
@@ -157,31 +177,68 @@ export function AgentSettlementBanksCard({ userId }: { userId: string }) {
                       <p className="text-xs leading-relaxed" style={{ color: B.muted }}>
                         {meta.hint}
                       </p>
+                      {bank.bankHolderName ? (
+                        <p className="text-xs" style={{ color: B.muted }}>
+                          Name as per bank:{" "}
+                          <span className="font-bold" style={{ color: B.blue }}>
+                            {bank.bankHolderName}
+                          </span>
+                        </p>
+                      ) : !bank.verified ? (
+                        <p className="text-xs font-semibold" style={{ color: "#B42318" }}>
+                          {bank.bankCheckMessage || "Not checked with the bank yet"}
+                        </p>
+                      ) : null}
                     </div>
 
                     {!bank.verified ? (
                       <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[200px]">
+                        {bank.bankCheckStatus === "verified" ? (
+                          <>
+                            <button
+                              type="button"
+                              disabled={acting === bank.id}
+                              onClick={() => setConfirm({ bank, activate: true })}
+                              className="rounded-xl px-3 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+                              style={{ background: "#12B76A" }}
+                            >
+                              Verify & activate
+                            </button>
+                            <button
+                              type="button"
+                              disabled={acting === bank.id}
+                              onClick={() => setConfirm({ bank, activate: false })}
+                              className="rounded-xl border px-3 py-2 text-sm font-semibold disabled:opacity-50"
+                              style={{ borderColor: B.border, color: B.blue }}
+                            >
+                              Verify only
+                            </button>
+                          </>
+                        ) : null}
                         <button
                           type="button"
                           disabled={acting === bank.id}
-                          onClick={() => setConfirm({ bank, activate: true })}
-                          className="rounded-xl px-3 py-2.5 text-sm font-bold text-white disabled:opacity-50"
-                          style={{ background: "#12B76A" }}
-                        >
-                          Verify & activate
-                        </button>
-                        <button
-                          type="button"
-                          disabled={acting === bank.id}
-                          onClick={() => setConfirm({ bank, activate: false })}
+                          onClick={() => void recheck(bank)}
                           className="rounded-xl border px-3 py-2 text-sm font-semibold disabled:opacity-50"
-                          style={{ borderColor: B.border, color: B.blue }}
+                          style={{ borderColor: "#B2CCFF", color: B.blueLight, background: "#EFF4FF" }}
                         >
-                          Verify only
+                          {acting === bank.id ? "Checking with bank…" : "Re-check with bank"}
                         </button>
                         <p className="text-[11px] leading-snug" style={{ color: B.muted }}>
-                          Prefer <span className="font-semibold">Verify & activate</span> for the
-                          first bank so withdrawals can start.
+                          {bank.bankCheckStatus === "verified" ? (
+                            <>
+                              Prefer <span className="font-semibold">Verify & activate</span> for the
+                              first bank so withdrawals can start.
+                            </>
+                          ) : (
+                            <>
+                              Bank has not confirmed this account. To approve with your own reference, use{" "}
+                              <Link href="/settlements?tab=banks" className="font-semibold underline">
+                                Pending banks
+                              </Link>
+                              .
+                            </>
+                          )}
                         </p>
                       </div>
                     ) : null}

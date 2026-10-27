@@ -37,6 +37,8 @@ export interface BankAccountVerification {
   message: string;
   /** Log row of the verifying hit (null when cached or not verified). */
   checkId: string | null;
+  /** Log row that holds the confirmed name, cached or fresh — usable as a verification reference. */
+  refId: string | null;
 }
 
 export interface BankNameCheckResult extends Omit<BankAccountVerification, "checkId"> {
@@ -104,7 +106,7 @@ export async function verifyBankAccount(input: {
 
   const since = new Date(Date.now() - CACHE_DAYS * 24 * 60 * 60 * 1000);
   const [hit] = await db
-    .select({ bankName: bankNameChecks.bankName, method: bankNameChecks.method })
+    .select({ id: bankNameChecks.id, bankName: bankNameChecks.bankName, method: bankNameChecks.method })
     .from(bankNameChecks)
     .where(
       and(
@@ -126,6 +128,7 @@ export async function verifyBankAccount(input: {
       cached: true,
       message: "Name from an earlier bank check of this account",
       checkId: null,
+      refId: hit.id,
     };
   }
 
@@ -154,6 +157,7 @@ export async function verifyBankAccount(input: {
     cached: false,
     message: "Bank confirmed the account holder name",
     checkId,
+    refId: checkId,
   });
 
   const best = await bestApiAccountCheck({ accountNumber, ifsc });
@@ -163,11 +167,11 @@ export async function verifyBankAccount(input: {
   }
   await log("bestapi", best.outcome === "invalid" ? "invalid" : "failed", null, best.message);
   if (best.outcome === "invalid") {
-    return { status: "not_confirmed", bankName: null, method: "bestapi", cached: false, message: best.message, checkId: null };
+    return { status: "not_confirmed", bankName: null, method: "bestapi", cached: false, message: best.message, checkId: null, refId: null };
   }
 
   if (!isNobleConfigured()) {
-    return { status: "not_confirmed", bankName: null, method: null, cached: false, message: NOT_CONFIRMED, checkId: null };
+    return { status: "not_confirmed", bankName: null, method: null, cached: false, message: NOT_CONFIRMED, checkId: null, refId: null };
   }
   for (const method of ["pennyless", "pennydrop"] as const) {
     const r = await noblePolled(method, { accountNumber, ifsc });
@@ -182,14 +186,15 @@ export async function verifyBankAccount(input: {
         cached: false,
         message: "The bank is still confirming this account. Try again in a few minutes — you are not charged now.",
         checkId: null,
+        refId: null,
       };
     }
   }
-  return { status: "not_confirmed", bankName: null, method: null, cached: false, message: NOT_CONFIRMED, checkId: null };
+  return { status: "not_confirmed", bankName: null, method: null, cached: false, message: NOT_CONFIRMED, checkId: null, refId: null };
 }
 
 /** Agent must be able to pay before any provider is called. */
-async function assertAgentCanPay(userId: string, priceRupees: string): Promise<void> {
+export async function assertAgentCanPay(userId: string, priceRupees: string): Promise<void> {
   const [user] = await db
     .select({ isActive: users.isActive, kycStatus: users.kycStatus })
     .from(users)
@@ -214,10 +219,11 @@ async function assertAgentCanPay(userId: string, priceRupees: string): Promise<v
   }
 }
 
-/** DMT payee check: run the chain, then charge the agent once for the step that answered. */
+/** Agent-paid check (DMT payee, settlement bank): run the chain, then charge once for the step that answered. */
 export async function runBankNameCheck(
   actor: Actor,
   input: { accountNumber: string; ifsc: string; idempotencyKey: string },
+  purpose: Extract<BankCheckPurpose, "dmt_payee" | "settlement_bank"> = "dmt_payee",
 ): Promise<BankNameCheckResult> {
   const chargeKey = `${input.idempotencyKey}:charge`;
   const [replay] = await db
@@ -227,7 +233,7 @@ export async function runBankNameCheck(
     .limit(1);
   if (replay) {
     const [row] = await db
-      .select({ bankName: bankNameChecks.bankName, method: bankNameChecks.method })
+      .select({ id: bankNameChecks.id, bankName: bankNameChecks.bankName, method: bankNameChecks.method })
       .from(bankNameChecks)
       .where(eq(bankNameChecks.txnRef, replay.txnRef))
       .limit(1);
@@ -237,6 +243,7 @@ export async function runBankNameCheck(
       method: (row?.method as BankCheckMethod | undefined) ?? null,
       cached: false,
       message: "Bank confirmed the account holder name",
+      refId: row?.id ?? null,
       charged: "0.00",
       txnRefs: [replay.txnRef],
     };
@@ -245,8 +252,8 @@ export async function runBankNameCheck(
   const prices = await bankCheckPrices();
   await assertAgentCanPay(actor.id, prices.standard);
 
-  const v = await verifyBankAccount({ userId: actor.id, ...input, purpose: "dmt_payee" });
-  const base = { status: v.status, bankName: v.bankName, method: v.method, cached: v.cached, message: v.message };
+  const v = await verifyBankAccount({ userId: actor.id, ...input, purpose });
+  const base = { status: v.status, bankName: v.bankName, method: v.method, cached: v.cached, message: v.message, refId: v.refId };
   if (v.status !== "verified" || v.cached || !v.checkId || !v.method) {
     return {
       ...base,
@@ -283,6 +290,7 @@ export async function runBankNameCheck(
       direction: "debit",
       walletType: "main",
       metadata: {
+        purpose,
         method: v.method,
         provider: v.method === "bestapi" ? "bestapi" : "noble",
         accountLast4: accountNumber.slice(-4),

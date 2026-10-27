@@ -41,6 +41,37 @@ interface PendingBank {
   ifsc: string;
   holderName: string;
   createdAt: string;
+  bankCheckStatus: "verified" | "not_confirmed" | "pending" | "error" | null;
+  bankHolderName: string | null;
+  bankCheckMethod: string | null;
+  bankCheckMessage: string | null;
+  bankCheckedAt: string | null;
+  panNameMatch: NameMatch | null;
+  typedNameMatch: NameMatch | null;
+}
+
+interface NameMatch {
+  percent: number;
+  level: "match" | "partial" | "mismatch" | string;
+}
+
+const CHECK_LABEL: Record<NonNullable<PendingBank["bankCheckStatus"]>, { text: string; bg: string; fg: string }> = {
+  verified: { text: "Bank confirmed", bg: "#ECFDF3", fg: "#027A48" },
+  not_confirmed: { text: "Bank could not confirm", bg: "#FEF3F2", fg: "#B42318" },
+  pending: { text: "Bank check pending", bg: "#FFFAEB", fg: "#B54708" },
+  error: { text: "Bank check failed to run", bg: "#FEF3F2", fg: "#B42318" },
+};
+
+const METHOD_LABEL: Record<string, string> = {
+  bestapi: "Account verify",
+  pennyless: "Pennyless",
+  pennydrop: "₹1 penny drop",
+};
+
+function matchStyle(level: string) {
+  if (level === "match") return { background: "#ECFDF3", color: "#027A48" };
+  if (level === "partial") return { background: "#FFFAEB", color: "#B54708" };
+  return { background: "#FEF3F2", color: "#B42318" };
 }
 
 function formatInr(amount: string) {
@@ -68,6 +99,7 @@ export default function AdminSettlementsPage() {
   const [verifyTarget, setVerifyTarget] = useState<{ bank: PendingBank; activate: boolean } | null>(
     null,
   );
+  const [manualRef, setManualRef] = useState("");
   const [selectedBankIds, setSelectedBankIds] = useState<Set<string>>(() => new Set());
   const [bulkConfirm, setBulkConfirm] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
@@ -117,12 +149,35 @@ export default function AdminSettlementsPage() {
     void load();
   }, [hydrated, accessToken, router, load]);
 
+  async function recheckBank(bank: PendingBank) {
+    setActing(bank.id);
+    try {
+      const { data } = await api.post<{ data?: { status: string; message: string } }>(
+        `/settlements/banks/${bank.id}/bank-check`,
+      );
+      const result = data.data;
+      if (result?.status === "verified") toast.success(result.message);
+      else toast.error(result?.message || "The bank could not confirm this account");
+      await load();
+    } catch (err) {
+      toast.error(errMessage(err, "Bank check could not run. Try again in a minute."));
+    } finally {
+      setActing(null);
+    }
+  }
+
   async function confirmVerify() {
     if (!verifyTarget) return;
+    const bankConfirmed = verifyTarget.bank.bankCheckStatus === "verified";
+    if (!bankConfirmed && !manualRef.trim()) {
+      toast.error("Enter a manual verification reference — the bank has not confirmed this account");
+      return;
+    }
     setActing(verifyTarget.bank.id);
     try {
       await api.post(`/settlements/banks/${verifyTarget.bank.id}/verify`, {
         activate: verifyTarget.activate,
+        ...(!bankConfirmed ? { verificationRef: manualRef.trim() } : {}),
       });
       toast.success(
         verifyTarget.activate
@@ -130,6 +185,7 @@ export default function AdminSettlementsPage() {
           : "Bank verified — agent can Set as active later",
       );
       setVerifyTarget(null);
+      setManualRef("");
       await load();
     } catch (err) {
       toast.error(errMessage(err, "Verify failed"));
@@ -375,18 +431,78 @@ export default function AdminSettlementsPage() {
                         aria-label={`Select ${b.holderName}`}
                       />
                       <div className="min-w-0 space-y-1.5">
-                      <span
-                        className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold"
-                        style={{ background: "#FFFAEB", color: "#B54708" }}
-                      >
-                        Needs verification
-                      </span>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span
+                          className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold"
+                          style={{ background: "#FFFAEB", color: "#B54708" }}
+                        >
+                          Needs verification
+                        </span>
+                        {b.bankCheckStatus ? (
+                          <span
+                            className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold"
+                            style={{
+                              background: CHECK_LABEL[b.bankCheckStatus].bg,
+                              color: CHECK_LABEL[b.bankCheckStatus].fg,
+                            }}
+                          >
+                            {CHECK_LABEL[b.bankCheckStatus].text}
+                            {b.bankCheckMethod ? ` · ${METHOD_LABEL[b.bankCheckMethod] ?? b.bankCheckMethod}` : ""}
+                          </span>
+                        ) : (
+                          <span
+                            className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold"
+                            style={{ background: "var(--admin-secondary)", color: B.muted }}
+                          >
+                            Not checked with bank
+                          </span>
+                        )}
+                      </div>
                       <div className="font-semibold" style={{ color: B.blue }}>
                         {b.holderName} · ****{b.accountNumberLast4}
                       </div>
                       <div className="text-sm" style={{ color: B.blueMid }}>
                         IFSC {b.ifsc}
                       </div>
+                      {b.bankHolderName ? (
+                        <div
+                          className="grid gap-1.5 rounded-xl border px-3 py-2 text-xs sm:grid-cols-2"
+                          style={{ borderColor: B.border, background: "#F7F9FF" }}
+                        >
+                          <div className="sm:col-span-2">
+                            <span style={{ color: B.muted }}>Name as per bank: </span>
+                            <span className="font-bold" style={{ color: B.blue }}>
+                              {b.bankHolderName}
+                            </span>
+                          </div>
+                          {b.panNameMatch ? (
+                            <div className="flex items-center gap-1.5">
+                              <span style={{ color: B.muted }}>vs PAN name ({b.userName})</span>
+                              <span
+                                className="rounded-full px-2 py-0.5 text-[11px] font-bold"
+                                style={matchStyle(b.panNameMatch.level)}
+                              >
+                                {b.panNameMatch.percent}%
+                              </span>
+                            </div>
+                          ) : null}
+                          {b.typedNameMatch ? (
+                            <div className="flex items-center gap-1.5">
+                              <span style={{ color: B.muted }}>vs typed name</span>
+                              <span
+                                className="rounded-full px-2 py-0.5 text-[11px] font-bold"
+                                style={matchStyle(b.typedNameMatch.level)}
+                              >
+                                {b.typedNameMatch.percent}%
+                              </span>
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : b.bankCheckMessage ? (
+                        <div className="text-xs font-semibold" style={{ color: "#B42318" }}>
+                          {b.bankCheckMessage}
+                        </div>
+                      ) : null}
                       <div className="text-xs" style={{ color: B.muted }}>
                         {b.userName} ({b.userUid}) · {b.userMobile}
                       </div>
@@ -421,9 +537,18 @@ export default function AdminSettlementsPage() {
                       >
                         Verify only
                       </button>
+                      <button
+                        type="button"
+                        disabled={acting === b.id || acting === "bulk"}
+                        onClick={() => void recheckBank(b)}
+                        className="rounded-xl border px-3 py-2 text-sm font-semibold disabled:opacity-50"
+                        style={{ borderColor: "#B2CCFF", color: B.blueLight, background: "#EFF4FF" }}
+                      >
+                        {acting === b.id ? "Checking with bank…" : "Re-check with bank"}
+                      </button>
                       <p className="text-[11px] leading-snug" style={{ color: B.muted }}>
                         Use <span className="font-semibold">Verify & activate</span> for the first
-                        bank so the agent can withdraw.
+                        bank so the agent can withdraw. Re-check is free for the agent.
                       </p>
                     </div>
                   </div>
@@ -573,10 +698,34 @@ export default function AdminSettlementsPage() {
                 {verifyTarget.activate
                   ? " This becomes the agent’s active settlement bank."
                   : " Agent can Set as active later from their portal."}
+                {verifyTarget.bank.bankCheckStatus === "verified" ? (
+                  <span className="mt-2 block text-xs font-semibold" style={{ color: "#027A48" }}>
+                    Bank confirmed the name: {verifyTarget.bank.bankHolderName}. The bank check is saved as the
+                    verification reference.
+                  </span>
+                ) : (
+                  <span className="mt-3 block">
+                    <span className="block text-xs font-semibold" style={{ color: "#B42318" }}>
+                      The bank has not confirmed this account. Enter your own verification reference (e.g. your
+                      penny drop UTR) to approve anyway.
+                    </span>
+                    <input
+                      className="mt-2 w-full rounded-xl border px-3 py-2 text-sm"
+                      style={{ borderColor: B.border }}
+                      placeholder="Manual verification reference"
+                      maxLength={80}
+                      value={manualRef}
+                      onChange={(e) => setManualRef(e.target.value)}
+                    />
+                  </span>
+                )}
               </>
             }
             onClose={() => {
-              if (acting !== verifyTarget.bank.id) setVerifyTarget(null);
+              if (acting !== verifyTarget.bank.id) {
+                setVerifyTarget(null);
+                setManualRef("");
+              }
             }}
             onConfirm={() => void confirmVerify()}
           />
@@ -598,7 +747,8 @@ export default function AdminSettlementsPage() {
                 You are about to verify and activate{" "}
                 <strong>{selectedBankIds.size}</strong> pending settlement bank
                 {selectedBankIds.size === 1 ? "" : "s"}. Each becomes that agent’s active payout
-                bank.
+                bank. Banks the bank check has not confirmed fail here — open them one by one to
+                re-check or enter a manual reference.
               </>
             }
             onClose={() => {
