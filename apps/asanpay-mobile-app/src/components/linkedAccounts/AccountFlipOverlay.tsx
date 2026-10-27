@@ -14,7 +14,7 @@ const HOLD_MS = 250;
 function Face({ face, style }: { face: FlipFace; style: object }) {
   return (
     <Animated.View style={[styles.face, style]}>
-      <AccountAvatar name={face.name} role={face.role} size={56} />
+      <AccountAvatar name={face.name} role={face.role} size={44} />
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={styles.name} numberOfLines={1}>
           {face.name}
@@ -70,17 +70,19 @@ export function AccountFlipOverlay({ from, to, onDone }: { from: FlipFace; to: F
   return (
     <Modal visible transparent animationType="none" statusBarTranslucent>
       <Animated.View style={[styles.overlay, { opacity: fade }]}>
-        <View style={styles.scene}>
-          {reduced ? (
-            <Face face={to} style={{}} />
-          ) : (
-            <>
-              <Face face={from} style={{ transform: [{ perspective: 1000 }, { rotateY: frontRotate }] }} />
-              <Face face={to} style={{ transform: [{ perspective: 1000 }, { rotateY: backRotate }] }} />
-            </>
-          )}
+        <View style={styles.panel}>
+          <View style={styles.scene}>
+            {reduced ? (
+              <Face face={to} style={{}} />
+            ) : (
+              <>
+                <Face face={from} style={{ transform: [{ perspective: 1000 }, { rotateY: frontRotate }] }} />
+                <Face face={to} style={{ transform: [{ perspective: 1000 }, { rotateY: backRotate }] }} />
+              </>
+            )}
+          </View>
+          <Text style={styles.caption}>Switching to your {to.roleLabel} account…</Text>
         </View>
-        <Text style={styles.caption}>Switching to your {to.roleLabel} account…</Text>
       </Animated.View>
     </Modal>
   );
@@ -89,29 +91,37 @@ export function AccountFlipOverlay({ from, to, onDone }: { from: FlipFace; to: F
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(11,42,154,0.6)",
+    backgroundColor: "rgba(15,23,42,0.18)",
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 24,
-    gap: 24,
   },
-  scene: { width: "100%", maxWidth: 360, height: 104 },
+  panel: {
+    width: "100%",
+    maxWidth: 320,
+    padding: 16,
+    borderRadius: 24,
+    backgroundColor: "#fff",
+    elevation: 10,
+    shadowColor: colors.blue,
+    shadowOpacity: 0.22,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+  },
+  scene: { width: "100%", height: 84 },
   face: {
     ...StyleSheet.absoluteFillObject,
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
-    padding: 18,
-    borderRadius: 20,
-    backgroundColor: "#fff",
+    gap: 12,
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(42,92,221,0.18)",
+    backgroundColor: "#F7F9FF",
     backfaceVisibility: "hidden",
-    elevation: 12,
-    shadowColor: colors.blue,
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 12 },
   },
-  name: { fontSize: 16, fontWeight: "800", color: colors.blue },
+  name: { fontSize: 14, fontWeight: "800", color: colors.blue },
   mobile: { fontSize: 12, color: colors.textMuted, marginTop: 4 },
-  caption: { color: "#fff", fontSize: 14, fontWeight: "700" },
+  caption: { marginTop: 12, textAlign: "center", color: colors.blue, fontSize: 12, fontWeight: "700" },
 });

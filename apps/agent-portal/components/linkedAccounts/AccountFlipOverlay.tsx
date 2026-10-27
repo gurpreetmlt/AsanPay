@@ -15,12 +15,12 @@ const HOLD_MS = 250;
 function Face({ face, className }: { face: FlipFace; className: string }) {
   return (
     <div
-      className={`la-flip-face ${className} flex items-center gap-4 rounded-[20px] bg-white p-5`}
-      style={{ boxShadow: "0 24px 60px rgba(11,42,154,0.28)" }}
+      className={`la-flip-face ${className} flex items-center gap-3 rounded-2xl border p-3`}
+      style={{ background: "#F7F9FF", borderColor: "rgba(42,92,221,0.18)" }}
     >
-      <AccountAvatar name={face.name} role={face.role} size={56} />
+      <AccountAvatar name={face.name} role={face.role} size={44} />
       <div className="min-w-0">
-        <p className="truncate text-base font-bold" style={{ color: B.blue }}>
+        <p className="truncate text-sm font-bold" style={{ color: B.blue }}>
           {face.name}
         </p>
         <div className="mt-1">
@@ -36,7 +36,7 @@ function Face({ face, className }: { face: FlipFace; className: string }) {
   );
 }
 
-/** Full-screen 3D card flip (current → target account), then `onDone`. Reduce-motion → short fade. */
+/** Compact centered 3D card flip (current → target account), then `onDone`. Reduce-motion → short fade. */
 export function AccountFlipOverlay({ from, to, onDone }: { from: FlipFace; to: FlipFace; onDone: () => void }) {
   const onDoneRef = useRef(onDone);
   useEffect(() => {
@@ -51,18 +51,25 @@ export function AccountFlipOverlay({ from, to, onDone }: { from: FlipFace; to: F
 
   const overlay = (
     <div
-      className="la-flip-overlay fixed inset-0 z-[90] flex flex-col items-center justify-center gap-6 px-6"
-      style={{ background: "rgba(11,42,154,0.55)", backdropFilter: "blur(6px)" }}
+      className="la-flip-overlay fixed inset-0 z-[90] flex items-center justify-center px-6"
+      style={{ background: "rgba(15,23,42,0.18)" }}
       role="status"
       aria-live="polite"
     >
-      <div className="la-flip-scene h-[112px] w-full max-w-[360px]">
-        <div className="la-flip-card relative h-full w-full">
-          <Face face={from} className="la-flip-front" />
-          <Face face={to} className="la-flip-back" />
+      <div
+        className="w-full max-w-[320px] rounded-3xl bg-white p-4"
+        style={{ boxShadow: "0 20px 50px rgba(11,42,154,0.22)" }}
+      >
+        <div className="la-flip-scene h-[84px] w-full">
+          <div className="la-flip-card relative h-full w-full">
+            <Face face={from} className="la-flip-front" />
+            <Face face={to} className="la-flip-back" />
+          </div>
         </div>
+        <p className="mt-3 text-center text-xs font-semibold" style={{ color: B.blueMid }}>
+          Switching to your {to.roleLabel} account…
+        </p>
       </div>
-      <p className="text-sm font-semibold text-white">Switching to your {to.roleLabel} account…</p>
     </div>
   );
 
