@@ -18,6 +18,7 @@ import { docCheckLabelsFromMeta } from "../src/modules/kyc/docCheck/docCheckLabe
 import { laplacianVariance } from "../src/modules/kyc/docCheck/imageQuality";
 import { escalateDifferentPerson } from "../src/modules/kyc/docCheck/identityRules";
 import { linesToText } from "../src/modules/kyc/docCheck/paddleOcr";
+import { isSideways, readScore, textCrop, tiltAngle } from "../src/modules/kyc/docCheck/cardAlign";
 
 const PAN_TEXT = `INCOME TAX DEPARTMENT GOVT. OF INDIA
 Permanent Account Number Card
@@ -241,6 +242,46 @@ describe("older PAN card text", () => {
     expect(isPanLike(analyzeDocText("INCOMETAX DEPARTMENT\nGOVT. OF INDIA", 80))).toBe(true);
     expect(isPanLike(analyzeDocText("lNCOME TAX DEPARTMENT", 80))).toBe(true);
     expect(isPanLike(analyzeDocText("Permanent Account Number Card", 80))).toBe(true);
+  });
+});
+
+describe("card auto-align geometry", () => {
+  /** Box with top edge from (x, y) at `deg` degrees, `w` long, `h` tall — points tl, tr, br, bl. */
+  const line = (x: number, y: number, w: number, h: number, deg = 0, text = "ABCDEFGH", mean = 0.9) => {
+    const r = (deg * Math.PI) / 180;
+    const dx = [Math.cos(r), Math.sin(r)];
+    const dy = [-Math.sin(r), Math.cos(r)];
+    const tl = [x, y];
+    const tr = [x + w * dx[0]!, y + w * dx[1]!];
+    const br = [tr[0]! + h * dy[0]!, tr[1]! + h * dy[1]!];
+    const bl = [x + h * dy[0]!, y + h * dy[1]!];
+    return { text, mean, box: [tl, tr, br, bl] };
+  };
+
+  it("measures tilt from long text lines", () => {
+    const lines = [line(100, 100, 400, 30, 6), line(100, 200, 300, 30, 6), line(100, 300, 50, 30, 40)];
+    expect(tiltAngle(lines)).toBeCloseTo(6, 0);
+    expect(tiltAngle([line(100, 100, 400, 30, 0)])).toBeCloseTo(0, 5);
+  });
+
+  it("spots a card lying on its side", () => {
+    const upright = [line(0, 0, 30, 300), line(50, 0, 30, 250), line(100, 0, 30, 200)];
+    expect(isSideways(upright)).toBe(true);
+    expect(isSideways([line(0, 0, 300, 30), line(0, 50, 250, 30), line(0, 100, 200, 30)])).toBe(false);
+  });
+
+  it("crops to the text area only when it is clearly smaller than the photo", () => {
+    const small = textCrop([line(800, 600, 400, 40), line(800, 900, 300, 40)], 2400, 1800);
+    expect(small).not.toBeNull();
+    expect(small!.left).toBeLessThan(800);
+    expect(small!.left + small!.width).toBeGreaterThan(1200);
+    expect(textCrop([line(10, 10, 1500, 40), line(10, 900, 1500, 40)], 1600, 1000)).toBeNull();
+  });
+
+  it("scores a confident read above a garbled one", () => {
+    const good = [line(0, 0, 300, 30, 0, "INCOME TAX DEPARTMENT", 0.92)];
+    const bad = [line(0, 0, 300, 30, 0, "jelhel", 0.6)];
+    expect(readScore(good)).toBeGreaterThan(readScore(bad));
   });
 });
 

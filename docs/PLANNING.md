@@ -7,8 +7,13 @@ One row per feature; details in the section below the table. Newest at the top o
 
 | # | Feature | Surfaces | Size | Status | Design | Task file |
 |---|---------|----------|------|--------|--------|-----------|
+| PL-12 | OCR model upgrade — PP-OCRv5 detection + PP-OCRv5 English recognition (test against today's v4) | Backend | S | building (built 27 Oct: v5 mobile det + v5 English rec default, `KYC_OCR_PADDLE_MODEL=v4` rollback; deploy + real-photo test pending) | — | — |
+| PL-11 | Card auto-crop + straighten before OCR (crop to card text, fix tilt / sideways / upside down); manual crop in app kept | Backend | M | building (built 27 Oct; deploy + real-photo test pending) | — | — |
+| PL-10 | DigiLocker KYC — fetch signed Aadhaar + PAN with agent consent (replaces photo OCR as primary proof) | Backend, web, mobile, admin | L | planned — long term, after PL-06 | — | — |
+| PL-09 | Father's name match — PAN card vs Aadhaar back "S/O" vs form | Backend, web, mobile, admin | S | planned — next (with PL-11, PL-12) | — | — |
+| PL-08 | PAN–Aadhaar link status check (provider API) as a cross-check status | Backend, web, mobile, admin | S | planned — do first (with PL-09) | — | — |
 | PL-07 | KYC verification statuses (PAN no · PAN photo · Aadhaar OTP · Aadhaar photo · PAN↔Aadhaar · overall) + admin review screen | Backend, web, mobile, admin | L | building (backend done 27 Oct; UI = Chat 2) | — | [kyc-verification-statuses.md](TASKS/kyc-verification-statuses.md) |
-| PL-06 | KYC face match (selfie vs card photo) + original vs xerox / screen photo / edited image | Backend, web, mobile, admin | L | planned — **remind owner after PL-05 ships** (needs Indian KYC vendor) | — | — |
+| PL-06 | KYC face match (selfie vs card photo) + original vs xerox / screen photo / edited image | Backend, web, mobile, admin | L | planned — next after PL-08 + PL-09 (needs Indian KYC vendor) | — | — |
 | PL-05 | KYC document photo checks, in-house (Aadhaar QR verify, quality, doc type, PAN / Aadhaar data match) | Backend, web, mobile, admin | L | done (26 Oct) — engine, web/mobile UX, admin labels + Flagged photos filter; device smoke pending | — | [kyc-doc-checks.md](TASKS/kyc-doc-checks.md) |
 | PL-04 | Terms, Privacy & EULA acceptance checkbox at login (per-version record) | Backend, web, mobile | M | building (built 26 Oct, migrate `0075` + APK + live test pending) | — | — |
 | PL-03 | Web location via phone QR (AEPS + onboarding) | Backend, web, mobile | M | building (built 26 Oct, migrate `0074` + APK + live test pending) | — | — |
@@ -16,6 +21,97 @@ One row per feature; details in the section below the table. Newest at the top o
 | PL-01 | Linked accounts + role switch (same person, Distributor + Retailer) | Backend, web, mobile, admin | M | building (backend + web + mobile built 26 Oct; migrate `0076` + APK + live test pending; admin card next) | [Figma prompt](PROMPTS/figma-linked-accounts.md) · Figma URL pending | [linked-accounts.md](TASKS/linked-accounts.md) |
 
 ---
+
+## PL-12 — OCR model upgrade (PP-OCRv5)
+
+**Problem:** Today's PaddleOCR is PP-OCRv4 mobile (Chinese + English dictionary). Newer v5 models
+find text boxes better on busy card backgrounds.
+
+**Plan**
+- Detection: PP-OCRv5 (mobile 4.8 MB, or server 88 MB if it clearly reads more on our photos).
+- Recognition: PP-OCRv5 **English** model (7.5 MB, ~85 % English accuracy). Not the v5 "server"
+  recognizer — it is ~65 % on English, ~2.5× slower on CPU, ~4 GB peak RAM.
+- ONNX files (Apache-2.0) downloaded at Docker build with a pinned checksum, not committed to git.
+- Test set: 20–30 real PAN / Aadhaar photos (good, tilted, glare, someone else's). Compare v4 vs
+  v5 on fields read + time; ship only if v5 is better and stays inside the 12 s check budget.
+- Keep v4 as a switch (`KYC_OCR_PADDLE_MODEL=v4|v5`) for quick rollback. Tesseract stays as backup.
+
+**Built (27 Oct):** v5 mobile detection + v5 English recognition, vendored in `apps/backend/assets/ocr/pp-ocrv5`.
+On the owner's PAN screenshot v5 server detection read slightly more but took 3–13 s (over the 12 s
+budget) — not used. Upside-down / sideways / tilted / small-on-table variants all read PAN no + DOB +
+name once PL-11 alignment runs.
+
+**Open decisions**
+- [ ] Confirm on 20–30 real photos after deploy.
+- [ ] Owner provides the test photos (masked / consented).
+
+## PL-11 — Card auto-crop + straighten
+
+**Problem:** Hand-held photos are tilted, rotated or show a table / hand around the card. OCR and the
+Aadhaar QR scanner both read worse with background and perspective.
+
+**Built (27 Oct):** `docCheck/cardAlign.ts` — uses PaddleOCR text boxes (no extra library): sideways →
+try 90° / 270°, weak read → try 180°, crop to text area + 6 % margin when it is < 70 % of the photo,
+de-tilt ≥ 1.5°. Max 4 Paddle passes. Manual crop + rotate in web / mobile stays as the first step.
+Perspective warp from card corners is not built — add only if real photos need it.
+
+**Plan**
+- Find the card's 4 corners (edge / contour detection), warp to a flat card (ID card ratio 1.586:1),
+  drop the background.
+- No clear edges → crop to the area around detected text; still nothing → use the original photo
+  (never worse than today).
+- Fix sideways / upside-down cards (orientation model, ~7 MB, or try 0 / 90 / 180 / 270° and keep the
+  best text score).
+- Crop is used for checks only; the original photo is what we store and admin sees.
+
+**Open decisions**
+- [ ] Also show the cropped card to admin in PL-07 review?
+- [ ] Later: same edge detection live in the app camera (auto-capture when the card is sharp).
+
+## PL-10 — DigiLocker KYC
+
+**Problem:** Photo OCR can misread, and a clear photo of someone else's card still needs rules to
+catch. DigiLocker gives issuer-signed Aadhaar (masked) and PAN with the agent's consent.
+
+**Plan**
+- Agent taps "Verify with DigiLocker" → DigiLocker login + consent → we fetch signed Aadhaar / PAN,
+  verify the issuer signature, fill name / DOB / gender / address.
+- Photo upload stays as fallback when the agent has no DigiLocker account.
+- Statuses feed PL-07 (`aadhaar_otp` / `pan_number` verified from DigiLocker).
+
+**Open decisions**
+- [ ] Direct requester onboarding with NeGD (no per-fetch fee published; 4–8 weeks approval, CERT-In
+      audit, own integration) vs a KYC vendor that already offers it (~₹2–5 per fetch, live in days).
+      Ask BestAPI first.
+- [ ] Keep Aadhaar OTP as well, or DigiLocker replaces it.
+
+## PL-09 — Father's name match
+
+**Problem:** Name + DOB are the only person checks. Father's name is printed on the PAN card, on the
+Aadhaar back ("S/O …", older cards) and typed in the form — a cheap third independent check.
+
+**Plan**
+- Read father's name from the PAN photo (line after "Father's Name") and the Aadhaar back address ("S/O", "D/O", "W/O", "C/O").
+- Prefer the "care of" from the Aadhaar Secure QR / Aadhaar OTP eKYC when present (UIDAI data, no OCR error).
+- Fuzzy match against the form value (same name rules as today). Mismatch = amber, never red on its own.
+- Show in PL-07 admin review next to name / DOB.
+
+**Open decisions**
+- [ ] New PAN cards print "Father's Name" / "Mother's Name" by choice — skip when the card shows mother's name.
+
+## PL-08 — PAN–Aadhaar link status check
+
+**Problem:** Name / DOB fuzzy matching is the only proof that the PAN and Aadhaar belong to the same
+person. The Income Tax "PAN–Aadhaar link status" answers that directly.
+
+**Plan**
+- After PAN verify + Aadhaar OTP: call the provider's PAN–Aadhaar link status API (check BestAPI first).
+- Linked → PL-07 `cross_check` verified · not linked → manual_review (many valid agents never linked) · linked to another Aadhaar → failed.
+- Store the provider reference id; never store the full Aadhaar number.
+
+**Open decisions**
+- [ ] Does BestAPI offer it, and at what per-call cost?
+- [ ] Should "not linked" block signup or only go to admin review? (default: admin review)
 
 ## PL-07 — KYC verification statuses + admin review
 

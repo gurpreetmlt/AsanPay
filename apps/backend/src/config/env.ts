@@ -261,6 +261,11 @@ const envSchema = z.object({
     (v) => (typeof v === "string" ? v.trim().toLowerCase() || undefined : v),
     z.enum(["on", "off"]).default("on"),
   ),
+  /** PaddleOCR models: `v5` = PP-OCRv5 detection + English recognition (default), `v4` = rollback. */
+  KYC_OCR_PADDLE_MODEL: z.preprocess(
+    (v) => (typeof v === "string" ? v.trim().toLowerCase() || undefined : v),
+    z.enum(["v4", "v5"]).default("v5"),
+  ),
   /**
    * Meta webhook verify token (Callback URL → Verify token). Required for
    * GET /api/whatsapp/webhook hub challenge. Same string as Meta dashboard.

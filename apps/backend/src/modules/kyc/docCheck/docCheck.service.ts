@@ -25,7 +25,7 @@ import {
 import { escalateDifferentPerson } from "./identityRules";
 import { checkImageQuality, ocrReadyPng, type OcrVariant } from "./imageQuality";
 import { ocrImage, type OcrMode } from "./ocr";
-import { paddleOcrImage } from "./paddleOcr";
+import { alignCard } from "./cardAlign";
 
 export const DOC_CHECK_SLOTS = ["panImage", "aadhaarFront", "aadhaarBack"] as const;
 export type DocCheckSlot = (typeof DOC_CHECK_SLOTS)[number];
@@ -262,8 +262,8 @@ const OCR_PASSES: { variant: OcrVariant; mode: OcrMode }[] = [
 ];
 
 /**
- * OCR the card: PaddleOCR first, then Tesseract passes until the slot's key fields are found. The
- * text of every pass is merged before the rules run.
+ * OCR the card: auto-crop / straighten + PaddleOCR first, then Tesseract passes on the aligned card
+ * until the slot's key fields are found. The text of every pass is merged before the rules run.
  */
 async function readText(
   buffer: Buffer,
@@ -272,13 +272,14 @@ async function readText(
   const passes: { text: string; confidence: number }[] = [];
   const merged = () =>
     analyzeDocText(passes.map((p) => p.text).join("\n"), Math.max(...passes.map((p) => p.confidence)));
-  const paddle = await paddleOcrImage(buffer);
-  if (paddle?.text.trim()) {
-    passes.push(paddle);
-    if (enough(merged())) return merged();
+  const aligned = await alignCard(buffer);
+  for (const read of aligned?.reads ?? []) {
+    if (read.text.trim()) passes.push(read);
   }
+  if (passes.length && enough(merged())) return merged();
+  const source = aligned?.card ?? buffer;
   for (const { variant, mode } of OCR_PASSES) {
-    const png = await ocrReadyPng(buffer, variant);
+    const png = await ocrReadyPng(source, variant);
     if (!png) continue;
     try {
       passes.push(await ocrImage(png, mode));

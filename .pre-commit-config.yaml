@@ -27,6 +27,8 @@ repos:
       - id: check-merge-conflict
       - id: check-added-large-files
         args: ["--maxkb=1024"]
+        # KYC OCR models (PP-OCRv5 ONNX, ~12 MB total) ship with the backend image.
+        exclude: ^apps/backend/assets/ocr/.*\.onnx$
       - id: detect-private-key
       - id: check-symlinks
       - id: mixed-line-ending
