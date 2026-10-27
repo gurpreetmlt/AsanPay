@@ -1397,7 +1397,6 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
       if (draft.pincode.length !== 6) return "Valid pincode required";
       if (!draft.city.trim()) return "City is required";
       if (!draft.district.trim() || !draft.state.trim()) return "District and state required";
-      if (!draft.homeGeo) return "Capture your home location to continue";
     }
     if (stepIndex === 5) {
       if (!draft.businessName.trim()) return "Business name required";
@@ -2616,7 +2615,13 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                       />
                     </View>
                   </View>
-                  <SignupLocationCard place="home" value={draft.homeGeo} onChange={(homeGeo) => patch({ homeGeo })} />
+                  <SignupLocationCard
+                    place="home"
+                    optional
+                    hint="At your shop right now? Skip this. Add your home location later from Account → Profile & KYC when you are at home. Until then, services work only near your shop."
+                    value={draft.homeGeo}
+                    onChange={(homeGeo) => patch({ homeGeo })}
+                  />
                 </>
               )}
 

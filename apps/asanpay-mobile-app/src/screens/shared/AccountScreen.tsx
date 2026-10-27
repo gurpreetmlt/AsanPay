@@ -50,6 +50,8 @@ import { CashManagementModal } from "./CashManagementModal";
 import { UpiCashPointScreen } from "../retailer/UpiCashPointScreen";
 import { BiometricDevicesModal } from "./BiometricDevicesModal";
 import { DeviceRepairModal } from "./DeviceRepairModal";
+import { SignupLocationCard } from "../../components/SignupLocationCard";
+import type { SignupGeoFix } from "../../lib/signupDraft";
 import { LinkedAccountsHost, type LinkedAccountsView } from "../../components/linkedAccounts/LinkedAccountsHost";
 
 /** Decorative cover art behind the profile banner — waves + soft dots, brand blue/green only. */
@@ -707,7 +709,76 @@ type KycMeProfile = {
   bankBranch: string | null;
   businessName: string | null;
   businessType: string | null;
+  homeLocationAt?: string | null;
 };
+
+/** Home location added after a signup done at the shop. Set once; a change goes through support. */
+function HomeLocationSection({
+  savedAt,
+  onSaved,
+}: {
+  savedAt: string | null;
+  onSaved: (savedAt: string) => void;
+}) {
+  const { tokens } = useTheme();
+  const [saving, setSaving] = useState(false);
+
+  async function save(fix: SignupGeoFix) {
+    setSaving(true);
+    try {
+      const { data } = await api.post<ApiResponse<{ homeLocationAt: string }>>("/kyc/home-location", {
+        location: {
+          latitude: fix.latitude,
+          longitude: fix.longitude,
+          accuracyMeters: fix.accuracyMeters,
+          isRooted: fix.isRooted,
+        },
+      });
+      if (!data.success) throw new Error(data.message);
+      onSaved(data.data.homeLocationAt);
+      showAlert("Home location saved", "Services now also work near your home.");
+    } catch (err) {
+      showAlert("Could not save", apiError(err, "Could not save your home location. Fetch it again."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (savedAt) {
+    const when = new Date(savedAt).toLocaleString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: "Asia/Kolkata",
+    });
+    return (
+      <View style={[styles.card, { backgroundColor: colors.greenBg, borderColor: colors.greenBg, padding: 12 }]}>
+        <Text style={{ color: colors.greenDark, fontWeight: "800", fontSize: 13 }}>Home location saved · {when}</Text>
+        <Text style={{ color: colors.greenDark, fontSize: 12, marginTop: 2 }}>
+          Services work near your shop and near this home location. Contact support to change it.
+        </Text>
+      </View>
+    );
+  }
+
+  return saving ? (
+    <ActivityIndicator color={colors.blueFlat} style={{ marginVertical: 12 }} />
+  ) : (
+    <View>
+      <Text style={{ color: tokens.mute, fontSize: 12, marginTop: 4 }}>
+        Not added yet — services work only near your shop. Add it once while you are at home.
+      </Text>
+      <SignupLocationCard
+        place="home"
+        hint="Be at home while fetching. It cannot be changed later without support."
+        value={null}
+        onChange={(fix) => void save(fix)}
+      />
+    </View>
+  );
+}
 
 function ProfileDetailRow({
   label,
@@ -892,6 +963,16 @@ function ProfileModal({
             ))}
           </View>
         )}
+
+        {!loading && profile && user.hasKycDocs ? (
+          <>
+            <Text style={[styles.sectionTiny, { color: tokens.sub, marginTop: 8 }]}>Home location</Text>
+            <HomeLocationSection
+              savedAt={profile.homeLocationAt ?? null}
+              onSaved={(homeLocationAt) => setProfile((p) => (p ? { ...p, homeLocationAt } : p))}
+            />
+          </>
+        ) : null}
 
         {user.role === "retailer" && !user.hasNobleAgent ? (
           <Pressable

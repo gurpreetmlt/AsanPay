@@ -315,6 +315,18 @@ const deviceGeoFixSchema = z.object({
   isRooted: z.boolean().optional(),
 });
 
+/** Home location added after signup: web phone-QR token or app device GPS. */
+export const homeLocationSchema = z
+  .object({
+    geoLinkToken: geoLinkTokenSchema.optional(),
+    location: deviceGeoFixSchema.optional(),
+  })
+  .refine((v) => Boolean(v.geoLinkToken || v.location), {
+    message: "Capture your home location first",
+    path: ["location"],
+  });
+export type HomeLocationInput = z.infer<typeof homeLocationSchema>;
+
 export const kycSubmitSchema = z.object({
   fullName: z.string().trim().min(2).max(120).optional(),
   panNumber: z

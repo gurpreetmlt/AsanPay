@@ -4,7 +4,7 @@ import { kycDocCheckLimiter, otpRequestLimiter } from "../../middleware/rateLimi
 import { validateBody } from "../../middleware/validate";
 import { sendSuccess } from "../../utils/apiResponse";
 import { HttpError } from "../../utils/httpError";
-import { kycSubmitSchema } from "../auth/auth.validators";
+import { homeLocationSchema, kycSubmitSchema } from "../auth/auth.validators";
 import {
   aadhaarOtpRequestSchema,
   aadhaarOtpVerifySchema,
@@ -12,7 +12,7 @@ import {
   verifyAadhaarKycOtp,
 } from "./aadhaarOtp.service";
 import { panVerifySchema, verifyPanKyc } from "./panVerify.service";
-import { autoCropKycPhoto, getMyKycDocument, getMyKycProfile, submitKyc } from "./kyc.service";
+import { autoCropKycPhoto, getMyKycDocument, getMyKycProfile, saveHomeLocation, submitKyc } from "./kyc.service";
 import { isKycDocSlot, saveKycDocumentDataUrl } from "./kycDocuments.service";
 import { checkKycDocument, DOC_CHECK_SLOTS, toStoredDocCheck } from "./docCheck/docCheck.service";
 import { recordKycVerification } from "./kycVerification.service";
@@ -26,6 +26,12 @@ kycRouter.get("/me", async (req, res) => {
   if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
   const profile = await getMyKycProfile(req.auth.sub);
   sendSuccess(res, { profile });
+});
+
+kycRouter.post("/home-location", validateBody(homeLocationSchema), async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const data = await saveHomeLocation(req.auth.sub, req.body);
+  sendSuccess(res, data, "Home location saved");
 });
 
 kycRouter.post("/documents/upload", async (req, res) => {

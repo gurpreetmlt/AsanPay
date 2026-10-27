@@ -8,7 +8,7 @@ import { findLatestAuditLog, insertAuditLog } from "../../db/postgres/repositori
 import { kycSubmittedEmailTemplate, notifyUserEmail } from "../../utils/mailer";
 import type { AuthUser } from "@asanpay/shared-types";
 import { formatPanName, isFundRequestEnabled } from "@asanpay/shared-types";
-import type { KycSubmitInput } from "../auth/auth.validators";
+import type { HomeLocationInput, KycSubmitInput } from "../auth/auth.validators";
 import { autoCropCard, type CardCropResult } from "./docCheck/cardCrop";
 import {
   KYC_DOC_KEY_TO_SLOT,
@@ -116,6 +116,8 @@ export type MyKycProfile = {
   businessName: string | null;
   businessType: string | null;
   cancelledChequeFileName: string | null;
+  /** When the home location was saved (null = not set; services then work only near the shop). */
+  homeLocationAt: string | null;
   /** PAN / Aadhaar / photo / cross-check statuses — no numbers. */
   verification: KycVerificationView;
 };
@@ -169,6 +171,7 @@ export async function getMyKycProfile(userId: string): Promise<MyKycProfile> {
     pincode: metaString(meta, "pincode"),
     aadhaarMasked,
     panMasked,
+    homeLocationAt: user.homeLocationAt ? user.homeLocationAt.toISOString() : null,
     bankAccountName: metaString(meta, "bankAccountName"),
     bankAccountMasked: accountRaw ? maskAccount(accountRaw) : null,
     bankIfsc: metaString(meta, "bankIfsc"),
@@ -272,6 +275,72 @@ type SignupGeoFix = {
   source: "phone_qr" | "device";
   geoLinkId: string | null;
 };
+
+/**
+ * Home location added after signup (agent signed up at the shop). Set once by the agent: letting them
+ * re-capture "home" anywhere would move the 5 km service zone, so a change goes through support.
+ */
+export async function saveHomeLocation(userId: string, input: HomeLocationInput): Promise<{ homeLocationAt: string }> {
+  const [user] = await db
+    .select({
+      isActive: users.isActive,
+      homeLocationAt: users.homeLocationAt,
+      outletLatitude: users.outletLatitude,
+      outletLongitude: users.outletLongitude,
+    })
+    .from(users)
+    .where(eq(users.id, userId));
+  if (!user || !user.isActive) throw new HttpError(403, "Account is not active", "ACCOUNT_INACTIVE");
+  if (user.homeLocationAt) {
+    throw new HttpError(
+      409,
+      "Your home location is already saved. Contact support to change it.",
+      "HOME_LOCATION_ALREADY_SET",
+    );
+  }
+
+  const fix = await resolveSignupGeoFix(userId, "home", input.geoLinkToken, input.location);
+  if (!fix) throw new HttpError(422, "Capture your home location first", "HOME_LOCATION_REQUIRED");
+
+  const savedAt = new Date();
+  await db
+    .update(users)
+    .set({ homeLatitude: fix.latitude, homeLongitude: fix.longitude, homeLocationAt: savedAt, updatedAt: savedAt })
+    .where(eq(users.id, userId));
+  if (fix.geoLinkId) await markGeoLinkUsed(fix.geoLinkId);
+  if (input.location?.isRooted) {
+    void recordRootedDeviceSignal(userId, ["home"]).catch((err: unknown) =>
+      logger.error({ err, userId }, "rooted device risk signal failed"),
+    );
+  }
+
+  const homeToShopKm =
+    user.outletLatitude && user.outletLongitude
+      ? Number(
+          haversineKm(
+            Number(user.outletLatitude),
+            Number(user.outletLongitude),
+            Number(fix.latitude),
+            Number(fix.longitude),
+          ).toFixed(2),
+        )
+      : null;
+  await insertAuditLog({
+    userId,
+    action: "kyc.home_location_set",
+    entityType: "user",
+    entityId: userId,
+    metadata: {
+      latitude: fix.latitude,
+      longitude: fix.longitude,
+      source: fix.source,
+      accuracyMeters: fix.accuracyMeters,
+      homeToShopKm,
+    },
+  });
+
+  return { homeLocationAt: savedAt.toISOString() };
+}
 
 /** Shop / home point from a web phone-QR token (server-stored fix) or the app's device GPS. */
 async function resolveSignupGeoFix(

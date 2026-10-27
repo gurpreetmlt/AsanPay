@@ -28,6 +28,7 @@ import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { EmailVerifyField } from "@/components/EmailVerifyField";
 import { BiometricDevices } from "@/components/settings/BiometricDevices";
 import { DeviceRepairRequests } from "@/components/settings/DeviceRepairRequests";
+import { HomeLocationCard } from "@/components/settings/HomeLocationCard";
 import { SettlementBanksPanel } from "@/components/settlements/SettlementBanksPanel";
 import { FaqSection } from "@/components/support/FaqSection";
 import { B, initials, roleFromUserRole } from "@/lib/brand";
@@ -658,6 +659,7 @@ export default function SettingsPage() {
                     </div>
                   )}
                 </div>
+                {!needsSignupKycCompletion(user) && user?.hasKycDocs ? <HomeLocationCard /> : null}
               </div>
             )}
 

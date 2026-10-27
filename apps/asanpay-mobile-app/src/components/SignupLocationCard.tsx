@@ -24,10 +24,14 @@ export function SignupLocationCard({
   place,
   value,
   onChange,
+  optional = false,
+  hint,
 }: {
   place: Place;
   value: SignupGeoFix | null;
   onChange: (fix: SignupGeoFix) => void;
+  optional?: boolean;
+  hint?: string;
 }) {
   const { tokens } = useTheme();
   const [busy, setBusy] = useState(false);
@@ -56,9 +60,14 @@ export function SignupLocationCard({
         </View>
         <View style={{ flex: 1 }}>
           <Text style={[styles.title, { color: tokens.txt }]}>
-            {copy.title} <Text style={{ color: colors.danger }}>*</Text>
+            {copy.title}{" "}
+            {optional ? (
+              <Text style={styles.optional}>OPTIONAL</Text>
+            ) : (
+              <Text style={{ color: colors.danger }}>*</Text>
+            )}
           </Text>
-          <Text style={[styles.hint, { color: tokens.sub }]}>{copy.hint}</Text>
+          <Text style={[styles.hint, { color: tokens.sub }]}>{hint ?? copy.hint}</Text>
         </View>
       </View>
 
@@ -108,6 +117,7 @@ const styles = StyleSheet.create({
   head: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
   iconTile: { width: 40, height: 40, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   title: { fontSize: 14, fontWeight: "800" },
+  optional: { fontSize: 10, fontWeight: "800", color: "#6B7280", letterSpacing: 0.6 },
   hint: { fontSize: 12, marginTop: 2, lineHeight: 17 },
   doneRow: {
     flexDirection: "row",

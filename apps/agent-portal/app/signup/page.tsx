@@ -1266,7 +1266,6 @@ function SignupPageInner() {
       if (!draft.city.trim()) return "City is required";
       if (!draft.district.trim()) return "District is required";
       if (!draft.state.trim()) return "State is required";
-      if (!draft.homeGeo?.token) return "Capture your home location to continue";
     }
     if (stepIndex === 5) {
       if (!draft.businessName.trim()) return "Business name is required";
@@ -2519,6 +2518,8 @@ function SignupPageInner() {
                 </div>
                 <SignupGeoCapture
                   purpose="home"
+                  optional
+                  hint="At your shop right now? Skip this. Add your home location later from Settings → Profile & KYC when you are at home. Until then, services work only near your shop."
                   value={draft.homeGeo}
                   onChange={(homeGeo) => patch({ homeGeo })}
                 />

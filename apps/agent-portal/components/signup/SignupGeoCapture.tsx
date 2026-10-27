@@ -40,10 +40,14 @@ export function SignupGeoCapture({
   purpose,
   value,
   onChange,
+  optional = false,
+  hint,
 }: {
   purpose: Purpose;
   value: SignupGeoFix | null;
   onChange: (fix: SignupGeoFix | null) => void;
+  optional?: boolean;
+  hint?: string;
 }) {
   const copy = COPY[purpose];
   const [qr, setQr] = useState<{ token: string; url: string; expiresAt: string } | null>(null);
@@ -138,10 +142,17 @@ export function SignupGeoCapture({
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-bold" style={{ color: B.blue }}>
-            {copy.title} <span className="text-red-600">*</span>
+            {copy.title}{" "}
+            {optional ? (
+              <span className="ml-1 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gray-500">
+                Optional
+              </span>
+            ) : (
+              <span className="text-red-600">*</span>
+            )}
           </p>
           <p className="mt-0.5 text-xs" style={{ color: B.muted }}>
-            {copy.hint}
+            {hint ?? copy.hint}
           </p>
         </div>
       </div>

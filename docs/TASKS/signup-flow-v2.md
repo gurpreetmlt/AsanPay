@@ -49,6 +49,13 @@ Anniversary date leaves signup (Profile, optional). Distributor / Super Distribu
   `kyc.submit` audit metadata has `homeLocation`, `shopLocation`, `homeToShopKm`.
 - ✅ Step-1 location gate removed (web + mobile); `latitude/longitude` optional on signup request / complete.
 
+**Owner change 27 Oct — home location optional at signup:** signup is done in one sitting, usually at the
+shop. Shop location stays required; home is optional ("Skip"). Added later once via `POST /kyc/home-location`
+(`{ geoLinkToken }` web QR / `{ location }` app GPS, same ±150 m + mock checks), from web Settings → Profile & KYC
+(`components/settings/HomeLocationCard.tsx`) and mobile Account → Profile & KYC. Set once: a second call →
+409 `HOME_LOCATION_ALREADY_SET` (re-capturing "home" anywhere would move the 5 km zone). `/kyc/me` →
+`homeLocationAt`. Audit `kyc.home_location_set` (coords, source, accuracy, homeToShopKm).
+
 **Left**
 - [ ] Admin KYC view: show both pins + distance (data is in the `kyc.submit` audit metadata).
 - [ ] No geofence today on recharge, BBPS, CMS, UPI cash point, settlements / payouts (no geo sent).
