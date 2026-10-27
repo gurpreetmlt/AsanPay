@@ -109,8 +109,11 @@ type RefData = {
 type EnteredData = {
   enteredDob: string | null;
   enteredGender: "male" | "female" | "other" | null;
-  enteredAadhaarLast4: string | null;
-  /** PAN typed in the form; `undefined` = older app that doesn't send it, `null` = not typed yet. */
+  /**
+   * Aadhaar last 4 / PAN typed in the form: `undefined` = older app that doesn't send the field,
+   * `null` = not typed yet.
+   */
+  enteredAadhaarLast4?: string | null;
   enteredPan?: string | null;
 };
 
@@ -130,16 +133,17 @@ const EMPTY_REFS: RefData = {
   userName: null,
   enteredDob: null,
   enteredGender: null,
-  enteredAadhaarLast4: null,
 };
 
 function enteredFromHints(hints?: DocCheckHints): EnteredData {
-  const last4 = (hints?.aadhaarLast4 ?? "").replace(/\D/g, "").slice(-4);
   const entered: EnteredData = {
     enteredDob: normalizeDob(hints?.dob),
     enteredGender: normalizeGender(hints?.gender),
-    enteredAadhaarLast4: last4.length === 4 ? last4 : null,
   };
+  if (hints?.aadhaarLast4 != null) {
+    const last4 = hints.aadhaarLast4.replace(/\D/g, "").slice(-4);
+    entered.enteredAadhaarLast4 = last4.length === 4 ? last4 : null;
+  }
   if (hints?.pan != null) {
     const pan = hints.pan.toUpperCase().replace(/[^A-Z0-9]/g, "");
     entered.enteredPan = /^[A-Z]{5}\d{4}[A-Z]$/.test(pan) ? pan : null;
@@ -193,8 +197,25 @@ async function loadReferenceData(userId: string): Promise<RefData> {
     userName: user?.name?.trim() || null,
     enteredDob: null,
     enteredGender: null,
-    enteredAadhaarLast4: null,
   };
+}
+
+/**
+ * Compare a card with what is typed in the form. Details verified on an earlier attempt
+ * (PAN provider / Aadhaar OTP) only count when the typed number is the same one — otherwise
+ * an empty or changed form would be matched against old details.
+ */
+function panRef(refs: RefData): { pan: string | null; verified: boolean; name: string | null } {
+  const pan = refs.enteredPan === undefined ? refs.pan : refs.enteredPan;
+  const verified = pan != null && pan === refs.pan;
+  return { pan, verified, name: (verified ? refs.panName : null) ?? refs.userName };
+}
+
+function aadhaarRef(refs: RefData): { last4: string | null; name: string | null; dob: string | null } {
+  const last4 =
+    refs.enteredAadhaarLast4 === undefined ? refs.aadhaarLast4 : refs.enteredAadhaarLast4;
+  const verified = last4 != null && last4 === refs.aadhaarLast4;
+  return { last4, name: verified ? refs.aadhaarName : null, dob: verified ? refs.aadhaarDob : null };
 }
 
 // ── Result assembly ──────────────────────────────────────────────────────────
@@ -341,10 +362,7 @@ async function checkPan(buffer: Buffer, refs: RefData, checks: DocCheckItem[], s
   }
   checks.push({ id: "docType", label: "PAN card", status: "pass" });
 
-  // Compare with the PAN typed in the form. A PAN verified on an earlier attempt only counts
-  // when it is the same number — otherwise an empty or changed form would match old details.
-  const refPan = refs.enteredPan === undefined ? refs.pan : refs.enteredPan;
-  const panVerified = refPan != null && refPan === refs.pan;
+  const { pan: refPan, verified: panVerified, name: expected } = panRef(refs);
   let panMismatch = false;
   if (!text.panNumbers.length) {
     checks.push({
@@ -367,9 +385,8 @@ async function checkPan(buffer: Buffer, refs: RefData, checks: DocCheckItem[], s
     });
   }
 
-  const expected = (panVerified ? refs.panName : null) ?? refs.userName;
   checks.push(nameCheck(expected, expected ? bestNameMatch(expected, text.lines) : null, "PAN card"));
-  checks.push(dobCheck(text.dob, refs.enteredDob ?? refs.aadhaarDob, "PAN card"));
+  checks.push(dobCheck(text.dob, refs.enteredDob ?? aadhaarRef(refs).dob, "PAN card"));
   // A provider-verified PAN that differs from the card is red on its own.
   escalateDifferentPerson(checks, "PAN card", panMismatch, panVerified);
   return finalize(slot, "pan", checks, started);
@@ -399,13 +416,13 @@ async function checkAadhaar(
   const side = SIDE[slot];
   const sideDocType: DocType = slot === "aadhaarFront" ? "aadhaar_front" : "aadhaar_back";
   // Cross-check against the PAN holder (verified PAN name) and the Aadhaar eKYC name; best wins.
-  const expectedNames = [refs.panName ?? refs.userName, refs.aadhaarName].filter((n): n is string => Boolean(n));
+  const aadhaar = aadhaarRef(refs);
+  const expectedNames = [panRef(refs).name, aadhaar.name].filter((n): n is string => Boolean(n));
   const expectedName = expectedNames[0] ?? null;
   const scoreName = (score: (expected: string) => number) =>
     expectedNames.length ? Math.max(...expectedNames.map(score)) : null;
-  const expectedDob = refs.enteredDob ?? refs.aadhaarDob;
-  // OTP-verified Aadhaar first; before OTP, the number typed in the form.
-  const refLast4 = refs.aadhaarLast4 ?? refs.enteredAadhaarLast4;
+  const expectedDob = refs.enteredDob ?? aadhaar.dob;
+  const refLast4 = aadhaar.last4;
 
   const scan: AadhaarQrScan = await scanAadhaarQr(buffer).catch(() => ({ found: false }) as const);
   const qrData = scan.found && scan.secure ? scan.data : null;
@@ -609,8 +626,8 @@ const inFlight = new Map<string, Promise<DocCheckResult>>();
 /** Result depends on the photo AND what was typed in the form, so both are in the key. */
 function cacheKey(userId: string, slot: DocCheckSlot, buffer: Buffer, entered: EnteredData): string {
   const hash = createHash("sha256").update(buffer).digest("hex").slice(0, 32);
-  const pan = entered.enteredPan === undefined ? "?" : (entered.enteredPan ?? "-");
-  const form = `${entered.enteredDob ?? "-"}:${entered.enteredGender ?? "-"}:${entered.enteredAadhaarLast4 ?? "-"}:${pan}`;
+  const typed = (v: string | null | undefined) => (v === undefined ? "?" : (v ?? "-"));
+  const form = `${entered.enteredDob ?? "-"}:${entered.enteredGender ?? "-"}:${typed(entered.enteredAadhaarLast4)}:${typed(entered.enteredPan)}`;
   return `${CACHE_KEY_PREFIX}${userId}:${slot}:${hash}:${form}`;
 }
 

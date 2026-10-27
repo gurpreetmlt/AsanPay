@@ -22,7 +22,7 @@ import api from "@/lib/api";
 import { B, brand, initials, roleFromUserRole } from "@/lib/brand";
 import { extractApiError } from "@/lib/onboarding";
 import { todayPhoneLocation } from "@/lib/phoneLocation";
-import { captureFingerprintWeb } from "@/lib/rdServiceFingerprint";
+import { captureFingerprintWeb, type FingerprintCaptureOptions } from "@/lib/rdServiceFingerprint";
 import { useAuthStore } from "@/lib/store";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import type { ApiResponse } from "@asanpay/shared-types";
@@ -38,8 +38,19 @@ type Props = {
   continueLabel: string;
   kycReady: boolean;
   aadhaarLastFour: string | null;
-  lastVerifiedAt: string | null;
+  /** Omit to hide the "Last verified" row (e.g. Aadhaar Pay, where the provider keeps that date). */
+  lastVerifiedAt?: string | null;
   verifiedToday?: boolean;
+  /** AEPS agent onboarding not finished: the provider 2FA needs the onboarding agent id. */
+  onboardingPending?: boolean;
+  onCompleteOnboarding?: () => void;
+  /** Small label above the right column, e.g. "Step 1 of 2 · One-time Aadhaar Pay KYC". */
+  stepLabel?: string;
+  scanLabel?: string;
+  successToast?: string;
+  captureOptions?: FingerprintCaptureOptions;
+  /** Sends the captured PID; returns verifiedAt when known. Default: POST /auth/agent-auth. */
+  submit?: (biometricPayload: string) => Promise<string | null | void>;
   rdStatus: RdStatus;
   deviceLabel: string;
   onRetryDevice: () => void;
@@ -119,6 +130,18 @@ function useKycPhoto(enabled: boolean): string | null {
     };
   }, [enabled]);
   return url;
+}
+
+async function submitAgentAuth(biometricPayload: string): Promise<string | null> {
+  // Today's phone-verified location; without it the API uses the saved shop location.
+  const phone = todayPhoneLocation();
+  const geo = phone ? { latitude: phone.latitude, longitude: phone.longitude } : {};
+  const { data } = await api.post<ApiResponse<{ verifiedAt: string }>>("/auth/agent-auth", {
+    biometricPayload,
+    ...geo,
+  });
+  if (!data.success) throw new Error(data.message);
+  return data.data?.verifiedAt ?? null;
 }
 
 /* ── Left: Aadhaar-style ID card ───────────────────────────────────── */
@@ -469,6 +492,13 @@ export function DailyVerifyCard({
   onRetryDevice,
   onChangeDevice,
   onVerified,
+  onboardingPending = false,
+  onCompleteOnboarding,
+  stepLabel,
+  scanLabel = "Scan fingerprint",
+  successToast,
+  captureOptions,
+  submit,
 }: Props) {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
@@ -477,14 +507,16 @@ export function DailyVerifyCard({
   const [consentOpen, setConsentOpen] = useState(false);
   const [quality, setQuality] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [lastAt, setLastAt] = useState<string | null>(lastVerifiedAt);
+  const [lastAt, setLastAt] = useState<string | null>(lastVerifiedAt ?? null);
 
   const busy = phase === "scanning" || phase === "verifying";
   const done = phase === "success";
   const deviceReady = rdStatus === "ready";
-  const canScan = kycReady && consent && deviceReady && !busy && !done;
+  const canScan = kycReady && !onboardingPending && consent && deviceReady && !busy && !done;
 
-  const blockedHint = !consent
+  const blockedHint = onboardingPending
+    ? "Complete AEPS agent onboarding to start daily verification."
+    : !consent
     ? "Accept Aadhaar consent above to continue."
     : rdStatus === "missing"
       ? "Connect the RD device and tap Retry to continue."
@@ -505,20 +537,13 @@ export function DailyVerifyCard({
     setQuality(null);
     setPhase("scanning");
     try {
-      const biometricPayload = await captureFingerprintWeb();
+      const biometricPayload = await captureFingerprintWeb(captureOptions);
       setQuality(readQualityScore(biometricPayload));
       setPhase("verifying");
-      // Today's phone-verified location; without it the API uses the saved shop location.
-      const phone = todayPhoneLocation();
-      const geo = phone ? { latitude: phone.latitude, longitude: phone.longitude } : {};
-      const { data } = await api.post<ApiResponse<{ verifiedAt: string }>>("/auth/agent-auth", {
-        biometricPayload,
-        ...geo,
-      });
-      if (!data.success) throw new Error(data.message);
-      setLastAt(data.data?.verifiedAt ?? new Date().toISOString());
+      const verifiedAt = submit ? await submit(biometricPayload) : await submitAgentAuth(biometricPayload);
+      setLastAt(verifiedAt || new Date().toISOString());
       setPhase("success");
-      toast.success(`${service} unlocked for today`);
+      toast.success(successToast ?? `${service} unlocked for today`);
     } catch (err) {
       setError(extractApiError(err, "Fingerprint could not be verified with your Aadhaar."));
       setPhase("failed");
@@ -556,7 +581,7 @@ export function DailyVerifyCard({
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(340px,1fr)]">
           <div className="flex min-w-0 flex-col gap-3">
             <AadhaarCard phase={phase} quality={quality} kycReady={kycReady} aadhaarLastFour={aadhaarLastFour} />
-            {kycReady ? (
+            {kycReady && lastVerifiedAt !== undefined ? (
               <div
                 className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-xl border px-4 py-2.5 text-xs text-gray-600"
                 style={{ borderColor: B.border, background: "#F7F9FF" }}
@@ -575,6 +600,23 @@ export function DailyVerifyCard({
 
           {kycReady ? (
             <div className="flex min-w-0 flex-col gap-3">
+              {stepLabel ? (
+                <p
+                  className="self-start rounded-full px-3 py-1 text-[11px] font-bold tracking-wide"
+                  style={{ background: "#EEF3FF", color: B.blue }}
+                >
+                  {stepLabel}
+                </p>
+              ) : null}
+              {onboardingPending ? (
+                <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                  <p className="text-sm font-bold text-amber-900">Finish AEPS agent onboarding first</p>
+                  <p className="mt-1 text-xs leading-relaxed text-amber-800">
+                    Daily verification runs on your AEPS agent ID. Complete onboarding, then scan your fingerprint
+                    here to unlock {service} for the day.
+                  </p>
+                </section>
+              ) : null}
               <section className="rounded-2xl border bg-white p-4" style={{ borderColor: B.border }}>
                 <p className="mb-3 flex flex-wrap items-baseline gap-x-2">
                   <span className="text-[11px] font-bold tracking-[0.14em]" style={{ color: B.blue }}>
@@ -655,6 +697,10 @@ export function DailyVerifyCard({
                     {continueLabel}
                   </PrimaryButton>
                 </>
+              ) : onboardingPending ? (
+                <PrimaryButton type="button" variant="primary" onClick={onCompleteOnboarding} className="mt-auto">
+                  Complete AEPS onboarding
+                </PrimaryButton>
               ) : phase === "failed" ? (
                 <div className="mt-auto grid grid-cols-2 gap-3">
                   <PrimaryButton
@@ -687,7 +733,7 @@ export function DailyVerifyCard({
                       </>
                     ) : (
                       <>
-                        Scan fingerprint
+                        {scanLabel}
                         <Fingerprint size={18} />
                       </>
                     )}

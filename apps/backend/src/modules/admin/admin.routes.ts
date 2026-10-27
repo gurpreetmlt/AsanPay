@@ -617,6 +617,37 @@ adminRouter.delete("/rate-card/provider-income/:id", async (req, res) => {
   sendSuccess(res, await endProviderIncomeRule(req.auth.sub, req.params.id, reason), "Provider income ended");
 });
 
+const pctString = (label: string) =>
+  z.string({ error: `${label} is required` }).min(1, `${label} is required`).max(20);
+
+adminRouter.post("/rate-card/tax", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { setTaxConfig } = await import("../commission/tax.service");
+  const body = z
+    .object({
+      serviceId: z.string().uuid("Service id must be a valid id").nullable(),
+      tdsApplies: z.boolean(),
+      tdsPercent: pctString("Agent TDS %"),
+      gstOnFeeApplies: z.boolean(),
+      gstOnFeePercent: pctString("GST on fee %"),
+      gstOnFeeInclusive: z.boolean(),
+      providerOutputGstPercent: z.string().max(20).nullable().optional(),
+      providerTdsPercent: z.string().max(20).nullable().optional(),
+      effectiveFrom: z.string().max(40).nullable().optional(),
+      reason: z.string().max(500).nullable().optional(),
+    })
+    .parse(req.body);
+  sendSuccess(res, await setTaxConfig(req.auth.sub, body), "Tax settings saved");
+});
+
+adminRouter.delete("/rate-card/tax/:serviceId", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { resetServiceTax } = await import("../commission/tax.service");
+  const serviceId = z.string().uuid("Service id must be a valid id").parse(req.params.serviceId);
+  const { reason } = z.object({ reason: z.string().max(500).nullable().optional() }).parse(req.body ?? {});
+  sendSuccess(res, await resetServiceTax(req.auth.sub, serviceId, reason), "Service now uses the default tax");
+});
+
 adminRouter.get("/commission/tax-config", async (_req, res) => {
   const { listTaxConfigs } = await import("../commission/tax.service");
   const { resolveTenantId } = await import("../fund-requests/tenant");

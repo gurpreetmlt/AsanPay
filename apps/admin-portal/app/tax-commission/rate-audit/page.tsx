@@ -33,14 +33,30 @@ type AuditRow = {
   createdAt: string;
 };
 
+const ENTITY_LABEL: Record<string, string> = {
+  rule: "Scheme rule",
+  override: "Agent override",
+  share: "Rate card share",
+  provider_income: "Provider income",
+  tax_config: "Tax settings",
+};
+
 function summarize(s: Snapshot): string {
   if (!s) return "—";
   const type = s.ruleType;
   const value = s.value;
   const parts: string[] = [];
+  if (s.sharePercent != null) parts.push(`${String(s.role ?? "")} ${Number(s.sharePercent)}% of provider`.trim());
+  if (s.tdsPercent != null) {
+    parts.push(`TDS ${s.tdsApplies === false ? "off" : `${Number(s.tdsPercent)}%`}`);
+    parts.push(
+      `Fee GST ${s.gstOnFeeApplies === false ? "off" : `${Number(s.gstOnFeePercent)}% ${s.gstOnFeeInclusive ? "included" : "on top"}`}`,
+    );
+  }
   if (value !== undefined && value !== null) {
     parts.push(type === "percentage" ? `${value}%` : type === "flat" ? `₹${value}` : String(value));
   }
+  if (s.capAmount != null) parts.push(`cap ₹${s.capAmount}`);
   if (s.minAmount != null || s.maxAmount != null) {
     parts.push(`slab ${s.minAmount ?? "0"}–${s.maxAmount ?? "∞"}`);
   }
@@ -133,9 +149,12 @@ export default function TaxCommissionRateAuditPage() {
               value={entityType}
               onChange={(e) => setEntityType(e.target.value)}
             >
-              <option value="">Rules and overrides</option>
+              <option value="">All changes</option>
               <option value="rule">Scheme rules</option>
               <option value="override">Agent overrides</option>
+              <option value="share">Rate card shares</option>
+              <option value="provider_income">Provider income</option>
+              <option value="tax_config">Tax settings</option>
             </select>
           </label>
         </div>
@@ -174,7 +193,7 @@ export default function TaxCommissionRateAuditPage() {
                       <td className="px-4 py-3">{r.adminName ?? "—"}</td>
                       <td className="px-4 py-3">
                         <div className="text-xs font-bold uppercase" style={{ color: B.blueLight }}>
-                          {r.entityType === "override" ? "Agent override" : "Scheme rule"}
+                          {ENTITY_LABEL[r.entityType] ?? "Scheme rule"}
                         </div>
                         <div>{r.serviceName ?? "—"}</div>
                         {r.userId ? (

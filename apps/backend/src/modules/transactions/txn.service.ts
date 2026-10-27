@@ -32,7 +32,7 @@ import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import type { UserRole, WalletType } from "@asanpay/shared-types";
 import { resolveCustomerFee } from "../service-charges/serviceCharge.service";
 import { evaluateVelocitySpike, effectiveDailyLimit } from "../limits/velocity.service";
-import { computeFeeGstRupees, resolveTaxForService } from "../commission/tax.service";
+import { resolveTaxForService, splitFeeGstRupees } from "../commission/tax.service";
 
 type Actor = { id: string; role: UserRole };
 type TxnRow = typeof transactions.$inferSelect;
@@ -256,7 +256,7 @@ export async function executeServiceTxn(input: ExecuteTxnInput): Promise<TxnOutc
   // All 7 txn.controller debit call sites share this path. Fee is never taken from the client
   // body (input.customerFee is ignored) so a retailer cannot set fee=0. No schedule → "0.00".
   void customerFee;
-  const feeNormalized =
+  const feeConfigured =
     direction === "debit" && amount != null
       ? await resolveCustomerFee(service.id, routed.providerId, actor.role, amount, new Date())
       : "0";
@@ -271,10 +271,13 @@ export async function executeServiceTxn(input: ExecuteTxnInput): Promise<TxnOutc
   }
   const { resolveTenantId } = await import("../fund-requests/tenant");
   const taxCfg = await resolveTaxForService(await resolveTenantId(), service.id, new Date());
-  const feeGstNormalized =
-    direction === "debit" && Number(feeNormalized) > 0
-      ? computeFeeGstRupees(feeNormalized, taxCfg)
-      : "0.00";
+  // Stored fee is always the base (excl. GST): with GST included, fee + GST = the configured fee.
+  const feeSplit =
+    direction === "debit" && Number(feeConfigured) > 0
+      ? splitFeeGstRupees(feeConfigured, taxCfg)
+      : { fee: feeConfigured, gst: "0.00" };
+  const feeNormalized = feeSplit.fee;
+  const feeGstNormalized = feeSplit.gst;
 
   const txnRef = generateTxnRef(actorRow.uid);
   const needsMoney = direction !== "none" && amount != null;

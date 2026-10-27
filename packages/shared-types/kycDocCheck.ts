@@ -100,18 +100,18 @@ export function kycDocCheckLabel(ui: KycDocCheckUi): string {
  */
 export function kycDocCheckHints(form: { dob?: string; gender?: string; aadhaar?: string; pan?: string }): {
   pan: string;
+  aadhaarLast4: string;
   dob?: string;
   gender?: string;
-  aadhaarLast4?: string;
 } {
   const digits = (form.aadhaar ?? "").replace(/\D/g, "");
   const pan = (form.pan ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
   return {
-    // Always sent: empty means "no PAN typed yet", so the card is not compared with an older PAN.
+    // Always sent: empty means "not typed yet", so the card is not compared with older details.
     pan: /^[A-Z]{5}\d{4}[A-Z]$/.test(pan) ? pan : "",
+    aadhaarLast4: digits.length === 12 ? digits.slice(-4) : "",
     ...(form.dob ? { dob: form.dob } : {}),
     ...(form.gender ? { gender: form.gender } : {}),
-    ...(digits.length === 12 ? { aadhaarLast4: digits.slice(-4) } : {}),
   };
 }
 

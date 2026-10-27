@@ -36,6 +36,7 @@ export const SECTION_GROUPS: Record<
     root: "Tax & Commission",
     title: "Tax & Commission",
     tabs: [
+      { href: "/tax-commission/rate-card", label: "Rate card" },
       { href: "/tax-commission", label: "Overview" },
       { href: "/tax-commission/schemes", label: "Schemes" },
       { href: "/tax-commission/overrides", label: "Overrides" },

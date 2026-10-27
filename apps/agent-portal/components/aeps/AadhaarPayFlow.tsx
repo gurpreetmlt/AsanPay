@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CheckCircle2, CircleDot, Fingerprint, Lock, RefreshCw, Settings2, X } from "lucide-react";
+import { CircleDot, Fingerprint, Lock, X } from "lucide-react";
 import { todayPhoneLocation } from "@/lib/phoneLocation";
 import { toast } from "react-hot-toast";
 import type { ApiResponse } from "@asanpay/shared-types";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
+import { DailyVerifyCard } from "@/components/aeps/DailyVerifyCard";
 import api from "@/lib/api";
 import { B } from "@/lib/brand";
 import { createAttemptKeyHolder } from "@/lib/idempotencyKey";
@@ -95,7 +96,7 @@ type ScannerProps = {
   onChangeDevice: () => void;
 };
 
-/** One-time Aadhaar Pay KYC + daily Aadhaar Pay fingerprint, shown above the form until done. */
+/** One-time Aadhaar Pay KYC + daily Aadhaar Pay fingerprint (provider), shown above the form until done. */
 export function AadhaarPaySetupCard({
   session,
   loading,
@@ -106,171 +107,72 @@ export function AadhaarPaySetupCard({
   scannerLooking,
   onRetryScanner,
   onChangeDevice,
+  kycReady,
+  aadhaarLastFour,
 }: ScannerProps & {
   session: AadhaarPaySession | null;
   loading: boolean;
   error: string | null;
   onReload: () => Promise<void>;
+  kycReady: boolean;
+  aadhaarLastFour: string | null;
 }) {
-  const [scanning, setScanning] = useState(false);
-
   const kycPending = Boolean(session?.kycRequired);
-  const twoFaPending = Boolean(session?.daily2faRequired);
+  // kycWadhValue is `finger~iris~face`; a fingerprint capture takes the first part only.
+  const fingerWadh = session?.kycWadhValue.split("~")[0]?.trim() ?? "";
 
-  async function scan() {
-    if (!session || scanning) return;
-    if (scannerLooking) {
-      toast.error("Scanner still connecting — wait a moment");
-      return;
-    }
-    if (!scannerReady) {
-      toast.error("RD Service not found. Open Mantra/Morpho RDService on this PC, then Retry.");
-      return;
-    }
-    setScanning(true);
-    try {
-      const geo = await currentGeo();
-      if (kycPending) {
-        // kycWadhValue is `finger~iris~face`; a fingerprint capture takes the first part only.
-        const fingerWadh = session.kycWadhValue.split("~")[0]?.trim() ?? "";
-        const biometricPayload = await captureFingerprintWeb(fingerWadh ? { wadh: fingerWadh } : undefined);
-        const { data } = await api.post<ApiResponse<unknown>>("/onboarding/noble/ap/kyc", {
-          biometricPayload,
-          ...(geo ?? {}),
-        });
-        if (!data.success) throw new Error(data.message);
-        toast.success("Aadhaar Pay KYC completed");
-      } else {
-        const biometricPayload = await captureFingerprintWeb();
-        const { data } = await api.post<ApiResponse<unknown>>("/onboarding/noble/ap/2fa", {
-          biometricPayload,
-          ...(geo ?? {}),
-        });
-        if (!data.success) throw new Error(data.message);
-        toast.success("Aadhaar Pay unlocked for today");
-      }
-      await onReload();
-    } catch (err) {
-      toast.error(extractApiError(err, "Fingerprint verification failed. Try again."), { duration: 10_000 });
-      onRetryScanner();
-    } finally {
-      setScanning(false);
-    }
+  async function submit(biometricPayload: string): Promise<null> {
+    const geo = await currentGeo();
+    const { data } = await api.post<ApiResponse<unknown>>(
+      kycPending ? "/onboarding/noble/ap/kyc" : "/onboarding/noble/ap/2fa",
+      { biometricPayload, ...(geo ?? {}) },
+    );
+    if (!data.success) throw new Error(data.message);
+    // KYC done → reload swaps this card to the daily scan step.
+    if (kycPending) await onReload();
+    return null;
+  }
+
+  if (loading && !session) {
+    return (
+      <div className="mb-5 flex items-center gap-3 rounded-2xl border bg-white p-5 text-sm font-medium text-gray-500" style={{ borderColor: B.border }}>
+        <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+        Checking Aadhaar Pay status…
+      </div>
+    );
+  }
+
+  if (error || !session) {
+    return (
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3.5">
+        <p className="text-sm font-semibold text-red-800">{error ?? "Could not load Aadhaar Pay status. Tap Retry."}</p>
+        <PrimaryButton type="button" variant="primary" size="sm" showArrow={false} onClick={() => void onReload()}>
+          Retry
+        </PrimaryButton>
+      </div>
+    );
   }
 
   return (
-    <section className="mb-5 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-      <div
-        className="flex items-center gap-3 px-6 py-5"
-        style={{ background: `linear-gradient(135deg, ${B.blue}, ${B.blueMid})` }}
-      >
-        <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-white/15">
-          <Fingerprint size={22} className="text-white" />
-        </div>
-        <div>
-          <h2 className="text-base font-bold text-white">Activate Aadhaar Pay</h2>
-          <p className="mt-0.5 text-xs text-white/70">
-            Aadhaar Pay needs its own retailer fingerprint — KYC once, then one scan each day.
-          </p>
-        </div>
-      </div>
-
-      <div className="space-y-5 p-6">
-        {loading && !session ? (
-          <div className="flex items-center gap-3 text-sm font-medium text-gray-500">
-            <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
-            Checking Aadhaar Pay status…
-          </div>
-        ) : null}
-
-        {error ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-            <p className="text-sm font-semibold text-red-800">{error}</p>
-            <PrimaryButton type="button" variant="primary" size="sm" onClick={() => void onReload()}>
-              Retry
-            </PrimaryButton>
-          </div>
-        ) : null}
-
-        {session ? (
-          <>
-            <ol className="space-y-2.5 text-sm">
-              <li className="flex items-center gap-2.5">
-                {kycPending ? (
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-50 text-[11px] font-bold text-blue-700">
-                    1
-                  </span>
-                ) : (
-                  <CheckCircle2 size={20} className="text-green-600" />
-                )}
-                <span className={kycPending ? "font-semibold text-gray-800" : "text-gray-500"}>
-                  One-time Aadhaar Pay KYC
-                </span>
-              </li>
-              <li className="flex items-center gap-2.5">
-                {twoFaPending ? (
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-50 text-[11px] font-bold text-blue-700">
-                    2
-                  </span>
-                ) : (
-                  <CheckCircle2 size={20} className="text-green-600" />
-                )}
-                <span className={twoFaPending && !kycPending ? "font-semibold text-gray-800" : "text-gray-500"}>
-                  Today&apos;s Aadhaar Pay fingerprint
-                </span>
-              </li>
-            </ol>
-
-            <div className="flex items-center gap-3 rounded-xl border p-3.5" style={{ borderColor: B.border }}>
-              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-700">
-                <Fingerprint size={20} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-bold text-gray-900">{deviceLabel}</p>
-                <p className="flex items-center gap-1.5 text-xs text-gray-500">
-                  <span
-                    className={`h-1.5 w-1.5 rounded-full ${
-                      scannerReady ? "bg-green-500" : scannerLooking ? "bg-amber-400" : "bg-red-400"
-                    }`}
-                  />
-                  {scannerReady ? "Device ready" : scannerLooking ? "Looking for RD Service…" : "RD Service not found"}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={onRetryScanner}
-                className="inline-flex flex-shrink-0 items-center gap-1 text-xs font-bold text-blue-600 hover:underline"
-              >
-                <RefreshCw size={12} />
-                Retry
-              </button>
-              <button
-                type="button"
-                onClick={onChangeDevice}
-                className="inline-flex flex-shrink-0 items-center gap-1 text-xs font-bold text-blue-600 hover:underline"
-              >
-                <Settings2 size={12} />
-                Change Device
-              </button>
-            </div>
-
-            <PrimaryButton
-              type="button"
-              variant="primary"
-              loading={scanning}
-              disabled={scanning || !scannerReady}
-              onClick={() => void scan()}
-            >
-              <Fingerprint size={18} />
-              {kycPending ? "Scan Finger for Aadhaar Pay KYC" : "Scan Finger to unlock Aadhaar Pay"}
-            </PrimaryButton>
-            <p className="text-center text-xs text-gray-500">
-              Face authentication is available in the AsanPay mobile app (Aadhaar FaceRD).
-            </p>
-          </>
-        ) : null}
-      </div>
-    </section>
+    <div className="mb-5">
+      <DailyVerifyCard
+        key={kycPending ? "ap-kyc" : "ap-2fa"}
+        service="Aadhaar Pay"
+        stepLabel={kycPending ? "Step 1 of 2 · One-time Aadhaar Pay KYC" : "Step 2 of 2 · Today's Aadhaar Pay fingerprint"}
+        scanLabel={kycPending ? "Scan for Aadhaar Pay KYC" : "Scan to unlock Aadhaar Pay"}
+        successToast={kycPending ? "Aadhaar Pay KYC completed" : "Aadhaar Pay unlocked for today"}
+        continueLabel="Continue to Aadhaar Pay"
+        kycReady={kycReady}
+        aadhaarLastFour={aadhaarLastFour}
+        rdStatus={scannerReady ? "ready" : scannerLooking ? "looking" : "missing"}
+        deviceLabel={deviceLabel}
+        onRetryDevice={onRetryScanner}
+        onChangeDevice={onChangeDevice}
+        captureOptions={kycPending && fingerWadh ? { wadh: fingerWadh } : undefined}
+        submit={submit}
+        onVerified={() => void onReload()}
+      />
+    </div>
   );
 }
 

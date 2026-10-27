@@ -14,17 +14,27 @@ import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import { toPaise, fromPaise } from "../wallet/decimal";
 import { computeCustomerFeePaise } from "../service-charges/serviceCharge.service";
 import { resolveTenantId } from "../fund-requests/tenant";
-import { applyTdsToGrossPaise, computeFeeGstRupees, resolveTaxForService, type ResolvedTaxConfig } from "./tax.service";
+import {
+  applyTdsToGrossPaise,
+  getTenantTaxDefaults,
+  resolveTaxForService,
+  type ResolvedTaxConfig,
+  type TenantTaxDefaults,
+} from "./tax.service";
 import { assertCommissionMonthUnlocked, recordRateChangeEvent } from "./commission.guards";
 import { isSchemeRole, normalizeAmountBound } from "./commission.service";
 import {
   companyKeepsPaise,
   computeProviderIncomePaise,
   inSlab,
+  percentOfPaiseHalfUp,
   percentToScaled,
+  providerReceivablePaise,
   resolveRoleGross,
+  splitFeeGstPaise,
   type RuleType,
 } from "./rateCard.math";
+import { PROVIDER_COST_INPUT_GST_PERCENT, referenceFor, type ProviderCostLine } from "./rateCard.reference";
 import {
   loadRateConfig,
   pickProviderIncomeRule,
@@ -55,7 +65,29 @@ type SplitContext = {
   cfg: RateConfig;
   charges: ChargeRow[];
   tax: ResolvedTaxConfig;
+  tenantTax: TenantTaxDefaults;
+  costs: ProviderCostLine[];
 };
+
+function taxView(tax: ResolvedTaxConfig) {
+  return {
+    configId: tax.configId,
+    source: tax.source,
+    tdsApplies: tax.tdsApplies,
+    tdsPercent: tax.tdsPercent,
+    gstOnFeeApplies: tax.gstOnFeeApplies,
+    gstOnFeePercent: tax.gstOnFeePercent,
+    gstOnFeeInclusive: tax.gstOnFeeInclusive,
+  };
+}
+
+function tenantTaxView(t: TenantTaxDefaults) {
+  return {
+    ...taxView(t),
+    providerOutputGstPercent: t.providerOutputGstPercent,
+    providerTdsPercent: t.providerTdsPercent,
+  };
+}
 
 // ── Shared math (rate card rows + preview use the same path as the live payout) ──
 
@@ -107,23 +139,60 @@ function computeSplit(ctx: SplitContext, serviceId: string, providerId: string |
   });
 
   const charge = pickCharge(ctx.charges, serviceId, providerId, amountPaise);
-  const customerFeePaise = charge
+  const feeChargedPaise = charge
     ? Number(computeCustomerFeePaise(charge.ruleType, charge.value, BigInt(amountPaise)))
     : 0;
-  const customerFee = fromPaise(customerFeePaise);
-  const customerFeeGst = computeFeeGstRupees(customerFee, ctx.tax);
+  // Same split the live debit stores: base fee (company revenue) + GST on it (owed to government).
+  const { baseFeePaise, gstPaise: feeGstPaise } = splitFeeGstPaise(feeChargedPaise, {
+    applies: ctx.tax.gstOnFeeApplies,
+    percent: String(ctx.tax.gstOnFeePercent),
+    inclusive: ctx.tax.gstOnFeeInclusive,
+  });
 
   const totalGrossPaise = roles.reduce((s, r) => s + r.grossPaise, 0);
   const totalTdsPaise = roles.reduce((s, r) => s + r.tdsPaise, 0);
   const totalNetPaise = roles.reduce((s, r) => s + r.netPaise, 0);
-  const company = companyKeepsPaise({ providerIncomePaise, customerFeePaise, totalGrossPaise });
+  const company = companyKeepsPaise({ providerIncomePaise, customerFeePaise: baseFeePaise, totalGrossPaise });
+
+  const receivable =
+    providerIncomePaise != null
+      ? providerReceivablePaise(providerIncomePaise, {
+          outputGstPercent: String(ctx.tenantTax.providerOutputGstPercent),
+          tdsPercent: String(ctx.tenantTax.providerTdsPercent),
+        })
+      : null;
+
+  const providerCosts = ctx.costs.map((c) => {
+    const costPaise = c.amount != null ? toPaise(c.amount) : null;
+    return {
+      label: c.label,
+      amount: c.amount,
+      perTxn: c.perTxn,
+      gstIncluded: c.gstIncluded,
+      inputGst:
+        costPaise != null && !c.gstIncluded
+          ? fromPaise(percentOfPaiseHalfUp(costPaise, PROVIDER_COST_INPUT_GST_PERCENT))
+          : null,
+    };
+  });
+  const perTxnCostPaise = ctx.costs.reduce(
+    (s, c) => s + (c.perTxn && c.amount != null ? toPaise(c.amount) : 0),
+    0,
+  );
+  const keepsAfterCostsPaise = company.companyKeepsPaise - perTxnCostPaise;
 
   return {
     amount: fromPaise(amountPaise),
     providerIncome: providerIncomePaise != null ? fromPaise(providerIncomePaise) : null,
     providerIncomeRuleId: incomeRule?.id ?? null,
-    customerFee,
-    customerFeeGst,
+    providerGst: receivable ? fromPaise(receivable.gstPaise) : null,
+    providerTds: receivable ? fromPaise(receivable.tdsPaise) : null,
+    providerNetReceivable: receivable ? fromPaise(receivable.netPaise) : null,
+    customerFeeCharged: fromPaise(feeChargedPaise),
+    customerFee: fromPaise(baseFeePaise),
+    customerFeeGst: fromPaise(feeGstPaise),
+    gstOnFeeInclusive: ctx.tax.gstOnFeeInclusive,
+    customerPays: fromPaise(amountPaise + baseFeePaise + feeGstPaise),
     roles: roles.map((r) => ({
       role: r.role,
       source: r.source,
@@ -141,6 +210,8 @@ function computeSplit(ctx: SplitContext, serviceId: string, providerId: string |
     totalNet: fromPaise(totalNetPaise),
     companyKeeps: fromPaise(company.companyKeepsPaise),
     underwater: company.underwater,
+    providerCosts,
+    companyKeepsAfterCosts: fromPaise(keepsAfterCostsPaise),
     missingRoles: roles.filter((r) => r.source === "none").map((r) => r.role),
   };
 }
@@ -247,17 +318,23 @@ export async function getRateCard(opts?: { providerId?: string | null }) {
     .where(eq(services.isActive, true))
     .orderBy(asc(serviceCategories.displayOrder), asc(services.displayOrder));
 
-  const [cfg, charges, taxes] = await Promise.all([
+  const [cfg, charges, taxes, tenantTax, providerRows] = await Promise.all([
     loadRateConfig(null, now),
     loadCharges(tenantId, null, now),
     Promise.all(serviceRows.map((s) => resolveTaxForService(tenantId, s.id, now))),
+    getTenantTaxDefaults(tenantId, now),
+    db
+      .select({ id: providers.id, code: providers.code, name: providers.name })
+      .from(providers)
+      .orderBy(asc(providers.name)),
   ]);
 
   const inScope = (r: { providerId: string | null }) => r.providerId === null || r.providerId === providerId;
 
   const rows = serviceRows.map((s, i) => {
     const tax = taxes[i]!;
-    const ctx: SplitContext = { cfg, charges, tax };
+    const reference = referenceFor({ code: s.code, name: s.name });
+    const ctx: SplitContext = { cfg, charges, tax, tenantTax, costs: reference?.costs ?? [] };
     const service = {
       minAmount: s.minAmount != null ? String(s.minAmount) : null,
       maxAmount: s.maxAmount != null ? String(s.maxAmount) : null,
@@ -326,12 +403,17 @@ export async function getRateCard(opts?: { providerId?: string | null }) {
         minAmount: c.minAmount,
         maxAmount: c.maxAmount,
       })),
-      tax: {
-        tdsApplies: tax.tdsApplies,
-        tdsPercent: tax.tdsPercent,
-        gstOnFeeApplies: tax.gstOnFeeApplies,
-        gstOnFeePercent: tax.gstOnFeePercent,
-      },
+      fixedRules: fixedRules.map((r) => ({
+        id: r.id,
+        providerId: r.providerId,
+        role: r.role,
+        ruleType: r.ruleType,
+        value: r.value,
+        minAmount: r.minAmount,
+        maxAmount: r.maxAmount,
+      })),
+      tax: taxView(tax),
+      reference,
       slabs: slabBounds.map((b) => ({
         minAmount: b.minAmount,
         maxAmount: b.maxAmount,
@@ -341,7 +423,13 @@ export async function getRateCard(opts?: { providerId?: string | null }) {
     };
   });
 
-  return { providerId, at: now.toISOString(), services: rows };
+  return {
+    providerId,
+    at: now.toISOString(),
+    providers: providerRows,
+    tenantTax: tenantTaxView(tenantTax),
+    services: rows,
+  };
 }
 
 /** POST /admin/rate-card/preview — role-default split for one amount (no per-agent overrides). */
@@ -353,22 +441,24 @@ export async function previewRateCard(input: { serviceId: string; amount: string
   const now = new Date();
   const tenantId = await resolveTenantId();
 
-  const [cfg, charges, tax] = await Promise.all([
+  const [cfg, charges, tax, tenantTax, [svc]] = await Promise.all([
     loadRateConfig([input.serviceId], now),
     loadCharges(tenantId, [input.serviceId], now),
     resolveTaxForService(tenantId, input.serviceId, now),
+    getTenantTaxDefaults(tenantId, now),
+    db.select({ code: services.code, name: services.name }).from(services).where(eq(services.id, input.serviceId)).limit(1),
   ]);
+  const costs = svc ? (referenceFor(svc)?.costs ?? []) : [];
 
   return {
     serviceId: input.serviceId,
     providerId,
-    tax: {
-      tdsApplies: tax.tdsApplies,
-      tdsPercent: tax.tdsPercent,
-      gstOnFeeApplies: tax.gstOnFeeApplies,
-      gstOnFeePercent: tax.gstOnFeePercent,
+    tax: taxView(tax),
+    providerTax: {
+      outputGstPercent: tenantTax.providerOutputGstPercent,
+      tdsPercent: tenantTax.providerTdsPercent,
     },
-    ...computeSplit({ cfg, charges, tax }, input.serviceId, providerId, amountPaise),
+    ...computeSplit({ cfg, charges, tax, tenantTax, costs }, input.serviceId, providerId, amountPaise),
   };
 }
 

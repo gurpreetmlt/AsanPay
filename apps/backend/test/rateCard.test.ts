@@ -7,7 +7,9 @@ import {
   inSlab,
   percentOfPaiseHalfUp,
   pickRow,
+  providerReceivablePaise,
   resolveRoleGross,
+  splitFeeGstPaise,
 } from "../src/modules/commission/rateCard.math";
 
 const at = (iso: string) => new Date(iso);
@@ -144,6 +146,38 @@ describe("company keeps", () => {
     expect(companyKeepsPaise({ providerIncomePaise: null, customerFeePaise: 1000, totalGrossPaise: 1200 })).toEqual({
       companyKeepsPaise: -200,
       underwater: true,
+    });
+  });
+});
+
+describe("GST on customer fee", () => {
+  const on = { applies: true, percent: "18.0000" };
+
+  it("on top: GST added to the fee (floor, same as the live debit)", () => {
+    expect(splitFeeGstPaise(1000, { ...on, inclusive: false })).toEqual({ baseFeePaise: 1000, gstPaise: 180 });
+    expect(splitFeeGstPaise(1001, { ...on, inclusive: false })).toEqual({ baseFeePaise: 1001, gstPaise: 180 });
+  });
+
+  it("included: GST = fee − fee ÷ 1.18, base + GST = fee", () => {
+    expect(splitFeeGstPaise(1000, { ...on, inclusive: true })).toEqual({ baseFeePaise: 847, gstPaise: 153 });
+    expect(splitFeeGstPaise(1180, { ...on, inclusive: true })).toEqual({ baseFeePaise: 1000, gstPaise: 180 });
+  });
+
+  it("off or zero fee → no GST", () => {
+    expect(splitFeeGstPaise(1000, { applies: false, percent: "18", inclusive: true })).toEqual({
+      baseFeePaise: 1000,
+      gstPaise: 0,
+    });
+    expect(splitFeeGstPaise(0, { ...on, inclusive: false })).toEqual({ baseFeePaise: 0, gstPaise: 0 });
+  });
+});
+
+describe("provider receivable", () => {
+  it("income + 18% GST − 2% TDS", () => {
+    expect(providerReceivablePaise(1000, { outputGstPercent: "18", tdsPercent: "2" })).toEqual({
+      gstPaise: 180,
+      tdsPaise: 20,
+      netPaise: 1160,
     });
   });
 });

@@ -824,20 +824,22 @@ function AepsPageInner() {
     return "XXXX XXXX " + digits.slice(-4);
   }
 
-  if ((onboardingPending && !onboardingSkipped) || (!onboardingPending && agentAuthReady === null)) {
+  if ((onboardingPending && !onboardingSkipped) || agentAuthReady === null) {
     return (
       <AppShell>
         <div className="mx-auto flex max-w-xl flex-col items-center gap-3 p-10">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
           <p className="text-sm font-medium text-gray-500">
-            {onboardingPending ? "Opening AEPS onboarding…" : "Checking today\u2019s AePS verification…"}
+            {onboardingPending && !onboardingSkipped
+              ? "Opening AEPS onboarding…"
+              : "Checking today\u2019s AePS verification…"}
           </p>
         </div>
       </AppShell>
     );
   }
 
-  if (!agentAuthReady && !onboardingPending) {
+  if (!agentAuthReady) {
     return (
       <AppShell>
         <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6">
@@ -859,10 +861,12 @@ function AepsPageInner() {
             </div>
           </div>
 
-          <PhoneLocationBar />
+          {onboardingPending ? <OnboardingPendingBanner next="/aeps" /> : <PhoneLocationBar />}
 
           <DailyVerifyCard
             service="AePS"
+            onboardingPending={onboardingPending}
+            onCompleteOnboarding={() => router.push(`/onboarding/aeps-agent?next=${encodeURIComponent("/aeps")}`)}
             continueLabel={isAadhaarPay ? "Continue to Aadhaar Pay" : "Continue to AePS"}
             kycReady={agentAuthKycReady}
             aadhaarLastFour={agentAadhaarLastFour}
@@ -931,6 +935,8 @@ function AepsPageInner() {
             scannerLooking={rdStatus === "looking"}
             onRetryScanner={() => void retryRdWarm()}
             onChangeDevice={() => setDeviceSidebarOpen(true)}
+            kycReady={agentAuthKycReady}
+            aadhaarLastFour={agentAadhaarLastFour}
           />
         ) : null}
 

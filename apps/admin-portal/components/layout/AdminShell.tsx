@@ -29,6 +29,7 @@ import {
   Settings,
   ShieldAlert,
   Store,
+  TableProperties,
   Tags,
   Trash2,
   Wrench,
@@ -110,6 +111,7 @@ const TAX_COMMISSION: NavItem[] = [
     label: "Tax & Commission",
     icon: { lib: "lucide", icon: Percent },
     children: [
+      { href: "/tax-commission/rate-card", label: "Rate card", icon: { lib: "lucide", icon: TableProperties } },
       {
         href: "/tax-commission",
         label: "Overview",

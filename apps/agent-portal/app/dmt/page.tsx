@@ -792,20 +792,22 @@ export default function DmtPage() {
 
   /* ── Loading / agent auth gates ──────────────────────────────────── */
 
-  if ((onboardingPending && !onboardingSkipped) || (!onboardingPending && agentAuthReady === null)) {
+  if ((onboardingPending && !onboardingSkipped) || agentAuthReady === null) {
     return (
       <AppShell>
         <div className="mx-auto flex max-w-xl flex-col items-center gap-3 p-10">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
           <p className="text-sm font-medium text-gray-500">
-            {onboardingPending ? "Opening AEPS onboarding…" : "Checking today\u2019s DMT verification…"}
+            {onboardingPending && !onboardingSkipped
+              ? "Opening AEPS onboarding…"
+              : "Checking today\u2019s DMT verification…"}
           </p>
         </div>
       </AppShell>
     );
   }
 
-  if (!agentAuthReady && !onboardingPending) {
+  if (!agentAuthReady) {
     return (
       <AppShell>
         <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6">
@@ -827,8 +829,12 @@ export default function DmtPage() {
             </div>
           </div>
 
+          {onboardingPending ? <OnboardingPendingBanner next="/dmt" /> : null}
+
           <DailyVerifyCard
             service="DMT"
+            onboardingPending={onboardingPending}
+            onCompleteOnboarding={() => router.push(`/onboarding/aeps-agent?next=${encodeURIComponent("/dmt")}`)}
             continueLabel="Continue to Money Transfer"
             kycReady={agentAuthKycReady}
             aadhaarLastFour={agentAadhaarLastFour}

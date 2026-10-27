@@ -57,11 +57,11 @@ const docCheckSchema = z.object({
     .trim()
     .regex(/^([A-Za-z]{5}\d{4}[A-Za-z])?$/, "PAN must be 10 characters like ABCDE1234F")
     .optional(),
-  /** Last 4 digits only — the full Aadhaar number never travels with a photo check. */
+  /** Last 4 digits only — the full Aadhaar number never travels with a photo check. "" = not typed yet. */
   aadhaarLast4: z
     .string()
     .trim()
-    .regex(/^\d{4}$/, "Aadhaar last 4 must be 4 digits")
+    .regex(/^(\d{4})?$/, "Aadhaar last 4 must be 4 digits")
     .optional(),
   /** Newly picked photo: crop + straighten the card first, check the crop, return it as `croppedDataUrl`. */
   autoCrop: z.boolean().optional(),

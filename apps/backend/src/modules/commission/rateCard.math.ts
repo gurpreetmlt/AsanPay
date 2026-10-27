@@ -110,7 +110,36 @@ export function resolveRoleGross(input: {
   return { source: "none", grossPaise: 0 };
 }
 
-/** Company keeps provider income + customer fee (GST on the fee is collected on top) − role gross. */
+/**
+ * Customer fee → base fee + GST on it.
+ * On top: the configured fee is the base, GST = fee × % (floor — the live debit always used this).
+ * Inclusive: the configured fee already holds GST, base = fee ÷ (1 + %) half-up, GST = fee − base.
+ */
+export function splitFeeGstPaise(
+  feePaise: number,
+  cfg: { applies: boolean; percent: string; inclusive: boolean },
+): { baseFeePaise: number; gstPaise: number } {
+  const scaled = percentToScaled(cfg.percent);
+  if (!cfg.applies || feePaise <= 0 || scaled <= 0) return { baseFeePaise: Math.max(0, feePaise), gstPaise: 0 };
+  if (!cfg.inclusive) {
+    return { baseFeePaise: feePaise, gstPaise: Math.floor((feePaise * scaled) / 1_000_000) };
+  }
+  const divisor = 1_000_000 + scaled;
+  const baseFeePaise = Math.floor((feePaise * 2_000_000 + divisor) / (2 * divisor));
+  return { baseFeePaise, gstPaise: feePaise - baseFeePaise };
+}
+
+/** What the provider actually transfers: income + GST we bill it − TDS it deducts (both half-up). */
+export function providerReceivablePaise(
+  providerIncomePaise: number,
+  cfg: { outputGstPercent: string; tdsPercent: string },
+): { gstPaise: number; tdsPaise: number; netPaise: number } {
+  const gstPaise = percentOfPaiseHalfUp(providerIncomePaise, cfg.outputGstPercent);
+  const tdsPaise = percentOfPaiseHalfUp(providerIncomePaise, cfg.tdsPercent);
+  return { gstPaise, tdsPaise, netPaise: providerIncomePaise + gstPaise - tdsPaise };
+}
+
+/** Company keeps provider income + customer fee (excluding GST on the fee) − role gross. */
 export function companyKeepsPaise(input: {
   providerIncomePaise: number | null;
   customerFeePaise: number;

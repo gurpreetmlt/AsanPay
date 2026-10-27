@@ -184,6 +184,14 @@ export const taxServiceConfigs = pgTable(
     tdsPercent: numeric("tds_percent", { precision: 10, scale: 4 }).notNull().default("2.0000"),
     gstOnFeeApplies: boolean("gst_on_fee_applies").notNull().default(false),
     gstOnFeePercent: numeric("gst_on_fee_percent", { precision: 10, scale: 4 }).notNull().default("18.0000"),
+    /** false = GST added on top of the fee; true = fee already includes GST (GST = fee − fee ÷ 1.18). */
+    gstOnFeeInclusive: boolean("gst_on_fee_inclusive").notNull().default(false),
+    /** Provider side, read from the tenant default row only: GST billed to the provider on its payout. */
+    providerOutputGstPercent: numeric("provider_output_gst_percent", { precision: 10, scale: 4 })
+      .notNull()
+      .default("18.0000"),
+    /** Provider side, tenant default row only: TDS the provider deducts from its payout. */
+    providerTdsPercent: numeric("provider_tds_percent", { precision: 10, scale: 4 }).notNull().default("2.0000"),
     effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull().defaultNow(),
     effectiveTo: timestamp("effective_to", { withTimezone: true }),
     isActive: boolean("is_active").notNull().default(true),
@@ -286,7 +294,7 @@ export const commissionRateChangeEvents = pgTable(
     adminId: uuid("admin_id")
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
-    /** `rule` (commission_rules) | `override` (user_commission_rates) | `share` | `provider_income` */
+    /** `rule` (commission_rules) | `override` (user_commission_rates) | `share` | `provider_income` | `tax_config` */
     entityType: varchar("entity_type", { length: 20 }).notNull(),
     entityId: uuid("entity_id").notNull(),
     userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
