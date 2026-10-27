@@ -1,4 +1,8 @@
 import { z } from "zod";
+import { and, eq, ne } from "drizzle-orm";
+import { formatPanName } from "@asanpay/shared-types";
+import { db } from "../../db/postgres";
+import { users } from "../../db/postgres/schema";
 import { bestApiConfigured, bestApiPost, type BestApiJson } from "../providers/bestapi/client";
 import { HttpError } from "../../utils/httpError";
 import { logger } from "../../utils/logger";
@@ -175,6 +179,14 @@ async function runPanVerify(userId: string, panNumber: string): Promise<PanVerif
       category: category ?? null,
     },
   });
+
+  // Signup no longer asks for a name — the account takes the PAN name as soon as it is verified.
+  if (fullName) {
+    await db
+      .update(users)
+      .set({ name: formatPanName(fullName).slice(0, 120), updatedAt: new Date() })
+      .where(and(eq(users.id, userId), ne(users.kycStatus, "verified")));
+  }
 
   return {
     verified: true,

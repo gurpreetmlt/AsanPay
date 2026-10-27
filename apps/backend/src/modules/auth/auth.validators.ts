@@ -268,11 +268,11 @@ export const signupVerifySchema = z.object({
 });
 export type SignupVerifyInput = z.infer<typeof signupVerifySchema>;
 
-/** After OTP — role, name, password, upline. */
+/** After OTP — role, password, upline. Name is optional: it comes from the PAN on the next step. */
 export const signupCompleteSchema = z
   .object({
     signupToken: z.string().trim().min(20).max(200),
-    name: z.string().trim().min(2).max(120),
+    name: z.string().trim().min(2).max(120).optional(),
     mobile: mobileSchema,
     sponsorUid: z.string().trim().min(6).max(20).optional(),
     inviteToken: z.string().trim().min(20).max(100).optional(),

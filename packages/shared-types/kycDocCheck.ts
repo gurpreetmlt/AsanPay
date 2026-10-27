@@ -103,6 +103,20 @@ export function formatPanName(name: string): string {
     .replace(/(^|[\s.'-])([a-z])/g, (_, sep: string, ch: string) => sep + ch.toUpperCase());
 }
 
+const PLACEHOLDER_NAME_MARK = " ••";
+
+/**
+ * Account name used from signup until the PAN is verified (the name comes from the PAN),
+ * e.g. "Retailer ••3006".
+ */
+export function signupPlaceholderName(roleLabel: string, mobile: string): string {
+  return `${roleLabel}${PLACEHOLDER_NAME_MARK}${mobile.replace(/\D/g, "").slice(-4)}`;
+}
+
+export function isSignupPlaceholderName(name: string | null | undefined): boolean {
+  return /^[A-Za-z ]+ ••\d{4}$/.test((name ?? "").trim());
+}
+
 /**
  * Form values sent with a photo check so the server can compare them with the card.
  * Only the Aadhaar last 4 digits — never the full number.

@@ -35,6 +35,7 @@ import {
   SIGNUP_POLICY_VERSION,
   kycDocCheckBlocksStep,
   formatPanName,
+  isSignupPlaceholderName,
   kycDocCheckHints,
   kycDocCheckLabel,
   kycDocCheckSlotsForStep,
@@ -728,7 +729,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
           mobile: phone || base.mobile.replace(/\D/g, "").slice(0, 10),
           accountCreated: true,
           signupToken: "",
-          name: base.name.trim() || authUser.name || "",
+          name: base.name.trim() || (isSignupPlaceholderName(authUser.name) ? "" : authUser.name) || "",
           role: (authUser.role as SignupRole) || base.role,
           maxStepReached: resumeAt,
           stepIndex: resumeAt,
@@ -1249,6 +1250,15 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
   }
 
   const nameFromPan = draft.panVerified && Boolean(draft.panVerifiedName.trim());
+  // Photos are checked against these fields, so they must be filled before an upload.
+  const panPhotoLocked =
+    !draft.panVerified || !draft.dob
+      ? "Verify your PAN and enter your date of birth to upload the PAN card photo."
+      : null;
+  const aadhaarPhotoLocked =
+    draft.aadhaar.replace(/\D/g, "").length !== 12
+      ? "Enter your 12-digit Aadhaar number to upload Aadhaar photos."
+      : null;
   const docCheckHints = kycDocCheckHints(draft);
   const docCheckHintKey = JSON.stringify(docCheckHints);
 
@@ -1368,7 +1378,6 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
       if (!draft.termsAccepted) return "Please accept Terms and Conditions";
     }
     if (stepIndex === 1) {
-      if (draft.name.trim().length < 2) return "Full name is required";
       if (!draft.accountCreated) {
         if (!draft.password || draft.password.length < 8) return "Password must be at least 8 characters";
         if (!/[A-Za-z]/.test(draft.password)) return "Password must contain a letter";
@@ -1385,6 +1394,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
     if (stepIndex === 2) {
       if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(draft.pan)) return PAN_FORMAT_ERROR;
       if (!draft.panVerified) return "Verify PAN before continuing";
+      if (draft.name.trim().length < 2) return "Enter your full name exactly as printed on your PAN card";
       if (!draft.gender) return "Select gender";
       if (!draft.dob || !/^\d{4}-\d{2}-\d{2}$/.test(draft.dob)) {
         return "Enter date of birth as DD/MM/YYYY";
@@ -1501,38 +1511,17 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
     }
   }
 
-  async function continueKycFromRoleStep() {
-    if (draft.name.trim().length < 2) {
-      showAlert("Name required", "Full name is required");
-      return;
-    }
-    setLoading(true);
-    try {
-      if (authUser) {
-        const { data } = await api.patch<{
-          success: boolean;
-          data?: { user: AuthUser };
-          message?: string;
-        }>("/auth/profile/pre-kyc", { name: draft.name.trim() });
-        if (data.success && data.data?.user) {
-          useAuthStore.getState().updateUser(data.data.user);
-        }
-      }
-      patch({
-        accountCreated: true,
-        signupToken: "",
-        stepIndex: Math.max(2, draft.maxStepReached ?? 2),
-      });
-    } catch (err) {
-      showAlert("Error", apiError(err, "Could not save name"));
-    } finally {
-      setLoading(false);
-    }
+  function continueKycFromRoleStep() {
+    patch({
+      accountCreated: true,
+      signupToken: "",
+      stepIndex: Math.max(2, draft.maxStepReached ?? 2),
+    });
   }
 
   async function completeAccount() {
     if (draft.accountCreated || authUser) {
-      await continueKycFromRoleStep();
+      continueKycFromRoleStep();
       return;
     }
     if (!draft.signupToken) {
@@ -1553,7 +1542,6 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         ApiResponse<LoginResponse | { pendingApproval: true; user: AuthUser; message: string }>
       >("/auth/signup/complete", {
         signupToken: draft.signupToken,
-        name: draft.name.trim(),
         mobile: draft.mobile.replace(/\D/g, "").slice(0, 10),
         role: draft.role,
         portal: "agent",
@@ -1597,7 +1585,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
   function changePan() {
     panAutoAttemptRef.current = "";
     setPanVerifyFailed(false);
-    patch({ pan: "", panVerified: false, panVerifiedName: "" });
+    patch({ pan: "", panVerified: false, panVerifiedName: "", name: "" });
     setTimeout(() => panInputRef.current?.focus(), 50);
   }
 
@@ -2153,20 +2141,6 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                       </Pressable>
                     ))}
                   </View>
-                  <FieldLabel text="Full Name (As per PAN) *" color={tokens.mute} />
-                  <TextInput
-                    value={draft.name}
-                    onChangeText={(t) => patch({ name: t })}
-                    placeholder="As per PAN card"
-                    placeholderTextColor={tokens.mute}
-                    editable={!nameFromPan}
-                    style={[inputStyle, nameFromPan ? { opacity: 0.7 } : null]}
-                  />
-                  {nameFromPan ? (
-                    <Text style={{ color: tokens.mute, fontSize: 11, marginTop: 6 }}>
-                      Filled from your verified PAN. Change the PAN on the PAN step to edit it.
-                    </Text>
-                  ) : null}
                   {needsUpline ? (
                     <>
                       <FieldLabel text={`${UPLINE_LABEL[draft.role as "retailer" | "distributor"]} *`} color={tokens.mute} />
@@ -2212,40 +2186,43 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                       No upline required for this role.
                     </Text>
                   )}
-                  <FieldLabel
-                    text={draft.accountCreated ? "Password" : "Password *"}
-                    color={tokens.mute}
-                  />
-                  <View style={styles.passwordWrap}>
-                    <TextInput
-                      value={draft.accountCreated ? "********" : draft.password}
-                      onChangeText={(t) => {
-                        if (draft.accountCreated) return;
-                        patch({ password: t });
-                      }}
-                      editable={!draft.accountCreated}
-                      secureTextEntry={!showPassword && !draft.accountCreated}
-                      placeholder="e.g. Test1234"
-                      placeholderTextColor={tokens.mute}
-                      style={[inputStyle, { paddingRight: 44 }, draft.accountCreated ? { opacity: 0.75 } : null]}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                    />
-                    {!draft.accountCreated ? (
-                      <Pressable
-                        onPress={() => setShowPassword((v) => !v)}
-                        style={styles.eyeBtn}
-                        hitSlop={10}
-                        accessibilityLabel={showPassword ? "Hide password" : "Show password"}
-                      >
-                        {showPassword ? <EyeOff size={18} color={tokens.mute} /> : <Eye size={18} color={tokens.mute} />}
-                      </Pressable>
-                    ) : null}
-                  </View>
+                  {draft.accountCreated ? (
+                    <View style={styles.passwordSetRow}>
+                      <CheckCircle2 size={14} color={colors.greenDark} />
+                      <Text style={{ flex: 1, color: colors.greenDark, fontSize: 12, fontWeight: "700" }}>
+                        Password already set. Change it later from Account → Security.
+                      </Text>
+                    </View>
+                  ) : (
+                    <>
+                      <FieldLabel text="Password *" color={tokens.mute} />
+                      <View style={styles.passwordWrap}>
+                        <TextInput
+                          value={draft.password}
+                          onChangeText={(t) => patch({ password: t })}
+                          secureTextEntry={!showPassword}
+                          placeholder="e.g. Test1234"
+                          placeholderTextColor={tokens.mute}
+                          style={[inputStyle, { paddingRight: 44 }]}
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                        />
+                        <Pressable
+                          onPress={() => setShowPassword((v) => !v)}
+                          style={styles.eyeBtn}
+                          hitSlop={10}
+                          accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+                        >
+                          {showPassword ? <EyeOff size={18} color={tokens.mute} /> : <Eye size={18} color={tokens.mute} />}
+                        </Pressable>
+                      </View>
+                      <Text style={[styles.hint, { color: tokens.mute }]}>
+                        Min 8 characters · include a letter and a number (e.g. Test1234)
+                      </Text>
+                    </>
+                  )}
                   <Text style={[styles.hint, { color: tokens.mute }]}>
-                    {draft.accountCreated
-                      ? "Password already set. Change it later from Account → Security."
-                      : "Min 8 characters · include a letter and a number (e.g. Test1234)"}
+                    Your full name is taken from your PAN on the next step.
                   </Text>
                 </>
               )}
@@ -2379,6 +2356,22 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                       optional
                     />
                   </View>
+                  <FieldLabel text="Full Name (As per PAN) *" color={tokens.mute} />
+                  <TextInput
+                    value={draft.name}
+                    onChangeText={(t) => patch({ name: t })}
+                    placeholder={draft.panVerified ? "As printed on your PAN card" : "Filled automatically after PAN verification"}
+                    placeholderTextColor={tokens.mute}
+                    editable={draft.panVerified && !nameFromPan}
+                    style={[inputStyle, !draft.panVerified || nameFromPan ? { opacity: 0.7 } : null]}
+                  />
+                  <Text style={{ color: tokens.mute, fontSize: 11, marginTop: 6 }}>
+                    {nameFromPan
+                      ? "Taken from your verified PAN. Use Change on the PAN number to edit it."
+                      : draft.panVerified
+                        ? "We couldn't fetch the name for this PAN. Enter it exactly as printed on your PAN card."
+                        : "Verify your PAN first"}
+                  </Text>
                   <FieldLabel text="Father Name *" color={tokens.mute} />
                   <TextInput
                     value={draft.fatherName}
@@ -2395,6 +2388,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                     rejectedUri={rejectedPhotos.panImage}
                     stage={docCardStage("panImage")}
                     check={docChecks.panImage}
+                    lockedReason={panPhotoLocked}
                     tokens={tokens}
                     onCamera={() => setCameraSlot("panImage")}
                     onGallery={() => void pickDocImage("panImage", "pan")}
@@ -2528,6 +2522,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                     rejectedUri={rejectedPhotos.aadhaarFront}
                     stage={docCardStage("aadhaarFront")}
                     check={docChecks.aadhaarFront}
+                    lockedReason={aadhaarPhotoLocked}
                     tokens={tokens}
                     onCamera={() => setCameraSlot("aadhaarFront")}
                     onGallery={() => void pickDocImage("aadhaarFront", "aadhaar-front")}
@@ -2542,6 +2537,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                     rejectedUri={rejectedPhotos.aadhaarBack}
                     stage={docCardStage("aadhaarBack")}
                     check={docChecks.aadhaarBack}
+                    lockedReason={aadhaarPhotoLocked}
                     tokens={tokens}
                     onCamera={() => setCameraSlot("aadhaarBack")}
                     onGallery={() => void pickDocImage("aadhaarBack", "aadhaar-back")}
@@ -3210,6 +3206,16 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   passwordWrap: { position: "relative", justifyContent: "center" },
+  passwordSetRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 12,
+    backgroundColor: "#ECFDF3",
+  },
   eyeBtn: {
     position: "absolute",
     right: 12,

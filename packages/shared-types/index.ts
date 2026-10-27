@@ -483,6 +483,8 @@ export {
   kycDocCheckBlocksStep,
   kycDocCheckHints,
   formatPanName,
+  isSignupPlaceholderName,
+  signupPlaceholderName,
   kycDocCheckSlotsForStep,
   kycDocCheckLabel,
   kycDocCheckToUi,

@@ -10,6 +10,7 @@ import {
   SIGNUP_POLICY_VERSION,
   kycDocCheckBlocksStep,
   formatPanName,
+  isSignupPlaceholderName,
   kycDocCheckHints,
   kycDocCheckLabel,
   kycDocCheckSlotsForStep,
@@ -696,7 +697,7 @@ function SignupPageInner() {
         mobile: phone || base.mobile.replace(/\D/g, "").slice(0, 10),
         accountCreated: true,
         signupToken: "",
-        name: base.name.trim() || user.name || "",
+        name: base.name.trim() || (isSignupPlaceholderName(user.name) ? "" : user.name) || "",
         // Never change role on Continue KYC — keep the existing account role.
         role: (user.role as SignupRole) || base.role,
         maxStepReached: Math.max(resumeAt, requested ?? 0),
@@ -1220,6 +1221,15 @@ function SignupPageInner() {
   }
 
   const nameFromPan = draft.panVerified && Boolean(draft.panVerifiedName.trim());
+  // Photos are checked against these fields, so they must be filled before an upload.
+  const panPhotoLocked =
+    !draft.panVerified || !draft.dob
+      ? "Verify your PAN and enter your date of birth to upload the PAN card photo."
+      : null;
+  const aadhaarPhotoLocked =
+    draft.aadhaar.replace(/\D/g, "").length !== 12
+      ? "Enter your 12-digit Aadhaar number to upload Aadhaar photos."
+      : null;
   const docCheckHints = kycDocCheckHints(draft);
   const docCheckHintKey = JSON.stringify(docCheckHints);
 
@@ -1241,7 +1251,6 @@ function SignupPageInner() {
       if (!draft.termsAccepted) return "Please accept Terms and Conditions";
     }
     if (stepIndex === 1) {
-      if (draft.name.trim().length < 2) return "Full name is required";
       // Account already exists (Continue KYC) — password / upline already set.
       if (!(draft.accountCreated || loggedInContinue)) {
         if (!draft.password || draft.password.length < 8) return "Password must be at least 8 characters";
@@ -1255,6 +1264,7 @@ function SignupPageInner() {
     if (stepIndex === 2) {
       if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(draft.pan)) return PAN_FORMAT_ERROR;
       if (!draft.panVerified) return "Verify PAN before continuing";
+      if (draft.name.trim().length < 2) return "Enter your full name exactly as printed on your PAN card";
       if (!draft.gender) return "Select gender";
       if (!draft.dob) return "Date of birth is required";
       if (!draft.fatherName.trim()) return "Father name is required";
@@ -1376,39 +1386,19 @@ function SignupPageInner() {
     }
   }
 
-  async function continueKycFromRoleStep() {
-    if (draft.name.trim().length < 2) {
-      toast.error("Full name is required");
-      return;
-    }
-    setLoading(true);
-    try {
-      if (accessToken) {
-        const { data } = await api.patch<ApiResponse<{ user: AuthUser }>>("/auth/profile/pre-kyc", {
-          name: draft.name.trim(),
-        });
-        if (!data.success) throw new Error(data.message);
-        if (data.data?.user) {
-          useAuthStore.getState().setUser(data.data.user);
-        }
-      }
-      patch({
-        accountCreated: true,
-        signupToken: "",
-        // After editing Role/Name, return to furthest KYC step (not always PAN).
-        stepIndex: Math.max(2, draft.maxStepReached ?? 2),
-      });
-    } catch (err) {
-      toast.error(extractApiError(err, "Could not save name"));
-    } finally {
-      setLoading(false);
-    }
+  function continueKycFromRoleStep() {
+    patch({
+      accountCreated: true,
+      signupToken: "",
+      // Return to the furthest KYC step reached (not always PAN).
+      stepIndex: Math.max(2, draft.maxStepReached ?? 2),
+    });
   }
 
   async function completeAccount() {
     // Already logged in / account exists — never bounce back to mobile OTP.
     if (loggedInContinue || draft.accountCreated || accessToken) {
-      await continueKycFromRoleStep();
+      continueKycFromRoleStep();
       return;
     }
     if (!draft.signupToken) {
@@ -1422,7 +1412,6 @@ function SignupPageInner() {
         ApiResponse<SessionData | { pendingApproval: true; user: AuthUser; message: string }>
       >("/auth/signup/complete", {
         signupToken: draft.signupToken,
-        name: draft.name.trim(),
         mobile: draft.mobile.replace(/\D/g, "").slice(0, 10),
         role: draft.role,
         portal: "agent",
@@ -1535,7 +1524,7 @@ function SignupPageInner() {
   function changePan() {
     panAutoAttemptRef.current = "";
     setPanVerifyFailed(false);
-    patch({ pan: "", panVerified: false, panVerifiedName: "" });
+    patch({ pan: "", panVerified: false, panVerifiedName: "", name: "" });
     window.setTimeout(() => panInputRef.current?.focus(), 0);
   }
 
@@ -2078,21 +2067,6 @@ function SignupPageInner() {
                     ))}
                   </select>
                 </Field>
-                <Field label="Full Name (As per PAN) *">
-                  <input
-                    value={draft.name}
-                    onChange={(e) => patch({ name: e.target.value })}
-                    className={inputCls}
-                    style={inputStyle}
-                    placeholder="As per PAN card"
-                    disabled={nameFromPan}
-                  />
-                  {nameFromPan ? (
-                    <p className="mt-1.5 text-[11px]" style={{ color: B.muted }}>
-                      Filled from your verified PAN. Change the PAN on the PAN step to edit it.
-                    </p>
-                  ) : null}
-                </Field>
                 {needsUpline ? (
                   <Field label={`${UPLINE_LABEL[draft.role as "retailer" | "distributor"]} *`}>
                     <input
@@ -2149,21 +2123,25 @@ function SignupPageInner() {
                     No upline required for this role.
                   </p>
                 ) : null}
-                <Field label={draft.accountCreated || loggedInContinue ? "Password" : "Password *"}>
+                {draft.accountCreated || loggedInContinue ? (
+                  <p
+                    className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold"
+                    style={{ background: "#ECFDF3", color: "#166534" }}
+                  >
+                    <CheckCircle2 size={14} className="shrink-0" />
+                    Password already set. Change it later from Settings → Security.
+                  </p>
+                ) : (
+                <Field label="Password *">
                   <div className="relative">
                     <input
                       type={showPassword ? "text" : "password"}
-                      value={draft.accountCreated || loggedInContinue ? "********" : draft.password}
-                      onChange={(e) => {
-                        if (draft.accountCreated || loggedInContinue) return;
-                        patch({ password: e.target.value });
-                      }}
+                      value={draft.password}
+                      onChange={(e) => patch({ password: e.target.value })}
                       className={`${inputCls} pr-12`}
                       style={inputStyle}
                       placeholder="e.g. Test1234"
                       autoComplete="new-password"
-                      readOnly={draft.accountCreated || loggedInContinue}
-                      disabled={draft.accountCreated || loggedInContinue}
                     />
                     <button
                       type="button"
@@ -2172,17 +2150,18 @@ function SignupPageInner() {
                       style={{ color: B.muted }}
                       aria-label={showPassword ? "Hide password" : "Show password"}
                       data-tooltip={showPassword ? "Hide password" : "Show password"}
-                      disabled={draft.accountCreated || loggedInContinue}
                     >
                       {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
                   </div>
                   <p className="mt-1 text-xs" style={{ color: B.muted }}>
-                    {draft.accountCreated || loggedInContinue
-                      ? "Password already set for this account. Change it later from Settings → Security."
-                      : "Min 8 characters · include a letter and a number (e.g. Test1234)"}
+                    Min 8 characters · include a letter and a number (e.g. Test1234)
                   </p>
                 </Field>
+                )}
+                <p className="text-xs" style={{ color: B.muted }}>
+                  Your full name is taken from your PAN on the next step.
+                </p>
               </>
             )}
 
@@ -2310,6 +2289,23 @@ function SignupPageInner() {
                     </p>
                   </Field>
                 </div>
+                <Field label="Full Name (As per PAN) *">
+                  <input
+                    value={draft.name}
+                    onChange={(e) => patch({ name: e.target.value })}
+                    className={inputCls}
+                    style={inputStyle}
+                    placeholder={draft.panVerified ? "As printed on your PAN card" : "Filled automatically after PAN verification"}
+                    disabled={!draft.panVerified || nameFromPan}
+                  />
+                  <p className="mt-1 text-xs" style={{ color: B.muted }}>
+                    {nameFromPan
+                      ? "Taken from your verified PAN. Use Change on the PAN number to edit it."
+                      : draft.panVerified
+                        ? "We couldn't fetch the name for this PAN. Enter it exactly as printed on your PAN card."
+                        : "Verify your PAN first"}
+                  </p>
+                </Field>
                 <Field label="Father Name *">
                   <input
                     value={draft.fatherName}
@@ -2328,6 +2324,7 @@ function SignupPageInner() {
                   stage={docCardStage("panImage")}
                   check={docChecks.panImage}
                   missing={stepErrorKey === "panImage"}
+                  lockedReason={panPhotoLocked}
                   onPick={(f) => void pickDocPhoto("panImage", f)}
                   onAdjust={() => adjustDocCrop("panImage")}
                   onRemove={() => clearFile("panImage")}
@@ -2447,6 +2444,7 @@ function SignupPageInner() {
                     stage={docCardStage("aadhaarFront")}
                     check={docChecks.aadhaarFront}
                     missing={stepErrorKey === "aadhaarFront"}
+                    lockedReason={aadhaarPhotoLocked}
                     onPick={(f) => void pickDocPhoto("aadhaarFront", f)}
                     onAdjust={() => adjustDocCrop("aadhaarFront")}
                     onRemove={() => clearFile("aadhaarFront")}
@@ -2460,6 +2458,7 @@ function SignupPageInner() {
                     stage={docCardStage("aadhaarBack")}
                     check={docChecks.aadhaarBack}
                     missing={stepErrorKey === "aadhaarBack"}
+                    lockedReason={aadhaarPhotoLocked}
                     onPick={(f) => void pickDocPhoto("aadhaarBack", f)}
                     onAdjust={() => adjustDocCrop("aadhaarBack")}
                     onRemove={() => clearFile("aadhaarBack")}

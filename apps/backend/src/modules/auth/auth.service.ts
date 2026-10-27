@@ -54,6 +54,7 @@ import {
   POLICY_VERSION,
   ROLE_LABELS,
   SIGNUP_POLICY_VERSION,
+  signupPlaceholderName,
 } from "@asanpay/shared-types";
 import { deliverAuthOtp } from "../telegram/link.service";
 import { assertInviteForSignup, markInviteAccepted } from "../invites/invite.service";
@@ -1857,7 +1858,7 @@ export async function completeSignup(
   const user = await registerUser(
     { id: sponsor.id, role: sponsor.role },
     {
-      name: input.name.trim(),
+      name: input.name?.trim() || signupPlaceholderName(ROLE_LABELS[childRole], input.mobile),
       mobile: input.mobile,
       password,
       role: childRole,

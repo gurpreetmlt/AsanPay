@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { AlertTriangle, ChevronDown, Crop, CreditCard, ImagePlus, Loader2, ShieldCheck, Trash2, XCircle } from "lucide-react";
+import { AlertTriangle, ChevronDown, Crop, CreditCard, ImagePlus, Loader2, Lock, ShieldCheck, Trash2, XCircle } from "lucide-react";
 import type { KycDocCheckUi } from "@asanpay/shared-types";
 import { B } from "@/lib/brand";
 
@@ -25,6 +25,7 @@ export function KycCardUpload({
   stage,
   check,
   missing,
+  lockedReason,
   onPick,
   onAdjust,
   onRemove,
@@ -41,6 +42,8 @@ export function KycCardUpload({
   check?: KycDocCheckUi;
   /** Required and still empty after Continue */
   missing?: boolean;
+  /** Set while the fields this photo is checked against are still empty — upload is blocked. */
+  lockedReason?: string | null;
   onPick: (file: File) => void;
   onAdjust: () => void;
   onRemove: () => void;
@@ -52,6 +55,7 @@ export function KycCardUpload({
   const busy = stage !== null;
   const failed = check?.state === "fail";
   const hasPhoto = Boolean(previewUrl) && !failed;
+  const locked = Boolean(lockedReason) && !hasPhoto && !failed && !busy;
 
   useEffect(() => {
     setSlowCheck(false);
@@ -92,14 +96,14 @@ export function KycCardUpload({
         }}
         onDragOver={(e) => {
           e.preventDefault();
-          if (!busy) setDragging(true);
+          if (!busy && !locked) setDragging(true);
         }}
         onDragLeave={() => setDragging(false)}
         onDrop={(e) => {
           e.preventDefault();
           setDragging(false);
           const f = e.dataTransfer.files?.[0];
-          if (f && !busy) onPick(f);
+          if (f && !busy && !locked) onPick(f);
         }}
       >
         {previewUrl && !failed ? (
@@ -176,6 +180,18 @@ export function KycCardUpload({
               </label>
             </div>
           </>
+        ) : locked ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl" style={{ background: B.secondary, color: B.muted }}>
+              <Lock size={22} />
+            </span>
+            <p className="text-base font-semibold" style={{ color: B.muted }}>
+              Upload {title}
+            </p>
+            <p className="max-w-[24rem] text-xs font-semibold" style={{ color: B.muted }}>
+              {lockedReason}
+            </p>
+          </div>
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center">
             <span className="flex h-12 w-12 items-center justify-center rounded-2xl" style={{ background: B.secondary, color: B.blueLight }}>

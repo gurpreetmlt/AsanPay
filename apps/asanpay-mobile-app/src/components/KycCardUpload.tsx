@@ -7,6 +7,7 @@ import {
   CreditCard,
   Crop,
   Image as ImageIcon,
+  Lock,
   ShieldCheck,
   Trash2,
   XCircle,
@@ -35,6 +36,7 @@ export function KycCardUpload({
   stage,
   check,
   missing,
+  lockedReason,
   tokens,
   onCamera,
   onGallery,
@@ -50,6 +52,8 @@ export function KycCardUpload({
   stage: KycCardStage;
   check?: KycDocCheckUi;
   missing?: boolean;
+  /** Set while the fields this photo is checked against are still empty — upload is blocked. */
+  lockedReason?: string | null;
   tokens: Tokens;
   onCamera: () => void;
   onGallery: () => void;
@@ -59,6 +63,7 @@ export function KycCardUpload({
   const busy = stage !== null;
   const failed = check?.state === "fail";
   const hasPhoto = Boolean(previewUri) && !failed;
+  const locked = Boolean(lockedReason) && !hasPhoto && !failed && !busy;
   const [slowCheck, setSlowCheck] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [boxHeight, setBoxHeight] = useState(0);
@@ -179,6 +184,14 @@ export function KycCardUpload({
               </View>
             </View>
           </>
+        ) : locked ? (
+          <View style={[st.center, { paddingHorizontal: 14 }]}>
+            <View style={[st.iconTile, { backgroundColor: "#E8EEFF" }]}>
+              <Lock size={22} color={tokens.mute} />
+            </View>
+            <Text style={[st.emptyTitle, { color: tokens.mute }]}>Upload {title}</Text>
+            <Text style={[st.emptyHint, { color: tokens.mute, fontWeight: "600" }]}>{lockedReason}</Text>
+          </View>
         ) : (
           <View style={[st.center, { paddingHorizontal: 14 }]}>
             <View style={[st.iconTile, { backgroundColor: "#E8EEFF" }]}>
