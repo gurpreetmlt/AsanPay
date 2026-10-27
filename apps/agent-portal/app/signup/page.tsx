@@ -9,6 +9,7 @@ import {
   PAN_FORMAT_ERROR,
   SIGNUP_POLICY_VERSION,
   kycDocCheckBlocksStep,
+  kycDocCheckRunningOnStep,
   formatPanName,
   isSignupPlaceholderName,
   kycDocCheckHints,
@@ -617,6 +618,8 @@ function SignupPageInner() {
   const [docChecks, setDocChecks] = useState<Partial<Record<KycDocCheckSlot, KycDocCheckUi>>>({});
   /** Latest check per field — stale responses (photo re-picked / removed) are ignored. */
   const docCheckSeqRef = useRef<Partial<Record<KycDocCheckSlot, number>>>({});
+  /** Continue was pressed while a photo on this step was still being checked. */
+  const [continueAfterCheck, setContinueAfterCheck] = useState(false);
   const [cropTarget, setCropTarget] = useState<{ slot: KycDocCheckSlot; src: string; name: string } | null>(null);
   /** Photo as picked (≤ 1600 px), kept in memory so "Adjust crop" can re-crop from the full photo. */
   const [docOriginals, setDocOriginals] = useState<Partial<Record<KycDocCheckSlot, string>>>({});
@@ -1049,7 +1052,7 @@ function SignupPageInner() {
       return;
     }
     // One call: the server crops + straightens the card and checks the crop; the box shows the
-    // picked photo faded under the scan line until the cropped card comes back.
+    // picked photo with a "Checking…" pill until the cropped card comes back.
     applyDocPhoto(slot, original, file.name, { check: false });
     void runDocCheck(slot, original, { autoCrop: true, fileName: file.name });
   }
@@ -1230,6 +1233,14 @@ function SignupPageInner() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftReady, accessToken, stepIndex, docCheckHintKey]);
+
+  // Continue pressed during a check: once it finishes, continue — or stay so the result shows.
+  useEffect(() => {
+    if (!continueAfterCheck || kycDocCheckRunningOnStep(docChecks, stepIndex)) return;
+    setContinueAfterCheck(false);
+    if (!kycDocCheckSlotsForStep(stepIndex).some((slot) => kycDocCheckBlocksStep(docChecks[slot]))) next();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [continueAfterCheck, docChecks, stepIndex]);
 
   function validateStep(): string | null {
     if (stepIndex === 0) {
@@ -1739,6 +1750,10 @@ function SignupPageInner() {
   }
 
   function next() {
+    if (kycDocCheckRunningOnStep(docChecks, stepIndex)) {
+      setContinueAfterCheck(true);
+      return;
+    }
     const err = validateStep();
     if (err) {
       toast.error(err);
@@ -1833,6 +1848,7 @@ function SignupPageInner() {
   }
 
   function back() {
+    setContinueAfterCheck(false);
     if (stepIndex === 0 && otpSent) {
       setOtpSent(false);
       setOtp("");
@@ -1857,17 +1873,19 @@ function SignupPageInner() {
   const primaryLabel =
     loading
       ? "Please wait…"
-      : stepIndex === 0
-        ? otpSent
-          ? "Verify OTP"
-          : "Send OTP"
-        : stepIndex === 1
-          ? draft.accountCreated || loggedInContinue
-            ? "Continue"
-            : "Create account"
-          : stepIndex === 8
-            ? "Submit"
-            : "Continue";
+      : continueAfterCheck
+        ? "Checking photo…"
+        : stepIndex === 0
+          ? otpSent
+            ? "Verify OTP"
+            : "Send OTP"
+          : stepIndex === 1
+            ? draft.accountCreated || loggedInContinue
+              ? "Continue"
+              : "Create account"
+            : stepIndex === 8
+              ? "Submit"
+              : "Continue";
 
   return (
     <div className="min-h-screen px-4 py-6 sm:px-6 sm:py-8" style={{ background: B.bg }}>
@@ -2803,6 +2821,7 @@ function SignupPageInner() {
                 type="button"
                 onClick={next}
                 loading={loading}
+                aria-busy={continueAfterCheck}
                 disabled={
                   Boolean(mobileError) ||
                   (stepIndex === 0 && otpSent && otp.length !== 6) ||
@@ -2816,9 +2835,17 @@ function SignupPageInner() {
                       kycDocCheckBlocksStep(docChecks.aadhaarBack)))
                 }
                 loopGlow={stepIndex === 0}
+                showArrow={!continueAfterCheck}
                 className="!w-auto min-w-0 flex-[2]"
               >
-                {primaryLabel}
+                {continueAfterCheck ? (
+                  <>
+                    <Loader2 size={16} className="motion-safe:animate-spin" aria-hidden />
+                    {primaryLabel}
+                  </>
+                ) : (
+                  primaryLabel
+                )}
               </PrimaryButton>
             </div>
 

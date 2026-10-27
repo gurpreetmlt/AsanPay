@@ -23,7 +23,7 @@ import {
   type DocType,
 } from "./docText";
 import { escalateDifferentPerson } from "./identityRules";
-import { checkImageQuality, ocrReadyPng, type OcrVariant } from "./imageQuality";
+import { checkImageQuality, ocrReadyPng, ocrWorkingCopy, type OcrVariant } from "./imageQuality";
 import { ocrImage, type OcrMode } from "./ocr";
 import { alignCard } from "./cardAlign";
 
@@ -295,24 +295,40 @@ const OCR_PASSES: { variant: OcrVariant; mode: OcrMode }[] = [
   { variant: "bw", mode: "auto" },
 ];
 
+/** Per-phase timings for the "KYC doc check" log line (ms). */
+type DocCheckPhases = { cropMs?: number; qualityMs?: number; qrMs?: number; ocrMs?: number };
+
+async function timed<T>(phases: DocCheckPhases, key: keyof DocCheckPhases, work: Promise<T>): Promise<T> {
+  const t = Date.now();
+  try {
+    return await work;
+  } finally {
+    phases[key] = Date.now() - t;
+  }
+}
+
 /**
  * OCR the card: auto-crop / straighten + PaddleOCR first, then Tesseract passes on the aligned card
  * until the slot's key fields are found. The text of every pass is merged before the rules run.
+ * Reads a downscaled copy; `isCancelled` stops early when the caller no longer needs the text.
  */
 async function readText(
   buffer: Buffer,
   enough: (a: DocTextAnalysis) => boolean,
+  isCancelled?: () => boolean,
 ): Promise<DocTextAnalysis | null> {
   const passes: { text: string; confidence: number }[] = [];
   const merged = () =>
     analyzeDocText(passes.map((p) => p.text).join("\n"), Math.max(...passes.map((p) => p.confidence)));
-  const aligned = await alignCard(buffer);
+  const work = await ocrWorkingCopy(buffer);
+  const aligned = await alignCard(work, isCancelled);
   for (const read of aligned?.reads ?? []) {
     if (read.text.trim()) passes.push(read);
   }
   if (passes.length && enough(merged())) return merged();
-  const source = aligned?.card ?? buffer;
+  const source = aligned?.card ?? work;
   for (const { variant, mode } of OCR_PASSES) {
+    if (isCancelled?.()) break;
     const png = await ocrReadyPng(source, variant);
     if (!png) continue;
     try {
@@ -328,9 +344,19 @@ async function readText(
 
 // ── PAN ─────────────────────────────────────────────────────────────────────
 
-async function checkPan(buffer: Buffer, refs: RefData, checks: DocCheckItem[], started: number) {
+async function checkPan(
+  buffer: Buffer,
+  refs: RefData,
+  checks: DocCheckItem[],
+  started: number,
+  phases: DocCheckPhases,
+) {
   const slot = "panImage" as const;
-  const text = await readText(buffer, (a) => looksLikePan(a) && a.panNumbers.length > 0 && a.dob != null);
+  const text = await timed(
+    phases,
+    "ocrMs",
+    readText(buffer, (a) => looksLikePan(a) && a.panNumbers.length > 0 && a.dob != null),
+  );
   if (!text) {
     checks.push({ id: "ocr", label: "Read card text", status: "flag", detail: MSG_FLAG });
     return finalize(slot, "unknown", checks, started);
@@ -412,6 +438,7 @@ async function checkAadhaar(
   refs: RefData,
   checks: DocCheckItem[],
   started: number,
+  phases: DocCheckPhases,
 ) {
   const side = SIDE[slot];
   const sideDocType: DocType = slot === "aadhaarFront" ? "aadhaar_front" : "aadhaar_back";
@@ -424,7 +451,27 @@ async function checkAadhaar(
   const expectedDob = refs.enteredDob ?? aadhaar.dob;
   const refLast4 = aadhaar.last4;
 
-  const scan: AadhaarQrScan = await scanAadhaarQr(buffer).catch(() => ({ found: false }) as const);
+  // QR (on the photo as received) and OCR run side by side; a signed QR makes the OCR text unused.
+  let qrVerified = false;
+  const textRun = timed(
+    phases,
+    "ocrMs",
+    readText(
+      buffer,
+      (a) =>
+        isAadhaarLike(a) &&
+        !looksLikePan(a) &&
+        a.aadhaarLast4.length > 0 &&
+        (slot === "aadhaarBack" || (a.dob != null && a.genderValue != null)),
+      () => qrVerified,
+    ),
+  );
+  textRun.catch(() => undefined);
+  const scan: AadhaarQrScan = await timed(
+    phases,
+    "qrMs",
+    scanAadhaarQr(buffer).catch(() => ({ found: false }) as const),
+  );
   const qrData = scan.found && scan.secure ? scan.data : null;
   const qr = scan.found && scan.secure ? toQr(scan.data, scan.signatureValid) : undefined;
 
@@ -452,6 +499,7 @@ async function checkAadhaar(
 
   // Signed QR = UIDAI data, so OCR is not needed and a different Aadhaar is a hard fail.
   if (qrData && qr?.verified) {
+    qrVerified = true;
     if (refLast4) {
       checks.push(
         qrData.aadhaarLast4 === refLast4
@@ -471,14 +519,7 @@ async function checkAadhaar(
     return finalize(slot, sideDocType, checks, started, "Aadhaar QR verified", qr);
   }
 
-  const text = await readText(
-    buffer,
-    (a) =>
-      isAadhaarLike(a) &&
-      !looksLikePan(a) &&
-      a.aadhaarLast4.length > 0 &&
-      (slot === "aadhaarBack" || (a.dob != null && a.genderValue != null)),
-  );
+  const text = await textRun;
   const legacyQr = scan.found && !scan.secure && scan.legacyAadhaar;
   const pan = text ? looksLikePan(text) : false;
   const aadhaarEvidence = Boolean(qrData) || legacyQr || (text ? isAadhaarLike(text) && !pan : false);
@@ -587,6 +628,7 @@ async function runDocCheck(
   slot: DocCheckSlot,
   buffer: Buffer,
   entered: EnteredData,
+  phases: DocCheckPhases,
 ): Promise<DocCheckResult> {
   const started = Date.now();
   const checks: DocCheckItem[] = [];
@@ -595,7 +637,7 @@ async function runDocCheck(
     return EMPTY_REFS;
   });
 
-  const quality = await checkImageQuality(buffer);
+  const quality = await timed(phases, "qualityMs", checkImageQuality(buffer));
   if (!quality.decoded) {
     checks.push({ id: "quality", label: "Photo quality", status: "flag", detail: MSG_UNSUPPORTED });
     return finalize(slot, "unknown", checks, started);
@@ -610,8 +652,8 @@ async function runDocCheck(
 
   const refs: RefData = { ...(await refsPromise), ...entered };
   return slot === "panImage"
-    ? checkPan(buffer, refs, checks, started)
-    : checkAadhaar(slot, buffer, refs, checks, started);
+    ? checkPan(buffer, refs, checks, started, phases)
+    : checkAadhaar(slot, buffer, refs, checks, started, phases);
 }
 
 function timeoutResult(slot: DocCheckSlot, started: number): DocCheckResult {
@@ -657,12 +699,14 @@ async function recall(key: string): Promise<DocCheckResult | null> {
  * Check a KYC photo (PAN / Aadhaar front / Aadhaar back) on our own server.
  * Never throws for checker problems and never takes longer than 20 s — slow or broken
  * checks come back as `flag` so signup is never blocked by the checker itself.
+ * `timing.cropMs` = server auto-crop that ran before this check (logged only).
  */
 export async function checkKycDocument(
   userId: string,
   slot: DocCheckSlot,
   dataUrl: string,
   hints?: DocCheckHints,
+  timing: { cropMs?: number } = {},
 ): Promise<DocCheckResult> {
   const entered = enteredFromHints(hints);
   const parsed = parseKycDataUrl(dataUrl);
@@ -680,7 +724,8 @@ export async function checkKycDocument(
   const started = Date.now();
   let run = inFlight.get(key);
   if (!run) {
-    run = runDocCheck(userId, slot, parsed.buffer, entered)
+    const phases: DocCheckPhases = { cropMs: timing.cropMs };
+    run = runDocCheck(userId, slot, parsed.buffer, entered, phases)
       .catch((err) => {
         logger.warn({ userId, slot, err: (err as Error).message }, "KYC doc check crashed");
         return timeoutResult(slot, started);
@@ -694,6 +739,7 @@ export async function checkKycDocument(
             status: result.status,
             docType: result.docType,
             durationMs: result.durationMs,
+            ...phases,
             notPassed: result.checks.filter((c) => c.status === "fail" || c.status === "flag").map((c) => c.id),
           },
           "KYC doc check",

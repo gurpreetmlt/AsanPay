@@ -481,6 +481,7 @@ export {
   KYC_DOC_CHECK_COPY,
   PAN_FORMAT_ERROR,
   kycDocCheckBlocksStep,
+  kycDocCheckRunningOnStep,
   kycDocCheckHints,
   formatPanName,
   isSignupPlaceholderName,

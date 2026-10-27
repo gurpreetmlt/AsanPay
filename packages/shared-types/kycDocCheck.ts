@@ -145,7 +145,15 @@ export function kycDocCheckSlotsForStep(stepIndex: number): KycDocCheckSlot[] {
   return [];
 }
 
-/** Continue stays disabled while a photo on this step is being checked or was rejected. */
+/** Continue stays disabled while a photo on this step was rejected. */
 export function kycDocCheckBlocksStep(ui: KycDocCheckUi | undefined): boolean {
-  return ui?.state === "checking" || ui?.state === "fail";
+  return ui?.state === "fail";
+}
+
+/** A photo on this step is still being checked — Continue waits for the result instead of skipping it. */
+export function kycDocCheckRunningOnStep(
+  checks: Partial<Record<KycDocCheckSlot, KycDocCheckUi>>,
+  stepIndex: number,
+): boolean {
+  return kycDocCheckSlotsForStep(stepIndex).some((slot) => checks[slot]?.state === "checking");
 }

@@ -10,6 +10,8 @@ import { B } from "@/lib/brand";
 /** ID-1 card (PAN / Aadhaar PVC): 85.6 × 54 mm. */
 const CARD_ASPECT = 85.6 / 54;
 const MAX_SIDE = 1600;
+/** ~200–350 KB for a 1600 px card photo — uploads fast on mobile data, still sharp enough to read. */
+const JPEG_QUALITY = 0.8;
 
 export function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -31,7 +33,7 @@ export function scaleImageToDataUrl(image: HTMLImageElement): string {
   ctx.fillStyle = "#FFFFFF";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL("image/jpeg", 0.88);
+  return canvas.toDataURL("image/jpeg", JPEG_QUALITY);
 }
 
 /** Rotate the full image, cut the crop box, scale to ≤ MAX_SIDE, return a JPEG data URL. */
@@ -61,7 +63,7 @@ async function cropToDataUrl(src: string, area: Area, rotation: number): Promise
   octx.fillStyle = "#FFFFFF";
   octx.fillRect(0, 0, out.width, out.height);
   octx.drawImage(rotated, area.x, area.y, area.width, area.height, 0, 0, out.width, out.height);
-  return out.toDataURL("image/jpeg", 0.88);
+  return out.toDataURL("image/jpeg", JPEG_QUALITY);
 }
 
 export function PhotoCropModal({

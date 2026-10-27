@@ -35,6 +35,7 @@ import {
   PAN_FORMAT_ERROR,
   SIGNUP_POLICY_VERSION,
   kycDocCheckBlocksStep,
+  kycDocCheckRunningOnStep,
   formatPanName,
   isSignupPlaceholderName,
   kycDocCheckHints,
@@ -478,6 +479,8 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
   const docOriginalsRef = useRef<Partial<Record<KycDocCheckSlot, string>>>({});
   /** Latest check per field — stale responses (photo re-picked) are ignored. */
   const docCheckSeqRef = useRef<Partial<Record<KycDocCheckSlot, number>>>({});
+  /** Continue was pressed while a photo on this step was still being checked. */
+  const [continueAfterCheck, setContinueAfterCheck] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [aadhaarOtp, setAadhaarOtp] = useState("");
   const [aadhaarOtpBusy, setAadhaarOtpBusy] = useState<"send" | "verify" | null>(null);
@@ -1062,9 +1065,9 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         cropping: false,
         includeBase64: true,
         forceJpg: true,
-        compressImageMaxWidth: 1600,
-        compressImageMaxHeight: 1600,
-        compressImageQuality: 0.85,
+        compressImageMaxWidth: UPLOAD_MAX_SIDE,
+        compressImageMaxHeight: UPLOAD_MAX_SIDE,
+        compressImageQuality: UPLOAD_JPEG_QUALITY,
       });
     } catch (err) {
       const code = (err as { code?: string })?.code;
@@ -1086,7 +1089,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
 
   /**
    * Gallery or camera photo → one server call that crops + straightens the card and checks the crop.
-   * The box shows the photo faded under the scan line until the cropped card comes back.
+   * The box shows the photo with a "Checking…" pill until the cropped card comes back.
    */
   async function processDocPhoto(slot: KycDocCheckSlot, path: string, original: string) {
     docOriginalsRef.current[slot] = path;
@@ -1098,7 +1101,10 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
     void runDocCheck(slot, original, { autoCrop: true, path });
   }
 
-  /** Card-frame camera photo. Too large for the upload limit → the crop screen compresses it. */
+  /**
+   * Card-frame camera photo, shrunk to ≤ 1600 px before upload (the full photo stays for "Adjust crop").
+   * Still too large for the upload limit → the crop screen compresses it.
+   */
   async function onCardCaptured(path: string) {
     const slot = cameraSlot;
     setCameraSlot(null);
@@ -1106,7 +1112,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
     const uri = path.startsWith("file://") ? path : `file://${path}`;
     let dataUrl: string;
     try {
-      dataUrl = await fileToJpegDataUrl(uri);
+      dataUrl = await fileToJpegDataUrl(await shrinkPhoto(uri));
     } catch {
       showAlert("Upload failed", "Could not read the photo. Take it again or use Gallery.");
       return;
@@ -1151,7 +1157,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         height: 1010,
         includeBase64: true,
         forceJpg: true,
-        compressImageQuality: 0.85,
+        compressImageQuality: UPLOAD_JPEG_QUALITY,
         cropperToolbarTitle: CROP_TITLE[slot],
         cropperToolbarColor: "#FFFFFF",
         cropperToolbarWidgetColor: colors.blue,
@@ -1252,6 +1258,14 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftReady, accessToken, stepIndex, docCheckHintKey]);
+
+  // Continue pressed during a check: once it finishes, continue — or stay so the result shows.
+  useEffect(() => {
+    if (!continueAfterCheck || kycDocCheckRunningOnStep(docChecks, stepIndex)) return;
+    setContinueAfterCheck(false);
+    if (!kycDocCheckSlotsForStep(stepIndex).some((slot) => kycDocCheckBlocksStep(docChecks[slot]))) next();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [continueAfterCheck, docChecks, stepIndex]);
 
   async function captureLivePhoto(kind: "personalPhoto" | "shopPhoto") {
     setPhotoCaptureBusy(true);
@@ -1849,6 +1863,10 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
   }
 
   function next() {
+    if (kycDocCheckRunningOnStep(docChecks, stepIndex)) {
+      setContinueAfterCheck(true);
+      return;
+    }
     const err = validateStep();
     if (err) {
       showAlert("Fix this to continue", err);
@@ -1878,6 +1896,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
   }
 
   function back() {
+    setContinueAfterCheck(false);
     if (phase === "emailOtp") {
       setPhase("steps");
       return;
@@ -1912,17 +1931,19 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
 
   const primaryLabel = loading
     ? "Please wait…"
-    : stepIndex === 0
-      ? otpSent
-        ? "Verify OTP"
-        : "Send OTP"
-      : stepIndex === 1
-        ? draft.accountCreated
-          ? "Continue"
-          : "Create account"
-        : stepIndex === 8
-          ? "Submit application"
-          : "Continue";
+    : continueAfterCheck
+      ? "Checking photo…"
+      : stepIndex === 0
+        ? otpSent
+          ? "Verify OTP"
+          : "Send OTP"
+        : stepIndex === 1
+          ? draft.accountCreated
+            ? "Continue"
+            : "Create account"
+          : stepIndex === 8
+            ? "Submit application"
+            : "Continue";
   // Role step: keep Create account disabled until the upline lookup finds an active account.
   const uplineBlocked =
     stepIndex === 1 && needsUpline && !draft.accountCreated && !(sponsorOk && draft.sponsorUid);
@@ -2864,8 +2885,15 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                 <Pressable
                   onPress={next}
                   disabled={nextDisabled}
-                  style={[styles.cta, styles.ctaFlex, { opacity: nextDisabled ? 0.6 : 1 }]}
+                  accessibilityState={{ busy: continueAfterCheck }}
+                  style={[
+                    styles.cta,
+                    styles.ctaFlex,
+                    { opacity: nextDisabled ? 0.6 : 1 },
+                    continueAfterCheck ? { flexDirection: "row", gap: 8 } : null,
+                  ]}
                 >
+                  {continueAfterCheck ? <ActivityIndicator size="small" color="#fff" /> : null}
                   <Text style={styles.ctaText}>{primaryLabel}</Text>
                 </Pressable>
               </View>
@@ -2960,6 +2988,46 @@ type PickedImage = { path: string; mime: string; size: number; data?: string | n
 
 /** Server KYC photo limit is 1.5 MB of image bytes ≈ 2 M base64 characters. */
 const MAX_UPLOAD_DATA_URL = 1_950_000;
+/** KYC card photos sent for checking: ≤ 1600 px long side at JPEG 80 ≈ 200–350 KB. */
+const UPLOAD_MAX_SIDE = 1600;
+const UPLOAD_JPEG_QUALITY = 0.8;
+
+/**
+ * Photo file → upright JPEG no larger than UPLOAD_MAX_SIDE (EXIF orientation is applied to the pixels).
+ * Returns the original file when the resizer is unavailable.
+ */
+async function shrinkPhoto(uri: string): Promise<string> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const resizer = require("@bam.tech/react-native-image-resizer").default as {
+      createResizedImage: (
+        path: string,
+        maxWidth: number,
+        maxHeight: number,
+        format: "JPEG" | "PNG" | "WEBP",
+        quality: number,
+        rotation?: number,
+        outputPath?: string | null,
+        keepMeta?: boolean,
+        options?: { mode?: "contain" | "cover" | "stretch"; onlyScaleDown?: boolean },
+      ) => Promise<{ uri: string }>;
+    };
+    const out = await resizer.createResizedImage(
+      uri,
+      UPLOAD_MAX_SIDE,
+      UPLOAD_MAX_SIDE,
+      "JPEG",
+      Math.round(UPLOAD_JPEG_QUALITY * 100),
+      0,
+      null,
+      false,
+      { mode: "contain", onlyScaleDown: true },
+    );
+    return out.uri;
+  } catch {
+    return uri;
+  }
+}
 
 /** Local photo file → `data:image/jpeg;base64,…` (file blobs report a generic mime type). */
 async function fileToJpegDataUrl(uri: string): Promise<string> {

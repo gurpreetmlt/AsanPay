@@ -79,14 +79,22 @@ const CHECK_AUTO_CROP_MS = 10_000;
 kycRouter.post("/documents/check", kycDocCheckLimiter, validateBody(docCheckSchema), async (req, res) => {
   if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
   const body = req.body as z.infer<typeof docCheckSchema>;
+  const cropStarted = Date.now();
   const crop = body.autoCrop ? await autoCropKycPhoto(body.dataUrl, CHECK_AUTO_CROP_MS) : null;
+  const cropMs = crop ? Date.now() - cropStarted : undefined;
   const croppedDataUrl = crop?.detected ? crop.dataUrl : null;
-  const result = await checkKycDocument(req.auth.sub, body.slot, croppedDataUrl ?? body.dataUrl, {
-    dob: body.dob,
-    gender: body.gender,
-    aadhaarLast4: body.aadhaarLast4,
-    pan: body.pan,
-  });
+  const result = await checkKycDocument(
+    req.auth.sub,
+    body.slot,
+    croppedDataUrl ?? body.dataUrl,
+    {
+      dob: body.dob,
+      gender: body.gender,
+      aadhaarLast4: body.aadhaarLast4,
+      pan: body.pan,
+    },
+    { cropMs },
+  );
   await recordKycVerification(
     req.auth.sub,
     { slots: { [body.slot]: toStoredDocCheck(result) } },

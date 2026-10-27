@@ -23,9 +23,10 @@ export type KycCardStage = "cropping" | "checking" | null;
 type Tokens = { mute: string; card: string; cardBorder: string; txt2: string };
 
 /**
- * One big card-shaped box per KYC photo (PAN / Aadhaar front / back): empty → loading (scan line in
- * the box) → done (photo + status badge + icon action bar) → failed (rejected photo faded behind a
- * "Photo not accepted" panel). Same states as web `KycCardUpload`; mobile offers Camera + Gallery.
+ * One big card-shaped box per KYC photo (PAN / Aadhaar front / back): empty → checking (photo shown
+ * right away with a small "Checking…" pill; the form stays usable) → done (photo + status badge + icon
+ * action bar) → failed (rejected photo faded behind a "Photo not accepted" panel). Same states as web
+ * `KycCardUpload`; mobile offers Camera + Gallery.
  */
 export function KycCardUpload({
   label,
@@ -60,10 +61,12 @@ export function KycCardUpload({
   onAdjust: () => void;
   onRemove: () => void;
 }) {
-  const busy = stage !== null;
+  const checking = stage !== null;
   const failed = check?.state === "fail";
   const hasPhoto = Boolean(previewUri) && !failed;
-  const locked = Boolean(lockedReason) && !hasPhoto && !failed && !busy;
+  /** Full-box loader only when there is no photo to show yet. */
+  const busy = checking && !hasPhoto;
+  const locked = Boolean(lockedReason) && !hasPhoto && !failed && !checking;
   const [slowCheck, setSlowCheck] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [boxHeight, setBoxHeight] = useState(0);
@@ -125,7 +128,7 @@ export function KycCardUpload({
         ]}
       >
         {previewUri && !failed ? (
-          <Animated.View style={[StyleSheet.absoluteFill, { opacity: busy ? 0.4 : 1, transform: [{ scale: pop }] }]}>
+          <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ scale: pop }] }]}>
             <Image source={{ uri: previewUri }} resizeMode="contain" style={StyleSheet.absoluteFill} accessibilityLabel={title} />
           </Animated.View>
         ) : null}
@@ -140,7 +143,12 @@ export function KycCardUpload({
           </View>
         ) : hasPhoto ? (
           <>
-            {check && check.state !== "checking" ? (
+            {checking ? (
+              <View style={st.checkingPill} accessibilityLiveRegion="polite" accessibilityLabel={`Checking ${title} photo`}>
+                {!reduceMotion.current ? <ActivityIndicator size="small" color={colors.blue} style={st.checkingSpinner} /> : null}
+                <Text style={st.checkingText}>Checking…</Text>
+              </View>
+            ) : check && check.state !== "checking" ? (
               <View style={[st.badge, { backgroundColor: check.state === "pass" ? colors.green : "#F59E0B" }]}>
                 <Text style={st.badgeText}>{check.state === "pass" ? "✓" : "!"}</Text>
               </View>
@@ -374,6 +382,23 @@ const st = StyleSheet.create({
     elevation: 2,
   },
   badgeText: { color: "#FFFFFF", fontSize: 12, fontWeight: "900", lineHeight: 14 },
+  checkingPill: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.8)",
+    backgroundColor: "rgba(255,255,255,0.92)",
+    elevation: 2,
+  },
+  checkingSpinner: { transform: [{ scale: 0.75 }] },
+  checkingText: { color: colors.blue, fontSize: 12, fontWeight: "700" },
   actionBar: {
     position: "absolute",
     bottom: 8,

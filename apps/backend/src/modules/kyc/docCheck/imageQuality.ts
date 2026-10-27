@@ -6,6 +6,12 @@ export const MIN_BRIGHTNESS = 45;
 /** Laplacian variance at ANALYSIS_WIDTH below this = blurry. Tuned low on purpose — a false fail blocks signup. */
 export const MIN_SHARPNESS = 30;
 const ANALYSIS_WIDTH = 1000;
+/**
+ * Long side of the image PaddleOCR / Tesseract / card alignment read (a card filling the frame is
+ * ~15 px per mm here). Paddle detection runs on every pixel, so this size sets most of the OCR time.
+ */
+export const OCR_LONG_SIDE = 1280;
+const OCR_FIT = { width: OCR_LONG_SIDE, height: OCR_LONG_SIDE, fit: "inside" } as const;
 
 export type QualityResult =
   | { decoded: false }
@@ -105,6 +111,23 @@ export async function rgbaFrames(
   return frames;
 }
 
+/**
+ * Upright copy no larger than OCR_LONG_SIDE for OCR, alignment and auto-crop detection. The quality
+ * check (600 px rule) and the QR scan (dense Secure QR) keep using the photo as received.
+ */
+export async function ocrWorkingCopy(buffer: Buffer): Promise<Buffer> {
+  try {
+    return await sharp(buffer, { failOn: "none" })
+      .rotate()
+      .resize({ ...OCR_FIT, withoutEnlargement: true })
+      .flatten({ background: "#FFFFFF" })
+      .jpeg({ quality: 95 })
+      .toBuffer();
+  } catch {
+    return buffer;
+  }
+}
+
 export type OcrVariant = "sharp" | "plain" | "bw";
 
 /**
@@ -115,7 +138,7 @@ export async function ocrReadyPng(buffer: Buffer, variant: OcrVariant = "sharp")
   try {
     const base = sharp(buffer, { failOn: "none" })
       .rotate()
-      .resize({ width: 1600, withoutEnlargement: false })
+      .resize({ ...OCR_FIT, withoutEnlargement: false })
       .greyscale()
       .normalize();
     const img = variant === "bw" ? base.threshold(150) : variant === "sharp" ? base.sharpen() : base;

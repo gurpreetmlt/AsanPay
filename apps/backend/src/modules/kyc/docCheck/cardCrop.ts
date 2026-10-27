@@ -2,7 +2,8 @@ import { createRequire } from "node:module";
 import sharp from "sharp";
 import { logger } from "../../../utils/logger";
 import { uprightCard, tiltAngle } from "./cardAlign";
-import { boxBounds, PADDLE_INPUT_WIDTH, type PaddleLine } from "./paddleOcr";
+import { ocrWorkingCopy } from "./imageQuality";
+import { boxBounds, type PaddleLine } from "./paddleOcr";
 
 /**
  * Auto-crop shown to the agent after picking a PAN / Aadhaar photo ("Adjust crop" opens the manual
@@ -51,6 +52,11 @@ function getCv(): Promise<{ cv: Cv }> {
     });
   }
   return cvReady;
+}
+
+/** Load OpenCV at boot so the first auto-crop doesn't spend its time budget on startup. */
+export function warmCardCrop(): void {
+  void getCv().catch((err) => logger.warn({ err: (err as Error).message }, "KYC auto-crop warm-up failed"));
 }
 
 type Pt = [number, number];
@@ -210,17 +216,22 @@ export type CardCropResult = {
 };
 
 export async function autoCropCard(buffer: Buffer): Promise<CardCropResult> {
-  const upright = await uprightCard(buffer).catch(() => null);
-  const image = upright?.image ?? buffer;
-  const lines = upright?.read.lines ?? [];
+  // Find the card on the small OCR copy, then cut it from the photo as received so the crop keeps its detail.
+  const upright = await uprightCard(await ocrWorkingCopy(buffer)).catch(() => null);
   const rotation = upright?.rotation ?? 0;
 
-  const { data, info } = await sharp(image, { failOn: "none" })
+  const { data, info } = await sharp(buffer, { failOn: "none" })
     .rotate()
-    .resize({ width: upright?.read.width ?? PADDLE_INPUT_WIDTH, withoutEnlargement: false })
+    .rotate(rotation)
+    .resize({ width: OUTPUT_WIDTH, withoutEnlargement: false })
     .ensureAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
+  const k = upright ? info.width / upright.read.width : 1;
+  const lines = (upright?.read.lines ?? []).map((l) => ({
+    ...l,
+    box: l.box?.map((p) => [(p[0] ?? 0) * k, (p[1] ?? 0) * k]),
+  }));
 
   let cv: Cv;
   try {

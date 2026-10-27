@@ -133,12 +133,13 @@ export type UprightCard = { image: Buffer; read: PaddleRead; rotation: number };
  * Cards are landscape: a portrait photo or up / down text → also try 90° / 270°; a weak read → also
  * try 180°. Keeps the orientation with the best `orientationScore`. At most 4 Paddle passes.
  */
-export async function uprightCard(buffer: Buffer): Promise<UprightCard | null> {
+export async function uprightCard(buffer: Buffer, isCancelled?: () => boolean): Promise<UprightCard | null> {
   const first = await paddleRead(buffer);
   if (!first) return null;
 
   const candidates: UprightCard[] = [{ read: first, image: buffer, rotation: 0 }];
   const rotate = async (deg: number) => {
+    if (isCancelled?.()) return;
     const image = await oriented(buffer, deg);
     const read = await paddleRead(image);
     if (read) candidates.push({ read, image, rotation: deg });
@@ -153,21 +154,24 @@ export async function uprightCard(buffer: Buffer): Promise<UprightCard | null> {
   );
 }
 
-/** Null when Paddle is off / unavailable — callers OCR the original photo as before. */
-export async function alignCard(buffer: Buffer): Promise<AlignedCard | null> {
-  const best = await uprightCard(buffer);
+/**
+ * Null when Paddle is off / unavailable — callers OCR the original photo as before. `isCancelled`
+ * skips the remaining Paddle passes once the caller no longer needs the text.
+ */
+export async function alignCard(buffer: Buffer, isCancelled?: () => boolean): Promise<AlignedCard | null> {
+  const best = await uprightCard(buffer, isCancelled);
   if (!best) return null;
 
   const { read } = best;
   const tilt = tiltAngle(read.lines);
   const crop = textCrop(read.lines, read.width, read.height);
   const deskew = Math.abs(tilt) >= MIN_TILT_DEG;
-  if (!crop && !deskew) {
+  if ((!crop && !deskew) || isCancelled?.()) {
     return { card: best.image, reads: [read], rotation: best.rotation, tilt: 0, cropped: false };
   }
 
   try {
-    // Same raster Paddle read (EXIF + rotation + 1600 px), so box coordinates line up.
+    // Same raster Paddle read (EXIF + rotation + OCR size), so box coordinates line up.
     let img = sharp(await sharp(best.image, { failOn: "none" }).rotate().resize({ width: read.width }).png().toBuffer());
     if (crop) img = sharp(await img.extract(crop).png().toBuffer());
     if (deskew) img = img.rotate(-tilt, { background: "#FFFFFF" });

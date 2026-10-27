@@ -12,9 +12,10 @@ const ACCEPT = "image/jpeg,image/png,image/webp";
 export type KycCardStage = "cropping" | "checking" | null;
 
 /**
- * One big card-shaped box per KYC photo (PAN / Aadhaar front / back): empty → loading (scan line in
- * the box) → done (photo + status badge + icon action bar) → failed (rejected photo faded behind a
- * "Photo not accepted" panel). Checks collapse into a one-line summary strip.
+ * One big card-shaped box per KYC photo (PAN / Aadhaar front / back): empty → checking (photo shown
+ * right away with a small "Checking…" pill; the form stays usable) → done (photo + status badge + icon
+ * action bar) → failed (rejected photo faded behind a "Photo not accepted" panel). Checks collapse
+ * into a one-line summary strip.
  */
 export function KycCardUpload({
   label,
@@ -52,10 +53,12 @@ export function KycCardUpload({
   const [showDetails, setShowDetails] = useState(false);
   const [slowCheck, setSlowCheck] = useState(false);
 
-  const busy = stage !== null;
+  const checking = stage !== null;
   const failed = check?.state === "fail";
   const hasPhoto = Boolean(previewUrl) && !failed;
-  const locked = Boolean(lockedReason) && !hasPhoto && !failed && !busy;
+  /** Full-box loader only when there is no photo to show yet. */
+  const busy = checking && !hasPhoto;
+  const locked = Boolean(lockedReason) && !hasPhoto && !failed && !checking;
 
   useEffect(() => {
     setSlowCheck(false);
@@ -112,21 +115,31 @@ export function KycCardUpload({
             key={previewUrl}
             src={previewUrl}
             alt={title}
-            className={`kyc-card-pop absolute inset-0 h-full w-full object-contain ${busy ? "opacity-40 blur-[1px]" : ""}`}
+            className="kyc-card-pop absolute inset-0 h-full w-full object-contain"
           />
         ) : null}
 
         {busy ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2" role="status" aria-live="polite">
             <span className="kyc-scan-line" aria-hidden />
-            <Loader2 size={26} className="animate-spin" style={{ color: B.blue }} />
+            <Loader2 size={26} className="motion-safe:animate-spin" style={{ color: B.blue }} />
             <span className="rounded-full bg-white/90 px-3 py-1 text-sm font-semibold shadow-sm" style={{ color: B.blue }}>
               {busyText}
             </span>
           </div>
         ) : hasPhoto ? (
           <>
-            {check && check.state !== "checking" ? (
+            {checking ? (
+              <span
+                className="absolute right-2 top-2 inline-flex items-center gap-1.5 rounded-full border border-white/80 bg-white/90 px-2.5 py-1 text-xs font-semibold shadow-sm backdrop-blur-sm"
+                style={{ color: B.blue }}
+                role="status"
+                aria-live="polite"
+              >
+                <Loader2 size={13} className="motion-safe:animate-spin" aria-hidden />
+                Checking…
+              </span>
+            ) : check && check.state !== "checking" ? (
               <span
                 className={`absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white text-xs font-bold text-white shadow ${check.state === "pass" ? "kyc-badge-pulse" : ""}`}
                 style={{ background: check.state === "pass" ? "#16A34A" : "#F59E0B" }}

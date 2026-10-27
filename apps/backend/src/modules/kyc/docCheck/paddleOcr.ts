@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import { env } from "../../../config/env";
 import { logger } from "../../../utils/logger";
+import { OCR_LONG_SIDE } from "./imageQuality";
 
 /**
  * PaddleOCR (ONNX) — primary reader for KYC card photos; Tesseract (`ocr.ts`) is the backup.
@@ -34,7 +35,6 @@ export type PaddleRead = {
   height: number;
 };
 
-export const PADDLE_INPUT_WIDTH = 1600;
 /** After this many load failures in a row the engine stays off until restart (Tesseract carries on). */
 const MAX_LOAD_FAILURES = 3;
 
@@ -129,7 +129,7 @@ export function linesToText(lines: PaddleLine[]): string {
   return rows.map((row) => row.sort((a, b) => a.left - b.left).map((r) => r.text).join("  ")).join("\n");
 }
 
-/** Read an image (any format sharp opens, EXIF-rotated, scaled to 1600 px wide). Null when Paddle is off / unavailable. */
+/** Read an image (any format sharp opens, EXIF-rotated, long side scaled to OCR_LONG_SIDE). Null when Paddle is off / unavailable. */
 export async function paddleRead(buffer: Buffer): Promise<PaddleRead | null> {
   if (!paddleOcrEnabled()) return null;
   let ocr: PaddleEngine;
@@ -142,7 +142,7 @@ export async function paddleRead(buffer: Buffer): Promise<PaddleRead | null> {
   try {
     const { data, info } = await sharp(buffer, { failOn: "none" })
       .rotate()
-      .resize({ width: PADDLE_INPUT_WIDTH, withoutEnlargement: false })
+      .resize({ width: OCR_LONG_SIDE, height: OCR_LONG_SIDE, fit: "inside", withoutEnlargement: false })
       .ensureAlpha()
       .raw()
       .toBuffer({ resolveWithObject: true });

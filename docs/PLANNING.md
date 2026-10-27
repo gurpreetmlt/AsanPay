@@ -7,6 +7,7 @@ One row per feature; details in the section below the table. Newest at the top o
 
 | # | Feature | Surfaces | Size | Status | Design | Task file |
 |---|---------|----------|------|--------|--------|-----------|
+| PL-22 | KYC photo check speed-ups (client resize, smaller OCR image, background check, parallel Aadhaar QR+OCR) | Backend, web, mobile | M | building — built 27 Oct; npm install (mobile resizer) + Coolify backend/web deploy + APK + real `durationMs` review pending | — | — |
 | PL-21 | Admin ops speed — agent 360 page (tabs), bulk approve / reject, saved filters, stuck-txn auto status check, owner alerts (WhatsApp / email) | Backend, admin | L | planned (27 Oct) | — | — |
 | PL-20 | Reports hub (daily summary, service P&L, agent earnings, provider volume; PDF / Excel / CSV) + guided month-end close | Backend, admin | L | planned (27 Oct) | — | — |
 | PL-19 | Admin staff roles (Owner · Finance · Ops · Support) + maker–checker on money actions + admin 2FA / sessions | Backend, admin | L | planned (27 Oct) — next (PL-17 step 2 done) | — | — |
@@ -30,6 +31,29 @@ One row per feature; details in the section below the table. Newest at the top o
 | PL-01 | Linked accounts + role switch (same person, Distributor + Retailer) | Backend, web, mobile, admin | M | building (backend + web + mobile built 26 Oct; migrate `0076` + APK + live test pending; admin card next) | [Figma prompt](PROMPTS/figma-linked-accounts.md) · Figma URL pending | [linked-accounts.md](TASKS/linked-accounts.md) |
 
 ---
+
+## PL-22 — KYC photo check speed-ups
+
+**Problem:** PAN / Aadhaar photo upload + check on signup steps 3–4 feels slow (large uploads, OCR on
+1600 px images, Aadhaar QR scan before OCR, card box blocked while the check runs).
+
+**Plan**
+- Client: photos shrunk to ≤ 1600 px long side, JPEG 0.8 (~200–350 KB) — web canvas, mobile gallery
+  crop-picker + camera via `@bam.tech/react-native-image-resizer` (EXIF applied).
+- Server: OCR, card alignment and auto-crop detection read a ≤ 1280 px copy; quality check (600 px rule)
+  and Aadhaar QR keep the received image; auto-crop still cuts from the received photo. OpenCV warmed
+  at boot (PaddleOCR + Tesseract already were).
+- Aadhaar: QR scan and OCR start together; a signed QR is used as before and the OCR stops early.
+- UX: photo shows at once with a "Checking…" pill; Continue during a check waits ("Checking photo…")
+  then continues or shows the result.
+- Log `KYC doc check` now carries `cropMs` / `qualityMs` / `qrMs` / `ocrMs` next to `durationMs`.
+
+**Open decisions**
+- [ ] Review real `durationMs` + phase timings after deploy before anything heavier.
+- [ ] Deferred: on-device OCR (ML Kit) on mobile; separate OCR server.
+
+**Notes:** ML Kit on-device OCR and a separate OCR server stay deferred until real `durationMs` numbers
+are reviewed. Planned as PL-19 in chat — PL-19 was already taken (admin staff roles), so this is PL-22.
 
 ## PL-18 — Signup flow v2
 
