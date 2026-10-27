@@ -7,7 +7,7 @@ One row per feature; details in the section below the table. Newest at the top o
 
 | # | Feature | Surfaces | Size | Status | Design | Task file |
 |---|---------|----------|------|--------|--------|-----------|
-| PL-18 | Signup flow v2 — 8 steps, password on step 1, name from PAN, photo uploads locked until details filled, shop (15 km) + home (5 km) location | Backend, web, mobile | L | building — Part 1 built 27 Oct; Part 2 (shop + home location, phone-camera QR, 15 km / 5 km geofence, risk flags) built 27 Oct — migrate `0080` + npm install + APK + live test pending; Part 3 (merge last steps) next | — | [signup-flow-v2.md](TASKS/signup-flow-v2.md) |
+| PL-18 | Signup flow v2 — 8 steps, password on step 1, name from PAN, photo uploads locked until details filled, shop (15 km) + home (5 km) location | Backend, web, mobile | L | building — Part 1 built 27 Oct; Part 2 (shop + home location, phone-camera QR, 15 km / 5 km geofence, risk flags) built 27 Oct — migrate `0080` + npm install + APK + live test pending; admin Location limits (radius + on/off) built 27 Oct; Part 3 (merge last steps) next | — | [signup-flow-v2.md](TASKS/signup-flow-v2.md) |
 | PL-17 | Admin cleanup — separate Commission / Tax / Support & Risk / Platform settings sidebar, one home per setting, action-first dashboard | Admin | L | building — step 1 (sidebar split) + regroup A (Daily work / Money / Setup) built 27 Oct; tab hubs (B), steps 2–4 planned | — | — |
 | PL-16 | Production Postgres on AWS RDS (Mumbai) + decide on a separate production EC2 | Infra | L | idea (27 Oct) — after admin work + RC1 deploy | — | — |
 | PL-15 | Admin "Services" setup page — one page per service (status · provider · limits · customer fee · commission · preview) | Backend, admin | L | idea (27 Oct) — after PL-14 | — | — |
@@ -41,6 +41,9 @@ from home.
    phone-camera QR to a public page (no app / login); geofence 15 km from shop or 5 km from home where the
    gate already runs (AePS, Aadhaar Pay, DMT); risk flags (shop far from pincode, possible VPN, rooted phone).
    Pending: migrate `0080`, npm install, APK, live test; admin KYC map of both pins.
+   ✅ Admin → Platform settings → Location limits (27 Oct): shop radius 1–50 km, home radius 1–20 km, location
+   check on/off (off = emergency, red confirm). Stored in `tenants.settings.geofence`; admin value → env → 15 / 5.
+   Applies within ~30 s, audit `admin.geofence_settings_update`. Admin only — no agent web / mobile change.
 3. Part 3: merge Photos + Agreement → 8 steps.
 
 **Open decisions**

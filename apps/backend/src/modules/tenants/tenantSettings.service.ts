@@ -3,6 +3,14 @@ import { db } from "../../db/postgres";
 import { tenants } from "../../db/postgres/schema";
 import { env } from "../../config/env";
 import { HttpError } from "../../utils/httpError";
+import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
+import {
+  invalidateGeofenceLimits,
+  resolveGeofenceLimits,
+  serverGeofenceLimits,
+  type GeofenceLimits,
+  type StoredGeofence,
+} from "./geofenceSettings";
 
 export interface TenantSettings {
   /** Fund-request credit at/above this (rupees) needs two different admins. */
@@ -28,7 +36,13 @@ export interface TenantSettings {
    * Default false — disable/deactivate only until explicitly enabled.
    */
   allowCompanyBankDelete?: boolean;
+  /** Admin Platform Settings → Location limits. Unset fields fall back to env / defaults. */
+  geofence?: StoredGeofence;
 }
+
+export type ResolvedTenantSettings = Required<
+  Omit<TenantSettings, "promoSlides" | "promoAssets" | "geofence">
+> & { geofence: GeofenceLimits };
 
 export type SupportContacts = {
   supportPhone: string;
@@ -65,7 +79,7 @@ function normalizeWebsite(raw: unknown): string {
   }
 }
 
-function mergeWithDefaults(s: TenantSettings): Required<Omit<TenantSettings, "promoSlides" | "promoAssets">> {
+function mergeWithDefaults(s: TenantSettings): ResolvedTenantSettings {
   return {
     fundApproveDualRupees:
       typeof s.fundApproveDualRupees === "number" && s.fundApproveDualRupees > 0
@@ -83,12 +97,11 @@ function mergeWithDefaults(s: TenantSettings): Required<Omit<TenantSettings, "pr
     nodalPhone: strField(s.nodalPhone, 40),
     nodalAddress: strField(s.nodalAddress, 500),
     allowCompanyBankDelete: s.allowCompanyBankDelete === true,
+    geofence: resolveGeofenceLimits(s.geofence, serverGeofenceLimits()),
   };
 }
 
-export async function getTenantSettings(
-  tenantId: string,
-): Promise<Required<Omit<TenantSettings, "promoSlides" | "promoAssets">>> {
+export async function getTenantSettings(tenantId: string): Promise<ResolvedTenantSettings> {
   const [row] = await db
     .select({ settings: tenants.settings })
     .from(tenants)
@@ -114,7 +127,8 @@ export async function getSupportContacts(tenantId: string): Promise<SupportConta
 export async function patchTenantSettings(
   tenantId: string,
   patch: TenantSettings,
-): Promise<Required<Omit<TenantSettings, "promoSlides" | "promoAssets">>> {
+  actor?: { id: string; ipAddress?: string | null; userAgent?: string | null },
+): Promise<ResolvedTenantSettings> {
   if (patch.fundApproveDualRupees !== undefined) {
     const n = Number(patch.fundApproveDualRupees);
     if (!Number.isFinite(n) || n < 1 || n > 1_000_000_000) {
@@ -155,7 +169,7 @@ export async function patchTenantSettings(
     }
   }
 
-  return db.transaction(async (tx) => {
+  const { prev, merged } = await db.transaction(async (tx) => {
     const [row] = await tx
       .select({ settings: tenants.settings })
       .from(tenants)
@@ -188,12 +202,44 @@ export async function patchTenantSettings(
       ...(patch.allowCompanyBankDelete !== undefined
         ? { allowCompanyBankDelete: patch.allowCompanyBankDelete === true }
         : {}),
+      ...(patch.geofence !== undefined ? {
+            geofence: {
+              ...(prev.geofence && typeof prev.geofence === "object" ? prev.geofence : {}),
+              ...patch.geofence,
+            },
+          } : {}),
     };
 
     await tx
       .update(tenants)
       .set({ settings: merged as Record<string, unknown> })
       .where(eq(tenants.id, tenantId));
-    return mergeWithDefaults(merged);
+    return { prev, merged };
   });
+
+  const resolved = mergeWithDefaults(merged);
+  if (patch.geofence !== undefined) {
+    invalidateGeofenceLimits();
+    const before = mergeWithDefaults(prev).geofence;
+    const after = resolved.geofence;
+    if (
+      before.enabled !== after.enabled ||
+      before.shopKm !== after.shopKm ||
+      before.homeKm !== after.homeKm
+    ) {
+      await insertAuditLog({
+        userId: actor?.id ?? null,
+        action: "admin.geofence_settings_update",
+        entityType: "tenant",
+        entityId: tenantId,
+        ipAddress: actor?.ipAddress ?? null,
+        userAgent: actor?.userAgent ?? null,
+        metadata: {
+          from: { enabled: before.enabled, shopKm: before.shopKm, homeKm: before.homeKm },
+          to: { enabled: after.enabled, shopKm: after.shopKm, homeKm: after.homeKm },
+        },
+      });
+    }
+  }
+  return resolved;
 }

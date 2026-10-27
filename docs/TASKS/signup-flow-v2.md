@@ -44,6 +44,10 @@ Anniversary date leaves signup (Profile, optional). Distributor / Super Distribu
 - ✅ Geofence `serviceGeofenceDecision`: 15 km shop OR 5 km home (`SHOP_GEOFENCE_KM`, `HOME_GEOFENCE_KM`;
   `AEPS_GEOFENCE_KM` only as shop fallback). Applies where the gate already ran: AePS (balance, mini
   statement, withdraw + OTP, deposit), Aadhaar Pay (+ OTP), DMT transfer. Unit tests in `aepsCompliance.test.ts`.
+- ✅ Admin → Platform settings → Location limits: shop km (1–50), home km (1–20), location check on/off.
+  `tenants.settings.geofence` (no migration) via `PATCH /admin/tenant-settings { geofence }`; resolution admin →
+  env → 15 / 5 (`tenants/geofenceSettings.ts`, 30 s cache, cleared on save). Off = gate allows all (log-only
+  risk signal unchanged). Audit `admin.geofence_settings_update` (from → to, actor). Admin only (no agent / mobile UI).
 - ✅ Risk signals (Admin → Risk alerts): `shop_far_from_pincode` (> 25 km, Nominatim, cached),
   `possible_vpn` (GeoLite2 if `GEOLITE2_DB_PATH`, ip-api.com if `IP_PROXY_CHECK_ENABLED=true`), `rooted_device`.
   `kyc.submit` audit metadata has `homeLocation`, `shopLocation`, `homeToShopKm`.

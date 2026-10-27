@@ -1506,9 +1506,19 @@ adminRouter.patch("/tenant-settings", async (req, res) => {
     })
     .parse(req.body);
   const { patchTenantSettings } = await import("../tenants/tenantSettings.service");
+  const { parseGeofencePatch } = await import("../tenants/geofenceSettings");
   const { resolveTenantId } = await import("../fund-requests/tenant");
+  const geofence = req.body?.geofence !== undefined ? parseGeofencePatch(req.body.geofence) : undefined;
   const tenantId = await resolveTenantId();
-  sendSuccess(res, await patchTenantSettings(tenantId, body), "Settings saved");
+  sendSuccess(
+    res,
+    await patchTenantSettings(
+      tenantId,
+      { ...body, ...(geofence ? { geofence } : {}) },
+      req.auth ? { id: req.auth.sub, ipAddress: req.ip ?? null, userAgent: req.get("user-agent") ?? null } : undefined,
+    ),
+    "Settings saved",
+  );
 });
 
 adminRouter.get("/promos", async (req, res) => {

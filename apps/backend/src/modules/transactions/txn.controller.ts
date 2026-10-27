@@ -400,7 +400,7 @@ export async function dmtTransfer(req: Request, res: Response): Promise<void> {
   await assertTxnAuthorization(actor(req).id, { txnPin: body.txnPin, txnAuth: body.txnAuth });
 
   if (body.latitude && body.longitude) {
-    assertWithinServiceGeofence(await getServiceGeoAnchors(actor(req).id), {
+    await assertWithinServiceGeofence(await getServiceGeoAnchors(actor(req).id), {
       latitude: body.latitude,
       longitude: body.longitude,
     });

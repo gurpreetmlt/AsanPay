@@ -7,6 +7,7 @@ import { HttpError } from "../../utils/httpError";
 import { logger } from "../../utils/logger";
 import { evaluateGeoSignal } from "../risk/riskSignal.service";
 import { haversineKm } from "../../core/geo";
+import { getGeofenceLimits } from "../tenants/geofenceSettings";
 
 // Re-exported for backward compatibility — haversineKm moved to core/geo to break a circular
 // import with risk/riskSignal.service.ts, which also needs it and is imported here.
@@ -104,7 +105,7 @@ export async function assertAepsCompliance(
   }).catch((err: unknown) => logger.error({ err, userId }, "geo risk signal evaluation failed"));
 
   if (geo) {
-    assertWithinServiceGeofence(
+    await assertWithinServiceGeofence(
       toServiceGeoAnchors(user.outletLatitude, user.outletLongitude, user.homeLatitude, user.homeLongitude),
       geo,
     );
@@ -132,12 +133,15 @@ function toServiceGeoAnchors(
 }
 
 /**
- * Shared geofence gate: allowed within SHOP_GEOFENCE_KM of the shop OR within HOME_GEOFENCE_KM
- * of the home location. No-op when the user has neither point. Used by AePS (via
- * assertAepsCompliance) and directly by DMT, since cash-handling fraud risk applies to both rails.
+ * Shared geofence gate: allowed within the shop radius OR within the home radius (admin
+ * Platform Settings → Location limits, else env, else 15 / 5 km). No-op when the user has
+ * neither point or an admin turned the check off. Used by AePS (via assertAepsCompliance) and
+ * directly by DMT, since cash-handling fraud risk applies to both rails.
  */
-export function assertWithinServiceGeofence(anchors: ServiceGeoAnchors, geo: AepsGeoInput): void {
+export async function assertWithinServiceGeofence(anchors: ServiceGeoAnchors, geo: AepsGeoInput): Promise<void> {
   if (!anchors.shop && !anchors.home) return;
+  const limits = await getGeofenceLimits();
+  if (!limits.enabled) return;
   const tLat = Number(geo.latitude);
   const tLng = Number(geo.longitude);
   const points = [anchors.shop, anchors.home].filter((p): p is GeoPoint => p != null);
@@ -152,6 +156,7 @@ export function assertWithinServiceGeofence(anchors: ServiceGeoAnchors, geo: Aep
     },
     tLat,
     tLng,
+    limits,
   );
   if (decision.allowed) return;
   const parts: string[] = [];
@@ -268,18 +273,22 @@ export function isWithinGeofence(
 
 type LatLng = { lat: number; lng: number };
 
-/** Pure helper — shop OR home decision. No anchors at all = allowed (nothing registered yet). */
+/**
+ * Pure helper — shop OR home decision. No anchors at all = allowed (nothing registered yet);
+ * `enabled: false` (admin turned the check off) = allowed.
+ */
 export function serviceGeofenceDecision(
   anchors: { shop: LatLng | null; home: LatLng | null },
   txnLat: number,
   txnLng: number,
-  limits: { shopKm?: number; homeKm?: number } = {},
+  limits: { shopKm?: number; homeKm?: number; enabled?: boolean } = {},
 ): { allowed: boolean; shopKm: number | null; homeKm: number | null; shopMaxKm: number; homeMaxKm: number } {
   const shopMaxKm = limits.shopKm ?? shopGeofenceKm();
   const homeMaxKm = limits.homeKm ?? env.HOME_GEOFENCE_KM;
   const shopKm = anchors.shop ? haversineKm(anchors.shop.lat, anchors.shop.lng, txnLat, txnLng) : null;
   const homeKm = anchors.home ? haversineKm(anchors.home.lat, anchors.home.lng, txnLat, txnLng) : null;
   const allowed =
+    limits.enabled === false ||
     (shopKm == null && homeKm == null) ||
     (shopKm != null && shopKm <= shopMaxKm) ||
     (homeKm != null && homeKm <= homeMaxKm);

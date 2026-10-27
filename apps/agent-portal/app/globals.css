@@ -1086,6 +1086,40 @@ body {
   animation: la-fade-in 0.15s ease-out both;
 }
 
+/* Switch card: pop in, then progress bar fills for the whole switch (1.2 s, same on mobile) */
+@keyframes la-flip-panel-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes la-flip-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.la-flip-panel {
+  animation: la-flip-panel-in 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.la-flip-progress {
+  transform-origin: left center;
+  animation: la-flip-progress 1.2s linear both;
+}
+
+.la-flip-done {
+  animation: la-fade-in 0.2s ease-out both;
+}
+
 /* Linked accounts verify popup: identity rows pop in one by one */
 @keyframes la-check-pop {
   from {
@@ -1131,7 +1165,7 @@ body {
 
 .la-flip-card {
   transform-style: preserve-3d;
-  animation: la-flip 0.7s ease-in-out both;
+  animation: la-flip 0.7s ease-in-out 0.15s both;
 }
 
 .la-flip-face {
@@ -1146,8 +1180,12 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .la-flip-card {
+  .la-flip-card,
+  .la-flip-panel {
     animation: none;
+  }
+  .la-flip-progress {
+    animation-duration: 0.4s;
   }
   .la-flip-front {
     display: none;
