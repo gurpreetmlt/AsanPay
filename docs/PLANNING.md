@@ -7,7 +7,7 @@ One row per feature; details in the section below the table. Newest at the top o
 
 | # | Feature | Surfaces | Size | Status | Design | Task file |
 |---|---------|----------|------|--------|--------|-----------|
-| PL-24 | DMT payee bank name check — optional "Verify name with bank" (pennyless, ₹1 penny drop only if that fails), name match pill, agent wallet pays, 90-day free re-check | Backend, web, mobile | M | building — built 27 Oct; migrate `0081` + deploy + APK + live test pending | — | — |
+| PL-24 | Bank account check — BestAPI (free) → pennyless → ₹1 penny drop; DMT payee "Verify name with bank" (agent ₹1.50 / ₹2.50 with penny drop, admin-editable), name match pill, 90-day free re-check; same check for settlement + company banks | Backend, web, mobile, admin | M | building — DMT + admin prices built 27 Oct (migrate `0081` + `0082`, deploy, APK, live test pending); settlement bank + company bank wiring next | — | — |
 | PL-23 | Agent settlement bank ₹1 penny drop — bank holder name + PAN name match, real verification ref (replaces stub), cost debited from agent wallet | Backend, web, mobile, admin | M | ready (27 Oct) | — | [settlement-bank-penny-drop.md](TASKS/settlement-bank-penny-drop.md) |
 | PL-22 | KYC photo check speed-ups (client resize, smaller OCR image, background check, parallel Aadhaar QR+OCR) | Backend, web, mobile | M | building — built 27 Oct; npm install (mobile resizer) + Coolify backend/web deploy + APK + real `durationMs` review pending | — | — |
 | PL-21 | Admin ops speed — agent 360 page (tabs), bulk approve / reject, saved filters, stuck-txn auto status check, owner alerts (WhatsApp / email) | Backend, admin | L | planned (27 Oct) | — | — |
@@ -40,16 +40,19 @@ One row per feature; details in the section below the table. Newest at the top o
 so a wrong account number sends money to the wrong person.
 
 **Plan / built (27 Oct)**
-- Optional "Verify name with bank" in the add-payee form (web + mobile): pennyless first (₹0.80), ₹1 penny drop
-  (₹1.80) only if pennyless fails. Each hit is its own debit txn on the agent's main wallet (`BANK_NAME_CHECK` /
-  `BANK_PENNY_DROP`, ledger type `VERIFICATION`); a failed check is refunded automatically.
-- "Name as per bank" + match pill (green ≥ 80 %, amber 50–79 %, red below) + "Use bank name".
-- Bank-confirmed names cached 90 days per account + IFSC (`bank_name_checks`, HMAC of the account number) — no
-  second charge. Prices from env `BANK_NAME_CHECK_COST` / `BANK_PENNY_DROP_COST`.
+- Shared `verifyBankAccount` chain: BestAPI account verify (free; its mode is "PD") → provider pennyless (₹0.80)
+  → provider ₹1 penny drop (₹1.80). Stops at the first name; stops at once when BestAPI says the account is
+  invalid / closed. Every hit logged with its cost in `bank_name_checks` (status, cost, purpose).
+- DMT payee: optional "Verify name with bank" (web + mobile). Agent pays once, only on a confirmed name:
+  ₹1.50 (BestAPI or pennyless) / ₹2.50 (penny drop) — admin Platform settings → Bank check prices (min = provider
+  cost). Charge = one debit txn (`BANK_NAME_CHECK` / `BANK_PENNY_DROP`, ledger `VERIFICATION`): provider cost →
+  float, rest → income (GST carved out).
+- "Name as per bank" + match pill (green ≥ 80 %, amber 50–79 %, red below) + "Use bank name"; 90-day free re-check.
+- Next: same check on agent settlement bank (PL-23) and admin company bank accounts (no agent charge).
 
 **Open decisions**
-- [ ] Make the check mandatory later (owner chose optional, 27 Oct)?
-- [ ] Margin on top of provider cost (today agent pays cost only)?
+- [ ] Make the DMT check mandatory later (owner chose optional, 27 Oct)?
+- [ ] Final penny-drop price (₹2.50 for now).
 
 ## PL-23 — Agent settlement bank ₹1 penny drop
 

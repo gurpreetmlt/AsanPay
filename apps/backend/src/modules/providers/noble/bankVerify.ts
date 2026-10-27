@@ -2,14 +2,9 @@ import { firstResponseRow } from "./aepsOps";
 import { noblePost, type NobleApiResponse } from "./client";
 import type { ProviderResult, ProviderTxnStatus } from "../types";
 
-export type BankCheckMethod = "pennyless" | "pennydrop";
+export type NobleBankCheckMethod = "pennyless" | "pennydrop";
 
-export const BANK_CHECK_SERVICE: Record<BankCheckMethod, string> = {
-  pennyless: "BANK_NAME_CHECK",
-  pennydrop: "BANK_PENNY_DROP",
-};
-
-const PATH: Record<BankCheckMethod, string> = {
+const PATH: Record<NobleBankCheckMethod, string> = {
   pennyless: "/api/v1.0/verification/penniless",
   pennydrop: "/api/v1.0/verification/pennydrop",
 };
@@ -53,7 +48,7 @@ function toResult(httpStatus: number, json: NobleApiResponse): ProviderResult<Ba
 }
 
 export async function nobleBankAccountCheck(
-  method: BankCheckMethod,
+  method: NobleBankCheckMethod,
   params: { accountNumber: string; ifsc: string; transactionId: string },
 ): Promise<ProviderResult<BankCheckData>> {
   const { httpStatus, json } = await noblePost("service", PATH[method], {

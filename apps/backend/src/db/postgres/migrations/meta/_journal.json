@@ -575,6 +575,13 @@
       "when": 1793200000000,
       "tag": "0081_bank_name_check",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1793300000000,
+      "tag": "0082_bank_check_attempts",
+      "breakpoints": true
     }
   ]
 }

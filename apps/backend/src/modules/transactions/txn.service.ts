@@ -61,12 +61,13 @@ export interface ExecuteTxnInput {
   walletType: WalletType;
   metadata: Record<string, unknown>;
   invoke: (routed: RoutedProvider, txnRef: string) => Promise<ProviderResult>;
-  /** Failure is an expected answer (e.g. bank found no account) — skip the critical alert. */
-  quietFailure?: boolean;
+  /**
+   * Server-computed fee (agent price − provider cost) that replaces the `service_charges` lookup.
+   * GST is carved out of it so the agent pays exactly amount + serverFee. Lets `amount` be "0"
+   * when the provider charged us nothing. Never pass a value from the request body.
+   */
+  serverFee?: string;
 }
-
-/** Services whose failed status is a normal outcome, not an incident. */
-const QUIET_FAILURE_SERVICES = new Set(["UPI_CASH_POINT", "BANK_NAME_CHECK", "BANK_PENNY_DROP"]);
 
 /** Wallet charge for a debit: principal + customer fee + GST on fee (rupees). */
 function serviceChargeTotal(
@@ -209,9 +210,11 @@ async function getServiceOrThrow(serviceCode: string) {
 function assertAmountWithinLimits(
   amount: string | null,
   service: { minAmount: string | null; maxAmount: string | null; name: string },
+  allowZero = false,
 ): void {
   if (amount == null) return;
   const paise = toPaise(amount);
+  if (allowZero && paise === 0) return;
   if (paise <= 0) throw new HttpError(422, "Amount must be positive", "INVALID_AMOUNT");
   if (service.minAmount && paise < toPaise(service.minAmount)) {
     throw new HttpError(422, `Minimum amount for ${service.name} is ₹${service.minAmount}`, "AMOUNT_BELOW_MIN");
@@ -239,8 +242,14 @@ export async function executeServiceTxn(input: ExecuteTxnInput): Promise<TxnOutc
     walletType,
     metadata,
     invoke,
-    quietFailure,
+    serverFee,
   } = input;
+  if (serverFee != null && (direction !== "debit" || toPaise(serverFee) < 0)) {
+    throw new HttpError(500, "Server fee applies only to debit services and cannot be negative", "INVALID_SERVER_FEE");
+  }
+  if (serverFee != null && amount != null && toPaise(amount) + toPaise(serverFee) <= 0) {
+    throw new HttpError(500, "A charge needs a positive amount or fee", "INVALID_SERVER_FEE");
+  }
 
   // Fast path: already claimed / settled for this key — never re-run money or provider.
   const [existing] = await db
@@ -251,7 +260,7 @@ export async function executeServiceTxn(input: ExecuteTxnInput): Promise<TxnOutc
 
   await assertCanTransact(actor);
   const service = await getServiceOrThrow(serviceCode);
-  assertAmountWithinLimits(amount, service);
+  assertAmountWithinLimits(amount, service, serverFee != null);
   void checkFraudPatterns(actor, service.id, amount);
   void checkDailyLimit(actor, amount);
   if (amount != null) void evaluateVelocitySpike(actor.id, amount);
@@ -263,9 +272,11 @@ export async function executeServiceTxn(input: ExecuteTxnInput): Promise<TxnOutc
   // body (input.customerFee is ignored) so a retailer cannot set fee=0. No schedule → "0.00".
   void customerFee;
   const feeConfigured =
-    direction === "debit" && amount != null
-      ? await resolveCustomerFee(service.id, routed.providerId, actor.role, amount, new Date())
-      : "0";
+    serverFee != null
+      ? serverFee
+      : direction === "debit" && amount != null
+        ? await resolveCustomerFee(service.id, routed.providerId, actor.role, amount, new Date())
+        : "0";
 
   const [actorRow] = await db
     .select({ uid: users.uid })
@@ -280,7 +291,7 @@ export async function executeServiceTxn(input: ExecuteTxnInput): Promise<TxnOutc
   // Stored fee is always the base (excl. GST): with GST included, fee + GST = the configured fee.
   const feeSplit =
     direction === "debit" && Number(feeConfigured) > 0
-      ? splitFeeGstRupees(feeConfigured, taxCfg)
+      ? splitFeeGstRupees(feeConfigured, serverFee != null ? { ...taxCfg, gstOnFeeInclusive: true } : taxCfg)
       : { fee: feeConfigured, gst: "0.00" };
   const feeNormalized = feeSplit.fee;
   const feeGstNormalized = feeSplit.gst;
@@ -367,7 +378,7 @@ export async function executeServiceTxn(input: ExecuteTxnInput): Promise<TxnOutc
   );
 
   // 4. Finalize.
-  const finalized = await finalizeTxn(txn, result, { direction, walletType, quietFailure });
+  const finalized = await finalizeTxn(txn, result, { direction, walletType });
   return { txn: finalized, provider: result };
 }
 
@@ -432,7 +443,10 @@ export function withProviderEconomics(
 // NO money and returns the settled row. Money movement and the status flip that authorizes it
 // commit or roll back together, so a pending txn can never be credited/reversed twice.
 async function finalizeTxn(txn: TxnRow, result: ProviderResult, ctx: FinalizeContext): Promise<TxnRow> {
-  const needsMoney = ctx.direction !== "none" && toPaise(txn.amount) > 0;
+  // A debit can be fee-only (provider cost ₹0) — the fee was still held, so it must be settled too.
+  const feeHeldPaise =
+    ctx.direction === "debit" ? toPaise(String(txn.customerFee ?? "0")) + toPaise(String(txn.customerFeeGst ?? "0")) : 0;
+  const needsMoney = ctx.direction !== "none" && (toPaise(txn.amount) > 0 || feeHeldPaise > 0);
 
   const { row: settled, didSettleSuccess } = await db.transaction(async (tx) => {
     const [locked] = await tx
@@ -632,11 +646,11 @@ export async function recheckTxnStatus(actor: Actor, txnRef: string): Promise<Tx
   const direction: MoneyDirection = inferDirectionFromServiceCode(service.code);
   const walletType: WalletType =
     (txn.walletType as WalletType | null) ?? (direction === "credit" ? "aeps" : "main");
-  // An unpaid UPI QR expiring or a bank finding no account is routine, not an incident.
+  // An unpaid UPI QR expiring is routine, not an incident.
   const finalized = await finalizeTxn(txn, result, {
     direction,
     walletType,
-    quietFailure: QUIET_FAILURE_SERVICES.has(service.code),
+    quietFailure: service.code === "UPI_CASH_POINT",
   });
 
   await insertAuditLog({

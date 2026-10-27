@@ -290,7 +290,7 @@ export async function dmtBankNameCheck(req: Request, res: Response): Promise<voi
 
 export async function dmtBankNameCheckPrice(_req: Request, res: Response): Promise<void> {
   const { bankCheckPrices } = await import("./bankNameCheck.service");
-  sendSuccess(res, bankCheckPrices());
+  sendSuccess(res, await bankCheckPrices());
 }
 
 export async function dmtAddBeneficiaryVerify(req: Request, res: Response): Promise<void> {

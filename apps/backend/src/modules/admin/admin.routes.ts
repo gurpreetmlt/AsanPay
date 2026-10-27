@@ -1459,8 +1459,12 @@ adminRouter.post("/recon-adjustments/:id/reject", async (req, res) => {
 adminRouter.get("/tenant-settings", async (_req, res) => {
   const { getTenantSettings } = await import("../tenants/tenantSettings.service");
   const { resolveTenantId } = await import("../fund-requests/tenant");
+  const { env } = await import("../../config/env");
   const tenantId = await resolveTenantId();
-  sendSuccess(res, await getTenantSettings(tenantId));
+  sendSuccess(res, {
+    ...(await getTenantSettings(tenantId)),
+    bankCheckProviderCosts: { pennyless: env.BANK_NAME_CHECK_COST, pennyDrop: env.BANK_PENNY_DROP_COST },
+  });
 });
 
 adminRouter.patch("/tenant-settings", async (req, res) => {
@@ -1476,6 +1480,10 @@ adminRouter.patch("/tenant-settings", async (req, res) => {
       nodalPhone: z.string().max(40).optional(),
       nodalAddress: z.string().max(500).optional(),
       allowCompanyBankDelete: z.boolean().optional(),
+      bankCheckPriceRupees: z.coerce.number({ error: "Bank check price must be a number" }).optional(),
+      bankCheckPennyDropPriceRupees: z
+        .coerce.number({ error: "Bank check price with ₹1 penny drop must be a number" })
+        .optional(),
     })
     .parse(req.body);
   const { patchTenantSettings } = await import("../tenants/tenantSettings.service");

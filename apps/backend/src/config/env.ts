@@ -173,7 +173,10 @@ const envSchema = z.object({
   NOBLE_BASE_DMT: z.string().url().default("https://dmt.noblewebstudio.in"),
   NOBLE_BASE_RECHARGE: z.string().url().default("https://rcapi.noblewebstudio.in"),
   NOBLE_BASE_CMS: z.string().url().default("https://cms.noblewebstudio.in"),
-  /** Provider cost per bank account check (₹), debited from the agent's wallet. */
+  /**
+   * What the provider charges us per bank account check (₹): pennyless and ₹1 penny drop.
+   * Agent prices are separate (admin Platform settings); BestAPI checks cost us nothing.
+   */
   BANK_NAME_CHECK_COST: z
     .string()
     .regex(/^\d+(\.\d{1,2})?$/, "BANK_NAME_CHECK_COST must be rupees, e.g. 0.80")

@@ -281,7 +281,8 @@ async function serviceJournalContext(
   const feeGst = rupeesToPaise(row.customerFeeGst ?? "0");
   // Fee + GST posted together to COMMISSION_INCOME until a dedicated GST_OUTPUT account ships (TC13).
   const fee = feeOnly + feeGst;
-  if (principal <= 0n) {
+  // Fee-only debits (agent-paid checks where the provider charged us nothing) have principal 0.
+  if (principal < 0n || principal + fee <= 0n) {
     throw new HttpError(422, "Transaction amount must be positive", "INVALID_AMOUNT");
   }
   if (feeOnly < 0n) {
@@ -642,10 +643,10 @@ async function planTransfer(
           );
         }
         const agentCode = await agentAccountCode(tx, tenantId, from);
-        const entries: JournalEntryInput[] = [
-          { code: agentCode, dir: "DR", amount },
-          { code: floatCode, dir: "CR", amount: principal },
-        ];
+        const entries: JournalEntryInput[] = [{ code: agentCode, dir: "DR", amount }];
+        if (principal > 0n) {
+          entries.push({ code: floatCode, dir: "CR", amount: principal });
+        }
         if (fee > 0n) {
           entries.push({ code: COMMISSION_INCOME, dir: "CR", amount: fee });
         }
@@ -662,7 +663,7 @@ async function planTransfer(
       // Credit: AePS and friends. The customer's bank paid us and we now owe the retailer the
       // cash they handed over, so the money direction is the reverse of the journal direction.
       // Credit path ignores customer_fee (income on cash-out is product work if ever needed).
-      if (amount !== principal) {
+      if (principal <= 0n || amount !== principal) {
         throw new HttpError(
           500,
           `Service credit amount ${paiseToRupees(amount)} must equal principal ${paiseToRupees(principal)}`,

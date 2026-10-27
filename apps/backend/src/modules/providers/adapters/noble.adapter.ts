@@ -23,7 +23,6 @@ import {
   requireNobleGeo,
   resolveNobleAgentContext,
 } from "../noble/aepsOps";
-import { BANK_CHECK_SERVICE, nobleBankCheckStatus } from "../noble/bankVerify";
 import { noblePost, type NobleApiResponse } from "../noble/client";
 import { resolveRechargeRoute } from "../noble/rechargeOperators";
 import type {
@@ -347,9 +346,6 @@ export class NobleAdapter implements ProviderAdapter {
       throw new HttpError(400, "transactionId is required for status check", "NOBLE_TXN_ID_REQUIRED");
     }
     const code = String(params.serviceCode ?? "");
-    if (code === BANK_CHECK_SERVICE.pennyless || code === BANK_CHECK_SERVICE.pennydrop) {
-      return nobleBankCheckStatus(transactionId);
-    }
     if (code.startsWith("dmt") || code === "MONEY_TRANSFER") {
       const { httpStatus, json } = await noblePost("dmt", "/api/v1.0/airtel_dmt/transaction_status", {
         transactionId,

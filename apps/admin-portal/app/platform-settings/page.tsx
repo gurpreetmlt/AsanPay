@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { Headphones, LocateFixed, MapPin } from "lucide-react";
+import { Headphones, Landmark, LocateFixed, MapPin } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { DangerConfirmModal } from "@/components/ui/DangerConfirmModal";
 import { LabelText } from "@/components/ui/RequiredMark";
@@ -43,6 +43,22 @@ type GeofenceEffective = {
 
 type GeofenceForm = { enabled: boolean; shopKm: string; homeKm: string };
 
+type BankCheckSettings = {
+  bankCheckPriceRupees?: number;
+  bankCheckPennyDropPriceRupees?: number;
+  bankCheckProviderCosts?: { pennyless: string; pennyDrop: string };
+};
+
+const BANK_PRICE_MAX = 50;
+
+function bankPriceError(raw: string, label: string, min: number): string | null {
+  const n = Number(raw);
+  if (raw.trim() === "" || !Number.isFinite(n) || n < min || n > BANK_PRICE_MAX) {
+    return `${label} must be between ₹${min.toFixed(2)} (provider cost) and ₹${BANK_PRICE_MAX}`;
+  }
+  return null;
+}
+
 /** Must match backend GEOFENCE_BOUNDS (tenants/geofenceSettings.ts). */
 const SHOP_KM_MAX = 50;
 const HOME_KM_MAX = 20;
@@ -71,6 +87,22 @@ export default function PlatformSettingsPage() {
   const [geo, setGeo] = useState<GeofenceForm>({ enabled: true, shopKm: "", homeKm: "" });
   const [geoSaving, setGeoSaving] = useState(false);
   const [confirmGeoOff, setConfirmGeoOff] = useState(false);
+  const [bankCosts, setBankCosts] = useState<{ pennyless: number; pennyDrop: number }>({ pennyless: 0.8, pennyDrop: 1.8 });
+  const [bankPrice, setBankPrice] = useState({ standard: "", pennyDrop: "" });
+  const [bankSaving, setBankSaving] = useState(false);
+
+  const applyBankCheck = useCallback((s: BankCheckSettings) => {
+    if (s.bankCheckProviderCosts) {
+      setBankCosts({
+        pennyless: Number(s.bankCheckProviderCosts.pennyless),
+        pennyDrop: Number(s.bankCheckProviderCosts.pennyDrop),
+      });
+    }
+    setBankPrice({
+      standard: s.bankCheckPriceRupees != null ? s.bankCheckPriceRupees.toFixed(2) : "",
+      pennyDrop: s.bankCheckPennyDropPriceRupees != null ? s.bankCheckPennyDropPriceRupees.toFixed(2) : "",
+    });
+  }, []);
 
   const applyGeofence = useCallback((g: GeofenceEffective | undefined) => {
     if (!g) return;
@@ -82,9 +114,10 @@ export default function PlatformSettingsPage() {
     setLoading(true);
     try {
       const settings = await fetchApi<
-        SupportForm & { geofence?: GeofenceEffective } & Record<string, unknown>
+        SupportForm & { geofence?: GeofenceEffective } & BankCheckSettings & Record<string, unknown>
       >("/admin/tenant-settings");
       applyGeofence(settings.geofence);
+      applyBankCheck(settings);
       setForm({
         supportPhone: settings.supportPhone ?? "",
         supportEmail: settings.supportEmail ?? "",
@@ -99,7 +132,7 @@ export default function PlatformSettingsPage() {
     } finally {
       setLoading(false);
     }
-  }, [applyGeofence]);
+  }, [applyGeofence, applyBankCheck]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -135,6 +168,32 @@ export default function PlatformSettingsPage() {
       toast.error(message);
     } finally {
       setSaving(false);
+    }
+  }
+
+  const standardPriceError = bankPriceError(bankPrice.standard, "Bank check price", bankCosts.pennyless);
+  const pennyDropPriceError = bankPriceError(bankPrice.pennyDrop, "Price with ₹1 penny drop", bankCosts.pennyDrop);
+
+  async function saveBankPrices() {
+    if (standardPriceError || pennyDropPriceError) {
+      toast.error(standardPriceError ?? pennyDropPriceError ?? "");
+      return;
+    }
+    setBankSaving(true);
+    try {
+      await api.patch("/admin/tenant-settings", {
+        bankCheckPriceRupees: Number(bankPrice.standard),
+        bankCheckPennyDropPriceRupees: Number(bankPrice.pennyDrop),
+      });
+      applyBankCheck(await fetchApi<BankCheckSettings>("/admin/tenant-settings"));
+      toast.success("Bank check prices saved");
+    } catch (err) {
+      const message =
+        (err as { response?: { data?: { message?: string } } }).response?.data?.message ??
+        "Could not save bank check prices";
+      toast.error(message);
+    } finally {
+      setBankSaving(false);
     }
   }
 
@@ -379,6 +438,52 @@ export default function PlatformSettingsPage() {
                 style={{ background: B.badgeGrad }}
               >
                 {geoSaving ? "Saving…" : "Save location limits"}
+              </button>
+            </section>
+
+            <section
+              className="space-y-4 rounded-2xl border bg-white p-5 lg:max-w-3xl"
+              style={{ borderColor: B.border }}
+            >
+              <div className="flex items-center gap-2">
+                <Landmark size={18} style={{ color: B.blueLight }} />
+                <h2 className="text-sm font-bold" style={{ color: B.blue }}>
+                  Bank check prices
+                </h2>
+              </div>
+              <p className="text-[12px]" style={{ color: B.muted }}>
+                What an agent pays for &quot;Verify name with bank&quot; when adding a money-transfer payee. Order:
+                free bank check → pennyless (₹{bankCosts.pennyless.toFixed(2)} to us) → ₹1 penny drop (₹
+                {bankCosts.pennyDrop.toFixed(2)} to us). The agent pays once, only when the bank confirms the name.
+              </p>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field
+                  label="Price per check (₹)"
+                  hint="Name confirmed without a ₹1 credit"
+                  type="number"
+                  value={bankPrice.standard}
+                  onChange={(v) => setBankPrice((p) => ({ ...p, standard: v }))}
+                  placeholder="1.50"
+                  error={standardPriceError}
+                />
+                <Field
+                  label="Price with ₹1 penny drop (₹)"
+                  hint="Used only when the bank needs a ₹1 test credit"
+                  type="number"
+                  value={bankPrice.pennyDrop}
+                  onChange={(v) => setBankPrice((p) => ({ ...p, pennyDrop: v }))}
+                  placeholder="2.50"
+                  error={pennyDropPriceError}
+                />
+              </div>
+              <button
+                type="button"
+                disabled={bankSaving || Boolean(standardPriceError || pennyDropPriceError)}
+                onClick={() => void saveBankPrices()}
+                className="w-full rounded-xl py-2.5 text-sm font-semibold text-white disabled:opacity-50 lg:max-w-md"
+                style={{ background: B.badgeGrad }}
+              >
+                {bankSaving ? "Saving…" : "Save bank check prices"}
               </button>
             </section>
           </>

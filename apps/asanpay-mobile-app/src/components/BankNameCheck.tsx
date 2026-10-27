@@ -10,14 +10,14 @@ import { colors } from "../theme/colors";
 interface BankCheckResult {
   status: "verified" | "not_confirmed" | "pending";
   bankName: string | null;
-  method: "pennyless" | "pennydrop" | null;
+  method: "bestapi" | "pennyless" | "pennydrop" | null;
   charged: string;
   cached: boolean;
   message: string;
 }
 
 interface Prices {
-  nameCheck: string;
+  standard: string;
   pennyDrop: string;
 }
 
@@ -107,11 +107,11 @@ export function BankNameCheck({
           <Pressable onPress={() => void verify()} disabled={busy} style={[styles.verifyBtn, busy && { opacity: 0.6 }]}>
             {busy ? <ActivityIndicator color={colors.blueFlat} /> : <Landmark size={16} color={colors.blueFlat} />}
             <Text style={styles.verifyText}>
-              {busy ? "Checking with bank…" : `Verify name with bank${prices ? ` (${rupees(prices.nameCheck)})` : ""}`}
+              {busy ? "Checking with bank…" : `Verify name with bank${prices ? ` (${rupees(prices.standard)})` : ""}`}
             </Text>
           </Pressable>
           <Text style={styles.hint}>
-            Optional. {prices ? `${rupees(prices.nameCheck)} per check` : "Small fee per check"}
+            Optional. {prices ? `${rupees(prices.standard)} per check` : "Small fee per check"}
             {prices ? `, or ${rupees(prices.pennyDrop)} if the bank needs a ₹1 test credit` : ""} — debited from your
             wallet only when the bank confirms. Same account checked again within 90 days is free.
           </Text>

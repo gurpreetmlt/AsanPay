@@ -15,14 +15,14 @@ import {
 interface BankCheckResult {
   status: "verified" | "not_confirmed" | "pending";
   bankName: string | null;
-  method: "pennyless" | "pennydrop" | null;
+  method: "bestapi" | "pennyless" | "pennydrop" | null;
   charged: string;
   cached: boolean;
   message: string;
 }
 
 interface Prices {
-  nameCheck: string;
+  standard: string;
   pennyDrop: string;
 }
 
@@ -115,10 +115,10 @@ export function BankNameCheck({
             className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 py-2.5 text-sm font-bold text-blue-700 transition hover:bg-blue-100 disabled:opacity-50"
           >
             {busy ? <Loader2 size={15} className="animate-spin" /> : <Landmark size={15} />}
-            {busy ? "Checking with bank…" : `Verify name with bank${prices ? ` (${rupees(prices.nameCheck)})` : ""}`}
+            {busy ? "Checking with bank…" : `Verify name with bank${prices ? ` (${rupees(prices.standard)})` : ""}`}
           </button>
           <p className="mt-1.5 text-[11px] text-gray-500">
-            Optional. {prices ? `${rupees(prices.nameCheck)} per check` : "Small fee per check"}
+            Optional. {prices ? `${rupees(prices.standard)} per check` : "Small fee per check"}
             {prices ? `, or ${rupees(prices.pennyDrop)} if the bank needs a ₹1 test credit` : ""} — debited from your
             wallet only when the bank confirms. Same account checked again within 90 days is free.
           </p>

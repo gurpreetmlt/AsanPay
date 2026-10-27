@@ -38,7 +38,16 @@ export interface TenantSettings {
   allowCompanyBankDelete?: boolean;
   /** Admin Platform Settings → Location limits. Unset fields fall back to env / defaults. */
   geofence?: StoredGeofence;
+  /** Agent price (₹) for a bank account name check answered without a ₹1 credit. */
+  bankCheckPriceRupees?: number;
+  /** Agent price (₹) when the check needed the ₹1 penny drop. */
+  bankCheckPennyDropPriceRupees?: number;
 }
+
+export const BANK_CHECK_PRICE_DEFAULTS = { standard: 1.5, pennyDrop: 2.5 } as const;
+const BANK_CHECK_PRICE_MAX = 50;
+
+const toRupees2 = (n: number) => Math.round(n * 100) / 100;
 
 export type ResolvedTenantSettings = Required<
   Omit<TenantSettings, "promoSlides" | "promoAssets" | "geofence">
@@ -98,7 +107,18 @@ function mergeWithDefaults(s: TenantSettings): ResolvedTenantSettings {
     nodalAddress: strField(s.nodalAddress, 500),
     allowCompanyBankDelete: s.allowCompanyBankDelete === true,
     geofence: resolveGeofenceLimits(s.geofence, serverGeofenceLimits()),
+    bankCheckPriceRupees: validBankPrice(s.bankCheckPriceRupees, Number(env.BANK_NAME_CHECK_COST))
+      ? toRupees2(s.bankCheckPriceRupees as number)
+      : BANK_CHECK_PRICE_DEFAULTS.standard,
+    bankCheckPennyDropPriceRupees: validBankPrice(s.bankCheckPennyDropPriceRupees, Number(env.BANK_PENNY_DROP_COST))
+      ? toRupees2(s.bankCheckPennyDropPriceRupees as number)
+      : BANK_CHECK_PRICE_DEFAULTS.pennyDrop,
   };
+}
+
+/** Never below what the provider charges us for that step. */
+function validBankPrice(v: unknown, providerCost: number): boolean {
+  return typeof v === "number" && Number.isFinite(v) && v >= providerCost && v <= BANK_CHECK_PRICE_MAX;
 }
 
 export async function getTenantSettings(tenantId: string): Promise<ResolvedTenantSettings> {
@@ -169,6 +189,20 @@ export async function patchTenantSettings(
     }
   }
 
+  for (const [field, label, cost] of [
+    ["bankCheckPriceRupees", "Bank check price", Number(env.BANK_NAME_CHECK_COST)],
+    ["bankCheckPennyDropPriceRupees", "Bank check price with ₹1 penny drop", Number(env.BANK_PENNY_DROP_COST)],
+  ] as const) {
+    const v = patch[field];
+    if (v !== undefined && !validBankPrice(Number(v), cost)) {
+      throw new HttpError(
+        422,
+        `${label} must be between ₹${cost.toFixed(2)} (provider cost) and ₹${BANK_CHECK_PRICE_MAX}`,
+        "INVALID_BANK_CHECK_PRICE",
+      );
+    }
+  }
+
   const { prev, merged } = await db.transaction(async (tx) => {
     const [row] = await tx
       .select({ settings: tenants.settings })
@@ -202,6 +236,12 @@ export async function patchTenantSettings(
       ...(patch.allowCompanyBankDelete !== undefined
         ? { allowCompanyBankDelete: patch.allowCompanyBankDelete === true }
         : {}),
+      ...(patch.bankCheckPriceRupees !== undefined
+        ? { bankCheckPriceRupees: toRupees2(Number(patch.bankCheckPriceRupees)) }
+        : {}),
+      ...(patch.bankCheckPennyDropPriceRupees !== undefined
+        ? { bankCheckPennyDropPriceRupees: toRupees2(Number(patch.bankCheckPennyDropPriceRupees)) }
+        : {}),
       ...(patch.geofence !== undefined ? {
             geofence: {
               ...(prev.geofence && typeof prev.geofence === "object" ? prev.geofence : {}),
@@ -218,6 +258,26 @@ export async function patchTenantSettings(
   });
 
   const resolved = mergeWithDefaults(merged);
+  if (patch.bankCheckPriceRupees !== undefined || patch.bankCheckPennyDropPriceRupees !== undefined) {
+    const before = mergeWithDefaults(prev);
+    if (
+      before.bankCheckPriceRupees !== resolved.bankCheckPriceRupees ||
+      before.bankCheckPennyDropPriceRupees !== resolved.bankCheckPennyDropPriceRupees
+    ) {
+      await insertAuditLog({
+        userId: actor?.id ?? null,
+        action: "admin.bank_check_price_update",
+        entityType: "tenant",
+        entityId: tenantId,
+        ipAddress: actor?.ipAddress ?? null,
+        userAgent: actor?.userAgent ?? null,
+        metadata: {
+          from: { standard: before.bankCheckPriceRupees, pennyDrop: before.bankCheckPennyDropPriceRupees },
+          to: { standard: resolved.bankCheckPriceRupees, pennyDrop: resolved.bankCheckPennyDropPriceRupees },
+        },
+      });
+    }
+  }
   if (patch.geofence !== undefined) {
     invalidateGeofenceLimits();
     const before = mergeWithDefaults(prev).geofence;
