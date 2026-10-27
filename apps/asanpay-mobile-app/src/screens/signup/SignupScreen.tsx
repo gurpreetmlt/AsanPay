@@ -25,6 +25,7 @@ import { colors } from "../../theme/colors";
 import { showAlert } from "../../components/AppAlert";
 import { BrandMark } from "../../components/BrandMark";
 import { IfscBankDetailsFields } from "../../components/IfscBankDetailsFields";
+import { SignupBankCheck } from "../../components/SignupBankCheck";
 import { LabelText } from "../../components/RequiredMark";
 import { MobileSignupStepper, MOBILE_SIGNUP_STEPS } from "../../components/MobileSignupStepper";
 import { CardCameraModal } from "../../components/CardCameraModal";
@@ -2794,6 +2795,13 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                     tokens={tokens}
                     showHolder
                     showConfirmAccount
+                  />
+                  <SignupBankCheck
+                    accountNumber={draft.accountNumber}
+                    accountNumberConfirm={draft.accountNumberConfirm}
+                    ifsc={draft.ifsc}
+                    panName={draft.name}
+                    onUseBankName={(name) => patch({ accountName: name })}
                   />
                   <UploadRow
                     label="Cancelled Cheque (optional)"

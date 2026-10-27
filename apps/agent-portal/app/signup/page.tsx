@@ -45,6 +45,7 @@ import { lookupIndianPincode } from "@/lib/pincode";
 import {
   IfscBankDetailsFields,
 } from "@/components/banking/IfscBankDetailsFields";
+import { SignupBankCheck } from "@/components/banking/SignupBankCheck";
 import {
   clearSignupDraft,
   EMPTY_SIGNUP_DRAFT,
@@ -2738,6 +2739,13 @@ function SignupPageInner() {
                   }}
                   showHolder
                   showConfirmAccount
+                />
+                <SignupBankCheck
+                  accountNumber={draft.accountNumber}
+                  accountNumberConfirm={draft.accountNumberConfirm}
+                  ifsc={draft.ifsc}
+                  panName={draft.name}
+                  onUseBankName={(name) => patch({ accountName: name })}
                 />
                 <FileUpload
                   label="Cancelled Cheque (optional)"

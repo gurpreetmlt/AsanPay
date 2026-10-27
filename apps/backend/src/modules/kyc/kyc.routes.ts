@@ -115,6 +115,30 @@ kycRouter.get("/documents/:docKey", async (req, res) => {
   res.send(doc.buffer);
 });
 
+const signupBankCheckSchema = z.object({
+  accountNumber: z.string().trim().regex(/^\d{6,18}$/, "Account number must be 6–18 digits"),
+  ifsc: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, "Enter a valid 11-character IFSC (e.g. SBIN0001234)"),
+});
+
+/** Signup bank step: free BestAPI check only — never pennyless / penny drop, never charged. */
+kycRouter.post("/bank-check", kycDocCheckLimiter, validateBody(signupBankCheckSchema), async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const body = req.body as z.infer<typeof signupBankCheckSchema>;
+  const { verifyBankAccount } = await import("../transactions/bankNameCheck.service");
+  const v = await verifyBankAccount({
+    userId: req.auth.sub,
+    accountNumber: body.accountNumber,
+    ifsc: body.ifsc,
+    purpose: "signup_bank",
+    bestApiOnly: true,
+  });
+  sendSuccess(res, { status: v.status, bankName: v.bankName, cached: v.cached, message: v.message }, v.message);
+});
+
 kycRouter.get("/ifsc/:code", async (req, res) => {
   const ifsc = String(req.params.code ?? "")
     .replace(/[^A-Za-z0-9]/g, "")

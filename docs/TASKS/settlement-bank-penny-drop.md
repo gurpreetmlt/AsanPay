@@ -65,5 +65,14 @@ every bank; admin "Re-check with bank" is free for the agent. Signup bank step (
 - Company banks: `POST /banking/accounts/bank-check` (typed account or saved id, full chain, company pays) →
   "Check with bank" in the add / edit form + review popup; nothing new stored on `bank_accounts`.
 
+## Built (27 Oct) — signup bank step (BestAPI only)
+- `verifyBankAccount({ …, bestApiOnly: true })` stops after BestAPI; purpose `signup_bank`. Other flows keep the
+  chain (BestAPI → pennyless → penny drop when BestAPI fails).
+- `POST /kyc/bank-check` (free, agent auth, doc-check rate limit) → web `SignupBankCheck` + mobile
+  `SignupBankCheck` on the bank step: runs by itself once account + confirm + IFSC are valid; "Name as per bank"
+  + match pill vs PAN name + "Use bank name as account holder"; not confirmed → warn only, Continue allowed.
+- `submitKyc` re-runs it (cache hit) and saves `bankCheckStatus`, `bankNameAsPerBank`, `bankNameMatchPercent` in
+  the `kyc.submit` metadata. Admin KYC view of these + admin pennyless / penny-drop buttons: not built yet.
+
 ## Not in scope
 Automatic payout to the agent's bank (no payout API in the provider list) — payouts stay manual with UTR.

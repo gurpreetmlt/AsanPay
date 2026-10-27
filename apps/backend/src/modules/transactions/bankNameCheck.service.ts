@@ -21,7 +21,7 @@ import { executeServiceTxn } from "./txn.service";
 type Actor = { id: string; role: UserRole };
 
 export type BankCheckMethod = "bestapi" | NobleBankCheckMethod;
-export type BankCheckPurpose = "dmt_payee" | "settlement_bank" | "company_bank";
+export type BankCheckPurpose = "dmt_payee" | "settlement_bank" | "company_bank" | "signup_bank";
 
 /** A bank-confirmed name is reused for this long before anyone pays again. */
 const CACHE_DAYS = 90;
@@ -94,12 +94,14 @@ async function noblePolled(method: NobleBankCheckMethod, account: { accountNumbe
 /**
  * Provider chain, no charge: BestAPI (free) → provider pennyless → ₹1 penny drop. Stops as soon as
  * a name comes back, or when the bank says the account itself is wrong. Every hit is logged with its cost.
+ * `bestApiOnly` stops after BestAPI (signup: free check, nothing paid).
  */
 export async function verifyBankAccount(input: {
   userId: string;
   accountNumber: string;
   ifsc: string;
   purpose: BankCheckPurpose;
+  bestApiOnly?: boolean;
 }): Promise<BankAccountVerification> {
   const { accountNumber, ifsc } = normalize(input.accountNumber, input.ifsc);
   const hash = accountHash(accountNumber);
@@ -170,7 +172,7 @@ export async function verifyBankAccount(input: {
     return { status: "not_confirmed", bankName: null, method: "bestapi", cached: false, message: best.message, checkId: null, refId: null };
   }
 
-  if (!isNobleConfigured()) {
+  if (input.bestApiOnly || !isNobleConfigured()) {
     return { status: "not_confirmed", bankName: null, method: null, cached: false, message: NOT_CONFIRMED, checkId: null, refId: null };
   }
   for (const method of ["pennyless", "pennydrop"] as const) {

@@ -7,7 +7,7 @@ import { HttpError } from "../../utils/httpError";
 import { findLatestAuditLog, insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import { kycSubmittedEmailTemplate, notifyUserEmail } from "../../utils/mailer";
 import type { AuthUser } from "@asanpay/shared-types";
-import { formatPanName, isFundRequestEnabled } from "@asanpay/shared-types";
+import { bankNameMatch, formatPanName, isFundRequestEnabled } from "@asanpay/shared-types";
 import type { HomeLocationInput, KycSubmitInput } from "../auth/auth.validators";
 import { autoCropCard, type CardCropResult } from "./docCheck/cardCrop";
 import {
@@ -382,6 +382,28 @@ async function resolveSignupGeoFix(
 }
 
 /** Stores KYC PII encrypted. Status stays pending until admin verifies (Task 18). */
+/** Free BestAPI check of the signup bank — usually a cache hit from POST /kyc/bank-check. Warn only, never blocks. */
+async function signupBankCheckMeta(
+  userId: string,
+  accountNumber: string | undefined,
+  ifsc: string | undefined,
+  nameToMatch: string,
+): Promise<{ bankCheckStatus: string | null; bankNameAsPerBank: string | null; bankNameMatchPercent: number | null }> {
+  if (!accountNumber || !ifsc) return { bankCheckStatus: null, bankNameAsPerBank: null, bankNameMatchPercent: null };
+  try {
+    const { verifyBankAccount } = await import("../transactions/bankNameCheck.service");
+    const v = await verifyBankAccount({ userId, accountNumber, ifsc, purpose: "signup_bank", bestApiOnly: true });
+    return {
+      bankCheckStatus: v.status,
+      bankNameAsPerBank: v.bankName,
+      bankNameMatchPercent: v.bankName && nameToMatch ? bankNameMatch(nameToMatch, v.bankName).percent : null,
+    };
+  } catch (err) {
+    logger.warn({ err, userId }, "signup bank check failed");
+    return { bankCheckStatus: "error", bankNameAsPerBank: null, bankNameMatchPercent: null };
+  }
+}
+
 export async function submitKyc(userId: string, input: KycSubmitInput): Promise<AuthUser> {
   const [user] = await db.select().from(users).where(eq(users.id, userId));
   if (!user || !user.isActive) {
@@ -439,6 +461,12 @@ export async function submitKyc(userId: string, input: KycSubmitInput): Promise<
     null;
 
   const panName = await verifiedPanName(userId, input.panNumber);
+  const bankCheckMeta = await signupBankCheckMeta(
+    userId,
+    input.bankAccountNumber,
+    input.bankIfsc,
+    panName ?? (input.fullName?.trim() || user.name || ""),
+  );
 
   const [updated] = await db
     .update(users)
@@ -537,6 +565,7 @@ export async function submitKyc(userId: string, input: KycSubmitInput): Promise<
       bankIfsc: input.bankIfsc ?? null,
       bankName: input.bankName ?? null,
       bankBranch: input.bankBranch ?? null,
+      ...bankCheckMeta,
       gender: input.gender ?? null,
       fatherName: input.fatherName ?? null,
       dob: input.dob ?? null,
