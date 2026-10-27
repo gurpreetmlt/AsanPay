@@ -7,6 +7,7 @@ One row per feature; details in the section below the table. Newest at the top o
 
 | # | Feature | Surfaces | Size | Status | Design | Task file |
 |---|---------|----------|------|--------|--------|-----------|
+| PL-18 | Signup flow v2 — 8 steps, password on step 1, name from PAN, photo uploads locked until details filled, shop (15 km) + home (5 km) location | Backend, web, mobile | L | building — Part 1 built 27 Oct; Part 2 (location + geofence) and Part 3 (merge last steps) next | — | [signup-flow-v2.md](TASKS/signup-flow-v2.md) |
 | PL-17 | Admin cleanup — separate Commission / Tax / Support & Risk / Platform settings sidebar, one home per setting, action-first dashboard | Admin | L | building — step 1 (sidebar split) + regroup A (Daily work / Money / Setup) built 27 Oct; tab hubs (B), steps 2–4 planned | — | — |
 | PL-16 | Production Postgres on AWS RDS (Mumbai) + decide on a separate production EC2 | Infra | L | idea (27 Oct) — after admin work + RC1 deploy | — | — |
 | PL-15 | Admin "Services" setup page — one page per service (status · provider · limits · customer fee · commission · preview) | Backend, admin | L | idea (27 Oct) — after PL-14 | — | — |
@@ -26,6 +27,23 @@ One row per feature; details in the section below the table. Newest at the top o
 | PL-01 | Linked accounts + role switch (same person, Distributor + Retailer) | Backend, web, mobile, admin | M | building (backend + web + mobile built 26 Oct; migrate `0076` + APK + live test pending; admin card next) | [Figma prompt](PROMPTS/figma-linked-accounts.md) · Figma URL pending | [linked-accounts.md](TASKS/linked-accounts.md) |
 
 ---
+
+## PL-18 — Signup flow v2
+
+**Problem:** Name was typed before the PAN fetched the real one; password sat on the role step; photo
+uploads ran before the details they are checked against; 9 steps; services blocked when the agent works
+from home.
+
+**Plan** (details in `docs/TASKS/signup-flow-v2.md`)
+1. ✅ Part 1: password on step 1, role step alone, PAN step order PAN → Name (auto) → DOB → Gender →
+   Father name → photo, anniversary out, uploads locked until fields are filled.
+2. Part 2: shop location (step 6) + home location (step 5) — mobile Fetch button, web phone QR;
+   geofence for all services: 15 km from shop or 5 km from home.
+3. Part 3: merge Photos + Agreement → 8 steps.
+
+**Open decisions**
+- [ ] Aadhaar OTP address / DOB vs typed values: compare silently and flag for admin review, or skip?
+- [ ] Web live photos (step 8): phone QR or webcam?
 
 ## PL-17 — Admin cleanup (Commission / Tax split, one home per setting, dashboard)
 

@@ -35,6 +35,7 @@
 | — | KYC document photo checks, in-house (PL-05) | L ⚠️ 3 chats | [kyc-doc-checks.md](kyc-doc-checks.md) |
 | — | KYC verification statuses + admin review (PL-07) | L ⚠️ 2 chats | [kyc-verification-statuses.md](kyc-verification-statuses.md) |
 | — | Daily 2FA redesign — Aadhaar card view (PL-13) | L ⚠️ 2 chats | [daily-2fa-redesign.md](daily-2fa-redesign.md) |
+| — | Signup flow v2 — 8 steps, shop + home location (PL-18) | L ⚠️ 3 parts | [signup-flow-v2.md](signup-flow-v2.md) |
 | — | Commission rate card + share % + agent Commission card (PL-14) | L ⚠️ 5 chats | [commission-rate-card.md](commission-rate-card.md) |
 | 19 | Commission schemes | M | [19-commission-schemes.md](19-commission-schemes.md) |
 | 25 | Group AEPS rows on Commission page | M | [25-admin-service-grouping.md](25-admin-service-grouping.md) |

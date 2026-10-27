@@ -1376,12 +1376,14 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
       if (!draft.latitude || !draft.longitude) return "Allow location access before continuing";
       if (draft.mobile.replace(/\D/g, "").length !== 10) return "Enter a valid 10-digit mobile";
       if (!draft.termsAccepted) return "Please accept Terms and Conditions";
-    }
-    if (stepIndex === 1) {
       if (!draft.accountCreated) {
         if (!draft.password || draft.password.length < 8) return "Password must be at least 8 characters";
         if (!/[A-Za-z]/.test(draft.password)) return "Password must contain a letter";
         if (!/\d/.test(draft.password)) return "Password must contain a number";
+      }
+    }
+    if (stepIndex === 1) {
+      if (!draft.accountCreated) {
         if (needsUpline) {
           const phone = draft.sponsorMobile.replace(/\D/g, "");
           if (phone.length !== 10) return "Enter a valid 10-digit upline mobile";
@@ -1395,10 +1397,10 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
       if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(draft.pan)) return PAN_FORMAT_ERROR;
       if (!draft.panVerified) return "Verify PAN before continuing";
       if (draft.name.trim().length < 2) return "Enter your full name exactly as printed on your PAN card";
-      if (!draft.gender) return "Select gender";
       if (!draft.dob || !/^\d{4}-\d{2}-\d{2}$/.test(draft.dob)) {
         return "Enter date of birth as DD/MM/YYYY";
       }
+      if (!draft.gender) return "Select gender";
       if (!draft.fatherName.trim()) return "Father name is required";
       if (!draft.panImage) return "Upload PAN card image to continue";
     }
@@ -2047,6 +2049,35 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                   <Text style={[styles.hint, { color: tokens.mute }]}>
                     *Enter number which is linked to your Aadhaar.
                   </Text>
+                  {draft.accountCreated ? null : (
+                    <>
+                      <FieldLabel text="Password *" color={tokens.mute} />
+                      <View style={styles.passwordWrap}>
+                        <TextInput
+                          value={draft.password}
+                          onChangeText={(t) => patch({ password: t })}
+                          secureTextEntry={!showPassword}
+                          placeholder="e.g. Test1234"
+                          placeholderTextColor={tokens.mute}
+                          editable={hasLocation && !otpSent}
+                          style={[inputStyle, { paddingRight: 44 }, !hasLocation || otpSent ? { opacity: 0.5 } : null]}
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                        />
+                        <Pressable
+                          onPress={() => setShowPassword((v) => !v)}
+                          style={styles.eyeBtn}
+                          hitSlop={10}
+                          accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+                        >
+                          {showPassword ? <EyeOff size={18} color={tokens.mute} /> : <Eye size={18} color={tokens.mute} />}
+                        </Pressable>
+                      </View>
+                      <Text style={[styles.hint, { color: tokens.mute }]}>
+                        Min 8 characters · include a letter and a number (e.g. Test1234)
+                      </Text>
+                    </>
+                  )}
                   {otpSent ? (
                     <>
                       <Text style={[styles.hint, { color: tokens.mute }]}>
@@ -2113,7 +2144,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
               {stepIndex === 1 && (
                 <>
                   <Text style={styles.sectionTitle}>Role Identification</Text>
-                  <Text style={[styles.hint, { color: tokens.mute }]}>Choose your role and create login credentials.</Text>
+                  <Text style={[styles.hint, { color: tokens.mute }]}>Choose your role. Retailers also enter their Distributor's mobile number.</Text>
                   <FieldLabel text="Role *" color={tokens.mute} />
                   <View style={styles.chipGrid}>
                     {ROLE_OPTIONS.filter((r) => draft.accountCreated || !isPartnerRole(r.value)).map((r) => (
@@ -2185,41 +2216,6 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                     <Text style={[styles.hint, { color: tokens.mute, marginBottom: 8 }]}>
                       No upline required for this role.
                     </Text>
-                  )}
-                  {draft.accountCreated ? (
-                    <View style={styles.passwordSetRow}>
-                      <CheckCircle2 size={14} color={colors.greenDark} />
-                      <Text style={{ flex: 1, color: colors.greenDark, fontSize: 12, fontWeight: "700" }}>
-                        Password already set. Change it later from Account → Security.
-                      </Text>
-                    </View>
-                  ) : (
-                    <>
-                      <FieldLabel text="Password *" color={tokens.mute} />
-                      <View style={styles.passwordWrap}>
-                        <TextInput
-                          value={draft.password}
-                          onChangeText={(t) => patch({ password: t })}
-                          secureTextEntry={!showPassword}
-                          placeholder="e.g. Test1234"
-                          placeholderTextColor={tokens.mute}
-                          style={[inputStyle, { paddingRight: 44 }]}
-                          autoCapitalize="none"
-                          autoCorrect={false}
-                        />
-                        <Pressable
-                          onPress={() => setShowPassword((v) => !v)}
-                          style={styles.eyeBtn}
-                          hitSlop={10}
-                          accessibilityLabel={showPassword ? "Hide password" : "Show password"}
-                        >
-                          {showPassword ? <EyeOff size={18} color={tokens.mute} /> : <Eye size={18} color={tokens.mute} />}
-                        </Pressable>
-                      </View>
-                      <Text style={[styles.hint, { color: tokens.mute }]}>
-                        Min 8 characters · include a letter and a number (e.g. Test1234)
-                      </Text>
-                    </>
                   )}
                   <Text style={[styles.hint, { color: tokens.mute }]}>
                     Your full name is taken from your PAN on the next step.
@@ -2306,6 +2302,33 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                         </Text>
                       )}
                     </View>
+                    <FieldLabel text="Full Name (As per PAN) *" color={tokens.mute} />
+                    <TextInput
+                      value={draft.name}
+                      onChangeText={(t) => patch({ name: t })}
+                      placeholder={draft.panVerified ? "As printed on your PAN card" : "Filled automatically after PAN verification"}
+                      placeholderTextColor={tokens.mute}
+                      editable={draft.panVerified && !nameFromPan}
+                      style={[inputStyle, !draft.panVerified || nameFromPan ? { opacity: 0.7 } : null]}
+                    />
+                    <Text style={{ color: tokens.mute, fontSize: 11, marginTop: 6 }}>
+                      {nameFromPan
+                        ? "Taken from your verified PAN. Use Change on the PAN number to edit it."
+                        : draft.panVerified
+                          ? "We couldn't fetch the name for this PAN. Enter it exactly as printed on your PAN card."
+                          : "Verify your PAN first"}
+                    </Text>
+                    <View style={{ marginTop: 8 }}>
+                      <DateTextField
+                        label="Date of Birth *"
+                        isoValue={draft.dob}
+                        onIsoChange={(iso) => patch({ dob: iso })}
+                        placeholder="DD/MM/YYYY"
+                        hint="As on PAN"
+                        tokens={tokens}
+                        inputStyle={inputStyle}
+                      />
+                    </View>
                     <View style={{ marginTop: 6 }}>
                       <FieldLabel text="Gender *" color={tokens.mute} />
                       <View style={{ flexDirection: "row", gap: 8 }}>
@@ -2333,45 +2356,6 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                       </View>
                     </View>
                   </View>
-                  <View style={{ marginTop: 8 }}>
-                    <DateTextField
-                      label="Date of Birth *"
-                      isoValue={draft.dob}
-                      onIsoChange={(iso) => patch({ dob: iso })}
-                      placeholder="DD/MM/YYYY"
-                      hint="As on PAN"
-                      tokens={tokens}
-                      inputStyle={inputStyle}
-                    />
-                  </View>
-                  <View style={{ marginTop: 4 }}>
-                    <DateTextField
-                      label="Anniversary"
-                      isoValue={draft.anniversaryDate}
-                      onIsoChange={(iso) => patch({ anniversaryDate: iso })}
-                      placeholder="DD/MM/YYYY"
-                      hint="Optional"
-                      tokens={tokens}
-                      inputStyle={inputStyle}
-                      optional
-                    />
-                  </View>
-                  <FieldLabel text="Full Name (As per PAN) *" color={tokens.mute} />
-                  <TextInput
-                    value={draft.name}
-                    onChangeText={(t) => patch({ name: t })}
-                    placeholder={draft.panVerified ? "As printed on your PAN card" : "Filled automatically after PAN verification"}
-                    placeholderTextColor={tokens.mute}
-                    editable={draft.panVerified && !nameFromPan}
-                    style={[inputStyle, !draft.panVerified || nameFromPan ? { opacity: 0.7 } : null]}
-                  />
-                  <Text style={{ color: tokens.mute, fontSize: 11, marginTop: 6 }}>
-                    {nameFromPan
-                      ? "Taken from your verified PAN. Use Change on the PAN number to edit it."
-                      : draft.panVerified
-                        ? "We couldn't fetch the name for this PAN. Enter it exactly as printed on your PAN card."
-                        : "Verify your PAN first"}
-                  </Text>
                   <FieldLabel text="Father Name *" color={tokens.mute} />
                   <TextInput
                     value={draft.fatherName}
@@ -3206,16 +3190,6 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   passwordWrap: { position: "relative", justifyContent: "center" },
-  passwordSetRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginTop: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderRadius: 12,
-    backgroundColor: "#ECFDF3",
-  },
   eyeBtn: {
     position: "absolute",
     right: 12,

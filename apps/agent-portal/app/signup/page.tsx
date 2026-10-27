@@ -1249,13 +1249,15 @@ function SignupPageInner() {
       if (!draft.latitude || !draft.longitude) return "Allow location access before continuing";
       if (draft.mobile.replace(/\D/g, "").length !== 10) return "Enter a valid 10-digit mobile";
       if (!draft.termsAccepted) return "Please accept Terms and Conditions";
-    }
-    if (stepIndex === 1) {
-      // Account already exists (Continue KYC) — password / upline already set.
       if (!(draft.accountCreated || loggedInContinue)) {
         if (!draft.password || draft.password.length < 8) return "Password must be at least 8 characters";
         if (!/[A-Za-z]/.test(draft.password)) return "Password must contain a letter";
         if (!/\d/.test(draft.password)) return "Password must contain a number";
+      }
+    }
+    if (stepIndex === 1) {
+      // Account already exists (Continue KYC) — upline already set.
+      if (!(draft.accountCreated || loggedInContinue)) {
         if (needsUpline && !sponsor) {
           return "Distributor / Super Distributor not found for this mobile. Use an active upline number.";
         }
@@ -1265,8 +1267,8 @@ function SignupPageInner() {
       if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(draft.pan)) return PAN_FORMAT_ERROR;
       if (!draft.panVerified) return "Verify PAN before continuing";
       if (draft.name.trim().length < 2) return "Enter your full name exactly as printed on your PAN card";
-      if (!draft.gender) return "Select gender";
       if (!draft.dob) return "Date of birth is required";
+      if (!draft.gender) return "Select gender";
       if (!draft.fatherName.trim()) return "Father name is required";
       if (!draft.panImage) return "Upload PAN card image to continue";
     }
@@ -1951,6 +1953,35 @@ function SignupPageInner() {
                 <p className="text-xs" style={{ color: B.muted }}>
                   *Enter number which is linked to your Aadhaar.
                 </p>
+                {draft.accountCreated || loggedInContinue ? null : (
+                  <Field label="Password *">
+                    <div className="relative">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={draft.password}
+                        onChange={(e) => patch({ password: e.target.value })}
+                        className={`${inputCls} pr-12`}
+                        style={{ ...inputStyle, opacity: hasLocation ? 1 : 0.55 }}
+                        placeholder="e.g. Test1234"
+                        autoComplete="new-password"
+                        disabled={!hasLocation || otpSent}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((v) => !v)}
+                        className="icon-tooltip absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1"
+                        style={{ color: B.muted }}
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        data-tooltip={showPassword ? "Hide password" : "Show password"}
+                      >
+                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                    <p className="mt-1 text-xs" style={{ color: B.muted }}>
+                      Min 8 characters · include a letter and a number (e.g. Test1234)
+                    </p>
+                  </Field>
+                )}
                 {otpSent ? (
                   <>
                     <p className="text-xs" style={{ color: B.muted }}>
@@ -2123,42 +2154,6 @@ function SignupPageInner() {
                     No upline required for this role.
                   </p>
                 ) : null}
-                {draft.accountCreated || loggedInContinue ? (
-                  <p
-                    className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold"
-                    style={{ background: "#ECFDF3", color: "#166534" }}
-                  >
-                    <CheckCircle2 size={14} className="shrink-0" />
-                    Password already set. Change it later from Settings → Security.
-                  </p>
-                ) : (
-                <Field label="Password *">
-                  <div className="relative">
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      value={draft.password}
-                      onChange={(e) => patch({ password: e.target.value })}
-                      className={`${inputCls} pr-12`}
-                      style={inputStyle}
-                      placeholder="e.g. Test1234"
-                      autoComplete="new-password"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((v) => !v)}
-                      className="icon-tooltip absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1"
-                      style={{ color: B.muted }}
-                      aria-label={showPassword ? "Hide password" : "Show password"}
-                      data-tooltip={showPassword ? "Hide password" : "Show password"}
-                    >
-                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
-                  </div>
-                  <p className="mt-1 text-xs" style={{ color: B.muted }}>
-                    Min 8 characters · include a letter and a number (e.g. Test1234)
-                  </p>
-                </Field>
-                )}
                 <p className="text-xs" style={{ color: B.muted }}>
                   Your full name is taken from your PAN on the next step.
                 </p>
@@ -2174,7 +2169,6 @@ function SignupPageInner() {
                   Enter your 10-character PAN — verification starts automatically. Then fill personal
                   details as on the PAN.
                 </p>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <Field label="PAN Number *">
                     <input
                       ref={panInputRef}
@@ -2254,41 +2248,6 @@ function SignupPageInner() {
                       </div>
                     )}
                   </Field>
-                  <Field label="Gender *">
-                    <select
-                      value={draft.gender}
-                      onChange={(e) => patch({ gender: e.target.value })}
-                      className={inputCls}
-                      style={inputStyle}
-                    >
-                      <option value="">Select</option>
-                      <option value="Male">Male</option>
-                      <option value="Female">Female</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </Field>
-                  <Field label="Date of Birth *">
-                    <DateField
-                      value={draft.dob}
-                      fullWidth
-                      max={new Date().toISOString().slice(0, 10)}
-                      onChange={(v) => patch({ dob: v })}
-                    />
-                    <p className="mt-1 text-xs" style={{ color: B.muted }}>
-                      As on PAN card
-                    </p>
-                  </Field>
-                  <Field label="Anniversary Date">
-                    <DateField
-                      value={draft.anniversaryDate}
-                      fullWidth
-                      onChange={(v) => patch({ anniversaryDate: v })}
-                    />
-                    <p className="mt-1 text-xs" style={{ color: B.muted }}>
-                      Optional
-                    </p>
-                  </Field>
-                </div>
                 <Field label="Full Name (As per PAN) *">
                   <input
                     value={draft.name}
@@ -2306,6 +2265,32 @@ function SignupPageInner() {
                         : "Verify your PAN first"}
                   </p>
                 </Field>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Field label="Date of Birth *">
+                    <DateField
+                      value={draft.dob}
+                      fullWidth
+                      max={new Date().toISOString().slice(0, 10)}
+                      onChange={(v) => patch({ dob: v })}
+                    />
+                    <p className="mt-1 text-xs" style={{ color: B.muted }}>
+                      As on PAN card
+                    </p>
+                  </Field>
+                  <Field label="Gender *">
+                    <select
+                      value={draft.gender}
+                      onChange={(e) => patch({ gender: e.target.value })}
+                      className={inputCls}
+                      style={inputStyle}
+                    >
+                      <option value="">Select</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </Field>
+                </div>
                 <Field label="Father Name *">
                   <input
                     value={draft.fatherName}
