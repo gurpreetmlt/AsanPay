@@ -26,6 +26,10 @@ charge. Name as per bank + match vs PAN name shown; not confirmed → **warn onl
 
 DMT payee check (already built) keeps the full chain with the agent paying once.
 
+**Company / admin pays = actual provider cost only** (no markup): BestAPI ₹0, pennyless ₹0.80, penny drop
+₹1.80 (`BANK_NAME_CHECK_COST` / `BANK_PENNY_DROP_COST`), recorded per hit in `bank_name_checks.cost_rupees`.
+Bank check prices (₹1.50 / ₹2.50) apply only when the agent's wallet is charged.
+
 Name to match: signup + settlement = agent's PAN name; company = company / account name typed by admin.
 
 ## Plan
@@ -46,6 +50,20 @@ Name to match: signup + settlement = agent's PAN name; company = company / accou
 - `apps/backend/src/modules/kyc/kyc.service.ts` (bank fields in KYC metadata)
 - `apps/backend/src/modules/settlements/settlement.service.ts` (`registerSettlementBank`, `verifySettlementBank`)
 - UI pattern: `apps/agent-portal/components/dmt/BankNameCheck.tsx`, mobile `src/components/BankNameCheck.tsx`
+
+## Built (27 Oct) — settlement bank + company bank
+**Owner override (27 Oct, later than the table above):** settlement bank add runs the **full chain** and the
+agent pays the DMT check price (₹1.50 / ₹2.50 with penny drop) only when the bank confirms; admin still approves
+every bank; admin "Re-check with bank" is free for the agent. Signup bank step (plan item 2–3) not built yet.
+- `registerSettlementBank` → `runBankNameCheck(…, "settlement_bank")` after insert; wallet / KYC checked before
+  the OTP is used. Result on the row (`bank_check_status`, `bank_holder_name`, `bank_check_method`,
+  `bank_check_ref`, `bank_check_message`, `bank_checked_at`; migration `0083`).
+- Admin approve needs a bank-confirmed check (ref `BANKCHECK-<bank_name_checks.id>`) or a manual ref typed by
+  admin; `PENNYDROP-STUB` removed. `POST /settlements/banks/:id/bank-check` = "Re-check with bank".
+- Admin "Pending banks" + agent page card: name as per bank, check status, match % vs PAN (registered) name and
+  typed name.
+- Company banks: `POST /banking/accounts/bank-check` (typed account or saved id, full chain, company pays) →
+  "Check with bank" in the add / edit form + review popup; nothing new stored on `bank_accounts`.
 
 ## Not in scope
 Automatic payout to the agent's bank (no payout API in the provider list) — payouts stay manual with UTR.

@@ -7,8 +7,8 @@ One row per feature; details in the section below the table. Newest at the top o
 
 | # | Feature | Surfaces | Size | Status | Design | Task file |
 |---|---------|----------|------|--------|--------|-----------|
-| PL-24 | Bank account check — BestAPI (free) → pennyless → ₹1 penny drop; DMT payee "Verify name with bank" (agent ₹1.50 / ₹2.50 with penny drop, admin-editable), name match pill, 90-day free re-check; same check for settlement + company banks | Backend, web, mobile, admin | M | building — DMT + admin prices built 27 Oct (migrate `0081` + `0082`, deploy, APK, live test pending); settlement bank + company bank wiring next | — | — |
-| PL-23 | Agent settlement bank ₹1 penny drop — bank holder name + PAN name match, real verification ref (replaces stub), cost debited from agent wallet | Backend, web, mobile, admin | M | ready (27 Oct) | — | [settlement-bank-penny-drop.md](TASKS/settlement-bank-penny-drop.md) |
+| PL-24 | Bank account check — BestAPI (free) → pennyless → ₹1 penny drop; DMT payee "Verify name with bank" (agent ₹1.50 / ₹2.50 with penny drop, admin-editable), name match pill, 90-day free re-check; same check for settlement + company banks | Backend, web, mobile, admin | M | building — DMT + admin prices built 27 Oct (migrate `0081` + `0082`); settlement bank + company bank wired 27 Oct (migrate `0083`); deploy, APK, live test pending | — | — |
+| PL-23 | Agent settlement bank ₹1 penny drop — bank holder name + PAN name match, real verification ref (replaces stub), cost debited from agent wallet | Backend, web, mobile, admin | M | building — built 27 Oct (migrate `0083` + deploy + APK + live test pending) | — | [settlement-bank-penny-drop.md](TASKS/settlement-bank-penny-drop.md) |
 | PL-22 | KYC photo check speed-ups (client resize, smaller OCR image, background check, parallel Aadhaar QR+OCR) | Backend, web, mobile | M | building — built 27 Oct; npm install (mobile resizer) + Coolify backend/web deploy + APK + real `durationMs` review pending | — | — |
 | PL-21 | Admin ops speed — agent 360 page (tabs), bulk approve / reject, saved filters, stuck-txn auto status check, owner alerts (WhatsApp / email) | Backend, admin | L | planned (27 Oct) | — | — |
 | PL-20 | Reports hub (daily summary, service P&L, agent earnings, provider volume; PDF / Excel / CSV) + guided month-end close | Backend, admin | L | planned (27 Oct) | — | — |
@@ -68,8 +68,9 @@ approves it with a stub reference (`PENNYDROP-STUB-…`), so a wrong or someone 
 - Cost (₹1.80 penny drop / ₹0.80 pennyless) debited from the agent's wallet (owner, 27 Oct).
 
 **Open decisions**
-- [ ] Strong match → auto-verify, or admin approves every bank?
-- [ ] Match threshold; charge on "Failed"; penny drop vs pennyless first.
+- [x] Strong match → auto-verify, or admin approves every bank? Admin approves every bank (27 Oct).
+- [x] Match threshold (same as DMT); no charge on "Failed"; shared chain BestAPI → pennyless → penny drop at the
+  DMT check price (27 Oct).
 
 **Notes:** Automatic payout (send settlement to the agent's bank by API) is not in the provider API list we
 have — ask the provider; payouts stay manual with UTR until then.

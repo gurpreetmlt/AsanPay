@@ -552,8 +552,59 @@ export function SettlementsModal({ visible, onClose }: { visible: boolean; onClo
   );
 }
 
+function BankCheckSummary({ holderName, result }: { holderName: string; result: BankCheckResult }) {
+  const match = result.status === "verified" && result.bankName ? bankNameMatch(holderName, result.bankName) : null;
+  if (result.status !== "verified") {
+    const pending = result.status === "pending" || result.status === "error";
+    return (
+      <View
+        style={[
+          styles.checkBox,
+          { backgroundColor: pending ? "#FFFBEB" : colors.dangerBg, borderColor: pending ? "#FCD34D" : colors.danger },
+        ]}
+      >
+        <Text style={{ color: pending ? "#B45309" : colors.dangerDark, fontSize: 12, fontWeight: "700" }}>
+          {result.status === "not_confirmed"
+            ? `${NOT_CONFIRMED_COPY} You were not charged.`
+            : result.status === "pending"
+              ? "The bank is still confirming this account. Admin will re-check it — you were not charged."
+              : "Bank check could not run right now. Admin will re-check it — you were not charged."}
+        </Text>
+      </View>
+    );
+  }
+  const pill = match ? PILL[match.level] : null;
+  return (
+    <View style={[styles.checkBox, { backgroundColor: "#F7F9FF", borderColor: "#DCE5FF" }]}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <Text style={{ fontSize: 11, fontWeight: "700", color: "#667085" }}>NAME AS PER BANK</Text>
+        {match && pill ? (
+          <Text style={[styles.pill, { backgroundColor: pill.bg, color: pill.fg }]}>{match.percent}%</Text>
+        ) : null}
+      </View>
+      <Text style={{ fontSize: 15, fontWeight: "800", color: colors.blue, marginTop: 4 }}>
+        {result.bankName ?? "Bank did not return a name"}
+      </Text>
+      {match && pill ? (
+        <Text style={[styles.matchCopy, { backgroundColor: pill.bg, color: pill.fg }]}>
+          {BANK_NAME_MATCH_COPY[match.level]}
+        </Text>
+      ) : null}
+      <Text style={{ fontSize: 11, color: "#667085", marginTop: 6 }}>
+        {result.cached || Number(result.charged) === 0
+          ? "Checked earlier — no charge."
+          : `${rupees(result.charged)} debited from your wallet.`}{" "}
+        Admin verifies the bank before you can withdraw.
+      </Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   safe: { flex: 1 },
+  checkBox: { borderWidth: 1, borderRadius: 14, padding: 12, marginBottom: 10 },
+  pill: { fontSize: 11, fontWeight: "800", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, overflow: "hidden" },
+  matchCopy: { fontSize: 12, fontWeight: "700", padding: 8, borderRadius: 8, marginTop: 6, overflow: "hidden" },
   header: {
     flexDirection: "row",
     alignItems: "center",
