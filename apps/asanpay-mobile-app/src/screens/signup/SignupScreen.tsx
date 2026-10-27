@@ -11,7 +11,6 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  ToastAndroid,
   View,
 } from "react-native";
 import Geolocation from "@react-native-community/geolocation";
@@ -28,6 +27,7 @@ import { BrandMark } from "../../components/BrandMark";
 import { IfscBankDetailsFields } from "../../components/IfscBankDetailsFields";
 import { LabelText } from "../../components/RequiredMark";
 import { MobileSignupStepper, MOBILE_SIGNUP_STEPS } from "../../components/MobileSignupStepper";
+import { ModalSheet } from "../../components/ModalSheet";
 import { TermsAcceptModal } from "../../components/TermsAcceptModal";
 import {
   PAN_FORMAT_ERROR,
@@ -98,6 +98,12 @@ const CROP_TITLE: Record<KycDocCheckSlot, string> = {
   panImage: "Crop PAN card",
   aadhaarFront: "Crop Aadhaar front",
   aadhaarBack: "Crop Aadhaar back",
+};
+
+const CROP_REVIEW_TITLE: Record<KycDocCheckSlot, string> = {
+  panImage: "PAN card cropped",
+  aadhaarFront: "Aadhaar front cropped",
+  aadhaarBack: "Aadhaar back cropped",
 };
 
 const BUSINESS_TYPES = ["Sole Proprietorship", "Partnership", "Private Limited", "Other"];
@@ -462,6 +468,8 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
   const [photoCaptureBusy, setPhotoCaptureBusy] = useState(false);
   const [docChecks, setDocChecks] = useState<Partial<Record<KycDocCheckSlot, KycDocCheckUi>>>({});
   const [autoCropping, setAutoCropping] = useState<KycDocCheckSlot | null>(null);
+  /** Auto-cropped card waiting for the agent to confirm (Use photo) or adjust. */
+  const [cropReview, setCropReview] = useState<{ slot: KycDocCheckSlot; dataUrl: string; path: string } | null>(null);
   /** Photo as picked, so "Adjust crop" re-crops from the full photo rather than the auto-crop. */
   const docOriginalsRef = useRef<Partial<Record<KycDocCheckSlot, string>>>({});
   /** Latest check per field — stale responses (photo re-picked) are ignored. */
@@ -1100,12 +1108,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
           { timeout: 25_000 },
         );
         if (data.success && data.data.detected) {
-          patch({ [slot]: { name: `${slot}.jpg`, uri: picked.path, dataUrl: data.data.dataUrl } });
-          void runDocCheck(slot, data.data.dataUrl);
-          ToastAndroid.show(
-            "Card cropped automatically. Tap Adjust crop if any part of the card is cut off.",
-            ToastAndroid.LONG,
-          );
+          setCropReview({ slot, dataUrl: data.data.dataUrl, path: picked.path });
           return;
         }
       } catch {
@@ -1150,6 +1153,22 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
     const dataUrl = `data:${image.mime || "image/jpeg"};base64,${image.data}`;
     patch({ [slot]: { name: `${slot}.jpg`, uri: image.path, dataUrl } });
     void runDocCheck(slot, dataUrl);
+  }
+
+  function acceptReviewedCrop() {
+    const review = cropReview;
+    if (!review) return;
+    setCropReview(null);
+    patch({ [review.slot]: { name: `${review.slot}.jpg`, uri: review.path, dataUrl: review.dataUrl } });
+    void runDocCheck(review.slot, review.dataUrl);
+  }
+
+  function adjustReviewedCrop() {
+    const review = cropReview;
+    if (!review) return;
+    setCropReview(null);
+    // Let the popup close before the native crop screen opens on top.
+    setTimeout(() => void manualCropDocPhoto(review.slot, review.path), 250);
   }
 
   /** "Adjust crop": re-crop from the photo as picked (falls back to the current photo after a restart). */
@@ -2816,6 +2835,56 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         </ScrollView>
       </KeyboardAvoidingView>
 
+      <ModalSheet
+        visible={Boolean(cropReview)}
+        title={cropReview ? CROP_REVIEW_TITLE[cropReview.slot] : ""}
+        onClose={() => setCropReview(null)}
+        icon={<Crop />}
+        iconTone="blue"
+        subtitle="Check the whole card is inside. Adjust if any edge is cut off."
+      >
+        {cropReview ? (
+          <View
+            style={{
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: tokens.cardBorder,
+              backgroundColor: "#F7F9FF",
+              padding: 8,
+            }}
+          >
+            <Image
+              source={{ uri: cropReview.dataUrl }}
+              resizeMode="contain"
+              accessibilityLabel={CROP_REVIEW_TITLE[cropReview.slot]}
+              style={{ width: "100%", aspectRatio: 85.6 / 54, borderRadius: 12, backgroundColor: "#FFFFFF" }}
+            />
+          </View>
+        ) : null}
+        <View style={[styles.footerRow, { marginTop: 16 }]}>
+          <Pressable
+            onPress={adjustReviewedCrop}
+            accessibilityRole="button"
+            style={({ pressed }) => [
+              styles.backCta,
+              {
+                backgroundColor: pressed ? "#F7F9FF" : "#FFFFFF",
+                borderWidth: 1.5,
+                borderColor: tokens.cardBorder,
+                flexDirection: "row",
+                gap: 6,
+              },
+            ]}
+          >
+            <Crop size={16} color={colors.blue} />
+            <Text style={[styles.backCtaText, { color: colors.blue }]}>Adjust crop</Text>
+          </Pressable>
+          <Pressable onPress={acceptReviewedCrop} accessibilityRole="button" style={[styles.cta, { flex: 1, marginTop: 0 }]}>
+            <Text style={styles.ctaText}>Use photo</Text>
+          </Pressable>
+        </View>
+      </ModalSheet>
+
       <Modal visible={showLocationModal && !hasLocation} transparent animationType="fade" onRequestClose={onBack}>
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalCard, { backgroundColor: tokens.card }]}>
@@ -2978,6 +3047,28 @@ function UploadRow({
             resizeMode="contain"
             style={{ width: "100%", aspectRatio: 85.6 / 54, borderRadius: 10 }}
           />
+          {onAdjust && !busyLabel ? (
+            <Pressable
+              onPress={onAdjust}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={`Adjust crop of ${label.replace(/\s*\*.*$/, "")}`}
+              style={({ pressed }) => ({
+                position: "absolute",
+                top: 12,
+                left: 12,
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: pressed ? "#F7F9FF" : "#FFFFFF",
+                elevation: 3,
+              })}
+            >
+              <Crop size={16} color={colors.blue} />
+            </Pressable>
+          ) : null}
           {check && check.state !== "fail" ? (
             <View
               style={{
@@ -3004,29 +3095,6 @@ function UploadRow({
           <Text style={{ color: tokens.mute, fontSize: 11, fontWeight: "600", textAlign: "center", marginTop: 6 }}>
             Tap to change photo
           </Text>
-        </Pressable>
-      ) : null}
-      {done && previewUri && onAdjust && !busyLabel ? (
-        <Pressable
-          onPress={onAdjust}
-          accessibilityRole="button"
-          accessibilityLabel={`Adjust crop of ${label}`}
-          style={({ pressed }) => ({
-            alignSelf: "flex-start",
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 6,
-            marginTop: 8,
-            paddingHorizontal: 14,
-            paddingVertical: 7,
-            borderRadius: 999,
-            borderWidth: 1,
-            borderColor: tokens.cardBorder,
-            backgroundColor: pressed ? "#F7F9FF" : "#FFFFFF",
-          })}
-        >
-          <Crop size={14} color={colors.blue} />
-          <Text style={{ color: colors.blue, fontSize: 12, fontWeight: "700" }}>Adjust crop</Text>
         </Pressable>
       ) : null}
       {check ? (

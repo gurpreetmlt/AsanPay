@@ -21,6 +21,7 @@ import {
 } from "@asanpay/shared-types";
 import { AsanPayLockup } from "@/components/brand/Logo";
 import { EmailVerifyField } from "@/components/EmailVerifyField";
+import { Modal } from "@/components/ui/Modal";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { LabelText } from "@/components/ui/RequiredMark";
 import { DateField } from "@/components/ui/DateField";
@@ -106,6 +107,12 @@ const CROP_TITLE: Record<KycDocCheckSlot, string> = {
 };
 const DOC_PHOTO_ACCEPT = "image/jpeg,image/png,image/webp";
 const DOC_PHOTO_HINT = "Photo · JPG, PNG or WEBP · card is cropped automatically";
+
+const CROP_REVIEW_TITLE: Record<KycDocCheckSlot, string> = {
+  panImage: "PAN card cropped",
+  aadhaarFront: "Aadhaar front cropped",
+  aadhaarBack: "Aadhaar back cropped",
+};
 
 const BUSINESS_TYPES = ["Sole Proprietorship", "Partnership", "Private Limited", "Other"];
 const BUSINESS_CATEGORIES = ["Mobile Handsets", "Kirana", "Electronics", "Pharmacy", "Other"];
@@ -279,6 +286,22 @@ function FileUpload({
               className={`w-full rounded-xl bg-white object-contain ${largePreview ? (compact ? "max-h-44" : "max-h-60") : compact ? "max-h-20" : "max-h-28"}`}
             />
             <DocCheckBadge check={check} />
+            {onAdjust && meta && !busyLabel ? (
+              <button
+                type="button"
+                title="Adjust crop"
+                aria-label={`Adjust crop of ${label.replace(/\s*\*.*$/, "")}`}
+                className="absolute left-2 top-2 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-white shadow-md transition hover:scale-105 hover:bg-[#F7F9FF]"
+                style={{ color: B.blue }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onAdjust();
+                }}
+              >
+                <Crop size={16} />
+              </button>
+            ) : null}
           </div>
         ) : null}
         <span
@@ -316,21 +339,9 @@ function FileUpload({
         </ul>
       ) : null}
       {meta ? (
-        <div className="mt-1 flex items-center gap-3">
-          {onAdjust ? (
-            <button
-              type="button"
-              className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border bg-white px-3 py-1 text-xs font-semibold transition hover:bg-[#F7F9FF]"
-              style={{ borderColor: B.border, color: B.blue }}
-              onClick={onAdjust}
-            >
-              <Crop size={13} /> Adjust crop
-            </button>
-          ) : null}
-          <button type="button" className="text-xs font-semibold underline" style={{ color: B.muted }} onClick={onClear}>
-            Remove
-          </button>
-        </div>
+        <button type="button" className="mt-1 text-xs font-semibold underline" style={{ color: B.muted }} onClick={onClear}>
+          Remove
+        </button>
       ) : null}
     </div>
   );
@@ -640,6 +651,8 @@ function SignupPageInner() {
   /** Photo as picked (≤ 1600 px), kept in memory so "Adjust crop" can re-crop from the full photo. */
   const [docOriginals, setDocOriginals] = useState<Partial<Record<KycDocCheckSlot, string>>>({});
   const [autoCropping, setAutoCropping] = useState<KycDocCheckSlot | null>(null);
+  /** Auto-cropped card waiting for the agent to confirm (Use photo) or adjust. */
+  const [cropReview, setCropReview] = useState<{ slot: KycDocCheckSlot; dataUrl: string; name: string } | null>(null);
 
   const stepIndex = draft.stepIndex;
   const needsUpline = draft.role !== "super_distributor" && draft.role !== "direct_retailer";
@@ -1087,8 +1100,7 @@ function SignupPageInner() {
           { timeout: 25_000 },
         );
         if (data.success && data.data.detected) {
-          applyDocPhoto(slot, data.data.dataUrl, file.name);
-          toast.success("Card cropped automatically. Tap Adjust crop if any part of the card is cut off.");
+          setCropReview({ slot, dataUrl: data.data.dataUrl, name: file.name });
           return;
         }
       } catch {
@@ -1098,6 +1110,21 @@ function SignupPageInner() {
       }
     }
     setCropTarget({ slot, src: original, name: file.name });
+  }
+
+  function acceptReviewedCrop() {
+    const review = cropReview;
+    if (!review) return;
+    setCropReview(null);
+    applyDocPhoto(review.slot, review.dataUrl, review.name);
+  }
+
+  function adjustReviewedCrop() {
+    const review = cropReview;
+    if (!review) return;
+    setCropReview(null);
+    const src = docOriginals[review.slot];
+    if (src) setCropTarget({ slot: review.slot, src, name: review.name });
   }
 
   /** Reopen the manual crop on the photo as picked (falls back to the current photo after a reload). */
@@ -2849,6 +2876,50 @@ function SignupPageInner() {
           }}
           onCancel={() => setShowTermsModal(false)}
         />
+      ) : null}
+
+      {cropReview ? (
+        <Modal
+          title={CROP_REVIEW_TITLE[cropReview.slot]}
+          onClose={() => setCropReview(null)}
+          icon={<Crop size={22} />}
+          iconTone="blue"
+          subtitle="Check the whole card is inside. Adjust if any edge is cut off."
+        >
+          <div className="space-y-4">
+            <div
+              className="rounded-2xl border p-2"
+              style={{ borderColor: B.border, background: "linear-gradient(180deg, #F7F9FF 0%, #FFFFFF 100%)" }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={cropReview.dataUrl}
+                alt={CROP_REVIEW_TITLE[cropReview.slot]}
+                className="max-h-72 w-full rounded-xl bg-white object-contain"
+              />
+            </div>
+            <div className="flex gap-3 pb-1">
+              <PrimaryButton
+                type="button"
+                variant="secondary"
+                showArrow={false}
+                onClick={adjustReviewedCrop}
+                className="flex-1"
+              >
+                Adjust crop
+              </PrimaryButton>
+              <PrimaryButton
+                type="button"
+                variant="primary"
+                showArrow={false}
+                onClick={acceptReviewedCrop}
+                className="flex-1"
+              >
+                Use photo
+              </PrimaryButton>
+            </div>
+          </div>
+        </Modal>
       ) : null}
 
       {cropTarget ? (
