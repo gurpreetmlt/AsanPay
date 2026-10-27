@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, inArray, isNull, lte, or } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, lte, notInArray, or } from "drizzle-orm";
 import { db } from "../../db/postgres";
 import {
   commissionShares,
@@ -299,6 +299,9 @@ function slabSampleAmount(
   return sample;
 }
 
+/** Agent-paid checks that never pay commission; listing them would flag every role as ₹0. */
+const NO_COMMISSION_SERVICE_CODES = ["BANK_NAME_CHECK", "BANK_PENNY_DROP"];
+
 /** GET /admin/rate-card — one row per active service; slab rows with resolved ₹ per role. */
 export async function getRateCard(opts?: { providerId?: string | null }) {
   const providerId = opts?.providerId || null;
@@ -317,7 +320,7 @@ export async function getRateCard(opts?: { providerId?: string | null }) {
     })
     .from(services)
     .innerJoin(serviceCategories, eq(services.categoryId, serviceCategories.id))
-    .where(eq(services.isActive, true))
+    .where(and(eq(services.isActive, true), notInArray(services.code, NO_COMMISSION_SERVICE_CODES)))
     .orderBy(asc(serviceCategories.displayOrder), asc(services.displayOrder));
 
   const [cfg, charges, taxes, tenantTax, providerRows] = await Promise.all([

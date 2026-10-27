@@ -26,6 +26,7 @@ import {
   type DmtUiLayout,
 } from "@/components/dmt/DmtLayoutPicker";
 import { DmtLayout2 } from "@/components/dmt/DmtLayout2";
+import { BankNameCheck } from "@/components/dmt/BankNameCheck";
 import { B } from "@/lib/brand";
 import api from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
@@ -1291,6 +1292,12 @@ export default function DmtPage() {
                       onChange={(e) => setBeneIfsc(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11))}
                       placeholder="IFSC"
                       className="w-full rounded-xl border bg-white px-3 py-2 text-sm font-mono outline-none"
+                    />
+                    <BankNameCheck
+                      accountNumber={beneAccount}
+                      ifsc={beneIfsc}
+                      typedName={beneName}
+                      onUseBankName={setBeneName}
                     />
                     <input
                       value={beneMobile}

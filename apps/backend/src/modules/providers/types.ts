@@ -426,6 +426,7 @@ export type ProviderOperation =
   | "dmt_transfer"
   | "dmt_refund_otp"
   | "dmt_refund"
+  | "bank_name_check"
   | "bbps_fetch_bill"
   | "bbps_pay_bill"
   | "recharge"

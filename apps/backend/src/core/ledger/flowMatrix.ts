@@ -25,6 +25,8 @@ export const TXN_TYPES = [
   "BBPS",
   "RECHARGE",
   "AEPS_DEPOSIT",
+  // Bank account name check (pennyless / penny drop) the agent pays for before adding a payee.
+  "VERIFICATION",
   "AEPS_WITHDRAWAL",
   "MICRO_ATM",
   "AADHAAR_PAY",
@@ -113,14 +115,14 @@ const FLOW_RULES: readonly FlowRule[] = [
   {
     from: ["retailer"],
     to: ["float"],
-    txnTypes: ["DMT", "BBPS", "RECHARGE", "AEPS_DEPOSIT"],
+    txnTypes: ["DMT", "BBPS", "RECHARGE", "AEPS_DEPOSIT", "VERIFICATION"],
   },
   {
     // Spec §4.5: a DMT journal has three legs — Dr RTL, Cr FLOAT, Cr COMMISSION_INCOME.
     // The service charge we keep is a credit to income in the same journal.
     from: ["retailer"],
     to: ["income"],
-    txnTypes: ["DMT", "BBPS", "RECHARGE", "AEPS_DEPOSIT"],
+    txnTypes: ["DMT", "BBPS", "RECHARGE", "AEPS_DEPOSIT", "VERIFICATION"],
   },
 
   // --- AePS: money comes INTO the platform and we owe the retailer. Not funding. ---

@@ -496,6 +496,12 @@ export {
   type KycDocCheckUi,
 } from "./kycDocCheck";
 export {
+  BANK_NAME_MATCH_COPY,
+  bankNameMatch,
+  type BankNameMatch,
+  type BankNameMatchLevel,
+} from "./bankNameMatch";
+export {
   AEPS_ONBOARDING_STEPS,
   EMPTY_AEPS_ONBOARDING_FORM,
   validateAepsOnboardingStep,

@@ -173,6 +173,15 @@ const envSchema = z.object({
   NOBLE_BASE_DMT: z.string().url().default("https://dmt.noblewebstudio.in"),
   NOBLE_BASE_RECHARGE: z.string().url().default("https://rcapi.noblewebstudio.in"),
   NOBLE_BASE_CMS: z.string().url().default("https://cms.noblewebstudio.in"),
+  /** Provider cost per bank account check (₹), debited from the agent's wallet. */
+  BANK_NAME_CHECK_COST: z
+    .string()
+    .regex(/^\d+(\.\d{1,2})?$/, "BANK_NAME_CHECK_COST must be rupees, e.g. 0.80")
+    .default("0.80"),
+  BANK_PENNY_DROP_COST: z
+    .string()
+    .regex(/^\d+(\.\d{1,2})?$/, "BANK_PENNY_DROP_COST must be rupees, e.g. 1.80")
+    .default("1.80"),
   /**
    * Service geofence: a txn is allowed within SHOP_GEOFENCE_KM of the shop (outlet) location OR
    * within HOME_GEOFENCE_KM of the home location captured at signup.

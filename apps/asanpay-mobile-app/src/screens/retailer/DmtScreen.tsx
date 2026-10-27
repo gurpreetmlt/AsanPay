@@ -32,6 +32,7 @@ import { formatEarnEstimateLine, useEarnEstimate } from "../../hooks/useEarnEsti
 import { useAuthStore } from "../../store/auth";
 import { OnboardingPendingBanner } from "../../components/OnboardingPendingBanner";
 import { NobleAgentOnboardModal } from "../shared/NobleAgentOnboardModal";
+import { BankNameCheck } from "../../components/BankNameCheck";
 
 interface DmtScreenProps {
   onBack: () => void;
@@ -1085,6 +1086,12 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
                       onChangeText={(v) => setBeneIfsc(v.toUpperCase())}
                       placeholder="SBIN0001234"
                       autoCapitalize="characters"
+                    />
+                    <BankNameCheck
+                      accountNumber={beneAccount}
+                      ifsc={beneIfsc}
+                      typedName={beneName}
+                      onUseBankName={setBeneName}
                     />
                     <Field
                       label="BENEFICIARY MOBILE (optional)"

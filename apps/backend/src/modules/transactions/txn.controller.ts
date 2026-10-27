@@ -28,6 +28,7 @@ import type {
   bbpsFetchBillSchema,
   bbpsPayBillSchema,
   dmtBeneficiarySchema,
+  dmtBankNameCheckSchema,
   dmtBeneficiaryDeleteSchema,
   dmtBeneficiaryVerifySchema,
   dmtTransactionOtpSchema,
@@ -278,6 +279,18 @@ export async function dmtAddBeneficiary(req: Request, res: Response): Promise<vo
       }),
   );
   sendSuccess(res, result);
+}
+
+/** Paid bank name check before adding a payee: pennyless first, ₹1 penny drop only if that fails. */
+export async function dmtBankNameCheck(req: Request, res: Response): Promise<void> {
+  const body = req.body as z.infer<typeof dmtBankNameCheckSchema>;
+  const { runBankNameCheck } = await import("./bankNameCheck.service");
+  sendSuccess(res, await runBankNameCheck(actor(req), body));
+}
+
+export async function dmtBankNameCheckPrice(_req: Request, res: Response): Promise<void> {
+  const { bankCheckPrices } = await import("./bankNameCheck.service");
+  sendSuccess(res, bankCheckPrices());
 }
 
 export async function dmtAddBeneficiaryVerify(req: Request, res: Response): Promise<void> {

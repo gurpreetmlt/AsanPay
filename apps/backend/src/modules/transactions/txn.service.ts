@@ -61,7 +61,12 @@ export interface ExecuteTxnInput {
   walletType: WalletType;
   metadata: Record<string, unknown>;
   invoke: (routed: RoutedProvider, txnRef: string) => Promise<ProviderResult>;
+  /** Failure is an expected answer (e.g. bank found no account) — skip the critical alert. */
+  quietFailure?: boolean;
 }
+
+/** Services whose failed status is a normal outcome, not an incident. */
+const QUIET_FAILURE_SERVICES = new Set(["UPI_CASH_POINT", "BANK_NAME_CHECK", "BANK_PENNY_DROP"]);
 
 /** Wallet charge for a debit: principal + customer fee + GST on fee (rupees). */
 function serviceChargeTotal(
@@ -234,6 +239,7 @@ export async function executeServiceTxn(input: ExecuteTxnInput): Promise<TxnOutc
     walletType,
     metadata,
     invoke,
+    quietFailure,
   } = input;
 
   // Fast path: already claimed / settled for this key — never re-run money or provider.
@@ -361,7 +367,7 @@ export async function executeServiceTxn(input: ExecuteTxnInput): Promise<TxnOutc
   );
 
   // 4. Finalize.
-  const finalized = await finalizeTxn(txn, result, { direction, walletType });
+  const finalized = await finalizeTxn(txn, result, { direction, walletType, quietFailure });
   return { txn: finalized, provider: result };
 }
 
@@ -626,11 +632,11 @@ export async function recheckTxnStatus(actor: Actor, txnRef: string): Promise<Tx
   const direction: MoneyDirection = inferDirectionFromServiceCode(service.code);
   const walletType: WalletType =
     (txn.walletType as WalletType | null) ?? (direction === "credit" ? "aeps" : "main");
-  // An unpaid UPI QR expiring is routine, not an incident.
+  // An unpaid UPI QR expiring or a bank finding no account is routine, not an incident.
   const finalized = await finalizeTxn(txn, result, {
     direction,
     walletType,
-    quietFailure: service.code === "UPI_CASH_POINT",
+    quietFailure: QUIET_FAILURE_SERVICES.has(service.code),
   });
 
   await insertAuditLog({

@@ -22,6 +22,7 @@ const API_TXN_TYPES = [
   "BBPS",
   "RECHARGE",
   "AEPS_DEPOSIT",
+  "VERIFICATION",
   "AEPS_WITHDRAWAL",
   "MICRO_ATM",
   "AADHAAR_PAY",
@@ -238,7 +239,7 @@ export async function listTreasuryActivity(params: {
         ) float_leg ON true
         WHERE j.tenant_id = ${params.tenantId}
           AND j.txn_type IN (
-            'DMT','BBPS','RECHARGE','AEPS_DEPOSIT','AEPS_WITHDRAWAL',
+            'DMT','BBPS','RECHARGE','AEPS_DEPOSIT','VERIFICATION','AEPS_WITHDRAWAL',
             'MICRO_ATM','AADHAAR_PAY','FLOAT_TRANSFER_INIT','FLOAT_TRANSFER_CONFIRM'
           )
         ORDER BY j.created_at DESC, j.id DESC

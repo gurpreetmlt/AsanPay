@@ -13,6 +13,8 @@ import {
   bbpsPayBill,
   dmtAddBeneficiary,
   dmtAddBeneficiaryVerify,
+  dmtBankNameCheck,
+  dmtBankNameCheckPrice,
   dmtDeleteBeneficiary,
   dmtDeleteBeneficiaryVerify,
   dmtGenerateTransactionOtp,
@@ -49,6 +51,7 @@ import {
   bbpsFetchBillSchema,
   bbpsPayBillSchema,
   dmtBeneficiarySchema,
+  dmtBankNameCheckSchema,
   dmtBeneficiaryDeleteSchema,
   dmtBeneficiaryVerifySchema,
   dmtTransactionOtpSchema,
@@ -115,6 +118,14 @@ txnRouter.post("/dmt/remitter/register", retailerOnly, validateBody(dmtRemitterR
 txnRouter.post("/dmt/remitter/register/verify", retailerOnly, validateBody(dmtRemitterRegisterVerifySchema), dmtRemitterRegisterVerify);
 txnRouter.post("/dmt/remitter/kyc", retailerOnly, validateBody(dmtRemitterKycSchema), dmtRemitterKyc);
 txnRouter.post("/dmt/beneficiary", retailerOnly, validateBody(dmtBeneficiarySchema), dmtAddBeneficiary);
+txnRouter.get("/dmt/beneficiary/bank-check/price", retailerOnly, dmtBankNameCheckPrice);
+txnRouter.post(
+  "/dmt/beneficiary/bank-check",
+  retailerOnly,
+  walletTxnLimiter,
+  validateBody(dmtBankNameCheckSchema),
+  dmtBankNameCheck,
+);
 txnRouter.post("/dmt/beneficiary/verify", retailerOnly, validateBody(dmtBeneficiaryVerifySchema), dmtAddBeneficiaryVerify);
 txnRouter.post("/dmt/beneficiary/delete", retailerOnly, validateBody(dmtBeneficiaryDeleteSchema), dmtDeleteBeneficiary);
 txnRouter.post("/dmt/beneficiary/delete/verify", retailerOnly, validateBody(dmtBeneficiaryVerifySchema), dmtDeleteBeneficiaryVerify);

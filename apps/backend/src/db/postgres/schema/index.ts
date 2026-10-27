@@ -14,6 +14,7 @@ export * from "./fundRequests";
 export * from "./signupInvites";
 export * from "./settlements";
 export * from "./geoLink";
+export * from "./bankNameChecks";
 export * from "./policyAcceptances";
 export * from "./linkedAccounts";
 export * from "./kycVerifications";

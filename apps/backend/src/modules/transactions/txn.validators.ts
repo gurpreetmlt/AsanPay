@@ -97,6 +97,12 @@ export const dmtBeneficiarySchema = z.object({
   bankId: z.string().min(1).max(20).optional(),
 });
 
+export const dmtBankNameCheckSchema = z.object({
+  accountNumber: z.string().regex(/^\d{6,18}$/, "Account number must be 6–18 digits"),
+  ifsc: z.string().regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, "Enter a valid 11-character IFSC (e.g. SBIN0001234)"),
+  idempotencyKey: z.string().min(8).max(80),
+});
+
 export const dmtRemitterProfileSchema = z.object({
   customerMobile: z.string().regex(/^\d{10}$/),
 });

@@ -77,6 +77,8 @@ const SERVICE_TXN_TYPE: Readonly<Record<string, TxnType>> = {
   NEPAL_REMITTANCE: "DMT",
   // Customer pays by UPI, retailer hands over cash: same float -> retailer credit as AePS cash-out.
   UPI_CASH_POINT: "AEPS_WITHDRAWAL",
+  BANK_NAME_CHECK: "VERIFICATION",
+  BANK_PENNY_DROP: "VERIFICATION",
   AGENT_COLLECTION: "DMT",
   CASH_COLLECTION: "DMT",
   MOBILE_PREPAID: "RECHARGE",

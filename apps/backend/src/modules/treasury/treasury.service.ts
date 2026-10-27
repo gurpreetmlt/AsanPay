@@ -267,7 +267,7 @@ export async function getProviderLedgerStrip(params: {
         AND (
           a.account_type = 'float'
           OR j.txn_type IN (
-            'DMT','BBPS','RECHARGE','AEPS_DEPOSIT','AEPS_WITHDRAWAL',
+            'DMT','BBPS','RECHARGE','AEPS_DEPOSIT','VERIFICATION','AEPS_WITHDRAWAL',
             'MICRO_ATM','AADHAAR_PAY','FLOAT_TRANSFER_INIT','FLOAT_TRANSFER_CONFIRM'
           )
         )
