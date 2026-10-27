@@ -609,6 +609,7 @@ function SignupPageInner() {
   const [panVerifyBusy, setPanVerifyBusy] = useState(false);
   const [panVerifyFailed, setPanVerifyFailed] = useState(false);
   const panAutoAttemptRef = useRef("");
+  const panInputRef = useRef<HTMLInputElement>(null);
   const [docChecks, setDocChecks] = useState<Partial<Record<KycDocCheckSlot, KycDocCheckUi>>>({});
   /** Latest check per field — stale responses (photo re-picked / removed) are ignored. */
   const docCheckSeqRef = useRef<Partial<Record<KycDocCheckSlot, number>>>({});
@@ -1529,6 +1530,13 @@ function SignupPageInner() {
     toast.success("Business address copied from residential");
   }
 
+  function changePan() {
+    panAutoAttemptRef.current = "";
+    setPanVerifyFailed(false);
+    patch({ pan: "", panVerified: false, panVerifiedName: "" });
+    window.setTimeout(() => panInputRef.current?.focus(), 0);
+  }
+
   async function verifyPan(opts?: { manual?: boolean }) {
     const pan = draft.pan.toUpperCase().replace(/[^A-Z0-9]/g, "");
     const manual = Boolean(opts?.manual);
@@ -2182,6 +2190,7 @@ function SignupPageInner() {
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <Field label="PAN Number *">
                     <input
+                      ref={panInputRef}
                       value={draft.pan}
                       onChange={(e) => {
                         const next = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);
@@ -2205,10 +2214,18 @@ function SignupPageInner() {
                         style={{ color: "#166534" }}
                       >
                         <CheckCircle2 size={12} className="shrink-0" strokeWidth={2.5} />
-                        <span>
+                        <span className="min-w-0 flex-1">
                           PAN verified
                           {draft.panVerifiedName ? ` · ${draft.panVerifiedName}` : ""}
                         </span>
+                        <button
+                          type="button"
+                          onClick={changePan}
+                          className="shrink-0 cursor-pointer font-semibold underline underline-offset-2"
+                          style={{ color: B.blue }}
+                        >
+                          Change
+                        </button>
                       </p>
                     ) : panVerifyBusy ? (
                       <p className="mt-1.5 text-[11px] font-medium" style={{ color: B.blue }}>

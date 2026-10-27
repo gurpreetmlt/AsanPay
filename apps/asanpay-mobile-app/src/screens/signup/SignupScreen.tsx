@@ -482,6 +482,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
   const [panVerifyBusy, setPanVerifyBusy] = useState(false);
   const [panVerifyFailed, setPanVerifyFailed] = useState(false);
   const panAutoAttemptRef = useRef("");
+  const panInputRef = useRef<TextInput>(null);
 
   const stepIndex = draft.stepIndex;
   const needsUpline = draft.role !== "super_distributor" && draft.role !== "direct_retailer";
@@ -1591,6 +1592,13 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
     }
   }
 
+  function changePan() {
+    panAutoAttemptRef.current = "";
+    setPanVerifyFailed(false);
+    patch({ pan: "", panVerified: false, panVerifiedName: "" });
+    setTimeout(() => panInputRef.current?.focus(), 50);
+  }
+
   async function verifyPan(opts?: { manual?: boolean }) {
     const pan = draft.pan.toUpperCase().replace(/[^A-Z0-9]/g, "");
     const manual = Boolean(opts?.manual);
@@ -2245,6 +2253,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                     <View>
                       <FieldLabel text="PAN Number *" color={tokens.mute} />
                       <TextInput
+                        ref={panInputRef}
                         value={draft.pan}
                         onChangeText={(t) => {
                           const next = t.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);
@@ -2268,6 +2277,18 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                             PAN verified
                             {draft.panVerifiedName ? ` · ${draft.panVerifiedName}` : ""}
                           </Text>
+                          <Pressable onPress={changePan} hitSlop={8} accessibilityRole="button">
+                            <Text
+                              style={{
+                                color: colors.blue,
+                                fontWeight: "700",
+                                fontSize: 11,
+                                textDecorationLine: "underline",
+                              }}
+                            >
+                              Change
+                            </Text>
+                          </Pressable>
                         </View>
                       ) : panVerifyBusy ? (
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 }}>
