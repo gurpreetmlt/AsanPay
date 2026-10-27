@@ -56,7 +56,16 @@ preview — one path), endpoints in `rateCard.service.ts`:
 - Paise integers, half-up per component. Month-lock + rate-change audit reused.
 - Unit tests: share math, slab edges, cap, override wins, missing provider income → falls back to fixed rule.
 
-## RC2 — admin: Rate card screen
+## RC2 — admin: Rate card screen ✅ built 27 Oct
+**Built:** `app/tax-commission/rate-card/page.tsx` + `components/commission/rateCard/*` (screen, per-service
+editor, default tax card, preview, confirm popup). Backend: migration `0079_rate_card_tax`
+(`gst_on_fee_inclusive`, `provider_output_gst_percent`, `provider_tds_percent` on `tax_service_configs`),
+`splitFeeGstPaise` / `providerReceivablePaise` in `rateCard.math.ts`, `setTaxConfig` / `resetServiceTax` in
+`tax.service.ts` (`POST /admin/rate-card/tax`, `DELETE /admin/rate-card/tax/:serviceId`, rate audit `tax_config`),
+reference data `rateCard.reference.ts` (Suggested rows + provider costs; display only). Live debit stores the base
+fee + GST, so with "Included in fee" fee + GST = the configured fee. Fixed ₹ / % rules stay editable in Schemes
+(the rate card lists them read-only).
+
 - Route `/tax-commission/rate-card`, first item in the Tax & Commission menu.
 - Table per service; inline edit; Save opens a confirm popup (popup-design rule) with a required reason.
 - Live preview panel: amount input (default per service, e.g. ₹2,000 CW) → who earns what; red

@@ -1,0 +1,207 @@
+"use client";
+
+import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
+import { B } from "@/lib/brand";
+import { cn } from "@/lib/utils";
+
+type BtnVariant = "primary" | "success" | "destructive" | "secondary";
+
+const BTN_STYLE: Record<BtnVariant, { background: string; color: string; border: string }> = {
+  primary: { background: B.badgeGrad, color: "#fff", border: "transparent" },
+  success: { background: B.green, color: "#fff", border: "transparent" },
+  destructive: { background: "rgba(220,38,38,0.08)", color: B.danger, border: "#FCA5A5" },
+  secondary: { background: "var(--admin-secondary)", color: B.blueLight, border: B.border },
+};
+
+export function Btn({
+  variant = "primary",
+  className,
+  children,
+  ...rest
+}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: BtnVariant }) {
+  const s = BTN_STYLE[variant];
+  return (
+    <button
+      type="button"
+      {...rest}
+      className={cn(
+        "inline-flex items-center justify-center gap-1.5 rounded-xl border px-3.5 py-2 text-sm font-semibold transition hover:brightness-105 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50",
+        className,
+      )}
+      style={{ background: s.background, color: s.color, borderColor: s.border }}
+    >
+      {children}
+    </button>
+  );
+}
+
+export function Chip({
+  tone,
+  children,
+  title,
+}: {
+  tone: "blue" | "green" | "red" | "amber" | "muted";
+  children: ReactNode;
+  title?: string;
+}) {
+  const t = {
+    blue: { bg: "rgba(42,92,221,0.10)", fg: B.blueLight },
+    green: { bg: "rgba(18,183,106,0.12)", fg: B.greenDark },
+    red: { bg: "rgba(220,38,38,0.10)", fg: B.danger },
+    amber: { bg: "rgba(217,119,6,0.12)", fg: "#B45309" },
+    muted: { bg: "var(--admin-secondary)", fg: "var(--admin-muted)" },
+  }[tone];
+  return (
+    <span
+      title={title}
+      className="inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold"
+      style={{ background: t.bg, color: t.fg }}
+    >
+      {children}
+    </span>
+  );
+}
+
+export function NumberField({
+  label,
+  value,
+  onChange,
+  suffix,
+  prefix,
+  disabled,
+  placeholder,
+  error,
+  className,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  suffix?: string;
+  prefix?: string;
+  disabled?: boolean;
+  placeholder?: string;
+  error?: string | null;
+  className?: string;
+}) {
+  return (
+    <label className={cn("block text-xs", className)}>
+      {label ? (
+        <span className="mb-1 block font-semibold" style={{ color: B.muted }}>
+          {label}
+        </span>
+      ) : null}
+      <span
+        className="flex items-center rounded-xl border px-3"
+        style={{
+          borderColor: error ? "#FCA5A5" : B.border,
+          background: disabled ? "var(--admin-secondary)" : "var(--admin-card)",
+        }}
+      >
+        {prefix ? (
+          <span className="pr-1 text-sm" style={{ color: B.muted }}>
+            {prefix}
+          </span>
+        ) : null}
+        <input
+          className="w-full min-w-0 bg-transparent py-2 text-sm tabular-nums outline-none disabled:cursor-not-allowed"
+          inputMode="decimal"
+          value={value}
+          disabled={disabled}
+          placeholder={placeholder}
+          onChange={(e) => onChange(e.target.value.replace(/[^\d.]/g, ""))}
+        />
+        {suffix ? (
+          <span className="pl-1 text-sm" style={{ color: B.muted }}>
+            {suffix}
+          </span>
+        ) : null}
+      </span>
+      {error ? <span className="mt-1 block font-semibold text-red-600">{error}</span> : null}
+    </label>
+  );
+}
+
+/** Percent field with an on/off switch (agent TDS, GST on fee). */
+export function TogglePercentField({
+  label,
+  on,
+  onToggle,
+  value,
+  onChange,
+  disabled,
+  error,
+}: {
+  label: string;
+  on: boolean;
+  onToggle: (v: boolean) => void;
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+  error?: string | null;
+}) {
+  return (
+    <div className="text-xs">
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <span className="font-semibold" style={{ color: B.muted }}>
+          {label}
+        </span>
+        <ToggleSwitch checked={on} onChange={onToggle} disabled={disabled} label={`${label} ${on ? "on" : "off"}`} />
+      </div>
+      <NumberField label="" value={value} onChange={onChange} suffix="%" disabled={disabled || !on} error={error} />
+    </div>
+  );
+}
+
+/** "Added on top" (default) vs "Included in fee". */
+export function GstModeSwitch({
+  inclusive,
+  onChange,
+  disabled,
+}: {
+  inclusive: boolean;
+  onChange: (inclusive: boolean) => void;
+  disabled?: boolean;
+}) {
+  const opts: Array<{ v: boolean; label: string }> = [
+    { v: false, label: "Added on top" },
+    { v: true, label: "Included in fee" },
+  ];
+  return (
+    <div className="text-xs">
+      <span className="mb-1 block font-semibold" style={{ color: B.muted }}>
+        GST on fee
+      </span>
+      <div className="grid grid-cols-2 gap-1 rounded-xl border p-1" style={{ borderColor: B.border }} role="radiogroup">
+        {opts.map((o) => {
+          const active = inclusive === o.v;
+          return (
+            <button
+              key={o.label}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              disabled={disabled}
+              onClick={() => onChange(o.v)}
+              className="rounded-lg px-2 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60"
+              style={{
+                background: active ? B.blueLight : "transparent",
+                color: active ? "#fff" : "var(--admin-muted)",
+              }}
+            >
+              {o.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export function percentError(v: string, label: string): string | null {
+  const t = v.trim();
+  if (t === "") return `Enter ${label}`;
+  const n = Number(t);
+  if (!Number.isFinite(n) || n < 0 || n > 100) return `${label} must be from 0 to 100`;
+  return null;
+}
