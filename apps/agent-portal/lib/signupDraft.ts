@@ -52,6 +52,8 @@ export type SignupDraft = {
   aadhaarOtpRequestId: string;
   aadhaarOtpVerified: boolean;
   aadhaarVerifiedName: string;
+  /** "DOB … · Gender · C/O …" from Aadhaar OTP, shown under the verified name. */
+  aadhaarVerifiedInfo: string;
   email: string;
   address: string;
   pincode: string;
@@ -111,6 +113,7 @@ export const EMPTY_SIGNUP_DRAFT: SignupDraft = {
   aadhaarOtpRequestId: "",
   aadhaarOtpVerified: false,
   aadhaarVerifiedName: "",
+  aadhaarVerifiedInfo: "",
   email: "",
   address: "",
   pincode: "",

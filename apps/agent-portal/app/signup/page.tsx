@@ -1622,7 +1622,15 @@ function SignupPageInner() {
     setAadhaarOtpBusy("verify");
     try {
       const { data } = await api.post<
-        ApiResponse<{ verified: boolean; fullName: string | null; address: string | null }>
+        ApiResponse<{
+          verified: boolean;
+          fullName: string | null;
+          dob?: string | null;
+          gender?: string | null;
+          careOf?: string | null;
+          address: string | null;
+          pincode?: string | null;
+        }>
       >(
         "/kyc/aadhaar/otp/verify",
         {
@@ -1633,10 +1641,16 @@ function SignupPageInner() {
       );
       if (!data.success) throw new Error(data.message);
       setAadhaarOtpUnconfirmed(false);
+      const ek = data.data;
       patch({
         aadhaarOtpVerified: true,
-        aadhaarVerifiedName: data.data.fullName ?? "",
-        ...(data.data.address && !draft.address.trim() ? { address: data.data.address } : {}),
+        aadhaarVerifiedName: ek.fullName ?? "",
+        aadhaarVerifiedInfo: [ek.dob ? `DOB ${ek.dob}` : "", ek.gender ?? "", ek.careOf ? `C/O ${ek.careOf}` : ""]
+          .filter(Boolean)
+          .join(" · "),
+        ...(ek.address && !draft.address.trim() ? { address: ek.address } : {}),
+        ...(ek.pincode && !draft.pincode.trim() ? { pincode: ek.pincode } : {}),
+        ...(ek.careOf && !draft.fatherName.trim() ? { fatherName: ek.careOf } : {}),
       });
       toast.success("Aadhaar verified");
     } catch (err) {
@@ -2303,6 +2317,7 @@ function SignupPageInner() {
                                 aadhaarOtpRequestId: "",
                                 aadhaarOtpVerified: false,
                                 aadhaarVerifiedName: "",
+                                aadhaarVerifiedInfo: "",
                               }
                             : {}),
                         });
@@ -2345,9 +2360,14 @@ function SignupPageInner() {
                     style={{ borderColor: "#86EFAC", background: "#F0FDF4", color: "#166534" }}
                   >
                     <CheckCircle2 size={18} className="shrink-0" />
-                    <span>
-                      Aadhaar verified
-                      {draft.aadhaarVerifiedName ? ` · ${draft.aadhaarVerifiedName}` : ""}
+                    <span className="min-w-0">
+                      <span className="block">
+                        Aadhaar verified
+                        {draft.aadhaarVerifiedName ? ` · ${draft.aadhaarVerifiedName}` : ""}
+                      </span>
+                      {draft.aadhaarVerifiedInfo ? (
+                        <span className="block text-xs font-medium">{draft.aadhaarVerifiedInfo}</span>
+                      ) : null}
                     </span>
                   </div>
                 ) : (

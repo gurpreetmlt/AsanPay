@@ -52,6 +52,8 @@ export type MobileSignupDraft = {
   aadhaarOtpRequestId: string;
   aadhaarOtpVerified: boolean;
   aadhaarVerifiedName: string;
+  /** "DOB … · Gender · C/O …" from Aadhaar OTP, shown under the verified name. */
+  aadhaarVerifiedInfo: string;
   email: string;
   emailVerified: boolean;
   address: string;
@@ -112,6 +114,7 @@ export const EMPTY_MOBILE_SIGNUP_DRAFT: MobileSignupDraft = {
   aadhaarOtpRequestId: "",
   aadhaarOtpVerified: false,
   aadhaarVerifiedName: "",
+  aadhaarVerifiedInfo: "",
   email: "",
   emailVerified: false,
   address: "",

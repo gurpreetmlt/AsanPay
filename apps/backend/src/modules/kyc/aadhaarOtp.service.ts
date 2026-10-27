@@ -342,9 +342,93 @@ export async function sendAadhaarKycOtp(
 type AadhaarOtpVerifyResult = {
   verified: true;
   fullName: string | null;
+  /** As sent by the provider (UIDAI uses DD-MM-YYYY). */
+  dob: string | null;
+  gender: string | null;
+  /** Father / husband / guardian, without the "S/O:" prefix. */
+  careOf: string | null;
   address: string | null;
+  pincode: string | null;
   mobileMatched: boolean | null;
 };
+
+/** Field names used by UIDAI eKYC (Poi / Poa) and common Aadhaar OTP gateways. */
+const EKYC_KEYS = {
+  name: ["full_name", "fullName", "name", "aadhaar_name", "name_on_aadhaar", "resident_name", "holder_name"],
+  dob: ["dob", "date_of_birth", "dateOfBirth", "birth_date", "birthDate"],
+  gender: ["gender", "sex"],
+  careOf: ["care_of", "careOf", "co", "father_name", "fatherName", "guardian_name"],
+  pincode: ["zip", "pincode", "pin_code", "pc", "postal_code", "postalCode"],
+  addressParts: [
+    ["house", "house_no"],
+    ["street"],
+    ["landmark", "lm"],
+    ["loc", "locality"],
+    ["vtc", "village_town_city"],
+    ["po", "post_office"],
+    ["subdist", "sub_district"],
+    ["dist", "district"],
+    ["state"],
+  ],
+} as const;
+
+function readAadhaarEkyc(json: BestApiJson): Omit<AadhaarOtpVerifyResult, "verified" | "mobileMatched"> {
+  const top = asRecord(json) ?? {};
+  const find = (keys: readonly string[]) => pickString(top, [...keys]) ?? deepFindString(json, [...keys]);
+
+  const genderRaw = find(EKYC_KEYS.gender);
+  const g = (genderRaw ?? "").trim().toUpperCase();
+  const gender = g.startsWith("M") ? "Male" : g.startsWith("F") ? "Female" : g ? "Other" : null;
+
+  const careOfRaw = find(EKYC_KEYS.careOf);
+  const careOf = careOfRaw ? careOfRaw.replace(/^\s*[SDWC]\s*\/\s*O\s*[:.-]?\s*/i, "").trim() || null : null;
+
+  const pincodeRaw = find(EKYC_KEYS.pincode);
+  const pincode = pincodeRaw && /^\d{6}$/.test(pincodeRaw.replace(/\D/g, "")) ? pincodeRaw.replace(/\D/g, "") : null;
+
+  // Address may be one string or a UIDAI-style object (house, street, vtc, dist, state …).
+  let address = find(["address", "full_address", "fullAddress", "Address"]);
+  if (!address) {
+    const addrObj =
+      asRecord(top.address) ?? asRecord(asRecord(top.data)?.address) ?? asRecord(asRecord(top.data)?.Address) ?? null;
+    if (addrObj) {
+      const parts = EKYC_KEYS.addressParts
+        .map((keys) => pickString(addrObj, [...keys]))
+        .filter((p): p is string => Boolean(p));
+      address = parts.length ? parts.join(", ") : null;
+    }
+  }
+
+  return {
+    fullName: find(EKYC_KEYS.name),
+    dob: find(EKYC_KEYS.dob),
+    gender,
+    careOf,
+    address: address || null,
+    pincode,
+  };
+}
+
+/** Key paths + value types only (no values) — safe to log for PII responses. */
+function describeShape(root: unknown): string[] {
+  const out: string[] = [];
+  function walk(node: unknown, path: string, depth: number): void {
+    if (out.length >= 60 || depth > 4) return;
+    if (Array.isArray(node)) {
+      out.push(`${path}:array(${node.length})`);
+      if (node.length) walk(node[0], `${path}[0]`, depth + 1);
+      return;
+    }
+    const rec = asRecord(node);
+    if (!rec) {
+      out.push(`${path}:${node === null ? "null" : typeof node}`);
+      return;
+    }
+    for (const [k, v] of Object.entries(rec)) walk(v, path ? `${path}.${k}` : k, depth + 1);
+  }
+  walk(root, "", 0);
+  return out;
+}
 
 export async function verifyAadhaarKycOtp(
   userId: string,
@@ -358,12 +442,8 @@ export async function verifyAadhaarKycOtp(
       { aadhaarOtp: "verified", aadhaarProviderRequestId: result.providerRequestId },
       ctx,
     );
-    return {
-      verified: result.verified,
-      fullName: result.fullName,
-      address: result.address,
-      mobileMatched: result.mobileMatched,
-    };
+    const { providerRequestId: _providerRequestId, ...publicResult } = result;
+    return publicResult;
   } catch (err) {
     const failure = statusForKycError(err, {
       AADHAAR_MOBILE_MISMATCH: "failed",
@@ -446,15 +526,12 @@ async function runAadhaarOtpVerify(
     throw new HttpError(mapped.status, mapped.message, mapped.code);
   }
 
-  const fullName =
-    pickString(asRecord(res.json) ?? {}, ["full_name", "fullName", "name", "Name"]) ??
-    deepFindString(res.json, ["full_name", "fullName", "name"]);
-  const address =
-    pickString(asRecord(res.json) ?? {}, ["address", "Address"]) ??
-    deepFindString(res.json, ["address", "Address"]);
-  const dob =
-    pickString(asRecord(res.json) ?? {}, ["dob", "date_of_birth", "dateOfBirth"]) ??
-    deepFindString(res.json, ["dob", "date_of_birth", "dateOfBirth"]);
+  // Docs show no response sample: log the structure (key paths + types, never values) once per verify.
+  logger.info({ userId, shape: describeShape(res.json) }, "Aadhaar OTP verify response shape");
+
+  const ekyc = readAadhaarEkyc(res.json);
+  const { fullName, dob } = ekyc;
+  const address = ekyc.address;
   const linkedMobileRaw =
     pickString(asRecord(res.json) ?? {}, ["mobile", "phone", "registered_mobile"]) ??
     deepFindString(res.json, ["mobile", "phone", "registered_mobile"]);
@@ -501,6 +578,10 @@ async function runAadhaarOtpVerify(
 
   return {
     verified: true,
+    dob: ekyc.dob,
+    gender: ekyc.gender,
+    careOf: ekyc.careOf,
+    pincode: ekyc.pincode,
     fullName: fullName || null,
     address: address || null,
     mobileMatched,

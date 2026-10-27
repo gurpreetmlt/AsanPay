@@ -1696,7 +1696,15 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
     setAadhaarOtpBusy("verify");
     try {
       const { data } = await api.post<
-        ApiResponse<{ verified: boolean; fullName: string | null; address: string | null }>
+        ApiResponse<{
+          verified: boolean;
+          fullName: string | null;
+          dob?: string | null;
+          gender?: string | null;
+          careOf?: string | null;
+          address: string | null;
+          pincode?: string | null;
+        }>
       >(
         "/kyc/aadhaar/otp/verify",
         {
@@ -1707,10 +1715,16 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
       );
       if (!data.success) throw new Error(data.message);
       setAadhaarOtpUnconfirmed(false);
+      const ek = data.data;
       patch({
         aadhaarOtpVerified: true,
-        aadhaarVerifiedName: data.data.fullName ?? "",
-        ...(data.data.address && !draft.address.trim() ? { address: data.data.address } : {}),
+        aadhaarVerifiedName: ek.fullName ?? "",
+        aadhaarVerifiedInfo: [ek.dob ? `DOB ${ek.dob}` : "", ek.gender ?? "", ek.careOf ? `C/O ${ek.careOf}` : ""]
+          .filter(Boolean)
+          .join(" · "),
+        ...(ek.address && !draft.address.trim() ? { address: ek.address } : {}),
+        ...(ek.pincode && !draft.pincode.trim() ? { pincode: ek.pincode } : {}),
+        ...(ek.careOf && !draft.fatherName.trim() ? { fatherName: ek.careOf } : {}),
       });
       showAlert("Verified", "Aadhaar verified");
     } catch (err) {
@@ -2368,6 +2382,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                                 aadhaarOtpRequestId: "",
                                 aadhaarOtpVerified: false,
                                 aadhaarVerifiedName: "",
+                                aadhaarVerifiedInfo: "",
                               }
                             : {}),
                         });
@@ -2420,10 +2435,17 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                       ]}
                     >
                       <CheckCircle2 size={18} color={colors.greenDark} />
-                      <Text style={{ flex: 1, color: colors.greenDark, fontWeight: "700", fontSize: 13 }}>
-                        Aadhaar verified
-                        {draft.aadhaarVerifiedName ? ` · ${draft.aadhaarVerifiedName}` : ""}
-                      </Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: colors.greenDark, fontWeight: "700", fontSize: 13 }}>
+                          Aadhaar verified
+                          {draft.aadhaarVerifiedName ? ` · ${draft.aadhaarVerifiedName}` : ""}
+                        </Text>
+                        {draft.aadhaarVerifiedInfo ? (
+                          <Text style={{ color: colors.greenDark, fontSize: 12, marginTop: 2 }}>
+                            {draft.aadhaarVerifiedInfo}
+                          </Text>
+                        ) : null}
+                      </View>
                     </View>
                   ) : (
                     <>
