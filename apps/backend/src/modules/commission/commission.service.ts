@@ -4,7 +4,6 @@ import { db } from "../../db/postgres";
 import {
   commissionLedger,
   commissionRules,
-  userCommissionRates,
   transactions,
   userHierarchy,
   users,
@@ -26,6 +25,14 @@ import type { UserRole } from "@asanpay/shared-types";
 import { applyTdsToGrossPaise, resolveTaxForService } from "./tax.service";
 import { reverseJournal } from "../../core/ledger";
 import { assertCommissionMonthUnlocked, recordRateChangeEvent } from "./commission.guards";
+import { computeFixedPaise, resolveRoleGross } from "./rateCard.math";
+import {
+  findActiveOverride,
+  loadRateConfig,
+  providerIncomePaiseFor,
+  roleDefaultFor,
+  type RateConfig,
+} from "./rateCard.config";
 
 const SCHEME_ROLES = ["retailer", "distributor", "super_distributor"] as const;
 type SchemeRole = (typeof SCHEME_ROLES)[number];
@@ -55,8 +62,29 @@ export function isSchemeRole(role: string): role is SchemeRole {
 
 /** Same integer-paise math as live payout — percentage is 0–100 with up to 4 decimals. */
 export function computePayoutPaise(rule: RuleRow, amountPaise: number): number {
-  if (rule.ruleType === "flat") return toPaise(rule.value);
-  return Math.floor((amountPaise * Math.round(parseFloat(rule.value) * 10000)) / 1_000_000);
+  return computeFixedPaise(rule, amountPaise);
+}
+
+/** Gross earning for one chain member: override → share of provider income → fixed rule → none. */
+async function resolveMemberGrossPaise(input: {
+  cfg: RateConfig;
+  serviceId: string;
+  providerId: string | null;
+  userId: string;
+  role: UserRole;
+  amountPaise: number;
+  providerIncomePaise: number | null;
+  at: Date;
+}) {
+  const override = await findActiveOverride(input.serviceId, input.userId, input.at);
+  const { share, rule } = roleDefaultFor(input.cfg, input.serviceId, input.providerId, input.role, input.amountPaise);
+  return resolveRoleGross({
+    amountPaise: input.amountPaise,
+    providerIncomePaise: input.providerIncomePaise,
+    override,
+    sharePercent: share?.sharePercent ?? null,
+    fixedRule: rule,
+  });
 }
 
 export function validateRuleValue(ruleType: RuleType, valueRaw: string): string {
@@ -128,15 +156,24 @@ export async function distributeCommissionForTxn(transactionId: string): Promise
   const { resolveTenantId } = await import("../fund-requests/tenant");
   const tenantId = await resolveTenantId();
   const taxCfg = await resolveTaxForService(tenantId, txn.serviceId, now);
+  const providerId = txn.providerId ?? null;
+  const rateCfg = await loadRateConfig([txn.serviceId], now);
+  const providerIncomePaise = providerIncomePaiseFor(rateCfg, txn.serviceId, providerId, amountPaise);
 
   for (const member of chain) {
     // Admin is the residual earner (whatever margin remains) — no explicit payout row.
     if (member.role === "admin" || !member.active) continue;
 
-    const rule = await findActiveRule(txn.serviceId, txn.providerId, member.userId, member.role, txn.amount, now);
-    if (!rule) continue;
-
-    const grossPaise = computePayoutPaise(rule, amountPaise);
+    const { grossPaise } = await resolveMemberGrossPaise({
+      cfg: rateCfg,
+      serviceId: txn.serviceId,
+      providerId,
+      userId: member.userId,
+      role: member.role,
+      amountPaise,
+      providerIncomePaise,
+      at: now,
+    });
     if (grossPaise <= 0) continue;
     const { netPaise, tdsPaise, tdsPercent, grossPaise: g } = applyTdsToGrossPaise(grossPaise, taxCfg);
     if (netPaise <= 0) continue;
@@ -361,8 +398,18 @@ export async function estimateMyCommission(input: {
 
   const { resolveTenantId } = await import("../fund-requests/tenant");
   const taxCfg = await resolveTaxForService(await resolveTenantId(), serviceId, now);
-  const rule = await findActiveRule(serviceId, providerId, input.userId, input.role, amount, now);
-  if (!rule) {
+  const rateCfg = await loadRateConfig([serviceId], now);
+  const resolved = await resolveMemberGrossPaise({
+    cfg: rateCfg,
+    serviceId,
+    providerId,
+    userId: input.userId,
+    role: input.role,
+    amountPaise,
+    providerIncomePaise: providerIncomePaiseFor(rateCfg, serviceId, providerId, amountPaise),
+    at: now,
+  });
+  if (resolved.source === "none") {
     return {
       serviceId,
       serviceCode,
@@ -379,7 +426,7 @@ export async function estimateMyCommission(input: {
       },
     };
   }
-  const grossPaise = Math.max(0, computePayoutPaise(rule, amountPaise));
+  const grossPaise = Math.max(0, resolved.grossPaise);
   const { netPaise, tdsPaise, grossPaise: g, tdsPercent } = applyTdsToGrossPaise(grossPaise, taxCfg);
   return {
     serviceId,
@@ -396,35 +443,6 @@ export async function estimateMyCommission(input: {
       tdsPercent: tdsPaise > 0 ? tdsPercent : taxCfg.tdsPercent,
     },
   };
-}
-
-async function findActiveRule(
-  serviceId: string,
-  providerId: string | null,
-  userId: string,
-  role: UserRole,
-  amount: string,
-  at: Date,
-) {
-  const [override] = await db
-    .select({
-      ruleType: userCommissionRates.ruleType,
-      value: userCommissionRates.value,
-    })
-    .from(userCommissionRates)
-    .where(
-      and(
-        eq(userCommissionRates.userId, userId),
-        eq(userCommissionRates.serviceId, serviceId),
-        eq(userCommissionRates.isActive, true),
-        // TCR06: an override with expires_at <= now no longer applies.
-        or(isNull(userCommissionRates.expiresAt), gt(userCommissionRates.expiresAt, at)),
-      ),
-    )
-    .limit(1);
-  if (override) return override;
-
-  return findRoleDefaultRule(serviceId, providerId, role, amount, at);
 }
 
 /** Role-default slab from `commission_rules` (no per-agent override). */

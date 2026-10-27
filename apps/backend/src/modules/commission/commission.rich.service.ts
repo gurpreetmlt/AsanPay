@@ -639,8 +639,9 @@ export async function listRateAudit(filters?: { limit?: number; entityType?: str
   const adminUser = alias(users, "rate_audit_admin");
   const targetUser = alias(users, "rate_audit_target");
   const q = filters?.q?.trim();
-  const entityType =
-    filters?.entityType === "rule" || filters?.entityType === "override" ? filters.entityType : undefined;
+  const entityType = ["rule", "override", "share", "provider_income"].includes(filters?.entityType ?? "")
+    ? filters?.entityType
+    : undefined;
 
   const conditions = [
     eq(commissionRateChangeEvents.tenantId, tenantId),

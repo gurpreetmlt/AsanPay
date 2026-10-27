@@ -7,6 +7,9 @@ One row per feature; details in the section below the table. Newest at the top o
 
 | # | Feature | Surfaces | Size | Status | Design | Task file |
 |---|---------|----------|------|--------|--------|-----------|
+| PL-15 | Admin "Services" setup page — one page per service (status · provider · limits · customer fee · commission · preview) | Backend, admin | L | idea (27 Oct) — after PL-14 | — | — |
+| PL-14 | Commission rate card + share % (one screen, live preview, safety, Advanced tab) + agent-page Commission card | Backend, admin | L | building — RC1 backend built 27 Oct (migrate + deploy pending); RC2 next | — | [commission-rate-card.md](TASKS/commission-rate-card.md) |
+| PL-13 | Daily 2FA redesign — Aadhaar-style card view (masked number, photo, status) + fingerprint / face verify | Web, mobile | L | ready (owner design screens 27 Oct) | [Figma prompt](PROMPTS/figma-daily-2fa.md) · owner screens in task file | [daily-2fa-redesign.md](TASKS/daily-2fa-redesign.md) |
 | PL-12 | OCR model upgrade — PP-OCRv5 detection + PP-OCRv5 English recognition (test against today's v4) | Backend | S | building (built 27 Oct: v5 mobile det + v5 English rec default, `KYC_OCR_PADDLE_MODEL=v4` rollback; deploy + real-photo test pending) | — | — |
 | PL-11 | Card auto-crop + straighten (fix tilt / sideways / upside down), shown in the preview with "Adjust crop" (manual) | Backend, web, mobile | M | building (built 27 Oct; npm install + deploy + APK + real-photo test pending) | — | — |
 | PL-10 | DigiLocker KYC — fetch signed Aadhaar + PAN with agent consent (replaces photo OCR as primary proof) | Backend, web, mobile, admin | L | planned — long term, after PL-06 | — | — |
@@ -21,6 +24,53 @@ One row per feature; details in the section below the table. Newest at the top o
 | PL-01 | Linked accounts + role switch (same person, Distributor + Retailer) | Backend, web, mobile, admin | M | building (backend + web + mobile built 26 Oct; migrate `0076` + APK + live test pending; admin card next) | [Figma prompt](PROMPTS/figma-linked-accounts.md) · Figma URL pending | [linked-accounts.md](TASKS/linked-accounts.md) |
 
 ---
+
+## PL-15 — Admin "Services" setup page
+
+**Problem:** Launching or changing one service touches 4–5 places: Service Badges (on / off),
+Developer Options → Providers (route), Service charges (customer fee), Tax & Commission (commission),
+and limits. A wrong provider in one place silently breaks another (e.g. ₹0 commission).
+
+**Plan**
+- `/services` list → one page per service with tabs: Status & badge · Provider route · Limits ·
+  Customer fee · Commission (PL-14 rate-card row) · Preview (₹ example end to end).
+- Existing pages stay as shortcuts; this page edits the same data.
+
+**Open decisions**
+- [ ] Build after PL-14, or merge into PL-14 RC4?
+
+## PL-14 — Commission rate card + share %
+
+**Problem:** One rule per service × provider × role × slab, wrong provider = silent ₹0, margin only on
+a separate page, customer fee on another page.
+
+**Plan** — see [commission-rate-card.md](TASKS/commission-rate-card.md) (RC1 backend → RC2 screen →
+RC3 safety → RC4 navigation).
+
+**Open decisions**
+- [x] Provider income source → new `provider_payout_rules` (no 33A table existed).
+- [x] Default role shares → Retailer 60 % · Distributor 10 % · SD 5 %.
+- [x] Customer fee inside the rate-card row → yes (read from `service_charges`).
+
+## PL-13 — Daily 2FA redesign (Aadhaar card view)
+
+**Problem:** The daily AePS verification screen is a plain form. The agent should feel they are
+verifying their own Aadhaar: show an Aadhaar-style card (photo, name, role, masked number
+XXXX XXXX 1234, today's status) and verify from it.
+
+**Plan**
+- Figma: [figma-daily-2fa.md](PROMPTS/figma-daily-2fa.md). 8 states (idle, no device, scanning,
+  verifying, success, failed, already verified, no Aadhaar in KYC), web + mobile.
+- One shared component for AePS, Aadhaar Pay and DMT daily verification. Only the title, consent and
+  CTA copy change.
+- Data already exists: Aadhaar last 4 from KYC, agent photo from the KYC submission, 2FA status from
+  the daily auth check.
+
+**Open decisions**
+- [ ] Show the KYC selfie on the card, or initials only?
+- [ ] Face tile on web: hide it, or show as "Android app only"?
+
+**Notes:** No official UIDAI logo or national emblem. Use a neutral placeholder emblem.
 
 ## PL-12 — OCR model upgrade (PP-OCRv5)
 

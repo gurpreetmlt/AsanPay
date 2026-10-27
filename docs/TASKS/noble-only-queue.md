@@ -25,7 +25,7 @@
 | P7 | Delete InstantPay UI (outlet / bio-KYC pages + mobile modals) + Nepal → Coming soon | done (26 Oct) |
 | P8 | DB cleanup migration (`instantpay_outlet_id`, provider rows) | done (26 Oct) — `0071` runs on EC2 after redeploy |
 | P9 | UPI QR collections → transactions + recon `QR` | done (26 Oct) — `0072` runs on EC2 after redeploy |
-| P10 | Callback handler → settle txns (needs provider sample payload) | **CURRENT** |
+| P10 | Callback handler → settle txns (needs provider sample payload) | **CURRENT** — on hold (owner, 27 Oct): after app work. URL verified: provider test callback 23 Oct (`test`, `status`, `clientRefId`); no live txn callback yet |
 
 ---
 

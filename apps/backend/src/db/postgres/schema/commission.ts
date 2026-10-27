@@ -48,6 +48,63 @@ export const commissionRules = pgTable(
 );
 
 /**
+ * What the provider pays AsanPay per successful txn (provider income), versioned by effective_from.
+ * providerId null = any provider. Slab bounds are inclusive on the txn amount (₹), same as
+ * commission_rules. percentage → % of txn amount, optionally capped at cap_amount (₹).
+ */
+export const providerPayoutRules = pgTable(
+  "provider_payout_rules",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    serviceId: uuid("service_id")
+      .notNull()
+      .references(() => services.id, { onDelete: "cascade" }),
+    providerId: uuid("provider_id").references(() => providers.id, { onDelete: "cascade" }),
+    ruleType: commissionRuleTypeEnum("rule_type").notNull(),
+    // percentage: 0–100 (e.g. 0.5 = 0.5%); flat: rupees
+    value: numeric("value", { precision: 10, scale: 4 }).notNull(),
+    capAmount: numeric("cap_amount", { precision: 14, scale: 2 }),
+    minAmount: numeric("min_amount", { precision: 14, scale: 2 }),
+    maxAmount: numeric("max_amount", { precision: 14, scale: 2 }),
+    effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull().defaultNow(),
+    effectiveTo: timestamp("effective_to", { withTimezone: true }),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("provider_payout_rules_service_provider_idx").on(table.serviceId, table.providerId),
+    index("provider_payout_rules_active_idx").on(table.serviceId, table.isActive, table.effectiveFrom),
+  ],
+);
+
+/**
+ * Role earning as a share of provider income (e.g. retailer 60 %). Resolution order per payout:
+ * agent override → share (only when provider income is configured) → commission_rules → none.
+ * providerId null = all providers; a provider-specific row wins.
+ */
+export const commissionShares = pgTable(
+  "commission_shares",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    serviceId: uuid("service_id")
+      .notNull()
+      .references(() => services.id, { onDelete: "cascade" }),
+    providerId: uuid("provider_id").references(() => providers.id, { onDelete: "cascade" }),
+    role: userRoleEnum("role").notNull(),
+    // 0–100 percent of provider income
+    sharePercent: numeric("share_percent", { precision: 7, scale: 4 }).notNull(),
+    effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull().defaultNow(),
+    effectiveTo: timestamp("effective_to", { withTimezone: true }),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("commission_shares_service_provider_role_idx").on(table.serviceId, table.providerId, table.role),
+    index("commission_shares_active_idx").on(table.serviceId, table.isActive, table.effectiveFrom),
+  ],
+);
+
+/**
  * Customer service fee charged on debit services (DMT / BBPS / recharge / AePS deposit).
  * Same slab shape as commission_rules, plus tenant_id and nullable role (null = all roles).
  * Resolved only server-side via resolveCustomerFee — never from the client request body.
@@ -229,7 +286,7 @@ export const commissionRateChangeEvents = pgTable(
     adminId: uuid("admin_id")
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
-    /** `rule` (commission_rules) | `override` (user_commission_rates) */
+    /** `rule` (commission_rules) | `override` (user_commission_rates) | `share` | `provider_income` */
     entityType: varchar("entity_type", { length: 20 }).notNull(),
     entityId: uuid("entity_id").notNull(),
     userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),

@@ -547,6 +547,13 @@
       "when": 1792800000000,
       "tag": "0077_kyc_verifications",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1792900000000,
+      "tag": "0078_rate_card",
+      "breakpoints": true
     }
   ]
 }

@@ -545,6 +545,78 @@ adminRouter.post("/commission/preview", async (req, res) => {
   sendSuccess(res, await previewCommissionSplit(body));
 });
 
+// ── Rate card (provider income + share %) ────────────────────────────────────
+adminRouter.get("/rate-card", async (req, res) => {
+  const { getRateCard } = await import("../commission/rateCard.service");
+  const providerId = z
+    .string()
+    .uuid("Provider id must be a valid id")
+    .optional()
+    .parse(typeof req.query.providerId === "string" && req.query.providerId ? req.query.providerId : undefined);
+  sendSuccess(res, await getRateCard({ providerId }));
+});
+
+adminRouter.post("/rate-card/preview", async (req, res) => {
+  const { previewRateCard } = await import("../commission/rateCard.service");
+  const body = z
+    .object({
+      serviceId: z.string().uuid(),
+      amount: z.string().min(1).max(20),
+      providerId: z.string().uuid().nullable().optional(),
+    })
+    .parse(req.body);
+  sendSuccess(res, await previewRateCard(body));
+});
+
+adminRouter.post("/rate-card/shares", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { setCommissionShare } = await import("../commission/rateCard.service");
+  const body = z
+    .object({
+      serviceId: z.string().uuid(),
+      providerId: z.string().uuid().nullable().optional(),
+      role: schemeRoleEnum,
+      sharePercent: z.string().min(1).max(20),
+      effectiveFrom: z.string().max(40).nullable().optional(),
+      reason: z.string().max(500).nullable().optional(),
+    })
+    .parse(req.body);
+  sendSuccess(res, await setCommissionShare(req.auth.sub, body), "Share saved");
+});
+
+adminRouter.delete("/rate-card/shares/:id", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { endCommissionShare } = await import("../commission/rateCard.service");
+  const { reason } = z.object({ reason: z.string().max(500).nullable().optional() }).parse(req.body ?? {});
+  sendSuccess(res, await endCommissionShare(req.auth.sub, req.params.id, reason), "Share ended");
+});
+
+adminRouter.post("/rate-card/provider-income", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { setProviderIncomeRule } = await import("../commission/rateCard.service");
+  const body = z
+    .object({
+      serviceId: z.string().uuid(),
+      providerId: z.string().uuid().nullable().optional(),
+      ruleType: ruleTypeEnum,
+      value: z.string().min(1).max(20),
+      capAmount: z.string().max(20).nullable().optional(),
+      minAmount: z.string().max(20).nullable().optional(),
+      maxAmount: z.string().max(20).nullable().optional(),
+      effectiveFrom: z.string().max(40).nullable().optional(),
+      reason: z.string().max(500).nullable().optional(),
+    })
+    .parse(req.body);
+  sendSuccess(res, await setProviderIncomeRule(req.auth.sub, body), "Provider income saved");
+});
+
+adminRouter.delete("/rate-card/provider-income/:id", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { endProviderIncomeRule } = await import("../commission/rateCard.service");
+  const { reason } = z.object({ reason: z.string().max(500).nullable().optional() }).parse(req.body ?? {});
+  sendSuccess(res, await endProviderIncomeRule(req.auth.sub, req.params.id, reason), "Provider income ended");
+});
+
 adminRouter.get("/commission/tax-config", async (_req, res) => {
   const { listTaxConfigs } = await import("../commission/tax.service");
   const { resolveTenantId } = await import("../fund-requests/tenant");
