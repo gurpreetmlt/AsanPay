@@ -482,6 +482,7 @@ export {
   PAN_FORMAT_ERROR,
   kycDocCheckBlocksStep,
   kycDocCheckHints,
+  formatPanName,
   kycDocCheckSlotsForStep,
   kycDocCheckLabel,
   kycDocCheckToUi,

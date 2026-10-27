@@ -7,7 +7,7 @@ import { HttpError } from "../../utils/httpError";
 import { findLatestAuditLog, insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import { kycSubmittedEmailTemplate, notifyUserEmail } from "../../utils/mailer";
 import type { AuthUser } from "@asanpay/shared-types";
-import { isFundRequestEnabled } from "@asanpay/shared-types";
+import { formatPanName, isFundRequestEnabled } from "@asanpay/shared-types";
 import type { KycSubmitInput } from "../auth/auth.validators";
 import { autoCropCard, type CardCropResult } from "./docCheck/cardCrop";
 import {
@@ -239,6 +239,22 @@ function docDataUrl(input: KycSubmitInput, slot: (typeof DOC_CHECK_SLOTS)[number
   return raw && raw.startsWith("data:image") ? raw : null;
 }
 
+/** Name from the provider when this PAN was verified — the account name must match the PAN card. */
+async function verifiedPanName(userId: string, panNumber: string): Promise<string | null> {
+  const audit = await findLatestAuditLog({ userId, action: "kyc.pan_verified" });
+  const meta = audit?.metadata;
+  const fullName = typeof meta?.fullName === "string" ? meta.fullName.trim() : "";
+  if (!fullName || typeof meta?.panEncrypted !== "string") return null;
+  let verifiedPan: string;
+  try {
+    verifiedPan = decryptPII(meta.panEncrypted).toUpperCase().replace(/[^A-Z0-9]/g, "");
+  } catch {
+    return null;
+  }
+  const submitted = panNumber.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return verifiedPan === submitted ? formatPanName(fullName) : null;
+}
+
 /** Stores KYC PII encrypted. Status stays pending until admin verifies (Task 18). */
 export async function submitKyc(userId: string, input: KycSubmitInput): Promise<AuthUser> {
   const [user] = await db.select().from(users).where(eq(users.id, userId));
@@ -285,10 +301,12 @@ export async function submitKyc(userId: string, input: KycSubmitInput): Promise<
   const longitude =
     input.shopPhotoLongitude?.trim() || input.longitude?.trim() || user.outletLongitude || null;
 
+  const panName = await verifiedPanName(userId, input.panNumber);
+
   const [updated] = await db
     .update(users)
     .set({
-      name: input.fullName?.trim() || user.name,
+      name: panName ?? (input.fullName?.trim() || user.name),
       email: input.email ?? user.email,
       panNumberEncrypted: encryptPII(input.panNumber.toUpperCase()),
       aadhaarNumberEncrypted: encryptPII(input.aadhaarNumber),

@@ -44,7 +44,7 @@ One-off page micro-copy may use `text-[11px]` / `text-xs` where needed — do no
 
 ## Daily 2FA card (agent portal)
 
-Shared component is the **source of truth**: `apps/agent-portal/components/aeps/DailyVerifyCard.tsx` (Aadhaar-style ID card, verify-with tiles, RD device row, consent card, green→blue Scan fingerprint CTA, steps + tips strip). Used by `/aeps` (AePS + Aadhaar Pay) and `/dmt`.
+Shared component is the **source of truth**: `apps/agent-portal/components/aeps/DailyVerifyCard.tsx` (compact: real-Aadhaar-style card — photo, name, DOB, S/O, address, masked number — and a right column with title, device pill + Re-scan, consent line, one Capture CTA). Used by `/aeps` (AePS + Aadhaar Pay) and `/dmt`.
 
 DMT / Nepal / any new service 2FA gate must **render `DailyVerifyCard`** (only `service` / `continueLabel` differ). Do not hand-roll a gate card.
 ---

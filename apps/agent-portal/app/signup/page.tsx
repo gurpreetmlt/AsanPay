@@ -9,6 +9,7 @@ import {
   PAN_FORMAT_ERROR,
   SIGNUP_POLICY_VERSION,
   kycDocCheckBlocksStep,
+  formatPanName,
   kycDocCheckHints,
   kycDocCheckLabel,
   kycDocCheckSlotsForStep,
@@ -1218,6 +1219,7 @@ function SignupPageInner() {
     }
   }
 
+  const nameFromPan = draft.panVerified && Boolean(draft.panVerifiedName.trim());
   const docCheckHints = kycDocCheckHints(draft);
   const docCheckHintKey = JSON.stringify(docCheckHints);
 
@@ -1566,7 +1568,7 @@ function SignupPageInner() {
         pan: data.data.pan || pan,
         panVerified: true,
         panVerifiedName: data.data.fullName ?? "",
-        ...(data.data.fullName && !draft.name.trim() ? { name: data.data.fullName } : {}),
+        ...(data.data.fullName ? { name: formatPanName(data.data.fullName) } : {}),
         ...(data.data.address && !draft.address.trim() ? { address: data.data.address } : {}),
       });
       toast.success(
@@ -2076,14 +2078,20 @@ function SignupPageInner() {
                     ))}
                   </select>
                 </Field>
-                <Field label="Full Name *">
+                <Field label="Full Name (As per PAN) *">
                   <input
                     value={draft.name}
                     onChange={(e) => patch({ name: e.target.value })}
                     className={inputCls}
                     style={inputStyle}
-                    placeholder="As per PAN"
+                    placeholder="As per PAN card"
+                    disabled={nameFromPan}
                   />
+                  {nameFromPan ? (
+                    <p className="mt-1.5 text-[11px]" style={{ color: B.muted }}>
+                      Filled from your verified PAN. Change the PAN on the PAN step to edit it.
+                    </p>
+                  ) : null}
                 </Field>
                 {needsUpline ? (
                   <Field label={`${UPLINE_LABEL[draft.role as "retailer" | "distributor"]} *`}>

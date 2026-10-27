@@ -45,6 +45,12 @@ Reduced motion: no float / pulse / stamp animation.
 - [ ] All 8 states reachable; copy English, errors field-specific
 - [ ] `tsc` clean (mobile: only pre-existing errors); PLANNING PL-13 + CHECKLIST updated
 
+**Owner change 27 Oct (supersedes the Left/Right/Bottom spec above):** compact layout. Left = real Aadhaar card
+look (emblem + "AADHAAR", photo, name, DOB, S/O|D/O|C/O father, address from `/kyc/me`, dashed rule, centered
+XXXX XXXX 1234). Right = icon, "Daily Merchant Authentication (2FA)", subtitle, device pill (connected / No Device
+Connected) + Re-scan + Change, one consent line, one full-width Capture CTA. No method tiles, no steps/tips strip.
+Mobile D2 should follow this compact version (stacked).
+
 **D1 web — done 27 Oct:** `components/aeps/DailyVerifyCard.tsx` on `/aeps` + `/dmt`. Web exceptions: Face tile and
 "Use face instead" show an "Android app only" toast; quality % comes from the RD `qScore` after capture
 (indeterminate bar while the finger is on the sensor). "Already verified" = `verifiedToday` prop (pages skip the

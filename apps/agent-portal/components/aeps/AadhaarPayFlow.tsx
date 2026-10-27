@@ -158,8 +158,9 @@ export function AadhaarPaySetupCard({
       <DailyVerifyCard
         key={kycPending ? "ap-kyc" : "ap-2fa"}
         service="Aadhaar Pay"
-        stepLabel={kycPending ? "Step 1 of 2 · One-time Aadhaar Pay KYC" : "Step 2 of 2 · Today's Aadhaar Pay fingerprint"}
-        scanLabel={kycPending ? "Scan for Aadhaar Pay KYC" : "Scan to unlock Aadhaar Pay"}
+        stepLabel={kycPending ? "Step 1 of 2" : "Step 2 of 2"}
+        title={kycPending ? "Aadhaar Pay KYC (one-time)" : "Aadhaar Pay Daily Authentication"}
+        scanLabel={kycPending ? "Capture Fingerprint for KYC" : "Capture Merchant Fingerprint"}
         successToast={kycPending ? "Aadhaar Pay KYC completed" : "Aadhaar Pay unlocked for today"}
         continueLabel="Continue to Aadhaar Pay"
         kycReady={kycReady}

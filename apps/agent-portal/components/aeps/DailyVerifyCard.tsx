@@ -1,25 +1,12 @@
 "use client";
 
-import { useEffect, useState, type ComponentType, type CSSProperties } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { toast } from "react-hot-toast";
-import {
-  Check,
-  ChevronDown,
-  Fingerprint,
-  History,
-  Loader2,
-  Lock,
-  RotateCw,
-  ScanEye,
-  ScanFace,
-  ShieldCheck,
-  Usb,
-  X,
-} from "lucide-react";
+import { AlertTriangle, CalendarDays, Check, ChevronDown, Fingerprint, Loader2, RotateCw, ShieldCheck } from "lucide-react";
 import api from "@/lib/api";
-import { B, brand, initials, roleFromUserRole } from "@/lib/brand";
+import { B, brand, initials } from "@/lib/brand";
 import { extractApiError } from "@/lib/onboarding";
 import { todayPhoneLocation } from "@/lib/phoneLocation";
 import { captureFingerprintWeb, type FingerprintCaptureOptions } from "@/lib/rdServiceFingerprint";
@@ -38,13 +25,15 @@ type Props = {
   continueLabel: string;
   kycReady: boolean;
   aadhaarLastFour: string | null;
-  /** Omit to hide the "Last verified" row (e.g. Aadhaar Pay, where the provider keeps that date). */
+  /** Omit to hide the "Last verified" line (e.g. Aadhaar Pay, where the provider keeps that date). */
   lastVerifiedAt?: string | null;
   verifiedToday?: boolean;
   /** AEPS agent onboarding not finished: the provider 2FA needs the onboarding agent id. */
   onboardingPending?: boolean;
   onCompleteOnboarding?: () => void;
-  /** Small label above the right column, e.g. "Step 1 of 2 · One-time Aadhaar Pay KYC". */
+  /** Heading on the right, default "Daily Merchant Authentication (2FA)". */
+  title?: string;
+  /** Small label above the heading, e.g. "Step 1 of 2". */
   stepLabel?: string;
   scanLabel?: string;
   successToast?: string;
@@ -59,9 +48,18 @@ type Props = {
   onVerified: () => void;
 };
 
-const TRICOLOR =
-  "linear-gradient(90deg, #FF9933 0%, #FFB766 26%, #F2F4FA 50%, #5BBF6A 74%, #138808 100%)";
-const SCAN_GRAD = "linear-gradient(90deg, #12B76A 0%, #2A5CDD 58%, #0B2A9A 100%)";
+type KycCardProfile = {
+  dob: string | null;
+  gender: string | null;
+  fatherName: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  pincode: string | null;
+};
+
+const TRICOLOR = "linear-gradient(90deg, #FF9933 0%, #FFB766 30%, #F2F4FA 50%, #5BBF6A 70%, #138808 100%)";
+const SCAN_GRAD = "linear-gradient(90deg, #2A5CDD 0%, #1E44C0 55%, #0B2A9A 100%)";
 
 const IST_DAY = new Intl.DateTimeFormat("en-CA", {
   timeZone: "Asia/Kolkata",
@@ -87,6 +85,19 @@ function describeVerifiedAt(iso: string | null): string {
   return `${day} ${istTime(d)}`;
 }
 
+function formatDob(raw: string | null): string | null {
+  if (!raw) return null;
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return iso ? `${iso[3]}-${iso[2]}-${iso[1]}` : raw.trim() || null;
+}
+
+function relationPrefix(gender: string | null): string {
+  const g = (gender ?? "").toLowerCase();
+  if (g.startsWith("f")) return "D/O";
+  if (g.startsWith("m")) return "S/O";
+  return "C/O";
+}
+
 function readQualityScore(pid: string): number | null {
   const raw = pid.match(/qScore="(\d{1,3})"/i)?.[1];
   const n = raw ? Number(raw) : NaN;
@@ -100,6 +111,18 @@ function failureHint(message: string): string {
   }
   if (m.includes("location")) return "Allow location access on this browser, then try again.";
   return "Clean the sensor or try another finger.";
+}
+
+async function submitAgentAuth(biometricPayload: string): Promise<string | null> {
+  // Today's phone-verified location; without it the API uses the saved shop location.
+  const phone = todayPhoneLocation();
+  const geo = phone ? { latitude: phone.latitude, longitude: phone.longitude } : {};
+  const { data } = await api.post<ApiResponse<{ verifiedAt: string }>>("/auth/agent-auth", {
+    biometricPayload,
+    ...geo,
+  });
+  if (!data.success) throw new Error(data.message);
+  return data.data?.verifiedAt ?? null;
 }
 
 function useKycPhoto(enabled: boolean): string | null {
@@ -132,54 +155,45 @@ function useKycPhoto(enabled: boolean): string | null {
   return url;
 }
 
-async function submitAgentAuth(biometricPayload: string): Promise<string | null> {
-  // Today's phone-verified location; without it the API uses the saved shop location.
-  const phone = todayPhoneLocation();
-  const geo = phone ? { latitude: phone.latitude, longitude: phone.longitude } : {};
-  const { data } = await api.post<ApiResponse<{ verifiedAt: string }>>("/auth/agent-auth", {
-    biometricPayload,
-    ...geo,
-  });
-  if (!data.success) throw new Error(data.message);
-  return data.data?.verifiedAt ?? null;
+function useKycCardProfile(enabled: boolean): KycCardProfile | null {
+  const [profile, setProfile] = useState<KycCardProfile | null>(null);
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    void api
+      .get<ApiResponse<{ profile: KycCardProfile }>>("/kyc/me")
+      .then(({ data }) => {
+        if (!cancelled && data.success) setProfile(data.data.profile);
+      })
+      .catch(() => {
+        /* card shows name + number only */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled]);
+  return profile;
 }
 
-/* ── Left: Aadhaar-style ID card ───────────────────────────────────── */
+/* ── Left: Aadhaar card ────────────────────────────────────────────── */
 
 function CardEmblem() {
   return (
-    <div className="relative h-12 w-12 shrink-0">
+    <div className="relative h-9 w-9 shrink-0">
       <div
         aria-hidden
-        className="absolute -inset-2.5 rounded-full"
+        className="absolute -inset-2 rounded-full"
         style={{
           background:
-            "repeating-conic-gradient(from 0deg, rgba(255,153,51,0.6) 0deg 3deg, transparent 3deg 15deg)",
-          WebkitMaskImage: "radial-gradient(circle closest-side, #000 62%, transparent 100%)",
-          maskImage: "radial-gradient(circle closest-side, #000 62%, transparent 100%)",
+            "repeating-conic-gradient(from 0deg, rgba(255,153,51,0.7) 0deg 3deg, transparent 3deg 15deg)",
+          WebkitMaskImage: "radial-gradient(circle closest-side, #000 60%, transparent 100%)",
+          maskImage: "radial-gradient(circle closest-side, #000 60%, transparent 100%)",
         }}
       />
-      <div
-        className="relative flex h-12 w-12 items-center justify-center rounded-full border bg-white shadow-sm"
-        style={{ borderColor: "rgba(11,42,154,0.14)" }}
-      >
-        <Fingerprint size={22} style={{ color: B.blue }} />
+      <div className="relative flex h-9 w-9 items-center justify-center rounded-full border border-red-200 bg-white">
+        <Fingerprint size={18} className="text-red-600" />
       </div>
     </div>
-  );
-}
-
-function StatusPill({ verified }: { verified: boolean }) {
-  return verified ? (
-    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-green-200 bg-green-50 px-3 py-1 text-[11px] font-semibold text-green-700">
-      <Check size={12} strokeWidth={3} />
-      Verified today · valid till 11:59 PM
-    </span>
-  ) : (
-    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-700">
-      <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-      Not verified today
-    </span>
   );
 }
 
@@ -196,140 +210,117 @@ function AadhaarCard({
 }) {
   const user = useAuthStore((s) => s.user);
   const name = user?.name?.trim() || "Retailer";
-  const roleLabel = roleFromUserRole(user?.role).label;
   const photoUrl = useKycPhoto(kycReady);
+  const profile = useKycCardProfile(kycReady);
   const verified = phase === "success";
   const busy = phase === "scanning" || phase === "verifying";
-  const kycVerified = user?.kycStatus === "verified";
+
+  const dob = formatDob(profile?.dob ?? null);
+  const address = [profile?.address, profile?.city, profile?.state, profile?.pincode]
+    .map((p) => (p ?? "").trim())
+    .filter(Boolean)
+    .join(", ");
 
   return (
-    // No overflow-hidden here: the ID-1 ratio is a minimum, the card grows when content needs more room.
     <div
-      className={clsx(
-        "relative rounded-2xl border bg-white shadow-[0_14px_36px_rgba(11,42,154,0.09)]",
-        !kycReady && "border-dashed",
-        phase === "idle" && kycReady && "dv-card-float",
-      )}
-      style={{
-        aspectRatio: "85.6 / 54",
-        borderColor: kycReady ? "rgba(11,42,154,0.10)" : "rgba(11,42,154,0.25)",
-        background: "linear-gradient(135deg, #FFFFFF 0%, #F9FBFF 55%, #EEF3FF 100%)",
-      }}
+      className="relative w-full max-w-[480px] overflow-hidden rounded-2xl border bg-white shadow-[0_10px_28px_rgba(11,42,154,0.08)]"
+      style={{ borderColor: "rgba(11,42,154,0.12)" }}
     >
-      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
-        <div className="absolute inset-x-0 top-0 h-1.5" style={{ background: TRICOLOR }} />
-        <div className="absolute right-[7%] top-1/2 -translate-y-1/2">
-          <Fingerprint
-            size={190}
-            strokeWidth={1}
-            className={busy ? "dv-watermark-scan" : "opacity-[0.06]"}
-            style={{ color: B.blue }}
-          />
+      <div aria-hidden className="h-1" style={{ background: TRICOLOR }} />
+
+      <div className="flex items-center justify-between gap-3 px-4 pb-2.5 pt-3">
+        <div className="flex items-center gap-2.5">
+          <CardEmblem />
+          <span className="text-sm font-extrabold tracking-wide text-red-600">AADHAAR</span>
         </div>
-      </div>
-
-      <div className="relative flex h-full min-h-[280px] flex-col gap-4 p-5 pt-6 sm:p-6 sm:pt-7">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <CardEmblem />
-            <div className="min-w-0">
-              <p className="text-xl font-extrabold leading-tight" style={{ color: B.blue }}>
-                Aadhaar
-              </p>
-              <p className="truncate text-[11px] text-gray-500">Linked to your {brand.name} account</p>
-            </div>
-          </div>
-          <StatusPill verified={verified} />
-        </div>
-
-        {kycReady ? (
-          <>
-            <div className="flex min-w-0 items-center gap-4">
-              <div className="shrink-0 rounded-xl border bg-white p-1 shadow-sm" style={{ borderColor: B.border }}>
-                <div
-                  className="relative flex h-[88px] w-[74px] items-center justify-center overflow-hidden rounded-lg"
-                  style={{ background: B.badgeGrad }}
-                >
-                  {photoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={photoUrl} alt="KYC photo" className="absolute inset-0 h-full w-full object-cover" />
-                  ) : (
-                    <span className="text-2xl font-bold text-white">{initials(name)}</span>
-                  )}
-                  <span className="absolute inset-x-0 bottom-0 bg-black/25 py-0.5 text-center text-[8px] font-bold tracking-[0.12em] text-white">
-                    KYC PHOTO
-                  </span>
-                </div>
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-bold tracking-[0.14em] text-gray-400">ACCOUNT HOLDER</p>
-                <p className="mt-1 truncate text-2xl font-semibold text-gray-900">{name}</p>
-                <span className="mt-2 inline-flex max-w-full items-center truncate rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-800">
-                  {roleLabel}
-                  {user?.uid ? ` · ${user.uid}` : ""}
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-auto">
-              <p className="text-[10px] font-bold tracking-[0.14em] text-gray-400">AADHAAR NUMBER</p>
-              <p className="mt-1.5 flex items-center gap-2.5">
-                <Lock size={16} className="shrink-0 text-gray-400" />
-                <span className="text-lg font-bold tabular-nums tracking-[0.2em] text-[#0F1B4D] sm:text-xl xl:text-2xl">
-                  XXXX XXXX {aadhaarLastFour ?? "····"}
-                </span>
-              </p>
-              <span
-                className={clsx(
-                  "mt-2.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold",
-                  kycVerified ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700",
-                )}
-              >
-                {kycVerified ? <Check size={12} strokeWidth={3} /> : <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
-                {kycVerified ? "KYC verified · Aadhaar OTP" : "KYC under review"}
-              </span>
-            </div>
-          </>
+        {verified ? (
+          <span className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2.5 py-0.5 text-[10px] font-semibold text-green-700">
+            <Check size={11} strokeWidth={3} />
+            Verified today
+          </span>
         ) : (
-          <div
-            className="flex flex-1 flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 text-center"
-            style={{ borderColor: "rgba(11,42,154,0.18)" }}
-          >
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-100">
-              <Fingerprint size={26} className="text-gray-500" />
-            </div>
-            <p className="mt-4 text-base font-bold text-gray-800">Aadhaar not found in your KYC</p>
-            <p className="mt-1 text-xs text-gray-500">Add your Aadhaar details to complete daily verification.</p>
-          </div>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[10px] font-semibold text-amber-700">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+            Not verified today
+          </span>
         )}
       </div>
+      <div aria-hidden className="mx-4 h-px" style={{ background: "rgba(11,42,154,0.12)" }} />
+
+      {kycReady ? (
+        <>
+          <div className="flex gap-4 px-4 py-3.5">
+            <div
+              className="relative h-[92px] w-[76px] shrink-0 overflow-hidden rounded-lg border"
+              style={{ borderColor: "rgba(11,42,154,0.15)", background: B.badgeGrad }}
+            >
+              {photoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={photoUrl} alt="KYC photo" className="h-full w-full object-cover" />
+              ) : (
+                <span className="flex h-full w-full items-center justify-center text-2xl font-bold text-white">
+                  {initials(name)}
+                </span>
+              )}
+            </div>
+            <div className="min-w-0 flex-1 text-gray-800">
+              <p className="truncate text-base font-bold text-gray-900">{name}</p>
+              {dob ? (
+                <p className="mt-0.5 flex items-center gap-1.5 text-xs font-semibold">
+                  <CalendarDays size={12} className="text-gray-500" />
+                  DOB: {dob}
+                </p>
+              ) : null}
+              {profile?.fatherName ? (
+                <p className="mt-1 truncate text-[11px] text-gray-600">
+                  {relationPrefix(profile.gender)} {profile.fatherName}
+                </p>
+              ) : null}
+              {address ? <p className="line-clamp-2 text-[11px] leading-snug text-gray-500">{address}</p> : null}
+            </div>
+          </div>
+
+          <div aria-hidden className="mx-4 border-t border-dashed" style={{ borderColor: "rgba(11,42,154,0.18)" }} />
+          <div className="px-4 pb-3 pt-2.5 text-center">
+            <p className="text-lg font-bold tabular-nums tracking-[0.22em] text-gray-900">
+              XXXX XXXX {aadhaarLastFour ?? "····"}
+            </p>
+            <div aria-hidden className="mx-auto mt-1.5 h-0.5 w-2/3 rounded-full bg-red-500/70" />
+          </div>
+        </>
+      ) : (
+        <div className="flex flex-col items-center px-6 py-7 text-center">
+          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-gray-100">
+            <Fingerprint size={20} className="text-gray-500" />
+          </span>
+          <p className="mt-3 text-sm font-bold text-gray-800">Aadhaar not found in your KYC</p>
+          <p className="mt-0.5 text-xs text-gray-500">Add your Aadhaar details to complete daily verification.</p>
+        </div>
+      )}
 
       {verified ? (
-        <div className="pointer-events-none absolute bottom-6 right-6 -rotate-12">
-          <div className="dv-stamp flex h-24 w-24 flex-col items-center justify-center rounded-full border-[3px] border-green-500/70 bg-white/70 text-green-600 ring-4 ring-green-500/15 ring-offset-2">
-            <Check size={22} strokeWidth={3} />
-            <span className="text-[13px] font-extrabold tracking-[0.12em]">VERIFIED</span>
-            <span className="text-[8px] font-bold tracking-[0.2em]">TODAY</span>
+        <div className="pointer-events-none absolute right-4 top-14 -rotate-12">
+          <div className="dv-stamp flex h-[72px] w-[72px] flex-col items-center justify-center rounded-full border-[3px] border-green-500/70 bg-white/80 text-green-600">
+            <Check size={16} strokeWidth={3} />
+            <span className="text-[10px] font-extrabold tracking-[0.1em]">VERIFIED</span>
+            <span className="text-[7px] font-bold tracking-[0.2em]">TODAY</span>
           </div>
         </div>
       ) : null}
 
       {busy ? (
-        <div className="dv-fade-up absolute inset-0 z-10 flex flex-col items-center justify-center rounded-2xl bg-white/85 px-6 backdrop-blur-[3px]">
-          <div className="dv-ring flex h-24 w-24 items-center justify-center rounded-full border-4 border-blue-100 bg-white">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-50">
-              <Fingerprint size={34} style={{ color: B.blueLight }} />
-            </div>
-          </div>
-          <p className="mt-4 text-center text-lg font-bold" style={{ color: B.blue }}>
+        <div className="dv-fade-up absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/90 px-6 backdrop-blur-[2px]">
+          <span className="dv-ring flex h-14 w-14 items-center justify-center rounded-full bg-blue-50">
+            <Fingerprint size={26} style={{ color: B.blueLight }} />
+          </span>
+          <p className="mt-2.5 text-sm font-bold" style={{ color: B.blue }}>
             {phase === "scanning" ? "Place your finger on the device…" : "Checking with UIDAI…"}
           </p>
-          <div className="mt-3 w-full max-w-60">
-            <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-gray-500">
-              <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+          <div className="mt-2 w-full max-w-48">
+            <p className="mb-1 text-[10px] font-medium text-gray-500">
               {quality != null ? `Quality ${quality}%` : "Capturing fingerprint"}
             </p>
-            <div className="h-2 overflow-hidden rounded-full bg-gray-100">
+            <div className="h-1.5 overflow-hidden rounded-full bg-gray-100">
               {quality != null ? (
                 <div
                   className="h-full rounded-full transition-all duration-500"
@@ -340,69 +331,15 @@ function AadhaarCard({
               )}
             </div>
           </div>
-          <p className="absolute bottom-4 right-5 flex items-center gap-1.5 text-[11px] text-gray-500">
-            <ShieldCheck size={13} className="text-green-600" />
-            Secure biometric session
-          </p>
         </div>
       ) : null}
     </div>
   );
 }
 
-/* ── Right: action column pieces ───────────────────────────────────── */
+/* ── Right: compact action column ──────────────────────────────────── */
 
-function MethodTile({
-  icon: Icon,
-  label,
-  hint,
-  selected,
-  muted,
-  onClick,
-}: {
-  icon: ComponentType<{ size?: number; className?: string; style?: CSSProperties }>;
-  label: string;
-  hint: string;
-  selected?: boolean;
-  muted?: boolean;
-  onClick?: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={selected}
-      className={clsx(
-        "relative flex min-w-0 flex-col items-start gap-2 rounded-xl border p-3 text-left transition xl:flex-row xl:items-center",
-        selected ? "border-2 shadow-sm" : "hover:bg-gray-50",
-        muted && "opacity-60",
-      )}
-      style={selected ? { borderColor: B.blueLight, background: "#F3F6FF" } : { borderColor: B.border }}
-    >
-      {selected ? (
-        <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-white shadow">
-          <Check size={12} strokeWidth={3} />
-        </span>
-      ) : null}
-      <span
-        className={clsx(
-          "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
-          selected ? "bg-white" : "bg-gray-50",
-        )}
-      >
-        <Icon size={18} className={selected ? undefined : "text-gray-400"} style={selected ? { color: B.blue } : undefined} />
-      </span>
-      <span className="min-w-0">
-        <span className={clsx("block truncate text-[13px] font-bold", selected ? "" : "text-gray-500")} style={selected ? { color: B.blue } : undefined}>
-          {label}
-        </span>
-        <span className="block truncate text-[10px] text-gray-400">{hint}</span>
-      </span>
-    </button>
-  );
-}
-
-function DeviceRow({
+function DeviceStatus({
   status,
   label,
   locked,
@@ -415,68 +352,47 @@ function DeviceRow({
   onRetry: () => void;
   onChange: () => void;
 }) {
-  if (status === "missing") {
-    return (
-      <section className="flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50/70 p-4">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-600">
-          <RotateCw size={18} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold text-red-700">No RD device found</p>
-          <p className="text-xs text-red-600/80">Connect the device and open RD Service, then tap Retry.</p>
-        </div>
-        <button
-          type="button"
-          onClick={onRetry}
-          disabled={locked}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-red-200 bg-white px-4 py-2 text-xs font-bold text-gray-800 shadow-sm transition hover:bg-red-50 disabled:opacity-50"
-        >
-          <RotateCw size={14} />
-          Retry
-        </button>
-      </section>
-    );
-  }
-
-  const ready = status === "ready";
   return (
-    <section className="flex items-center gap-3 rounded-2xl border bg-white p-4" style={{ borderColor: B.border }}>
-      <span
-        className={clsx(
-          "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
-          ready ? "bg-green-50 text-green-600" : "bg-amber-50 text-amber-600",
-        )}
+    <div
+      className="inline-flex max-w-full flex-wrap items-center justify-center gap-x-3 gap-y-1.5 rounded-xl border bg-white px-3 py-2"
+      style={{ borderColor: B.border }}
+    >
+      {status === "ready" ? (
+        <span className="inline-flex max-w-full items-center gap-1.5 truncate rounded-lg border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-bold text-green-700">
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-green-500" />
+          <span className="truncate">{label} connected</span>
+        </span>
+      ) : status === "looking" ? (
+        <span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700">
+          <Loader2 size={12} className="animate-spin" />
+          Looking for device…
+        </span>
+      ) : (
+        <span className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-bold text-red-600">
+          <AlertTriangle size={12} />
+          No Device Connected
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={onRetry}
+        disabled={locked}
+        className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 hover:underline disabled:opacity-50"
       >
-        {ready ? <Usb size={18} /> : <Loader2 size={18} className="animate-spin" />}
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="flex items-center gap-2 truncate text-sm font-bold text-gray-900">
-          <span className={clsx("h-2 w-2 shrink-0 rounded-full", ready ? "bg-green-500" : "bg-amber-400")} />
-          <span className="truncate">{ready ? `${label} · connected` : "Looking for RD Service…"}</span>
-        </p>
-        <p className="text-xs text-gray-500">
-          {ready ? "Registered device is ready to capture." : "Keep the device plugged in. This takes a few seconds."}
-        </p>
-      </div>
+        <RotateCw size={12} />
+        Re-scan
+      </button>
       <button
         type="button"
         onClick={onChange}
         disabled={locked}
-        className="shrink-0 text-sm font-bold text-blue-700 hover:underline disabled:opacity-50"
+        className="text-xs font-bold text-blue-700 hover:underline disabled:opacity-50"
       >
         Change
       </button>
-    </section>
+    </div>
   );
 }
-
-const STEPS = [
-  { title: "Connect the RD device", hint: "Make sure RD Service is open." },
-  { title: "Accept consent", hint: "Consent is valid for today only." },
-  { title: "Place your finger", hint: "Use the same finger used for Aadhaar." },
-] as const;
-
-const TIPS = ["Clean the sensor", "Press gently and hold still", "Try another finger if it fails"] as const;
 
 /* ── Main ──────────────────────────────────────────────────────────── */
 
@@ -494,8 +410,9 @@ export function DailyVerifyCard({
   onVerified,
   onboardingPending = false,
   onCompleteOnboarding,
+  title = "Daily Merchant Authentication (2FA)",
   stepLabel,
-  scanLabel = "Scan fingerprint",
+  scanLabel = "Capture Merchant Fingerprint",
   successToast,
   captureOptions,
   submit,
@@ -511,22 +428,15 @@ export function DailyVerifyCard({
 
   const busy = phase === "scanning" || phase === "verifying";
   const done = phase === "success";
-  const deviceReady = rdStatus === "ready";
-  const canScan = kycReady && !onboardingPending && consent && deviceReady && !busy && !done;
+  const canScan = kycReady && !onboardingPending && consent && rdStatus === "ready" && !busy && !done;
 
-  const blockedHint = onboardingPending
-    ? "Complete AEPS agent onboarding to start daily verification."
-    : !consent
-    ? "Accept Aadhaar consent above to continue."
+  const blockedHint = !consent
+    ? "Accept Aadhaar consent to continue."
     : rdStatus === "missing"
-      ? "Connect the RD device and tap Retry to continue."
+      ? "Connect the RD device and tap Re-scan."
       : rdStatus === "looking"
         ? "Waiting for the RD device…"
         : null;
-
-  function showFaceHint() {
-    toast(`Face verification works in the ${brand.name} Android app. Use Fingerprint on web.`);
-  }
 
   async function scan() {
     if (!canScan) {
@@ -553,271 +463,144 @@ export function DailyVerifyCard({
 
   const consentText = `I, ${user?.name?.trim() || "the account holder"}, allow ${brand.name} to use my Aadhaar number and fingerprint to authenticate me with UIDAI for today's ${service} session. My fingerprint is encrypted on the RD device and is not stored by ${brand.name}. This consent is valid until 11:59 PM today.`;
 
-  const stepDone = [deviceReady, consent, false];
+  const subtitle = !kycReady
+    ? "Add your Aadhaar in KYC to start daily verification."
+    : onboardingPending
+      ? "Finish AEPS agent onboarding first — daily verification runs on your AEPS agent ID."
+      : done
+        ? "You're verified for today. Valid till 11:59 PM."
+        : `Daily biometric authentication is required before ${service} transactions.`;
 
   return (
-    <div className="space-y-4">
-      {error && phase === "failed" ? (
-        <div className="dv-fade-up flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3.5" role="alert">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-red-600 text-sm font-bold text-white">
-            !
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold text-red-800">{error}</p>
-            <p className="text-xs text-red-700/80">{failureHint(error)}</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setError(null)}
-            className="shrink-0 rounded-lg p-1 text-red-400 transition hover:bg-red-100 hover:text-red-600"
-            aria-label="Dismiss error"
-          >
-            <X size={16} />
-          </button>
+    <div className="rounded-3xl border bg-white p-4 shadow-sm sm:p-6" style={{ borderColor: B.border }}>
+      <div className="grid items-center gap-6 md:grid-cols-[minmax(0,480px)_minmax(0,1fr)] md:gap-0">
+        <div className="flex justify-center md:justify-start md:border-r md:pr-6" style={{ borderColor: B.border }}>
+          <AadhaarCard phase={phase} quality={quality} kycReady={kycReady} aadhaarLastFour={aadhaarLastFour} />
         </div>
-      ) : null}
 
-      <div className="rounded-3xl border bg-white p-4 shadow-sm sm:p-6" style={{ borderColor: B.border }}>
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(340px,1fr)]">
-          <div className="flex min-w-0 flex-col gap-3">
-            <AadhaarCard phase={phase} quality={quality} kycReady={kycReady} aadhaarLastFour={aadhaarLastFour} />
-            {kycReady && lastVerifiedAt !== undefined ? (
-              <div
-                className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-xl border px-4 py-2.5 text-xs text-gray-600"
-                style={{ borderColor: B.border, background: "#F7F9FF" }}
-              >
-                <span className="flex items-center gap-2">
-                  <History size={14} className="text-gray-400" />
-                  Last verified: <b className="font-semibold text-gray-800">{describeVerifiedAt(lastAt)}</b>
-                </span>
-                <span>
-                  {done ? "Next: " : "Due: "}
-                  <b className="font-semibold text-gray-800">{done ? "tomorrow" : "before your first transaction today"}</b>
-                </span>
+        <div className="flex min-w-0 flex-col items-center text-center md:pl-6">
+          <span
+            className={clsx(
+              "flex h-12 w-12 items-center justify-center rounded-full",
+              done ? "bg-green-50 text-green-600" : "bg-blue-50",
+              !done && !busy && "dv-ring",
+            )}
+            style={done ? undefined : { color: B.blue }}
+          >
+            {done ? <Check size={22} strokeWidth={3} /> : <Fingerprint size={22} />}
+          </span>
+          {stepLabel ? (
+            <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: B.blueLight }}>
+              {stepLabel}
+            </p>
+          ) : null}
+          <h2 className="mt-1.5 text-lg font-bold text-gray-900">{title}</h2>
+          <p className={clsx("mt-0.5 text-xs", done ? "font-semibold text-green-700" : "text-gray-500")}>{subtitle}</p>
+
+          {kycReady && !onboardingPending && !done ? (
+            <>
+              <div className="mt-3">
+                <DeviceStatus
+                  status={rdStatus}
+                  label={deviceLabel}
+                  locked={busy}
+                  onRetry={onRetryDevice}
+                  onChange={onChangeDevice}
+                />
               </div>
-            ) : null}
-          </div>
 
-          {kycReady ? (
-            <div className="flex min-w-0 flex-col gap-3">
-              {stepLabel ? (
-                <p
-                  className="self-start rounded-full px-3 py-1 text-[11px] font-bold tracking-wide"
-                  style={{ background: "#EEF3FF", color: B.blue }}
-                >
-                  {stepLabel}
-                </p>
-              ) : null}
-              {onboardingPending ? (
-                <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                  <p className="text-sm font-bold text-amber-900">Finish AEPS agent onboarding first</p>
-                  <p className="mt-1 text-xs leading-relaxed text-amber-800">
-                    Daily verification runs on your AEPS agent ID. Complete onboarding, then scan your fingerprint
-                    here to unlock {service} for the day.
-                  </p>
-                </section>
-              ) : null}
-              <section className="rounded-2xl border bg-white p-4" style={{ borderColor: B.border }}>
-                <p className="mb-3 flex flex-wrap items-baseline gap-x-2">
-                  <span className="text-[11px] font-bold tracking-[0.14em]" style={{ color: B.blue }}>
-                    VERIFY WITH
-                  </span>
-                  <span className="text-[11px] text-gray-400">Choose a verification method</span>
-                </p>
-                <div className="grid grid-cols-3 gap-2.5">
-                  <MethodTile icon={Fingerprint} label="Fingerprint" hint="RD device" selected />
-                  <MethodTile icon={ScanFace} label="Face" hint="Android app only" muted onClick={showFaceHint} />
-                  <MethodTile
-                    icon={ScanEye}
-                    label="Iris"
-                    hint="Coming soon"
-                    muted
-                    onClick={() => toast("Iris verification is coming soon. Use Fingerprint.")}
-                  />
-                </div>
-              </section>
-
-              <DeviceRow
-                status={rdStatus}
-                label={deviceLabel}
-                locked={busy}
-                onRetry={onRetryDevice}
-                onChange={onChangeDevice}
-              />
-
-              <section className="rounded-2xl border bg-white p-4" style={{ borderColor: B.border }}>
-                <label className={clsx("flex items-start gap-3", busy || done ? "cursor-default" : "cursor-pointer")}>
+              <div className="mt-3 w-full max-w-md text-left">
+                <label className={clsx("flex items-start gap-2.5", busy ? "cursor-default" : "cursor-pointer")}>
                   <input
                     type="checkbox"
                     checked={consent}
-                    disabled={busy || done}
+                    disabled={busy}
                     onChange={(e) => setConsent(e.target.checked)}
                     className="mt-0.5 h-4 w-4 shrink-0 accent-blue-700"
                   />
-                  <span>
-                    <span className="block text-sm font-bold text-gray-900">
-                      I accept Aadhaar consent for today&apos;s {service} access
-                    </span>
-                    <span className="mt-0.5 block text-xs text-gray-500">
-                      Your consent is required once each day before biometric verification.
-                    </span>
+                  <span className="text-xs text-gray-700">
+                    I accept Aadhaar consent for today&apos;s {service} access.{" "}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setConsentOpen((v) => !v);
+                      }}
+                      aria-expanded={consentOpen}
+                      className="inline-flex items-center gap-0.5 font-bold text-blue-700"
+                    >
+                      Read
+                      <ChevronDown size={12} className={clsx("transition-transform", consentOpen && "rotate-180")} />
+                    </button>
                   </span>
                 </label>
-                <button
-                  type="button"
-                  onClick={() => setConsentOpen((v) => !v)}
-                  aria-expanded={consentOpen}
-                  className="ml-7 mt-2 inline-flex items-center gap-1 text-xs font-bold text-blue-700"
-                >
-                  Read consent
-                  <ChevronDown size={14} className={clsx("transition-transform", consentOpen && "rotate-180")} />
-                </button>
                 {consentOpen ? (
                   <p
-                    className="dv-fade-up ml-7 mt-2 rounded-xl p-3 text-xs leading-relaxed text-gray-600"
+                    className="dv-fade-up ml-6 mt-1.5 rounded-lg p-2.5 text-[11px] leading-relaxed text-gray-600"
                     style={{ background: "#F7F9FF" }}
                   >
                     {consentText}
                   </p>
                 ) : null}
-              </section>
+              </div>
+            </>
+          ) : null}
 
-              {done ? (
-                <>
-                  <section className="dv-fade-up flex items-center gap-3 rounded-2xl border border-green-200 bg-green-50 p-4">
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-green-500 text-white shadow-sm">
-                      <Check size={22} strokeWidth={3} />
-                    </span>
-                    <div>
-                      <p className="text-sm font-bold text-green-800">You&apos;re verified for today.</p>
-                      <p className="text-xs text-green-700">Valid till 11:59 PM.</p>
-                    </div>
-                  </section>
-                  <PrimaryButton type="button" variant="primary" onClick={onVerified} className="mt-auto">
-                    {continueLabel}
-                  </PrimaryButton>
-                </>
-              ) : onboardingPending ? (
-                <PrimaryButton type="button" variant="primary" onClick={onCompleteOnboarding} className="mt-auto">
-                  Complete AEPS onboarding
-                </PrimaryButton>
-              ) : phase === "failed" ? (
-                <div className="mt-auto grid grid-cols-2 gap-3">
-                  <PrimaryButton
-                    type="button"
-                    variant="primary"
-                    showArrow={false}
-                    disabled={!canScan}
-                    onClick={() => void scan()}
-                  >
-                    <RotateCw size={16} />
-                    Try again
-                  </PrimaryButton>
-                  <PrimaryButton type="button" variant="secondary" onClick={showFaceHint}>
-                    Use face instead
-                  </PrimaryButton>
-                </div>
-              ) : (
-                <div className="mt-auto">
-                  <button
-                    type="button"
-                    onClick={() => void scan()}
-                    disabled={!canScan}
-                    className="flex h-14 w-full items-center justify-center gap-2.5 rounded-full text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(11,42,154,0.25)] transition hover:brightness-105 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
-                    style={{ background: SCAN_GRAD }}
-                  >
-                    {busy ? (
-                      <>
-                        <Loader2 size={18} className="animate-spin" />
-                        {phase === "scanning" ? "Scanning…" : "Checking with UIDAI…"}
-                      </>
-                    ) : (
-                      <>
-                        {scanLabel}
-                        <Fingerprint size={18} />
-                      </>
-                    )}
-                  </button>
-                  {!busy && blockedHint ? (
-                    <p className="mt-2 text-center text-xs font-medium text-amber-700">{blockedHint}</p>
-                  ) : null}
-                </div>
-              )}
-
-              {!done ? (
-                <p className="flex items-center justify-center gap-1.5 text-[11px] text-gray-500">
-                  <ShieldCheck size={13} className="text-green-600" />
-                  256-bit encrypted biometric verification
-                </p>
-              ) : null}
+          {error && phase === "failed" ? (
+            <div
+              className="dv-fade-up mt-3 w-full rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-left"
+              role="alert"
+            >
+              <p className="text-xs font-bold text-red-800">{error}</p>
+              <p className="text-[11px] text-red-700/80">{failureHint(error)}</p>
             </div>
-          ) : (
-            <div className="flex min-w-0 flex-col gap-3">
-              <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                <p className="text-sm font-bold text-amber-900">Daily verification needs the Aadhaar from your KYC</p>
-                <p className="mt-1 text-xs leading-relaxed text-amber-800">
-                  Add your Aadhaar in KYC. Once it is on file, come back here and verify with your fingerprint to
-                  unlock {service} for the day.
-                </p>
-              </section>
-              <PrimaryButton
-                type="button"
-                variant="primary"
-                className="mt-auto"
-                onClick={() => router.push("/settings?tab=kyc")}
-              >
+          ) : null}
+
+          <div className="mt-4 w-full">
+            {!kycReady ? (
+              <PrimaryButton type="button" variant="primary" className="w-full" onClick={() => router.push("/settings?tab=kyc")}>
                 Complete KYC
               </PrimaryButton>
-            </div>
-          )}
-        </div>
+            ) : onboardingPending ? (
+              <PrimaryButton type="button" variant="primary" className="w-full" onClick={onCompleteOnboarding}>
+                Complete AEPS onboarding
+              </PrimaryButton>
+            ) : done ? (
+              <PrimaryButton type="button" variant="primary" className="w-full" onClick={onVerified}>
+                {continueLabel}
+              </PrimaryButton>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void scan()}
+                disabled={!canScan}
+                className="flex h-12 w-full items-center justify-center gap-2.5 rounded-xl text-sm font-bold text-white shadow-[0_10px_24px_rgba(11,42,154,0.22)] transition hover:brightness-110 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+                style={{ background: SCAN_GRAD }}
+              >
+                {busy ? (
+                  <>
+                    <Loader2 size={17} className="animate-spin" />
+                    {phase === "scanning" ? "Scanning…" : "Checking with UIDAI…"}
+                  </>
+                ) : (
+                  <>
+                    {phase === "failed" ? <RotateCw size={17} /> : <Fingerprint size={17} />}
+                    {phase === "failed" ? "Try again" : scanLabel}
+                  </>
+                )}
+              </button>
+            )}
+          </div>
 
-        {!done ? (
-          <section
-            className="mt-5 grid items-center gap-4 rounded-2xl border p-4 sm:p-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,2fr)_minmax(0,1.3fr)]"
-            style={{ borderColor: B.border, background: "#F7F9FF" }}
-          >
-            <div className="flex items-center gap-3">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-100/70">
-                <Fingerprint size={20} style={{ color: B.blueLight }} />
-              </span>
-              <div>
-                <p className="text-base font-semibold text-gray-900">Complete verification</p>
-                <p className="text-xs text-gray-500">It takes less than a minute.</p>
-              </div>
-            </div>
-            <ol className="grid gap-3 sm:grid-cols-3">
-              {STEPS.map((s, i) => (
-                <li key={s.title} className="flex items-start gap-2.5">
-                  <span
-                    className={clsx(
-                      "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-bold",
-                      stepDone[i] ? "border-green-500 bg-green-500 text-white" : "bg-white text-gray-600",
-                    )}
-                    style={stepDone[i] ? undefined : { borderColor: B.border }}
-                  >
-                    {stepDone[i] ? <Check size={14} strokeWidth={3} /> : i + 1}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-[13px] font-bold text-gray-900">{s.title}</span>
-                    <span className="block text-[11px] text-gray-500">{s.hint}</span>
-                  </span>
-                </li>
-              ))}
-            </ol>
-            <div className="rounded-xl border bg-white/80 p-3.5" style={{ borderColor: B.border }}>
-              <p className="mb-2 text-[10px] font-bold tracking-[0.14em] text-gray-500">TIPS FOR A GOOD SCAN</p>
-              <ul className="space-y-1.5">
-                {TIPS.map((t) => (
-                  <li key={t} className="flex items-center gap-2 text-xs text-gray-600">
-                    <Check size={13} strokeWidth={3} className="shrink-0 text-green-600" />
-                    {t}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </section>
-        ) : null}
+          <p className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] text-gray-500">
+            <span className="inline-flex items-center gap-1">
+              <ShieldCheck size={12} className="text-green-600" />
+              256-bit encrypted
+            </span>
+            {lastVerifiedAt !== undefined && kycReady ? <span>Last verified: {describeVerifiedAt(lastAt)}</span> : null}
+            {!done && kycReady && !onboardingPending ? <span>Face verification: Android app</span> : null}
+          </p>
+        </div>
       </div>
     </div>
   );

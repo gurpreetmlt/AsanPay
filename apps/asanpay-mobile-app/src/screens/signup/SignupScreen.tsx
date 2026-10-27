@@ -34,6 +34,7 @@ import {
   PAN_FORMAT_ERROR,
   SIGNUP_POLICY_VERSION,
   kycDocCheckBlocksStep,
+  formatPanName,
   kycDocCheckHints,
   kycDocCheckLabel,
   kycDocCheckSlotsForStep,
@@ -1247,6 +1248,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
     }
   }
 
+  const nameFromPan = draft.panVerified && Boolean(draft.panVerifiedName.trim());
   const docCheckHints = kycDocCheckHints(draft);
   const docCheckHintKey = JSON.stringify(docCheckHints);
 
@@ -1628,7 +1630,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         pan: data.data.pan || pan,
         panVerified: true,
         panVerifiedName: data.data.fullName ?? "",
-        ...(data.data.fullName && !draft.name.trim() ? { name: data.data.fullName } : {}),
+        ...(data.data.fullName ? { name: formatPanName(data.data.fullName) } : {}),
         ...(data.data.address && !draft.address.trim() ? { address: data.data.address } : {}),
       });
       if (manual) {
@@ -2151,14 +2153,20 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                       </Pressable>
                     ))}
                   </View>
-                  <FieldLabel text="Full Name *" color={tokens.mute} />
+                  <FieldLabel text="Full Name (As per PAN) *" color={tokens.mute} />
                   <TextInput
                     value={draft.name}
                     onChangeText={(t) => patch({ name: t })}
-                    placeholder="As per PAN"
+                    placeholder="As per PAN card"
                     placeholderTextColor={tokens.mute}
-                    style={inputStyle}
+                    editable={!nameFromPan}
+                    style={[inputStyle, nameFromPan ? { opacity: 0.7 } : null]}
                   />
+                  {nameFromPan ? (
+                    <Text style={{ color: tokens.mute, fontSize: 11, marginTop: 6 }}>
+                      Filled from your verified PAN. Change the PAN on the PAN step to edit it.
+                    </Text>
+                  ) : null}
                   {needsUpline ? (
                     <>
                       <FieldLabel text={`${UPLINE_LABEL[draft.role as "retailer" | "distributor"]} *`} color={tokens.mute} />

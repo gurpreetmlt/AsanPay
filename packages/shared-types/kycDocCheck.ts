@@ -94,6 +94,15 @@ export function kycDocCheckLabel(ui: KycDocCheckUi): string {
   return ui.state === "checking" ? KYC_DOC_CHECK_COPY.checking : ui.message;
 }
 
+/** PAN register names come in capitals ("GURPREET SINGH") — store and show them as "Gurpreet Singh". */
+export function formatPanName(name: string): string {
+  return name
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase()
+    .replace(/(^|[\s.'-])([a-z])/g, (_, sep: string, ch: string) => sep + ch.toUpperCase());
+}
+
 /**
  * Form values sent with a photo check so the server can compare them with the card.
  * Only the Aadhaar last 4 digits — never the full number.
