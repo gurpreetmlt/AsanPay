@@ -16,6 +16,7 @@ export * from "./settlements";
 export * from "./geoLink";
 export * from "./policyAcceptances";
 export * from "./linkedAccounts";
+export * from "./kycVerifications";
 export * from "./float";
 export * from "./reconciliation";
 export * from "./devices";

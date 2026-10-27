@@ -213,8 +213,13 @@ adminRouter.get("/kyc", async (req, res) => {
 
 adminRouter.post("/kyc/:id/decide", async (req, res) => {
   if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
-  const body = z.object({ decision: z.enum(["verified", "rejected"]) }).parse(req.body);
-  const result = await decideKyc(req.auth.sub, req.params.id, body.decision);
+  const body = z
+    .object({
+      decision: z.enum(["verified", "rejected"]),
+      reason: z.string().trim().max(500, "Reason must be at most 500 characters").optional(),
+    })
+    .parse(req.body);
+  const result = await decideKyc(req.auth.sub, req.params.id, body.decision, body.reason || null);
   sendSuccess(res, result, body.decision === "verified" ? "KYC approved" : "KYC rejected");
 });
 

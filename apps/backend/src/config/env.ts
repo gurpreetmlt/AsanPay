@@ -256,6 +256,11 @@ const envSchema = z.object({
    * OTP uses WHATSAPP_* above and keeps working when this is false.
    */
   WHATSAPP_SUPPORT_ENABLED: z.coerce.boolean().default(false),
+  /** KYC photo OCR: PaddleOCR first, Tesseract as backup. `off` = Tesseract only. */
+  KYC_OCR_PADDLE: z.preprocess(
+    (v) => (typeof v === "string" ? v.trim().toLowerCase() || undefined : v),
+    z.enum(["on", "off"]).default("on"),
+  ),
   /**
    * Meta webhook verify token (Callback URL → Verify token). Required for
    * GET /api/whatsapp/webhook hub challenge. Same string as Meta dashboard.

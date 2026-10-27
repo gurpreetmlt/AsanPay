@@ -129,7 +129,7 @@ export function analyzeDocText(text: string, confidence: number): DocTextAnalysi
   return {
     readable: alnum >= MIN_READABLE_CHARS && confidence >= MIN_READABLE_CONFIDENCE,
     clearlyReadable: alnum >= CLEAR_CHARS && confidence >= CLEAR_CONFIDENCE,
-    panKeyword: /INCOME\s*TAX|PERMANENT\s*ACCOUNT|आयकर/.test(up),
+    panKeyword: /INCOME\s*TAX|TAX\s*DEPARTMENT|PERMANENT\s*ACCOUNT|ACCOUNT\s*NUMBER|आयकर|स्थायी\s*लेखा/.test(up),
     panNumbers: extractPanCandidates(up),
     aadhaarGov: /GOVERNMENT\s*OF\s*INDIA|GOVT\.?\s*OF\s*INDIA|भारत\s*सरकार/.test(up),
     aadhaarWord: /AADHAA?R|आधार/.test(up),

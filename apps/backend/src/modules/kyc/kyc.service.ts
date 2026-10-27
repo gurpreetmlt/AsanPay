@@ -24,6 +24,11 @@ import {
   toStoredDocCheck,
   type StoredDocCheck,
 } from "./docCheck/docCheck.service";
+import {
+  getKycVerificationView,
+  recordKycVerification,
+  type KycVerificationView,
+} from "./kycVerification.service";
 
 function toAuthUser(row: typeof users.$inferSelect): AuthUser {
   return {
@@ -98,6 +103,8 @@ export type MyKycProfile = {
   businessName: string | null;
   businessType: string | null;
   cancelledChequeFileName: string | null;
+  /** PAN / Aadhaar / photo / cross-check statuses — no numbers. */
+  verification: KycVerificationView;
 };
 
 export async function getMyKycProfile(userId: string): Promise<MyKycProfile> {
@@ -123,7 +130,10 @@ export async function getMyKycProfile(userId: string): Promise<MyKycProfile> {
   }
   const hasDocs = Boolean(panMasked && aadhaarMasked);
 
-  const audit = await findLatestAuditLog({ userId, action: "kyc.submit" });
+  const [audit, verification] = await Promise.all([
+    findLatestAuditLog({ userId, action: "kyc.submit" }),
+    getKycVerificationView(userId),
+  ]);
   const meta = (audit?.metadata ?? {}) as Record<string, unknown>;
   const accountRaw = metaString(meta, "bankAccountNumber");
 
@@ -154,6 +164,7 @@ export async function getMyKycProfile(userId: string): Promise<MyKycProfile> {
     businessName: metaString(meta, "businessName"),
     businessType: metaString(meta, "businessType"),
     cancelledChequeFileName: metaString(meta, "cancelledChequeFileName"),
+    verification,
   };
 }
 
@@ -228,11 +239,12 @@ export async function submitKyc(userId: string, input: KycSubmitInput): Promise<
       if (result) docChecks[slot] = toStoredDocCheck(result);
     }),
   );
-  for (const slot of DOC_CHECK_SLOTS) {
-    const check = docChecks[slot];
-    if (check?.status === "fail") {
-      throw new HttpError(422, `${DOC_CHECK_LABEL[slot]}: ${check.message}`, "KYC_DOC_CHECK_FAILED");
-    }
+  const statusCtx = { actorId: userId, source: "submit" as const };
+  const failedSlot = DOC_CHECK_SLOTS.find((slot) => docChecks[slot]?.status === "fail");
+  if (failedSlot) {
+    const message = `${DOC_CHECK_LABEL[failedSlot]}: ${docChecks[failedSlot]!.message}`;
+    await recordKycVerification(userId, { slots: docChecks }, { ...statusCtx, reason: message });
+    throw new HttpError(422, message, "KYC_DOC_CHECK_FAILED");
   }
 
   const latitude =
@@ -330,6 +342,8 @@ export async function submitKyc(userId: string, input: KycSubmitInput): Promise<
       ...(Object.keys(docChecks).length ? { docChecks } : {}),
     },
   });
+  // New submission → any earlier admin decision no longer applies.
+  await recordKycVerification(userId, { slots: docChecks, review: null }, statusCtx);
 
   if (updated.email && updated.emailVerifiedAt) {
     notifyUserEmail(updated.email, () => kycSubmittedEmailTemplate({ name: updated.name }));

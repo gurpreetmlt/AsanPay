@@ -2,6 +2,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import Tesseract from "tesseract.js";
 import { logger } from "../../../utils/logger";
+import { warmPaddleOcr } from "./paddleOcr";
 
 /**
  * English only: every PAN / Aadhaar prints its key fields in English, and mixing in Hindi made
@@ -57,8 +58,9 @@ export async function ocrImage(png: Buffer, mode: OcrMode = "auto"): Promise<{ t
   return { text: data.text ?? "", confidence: data.confidence ?? 0 };
 }
 
-/** Load both OCR models at boot so the first signup photo doesn't pay the startup cost. */
+/** Load PaddleOCR + both Tesseract models at boot so the first signup photo doesn't pay the startup cost. */
 export function warmKycOcr(): void {
+  warmPaddleOcr();
   for (const mode of ["auto", "sparse"] as const) {
     void getWorker(mode).catch((err) =>
       logger.warn({ mode, err: (err as Error).message }, "KYC OCR warm-up failed"),

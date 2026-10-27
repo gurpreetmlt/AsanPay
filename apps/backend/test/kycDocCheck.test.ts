@@ -17,6 +17,7 @@ import {
 import { docCheckLabelsFromMeta } from "../src/modules/kyc/docCheck/docCheckLabels";
 import { laplacianVariance } from "../src/modules/kyc/docCheck/imageQuality";
 import { escalateDifferentPerson } from "../src/modules/kyc/docCheck/identityRules";
+import { linesToText } from "../src/modules/kyc/docCheck/paddleOcr";
 
 const PAN_TEXT = `INCOME TAX DEPARTMENT GOVT. OF INDIA
 Permanent Account Number Card
@@ -216,6 +217,49 @@ describe("different-person rule", () => {
     const checks: Item[] = [{ id: "aadhaarNumber", status: "flag" }, { id: "name", status: "pass", score: 96 }];
     escalateDifferentPerson(checks, "Aadhaar card", true);
     expect(checks.map((c) => c.status)).toEqual(["flag", "pass"]);
+  });
+
+  it("turns a lone mismatch with the provider-verified PAN red", () => {
+    const checks: Item[] = [{ id: "panNumber", status: "flag" }, { id: "name", status: "pass", score: 96 }];
+    escalateDifferentPerson(checks, "PAN card", true, true);
+    expect(checks.map((c) => c.status)).toEqual(["fail", "pass"]);
+    expect(checks[0]!.detail).toBe(
+      "This PAN card belongs to someone else — the number doesn't match your details. Upload a photo of your own PAN card.",
+    );
+  });
+
+  it("uses the same someone-else message for a PAN with a different name and DOB", () => {
+    const checks: Item[] = [{ id: "panNumber", status: "skip" }, flagName(20), { ...flagDob }];
+    escalateDifferentPerson(checks, "PAN card", false, true);
+    expect(checks.map((c) => c.status)).toEqual(["skip", "fail", "fail"]);
+    expect(checks[1]!.detail).toContain("This PAN card belongs to someone else — the name and date of birth don't match");
+  });
+});
+
+describe("older PAN card text", () => {
+  it("recognises the header even when OCR drops spaces or the first word", () => {
+    expect(isPanLike(analyzeDocText("INCOMETAX DEPARTMENT\nGOVT. OF INDIA", 80))).toBe(true);
+    expect(isPanLike(analyzeDocText("lNCOME TAX DEPARTMENT", 80))).toBe(true);
+    expect(isPanLike(analyzeDocText("Permanent Account Number Card", 80))).toBe(true);
+  });
+});
+
+describe("PaddleOCR reading order", () => {
+  const box = (left: number, top: number, w = 100, h = 20) => [
+    [left, top],
+    [left + w, top],
+    [left + w, top + h],
+    [left, top + h],
+  ];
+  it("rebuilds rows top → bottom and runs left → right", () => {
+    const text = linesToText([
+      { text: "22/09/1995", mean: 0.9, box: box(10, 200) },
+      { text: "GOVT. OF INDIA", mean: 0.9, box: box(300, 12) },
+      { text: "Date of Birth", mean: 0.9, box: box(10, 170) },
+      { text: "INCOME TAX DEPARTMENT", mean: 0.9, box: box(10, 10) },
+    ]);
+    expect(text.split("\n")).toEqual(["INCOME TAX DEPARTMENT  GOVT. OF INDIA", "Date of Birth", "22/09/1995"]);
+    expect(extractDob(text)).toBe("1995-09-22");
   });
 });
 

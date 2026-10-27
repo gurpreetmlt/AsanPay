@@ -4,6 +4,7 @@ import { HttpError } from "../../utils/httpError";
 import { logger } from "../../utils/logger";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import { encryptPII } from "../../utils/aes";
+import { recordKycVerification, statusForKycError } from "./kycVerification.service";
 
 const VERIFY_PATH = "/api/gw/identity-verify/pan/pan-verify";
 const PAN_RE = /^[A-Z]{5}\d{4}[A-Z]$/;
@@ -97,16 +98,34 @@ function assertConfigured(): void {
   }
 }
 
-export async function verifyPanKyc(
-  userId: string,
-  panNumber: string,
-): Promise<{
+type PanVerifyResult = {
   verified: true;
   pan: string;
   fullName: string | null;
   address: string | null;
   category: string | null;
-}> {
+};
+
+export async function verifyPanKyc(userId: string, panNumber: string): Promise<PanVerifyResult> {
+  const ctx = { actorId: userId, source: "pan_verify" as const };
+  try {
+    const result = await runPanVerify(userId, panNumber);
+    await recordKycVerification(userId, { panNumber: "verified" }, ctx);
+    return result;
+  } catch (err) {
+    const failure = statusForKycError(err, { PAN_VERIFY_EMPTY: "failed", PAN_VERIFY_FAILED: "retry_required" });
+    if (failure) {
+      await recordKycVerification(
+        userId,
+        { panNumber: failure.status, reasons: { panNumber: failure.message } },
+        { ...ctx, reason: failure.message },
+      );
+    }
+    throw err;
+  }
+}
+
+async function runPanVerify(userId: string, panNumber: string): Promise<PanVerifyResult> {
   assertConfigured();
   const pan = panNumber.toUpperCase().replace(/[^A-Z0-9]/g, "");
   if (!PAN_RE.test(pan)) {

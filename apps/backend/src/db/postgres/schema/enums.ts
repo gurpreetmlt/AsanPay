@@ -9,6 +9,15 @@ export const userRoleEnum = pgEnum("user_role", [
 
 export const kycStatusEnum = pgEnum("kyc_status", ["pending", "verified", "rejected"]);
 
+/** Per-check KYC verification status (`kyc_verifications`). */
+export const kycCheckStatusEnum = pgEnum("kyc_check_status", [
+  "pending",
+  "verified",
+  "failed",
+  "retry_required",
+  "manual_review",
+]);
+
 export const walletTypeEnum = pgEnum("wallet_type", ["main", "aeps"]);
 
 // "ledger" = an internal-only balance (SD/Distributor/Retailer/Company book entry).

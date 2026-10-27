@@ -13,6 +13,9 @@
 - Server gate: `submitKyc` re-runs checks before saving; any red or a missing PAN / Aadhaar photo →
   422 `KYC_DOC_CHECK_FAILED` / `KYC_DOC_PHOTO_REQUIRED`. Amber is accepted (admin reviews).
 - Apps re-run checks after reload and when DOB / gender / Aadhaar number change.
+- OCR: PaddleOCR (PP-OCRv4 ONNX, `docCheck/paddleOcr.ts`) first, Tesseract passes as backup;
+  `KYC_OCR_PADDLE=off` → Tesseract only. Old glossy PAN layout recognised; a PAN with a different
+  number / name + DOB shows the same "This PAN card belongs to someone else — …" message as Aadhaar.
 
 ## Read ONLY
 
@@ -32,6 +35,18 @@
 - Mapping: photo `pass` → verified · `flag` → manual_review · `fail` → failed · quality fail →
   retry_required. Overall = worst of all (failed > retry_required > manual_review > pending > verified).
 - `GET /api/kyc/me` returns the statuses (no raw numbers).
+
+**Chat 1 done (27 Oct).** Built:
+- Migration `0077_kyc_verifications` (enum `kyc_check_status`; backfills approved / rejected agents).
+- `modules/kyc/kycVerification.service.ts` — `recordKycVerification` (locked upsert, never throws,
+  writes `kyc.status_changed` audit: `{ source, changes: [{ field, from, to }], reason }`),
+  `getKycVerificationView`. Overall = admin decision if any (approved → verified, rejected → failed),
+  else worst of the five checks. Per-photo results + agent-facing reasons in `details` jsonb.
+- Hooks: PAN verify (`PAN_VERIFY_EMPTY` → failed, `PAN_VERIFY_FAILED` → retry), Aadhaar OTP
+  (stores provider request id; mobile mismatch → failed; wrong / expired OTP → retry), `POST
+  /documents/check`, submit (also on red refusal; clears old decision), admin decide / reset.
+- `POST /admin/kyc/:id/decide` accepts optional `reason` (max 500) — Chat 2 makes it required on reject.
+- `GET /api/kyc/me` → `profile.verification`; admin user detail → `kyc.verification`.
 
 ## Chat 2 — UI
 

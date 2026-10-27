@@ -45,6 +45,7 @@ import {
   KYC_DOC_KEY_TO_SLOT,
 } from "../kyc/kycDocuments.service";
 import { docCheckLabelsFromMeta } from "../kyc/docCheck/docCheckLabels";
+import { getKycVerificationView, recordKycVerification } from "../kyc/kycVerification.service";
 import { kycDecisionEmailTemplate, kycResetEmailTemplate, notifyUserEmail } from "../../utils/mailer";
 import { findLatestAuditLog, insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import { assertCommissionMonthUnlocked, recordRateChangeEvent } from "../commission/commission.guards";
@@ -202,6 +203,7 @@ export async function getAdminUserDetail(userId: string) {
       bankName: typeof meta.bankName === "string" ? meta.bankName : null,
       hasBank: Boolean(meta.hasBank),
       submittedAt: kycAudit?.createdAt ?? null,
+      verification: await getKycVerificationView(userId),
     },
     documents,
     documentFiles,
@@ -1114,7 +1116,12 @@ export async function listKycQueue(opts: {
   }));
 }
 
-export async function decideKyc(adminId: string, userId: string, decision: "verified" | "rejected") {
+export async function decideKyc(
+  adminId: string,
+  userId: string,
+  decision: "verified" | "rejected",
+  reason: string | null = null,
+) {
   const [user] = await db.select().from(users).where(eq(users.id, userId));
   if (!user) throw new HttpError(404, "User not found", "USER_NOT_FOUND");
   if (user.role === "admin") throw new HttpError(400, "Cannot change admin KYC", "INVALID_TARGET");
@@ -1140,8 +1147,13 @@ export async function decideKyc(adminId: string, userId: string, decision: "veri
     action: decision === "verified" ? "kyc.approve" : "kyc.reject",
     entityType: "user",
     entityId: userId,
-    metadata: { previous: user.kycStatus },
+    metadata: { previous: user.kycStatus, reason },
   });
+  await recordKycVerification(
+    userId,
+    { review: { decision: decision === "verified" ? "approved" : "rejected", reason, adminId } },
+    { actorId: adminId, source: "admin_decision", reason },
+  );
 
   void sendSlackAlert("KYC status changed", "general", {
     retailerId: user.id,
@@ -1191,6 +1203,7 @@ export async function resetKyc(adminId: string, userId: string, reason: string) 
     entityId: userId,
     metadata: { previous: user.kycStatus, reason },
   });
+  await recordKycVerification(userId, { resetAll: true }, { actorId: adminId, source: "admin_reset", reason });
 
   void sendSlackAlert("KYC reset by admin", "general", {
     retailerId: user.id,

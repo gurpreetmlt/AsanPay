@@ -17,10 +17,14 @@ WORKDIR /app/apps/backend
 # when a meta-package publishes before its subpackages (ETARGET on scope-manager).
 # Optional deps must stay included: sharp (KYC photo checks) ships its native binary as an
 # optional @img/sharp-linux-* package and fails at runtime without it.
+# PaddleOCR (KYC photos) runs on onnxruntime-node CPU: skip its CUDA download (GPU only) and drop
+# the bundled Windows / macOS binaries (~200 MB).
+ENV ONNXRUNTIME_NODE_INSTALL=skip
 RUN npm pkg set dependencies.@asanpay/shared-types="file:../../packages/shared-types" \
   && node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('package.json','utf8')); p.dependencies=p.dependencies||{}; const d=p.devDependencies||{}; if (d.tsx) p.dependencies.tsx=d.tsx; delete p.devDependencies; fs.writeFileSync('package.json', JSON.stringify(p, null, 2));" \
   && npm install \
-  && node -e "require('sharp')"
+  && rm -rf node_modules/onnxruntime-node/bin/napi-v*/win32 node_modules/onnxruntime-node/bin/napi-v*/darwin \
+  && node -e "require('sharp'); require('onnxruntime-node')"
 
 ENV NODE_ENV=production
 ENV PORT=4000

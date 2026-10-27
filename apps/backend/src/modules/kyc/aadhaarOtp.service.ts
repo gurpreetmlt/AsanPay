@@ -8,6 +8,7 @@ import { bestApiConfigured, bestApiPost, type BestApiJson } from "../providers/b
 import { HttpError } from "../../utils/httpError";
 import { logger } from "../../utils/logger";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
+import { recordKycVerification, statusForKycError } from "./kycVerification.service";
 
 /** BestAPI docs: Identity Verify → Adhar Send OTP / Aadhar OTP Verify */
 const SEND_PATH = "/api/gw/identity/verification/aadhar-send-otp";
@@ -285,15 +286,48 @@ export async function sendAadhaarKycOtp(
   };
 }
 
-export async function verifyAadhaarKycOtp(
-  userId: string,
-  input: { otp: string; requestId: string },
-): Promise<{
+type AadhaarOtpVerifyResult = {
   verified: true;
   fullName: string | null;
   address: string | null;
   mobileMatched: boolean | null;
-}> {
+};
+
+export async function verifyAadhaarKycOtp(
+  userId: string,
+  input: { otp: string; requestId: string },
+): Promise<AadhaarOtpVerifyResult> {
+  const ctx = { actorId: userId, source: "aadhaar_otp" as const };
+  try {
+    const result = await runAadhaarOtpVerify(userId, input);
+    await recordKycVerification(
+      userId,
+      { aadhaarOtp: "verified", aadhaarProviderRequestId: input.requestId.trim() },
+      ctx,
+    );
+    return result;
+  } catch (err) {
+    const failure = statusForKycError(err, {
+      AADHAAR_MOBILE_MISMATCH: "failed",
+      AADHAAR_OTP_INCORRECT: "retry_required",
+      AADHAAR_OTP_EXPIRED: "retry_required",
+      AADHAAR_OTP_MISMATCH: "retry_required",
+    });
+    if (failure) {
+      await recordKycVerification(
+        userId,
+        { aadhaarOtp: failure.status, reasons: { aadhaarOtp: failure.message } },
+        { ...ctx, reason: failure.message },
+      );
+    }
+    throw err;
+  }
+}
+
+async function runAadhaarOtpVerify(
+  userId: string,
+  input: { otp: string; requestId: string },
+): Promise<AadhaarOtpVerifyResult> {
   assertConfigured();
   const pending = await loadPending(userId);
   if (!pending) {

@@ -7,7 +7,7 @@ One row per feature; details in the section below the table. Newest at the top o
 
 | # | Feature | Surfaces | Size | Status | Design | Task file |
 |---|---------|----------|------|--------|--------|-----------|
-| PL-07 | KYC verification statuses (PAN no · PAN photo · Aadhaar OTP · Aadhaar photo · PAN↔Aadhaar · overall) + admin review screen | Backend, web, mobile, admin | L | ready | — | [kyc-verification-statuses.md](TASKS/kyc-verification-statuses.md) |
+| PL-07 | KYC verification statuses (PAN no · PAN photo · Aadhaar OTP · Aadhaar photo · PAN↔Aadhaar · overall) + admin review screen | Backend, web, mobile, admin | L | building (backend done 27 Oct; UI = Chat 2) | — | [kyc-verification-statuses.md](TASKS/kyc-verification-statuses.md) |
 | PL-06 | KYC face match (selfie vs card photo) + original vs xerox / screen photo / edited image | Backend, web, mobile, admin | L | planned — **remind owner after PL-05 ships** (needs Indian KYC vendor) | — | — |
 | PL-05 | KYC document photo checks, in-house (Aadhaar QR verify, quality, doc type, PAN / Aadhaar data match) | Backend, web, mobile, admin | L | done (26 Oct) — engine, web/mobile UX, admin labels + Flagged photos filter; device smoke pending | — | [kyc-doc-checks.md](TASKS/kyc-doc-checks.md) |
 | PL-04 | Terms, Privacy & EULA acceptance checkbox at login (per-version record) | Backend, web, mobile | M | building (built 26 Oct, migrate `0075` + APK + live test pending) | — | — |

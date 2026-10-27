@@ -25,6 +25,7 @@ import {
 import { escalateDifferentPerson } from "./identityRules";
 import { checkImageQuality, ocrReadyPng, type OcrVariant } from "./imageQuality";
 import { ocrImage, type OcrMode } from "./ocr";
+import { paddleOcrImage } from "./paddleOcr";
 
 export const DOC_CHECK_SLOTS = ["panImage", "aadhaarFront", "aadhaarBack"] as const;
 export type DocCheckSlot = (typeof DOC_CHECK_SLOTS)[number];
@@ -253,7 +254,7 @@ function genderCheck(cardGender: string | null, enteredGender: string | null): D
       };
 }
 
-/** Complementary OCR passes — each reads fields the others miss on real card photos. */
+/** Tesseract backup passes after PaddleOCR — each reads fields the others miss on real card photos. */
 const OCR_PASSES: { variant: OcrVariant; mode: OcrMode }[] = [
   { variant: "sharp", mode: "auto" },
   { variant: "plain", mode: "sparse" },
@@ -261,8 +262,8 @@ const OCR_PASSES: { variant: OcrVariant; mode: OcrMode }[] = [
 ];
 
 /**
- * OCR the card. Passes run in order until the slot's key fields are found; the text of every
- * pass is merged before the rules run.
+ * OCR the card: PaddleOCR first, then Tesseract passes until the slot's key fields are found. The
+ * text of every pass is merged before the rules run.
  */
 async function readText(
   buffer: Buffer,
@@ -271,6 +272,11 @@ async function readText(
   const passes: { text: string; confidence: number }[] = [];
   const merged = () =>
     analyzeDocText(passes.map((p) => p.text).join("\n"), Math.max(...passes.map((p) => p.confidence)));
+  const paddle = await paddleOcrImage(buffer);
+  if (paddle?.text.trim()) {
+    passes.push(paddle);
+    if (enough(merged())) return merged();
+  }
   for (const { variant, mode } of OCR_PASSES) {
     const png = await ocrReadyPng(buffer, variant);
     if (!png) continue;
@@ -295,7 +301,10 @@ async function checkPan(buffer: Buffer, refs: RefData, checks: DocCheckItem[], s
     return finalize(slot, "unknown", checks, started);
   }
 
-  if (!looksLikePan(text)) {
+  // Older PAN cards (glossy, hologram) often OCR without the "Income Tax" header or a clean PAN
+  // number; "Govt. of India" + a DOB label with no Aadhaar marker is still a PAN layout.
+  const panLayout = looksLikePan(text) || (!isAadhaarLike(text) && text.aadhaarGov && text.dobLabel);
+  if (!panLayout) {
     const docType = classifyDocType(text);
     if (isAadhaarLike(text)) {
       checks.push({
@@ -318,6 +327,7 @@ async function checkPan(buffer: Buffer, refs: RefData, checks: DocCheckItem[], s
   }
   checks.push({ id: "docType", label: "PAN card", status: "pass" });
 
+  let panMismatch = false;
   if (!text.panNumbers.length) {
     checks.push({
       id: "panNumber",
@@ -330,18 +340,20 @@ async function checkPan(buffer: Buffer, refs: RefData, checks: DocCheckItem[], s
   } else if (text.panNumbers.includes(refs.pan)) {
     checks.push({ id: "panNumber", label: "PAN number", status: "pass" });
   } else {
+    panMismatch = true;
     checks.push({
       id: "panNumber",
       label: "PAN number",
-      status: "fail",
-      detail: "PAN number on this photo does not match your verified PAN. Upload a photo of your own PAN card.",
+      status: "flag",
+      detail: "PAN number on this photo does not match your verified PAN.",
     });
   }
 
   const expected = refs.panName ?? refs.userName;
   checks.push(nameCheck(expected, expected ? bestNameMatch(expected, text.lines) : null, "PAN card"));
   checks.push(dobCheck(text.dob, refs.enteredDob ?? refs.aadhaarDob, "PAN card"));
-  escalateDifferentPerson(checks, "PAN card", false);
+  // The verified PAN came from the provider, so a different number on the card is red on its own.
+  escalateDifferentPerson(checks, "PAN card", panMismatch, true);
   return finalize(slot, "pan", checks, started);
 }
 

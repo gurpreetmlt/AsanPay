@@ -14,7 +14,8 @@ import {
 import { panVerifySchema, verifyPanKyc } from "./panVerify.service";
 import { getMyKycDocument, getMyKycProfile, submitKyc } from "./kyc.service";
 import { isKycDocSlot, saveKycDocumentDataUrl } from "./kycDocuments.service";
-import { checkKycDocument, DOC_CHECK_SLOTS } from "./docCheck/docCheck.service";
+import { checkKycDocument, DOC_CHECK_SLOTS, toStoredDocCheck } from "./docCheck/docCheck.service";
+import { recordKycVerification } from "./kycVerification.service";
 import { z } from "zod";
 
 export const kycRouter = Router();
@@ -66,6 +67,11 @@ kycRouter.post("/documents/check", kycDocCheckLimiter, validateBody(docCheckSche
     gender: body.gender,
     aadhaarLast4: body.aadhaarLast4,
   });
+  await recordKycVerification(
+    req.auth.sub,
+    { slots: { [body.slot]: toStoredDocCheck(result) } },
+    { actorId: req.auth.sub, source: "photo_check" },
+  );
   sendSuccess(res, result, result.message);
 });
 
