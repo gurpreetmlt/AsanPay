@@ -44,8 +44,14 @@ export function wasAepsOnboardingSkipped(): boolean {
 export function extractApiError(err: unknown, fallback: string): string {
   const status = (err as { response?: { status?: number } }).response?.status;
   if (status === 429) return "Too many requests — wait a moment and retry";
-  const data = (err as { response?: { data?: { message?: string; errors?: Record<string, string[] | undefined> } } })
-    .response?.data;
+  const data = (
+    err as {
+      response?: { data?: { message?: string; code?: string; errors?: Record<string, string[] | undefined> } };
+    }
+  ).response?.data;
+  if (status === 401 && data?.code === "UNAUTHENTICATED") {
+    return "Your session has ended. Log in again to continue.";
+  }
   if (data?.errors) {
     const first = Object.values(data.errors).flat().find(Boolean);
     if (first) return first;

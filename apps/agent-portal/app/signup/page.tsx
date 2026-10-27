@@ -753,6 +753,15 @@ function SignupPageInner() {
     saveSignupDraft(storageKey, draft);
   }, [draft, draftReady, storageKey]);
 
+  // Session expired mid-KYC: every KYC call would 401, so send the user to log in (draft stays saved).
+  const sessionEndedRef = useRef(false);
+  useEffect(() => {
+    if (!draftReady || !draft.accountCreated || accessToken || sessionEndedRef.current) return;
+    sessionEndedRef.current = true;
+    toast.error("Your session has ended. Log in again to continue your KYC — your details are saved.");
+    router.replace("/login");
+  }, [draftReady, draft.accountCreated, accessToken, router]);
+
   useEffect(() => {
     if (!draftReady || !inviteToken || loggedInContinue || draft.accountCreated) return;
     let cancelled = false;
