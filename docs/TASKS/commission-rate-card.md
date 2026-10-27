@@ -63,6 +63,39 @@ preview — one path), endpoints in `rateCard.service.ts`:
   "Company loses ₹x" when underwater.
 - Provider selector defaults to **All providers**.
 
+### RC2 additions (owner, 27 Oct) — set the screen up from the Noble money map
+**GST & TDS editable on the rate card** (today: one global row + a DMT row in `tax_service_configs`,
+PATCH-only via `/admin/commission/tax-config/:id`, no per-service create):
+- Per-service tax panel in each row: Agent TDS % (on/off), GST on customer fee % (on/off), and a new
+  **GST on fee: Included in fee / Added on top** switch. Saving creates or versions the per-service
+  `tax_service_configs` row (reason + month lock + rate audit). "Use default" resets to the tenant row.
+- Tenant-level tax card at the top: default agent TDS %, default GST on fee %, and provider-side
+  **Output GST % billed to provider** (18) + **TDS deducted by provider %** (2) — shown in the preview as
+  "Provider pays ₹x + GST ₹y − TDS ₹z = net receivable".
+- Backend: add `gst_on_fee_inclusive boolean default false` (+ provider-side GST / TDS columns or a small
+  tenant settings row); `computeFeeGstRupees` must handle inclusive (GST = fee − fee ÷ 1.18) — keep
+  current behaviour (on top) until the owner / CA flips the switch.
+
+**Pre-fill (admin reviews + Save; never auto-applied — saving provider income turns shares on):**
+"Suggested" chip per row from the Noble commercial sheet (`33-noble-commercials.md`):
+
+| Service | Provider income suggestion | Mode |
+|---|---|---|
+| AePS cash withdrawal / cash deposit | > ₹100: % of amount, cap ₹13.95 (interchange % pending from provider); ≤ ₹100: ₹0 | Share |
+| AePS balance enquiry / On-Us | ₹0 | Share |
+| Mini statement | ₹1.50 flat | Share |
+| UPI withdrawal (UPI QR) | (0.5 % max ₹15 − PSP 0.10 / 0.25 / 0.50) × 90 % → slab rows 101–1000 / 1001–3000 / > 3000 | Share |
+| Recharge / DTH | Airtel 0.90 · BSNL 3.00 · VI 3.50 · Jio 0.75 · Airtel DTV 3.70 · Dish 3.40 · Sun 3.20 · D2h 3.40 · Tata Play 2.90 (%) | Share |
+| DMT | No provider income; customer fee 1 % min ₹10; provider cost ₹2.50 | **Fixed** (retailer = fee − GST − ₹2.50 per tax sheet) |
+| CMS, Aadhaar Pay, BBPS | Unknown — "Ask provider" chip, no suggestion | — |
+
+**Provider costs** (show as a muted "Provider cost" line in the preview, + 18 % input GST):
+Daily 2FA ₹0.80 per hit (success + failed), DMT processing ₹2.50, DMT eKYC ₹10 (GST incl.), payout
+₹1.50 / ₹3.50 / ₹6.50, verification per hit. Company keeps = income + fee − GST on fee − payouts − cost.
+
+**Open (blocking real numbers, not the screen):** DMT `charges` field = CCF?; AePS interchange %; CMS /
+Aadhaar Pay / BBPS rates; GST on DMT fee included vs on top (CA).
+
 ## RC3 — safety
 - Red "No commission set" chip on any active service with no share / rule for a role.
 - Warn when a share total > 100 % or a fixed payout > provider income.
