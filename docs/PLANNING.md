@@ -55,8 +55,10 @@ try 90° / 270°, weak read → try 180°, crop to text area + 6 % margin when i
 de-tilt ≥ 1.5°. Max 4 Paddle passes.
 **Shown to the agent (27 Oct, owner choice):** pick photo → `POST /api/kyc/documents/auto-crop`
 (`docCheck/cardCrop.ts`: upright → card outline via OpenCV edges + perspective flatten → else
-card-shaped box around the text) → "PAN card cropped" review popup (Adjust crop / Use photo). No card
-found → manual crop opens. Web + mobile.
+card-shaped box around the text). **One call (27 Oct):** `POST /kyc/documents/check` with
+`autoCrop: true` crops, checks the crop and returns `croppedDataUrl` + `cardDetected`; no review popup.
+No card found and not a pass → manual crop opens. Paddle passes run one at a time (2 vCPU server),
+check cap 20 s. Web + mobile.
 **Upload box (27 Oct):** `KycCardUpload` (web `components/signup`, mobile `components`) — one big
 card-shaped box per photo: empty (Choose photo / drag & drop · mobile Camera + Gallery) → scan-line
 loading inside the box (Cropping → Reading → Checking) → photo + crop icon + status badge + Change /

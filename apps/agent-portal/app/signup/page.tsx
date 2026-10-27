@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState, type FormEvent, type ReactNode }
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { ArrowLeft, Check, CheckCircle2, Crop, Eye, EyeOff, Loader2 } from "lucide-react";
+import { ArrowLeft, Check, CheckCircle2, Eye, EyeOff, Loader2 } from "lucide-react";
 import {
   PAN_FORMAT_ERROR,
   SIGNUP_POLICY_VERSION,
@@ -21,7 +21,6 @@ import {
 } from "@asanpay/shared-types";
 import { AsanPayLockup } from "@/components/brand/Logo";
 import { EmailVerifyField } from "@/components/EmailVerifyField";
-import { Modal } from "@/components/ui/Modal";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { LabelText } from "@/components/ui/RequiredMark";
 import { DateField } from "@/components/ui/DateField";
@@ -106,12 +105,6 @@ const CROP_TITLE: Record<KycDocCheckSlot, string> = {
   aadhaarFront: "Crop Aadhaar front",
   aadhaarBack: "Crop Aadhaar back",
 };
-const CROP_REVIEW_TITLE: Record<KycDocCheckSlot, string> = {
-  panImage: "PAN card cropped",
-  aadhaarFront: "Aadhaar front cropped",
-  aadhaarBack: "Aadhaar back cropped",
-};
-
 const BUSINESS_TYPES = ["Sole Proprietorship", "Partnership", "Private Limited", "Other"];
 const BUSINESS_CATEGORIES = ["Mobile Handsets", "Kirana", "Electronics", "Pharmacy", "Other"];
 const TURNOVERS = ["Below 1L", "1L-5L", "5L-10L", "10L+"];
@@ -622,11 +615,8 @@ function SignupPageInner() {
   const [cropTarget, setCropTarget] = useState<{ slot: KycDocCheckSlot; src: string; name: string } | null>(null);
   /** Photo as picked (≤ 1600 px), kept in memory so "Adjust crop" can re-crop from the full photo. */
   const [docOriginals, setDocOriginals] = useState<Partial<Record<KycDocCheckSlot, string>>>({});
-  const [autoCropping, setAutoCropping] = useState<KycDocCheckSlot | null>(null);
   /** Photo the server check refused, shown faded behind "Photo not accepted". Memory only. */
   const [rejectedPhotos, setRejectedPhotos] = useState<Partial<Record<KycDocCheckSlot, string>>>({});
-  /** Auto-cropped card waiting for the agent to confirm (Use photo) or adjust. */
-  const [cropReview, setCropReview] = useState<{ slot: KycDocCheckSlot; dataUrl: string; name: string } | null>(null);
 
   const stepIndex = draft.stepIndex;
   const needsUpline = draft.role !== "super_distributor" && draft.role !== "direct_retailer";
@@ -1064,46 +1054,18 @@ function SignupPageInner() {
       URL.revokeObjectURL(src);
     }
     setDocOriginals((o) => ({ ...o, [slot]: original }));
-
-    if (accessToken) {
-      setAutoCropping(slot);
-      try {
-        const { data } = await api.post<ApiResponse<{ dataUrl: string; detected: boolean }>>(
-          "/kyc/documents/auto-crop",
-          { slot, dataUrl: original },
-          { timeout: 25_000 },
-        );
-        if (data.success && data.data.detected) {
-          setCropReview({ slot, dataUrl: data.data.dataUrl, name: file.name });
-          return;
-        }
-      } catch {
-        // Auto-crop is a convenience — fall through to the manual crop.
-      } finally {
-        setAutoCropping((s) => (s === slot ? null : s));
-      }
+    if (!accessToken) {
+      setCropTarget({ slot, src: original, name: file.name });
+      return;
     }
-    setCropTarget({ slot, src: original, name: file.name });
+    // One call: the server crops + straightens the card and checks the crop; the box shows the
+    // picked photo faded under the scan line until the cropped card comes back.
+    applyDocPhoto(slot, original, file.name, { check: false });
+    void runDocCheck(slot, original, { autoCrop: true, fileName: file.name });
   }
 
   function docCardStage(slot: KycDocCheckSlot): KycCardStage {
-    if (autoCropping === slot) return "cropping";
     return docChecks[slot]?.state === "checking" ? "checking" : null;
-  }
-
-  function acceptReviewedCrop() {
-    const review = cropReview;
-    if (!review) return;
-    setCropReview(null);
-    applyDocPhoto(review.slot, review.dataUrl, review.name);
-  }
-
-  function adjustReviewedCrop() {
-    const review = cropReview;
-    if (!review) return;
-    setCropReview(null);
-    const src = docOriginals[review.slot];
-    if (src) setCropTarget({ slot: review.slot, src, name: review.name });
   }
 
   /** Reopen the manual crop on the photo as picked (falls back to the current photo after a reload). */
@@ -1117,7 +1079,7 @@ function SignupPageInner() {
     setCropTarget(null);
   }
 
-  function applyDocPhoto(slot: KycDocCheckSlot, dataUrl: string, fileName: string) {
+  function applyDocPhoto(slot: KycDocCheckSlot, dataUrl: string, fileName: string, opts: { check?: boolean } = {}) {
     const meta: SignupFileMeta = {
       name: `${fileName.replace(/\.[^.]+$/, "") || slot}.jpg`,
       mime: "image/jpeg",
@@ -1127,7 +1089,7 @@ function SignupPageInner() {
     patch({ [slot]: meta });
     setStepErrorKey(null);
     setPreviews((p) => ({ ...p, [slot]: dataUrl }));
-    void runDocCheck(slot, dataUrl);
+    if (opts.check !== false) void runDocCheck(slot, dataUrl);
   }
 
   function finishCrop(dataUrl: string) {
@@ -1206,7 +1168,11 @@ function SignupPageInner() {
   }
 
   /** Check a PAN / Aadhaar photo on the server. `fail` clears the photo; `flag` keeps it. */
-  async function runDocCheck(slot: KycDocCheckSlot, dataUrl: string | undefined) {
+  async function runDocCheck(
+    slot: KycDocCheckSlot,
+    dataUrl: string | undefined,
+    opts: { autoCrop?: boolean; fileName?: string } = {},
+  ) {
     const seq = (docCheckSeqRef.current[slot] ?? 0) + 1;
     docCheckSeqRef.current[slot] = seq;
     if (!dataUrl || !accessToken) {
@@ -1222,24 +1188,33 @@ function SignupPageInner() {
     try {
       const { data } = await api.post<ApiResponse<KycDocCheckResult>>(
         "/kyc/documents/check",
-        { slot, dataUrl, ...docCheckHints },
-        { timeout: 20_000 },
+        { slot, dataUrl, ...docCheckHints, ...(opts.autoCrop ? { autoCrop: true } : {}) },
+        { timeout: opts.autoCrop ? 45_000 : 30_000 },
       );
       if (data.success) result = data.data;
     } catch {
       result = null;
     }
     if (docCheckSeqRef.current[slot] !== seq) return;
+    const checked = result?.croppedDataUrl ?? dataUrl;
+    if (result?.croppedDataUrl) {
+      applyDocPhoto(slot, result.croppedDataUrl, opts.fileName ?? `${slot}.jpg`, { check: false });
+    }
     const ui = kycDocCheckToUi(slot, result);
     setDocChecks((c) => ({ ...c, [slot]: ui }));
     setRejectedPhotos((r) => {
-      if (ui.state === "fail" && dataUrl) return { ...r, [slot]: dataUrl };
+      if (ui.state === "fail") return { ...r, [slot]: checked };
       if (!r[slot]) return r;
       const next = { ...r };
       delete next[slot];
       return next;
     });
-    if (ui.state === "fail") clearFile(slot, { keepCheck: true });
+    if (ui.state === "fail") {
+      clearFile(slot, { keepCheck: true });
+    } else if (opts.autoCrop && result?.cardDetected === false && ui.state !== "pass") {
+      // No card outline found and the photo didn't fully pass — let the agent frame it.
+      setCropTarget({ slot, src: dataUrl, name: opts.fileName ?? `${slot}.jpg` });
+    }
   }
 
   const docCheckHints = kycDocCheckHints(draft);
@@ -2859,50 +2834,6 @@ function SignupPageInner() {
           }}
           onCancel={() => setShowTermsModal(false)}
         />
-      ) : null}
-
-      {cropReview ? (
-        <Modal
-          title={CROP_REVIEW_TITLE[cropReview.slot]}
-          onClose={() => setCropReview(null)}
-          icon={<Crop size={22} />}
-          iconTone="blue"
-          subtitle="Check the whole card is inside. Adjust if any edge is cut off."
-        >
-          <div className="space-y-4">
-            <div
-              className="rounded-2xl border p-2"
-              style={{ borderColor: B.border, background: "linear-gradient(180deg, #F7F9FF 0%, #FFFFFF 100%)" }}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={cropReview.dataUrl}
-                alt={CROP_REVIEW_TITLE[cropReview.slot]}
-                className="max-h-72 w-full rounded-xl bg-white object-contain"
-              />
-            </div>
-            <div className="flex gap-3 pb-1">
-              <PrimaryButton
-                type="button"
-                variant="secondary"
-                showArrow={false}
-                onClick={adjustReviewedCrop}
-                className="flex-1"
-              >
-                Adjust crop
-              </PrimaryButton>
-              <PrimaryButton
-                type="button"
-                variant="primary"
-                showArrow={false}
-                onClick={acceptReviewedCrop}
-                className="flex-1"
-              >
-                Use photo
-              </PrimaryButton>
-            </div>
-          </div>
-        </Modal>
       ) : null}
 
       {cropTarget ? (

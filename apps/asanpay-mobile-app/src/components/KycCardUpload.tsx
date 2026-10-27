@@ -142,17 +142,17 @@ export function KycCardUpload({
             ) : null}
             <View style={st.actionBar}>
               <IconAction label={`Adjust crop of ${title}`} onPress={onAdjust}>
-                <Crop size={18} color={colors.blue} />
+                <Crop size={16} color={colors.blue} />
               </IconAction>
               <IconAction label="Retake with camera" onPress={onCamera}>
-                <Camera size={18} color={colors.blue} />
+                <Camera size={16} color={colors.blue} />
               </IconAction>
               <IconAction label="Choose from gallery" onPress={onGallery}>
-                <ImageIcon size={18} color={colors.blue} />
+                <ImageIcon size={16} color={colors.blue} />
               </IconAction>
               <View style={st.actionDivider} />
               <IconAction label={`Remove ${title} photo`} onPress={onRemove} danger>
-                <Trash2 size={18} color={colors.danger} />
+                <Trash2 size={16} color={colors.danger} />
               </IconAction>
             </View>
           </>
@@ -275,7 +275,7 @@ function CheckSummary({
   const passed = check.items.filter((i) => i.tone === "pass");
   const problems = check.items.filter((i) => i.tone !== "pass");
   const amber = check.state === "flag";
-  const summary = amber ? check.message : passed.length ? `All ${passed.length} checks passed` : check.message;
+  const summary = amber ? "Needs review" : passed.length ? `All ${passed.length} checks passed` : check.message;
   return (
     <View style={[st.strip, amber ? st.stripAmber : st.stripGreen]}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -290,6 +290,13 @@ function CheckSummary({
           </Pressable>
         ) : null}
       </View>
+      {amber ? (
+        <Text style={[st.item, { color: "#9A3412" }]}>
+          {problems.length
+            ? "Our team will check the points below. You can continue."
+            : "We couldn't read every detail on this photo. You can continue, or retake it in good light for faster approval."}
+        </Text>
+      ) : null}
       {problems.map((item) => (
         <Text key={item.text} style={[st.item, { color: item.tone === "flag" ? "#B45309" : colors.danger }]}>
           {item.text}
@@ -342,34 +349,34 @@ const st = StyleSheet.create({
   },
   badge: {
     position: "absolute",
-    top: 10,
-    right: 10,
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    top: 8,
+    right: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
-    elevation: 3,
+    elevation: 2,
   },
-  badgeText: { color: "#FFFFFF", fontSize: 17, fontWeight: "900" },
+  badgeText: { color: "#FFFFFF", fontSize: 12, fontWeight: "900", lineHeight: 14 },
   actionBar: {
     position: "absolute",
-    bottom: 10,
+    bottom: 8,
     alignSelf: "center",
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    padding: 4,
+    gap: 2,
+    paddingHorizontal: 4,
+    paddingVertical: 3,
     borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.96)",
-    elevation: 4,
-    shadowColor: "#0B2A9A",
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.7)",
+    backgroundColor: "rgba(255,255,255,0.72)",
   },
-  iconAction: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
-  actionDivider: { width: 1, height: 20, backgroundColor: "#E2E8F0", marginHorizontal: 2 },
+  iconAction: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  actionDivider: { width: 1, height: 16, backgroundColor: "rgba(15,23,42,0.15)", marginHorizontal: 2 },
   failPanel: {
     ...StyleSheet.absoluteFillObject,
     margin: 10,

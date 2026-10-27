@@ -124,29 +124,29 @@ export function KycCardUpload({
           <>
             {check && check.state !== "checking" ? (
               <span
-                className={`absolute right-2.5 top-2.5 flex h-9 w-9 items-center justify-center rounded-full text-base font-bold text-white shadow-md ${check.state === "pass" ? "kyc-badge-pulse" : ""}`}
+                className={`absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white text-xs font-bold text-white shadow ${check.state === "pass" ? "kyc-badge-pulse" : ""}`}
                 style={{ background: check.state === "pass" ? "#16A34A" : "#F59E0B" }}
                 aria-hidden
               >
                 {check.state === "pass" ? "✓" : "!"}
               </span>
             ) : null}
-            <div className="absolute bottom-2.5 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full bg-white/95 p-1 shadow-[0_4px_14px_rgba(11,42,154,0.18)] backdrop-blur-sm">
+            <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 items-center gap-0.5 rounded-full border border-white/70 bg-white/70 px-1 py-0.5 backdrop-blur-md">
               <IconAction label={`Adjust crop of ${title}`} onClick={onAdjust}>
-                <Crop size={18} />
+                <Crop size={16} />
               </IconAction>
               <label
                 title="Change photo"
                 aria-label={`Change ${title} photo`}
-                className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full transition hover:bg-[#EEF2FF]"
+                className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full transition hover:bg-white"
                 style={{ color: B.blue }}
               >
-                <ImagePlus size={18} />
+                <ImagePlus size={16} />
                 {fileInput}
               </label>
-              <span className="mx-0.5 h-5 w-px" style={{ background: "#E2E8F0" }} aria-hidden />
+              <span className="mx-0.5 h-4 w-px bg-slate-900/15" aria-hidden />
               <IconAction label={`Remove ${title} photo`} onClick={onRemove} danger>
-                <Trash2 size={18} />
+                <Trash2 size={16} />
               </IconAction>
             </div>
           </>
@@ -232,7 +232,7 @@ function IconAction({
       title={label}
       aria-label={label}
       onClick={onClick}
-      className={`flex h-9 w-9 cursor-pointer items-center justify-center rounded-full transition ${danger ? "hover:bg-[#FEF2F2]" : "hover:bg-[#EEF2FF]"}`}
+      className={`flex h-8 w-8 cursor-pointer items-center justify-center rounded-full transition ${danger ? "hover:bg-[#FEF2F2]" : "hover:bg-white"}`}
       style={{ color: danger ? "#DC2626" : B.blue }}
     >
       {children}
@@ -252,7 +252,7 @@ function CheckSummary({
   const passed = check.items.filter((i) => i.tone === "pass");
   const problems = check.items.filter((i) => i.tone !== "pass");
   const amber = check.state === "flag";
-  const summary = amber ? check.message : passed.length ? `All ${passed.length} checks passed` : check.message;
+  const summary = amber ? "Needs review" : passed.length ? `All ${passed.length} checks passed` : check.message;
   return (
     <div
       className="mt-2 rounded-xl border px-3 py-2"
@@ -276,6 +276,13 @@ function CheckSummary({
           </button>
         ) : null}
       </div>
+      {amber ? (
+        <p className="mt-0.5 pl-6 text-[11px] font-semibold" style={{ color: "#9A3412" }}>
+          {problems.length
+            ? "Our team will check the points below. You can continue."
+            : "We couldn't read every detail on this photo. You can continue, or retake it in good light for faster approval."}
+        </p>
+      ) : null}
       {problems.length || open ? (
         <ul className="mt-1 space-y-0.5 pl-6">
           {problems.map((item) => (

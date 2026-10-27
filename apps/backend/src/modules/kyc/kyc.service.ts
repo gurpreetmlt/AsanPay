@@ -198,6 +198,7 @@ const AUTO_CROP_TIMEOUT_MS = 15_000;
 /** Card-only, upright JPEG for the agent to confirm. Never throws for cropper problems — `detected: false` instead. */
 export async function autoCropKycPhoto(
   dataUrl: string,
+  timeoutMs = AUTO_CROP_TIMEOUT_MS,
 ): Promise<{ dataUrl: string; detected: boolean; method: CardCropResult["method"] }> {
   const parsed = parseKycDataUrl(dataUrl);
   if (!parsed) throw new HttpError(422, "Upload a JPG, PNG, WEBP, or HEIC image", "INVALID_IMAGE_UPLOAD");
@@ -206,7 +207,7 @@ export async function autoCropKycPhoto(
   const fallback = { dataUrl, detected: false, method: "none" as const };
   let timer: NodeJS.Timeout | undefined;
   const timeout = new Promise<null>((resolve) => {
-    timer = setTimeout(() => resolve(null), AUTO_CROP_TIMEOUT_MS);
+    timer = setTimeout(() => resolve(null), timeoutMs);
   });
   try {
     const result = await Promise.race([autoCropCard(parsed.buffer).catch(() => null), timeout]);
@@ -250,7 +251,7 @@ export async function submitKyc(userId: string, input: KycSubmitInput): Promise<
 
   // Decisive photo checks run here on the server, before anything is saved — the app's own
   // check only guides the agent and can be bypassed. Usually a cache hit from
-  // POST /documents/check; otherwise capped at 12 s per photo (parallel).
+  // POST /documents/check; otherwise capped at 20 s per photo.
   const docChecks: Partial<Record<(typeof DOC_CHECK_SLOTS)[number], StoredDocCheck>> = {};
   const checkHints = {
     dob: input.dob,

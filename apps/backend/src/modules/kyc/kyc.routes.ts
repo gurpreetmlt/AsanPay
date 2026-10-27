@@ -57,12 +57,19 @@ const docCheckSchema = z.object({
     .trim()
     .regex(/^\d{4}$/, "Aadhaar last 4 must be 4 digits")
     .optional(),
+  /** Newly picked photo: crop + straighten the card first, check the crop, return it as `croppedDataUrl`. */
+  autoCrop: z.boolean().optional(),
 });
+
+/** Auto-crop gets this long inside a check call; slower → the photo is checked as picked. */
+const CHECK_AUTO_CROP_MS = 10_000;
 
 kycRouter.post("/documents/check", kycDocCheckLimiter, validateBody(docCheckSchema), async (req, res) => {
   if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
   const body = req.body as z.infer<typeof docCheckSchema>;
-  const result = await checkKycDocument(req.auth.sub, body.slot, body.dataUrl, {
+  const crop = body.autoCrop ? await autoCropKycPhoto(body.dataUrl, CHECK_AUTO_CROP_MS) : null;
+  const croppedDataUrl = crop?.detected ? crop.dataUrl : null;
+  const result = await checkKycDocument(req.auth.sub, body.slot, croppedDataUrl ?? body.dataUrl, {
     dob: body.dob,
     gender: body.gender,
     aadhaarLast4: body.aadhaarLast4,
@@ -72,16 +79,11 @@ kycRouter.post("/documents/check", kycDocCheckLimiter, validateBody(docCheckSche
     { slots: { [body.slot]: toStoredDocCheck(result) } },
     { actorId: req.auth.sub, source: "photo_check" },
   );
-  sendSuccess(res, result, result.message);
-});
-
-const autoCropSchema = docCheckSchema.pick({ slot: true, dataUrl: true });
-
-/** Auto-crop shown after picking a PAN / Aadhaar photo; `detected: false` → the app opens manual crop. */
-kycRouter.post("/documents/auto-crop", kycDocCheckLimiter, validateBody(autoCropSchema), async (req, res) => {
-  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
-  const body = req.body as z.infer<typeof autoCropSchema>;
-  sendSuccess(res, await autoCropKycPhoto(body.dataUrl));
+  sendSuccess(
+    res,
+    body.autoCrop ? { ...result, croppedDataUrl, cardDetected: Boolean(croppedDataUrl) } : result,
+    result.message,
+  );
 });
 
 kycRouter.get("/documents/:docKey", async (req, res) => {

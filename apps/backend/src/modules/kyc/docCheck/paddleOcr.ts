@@ -1,5 +1,5 @@
 import { readFile, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { availableParallelism, tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
@@ -58,6 +58,17 @@ async function v5Models() {
 let engine: Promise<PaddleEngine> | null = null;
 let loadFailures = 0;
 
+/** One pass uses every core; parallel passes only slow each other down (2 vCPU server). */
+const OCR_THREADS = Math.max(1, availableParallelism());
+let queue: Promise<unknown> = Promise.resolve();
+
+/** Run Paddle passes one at a time, in arrival order. */
+function enqueue<T>(job: () => Promise<T>): Promise<T> {
+  const run = queue.then(job, job);
+  queue = run.catch(() => undefined);
+  return run;
+}
+
 export function paddleOcrEnabled(): boolean {
   return env.KYC_OCR_PADDLE === "on" && loadFailures < MAX_LOAD_FAILURES;
 }
@@ -70,8 +81,11 @@ function getEngine(): Promise<PaddleEngine> {
         default: { create(options?: Record<string, unknown>): Promise<PaddleEngine> };
       };
       const model = env.KYC_OCR_PADDLE_MODEL;
-      const ocr = await mod.default.create(model === "v5" ? { models: await v5Models() } : {});
-      logger.info({ model }, "KYC PaddleOCR ready");
+      const onnxOptions = { intraOpNumThreads: OCR_THREADS, interOpNumThreads: 1, executionMode: "sequential" };
+      const ocr = await mod.default.create(
+        model === "v5" ? { models: await v5Models(), onnxOptions } : { onnxOptions },
+      );
+      logger.info({ model, threads: OCR_THREADS }, "KYC PaddleOCR ready");
       return ocr;
     })().catch((err) => {
       engine = null;
@@ -132,11 +146,9 @@ export async function paddleRead(buffer: Buffer): Promise<PaddleRead | null> {
       .ensureAlpha()
       .raw()
       .toBuffer({ resolveWithObject: true });
-    const { texts, resizedImageWidth, resizedImageHeight } = await ocr.detect({
-      data,
-      width: info.width,
-      height: info.height,
-    });
+    const { texts, resizedImageWidth, resizedImageHeight } = await enqueue(() =>
+      ocr.detect({ data, width: info.width, height: info.height }),
+    );
     const sx = info.width / (resizedImageWidth || info.width);
     const sy = info.height / (resizedImageHeight || info.height);
     const lines = texts.map((t) => ({ ...t, box: t.box?.map((p) => [(p[0] ?? 0) * sx, (p[1] ?? 0) * sy]) }));

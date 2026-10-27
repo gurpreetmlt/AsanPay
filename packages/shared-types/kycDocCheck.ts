@@ -16,6 +16,10 @@ export type KycDocCheckResult = {
   }[];
   message: string;
   qr?: { verified: boolean };
+  /** Only with `autoCrop: true`: the cropped, upright card that was checked (null = checked as picked). */
+  croppedDataUrl?: string | null;
+  /** Only with `autoCrop: true`: false = no card outline found; the app opens manual crop. */
+  cardDetected?: boolean;
 };
 
 /** Shown under the PAN field when 10 characters are entered but the format is wrong (e.g. letter O for zero). */

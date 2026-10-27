@@ -67,7 +67,8 @@ export type StoredDocCheck = Omit<DocCheckResult, "ok" | "durationMs" | "qr"> & 
   qr?: Omit<DocCheckQr, "address">;
 };
 
-const CHECK_TIMEOUT_MS = 12_000;
+/** Small CPU servers (2 vCPU) need room for Paddle + QR + a Tesseract backup pass. */
+const CHECK_TIMEOUT_MS = 20_000;
 const NAME_MATCH_MIN = 0.8;
 const CACHE_TTL_SEC = 2 * 60 * 60;
 const MEMORY_CACHE_MAX = 500;
@@ -620,7 +621,7 @@ async function recall(key: string): Promise<DocCheckResult | null> {
 
 /**
  * Check a KYC photo (PAN / Aadhaar front / Aadhaar back) on our own server.
- * Never throws for checker problems and never takes longer than 12 s — slow or broken
+ * Never throws for checker problems and never takes longer than 20 s — slow or broken
  * checks come back as `flag` so signup is never blocked by the checker itself.
  */
 export async function checkKycDocument(
