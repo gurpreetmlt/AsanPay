@@ -9,9 +9,12 @@ import { kycSubmittedEmailTemplate, notifyUserEmail } from "../../utils/mailer";
 import type { AuthUser } from "@asanpay/shared-types";
 import { isFundRequestEnabled } from "@asanpay/shared-types";
 import type { KycSubmitInput } from "../auth/auth.validators";
+import { autoCropCard, type CardCropResult } from "./docCheck/cardCrop";
 import {
   KYC_DOC_KEY_TO_SLOT,
+  KYC_DOC_MAX_BYTES,
   loadKycPhotoBytes,
+  parseKycDataUrl,
   metaDataUrlKey,
   metaFileNameKey,
   metaPublicPathKey,
@@ -188,6 +191,34 @@ export async function getMyKycDocument(
     );
   }
   return loaded;
+}
+
+const AUTO_CROP_TIMEOUT_MS = 15_000;
+
+/** Card-only, upright JPEG for the agent to confirm. Never throws for cropper problems — `detected: false` instead. */
+export async function autoCropKycPhoto(
+  dataUrl: string,
+): Promise<{ dataUrl: string; detected: boolean; method: CardCropResult["method"] }> {
+  const parsed = parseKycDataUrl(dataUrl);
+  if (!parsed) throw new HttpError(422, "Upload a JPG, PNG, WEBP, or HEIC image", "INVALID_IMAGE_UPLOAD");
+  if (parsed.buffer.length > KYC_DOC_MAX_BYTES) throw new HttpError(422, "Image must be under 1.5 MB", "IMAGE_TOO_LARGE");
+
+  const fallback = { dataUrl, detected: false, method: "none" as const };
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), AUTO_CROP_TIMEOUT_MS);
+  });
+  try {
+    const result = await Promise.race([autoCropCard(parsed.buffer).catch(() => null), timeout]);
+    if (!result?.detected) return fallback;
+    return {
+      dataUrl: `data:image/jpeg;base64,${result.image.toString("base64")}`,
+      detected: true,
+      method: result.method,
+    };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 const DOC_CHECK_LABEL: Record<(typeof DOC_CHECK_SLOTS)[number], string> = {

@@ -20,6 +20,20 @@ export function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
+/** Whole photo scaled to ≤ MAX_SIDE as a JPEG data URL (fits the 1.5 MB KYC upload limit). */
+export function scaleImageToDataUrl(image: HTMLImageElement): string {
+  const scale = Math.min(1, MAX_SIDE / Math.max(image.naturalWidth, image.naturalHeight));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(image.naturalWidth * scale);
+  canvas.height = Math.round(image.naturalHeight * scale);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Could not open this photo");
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/jpeg", 0.88);
+}
+
 /** Rotate the full image, cut the crop box, scale to ≤ MAX_SIDE, return a JPEG data URL. */
 async function cropToDataUrl(src: string, area: Area, rotation: number): Promise<string> {
   const image = await loadImage(src);

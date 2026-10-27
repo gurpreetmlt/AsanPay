@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState, type FormEvent, type ReactNode }
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { ArrowLeft, Check, CheckCircle2, Eye, EyeOff, Loader2 } from "lucide-react";
+import { ArrowLeft, Check, CheckCircle2, Crop, Eye, EyeOff, Loader2 } from "lucide-react";
 import {
   PAN_FORMAT_ERROR,
   SIGNUP_POLICY_VERSION,
@@ -25,7 +25,7 @@ import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { LabelText } from "@/components/ui/RequiredMark";
 import { DateField } from "@/components/ui/DateField";
 import { SignupStepper, SIGNUP_STEPS } from "@/components/signup/SignupStepper";
-import { loadImage, PhotoCropModal } from "@/components/signup/PhotoCropModal";
+import { loadImage, PhotoCropModal, scaleImageToDataUrl } from "@/components/signup/PhotoCropModal";
 import {
   LocationPermissionModal,
   TermsAcceptModal,
@@ -105,7 +105,7 @@ const CROP_TITLE: Record<KycDocCheckSlot, string> = {
   aadhaarBack: "Crop Aadhaar back",
 };
 const DOC_PHOTO_ACCEPT = "image/jpeg,image/png,image/webp";
-const DOC_PHOTO_HINT = "Photo · JPG, PNG or WEBP · crop & rotate next";
+const DOC_PHOTO_HINT = "Photo · JPG, PNG or WEBP · card is cropped automatically";
 
 const BUSINESS_TYPES = ["Sole Proprietorship", "Partnership", "Private Limited", "Other"];
 const BUSINESS_CATEGORIES = ["Mobile Handsets", "Kirana", "Electronics", "Pharmacy", "Other"];
@@ -215,9 +215,15 @@ function FileUpload({
   check,
   formatHint,
   largePreview,
+  busyLabel,
+  onAdjust,
 }: {
   label: string;
   meta: SignupFileMeta | null;
+  /** Shown instead of the file name while the photo is processed (e.g. auto-crop) */
+  busyLabel?: string | null;
+  /** KYC card photos: reopen the manual crop on the original photo */
+  onAdjust?: () => void;
   previewUrl?: string | null;
   accept?: string;
   emptyHint?: string;
@@ -275,8 +281,12 @@ function FileUpload({
             <DocCheckBadge check={check} />
           </div>
         ) : null}
-        <span className={`font-semibold ${compact ? "text-xs" : "text-sm"}`} style={{ color: error ? "#DC2626" : B.blue }}>
-          {meta ? meta.name : emptyHint}
+        <span
+          className={`inline-flex items-center gap-2 font-semibold ${compact ? "text-xs" : "text-sm"}`}
+          style={{ color: error ? "#DC2626" : B.blue }}
+        >
+          {busyLabel ? <Loader2 size={14} className="animate-spin" /> : null}
+          {busyLabel ?? (meta ? meta.name : emptyHint)}
         </span>
         <span className="text-[11px] leading-snug" style={{ color: B.muted }}>
           {formatHint ?? (compact ? "JPG / PNG / PDF · 2 MB" : "JPG, PNG, WEBP, HEIC or PDF · max 2 MB")}
@@ -306,9 +316,21 @@ function FileUpload({
         </ul>
       ) : null}
       {meta ? (
-        <button type="button" className="mt-1 text-xs font-semibold underline" style={{ color: B.muted }} onClick={onClear}>
-          Remove
-        </button>
+        <div className="mt-1 flex items-center gap-3">
+          {onAdjust ? (
+            <button
+              type="button"
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border bg-white px-3 py-1 text-xs font-semibold transition hover:bg-[#F7F9FF]"
+              style={{ borderColor: B.border, color: B.blue }}
+              onClick={onAdjust}
+            >
+              <Crop size={13} /> Adjust crop
+            </button>
+          ) : null}
+          <button type="button" className="text-xs font-semibold underline" style={{ color: B.muted }} onClick={onClear}>
+            Remove
+          </button>
+        </div>
       ) : null}
     </div>
   );
@@ -615,6 +637,9 @@ function SignupPageInner() {
   /** Latest check per field — stale responses (photo re-picked / removed) are ignored. */
   const docCheckSeqRef = useRef<Partial<Record<KycDocCheckSlot, number>>>({});
   const [cropTarget, setCropTarget] = useState<{ slot: KycDocCheckSlot; src: string; name: string } | null>(null);
+  /** Photo as picked (≤ 1600 px), kept in memory so "Adjust crop" can re-crop from the full photo. */
+  const [docOriginals, setDocOriginals] = useState<Partial<Record<KycDocCheckSlot, string>>>({});
+  const [autoCropping, setAutoCropping] = useState<KycDocCheckSlot | null>(null);
 
   const stepIndex = draft.stepIndex;
   const needsUpline = draft.role !== "super_distributor" && draft.role !== "direct_retailer";
@@ -1024,7 +1049,10 @@ function SignupPageInner() {
     );
   }
 
-  /** PAN / Aadhaar photo → crop + rotate popup → doc check. Photos only (no PDF) so every upload is checked. */
+  /**
+   * PAN / Aadhaar photo → server auto-crop (upright, card only) → preview + "Adjust crop" → doc check.
+   * No card found → the manual crop popup opens instead. Photos only (no PDF) so every upload is checked.
+   */
   async function pickDocPhoto(slot: KycDocCheckSlot, file: File) {
     const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
     const ok =
@@ -1039,39 +1067,68 @@ function SignupPageInner() {
       return;
     }
     const src = URL.createObjectURL(file);
+    let original: string;
     try {
-      await loadImage(src);
+      original = scaleImageToDataUrl(await loadImage(src));
     } catch {
-      URL.revokeObjectURL(src);
       toast.error("This photo could not be opened. Upload a JPG or PNG photo.");
       return;
+    } finally {
+      URL.revokeObjectURL(src);
     }
-    setCropTarget({ slot, src, name: file.name });
+    setDocOriginals((o) => ({ ...o, [slot]: original }));
+
+    if (accessToken) {
+      setAutoCropping(slot);
+      try {
+        const { data } = await api.post<ApiResponse<{ dataUrl: string; detected: boolean }>>(
+          "/kyc/documents/auto-crop",
+          { slot, dataUrl: original },
+          { timeout: 25_000 },
+        );
+        if (data.success && data.data.detected) {
+          applyDocPhoto(slot, data.data.dataUrl, file.name);
+          toast.success("Card cropped automatically. Tap Adjust crop if any part of the card is cut off.");
+          return;
+        }
+      } catch {
+        // Auto-crop is a convenience — fall through to the manual crop.
+      } finally {
+        setAutoCropping((s) => (s === slot ? null : s));
+      }
+    }
+    setCropTarget({ slot, src: original, name: file.name });
+  }
+
+  /** Reopen the manual crop on the photo as picked (falls back to the current photo after a reload). */
+  function adjustDocCrop(slot: KycDocCheckSlot) {
+    const src = docOriginals[slot] ?? draft[slot]?.dataUrl;
+    if (!src) return;
+    setCropTarget({ slot, src, name: draft[slot]?.name ?? `${slot}.jpg` });
   }
 
   function cancelCrop() {
-    if (cropTarget) URL.revokeObjectURL(cropTarget.src);
     setCropTarget(null);
+  }
+
+  function applyDocPhoto(slot: KycDocCheckSlot, dataUrl: string, fileName: string) {
+    const meta: SignupFileMeta = {
+      name: `${fileName.replace(/\.[^.]+$/, "") || slot}.jpg`,
+      mime: "image/jpeg",
+      size: Math.round(dataUrl.length * 0.75),
+      dataUrl,
+    };
+    patch({ [slot]: meta });
+    setStepErrorKey(null);
+    setPreviews((p) => ({ ...p, [slot]: dataUrl }));
+    void runDocCheck(slot, dataUrl);
   }
 
   function finishCrop(dataUrl: string) {
     const target = cropTarget;
     if (!target) return;
-    URL.revokeObjectURL(target.src);
     setCropTarget(null);
-    const meta: SignupFileMeta = {
-      name: `${target.name.replace(/\.[^.]+$/, "") || target.slot}.jpg`,
-      mime: "image/jpeg",
-      size: Math.round(dataUrl.length * 0.75),
-      dataUrl,
-    };
-    patch({ [target.slot]: meta });
-    setStepErrorKey(null);
-    setPreviews((p) => {
-      if (p[target.slot]) URL.revokeObjectURL(p[target.slot]);
-      return { ...p, [target.slot]: dataUrl };
-    });
-    void runDocCheck(target.slot, dataUrl);
+    applyDocPhoto(target.slot, dataUrl, target.name);
   }
 
   async function captureLivePhoto(
@@ -2254,6 +2311,8 @@ function SignupPageInner() {
                   formatHint={DOC_PHOTO_HINT}
                   onPick={(f) => void pickDocPhoto("panImage", f)}
                   onClear={() => clearFile("panImage")}
+                  onAdjust={() => adjustDocCrop("panImage")}
+                  busyLabel={autoCropping === "panImage" ? "Cropping card…" : null}
                   error={stepErrorKey === "panImage"}
                   check={docChecks.panImage}
                 />
@@ -2373,6 +2432,8 @@ function SignupPageInner() {
                     formatHint={DOC_PHOTO_HINT}
                     onPick={(f) => void pickDocPhoto("aadhaarFront", f)}
                     onClear={() => clearFile("aadhaarFront")}
+                    onAdjust={() => adjustDocCrop("aadhaarFront")}
+                    busyLabel={autoCropping === "aadhaarFront" ? "Cropping card…" : null}
                     error={stepErrorKey === "aadhaarFront"}
                     check={docChecks.aadhaarFront}
                     compact
@@ -2387,6 +2448,8 @@ function SignupPageInner() {
                     formatHint={DOC_PHOTO_HINT}
                     onPick={(f) => void pickDocPhoto("aadhaarBack", f)}
                     onClear={() => clearFile("aadhaarBack")}
+                    onAdjust={() => adjustDocCrop("aadhaarBack")}
+                    busyLabel={autoCropping === "aadhaarBack" ? "Cropping card…" : null}
                     error={stepErrorKey === "aadhaarBack"}
                     check={docChecks.aadhaarBack}
                     compact

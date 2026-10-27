@@ -12,7 +12,7 @@ import {
   verifyAadhaarKycOtp,
 } from "./aadhaarOtp.service";
 import { panVerifySchema, verifyPanKyc } from "./panVerify.service";
-import { getMyKycDocument, getMyKycProfile, submitKyc } from "./kyc.service";
+import { autoCropKycPhoto, getMyKycDocument, getMyKycProfile, submitKyc } from "./kyc.service";
 import { isKycDocSlot, saveKycDocumentDataUrl } from "./kycDocuments.service";
 import { checkKycDocument, DOC_CHECK_SLOTS, toStoredDocCheck } from "./docCheck/docCheck.service";
 import { recordKycVerification } from "./kycVerification.service";
@@ -73,6 +73,15 @@ kycRouter.post("/documents/check", kycDocCheckLimiter, validateBody(docCheckSche
     { actorId: req.auth.sub, source: "photo_check" },
   );
   sendSuccess(res, result, result.message);
+});
+
+const autoCropSchema = docCheckSchema.pick({ slot: true, dataUrl: true });
+
+/** Auto-crop shown after picking a PAN / Aadhaar photo; `detected: false` → the app opens manual crop. */
+kycRouter.post("/documents/auto-crop", kycDocCheckLimiter, validateBody(autoCropSchema), async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const body = req.body as z.infer<typeof autoCropSchema>;
+  sendSuccess(res, await autoCropKycPhoto(body.dataUrl));
 });
 
 kycRouter.get("/documents/:docKey", async (req, res) => {

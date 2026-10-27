@@ -8,7 +8,7 @@ One row per feature; details in the section below the table. Newest at the top o
 | # | Feature | Surfaces | Size | Status | Design | Task file |
 |---|---------|----------|------|--------|--------|-----------|
 | PL-12 | OCR model upgrade — PP-OCRv5 detection + PP-OCRv5 English recognition (test against today's v4) | Backend | S | building (built 27 Oct: v5 mobile det + v5 English rec default, `KYC_OCR_PADDLE_MODEL=v4` rollback; deploy + real-photo test pending) | — | — |
-| PL-11 | Card auto-crop + straighten before OCR (crop to card text, fix tilt / sideways / upside down); manual crop in app kept | Backend | M | building (built 27 Oct; deploy + real-photo test pending) | — | — |
+| PL-11 | Card auto-crop + straighten (fix tilt / sideways / upside down), shown in the preview with "Adjust crop" (manual) | Backend, web, mobile | M | building (built 27 Oct; npm install + deploy + APK + real-photo test pending) | — | — |
 | PL-10 | DigiLocker KYC — fetch signed Aadhaar + PAN with agent consent (replaces photo OCR as primary proof) | Backend, web, mobile, admin | L | planned — long term, after PL-06 | — | — |
 | PL-09 | Father's name match — PAN card vs Aadhaar back "S/O" vs form | Backend, web, mobile, admin | S | planned — next (with PL-11, PL-12) | — | — |
 | PL-08 | PAN–Aadhaar link status check (provider API) as a cross-check status | Backend, web, mobile, admin | S | planned — do first (with PL-09) | — | — |
@@ -52,8 +52,11 @@ Aadhaar QR scanner both read worse with background and perspective.
 
 **Built (27 Oct):** `docCheck/cardAlign.ts` — uses PaddleOCR text boxes (no extra library): sideways →
 try 90° / 270°, weak read → try 180°, crop to text area + 6 % margin when it is < 70 % of the photo,
-de-tilt ≥ 1.5°. Max 4 Paddle passes. Manual crop + rotate in web / mobile stays as the first step.
-Perspective warp from card corners is not built — add only if real photos need it.
+de-tilt ≥ 1.5°. Max 4 Paddle passes.
+**Shown to the agent (27 Oct, owner choice):** pick photo → `POST /api/kyc/documents/auto-crop`
+(`docCheck/cardCrop.ts`: upright → card outline via OpenCV edges + perspective flatten → else
+card-shaped box around the text) → cropped card in the preview + **Adjust crop** (manual crop on
+the original). No card found → manual crop opens. Web + mobile.
 
 **Plan**
 - Find the card's 4 corners (edge / contour detection), warp to a flat card (ID card ratio 1.586:1),

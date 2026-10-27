@@ -18,7 +18,8 @@ import { docCheckLabelsFromMeta } from "../src/modules/kyc/docCheck/docCheckLabe
 import { laplacianVariance } from "../src/modules/kyc/docCheck/imageQuality";
 import { escalateDifferentPerson } from "../src/modules/kyc/docCheck/identityRules";
 import { linesToText } from "../src/modules/kyc/docCheck/paddleOcr";
-import { isSideways, readScore, textCrop, tiltAngle } from "../src/modules/kyc/docCheck/cardAlign";
+import { isSideways, orientationScore, readScore, textCrop, tiltAngle } from "../src/modules/kyc/docCheck/cardAlign";
+import { orderQuad } from "../src/modules/kyc/docCheck/cardCrop";
 
 const PAN_TEXT = `INCOME TAX DEPARTMENT GOVT. OF INDIA
 Permanent Account Number Card
@@ -278,10 +279,34 @@ describe("card auto-align geometry", () => {
     expect(textCrop([line(10, 10, 1500, 40), line(10, 900, 1500, 40)], 1600, 1000)).toBeNull();
   });
 
+  it("prefers the orientation where text runs left to right, even if sideways text reads well", () => {
+    const upright = [line(0, 0, 300, 30, 0, "INCOME TAX DEPARTMENT", 0.85), line(0, 60, 250, 30, 0, "GOVT OF INDIA", 0.85)];
+    const sideways = [line(0, 0, 30, 300, 0, "INCOME TAX DEPARTMENT", 0.99), line(60, 0, 30, 250, 0, "GOVT OF INDIA", 0.99)];
+    expect(orientationScore(upright)).toBeGreaterThan(orientationScore(sideways));
+  });
+
   it("scores a confident read above a garbled one", () => {
     const good = [line(0, 0, 300, 30, 0, "INCOME TAX DEPARTMENT", 0.92)];
     const bad = [line(0, 0, 300, 30, 0, "jelhel", 0.6)];
     expect(readScore(good)).toBeGreaterThan(readScore(bad));
+  });
+});
+
+describe("card outline corners", () => {
+  it("orders any 4 corners as top-left, top-right, bottom-right, bottom-left", () => {
+    expect(
+      orderQuad([
+        [900, 620],
+        [100, 80],
+        [120, 600],
+        [880, 60],
+      ]),
+    ).toEqual([
+      [100, 80],
+      [880, 60],
+      [900, 620],
+      [120, 600],
+    ]);
   });
 });
 

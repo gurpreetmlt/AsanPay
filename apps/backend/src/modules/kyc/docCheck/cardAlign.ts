@@ -31,17 +31,39 @@ export function readScore(lines: PaddleLine[]): number {
   return lines.reduce((sum, l) => sum + l.text.replace(/[^A-Za-z0-9]/g, "").length * l.mean, 0);
 }
 
-/** Most elongated text boxes stand upright → the card is lying on its side. */
-export function isSideways(lines: PaddleLine[]): boolean {
-  let tall = 0;
-  let wide = 0;
+/** Length of text running left ↔ right vs up ↓ down, by the direction of each box's long side. */
+function runDirections(lines: PaddleLine[]): { vertical: number; horizontal: number } {
+  let vertical = 0;
+  let horizontal = 0;
   for (const l of lines) {
-    const { width, height } = sideLengths(l);
-    if (Math.max(width, height) < 1.5 * Math.min(width, height)) continue;
-    if (height > width) tall++;
-    else wide++;
+    const [p0, p1, p2] = l.box ?? [];
+    if (!p0 || !p1 || !p2) continue;
+    const a = [(p1[0] ?? 0) - (p0[0] ?? 0), (p1[1] ?? 0) - (p0[1] ?? 0)] as const;
+    const b = [(p2[0] ?? 0) - (p1[0] ?? 0), (p2[1] ?? 0) - (p1[1] ?? 0)] as const;
+    const la = Math.hypot(a[0], a[1]);
+    const lb = Math.hypot(b[0], b[1]);
+    if (Math.max(la, lb) < 1.5 * Math.min(la, lb)) continue;
+    const long = la >= lb ? a : b;
+    if (Math.abs(long[1]) > Math.abs(long[0])) vertical += Math.max(la, lb);
+    else horizontal += Math.max(la, lb);
   }
-  return tall >= 3 && tall > wide;
+  return { vertical, horizontal };
+}
+
+/** Text lines mostly run up / down → the card is lying on its side. */
+export function isSideways(lines: PaddleLine[]): boolean {
+  const { vertical, horizontal } = runDirections(lines);
+  return vertical > 200 && vertical > 1.5 * horizontal;
+}
+
+/**
+ * Orientation score: characters read × confidence × share of text running left ↔ right. Paddle
+ * still reads sideways text (merged into a few long boxes), so confidence alone picks the wrong way.
+ */
+export function orientationScore(lines: PaddleLine[]): number {
+  const { vertical, horizontal } = runDirections(lines);
+  const total = vertical + horizontal;
+  return readScore(lines) * (total ? horizontal / total : 0);
 }
 
 /** Width-weighted median slope of long text lines, in degrees (positive = text runs down to the right). */
@@ -105,23 +127,36 @@ export type AlignedCard = {
   cropped: boolean;
 };
 
-/** Null when Paddle is off / unavailable — callers OCR the original photo as before. */
-export async function alignCard(buffer: Buffer): Promise<AlignedCard | null> {
+export type UprightCard = { image: Buffer; read: PaddleRead; rotation: number };
+
+/**
+ * Cards are landscape: a portrait photo or up / down text → also try 90° / 270°; a weak read → also
+ * try 180°. Keeps the orientation with the best `orientationScore`. At most 4 Paddle passes.
+ */
+export async function uprightCard(buffer: Buffer): Promise<UprightCard | null> {
   const first = await paddleRead(buffer);
   if (!first) return null;
 
-  let best = { read: first, image: buffer, rotation: 0 };
-  const tryRotation = async (deg: number) => {
+  const candidates: UprightCard[] = [{ read: first, image: buffer, rotation: 0 }];
+  const rotate = async (deg: number) => {
     const image = await oriented(buffer, deg);
     const read = await paddleRead(image);
-    if (read && readScore(read.lines) > readScore(best.read.lines)) best = { read, image, rotation: deg };
+    if (read) candidates.push({ read, image, rotation: deg });
   };
-  if (isSideways(first.lines)) {
-    await tryRotation(90);
-    await tryRotation(270);
-  } else if (meanConfidence(first.lines) < UPSIDE_DOWN_SUSPECT) {
-    await tryRotation(180);
+  if (first.height > first.width || isSideways(first.lines)) {
+    await rotate(90);
+    await rotate(270);
   }
+  if (meanConfidence(first.lines) < UPSIDE_DOWN_SUSPECT) await rotate(180);
+  return candidates.reduce((best, c) =>
+    orientationScore(c.read.lines) > orientationScore(best.read.lines) ? c : best,
+  );
+}
+
+/** Null when Paddle is off / unavailable — callers OCR the original photo as before. */
+export async function alignCard(buffer: Buffer): Promise<AlignedCard | null> {
+  const best = await uprightCard(buffer);
+  if (!best) return null;
 
   const { read } = best;
   const tilt = tiltAngle(read.lines);
