@@ -63,6 +63,11 @@ adminRouter.get("/alerts", async (_req, res) => {
   sendSuccess(res, await getAdminAlerts());
 });
 
+adminRouter.get("/dashboard", async (_req, res) => {
+  const { getDashboardSummary } = await import("./dashboard.service");
+  sendSuccess(res, await getDashboardSummary());
+});
+
 adminRouter.get("/users", async (req, res) => {
   const role = typeof req.query.role === "string" && (USER_ROLES as readonly string[]).includes(req.query.role)
     ? (req.query.role as (typeof USER_ROLES)[number])
@@ -465,20 +470,7 @@ adminRouter.get("/commission/rules", async (req, res) => {
 });
 
 // ── Customer fee schedule (service_charges) ─────────────────────────────────
-const serviceChargeBody = z.object({
-  serviceId: z.string().uuid(),
-  providerId: z.string().uuid().nullable().optional(),
-  /** null / omitted on create defaults to null = all roles; UI usually sends retailer */
-  role: schemeRoleEnum.nullable().optional(),
-  ruleType: ruleTypeEnum,
-  value: z.string().min(1).max(20),
-  minAmount: z.string().max(20).nullable().optional(),
-  maxAmount: z.string().max(20).nullable().optional(),
-  effectiveFrom: z.string().max(40).nullable().optional(),
-  effectiveTo: z.string().max(40).nullable().optional(),
-  isActive: z.boolean().optional(),
-});
-
+// Writes go through the versioned /rate-card/customer-fee API (reason + rate audit).
 adminRouter.get("/service-charges", async (req, res) => {
   const { listServiceCharges } = await import("../service-charges/serviceCharge.service");
   const serviceId = typeof req.query.serviceId === "string" ? req.query.serviceId : undefined;
@@ -486,28 +478,16 @@ adminRouter.get("/service-charges", async (req, res) => {
   sendSuccess(res, await listServiceCharges({ serviceId, activeOnly }));
 });
 
-adminRouter.post("/service-charges", async (req, res) => {
-  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
-  const { createServiceCharge } = await import("../service-charges/serviceCharge.service");
-  const body = serviceChargeBody.parse(req.body);
-  const created = await createServiceCharge(req.auth.sub, body);
-  sendSuccess(res, created, "Service charge created");
-});
-
-adminRouter.patch("/service-charges/:id", async (req, res) => {
-  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
-  const { updateServiceCharge } = await import("../service-charges/serviceCharge.service");
-  const body = serviceChargeBody.partial().parse(req.body);
-  const updated = await updateServiceCharge(req.auth.sub, req.params.id, body);
-  sendSuccess(res, updated, "Service charge updated");
-});
-
-adminRouter.delete("/service-charges/:id", async (req, res) => {
-  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
-  const { deleteServiceCharge } = await import("../service-charges/serviceCharge.service");
-  const result = await deleteServiceCharge(req.auth.sub, req.params.id);
-  sendSuccess(res, result, "Service charge deleted");
-});
+const customerFeeWriteGone = () => {
+  throw new HttpError(
+    410,
+    "Customer fees are now saved with a reason from Commission → Customer fees or the Rate card. Refresh the page and try again.",
+    "CUSTOMER_FEE_API_MOVED",
+  );
+};
+adminRouter.post("/service-charges", customerFeeWriteGone);
+adminRouter.patch("/service-charges/:id", customerFeeWriteGone);
+adminRouter.delete("/service-charges/:id", customerFeeWriteGone);
 
 adminRouter.post("/commission/rules", async (req, res) => {
   if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
@@ -681,19 +661,12 @@ adminRouter.get("/commission/tax-config", async (_req, res) => {
   sendSuccess(res, await listTaxConfigs(tenantId));
 });
 
-adminRouter.patch("/commission/tax-config/:id", async (req, res) => {
-  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
-  const { updateTaxConfig } = await import("../commission/tax.service");
-  const body = z
-    .object({
-      tdsApplies: z.boolean().optional(),
-      tdsPercent: z.string().min(1).max(20).optional(),
-      gstOnFeeApplies: z.boolean().optional(),
-      gstOnFeePercent: z.string().min(1).max(20).optional(),
-      isActive: z.boolean().optional(),
-    })
-    .parse(req.body);
-  sendSuccess(res, await updateTaxConfig(req.params.id, body), "Tax config updated");
+adminRouter.patch("/commission/tax-config/:id", () => {
+  throw new HttpError(
+    410,
+    "Tax is now saved with a reason from Tax → Tax settings. Refresh the page and try again.",
+    "TAX_CONFIG_API_MOVED",
+  );
 });
 
 adminRouter.get("/commission/underwater-report", async (req, res) => {

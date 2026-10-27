@@ -22,22 +22,9 @@ type PendingConfirm = {
 
 type SchemeRole = "retailer" | "distributor" | "super_distributor";
 type RuleType = "flat" | "percentage";
-export type CommissionWorkbenchTab = "schemes" | "payouts" | "tax" | "registers";
+export type CommissionWorkbenchTab = "schemes" | "payouts" | "registers";
 type RegisterKind = "tds" | "dmt_gst";
 type ClawbackFilter = "active" | "clawed" | "all";
-
-interface TaxConfigRow {
-  id: string;
-  serviceId: string | null;
-  serviceCode: string | null;
-  serviceName: string | null;
-  tdsApplies: boolean;
-  tdsPercent: string;
-  gstOnFeeApplies: boolean;
-  gstOnFeePercent: string;
-  isActive: boolean;
-  effectiveFrom: string;
-}
 
 interface CatalogService {
   id: string;
@@ -267,9 +254,6 @@ export function CommissionWorkbench({
   const [payoutUntil, setPayoutUntil] = useState("");
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
-  const [taxRows, setTaxRows] = useState<TaxConfigRow[]>([]);
-  const [taxLoading, setTaxLoading] = useState(false);
-  const [taxSavingId, setTaxSavingId] = useState<string | null>(null);
   const [registerKind, setRegisterKind] = useState<RegisterKind>("tds");
   const [regMonth, setRegMonth] = useState(currentMonthYmd());
   const [regRole, setRegRole] = useState<"" | SchemeRole>("");
@@ -336,36 +320,6 @@ export function CommissionWorkbench({
     }
   }, [payoutRole, payoutClawback, payoutQ, payoutSince, payoutUntil]);
 
-  const loadTax = useCallback(async () => {
-    setTaxLoading(true);
-    try {
-      setTaxRows(await fetchApi<TaxConfigRow[]>("/admin/commission/tax-config"));
-    } catch (err) {
-      toast.error(errMessage(err, "Failed to load tax config"));
-    } finally {
-      setTaxLoading(false);
-    }
-  }, []);
-
-  async function saveTaxRow(row: TaxConfigRow) {
-    setTaxSavingId(row.id);
-    try {
-      await api.patch(`/admin/commission/tax-config/${row.id}`, {
-        tdsApplies: row.tdsApplies,
-        tdsPercent: row.tdsPercent,
-        gstOnFeeApplies: row.gstOnFeeApplies,
-        gstOnFeePercent: row.gstOnFeePercent,
-        isActive: row.isActive,
-      });
-      toast.success("Tax config saved");
-      await loadTax();
-    } catch (err) {
-      toast.error(errMessage(err, "Could not save tax config"));
-    } finally {
-      setTaxSavingId(null);
-    }
-  }
-
   useEffect(() => {
     if (!hydrated || !accessToken) return;
     void load();
@@ -375,11 +329,6 @@ export function CommissionWorkbench({
     if (!hydrated || !accessToken || tab !== "payouts") return;
     void loadPayouts();
   }, [hydrated, accessToken, tab, loadPayouts]);
-
-  useEffect(() => {
-    if (!hydrated || !accessToken || tab !== "tax") return;
-    void loadTax();
-  }, [hydrated, accessToken, tab, loadTax]);
 
   const loadRegisters = useCallback(async () => {
     setRegLoading(true);
@@ -543,10 +492,6 @@ export function CommissionWorkbench({
       h: "Schemes",
       p: "Role-default slabs and preview. Per-agent overrides stay on agent detail.",
     },
-    tax: {
-      h: "Tax settings",
-      p: "TDS on commission credits and GST on customer fee (e.g. DMT).",
-    },
     registers: {
       h: "Tax registers",
       p: "TDS by agent/month and DMT fee GST lines for CA export.",
@@ -576,120 +521,7 @@ export function CommissionWorkbench({
           </div>
         </div>
 
-        {tab === "tax" ? (
-          <div className="space-y-4 rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
-            <p className="text-sm" style={{ color: B.muted }}>
-              TDS applies on commission credits. GST on fee applies to customer fee (e.g. DMT). Null service =
-              tenant default. Draft rates until CA locks them.
-            </p>
-            {taxLoading ? (
-              <p className="text-sm" style={{ color: B.muted }}>
-                Loading tax config…
-              </p>
-            ) : taxRows.length === 0 ? (
-              <p className="text-sm" style={{ color: B.muted }}>
-                No tax rows yet. Run migration 0066 on the server, then refresh.
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[720px] text-left text-sm">
-                  <thead>
-                    <tr className="border-b text-xs uppercase tracking-wide" style={{ borderColor: B.border, color: B.muted }}>
-                      <th className="px-2 py-2">Service</th>
-                      <th className="px-2 py-2">TDS</th>
-                      <th className="px-2 py-2">TDS %</th>
-                      <th className="px-2 py-2">GST on fee</th>
-                      <th className="px-2 py-2">GST %</th>
-                      <th className="px-2 py-2">Active</th>
-                      <th className="px-2 py-2" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {taxRows.map((row) => (
-                      <tr key={row.id} className="border-b" style={{ borderColor: B.border }}>
-                        <td className="px-2 py-2 font-semibold" style={{ color: B.blue }}>
-                          {row.serviceId ? `${row.serviceName ?? "Service"} (${row.serviceCode})` : "Default (all services)"}
-                        </td>
-                        <td className="px-2 py-2">
-                          <input
-                            type="checkbox"
-                            checked={row.tdsApplies}
-                            onChange={(e) =>
-                              setTaxRows((prev) =>
-                                prev.map((r) => (r.id === row.id ? { ...r, tdsApplies: e.target.checked } : r)),
-                              )
-                            }
-                          />
-                        </td>
-                        <td className="px-2 py-2">
-                          <input
-                            className="w-20 rounded-lg border px-2 py-1"
-                            style={{ borderColor: B.border }}
-                            value={row.tdsPercent}
-                            onChange={(e) =>
-                              setTaxRows((prev) =>
-                                prev.map((r) => (r.id === row.id ? { ...r, tdsPercent: e.target.value } : r)),
-                              )
-                            }
-                          />
-                        </td>
-                        <td className="px-2 py-2">
-                          <input
-                            type="checkbox"
-                            checked={row.gstOnFeeApplies}
-                            onChange={(e) =>
-                              setTaxRows((prev) =>
-                                prev.map((r) =>
-                                  r.id === row.id ? { ...r, gstOnFeeApplies: e.target.checked } : r,
-                                ),
-                              )
-                            }
-                          />
-                        </td>
-                        <td className="px-2 py-2">
-                          <input
-                            className="w-20 rounded-lg border px-2 py-1"
-                            style={{ borderColor: B.border }}
-                            value={row.gstOnFeePercent}
-                            onChange={(e) =>
-                              setTaxRows((prev) =>
-                                prev.map((r) =>
-                                  r.id === row.id ? { ...r, gstOnFeePercent: e.target.value } : r,
-                                ),
-                              )
-                            }
-                          />
-                        </td>
-                        <td className="px-2 py-2">
-                          <input
-                            type="checkbox"
-                            checked={row.isActive}
-                            onChange={(e) =>
-                              setTaxRows((prev) =>
-                                prev.map((r) => (r.id === row.id ? { ...r, isActive: e.target.checked } : r)),
-                              )
-                            }
-                          />
-                        </td>
-                        <td className="px-2 py-2 text-right">
-                          <button
-                            type="button"
-                            disabled={taxSavingId === row.id}
-                            onClick={() => void saveTaxRow(row)}
-                            className="rounded-lg px-3 py-1.5 text-xs font-bold text-white disabled:opacity-60"
-                            style={{ background: B.cta }}
-                          >
-                            {taxSavingId === row.id ? "Saving…" : "Save"}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        ) : tab === "registers" ? (
+        {tab === "registers" ? (
           <div className="space-y-4 rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
             <p className="text-sm" style={{ color: B.muted }}>
               TDS register groups commission credits by agent and month. DMT GST register lists customer fee GST

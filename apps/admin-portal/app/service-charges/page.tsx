@@ -1,28 +1,24 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { IndianRupee, Pencil, Plus } from "lucide-react";
+import { IndianRupee, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { SectionTabs } from "@/components/layout/SectionTabs";
-import { ConfirmModal, type ConfirmTone } from "@/components/ui/ConfirmModal";
-import { TableActionButtons } from "@/components/ui/TableActionButtons";
+import { SaveConfirmModal } from "@/components/commission/rateCard/SaveConfirmModal";
+import { usePendingSave } from "@/components/commission/rateCard/usePendingSave";
+import { feePayerLabel, ruleLabel, slabLabel } from "@/components/commission/rateCard/types";
+import { Btn, Chip } from "@/components/commission/rateCard/ui";
 import { B } from "@/lib/brand";
-import api, { fetchApi } from "@/lib/api";
+import { fetchApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 
-type PendingConfirm = {
-  title: string;
-  message: ReactNode;
-  confirmLabel: string;
-  tone: ConfirmTone;
-  action: () => void | Promise<void>;
-};
-
 type SchemeRole = "retailer" | "distributor" | "super_distributor";
 type RuleType = "flat" | "percentage";
+type FeeStatus = "live" | "scheduled" | "ended";
 
 interface CatalogService {
   id: string;
@@ -68,7 +64,12 @@ const EMPTY_FORM = {
   value: "",
   minAmount: "",
   maxAmount: "",
-  isActive: true,
+};
+
+const STATUS_CHIP: Record<FeeStatus, { tone: "green" | "blue" | "muted"; label: string }> = {
+  live: { tone: "green", label: "Live" },
+  scheduled: { tone: "blue", label: "Scheduled" },
+  ended: { tone: "muted", label: "Ended" },
 };
 
 function errMessage(err: unknown, fallback: string) {
@@ -90,14 +91,30 @@ function formatWhen(iso: string) {
   }
 }
 
-function roleLabel(role: SchemeRole | null) {
-  if (!role) return "All roles";
-  return ROLE_LABEL[role] ?? role;
+function statusOf(row: ServiceCharge, now: number): FeeStatus {
+  if (!row.isActive) return "ended";
+  if (row.effectiveTo && new Date(row.effectiveTo).getTime() <= now) return "ended";
+  if (new Date(row.effectiveFrom).getTime() > now) return "scheduled";
+  return "live";
 }
 
-function formatFee(ruleType: RuleType, value: string) {
-  if (ruleType === "percentage") return `${value}%`;
-  return `₹${value}`;
+function formError(form: typeof EMPTY_FORM): string | null {
+  if (!form.serviceId) return "Select a service";
+  const v = form.value.trim();
+  if (v === "") return "Enter the customer fee";
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0) return "Customer fee must be 0 or more";
+  if (form.ruleType === "percentage" && n > 100) return "Percentage cannot exceed 100";
+  for (const [label, raw] of [
+    ["Min amount", form.minAmount],
+    ["Max amount", form.maxAmount],
+  ] as const) {
+    if (raw.trim() !== "" && !(Number(raw) >= 0)) return `${label} must be a number 0 or more`;
+  }
+  if (form.minAmount.trim() !== "" && form.maxAmount.trim() !== "" && Number(form.minAmount) > Number(form.maxAmount)) {
+    return "Min amount cannot be more than max amount";
+  }
+  return null;
 }
 
 export default function ServiceChargesPage() {
@@ -108,13 +125,18 @@ export default function ServiceChargesPage() {
   const [rows, setRows] = useState<ServiceCharge[]>([]);
   const [catalog, setCatalog] = useState<CatalogCategory[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
-  const [editId, setEditId] = useState<string | null>(null);
+  const [editRow, setEditRow] = useState<ServiceCharge | null>(null);
+  const [touched, setTouched] = useState(false);
   const [roleFilter, setRoleFilter] = useState<"" | SchemeRole | "all">("");
-  const [activeOnly, setActiveOnly] = useState(false);
-  const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
-  const [confirmBusy, setConfirmBusy] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<"" | FeeStatus>("live");
+  const [version, setVersion] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
+
+  const { saveReq, setSaveReq, saving, runSave } = usePendingSave(() => {
+    cancelEdit();
+    setVersion((v) => v + 1);
+  });
 
   useEffect(() => {
     if (hydrated && !accessToken) router.replace("/login");
@@ -134,137 +156,115 @@ export default function ServiceChargesPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params: Record<string, string> = {};
-      if (activeOnly) params.activeOnly = "1";
       const [chargeRows, cats] = await Promise.all([
-        fetchApi<ServiceCharge[]>("/admin/service-charges", params),
+        fetchApi<ServiceCharge[]>("/admin/service-charges"),
         fetchApi<CatalogCategory[]>("/admin/catalog"),
       ]);
       setRows(chargeRows);
+      setNow(Date.now());
       setCatalog(cats);
       setForm((f) =>
         f.serviceId ? f : { ...f, serviceId: cats.find((c) => c.isActive)?.services[0]?.id || "" },
       );
     } catch (err) {
-      toast.error(errMessage(err, "Failed to load service charges"));
+      toast.error(errMessage(err, "Could not load customer fees. Check your connection and refresh."));
     } finally {
       setLoading(false);
     }
-  }, [activeOnly]);
+  }, []);
 
   useEffect(() => {
     if (!hydrated || !accessToken) return;
     void load();
-  }, [hydrated, accessToken, load]);
+  }, [hydrated, accessToken, load, version]);
 
   const filtered = useMemo(() => {
-    if (roleFilter === "") return rows;
-    if (roleFilter === "all") return rows.filter((r) => r.role == null);
-    return rows.filter((r) => r.role === roleFilter);
-  }, [rows, roleFilter]);
+    return rows.filter((r) => {
+      if (roleFilter === "all" && r.role != null) return false;
+      if (roleFilter && roleFilter !== "all" && r.role !== roleFilter) return false;
+      if (statusFilter && statusOf(r, now) !== statusFilter) return false;
+      return true;
+    });
+  }, [rows, roleFilter, statusFilter, now]);
 
   function startEdit(row: ServiceCharge) {
-    setEditId(row.id);
+    setEditRow(row);
+    setTouched(false);
     setForm({
       serviceId: row.serviceId,
       role: row.role ?? "",
       ruleType: row.ruleType,
-      value: row.value,
+      value: String(Number(row.value)),
       minAmount: row.minAmount ?? "",
       maxAmount: row.maxAmount ?? "",
-      isActive: row.isActive,
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function cancelEdit() {
-    setEditId(null);
+    setEditRow(null);
+    setTouched(false);
     setForm((f) => ({ ...EMPTY_FORM, serviceId: f.serviceId }));
   }
 
-  async function onSubmit(e: FormEvent) {
+  const error = formError(form);
+  const serviceLabel = (id: string) => serviceOptions.find((s) => s.id === id)?.label ?? "Service";
+
+  function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!form.serviceId) {
-      toast.error("Select a service");
+    setTouched(true);
+    if (error) {
+      toast.error(error);
       return;
     }
-    if (!form.value.trim()) {
-      toast.error("Enter a charge value");
-      return;
-    }
-    setSaving(true);
-    const body = {
-      serviceId: form.serviceId,
-      role: form.role === "" ? null : form.role,
-      ruleType: form.ruleType,
-      value: form.value.trim(),
-      minAmount: form.minAmount.trim() || null,
-      maxAmount: form.maxAmount.trim() || null,
-      isActive: form.isActive,
-    };
-    try {
-      if (editId) {
-        await api.patch(`/admin/service-charges/${editId}`, body);
-        toast.success("Service charge updated");
-      } else {
-        await api.post("/admin/service-charges", body);
-        toast.success("Service charge created");
-      }
-      cancelEdit();
-      await load();
-    } catch (err) {
-      toast.error(errMessage(err, editId ? "Could not update service charge" : "Could not create service charge"));
-    } finally {
-      setSaving(false);
-    }
+    const role = form.role === "" ? null : form.role;
+    const minAmount = form.minAmount.trim() || null;
+    const maxAmount = form.maxAmount.trim() || null;
+    const scope = editRow?.providerName ?? "All providers";
+    setSaveReq({
+      title: editRow ? "Save customer fee" : "Add customer fee",
+      warnings: ["Customer fee changes what agents are charged on every new txn of this service."],
+      changes: [
+        {
+          label: `${editRow ? editRow.serviceName : serviceLabel(form.serviceId)} · customer fee (${scope})`,
+          detail: `${slabLabel(minAmount, maxAmount)} · ${feePayerLabel(role)}: ${
+            editRow ? `${ruleLabel(editRow.ruleType, editRow.value)} → ` : ""
+          }${ruleLabel(form.ruleType, form.value.trim())}`,
+          method: "post",
+          url: "/admin/rate-card/customer-fee",
+          body: {
+            serviceId: form.serviceId,
+            providerId: editRow?.providerId ?? null,
+            role,
+            ruleType: form.ruleType,
+            value: form.value.trim(),
+            minAmount,
+            maxAmount,
+          },
+        },
+      ],
+    });
   }
 
-  async function toggleActive(row: ServiceCharge) {
-    try {
-      await api.patch(`/admin/service-charges/${row.id}`, { isActive: !row.isActive });
-      toast.success(row.isActive ? "Charge deactivated" : "Charge activated");
-      setRows((prev) =>
-        prev.map((r) => (r.id === row.id ? { ...r, isActive: !r.isActive } : r)),
-      );
-    } catch (err) {
-      toast.error(errMessage(err, "Could not update charge"));
-    }
-  }
-
-  async function executeRemoveRow(row: ServiceCharge) {
-    setConfirmBusy(true);
-    try {
-      await api.delete(`/admin/service-charges/${row.id}`);
-      toast.success("Service charge deleted");
-      setRows((prev) => prev.filter((r) => r.id !== row.id));
-      if (editId === row.id) cancelEdit();
-      setPendingConfirm(null);
-    } catch (err) {
-      toast.error(errMessage(err, "Could not delete charge"));
-    } finally {
-      setConfirmBusy(false);
-    }
-  }
-
-  function removeRow(row: ServiceCharge) {
-    setPendingConfirm({
-      title: "Delete service charge?",
-      message: (
-        <>
-          Delete charge for{" "}
-          <span className="font-semibold" style={{ color: B.blue }}>
-            {row.serviceName}
-          </span>{" "}
-          ({roleLabel(row.role)})?
-        </>
-      ),
-      confirmLabel: "Delete charge",
-      tone: "danger",
-      action: () => void executeRemoveRow(row),
+  function endRow(row: ServiceCharge) {
+    setSaveReq({
+      title: "End customer fee",
+      warnings: ["Agents stop paying this fee on new txns. A matching wider rule (if any) applies instead."],
+      changes: [
+        {
+          label: `${row.serviceName} · end customer fee (${row.providerName ?? "All providers"})`,
+          detail: `${slabLabel(row.minAmount, row.maxAmount)} · ${feePayerLabel(row.role)}: ${ruleLabel(row.ruleType, row.value)}`,
+          method: "delete",
+          url: `/admin/rate-card/customer-fee/${row.id}`,
+          body: {},
+        },
+      ],
     });
   }
 
   if (!hydrated || !accessToken) return null;
+
+  const fieldCls = "w-full rounded-xl border px-3 py-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-60";
 
   return (
     <AdminShell>
@@ -285,10 +285,10 @@ export default function ServiceChargesPage() {
               Customer fee on debit services (DMT, BBPS, recharge). Applied server-side — not set by agents.
             </p>
             <p className="mt-0.5 text-xs" style={{ color: B.muted }}>
-              Same fees are editable per service, next to provider income and shares, on the{" "}
-              <a href="/tax-commission/rate-card" className="font-semibold underline-offset-2 hover:underline" style={{ color: B.blueLight }}>
+              Every change is versioned with a reason in Rate audit. Same fees are editable per service on the{" "}
+              <Link href="/tax-commission/rate-card" className="font-semibold underline-offset-2 hover:underline" style={{ color: B.blueLight }}>
                 Rate card
-              </a>
+              </Link>
               .
             </p>
           </div>
@@ -297,30 +297,15 @@ export default function ServiceChargesPage() {
         <div className="grid gap-6 lg:grid-cols-2">
           <form
             onSubmit={onSubmit}
-            className="space-y-4 rounded-2xl border bg-white p-5"
-            style={{ borderColor: B.border }}
+            className="space-y-4 rounded-2xl border p-5"
+            style={{ borderColor: B.border, background: B.card }}
           >
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                {editId ? (
-                  <Pencil size={18} style={{ color: B.blue }} />
-                ) : (
-                  <Plus size={18} style={{ color: B.blue }} />
-                )}
-                <h2 className="text-base font-bold" style={{ color: B.blue }}>
-                  {editId ? "Edit charge" : "Add charge"}
-                </h2>
-              </div>
-              {editId ? (
-                <button
-                  type="button"
-                  onClick={cancelEdit}
-                  className="text-sm font-semibold"
-                  style={{ color: B.muted }}
-                >
-                  Cancel
-                </button>
-              ) : null}
+            <div className="flex items-center gap-2">
+              {editRow ? <Pencil size={18} style={{ color: B.blue }} /> : <Plus size={18} style={{ color: B.blue }} />}
+              <h2 className="text-base font-bold" style={{ color: B.blue }}>
+                {editRow ? "Edit customer fee" : "Add customer fee"}
+              </h2>
+              {editRow ? <Chip tone="blue">{editRow.providerName ?? "All providers"}</Chip> : null}
             </div>
 
             <label className="block text-sm">
@@ -328,9 +313,10 @@ export default function ServiceChargesPage() {
                 Service
               </span>
               <select
-                className="w-full rounded-xl border px-3 py-2.5 text-sm"
+                className={fieldCls}
                 style={{ borderColor: B.border }}
                 value={form.serviceId}
+                disabled={Boolean(editRow)}
                 onChange={(e) => setForm((f) => ({ ...f, serviceId: e.target.value }))}
               >
                 <option value="">Select service</option>
@@ -344,20 +330,19 @@ export default function ServiceChargesPage() {
 
             <label className="block text-sm">
               <span className="mb-1 block font-medium" style={{ color: B.muted }}>
-                Role
+                Charged to
               </span>
               <select
-                className="w-full rounded-xl border px-3 py-2.5 text-sm"
+                className={fieldCls}
                 style={{ borderColor: B.border }}
                 value={form.role}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, role: e.target.value as "" | SchemeRole }))
-                }
+                disabled={Boolean(editRow)}
+                onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as "" | SchemeRole }))}
               >
                 <option value="">All roles</option>
                 {(Object.keys(ROLE_LABEL) as SchemeRole[]).map((r) => (
                   <option key={r} value={r}>
-                    {ROLE_LABEL[r]}
+                    {ROLE_LABEL[r]} only
                   </option>
                 ))}
               </select>
@@ -372,12 +357,10 @@ export default function ServiceChargesPage() {
                   Type
                 </span>
                 <select
-                  className="w-full rounded-xl border px-3 py-2.5 text-sm"
+                  className={fieldCls}
                   style={{ borderColor: B.border }}
                   value={form.ruleType}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, ruleType: e.target.value as RuleType }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, ruleType: e.target.value as RuleType }))}
                 >
                   <option value="flat">Flat (₹)</option>
                   <option value="percentage">Percentage (%)</option>
@@ -385,14 +368,14 @@ export default function ServiceChargesPage() {
               </label>
               <label className="block text-sm">
                 <span className="mb-1 block font-medium" style={{ color: B.muted }}>
-                  Value
+                  {form.ruleType === "flat" ? "Fee (₹)" : "Fee (%)"}
                 </span>
                 <input
-                  className="w-full rounded-xl border px-3 py-2.5 text-sm"
+                  className={fieldCls}
                   style={{ borderColor: B.border }}
                   value={form.value}
                   onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
-                  placeholder={form.ruleType === "flat" ? "e.g. 10" : "e.g. 0.15"}
+                  placeholder={form.ruleType === "flat" ? "e.g. 10" : "e.g. 1"}
                   inputMode="decimal"
                 />
               </label>
@@ -401,67 +384,73 @@ export default function ServiceChargesPage() {
             <div className="grid grid-cols-2 gap-3">
               <label className="block text-sm">
                 <span className="mb-1 block font-medium" style={{ color: B.muted }}>
-                  Min amount (optional)
+                  Slab from (₹, optional)
                 </span>
                 <input
-                  className="w-full rounded-xl border px-3 py-2.5 text-sm"
+                  className={fieldCls}
                   style={{ borderColor: B.border }}
                   value={form.minAmount}
+                  disabled={Boolean(editRow)}
                   onChange={(e) => setForm((f) => ({ ...f, minAmount: e.target.value }))}
-                  placeholder="No min"
+                  placeholder="Any"
                   inputMode="decimal"
                 />
               </label>
               <label className="block text-sm">
                 <span className="mb-1 block font-medium" style={{ color: B.muted }}>
-                  Max amount (optional)
+                  Slab to (₹, optional)
                 </span>
                 <input
-                  className="w-full rounded-xl border px-3 py-2.5 text-sm"
+                  className={fieldCls}
                   style={{ borderColor: B.border }}
                   value={form.maxAmount}
+                  disabled={Boolean(editRow)}
                   onChange={(e) => setForm((f) => ({ ...f, maxAmount: e.target.value }))}
-                  placeholder="No max"
+                  placeholder="Any"
                   inputMode="decimal"
                 />
               </label>
             </div>
 
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={form.isActive}
-                onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.checked }))}
-              />
-              <span style={{ color: B.blue }}>Active</span>
-            </label>
+            {editRow ? (
+              <p className="text-xs" style={{ color: B.muted }}>
+                Service, role and slab stay the same; end this fee and add a new one to change them.
+              </p>
+            ) : null}
+            {touched && error ? <p className="text-xs font-semibold text-red-600">{error}</p> : null}
 
-            <button
-              type="submit"
-              disabled={saving}
-              className="w-full rounded-xl px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60"
-              style={{ background: B.badgeGrad }}
-            >
-              {saving ? "Saving…" : editId ? "Save changes" : "Create charge"}
-            </button>
+            {editRow ? (
+              <div className="grid grid-cols-2 gap-2">
+                <Btn variant="destructive" onClick={cancelEdit}>
+                  Cancel
+                </Btn>
+                <Btn variant="primary" type="submit" disabled={saving}>
+                  Save changes
+                </Btn>
+              </div>
+            ) : (
+              <Btn variant="success" type="submit" className="w-full" disabled={saving}>
+                <Plus size={14} /> Add fee
+              </Btn>
+            )}
           </form>
 
-          <div className="space-y-3 rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
+          <div className="space-y-3 rounded-2xl border p-5" style={{ borderColor: B.border, background: B.card }}>
             <h2 className="text-base font-bold" style={{ color: B.blue }}>
               How fees apply
             </h2>
             <ul className="list-disc space-y-2 pl-5 text-sm" style={{ color: B.muted }}>
               <li>Charged on debit balance flows (money transfer, bills, recharge).</li>
-              <li>
-                More specific rules win: provider + role → provider → role → all roles.
-              </li>
+              <li>More specific rules win: provider + role → provider → role → all roles.</li>
               <li>Flat is rupees per txn; percentage is of the principal (max 100%).</li>
-              <li>No matching active rule means customer fee is ₹0.</li>
+              <li>No matching live rule means customer fee is ₹0.</li>
+              <li>Saving a change ends the old fee and starts a new version from now; history stays in Rate audit.</li>
+              <li>GST on the fee follows Tax → Tax settings.</li>
             </ul>
           </div>
         </div>
 
-        <div className="rounded-2xl border bg-white p-5" style={{ borderColor: B.border }}>
+        <div className="rounded-2xl border p-5" style={{ borderColor: B.border, background: B.card }}>
           <div className="mb-4 flex flex-wrap items-end gap-3">
             <label className="block text-sm">
               <span className="mb-1 block font-medium" style={{ color: B.muted }}>
@@ -482,93 +471,106 @@ export default function ServiceChargesPage() {
                 ))}
               </select>
             </label>
-            <label className="flex items-center gap-2 pb-2 text-sm">
-              <input
-                type="checkbox"
-                checked={activeOnly}
-                onChange={(e) => setActiveOnly(e.target.checked)}
-              />
-              <span style={{ color: B.muted }}>Active only</span>
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium" style={{ color: B.muted }}>
+                Status
+              </span>
+              <select
+                className="rounded-xl border px-3 py-2 text-sm"
+                style={{ borderColor: B.border }}
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as "" | FeeStatus)}
+              >
+                <option value="live">Live</option>
+                <option value="scheduled">Scheduled</option>
+                <option value="ended">Ended</option>
+                <option value="">All</option>
+              </select>
             </label>
-            <button
-              type="button"
-              onClick={() => void load()}
-              className="rounded-xl border px-3 py-2 text-sm font-semibold"
-              style={{ borderColor: B.border, color: B.blue }}
-            >
-              Refresh
-            </button>
+            <Btn variant="secondary" onClick={() => void load()}>
+              <RefreshCw size={14} /> Refresh
+            </Btn>
           </div>
 
           {loading ? (
             <p className="text-sm" style={{ color: B.muted }}>
-              Loading…
+              Loading customer fees…
             </p>
           ) : !filtered.length ? (
             <p className="text-sm" style={{ color: B.muted }}>
-              No service charges match these filters.
+              No customer fees match these filters.
             </p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] text-left text-sm">
+              <table className="w-full min-w-[820px] text-left text-sm">
                 <thead>
                   <tr
                     className="border-b text-xs uppercase tracking-wide"
                     style={{ borderColor: B.border, color: B.muted }}
                   >
                     <th className="py-2 pr-3 font-semibold">Service</th>
-                    <th className="py-2 pr-3 font-semibold">Role</th>
+                    <th className="py-2 pr-3 font-semibold">Charged to</th>
                     <th className="py-2 pr-3 font-semibold">Fee</th>
                     <th className="py-2 pr-3 font-semibold">Slab</th>
                     <th className="py-2 pr-3 font-semibold">Effective</th>
                     <th className="py-2 pr-3 font-semibold">Status</th>
-                    <th className="py-2 font-semibold text-right">Actions</th>
+                    <th className="py-2 text-right font-semibold">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((row) => (
-                    <tr key={row.id} className="border-b last:border-0" style={{ borderColor: B.border }}>
-                      <td className="py-3 pr-3">
-                        <div className="font-medium" style={{ color: B.blue }}>
-                          {row.serviceName}
-                        </div>
-                        <div className="font-mono text-[11px]" style={{ color: B.muted }}>
-                          {row.serviceCode}
-                        </div>
-                      </td>
-                      <td className="py-3 pr-3">{roleLabel(row.role)}</td>
-                      <td className="py-3 pr-3 font-semibold" style={{ color: B.blue }}>
-                        {formatFee(row.ruleType, row.value)}
-                      </td>
-                      <td className="py-3 pr-3 text-xs" style={{ color: B.muted }}>
-                        {row.minAmount || row.maxAmount
-                          ? `₹${row.minAmount ?? "0"} – ${row.maxAmount ? `₹${row.maxAmount}` : "∞"}`
-                          : "Any amount"}
-                      </td>
-                      <td className="py-3 pr-3 text-xs whitespace-nowrap" style={{ color: B.muted }}>
-                        {formatWhen(row.effectiveFrom)}
-                      </td>
-                      <td className="py-3 pr-3">
-                        <button
-                          type="button"
-                          onClick={() => void toggleActive(row)}
-                          className="rounded-lg px-2 py-1 text-xs font-semibold"
-                          style={{
-                            background: row.isActive ? "rgba(22,163,74,0.12)" : "rgba(100,116,139,0.12)",
-                            color: row.isActive ? "#15803d" : B.muted,
-                          }}
-                        >
-                          {row.isActive ? "Active" : "Off"}
-                        </button>
-                      </td>
-                      <td className="py-3 text-right">
-                        <TableActionButtons
-                          onEdit={() => startEdit(row)}
-                          onDelete={() => void removeRow(row)}
-                        />
-                      </td>
-                    </tr>
-                  ))}
+                  {filtered.map((row) => {
+                    const status = statusOf(row, now);
+                    const chip = STATUS_CHIP[status];
+                    return (
+                      <tr key={row.id} className="border-b last:border-0" style={{ borderColor: B.border }}>
+                        <td className="py-3 pr-3">
+                          <div className="font-medium" style={{ color: B.blue }}>
+                            {row.serviceName}
+                          </div>
+                          <div className="font-mono text-[11px]" style={{ color: B.muted }}>
+                            {row.serviceCode}
+                          </div>
+                        </td>
+                        <td className="py-3 pr-3">
+                          <div>{feePayerLabel(row.role)}</div>
+                          <div className="text-[11px]" style={{ color: B.muted }}>
+                            {row.providerName ?? "All providers"}
+                          </div>
+                        </td>
+                        <td className="py-3 pr-3 font-semibold" style={{ color: B.blue }}>
+                          {ruleLabel(row.ruleType, row.value)}
+                        </td>
+                        <td className="py-3 pr-3 text-xs" style={{ color: B.muted }}>
+                          {slabLabel(row.minAmount, row.maxAmount)}
+                        </td>
+                        <td className="whitespace-nowrap py-3 pr-3 text-xs" style={{ color: B.muted }}>
+                          {formatWhen(row.effectiveFrom)}
+                          {row.effectiveTo ? ` → ${formatWhen(row.effectiveTo)}` : ""}
+                        </td>
+                        <td className="py-3 pr-3">
+                          <Chip tone={chip.tone}>{chip.label}</Chip>
+                        </td>
+                        <td className="py-3 text-right">
+                          {status === "ended" ? (
+                            <span className="text-xs" style={{ color: B.muted }}>
+                              —
+                            </span>
+                          ) : (
+                            <div className="flex justify-end gap-1.5">
+                              {status === "live" ? (
+                                <Btn variant="secondary" className="px-2 py-1 text-xs" onClick={() => startEdit(row)}>
+                                  <Pencil size={13} /> Edit
+                                </Btn>
+                              ) : null}
+                              <Btn variant="destructive" className="px-2 py-1 text-xs" onClick={() => endRow(row)}>
+                                <Trash2 size={13} /> End
+                              </Btn>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -576,17 +578,14 @@ export default function ServiceChargesPage() {
         </div>
       </div>
 
-      {pendingConfirm ? (
-        <ConfirmModal
-          title={pendingConfirm.title}
-          message={pendingConfirm.message}
-          confirmLabel={pendingConfirm.confirmLabel}
-          tone={pendingConfirm.tone}
-          busy={confirmBusy}
-          onConfirm={() => void pendingConfirm.action()}
-          onClose={() => {
-            if (!confirmBusy) setPendingConfirm(null);
-          }}
+      {saveReq ? (
+        <SaveConfirmModal
+          title={saveReq.title}
+          changes={saveReq.changes}
+          warnings={saveReq.warnings}
+          busy={saving}
+          onConfirm={(reason) => void runSave(reason)}
+          onClose={() => setSaveReq(null)}
         />
       ) : null}
     </AdminShell>

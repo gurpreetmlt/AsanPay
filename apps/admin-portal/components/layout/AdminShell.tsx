@@ -134,15 +134,9 @@ const COMMISSION: NavItem[] = [
       { href: "/service-charges", label: "Customer fees", icon: { lib: "lucide", icon: IndianRupee } },
       { href: "/tax-commission/overrides", label: "Agent custom rates", icon: { lib: "lucide", icon: GitBranch } },
       { href: "/tax-commission/payouts", label: "Payouts", icon: { lib: "lucide", icon: ScrollText } },
-      {
-        href: "/tax-commission/underwater",
-        label: "Underwater",
-        icon: { lib: "lucide", icon: AlertTriangle },
-      },
       { href: "/tax-commission/recon", label: "Commission check", icon: { lib: "lucide", icon: Scale } },
       { href: "/tax-commission/rate-audit", label: "Rate history", icon: { lib: "lucide", icon: History } },
       { href: "/tax-commission/schemes", label: "Schemes (advanced)", icon: { lib: "lucide", icon: Percent } },
-      { href: "/tax-commission/what-if", label: "What-if (fixed rules)", icon: { lib: "lucide", icon: Calculator } },
     ],
   },
 ];

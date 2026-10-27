@@ -40,11 +40,9 @@ export const SECTION_GROUPS: Record<
       { href: "/service-charges", label: "Customer fees" },
       { href: "/tax-commission/overrides", label: "Agent custom rates" },
       { href: "/tax-commission/payouts", label: "Payouts" },
-      { href: "/tax-commission/underwater", label: "Underwater" },
       { href: "/tax-commission/recon", label: "Commission check" },
       { href: "/tax-commission/rate-audit", label: "Rate history" },
       { href: "/tax-commission/schemes", label: "Schemes (advanced)" },
-      { href: "/tax-commission/what-if", label: "What-if (fixed rules)" },
     ],
   },
   tax: {

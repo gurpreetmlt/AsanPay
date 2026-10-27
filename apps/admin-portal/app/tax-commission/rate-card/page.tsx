@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { SectionTabs } from "@/components/layout/SectionTabs";
@@ -23,7 +23,9 @@ export default function TaxCommissionRateCardPage() {
     <AdminShell>
       <div className="mx-auto w-full max-w-[1600px] space-y-5 p-6">
         <SectionTabs group="commission" />
-        <RateCardScreen />
+        <Suspense fallback={<p className="text-sm text-slate-500">Loading rate card…</p>}>
+          <RateCardScreen />
+        </Suspense>
       </div>
     </AdminShell>
   );

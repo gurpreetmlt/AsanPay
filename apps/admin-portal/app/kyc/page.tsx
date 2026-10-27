@@ -73,6 +73,23 @@ export default function KycPage() {
   const router = useRouter();
   const hydrated = useAuthHydrated();
   const accessToken = useAuthStore((s) => s.accessToken);
+
+  useEffect(() => {
+    if (hydrated && !accessToken) router.replace("/login");
+  }, [hydrated, accessToken, router]);
+
+  if (!hydrated || !accessToken) return null;
+
+  return (
+    <AdminShell>
+      <KycBody />
+    </AdminShell>
+  );
+}
+
+/** Rendered inside AdminShell so it can read and refresh the shared alert badges. */
+function KycBody() {
+  const router = useRouter();
   const { badges, refresh: refreshAlerts } = useAdminAlerts();
 
   const [tab, setTab] = useState<KycTab>("pending");
@@ -99,13 +116,8 @@ export default function KycPage() {
   }, [tab, flaggedOnly]);
 
   useEffect(() => {
-    if (!hydrated) return;
-    if (!accessToken) {
-      router.replace("/login");
-      return;
-    }
     void load();
-  }, [hydrated, accessToken, router, load]);
+  }, [load]);
 
   async function openDocsPreview(row: KycRow) {
     if (!row.hasKycDocs) {
@@ -172,14 +184,12 @@ export default function KycPage() {
     }
   }
 
-  if (!hydrated || !accessToken) return null;
-
   const emptyText = flaggedOnly
     ? `No ${tab} KYC entries with flagged or rejected photos`
     : `No ${tab} KYC entries`;
 
   return (
-    <AdminShell>
+    <>
       <div className="mx-auto w-full max-w-[1600px] space-y-5 p-4 md:p-6">
         <div>
           <h1 className="text-xl font-bold md:text-2xl" style={{ color: B.blue }}>
@@ -429,6 +439,6 @@ export default function KycPage() {
           setPreviewAgent("");
         }}
       />
-    </AdminShell>
+    </>
   );
 }

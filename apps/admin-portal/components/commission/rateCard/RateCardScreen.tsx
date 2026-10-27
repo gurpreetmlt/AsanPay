@@ -1,22 +1,23 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "react-hot-toast";
-import { ChevronDown, ChevronRight, HelpCircle, Info, Search, Sparkles, TableProperties } from "lucide-react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { AlertTriangle, ChevronDown, ChevronRight, HelpCircle, Info, Pencil, Receipt, Search, Sparkles, TableProperties } from "lucide-react";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { apiErrorMessage } from "@/lib/taxCommissionUtils";
 import { PreviewPanel } from "./PreviewPanel";
 import { SaveConfirmModal } from "./SaveConfirmModal";
 import { ServiceEditor } from "./ServiceEditor";
-import { TenantTaxCard } from "./TenantTaxCard";
+import { TaxSummary } from "./TaxSummary";
+import { usePendingSave } from "./usePendingSave";
 import {
   ROLE_LABEL,
   SCHEME_ROLES,
   inr,
   pct,
   slabLabel,
-  type PendingChange,
   type PreviewData,
   type RateCardData,
   type RoleSplit,
@@ -25,9 +26,12 @@ import {
 } from "./types";
 import { Chip } from "./ui";
 
-type SaveRequest = { title: string; changes: PendingChange[]; warnings: string[] };
-
 const DEFAULT_PREVIEW_AMOUNT = "2000";
+
+/** Company loses money on a slab, or a role earns ₹0 on it. */
+function hasLossOrMissing(row: ServiceRow): boolean {
+  return row.slabs.some((s) => s.underwater || s.missingRoles.length > 0);
+}
 
 /** No slabs → the server's sample (₹2,000 within service limits); slabs → ₹2,000 if a slab covers it. */
 function defaultAmountFor(row: ServiceRow | undefined): string {
@@ -121,9 +125,15 @@ export function RateCardScreen() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
   const [query, setQuery] = useState("");
+  const viewParam = useSearchParams().get("view");
+  const [lossOnly, setLossOnly] = useState(viewParam === "loss");
+  const [seenViewParam, setSeenViewParam] = useState(viewParam);
+  if (seenViewParam !== viewParam) {
+    setSeenViewParam(viewParam);
+    setLossOnly(viewParam === "loss");
+  }
 
-  const [saveReq, setSaveReq] = useState<SaveRequest | null>(null);
-  const [saving, setSaving] = useState(false);
+  const { saveReq, setSaveReq, saving, runSave } = usePendingSave(() => setVersion((v) => v + 1));
 
   const [previewServiceId, setPreviewServiceId] = useState("");
   const [previewAmount, setPreviewAmount] = useState(DEFAULT_PREVIEW_AMOUNT);
@@ -190,47 +200,21 @@ export function RateCardScreen() {
     const out: Array<{ category: string; rows: ServiceRow[] }> = [];
     for (const s of data?.services ?? []) {
       if (q && !`${s.serviceName} ${s.serviceCode} ${s.categoryName}`.toLowerCase().includes(q)) continue;
+      if (lossOnly && !hasLossOrMissing(s)) continue;
       const last = out[out.length - 1];
       if (last && last.category === s.categoryName) last.rows.push(s);
       else out.push({ category: s.categoryName, rows: [s] });
     }
     return out;
-  }, [data, query]);
+  }, [data, query, lossOnly]);
+
+  const lossCount = useMemo(() => (data?.services ?? []).filter(hasLossOrMissing).length, [data]);
 
   function toggle(row: ServiceRow) {
     setExpanded((cur) => (cur === row.serviceId ? null : row.serviceId));
     if (activePreviewId !== row.serviceId) {
       setPreviewServiceId(row.serviceId);
       setPreviewAmount(defaultAmountFor(row));
-    }
-  }
-
-  async function runSave(reason: string) {
-    if (!saveReq) return;
-    setSaving(true);
-    let done = 0;
-    try {
-      for (const c of saveReq.changes) {
-        const body = { ...c.body, reason };
-        const r = c.method === "delete" ? await api.delete(c.url, { data: body }) : await api.post(c.url, body);
-        if (!r.data.success) throw new Error(r.data.message);
-        const warning = (r.data.data as { warning?: string | null } | undefined)?.warning;
-        if (warning) toast(warning, { icon: "⚠️" });
-        done += 1;
-      }
-      toast.success(done === 1 ? "Change saved" : `${done} changes saved`);
-      setSaveReq(null);
-    } catch (err) {
-      const failed = saveReq.changes[done];
-      toast.error(
-        `${failed ? `${failed.label}: ` : ""}${apiErrorMessage(err, "Save failed. Try again.")}${
-          done > 0 ? ` (${done} earlier change${done === 1 ? "" : "s"} saved)` : ""
-        }`,
-      );
-      if (done > 0) setSaveReq(null);
-    } finally {
-      setSaving(false);
-      if (done > 0) setVersion((v) => v + 1);
     }
   }
 
@@ -276,7 +260,27 @@ export function RateCardScreen() {
       </div>
 
       {data ? (
-        <TenantTaxCard key={data.at} tax={data.tenantTax} onRequestSave={setSaveReq} />
+        <section className="rounded-2xl border p-4" style={{ borderColor: B.border, background: B.card }}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="flex items-center gap-1.5 text-sm font-bold" style={{ color: B.blue }}>
+                <Receipt size={15} style={{ color: B.blueLight }} /> Default tax
+              </p>
+              <p className="text-xs" style={{ color: B.muted }}>
+                Used by every service without its own tax. Provider side: output GST {pct(data.tenantTax.providerOutputGstPercent)} ·
+                TDS {pct(data.tenantTax.providerTdsPercent)}.
+              </p>
+            </div>
+            <Link
+              href="/tax-commission/tax"
+              className="inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-sm font-semibold transition hover:brightness-105"
+              style={{ borderColor: B.border, background: "var(--admin-card)", color: B.blue }}
+            >
+              <Pencil size={14} /> Edit in Tax
+            </Link>
+          </div>
+          <TaxSummary tax={data.tenantTax} className="mt-3" />
+        </section>
       ) : null}
 
       <div
@@ -293,9 +297,30 @@ export function RateCardScreen() {
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
         <section className="min-w-0 rounded-2xl border" style={{ borderColor: B.border, background: B.card }}>
           <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3" style={{ borderColor: B.border }}>
-            <p className="text-sm font-bold" style={{ color: B.blue }}>
-              Services {data ? `(${data.services.length})` : ""}
-            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-bold" style={{ color: B.blue }}>
+                Services {data ? `(${data.services.length})` : ""}
+              </p>
+              <div className="flex rounded-xl border p-0.5 text-xs font-semibold" style={{ borderColor: B.border }}>
+                <button
+                  type="button"
+                  onClick={() => setLossOnly(false)}
+                  className="rounded-lg px-2.5 py-1 transition"
+                  style={!lossOnly ? { background: B.blueLight, color: "#fff" } : { color: B.muted }}
+                >
+                  All
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLossOnly(true)}
+                  className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition"
+                  style={lossOnly ? { background: B.danger, color: "#fff" } : { color: lossCount ? B.danger : B.muted }}
+                  title="Services where the company loses money or a role earns ₹0"
+                >
+                  <AlertTriangle size={12} /> Loss &amp; missing ({lossCount})
+                </button>
+              </div>
+            </div>
             <label className="flex items-center gap-2 rounded-xl border px-3 py-1.5" style={{ borderColor: B.border }}>
               <Search size={14} style={{ color: B.muted }} />
               <input
@@ -317,7 +342,11 @@ export function RateCardScreen() {
             </p>
           ) : groups.length === 0 ? (
             <p className="px-4 py-8 text-sm" style={{ color: B.muted }}>
-              {query ? `No service matches "${query}".` : "No active services."}
+              {query
+                ? `No service matches "${query}"${lossOnly ? " in Loss & missing" : ""}.`
+                : lossOnly
+                  ? "No service loses money and every role earns on every slab."
+                  : "No active services."}
             </p>
           ) : (
             <div className="overflow-x-auto">

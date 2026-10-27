@@ -117,7 +117,8 @@ Aadhaar Pay / BBPS rates; GST on DMT fee included vs on top (CA).
 Sidebar is now two groups: **Commission** (Rate card · Customer fees · Agent custom rates · Payouts ·
 Underwater · Commission check · Rate history · Schemes (advanced) · What-if (fixed rules)) and **Tax**
 (Tax settings · Tax registers · PAN gaps · CA pack · Month lock). URLs unchanged; `/tax-commission` →
-Rate card. Remaining cleanup (tax editing only under Tax, retire What-if / Underwater) = PL-17 step 2.
+Rate card. PL-17 step 2 (27 Oct): tax editing moved to Tax → Tax settings (Rate card read-only), What-if /
+Underwater retired (Rate card preview / "Loss & missing" view), Customer fees save through the versioned API.
 
 Original plan:
 - Tax & Commission sidebar: **Rate card · Payouts · Tax · Advanced** (Advanced = Schemes (raw rules),

@@ -16,9 +16,9 @@ import {
   type RuleType,
   type SchemeRole,
   type ServiceRow,
-  type TaxView,
 } from "./types";
-import { Btn, Chip, GstModeSwitch, NumberField, TogglePercentField, percentError } from "./ui";
+import { Btn, Chip, NumberField, percentError } from "./ui";
+import { TaxSummary } from "./TaxSummary";
 
 type IncomeDraft = {
   key: string;
@@ -42,22 +42,7 @@ type FeeDraft = {
   maxAmount: string;
 };
 
-type TaxDraft = Pick<TaxView, "tdsApplies" | "gstOnFeeApplies" | "gstOnFeeInclusive"> & {
-  tdsPercent: string;
-  gstOnFeePercent: string;
-};
-
 const num = (v: string) => String(Number(v));
-
-function taxDraftOf(t: TaxView): TaxDraft {
-  return {
-    tdsApplies: t.tdsApplies,
-    tdsPercent: num(t.tdsPercent),
-    gstOnFeeApplies: t.gstOnFeeApplies,
-    gstOnFeePercent: num(t.gstOnFeePercent),
-    gstOnFeeInclusive: t.gstOnFeeInclusive,
-  };
-}
 
 function sharesDraftOf(row: ServiceRow): Record<SchemeRole, string> {
   return {
@@ -112,8 +97,6 @@ export function ServiceEditor({
   const [endIncomeIds, setEndIncomeIds] = useState<string[]>([]);
   const [pendingFees, setPendingFees] = useState<FeeDraft[]>([]);
   const [endFeeIds, setEndFeeIds] = useState<string[]>([]);
-  const [tax, setTax] = useState<TaxDraft>(() => taxDraftOf(row.tax));
-  const [resetTax, setResetTax] = useState(false);
 
   const ref = row.reference;
   const scopeLabel = providerId ? providerName : "All providers";
@@ -123,19 +106,6 @@ export function ServiceEditor({
   const shareErrors = Object.fromEntries(
     SCHEME_ROLES.map((r) => [r, shares[r].trim() === "" ? null : percentError(shares[r], `${ROLE_LABEL[r]} share`)]),
   ) as Record<SchemeRole, string | null>;
-
-  const taxErrors = {
-    tds: tax.tdsApplies ? percentError(tax.tdsPercent, "Agent TDS %") : null,
-    gst: tax.gstOnFeeApplies ? percentError(tax.gstOnFeePercent, "GST on fee %") : null,
-  };
-  const baseTax = taxDraftOf(row.tax);
-  const taxDirty =
-    !resetTax &&
-    (tax.tdsApplies !== baseTax.tdsApplies ||
-      !samePercent(tax.tdsPercent, baseTax.tdsPercent) ||
-      tax.gstOnFeeApplies !== baseTax.gstOnFeeApplies ||
-      !samePercent(tax.gstOnFeePercent, baseTax.gstOnFeePercent) ||
-      tax.gstOnFeeInclusive !== baseTax.gstOnFeeInclusive);
 
   const incomeErrors = pendingIncome.map(incomeRowError);
   const feeErrors = pendingFees.map(feeRowError);
@@ -233,33 +203,11 @@ export function ServiceEditor({
         });
       }
     }
-    if (resetTax) {
-      out.push({
-        label: `${svc} · tax`,
-        detail: "Use default tax settings",
-        method: "delete",
-        url: `/admin/rate-card/tax/${row.serviceId}`,
-        body: {},
-      });
-    } else if (taxDirty) {
-      out.push({
-        label: `${svc} · tax`,
-        detail: `Agent TDS ${tax.tdsApplies ? pct(tax.tdsPercent) : "off"} · GST on fee ${
-          tax.gstOnFeeApplies ? `${pct(tax.gstOnFeePercent)} ${tax.gstOnFeeInclusive ? "included in fee" : "added on top"}` : "off"
-        }`,
-        method: "post",
-        url: "/admin/rate-card/tax",
-        body: { serviceId: row.serviceId, ...tax },
-      });
-    }
     return out;
-  }, [row, endIncomeIds, pendingIncome, endFeeIds, pendingFees, shares, resetTax, taxDirty, tax, providerId, providerName, scopeLabel]);
+  }, [row, endIncomeIds, pendingIncome, endFeeIds, pendingFees, shares, providerId, providerName, scopeLabel]);
 
   const hasErrors =
-    incomeErrors.some(Boolean) ||
-    feeErrors.some(Boolean) ||
-    Object.values(shareErrors).some(Boolean) ||
-    (!resetTax && (Boolean(taxErrors.tds) || Boolean(taxErrors.gst)));
+    incomeErrors.some(Boolean) || feeErrors.some(Boolean) || Object.values(shareErrors).some(Boolean);
 
   function discard() {
     setShares(sharesDraftOf(row));
@@ -267,8 +215,6 @@ export function ServiceEditor({
     setEndIncomeIds([]);
     setPendingFees([]);
     setEndFeeIds([]);
-    setTax(taxDraftOf(row.tax));
-    setResetTax(false);
   }
 
   function save() {
@@ -281,9 +227,6 @@ export function ServiceEditor({
     }
     if (pendingFees.length > 0 || endFeeIds.length > 0) {
       warnings.push("Customer fee changes what agents are charged on every new txn of this service.");
-    }
-    if (tax.gstOnFeeInclusive !== baseTax.gstOnFeeInclusive && taxDirty) {
-      warnings.push("GST on fee mode changes what customers pay for this service. Confirm with your CA.");
     }
     onRequestSave({ title: `Save ${row.serviceName}`, changes, warnings });
   }
@@ -644,7 +587,7 @@ export function ServiceEditor({
               <Plus size={14} /> Add fee slab
             </Btn>
             <p className="text-[11px]" style={{ color: B.muted }}>
-              Same fees as Commission → Customer fees. GST on the fee follows the Tax panel.
+              Same fees as Commission → Customer fees. GST on the fee follows Tax → Tax settings.
             </p>
           </div>
         </div>
@@ -707,63 +650,23 @@ export function ServiceEditor({
           </p>
         </div>
 
-        {/* Tax */}
+        {/* Tax — read-only; edited under Tax → Tax settings */}
         <div className="flex h-full flex-col rounded-2xl border p-4" style={sectionStyle}>
           <div className="mb-3 flex items-center justify-between gap-2">
             <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide" style={{ color: B.blueLight }}>
               <Receipt size={14} /> Tax
             </p>
-            {resetTax ? (
-              <Chip tone="amber">Will use default</Chip>
-            ) : row.tax.source === "service" ? (
-              <Chip tone="blue">Custom</Chip>
-            ) : (
-              <Chip tone="muted">Uses default</Chip>
-            )}
+            {row.tax.source === "service" ? <Chip tone="blue">Custom</Chip> : <Chip tone="muted">Uses default</Chip>}
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-            <TogglePercentField
-              label="Agent TDS"
-              on={tax.tdsApplies}
-              onToggle={(v) => setTax((t) => ({ ...t, tdsApplies: v }))}
-              value={tax.tdsPercent}
-              onChange={(v) => setTax((t) => ({ ...t, tdsPercent: v }))}
-              disabled={resetTax}
-              error={resetTax ? null : taxErrors.tds}
-            />
-            <TogglePercentField
-              label="GST on customer fee"
-              on={tax.gstOnFeeApplies}
-              onToggle={(v) => setTax((t) => ({ ...t, gstOnFeeApplies: v }))}
-              value={tax.gstOnFeePercent}
-              onChange={(v) => setTax((t) => ({ ...t, gstOnFeePercent: v }))}
-              disabled={resetTax}
-              error={resetTax ? null : taxErrors.gst}
-            />
-          </div>
-          <div className="mt-3">
-            <GstModeSwitch
-              inclusive={tax.gstOnFeeInclusive}
-              onChange={(v) => setTax((t) => ({ ...t, gstOnFeeInclusive: v }))}
-              disabled={resetTax || !tax.gstOnFeeApplies}
-            />
-          </div>
+          <TaxSummary tax={row.tax} />
           <div className="mt-auto pt-3">
-            {row.tax.source === "service" ? (
-              resetTax ? (
-                <Btn variant="secondary" className="w-full" onClick={() => setResetTax(false)}>
-                  <Undo2 size={14} /> Keep custom tax
-                </Btn>
-              ) : (
-                <Btn variant="secondary" className="w-full" onClick={() => setResetTax(true)}>
-                  Use default
-                </Btn>
-              )
-            ) : (
-              <p className="text-[11px]" style={{ color: B.muted }}>
-                Change any value to give this service its own tax settings.
-              </p>
-            )}
+            <Link
+              href={`/tax-commission/tax?service=${row.serviceId}`}
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border px-3.5 py-2 text-sm font-semibold transition hover:brightness-105"
+              style={{ borderColor: B.border, background: "var(--admin-card)", color: B.blue }}
+            >
+              <Pencil size={14} /> Edit in Tax
+            </Link>
           </div>
         </div>
       </div>

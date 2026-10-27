@@ -63,3 +63,15 @@ export async function cacheDel(key: string): Promise<void> {
 export function isCacheEnabled(): boolean {
   return Boolean(env.REDIS_URL);
 }
+
+/** Health check: "off" when REDIS_URL is unset (cache is optional). */
+export async function cachePing(): Promise<"ok" | "down" | "off"> {
+  const redis = getClient();
+  if (!redis) return "off";
+  try {
+    if (redis.status !== "ready") await redis.connect();
+    return (await redis.ping()) === "PONG" ? "ok" : "down";
+  } catch {
+    return "down";
+  }
+}

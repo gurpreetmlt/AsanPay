@@ -7,8 +7,11 @@ One row per feature; details in the section below the table. Newest at the top o
 
 | # | Feature | Surfaces | Size | Status | Design | Task file |
 |---|---------|----------|------|--------|--------|-----------|
+| PL-21 | Admin ops speed — agent 360 page (tabs), bulk approve / reject, saved filters, stuck-txn auto status check, owner alerts (WhatsApp / email) | Backend, admin | L | planned (27 Oct) | — | — |
+| PL-20 | Reports hub (daily summary, service P&L, agent earnings, provider volume; PDF / Excel / CSV) + guided month-end close | Backend, admin | L | planned (27 Oct) | — | — |
+| PL-19 | Admin staff roles (Owner · Finance · Ops · Support) + maker–checker on money actions + admin 2FA / sessions | Backend, admin | L | planned (27 Oct) — next (PL-17 step 2 done) | — | — |
 | PL-18 | Signup flow v2 — 8 steps, password on step 1, name from PAN, photo uploads locked until details filled, shop (15 km) + home (5 km) location | Backend, web, mobile | L | building — Part 1 built 27 Oct; Part 2 (shop + home location, phone-camera QR, 15 km / 5 km geofence, risk flags) built 27 Oct — migrate `0080` + npm install + APK + live test pending; admin Location limits (radius + on/off) built 27 Oct; Part 3 (merge last steps) next | — | [signup-flow-v2.md](TASKS/signup-flow-v2.md) |
-| PL-17 | Admin cleanup — separate Commission / Tax / Support & Risk / Platform settings sidebar, one home per setting, action-first dashboard | Admin | L | building — step 1 (sidebar split) + regroup A (Daily work / Money / Setup) built 27 Oct; tab hubs (B), steps 2–4 planned | — | — |
+| PL-17 | Admin cleanup — separate Commission / Tax / Support & Risk / Platform settings sidebar, one home per setting, action-first dashboard | Admin | L | building — step 1 (sidebar split) + regroup A + step 3 (dashboard) + step 2 (one home per setting) built 27 Oct; tab hubs (B), step 4 next | — | — |
 | PL-16 | Production Postgres on AWS RDS (Mumbai) + decide on a separate production EC2 | Infra | L | idea (27 Oct) — after admin work + RC1 deploy | — | — |
 | PL-15 | Admin "Services" setup page — one page per service (status · provider · limits · customer fee · commission · preview) | Backend, admin | L | idea (27 Oct) — after PL-14 | — | — |
 | PL-14 | Commission rate card + share % (one screen, live preview, safety, Advanced tab) + agent-page Commission card | Backend, admin | L | building — RC1 live 27 Oct (migrated, 65 services × 60/10/5); RC2 built 27 Oct (Rate card screen + editable GST/TDS + Suggested chips, migration 0079 — deploy pending); RC3 / RC6 next | — | [commission-rate-card.md](TASKS/commission-rate-card.md) |
@@ -50,6 +53,38 @@ from home.
 - [ ] Aadhaar OTP address / DOB vs typed values: compare silently and flag for admin review, or skip?
 - [ ] Web live photos (step 8): phone QR or webcam?
 
+## PL-21 — Admin ops speed
+
+**Problem:** Support jumps between 5–6 pages for one agent; queues are approved one by one; stuck txns need
+manual provider checks; owner learns about outages late.
+
+**Plan**
+- Agent 360 page: wallet · txns · KYC · commission · linked accounts · tickets · disputes as tabs.
+- Bulk approve / reject on KYC and fund requests (reason once, per-row result list); export selection.
+- Saved filters on Transactions and queues ("Failed AePS today", "Pending > 2h").
+- Stuck txns: auto status check with the provider every few minutes; one-click refund / resolve with reason.
+- Owner alerts (WhatsApp / email): provider down, low float, failure spike, service losing money.
+
+## PL-20 — Reports hub + month-end close
+
+**Plan**
+- `/reports`: daily summary, service-wise P&L, agent earnings, provider volume — each with Export (PDF → Excel → CSV).
+- Month-end close checklist: recon → commission check → tax registers → CA pack → month lock, with status per step.
+
+## PL-19 — Admin staff roles + maker–checker
+
+**Problem:** Every admin can do everything (rates, treasury, agent blocks). One login mistake or leak = full access.
+
+**Plan**
+- Staff roles: Owner · Finance · Ops · Support; nav + API gated per role (server-side, like agent roles).
+- Maker–checker: fund approvals above a limit, wallet / recon adjustments, rate-card saves, agent blocks need a
+  second admin's approval (pending queue on the dashboard).
+- Admin login 2FA, session list with "Log out other devices", optional IP allow-list.
+
+**Open decisions**
+- [ ] Approval limit for fund requests (₹) that needs a second admin.
+- [ ] Is the owner allowed to self-approve when no second admin is online?
+
 ## PL-17 — Admin cleanup (Commission / Tax split, one home per setting, dashboard)
 
 **Problem:** The same thing is set or shown in 2–3 places: customer fee (Platform Control → Service charges
@@ -69,11 +104,15 @@ ops queues. Dashboard repeats sidebar links and shows no "needs action" or margi
    [Services & badges · Providers & routing] · Agent messages [Promotions · Announcements] · System [Audit log ·
    Safety]). Platform Control / Developer Options groups removed; URLs unchanged.
    Next (B): tabbed hubs — Agents role tabs, Commission "Checks & history" + "Advanced", Tax "Registers & CA pack".
-2. One home per setting: tax editing only under Tax → Tax settings (default + per-service table, versioned API);
-   Rate card shows tax read-only with "Edit in Tax". Service charges page saves through the versioned
-   customer-fee API (reason + Rate audit). Retire What-if (Rate card preview) and Underwater ("Loss & missing"
-   view on the Rate card).
-3. Dashboard: "Needs action" strip (fund requests, KYC, disputes, tickets, stuck txns, low provider balance,
+2. ✅ (built 27 Oct) One home per setting: tax editing only under Tax → Tax settings (default card + per-service
+   table with edit popup, `POST/DELETE /admin/rate-card/tax`, reason + Rate audit); Rate card shows default and
+   per-service tax read-only with "Edit in Tax" (deep link `?service=<id>`). Customer fees page saves through
+   `/admin/rate-card/customer-fee` (Add / Edit / End, reason + Rate audit; Live / Scheduled / Ended filter).
+   Old unversioned writes (`POST/PATCH/DELETE /admin/service-charges`, `PATCH /admin/commission/tax-config/:id`)
+   now return 410. What-if → redirects to Rate card (preview); Underwater → Rate card "Loss & missing" view
+   (`?view=loss`, also the dashboard loss / ₹0 tiles). KYC queue alert badge fixed (body rendered inside the shell).
+3. ✅ (built 27 Oct — `GET /admin/dashboard`, real DB / Redis health; KYC page has the same alerts-outside-shell bug,
+   fix in step 2) Dashboard: "Needs action" strip (fund requests, KYC, disputes, tickets, stuck txns, low provider balance,
    missing commission, loss-making services), Money today (volume, fee income, commission paid, GST, company
    keeps vs yesterday), Provider health; drop quick links that repeat the sidebar.
 4. Fixed ₹ / % rule editing inside the Rate card; Schemes stays as Advanced.
