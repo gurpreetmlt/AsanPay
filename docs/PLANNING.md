@@ -7,6 +7,7 @@ One row per feature; details in the section below the table. Newest at the top o
 
 | # | Feature | Surfaces | Size | Status | Design | Task file |
 |---|---------|----------|------|--------|--------|-----------|
+| PL-23 | Agent settlement bank ₹1 penny drop — bank holder name + PAN name match, real verification ref (replaces stub), cost debited from agent wallet | Backend, web, mobile, admin | M | ready (27 Oct) | — | [settlement-bank-penny-drop.md](TASKS/settlement-bank-penny-drop.md) |
 | PL-22 | KYC photo check speed-ups (client resize, smaller OCR image, background check, parallel Aadhaar QR+OCR) | Backend, web, mobile | M | building — built 27 Oct; npm install (mobile resizer) + Coolify backend/web deploy + APK + real `durationMs` review pending | — | — |
 | PL-21 | Admin ops speed — agent 360 page (tabs), bulk approve / reject, saved filters, stuck-txn auto status check, owner alerts (WhatsApp / email) | Backend, admin | L | planned (27 Oct) | — | — |
 | PL-20 | Reports hub (daily summary, service P&L, agent earnings, provider volume; PDF / Excel / CSV) + guided month-end close | Backend, admin | L | planned (27 Oct) | — | — |
@@ -31,6 +32,23 @@ One row per feature; details in the section below the table. Newest at the top o
 | PL-01 | Linked accounts + role switch (same person, Distributor + Retailer) | Backend, web, mobile, admin | M | building (backend + web + mobile built 26 Oct; migrate `0076` + APK + live test pending; admin card next) | [Figma prompt](PROMPTS/figma-linked-accounts.md) · Figma URL pending | [linked-accounts.md](TASKS/linked-accounts.md) |
 
 ---
+
+## PL-23 — Agent settlement bank ₹1 penny drop
+
+**Problem:** The bank account an agent's settlement payouts go to is never confirmed with the bank — admin
+approves it with a stub reference (`PENNYDROP-STUB-…`), so a wrong or someone else's account can get paid.
+
+**Plan** (details in `docs/TASKS/settlement-bank-penny-drop.md`)
+- On "Add bank" (web + mobile): provider ₹1 penny drop → bank holder name, match with PAN name, real ref saved.
+- Admin "Agent bank accounts": bank name + match pill + penny status; stub removed; "Re-check with bank".
+- Cost (₹1.80 penny drop / ₹0.80 pennyless) debited from the agent's wallet (owner, 27 Oct).
+
+**Open decisions**
+- [ ] Strong match → auto-verify, or admin approves every bank?
+- [ ] Match threshold; charge on "Failed"; penny drop vs pennyless first.
+
+**Notes:** Automatic payout (send settlement to the agent's bank by API) is not in the provider API list we
+have — ask the provider; payouts stay manual with UTR until then.
 
 ## PL-22 — KYC photo check speed-ups
 
