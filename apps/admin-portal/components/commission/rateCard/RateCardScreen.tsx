@@ -405,6 +405,10 @@ export function RateCardScreen() {
       return incomeP != null ? Math.round((incomeP * Number(v)) / 100) : 0;
     });
     const keepsP = (incomeP ?? 0) + toP(s.customerFee) - roleP.reduce((a, b) => a + b, 0);
+    // TDS on each role's gross, rounded down — same as the payout.
+    const tdsScaled = row.tax.tdsApplies ? Math.round(Number(row.tax.tdsPercent) * 10_000) : 0;
+    const tdsP = roleP.map((g) => (g > 0 && tdsScaled > 0 ? Math.floor((g * tdsScaled) / 1_000_000) : 0));
+    const tdsTotalP = tdsP.reduce((a, b) => a + b, 0);
     const setRole = (r: SchemeRole, patch: { mode?: SplitMode; value?: string }) =>
       setInlineSlab((cur) =>
         cur
@@ -484,7 +488,7 @@ export function RateCardScreen() {
                     />
                     {!roleErrors[i] ? (
                       <p className="mt-1 text-[11px] tabular-nums" style={{ color: B.muted }}>
-                        ≈ {inr(roleP[i]! / 100)} on {inr(s.sampleAmount)}
+                        ≈ {inr(roleP[i]! / 100)} on {inr(s.sampleAmount)} · net {inr((roleP[i]! - tdsP[i]!) / 100)} after TDS
                       </p>
                     ) : null}
                   </div>
@@ -498,7 +502,8 @@ export function RateCardScreen() {
                 }}
               >
                 <span>
-                  On {inr(s.sampleAmount)}: provider pays {incomeP != null ? inr(incomeP / 100) : "not set"}
+                  On {inr(s.sampleAmount)}: provider pays {incomeP != null ? inr(incomeP / 100) : "not set"} · TDS{" "}
+                  {row.tax.tdsApplies ? pct(row.tax.tdsPercent) : "off"} held {inr(tdsTotalP / 100)}
                 </span>
                 <span>{keepsP < 0 ? `Company loses ${inr(-keepsP / 100)}` : `Company keeps ${inr(keepsP / 100)}`}</span>
               </div>
