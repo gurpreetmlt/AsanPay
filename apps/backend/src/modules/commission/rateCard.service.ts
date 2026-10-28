@@ -308,6 +308,12 @@ function slabSampleAmount(
 
 /** Agent-paid checks that never pay commission; listing them would flag every role as ₹0. */
 const NO_COMMISSION_SERVICE_CODES = ["BANK_NAME_CHECK", "BANK_PENNY_DROP"];
+/**
+ * Routing-only catalog rows (one per provider API step, e.g. dmt_bank_list, aeps_bank_list). They map each step
+ * to a provider and must stay in the DB, but never earn commission — the agent-facing tiles (Money Transfer,
+ * Cash Withdraw…) carry the rates. Their categories are inactive by design; the code list is a second guard.
+ */
+const ROUTING_ONLY_CATEGORY_CODES = ["AEPS_RAIL", "DMT_RAIL"];
 
 /** GET /admin/rate-card — one row per active service; slab rows with resolved ₹ per role. */
 export async function getRateCard(opts?: { providerId?: string | null }) {
@@ -327,7 +333,14 @@ export async function getRateCard(opts?: { providerId?: string | null }) {
     })
     .from(services)
     .innerJoin(serviceCategories, eq(services.categoryId, serviceCategories.id))
-    .where(and(eq(services.isActive, true), notInArray(services.code, NO_COMMISSION_SERVICE_CODES)))
+    .where(
+      and(
+        eq(services.isActive, true),
+        eq(serviceCategories.isActive, true),
+        notInArray(services.code, NO_COMMISSION_SERVICE_CODES),
+        notInArray(serviceCategories.code, ROUTING_ONLY_CATEGORY_CODES),
+      ),
+    )
     .orderBy(asc(serviceCategories.displayOrder), asc(services.displayOrder));
 
   const [cfg, charges, taxes, tenantTax, providerRows] = await Promise.all([

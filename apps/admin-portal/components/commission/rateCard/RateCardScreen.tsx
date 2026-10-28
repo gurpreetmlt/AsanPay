@@ -55,7 +55,7 @@ const ROW_BG = {
   odd: "rgba(42,92,221,0.035)",
   open: "rgba(42,92,221,0.10)",
   slabEven: "var(--admin-card)",
-  slabOdd: "var(--admin-card)",
+  slabOdd: "rgba(42,92,221,0.045)",
 };
 
 /** Company loses money on a slab, or a role earns ₹0 on it. */
