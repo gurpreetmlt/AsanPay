@@ -291,7 +291,16 @@ export function ServiceTable({
       </colgroup>
       <thead
         className={open ? "sticky z-[3]" : undefined}
-        style={open ? { top: `calc(${STICKY_TOP} + ${CATEGORY_ROW_HEIGHT}px)`, boxShadow: "0 6px 10px -8px rgba(11,42,154,0.5)" } : undefined}
+        style={
+          open
+            ? {
+                top: `calc(${STICKY_TOP} + ${CATEGORY_ROW_HEIGHT}px)`,
+                // Solid base under the tinted service row so slab rows never show through while stuck.
+                background: "var(--admin-card)",
+                boxShadow: "0 8px 14px -10px rgba(11,42,154,0.55)",
+              }
+            : undefined
+        }
       >
         {head}
       </thead>

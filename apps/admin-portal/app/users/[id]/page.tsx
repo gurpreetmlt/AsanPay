@@ -505,65 +505,6 @@ const RESTRICT_LEVELS: Array<{ id: "soft" | "hard" | "freeze" | "none"; label: s
   { id: "none", label: "Lift all", hint: "Back to normal", icon: ShieldCheck, tone: "#16A34A" },
 ];
 
-/** White pill on the blue hero: small label + value with a coloured dot. */
-function HeroChip({ label, value, dot }: { label: string; value: string; dot: string }) {
-  return (
-    <div className="rounded-xl bg-white/15 px-3 py-2 text-white backdrop-blur-sm" style={{ border: "1px solid rgba(255,255,255,0.25)" }}>
-      <p className="text-[10px] font-bold uppercase tracking-wider text-white/75">{label}</p>
-      <p className="mt-0.5 flex items-center gap-1.5 text-sm font-bold capitalize">
-        <span className="h-2 w-2 rounded-full" style={{ background: dot }} />
-        {value}
-      </p>
-    </div>
-  );
-}
-
-/** Stat tile under the hero: coloured icon, label, value, optional sub line. */
-function StatTile({
-  icon: Icon,
-  tone,
-  label,
-  value,
-  sub,
-}: {
-  icon: LucideIcon;
-  tone: string;
-  label: string;
-  value: string;
-  sub?: string;
-}) {
-  return (
-    <div
-      className="agent-lift relative flex min-w-0 items-start gap-3 overflow-hidden rounded-2xl border px-4 py-3.5"
-      style={{ borderColor: B.border, background: "var(--admin-card)" }}
-    >
-      <span className="absolute inset-x-0 top-0 h-[3px]" style={{ background: tone, opacity: 0.85 }} />
-      <span
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"
-        style={{
-          background: `linear-gradient(135deg, color-mix(in srgb, ${tone} 22%, transparent), color-mix(in srgb, ${tone} 8%, transparent))`,
-          color: tone,
-        }}
-      >
-        <Icon size={19} />
-      </span>
-      <div className="min-w-0">
-        <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
-          {label}
-        </p>
-        <p className="truncate text-base font-bold" style={{ color: B.blue }}>
-          {value}
-        </p>
-        {sub ? (
-          <p className="truncate text-[11px]" style={{ color: B.muted }}>
-            {sub}
-          </p>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
 function formatWhen(iso: string | null): string {
   if (!iso) return "";
   return new Date(iso).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
@@ -1083,9 +1024,17 @@ export default function AgentDetailPage() {
         { title: "Verified", hint: "Services unlock", state: agent.kycStatus === "verified" ? "done" : "todo", icon: BadgeCheck },
       ]
     : [];
-  const healthItems: Array<{ label: string; ok: boolean; status: string; hint?: string; icon: LucideIcon; tab: AgentTab }> = agent
+  const lastTxn = recentTxns[0];
+  const healthItems: Array<{ label: string; ok: boolean | null; status: string; hint?: string; icon: LucideIcon; tab: AgentTab }> = agent
     ? [
-        { label: "KYC", ok: agent.kycStatus === "verified", status: kycPill(agent.kycStatus).text, icon: FileCheck2, tab: "kyc" },
+        {
+          label: "KYC",
+          ok: agent.kycStatus === "verified",
+          status: kycPill(agent.kycStatus).text,
+          hint: agent.kyc.panMasked ? `PAN ${agent.kyc.panMasked}` : "PAN not on file",
+          icon: FileCheck2,
+          tab: "kyc",
+        },
         {
           label: "Settlement bank",
           ok: !!activeBank,
@@ -1096,12 +1045,26 @@ export default function AgentDetailPage() {
         },
         { label: "Fund requests", ok: agent.fundRequestEnabled, status: agent.fundRequestEnabled ? "On" : "Off", icon: Banknote, tab: "wallet" },
         { label: "Account", ok: !agent.isFrozen, status: agent.isFrozen ? "Frozen" : "Active", icon: KeyRound, tab: "controls" },
+        {
+          label: "Upline",
+          ok: null,
+          status: agent.parent?.name ?? "Top of network",
+          hint: agent.parent ? `${agent.parent.role ? ROLE_LABEL[agent.parent.role] ?? agent.parent.role : ""} · ${agent.parent.uid ?? ""}` : undefined,
+          icon: Network,
+          tab: "overview",
+        },
+        {
+          label: "Last transaction",
+          ok: null,
+          status: lastTxn ? `${inrText(lastTxn.amount)} · ${lastTxn.status}` : "No transactions",
+          hint: lastTxn ? `${lastTxn.serviceName} · ${new Date(lastTxn.createdAt).toLocaleString("en-IN")}` : undefined,
+          icon: History,
+          tab: "overview",
+        },
       ]
     : [];
-  const healthMissing = healthItems.filter((h) => !h.ok).length;
+  const healthMissing = healthItems.filter((h) => h.ok === false).length;
   const heroWallets = [...(agent?.wallets ?? [])].sort((a, b) => (a.walletType === "main" ? -1 : b.walletType === "main" ? 1 : 0));
-  const lastTxn = recentTxns[0];
-  const kyc = agent ? kycPill(agent.kycStatus) : null;
   const toneColor = { green: "#16A34A", amber: "#D97706", red: "#DC2626", slate: "#64748B" } as const;
 
   function copyUid() {
@@ -1299,14 +1262,6 @@ export default function AgentDetailPage() {
                     </div>
                   </div>
                   <div className="flex flex-col gap-2 sm:items-end">
-                    <div className="flex flex-wrap gap-2">
-                      <HeroChip label="KYC" value={kyc!.text} dot={toneColor[kyc!.tone]} />
-                      <HeroChip
-                        label="Account"
-                        value={agent.isFrozen ? "Frozen" : "Active"}
-                        dot={agent.isFrozen ? toneColor.red : "#4ADE80"}
-                      />
-                    </div>
                     {heroWallets.length ? (
                       <div className="flex flex-wrap gap-2">
                         {heroWallets.map((w) => (
@@ -1322,10 +1277,23 @@ export default function AgentDetailPage() {
                   </div>
                 </div>
                 <div className="relative mt-5 border-t pt-4" style={{ borderColor: "rgba(255,255,255,0.18)" }}>
-                  <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-white/75">
-                    <ShieldCheck size={12} /> Account health
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-white/75">
+                      <ShieldCheck size={12} /> Account health
+                    </span>
+                    <span
+                      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold"
+                      style={
+                        healthMissing
+                          ? { background: "rgba(251,191,36,0.2)", border: "1px solid rgba(251,191,36,0.5)", color: "#FEF3C7" }
+                          : { background: "rgba(74,222,128,0.2)", border: "1px solid rgba(74,222,128,0.5)", color: "#DCFCE7" }
+                      }
+                    >
+                      {healthMissing ? <AlertTriangle size={12} /> : <CircleCheck size={12} />}
+                      {healthMissing ? `${healthMissing} thing${healthMissing === 1 ? "" : "s"} to sort out` : "Fully set up"}
+                    </span>
                   </div>
-                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                  <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
                     {healthItems.map((h) => {
                       const HIcon = h.icon;
                       return (
@@ -1339,59 +1307,28 @@ export default function AgentDetailPage() {
                         >
                           <span
                             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
-                            style={{ background: h.ok ? "rgba(74,222,128,0.22)" : "rgba(251,191,36,0.25)", color: h.ok ? "#86EFAC" : "#FCD34D" }}
+                            style={
+                              h.ok === null
+                                ? { background: "rgba(255,255,255,0.18)", color: "#fff" }
+                                : { background: h.ok ? "rgba(74,222,128,0.22)" : "rgba(251,191,36,0.25)", color: h.ok ? "#86EFAC" : "#FCD34D" }
+                            }
                           >
                             <HIcon size={15} />
                           </span>
                           <span className="min-w-0 flex-1">
                             <span className="block truncate text-[11px] font-semibold text-white/75">{h.label}</span>
-                            <span className="flex items-center gap-1 truncate text-sm font-bold">
-                              <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: h.ok ? "#4ADE80" : "#FBBF24" }} />
-                              {h.status}
+                            <span className="flex min-w-0 items-center gap-1 text-sm font-bold">
+                              {h.ok === null ? null : (
+                                <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: h.ok ? "#4ADE80" : "#FBBF24" }} />
+                              )}
+                              <span className="truncate">{h.status}</span>
                             </span>
                           </span>
                         </button>
                       );
                     })}
-                    <div
-                      className="flex min-w-0 items-center gap-2.5 rounded-xl px-3 py-2 sm:col-span-2 lg:col-span-1"
-                      style={
-                        healthMissing
-                          ? { background: "rgba(251,191,36,0.18)", border: "1px solid rgba(251,191,36,0.45)", color: "#FEF3C7" }
-                          : { background: "rgba(74,222,128,0.18)", border: "1px solid rgba(74,222,128,0.45)", color: "#DCFCE7" }
-                      }
-                    >
-                      {healthMissing ? <AlertTriangle size={16} className="shrink-0" /> : <CircleCheck size={16} className="shrink-0" />}
-                      <span className="text-xs font-bold leading-snug">
-                        {healthMissing ? `${healthMissing} thing${healthMissing === 1 ? "" : "s"} to sort out` : "Fully set up"}
-                      </span>
-                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-4" style={{ background: "var(--admin-bg)" }}>
-                <StatTile icon={kyc!.icon} tone={toneColor[kyc!.tone]} label="KYC" value={kyc!.text} sub={agent.kyc.panMasked ? `PAN ${agent.kyc.panMasked}` : "PAN not on file"} />
-                <StatTile
-                  icon={Landmark}
-                  tone={activeBank ? toneColor.green : toneColor.slate}
-                  label="Settlement bank"
-                  value={activeBank ? `${activeBank.holderName} · ****${activeBank.accountNumberLast4}` : "None active"}
-                  sub={activeBank?.ifsc}
-                />
-                <StatTile
-                  icon={Network}
-                  tone={B.blueLight}
-                  label="Upline"
-                  value={agent.parent?.name ?? "Top of network"}
-                  sub={agent.parent ? `${agent.parent.role ? ROLE_LABEL[agent.parent.role] ?? agent.parent.role : ""} · ${agent.parent.uid ?? ""}` : undefined}
-                />
-                <StatTile
-                  icon={History}
-                  tone={toneColor.slate}
-                  label="Last transaction"
-                  value={lastTxn ? `${inrText(lastTxn.amount)} · ${lastTxn.status}` : "No transactions"}
-                  sub={lastTxn ? `${lastTxn.serviceName} · ${new Date(lastTxn.createdAt).toLocaleString("en-IN")}` : undefined}
-                />
               </div>
             </div>
 
