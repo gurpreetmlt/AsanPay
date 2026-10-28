@@ -18,6 +18,7 @@ import {
   type RuleType,
   type SchemeRole,
   type ServiceRow,
+  type Slab,
 } from "./types";
 import { Btn, Chip, NumberField, SplitModeSwitch, percentError, type SplitMode } from "./ui";
 import { TaxSummary } from "./TaxSummary";
@@ -75,6 +76,35 @@ function sharesDraftOf(row: ServiceRow): Record<SchemeRole, string> {
     distributor: valueOf("distributor"),
     super_distributor: valueOf("super_distributor"),
   };
+}
+
+const slabKeyOf = (s: Slab) => `${s.minAmount ?? ""}|${s.maxAmount ?? ""}`;
+
+/** Slab the live calculation opens on: the one covering ₹2,000 with provider income, else the first. */
+function defaultCalcKey(row: ServiceRow): string {
+  const covers = (s: Slab) =>
+    (s.minAmount == null || Number(s.minAmount) <= 2000) && (s.maxAmount == null || Number(s.maxAmount) >= 2000);
+  const s =
+    row.slabs.find((x) => x.providerIncome != null && covers(x)) ??
+    row.slabs.find((x) => x.providerIncome != null) ??
+    row.slabs[0];
+  return s ? slabKeyOf(s) : "";
+}
+
+/** Server ₹ strings (2 dp) → paise. */
+const paiseOf = (v: string | null | undefined) => Math.round(Number(v ?? 0) * 100);
+
+/** Typed flat ₹ → paise, half-up on the 3rd decimal (same as the payout). */
+function flatPaise(v: string): number {
+  const [whole = "0", frac = ""] = v.trim().split(".");
+  const up = frac.length > 2 && Number(frac[2]) >= 5 ? 1 : 0;
+  return Number(whole || "0") * 100 + Number((frac + "00").slice(0, 2)) + up;
+}
+
+/** % of provider income, half-up to the paisa (same as the payout). */
+function sharePaise(incomePaise: number, percent: string): number {
+  const scaled = Math.round(Number(percent) * 10_000);
+  return incomePaise > 0 && scaled > 0 ? Math.floor((incomePaise * scaled + 500_000) / 1_000_000) : 0;
 }
 
 function flatError(v: string, label: string): string | null {
@@ -143,6 +173,31 @@ export function ServiceEditor({
           : percentError(shares[r], `${ROLE_LABEL[r]} share`),
     ]),
   ) as Record<SchemeRole, string | null>;
+
+  // Live calculation on one slab: unchanged roles use the server figure, edited roles the typed value.
+  const initialShares = useMemo(() => sharesDraftOf(row), [row]);
+  const initialModes = useMemo(() => modesOf(row), [row]);
+  const [calcKey, setCalcKey] = useState(() => defaultCalcKey(row));
+  const calcSlab = row.slabs.find((s) => slabKeyOf(s) === calcKey) ?? row.slabs[0];
+  const tdsPct = row.tax.tdsApplies ? Math.round(Number(row.tax.tdsPercent) * 10_000) : 0;
+  const calcRoles = calcSlab
+    ? SCHEME_ROLES.map((role) => {
+        const v = shares[role].trim();
+        const changed = modes[role] !== initialModes[role] || v !== initialShares[role];
+        let gross: number;
+        if (!changed) gross = paiseOf(calcSlab.roles.find((r) => r.role === role)?.gross);
+        else if (v === "" || shareErrors[role]) gross = 0;
+        else if (modes[role] === "flat") gross = flatPaise(v);
+        else gross = calcSlab.providerIncome != null ? sharePaise(paiseOf(calcSlab.providerIncome), v) : 0;
+        const tds = gross > 0 && tdsPct > 0 ? Math.floor((gross * tdsPct) / 1_000_000) : 0;
+        return { role, gross, tds, net: gross - tds };
+      })
+    : [];
+  const calcIncome = calcSlab?.providerIncome != null ? paiseOf(calcSlab.providerIncome) : null;
+  const calcKeeps = calcSlab
+    ? (calcIncome ?? 0) + paiseOf(calcSlab.customerFee) - calcRoles.reduce((s, r) => s + r.gross, 0)
+    : 0;
+  const rs = (p: number) => inr(p / 100);
 
   const incomeErrors = pendingIncome.map(incomeRowError);
   const feeErrors = pendingFees.map(feeRowError);
@@ -866,6 +921,98 @@ export function ServiceEditor({
           <p className="mt-2 text-[11px]" style={{ color: B.muted }}>
             % = share of what the provider pays · ₹ = flat amount per txn, any amount.
           </p>
+
+          {calcSlab ? (
+            <div className="mt-3 overflow-hidden rounded-xl border" style={{ borderColor: B.border }}>
+              <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2" style={{ background: "var(--admin-secondary)" }}>
+                <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: B.blueLight }}>
+                  Live calculation
+                </span>
+                {row.slabs.length > 1 ? (
+                  <select
+                    aria-label="Slab for the live calculation"
+                    className="max-w-[60%] rounded-lg border px-2 py-1 text-xs"
+                    style={{ borderColor: B.border, background: "var(--admin-card)", color: B.blue }}
+                    value={slabKeyOf(calcSlab)}
+                    onChange={(e) => setCalcKey(e.target.value)}
+                  >
+                    {row.slabs.map((s) => (
+                      <option key={slabKeyOf(s)} value={slabKeyOf(s)}>
+                        {slabLabel(s.minAmount, s.maxAmount)} · on {inr(s.sampleAmount)}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="text-[11px]" style={{ color: B.muted }}>
+                    on {inr(calcSlab.sampleAmount)}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center justify-between border-t px-3 py-2 text-xs" style={{ borderColor: B.border }}>
+                <span style={{ color: B.muted }}>Provider pays (txn of {inr(calcSlab.sampleAmount)})</span>
+                {calcIncome != null ? (
+                  <span className="font-bold tabular-nums" style={{ color: B.blue }}>
+                    {rs(calcIncome)}
+                  </span>
+                ) : (
+                  <Chip tone="amber">Not set</Chip>
+                )}
+              </div>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-t" style={{ borderColor: B.border, color: B.muted }}>
+                    <th className="px-3 py-1.5 text-left font-semibold">Role</th>
+                    <th className="px-3 py-1.5 text-right font-semibold">Gross</th>
+                    <th className="px-3 py-1.5 text-right font-semibold">
+                      TDS {row.tax.tdsApplies ? pct(row.tax.tdsPercent) : "off"}
+                    </th>
+                    <th className="px-3 py-1.5 text-right font-semibold">Net to wallet</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {calcRoles.map((r) => (
+                    <tr key={r.role} className="border-t" style={{ borderColor: B.border }}>
+                      <td className="px-3 py-1.5 font-semibold" style={{ color: B.blue }}>
+                        {ROLE_LABEL[r.role]}
+                        <span className="ml-1 font-normal" style={{ color: B.muted }}>
+                          {shares[r.role].trim() === "" ? "· off" : modes[r.role] === "flat" ? "· flat" : `· ${pct(shares[r.role])}`}
+                        </span>
+                      </td>
+                      <td className="px-3 py-1.5 text-right tabular-nums" style={{ color: B.blue }}>
+                        {rs(r.gross)}
+                      </td>
+                      <td className="px-3 py-1.5 text-right tabular-nums" style={{ color: B.muted }}>
+                        − {rs(r.tds)}
+                      </td>
+                      <td className="px-3 py-1.5 text-right font-bold tabular-nums" style={{ color: B.greenDark }}>
+                        {rs(r.net)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {paiseOf(calcSlab.customerFee) > 0 ? (
+                <div className="flex items-center justify-between border-t px-3 py-1.5 text-xs" style={{ borderColor: B.border, color: B.muted }}>
+                  <span>Customer fee (before GST)</span>
+                  <span className="tabular-nums">+ {inr(calcSlab.customerFee)}</span>
+                </div>
+              ) : null}
+              <div
+                className="flex items-center justify-between border-t px-3 py-2 text-xs font-bold"
+                style={{
+                  borderColor: B.border,
+                  background: calcKeeps < 0 ? "#FEF2F2" : "rgba(18,183,106,0.08)",
+                  color: calcKeeps < 0 ? B.danger : B.greenDark,
+                }}
+              >
+                <span>Company keeps</span>
+                <span className="tabular-nums">{calcKeeps < 0 ? `Loses ${rs(-calcKeeps)}` : rs(calcKeeps)}</span>
+              </div>
+              <p className="border-t px-3 py-1.5 text-[11px]" style={{ borderColor: B.border, color: B.muted }}>
+                Company keeps = provider pays + customer fee − role gross. TDS is held from the agent and paid to the government.
+              </p>
+            </div>
+          ) : null}
           {providerId && SCHEME_ROLES.some((r) => row.shares[r] && row.shares[r]!.providerId === null) ? (
             <p className="mt-2 text-[11px]" style={{ color: B.muted }}>
               Showing the All providers share. Saving here creates a {providerName}-only share.
