@@ -335,18 +335,90 @@ function QuickAction({ icon: Icon, label, hint, onClick }: { icon: LucideIcon; l
 }
 
 /** Agent photo from KYC (personal photo); falls back to initials when missing or it fails to load. */
-function AgentAvatar({ src, name, className, style }: { src: string | null; name: string; className: string; style?: CSSProperties }) {
-  const [failedSrc, setFailedSrc] = useState<string | null>(null);
-  const showPhoto = !!src && failedSrc !== src;
+function AgentAvatar({
+  src,
+  name,
+  className,
+  style,
+}: {
+  /** One URL, or several tried in order (next one on load error). */
+  src: string | null | Array<string | null>;
+  name: string;
+  className: string;
+  style?: CSSProperties;
+}) {
+  const list = (Array.isArray(src) ? src : [src]).filter((s): s is string => !!s);
+  const [failed, setFailed] = useState<string[]>([]);
+  const current = list.find((s) => !failed.includes(s)) ?? null;
   return (
     <span className={`flex items-center justify-center overflow-hidden ${className}`} style={style}>
-      {showPhoto ? (
+      {current ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt={name} className="h-full w-full object-cover" onError={() => setFailedSrc(src)} />
+        <img key={current} src={current} alt={name} className="h-full w-full object-cover" onError={() => setFailed((f) => [...f, current])} />
       ) : (
         initialsOf(name)
       )}
     </span>
+  );
+}
+
+/** One colour per agent role so Super Distributor / Distributor / Retailer read apart at a glance. */
+const ROLE_TONE: Record<string, { fg: string; grad: string; tint: string }> = {
+  super_distributor: { fg: "#7C3AED", grad: "linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%)", tint: "#F5F3FF" },
+  distributor: { fg: "#0D9488", grad: "linear-gradient(135deg, #14B8A6 0%, #0F766E 100%)", tint: "#F0FDFA" },
+  retailer: { fg: "#2A5CDD", grad: "linear-gradient(135deg, #3B6CF0 0%, #1D3FA8 100%)", tint: "#EFF4FF" },
+};
+const roleTone = (role: string | null | undefined) => ROLE_TONE[role ?? ""] ?? ROLE_TONE.retailer!;
+
+/** Network tree card: role-coloured border, glow, tint and avatar; `current` marks the open agent. */
+function NetworkNode({
+  name,
+  role,
+  uid,
+  photo,
+  current = false,
+}: {
+  name: string;
+  role: string | null;
+  uid: string | null;
+  photo: string | null | Array<string | null>;
+  current?: boolean;
+}) {
+  const tone = roleTone(role);
+  return (
+    <div
+      className="flex items-center gap-3 rounded-2xl px-3.5 py-3"
+      style={{
+        border: `2px solid ${tone.fg}`,
+        background: `linear-gradient(90deg, ${tone.tint} 0%, var(--admin-card) 75%)`,
+        boxShadow: `0 10px 24px -14px ${tone.fg}, 0 0 0 ${current ? 4 : 0}px color-mix(in srgb, ${tone.fg} 14%, transparent)`,
+      }}
+    >
+      <AgentAvatar
+        src={photo}
+        name={name}
+        className="h-12 w-12 shrink-0 rounded-xl text-sm font-extrabold text-white shadow-md"
+        style={{ background: tone.grad, boxShadow: `0 0 0 2px #fff, 0 0 0 4px color-mix(in srgb, ${tone.fg} 35%, transparent)` }}
+      />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-bold" style={{ color: B.blue }}>
+          {name}
+        </p>
+        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs" style={{ color: B.muted }}>
+          <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: `color-mix(in srgb, ${tone.fg} 14%, transparent)`, color: tone.fg }}>
+            {role ? ROLE_LABEL[role] ?? role : "—"}
+          </span>
+          <span className="font-mono">{uid}</span>
+        </div>
+      </div>
+      {current ? (
+        <span className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase text-white" style={{ background: tone.grad }}>
+          This agent
+        </span>
+      ) : (
+        <ChevronRight size={18} className="shrink-0 transition group-hover:translate-x-0.5" style={{ color: tone.fg }} />
+      )}
+    </div>
   );
 }
 
@@ -1068,47 +1140,22 @@ export default function AgentDetailPage() {
     <DetailSection title="Network parent" icon={Network}>
       {agent.parent ? (
         <div>
-          <Link
-            href={`/users/${agent.parent.id}`}
-            className="agent-lift group flex items-center gap-3 rounded-2xl border px-3.5 py-3"
-            style={{ borderColor: B.border, background: "linear-gradient(180deg, #F7F9FF 0%, var(--admin-card) 100%)" }}
-          >
-            <span
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-extrabold text-white shadow-sm"
-              style={{ background: B.badgeGrad }}
-            >
-              {initialsOf(agent.parent.name ?? "")}
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-bold" style={{ color: B.blue }}>
-                {agent.parent.name}
-              </p>
-              <p className="text-xs" style={{ color: B.muted }}>
-                {agent.parent.role ? ROLE_LABEL[agent.parent.role] ?? agent.parent.role : "—"} · {agent.parent.uid}
-              </p>
-            </div>
-            <ChevronRight size={18} className="shrink-0 transition group-hover:translate-x-0.5" style={{ color: B.blueLight }} />
-          </Link>
-          <div className="ml-[1.85rem] h-5 w-px border-l-2 border-dashed" style={{ borderColor: B.border }} />
-          <div className="flex items-center gap-3 rounded-2xl border-2 px-3.5 py-3" style={{ borderColor: B.blueLight, background: "rgba(42,92,221,0.06)" }}>
-            <AgentAvatar
-              src={photoSrc}
-              name={agent.name}
-              className="h-11 w-11 shrink-0 rounded-xl bg-white text-sm font-extrabold shadow-sm"
-              style={{ color: B.blueLight }}
+          <Link href={`/users/${agent.parent.id}`} className="agent-lift group block rounded-2xl">
+            <NetworkNode
+              name={agent.parent.name ?? ""}
+              role={agent.parent.role}
+              uid={agent.parent.uid}
+              photo={[
+                `/api/proxy/admin/users/${agent.parent.id}/photo`,
+                `/api/proxy/admin/users/${agent.parent.id}/kyc-documents/personalPhoto`,
+              ]}
             />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-bold" style={{ color: B.blue }}>
-                {agent.name}
-              </p>
-              <p className="text-xs" style={{ color: B.muted }}>
-                {ROLE_LABEL[agent.role] ?? agent.role} · {agent.uid}
-              </p>
-            </div>
-            <span className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase text-white" style={{ background: B.badgeGrad }}>
-              This agent
-            </span>
-          </div>
+          </Link>
+          <div
+            className="ml-[2.1rem] h-6 w-0.5 rounded-full"
+            style={{ background: `linear-gradient(${roleTone(agent.parent.role).fg}, ${roleTone(agent.role).fg})` }}
+          />
+          <NetworkNode name={agent.name} role={agent.role} uid={agent.uid} photo={photoSrc} current />
         </div>
       ) : (
         <EmptyState icon={Network} title="Top of the network" hint="This Super Distributor has no upline." />
