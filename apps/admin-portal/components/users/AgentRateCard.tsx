@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronRight, Pencil, Percent, RotateCcw, Search, TableProperties } from "lucide-react";
 import { fetchApi } from "@/lib/api";
@@ -11,7 +11,7 @@ import { Modal } from "@/components/ui/Modal";
 import { DateField, toYmd } from "@/components/ui/DateField";
 import { SaveConfirmModal } from "@/components/commission/rateCard/SaveConfirmModal";
 import { usePendingSave } from "@/components/commission/rateCard/usePendingSave";
-import { Btn, CategoryHeaderRow, Chip, NumberField, SlabHeaderRow, SplitModeSwitch, openBlockEdge, type SplitMode } from "@/components/commission/rateCard/ui";
+import { Btn, CategoryBlock, ServiceTable, Chip, NumberField, SlabHeaderRow, SplitModeSwitch, openBlockEdge, type SplitMode } from "@/components/commission/rateCard/ui";
 import {
   ROLE_LABEL,
   inr,
@@ -359,7 +359,7 @@ export function AgentRateCard({ userId, role, agentName }: { userId: string; rol
         </div>
       </div>
 
-      <section className="min-w-0 overflow-hidden rounded-2xl border" style={{ borderColor: B.border, background: B.card }}>
+      <section className="min-w-0 overflow-clip rounded-2xl border" style={{ borderColor: B.border, background: B.card }}>
         {loadError ? (
           <p className="px-4 py-8 text-sm font-semibold" style={{ color: B.danger }}>
             {loadError}
@@ -373,19 +373,17 @@ export function AgentRateCard({ userId, role, agentName }: { userId: string; rol
             No service matches “{query}”.
           </p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] text-left text-sm">
-              <tbody>
+          <div className="max-xl:overflow-x-auto">
+            <div className="min-w-[860px]">
                 {groups.map((g, gi) => (
-                  <Fragment key={g.category}>
-                    <CategoryHeaderRow label={g.category} count={g.rows.length} colSpan={6} spaced={gi > 0} />
+                  <CategoryBlock key={g.category} label={g.category} count={g.rows.length} spaced={gi > 0}>
                     {g.rows.map((row, i) => {
                       const open = expanded === row.serviceId;
                       const Icon = getServiceIcon(row.serviceCode);
                       const own = (ratesByService.get(row.serviceId) ?? []).filter(isLive);
                       const whole = own.find((r) => r.minAmount == null && r.maxAmount == null);
                       return (
-                        <Fragment key={row.serviceId}>
+                        <ServiceTable key={row.serviceId} widths={["", "14%", "14%", "14%", "14%", "90px"]} open={open} head={<>
                           <tr
                             className="cursor-pointer border-t transition hover:brightness-[0.98]"
                             style={{
@@ -459,6 +457,7 @@ export function AgentRateCard({ userId, role, agentName }: { userId: string; rol
                               ]}
                             />
                           ) : null}
+</>}>
                           {open
                             ? row.slabs.map((s, si) => {
                                 const cur = rateFor(own, s);
@@ -548,13 +547,12 @@ export function AgentRateCard({ userId, role, agentName }: { userId: string; rol
                                 );
                               })
                             : null}
-                        </Fragment>
+                        </ServiceTable>
                       );
                     })}
-                  </Fragment>
+                  </CategoryBlock>
                 ))}
-              </tbody>
-            </table>
+              </div>
           </div>
         )}
       </section>

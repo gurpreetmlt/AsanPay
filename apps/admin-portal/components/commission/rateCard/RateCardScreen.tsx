@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
@@ -45,7 +45,7 @@ import { TaxSummary } from "./TaxSummary";
 import { usePendingSave } from "./usePendingSave";
 import { draftOfIncome, endSlabRequest, newIncomeKey, type IncomeDraft } from "./IncomeSlabModal";
 import { ROLE_LABEL, SCHEME_ROLES, inr, pct, slabLabel, type RateCardData, type RoleSplit, type ServiceRow, type Slab } from "./types";
-import { Btn, CategoryHeaderRow, Chip, SlabHeaderRow, openBlockEdge } from "./ui";
+import { Btn, CategoryBlock, ServiceTable, Chip, SlabHeaderRow, openBlockEdge } from "./ui";
 
 type ShowFilter = "all" | "loss" | "unset";
 
@@ -652,18 +652,16 @@ export function RateCardScreen() {
                 : "No active services."}
             </p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[860px] text-left text-sm">
-                <tbody>
+            <div className="max-xl:overflow-x-auto">
+              <div className="min-w-[860px]">
                   {groups.map((g, gi) => (
-                    <Fragment key={g.category}>
-                      <CategoryHeaderRow label={g.category} count={g.rows.length} colSpan={7} spaced={gi > 0} />
+                    <CategoryBlock key={g.category} label={g.category} count={g.rows.length} spaced={gi > 0}>
                       {g.rows.map((row, rowIndex) => {
                         const open = expanded === row.serviceId;
                         const single = row.slabs.length === 1 ? row.slabs[0] : null;
                         const Icon = getServiceIcon(row.serviceCode);
                         return (
-                          <Fragment key={row.serviceId}>
+                          <ServiceTable key={row.serviceId} widths={["", "11%", "11%", "11%", "11%", "12%", "150px"]} open={open} head={<>
                             <tr
                               className="cursor-pointer border-t transition hover:brightness-[0.98]"
                               style={{
@@ -716,6 +714,7 @@ export function RateCardScreen() {
                                 ]}
                               />
                             ) : null}
+</>}>
                             {open
                               ? row.slabs.map((s, slabIndex) => (
                                   <tr
@@ -759,13 +758,12 @@ export function RateCardScreen() {
                                 </td>
                               </tr>
                             ) : null}
-                          </Fragment>
+                          </ServiceTable>
                         );
                       })}
-                    </Fragment>
+                    </CategoryBlock>
                   ))}
-                </tbody>
-              </table>
+                </div>
             </div>
           )}
         </section>

@@ -578,7 +578,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
   return (
     <AdminAlertsProvider>
-    <div className="min-h-screen overflow-x-hidden font-sans" style={{ background: B.bg }}>
+    <div className="min-h-screen overflow-x-clip font-sans" style={{ background: B.bg }}>
       <div className="fixed left-0 top-0 z-40 hidden h-screen md:block">
         <SidebarPanel
           openGroups={openGroups}
@@ -606,11 +606,11 @@ export function AdminShell({ children }: { children: ReactNode }) {
         </div>
       ) : null}
 
-      <div className="flex min-h-screen flex-col overflow-x-hidden pb-20 md:ml-64 md:pb-0">
+      <div className="flex min-h-screen flex-col overflow-x-clip pb-20 md:ml-64 md:pb-0">
         <AdminHeader onOpenMobileNav={() => setDrawer(true)} />
         <main
           key={pathname}
-          className="dash-page-animate flex-1 overflow-x-hidden"
+          className="dash-page-animate flex-1 overflow-x-clip"
         >
           {children}
         </main>

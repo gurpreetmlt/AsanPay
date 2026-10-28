@@ -5,7 +5,7 @@ import { toast } from "react-hot-toast";
 import { DocumentPreviewModal, type DocPreviewSlide } from "./DocumentPreviewModal";
 import { DocCheckChips, type DocCheckLabelMap } from "./DocCheckLabels";
 import { B } from "@/lib/brand";
-import { FileImage } from "lucide-react";
+import { FileImage, ZoomIn } from "lucide-react";
 
 const LABELS: Record<string, string> = {
   aadhaarFront: "Aadhaar (Front)",
@@ -66,11 +66,9 @@ export function KycDocumentGrid({
   return (
     <>
       <p className="mb-3 text-xs" style={{ color: B.muted }}>
-        Tap a card to preview. Use arrows in the popup to move between documents. Older submits only
-        saved the filename — agent must re-submit KYC with the new app/web upload so the photo can
-        open here.
+        Tap a photo to open it full size — use the arrows to move between documents.
       </p>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-6">
         {items.map(([key, url]) => {
           const fileName = documentFiles?.[key];
           const real = isRealPhotoUrl(url!);
@@ -78,9 +76,10 @@ export function KycDocumentGrid({
           const src = real ? resolvePreviewSrc(url!) : "";
           const labels = checkLabels?.[key as keyof DocCheckLabelMap];
           return (
-            <div key={key} className="flex flex-col gap-1.5">
+            <div key={key} className="flex min-w-0 flex-col gap-1">
               <button
                 type="button"
+                title={fileName ? `${title} · ${fileName}` : title}
                 onClick={() => {
                   if (real) {
                     const idx = slides.findIndex((s) => s.url === src);
@@ -93,45 +92,27 @@ export function KycDocumentGrid({
                     { duration: 5000 },
                   );
                 }}
-                className="cursor-pointer overflow-hidden rounded-xl border text-left transition hover:opacity-95"
-                style={{ borderColor: B.border, background: B.card }}
+                className="group relative aspect-[4/3] w-full cursor-pointer overflow-hidden rounded-xl border transition hover:-translate-y-0.5 hover:shadow-md"
+                style={{ borderColor: B.border, background: B.bg }}
               >
                 {real ? (
-                  <div className="relative aspect-[16/10] w-full overflow-hidden" style={{ background: B.bg }}>
+                  <>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={src} alt={title} className="h-full w-full object-cover" />
-                    <div
-                      className="absolute bottom-0 left-0 right-0 px-3 py-2"
-                      style={{ background: "linear-gradient(transparent, rgba(0,0,0,0.65))" }}
-                    >
-                      <p className="text-sm font-semibold text-white">{title}</p>
-                      {fileName ? (
-                        <p className="truncate text-[11px] text-white/80">{fileName}</p>
-                      ) : null}
-                    </div>
-                  </div>
+                    <img src={src} alt={title} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
+                    <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition group-hover:bg-black/35 group-hover:opacity-100">
+                      <ZoomIn size={18} />
+                    </span>
+                  </>
                 ) : (
-                  <div className="flex gap-3 p-4">
-                    <div
-                      className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl"
-                      style={{ background: B.secondary, color: B.blueLight }}
-                    >
-                      <FileImage size={22} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold" style={{ color: "var(--admin-text)" }}>
-                        {title}
-                      </p>
-                      <p className="mt-0.5 truncate text-xs" style={{ color: B.muted }}>
-                        {fileName || "On file"}
-                      </p>
-                      <p className="mt-1 text-[11px]" style={{ color: B.muted }}>
-                        No photo to open — tap for details · agent must re-upload
-                      </p>
-                    </div>
-                  </div>
+                  <span className="flex h-full w-full flex-col items-center justify-center gap-1 px-1 text-center" style={{ color: B.muted }}>
+                    <FileImage size={18} style={{ color: B.blueLight }} />
+                    <span className="text-[10px] font-semibold leading-tight">No photo · re-upload</span>
+                  </span>
                 )}
               </button>
+              <p className="truncate text-[11px] font-semibold" style={{ color: "var(--admin-text)" }} title={title}>
+                {title}
+              </p>
               <DocCheckChips labels={labels} />
             </div>
           );

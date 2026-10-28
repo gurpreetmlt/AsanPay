@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { toast } from "react-hot-toast";
 import {
@@ -24,7 +24,7 @@ import { apiErrorMessage, downloadCsv } from "@/lib/taxCommissionUtils";
 import { ExportMenu } from "@/components/ui/ExportMenu";
 import { downloadRateCardWorkbook, rateCardCsv, rateCardReport } from "../rateCard/rateCardTransfer";
 import { ROLE_LABEL, SCHEME_ROLES, inr, pct, slabLabel, type RateCardData, type RoleSplit, type ServiceRow, type Slab } from "../rateCard/types";
-import { CategoryHeaderRow, Chip, SlabHeaderRow, openBlockEdge } from "../rateCard/ui";
+import { CategoryBlock, ServiceTable, Chip, SlabHeaderRow, openBlockEdge } from "../rateCard/ui";
 
 type ShowFilter = "all" | "loss" | "unset";
 
@@ -339,19 +339,17 @@ export function CommissionOverviewScreen() {
               : "No active services."}
           </p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] text-left text-sm">
-              <tbody>
+          <div className="max-xl:overflow-x-auto">
+            <div className="min-w-[980px]">
                 {groups.map((g, gi) => (
-                  <Fragment key={g.category}>
-                    <CategoryHeaderRow label={g.category} count={g.rows.length} colSpan={7} spaced={gi > 0} />
+                  <CategoryBlock key={g.category} label={g.category} count={g.rows.length} spaced={gi > 0}>
                     {g.rows.map((row, i) => {
                       const open = expanded === row.serviceId;
                       const Icon = getServiceIcon(row.serviceCode);
                       const incomes = row.slabs.filter((s) => s.providerIncome != null).map((s) => Number(s.providerIncome));
                       const keeps = row.slabs.map((s) => Number(s.companyKeeps));
                       return (
-                        <Fragment key={row.serviceId}>
+                        <ServiceTable key={row.serviceId} widths={["", "12%", "12%", "12%", "12%", "10%", "12%"]} open={open} head={<>
                           <tr
                             className="cursor-pointer border-t transition hover:brightness-[0.98]"
                             style={{
@@ -424,14 +422,14 @@ export function CommissionOverviewScreen() {
                               ]}
                             />
                           ) : null}
+</>}>
                           {open ? row.slabs.map((s, si) => slabRow(row, s, si)) : null}
-                        </Fragment>
+                        </ServiceTable>
                       );
                     })}
-                  </Fragment>
+                  </CategoryBlock>
                 ))}
-              </tbody>
-            </table>
+              </div>
           </div>
         )}
         <p className="border-t px-4 py-2 text-[11px]" style={{ borderColor: B.border, color: B.muted }}>

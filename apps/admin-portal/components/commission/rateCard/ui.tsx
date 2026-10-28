@@ -200,20 +200,45 @@ export function GstModeSwitch({
 }
 
 /**
- * Category band inside a services table: solid brand bar with icon, name and service count, plus a
- * gap above it (`spaced`) so each category reads as its own block.
+ * One category of a services table: a brand band (icon, name, service count) that sticks under the
+ * top bar while this category is on screen, followed by one ServiceTable per service. `spaced` adds
+ * a gap above so each category reads as its own block.
  */
-export function CategoryHeaderRow({
+export function CategoryBlock({
   label,
   count,
-  colSpan,
   spaced = false,
+  children,
 }: {
   label: string;
   count?: number;
-  colSpan: number;
   spaced?: boolean;
+  children: ReactNode;
 }) {
+  const Icon = getCategoryIconByName(label);
+  return (
+    <div className={spaced ? "mt-4" : undefined}>
+      <div
+        className="sticky z-[4] flex h-14 items-center gap-2.5 px-4"
+        style={{ background: B.badgeGrad, top: STICKY_TOP, boxShadow: "0 6px 12px -8px rgba(11,42,154,0.45)" }}
+      >
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white shadow-sm" style={{ color: B.blueLight }}>
+          <Icon size={16} />
+        </span>
+        <span className="text-sm font-extrabold uppercase tracking-wider text-white">{label}</span>
+        {count != null ? (
+          <span className="rounded-full px-2.5 py-0.5 text-[11px] font-bold text-white" style={{ background: "rgba(255,255,255,0.22)" }}>
+            {count} service{count === 1 ? "" : "s"}
+          </span>
+        ) : null}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/** Category band as a table row, for single-table screens (Tax settings) that do not need sticky. */
+export function CategoryHeaderRow({ label, count, colSpan, spaced = false }: { label: string; count?: number; colSpan: number; spaced?: boolean }) {
   const Icon = getCategoryIconByName(label);
   return (
     <>
@@ -238,6 +263,40 @@ export function CategoryHeaderRow({
         </td>
       </tr>
     </>
+  );
+}
+
+/**
+ * One service as its own fixed-layout table so columns line up across services. `head` holds the
+ * service row (and the column titles when open); while open, the head sticks under the category
+ * band until the slab rows of this service scroll past.
+ */
+export function ServiceTable({
+  widths,
+  open,
+  head,
+  children,
+}: {
+  widths: string[];
+  open: boolean;
+  head: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <table className="w-full table-fixed text-left text-sm">
+      <colgroup>
+        {widths.map((w, i) => (
+          <col key={i} style={w ? { width: w } : undefined} />
+        ))}
+      </colgroup>
+      <thead
+        className={open ? "sticky z-[3]" : undefined}
+        style={open ? { top: `calc(${STICKY_TOP} + ${CATEGORY_ROW_HEIGHT}px)`, boxShadow: "0 6px 10px -8px rgba(11,42,154,0.5)" } : undefined}
+      >
+        {head}
+      </thead>
+      {children ? <tbody>{children}</tbody> : null}
+    </table>
   );
 }
 
@@ -311,19 +370,21 @@ export function openBlockEdge(part: "top" | "middle" | "bottom"): string {
   return sides.join(", ");
 }
 
+/**
+ * Sticky offsets for the commission tables: the category band sticks under the admin top bar
+ * (68 px, or `--rc-sticky-top` when a page has more sticky chrome), the open service's column
+ * titles stick right under the band.
+ */
+const STICKY_TOP = "var(--rc-sticky-top, 68px)";
+const CATEGORY_ROW_HEIGHT = 56;
+
 export type SlabHeaderCell = { label: string; title?: string; colSpan?: number };
 
 /** Column titles inside an open service, right above its slab rows. First cell is left-aligned. */
 export function SlabHeaderRow({ cells }: { cells: SlabHeaderCell[] }) {
+  const edge = B.blueLight;
   return (
-    <tr
-      className="rc-slab-in text-[11px] uppercase tracking-wider"
-      style={{
-        background: "linear-gradient(90deg, rgba(42,92,221,0.20) 0%, rgba(42,92,221,0.12) 100%)",
-        color: B.blue,
-        boxShadow: `${openBlockEdge("middle")}, inset 0 -2px 0 ${B.blueLight}, inset 0 1px 0 rgba(42,92,221,0.25)`,
-      }}
-    >
+    <tr className="rc-slab-in text-[11px] uppercase tracking-wider" style={{ color: "#fff" }}>
       {cells.map((c, i) => (
         <th
           key={`${c.label}-${i}`}
@@ -331,10 +392,20 @@ export function SlabHeaderRow({ cells }: { cells: SlabHeaderCell[] }) {
           colSpan={c.colSpan}
           title={c.title}
           className={`py-2.5 font-extrabold ${i === 0 ? "pl-[4.25rem] pr-3 text-left" : "px-3 text-right"}`}
+          style={{
+            background: "linear-gradient(180deg, #3B6CF0 0%, #2A5CDD 100%)",
+            boxShadow: [
+              i === 0 ? `inset 2px 0 0 ${edge}` : null,
+              i === cells.length - 1 ? `inset -2px 0 0 ${edge}` : null,
+              "inset 0 -2px 0 #1D3FA8",
+            ]
+              .filter(Boolean)
+              .join(", "),
+          }}
         >
           {i === 0 ? (
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full" style={{ background: B.blueLight }} />
+              <span className="h-2 w-2 rounded-full bg-white" />
               {c.label}
             </span>
           ) : (

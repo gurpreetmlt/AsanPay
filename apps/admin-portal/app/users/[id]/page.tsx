@@ -1011,6 +1011,22 @@ export default function AgentDetailPage() {
         { title: "Verified", hint: "Services unlock", state: agent.kycStatus === "verified" ? "done" : "todo", icon: BadgeCheck },
       ]
     : [];
+  const healthItems: Array<{ label: string; ok: boolean; status: string; hint?: string; icon: LucideIcon; tab: AgentTab }> = agent
+    ? [
+        { label: "KYC", ok: agent.kycStatus === "verified", status: kycPill(agent.kycStatus).text, icon: FileCheck2, tab: "kyc" },
+        {
+          label: "Settlement bank",
+          ok: !!activeBank,
+          status: activeBank ? `Active · ****${activeBank.accountNumberLast4}` : "None active",
+          hint: activeBank ? `${activeBank.holderName} · ${activeBank.ifsc}` : undefined,
+          icon: Landmark,
+          tab: "wallet",
+        },
+        { label: "Fund requests", ok: agent.fundRequestEnabled, status: agent.fundRequestEnabled ? "On" : "Off", icon: Banknote, tab: "wallet" },
+        { label: "Account", ok: !agent.isFrozen, status: agent.isFrozen ? "Frozen" : "Active", icon: KeyRound, tab: "controls" },
+      ]
+    : [];
+  const healthMissing = healthItems.filter((h) => !h.ok).length;
   const heroWallets = [...(agent?.wallets ?? [])].sort((a, b) => (a.walletType === "main" ? -1 : b.walletType === "main" ? 1 : 0));
   const lastTxn = recentTxns[0];
   const kyc = agent ? kycPill(agent.kycStatus) : null;
@@ -1258,6 +1274,53 @@ export default function AgentDetailPage() {
                     ) : null}
                   </div>
                 </div>
+                <div className="relative mt-5 border-t pt-4" style={{ borderColor: "rgba(255,255,255,0.18)" }}>
+                  <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-white/75">
+                    <ShieldCheck size={12} /> Account health
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                    {healthItems.map((h) => {
+                      const HIcon = h.icon;
+                      return (
+                        <button
+                          key={h.label}
+                          type="button"
+                          onClick={() => setTab(h.tab)}
+                          title={h.hint ?? h.label}
+                          className="flex min-w-0 items-center gap-2.5 rounded-xl bg-white/12 px-3 py-2 text-left text-white backdrop-blur-sm transition hover:bg-white/20"
+                          style={{ border: "1px solid rgba(255,255,255,0.22)" }}
+                        >
+                          <span
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+                            style={{ background: h.ok ? "rgba(74,222,128,0.22)" : "rgba(251,191,36,0.25)", color: h.ok ? "#86EFAC" : "#FCD34D" }}
+                          >
+                            <HIcon size={15} />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-[11px] font-semibold text-white/75">{h.label}</span>
+                            <span className="flex items-center gap-1 truncate text-sm font-bold">
+                              <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: h.ok ? "#4ADE80" : "#FBBF24" }} />
+                              {h.status}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                    <div
+                      className="flex min-w-0 items-center gap-2.5 rounded-xl px-3 py-2 sm:col-span-2 lg:col-span-1"
+                      style={
+                        healthMissing
+                          ? { background: "rgba(251,191,36,0.18)", border: "1px solid rgba(251,191,36,0.45)", color: "#FEF3C7" }
+                          : { background: "rgba(74,222,128,0.18)", border: "1px solid rgba(74,222,128,0.45)", color: "#DCFCE7" }
+                      }
+                    >
+                      {healthMissing ? <AlertTriangle size={16} className="shrink-0" /> : <CircleCheck size={16} className="shrink-0" />}
+                      <span className="text-xs font-bold leading-snug">
+                        {healthMissing ? `${healthMissing} thing${healthMissing === 1 ? "" : "s"} to sort out` : "Fully set up"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div className="grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-4" style={{ background: "var(--admin-bg)" }}>
                 <StatTile icon={kyc!.icon} tone={toneColor[kyc!.tone]} label="KYC" value={kyc!.text} sub={agent.kyc.panMasked ? `PAN ${agent.kyc.panMasked}` : "PAN not on file"} />
@@ -1342,7 +1405,7 @@ export default function AgentDetailPage() {
 
             {/* Tabs */}
             <div
-              className="sticky top-2 z-10 flex gap-1 overflow-x-auto rounded-2xl border p-1.5 shadow-sm backdrop-blur"
+              className="sticky top-[76px] z-20 flex gap-1 overflow-x-auto rounded-2xl border p-1.5 shadow-sm backdrop-blur"
               style={{ borderColor: B.border, background: "color-mix(in srgb, var(--admin-card) 92%, transparent)" }}
               role="tablist"
               aria-label="Agent sections"
@@ -1380,25 +1443,6 @@ export default function AgentDetailPage() {
                 </div>
                 <div className="space-y-5">
                   {parentSection}
-                  <DetailSection title="Account health" icon={ShieldCheck}>
-                    <CheckList
-                      items={[
-                        { label: "KYC", ok: agent.kycStatus === "verified", okText: "Verified", noText: kyc!.text, icon: FileCheck2 },
-                        {
-                          label: "Settlement bank",
-                          ok: !!activeBank,
-                          okText: "Active",
-                          noText: "None active",
-                          hint: activeBank ? `${activeBank.holderName} · ****${activeBank.accountNumberLast4}` : undefined,
-                          icon: Landmark,
-                        },
-                        { label: "Fund requests", ok: agent.fundRequestEnabled, okText: "On", noText: "Off", icon: Banknote },
-                        { label: "Account", ok: !agent.isFrozen, okText: "Active", noText: "Frozen", icon: KeyRound },
-                      ]}
-                      allGood="Agent is fully set up."
-                      notReady="{n} thing(s) to sort out for this agent."
-                    />
-                  </DetailSection>
                   <DetailSection title="Quick actions" icon={SlidersHorizontal}>
                     <div className="grid gap-2">
                       <QuickAction icon={FileCheck2} label="Review KYC" hint="Documents, approve or reject" onClick={() => setTab("kyc")} />
@@ -1660,7 +1704,7 @@ export default function AgentDetailPage() {
             ) : null}
 
             {tab === "commission" ? (
-              <div id="commission" className="agent-tab-in">
+              <div id="commission" className="agent-tab-in" style={{ "--rc-sticky-top": "140px" } as CSSProperties}>
                 <AgentRateCard userId={agent.id} role={agent.role} agentName={agent.name} />
               </div>
             ) : null}
