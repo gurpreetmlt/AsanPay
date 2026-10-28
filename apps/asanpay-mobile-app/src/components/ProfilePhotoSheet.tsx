@@ -8,12 +8,16 @@ import { useTheme } from "../theme/ThemeContext";
 import { apiError } from "../utils/apiError";
 import { removeProfilePhoto, saveProfilePhoto, useMyProfilePhoto } from "../lib/profilePhoto";
 
-type PickResult = {
-  didCancel?: boolean;
-  errorCode?: string;
-  errorMessage?: string;
-  assets?: Array<{ type?: string; base64?: string; fileSize?: number }>;
-};
+type CroppedImage = { data?: string | null; mime?: string };
+
+/** Same cropper as KYC photos (react-native-image-crop-picker), square frame with a circle guide. */
+function cropPicker() {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return require("react-native-image-crop-picker") as {
+    openPicker: (opts: Record<string, unknown>) => Promise<CroppedImage>;
+    openCamera: (opts: Record<string, unknown>) => Promise<CroppedImage>;
+  };
+}
 
 const MAX_BYTES = 600 * 1024;
 
@@ -31,45 +35,51 @@ export function ProfilePhotoSheet({ visible, name, onClose }: { visible: boolean
       .join("") || "?";
 
   async function pick(source: "gallery" | "camera") {
-    const opts = { mediaType: "photo", quality: 0.8, maxWidth: 512, maxHeight: 512, includeBase64: true };
-    let result: PickResult;
+    const opts = {
+      mediaType: "photo",
+      cropping: true,
+      cropperCircleOverlay: true,
+      width: 512,
+      height: 512,
+      includeBase64: true,
+      forceJpg: true,
+      compressImageQuality: 0.8,
+      cropperToolbarTitle: "Crop profile photo",
+      cropperToolbarColor: "#FFFFFF",
+      cropperToolbarWidgetColor: colors.blue,
+      cropperActiveWidgetColor: colors.blue,
+      showCropGuidelines: true,
+      hideBottomControls: false,
+    };
+    let image: CroppedImage;
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const picker = require("react-native-image-picker") as {
-        launchImageLibrary: (o: Record<string, unknown>) => Promise<PickResult>;
-        launchCamera: (o: Record<string, unknown>) => Promise<PickResult>;
-      };
-      result =
+      image =
         source === "gallery"
-          ? await picker.launchImageLibrary({ ...opts, selectionLimit: 1 })
-          : await picker.launchCamera({ ...opts, cameraType: "front", saveToPhotos: false, presentationStyle: "fullScreen" });
+          ? await cropPicker().openPicker(opts)
+          : await cropPicker().openCamera({ ...opts, useFrontCamera: true });
     } catch (err) {
-      showAlert("Photo not opened", err instanceof Error ? err.message : "Could not open the picker. Try again.");
-      return;
-    }
-    if (result.didCancel) return;
-    if (result.errorCode) {
-      const denied = result.errorCode === "permission" || /permission/i.test(result.errorMessage || "");
+      const code = (err as { code?: string })?.code;
+      if (code === "E_PICKER_CANCELLED") return;
+      const denied = code === "E_NO_LIBRARY_PERMISSION" || code === "E_NO_CAMERA_PERMISSION";
       showAlert(
         denied ? "Permission needed" : "Photo not opened",
         denied
           ? `Allow ${source === "camera" ? "camera" : "photo"} access in phone Settings → Apps → AsanPay → Permissions, then try again.`
-          : result.errorMessage || "Could not open the picker. Try again.",
+          : "Could not open the photo. Try another photo.",
       );
       return;
     }
-    const asset = result.assets?.[0];
-    if (!asset?.base64) {
-      showAlert("Photo not read", "Pick another photo and try again.");
+    if (!image?.data) {
+      showAlert("Photo not read", "Could not read the cropped photo. Try again.");
       return;
     }
-    if (asset.base64.length * 0.75 > MAX_BYTES) {
+    if (image.data.length * 0.75 > MAX_BYTES) {
       showAlert("Photo too large", "Photo must be under 600 KB. Pick a smaller photo.");
       return;
     }
     setBusy("save");
     try {
-      await saveProfilePhoto(`data:${asset.type || "image/jpeg"};base64,${asset.base64}`);
+      await saveProfilePhoto(`data:${image.mime || "image/jpeg"};base64,${image.data}`);
       showAlert("Photo updated", "Your new profile photo is saved.");
     } catch (err) {
       showAlert("Photo not saved", apiError(err, "Profile photo was not saved. Try again."));
@@ -111,7 +121,7 @@ export function ProfilePhotoSheet({ visible, name, onClose }: { visible: boolean
             </View>
           ) : null}
         </View>
-        <Text style={[styles.hint, { color: tokens.sub }]}>JPG or PNG · square photos look best</Text>
+        <Text style={[styles.hint, { color: tokens.sub }]}>Crop and rotate before saving</Text>
       </View>
 
       <Pressable

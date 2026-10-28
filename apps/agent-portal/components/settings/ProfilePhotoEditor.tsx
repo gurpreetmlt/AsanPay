@@ -5,7 +5,8 @@ import { toast } from "react-hot-toast";
 import { Camera, Trash2 } from "lucide-react";
 import { B } from "@/lib/brand";
 import { extractApiError } from "@/lib/onboarding";
-import { imageFileToPhotoDataUrl, removeProfilePhoto, saveProfilePhoto, useMyProfilePhoto } from "@/lib/profilePhoto";
+import { removeProfilePhoto, saveProfilePhoto, useMyProfilePhoto } from "@/lib/profilePhoto";
+import { PhotoCropModal } from "@/components/signup/PhotoCropModal";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 
@@ -15,18 +16,37 @@ export function ProfilePhotoEditor({ initials, name, subtitle }: { initials: str
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
 
-  async function onFile(file: File | undefined) {
+  function onFile(file: File | undefined) {
+    if (fileRef.current) fileRef.current.value = "";
     if (!file) return;
+    if (!/^image\/(jpeg|png|webp)$/i.test(file.type)) {
+      toast.error("Photo must be a JPG, PNG or WebP image");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Photo must be under 10 MB");
+      return;
+    }
+    setCropSrc(URL.createObjectURL(file));
+  }
+
+  function closeCrop() {
+    if (cropSrc) URL.revokeObjectURL(cropSrc);
+    setCropSrc(null);
+  }
+
+  async function onCropped(dataUrl: string) {
+    closeCrop();
     setBusy(true);
     try {
-      await saveProfilePhoto(await imageFileToPhotoDataUrl(file));
+      await saveProfilePhoto(dataUrl);
       toast.success("Profile photo updated");
     } catch (err) {
-      toast.error(err instanceof Error && !("response" in err) ? err.message : extractApiError(err, "Profile photo was not saved. Try again."));
+      toast.error(extractApiError(err, "Profile photo was not saved. Try again."));
     } finally {
       setBusy(false);
-      if (fileRef.current) fileRef.current.value = "";
     }
   }
 
@@ -98,7 +118,7 @@ export function ProfilePhotoEditor({ initials, name, subtitle }: { initials: str
           ) : null}
         </div>
         <p className="mt-1.5 text-[11px]" style={{ color: B.muted }}>
-          JPG, PNG or WebP · square crop · shown to your upline and AsanPay support
+          JPG, PNG or WebP · crop and rotate before saving · shown to your upline and AsanPay support
         </p>
       </div>
       <input
@@ -106,8 +126,20 @@ export function ProfilePhotoEditor({ initials, name, subtitle }: { initials: str
         type="file"
         accept="image/jpeg,image/png,image/webp"
         className="hidden"
-        onChange={(e) => void onFile(e.target.files?.[0])}
+        onChange={(e) => onFile(e.target.files?.[0])}
       />
+      {cropSrc ? (
+        <PhotoCropModal
+          src={cropSrc}
+          title="Crop profile photo"
+          subtitle="Keep your face inside the circle. Rotate if the photo is sideways."
+          aspect={1}
+          cropShape="round"
+          maxSide={512}
+          onCancel={closeCrop}
+          onConfirm={(dataUrl) => void onCropped(dataUrl)}
+        />
+      ) : null}
       {confirmRemove ? (
         <ConfirmModal
           title="Remove profile photo?"

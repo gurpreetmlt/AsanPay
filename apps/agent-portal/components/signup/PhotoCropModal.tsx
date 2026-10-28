@@ -37,7 +37,7 @@ export function scaleImageToDataUrl(image: HTMLImageElement): string {
 }
 
 /** Rotate the full image, cut the crop box, scale to ≤ MAX_SIDE, return a JPEG data URL. */
-async function cropToDataUrl(src: string, area: Area, rotation: number): Promise<string> {
+async function cropToDataUrl(src: string, area: Area, rotation: number, maxSide = MAX_SIDE): Promise<string> {
   const image = await loadImage(src);
   const rad = (rotation * Math.PI) / 180;
   const sin = Math.abs(Math.sin(rad));
@@ -54,7 +54,7 @@ async function cropToDataUrl(src: string, area: Area, rotation: number): Promise
   rctx.rotate(rad);
   rctx.drawImage(image, -image.width / 2, -image.height / 2);
 
-  const scale = Math.min(1, MAX_SIDE / Math.max(area.width, area.height));
+  const scale = Math.min(1, maxSide / Math.max(area.width, area.height));
   const out = document.createElement("canvas");
   out.width = Math.round(area.width * scale);
   out.height = Math.round(area.height * scale);
@@ -71,11 +71,21 @@ export function PhotoCropModal({
   title,
   onCancel,
   onConfirm,
+  aspect = CARD_ASPECT,
+  cropShape = "rect",
+  maxSide = MAX_SIDE,
+  subtitle = "Fit the card inside the frame. Rotate if the photo is sideways or upside down.",
 }: {
   src: string;
   title: string;
   onCancel: () => void;
   onConfirm: (dataUrl: string) => void;
+  /** Frame width ÷ height; defaults to an ID card. */
+  aspect?: number;
+  cropShape?: "rect" | "round";
+  /** Longest side of the output JPEG in px. */
+  maxSide?: number;
+  subtitle?: string;
 }) {
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -89,7 +99,7 @@ export function PhotoCropModal({
     setBusy(true);
     setError(null);
     try {
-      onConfirm(await cropToDataUrl(src, area, rotation));
+      onConfirm(await cropToDataUrl(src, area, rotation, maxSide));
     } catch {
       setError("Could not crop this photo. Try another photo (JPG or PNG).");
     } finally {
@@ -107,7 +117,7 @@ export function PhotoCropModal({
       closeDisabled={busy}
       icon={<Crop size={22} />}
       iconTone="blue"
-      subtitle="Fit the card inside the frame. Rotate if the photo is sideways or upside down."
+      subtitle={subtitle}
       wide
     >
       <div className="space-y-4">
@@ -117,7 +127,8 @@ export function PhotoCropModal({
             crop={crop}
             zoom={zoom}
             rotation={rotation}
-            aspect={CARD_ASPECT}
+            aspect={aspect}
+            cropShape={cropShape}
             minZoom={0.5}
             maxZoom={4}
             restrictPosition={false}
