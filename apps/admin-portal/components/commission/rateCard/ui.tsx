@@ -4,6 +4,7 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
 import { B } from "@/lib/brand";
 import { cn } from "@/lib/utils";
+import { getCategoryIconByName } from "@/lib/serviceIcons";
 
 type BtnVariant = "primary" | "success" | "destructive" | "secondary";
 
@@ -195,6 +196,44 @@ export function GstModeSwitch({
         })}
       </div>
     </div>
+  );
+}
+
+/** Highlighted category band inside a services table: icon, name and a service count. */
+export function CategoryHeaderRow({ label, count, colSpan }: { label: string; count?: number; colSpan: number }) {
+  const Icon = getCategoryIconByName(label);
+  return (
+    <tr>
+      <td
+        colSpan={colSpan}
+        className="border-t-2 px-4 py-2.5"
+        style={{
+          borderColor: "rgba(42,92,221,0.25)",
+          background: "linear-gradient(90deg, rgba(42,92,221,0.16) 0%, rgba(42,92,221,0.05) 60%, rgba(42,92,221,0.02) 100%)",
+          boxShadow: `inset 4px 0 0 ${B.blueLight}`,
+        }}
+      >
+        <div className="flex items-center gap-2">
+          <span
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-white"
+            style={{ background: B.badgeGrad }}
+          >
+            <Icon size={14} />
+          </span>
+          <span className="text-xs font-extrabold uppercase tracking-wider" style={{ color: B.blue }}>
+            {label}
+          </span>
+          {count != null ? (
+            <span
+              className="rounded-full px-2 py-0.5 text-[11px] font-bold"
+              style={{ background: "rgba(42,92,221,0.14)", color: B.blueLight }}
+            >
+              {count} service{count === 1 ? "" : "s"}
+            </span>
+          ) : null}
+        </div>
+      </td>
+    </tr>
   );
 }
 

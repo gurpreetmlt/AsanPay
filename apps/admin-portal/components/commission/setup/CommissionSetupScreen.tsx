@@ -24,7 +24,7 @@ import { apiErrorMessage, downloadCsv } from "@/lib/taxCommissionUtils";
 import { ExportMenu } from "@/components/ui/ExportMenu";
 import { downloadRateCardWorkbook, rateCardCsv, rateCardReport } from "../rateCard/rateCardTransfer";
 import { ROLE_LABEL, SCHEME_ROLES, inr, pct, slabLabel, type RateCardData, type RoleSplit, type ServiceRow, type Slab } from "../rateCard/types";
-import { Chip } from "../rateCard/ui";
+import { CategoryHeaderRow, Chip } from "../rateCard/ui";
 
 type ShowFilter = "all" | "loss" | "unset";
 
@@ -357,11 +357,7 @@ export function CommissionOverviewScreen() {
               <tbody>
                 {groups.map((g) => (
                   <Fragment key={g.category}>
-                    <tr style={{ background: "var(--admin-secondary)" }}>
-                      <td colSpan={7} className="px-4 py-1.5 text-[11px] font-bold uppercase tracking-wide" style={{ color: B.blueLight }}>
-                        {g.category} · {g.rows.length}
-                      </td>
-                    </tr>
+                    <CategoryHeaderRow label={g.category} count={g.rows.length} colSpan={7} />
                     {g.rows.map((row, i) => {
                       const open = expanded === row.serviceId;
                       const Icon = getServiceIcon(row.serviceCode);

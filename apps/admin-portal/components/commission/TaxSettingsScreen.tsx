@@ -12,7 +12,7 @@ import { TenantTaxCard } from "./rateCard/TenantTaxCard";
 import { gstModeLabel } from "./rateCard/TaxSummary";
 import { usePendingSave, type SaveRequest } from "./rateCard/usePendingSave";
 import { pct, samePercent, type RateCardData, type ServiceRow, type TaxView } from "./rateCard/types";
-import { Btn, Chip, GstModeSwitch, TogglePercentField, percentError } from "./rateCard/ui";
+import { Btn, CategoryHeaderRow, Chip, GstModeSwitch, TogglePercentField, percentError } from "./rateCard/ui";
 
 type TaxDraft = Pick<TaxView, "tdsApplies" | "gstOnFeeApplies" | "gstOnFeeInclusive"> & {
   tdsPercent: string;
@@ -300,11 +300,7 @@ export function TaxSettingsScreen() {
               <tbody>
                 {groups.map((g) => (
                   <Fragment key={g.category}>
-                    <tr style={{ background: "var(--admin-secondary)" }}>
-                      <td colSpan={6} className="px-4 py-1.5 text-[11px] font-bold uppercase tracking-wide" style={{ color: B.blueLight }}>
-                        {g.category}
-                      </td>
-                    </tr>
+                    <CategoryHeaderRow label={g.category} count={g.rows.length} colSpan={6} />
                     {g.rows.map((row) => (
                       <tr key={row.serviceId} className="border-t" style={{ borderColor: B.border }}>
                         <td className="px-4 py-2.5">

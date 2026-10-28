@@ -43,7 +43,7 @@ import { TaxSummary } from "./TaxSummary";
 import { usePendingSave } from "./usePendingSave";
 import { draftOfIncome, endSlabRequest, newIncomeKey, type IncomeDraft } from "./IncomeSlabModal";
 import { ROLE_LABEL, SCHEME_ROLES, inr, pct, slabLabel, type RateCardData, type RoleSplit, type ServiceRow, type Slab } from "./types";
-import { Btn, Chip } from "./ui";
+import { Btn, CategoryHeaderRow, Chip } from "./ui";
 
 type ShowFilter = "all" | "loss" | "unset";
 
@@ -653,11 +653,7 @@ export function RateCardScreen() {
                 <tbody>
                   {groups.map((g) => (
                     <Fragment key={g.category}>
-                      <tr style={{ background: "var(--admin-secondary)" }}>
-                        <td colSpan={7} className="px-4 py-1.5 text-[11px] font-bold uppercase tracking-wide" style={{ color: B.blueLight }}>
-                          {g.category}
-                        </td>
-                      </tr>
+                      <CategoryHeaderRow label={g.category} count={g.rows.length} colSpan={7} />
                       {g.rows.map((row, rowIndex) => {
                         const open = expanded === row.serviceId;
                         const single = row.slabs.length === 1 ? row.slabs[0] : null;

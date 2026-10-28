@@ -13,6 +13,8 @@ import {
   GraduationCap,
   HandCoins,
   Landmark,
+  LayoutGrid,
+  Receipt,
   Send,
   ShieldCheck,
   Smartphone,
@@ -52,4 +54,17 @@ const SERVICE_ICON: Record<string, LucideIcon> = {
 
 export function getServiceIcon(code: string): LucideIcon {
   return SERVICE_ICON[code] ?? HandCoins;
+}
+
+/** Category icon picked from its name (Banking, Bill payment, Recharge, AePS, Insurance…). */
+export function getCategoryIconByName(name: string): LucideIcon {
+  const n = name.toLowerCase();
+  if (/bill|bbps/.test(n)) return Receipt;
+  if (/recharge|mobile|dth/.test(n)) return Smartphone;
+  if (/aeps|aadhaar/.test(n)) return Fingerprint;
+  if (/insur/.test(n)) return ShieldCheck;
+  if (/loan|credit/.test(n)) return CreditCard;
+  if (/travel|ticket/.test(n)) return Car;
+  if (/bank|money|transfer|cash/.test(n)) return Landmark;
+  return LayoutGrid;
 }
