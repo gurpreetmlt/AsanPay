@@ -62,11 +62,12 @@ export async function nobleLoadAgent(
   }
 
   const row = firstResponseRow(json);
+  const amountForOtp = Number(row.amountForOtp);
   return {
     kycRequired: String(row.kycRequired ?? "").toUpperCase() === "YES",
     daily2faRequired: String(row.daily2faRequired ?? "").toUpperCase() === "YES",
     kycWadhValue: String(row.kycWadhValue ?? ""),
-    amountForOtp: typeof row.amountForOtp === "number" ? row.amountForOtp : null,
+    amountForOtp: Number.isFinite(amountForOtp) && amountForOtp > 0 ? amountForOtp : null,
     tranTypeForOtp: typeof row.tranTypeForOtp === "string" ? row.tranTypeForOtp : null,
     live: true,
     raw: row,

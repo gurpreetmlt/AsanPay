@@ -69,12 +69,12 @@ export async function resolveNobleAgentContext(params: {
   const latRaw = (params.latitude || savedLat || "").trim();
   const lngRaw = (params.longitude || savedLng || "").trim();
   // load_agent only needs uniqueAgentId; txn/2FA/KYC require geo (4 decimals).
-  const latitude = latRaw ? Number(latRaw).toFixed(4) : "";
-  const longitude = lngRaw ? Number(lngRaw).toFixed(4) : "";
+  const latitude = geo4(latRaw);
+  const longitude = geo4(lngRaw);
 
   return {
     uniqueAgentId,
-    endpointIp: params.endpointIp || "127.0.0.1",
+    endpointIp: ipv4(params.endpointIp) || "127.0.0.1",
     latitude,
     longitude,
     channel: params.channel ?? "APP",
@@ -82,6 +82,18 @@ export async function resolveNobleAgentContext(params: {
     userAgent: "AsanPayAndroid",
     live: isNobleConfigured() && !uniqueAgentId.startsWith("MOCK"),
   };
+}
+
+/** Provider wants exactly 4 decimals; a non-numeric value becomes "" so requireNobleGeo rejects it. */
+function geo4(raw: string): string {
+  const n = Number(raw);
+  return raw && Number.isFinite(n) ? n.toFixed(4) : "";
+}
+
+/** Provider wants a plain IPv4; Express reports IPv4 clients as "::ffff:a.b.c.d". */
+function ipv4(ip?: string): string {
+  const v = (ip ?? "").trim().replace(/^::ffff:/i, "");
+  return /^\d{1,3}(\.\d{1,3}){3}$/.test(v) ? v : "";
 }
 
 export function requireNobleGeo(ctx: NobleAgentContext): void {

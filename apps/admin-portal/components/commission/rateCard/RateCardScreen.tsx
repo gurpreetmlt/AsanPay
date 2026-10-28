@@ -293,6 +293,7 @@ export function RateCardScreen() {
   const lossCount = useMemo(() => (data?.services ?? []).filter(hasLossOrMissing).length, [data]);
 
   function toggle(row: ServiceRow) {
+    if (expanded === row.serviceId) setInlineSlab((cur) => (cur?.serviceId === row.serviceId ? null : cur));
     setExpanded((cur) => (cur === row.serviceId ? null : row.serviceId));
     if (activePreviewId !== row.serviceId) {
       setPreviewServiceId(row.serviceId);
@@ -709,7 +710,7 @@ export function RateCardScreen() {
                               )}
                             </tr>
                             {single ? inlineRow(row, single) : null}
-                            {!single
+                            {!single && open
                               ? row.slabs.map((s) => (
                                   <Fragment key={slabKey(s)}>
                                     <tr

@@ -11,16 +11,20 @@ const PATH: Record<NobleBankCheckMethod, string> = {
 
 export type BankCheckData = { beneficiaryName: string | null };
 
-/** Only an explicit tranStatus settles the check; `status 1` + "Failed" means the bank returned no account. */
+/**
+ * Settled only by an explicit tranStatus (`status 1` + "Failed" = bank returned no account) or an
+ * explicit `status 0` rejection. Provider errors (`status -1`, 5xx, unknown tranStatus) stay pending.
+ */
 function toResult(httpStatus: number, json: NobleApiResponse): ProviderResult<BankCheckData> {
   const row = firstResponseRow(json);
-  const tran = String(row.tranStatus ?? "").toLowerCase();
+  const tran = String(row.tranStatus ?? "").trim().toLowerCase();
   const name = typeof row.beneficiaryName === "string" ? row.beneficiaryName.trim() : "";
   let status: ProviderTxnStatus;
-  if (httpStatus < 400 && json.status === 1 && tran === "success") status = "success";
-  else if (tran === "pending" || tran === "processing") status = "pending";
-  else if (httpStatus >= 500) status = "pending";
-  else status = "failed";
+  if (tran === "success") status = httpStatus < 400 && json.status === 1 ? "success" : "pending";
+  else if (tran === "failed") status = "failed";
+  else if (tran) status = "pending";
+  else if (httpStatus < 500 && json.status === 0) status = "failed";
+  else status = "pending";
 
   const detail =
     (typeof row.detail === "string" && row.detail) ||

@@ -2,8 +2,12 @@ import { randomUUID } from "node:crypto";
 import { isNobleConfigured } from "../../../config/env";
 import { HttpError } from "../../../utils/httpError";
 import {
+  AIRTEL_DMT_KYC_FINGER_WADH,
+  assertAirtelDmtAmount,
   assertNobleDmtOk,
+  assertSixDigitOtp,
   airtelGetCustomer,
+  dmtRemitterMobileForTxn,
   nobleBeneList,
   type NobleBene,
   rememberDmtAccessToken,
@@ -57,6 +61,42 @@ import type {
 const UPI_QR_NO_RECORD_GRACE_MS = 15 * 60 * 1000;
 /** AEPS / DMT / recharge status "no record found" becomes final only after this long. */
 const NO_RECORD_FAIL_AFTER_MS = 60 * 60 * 1000;
+/**
+ * Status APIs are keyed by transactionDate. A txn row created this close to IST midnight may be
+ * dated the next day by the provider, so "no record" for our date is not proof it never landed.
+ */
+const NO_RECORD_UNSAFE_AFTER_IST_MINUTES = 23 * 60 + 50;
+
+/**
+ * Status "No Records Found" is status -1 / AG0003 (status 0 accepted too). AG0003 alone is the
+ * generic AEPS error code (also "pending for approval at bank"), so the text must match as well.
+ */
+function isNoRecordReply(json: NobleApiResponse): boolean {
+  if (json.status !== -1 && json.status !== 0) return false;
+  if (json.statusCode !== "AG0003") return false;
+  const text = `${json.description ?? ""} ${json.message ?? ""}`;
+  return /no records? found/i.test(text);
+}
+
+function createdNearIstMidnight(createdAt: Date): boolean {
+  const istMinutes = (createdAt.getUTCHours() * 60 + createdAt.getUTCMinutes() + 330) % 1440;
+  return istMinutes >= NO_RECORD_UNSAFE_AFTER_IST_MINUTES;
+}
+
+function noRecordIsFinal(json: NobleApiResponse, createdAt: Date | undefined, graceMs: number): boolean {
+  if (!createdAt || !isNoRecordReply(json) || createdNearIstMidnight(createdAt)) return false;
+  return Date.now() - createdAt.getTime() >= graceMs;
+}
+
+const AEPS_BANK_NAMES: Record<string, string> = {
+  "607094": "STATE BANK OF INDIA",
+  "607027": "PUNJAB NATIONAL BANK",
+  "508534": "ICICI BANK",
+};
+
+function aepsBankName(iin: string): string {
+  return AEPS_BANK_NAMES[iin] ?? `BANK ${iin}`;
+}
 
 /**
  * Primary AEPS provider — AEPS family (CW / BE / MS + daily 2FA).
@@ -75,27 +115,32 @@ export class NobleAdapter implements ProviderAdapter {
    * Money safety: a wrong "failed" refunds the agent for money that may have moved; a wrong
    * "success" credits money that never moved. Only explicit answers are final — gateway errors,
    * HTML pages, unknown tranStatus values and "no record" on a status check all stay pending.
+   *
+   * mode: "submit" = non-money call (2FA, OTP, BE, MS); "money" = CW / CD / AP submit,
+   * where status 1 without tranStatus is not proof the money moved; "status" = status API, where
+   * tranStatus is final only when status = 1.
    */
   private mapTxnStatus(
     row: Record<string, unknown>,
     json: NobleApiResponse,
     httpStatus: number,
-    mode: "submit" | "status",
+    mode: "submit" | "money" | "status",
     createdAt?: Date,
   ): ProviderTxnStatus {
     const tran = String(row.tranStatus ?? "").trim().toLowerCase();
-    if (tran === "success" || tran === "successful") return "success";
-    if (tran === "pending" || tran === "processing" || tran === "initiated") return "pending";
-    if (tran === "failed" || tran === "failure" || tran === "expired") return "failed";
-    if (tran) return "pending";
-    if (httpStatus >= 500 || json.status === -1 || json.status === undefined) return "pending";
-    if (json.status === 1) return mode === "status" ? "pending" : "success";
-    if (json.status === 0) {
-      if (mode === "submit") return "failed";
-      // Status check: "no record" right after submit is lag; long after, the provider never got it.
-      const ageMs = createdAt ? Date.now() - createdAt.getTime() : 0;
-      return json.statusCode === "AG0003" && ageMs >= NO_RECORD_FAIL_AFTER_MS ? "failed" : "pending";
+    const trustTran = mode !== "status" || json.status === 1;
+    if (tran && trustTran) {
+      if (tran === "success" || tran === "successful") return "success";
+      if (tran === "failed" || tran === "failure" || tran === "expired") return "failed";
+      return "pending";
     }
+    if (mode === "status") {
+      // "No record" right after submit is lag; long after, the provider never got it.
+      return httpStatus < 500 && noRecordIsFinal(json, createdAt, NO_RECORD_FAIL_AFTER_MS) ? "failed" : "pending";
+    }
+    if (httpStatus >= 500 || json.status === -1 || json.status === undefined) return "pending";
+    if (json.status === 1) return mode === "money" ? "pending" : "success";
+    if (json.status === 0) return "failed";
     return "pending";
   }
 
@@ -105,7 +150,7 @@ export class NobleAdapter implements ProviderAdapter {
     operation: string,
     amount: string | null,
     data: T,
-    mode: "submit" | "status" = "submit",
+    mode: "submit" | "money" | "status" = "submit",
     createdAt?: Date,
   ): ProviderResult<T> {
     const row = firstResponseRow(json);
@@ -210,13 +255,13 @@ export class NobleAdapter implements ProviderAdapter {
       transactionId,
       tranType: "BE",
       amount: "0",
-      bankName: `BANK ${params.bankIin}`,
+      bankName: aepsBankName(params.bankIin),
       bankIn: params.bankIin,
       mobileNumber: params.mobile,
       aadhaarNumber: params.aadhaarNumber,
       isOtp: "0",
       otpReference: "",
-      bioType: "0",
+      bioType: nobleBioType(params.captureType),
       pidData: params.biometricPayload,
     });
     const row = firstResponseRow(json);
@@ -259,18 +304,23 @@ export class NobleAdapter implements ProviderAdapter {
       transactionId,
       tranType: "CW",
       amount: params.amount ?? "0",
-      bankName: `BANK ${params.bankIin}`,
+      bankName: aepsBankName(params.bankIin),
       bankIn: params.bankIin,
       mobileNumber: params.mobile,
       aadhaarNumber: params.aadhaarNumber,
       isOtp,
       otpReference: params.otpReferenceKey ?? "",
-      bioType: "0",
+      bioType: nobleBioType(params.captureType),
       pidData: params.biometricPayload,
     });
-    return this.toResult(httpStatus, json, "AEPS cash withdrawal", params.amount ?? null, {
-      clientTransactionId: transactionId,
-    });
+    return this.toResult(
+      httpStatus,
+      json,
+      "AEPS cash withdrawal",
+      params.amount ?? null,
+      { clientTransactionId: transactionId },
+      "money",
+    );
   }
 
   async aepsMiniStatement(
@@ -289,13 +339,13 @@ export class NobleAdapter implements ProviderAdapter {
       transactionId,
       tranType: "MS",
       amount: "0",
-      bankName: `BANK ${params.bankIin}`,
+      bankName: aepsBankName(params.bankIin),
       bankIn: params.bankIin,
       mobileNumber: params.mobile,
       aadhaarNumber: params.aadhaarNumber,
       isOtp: "0",
       otpReference: "",
-      bioType: "0",
+      bioType: nobleBioType(params.captureType),
       pidData: params.biometricPayload,
     });
     const row = firstResponseRow(json);
@@ -325,16 +375,21 @@ export class NobleAdapter implements ProviderAdapter {
       transactionId,
       tranType: "CD",
       amount: params.amount ?? "0",
-      bankName: `BANK ${params.bankIin}`,
+      bankName: aepsBankName(params.bankIin),
       bankIn: params.bankIin,
       mobileNumber: params.mobile,
       aadhaarNumber: params.aadhaarNumber,
-      bioType: "0",
+      bioType: nobleBioType(params.captureType),
       pidData: params.biometricPayload,
     });
-    return this.toResult(httpStatus, json, "AEPS cash deposit", params.amount ?? null, {
-      clientTransactionId: transactionId,
-    });
+    return this.toResult(
+      httpStatus,
+      json,
+      "AEPS cash deposit",
+      params.amount ?? null,
+      { clientTransactionId: transactionId },
+      "money",
+    );
   }
 
   async aadhaarPay(params: AepsParams): Promise<ProviderResult> {
@@ -348,7 +403,7 @@ export class NobleAdapter implements ProviderAdapter {
       transactionId,
       tranType: "MT",
       amount: params.amount ?? "0",
-      bankName: `BANK ${params.bankIin}`,
+      bankName: aepsBankName(params.bankIin),
       bankIn: params.bankIin,
       mobileNumber: params.mobile,
       aadhaarNumber: params.aadhaarNumber,
@@ -359,9 +414,14 @@ export class NobleAdapter implements ProviderAdapter {
       bioType: nobleBioType(params.captureType),
       pidData: params.biometricPayload,
     });
-    return this.toResult(httpStatus, json, "Aadhaar Pay", params.amount ?? null, {
-      clientTransactionId: transactionId,
-    });
+    return this.toResult(
+      httpStatus,
+      json,
+      "Aadhaar Pay",
+      params.amount ?? null,
+      { clientTransactionId: transactionId },
+      "money",
+    );
   }
 
   async checkStatus(params: CheckStatusParams): Promise<ProviderResult> {
@@ -371,20 +431,22 @@ export class NobleAdapter implements ProviderAdapter {
     }
     const code = String(params.serviceCode ?? "");
     if (code.startsWith("dmt") || code === "MONEY_TRANSFER") {
-      const { httpStatus, json } = await noblePost("dmt", "/api/v1.0/airtel_dmt/transaction_status", {
-        transactionId,
-      });
-      return this.toResult(httpStatus, json, "DMT status", null, {}, "status", params.createdAt);
+      return this.dmtStatus(transactionId, params.createdAt);
     }
     const istDate =
-      params.txnDate || new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
+      params.txnDate ||
+      new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(params.createdAt ?? new Date());
     if (code.includes("recharge") || code === "MOBILE_PREPAID" || code === "DTH") {
-      const { httpStatus, json } = await noblePost("recharge", "/v1.0/recharge/recharge_status", {
-        statusBy: "TI_TD",
-        apiTransactionId: "",
-        transactionId: transactionId.slice(0, 25),
-        transactionDate: istDate,
-      });
+      const ourId = transactionId.slice(0, 25);
+      // ATI needs no date, so a txn submitted around IST midnight is still found.
+      const apiTxnId = params.providerTxnId && params.providerTxnId !== ourId ? params.providerTxnId : "";
+      const { httpStatus, json } = await noblePost(
+        "recharge",
+        "/v1.0/recharge/recharge_status",
+        apiTxnId
+          ? { statusBy: "ATI", apiTransactionId: apiTxnId, transactionId: "", transactionDate: "" }
+          : { statusBy: "TI_TD", apiTransactionId: "", transactionId: ourId, transactionDate: istDate },
+      );
       return this.toResult(httpStatus, json, "Recharge status", null, {}, "status", params.createdAt);
     }
     const [yyyy, mm, dd] = istDate.split("-");
@@ -414,7 +476,10 @@ export class NobleAdapter implements ProviderAdapter {
     transactionId: string,
     transactionDate: string,
   ): Promise<ProviderResult> {
-    const { json } = await noblePost("aeps", "/v2.0/aeps/upiqr_status", { transactionId, transactionDate });
+    const { httpStatus, json } = await noblePost("aeps", "/v2.0/aeps/upiqr_status", {
+      transactionId,
+      transactionDate,
+    });
     const row = firstResponseRow(json);
     const tran = String(row.tranStatus ?? "").toLowerCase();
     const raw = json as unknown as Record<string, unknown>;
@@ -432,10 +497,9 @@ export class NobleAdapter implements ProviderAdapter {
     if (json.status === 1 && tran === "success") return settled("success", "Payment received");
     if (json.status === 1 && tran === "expired") return settled("failed", "QR expired before the customer paid");
     if (json.status === 1 && tran === "failed") return settled("failed", "The customer's UPI payment failed");
-    if (json.statusCode === "AG0003") {
-      // No record: right after generate this is lag; long after, the QR was never paid.
-      const ageMs = params.createdAt ? Date.now() - params.createdAt.getTime() : Infinity;
-      if (ageMs >= UPI_QR_NO_RECORD_GRACE_MS) return settled("failed", "The customer did not pay this QR");
+    // No record: right after generate this is lag; long after, the QR was never paid.
+    if (httpStatus < 500 && noRecordIsFinal(json, params.createdAt, UPI_QR_NO_RECORD_GRACE_MS)) {
+      return settled("failed", "The customer did not pay this QR");
     }
     return settled("pending", "Waiting for the customer to pay");
   }
@@ -447,6 +511,70 @@ export class NobleAdapter implements ProviderAdapter {
     } catch {
       return [];
     }
+  }
+
+  /**
+   * DMT replies carry the outcome in responseData[0].transactionStatus. A transfer is final only
+   * on an explicit Success / Failed / Refunded; status 1 alone means "initiated", not "paid".
+   * "No records found" (DB0042) is lag right after submit and final only after an hour.
+   */
+  private dmtResult(
+    httpStatus: number,
+    json: NobleApiResponse,
+    operation: string,
+    amount: string | null,
+    data: Record<string, unknown>,
+    mode: "submit" | "status",
+    createdAt?: Date,
+  ): ProviderResult {
+    const row = firstResponseRow(json);
+    const tran = String(row.transactionStatus ?? "").trim().toLowerCase();
+    let status: ProviderTxnStatus = "pending";
+    if (nobleOk(json, httpStatus) && tran) {
+      if (tran === "success" || tran === "successful") status = "success";
+      else if (tran === "failed" || tran === "failure" || tran === "refunded" || tran === "reversed") {
+        status = "failed";
+      }
+    } else if (mode === "submit" && httpStatus < 500 && json.status === 0) {
+      status = "failed";
+    } else if (mode === "status" && json.statusCode === "DB0042") {
+      const ageMs = createdAt ? Date.now() - createdAt.getTime() : 0;
+      if (ageMs >= NO_RECORD_FAIL_AFTER_MS) status = "failed";
+    }
+    const message =
+      (typeof json.description === "string" && json.description) ||
+      (typeof json.message === "string" && json.message) ||
+      `${operation} — no message from provider`;
+    return {
+      success: status === "success",
+      status,
+      providerTxnId: (typeof row.transactionId === "string" && row.transactionId) || null,
+      amount,
+      message,
+      data: { ...data, ...row },
+      raw: json as unknown as Record<string, unknown>,
+    };
+  }
+
+  private async dmtStatus(transactionId: string, createdAt?: Date): Promise<ProviderResult> {
+    const mobileNumber = await dmtRemitterMobileForTxn(transactionId);
+    if (!mobileNumber) {
+      // Never fail a transfer we could not query — a wrong "failed" refunds money that may have moved.
+      return {
+        success: false,
+        status: "pending",
+        providerTxnId: null,
+        amount: null,
+        message: "Remitter mobile not found on this transfer. Settle it manually from the provider report.",
+        data: {},
+        raw: { skipped: "remitter_mobile_missing" },
+      };
+    }
+    const { httpStatus, json } = await noblePost("dmt", "/api/v1.0/airtel_dmt/transaction_status", {
+      mobileNumber,
+      transactionId,
+    });
+    return this.dmtResult(httpStatus, json, "DMT status", null, {}, "status", createdAt);
   }
 
   private assertLive(live: boolean): void {
@@ -512,6 +640,7 @@ export class NobleAdapter implements ProviderAdapter {
   async dmtRemitterRegisterVerify(
     params: DmtRemitterRegistrationVerifyParams,
   ): Promise<ProviderResult<{ referenceId: string }>> {
+    assertSixDigitOtp(params.otp);
     const merchant = await resolveAirtelMerchantCtx(params.retailerUserId);
     const verifyToken = requireVerifyToken(params.retailerUserId, params.customerMobile);
     const { httpStatus, json } = await noblePost(
@@ -665,6 +794,7 @@ export class NobleAdapter implements ProviderAdapter {
   async dmtGenerateTransactionOtp(
     params: DmtTransactionOtpParams,
   ): Promise<ProviderResult<{ referenceKey: string; validity: string }>> {
+    assertAirtelDmtAmount(params.amount);
     const merchant = await resolveAirtelMerchantCtx(params.retailerUserId);
     const transactionId = nobleTxnId("NDMT");
     const { httpStatus, json } = await noblePost("dmt", "/api/v1.0/airtel_dmt/transaction_otp", {
@@ -697,16 +827,34 @@ export class NobleAdapter implements ProviderAdapter {
   }
 
   async dmtTransfer(params: DmtTransferParams): Promise<ProviderResult> {
+    // Every refusal below is a 4xx thrown before the provider call, so the held amount is released.
+    assertAirtelDmtAmount(params.amount);
+    assertSixDigitOtp(params.otp);
     const merchant = await resolveAirtelMerchantCtx(params.retailerUserId, {
       latitude: params.latitude,
       longitude: params.longitude,
     });
     const [tokenPart, txnPart] = params.referenceKey.split("~");
-    const token = tokenPart || requireVerifyToken(params.retailerUserId, params.customerMobile);
-    const transactionId = (txnPart || params.externalRef || nobleTxnId("NDMT")).slice(0, 25);
+    // Must be the id the OTP was issued for; recheck queries the same id (metadata.providerClientRef).
+    const transactionId = (txnPart ?? "").slice(0, 25);
+    if (!tokenPart || transactionId.length < 12) {
+      throw new HttpError(
+        422,
+        "Transaction OTP session is invalid or expired. Request a new OTP and try again.",
+        "NOBLE_DMT_TXN_OTP_SESSION",
+      );
+    }
+    const token = tokenPart;
     const bene = (await this.beneListSafe(params.customerMobile)).find(
-      (b) => b.accountNumber === params.accountNumber,
+      (b) => b.accountNumber === params.accountNumber && (!b.ifsc || b.ifsc === params.ifsc.toUpperCase()),
     );
+    if (!bene?.name || !bene.bank) {
+      throw new HttpError(
+        422,
+        "Beneficiary not found for this remitter with this account number and IFSC. Search the remitter again and pick the beneficiary from the list.",
+        "NOBLE_DMT_BENE_NOT_FOUND",
+      );
+    }
     const { httpStatus, json } = await noblePost(
       "dmt",
       "/api/v1.0/airtel_dmt/transaction_validate_otp",
@@ -719,26 +867,35 @@ export class NobleAdapter implements ProviderAdapter {
         transactionId,
         token,
         retailerId: merchant.retailerCode,
-        beneName: bene?.name || "Beneficiary",
-        bankName: bene?.bank || "BANK",
+        beneName: bene.name,
+        bankName: bene.bank,
         ifsc: params.ifsc,
         beneAccountNumber: params.accountNumber,
-        beneMobileNumber: bene?.mobile || params.customerMobile,
+        beneMobileNumber: /^\d{10}$/.test(bene.mobile) ? bene.mobile : params.customerMobile,
         transferMode: params.mode.toUpperCase() === "NEFT" ? "NEFT" : "IMPS",
       },
     );
-    return this.toResult(httpStatus, json, "DMT transfer", params.amount, {
+    const result = this.dmtResult(httpStatus, json, "DMT transfer", params.amount, {
       clientTransactionId: transactionId,
-    });
+    }, "submit");
+    return { ...result, providerTxnId: result.providerTxnId ?? transactionId };
   }
 
+  /** The provider has no refund API: failed transfers are refunded by the bank automatically. */
+  private dmtRefundUnsupported(): never {
+    throw new HttpError(
+      501,
+      "Refunds for failed money transfers are automatic on this provider. Use Recheck status on the transaction to update it.",
+      "PROVIDER_NOT_IMPLEMENTED",
+    );
+  }
   dmtTransactionRefundOtp(
     _p: DmtRefundOtpParams,
   ): Promise<ProviderResult<{ referenceKey: string; validity: string }>> {
-    this.notImplemented("dmtTransactionRefundOtp");
+    this.dmtRefundUnsupported();
   }
   dmtTransactionRefund(_p: DmtRefundParams): Promise<ProviderResult> {
-    this.notImplemented("dmtTransactionRefund");
+    this.dmtRefundUnsupported();
   }
 
   bbpsFetchBill(
@@ -755,7 +912,7 @@ export class NobleAdapter implements ProviderAdapter {
     if (!isNobleConfigured()) {
       throw new HttpError(
         503,
-        "AEPS provider is not configured on the server. Contact support.",
+        "Recharge provider is not configured on the server. Contact support.",
         "NOBLE_NOT_CONFIGURED",
       );
     }
@@ -780,19 +937,26 @@ export class NobleAdapter implements ProviderAdapter {
         raw: { refused: route.code },
       };
     }
+    const rechargeNumber =
+      route.source === "dth" ? params.accountRef.replace(/\s+/g, "") : params.accountRef.replace(/\D/g, "");
     const { httpStatus, json } = await noblePost("recharge", "/v1.0/recharge/recharge_b2b", {
       operatorCode: route.operatorCode,
       circleCode: route.circleCode,
-      rechargeNumber: params.accountRef,
+      rechargeNumber,
       amount: params.amount,
       transactionId,
     });
-    return this.toResult(httpStatus, json, "Recharge", params.amount, {
+    const result = this.toResult(httpStatus, json, "Recharge", params.amount, {
       clientTransactionId: transactionId,
       providerOperatorCode: route.operatorCode,
       providerCircleCode: route.circleCode,
       routeSource: route.source,
     });
+    // Recharge outcome is tranStatus only; without it the provider says to ask recharge_status.
+    if (result.status === "success" && !String(firstResponseRow(json).tranStatus ?? "").trim()) {
+      return { ...result, success: false, status: "pending" };
+    }
+    return result;
   }
 
   async dmtRemitterProfile(
@@ -805,6 +969,11 @@ export class NobleAdapter implements ProviderAdapter {
       json.status === 1 ||
       String(json.description ?? "").toLowerCase().includes("already registered");
     if (!registered) {
+      // Only RS015 (new customer, with a session token) leads to registration; anything else
+      // (e.g. TE0005 token error) would dead-end at the next step without a session.
+      if (json.statusCode !== "RS015" || !token) {
+        assertNobleDmtOk(httpStatus, json, "Remitter lookup failed. Try again in a minute.");
+      }
       return {
         success: true,
         status: "success",
@@ -843,7 +1012,7 @@ export class NobleAdapter implements ProviderAdapter {
       isFaceAuthAvailable: false,
       referenceKey: token,
       validity: "",
-      pidOptionWadh: "",
+      pidOptionWadh: AIRTEL_DMT_KYC_FINGER_WADH,
     };
     return {
       success: nobleOk(json, httpStatus) || registered,

@@ -1,7 +1,7 @@
-import { eq } from "drizzle-orm";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
 import { isNobleConfigured } from "../../../config/env";
 import { db } from "../../../db/postgres";
-import { users } from "../../../db/postgres/schema";
+import { transactions, users } from "../../../db/postgres/schema";
 import { HttpError } from "../../../utils/httpError";
 import { logger } from "../../../utils/logger";
 import { firstResponseRow, nobleOk, nobleTxnId } from "./aepsOps";
@@ -171,6 +171,50 @@ export async function nobleBeneList(customerMobile: string): Promise<NobleBene[]
     });
   }
   return out;
+}
+
+/** Per-transfer amount accepted by transaction_validate_otp (whole range, rupees). */
+export const AIRTEL_DMT_MIN_AMOUNT = 100;
+export const AIRTEL_DMT_MAX_AMOUNT = 5000;
+
+/** Remitter eKYC PID must be captured with this wadh (fingerprint); face uses its own value. */
+export const AIRTEL_DMT_KYC_FINGER_WADH = "E0jzJ/P8UopUHAieZn8CKqS4WPMi5ZSYXgfnlfkWjrc=";
+
+export function assertAirtelDmtAmount(amount: string): void {
+  const n = Number(amount);
+  if (!Number.isFinite(n) || n < AIRTEL_DMT_MIN_AMOUNT || n > AIRTEL_DMT_MAX_AMOUNT) {
+    throw new HttpError(
+      400,
+      `Amount must be between ₹${AIRTEL_DMT_MIN_AMOUNT} and ₹${AIRTEL_DMT_MAX_AMOUNT} per transfer. Split larger amounts into separate transfers.`,
+      "NOBLE_DMT_AMOUNT_RANGE",
+    );
+  }
+}
+
+export function assertSixDigitOtp(otp: string): void {
+  if (!/^\d{6}$/.test(otp)) {
+    throw new HttpError(400, "OTP must be exactly 6 digits. Check the SMS on the remitter mobile.", "NOBLE_DMT_OTP_FORMAT");
+  }
+}
+
+/**
+ * The status API needs the remitter mobile, which the recheck path does not pass. Only open
+ * txns are rechecked, so the status filter keeps this on the status index.
+ */
+export async function dmtRemitterMobileForTxn(clientRef: string): Promise<string | null> {
+  const rows = await db
+    .select({ metadata: transactions.metadata })
+    .from(transactions)
+    .where(
+      and(
+        inArray(transactions.status, ["initiated", "pending"]),
+        or(eq(transactions.txnRef, clientRef), sql`${transactions.metadata} ->> 'providerClientRef' = ${clientRef}`),
+      ),
+    )
+    .limit(2);
+  if (rows.length !== 1) return null;
+  const mobile = rows[0]!.metadata?.customerMobile;
+  return typeof mobile === "string" && /^\d{10}$/.test(mobile) ? mobile : null;
 }
 
 export function requireSessionToken(retailerUserId: string, mobile: string, fallback?: string): string {

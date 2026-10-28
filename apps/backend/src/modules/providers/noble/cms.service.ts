@@ -23,7 +23,7 @@ export async function nobleCmsStart(input: { merchantId: string; transactionId?:
   if (!isNobleConfigured()) {
     throw new HttpError(
       503,
-      "AEPS provider is not configured on the server. Contact support.",
+      "Cash collection provider is not configured on the server. Contact support.",
       "NOBLE_NOT_CONFIGURED",
     );
   }
@@ -43,7 +43,8 @@ export async function nobleCmsStart(input: { merchantId: string; transactionId?:
   if (!nobleOk(json, httpStatus)) {
     throw new HttpError(
       502,
-      (typeof json.description === "string" && json.description) || "CMS start failed",
+      (typeof json.description === "string" && json.description) ||
+        "Cash collection could not start: the provider gave no reason. Try again in a minute.",
       typeof json.statusCode === "string" ? json.statusCode : "NOBLE_CMS_START_FAILED",
     );
   }
@@ -59,7 +60,7 @@ export async function nobleCmsStatus(transactionId: string) {
   if (!isNobleConfigured()) {
     throw new HttpError(
       503,
-      "AEPS provider is not configured on the server. Contact support.",
+      "Cash collection provider is not configured on the server. Contact support.",
       "NOBLE_NOT_CONFIGURED",
     );
   }
@@ -73,7 +74,8 @@ export async function nobleCmsStatus(transactionId: string) {
   if (!nobleOk(json, httpStatus) && json.status !== 1) {
     throw new HttpError(
       502,
-      (typeof json.description === "string" && json.description) || "CMS status failed",
+      (typeof json.description === "string" && json.description) ||
+        "Cash collection status is not available yet: the provider gave no reason. Check again in a minute.",
       typeof json.statusCode === "string" ? json.statusCode : "NOBLE_CMS_STATUS_FAILED",
     );
   }
@@ -91,8 +93,8 @@ export async function nobleCmsStatus(transactionId: string) {
 function mapTranStatus(tranStatus: string): CmsStatus {
   const s = tranStatus.trim().toLowerCase();
   if (!s) return "pending";
-  if (s.includes("success") || s === "completed") return "success";
-  if (s.includes("fail") || s.includes("reject") || s.includes("cancel")) return "failed";
+  if (s.includes("fail") || s.includes("unsuccess") || s.includes("reject") || s.includes("cancel")) return "failed";
+  if (s === "success" || s === "successful" || s === "completed") return "success";
   return "pending";
 }
 
