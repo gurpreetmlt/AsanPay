@@ -45,7 +45,7 @@ import { TaxSummary } from "./TaxSummary";
 import { usePendingSave } from "./usePendingSave";
 import { draftOfIncome, endSlabRequest, newIncomeKey, type IncomeDraft } from "./IncomeSlabModal";
 import { ROLE_LABEL, SCHEME_ROLES, inr, pct, slabLabel, type RateCardData, type RoleSplit, type ServiceRow, type Slab } from "./types";
-import { Btn, CategoryHeaderRow, Chip } from "./ui";
+import { Btn, CategoryHeaderRow, Chip, openBlockEdge } from "./ui";
 
 type ShowFilter = "all" | "loss" | "unset";
 
@@ -57,18 +57,6 @@ const ROW_BG = {
   slabEven: "var(--admin-card)",
   slabOdd: "rgba(42,92,221,0.045)",
 };
-
-/**
- * Blue frame around an open service: service row + its slab rows + "Add slab" row. Drawn with inset
- * shadows per row because a table row group cannot carry one border box.
- */
-function openBlockEdge(part: "top" | "middle" | "bottom"): string {
-  const c = B.blueLight;
-  const sides = [`inset 2px 0 0 ${c}`, `inset -2px 0 0 ${c}`];
-  if (part === "top") sides.push(`inset 0 2px 0 ${c}`);
-  if (part === "bottom") sides.push(`inset 0 -2px 0 ${c}`);
-  return sides.join(", ");
-}
 
 /** Company loses money on a slab, or a role earns ₹0 on it. */
 function hasLossOrMissing(row: ServiceRow): boolean {

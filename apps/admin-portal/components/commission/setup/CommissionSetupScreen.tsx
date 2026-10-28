@@ -24,7 +24,7 @@ import { apiErrorMessage, downloadCsv } from "@/lib/taxCommissionUtils";
 import { ExportMenu } from "@/components/ui/ExportMenu";
 import { downloadRateCardWorkbook, rateCardCsv, rateCardReport } from "../rateCard/rateCardTransfer";
 import { ROLE_LABEL, SCHEME_ROLES, inr, pct, slabLabel, type RateCardData, type RoleSplit, type ServiceRow, type Slab } from "../rateCard/types";
-import { CategoryHeaderRow, Chip } from "../rateCard/ui";
+import { CategoryHeaderRow, Chip, openBlockEdge } from "../rateCard/ui";
 
 type ShowFilter = "all" | "loss" | "unset";
 
@@ -147,7 +147,7 @@ export function CommissionOverviewScreen() {
         style={{
           borderColor: B.border,
           background: i % 2 ? ROW_BG.slabOdd : ROW_BG.slabEven,
-          boxShadow: `inset 3px 0 0 ${B.blueLight}`,
+          boxShadow: openBlockEdge(i === row.slabs.length - 1 ? "bottom" : "middle"),
           animationDelay: `${Math.min(i, 12) * 18}ms`,
         }}
       >
@@ -370,7 +370,7 @@ export function CommissionOverviewScreen() {
                             style={{
                               borderColor: B.border,
                               background: open ? ROW_BG.open : i % 2 ? ROW_BG.odd : ROW_BG.even,
-                              boxShadow: open ? `inset 3px 0 0 ${B.blueLight}` : undefined,
+                              boxShadow: open ? openBlockEdge("top") : undefined,
                             }}
                             onClick={() => setExpanded((cur) => (cur === row.serviceId ? null : row.serviceId))}
                             aria-expanded={open}

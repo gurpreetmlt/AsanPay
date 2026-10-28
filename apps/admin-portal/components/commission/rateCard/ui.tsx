@@ -298,3 +298,15 @@ export function percentError(v: string, label: string): string | null {
   if (!Number.isFinite(n) || n < 0 || n > 100) return `${label} must be from 0 to 100`;
   return null;
 }
+
+/**
+ * Blue frame around an open service: service row + its slab rows + "Add slab" row. Drawn with inset
+ * shadows per row because a table row group cannot carry one border box.
+ */
+export function openBlockEdge(part: "top" | "middle" | "bottom"): string {
+  const c = B.blueLight;
+  const sides = [`inset 2px 0 0 ${c}`, `inset -2px 0 0 ${c}`];
+  if (part === "top") sides.push(`inset 0 2px 0 ${c}`);
+  if (part === "bottom") sides.push(`inset 0 -2px 0 ${c}`);
+  return sides.join(", ");
+}

@@ -10,7 +10,7 @@ import { apiErrorMessage } from "@/lib/taxCommissionUtils";
 import { Modal } from "@/components/ui/Modal";
 import { SaveConfirmModal } from "@/components/commission/rateCard/SaveConfirmModal";
 import { usePendingSave } from "@/components/commission/rateCard/usePendingSave";
-import { Btn, CategoryHeaderRow, Chip, NumberField, SplitModeSwitch, type SplitMode } from "@/components/commission/rateCard/ui";
+import { Btn, CategoryHeaderRow, Chip, NumberField, SplitModeSwitch, openBlockEdge, type SplitMode } from "@/components/commission/rateCard/ui";
 import {
   ROLE_LABEL,
   inr,
@@ -401,7 +401,7 @@ export function AgentRateCard({ userId, role, agentName }: { userId: string; rol
                             style={{
                               borderColor: B.border,
                               background: open ? ROW_BG.open : i % 2 ? ROW_BG.odd : ROW_BG.even,
-                              boxShadow: open ? `inset 3px 0 0 ${B.blueLight}` : undefined,
+                              boxShadow: open ? openBlockEdge("top") : undefined,
                             }}
                             onClick={() => setExpanded((cur) => (cur === row.serviceId ? null : row.serviceId))}
                             aria-expanded={open}
@@ -470,7 +470,7 @@ export function AgentRateCard({ userId, role, agentName }: { userId: string; rol
                                     style={{
                                       borderColor: B.border,
                                       background: si % 2 ? ROW_BG.slabOdd : ROW_BG.slabEven,
-                                      boxShadow: `inset 3px 0 0 ${B.blueLight}`,
+                                      boxShadow: openBlockEdge(si === row.slabs.length - 1 ? "bottom" : "middle"),
                                       animationDelay: `${Math.min(si, 12) * 18}ms`,
                                     }}
                                     onClick={() => setEditor({ serviceId: row.serviceId, slab: s })}
