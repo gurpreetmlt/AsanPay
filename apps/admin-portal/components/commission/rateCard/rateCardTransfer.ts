@@ -1,5 +1,6 @@
 import type { BrandedReport, ReportCell } from "@/lib/brandedExport";
 import { parseCsv } from "@/lib/taxCommissionUtils";
+import { downloadXlsx, type XlsxCell, type XlsxSheet } from "@/lib/xlsxWorkbook";
 import { amountBound, incomeChanges, incomeRowError, newIncomeKey, type IncomeDraft } from "./IncomeSlabModal";
 import { roleSplitError, slabSplitChanges, slabSplitOf, type SlabSplit } from "./roleSplit";
 import {
@@ -161,34 +162,9 @@ export function rateCardReport(data: RateCardData, scopeName: string): BrandedRe
   };
 }
 
-// ── Excel workbook: Summary tab + one tab per service (SpreadsheetML 2003, opens in Excel) ──
+// ── Excel workbook (.xlsx): Summary tab + one tab per service ──
 
-type XCell = string | number | null;
-
-const xmlEsc = (v: string) =>
-  v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-
-function xCell(v: XCell, style?: string): string {
-  const s = style ? ` ss:StyleID="${style}"` : "";
-  if (v === null || v === "") return `<Cell${s}/>`;
-  if (typeof v === "number") return `<Cell${s}><Data ss:Type="Number">${v}</Data></Cell>`;
-  return `<Cell${s}><Data ss:Type="String">${xmlEsc(v)}</Data></Cell>`;
-}
-
-const xRow = (cells: string[]) => `<Row>${cells.join("")}</Row>`;
 const money = (v: string | null | undefined) => (v == null || v === "" ? null : Number(v));
-
-/** Excel tab names: max 31 chars, no []:*?/\ and unique in the workbook. */
-function sheetName(raw: string, used: Set<string>): string {
-  const base = raw.replace(/[[\]:*?/\\]/g, " ").trim().slice(0, 31) || "Sheet";
-  let name = base;
-  for (let n = 2; used.has(name.toLowerCase()); n++) {
-    const tail = ` (${n})`;
-    name = `${base.slice(0, 31 - tail.length)}${tail}`;
-  }
-  used.add(name.toLowerCase());
-  return name;
-}
 
 function roleHow(s: Slab, role: SchemeRole): string {
   const r = s.roles.find((x) => x.role === role);
@@ -198,93 +174,69 @@ function roleHow(s: Slab, role: SchemeRole): string {
   return r.source === "none" ? "None" : "Override";
 }
 
-function worksheet(name: string, widths: number[], rows: string[]): string {
-  const cols = widths.map((w) => `<Column ss:Width="${w}"/>`).join("");
-  return `<Worksheet ss:Name="${xmlEsc(name)}"><Table>${cols}${rows.join("")}</Table><WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel"><FreezePanes/><FrozenNoSplit/><SplitHorizontal>4</SplitHorizontal><TopRowBottomPane>4</TopRowBottomPane><ActivePane>2</ActivePane></WorksheetOptions></Worksheet>`;
-}
+const head = (labels: string[]): XlsxCell[] => labels.map((v) => ({ v, s: "head" }));
+const numCell = (v: number | null): XlsxCell => ({ v, s: "num" });
 
-/** Downloads the rate card as an Excel workbook: a Summary tab, then one tab per service with its slabs. */
+/** Downloads the rate card as an .xlsx workbook: a Summary tab, then one tab per service with its slabs. */
 export function downloadRateCardWorkbook(data: RateCardData, scopeName: string): void {
-  const used = new Set<string>();
   const generated = new Date().toLocaleString("en-IN");
-  const sheets: string[] = [];
 
-  const summaryRows = [
-    xRow([xCell("Commission rate card", "title")]),
-    xRow([xCell(`${scopeName} · generated ${generated} · amounts per txn before TDS`, "muted")]),
-    xRow([]),
-    xRow(
-      ["Service", "Category", "Slabs", "Provider pays not set", "Slabs losing money", "Slabs with a role on ₹0"].map((h) =>
-        xCell(h, "head"),
-      ),
-    ),
-    ...data.services.map((row) =>
-      xRow([
-        xCell(row.serviceName),
-        xCell(row.categoryName),
-        xCell(row.slabs.length),
-        xCell(row.slabs.filter((s) => s.providerIncome == null).length),
-        xCell(row.slabs.filter((s) => s.underwater).length, row.slabs.some((s) => s.underwater) ? "loss" : undefined),
-        xCell(row.slabs.filter((s) => s.missingRoles.length > 0).length),
-      ]),
-    ),
-  ];
-  sheets.push(worksheet(sheetName("Summary", used), [170, 140, 60, 130, 120, 140], summaryRows));
-
-  for (const row of data.services) {
-    const header = [
-      "Slab from",
-      "Slab to",
-      "Example amount",
-      "Provider pays (rate)",
-      "Provider pays ₹",
-      ...SCHEME_ROLES.flatMap((r) => [`${ROLE_LABEL[r]} ₹`, `${ROLE_LABEL[r]} how`]),
-      "Company keeps ₹",
-    ];
-    const rows = [
-      xRow([xCell(row.serviceName, "title")]),
-      xRow([xCell(`${row.categoryName} · ${row.serviceCode} · ${scopeName} · generated ${generated}`, "muted")]),
-      xRow([]),
-      xRow(header.map((h) => xCell(h, "head"))),
-      ...row.slabs.map((s) => {
-        const income = incomeRuleOf(row, s);
-        return xRow([
-          xCell(money(s.minAmount), "num"),
-          xCell(money(s.maxAmount), "num"),
-          xCell(money(s.sampleAmount), "num"),
-          xCell(income ? ruleLabel(income.ruleType, income.value, income.capAmount) : "Not set"),
-          xCell(money(s.providerIncome), "num"),
-          ...SCHEME_ROLES.flatMap((r) => {
-            const split = s.roles.find((x) => x.role === r);
-            return [xCell(money(split?.gross), "num"), xCell(roleHow(s, r))];
-          }),
-          xCell(Number(s.companyKeeps), s.underwater ? "loss" : "num"),
-        ]);
+  const summary: XlsxSheet = {
+    name: "Summary",
+    freezeRows: 4,
+    widths: [26, 20, 8, 20, 18, 22],
+    rows: [
+      [{ v: "Commission rate card", s: "title" }],
+      [{ v: `${scopeName} · generated ${generated} · amounts per txn before TDS`, s: "muted" }],
+      [],
+      head(["Service", "Category", "Slabs", "Provider pays not set", "Slabs losing money", "Slabs with a role on ₹0"]),
+      ...data.services.map((row): XlsxCell[] => {
+        const losing = row.slabs.filter((s) => s.underwater).length;
+        return [
+          row.serviceName,
+          row.categoryName,
+          row.slabs.length,
+          row.slabs.filter((s) => s.providerIncome == null).length,
+          losing ? { v: losing, s: "loss" } : losing,
+          row.slabs.filter((s) => s.missingRoles.length > 0).length,
+        ];
       }),
-    ];
-    sheets.push(worksheet(sheetName(row.serviceName, used), [70, 70, 90, 130, 90, 75, 95, 85, 95, 60, 95, 100], rows));
-  }
+    ],
+  };
 
-  const xml =
-    `<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?>` +
-    `<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">` +
-    `<Styles>` +
-    `<Style ss:ID="title"><Font ss:Bold="1" ss:Size="14" ss:Color="#1E3A8A"/></Style>` +
-    `<Style ss:ID="muted"><Font ss:Color="#64748B"/></Style>` +
-    `<Style ss:ID="head"><Font ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#2A5CDD" ss:Pattern="Solid"/></Style>` +
-    `<Style ss:ID="num"><NumberFormat ss:Format="#,##0.00"/></Style>` +
-    `<Style ss:ID="loss"><Font ss:Bold="1" ss:Color="#B91C1C"/><NumberFormat ss:Format="#,##0.00"/></Style>` +
-    `</Styles>${sheets.join("")}</Workbook>`;
+  const serviceSheets: XlsxSheet[] = data.services.map((row) => ({
+    name: row.serviceName,
+    freezeRows: 4,
+    widths: [11, 11, 14, 22, 15, 12, 16, 13, 16, 10, 16, 16],
+    rows: [
+      [{ v: row.serviceName, s: "title" }],
+      [{ v: `${row.categoryName} · ${row.serviceCode} · ${scopeName} · generated ${generated}`, s: "muted" }],
+      [],
+      head([
+        "Slab from",
+        "Slab to",
+        "Example amount",
+        "Provider pays (rate)",
+        "Provider pays ₹",
+        ...SCHEME_ROLES.flatMap((r) => [`${ROLE_LABEL[r]} ₹`, `${ROLE_LABEL[r]} how`]),
+        "Company keeps ₹",
+      ]),
+      ...row.slabs.map((s): XlsxCell[] => {
+        const income = incomeRuleOf(row, s);
+        return [
+          numCell(money(s.minAmount)),
+          numCell(money(s.maxAmount)),
+          numCell(money(s.sampleAmount)),
+          income ? ruleLabel(income.ruleType, income.value, income.capAmount) : "Not set",
+          numCell(money(s.providerIncome)),
+          ...SCHEME_ROLES.flatMap((r): XlsxCell[] => [numCell(money(s.roles.find((x) => x.role === r)?.gross)), roleHow(s, r)]),
+          { v: Number(s.companyKeeps), s: s.underwater ? "loss" : "num" },
+        ];
+      }),
+    ],
+  }));
 
-  const blob = new Blob([xml], { type: "application/vnd.ms-excel" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `rate-card-${new Date().toISOString().slice(0, 10)}.xls`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  downloadXlsx(`rate-card-${new Date().toISOString().slice(0, 10)}.xlsx`, [summary, ...serviceSheets]);
 }
 
 export type ImportPlan = {
