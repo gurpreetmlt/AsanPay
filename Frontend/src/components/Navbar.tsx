@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Menu, X } from 'lucide-react';
 import Logo from './Logo';
 import ThemeToggle from './ThemeToggle';
-import { AGENT_LOGIN_URL, AGENT_SIGNUP_URL } from '@/lib/agentPortal';
+import { AGENT_LOGIN_URL } from '@/lib/agentPortal';
 
 interface NavbarProps {
   onOpenWaitlist: () => void;
@@ -66,12 +66,13 @@ export default function Navbar({ onOpenWaitlist }: NavbarProps) {
             >
               Log in
             </a>
-            <a
-              href={AGENT_SIGNUP_URL}
+            <button
+              type="button"
+              onClick={onOpenWaitlist}
               className="font-sora font-bold text-sm text-white px-5 py-2.5 rounded-xl bg-linear-to-r from-brand-blue-dark to-brand-blue-light hover:from-brand-blue-light hover:to-brand-blue-dark shadow-md shadow-brand-blue-dark/15 transition-all cursor-pointer hover:scale-105 active:scale-95 focus:outline-hidden focus:ring-2 focus:ring-brand-blue-light focus:ring-offset-2 dark:focus:ring-offset-slate-900"
             >
-              Get Started
-            </a>
+              Become an Agent
+            </button>
           </div>
 
           <div className="flex sm:hidden items-center gap-3 ml-auto">
@@ -143,22 +144,15 @@ export default function Navbar({ onOpenWaitlist }: NavbarProps) {
             >
               Log in
             </a>
-            <a
-              href={AGENT_SIGNUP_URL}
-              onClick={() => setMobileMenuOpen(false)}
-              className="w-full text-center font-sora font-bold text-sm text-white py-3 rounded-xl bg-linear-to-r from-brand-blue-dark to-brand-blue-light dark:from-brand-blue-light dark:to-brand-blue-dark cursor-pointer"
-            >
-              Get Started
-            </a>
             <button
               type="button"
               onClick={() => {
                 setMobileMenuOpen(false);
                 onOpenWaitlist();
               }}
-              className="w-full text-center font-sora font-medium text-xs text-neutral-500 py-2"
+              className="w-full text-center font-sora font-bold text-sm text-white py-3 rounded-xl bg-linear-to-r from-brand-blue-dark to-brand-blue-light dark:from-brand-blue-light dark:to-brand-blue-dark cursor-pointer"
             >
-              Join waitlist (email)
+              Become an Agent
             </button>
           </div>
         </div>

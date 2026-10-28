@@ -237,6 +237,8 @@ export const signupRequestSchema = z
   .object({
     mobile: mobileSchema,
     portal: z.enum(AUTH_PORTALS).default("agent"),
+    /** Signup is invite-only; checked against the mobile before any OTP goes out. */
+    inviteToken: z.string().trim().min(20).max(100).optional(),
     latitude: geoCoordSchema.optional(),
     longitude: geoCoordSchema.optional(),
   })

@@ -446,9 +446,9 @@ export default function NetworkPage() {
                       size="sm"
                       showArrow={false}
                       className="!w-auto"
-                      onClick={() => router.push("/signup")}
+                      onClick={() => router.push("/network?invite=1")}
                     >
-                      Onboard partner
+                      Invite partner
                     </PrimaryButton>
                   }
                 />
@@ -494,9 +494,9 @@ export default function NetworkPage() {
                       size="sm"
                       showArrow={false}
                       className="!w-auto"
-                      onClick={() => router.push("/signup")}
+                      onClick={() => router.push("/network?invite=1")}
                     >
-                      Onboard partner
+                      Invite partner
                     </PrimaryButton>
                   )
                 }

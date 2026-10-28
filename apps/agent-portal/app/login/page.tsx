@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import {
@@ -830,9 +829,7 @@ export default function LoginPage() {
           </PrimaryButton>
 
           <p className="text-center text-xs" style={{ color: B.muted }}>
-            <Link href="/signup?role=retailer" className="font-semibold" style={{ color: B.blue }}>
-              Sign up as Retailer
-            </Link>
+            New to AsanPay? Ask your Distributor to send you an invite link by email.
           </p>
           </>
           )}

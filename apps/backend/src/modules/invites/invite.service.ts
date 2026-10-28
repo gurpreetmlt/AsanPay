@@ -11,18 +11,31 @@ import { isMailerConfigured, sendMail, signupInviteEmailTemplate } from "../../u
 
 const INVITE_TTL_DAYS = 7;
 
-/** Who may invite whom. Admin creates Super Distributors directly. */
-const CHILD_ROLE: Record<string, "distributor" | "retailer"> = {
-  super_distributor: "distributor",
-  distributor: "retailer",
+type InviteRole = "super_distributor" | "distributor" | "retailer";
+
+/** Who may invite whom. Signup is invite-only; admin invites Super Distributors and Direct Retailers. */
+const CHILD_ROLES: Record<string, InviteRole[]> = {
+  admin: ["super_distributor", "retailer"],
+  super_distributor: ["distributor"],
+  distributor: ["retailer"],
 };
 
 const ROLE_LABEL: Record<string, string> = {
+  super_distributor: "Super Distributor",
   distributor: "Distributor",
   retailer: "Retailer",
 };
 
+/** Role the signup page and /signup/complete use — a retailer invited by admin has no Distributor. */
+export type InviteSignupRole = "super_distributor" | "distributor" | "retailer" | "direct_retailer";
+function signupRoleOf(inviteRole: string, inviterRole: string): InviteSignupRole {
+  if (inviteRole === "retailer" && inviterRole === "admin") return "direct_retailer";
+  return inviteRole as InviteSignupRole;
+}
+
 export const createInviteSchema = z.object({
+  /** Admin only — upline roles always invite their single child role. */
+  role: z.enum(["super_distributor", "retailer"]).optional(),
   name: z.string({ error: "Enter the full name" }).trim().min(2, "Enter the full name").max(120),
   mobile: z
     .string({ error: "Enter a valid 10-digit mobile" })
@@ -88,15 +101,23 @@ async function loadInviter(inviterId: string) {
   if (!inviter || !inviter.isActive) {
     throw new HttpError(403, "Your account is inactive. Contact support.", "INVITER_INACTIVE");
   }
-  const childRole = CHILD_ROLE[inviter.role];
-  if (!childRole) {
+  const childRoles = CHILD_ROLES[inviter.role];
+  if (!childRoles) {
     throw new HttpError(
       403,
-      "Only Super Distributors and Distributors can send signup invites",
+      "Only Admin, Super Distributors and Distributors can send signup invites",
       "INVITE_NOT_ALLOWED",
     );
   }
-  return { ...inviter, childRole };
+  return { ...inviter, childRoles };
+}
+
+function pickChildRole(inviter: { role: string; childRoles: InviteRole[] }, requested?: InviteRole): InviteRole {
+  if (inviter.childRoles.length === 1) return inviter.childRoles[0]!;
+  if (!requested || !inviter.childRoles.includes(requested)) {
+    throw new HttpError(422, "Choose who you are inviting: Super Distributor or Direct Retailer", "INVITE_ROLE_REQUIRED");
+  }
+  return requested;
 }
 
 async function emailInvite(row: InviteRow, rawToken: string, inviterName: string): Promise<boolean> {
@@ -133,6 +154,7 @@ async function ownInvite(inviterId: string, id: string): Promise<InviteRow> {
 
 export async function createInvite(inviterId: string, input: CreateInviteInput) {
   const inviter = await loadInviter(inviterId);
+  const childRole = pickChildRole(inviter, input.role);
 
   const [taken] = await db
     .select({ id: users.id })
@@ -162,7 +184,7 @@ export async function createInvite(inviterId: string, input: CreateInviteInput) 
     .values({
       tokenHash: token.hash,
       inviterId,
-      role: inviter.childRole,
+      role: childRole,
       name: input.name,
       mobile: input.mobile,
       email: input.email,
@@ -249,7 +271,7 @@ async function findUsable(rawToken: string) {
     .from(users)
     .where(eq(users.id, row.inviterId))
     .limit(1);
-  if (!inviter || !inviter.isActive || CHILD_ROLE[inviter.role] !== row.role) {
+  if (!inviter || !inviter.isActive || !(CHILD_ROLES[inviter.role] ?? []).includes(row.role as InviteRole)) {
     throw new HttpError(410, "Your upline account is no longer active. Contact support.", "INVITER_INACTIVE");
   }
   return { row, inviter };
@@ -259,7 +281,7 @@ async function findUsable(rawToken: string) {
 export async function lookupInvite(rawToken: string) {
   const { row, inviter } = await findUsable(rawToken);
   return {
-    role: row.role as "distributor" | "retailer",
+    role: signupRoleOf(row.role, inviter.role),
     name: row.name,
     mobile: row.mobile,
     email: row.email,
@@ -278,7 +300,7 @@ export async function assertInviteForSignup(rawToken: string, mobile: string) {
       "INVITE_MOBILE_MISMATCH",
     );
   }
-  return { inviteId: row.id, role: row.role as "distributor" | "retailer", sponsorUid: inviter.uid };
+  return { inviteId: row.id, role: signupRoleOf(row.role, inviter.role), sponsorUid: inviter.uid };
 }
 
 export async function markInviteAccepted(inviteId: bigint, userId: string): Promise<void> {

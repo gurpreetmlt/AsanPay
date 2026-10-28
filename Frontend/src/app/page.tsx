@@ -25,8 +25,6 @@ import Countdown from '@/components/Countdown';
 import WaitlistModal from '@/components/WaitlistModal';
 import BackgroundEffects from '@/components/BackgroundEffects';
 import Link from 'next/link';
-import { AGENT_SIGNUP_URL } from '@/lib/agentPortal';
-
 export default function Home() {
   const [modalOpen, setModalOpen] = useState(false);
   const shouldReduceMotion = useReducedMotion();
@@ -188,13 +186,14 @@ export default function Home() {
 
               {/* Hero Call-to-actions */}
               <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-                <a
-                  href={AGENT_SIGNUP_URL}
+                <button
+                  type="button"
+                  onClick={() => setModalOpen(true)}
                   className="px-8 py-4 rounded-xl bg-linear-to-r from-brand-blue-dark to-brand-blue-light dark:from-brand-blue-light dark:to-brand-blue-dark hover:from-brand-blue-light hover:to-brand-blue-dark text-white font-sora font-bold text-base shadow-lg shadow-brand-blue-dark/20 hover:scale-105 transition-all cursor-pointer flex items-center justify-center gap-2 group"
                 >
-                  Become an Agent / Register Now
+                  Become an Agent
                   <ChevronRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
-                </a>
+                </button>
                 <a
                   href="/#services"
                   className="px-8 py-4 rounded-xl border border-neutral-300 dark:border-white/10 hover:bg-neutral-100 dark:hover:bg-white/5 text-neutral-700 dark:text-neutral-200 font-sora font-bold text-base hover:scale-105 transition-all cursor-pointer flex items-center justify-center"

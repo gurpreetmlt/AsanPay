@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState, type FormEvent, type ReactNode }
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { ArrowLeft, Check, CheckCircle2, Loader2 } from "lucide-react";
+import { ArrowLeft, Check, CheckCircle2, Loader2, MailPlus } from "lucide-react";
 import {
   PAN_FORMAT_ERROR,
   SIGNUP_POLICY_VERSION,
@@ -74,7 +74,7 @@ interface SponsorInfo {
 }
 
 interface InviteInfo {
-  role: "distributor" | "retailer";
+  role: "super_distributor" | "distributor" | "retailer" | "direct_retailer";
   name: string;
   mobile: string;
   email: string;
@@ -576,12 +576,56 @@ export default function SignupPage() {
   );
 }
 
+/** Public signup is closed — accounts are created only from an upline's email invite link. */
+function InviteOnlyNotice({ reason, onLogin }: { reason: string | null; onLogin: () => void }) {
+  return (
+    <div className="flex min-h-screen items-center justify-center px-4 py-10" style={{ background: B.bg }}>
+      <div
+        className="confirm-modal-panel w-full max-w-md space-y-5 rounded-3xl border bg-white p-6 shadow-xl sm:p-8"
+        style={{ borderColor: B.border }}
+      >
+        <div className="flex justify-center">
+          <AsanPayLockup width={132} light={false} animate showTagline={false} />
+        </div>
+        <div className="flex items-start gap-3">
+          <div
+            className="confirm-modal-icon flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl"
+            style={{ background: reason ? "#FEF2F2" : "#EEF2FF", color: reason ? "#DC2626" : B.blue }}
+          >
+            <MailPlus size={22} />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold" style={{ color: B.blue }}>
+              Signup is by invitation only
+            </h1>
+            <p className="mt-1 text-sm" style={{ color: B.muted }}>
+              Ask your Distributor to send you an invite link by email, then open that link to create your account.
+            </p>
+          </div>
+        </div>
+        {reason ? (
+          <p className="rounded-xl border px-3 py-2 text-sm font-semibold" style={{ borderColor: "#FCA5A5", background: "#FEF2F2", color: "#B91C1C" }}>
+            {reason}
+          </p>
+        ) : null}
+        <PrimaryButton type="button" variant="primary" onClick={onLogin}>
+          Log in
+        </PrimaryButton>
+        <p className="text-center text-xs" style={{ color: B.muted }}>
+          Already have an account? Log in with your mobile number.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function SignupPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const stepParam = searchParams.get("step");
   const inviteToken = (searchParams.get("invite") || "").trim();
   const [invite, setInvite] = useState<InviteInfo | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
   const setAuth = useAuthStore((s) => s.setAuth);
   const accessToken = useAuthStore((s) => s.accessToken);
   const user = useAuthStore((s) => s.user);
@@ -806,7 +850,9 @@ function SignupPageInner() {
           sponsorMobile: inv.sponsor.mobile.replace(/\D/g, "").slice(0, 10),
         }));
       } catch (err) {
-        if (!cancelled) toast.error(extractApiError(err, "This invite link is not valid. Ask your upline to send a new one."));
+        if (!cancelled) {
+          setInviteError(extractApiError(err, "This invite link is not valid. Ask your upline to send a new one."));
+        }
       }
     })();
     return () => {
@@ -1348,6 +1394,7 @@ function SignupPageInner() {
       const { data } = await api.post<ApiResponse<{ otp?: string; message: string }>>("/auth/signup/request", {
         mobile: draft.mobile.replace(/\D/g, "").slice(0, 10),
         portal: "agent",
+        inviteToken,
       });
       if (!data.success) throw new Error(data.message);
       setDevOtp(data.data.otp ?? null);
@@ -1886,6 +1933,12 @@ function SignupPageInner() {
 
   if (!draftReady) return null;
 
+  const resuming = draft.accountCreated || loggedInContinue;
+  if (!resuming && (!inviteToken || inviteError)) {
+    return <InviteOnlyNotice reason={inviteError} onLogin={() => router.push("/login")} />;
+  }
+  if (!resuming && !invite) return null;
+
   const subtitle = SIGNUP_STEPS[stepIndex]?.label ?? "Sign Up";
   const primaryLabel =
     loading
@@ -1941,8 +1994,8 @@ function SignupPageInner() {
                 {invite ? (
                   <p className="rounded-xl px-3 py-2 text-xs" style={{ background: B.secondary, color: B.blue }}>
                     Invited by <strong>{invite.sponsor.name}</strong> to join as{" "}
-                    <strong>{invite.role === "distributor" ? "Distributor" : "Retailer"}</strong>. Mobile is fixed to
-                    the number in your invite.
+                    <strong>{ROLE_OPTIONS.find((r) => r.value === invite.role)?.label ?? "Retailer"}</strong>. Mobile is
+                    fixed to the number in your invite.
                   </p>
                 ) : null}
                 <Field label="Mobile Number *">

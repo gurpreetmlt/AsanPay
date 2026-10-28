@@ -29,17 +29,13 @@ function loginRoleOf(user: AuthUser): LoginRoleChip {
   return user.role === "super_distributor" || user.role === "distributor" ? user.role : "retailer";
 }
 
-interface LoginScreenProps {
-  onSignup: () => void;
-}
-
 interface PendingSession {
   user: AuthUser;
   accessToken: string;
   refreshToken: string;
 }
 
-export function LoginScreen({ onSignup }: LoginScreenProps) {
+export function LoginScreen() {
   const setAuth = useAuthStore((s) => s.setAuth);
   const [mobile, setMobile] = useState("");
   const [loading, setLoading] = useState(false);
@@ -768,9 +764,11 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
               </>
           </View>
 
-          <Pressable onPress={onSignup} style={styles.signupRow}>
-            <Text style={styles.signupLink}>Sign up as Retailer</Text>
-          </Pressable>
+          <View style={styles.signupRow}>
+            <Text style={[styles.signupText, { textAlign: "center" }]}>
+              New to AsanPay? Ask your Distributor to send you an invite link by email.
+            </Text>
+          </View>
 
           {__DEV__ ? <Text style={styles.devHint}>Dev API: {API_BASE}</Text> : null}
         </ScrollView>

@@ -19,7 +19,7 @@ inviteRouter.get("/lookup/:token", signupMobileCheckLimiter, async (req, res) =>
   sendSuccess(res, await lookupInvite(String(req.params.token)));
 });
 
-const uplineOnly = [requireAuth, requireRole("super_distributor", "distributor")];
+const uplineOnly = [requireAuth, requireRole("admin", "super_distributor", "distributor")];
 
 function inviterId(req: { auth?: { sub: string } }): string {
   if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");

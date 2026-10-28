@@ -40,6 +40,7 @@ const QUICK_ROUTES = [
   { q: "distributor", href: "/users/distributors", label: "Distributors" },
   { q: "retailer", href: "/users/retailers", label: "Retailers" },
   { q: "kyc", href: "/kyc", label: "KYC Queue" },
+  { q: "invite", href: "/invites", label: "Invites" },
   { q: "transaction", href: "/transactions", label: "Transactions" },
   { q: "wallet", href: "/wallet", label: "Company balance" },
   { q: "balance", href: "/wallet", label: "Company balance" },

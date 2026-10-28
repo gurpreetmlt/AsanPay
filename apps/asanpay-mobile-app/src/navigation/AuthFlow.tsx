@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { LoginScreen, type LoginRoleChip } from "../screens/LoginScreen";
 import { TrustedUnlockScreen } from "../screens/TrustedUnlockScreen";
-import { SignupScreen } from "../screens/signup/SignupScreen";
 import { getRememberedLogin, isTrustWindowExpired } from "../lib/rememberedLogin";
 
-type AuthStep = "login" | "signup" | "trustedUnlock";
+type AuthStep = "login" | "trustedUnlock";
 
 export function AuthFlow() {
   const [step, setStep] = useState<AuthStep>("login");
@@ -47,9 +46,5 @@ export function AuthFlow() {
     );
   }
 
-  if (step === "signup") {
-    return <SignupScreen initialRole="retailer" onBack={() => setStep("login")} />;
-  }
-
-  return <LoginScreen onSignup={() => setStep("signup")} />;
+  return <LoginScreen />;
 }

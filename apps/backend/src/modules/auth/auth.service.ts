@@ -1694,6 +1694,14 @@ export async function requestSignupOtp(
       "MOBILE_TAKEN",
     );
   }
+  if (!input.inviteToken) {
+    throw new HttpError(
+      403,
+      "Signup is by invitation only. Ask your Distributor to send you an invite link.",
+      "SIGNUP_INVITE_REQUIRED",
+    );
+  }
+  await assertInviteForSignup(input.inviteToken, input.mobile);
 
   const otp = getTestSignupOtpOverride(input.mobile) ?? randomInt(100000, 1000000).toString();
   await insertOtpRequest({
@@ -1853,16 +1861,15 @@ export async function completeSignup(
     throw new HttpError(401, "Too many attempts — verify mobile OTP again", "OTP_LOCKED");
   }
 
-  const invite = input.inviteToken ? await assertInviteForSignup(input.inviteToken, input.mobile) : null;
-  if (invite) {
-    input = { ...input, role: invite.role, sponsorUid: invite.sponsorUid };
-  } else if ((["distributor", "super_distributor"] as string[]).includes(input.role)) {
+  if (!input.inviteToken) {
     throw new HttpError(
       403,
-      "Distributor accounts need an invite link from your Super Distributor. Sign up as a Retailer instead.",
-      "PARTNER_SIGNUP_NEEDS_INVITE",
+      "Signup is by invitation only. Ask your Distributor to send you an invite link.",
+      "SIGNUP_INVITE_REQUIRED",
     );
   }
+  const invite = await assertInviteForSignup(input.inviteToken, input.mobile);
+  input = { ...input, role: invite.role, sponsorUid: invite.sponsorUid };
 
   const isDirectRetailer = input.role === "direct_retailer";
   const isSuperDirect = input.role === "super_distributor";
@@ -1928,7 +1935,6 @@ export async function completeSignup(
       password,
       role: childRole,
     },
-    isSuperDirect ? { isActive: false } : undefined,
   );
 
   const [row] = await db
@@ -1941,7 +1947,7 @@ export async function completeSignup(
     .where(eq(users.id, user.id))
     .returning();
   if (!row) throw new HttpError(500, "User created but not found");
-  if (invite) await markInviteAccepted(invite.inviteId, row.id);
+  await markInviteAccepted(invite.inviteId, row.id);
   try {
     await recordPolicyAcceptance(row.id, SIGNUP_POLICY_VERSION, input.policyChannel ?? "web", "signup", context);
   } catch (err) {
@@ -1960,19 +1966,11 @@ export async function completeSignup(
       sponsorUid,
       method: "otp",
       childRole,
-      pendingApproval: isSuperDirect,
+      invited: true,
       latitude,
       longitude,
     },
   });
-
-  if (isSuperDirect) {
-    return {
-      pendingApproval: true,
-      user: toAuthUser(row),
-      message: "Registration submitted. An admin will activate your Super Distributor account.",
-    };
-  }
 
   return issueSession(row, context, "otp");
 }

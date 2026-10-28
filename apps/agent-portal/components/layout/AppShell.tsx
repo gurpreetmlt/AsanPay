@@ -620,7 +620,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     }
     return [
       { href: "/network", title: "Network", body: "Review downline activity and KYC" },
-      { href: "/signup", title: "Onboard partner", body: "Add a new distributor or retailer" },
+      { href: "/network?invite=1", title: "Invite partner", body: "Send a signup invite link by email" },
       { href: "/wallet", title: "Fund transfer", body: "Send float to your network" },
       ...(fundRequestOn
         ? [{ href: "/fund-request", title: "Add money", body: "Request float for your wallet" }]
