@@ -5,8 +5,9 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
-  ChevronDown,
   ChevronRight,
+  Layers,
+  LayoutGrid,
   HelpCircle,
   Info,
   Pencil,
@@ -17,7 +18,9 @@ import {
   TableProperties,
   Trash2,
   Upload,
+  type LucideIcon,
 } from "lucide-react";
+import { getServiceIcon } from "@/lib/serviceIcons";
 import { toast } from "react-hot-toast";
 import { Modal } from "@/components/ui/Modal";
 import { ExportMenu } from "@/components/ui/ExportMenu";
@@ -76,10 +79,11 @@ function RoleCell({ r }: { r: RoleSplit | undefined }) {
   );
 }
 
-function SlabCells({ slab }: { slab: Slab }) {
+function SlabCells({ slab, dense = false }: { slab: Slab; dense?: boolean }) {
+  const pad = dense ? "px-3 py-1" : "px-3 py-2.5";
   return (
     <>
-      <td className="px-3 py-2.5 text-right">
+      <td className={`${pad} text-right`}>
         {slab.providerIncome != null ? (
           <span className="font-semibold tabular-nums" style={{ color: B.blue }}>
             {inr(slab.providerIncome)}
@@ -89,11 +93,11 @@ function SlabCells({ slab }: { slab: Slab }) {
         )}
       </td>
       {SCHEME_ROLES.map((role) => (
-        <td key={role} className="px-3 py-2.5">
+        <td key={role} className={pad}>
           <RoleCell r={slab.roles.find((x) => x.role === role)} />
         </td>
       ))}
-      <td className="px-3 py-2.5 text-right">
+      <td className={`${pad} text-right`}>
         {slab.underwater ? (
           <span className="font-bold tabular-nums" style={{ color: B.danger }}>
             Loses {inr(Math.abs(Number(slab.companyKeeps)))}
@@ -183,6 +187,13 @@ export function RateCardScreen() {
     setShow(viewParam === "loss" ? "loss" : "all");
   }
   const [category, setCategory] = useState("");
+  const [howOpen, setHowOpen] = useState(false);
+  /** Compact rows fit more services on screen; remembered in this browser. */
+  const [dense, setDense] = useState(() => typeof window !== "undefined" && window.localStorage.getItem("rateCardDensity") === "compact");
+  function changeDensity(next: boolean) {
+    setDense(next);
+    window.localStorage.setItem("rateCardDensity", next ? "compact" : "comfortable");
+  }
 
   /** Slab open in the add / edit popup. `slabKey` null = a new slab. */
   const [slabEditor, setSlabEditor] = useState<{ serviceId: string; slabKey: string | null; draft: IncomeDraft } | null>(null);
@@ -232,6 +243,32 @@ export function RateCardScreen() {
   const lossCount = useMemo(() => (data?.services ?? []).filter(hasLossOrMissing).length, [data]);
   const unsetCount = useMemo(() => (data?.services ?? []).filter(hasUnsetIncome).length, [data]);
   const categories = useMemo(() => [...new Set((data?.services ?? []).map((s) => s.categoryName))], [data]);
+  const slabCount = useMemo(() => (data?.services ?? []).reduce((n, s) => n + s.slabs.length, 0), [data]);
+
+  const kpis: Array<{
+    label: string;
+    value: string | number;
+    hint: string;
+    icon: LucideIcon;
+    tone: string;
+    /** Filter applied on click; null = no filter of its own. */
+    filter: ShowFilter | null;
+    href?: string;
+  }> = [
+    { label: "Services", value: data?.services.length ?? 0, hint: "Show every service", icon: LayoutGrid, tone: B.blueLight, filter: "all" },
+    { label: "Slabs", value: slabCount, hint: "Across all services", icon: Layers, tone: B.blue, filter: null },
+    { label: "Loss or role ₹0", value: lossCount, hint: "Click to show them", icon: AlertTriangle, tone: B.danger, filter: "loss" },
+    { label: "Rate not set", value: unsetCount, hint: "Provider pays missing", icon: HelpCircle, tone: "#B45309", filter: "unset" },
+    {
+      label: "Agent TDS",
+      value: data?.tenantTax.tdsApplies ? pct(data.tenantTax.tdsPercent) : "Off",
+      hint: "Edit in Tax settings",
+      icon: Receipt,
+      tone: B.greenDark,
+      filter: null,
+      href: "/tax-commission/tax",
+    },
+  ];
 
   function toggle(row: ServiceRow) {
     setExpanded((cur) => (cur === row.serviceId ? null : row.serviceId));
@@ -322,11 +359,11 @@ export function RateCardScreen() {
           e.stopPropagation();
           setSlabEditor({ serviceId: row.serviceId, slabKey: null, draft: newSlabDraft(null) });
         }}
-        className="mr-1 inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-2 py-1 text-[11px] font-bold text-white transition hover:brightness-105"
-        style={{ background: B.green }}
+        className="mr-1 inline-flex items-center gap-0.5 whitespace-nowrap rounded-lg border px-1.5 py-0.5 text-[11px] font-bold transition hover:bg-[rgba(18,183,106,0.10)]"
+        style={{ borderColor: "rgba(18,183,106,0.45)", color: B.greenDark }}
         title={`Add a new slab to ${row.serviceName}`}
       >
-        <Plus size={12} /> Add slab
+        <Plus size={12} /> Slab
       </button>
     );
   }
@@ -371,42 +408,92 @@ export function RateCardScreen() {
       </div>
 
       {data ? (
-        <section className="rounded-2xl border p-4" style={{ borderColor: B.border, background: B.card }}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="flex items-center gap-1.5 text-sm font-bold" style={{ color: B.blue }}>
-                <Receipt size={15} style={{ color: B.blueLight }} /> Default tax
-              </p>
-              <p className="text-xs" style={{ color: B.muted }}>
-                Used by every service without its own tax. Provider side: output GST {pct(data.tenantTax.providerOutputGstPercent)} ·
-                TDS {pct(data.tenantTax.providerTdsPercent)}.
-              </p>
-            </div>
-            <Link
-              href="/tax-commission/tax"
-              className="inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-sm font-semibold transition hover:brightness-105"
-              style={{ borderColor: B.border, background: "var(--admin-card)", color: B.blue }}
-            >
-              <Pencil size={14} /> Edit in Tax
-            </Link>
-          </div>
-          <TaxSummary tax={data.tenantTax} className="mt-3" />
-        </section>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {kpis.map((k) => {
+            const active = k.filter !== null && k.filter === show && !category && !query;
+            const tile = (
+              <>
+                <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+                  <k.icon size={14} style={{ color: k.tone }} /> {k.label}
+                </span>
+                <span className="mt-1 block text-2xl font-bold tabular-nums" style={{ color: k.tone }}>
+                  {k.value}
+                </span>
+                <span className="block text-[11px]" style={{ color: B.muted }}>
+                  {k.hint}
+                </span>
+              </>
+            );
+            const cls = "rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-px hover:shadow-sm";
+            const style = {
+              borderColor: active ? k.tone : B.border,
+              background: active ? `color-mix(in srgb, ${k.tone} 8%, var(--admin-card))` : "var(--admin-card)",
+            };
+            return k.href ? (
+              <Link key={k.label} href={k.href} className={cls} style={style}>
+                {tile}
+              </Link>
+            ) : (
+              <button
+                key={k.label}
+                type="button"
+                className={cls}
+                style={style}
+                onClick={() => {
+                  setShow(k.filter ?? "all");
+                  setCategory("");
+                  setQuery("");
+                }}
+              >
+                {tile}
+              </button>
+            );
+          })}
+        </div>
       ) : null}
 
-      <div
-        className="flex items-start gap-2 rounded-2xl border px-4 py-3 text-xs"
-        style={{ borderColor: "#BFDBFE", background: "rgba(42,92,221,0.05)", color: B.blue }}
-      >
-        <Info size={15} className="mt-0.5 shrink-0" style={{ color: B.blueLight }} />
-        <p>
-          Click a service to see its slabs. ✎ edits a slab and its commission split, 🗑 ends it, + Add slab adds one — each
-          opens a popup with a live calculation. The default split for every slab and &quot;Fill from provider sheet&quot; are on{" "}
-          <Link href="/tax-commission/setup" className="font-semibold underline-offset-2 hover:underline" style={{ color: B.blueLight }}>
-            Commission setup
-          </Link>
-          .
-        </p>
+      <div className="rounded-2xl border" style={{ borderColor: "#BFDBFE", background: "rgba(42,92,221,0.04)" }}>
+        <button
+          type="button"
+          onClick={() => setHowOpen((v) => !v)}
+          aria-expanded={howOpen}
+          className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-xs font-bold"
+          style={{ color: B.blueLight }}
+        >
+          <Info size={15} /> How it works
+          <ChevronRight size={14} className={`ml-auto transition-transform duration-200 ${howOpen ? "rotate-90" : ""}`} />
+        </button>
+        {howOpen && data ? (
+          <div className="space-y-3 border-t px-4 py-3 text-xs" style={{ borderColor: "#BFDBFE", color: B.blue }}>
+            <p>
+              Click a service to see its slabs. ✎ edits a slab and its commission split, 🗑 ends it, + Slab adds one — each opens a
+              popup with a live calculation (TDS included). Default split for every slab and &quot;Fill from provider sheet&quot; are on{" "}
+              <Link href="/tax-commission/setup" className="font-semibold underline-offset-2 hover:underline" style={{ color: B.blueLight }}>
+                Commission setup
+              </Link>
+              .
+            </p>
+            <div className="rounded-xl border p-3" style={{ borderColor: B.border, background: "var(--admin-card)" }}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="flex items-center gap-1.5 font-bold">
+                  <Receipt size={14} style={{ color: B.blueLight }} /> Default tax
+                  <span className="font-normal" style={{ color: B.muted }}>
+                    · used by every service without its own tax · provider side: output GST{" "}
+                    {pct(data.tenantTax.providerOutputGstPercent)} · TDS {pct(data.tenantTax.providerTdsPercent)}
+                  </span>
+                </p>
+                <Link
+                  href="/tax-commission/tax"
+                  className="inline-flex items-center gap-1 font-semibold underline-offset-2 hover:underline"
+                  style={{ color: B.blueLight }}
+                >
+                  <Pencil size={12} /> Edit in Tax
+                </Link>
+              </div>
+              <TaxSummary tax={data.tenantTax} className="mt-2" />
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div>
@@ -461,6 +548,31 @@ export function RateCardScreen() {
               ) : null}
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <div
+                className="flex rounded-xl border p-0.5 text-xs font-semibold"
+                style={{ borderColor: B.border }}
+                role="radiogroup"
+                aria-label="Row density"
+              >
+                {(
+                  [
+                    [false, "Comfortable"],
+                    [true, "Compact"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={label}
+                    type="button"
+                    role="radio"
+                    aria-checked={dense === value}
+                    onClick={() => changeDensity(value)}
+                    className="rounded-lg px-2.5 py-1 transition"
+                    style={dense === value ? { background: B.blueLight, color: "#fff" } : { color: B.muted }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
               <label className="flex items-center gap-2 rounded-xl border px-3 py-1.5" style={{ borderColor: B.border }}>
                 <Search size={14} style={{ color: B.muted }} />
                 <input
@@ -529,6 +641,7 @@ export function RateCardScreen() {
                       {g.rows.map((row, rowIndex) => {
                         const open = expanded === row.serviceId;
                         const single = row.slabs.length === 1 ? row.slabs[0] : null;
+                        const Icon = getServiceIcon(row.serviceCode);
                         return (
                           <Fragment key={row.serviceId}>
                             <tr
@@ -541,13 +654,19 @@ export function RateCardScreen() {
                               onClick={() => toggle(row)}
                               aria-expanded={open}
                             >
-                              <td className="px-4 py-2.5 align-top">
-                                <div className="flex items-start gap-1.5">
-                                  {open ? (
-                                    <ChevronDown size={16} className="mt-0.5 shrink-0" style={{ color: B.blueLight }} />
-                                  ) : (
-                                    <ChevronRight size={16} className="mt-0.5 shrink-0" style={{ color: B.muted }} />
-                                  )}
+                              <td className={`px-4 align-top ${dense ? "py-1.5" : "py-2.5"}`}>
+                                <div className="flex items-start gap-2">
+                                  <ChevronRight
+                                    size={16}
+                                    className={`mt-1 shrink-0 transition-transform duration-200 ${open ? "rotate-90" : ""}`}
+                                    style={{ color: open ? B.blueLight : B.muted }}
+                                  />
+                                  <span
+                                    className={`flex shrink-0 items-center justify-center rounded-xl ${dense ? "h-7 w-7" : "h-9 w-9"}`}
+                                    style={{ background: "rgba(42,92,221,0.10)", color: B.blueLight }}
+                                  >
+                                    <Icon size={dense ? 14 : 17} />
+                                  </span>
                                   <div className="min-w-0">
                                     <p className="font-semibold" style={{ color: B.blue }}>
                                       {row.serviceName}
@@ -557,7 +676,7 @@ export function RateCardScreen() {
                                         ? `1 slab · ${slabLabel(single.minAmount, single.maxAmount)}`
                                         : `${row.slabs.length} slabs`}
                                     </p>
-                                    <ServiceChips row={row} />
+                                    {dense ? null : <ServiceChips row={row} />}
                                   </div>
                                 </div>
                               </td>
@@ -570,11 +689,12 @@ export function RateCardScreen() {
                               ? row.slabs.map((s, slabIndex) => (
                                   <tr
                                     key={slabKey(s)}
-                                    className="cursor-pointer border-t transition hover:brightness-[0.97]"
+                                    className="rc-slab-in cursor-pointer border-t transition hover:brightness-[0.97]"
                                     style={{
                                       borderColor: B.border,
                                       background: slabIndex % 2 ? ROW_BG.slabOdd : ROW_BG.slabEven,
                                       boxShadow: `inset 3px 0 0 ${B.blueLight}`,
+                                      animationDelay: `${Math.min(slabIndex, 12) * 18}ms`,
                                     }}
                                     title="Open this slab"
                                     onClick={() => {
@@ -586,14 +706,28 @@ export function RateCardScreen() {
                                       });
                                     }}
                                   >
-                                    <td className="py-2 pl-11 pr-3 text-xs" style={{ color: B.muted }}>
+                                    <td className={`pl-[4.25rem] pr-3 text-xs ${dense ? "py-1" : "py-2"}`} style={{ color: B.muted }}>
                                       {slabLabel(s.minAmount, s.maxAmount)} · on {inr(s.sampleAmount)}
                                     </td>
-                                    <SlabCells slab={s} />
+                                    <SlabCells slab={s} dense={dense} />
                                     {slabActions(row, s)}
                                   </tr>
                                 ))
                               : null}
+                            {open ? (
+                              <tr className="rc-slab-in border-t" style={{ borderColor: B.border, boxShadow: `inset 3px 0 0 ${B.blueLight}` }}>
+                                <td colSpan={7} className="px-3 py-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => setSlabEditor({ serviceId: row.serviceId, slabKey: null, draft: newSlabDraft(null) })}
+                                    className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed py-1.5 text-xs font-bold transition hover:bg-[rgba(18,183,106,0.08)]"
+                                    style={{ borderColor: "rgba(18,183,106,0.5)", color: B.greenDark }}
+                                  >
+                                    <Plus size={13} /> Add slab to {row.serviceName}
+                                  </button>
+                                </td>
+                              </tr>
+                            ) : null}
                           </Fragment>
                         );
                       })}
