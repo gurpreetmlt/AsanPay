@@ -32,6 +32,16 @@ export const users = pgTable(
     /** Opt-in for rare product update emails (P3). Transactional mail ignores this. */
     emailMarketingOptIn: boolean("email_marketing_opt_in").notNull().default(false),
     passwordHash: text("password_hash").notNull(),
+    // Signup without a password: a temporary one is emailed on KYC approval, and the agent must
+    // set their own before anything else works (requireAuth allows /api/auth/* only).
+    mustChangePassword: boolean("must_change_password").notNull().default(false),
+    tempPasswordExpiresAt: timestamp("temp_password_expires_at", { withTimezone: true }),
+    /** True until the login email has been sent successfully (signup without a password). */
+    loginEmailPending: boolean("login_email_pending").notNull().default(false),
+    /** sent | failed — last login email attempt (NULL = never sent). */
+    loginEmailStatus: varchar("login_email_status", { length: 12 }),
+    loginEmailMessage: varchar("login_email_message", { length: 200 }),
+    loginEmailSentAt: timestamp("login_email_sent_at", { withTimezone: true }),
     // 4-6 digit transaction PIN (bcrypt) — required on every money-moving endpoint,
     // separate from the login password so a hijacked session alone can't move funds.
     txnPinHash: text("txn_pin_hash"),

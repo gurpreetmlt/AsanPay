@@ -571,6 +571,70 @@ export function securityPinChangedEmailTemplate(input: {
   };
 }
 
+/** KYC approved for an agent who signed up without a password — carries the temporary password. */
+export function loginCredentialsEmailTemplate(input: {
+  name: string;
+  mobile: string;
+  tempPassword: string;
+  validHours: number;
+}): SendMailInput {
+  const name = input.name.trim() || "there";
+  const text = [
+    `Hi ${name},`,
+    ``,
+    `Your AsanPay KYC is approved. Log in with these details:`,
+    ``,
+    `Mobile: ${input.mobile}`,
+    `Temporary password: ${input.tempPassword}`,
+    ``,
+    `This password works for ${input.validHours} hours. After you log in, you will be asked to set your own password.`,
+    `Never share this password with anyone — AsanPay staff will never ask for it.`,
+    ``,
+    `— Team AsanPay`,
+  ].join("\n");
+
+  const bodyHtml = `
+    <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${BRAND.green}">KYC approved</p>
+    <h1 style="margin:0 0 12px;font-size:26px;line-height:1.2;font-weight:800;letter-spacing:-0.03em;color:${BRAND.blueDeep}">Your login details</h1>
+    <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:${BRAND.muted}">Hi ${escapeHtml(name)},</p>
+    <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:${BRAND.muted}">
+      Your KYC is approved. Log in with the details below — you will be asked to set your own password right after.
+    </p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${BRAND.bg};border-radius:14px;margin:0 0 20px">
+      <tr>
+        <td style="padding:16px 18px">
+          <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:${BRAND.muted}">Mobile</p>
+          <p style="margin:0 0 14px;font-size:16px;font-weight:700;color:${BRAND.blueDeep}">${escapeHtml(input.mobile)}</p>
+          <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:${BRAND.muted}">Temporary password</p>
+          <p style="margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:20px;font-weight:800;letter-spacing:0.08em;color:${BRAND.blue}">${escapeHtml(input.tempPassword)}</p>
+        </td>
+      </tr>
+    </table>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px">
+      <tr>
+        <td style="background:${BRAND.green};border-radius:12px;padding:14px 22px">
+          <a href="${AGENT_URL}/login" style="font-size:14px;font-weight:700;color:${BRAND.white};text-decoration:none">Log in to AsanPay</a>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0;font-size:13px;line-height:1.6;color:${BRAND.muted}">
+      Works for <strong style="color:${BRAND.blue}">${input.validHours} hours</strong>. Never share this password — AsanPay staff will never ask for it.
+    </p>
+  `;
+
+  return {
+    to: "",
+    subject: "AsanPay KYC approved — your login details",
+    text,
+    html: brandedEmailHtml({
+      preheader: "Your KYC is approved. Here are your login details.",
+      title: "AsanPay login details",
+      bodyHtml,
+      accent: "green",
+    }),
+  };
+}
+
 export function accountLinkEmailTemplate(input: {
   name: string;
   event: "linked" | "unlinked";

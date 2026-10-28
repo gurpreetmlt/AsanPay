@@ -26,6 +26,14 @@ api.interceptors.response.use(
       const keepSession = /\/kyc\/(aadhaar\/otp|pan)/.test(url);
       if (!keepSession) useAuthStore.getState().logout();
     }
+    if (
+      error.response?.status === 403 &&
+      error.response?.data?.code === "PASSWORD_CHANGE_REQUIRED" &&
+      typeof window !== "undefined" &&
+      window.location.pathname !== "/set-password"
+    ) {
+      window.location.assign("/set-password");
+    }
     return Promise.reject(error);
   },
 );

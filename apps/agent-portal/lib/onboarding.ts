@@ -6,6 +6,7 @@ import type { AuthUser } from "@asanpay/shared-types";
  */
 export function nextOnboardingPath(user: AuthUser | null | undefined): string | null {
   if (!user) return "/login";
+  if (user.mustChangePassword) return "/set-password";
   return null;
 }
 

@@ -23,6 +23,7 @@ import {
   listKycQueue,
   decideKyc,
   resetKyc,
+  resendLoginEmail,
   listAdminTransactions,
   listCatalogAdmin,
   updateServiceSiteControl,
@@ -225,7 +226,24 @@ adminRouter.post("/kyc/:id/decide", async (req, res) => {
     })
     .parse(req.body);
   const result = await decideKyc(req.auth.sub, req.params.id, body.decision, body.reason || null);
-  sendSuccess(res, result, body.decision === "verified" ? "KYC approved" : "KYC rejected");
+  const message =
+    body.decision !== "verified"
+      ? "KYC rejected"
+      : result.loginEmail?.status === "failed"
+        ? `KYC approved, but the login email failed: ${result.loginEmail.message}`
+        : result.loginEmail?.status === "sent"
+          ? "KYC approved — login details emailed to the agent"
+          : "KYC approved";
+  sendSuccess(res, result, message);
+});
+
+adminRouter.post("/users/:id/login-email/resend", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const result = await resendLoginEmail(req.auth.sub, req.params.id);
+  if (result.status === "failed") {
+    throw new HttpError(422, `Login email failed: ${result.message}`, "LOGIN_EMAIL_FAILED");
+  }
+  sendSuccess(res, result, "Login email sent — the earlier temporary password no longer works");
 });
 
 adminRouter.post("/kyc/:id/reset", async (req, res) => {

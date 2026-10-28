@@ -17,6 +17,7 @@ import {
   mpinLoginSchema,
   setLoginMpinSchema,
   changePasswordSchema,
+  setInitialPasswordSchema,
   forgotPasswordRequestSchema,
   forgotPasswordResetSchema,
   preKycProfileSchema,
@@ -37,6 +38,7 @@ import {
   loginWithMpin,
   setLoginMpin,
   changePassword,
+  setInitialPassword,
   requestPasswordResetOtp,
   resetPasswordWithOtp,
   updatePreKycProfile,
@@ -163,6 +165,13 @@ export async function changePasswordHandler(req: Request, res: Response): Promis
   const input = changePasswordSchema.parse(req.body);
   const user = await changePassword(req.auth.sub, input);
   sendSuccess(res, { user }, "Password changed successfully");
+}
+
+export async function setInitialPasswordHandler(req: Request, res: Response): Promise<void> {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const input = setInitialPasswordSchema.parse(req.body);
+  const user = await setInitialPassword(req.auth.sub, input.newPassword);
+  sendSuccess(res, { user }, "Password set. Use it next time you log in.");
 }
 
 export async function requestPasswordResetOtpHandler(req: Request, res: Response): Promise<void> {

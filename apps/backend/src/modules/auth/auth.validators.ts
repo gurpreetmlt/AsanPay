@@ -123,6 +123,12 @@ export const changePasswordSchema = z.object({
 });
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 
+/** First login after the emailed temporary password. */
+export const setInitialPasswordSchema = z.object({
+  newPassword: passwordSchema,
+});
+export type SetInitialPasswordInput = z.infer<typeof setInitialPasswordSchema>;
+
 export const forgotPasswordRequestSchema = z.object({
   mobile: mobileSchema,
   portal: z.enum(AUTH_PORTALS).default("agent"),

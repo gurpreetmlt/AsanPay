@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import Geolocation from "@react-native-community/geolocation";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ArrowLeft, Calendar, Check, CheckCircle2, Eye, EyeOff, MapPin, X } from "lucide-react-native";
+import { ArrowLeft, Calendar, Check, CheckCircle2, MapPin, X } from "lucide-react-native";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import { api, AADHAAR_OTP_TIMEOUT_MS } from "../../lib/api";
 import { bestFix } from "../../lib/geoCapture";
@@ -470,7 +470,6 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
   const openTermsAfterLocationRef = useRef(false);
   const [locationBusy, setLocationBusy] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
-  const [showPassword, setShowPassword] = useState(false);
   const [mobileError, setMobileError] = useState<string | null>(null);
   const [addressFetchBusy, setAddressFetchBusy] = useState(false);
   const [photoCaptureBusy, setPhotoCaptureBusy] = useState(false);
@@ -1418,11 +1417,6 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
     if (stepIndex === 0) {
       if (draft.mobile.replace(/\D/g, "").length !== 10) return "Enter a valid 10-digit mobile";
       if (!draft.termsAccepted) return "Please accept Terms and Conditions";
-      if (!draft.accountCreated) {
-        if (!draft.password || draft.password.length < 8) return "Password must be at least 8 characters";
-        if (!/[A-Za-z]/.test(draft.password)) return "Password must contain a letter";
-        if (!/\d/.test(draft.password)) return "Password must contain a number";
-      }
     }
     if (stepIndex === 1) {
       if (!draft.accountCreated) {
@@ -1583,7 +1577,6 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         mobile: draft.mobile.replace(/\D/g, "").slice(0, 10),
         role: draft.role,
         portal: "agent",
-        password: draft.password,
         acceptedPolicyVersion: SIGNUP_POLICY_VERSION,
         policyChannel: "app",
         ...(needsUpline ? { sponsorUid: draft.sponsorUid } : {}),
@@ -2075,7 +2068,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
               {stepIndex === 0 && (
                 <>
                   <Text style={styles.sectionTitle}>Mobile Verification</Text>
-                  <Text style={[styles.hint, { color: tokens.mute }]}>Enter your mobile number and set a password.</Text>
+                  <Text style={[styles.hint, { color: tokens.mute }]}>Enter your mobile number and verify it with OTP.</Text>
 
                   <FieldLabel text="Mobile Number *" color={tokens.mute} />
                   <TextInput
@@ -2117,33 +2110,10 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                     *Enter number which is linked to your Aadhaar.
                   </Text>
                   {draft.accountCreated ? null : (
-                    <>
-                      <FieldLabel text="Password *" color={tokens.mute} />
-                      <View style={styles.passwordWrap}>
-                        <TextInput
-                          value={draft.password}
-                          onChangeText={(t) => patch({ password: t })}
-                          secureTextEntry={!showPassword}
-                          placeholder="e.g. Test1234"
-                          placeholderTextColor={tokens.mute}
-                          editable={!otpSent}
-                          style={[inputStyle, { paddingRight: 44 }, otpSent ? { opacity: 0.5 } : null]}
-                          autoCapitalize="none"
-                          autoCorrect={false}
-                        />
-                        <Pressable
-                          onPress={() => setShowPassword((v) => !v)}
-                          style={styles.eyeBtn}
-                          hitSlop={10}
-                          accessibilityLabel={showPassword ? "Hide password" : "Show password"}
-                        >
-                          {showPassword ? <EyeOff size={18} color={tokens.mute} /> : <Eye size={18} color={tokens.mute} />}
-                        </Pressable>
-                      </View>
-                      <Text style={[styles.hint, { color: tokens.mute }]}>
-                        Min 8 characters · include a letter and a number (e.g. Test1234)
-                      </Text>
-                    </>
+                    <Text style={[styles.hint, { color: tokens.mute }]}>
+                      No password needed now — your login password is emailed to you after KYC approval. To continue
+                      signup later, log in with mobile OTP.
+                    </Text>
                   )}
                   {otpSent ? (
                     <>
@@ -3327,16 +3297,6 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: colors.blue,
     marginBottom: 2,
-  },
-  passwordWrap: { position: "relative", justifyContent: "center" },
-  eyeBtn: {
-    position: "absolute",
-    right: 12,
-    top: 0,
-    bottom: 0,
-    justifyContent: "center",
-    alignItems: "center",
-    width: 36,
   },
   block: { gap: 8 },
   label: { fontSize: 11, fontWeight: "700", letterSpacing: 0.4, marginTop: 6, marginBottom: 4 },

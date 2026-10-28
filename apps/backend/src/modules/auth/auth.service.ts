@@ -130,6 +130,7 @@ function toAuthUser(row: typeof users.$inferSelect): AuthUser {
     aepsOnboardingRequired: isAepsOnboardingRequired(row.role, row.nobleUniqueAgentId),
     hasTxnPin: Boolean(row.txnPinHash),
     hasLoginMpin: Boolean(row.loginMpinHash),
+    mustChangePassword: Boolean(row.mustChangePassword),
     telegramLinked: Boolean(row.telegramChatId),
     fundRequestEnabled: isFundRequestEnabled(row.role, row.fundRequestEnabled),
   };
@@ -509,6 +510,14 @@ export async function loginUser(
       throw new HttpError(403, "This account is inactive. Contact support.", "ACCOUNT_INACTIVE");
     }
     throw new HttpError(401, "Incorrect password. Try again or use OTP login.", "INVALID_CREDENTIALS");
+  }
+
+  if (row.mustChangePassword && row.tempPasswordExpiresAt && row.tempPasswordExpiresAt < new Date()) {
+    throw new HttpError(
+      401,
+      "Your temporary password has expired. Tap Forgot password to set a new one, or ask support to resend the login email.",
+      "TEMP_PASSWORD_EXPIRED",
+    );
   }
 
   assertPortalAccess(row.role, input.portal);
@@ -916,6 +925,56 @@ export async function setLoginMpin(
   return getAuthMe(userId);
 }
 
+/** The agent chose their own password — no temporary password or login email is needed any more. */
+const PASSWORD_SET_BY_USER = {
+  mustChangePassword: false,
+  tempPasswordExpiresAt: null,
+  loginEmailPending: false,
+} as const;
+
+/**
+ * First login after the emailed temporary password: set your own password. Only allowed while
+ * `mustChangePassword` is on; the current session stays signed in.
+ */
+export async function setInitialPassword(userId: string, newPassword: string): Promise<AuthUser> {
+  const [row] = await db.select().from(users).where(eq(users.id, userId));
+  if (!row || !row.isActive) {
+    throw new HttpError(403, "This account is inactive. Contact support.", "ACCOUNT_INACTIVE");
+  }
+  if (!row.mustChangePassword) {
+    throw new HttpError(
+      409,
+      "Your password is already set. Use Change password in Settings instead.",
+      "PASSWORD_ALREADY_SET",
+    );
+  }
+  if (await comparePassword(newPassword, row.passwordHash)) {
+    throw new HttpError(
+      422,
+      "New password must be different from the temporary password",
+      "PASSWORD_SAME_AS_TEMP",
+    );
+  }
+
+  const passwordHash = await hashPassword(newPassword);
+  await db
+    .update(users)
+    .set({ passwordHash, ...PASSWORD_SET_BY_USER, updatedAt: new Date() })
+    .where(eq(users.id, userId));
+
+  await insertAuditLog({
+    userId,
+    action: "auth.initial_password_set",
+    entityType: "user",
+    entityId: userId,
+    ipAddress: null,
+    userAgent: null,
+    metadata: {},
+  });
+
+  return getAuthMe(userId);
+}
+
 export async function changePassword(
   userId: string,
   input: { currentPassword: string; newPassword: string },
@@ -931,7 +990,10 @@ export async function changePassword(
   }
 
   const passwordHash = await hashPassword(input.newPassword);
-  await db.update(users).set({ passwordHash, updatedAt: new Date() }).where(eq(users.id, userId));
+  await db
+    .update(users)
+    .set({ passwordHash, ...PASSWORD_SET_BY_USER, updatedAt: new Date() })
+    .where(eq(users.id, userId));
 
   // Step-up, same reasoning as an MPIN change: a changed password should force every other
   // session to re-authenticate, this one included.
@@ -1084,7 +1146,10 @@ export async function resetPasswordWithOtp(
   }
 
   const passwordHash = await hashPassword(input.newPassword);
-  await db.update(users).set({ passwordHash, updatedAt: new Date() }).where(eq(users.id, row.id));
+  await db
+    .update(users)
+    .set({ passwordHash, ...PASSWORD_SET_BY_USER, updatedAt: new Date() })
+    .where(eq(users.id, row.id));
   await markOtpConsumed(record.id);
   await revokeAllSessionsForUser(row.id);
 
@@ -1870,6 +1935,7 @@ export async function completeSignup(
     .update(users)
     .set({
       ...(hasStartGeo ? { outletLatitude: latitude, outletLongitude: longitude } : {}),
+      loginEmailPending: !input.password,
       updatedAt: new Date(),
     })
     .where(eq(users.id, user.id))

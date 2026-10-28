@@ -19,6 +19,10 @@ import {
   CircleX,
   Clock,
   Snowflake,
+  KeyRound,
+  Mail,
+  MailCheck,
+  MailX,
   type LucideIcon,
 } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
@@ -94,6 +98,83 @@ function StatusPill({
   );
 }
 
+function formatWhen(iso: string | null): string {
+  if (!iso) return "";
+  return new Date(iso).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+}
+
+/** Login email (temporary password) for agents who signed up without a password. */
+function LoginEmailCard({
+  agent,
+  busy,
+  onResend,
+}: {
+  agent: AgentDetail;
+  busy: boolean;
+  onResend: () => void;
+}) {
+  const le = agent.loginEmail;
+  if (!le || (!le.pending && !le.status && !le.mustChangePassword)) return null;
+
+  const expired =
+    le.mustChangePassword && le.tempPasswordExpiresAt
+      ? new Date(le.tempPasswordExpiresAt).getTime() < Date.now()
+      : false;
+  const canResend = agent.kycStatus === "verified" && (le.pending || le.mustChangePassword);
+
+  let pill: { text: string; tone: PillTone; icon: LucideIcon };
+  let helper: string;
+  if (le.status === "failed" && le.pending) {
+    pill = { text: "Email failed", tone: "red", icon: MailX };
+    helper = le.message ?? "The login email could not be sent.";
+  } else if (le.pending) {
+    pill = { text: "Waiting for KYC approval", tone: "slate", icon: Mail };
+    helper = "The temporary password is emailed automatically when KYC is approved.";
+  } else if (le.mustChangePassword && expired) {
+    pill = { text: "Temporary password expired", tone: "amber", icon: KeyRound };
+    helper = `Sent ${formatWhen(le.sentAt)} — the agent did not log in within 48 hours. Resend the email.`;
+  } else if (le.mustChangePassword) {
+    pill = { text: "Sent · password not set yet", tone: "amber", icon: MailCheck };
+    helper = `${le.message ?? "Sent"} on ${formatWhen(le.sentAt)}. Works until ${formatWhen(le.tempPasswordExpiresAt)}.`;
+  } else {
+    pill = { text: "Agent set own password", tone: "green", icon: MailCheck };
+    helper = le.sentAt ? `Login email sent ${formatWhen(le.sentAt)}.` : "Password is set.";
+  }
+
+  const t = PILL_TONES[pill.tone];
+  const Icon = pill.icon;
+  return (
+    <div className="space-y-2 rounded-xl border px-3 py-2.5" style={{ borderColor: B.border }}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-sm font-semibold" style={{ color: B.blue }}>
+          Login email
+        </div>
+        <span
+          className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold"
+          style={{ background: t.bg, borderColor: t.border, color: t.fg }}
+        >
+          <Icon size={14} strokeWidth={2.4} />
+          {pill.text}
+        </span>
+      </div>
+      <p className="text-xs" style={{ color: B.muted }}>
+        {helper}
+      </p>
+      {canResend ? (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onResend}
+          className="w-full rounded-xl border px-4 py-2 text-sm font-semibold disabled:opacity-50"
+          style={{ borderColor: B.border, color: B.blue, background: "#fff" }}
+        >
+          Resend login email
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 type PendingConfirm = {
   title: string;
   message: ReactNode;
@@ -154,6 +235,15 @@ interface AgentDetail {
     >
   >;
   docCheckLabels?: DocCheckLabelMap;
+  /** Signup without a password: temporary password emailed on KYC approval. */
+  loginEmail?: {
+    pending: boolean;
+    status: "sent" | "failed" | null;
+    message: string | null;
+    sentAt: string | null;
+    mustChangePassword: boolean;
+    tempPasswordExpiresAt: string | null;
+  };
   wallets: { walletType: string; balance: string }[];
   parent: { id: string; uid: string | null; name: string | null; role: string | null } | null;
 }
@@ -216,14 +306,59 @@ export default function AgentDetailPage() {
     }
     setBusy(true);
     try {
-      await api.post(`/admin/kyc/${agent.id}/decide`, { decision });
-      toast.success(decision === "verified" ? "KYC approved" : "KYC rejected");
+      const { data } = await api.post<{
+        message?: string;
+        data?: { loginEmail?: { status: "sent" | "failed" } | null };
+      }>(`/admin/kyc/${agent.id}/decide`, { decision });
+      const message = data.message ?? (decision === "verified" ? "KYC approved" : "KYC rejected");
+      if (data.data?.loginEmail?.status === "failed") toast.error(message, { duration: 8000 });
+      else toast.success(message);
       await load();
     } catch (err) {
       toast.error(
         (err as { response?: { data?: { message?: string } } }).response?.data?.message ??
           "Decision failed",
       );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function askResendLoginEmail() {
+    if (!agent) return;
+    setPendingConfirm({
+      title: "Resend login email?",
+      message: (
+        <div className="space-y-2">
+          <p>
+            A new temporary password goes to <strong>{agent.email ?? "the agent's email"}</strong>. It works for 48
+            hours.
+          </p>
+          <p>The earlier temporary password stops working once the new email is sent.</p>
+        </div>
+      ),
+      confirmLabel: "Resend email",
+      tone: "info",
+      action: () => resendLoginEmailNow(),
+    });
+  }
+
+  async function resendLoginEmailNow() {
+    if (!agent) return;
+    setBusy(true);
+    try {
+      const { data } = await api.post<{ message?: string }>(`/admin/users/${agent.id}/login-email/resend`);
+      toast.success(data.message ?? "Login email sent");
+      setPendingConfirm(null);
+      await load();
+    } catch (err) {
+      toast.error(
+        (err as { response?: { data?: { message?: string } } }).response?.data?.message ??
+          "Login email could not be sent",
+        { duration: 8000 },
+      );
+      setPendingConfirm(null);
+      await load();
     } finally {
       setBusy(false);
     }
@@ -623,6 +758,11 @@ export default function AgentDetailPage() {
                       onChange={(enabled) => setAgent((a) => (a ? { ...a, fundRequestEnabled: enabled } : a))}
                     />
                   </div>
+                  <LoginEmailCard
+                    agent={agent}
+                    busy={busy}
+                    onResend={askResendLoginEmail}
+                  />
                   <div className="flex flex-col gap-2 pt-1">
                     {agent.kycStatus === "pending" ? (
                       <>

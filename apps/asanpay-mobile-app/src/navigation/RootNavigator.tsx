@@ -6,6 +6,7 @@ import { useAuthStore } from "../store/auth";
 import { useTheme } from "../theme/ThemeContext";
 import { colors } from "../theme/colors";
 import { SetLoginMpinGate } from "../screens/SetLoginMpinGate";
+import { SetPasswordGate } from "../screens/SetPasswordGate";
 import { AppLockScreen } from "../screens/AppLockScreen";
 import { AuthFlow } from "./AuthFlow";
 import { PartnerTabs } from "./PartnerTabs";
@@ -68,6 +69,10 @@ export function RootNavigator() {
 
   if (locked) {
     return <AppLockScreen onUnlock={() => setLocked(false)} />;
+  }
+
+  if (user.mustChangePassword) {
+    return <SetPasswordGate />;
   }
 
   if (!user.hasLoginMpin && !mpinSetupSkipped) {

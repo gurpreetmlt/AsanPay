@@ -171,8 +171,13 @@ function KycBody() {
     }
     setActing(id);
     try {
-      await api.post(`/admin/kyc/${id}/decide`, { decision });
-      toast.success(decision === "verified" ? "KYC approved" : "KYC rejected");
+      const { data } = await api.post<{
+        message?: string;
+        data?: { loginEmail?: { status: "sent" | "failed" } | null };
+      }>(`/admin/kyc/${id}/decide`, { decision });
+      const message = data.message ?? (decision === "verified" ? "KYC approved" : "KYC rejected");
+      if (data.data?.loginEmail?.status === "failed") toast.error(message, { duration: 8000 });
+      else toast.success(message);
       setRows((prev) => prev.filter((r) => r.id !== id));
       void refreshAlerts();
     } catch (err) {

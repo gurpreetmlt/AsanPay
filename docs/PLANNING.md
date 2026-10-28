@@ -7,7 +7,7 @@ One row per feature; details in the section below the table. Newest at the top o
 
 | # | Feature | Surfaces | Size | Status | Design | Task file |
 |---|---------|----------|------|--------|--------|-----------|
-| PL-25 | No password at signup — temporary password emailed when admin approves KYC, forced "Set new password" on first login, mobile OTP to resume KYC | Backend, web, mobile, admin | M | planned (28 Oct) | — | — |
+| PL-25 | No password at signup — temporary password emailed when admin approves KYC, forced "Set new password" on first login, mobile OTP to resume KYC | Backend, web, mobile, admin | M | building — built 28 Oct (migrate `0084` + Coolify backend/web/admin deploy + APK + live test pending; needs SMTP env) | — | — |
 | PL-24 | Bank account check — BestAPI (free) → pennyless → ₹1 penny drop; DMT payee "Verify name with bank" (agent ₹1.50 / ₹2.50 with penny drop, admin-editable), name match pill, 90-day free re-check; same check for settlement + company banks | Backend, web, mobile, admin | M | building — DMT + admin prices built 27 Oct (migrate `0081` + `0082`); settlement bank + company bank wired 27 Oct (migrate `0083`); deploy, APK, live test pending | — | — |
 | PL-23 | Agent settlement bank ₹1 penny drop — bank holder name + PAN name match, real verification ref (replaces stub), cost debited from agent wallet | Backend, web, mobile, admin | M | building — built 27 Oct (migrate `0083` + deploy + APK + live test pending) | — | [settlement-bank-penny-drop.md](TASKS/settlement-bank-penny-drop.md) |
 | PL-22 | KYC photo check speed-ups (client resize, smaller OCR image, background check, parallel Aadhaar QR+OCR) | Backend, web, mobile | M | building — built 27 Oct; npm install (mobile resizer) + Coolify backend/web deploy + APK + real `durationMs` review pending | — | — |
@@ -50,10 +50,16 @@ issued only after documents are checked and KYC is approved.
 - Admin: **Resend login email** button (new temp password, old one invalidated).
 - Existing agents: no change.
 
-**Open decisions:**
-- [ ] Temp password expiry (24 h / 48 h / 72 h)
-- [ ] What happens if email bounces — admin sees a "Email failed" pill + resend?
-- [ ] Rejected KYC → no email; re-submit flow still via OTP
+**Decisions (28 Oct):**
+- [x] Temp password valid 48 h
+- [x] Email fails → admin agent page shows "Email failed" + reason + Resend login email
+- [x] Rejected KYC → no email; agent re-submits after mobile OTP login
+
+**Built (28 Oct):** `users.must_change_password` / `temp_password_expires_at` / `login_email_*` (migration `0084`);
+temp password emailed in `decideKyc` (`loginCredentials.service.ts`); `POST /auth/password/initial`;
+`requireAuth` allows only `/api/auth/me`, `/password/initial`, `/logout` until the password is set
+(`PASSWORD_CHANGE_REQUIRED`); `POST /admin/users/:id/login-email/resend`; web `/set-password`, mobile
+`SetPasswordGate`; signup password field removed on web + mobile.
 
 **Notes:** Temp password in email is weaker than a one-time set-password link; forced change on first
 login + short expiry limit the risk. Never log the temp password.

@@ -15,6 +15,13 @@ declare global {
   }
 }
 
+/** Routes still open while the agent must replace the emailed temporary password. */
+const OPEN_WHILE_PASSWORD_CHANGE_REQUIRED = new Set([
+  "/api/auth/me",
+  "/api/auth/password/initial",
+  "/api/auth/logout",
+]);
+
 /**
  * Verifies Bearer JWT, then reloads the user from DB so deactivated accounts and
  * role changes take effect before the access token naturally expires.
@@ -48,12 +55,13 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction): v
           id: users.id,
           role: users.role,
           isActive: users.isActive,
+          mustChangePassword: users.mustChangePassword,
           blockLogin: sql<boolean>`bool_or(coalesce(${accounts.blockLogin}, false))`,
         })
         .from(users)
         .leftJoin(accounts, eq(accounts.userId, users.id))
         .where(eq(users.id, payload.sub))
-        .groupBy(users.id, users.role, users.isActive)
+        .groupBy(users.id, users.role, users.isActive, users.mustChangePassword)
         .limit(1);
 
       if (!row || !row.isActive) {
@@ -61,6 +69,13 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction): v
       }
       if (row.blockLogin) {
         throw new HttpError(401, "Account is frozen — contact support", "ACCOUNT_FROZEN");
+      }
+      if (row.mustChangePassword && !OPEN_WHILE_PASSWORD_CHANGE_REQUIRED.has(req.baseUrl + req.path)) {
+        throw new HttpError(
+          403,
+          "Set a new password to continue. Your temporary password can only be used once.",
+          "PASSWORD_CHANGE_REQUIRED",
+        );
       }
 
       req.auth = { ...payload, role: row.role };

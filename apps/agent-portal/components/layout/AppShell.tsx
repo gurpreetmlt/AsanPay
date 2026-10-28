@@ -675,6 +675,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [pathname]);
 
   useEffect(() => {
+    if (user?.mustChangePassword) router.replace("/set-password");
+  }, [user?.mustChangePassword, router]);
+
+  useEffect(() => {
     const msg = takeSwitchToast();
     if (msg) toast.success(msg);
   }, []);

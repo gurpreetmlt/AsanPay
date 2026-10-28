@@ -47,6 +47,7 @@ import {
 import { docCheckLabelsFromMeta } from "../kyc/docCheck/docCheckLabels";
 import { getKycVerificationView, recordKycVerification } from "../kyc/kycVerification.service";
 import { kycDecisionEmailTemplate, kycResetEmailTemplate, notifyUserEmail } from "../../utils/mailer";
+import { sendLoginCredentials, type LoginEmailResult } from "../auth/loginCredentials.service";
 import { findLatestAuditLog, insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import { assertCommissionMonthUnlocked, recordRateChangeEvent } from "../commission/commission.guards";
 import { resyncUidCounter } from "../../utils/uid";
@@ -92,6 +93,12 @@ export async function getAdminUserDetail(userId: string) {
       parentId: users.parentId,
       panNumberEncrypted: users.panNumberEncrypted,
       aadhaarNumberEncrypted: users.aadhaarNumberEncrypted,
+      loginEmailPending: users.loginEmailPending,
+      loginEmailStatus: users.loginEmailStatus,
+      loginEmailMessage: users.loginEmailMessage,
+      loginEmailSentAt: users.loginEmailSentAt,
+      mustChangePassword: users.mustChangePassword,
+      tempPasswordExpiresAt: users.tempPasswordExpiresAt,
       createdAt: users.createdAt,
       updatedAt: users.updatedAt,
       parentUid: parent.uid,
@@ -187,12 +194,26 @@ export async function getAdminUserDetail(userId: string) {
     parentUid: _pu,
     parentName: _pn,
     parentRole: _pr,
+    loginEmailPending,
+    loginEmailStatus,
+    loginEmailMessage,
+    loginEmailSentAt,
+    mustChangePassword,
+    tempPasswordExpiresAt,
     ...safe
   } = row;
 
   return {
     ...safe,
     isFrozen,
+    loginEmail: {
+      pending: loginEmailPending,
+      status: loginEmailStatus as "sent" | "failed" | null,
+      message: loginEmailMessage,
+      sentAt: loginEmailSentAt,
+      mustChangePassword,
+      tempPasswordExpiresAt,
+    },
     hasKycDocs: Boolean(panFull && aadhaarFull),
     kyc: {
       status: row.kycStatus,
@@ -1162,7 +1183,11 @@ export async function decideKyc(
     newStatus: decision,
   });
 
-  if (user.email && user.emailVerifiedAt) {
+  // Signed up without a password: the approval email carries the temporary password instead.
+  let loginEmail: LoginEmailResult | null = null;
+  if (decision === "verified" && user.loginEmailPending) {
+    loginEmail = await sendLoginCredentials(userId, { actorId: adminId, source: "kyc_approval" });
+  } else if (user.email && user.emailVerifiedAt) {
     notifyUserEmail(user.email, () =>
       kycDecisionEmailTemplate({ name: user.name, decision }),
     );
@@ -1172,7 +1197,28 @@ export async function decideKyc(
     id: updated!.id,
     uid: updated!.uid,
     kycStatus: updated!.kycStatus,
+    loginEmail,
   };
+}
+
+/** Admin "Resend login email" — new temporary password; the earlier one stops working once sent. */
+export async function resendLoginEmail(adminId: string, userId: string): Promise<LoginEmailResult> {
+  const [user] = await db
+    .select({ role: users.role, kycStatus: users.kycStatus, mustChangePassword: users.mustChangePassword, loginEmailPending: users.loginEmailPending })
+    .from(users)
+    .where(eq(users.id, userId));
+  if (!user) throw new HttpError(404, "User not found", "USER_NOT_FOUND");
+  if (user.kycStatus !== "verified") {
+    throw new HttpError(409, "Approve KYC first — the login email goes out after approval.", "KYC_NOT_VERIFIED");
+  }
+  if (!user.loginEmailPending && !user.mustChangePassword) {
+    throw new HttpError(
+      409,
+      "This agent has already set their own password. They can use Forgot password if they lost it.",
+      "PASSWORD_ALREADY_SET",
+    );
+  }
+  return sendLoginCredentials(userId, { actorId: adminId, source: "admin_resend" });
 }
 
 /**

@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState, type FormEvent, type ReactNode }
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { ArrowLeft, Check, CheckCircle2, Eye, EyeOff, Loader2 } from "lucide-react";
+import { ArrowLeft, Check, CheckCircle2, Loader2 } from "lucide-react";
 import {
   PAN_FORMAT_ERROR,
   SIGNUP_POLICY_VERSION,
@@ -604,7 +604,6 @@ function SignupPageInner() {
   /** After location Allow succeeds, open Terms (avoids stacking location + Terms modals). */
   const openTermsAfterLocationRef = useRef(false);
   const [stepErrorKey, setStepErrorKey] = useState<string | null>(null);
-  const [showPassword, setShowPassword] = useState(false);
   const [mobileError, setMobileError] = useState<string | null>(null);
   const [mobileChecking, setMobileChecking] = useState(false);
   const [addressFetchBusy, setAddressFetchBusy] = useState(false);
@@ -1270,11 +1269,6 @@ function SignupPageInner() {
     if (stepIndex === 0) {
       if (draft.mobile.replace(/\D/g, "").length !== 10) return "Enter a valid 10-digit mobile";
       if (!draft.termsAccepted) return "Please accept Terms and Conditions";
-      if (!(draft.accountCreated || loggedInContinue)) {
-        if (!draft.password || draft.password.length < 8) return "Password must be at least 8 characters";
-        if (!/[A-Za-z]/.test(draft.password)) return "Password must contain a letter";
-        if (!/\d/.test(draft.password)) return "Password must contain a number";
-      }
     }
     if (stepIndex === 1) {
       // Account already exists (Continue KYC) — upline already set.
@@ -1436,7 +1430,6 @@ function SignupPageInner() {
         policyChannel: "web",
         ...(sponsor ? { sponsorUid: sponsor.uid } : {}),
         ...(invite ? { inviteToken } : {}),
-        ...(draft.password ? { password: draft.password } : {}),
       });
       if (!data.success) throw new Error(data.message);
       if ("pendingApproval" in data.data && data.data.pendingApproval) {
@@ -1998,33 +1991,10 @@ function SignupPageInner() {
                   *Enter number which is linked to your Aadhaar.
                 </p>
                 {draft.accountCreated || loggedInContinue ? null : (
-                  <Field label="Password *">
-                    <div className="relative">
-                      <input
-                        type={showPassword ? "text" : "password"}
-                        value={draft.password}
-                        onChange={(e) => patch({ password: e.target.value })}
-                        className={`${inputCls} pr-12`}
-                        style={inputStyle}
-                        placeholder="e.g. Test1234"
-                        autoComplete="new-password"
-                        disabled={otpSent}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword((v) => !v)}
-                        className="icon-tooltip absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1"
-                        style={{ color: B.muted }}
-                        aria-label={showPassword ? "Hide password" : "Show password"}
-                        data-tooltip={showPassword ? "Hide password" : "Show password"}
-                      >
-                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                      </button>
-                    </div>
-                    <p className="mt-1 text-xs" style={{ color: B.muted }}>
-                      Min 8 characters · include a letter and a number (e.g. Test1234)
-                    </p>
-                  </Field>
+                  <p className="text-xs" style={{ color: B.muted }}>
+                    No password needed now — your login password is emailed to you after KYC approval. To continue
+                    signup later, log in with mobile OTP.
+                  </p>
                 )}
                 {otpSent ? (
                   <>
