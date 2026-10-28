@@ -11,6 +11,9 @@
 **/ios
 **/*.log
 **/.DS_Store
+**/.env
+**/.env.*
+!**/.env.example
 Edu
 apps/mobile
 apps/partner-web

@@ -26,6 +26,9 @@ RUN npm pkg set dependencies.@asanpay/shared-types="file:../../packages/shared-t
   && rm -rf node_modules/onnxruntime-node/bin/napi-v*/win32 node_modules/onnxruntime-node/bin/napi-v*/darwin \
   && node -e "require('sharp'); require('onnxruntime-node')"
 
+# Amazon RDS CA bundle — used when DATABASE_SSL_CA_PATH=/etc/ssl/rds/global-bundle.pem is set.
+ADD https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem /etc/ssl/rds/global-bundle.pem
+
 ENV NODE_ENV=production
 ENV PORT=4000
 EXPOSE 4000

@@ -50,7 +50,8 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 7
         versionName "1.0.4"
-        // true = FLAG_SECURE on every screen (no screenshots / blank recent-apps thumbnail).
+        // true = FLAG_SECURE on every screen (no screenshots / blank recent-apps thumbnail). Debug
+        // keeps screenshots for testing; the release build type turns it on.
         buildConfigField "boolean", "ENABLE_SECURE_SCREEN", "false"
     }
     // Uncompressed .so + AGP 8.5.1+ → 16 KB zip alignment in Play-generated APKs.
@@ -92,6 +93,8 @@ android {
             }
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+            // Release: no screenshots / screen recording of PIN, OTP and Aadhaar screens.
+            buildConfigField "boolean", "ENABLE_SECURE_SCREEN", "true"
         }
     }
 }

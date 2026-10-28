@@ -45,7 +45,12 @@ const SENSITIVE_LOG_KEYS = [
   "pidData",
   "bankAccountNumber",
   "accountNumber",
+  "dob",
+  "fatherName",
 ];
+
+/** Personal contact fields: masked (last 4 digits / first letter of email), not removed — support still needs a hint. */
+const MASKED_LOG_KEYS = ["mobile", "customerMobile", "mobileNumber", "beneMobileNumber", "email", "to"];
 
 /** pino `redact` paths: top level, one level deep (`{ body: {...} }`) and two levels deep. */
 export const LOG_REDACT_PATHS: string[] = [
@@ -55,5 +60,17 @@ export const LOG_REDACT_PATHS: string[] = [
   "headers.cookie",
   "*.headers.authorization",
   "*.headers.cookie",
-  ...SENSITIVE_LOG_KEYS.flatMap((k) => [k, `*.${k}`, `*.*.${k}`]),
+  ...[...SENSITIVE_LOG_KEYS, ...MASKED_LOG_KEYS].flatMap((k) => [k, `*.${k}`, `*.*.${k}`]),
 ];
+
+/** pino censor: mask phone numbers and emails, fully redact everything else on the list. */
+export function censorLogValue(value: unknown, path: string[]): unknown {
+  const key = path[path.length - 1] ?? "";
+  if (!MASKED_LOG_KEYS.includes(key)) return REDACTED;
+  if (typeof value !== "string") return value;
+  const at = value.indexOf("@");
+  if (at > 0) return `${value[0]}***${value.slice(at)}`;
+  const digits = value.replace(/\D/g, "");
+  if (digits.length >= 6) return `••••${digits.slice(-4)}`;
+  return value;
+}

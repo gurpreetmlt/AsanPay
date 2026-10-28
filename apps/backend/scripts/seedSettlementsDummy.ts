@@ -1,3 +1,6 @@
+import { refuseInProduction } from "./_guard";
+refuseInProduction("seed:settlements-dummy");
+
 /**
  * Staging dummy for admin Settlements UI (open payouts + optional pending bank).
  *

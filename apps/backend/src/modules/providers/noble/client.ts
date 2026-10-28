@@ -6,6 +6,8 @@ const LOGIN_PATH = "/api/v1.0/client_auth/login";
 
 /** Soft refresh ahead of JWT exp when present; otherwise refresh only on 401. */
 const TOKEN_SKEW_MS = 60_000;
+/** Under the 90 s "initiated" recheck window, so a hung submit never races its own status check. */
+const NOBLE_TIMEOUT_MS = 40_000;
 
 export type NobleHost = "service" | "aeps" | "dmt" | "recharge" | "cms";
 
@@ -206,8 +208,17 @@ async function nobleRequest(
           "X-Timestamp": nobleTimestamp(),
         },
         body: body ? JSON.stringify(body) : undefined,
+        signal: AbortSignal.timeout(NOBLE_TIMEOUT_MS),
       });
     } catch (err) {
+      if (err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError")) {
+        logger.error({ host, path, timeoutMs: NOBLE_TIMEOUT_MS }, "Provider request timed out");
+        throw new HttpError(
+          504,
+          "The provider did not answer in time. The transaction is pending — check its status in a few minutes.",
+          "NOBLE_TIMEOUT",
+        );
+      }
       logger.error({ err, host, path }, "Provider network error");
       throw new HttpError(502, "Could not reach the AEPS provider. Try again.", "NOBLE_NETWORK");
     }

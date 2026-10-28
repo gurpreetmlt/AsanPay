@@ -1,3 +1,6 @@
+import { refuseInProduction } from "./_guard";
+refuseInProduction("verify ledger load");
+
 /**
  * Step 16 — concurrent money load against the real cut-over paths under LEDGERTEST.
  *

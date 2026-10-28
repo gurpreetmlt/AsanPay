@@ -149,15 +149,15 @@ export function LoginScreen() {
       );
       if (!data.success) throw new Error(data.message);
       lastOtpSentKey.current = mobile;
-      setDevOtp(data.data.otp ?? null);
-      setOtp(data.data.otp ?? "");
+      // Release builds never show or auto-fill an OTP, even if a misconfigured server echoes one.
+      const echoedOtp = __DEV__ ? data.data.otp : undefined;
+      setDevOtp(echoedOtp ?? null);
+      setOtp(echoedOtp ?? "");
       setOtpStep("otp");
       setResendIn(30);
       showAlert(
         "OTP sent",
-        data.data.otp
-          ? `Dev OTP: ${data.data.otp}`
-          : data.data.message || data.message || "OTP has been sent on WhatsApp",
+        echoedOtp ? `Dev OTP: ${echoedOtp}` : data.data.message || data.message || "OTP has been sent on WhatsApp",
       );
     } catch (err) {
       lastOtpSentKey.current = mobile;
@@ -273,12 +273,11 @@ export function LoginScreen() {
       setForgotStep("otp");
       setOtp("");
       setResendIn(30);
-      setDevOtp(data.data.otp ?? null);
+      const echoedOtp = __DEV__ ? data.data.otp : undefined;
+      setDevOtp(echoedOtp ?? null);
       showAlert(
         "OTP sent",
-        data.data.otp
-          ? `Dev OTP: ${data.data.otp}`
-          : data.data.message || data.message || "OTP has been sent on WhatsApp",
+        echoedOtp ? `Dev OTP: ${echoedOtp}` : data.data.message || data.message || "OTP has been sent on WhatsApp",
       );
     } catch (err) {
       showAlert("OTP request failed", apiError(err, "Could not send OTP"));

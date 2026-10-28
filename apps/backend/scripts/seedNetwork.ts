@@ -1,3 +1,6 @@
+import { refuseInProduction } from "./_guard";
+refuseInProduction("seed:network");
+
 import "dotenv/config";
 import { eq, and, isNull } from "drizzle-orm";
 import { db, pgPool } from "../src/db/postgres";

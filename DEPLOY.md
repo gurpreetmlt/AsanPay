@@ -167,10 +167,11 @@ sudo docker exec $API npm run db:migrate
 read -rs -p 'Admin password (12+ chars): ' P; echo; sudo docker exec -e SEED_ADMIN_PASSWORD="$P" $API npm run seed:admin; unset P
 sudo docker exec $API npm run seed:catalog
 sudo docker exec $API npm run seed:providers
-read -rs -p 'Network password: ' P; echo; sudo docker exec -e SEED_NETWORK_PASSWORD="$P" $API npm run seed:network; unset P
-read -rs -p 'Login MPIN (4 digits): ' P; echo; sudo docker exec -e SEED_LOGIN_MPIN="$P" $API npm run seed:mpin; unset P
-sudo docker exec $API npm run seed:txns
 ```
+
+Production: stop here — only admin, catalog and providers. `seed:network`, `seed:txns` and
+`seed:settlements-dummy` create test agents, fake transactions and wallet money; they refuse to run
+when `NODE_ENV=production` (staging only, with `ALLOW_TEST_SCRIPTS=true`).
 
 Admin ka login username: `admin`
 

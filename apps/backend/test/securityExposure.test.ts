@@ -1,8 +1,41 @@
 import { describe, expect, it } from "vitest";
 import pino from "pino";
 import { Writable } from "node:stream";
-import { LOG_REDACT_PATHS, REDACTED, redactUrlQuery } from "../src/utils/redact";
-import { testOtpProductionViolations } from "../src/config/env";
+import { LOG_REDACT_PATHS, REDACTED, censorLogValue, redactUrlQuery } from "../src/utils/redact";
+import { launchSafetyViolations, testOtpProductionViolations } from "../src/config/env";
+
+describe("launchSafetyViolations", () => {
+  const safe = {
+    NODE_ENV: "production",
+    ALLOW_STUB_PROVIDERS: false,
+    ALLOW_BIOMETRIC_REPLAY: false,
+    REQUIRE_TXN_PIN: true,
+    CORS_ORIGIN: "https://app.asanpay.in,https://admin.asanpay.in",
+    AGENT_PORTAL_URL: "https://app.asanpay.in",
+    TEST_OTP_OVERRIDES: "",
+    TEST_SIGNUP_OTP_OVERRIDES: "",
+  };
+  const raw = { AGENT_PORTAL_URL: "https://app.asanpay.in", DATABASE_URL: "postgres://x@db/asanpay" };
+
+  it("passes a launch-ready config", () => {
+    expect(launchSafetyViolations(safe, raw)).toEqual([]);
+  });
+
+  it("flags every unsafe switch", () => {
+    const problems = launchSafetyViolations(
+      {
+        ...safe,
+        ALLOW_STUB_PROVIDERS: true,
+        ALLOW_BIOMETRIC_REPLAY: true,
+        REQUIRE_TXN_PIN: false,
+        CORS_ORIGIN: "http://localhost:3000",
+        AGENT_PORTAL_URL: "https://dev.asanpay.in",
+      },
+      { AGENT_PORTAL_URL: "https://dev.asanpay.in", DATABASE_URL: "postgres://x@db.ap-south-1.rds.amazonaws.com/asanpay" },
+    );
+    expect(problems).toHaveLength(6);
+  });
+});
 
 describe("redactUrlQuery", () => {
   it("leaves URLs without a query alone", () => {
@@ -50,6 +83,24 @@ describe("logger redaction", () => {
       expect(line).not.toContain(secret);
     }
     expect(line).toContain('"userId":"u1"');
+  });
+
+  it("masks mobile numbers and emails instead of logging them in full", () => {
+    let out = "";
+    const sink = new Writable({
+      write(chunk, _enc, cb) {
+        out += chunk.toString();
+        cb();
+      },
+    });
+    pino({ redact: { paths: LOG_REDACT_PATHS, censor: censorLogValue } }, sink).info(
+      { mobile: "9876543210", ctx: { email: "agent@example.com" }, dob: "1990-01-01" },
+      "test",
+    );
+    expect(out).not.toContain("9876543210");
+    expect(out).toContain("••••3210");
+    expect(out).toContain("a***@example.com");
+    expect(out).not.toContain("1990-01-01");
   });
 });
 

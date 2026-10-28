@@ -188,8 +188,10 @@ export async function callProvider<T extends Record<string, unknown>>(
   try {
     result = await invoke(routed.adapter);
   } catch (err) {
-    // Network/unexpected errors are indistinguishable from timeouts money-wise:
-    // the provider may or may not have processed it. Surface as pending, never failed.
+    // Network/unexpected errors are indistinguishable from timeouts money-wise: the provider may
+    // or may not have processed it, so they stay pending. A 4xx / 501 HttpError is raised before
+    // or instead of a provider submit (validation, missing location, onboarding, not implemented,
+    // explicit provider rejection), so it fails cleanly and releases the held money at once.
     logger.error({ err, operation, provider: routed.adapter.code }, "provider call threw");
     const detail =
       err instanceof HttpError
@@ -197,9 +199,11 @@ export async function callProvider<T extends Record<string, unknown>>(
         : err instanceof Error
           ? err.message
           : String(err);
+    const definitelyNotProcessed =
+      err instanceof HttpError && (err.statusCode < 500 || err.statusCode === 501);
     result = {
       success: false,
-      status: "pending",
+      status: definitelyNotProcessed ? "failed" : "pending",
       providerTxnId: null,
       amount: null,
       message:

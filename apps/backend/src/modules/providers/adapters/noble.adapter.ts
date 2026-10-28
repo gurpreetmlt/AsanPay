@@ -55,6 +55,8 @@ import type {
 } from "../types";
 
 const UPI_QR_NO_RECORD_GRACE_MS = 15 * 60 * 1000;
+/** AEPS / DMT / recharge status "no record found" becomes final only after this long. */
+const NO_RECORD_FAIL_AFTER_MS = 60 * 60 * 1000;
 
 /**
  * Primary AEPS provider — AEPS family (CW / BE / MS + daily 2FA).
@@ -69,14 +71,32 @@ export class NobleAdapter implements ProviderAdapter {
     throw new HttpError(501, `${op} is not available on this provider yet`, "PROVIDER_NOT_IMPLEMENTED");
   }
 
-  private mapTxnStatus(row: Record<string, unknown>, json: NobleApiResponse): ProviderTxnStatus {
-    const tran = String(row.tranStatus ?? "").toLowerCase();
+  /**
+   * Money safety: a wrong "failed" refunds the agent for money that may have moved; a wrong
+   * "success" credits money that never moved. Only explicit answers are final — gateway errors,
+   * HTML pages, unknown tranStatus values and "no record" on a status check all stay pending.
+   */
+  private mapTxnStatus(
+    row: Record<string, unknown>,
+    json: NobleApiResponse,
+    httpStatus: number,
+    mode: "submit" | "status",
+    createdAt?: Date,
+  ): ProviderTxnStatus {
+    const tran = String(row.tranStatus ?? "").trim().toLowerCase();
     if (tran === "success" || tran === "successful") return "success";
-    if (tran === "pending" || tran === "processing") return "pending";
+    if (tran === "pending" || tran === "processing" || tran === "initiated") return "pending";
     if (tran === "failed" || tran === "failure" || tran === "expired") return "failed";
-    if (json.status === 1) return "success";
-    if (json.status === 0) return "failed";
-    return "failed";
+    if (tran) return "pending";
+    if (httpStatus >= 500 || json.status === -1 || json.status === undefined) return "pending";
+    if (json.status === 1) return mode === "status" ? "pending" : "success";
+    if (json.status === 0) {
+      if (mode === "submit") return "failed";
+      // Status check: "no record" right after submit is lag; long after, the provider never got it.
+      const ageMs = createdAt ? Date.now() - createdAt.getTime() : 0;
+      return json.statusCode === "AG0003" && ageMs >= NO_RECORD_FAIL_AFTER_MS ? "failed" : "pending";
+    }
+    return "pending";
   }
 
   private toResult<T extends Record<string, unknown>>(
@@ -85,10 +105,14 @@ export class NobleAdapter implements ProviderAdapter {
     operation: string,
     amount: string | null,
     data: T,
+    mode: "submit" | "status" = "submit",
+    createdAt?: Date,
   ): ProviderResult<T> {
     const row = firstResponseRow(json);
-    const status = this.mapTxnStatus(row, json);
-    const ok = nobleOk(json, httpStatus) && status !== "failed";
+    const mapped = this.mapTxnStatus(row, json, httpStatus, mode, createdAt);
+    const status: ProviderTxnStatus =
+      mapped === "success" && !nobleOk(json, httpStatus) ? "pending" : mapped;
+    const ok = status !== "failed";
     const providerTxnId =
       (typeof row.apiTransactionId === "string" && row.apiTransactionId) ||
       (typeof row.transactionId === "string" && row.transactionId) ||
@@ -350,7 +374,7 @@ export class NobleAdapter implements ProviderAdapter {
       const { httpStatus, json } = await noblePost("dmt", "/api/v1.0/airtel_dmt/transaction_status", {
         transactionId,
       });
-      return this.toResult(httpStatus, json, "DMT status", null, {});
+      return this.toResult(httpStatus, json, "DMT status", null, {}, "status", params.createdAt);
     }
     const istDate =
       params.txnDate || new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
@@ -361,7 +385,7 @@ export class NobleAdapter implements ProviderAdapter {
         transactionId: transactionId.slice(0, 25),
         transactionDate: istDate,
       });
-      return this.toResult(httpStatus, json, "Recharge status", null, {});
+      return this.toResult(httpStatus, json, "Recharge status", null, {}, "status", params.createdAt);
     }
     const [yyyy, mm, dd] = istDate.split("-");
     if (code === "UPI_CASH_POINT") {
@@ -373,7 +397,15 @@ export class NobleAdapter implements ProviderAdapter {
       isCashDeposit ? "/v2.0/aeps/cd_transaction_status" : "/v2.0/aeps/transaction_status",
       { transactionId, transactionDate: `${dd}/${mm}/${yyyy}` },
     );
-    return this.toResult(httpStatus, json, isCashDeposit ? "Cash deposit status" : "AEPS status", null, {});
+    return this.toResult(
+      httpStatus,
+      json,
+      isCashDeposit ? "Cash deposit status" : "AEPS status",
+      null,
+      {},
+      "status",
+      params.createdAt,
+    );
   }
 
   /** UPI Cash Point QR payment status; the generic AEPS mapping would read "QR generated" as paid. */

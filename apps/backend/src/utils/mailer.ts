@@ -80,7 +80,7 @@ const BRAND = {
 } as const;
 
 const SITE_URL = "https://asanpay.in";
-const AGENT_URL = "https://dev.asanpay.in";
+const AGENT_URL = env.AGENT_PORTAL_URL.replace(/\/$/, "");
 
 /** PNG (not SVG — Gmail/Outlook drop SVG). Served from agent-portal `public/brand/email`. */
 const LOGO_BASE = `${env.AGENT_PORTAL_URL.replace(/\/$/, "")}/brand/email`;

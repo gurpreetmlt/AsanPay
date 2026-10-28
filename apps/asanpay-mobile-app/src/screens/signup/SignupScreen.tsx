@@ -1503,19 +1503,16 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         portal: "agent",
       });
       if (!data.success) throw new Error(data.message);
-      if (__DEV__ && data.data.otp) {
-        setDevOtp(data.data.otp);
-        setOtp(data.data.otp);
-      } else if (data.data.otp) {
-        setDevOtp(data.data.otp);
+      const echoedOtp = __DEV__ ? data.data.otp : undefined;
+      if (echoedOtp) {
+        setDevOtp(echoedOtp);
+        setOtp(echoedOtp);
       }
       setOtpSent(true);
       patch({ signupToken: "" });
       showAlert(
         "OTP sent",
-        data.data.otp
-          ? `Dev OTP: ${data.data.otp}`
-          : data.data.message || data.message || "OTP has been sent on WhatsApp",
+        echoedOtp ? `Dev OTP: ${echoedOtp}` : data.data.message || data.message || "OTP has been sent on WhatsApp",
       );
     } catch (err) {
       showAlert("OTP failed", apiError(err, "Could not send OTP"));

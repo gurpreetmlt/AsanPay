@@ -1,6 +1,21 @@
 import "dotenv/config";
 import { z } from "zod";
 
+/**
+ * Boolean env flag. `z.coerce.boolean()` is `Boolean(str)`, so "false" and "0" would read as TRUE —
+ * fatal for safety switches set from the Coolify UI. Only 1/true/yes/on are true.
+ */
+function envBool(defaultValue: boolean) {
+  return z.preprocess((v) => {
+    if (typeof v === "boolean") return v;
+    const s = String(v ?? "").trim().toLowerCase();
+    if (!s) return defaultValue;
+    if (["1", "true", "yes", "on"].includes(s)) return true;
+    if (["0", "false", "no", "off"].includes(s)) return false;
+    return v;
+  }, z.boolean({ error: "Use true or false" }));
+}
+
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().default(4000),
@@ -18,7 +33,7 @@ const envSchema = z.object({
    * Dev-only: echo OTP in API response for local testing without SMS.
    * SECURITY: Ignored when NODE_ENV=production (always false). Opt-in even in development.
    */
-  EXPOSE_OTP_IN_RESPONSE: z.coerce.boolean().default(false),
+  EXPOSE_OTP_IN_RESPONSE: envBool(false),
   /**
    * OTP delivery channels (comma-separated), first match wins:
    * - whatsapp — send to the user's signin/signup mobile via WhatsApp Cloud API
@@ -68,20 +83,36 @@ const envSchema = z.object({
    * Pre-launch switch. Keep false only while transaction PIN onboarding is intentionally disabled.
    * Set true before any real-money provider is enabled.
    */
-  REQUIRE_TXN_PIN: z.coerce.boolean().default(false),
+  REQUIRE_TXN_PIN: envBool(false),
   /**
    * Testing-only: allow the SAME biometric PID to be submitted more than once (skips the
    * replay-guard uniqueness check). Needed while testing with real fingers before an SMS/UIDAI
    * provider is wired, since a live PID XML can only be captured once per scan. Turn OFF before
    * launch — reusing a PID is exactly the replay attack this guard exists to stop.
    */
-  ALLOW_BIOMETRIC_REPLAY: z.coerce.boolean().default(false),
+  ALLOW_BIOMETRIC_REPLAY: envBool(false),
   /**
    * Allow stub/mock provider adapters to serve traffic in production. Default false: with real
    * providers not yet integrated, a mock returns "success" for any AEPS/DMT/BBPS call, which
    * would let a retailer mint float without a real bank payout. Only turn this on in dev/staging.
    */
-  ALLOW_STUB_PROVIDERS: z.coerce.boolean().default(false),
+  ALLOW_STUB_PROVIDERS: envBool(false),
+  /**
+   * Set true on the real production server only. Refuses to boot unless every launch-safety
+   * setting is correct (see launchSafetyViolations). Staging may run NODE_ENV=production without it.
+   */
+  STRICT_PRODUCTION: envBool(false),
+  /** "jobs" on the Jobs container (timers, recon, emails); API containers leave it unset. */
+  PROCESS_ROLE: z.preprocess(
+    (v) => (typeof v === "string" ? v.trim().toLowerCase() || undefined : v),
+    z.enum(["api", "jobs"]).default("api"),
+  ),
+  /** RDS: path to the Amazon RDS CA bundle (global-bundle.pem). When set, Postgres uses verified TLS. */
+  DATABASE_SSL_CA_PATH: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().optional(),
+  ),
+  DATABASE_POOL_MAX: z.coerce.number().int().positive().max(100).default(10),
   /**
    * Hard ceiling (in rupees) on a single admin manual wallet top-up. Manual funding mints float
    * from outside the system, so an unbounded call is the biggest single-action money risk. Raise
@@ -283,7 +314,7 @@ const envSchema = z.object({
    * AsanPay internal WhatsApp Support (Admin Inbox). Off by default.
    * OTP uses WHATSAPP_* above and keeps working when this is false.
    */
-  WHATSAPP_SUPPORT_ENABLED: z.coerce.boolean().default(false),
+  WHATSAPP_SUPPORT_ENABLED: envBool(false),
   /** KYC photo OCR: PaddleOCR first, Tesseract as backup. `off` = Tesseract only. */
   KYC_OCR_PADDLE: z.preprocess(
     (v) => (typeof v === "string" ? v.trim().toLowerCase() || undefined : v),
@@ -329,6 +360,50 @@ const otpProblems = testOtpProductionViolations(env);
 if (otpProblems.length > 0) {
   console.error("Refusing to start with test OTP settings in production:", otpProblems);
   throw new Error(`Test OTP settings are not allowed in production: ${otpProblems.join("; ")}`);
+}
+
+const launchProblems = launchSafetyViolations(env, process.env);
+if (launchProblems.length > 0) {
+  if (env.STRICT_PRODUCTION) {
+    console.error("Refusing to start: STRICT_PRODUCTION launch-safety checks failed:", launchProblems);
+    throw new Error(`Launch-safety settings are wrong: ${launchProblems.join("; ")}`);
+  }
+  if (env.NODE_ENV === "production") {
+    console.warn("[LAUNCH-SAFETY] Not safe for real money yet:", launchProblems);
+  }
+}
+
+/**
+ * Settings that must be right before real money moves. Enforced (boot refused) only when
+ * STRICT_PRODUCTION=true; otherwise logged as warnings in production. Returns problems; empty = OK.
+ */
+export function launchSafetyViolations(
+  cfg: {
+    NODE_ENV: string;
+    ALLOW_STUB_PROVIDERS: boolean;
+    ALLOW_BIOMETRIC_REPLAY: boolean;
+    REQUIRE_TXN_PIN: boolean;
+    CORS_ORIGIN: string;
+    AGENT_PORTAL_URL: string;
+    TEST_OTP_OVERRIDES: string;
+    TEST_SIGNUP_OTP_OVERRIDES: string;
+  },
+  raw: Record<string, string | undefined>,
+): string[] {
+  const problems: string[] = [];
+  if (cfg.NODE_ENV !== "production") problems.push("NODE_ENV must be production");
+  if (cfg.ALLOW_STUB_PROVIDERS) problems.push("ALLOW_STUB_PROVIDERS must be false");
+  if (cfg.ALLOW_BIOMETRIC_REPLAY) problems.push("ALLOW_BIOMETRIC_REPLAY must be false");
+  if (!cfg.REQUIRE_TXN_PIN) problems.push("REQUIRE_TXN_PIN must be true");
+  if (/localhost|127\.0\.0\.1/i.test(cfg.CORS_ORIGIN)) problems.push("CORS_ORIGIN must list the production web domains only");
+  if (!raw.AGENT_PORTAL_URL?.trim() || /\/\/dev\./i.test(cfg.AGENT_PORTAL_URL)) {
+    problems.push("AGENT_PORTAL_URL must be set to the production agent web address");
+  }
+  if (cfg.TEST_SIGNUP_OTP_OVERRIDES.trim()) problems.push("TEST_SIGNUP_OTP_OVERRIDES must be empty");
+  if (!raw.DATABASE_SSL_CA_PATH?.trim() && /amazonaws\.com/i.test(raw.DATABASE_URL ?? "")) {
+    problems.push("DATABASE_SSL_CA_PATH must point to the RDS CA bundle");
+  }
+  return problems;
 }
 
 /**

@@ -9,10 +9,11 @@
  * Nothing here moves money on its own. Reconciliation is detection-only (spec §7) and every
  * correction still goes through postJournal() as a RECON_ADJUSTMENT raised by a human.
  */
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { assertNobleAepsProviderConfig, env } from "../config/env";
 import { db, pgPool } from "../db/postgres";
-import { tenants } from "../db/postgres/schema";
+import { auditLogs, tenants } from "../db/postgres/schema";
+import { insertAuditLog } from "../db/postgres/repositories/auditLog";
 import { deleteExpiredOtpRequests } from "../db/postgres/repositories/otpRequest";
 import { runReconciliation } from "../modules/reconciliation/checks";
 import { reconcileStaleTransactions, runDailyReconciliation } from "../modules/transactions/txn.service";
@@ -25,7 +26,10 @@ import { sendSlackAlert } from "../utils/alert";
 import { logger } from "../utils/logger";
 
 const OTP_SWEEP_INTERVAL_MS = 30 * 60 * 1000;
-const DAILY_RECONCILE_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const DAILY_CHECK_INTERVAL_MS = 10 * 60 * 1000;
+/** Daily jobs run once per IST day, from this hour on — independent of redeploy times. */
+const DAILY_RUN_IST_HOUR = 2;
+const JOBS_LEADER_LOCK_KEY = 815_204_001;
 const PARTITION_SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const RD_LICENSE_SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const AEPS_RECON_TICK_MS = 15 * 60 * 1000;
@@ -80,12 +84,66 @@ async function sweepOverdueDisputes(): Promise<void> {
   }
 }
 
+/**
+ * Only one jobs worker may run timers (a rolling redeploy briefly starts two). The session-level
+ * advisory lock lives on a dedicated connection that is never released while this process runs.
+ */
+async function acquireLeaderLock(): Promise<void> {
+  const client = await pgPool.connect();
+  for (;;) {
+    const { rows } = await client.query<{ ok: boolean }>("select pg_try_advisory_lock($1) as ok", [
+      JOBS_LEADER_LOCK_KEY,
+    ]);
+    if (rows[0]?.ok) {
+      logger.info("Jobs worker: leader lock acquired");
+      return;
+    }
+    logger.warn("Jobs worker: another worker holds the leader lock — standing by");
+    await new Promise((r) => setTimeout(r, 60_000));
+  }
+}
+
+function istDate(d: Date): { day: string; hour: number } {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(d);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  return { day: `${get("year")}-${get("month")}-${get("day")}`, hour: Number(get("hour")) };
+}
+
+/** Daily reconciliation, statements and dispute alerts — at most once per IST day (marker in audit log). */
+async function runDailyJobsIfDue(): Promise<void> {
+  const { day, hour } = istDate(new Date());
+  if (hour < DAILY_RUN_IST_HOUR) return;
+  const [done] = await db
+    .select({ id: auditLogs.id })
+    .from(auditLogs)
+    .where(and(eq(auditLogs.action, "jobs.daily_run"), eq(auditLogs.entityId, day)))
+    .limit(1);
+  if (done) return;
+  await insertAuditLog({ userId: null, action: "jobs.daily_run", entityType: "jobs", entityId: day, metadata: {} });
+
+  await runDailyReconciliation()
+    .then((r) => logger.info(r, "daily reconciliation sweep"))
+    .catch((err: unknown) => logger.error({ err }, "daily reconciliation sweep failed"));
+  await runStatementEmailJobs()
+    .then((r) => logger.info(r, "statement email jobs"))
+    .catch((err: unknown) => logger.error({ err }, "statement email jobs failed"));
+  await sweepOverdueDisputes().catch((err: unknown) => logger.error({ err }, "overdue dispute sweep failed"));
+}
+
 async function main() {
   // The txn sweeps call provider status APIs, so the same config the API asserts must hold here.
   assertNobleAepsProviderConfig();
 
   await pgPool.query("SELECT 1");
   logger.info("Jobs worker: PostgreSQL connected");
+  await acquireLeaderLock();
 
   const timers: ReturnType<typeof setInterval>[] = [];
 
@@ -111,20 +169,12 @@ async function main() {
     );
   }
 
-  // Once-daily full-sweep reconciliation against the provider's live status API.
-  timers.push(
-    setInterval(() => {
-      runDailyReconciliation()
-        .then((r) => logger.info(r, "daily reconciliation sweep"))
-        .catch((err: unknown) => logger.error({ err }, "daily reconciliation sweep failed"));
-      runStatementEmailJobs()
-        .then((r) => logger.info(r, "statement email jobs"))
-        .catch((err: unknown) => logger.error({ err }, "statement email jobs failed"));
-      sweepOverdueDisputes().catch((err: unknown) =>
-        logger.error({ err }, "overdue dispute sweep failed"),
-      );
-    }, DAILY_RECONCILE_INTERVAL_MS),
-  );
+  // Once-daily full-sweep reconciliation against the provider's live status API. Checked every
+  // 10 min so a redeploy never pushes the daily run back by a whole day.
+  const dailyTick = () =>
+    runDailyJobsIfDue().catch((err: unknown) => logger.error({ err }, "daily jobs check failed"));
+  void dailyTick();
+  timers.push(setInterval(() => void dailyTick(), DAILY_CHECK_INTERVAL_MS));
 
   // Ledger integrity + ops staleness checks. Env 0 disables; findings go to
   // reconciliation_exceptions only.

@@ -104,7 +104,7 @@ const WORLD_SERVICE_PREFIX_TXN: Readonly<Record<string, TxnType>> = {
   deposit: "AEPS_DEPOSIT",
 };
 
-function resolveServiceTxnType(serviceCode: string, categoryCode: string): TxnType | undefined {
+export function resolveServiceTxnType(serviceCode: string, categoryCode: string): TxnType | undefined {
   const direct = SERVICE_TXN_TYPE[serviceCode];
   if (direct) return direct;
   const head = serviceCode.split("_")[0]?.toLowerCase() ?? "";

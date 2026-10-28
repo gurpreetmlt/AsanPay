@@ -634,7 +634,10 @@ export async function recheckTxnStatus(actor: Actor, txnRef: string): Promise<Tx
   const result = await callProvider(routed, "check_status", txn.txnRef, { txnRef: txn.txnRef }, (adapter) =>
     adapter.checkStatus({
       providerTxnId: txn.providerTxnId,
-      clientRef: txn.txnRef,
+      clientRef:
+        typeof txn.metadata?.providerClientRef === "string" && txn.metadata.providerClientRef
+          ? txn.metadata.providerClientRef
+          : txn.txnRef,
       // Provider status APIs need the txn date in IST (YYYY-MM-DD).
       txnDate: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(txn.createdAt),
       serviceCode: service.code,

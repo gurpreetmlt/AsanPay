@@ -36,10 +36,12 @@ export const apiLimiter = rateLimit({
   validate: sharedValidate,
 });
 
+/** Only a well-formed mobile picks the bucket — random junk would give an attacker a fresh bucket per request. */
 function requestMobile(req: Request): string {
   const fromBody = typeof req.body?.mobile === "string" ? req.body.mobile.trim() : "";
   const fromQuery = typeof req.query?.mobile === "string" ? req.query.mobile.trim() : "";
-  return fromBody || fromQuery;
+  const mobile = fromBody || fromQuery;
+  return /^[6-9]\d{9}$/.test(mobile) ? mobile : "";
 }
 
 export const authLimiter = rateLimit({
@@ -49,6 +51,8 @@ export const authLimiter = rateLimit({
   legacyHeaders: false,
   skipSuccessfulRequests: true,
   keyGenerator: (req) => {
+    // One shared bucket for the single admin account, whatever mobile/username the body carries.
+    if (req.body?.portal === "admin") return "auth:admin";
     const mobile = requestMobile(req);
     return mobile ? `auth:${mobile}` : `auth-ip:${clientIp(req)}`;
   },

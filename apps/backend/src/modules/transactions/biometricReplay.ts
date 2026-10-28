@@ -9,10 +9,17 @@ import { env } from "../../config/env";
 // was captured, sat around, then submitted later than a live counter transaction ever would.
 const MAX_BIOMETRIC_AGE_MS = 120_000; // 2 minutes
 
-function extractTimestamp(payload: string): Date | null {
+/**
+ * RD services write the device's local (IST) time without an offset, e.g. "2026-07-17T10:15:00".
+ * `new Date()` would read that as server time (UTC in the container) — 5h30m off — so a bare
+ * timestamp is treated as IST. Timestamps that carry Z or ±hh:mm keep their own offset.
+ */
+export function extractTimestamp(payload: string): Date | null {
   const m = payload.match(/\bts="([^"]+)"/);
   if (!m) return null;
-  const d = new Date(m[1]!);
+  const raw = m[1]!.trim();
+  const hasZone = /(Z|[+-]\d{2}:?\d{2})$/i.test(raw);
+  const d = new Date(hasZone ? raw : `${raw.replace(" ", "T")}+05:30`);
   return Number.isNaN(d.getTime()) ? null : d;
 }
 

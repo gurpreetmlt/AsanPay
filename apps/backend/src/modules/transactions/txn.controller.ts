@@ -18,6 +18,10 @@ import {
 } from "../aeps/compliance";
 import { sendSuccess } from "../../utils/apiResponse";
 import { HttpError } from "../../utils/httpError";
+import { eq } from "drizzle-orm";
+import { db } from "../../db/postgres";
+import { serviceCategories, services } from "../../db/postgres/schema";
+import { resolveServiceTxnType } from "../wallet/wallet.ledger";
 import type {
   rechargeSchema,
   rechargeMobileInfoSchema,
@@ -51,6 +55,28 @@ function actor(req: Request) {
   return { id: req.auth!.sub, role: req.auth!.role };
 }
 
+/**
+ * The client names the service on recharge / bill pay. Only codes whose ledger type matches the
+ * endpoint are accepted — otherwise another service's fee schedule and status API would be used.
+ */
+async function assertServiceKind(serviceCode: string, kind: "RECHARGE" | "BBPS"): Promise<void> {
+  const [row] = await db
+    .select({ categoryCode: serviceCategories.code, isActive: services.isActive })
+    .from(services)
+    .innerJoin(serviceCategories, eq(services.categoryId, serviceCategories.id))
+    .where(eq(services.code, serviceCode))
+    .limit(1);
+  if (!row || !row.isActive || resolveServiceTxnType(serviceCode, row.categoryCode) !== kind) {
+    throw new HttpError(
+      422,
+      kind === "RECHARGE"
+        ? "This service is not a recharge. Choose a recharge service and try again."
+        : "This service is not a bill payment. Choose a bill payment service and try again.",
+      "SERVICE_NOT_ALLOWED",
+    );
+  }
+}
+
 function looksLikeBioMismatch(message: string): boolean {
   const m = message.toLowerCase();
   return m.includes("biometric") && (m.includes("mismatch") || m.includes("not match") || m.includes("failed"));
@@ -74,6 +100,7 @@ async function afterAepsProviderResult(
 // ── Recharge ────────────────────────────────────────────────────────────────
 export async function recharge(req: Request, res: Response): Promise<void> {
   const body = req.body as z.infer<typeof rechargeSchema>;
+  await assertServiceKind(body.serviceCode, "RECHARGE");
   await assertTxnAuthorization(actor(req).id, { txnPin: body.txnPin, txnAuth: body.txnAuth });
 
   // Customer fee: resolved server-side inside executeServiceTxn (service_charges) — never from body.
@@ -152,6 +179,7 @@ export async function bbpsFetchBill(req: Request, res: Response): Promise<void> 
 
 export async function bbpsPayBill(req: Request, res: Response): Promise<void> {
   const body = req.body as z.infer<typeof bbpsPayBillSchema>;
+  await assertServiceKind(body.serviceCode, "BBPS");
   await assertTxnAuthorization(actor(req).id, { txnPin: body.txnPin, txnAuth: body.txnAuth });
 
   // Customer fee: server-side resolve inside executeServiceTxn — not from body.
@@ -434,6 +462,11 @@ export async function dmtTransfer(req: Request, res: Response): Promise<void> {
       ifsc: body.ifsc,
       beneficiaryId: body.beneficiaryId,
       mode: body.mode,
+      // The provider transfer reuses the id issued at transaction-OTP time (after "~" in the
+      // referenceKey). Status rechecks must query that id, not our txnRef.
+      ...(body.referenceKey.includes("~")
+        ? { providerClientRef: body.referenceKey.split("~")[1]!.slice(0, 25) }
+        : {}),
     },
     invoke: (routed, txnRef) =>
       routed.adapter.dmtTransfer({

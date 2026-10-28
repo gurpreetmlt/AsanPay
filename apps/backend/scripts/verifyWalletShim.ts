@@ -1,3 +1,6 @@
+import { refuseInProduction } from "./_guard";
+refuseInProduction("verify wallet shim");
+
 /**
  * End-to-end exercise of the wallet LEDGER SHIM (`modules/wallet/wallet.ledger.ts`) against
  * a real Postgres: hierarchy transfers, service debit/credit, reversal, fundWallet, commission,

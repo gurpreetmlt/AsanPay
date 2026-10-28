@@ -1,3 +1,6 @@
+import { refuseInProduction } from "./_guard";
+refuseInProduction("seed:txns");
+
 import "dotenv/config";
 import { eq, inArray, sql } from "drizzle-orm";
 import { db, pgPool } from "../src/db/postgres";

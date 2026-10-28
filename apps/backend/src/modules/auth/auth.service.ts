@@ -1,7 +1,7 @@
 import { randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import { eq, and, isNull, like, sql } from "drizzle-orm";
 import { db } from "../../db/postgres";
-import { users, userHierarchy, refreshTokens, policyAcceptances } from "../../db/postgres/schema";
+import { auditLogs, users, userHierarchy, refreshTokens, policyAcceptances } from "../../db/postgres/schema";
 import { provisionWalletsForUser } from "../wallet/wallet.service";
 import { hashPassword, comparePassword } from "../../utils/password";
 import { encryptPII } from "../../utils/aes";
@@ -432,6 +432,31 @@ async function ensureDevAdminCredentials(
   return created;
 }
 
+const ADMIN_LOCKOUT_FAILURES = 10;
+const ADMIN_LOCKOUT_WINDOW_MS = 15 * 60 * 1000;
+
+/** DB-backed, so a redeploy (which resets the in-memory rate limiter) does not reset it. */
+async function assertAdminNotLockedOut(): Promise<void> {
+  const since = new Date(Date.now() - ADMIN_LOCKOUT_WINDOW_MS);
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(auditLogs)
+    .where(
+      and(
+        eq(auditLogs.action, "auth.login_failed"),
+        sql`${auditLogs.metadata} ->> 'portal' = 'admin'`,
+        sql`${auditLogs.createdAt} > ${since}`,
+      ),
+    );
+  if ((row?.n ?? 0) >= ADMIN_LOCKOUT_FAILURES) {
+    throw new HttpError(
+      429,
+      "Too many failed admin logins. Admin login is locked for 15 minutes.",
+      "ADMIN_LOCKED",
+    );
+  }
+}
+
 export async function loginUser(
   input: LoginInput,
   context: AuthContext,
@@ -442,6 +467,7 @@ export async function loginUser(
     if (id !== "admin") {
       throw new HttpError(401, "Invalid username or password", "INVALID_CREDENTIALS");
     }
+    await assertAdminNotLockedOut();
     let row = await findRootAdmin();
 
     let passwordMatches = row ? await comparePassword(input.password, row.passwordHash) : false;
