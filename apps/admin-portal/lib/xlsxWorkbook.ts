@@ -3,9 +3,10 @@
  * Excel, Numbers, Google Sheets and LibreOffice without a spreadsheet library.
  */
 
-export type XlsxStyle = "title" | "muted" | "head" | "num" | "loss";
+/** `info` = grey read-only look (calculated / reference columns); `note` = small grey italic help text. */
+export type XlsxStyle = "title" | "muted" | "head" | "num" | "loss" | "info" | "note";
 export type XlsxValue = string | number | null;
-export type XlsxCell = XlsxValue | { v: XlsxValue; s?: XlsxStyle };
+export type XlsxCell = XlsxValue | { v: XlsxValue; s?: XlsxStyle } | { f: string; s?: XlsxStyle };
 export type XlsxSheet = {
   name: string;
   rows: XlsxCell[][];
@@ -13,9 +14,16 @@ export type XlsxSheet = {
   widths?: number[];
   /** Rows kept on screen while scrolling (e.g. title + header). */
   freezeRows?: number;
+  /** Excel filter buttons on a header row, e.g. "A3:M40". */
+  autoFilter?: string;
+  /** Dropdown lists, e.g. { sqref: "D4:D200", list: ["Flat ₹", "Share %"] }. */
+  validations?: Array<{ sqref: string; list: string[] }>;
+  /** Colour a cell when it equals a value (dropdown chips). */
+  highlights?: Array<{ sqref: string; equals: string; tone: "green" | "blue" }>;
 };
 
-const STYLE_INDEX: Record<XlsxStyle, number> = { title: 1, muted: 2, head: 3, num: 4, loss: 5 };
+const STYLE_INDEX: Record<XlsxStyle, number> = { title: 1, muted: 2, head: 3, num: 4, loss: 5, info: 6, note: 7 };
+const DXF_INDEX = { green: 0, blue: 1 } as const;
 
 const esc = (v: string) =>
   v
@@ -61,10 +69,14 @@ function sheetXml(sheet: XlsxSheet): string {
     .map((cells, r) => {
       const xml = cells
         .map((cell, c) => {
-          const { v, s } = cell !== null && typeof cell === "object" ? cell : { v: cell, s: undefined };
-          if (v === null || v === "") return "";
           const ref = `${colName(c)}${r + 1}`;
+          if (cell !== null && typeof cell === "object" && "f" in cell) {
+            const st = cell.s ? ` s="${STYLE_INDEX[cell.s]}"` : "";
+            return `<c r="${ref}"${st}><f>${esc(cell.f)}</f></c>`;
+          }
+          const { v, s } = cell !== null && typeof cell === "object" ? cell : { v: cell, s: undefined };
           const st = s ? ` s="${STYLE_INDEX[s]}"` : "";
+          if (v === null || v === "") return st ? `<c r="${ref}"${st}/>` : "";
           if (typeof v === "number" && Number.isFinite(v)) return `<c r="${ref}"${st}><v>${v}</v></c>`;
           return `<c r="${ref}"${st} t="inlineStr"><is><t xml:space="preserve">${esc(String(v))}</t></is></c>`;
         })
@@ -72,33 +84,57 @@ function sheetXml(sheet: XlsxSheet): string {
       return `<row r="${r + 1}">${xml}</row>`;
     })
     .join("");
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${freeze}${cols}<sheetData>${rows}</sheetData></worksheet>`;
+  // Element order is fixed by the schema: sheetData → autoFilter → conditionalFormatting → dataValidations.
+  const filter = sheet.autoFilter ? `<autoFilter ref="${sheet.autoFilter}"/>` : "";
+  const cf = (sheet.highlights ?? [])
+    .map(
+      (h, i) =>
+        `<conditionalFormatting sqref="${h.sqref}"><cfRule type="cellIs" dxfId="${DXF_INDEX[h.tone]}" priority="${i + 1}" operator="equal"><formula>"${esc(h.equals)}"</formula></cfRule></conditionalFormatting>`,
+    )
+    .join("");
+  const dv = sheet.validations?.length
+    ? `<dataValidations count="${sheet.validations.length}">${sheet.validations
+        .map(
+          (d) =>
+            `<dataValidation type="list" allowBlank="1" showErrorMessage="1" errorTitle="Pick from the list" error="Choose one of: ${esc(d.list.join(", "))}" sqref="${d.sqref}"><formula1>"${esc(d.list.join(","))}"</formula1></dataValidation>`,
+        )
+        .join("")}</dataValidations>`
+    : "";
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${freeze}${cols}<sheetData>${rows}</sheetData>${filter}${cf}${dv}</worksheet>`;
 }
 
 const STYLES_XML =
   `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
   `<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">` +
   `<numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0.00"/></numFmts>` +
-  `<fonts count="5">` +
+  `<fonts count="6">` +
   `<font><sz val="11"/><name val="Calibri"/></font>` +
   `<font><b/><sz val="14"/><color rgb="FF1E3A8A"/><name val="Calibri"/></font>` +
   `<font><sz val="11"/><color rgb="FF64748B"/><name val="Calibri"/></font>` +
   `<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>` +
   `<font><b/><sz val="11"/><color rgb="FFB91C1C"/><name val="Calibri"/></font>` +
+  `<font><i/><sz val="10"/><color rgb="FF64748B"/><name val="Calibri"/></font>` +
   `</fonts>` +
-  `<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>` +
-  `<fill><patternFill patternType="solid"><fgColor rgb="FF2A5CDD"/><bgColor indexed="64"/></patternFill></fill></fills>` +
+  `<fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>` +
+  `<fill><patternFill patternType="solid"><fgColor rgb="FF2A5CDD"/><bgColor indexed="64"/></patternFill></fill>` +
+  `<fill><patternFill patternType="solid"><fgColor rgb="FFF1F5F9"/><bgColor indexed="64"/></patternFill></fill></fills>` +
   `<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>` +
   `<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>` +
-  `<cellXfs count="6">` +
+  `<cellXfs count="8">` +
   `<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>` +
   `<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>` +
   `<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>` +
   `<xf numFmtId="0" fontId="3" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>` +
   `<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>` +
   `<xf numFmtId="164" fontId="4" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1"/>` +
+  `<xf numFmtId="164" fontId="2" fillId="3" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1"/>` +
+  `<xf numFmtId="0" fontId="5" fillId="0" borderId="0" xfId="0" applyFont="1"/>` +
   `</cellXfs>` +
   `<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>` +
+  `<dxfs count="2">` +
+  `<dxf><font><b/><color rgb="FF166534"/></font><fill><patternFill patternType="solid"><bgColor rgb="FFDCFCE7"/></patternFill></fill></dxf>` +
+  `<dxf><font><b/><color rgb="FF1E40AF"/></font><fill><patternFill patternType="solid"><bgColor rgb="FFDBEAFE"/></patternFill></fill></dxf>` +
+  `</dxfs>` +
   `</styleSheet>`;
 
 // ── Uncompressed ("stored") zip ──
@@ -208,7 +244,20 @@ export function buildXlsx(sheets: XlsxSheet[]): Blob {
       xml:
         `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>` +
         names.map((n, i) => `<sheet name="${esc(n)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join("") +
-        `</sheets></workbook>`,
+        `</sheets>` +
+        (sheets.some((s) => s.autoFilter)
+          ? `<definedNames>${sheets
+              .map((s, i) =>
+                s.autoFilter
+                  ? `<definedName name="_xlnm._FilterDatabase" localSheetId="${i}" hidden="1">${esc(
+                      `'${names[i]!.replace(/'/g, "''")}'!${s.autoFilter.replace(/([A-Z]+)(\d+)/g, "$$$1$$$2")}`,
+                    )}</definedName>`
+                  : "",
+              )
+              .join("")}</definedNames>`
+          : "") +
+        // Formulas carry no cached value — ask Excel / Numbers / Sheets to calculate on open.
+        `<calcPr calcId="191029" fullCalcOnLoad="1"/></workbook>`,
     },
     {
       name: "xl/_rels/workbook.xml.rels",
@@ -227,6 +276,95 @@ export function buildXlsx(sheets: XlsxSheet[]): Blob {
     ...sheets.map((s, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, xml: sheetXml(s) })),
   ];
   return zipStored(files.map((f) => ({ name: f.name, data: enc.encode(f.xml) })));
+}
+
+// ── Reading an .xlsx back (as saved by Excel, Numbers or Google Sheets) ──
+
+async function inflateRaw(data: Uint8Array): Promise<Uint8Array> {
+  const stream = new Blob([data as BlobPart]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+/** Every file inside a zip, by path. Supports stored and deflated entries. */
+async function unzip(buf: Uint8Array): Promise<Map<string, Uint8Array>> {
+  const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  let eocd = -1;
+  for (let i = buf.length - 22; i >= Math.max(0, buf.length - 65_557); i--) {
+    if (view.getUint32(i, true) === 0x06054b50) {
+      eocd = i;
+      break;
+    }
+  }
+  if (eocd < 0) throw new Error("This file is not a valid .xlsx workbook.");
+  const count = view.getUint16(eocd + 10, true);
+  let p = view.getUint32(eocd + 16, true);
+  const dec = new TextDecoder();
+  const out = new Map<string, Uint8Array>();
+  for (let n = 0; n < count; n++) {
+    if (view.getUint32(p, true) !== 0x02014b50) throw new Error("This .xlsx file is damaged. Save it again and retry.");
+    const method = view.getUint16(p + 10, true);
+    const compSize = view.getUint32(p + 20, true);
+    const nameLen = view.getUint16(p + 28, true);
+    const extraLen = view.getUint16(p + 30, true);
+    const commentLen = view.getUint16(p + 32, true);
+    const local = view.getUint32(p + 42, true);
+    const name = dec.decode(buf.subarray(p + 46, p + 46 + nameLen));
+    const start = local + 30 + view.getUint16(local + 26, true) + view.getUint16(local + 28, true);
+    const raw = buf.subarray(start, start + compSize);
+    if (method === 0) out.set(name, raw);
+    else if (method === 8) out.set(name, await inflateRaw(raw));
+    p += 46 + nameLen + extraLen + commentLen;
+  }
+  return out;
+}
+
+function colIndex(ref: string): number {
+  let n = 0;
+  for (const ch of ref.replace(/\d+$/, "")) n = n * 26 + (ch.charCodeAt(0) - 64);
+  return n - 1;
+}
+
+const byTag = (node: Document | Element, tag: string) => Array.from(node.getElementsByTagNameNS("*", tag));
+
+/** Numbers come back as Excel stores them ("5.0000000000000003E-2") — tidy to "0.05". */
+const tidyNumber = (v: string) => (v === "" || !Number.isFinite(Number(v)) ? v : String(Number(Number(v).toFixed(6))));
+
+/** Reads every tab as plain text cells: [{ name, rows: string[][] }] in tab order. */
+export async function readXlsx(file: Blob): Promise<Array<{ name: string; rows: string[][] }>> {
+  const files = await unzip(new Uint8Array(await file.arrayBuffer()));
+  const dec = new TextDecoder();
+  const xml = (path: string) => {
+    const data = files.get(path);
+    return data ? new DOMParser().parseFromString(dec.decode(data), "application/xml") : null;
+  };
+  const workbook = xml("xl/workbook.xml");
+  if (!workbook) throw new Error("This file is not an Excel workbook. Export → Excel gives the right file.");
+  const rels = new Map(
+    byTag(xml("xl/_rels/workbook.xml.rels") ?? workbook, "Relationship").map((r) => [r.getAttribute("Id"), r.getAttribute("Target") ?? ""]),
+  );
+  const shared = byTag(xml("xl/sharedStrings.xml") ?? workbook, "si").map((si) => byTag(si, "t").map((t) => t.textContent ?? "").join(""));
+
+  return byTag(workbook, "sheet").map((s) => {
+    const rid = s.getAttribute("r:id") ?? s.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id");
+    const target = (rels.get(rid) ?? "").replace(/^\//, "");
+    const doc = xml(target.startsWith("xl/") ? target : `xl/${target}`);
+    const rows: string[][] = [];
+    for (const c of doc ? byTag(doc, "c") : []) {
+      const ref = c.getAttribute("r") ?? "";
+      const r = Number(ref.replace(/^[A-Z]+/, "")) - 1;
+      const col = colIndex(ref);
+      if (r < 0 || col < 0) continue;
+      const t = c.getAttribute("t");
+      const v = byTag(c, "v")[0]?.textContent ?? "";
+      let text: string;
+      if (t === "s") text = shared[Number(v)] ?? "";
+      else if (t === "inlineStr") text = byTag(c, "t").map((x) => x.textContent ?? "").join("");
+      else if (t === "str" || t === "e" || t === "b") text = v;
+      else text = tidyNumber(v);
+      (rows[r] ??= [])[col] = text;
+    }
+    return { name: s.getAttribute("name") ?? "", rows: Array.from(rows, (row) => Array.from(row ?? [], (x) => x ?? "")) };
+  });
 }
 
 export function downloadXlsx(fileName: string, sheets: XlsxSheet[]): void {

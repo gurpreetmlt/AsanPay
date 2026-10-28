@@ -21,6 +21,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { getServiceIcon } from "@/lib/serviceIcons";
+import { readXlsx } from "@/lib/xlsxWorkbook";
 import { toast } from "react-hot-toast";
 import { Modal } from "@/components/ui/Modal";
 import { ExportMenu } from "@/components/ui/ExportMenu";
@@ -29,6 +30,7 @@ import { downloadCsv } from "@/lib/taxCommissionUtils";
 import {
   downloadRateCardWorkbook,
   planRateCardImport,
+  planRateCardXlsxImport,
   rateCardCsv,
   rateCardReport,
   sheetFillRequest,
@@ -311,11 +313,20 @@ export function RateCardScreen() {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file || !data) return;
-    if (!/\.csv$/i.test(file.name)) {
-      setImportErrors([`"${file.name}" is not a CSV. In Excel use File → Save As → CSV (UTF-8), then import that file.`]);
+    const isXlsx = /\.xlsx$/i.test(file.name);
+    if (!isXlsx && !/\.csv$/i.test(file.name)) {
+      setImportErrors([`"${file.name}" is not an Excel (.xlsx) or CSV file. Use the file from Export → Excel or CSV.`]);
       return;
     }
-    const plan = planRateCardImport(await file.text(), data, providerId || null, providerName);
+    let plan;
+    try {
+      plan = isXlsx
+        ? planRateCardXlsxImport(await readXlsx(file), data, providerId || null, providerName)
+        : planRateCardImport(await file.text(), data, providerId || null, providerName);
+    } catch (err) {
+      setImportErrors([err instanceof Error ? err.message : "Could not read this file. Save it again in Excel and retry."]);
+      return;
+    }
     if (plan.errors.length) {
       setImportErrors(plan.errors);
       return;
@@ -612,11 +623,17 @@ export function RateCardScreen() {
                 variant="secondary"
                 disabled={!data || saving}
                 onClick={() => importInput.current?.click()}
-                title="Import the CSV from Export → CSV after editing it"
+                title="Import the Excel (or CSV) from Export after editing it"
               >
-                <Upload size={14} /> Import CSV
+                <Upload size={14} /> Import
               </Btn>
-              <input ref={importInput} type="file" accept=".csv,text/csv" className="hidden" onChange={onImportFile} />
+              <input
+                ref={importInput}
+                type="file"
+                accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                className="hidden"
+                onChange={onImportFile}
+              />
             </div>
           </div>
 
@@ -651,9 +668,9 @@ export function RateCardScreen() {
                   </tr>
                 </thead>
                 <tbody>
-                  {groups.map((g) => (
+                  {groups.map((g, gi) => (
                     <Fragment key={g.category}>
-                      <CategoryHeaderRow label={g.category} count={g.rows.length} colSpan={7} />
+                      <CategoryHeaderRow label={g.category} count={g.rows.length} colSpan={7} spaced={gi > 0} />
                       {g.rows.map((row, rowIndex) => {
                         const open = expanded === row.serviceId;
                         const single = row.slabs.length === 1 ? row.slabs[0] : null;
@@ -809,7 +826,8 @@ export function RateCardScreen() {
             ))}
           </ul>
           <p className="mt-3 text-[11px]" style={{ color: B.muted }}>
-            Template: Export → CSV. Write 0.5 for a flat ₹ or 80% for a percent. Blank cells keep what is saved; 0 sets ₹0.
+            Template: Export → Excel (or CSV). Pick Flat ₹ or Share % in the type column and type the number. Blank cells keep
+            what is saved; 0 sets ₹0.
             Service name or code both work.
           </p>
           <div className="mt-4 grid grid-cols-2 gap-2">

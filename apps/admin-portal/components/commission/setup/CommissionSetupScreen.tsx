@@ -355,9 +355,9 @@ export function CommissionOverviewScreen() {
                 </tr>
               </thead>
               <tbody>
-                {groups.map((g) => (
+                {groups.map((g, gi) => (
                   <Fragment key={g.category}>
-                    <CategoryHeaderRow label={g.category} count={g.rows.length} colSpan={7} />
+                    <CategoryHeaderRow label={g.category} count={g.rows.length} colSpan={7} spaced={gi > 0} />
                     {g.rows.map((row, i) => {
                       const open = expanded === row.serviceId;
                       const Icon = getServiceIcon(row.serviceCode);

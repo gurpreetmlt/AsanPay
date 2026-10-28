@@ -199,41 +199,45 @@ export function GstModeSwitch({
   );
 }
 
-/** Highlighted category band inside a services table: icon, name and a service count. */
-export function CategoryHeaderRow({ label, count, colSpan }: { label: string; count?: number; colSpan: number }) {
+/**
+ * Category band inside a services table: solid brand bar with icon, name and service count, plus a
+ * gap above it (`spaced`) so each category reads as its own block.
+ */
+export function CategoryHeaderRow({
+  label,
+  count,
+  colSpan,
+  spaced = false,
+}: {
+  label: string;
+  count?: number;
+  colSpan: number;
+  spaced?: boolean;
+}) {
   const Icon = getCategoryIconByName(label);
   return (
-    <tr>
-      <td
-        colSpan={colSpan}
-        className="border-t-2 px-4 py-2.5"
-        style={{
-          borderColor: "rgba(42,92,221,0.25)",
-          background: "linear-gradient(90deg, rgba(42,92,221,0.16) 0%, rgba(42,92,221,0.05) 60%, rgba(42,92,221,0.02) 100%)",
-          boxShadow: `inset 4px 0 0 ${B.blueLight}`,
-        }}
-      >
-        <div className="flex items-center gap-2">
-          <span
-            className="flex h-7 w-7 items-center justify-center rounded-lg text-white"
-            style={{ background: B.badgeGrad }}
-          >
-            <Icon size={14} />
-          </span>
-          <span className="text-xs font-extrabold uppercase tracking-wider" style={{ color: B.blue }}>
-            {label}
-          </span>
-          {count != null ? (
-            <span
-              className="rounded-full px-2 py-0.5 text-[11px] font-bold"
-              style={{ background: "rgba(42,92,221,0.14)", color: B.blueLight }}
-            >
-              {count} service{count === 1 ? "" : "s"}
+    <>
+      {spaced ? (
+        <tr aria-hidden>
+          <td colSpan={colSpan} className="h-4 p-0" style={{ background: "var(--admin-card)" }} />
+        </tr>
+      ) : null}
+      <tr>
+        <td colSpan={colSpan} className="px-4 py-3" style={{ background: B.badgeGrad }}>
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white shadow-sm" style={{ color: B.blueLight }}>
+              <Icon size={16} />
             </span>
-          ) : null}
-        </div>
-      </td>
-    </tr>
+            <span className="text-sm font-extrabold uppercase tracking-wider text-white">{label}</span>
+            {count != null ? (
+              <span className="rounded-full px-2.5 py-0.5 text-[11px] font-bold text-white" style={{ background: "rgba(255,255,255,0.22)" }}>
+                {count} service{count === 1 ? "" : "s"}
+              </span>
+            ) : null}
+          </div>
+        </td>
+      </tr>
+    </>
   );
 }
 

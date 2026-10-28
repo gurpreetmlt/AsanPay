@@ -165,32 +165,108 @@ export function rateCardReport(data: RateCardData, scopeName: string): BrandedRe
   };
 }
 
-// ── Excel workbook (.xlsx): Summary tab + one tab per service ──
+// ── Excel workbook (.xlsx): an editable sheet — Summary tab + one tab per service ──
 
-const money = (v: string | null | undefined) => (v == null || v === "" ? null : Number(v));
+const FLAT = "Flat ₹";
+const SHARE = "Share %";
+const PCT_OF_AMOUNT = "% of amount";
 
-function roleHow(s: Slab, role: SchemeRole): string {
-  const r = s.roles.find((x) => x.role === role);
-  if (!r) return "";
-  if (r.source === "share") return `${r.shareFlat != null ? "Flat" : `${Number(r.sharePercent)}% share`}${r.shareSlab ? " (slab)" : ""}`;
-  if (r.source === "rule") return "Fixed rule";
-  return r.source === "none" ? "None" : "Override";
-}
+/** Header row of every service tab; import reads these names back. */
+const SHEET_HEADER = [
+  "Slab from",
+  "Slab to",
+  "Example amount",
+  "Provider type",
+  "Provider pays",
+  "Provider max",
+  "Retailer type",
+  "Retailer",
+  "Distributor type",
+  "Distributor",
+  "SD type",
+  "SD",
+  "Company keeps",
+];
 
 const head = (labels: string[]): XlsxCell[] => labels.map((v) => ({ v, s: "head" }));
-const numCell = (v: number | null): XlsxCell => ({ v, s: "num" });
 
-/** Downloads the rate card as an .xlsx workbook: a Summary tab, then one tab per service with its slabs. */
+/** Company keeps for sheet row `r`, recalculated by Excel as the white cells change. */
+function keepsFormula(r: number, incomeNow: number): string {
+  const provider = `IF(E${r}="",${incomeNow},IF(D${r}="${PCT_OF_AMOUNT}",IF(F${r}="",C${r}*E${r}/100,MIN(C${r}*E${r}/100,F${r})),E${r}))`;
+  const role = (t: string, v: string) => `IF(${v}${r}="",0,IF(${t}${r}="${SHARE}",(${provider})*${v}${r}/100,${v}${r}))`;
+  return `ROUND(${provider}-${role("G", "H")}-${role("I", "J")}-${role("K", "L")},2)`;
+}
+
+function serviceSheet(row: ServiceRow): XlsxSheet {
+  const firstData = 4;
+  const lastData = firstData + row.slabs.length - 1;
+  const lastEditable = lastData + 100;
+  const typeCols = ["G", "I", "K"];
+  return {
+    name: row.serviceName,
+    freezeRows: 3,
+    autoFilter: `A3:M${lastData}`,
+    widths: [11, 11, 14, 14, 13, 12, 14, 10, 16, 12, 12, 9, 15],
+    validations: [
+      { sqref: `D${firstData}:D${lastEditable}`, list: [FLAT, PCT_OF_AMOUNT] },
+      ...typeCols.map((c) => ({ sqref: `${c}${firstData}:${c}${lastEditable}`, list: [FLAT, SHARE] })),
+    ],
+    highlights: ["D", ...typeCols].flatMap((c) => [
+      { sqref: `${c}${firstData}:${c}${lastEditable}`, equals: FLAT, tone: "green" as const },
+      { sqref: `${c}${firstData}:${c}${lastEditable}`, equals: c === "D" ? PCT_OF_AMOUNT : SHARE, tone: "blue" as const },
+    ]),
+    rows: [
+      [{ v: row.serviceName, s: "title" }, ...Array(11).fill(null), { v: row.serviceCode, s: "muted" }],
+      [
+        {
+          v: "Edit the white cells. Type: Flat ₹ = rupees per txn · Share % = % of what the provider pays · % of amount = provider rate on the txn. Blank = no change. Grey cells are worked out for you.",
+          s: "note",
+        },
+      ],
+      head(SHEET_HEADER),
+      ...row.slabs.map((s, i): XlsxCell[] => {
+        const income = row.providerIncomeRules.find((r) => r.minAmount === s.minAmount && r.maxAmount === s.maxAmount) ?? null;
+        const split = slabSplitOf(s);
+        const roleCells = SCHEME_ROLES.flatMap((role): XlsxCell[] => {
+          const v = split.values[role];
+          if (v === "") return [null, null];
+          return [split.modes[role] === "percent" ? SHARE : FLAT, Number(v)];
+        });
+        return [
+          s.minAmount != null ? Number(s.minAmount) : null,
+          s.maxAmount != null ? Number(s.maxAmount) : null,
+          { v: Number(s.sampleAmount), s: "info" },
+          income ? (income.ruleType === "flat" ? FLAT : PCT_OF_AMOUNT) : null,
+          income ? Number(income.value) : null,
+          income?.capAmount ? Number(income.capAmount) : null,
+          ...roleCells,
+          { f: keepsFormula(firstData + i, Number(s.providerIncome ?? 0)), s: "info" },
+        ];
+      }),
+    ],
+  };
+}
+
+/** Downloads the rate card as an editable .xlsx: Summary tab, then one tab per service (re-import with Import). */
 export function downloadRateCardWorkbook(data: RateCardData, scopeName: string): void {
-  const generated = new Date().toLocaleString("en-IN");
+  downloadXlsx(`rate-card-${new Date().toISOString().slice(0, 10)}.xlsx`, rateCardWorkbookSheets(data, scopeName));
+}
 
+export function rateCardWorkbookSheets(data: RateCardData, scopeName: string): XlsxSheet[] {
+  const generated = new Date().toLocaleString("en-IN");
   const summary: XlsxSheet = {
     name: "Summary",
-    freezeRows: 4,
+    freezeRows: 9,
+    autoFilter: `A9:F${9 + data.services.length}`,
     widths: [26, 20, 8, 20, 18, 22],
     rows: [
       [{ v: "Commission rate card", s: "title" }],
       [{ v: `${scopeName} · generated ${generated} · amounts per txn before TDS`, s: "muted" }],
+      [],
+      [{ v: "How to use: open a service tab, change the white cells, save, then Rate card → Import.", s: "note" }],
+      [{ v: "Type columns have a dropdown: Flat ₹ (green) or Share % / % of amount (blue). Use the filter arrows on the header row.", s: "note" }],
+      [{ v: "Blank cell = keep what is saved. 0 = ₹0. Add a slab by filling a new row under the last one.", s: "note" }],
+      [{ v: "Company keeps (grey) updates by itself; copy it down for new rows.", s: "note" }],
       [],
       head(["Service", "Category", "Slabs", "Provider pays not set", "Slabs losing money", "Slabs with a role on ₹0"]),
       ...data.services.map((row): XlsxCell[] => {
@@ -206,40 +282,7 @@ export function downloadRateCardWorkbook(data: RateCardData, scopeName: string):
       }),
     ],
   };
-
-  const serviceSheets: XlsxSheet[] = data.services.map((row) => ({
-    name: row.serviceName,
-    freezeRows: 4,
-    widths: [11, 11, 14, 22, 15, 12, 16, 13, 16, 10, 16, 16],
-    rows: [
-      [{ v: row.serviceName, s: "title" }],
-      [{ v: `${row.categoryName} · ${row.serviceCode} · ${scopeName} · generated ${generated}`, s: "muted" }],
-      [],
-      head([
-        "Slab from",
-        "Slab to",
-        "Example amount",
-        "Provider pays (rate)",
-        "Provider pays ₹",
-        ...SCHEME_ROLES.flatMap((r) => [`${ROLE_LABEL[r]} ₹`, `${ROLE_LABEL[r]} how`]),
-        "Company keeps ₹",
-      ]),
-      ...row.slabs.map((s): XlsxCell[] => {
-        const income = incomeRuleOf(row, s);
-        return [
-          numCell(money(s.minAmount)),
-          numCell(money(s.maxAmount)),
-          numCell(money(s.sampleAmount)),
-          income ? ruleLabel(income.ruleType, income.value, income.capAmount) : "Not set",
-          numCell(money(s.providerIncome)),
-          ...SCHEME_ROLES.flatMap((r): XlsxCell[] => [numCell(money(s.roles.find((x) => x.role === r)?.gross)), roleHow(s, r)]),
-          { v: Number(s.companyKeeps), s: s.underwater ? "loss" : "num" },
-        ];
-      }),
-    ],
-  }));
-
-  downloadXlsx(`rate-card-${new Date().toISOString().slice(0, 10)}.xlsx`, [summary, ...serviceSheets]);
+  return [summary, ...data.services.map(serviceSheet)];
 }
 
 // ── Fill "Provider pays" from the provider sheet (services with no provider income yet) ──
@@ -333,7 +376,57 @@ export function planRateCardImport(
   providerId: string | null,
   providerName: string,
 ): ImportPlan {
-  const rows = parseCsv(text);
+  return planRows(parseCsv(text), null, data, providerId, providerName);
+}
+
+/**
+ * Same as the CSV import, for the editable Excel workbook: every service tab (title row = service name,
+ * last title cell = service code, header row with "Slab from") becomes rows of one import.
+ */
+export function planRateCardXlsxImport(
+  sheets: Array<{ name: string; rows: string[][] }>,
+  data: RateCardData,
+  providerId: string | null,
+  providerName: string,
+): ImportPlan {
+  const header = ["Service", "Service code", ...SHEET_HEADER];
+  const body: string[][] = [];
+  const labels: string[] = [];
+  for (const sheet of sheets) {
+    const h = sheet.rows.findIndex((r) => r.some((c) => headerKey(c) === "slabfrom"));
+    if (h < 0) continue;
+    const title = (sheet.rows[0] ?? []).filter((c) => c.trim() !== "");
+    const name = title[0] ?? sheet.name;
+    const code = title.length > 1 ? title[title.length - 1]! : "";
+    const keys = sheet.rows[h]!.map(headerKey);
+    const at = (row: string[], key: string) => {
+      const i = keys.indexOf(key);
+      return i >= 0 ? (row[i] ?? "").trim() : "";
+    };
+    sheet.rows.slice(h + 1).forEach((row, i) => {
+      const cells = SHEET_HEADER.map((label) => at(row, headerKey(label)));
+      // Skip empty lines (only formula / example cells left).
+      if (!cells.some((c, ci) => c !== "" && !["Example amount", "Company keeps"].includes(SHEET_HEADER[ci]!))) return;
+      body.push([name, code, ...cells]);
+      labels.push(`${sheet.name} tab, row ${h + i + 2}`);
+    });
+  }
+  if (body.length === 0) {
+    return { changes: [], errors: ["No service tab with slabs was found. Use the workbook from Export → Excel."], rowsRead: 0, unchangedRows: 0 };
+  }
+  return planRows([header, ...body], labels, data, providerId, providerName);
+}
+
+/** "Flat ₹" / "flat" → flat; "Share %" / "% of amount" / "percent" → percent; "" → none. */
+const typeIsPercent = (t: string) => /%|share|percent/i.test(t);
+
+function planRows(
+  rows: string[][],
+  labels: string[] | null,
+  data: RateCardData,
+  providerId: string | null,
+  providerName: string,
+): ImportPlan {
   const errors: string[] = [];
   const changes: PendingChange[] = [];
   const fail = (msg: string): ImportPlan => ({ changes, errors: [msg], rowsRead: 0, unchangedRows: 0 });
@@ -356,7 +449,7 @@ export function planRateCardImport(
 
   body.forEach((cells, i) => {
     if (errors.length >= MAX_ERRORS) return;
-    const line = i + 2;
+    const at = labels?.[i] ?? `Row ${i + 2}`;
     const get = (key: string) => (col(key) >= 0 ? (cells[col(key)] ?? "").trim() : "");
 
     // Service: code first, else the name (an exported "Cash Withdraw · Banking Services" works too).
@@ -364,10 +457,10 @@ export function planRateCardImport(
     const name = (get("service") || get("servicename")).split("·")[0]!.trim();
     const service = (code && byCode.get(code.toLowerCase())) || byName.get(name.toLowerCase()) || byCode.get(name.toLowerCase());
     if (!service) {
-      errors.push(`Row ${line}: service "${code || name}" not found. Use the service name or code from the export.`);
+      errors.push(`${at}: service "${code || name}" not found. Use the service name or code from the export.`);
       return;
     }
-    const where = `Row ${line} (${service.serviceName})`;
+    const where = labels ? at : `${at} (${service.serviceName})`;
 
     const bounds = parseBounds(get);
     if (bounds === "bad" || (bounds.from && !isAmount(bounds.from)) || (bounds.to && !isAmount(bounds.to))) {
@@ -389,12 +482,12 @@ export function planRateCardImport(
       amountBound(r.minAmount) === amountBound(minAmount) && amountBound(r.maxAmount) === amountBound(maxAmount);
     const rowChanges: PendingChange[] = [];
 
-    // Provider pays: "13.95" flat, "0.465%" percent (+ optional "Provider max" cap); old template too.
-    const oldType = get("providertype").toLowerCase();
-    const provider =
-      oldType || get("providervalue")
-        ? parseMoney(`${get("providervalue")}${oldType === "percent" ? "%" : ""}`)
-        : parseMoney(get("providerpays"));
+    // Provider pays: "13.95" flat, "0.465%" percent, or a type column ("Flat ₹" / "% of amount") + number.
+    const pType = get("providertype");
+    const pValue = (get("providervalue") || get("providerpays")).replace(/%\s*$/, "");
+    const provider = pType
+      ? parseMoney(pValue === "" ? "" : `${pValue}${typeIsPercent(pType) ? "%" : ""}`)
+      : parseMoney(get("providervalue") || get("providerpays"));
     if (provider === "bad") {
       errors.push(`${where}: Provider pays must be a number like 1.5 or a percent like 0.465%`);
       return;
@@ -425,7 +518,7 @@ export function planRateCardImport(
       if (!same) rowChanges.push(...incomeChanges(service, draft, providerName));
     }
 
-    // Role split for this slab: "0.5" flat ₹ or "80%"; old *_type / *_value columns too.
+    // Role split for this slab: "0.5" flat ₹ or "80%", or a type column ("Flat ₹" / "Share %") + number.
     const slab = service.slabs.find(sameBounds);
     const initial: SlabSplit = slab
       ? slabSplitOf(slab)
@@ -436,11 +529,11 @@ export function planRateCardImport(
     const next: SlabSplit = { modes: { ...initial.modes }, values: { ...initial.values } };
     for (const role of SCHEME_ROLES) {
       const key = ROLE_KEY[role];
-      const oldRoleType = get(`${key}type`).toLowerCase();
-      const parsed =
-        oldRoleType || get(`${key}value`)
-          ? parseMoney(`${get(`${key}value`)}${oldRoleType === "percent" ? "%" : ""}`)
-          : parseMoney(get(key));
+      const rType = get(`${key}type`);
+      const rValue = get(`${key}value`) || get(key);
+      const parsed = rType
+        ? parseMoney(rValue === "" ? "" : `${rValue.replace(/%\s*$/, "")}${typeIsPercent(rType) ? "%" : ""}`)
+        : parseMoney(rValue);
       if (parsed === null) continue;
       const err = parsed === "bad" ? `${ROLE_LABEL[role]} must be a number like 0.5 or a percent like 80%` : roleSplitError(role, parsed.mode, parsed.value);
       if (err || parsed === "bad") {

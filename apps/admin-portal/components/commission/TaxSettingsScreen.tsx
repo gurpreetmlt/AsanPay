@@ -298,9 +298,9 @@ export function TaxSettingsScreen() {
                 </tr>
               </thead>
               <tbody>
-                {groups.map((g) => (
+                {groups.map((g, gi) => (
                   <Fragment key={g.category}>
-                    <CategoryHeaderRow label={g.category} count={g.rows.length} colSpan={6} />
+                    <CategoryHeaderRow label={g.category} count={g.rows.length} colSpan={6} spaced={gi > 0} />
                     {g.rows.map((row) => (
                       <tr key={row.serviceId} className="border-t" style={{ borderColor: B.border }}>
                         <td className="px-4 py-2.5">
