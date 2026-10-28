@@ -33,6 +33,7 @@ import {
   SlidersHorizontal,
   ChevronRight,
   Camera,
+  Eye,
   Hash,
   Receipt,
   IdCard,
@@ -56,7 +57,9 @@ import {
   RESTRICT_REASON_PRESETS,
   AEPS_REACTIVATE_REASON_PRESETS,
   KYC_RESET_REASON_PRESETS,
+  KYC_REJECT_REASON_PRESETS,
 } from "@/components/users/ReasonSelect";
+import { Modal } from "@/components/ui/Modal";
 import { AgentRateCard } from "@/components/users/AgentRateCard";
 import { FundRequestSwitch } from "@/components/users/FundRequestSwitch";
 import { MoveAgentModal } from "@/components/users/MoveAgentModal";
@@ -581,6 +584,78 @@ type PendingConfirm = {
   action: () => void | Promise<void>;
 };
 
+type KycCheckStatus = "pending" | "verified" | "failed" | "retry_required" | "manual_review";
+
+type KycVerificationBrief = {
+  reviewDecision: "approved" | "rejected" | null;
+  reviewReason: string | null;
+  reviewedAt: string | null;
+  panNumber?: KycCheckStatus;
+  panImage?: KycCheckStatus;
+  aadhaarOtp?: KycCheckStatus;
+  aadhaarImage?: KycCheckStatus;
+  crossCheck?: KycCheckStatus;
+  reasons?: Partial<Record<"panNumber" | "panImage" | "aadhaarOtp" | "aadhaarImage" | "crossCheck", string>>;
+};
+
+const CHECK_TONE: Record<KycCheckStatus, { label: string; bg: string; fg: string; icon: LucideIcon }> = {
+  verified: { label: "Passed", bg: "#F0FDF4", fg: "#15803D", icon: CircleCheck },
+  failed: { label: "Failed", bg: "#FEF2F2", fg: "#B91C1C", icon: CircleX },
+  retry_required: { label: "Retry", bg: "#FFFBEB", fg: "#B45309", icon: RotateCcw },
+  manual_review: { label: "Check by hand", bg: "#EFF6FF", fg: "#1D4ED8", icon: Eye },
+  pending: { label: "Not run", bg: "#F8FAFC", fg: "#64748B", icon: Clock },
+};
+
+/** Provider checks run during KYC submit (statuses only — no numbers). */
+function AutoChecks({ v }: { v: KycVerificationBrief }) {
+  const rows: Array<{ key: keyof NonNullable<KycVerificationBrief["reasons"]>; label: string; icon: LucideIcon }> = [
+    { key: "panNumber", label: "PAN number", icon: IdCard },
+    { key: "panImage", label: "PAN photo", icon: FileCheck2 },
+    { key: "aadhaarOtp", label: "Aadhaar OTP", icon: KeyRound },
+    { key: "aadhaarImage", label: "Aadhaar photo", icon: Fingerprint },
+    { key: "crossCheck", label: "Name match (PAN ↔ Aadhaar)", icon: ShieldCheck },
+  ];
+  return (
+    <div className="grid gap-2 sm:grid-cols-2">
+      {rows.map((r, i) => {
+        const status = v[r.key] ?? "pending";
+        const tone = CHECK_TONE[status];
+        const ToneIcon = tone.icon;
+        const RowIcon = r.icon;
+        const reason = v.reasons?.[r.key];
+        return (
+          <div
+            key={r.key}
+            className={`rc-slab-in flex items-center gap-3 rounded-2xl border px-3 py-2.5 ${i === rows.length - 1 ? "sm:col-span-2" : ""}`}
+            style={{ borderColor: B.border, animationDelay: `${i * 120}ms` }}
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: tone.bg, color: tone.fg }}>
+              <RowIcon size={16} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold" style={{ color: B.blue }}>
+                {r.label}
+              </p>
+              {reason ? (
+                <p className="truncate text-[11px]" style={{ color: B.muted }} title={reason}>
+                  {reason}
+                </p>
+              ) : null}
+            </div>
+            <span
+              className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold"
+              style={{ background: tone.bg, color: tone.fg }}
+            >
+              <ToneIcon size={11} />
+              {tone.label}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 interface RecentTxn {
   id: string;
   txnRef: string;
@@ -626,6 +701,7 @@ interface AgentDetail {
     bankName: string | null;
     hasBank: boolean;
     submittedAt: string | null;
+    verification?: KycVerificationBrief;
   };
   documents: Record<string, string>;
   documentFiles?: Partial<
@@ -665,6 +741,9 @@ export default function AgentDetailPage() {
   const [recentTxns, setRecentTxns] = useState<RecentTxn[]>([]);
   const [activeBank, setActiveBank] = useState<SettlementBankBrief | null>(null);
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
   // Old links point at "#commission"; any other hash or none opens Overview.
   const [tab, setTab] = useState<AgentTab>(() =>
     typeof window !== "undefined" && window.location.hash === "#commission" ? "commission" : "overview",
@@ -676,16 +755,20 @@ export default function AgentDetailPage() {
     try {
       const [detail, txns, banks] = await Promise.all([
         fetchApi<AgentDetail>(`/admin/users/${id}`),
-        fetchApi<RecentTxn[]>("/admin/transactions", { userId: id, limit: "10" }),
+        fetchApi<RecentTxn[]>("/admin/transactions", { userId: id, limit: "10" }).catch(() => [] as RecentTxn[]),
         fetchApi<SettlementBankBrief[]>(`/settlements/banks/by-user/${id}`).catch(() => []),
       ]);
       setAgent(detail);
+      setLoadError(null);
       setRecentTxns(txns);
       setActiveBank(banks.find((b) => b.isActive) ?? null);
-    } catch {
-      toast.error("Failed to load agent details");
-      setAgent(null);
-      setActiveBank(null);
+    } catch (err) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } }).response?.data?.message ??
+        "Agent details did not load. Check your connection and refresh.";
+      setLoadError(msg);
+      // Keep the page that is already open; only an empty page shows the error card.
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -700,7 +783,7 @@ export default function AgentDetailPage() {
     void load();
   }, [hydrated, accessToken, router, load]);
 
-  async function decideKyc(decision: "verified" | "rejected") {
+  async function decideKyc(decision: "verified" | "rejected", reason?: string) {
     if (!agent) return;
     if (decision === "verified" && !agent.hasKycDocs) {
       toast.error(
@@ -713,10 +796,12 @@ export default function AgentDetailPage() {
       const { data } = await api.post<{
         message?: string;
         data?: { loginEmail?: { status: "sent" | "failed" } | null };
-      }>(`/admin/kyc/${agent.id}/decide`, { decision });
+      }>(`/admin/kyc/${agent.id}/decide`, { decision, reason });
       const message = data.message ?? (decision === "verified" ? "KYC approved" : "KYC rejected");
       if (data.data?.loginEmail?.status === "failed") toast.error(message, { duration: 8000 });
       else toast.success(message);
+      setRejectOpen(false);
+      setRejectReason("");
       await load();
     } catch (err) {
       toast.error(
@@ -883,6 +968,11 @@ export default function AgentDetailPage() {
 
   if (!hydrated || !accessToken) return null;
 
+  const rejectedReason = agent?.kycStatus === "rejected" ? agent.kyc.verification?.reviewReason ?? null : null;
+  const rejectedAt =
+    agent?.kycStatus === "rejected" && agent.kyc.verification?.reviewedAt
+      ? new Date(agent.kyc.verification.reviewedAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })
+      : null;
   const photoPath = agent?.documents?.personalPhoto;
   const kycPhotoSrc = photoPath && photoPath.includes("/kyc-documents/") ? `/api/proxy${photoPath}` : null;
   const photoSrc = agent?.profilePhotoUpdatedAt
@@ -1063,13 +1153,13 @@ export default function AgentDetailPage() {
           All agents
         </Link>
 
-        {loading || !agent ? (
+        {!agent ? (
           <div className="rounded-3xl border p-8" style={{ borderColor: B.border, background: B.card }}>
             <h1 className="text-xl font-bold" style={{ color: B.blue }}>
               Agent details
             </h1>
             <p className="mt-1 text-sm" style={{ color: B.muted }}>
-              {loading ? "Loading…" : "Agent not found"}
+              {loading ? "Loading…" : loadError ?? "Agent not found"}
             </p>
           </div>
         ) : (
@@ -1195,6 +1285,33 @@ export default function AgentDetailPage() {
               </div>
             </div>
 
+            {agent.kycStatus === "rejected" ? (
+              <div
+                className="flex flex-wrap items-center gap-3 rounded-2xl border px-4 py-3"
+                style={{ borderColor: "#FCA5A5", background: "linear-gradient(90deg, #FEE2E2 0%, #FEF2F2 60%, var(--admin-card) 100%)" }}
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: "#FECACA", color: "#B91C1C" }}>
+                  <CircleX size={18} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold" style={{ color: "#991B1B" }}>
+                    KYC rejected{rejectedAt ? ` · ${rejectedAt}` : ""}
+                  </p>
+                  <p className="text-xs" style={{ color: "#B91C1C" }}>
+                    {rejectedReason ? <>Reason: <strong>{rejectedReason}</strong></> : "No reason was recorded."} The agent sees this and can resubmit.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTab("kyc")}
+                  className="inline-flex items-center gap-1.5 rounded-xl border px-4 py-2 text-sm font-semibold transition hover:bg-white"
+                  style={{ borderColor: "#FCA5A5", color: "#B91C1C" }}
+                >
+                  Open KYC <ChevronRight size={15} />
+                </button>
+              </div>
+            ) : null}
+
             {agent.kycStatus === "pending" ? (
               <div
                 className="flex flex-wrap items-center gap-3 rounded-2xl border px-4 py-3"
@@ -1316,6 +1433,11 @@ export default function AgentDetailPage() {
                       />
                     </div>
                   </DetailSection>
+                  {agent.kyc.verification ? (
+                    <DetailSection title="Automatic checks" icon={BadgeCheck}>
+                      <AutoChecks v={agent.kyc.verification} />
+                    </DetailSection>
+                  ) : null}
                   <DetailSection title="KYC address & bank" icon={MapPin}>
                     <div className="space-y-3">
                       <SectionIntro icon={Info}>From the KYC submission. Withdrawal banks are verified in Wallet &amp; bank.</SectionIntro>
@@ -1355,7 +1477,29 @@ export default function AgentDetailPage() {
                             : { text: "Active", tone: "green" as const, icon: CircleCheck, live: true })}
                         />
                       </div>
-                      {agent.kycStatus !== "verified" ? (
+                      {agent.kycStatus === "rejected" ? (
+                        <div
+                          className="rc-slab-in rounded-2xl border p-3"
+                          style={{ borderColor: "#FCA5A5", background: "linear-gradient(180deg, #FEF2F2 0%, var(--admin-card) 100%)" }}
+                        >
+                          <div className="flex items-center gap-2">
+                            <CircleX size={16} style={{ color: "#B91C1C" }} />
+                            <p className="text-sm font-bold" style={{ color: "#991B1B" }}>
+                              Rejected{rejectedAt ? ` · ${rejectedAt}` : ""}
+                            </p>
+                          </div>
+                          <p className="mt-1.5 text-[10px] font-bold uppercase tracking-wider" style={{ color: B.muted }}>
+                            Reason sent to the agent
+                          </p>
+                          <p className="text-sm font-semibold" style={{ color: B.blue }}>
+                            {rejectedReason ?? "No reason was recorded for this rejection."}
+                          </p>
+                          <p className="mt-1.5 text-[11px]" style={{ color: B.muted }}>
+                            The agent can fix and resubmit. Use Reset KYC below to clear PAN / Aadhaar and start over.
+                          </p>
+                        </div>
+                      ) : null}
+                      {agent.kycStatus === "pending" ? (
                         <div>
                           <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider" style={{ color: B.muted }}>
                             Ready to approve?
@@ -1390,7 +1534,7 @@ export default function AgentDetailPage() {
                           <button
                             type="button"
                             disabled={busy}
-                            onClick={() => void decideKyc("rejected")}
+                            onClick={() => setRejectOpen(true)}
                             className="w-full rounded-xl border px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
                             style={{ borderColor: B.danger, color: B.danger }}
                           >
@@ -1652,6 +1796,53 @@ export default function AgentDetailPage() {
           </>
         )}
       </div>
+
+      {rejectOpen && agent ? (
+        <Modal
+          title="Reject KYC"
+          eyebrow={agent.name}
+          subtitle="Pick what is wrong. The agent sees this reason and can resubmit."
+          icon={<CircleX size={22} />}
+          iconTone="red"
+          onClose={() => {
+            if (!busy) setRejectOpen(false);
+          }}
+        >
+          <div className="space-y-3">
+            <div className="rounded-2xl border p-3" style={{ borderColor: B.border, background: "linear-gradient(180deg, #F7F9FF 0%, var(--admin-card) 100%)" }}>
+              <p className="mb-1.5 text-xs font-semibold" style={{ color: B.muted }}>
+                Rejection reason
+              </p>
+              <ReasonSelect value={rejectReason} onChange={setRejectReason} presets={KYC_REJECT_REASON_PRESETS} placeholder="Select what is wrong" />
+              <p className="mt-1.5 text-[11px]" style={{ color: rejectReason.trim().length > 0 && rejectReason.trim().length < 8 ? B.danger : B.muted }}>
+                {rejectReason.trim().length > 0 && rejectReason.trim().length < 8
+                  ? "Reason must be at least 8 characters"
+                  : "Shown to the agent on their dashboard and in the app"}
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setRejectOpen(false)}
+                className="rounded-xl border px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
+                style={{ borderColor: B.border, color: B.blue, background: "var(--admin-card)" }}
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                disabled={busy || rejectReason.trim().length < 8}
+                onClick={() => void decideKyc("rejected", rejectReason.trim())}
+                className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                style={{ background: B.danger }}
+              >
+                {busy ? "Rejecting…" : "Reject KYC"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
 
       {pendingConfirm ? (
         <ConfirmModal

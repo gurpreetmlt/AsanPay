@@ -66,6 +66,19 @@ function greetingName(name: string): string {
 export function ServicesScreen() {
   const user = useAuthStore((s) => s.user)!;
   const setSignupContinue = useAuthStore((s) => s.setSignupContinue);
+  const [rejectReason, setRejectReason] = useState<string | null>(null);
+  useEffect(() => {
+    if (user.kycStatus !== "rejected") return;
+    let cancelled = false;
+    fetchApi<{ profile: { rejectReason?: string | null } }>("/kyc/me")
+      .then((r) => {
+        if (!cancelled) setRejectReason(r.profile.rejectReason ?? null);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [user.kycStatus]);
   const navigation = useNavigation<BottomTabNavigationProp<Record<string, undefined>>>();
   const { tokens } = useTheme();
   const servicesUnlocked = isKycServicesUnlocked(user);
@@ -347,9 +360,11 @@ export function ServicesScreen() {
                 },
               ]}
             >
-              {user.hasKycDocs && user.kycStatus !== "rejected"
-                ? "Services stay locked until admin approval."
-                : "Tap to continue signup KYC where you left off."}
+              {user.kycStatus === "rejected" && rejectReason
+                ? `Reason: ${rejectReason}. Tap to fix and resubmit.`
+                : user.hasKycDocs && user.kycStatus !== "rejected"
+                  ? "Services stay locked until admin approval."
+                  : "Tap to continue signup KYC where you left off."}
             </Text>
           </View>
           {needsSignupKycCompletion(user) || user.kycStatus === "rejected" ? (

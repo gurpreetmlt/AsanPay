@@ -263,6 +263,9 @@ adminRouter.post("/kyc/:id/decide", async (req, res) => {
       reason: z.string().trim().max(500, "Reason must be at most 500 characters").optional(),
     })
     .parse(req.body);
+  if (body.decision === "rejected" && (body.reason ?? "").length < 8) {
+    throw new HttpError(400, "Enter a rejection reason (at least 8 characters) — the agent sees it", "REASON_REQUIRED");
+  }
   const result = await decideKyc(req.auth.sub, req.params.id, body.decision, body.reason || null);
   const message =
     body.decision !== "verified"

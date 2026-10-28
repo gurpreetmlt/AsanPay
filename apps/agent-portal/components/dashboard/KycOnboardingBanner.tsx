@@ -1,11 +1,31 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Clock3, ShieldAlert } from "lucide-react";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { needsSignupKycCompletion } from "@/lib/onboarding";
 import { getSignupResumeStep, loadSignupDraft } from "@/lib/signupDraft";
 import { useAuthStore } from "@/lib/store";
+import { fetchApi } from "@/lib/api";
+
+/** Rejection reason from the admin, loaded only while KYC is rejected. */
+function useKycRejectReason(rejected: boolean): string | null {
+  const [reason, setReason] = useState<string | null>(null);
+  useEffect(() => {
+    if (!rejected) return;
+    let cancelled = false;
+    fetchApi<{ profile: { rejectReason?: string | null } }>("/kyc/me")
+      .then((r) => {
+        if (!cancelled) setReason(r.profile.rejectReason ?? null);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [rejected]);
+  return rejected ? reason : null;
+}
 
 type BannerTone = "red" | "orange" | "green";
 
@@ -68,6 +88,7 @@ function continueKycHref(userId?: string, mobile?: string): string {
 export function KycOnboardingBanner() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
+  const rejectReason = useKycRejectReason(user?.kycStatus === "rejected");
   if (!user) return null;
   if (user.kycStatus === "verified" && user.hasKycDocs) return null;
   if (!needsSignupKycCompletion(user) && !(user.hasKycDocs && user.kycStatus !== "rejected")) {
@@ -85,7 +106,9 @@ export function KycOnboardingBanner() {
 
   if (rejected) {
     title = "KYC rejected — please resubmit";
-    body = "Update your details and submit again to continue onboarding.";
+    body = rejectReason
+      ? `Reason: ${rejectReason}. Fix this and submit again to continue onboarding.`
+      : "Update your details and submit again to continue onboarding.";
     cta = "Resubmit KYC";
     href = continueKycHref(user.id, user.mobile);
     tone = "red";

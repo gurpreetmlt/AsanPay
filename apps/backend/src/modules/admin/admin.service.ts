@@ -204,7 +204,8 @@ export async function getAdminUserDetail(userId: string) {
   } = row;
 
   const { getUserPhotoUpdatedAt } = await import("../account/profilePhoto.service");
-  const profilePhotoUpdatedAt = await getUserPhotoUpdatedAt(userId);
+  // A photo lookup problem must never hide the agent page.
+  const profilePhotoUpdatedAt = await getUserPhotoUpdatedAt(userId).catch(() => null);
 
   return {
     ...safe,

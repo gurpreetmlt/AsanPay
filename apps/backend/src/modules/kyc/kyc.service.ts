@@ -91,6 +91,8 @@ function maskAccount(account: string) {
 /** Agent self-view: masked KYC details after signup submit (Settings → KYC). */
 export type MyKycProfile = {
   kycStatus: AuthUser["kycStatus"];
+  /** Admin's reason, only while KYC is rejected. */
+  rejectReason: string | null;
   hasKycDocs: boolean;
   submittedAt: string | null;
   uid: string;
@@ -154,6 +156,7 @@ export async function getMyKycProfile(userId: string): Promise<MyKycProfile> {
 
   return {
     kycStatus: user.kycStatus,
+    rejectReason: user.kycStatus === "rejected" ? verification.reviewReason : null,
     hasKycDocs: hasDocs,
     submittedAt: audit?.createdAt ? audit.createdAt.toISOString() : null,
     uid: user.uid,

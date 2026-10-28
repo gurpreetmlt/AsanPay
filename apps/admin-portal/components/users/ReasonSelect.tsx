@@ -94,6 +94,15 @@ export const KYC_RESET_REASON_PRESETS = [
   "Compliance re-verification required",
 ];
 
+export const KYC_REJECT_REASON_PRESETS = [
+  "PAN or Aadhaar photo is blurry or cut off",
+  "Name does not match between PAN and Aadhaar",
+  "Selfie does not match the Aadhaar photo",
+  "Documents look edited or invalid",
+  "Bank details do not match the agent name",
+  "Shop photo missing or not a real shop",
+];
+
 export const AEPS_REACTIVATE_REASON_PRESETS = [
   "Biometric device repaired",
   "KYC verified — clear dormancy",
