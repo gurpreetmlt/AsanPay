@@ -21,9 +21,9 @@ import {
 import { toast } from "react-hot-toast";
 import { Modal } from "@/components/ui/Modal";
 import { ExportMenu } from "@/components/ui/ExportMenu";
-import { downloadBrandedExcel, openBrandedPdf } from "@/lib/brandedExport";
+import { openBrandedPdf } from "@/lib/brandedExport";
 import { downloadCsv } from "@/lib/taxCommissionUtils";
-import { planRateCardImport, rateCardCsv, rateCardReport } from "./rateCardTransfer";
+import { downloadRateCardWorkbook, planRateCardImport, rateCardCsv, rateCardReport } from "./rateCardTransfer";
 import { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { apiErrorMessage } from "@/lib/taxCommissionUtils";
@@ -473,7 +473,7 @@ export function RateCardScreen() {
               <ExportMenu
                 disabled={!data || data.services.length === 0}
                 onPdf={exportPdf}
-                onExcel={() => data && downloadBrandedExcel(rateCardReport(data, providerId ? providerName : "All providers"))}
+                onExcel={() => data && downloadRateCardWorkbook(data, providerId ? providerName : "All providers")}
                 onCsv={() => data && downloadCsv(`rate-card-${new Date().toISOString().slice(0, 10)}.csv`, rateCardCsv(data))}
               />
               <Btn
