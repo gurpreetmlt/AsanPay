@@ -7,6 +7,7 @@ One row per feature; details in the section below the table. Newest at the top o
 
 | # | Feature | Surfaces | Size | Status | Design | Task file |
 |---|---------|----------|------|--------|--------|-----------|
+| PL-25 | No password at signup — temporary password emailed when admin approves KYC, forced "Set new password" on first login, mobile OTP to resume KYC | Backend, web, mobile, admin | M | planned (28 Oct) | — | — |
 | PL-24 | Bank account check — BestAPI (free) → pennyless → ₹1 penny drop; DMT payee "Verify name with bank" (agent ₹1.50 / ₹2.50 with penny drop, admin-editable), name match pill, 90-day free re-check; same check for settlement + company banks | Backend, web, mobile, admin | M | building — DMT + admin prices built 27 Oct (migrate `0081` + `0082`); settlement bank + company bank wired 27 Oct (migrate `0083`); deploy, APK, live test pending | — | — |
 | PL-23 | Agent settlement bank ₹1 penny drop — bank holder name + PAN name match, real verification ref (replaces stub), cost debited from agent wallet | Backend, web, mobile, admin | M | building — built 27 Oct (migrate `0083` + deploy + APK + live test pending) | — | [settlement-bank-penny-drop.md](TASKS/settlement-bank-penny-drop.md) |
 | PL-22 | KYC photo check speed-ups (client resize, smaller OCR image, background check, parallel Aadhaar QR+OCR) | Backend, web, mobile | M | building — built 27 Oct; npm install (mobile resizer) + Coolify backend/web deploy + APK + real `durationMs` review pending | — | — |
@@ -15,7 +16,7 @@ One row per feature; details in the section below the table. Newest at the top o
 | PL-19 | Admin staff roles (Owner · Finance · Ops · Support) + maker–checker on money actions + admin 2FA / sessions | Backend, admin | L | planned (27 Oct) — next (PL-17 step 2 done) | — | — |
 | PL-18 | Signup flow v2 — 8 steps, password on step 1, name from PAN, photo uploads locked until details filled, shop (15 km) + home (5 km) location | Backend, web, mobile | L | building — Part 1 built 27 Oct; Part 2 (shop + home location, phone-camera QR, 15 km / 5 km geofence, risk flags) built 27 Oct — migrate `0080` + npm install + APK + live test pending; admin Location limits (radius + on/off) built 27 Oct; Part 3 (merge last steps) next | — | [signup-flow-v2.md](TASKS/signup-flow-v2.md) |
 | PL-17 | Admin cleanup — separate Commission / Tax / Support & Risk / Platform settings sidebar, one home per setting, action-first dashboard | Admin | L | building — step 1 (sidebar split) + regroup A + step 3 (dashboard) + step 2 (one home per setting) built 27 Oct; tab hubs (B), step 4 next | — | — |
-| PL-16 | Production Postgres on AWS RDS (Mumbai) + decide on a separate production EC2 | Infra | L | idea (27 Oct) — after admin work + RC1 deploy | — | — |
+| PL-16 | Production Postgres on AWS RDS (Mumbai) + separate production EC2 | Infra | L | building — 27 Oct: prod EC2 `asanpay-production` launched (t4g.large, Ubuntu 26.04 arm64, 50 GB gp3 encrypted, IMDSv2, termination protection, SG `asanpay-prod-ec2-sg`: SSH + 8000 from owner IP, 80/443 open, AZ ap-south-1b). Next: Elastic IP → RDS PostgreSQL 18 (db.t4g.micro, private, encrypted, same AZ, SG from EC2 SG only) → Coolify on prod EC2 → pg_dump/restore (93 MB) → deploy apps → DNS. Later: CloudTrail, GuardDuty, budget alert | — | — |
 | PL-15 | Admin "Services" setup page — one page per service (status · provider · limits · customer fee · commission · preview) | Backend, admin | L | idea (27 Oct) — after PL-14 | — | — |
 | PL-14 | Commission rate card + share % (one screen, live preview, safety, Advanced tab) + agent-page Commission card | Backend, admin | L | building — RC1 live 27 Oct (migrated, 65 services × 60/10/5); RC2 built 27 Oct (Rate card screen + editable GST/TDS + Suggested chips, migration 0079 — deploy pending); RC3 / RC6 next | — | [commission-rate-card.md](TASKS/commission-rate-card.md) |
 | PL-13 | Daily 2FA redesign — Aadhaar-style card view (masked number, photo, status) + fingerprint / face verify | Web, mobile | L | building — D1 web done 27 Oct, D2 mobile next | [Figma prompt](PROMPTS/figma-daily-2fa.md) · owner screens in task file | [daily-2fa-redesign.md](TASKS/daily-2fa-redesign.md) |
@@ -31,6 +32,31 @@ One row per feature; details in the section below the table. Newest at the top o
 | PL-03 | Web location via phone QR (AEPS + onboarding) | Backend, web, mobile | M | building (built 26 Oct, migrate `0074` + APK + live test pending) | — | — |
 | PL-02 | Cash Management page (CMS provider cards, in-app CMS, CMS transactions) | Backend, web, mobile | M | building (built 26 Oct, live test pending) | — | — |
 | PL-01 | Linked accounts + role switch (same person, Distributor + Retailer) | Backend, web, mobile, admin | M | building (backend + web + mobile built 26 Oct; migrate `0076` + APK + live test pending; admin card next) | [Figma prompt](PROMPTS/figma-linked-accounts.md) · Figma URL pending | [linked-accounts.md](TASKS/linked-accounts.md) |
+
+---
+
+## PL-25 — No password at signup (emailed after KYC approval)
+
+**Problem:** Step 1 asks for a password before the agent is verified. The owner wants login credentials
+issued only after documents are checked and KYC is approved.
+
+**Plan (owner choices, 28 Oct):**
+- Step 1 = mobile + terms + OTP only; remove the password field (web + mobile).
+- Account is created with no usable password; resume KYC mid-way with **mobile OTP** login (pending-KYC users only).
+- Email is verified on the Contact step, so it exists by approval time.
+- Admin approves KYC → backend generates a temporary password and **emails it** (email only, no SMS).
+- Temporary password expires (e.g. 48 h); stored hashed; flag `mustChangePassword`.
+- First login with it → forced **Set new password** screen (web + mobile) before the dashboard; MPIN setup after, if the app needs it.
+- Admin: **Resend login email** button (new temp password, old one invalidated).
+- Existing agents: no change.
+
+**Open decisions:**
+- [ ] Temp password expiry (24 h / 48 h / 72 h)
+- [ ] What happens if email bounces — admin sees a "Email failed" pill + resend?
+- [ ] Rejected KYC → no email; re-submit flow still via OTP
+
+**Notes:** Temp password in email is weaker than a one-time set-password link; forced change on first
+login + short expiry limit the risk. Never log the temp password.
 
 ---
 
