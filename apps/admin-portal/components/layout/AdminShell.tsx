@@ -33,7 +33,7 @@ import {
   ScrollText,
   Settings,
   ShieldAlert,
-  SlidersHorizontal,
+  Eye,
   Store,
   TableProperties,
   Tags,
@@ -130,8 +130,8 @@ const COMMISSION: NavItem[] = [
     children: [
       {
         href: "/tax-commission/setup",
-        label: "Commission setup",
-        icon: { lib: "lucide", icon: SlidersHorizontal },
+        label: "Commission overview",
+        icon: { lib: "lucide", icon: Eye },
         match: ["/tax-commission", "/commission", "/commissions"],
       },
       { href: "/tax-commission/rate-card", label: "Rate card", icon: { lib: "lucide", icon: TableProperties } },

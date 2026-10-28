@@ -2,268 +2,93 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { HelpCircle, Search, Sparkles, TableProperties, Wand2 } from "lucide-react";
+import { toast } from "react-hot-toast";
+import {
+  AlertTriangle,
+  ChevronRight,
+  Eye,
+  HelpCircle,
+  Layers,
+  LayoutGrid,
+  Pencil,
+  Receipt,
+  Search,
+  TableProperties,
+  type LucideIcon,
+} from "lucide-react";
 import { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
-import { apiErrorMessage } from "@/lib/taxCommissionUtils";
-import { SaveConfirmModal } from "../rateCard/SaveConfirmModal";
-import { usePendingSave } from "../rateCard/usePendingSave";
-import {
-  ROLE_LABEL,
-  SCHEME_ROLES,
-  inr,
-  pct,
-  ruleLabel,
-  slabLabel,
-  type FixedRule,
-  type PendingChange,
-  type RateCardData,
-  type SchemeRole,
-  type ServiceRow,
-  type Slab,
-} from "../rateCard/types";
-import { Btn, Chip, NumberField, SplitModeSwitch, type SplitMode } from "../rateCard/ui";
+import { openBrandedPdf } from "@/lib/brandedExport";
+import { getServiceIcon } from "@/lib/serviceIcons";
+import { apiErrorMessage, downloadCsv } from "@/lib/taxCommissionUtils";
+import { ExportMenu } from "@/components/ui/ExportMenu";
+import { downloadRateCardWorkbook, rateCardCsv, rateCardReport } from "../rateCard/rateCardTransfer";
+import { ROLE_LABEL, SCHEME_ROLES, inr, pct, slabLabel, type RateCardData, type RoleSplit, type ServiceRow, type Slab } from "../rateCard/types";
+import { Chip } from "../rateCard/ui";
 
-type RoleDraft = { mode: SplitMode; value: string };
-type ServiceDraft = Record<SchemeRole, RoleDraft>;
+type ShowFilter = "all" | "loss" | "unset";
 
-/** What pays a role today, read from the all-providers share and fixed rules. */
-type RoleCurrent = {
-  mode: SplitMode;
-  /** "" = role gets nothing (or only an old rule, see `legacy`). */
-  value: string;
-  shareId: string | null;
-  rules: FixedRule[];
-  /** Old fixed rules this screen cannot show as one value (% of amount, slabs, several rows). */
-  legacy: string | null;
+const ROW_BG = {
+  even: "var(--admin-card)",
+  odd: "rgba(42,92,221,0.035)",
+  open: "rgba(42,92,221,0.10)",
+  slabEven: "rgba(42,92,221,0.05)",
+  slabOdd: "rgba(42,92,221,0.085)",
 };
 
-const EXAMPLE_AMOUNT = 2000;
+const hasLoss = (row: ServiceRow) => row.slabs.some((s) => s.underwater || s.missingRoles.length > 0);
+const hasUnset = (row: ServiceRow) => row.slabs.some((s) => s.providerIncome == null);
 
-const num = (v: string) => String(Number(v));
-const toPaise = (v: string | number) => Math.round(Number(v) * 100);
-const rupees = (paise: number) => inr(paise / 100);
-
-function emptyDraft(): ServiceDraft {
-  return {
-    retailer: { mode: "percent", value: "" },
-    distributor: { mode: "percent", value: "" },
-    super_distributor: { mode: "percent", value: "" },
-  };
+function range(values: number[]): string {
+  if (values.length === 0) return "—";
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  return min === max ? inr(min) : `${inr(min)} – ${inr(max)}`;
 }
 
-function currentFor(row: ServiceRow, role: SchemeRole): RoleCurrent {
-  const share = row.shares[role];
-  const rules = row.fixedRules.filter((r) => r.role === role && r.providerId === null);
-  if (share) return { mode: "percent", value: num(share.sharePercent), shareId: share.id, rules, legacy: null };
-  const only = rules.length === 1 ? rules[0]! : null;
-  if (only && only.ruleType === "flat" && only.minAmount == null && only.maxAmount == null) {
-    return { mode: "flat", value: num(only.value), shareId: null, rules, legacy: null };
-  }
-  const legacy = rules.length
-    ? rules.map((r) => `${ruleLabel(r.ruleType, r.value)} (${slabLabel(r.minAmount, r.maxAmount)})`).join(", ")
-    : null;
-  return { mode: "percent", value: "", shareId: null, rules, legacy };
+function StatusPill({ row }: { row: ServiceRow }) {
+  const losing = row.slabs.filter((s) => s.underwater).length;
+  const unset = row.slabs.filter((s) => s.providerIncome == null).length;
+  const zero = row.slabs.filter((s) => s.missingRoles.length > 0).length;
+  if (losing) return <Chip tone="red">Loses on {losing} slab{losing === 1 ? "" : "s"}</Chip>;
+  if (unset) return <Chip tone="amber">Rate not set{row.slabs.length > 1 ? ` (${unset})` : ""}</Chip>;
+  if (zero) return <Chip tone="red">Role on ₹0{row.slabs.length > 1 ? ` (${zero})` : ""}</Chip>;
+  return <Chip tone="green">OK</Chip>;
 }
 
-function draftOf(row: ServiceRow): ServiceDraft {
-  const d = emptyDraft();
-  for (const role of SCHEME_ROLES) {
-    const c = currentFor(row, role);
-    d[role] = { mode: c.mode, value: c.value };
-  }
-  return d;
-}
-
-function roleChanged(cur: RoleCurrent, d: RoleDraft): boolean {
-  const v = d.value.trim();
-  if (v === "") return cur.value !== "";
-  if (cur.value === "") return true;
-  return d.mode !== cur.mode || Number(v) !== Number(cur.value);
-}
-
-function draftError(role: SchemeRole, d: RoleDraft): string | null {
-  const v = d.value.trim();
-  if (v === "") return null;
-  const n = Number(v);
-  const who = ROLE_LABEL[role];
-  if (!Number.isFinite(n) || n < 0) return `${who} amount must be 0 or more`;
-  if (d.mode === "percent" && n > 100) return `${who} share must be from 0 to 100%`;
-  if (d.mode === "flat" && n > 500) return `${who} flat amount cannot be more than ₹500`;
-  return null;
-}
-
-function describe(cur: RoleCurrent): string {
-  if (cur.legacy) return "Old rule";
-  if (cur.value === "") return "Off";
-  return cur.mode === "percent" ? `${pct(cur.value)} of company income` : `${inr(cur.value)} flat`;
-}
-
-/** Role ₹ on one slab: the server's figure while unchanged, else the draft applied to that slab. */
-function roleGrossPaise(slab: Slab, role: SchemeRole, cur: RoleCurrent, d: RoleDraft): number {
-  if (!roleChanged(cur, d)) return toPaise(slab.roles.find((r) => r.role === role)?.gross ?? 0);
-  const v = d.value.trim();
-  if (v === "") return 0;
-  if (d.mode === "flat") return toPaise(v);
-  if (slab.providerIncome == null) return 0;
-  return Math.round((toPaise(slab.providerIncome) * Number(v)) / 100);
-}
-
-function keepsPaise(slab: Slab, currents: Record<SchemeRole, RoleCurrent>, draft: ServiceDraft): number | null {
-  if (slab.providerIncome == null) return null;
-  const roles = SCHEME_ROLES.reduce((s, role) => s + roleGrossPaise(slab, role, currents[role], draft[role]), 0);
-  return toPaise(slab.providerIncome) - roles;
-}
-
-function exampleSlab(row: ServiceRow): Slab | undefined {
-  const withIncome = row.slabs.filter((s) => s.providerIncome != null);
-  const pool = withIncome.length > 0 ? withIncome : row.slabs;
+/** Net to wallet, with gross and TDS underneath. */
+function RoleNet({ r }: { r: RoleSplit | undefined }) {
+  if (!r) return <span>—</span>;
+  const none = r.source === "none";
   return (
-    pool.find(
-      (s) =>
-        (s.minAmount == null || Number(s.minAmount) <= EXAMPLE_AMOUNT) &&
-        (s.maxAmount == null || Number(s.maxAmount) >= EXAMPLE_AMOUNT),
-    ) ?? pool[0]
-  );
-}
-
-function incomeRuleFor(row: ServiceRow, slab: Slab) {
-  const sample = Number(slab.sampleAmount);
-  return row.providerIncomeRules.find(
-    (r) => (r.minAmount == null || Number(r.minAmount) <= sample) && (r.maxAmount == null || Number(r.maxAmount) >= sample),
-  );
-}
-
-function sheetReady(row: ServiceRow): boolean {
-  const rows = row.reference?.incomeRows;
-  return row.providerIncomeRules.length === 0 && Boolean(rows?.length) && rows!.every((r) => r.value != null);
-}
-
-function askProvider(row: ServiceRow): boolean {
-  if (row.providerIncomeRules.length > 0 || sheetReady(row)) return false;
-  return Boolean(row.reference?.askProvider || row.reference?.incomeRows?.some((r) => r.value == null));
-}
-
-function roleChanges(row: ServiceRow, role: SchemeRole, cur: RoleCurrent, d: RoleDraft, nowIso: string): PendingChange[] {
-  const label = `${row.serviceName} · ${ROLE_LABEL[role]}`;
-  const v = d.value.trim();
-  const endRules: PendingChange[] = cur.rules.map((r) => ({
-    label,
-    detail: `Old rule ends: ${ruleLabel(r.ruleType, r.value)} (${slabLabel(r.minAmount, r.maxAmount)})`,
-    method: "patch",
-    url: `/admin/commission/rules/${r.id}`,
-    body: { effectiveTo: nowIso },
-  }));
-  const endShare: PendingChange[] = cur.shareId
-    ? [
-        {
-          label,
-          detail: `${pct(cur.value)} of company income ends`,
-          method: "delete",
-          url: `/admin/rate-card/shares/${cur.shareId}`,
-          body: {},
-        },
-      ]
-    : [];
-
-  if (v === "") return [...endShare, ...endRules];
-  if (d.mode === "percent") {
-    return [
-      {
-        label,
-        detail: `${describe(cur)} → ${pct(v)} of company income`,
-        method: "post",
-        url: "/admin/rate-card/shares",
-        body: { serviceId: row.serviceId, providerId: null, role, sharePercent: v },
-      },
-      ...endRules,
-    ];
-  }
-  return [
-    {
-      label,
-      detail: `${describe(cur)} → ${inr(v)} flat per txn`,
-      method: "post",
-      url: "/admin/commission/rules",
-      body: { serviceId: row.serviceId, providerId: null, role, ruleType: "flat", value: v },
-    },
-    ...endShare,
-    ...endRules,
-  ];
-}
-
-function RoleEditor({
-  role,
-  draft,
-  cur,
-  slab,
-  onChange,
-}: {
-  role: SchemeRole;
-  draft: RoleDraft;
-  cur: RoleCurrent | null;
-  slab: Slab | undefined;
-  onChange: (d: RoleDraft) => void;
-}) {
-  const error = draftError(role, draft);
-  const v = draft.value.trim();
-  let hint: string;
-  if (!cur || !slab) {
-    hint = draft.mode === "percent" ? "% of what the company gets" : "Flat ₹ per transaction";
-  } else if (v === "" && cur.legacy) {
-    hint = `Old rule pays now: ${cur.legacy}`;
-  } else if (v === "") {
-    hint = "Gets nothing";
-  } else if (draft.mode === "percent" && slab.providerIncome == null) {
-    hint = "₹0 until Company gets is set";
-  } else {
-    hint = `≈ ${rupees(roleGrossPaise(slab, role, cur, draft))} on ${inr(slab.sampleAmount)}`;
-  }
-  return (
-    <div className="rounded-xl border p-3" style={{ borderColor: B.border, background: "var(--admin-card)" }}>
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="text-xs font-bold" style={{ color: B.blue }}>
-          {ROLE_LABEL[role]}
-        </span>
-        <SplitModeSwitch label={ROLE_LABEL[role]} mode={draft.mode} onChange={(mode) => onChange({ ...draft, mode })} />
-      </div>
-      <NumberField
-        label=""
-        value={draft.value}
-        onChange={(value) => onChange({ ...draft, value })}
-        prefix={draft.mode === "flat" ? "₹" : undefined}
-        suffix={draft.mode === "percent" ? "%" : undefined}
-        placeholder={cur?.legacy ? "Old rule" : "Off"}
-        error={error}
-      />
-      {!error ? (
-        <p className="mt-1 text-[11px]" style={{ color: v === "" && cur?.legacy ? "#B45309" : B.muted }}>
-          {hint}
-        </p>
-      ) : null}
+    <div className="text-right">
+      <p className="font-bold tabular-nums" style={{ color: none ? B.danger : B.greenDark }}>
+        {inr(r.net)}
+      </p>
+      <p className="text-[11px] tabular-nums" style={{ color: B.muted }}>
+        {inr(r.gross)} − {inr(r.tds)}
+      </p>
     </div>
   );
 }
 
-export function CommissionSetupScreen() {
+/** Read-only view of what the company gets and what each role earns per slab, after TDS. */
+export function CommissionOverviewScreen() {
   const [data, setData] = useState<RateCardData | null>(null);
-  const [drafts, setDrafts] = useState<Record<string, ServiceDraft>>({});
-  const [quick, setQuick] = useState<ServiceDraft>(emptyDraft);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [version, setVersion] = useState(0);
+  const [expanded, setExpanded] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const { saveReq, setSaveReq, saving, runSave } = usePendingSave(() => setVersion((v) => v + 1));
+  const [category, setCategory] = useState("");
+  const [show, setShow] = useState<ShowFilter>("all");
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const d = await fetchApi<RateCardData>("/admin/rate-card");
-      setData(d);
-      setDrafts(Object.fromEntries(d.services.map((s) => [s.serviceId, draftOf(s)])));
+      setData(await fetchApi<RateCardData>("/admin/rate-card"));
       setLoadError(null);
     } catch (err) {
-      setLoadError(apiErrorMessage(err, "Could not load commission setup. Check your connection and refresh."));
+      setLoadError(apiErrorMessage(err, "Could not load the commission overview. Check your connection and refresh."));
     } finally {
       setLoading(false);
     }
@@ -271,329 +96,346 @@ export function CommissionSetupScreen() {
 
   useEffect(() => {
     void load();
-  }, [load, version]);
+  }, [load]);
 
-  const currents = useMemo(() => {
-    const out: Record<string, Record<SchemeRole, RoleCurrent>> = {};
-    for (const s of data?.services ?? []) {
-      out[s.serviceId] = Object.fromEntries(SCHEME_ROLES.map((r) => [r, currentFor(s, r)])) as Record<SchemeRole, RoleCurrent>;
+  const services = useMemo(() => data?.services ?? [], [data]);
+  const categories = useMemo(() => [...new Set(services.map((s) => s.categoryName))], [services]);
+  const lossCount = services.filter(hasLoss).length;
+  const unsetCount = services.filter(hasUnset).length;
+  const slabCount = services.reduce((n, s) => n + s.slabs.length, 0);
+
+  const groups = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const out: Array<{ category: string; rows: ServiceRow[] }> = [];
+    for (const s of services) {
+      if (q && !`${s.serviceName} ${s.serviceCode} ${s.categoryName}`.toLowerCase().includes(q)) continue;
+      if (category && s.categoryName !== category) continue;
+      if (show === "loss" && !hasLoss(s)) continue;
+      if (show === "unset" && !hasUnset(s)) continue;
+      const last = out[out.length - 1];
+      if (last && last.category === s.categoryName) last.rows.push(s);
+      else out.push({ category: s.categoryName, rows: [s] });
     }
     return out;
-  }, [data]);
+  }, [services, query, category, show]);
+  const visibleCount = groups.reduce((n, g) => n + g.rows.length, 0);
 
-  const services = data?.services ?? [];
-  const changedIds = services
-    .filter((s) => {
-      const d = drafts[s.serviceId];
-      const c = currents[s.serviceId];
-      return d && c && SCHEME_ROLES.some((r) => roleChanged(c[r], d[r]));
-    })
-    .map((s) => s.serviceId);
-  const hasErrors = services.some((s) => {
-    const d = drafts[s.serviceId];
-    return d && SCHEME_ROLES.some((r) => draftError(r, d[r]));
-  });
-  const sheetRows = services.filter(sheetReady);
-  const askCount = services.filter(askProvider).length;
-  const quickReady = SCHEME_ROLES.some((r) => quick[r].value.trim() !== "") && !SCHEME_ROLES.some((r) => draftError(r, quick[r]));
+  const kpis: Array<{ label: string; value: string | number; hint: string; icon: LucideIcon; tone: string; filter: ShowFilter | null; href?: string }> = [
+    { label: "Services", value: services.length, hint: "Show every service", icon: LayoutGrid, tone: B.blueLight, filter: "all" },
+    { label: "Slabs", value: slabCount, hint: "Across all services", icon: Layers, tone: B.blue, filter: null },
+    { label: "Loss or role ₹0", value: lossCount, hint: "Click to show them", icon: AlertTriangle, tone: B.danger, filter: "loss" },
+    { label: "Rate not set", value: unsetCount, hint: "Provider pays missing", icon: HelpCircle, tone: "#B45309", filter: "unset" },
+    {
+      label: "Agent TDS",
+      value: data?.tenantTax.tdsApplies ? pct(data.tenantTax.tdsPercent) : "Off",
+      hint: "Edit in Tax settings",
+      icon: Receipt,
+      tone: B.greenDark,
+      filter: null,
+      href: "/tax-commission/tax",
+    },
+  ];
 
-  const q = query.trim().toLowerCase();
-  const visible = q
-    ? services.filter((s) => `${s.serviceName} ${s.serviceCode} ${s.categoryName}`.toLowerCase().includes(q))
-    : services;
+  const tdsLabel = data?.tenantTax.tdsApplies ? `TDS ${pct(data.tenantTax.tdsPercent)}` : "TDS off";
 
-  function setRole(serviceId: string, role: SchemeRole, d: RoleDraft) {
-    setDrafts((prev) => ({ ...prev, [serviceId]: { ...(prev[serviceId] ?? emptyDraft()), [role]: d } }));
-  }
-
-  function applyQuickToAll() {
-    setDrafts((prev) => {
-      const next = { ...prev };
-      for (const s of services) {
-        const d = { ...(next[s.serviceId] ?? emptyDraft()) };
-        for (const role of SCHEME_ROLES) {
-          if (quick[role].value.trim() !== "") d[role] = { ...quick[role] };
-        }
-        next[s.serviceId] = d;
-      }
-      return next;
-    });
-  }
-
-  function discard() {
-    setDrafts(Object.fromEntries(services.map((s) => [s.serviceId, draftOf(s)])));
-  }
-
-  function fillFromSheet() {
-    const changes: PendingChange[] = sheetRows.flatMap((s) =>
-      s.reference!.incomeRows!.map((r) => ({
-        label: `${s.serviceName} · Company gets`,
-        detail: `${slabLabel(r.minAmount, r.maxAmount)}: ${ruleLabel(r.ruleType, r.value, r.capAmount)}`,
-        method: "post" as const,
-        url: "/admin/rate-card/provider-income",
-        body: {
-          serviceId: s.serviceId,
-          providerId: null,
-          ruleType: r.ruleType,
-          value: r.value,
-          capAmount: r.capAmount,
-          minAmount: r.minAmount,
-          maxAmount: r.maxAmount,
-        },
-      })),
+  function slabRow(row: ServiceRow, s: Slab, i: number) {
+    const tdsTotal = s.roles.reduce((n, r) => n + Number(r.tds), 0);
+    return (
+      <tr
+        key={`${s.minAmount ?? ""}|${s.maxAmount ?? ""}`}
+        className="rc-slab-in border-t"
+        style={{
+          borderColor: B.border,
+          background: i % 2 ? ROW_BG.slabOdd : ROW_BG.slabEven,
+          boxShadow: `inset 3px 0 0 ${B.blueLight}`,
+          animationDelay: `${Math.min(i, 12) * 18}ms`,
+        }}
+      >
+        <td className="py-2 pl-[4.25rem] pr-3 text-xs" style={{ color: B.muted }}>
+          {slabLabel(s.minAmount, s.maxAmount)}
+          <span className="block text-[11px]">on {inr(s.sampleAmount)}</span>
+        </td>
+        <td className="px-3 py-2 text-right">
+          {s.providerIncome != null ? (
+            <span className="font-semibold tabular-nums" style={{ color: B.blue }}>
+              {inr(s.providerIncome)}
+            </span>
+          ) : (
+            <Chip tone="amber">Not set</Chip>
+          )}
+        </td>
+        {SCHEME_ROLES.map((role) => (
+          <td key={role} className="px-3 py-2">
+            <RoleNet r={s.roles.find((x) => x.role === role)} />
+          </td>
+        ))}
+        <td className="px-3 py-2 text-right tabular-nums" style={{ color: B.muted }}>
+          {inr(tdsTotal)}
+        </td>
+        <td className="px-3 py-2 text-right">
+          <span className="font-bold tabular-nums" style={{ color: s.underwater ? B.danger : B.greenDark }}>
+            {s.underwater ? `Loses ${inr(Math.abs(Number(s.companyKeeps)))}` : inr(s.companyKeeps)}
+          </span>
+        </td>
+      </tr>
     );
-    setSaveReq({
-      title: "Fill Company gets from provider sheet",
-      changes,
-      warnings: askCount > 0 ? [`${askCount} service${askCount === 1 ? "" : "s"} still need the rate from the provider.`] : [],
-    });
-  }
-
-  function saveAll() {
-    const nowIso = new Date().toISOString();
-    const changes: PendingChange[] = [];
-    const warnings: string[] = [];
-    for (const row of services) {
-      if (!changedIds.includes(row.serviceId)) continue;
-      const d = drafts[row.serviceId]!;
-      const c = currents[row.serviceId]!;
-      for (const role of SCHEME_ROLES) {
-        if (roleChanged(c[role], d[role])) changes.push(...roleChanges(row, role, c[role], d[role], nowIso));
-      }
-      const losing = row.slabs.find((slab) => (keepsPaise(slab, c, d) ?? 0) < 0);
-      if (losing) {
-        warnings.push(
-          `${row.serviceName} (${slabLabel(losing.minAmount, losing.maxAmount)}): roles get more than the company gets — company loses ${rupees(-(keepsPaise(losing, c, d) ?? 0))} per txn.`,
-        );
-      }
-      if (row.providerIncomeRules.length === 0 && SCHEME_ROLES.some((r) => d[r].mode === "percent" && d[r].value.trim() !== "")) {
-        warnings.push(`${row.serviceName}: Company gets is not set, so % splits pay ₹0 until it is.`);
-      }
-    }
-    setSaveReq({ title: "Save commission split", changes, warnings });
   }
 
   return (
-    <div className="space-y-4 pb-24">
-      <div className="rounded-2xl border p-5" style={{ borderColor: B.border, background: "var(--admin-card)" }}>
-        <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl text-white" style={{ background: B.badgeGrad }}>
+            <Eye size={22} />
+          </div>
           <div>
-            <h1 className="text-xl font-bold" style={{ color: B.blue }}>
-              Commission setup
+            <h1 className="text-2xl font-bold" style={{ color: B.blue }}>
+              Commission overview
             </h1>
-            <p className="mt-1 text-sm" style={{ color: B.muted }}>
-              See what the company gets on each service, then split it: % of that income or a flat ₹ per transaction.
-              The company keeps the rest. Amounts are before TDS.
+            <p className="text-sm" style={{ color: B.muted }}>
+              Read only — what the company gets on each slab, what each role takes home after TDS, and what the company keeps.
             </p>
-          </div>
-          <Link
-            href="/tax-commission/rate-card"
-            className="inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-sm font-semibold transition hover:brightness-105"
-            style={{ borderColor: B.border, background: "var(--admin-secondary)", color: B.blueLight }}
-          >
-            <TableProperties size={15} /> Detailed rate card
-          </Link>
-        </div>
-
-        <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-          <div className="flex h-full flex-col rounded-2xl border p-4" style={{ borderColor: B.border, background: "var(--admin-secondary)" }}>
-            <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide" style={{ color: B.blueLight }}>
-              <Sparkles size={14} /> Step 1 · Company gets
-            </p>
-            <p className="mt-2 text-xs" style={{ color: B.muted }}>
-              Fill what the provider pays the company, straight from the provider sheet. You review it before it saves.
-            </p>
-            <div className="mt-auto space-y-2 pt-3">
-              <Btn
-                variant="success"
-                className="w-full"
-                disabled={sheetRows.length === 0 || changedIds.length > 0}
-                onClick={fillFromSheet}
-                title={changedIds.length > 0 ? "Save or discard the split changes first" : undefined}
-              >
-                <Sparkles size={14} />
-                {sheetRows.length > 0
-                  ? `Fill ${sheetRows.length} service${sheetRows.length === 1 ? "" : "s"} from provider sheet`
-                  : "All sheet rates are filled"}
-              </Btn>
-              {askCount > 0 ? (
-                <p className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: "#B45309" }}>
-                  <HelpCircle size={12} /> {askCount} service{askCount === 1 ? "" : "s"} need the rate from the provider
-                </p>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="flex h-full flex-col rounded-2xl border p-4" style={{ borderColor: B.border, background: "var(--admin-secondary)" }}>
-            <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide" style={{ color: B.blueLight }}>
-              <Wand2 size={14} /> Step 2 · Same split for every service (optional)
-            </p>
-            <div className="mt-2 grid gap-2 sm:grid-cols-3">
-              {SCHEME_ROLES.map((role) => (
-                <RoleEditor
-                  key={role}
-                  role={role}
-                  draft={quick[role]}
-                  cur={null}
-                  slab={undefined}
-                  onChange={(d) => setQuick((qd) => ({ ...qd, [role]: d }))}
-                />
-              ))}
-            </div>
-            <div className="mt-auto pt-3">
-              <Btn variant="primary" className="w-full" disabled={!quickReady || services.length === 0} onClick={applyQuickToAll}>
-                <Wand2 size={14} /> Apply to all services
-              </Btn>
-              <p className="mt-1 text-[11px]" style={{ color: B.muted }}>
-                Fills every service below. Blank roles are left as they are. Nothing saves until you tap Save.
-              </p>
-            </div>
           </div>
         </div>
+        <Link
+          href="/tax-commission/rate-card"
+          className="inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-sm font-semibold transition hover:brightness-105"
+          style={{ borderColor: B.border, background: "var(--admin-card)", color: B.blueLight }}
+        >
+          <TableProperties size={15} /> Change rates in Rate card
+        </Link>
       </div>
 
-      <label className="flex items-center gap-2 rounded-xl border px-3" style={{ borderColor: B.border, background: "var(--admin-card)" }}>
-        <Search size={15} style={{ color: B.muted }} />
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search service"
-          className="w-full bg-transparent py-2.5 text-sm outline-none"
-        />
-      </label>
-
-      {loading && !data ? <p className="text-sm" style={{ color: B.muted }}>Loading commission setup…</p> : null}
-      {loadError ? (
-        <div className="flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm" style={{ borderColor: "#FCA5A5", background: "#FEF2F2", color: B.danger }}>
-          <span>{loadError}</span>
-          <Btn variant="secondary" onClick={() => void load()}>
-            Retry
-          </Btn>
+      {data ? (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {kpis.map((k) => {
+            const active = k.filter !== null && k.filter === show && !category && !query;
+            const body = (
+              <>
+                <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+                  <k.icon size={14} style={{ color: k.tone }} /> {k.label}
+                </span>
+                <span className="mt-1 block text-2xl font-bold tabular-nums" style={{ color: k.tone }}>
+                  {k.value}
+                </span>
+                <span className="block text-[11px]" style={{ color: B.muted }}>
+                  {k.hint}
+                </span>
+              </>
+            );
+            const cls = "rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-px hover:shadow-sm";
+            const style = {
+              borderColor: active ? k.tone : B.border,
+              background: active ? `color-mix(in srgb, ${k.tone} 8%, var(--admin-card))` : "var(--admin-card)",
+            };
+            return k.href ? (
+              <Link key={k.label} href={k.href} className={cls} style={style}>
+                {body}
+              </Link>
+            ) : (
+              <button
+                key={k.label}
+                type="button"
+                className={cls}
+                style={style}
+                onClick={() => {
+                  setShow(k.filter ?? "all");
+                  setCategory("");
+                  setQuery("");
+                }}
+              >
+                {body}
+              </button>
+            );
+          })}
         </div>
       ) : null}
-      {data && visible.length === 0 ? (
-        <p className="text-sm" style={{ color: B.muted }}>
-          No service matches “{query}”.
-        </p>
-      ) : null}
 
-      {visible.map((row, i) => {
-        const draft = drafts[row.serviceId] ?? emptyDraft();
-        const cur = currents[row.serviceId]!;
-        const example = exampleSlab(row);
-        const changed = changedIds.includes(row.serviceId);
-        const showCategory = visible[i - 1]?.categoryName !== row.categoryName;
-        return (
-          <Fragment key={row.serviceId}>
-            {showCategory ? (
-              <p className="px-1 pt-2 text-[11px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
-                {row.categoryName}
-              </p>
-            ) : null}
-            <div
-              className="rounded-2xl border p-4"
-              style={{ borderColor: changed ? "#93C5FD" : B.border, background: "var(--admin-card)" }}
+      <section className="min-w-0 rounded-2xl border" style={{ borderColor: B.border, background: B.card }}>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3" style={{ borderColor: B.border }}>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-bold" style={{ color: B.blue }}>
+              Services {data ? `(${visibleCount} of ${services.length})` : ""}
+            </p>
+            <select
+              aria-label="Filter by category"
+              className="rounded-xl border px-2.5 py-1.5 text-xs font-semibold"
+              style={{ borderColor: B.border, background: "var(--admin-card)", color: B.blue }}
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
             >
-              <div className="mb-3 flex flex-wrap items-center gap-2">
-                <p className="text-sm font-bold" style={{ color: B.blue }}>
-                  {row.serviceName}
-                </p>
-                {changed ? <Chip tone="blue">Unsaved</Chip> : null}
-              </div>
-              <div className="grid gap-3 lg:grid-cols-[minmax(0,1.3fr)_repeat(3,minmax(0,1fr))]">
-                <div className="h-full rounded-xl border p-3" style={{ borderColor: B.border, background: "var(--admin-secondary)" }}>
-                  <p className="mb-2 text-xs font-bold" style={{ color: B.blueLight }}>
-                    Company gets
-                  </p>
-                  {row.providerIncomeRules.length === 0 ? (
-                    sheetReady(row) ? (
-                      <Chip tone="blue">
-                        <Sparkles size={11} /> Sheet rate ready · use Fill from provider sheet
-                      </Chip>
-                    ) : askProvider(row) ? (
-                      <Chip tone="amber">
-                        <HelpCircle size={11} /> Ask provider for the rate
-                      </Chip>
-                    ) : (
-                      <p className="text-xs" style={{ color: B.muted }}>
-                        Not set ·{" "}
-                        <Link href="/tax-commission/rate-card" className="font-semibold underline-offset-2 hover:underline" style={{ color: B.blueLight }}>
-                          set it in the detailed rate card
-                        </Link>
-                      </p>
-                    )
-                  ) : (
-                    <ul className="space-y-1.5">
-                      {row.slabs.map((slab) => {
-                        const rule = incomeRuleFor(row, slab);
-                        const keeps = keepsPaise(slab, cur, draft);
-                        return (
-                          <li key={`${slab.minAmount ?? ""}|${slab.maxAmount ?? ""}`} className="text-xs">
-                            <p className="font-semibold" style={{ color: B.blue }}>
-                              {rule ? ruleLabel(rule.ruleType, rule.value, rule.capAmount) : "Not set"}
-                              <span className="font-normal" style={{ color: B.muted }}>
-                                {" "}
-                                · {slabLabel(slab.minAmount, slab.maxAmount)}
-                              </span>
-                            </p>
-                            <p style={{ color: B.muted }}>
-                              {inr(slab.providerIncome)} on {inr(slab.sampleAmount)} · Company keeps{" "}
-                              <span className="font-bold" style={{ color: keeps != null && keeps < 0 ? B.danger : B.greenDark }}>
-                                {keeps == null ? "—" : keeps < 0 ? `loses ${rupees(-keeps)}` : rupees(keeps)}
-                              </span>
-                            </p>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </div>
-                {SCHEME_ROLES.map((role) => (
-                  <RoleEditor
-                    key={role}
-                    role={role}
-                    draft={draft[role]}
-                    cur={cur[role]}
-                    slab={example}
-                    onChange={(d) => setRole(row.serviceId, role, d)}
-                  />
-                ))}
-              </div>
-            </div>
-          </Fragment>
-        );
-      })}
-
-      {changedIds.length > 0 ? (
-        <div
-          className="sticky bottom-4 z-10 flex flex-wrap items-center justify-between gap-2 rounded-2xl border px-4 py-3 shadow-lg"
-          style={{ borderColor: "#93C5FD", background: "var(--admin-card)" }}
-        >
-          <p className="text-sm font-semibold" style={{ color: B.blueLight }}>
-            {changedIds.length} service{changedIds.length === 1 ? "" : "s"} changed
-            {hasErrors ? <span className="ml-2 text-red-600">Fix the fields in red to save</span> : null}
-          </p>
-          <div className="flex gap-2">
-            <Btn variant="destructive" onClick={discard} disabled={saving}>
-              Discard
-            </Btn>
-            <Btn variant="primary" onClick={saveAll} disabled={hasErrors || saving}>
-              Save
-            </Btn>
+              <option value="">All categories</option>
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Filter by status"
+              className="rounded-xl border px-2.5 py-1.5 text-xs font-semibold"
+              style={{
+                borderColor: show === "all" ? B.border : "#FCA5A5",
+                background: "var(--admin-card)",
+                color: show === "all" ? B.blue : B.danger,
+              }}
+              value={show}
+              onChange={(e) => setShow(e.target.value as ShowFilter)}
+            >
+              <option value="all">All services</option>
+              <option value="loss">Loss or role on ₹0 ({lossCount})</option>
+              <option value="unset">Provider pays not set ({unsetCount})</option>
+            </select>
+            {category || show !== "all" || query ? (
+              <button
+                type="button"
+                className="text-xs font-bold hover:underline"
+                style={{ color: B.blueLight }}
+                onClick={() => {
+                  setCategory("");
+                  setShow("all");
+                  setQuery("");
+                }}
+              >
+                Clear filters
+              </button>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="flex items-center gap-2 rounded-xl border px-3 py-1.5" style={{ borderColor: B.border }}>
+              <Search size={14} style={{ color: B.muted }} />
+              <input
+                className="w-48 bg-transparent text-sm outline-none"
+                placeholder="Search service"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </label>
+            <ExportMenu
+              disabled={!data || services.length === 0}
+              onPdf={() => {
+                if (data && !openBrandedPdf(rateCardReport(data, "All providers"))) {
+                  toast.error("Allow pop-ups for this site to export the PDF");
+                }
+              }}
+              onExcel={() => data && downloadRateCardWorkbook(data, "All providers")}
+              onCsv={() => data && downloadCsv(`commission-overview-${new Date().toISOString().slice(0, 10)}.csv`, rateCardCsv(data))}
+            />
           </div>
         </div>
-      ) : null}
 
-      {saveReq ? (
-        <SaveConfirmModal
-          title={saveReq.title}
-          changes={saveReq.changes}
-          warnings={saveReq.warnings}
-          busy={saving}
-          onConfirm={(reason) => void runSave(reason)}
-          onClose={() => setSaveReq(null)}
-        />
-      ) : null}
+        {loadError ? (
+          <p className="px-4 py-8 text-sm font-semibold" style={{ color: B.danger }}>
+            {loadError}
+          </p>
+        ) : loading && !data ? (
+          <p className="px-4 py-8 text-sm" style={{ color: B.muted }}>
+            Loading commission overview…
+          </p>
+        ) : groups.length === 0 ? (
+          <p className="px-4 py-8 text-sm" style={{ color: B.muted }}>
+            {query || category || show !== "all"
+              ? "No service matches these filters. Clear the filters to see every service."
+              : "No active services."}
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[980px] text-left text-sm">
+              <thead>
+                <tr className="border-b text-[11px] uppercase tracking-wide" style={{ borderColor: B.border, color: B.muted }}>
+                  <th className="px-4 py-2.5 font-bold">Service</th>
+                  <th className="px-3 py-2.5 text-right font-bold">Provider pays</th>
+                  {SCHEME_ROLES.map((r) => (
+                    <th key={r} className="px-3 py-2.5 text-right font-bold" title={`Net to wallet after ${tdsLabel} (gross − TDS below)`}>
+                      {ROLE_LABEL[r]} net
+                    </th>
+                  ))}
+                  <th className="px-3 py-2.5 text-right font-bold">TDS held</th>
+                  <th className="px-3 py-2.5 text-right font-bold">Company keeps</th>
+                </tr>
+              </thead>
+              <tbody>
+                {groups.map((g) => (
+                  <Fragment key={g.category}>
+                    <tr style={{ background: "var(--admin-secondary)" }}>
+                      <td colSpan={7} className="px-4 py-1.5 text-[11px] font-bold uppercase tracking-wide" style={{ color: B.blueLight }}>
+                        {g.category} · {g.rows.length}
+                      </td>
+                    </tr>
+                    {g.rows.map((row, i) => {
+                      const open = expanded === row.serviceId;
+                      const Icon = getServiceIcon(row.serviceCode);
+                      const incomes = row.slabs.filter((s) => s.providerIncome != null).map((s) => Number(s.providerIncome));
+                      const keeps = row.slabs.map((s) => Number(s.companyKeeps));
+                      return (
+                        <Fragment key={row.serviceId}>
+                          <tr
+                            className="cursor-pointer border-t transition hover:brightness-[0.98]"
+                            style={{
+                              borderColor: B.border,
+                              background: open ? ROW_BG.open : i % 2 ? ROW_BG.odd : ROW_BG.even,
+                              boxShadow: open ? `inset 3px 0 0 ${B.blueLight}` : undefined,
+                            }}
+                            onClick={() => setExpanded((cur) => (cur === row.serviceId ? null : row.serviceId))}
+                            aria-expanded={open}
+                          >
+                            <td className="px-4 py-2.5 align-top">
+                              <div className="flex items-start gap-2">
+                                <ChevronRight
+                                  size={16}
+                                  className={`mt-1 shrink-0 transition-transform duration-200 ${open ? "rotate-90" : ""}`}
+                                  style={{ color: open ? B.blueLight : B.muted }}
+                                />
+                                <span
+                                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+                                  style={{ background: "rgba(42,92,221,0.10)", color: B.blueLight }}
+                                >
+                                  <Icon size={17} />
+                                </span>
+                                <div className="min-w-0">
+                                  <p className="font-semibold" style={{ color: B.blue }}>
+                                    {row.serviceName}
+                                  </p>
+                                  <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px]" style={{ color: B.muted }}>
+                                    <span>{row.slabs.length === 1 ? "1 slab" : `${row.slabs.length} slabs`}</span>
+                                    <StatusPill row={row} />
+                                    <Link
+                                      href={`/tax-commission/rate-card?q=${encodeURIComponent(row.serviceName)}`}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="inline-flex items-center gap-1 font-semibold underline-offset-2 hover:underline"
+                                      style={{ color: B.blueLight }}
+                                    >
+                                      <Pencil size={11} /> Edit in Rate card
+                                    </Link>
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-3 py-2.5 text-right text-xs font-semibold tabular-nums" style={{ color: B.blue }}>
+                              {range(incomes)}
+                            </td>
+                            <td colSpan={4} className="px-3 py-2.5 text-right text-[11px]" style={{ color: B.muted }}>
+                              {open ? "" : "Open to see each slab"}
+                            </td>
+                            <td className="px-3 py-2.5 text-right text-xs font-bold tabular-nums" style={{ color: row.slabs.some((s) => s.underwater) ? B.danger : B.greenDark }}>
+                              {range(keeps)}
+                            </td>
+                          </tr>
+                          {open ? row.slabs.map((s, si) => slabRow(row, s, si)) : null}
+                        </Fragment>
+                      );
+                    })}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p className="border-t px-4 py-2 text-[11px]" style={{ borderColor: B.border, color: B.muted }}>
+          Per transaction on each slab&apos;s example amount. Role cells show net to wallet, with gross − TDS ({tdsLabel}) under it.
+          Company keeps = provider pays + customer fee − role gross. Nothing on this page can be changed — use the Rate card.
+        </p>
+      </section>
     </div>
   );
 }

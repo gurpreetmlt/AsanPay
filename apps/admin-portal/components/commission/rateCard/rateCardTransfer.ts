@@ -239,6 +239,48 @@ export function downloadRateCardWorkbook(data: RateCardData, scopeName: string):
   downloadXlsx(`rate-card-${new Date().toISOString().slice(0, 10)}.xlsx`, [summary, ...serviceSheets]);
 }
 
+// ── Fill "Provider pays" from the provider sheet (services with no provider income yet) ──
+
+/** The service has full sheet numbers and nothing saved yet. */
+export function sheetReady(row: ServiceRow): boolean {
+  const rows = row.reference?.incomeRows;
+  return row.providerIncomeRules.length === 0 && Boolean(rows?.length) && rows!.every((r) => r.value != null);
+}
+
+/** Services still waiting for the provider to share a rate. */
+export function askProvider(row: ServiceRow): boolean {
+  if (row.providerIncomeRules.length > 0 || sheetReady(row)) return false;
+  return Boolean(row.reference?.askProvider || row.reference?.incomeRows?.some((r) => r.value == null));
+}
+
+/** Review-popup request that saves the sheet slabs for every ready service. */
+export function sheetFillRequest(data: RateCardData) {
+  const ready = data.services.filter(sheetReady);
+  const ask = data.services.filter(askProvider).length;
+  const changes: PendingChange[] = ready.flatMap((s) =>
+    s.reference!.incomeRows!.map((r) => ({
+      label: `${s.serviceName} · provider pays`,
+      detail: `${slabLabel(r.minAmount, r.maxAmount)}: ${ruleLabel(r.ruleType, r.value, r.capAmount)}`,
+      method: "post" as const,
+      url: "/admin/rate-card/provider-income",
+      body: {
+        serviceId: s.serviceId,
+        providerId: null,
+        ruleType: r.ruleType,
+        value: r.value,
+        capAmount: r.capAmount,
+        minAmount: r.minAmount,
+        maxAmount: r.maxAmount,
+      },
+    })),
+  );
+  return {
+    title: `Fill ${ready.length} service${ready.length === 1 ? "" : "s"} from provider sheet`,
+    changes,
+    warnings: ask > 0 ? [`${ask} service${ask === 1 ? "" : "s"} still need the rate from the provider.`] : [],
+  };
+}
+
 export type ImportPlan = {
   changes: PendingChange[];
   errors: string[];

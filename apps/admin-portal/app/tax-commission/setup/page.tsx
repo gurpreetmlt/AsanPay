@@ -4,11 +4,11 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { SectionTabs } from "@/components/layout/SectionTabs";
-import { CommissionSetupScreen } from "@/components/commission/setup/CommissionSetupScreen";
+import { CommissionOverviewScreen } from "@/components/commission/setup/CommissionSetupScreen";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 
-export default function CommissionSetupPage() {
+export default function CommissionOverviewPage() {
   const router = useRouter();
   const hydrated = useAuthHydrated();
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -23,7 +23,7 @@ export default function CommissionSetupPage() {
     <AdminShell>
       <div className="mx-auto w-full max-w-[1600px] space-y-5 p-6">
         <SectionTabs group="commission" />
-        <CommissionSetupScreen />
+        <CommissionOverviewScreen />
       </div>
     </AdminShell>
   );

@@ -26,7 +26,14 @@ import { Modal } from "@/components/ui/Modal";
 import { ExportMenu } from "@/components/ui/ExportMenu";
 import { openBrandedPdf } from "@/lib/brandedExport";
 import { downloadCsv } from "@/lib/taxCommissionUtils";
-import { downloadRateCardWorkbook, planRateCardImport, rateCardCsv, rateCardReport } from "./rateCardTransfer";
+import {
+  downloadRateCardWorkbook,
+  planRateCardImport,
+  rateCardCsv,
+  rateCardReport,
+  sheetFillRequest,
+  sheetReady,
+} from "./rateCardTransfer";
 import { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { apiErrorMessage } from "@/lib/taxCommissionUtils";
@@ -178,8 +185,9 @@ export function RateCardScreen() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
-  const [query, setQuery] = useState("");
-  const viewParam = useSearchParams().get("view");
+  const searchParams = useSearchParams();
+  const [query, setQuery] = useState(() => searchParams.get("q") ?? "");
+  const viewParam = searchParams.get("view");
   const [show, setShow] = useState<ShowFilter>(viewParam === "loss" ? "loss" : "all");
   const [seenViewParam, setSeenViewParam] = useState(viewParam);
   if (seenViewParam !== viewParam) {
@@ -244,6 +252,7 @@ export function RateCardScreen() {
   const unsetCount = useMemo(() => (data?.services ?? []).filter(hasUnsetIncome).length, [data]);
   const categories = useMemo(() => [...new Set((data?.services ?? []).map((s) => s.categoryName))], [data]);
   const slabCount = useMemo(() => (data?.services ?? []).reduce((n, s) => n + s.slabs.length, 0), [data]);
+  const sheetReadyCount = useMemo(() => (data?.services ?? []).filter(sheetReady).length, [data]);
 
   const kpis: Array<{
     label: string;
@@ -467,9 +476,10 @@ export function RateCardScreen() {
           <div className="space-y-3 border-t px-4 py-3 text-xs" style={{ borderColor: "#BFDBFE", color: B.blue }}>
             <p>
               Click a service to see its slabs. ✎ edits a slab and its commission split, 🗑 ends it, + Slab adds one — each opens a
-              popup with a live calculation (TDS included). Default split for every slab and &quot;Fill from provider sheet&quot; are on{" "}
+              popup with a live calculation (TDS included). &quot;Fill from sheet&quot; adds the provider sheet slabs to services that
+              have none yet. A read-only view with net after TDS for every role is on{" "}
               <Link href="/tax-commission/setup" className="font-semibold underline-offset-2 hover:underline" style={{ color: B.blueLight }}>
-                Commission setup
+                Commission overview
               </Link>
               .
             </p>
@@ -588,6 +598,16 @@ export function RateCardScreen() {
                 onExcel={() => data && downloadRateCardWorkbook(data, providerId ? providerName : "All providers")}
                 onCsv={() => data && downloadCsv(`rate-card-${new Date().toISOString().slice(0, 10)}.csv`, rateCardCsv(data))}
               />
+              {sheetReadyCount > 0 ? (
+                <Btn
+                  variant="success"
+                  disabled={saving}
+                  onClick={() => data && setSaveReq(sheetFillRequest(data))}
+                  title="Fill Provider pays from the provider sheet for services that have none yet. You review it before it saves."
+                >
+                  <Sparkles size={14} /> Fill {sheetReadyCount} from sheet
+                </Btn>
+              ) : null}
               <Btn
                 variant="secondary"
                 disabled={!data || saving}

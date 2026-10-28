@@ -36,7 +36,7 @@ export const SECTION_GROUPS: Record<
     root: "Commission",
     title: "Commission",
     tabs: [
-      { href: "/tax-commission/setup", label: "Commission setup" },
+      { href: "/tax-commission/setup", label: "Commission overview" },
       { href: "/tax-commission/rate-card", label: "Rate card" },
       { href: "/service-charges", label: "Customer fees" },
       { href: "/tax-commission/overrides", label: "Agent custom rates" },
