@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState, type FormEvent, type ReactNode }
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { ArrowLeft, Check, CheckCircle2, Loader2, MailPlus } from "lucide-react";
+import { ArrowLeft, Check, CheckCircle2, ChevronDown, Loader2, MailPlus } from "lucide-react";
 import {
   PAN_FORMAT_ERROR,
   SIGNUP_POLICY_VERSION,
@@ -140,6 +140,100 @@ function Field({
 const inputCls =
   "w-full rounded-2xl border-2 bg-white px-4 py-3 text-sm outline-none";
 const inputStyle = { borderColor: B.border, color: B.blue } as const;
+
+/** Business category is multi-select, saved as "Kirana, Pharmacy". */
+function splitBusinessCategories(value: string): string[] {
+  return value
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/** Dropdown with checkboxes — closes on outside click or Escape. */
+function MultiSelectDropdown({
+  values,
+  options,
+  onChange,
+  placeholder = "Select one or more",
+}: {
+  values: string[];
+  options: string[];
+  onChange: (values: string[]) => void;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDown(e: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  function toggle(option: string) {
+    const next = values.includes(option) ? values.filter((v) => v !== option) : [...values, option];
+    onChange(options.filter((o) => next.includes(o)));
+  }
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={`${inputCls} flex items-center justify-between gap-2 text-left`}
+        style={inputStyle}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <span className="truncate" style={{ color: values.length ? B.blue : B.muted }}>
+          {values.length ? values.join(", ") : placeholder}
+        </span>
+        <ChevronDown size={16} className="shrink-0" style={{ color: B.muted }} />
+      </button>
+      {open ? (
+        <div
+          role="listbox"
+          aria-multiselectable="true"
+          className="absolute left-0 right-0 z-20 mt-1 overflow-hidden rounded-2xl border bg-white py-1 shadow-lg"
+          style={{ borderColor: B.border }}
+        >
+          {options.map((o) => {
+            const on = values.includes(o);
+            return (
+              <button
+                key={o}
+                type="button"
+                role="option"
+                aria-selected={on}
+                onClick={() => toggle(o)}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-[#F7F9FF]"
+                style={{ color: B.blue, fontWeight: on ? 700 : 500 }}
+              >
+                <span
+                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2"
+                  style={{ borderColor: on ? B.blue : B.border, background: on ? B.blue : "#fff" }}
+                >
+                  {on ? <Check size={13} color="#fff" strokeWidth={3} /> : null}
+                </span>
+                {o}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -2627,19 +2721,11 @@ function SignupPageInner() {
                     </select>
                   </Field>
                   <Field label="Business Category *">
-                    <select
-                      value={draft.businessCategory}
-                      onChange={(e) => patch({ businessCategory: e.target.value })}
-                      className={inputCls}
-                      style={inputStyle}
-                    >
-                      <option value="">Select</option>
-                      {BUSINESS_CATEGORIES.map((t) => (
-                        <option key={t} value={t}>
-                          {t}
-                        </option>
-                      ))}
-                    </select>
+                    <MultiSelectDropdown
+                      values={splitBusinessCategories(draft.businessCategory)}
+                      options={BUSINESS_CATEGORIES}
+                      onChange={(v) => patch({ businessCategory: v.join(", ") })}
+                    />
                   </Field>
                   <Field label="Monthly Turnover *">
                     <select

@@ -26,6 +26,7 @@ import { colors } from "../../theme/colors";
 import { showAlert } from "../../components/AppAlert";
 import { BrandMark } from "../../components/BrandMark";
 import { IfscBankDetailsFields } from "../../components/IfscBankDetailsFields";
+import { OptionPickerField } from "../../components/OptionPickerField";
 import { SignupBankCheck } from "../../components/SignupBankCheck";
 import { LabelText } from "../../components/RequiredMark";
 import { MobileSignupStepper, MOBILE_SIGNUP_STEPS } from "../../components/MobileSignupStepper";
@@ -117,6 +118,14 @@ const BUSINESS_TYPES = ["Sole Proprietorship", "Partnership", "Private Limited",
 const BUSINESS_CATEGORIES = ["Mobile Handsets", "Kirana", "Electronics", "Pharmacy", "Other"];
 const TURNOVERS = ["Below 1L", "1L-5L", "5L-10L", "10L+"];
 const BUSINESS_PROOFS = ["Shop License", "GST Certificate", "Udyam", "Rent Agreement", "Other"];
+
+/** Business category is multi-select, saved as "Kirana, Pharmacy". */
+function splitBusinessCategories(value: string): string[] {
+  return value
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
 /** Show YYYY-MM-DD as DD/MM/YYYY on mobile. */
 function isoToDisplayDob(iso: string): string {
@@ -2683,33 +2692,30 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                     placeholderTextColor={tokens.mute}
                     style={inputStyle}
                   />
-                  <SelectRow
+                  <OptionPickerField
                     label="Business Type *"
-                    value={draft.businessType}
+                    values={draft.businessType ? [draft.businessType] : []}
                     options={BUSINESS_TYPES}
-                    onChange={(v) => patch({ businessType: v })}
-                    tokens={tokens}
+                    onChange={([v]) => patch({ businessType: v ?? "" })}
                   />
-                  <SelectRow
+                  <OptionPickerField
                     label="Business Category *"
-                    value={draft.businessCategory}
+                    multiple
+                    values={splitBusinessCategories(draft.businessCategory)}
                     options={BUSINESS_CATEGORIES}
-                    onChange={(v) => patch({ businessCategory: v })}
-                    tokens={tokens}
+                    onChange={(v) => patch({ businessCategory: v.join(", ") })}
                   />
-                  <SelectRow
+                  <OptionPickerField
                     label="Monthly Turnover *"
-                    value={draft.monthlyTurnover}
+                    values={draft.monthlyTurnover ? [draft.monthlyTurnover] : []}
                     options={TURNOVERS}
-                    onChange={(v) => patch({ monthlyTurnover: v })}
-                    tokens={tokens}
+                    onChange={([v]) => patch({ monthlyTurnover: v ?? "" })}
                   />
-                  <SelectRow
+                  <OptionPickerField
                     label="Business Proof *"
-                    value={draft.businessProof}
+                    values={draft.businessProof ? [draft.businessProof] : []}
                     options={BUSINESS_PROOFS}
-                    onChange={(v) => patch({ businessProof: v })}
-                    tokens={tokens}
+                    onChange={([v]) => patch({ businessProof: v ?? "" })}
                   />
                   <FieldLabel text="Business Address *" color={tokens.mute} />
                   <View style={styles.emailRow}>
@@ -3226,48 +3232,6 @@ function UploadRow({
           ))}
         </View>
       ) : null}
-    </View>
-  );
-}
-
-function SelectRow({
-  label,
-  value,
-  options,
-  onChange,
-  tokens,
-}: {
-  label: string;
-  value: string;
-  options: string[];
-  onChange: (v: string) => void;
-  tokens: { mute: string; card: string; cardBorder: string; txt2: string };
-}) {
-  return (
-    <View style={{ marginBottom: 8 }}>
-      <FieldLabel text={label} color={tokens.mute} />
-      <View style={styles.chipGrid}>
-        {options.map((o) => (
-          <Pressable
-            key={o}
-            onPress={() => onChange(o)}
-            style={[
-              styles.chipCell,
-              {
-                borderColor: value === o ? colors.blue : tokens.cardBorder,
-                backgroundColor: value === o ? `${colors.blue}14` : tokens.card,
-              },
-            ]}
-          >
-            <Text
-              style={{ color: tokens.txt2, fontWeight: "700", fontSize: 11, textAlign: "center" }}
-              numberOfLines={2}
-            >
-              {o}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
     </View>
   );
 }
