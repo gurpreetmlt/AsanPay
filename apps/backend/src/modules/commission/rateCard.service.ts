@@ -338,6 +338,7 @@ export async function getRateCard(opts?: { providerId?: string | null }) {
     db
       .select({ id: providers.id, code: providers.code, name: providers.name })
       .from(providers)
+      .where(eq(providers.isActive, true))
       .orderBy(asc(providers.name)),
   ]);
 

@@ -27,7 +27,7 @@ afterEach(() => {
 });
 
 describe("AEPS_PROVIDER_MODE", () => {
-  it.each(["dummy", "instantpay_live", "instantpay_sandbox", "paysprint_live", "paysprint_sandbox"])(
+  it.each(["dummy", "sandbox", "live", "retired_mode"])(
     "reads the retired value %s as off",
     async (mode) => {
       const { env, assertNobleAepsProviderConfig } = await loadEnvModule({ AEPS_PROVIDER_MODE: mode });

@@ -539,11 +539,16 @@ async function scrubRunTransactionsAndPassbook(): Promise<void> {
   runTxnIds.length = 0;
 }
 
-// providers is not tenant-scoped: an active shim provider leaks into ASANPAY routing and the
-// admin Treasury page, so it must never outlive the run.
+// providers is not tenant-scoped: a shim provider leaks into ASANPAY routing, the admin Treasury
+// page and provider pickers, so it must never outlive the run. Delete it (cascades its catalog
+// rows); fall back to inactive when a restrict FK (float route / bank entry) still points at it.
 async function retireShimProvider(): Promise<void> {
   if (!providerId) return;
-  await db.update(providers).set({ isActive: false }).where(eq(providers.id, providerId));
+  try {
+    await db.delete(providers).where(eq(providers.id, providerId));
+  } catch {
+    await db.update(providers).set({ isActive: false }).where(eq(providers.id, providerId));
+  }
 }
 
 async function seedServiceCatalog(): Promise<void> {

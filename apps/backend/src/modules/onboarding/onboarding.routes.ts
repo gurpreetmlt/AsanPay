@@ -21,14 +21,11 @@ import {
   nobleSignup,
   nobleStatus,
   nobleStatusRecover,
-  retiredOutletOnboarding,
 } from "./onboarding.controller";
 
 export const onboardingRouter = Router();
 
 onboardingRouter.use(requireAuth);
-
-onboardingRouter.all(["/instantpay", "/instantpay/*splat"], retiredOutletOnboarding);
 
 // AEPS agent onboarding → uniqueAgentId (keys optional; mock when unset).
 onboardingRouter.post(

@@ -617,6 +617,13 @@
       "when": 1793800000000,
       "tag": "0087_commission_share_slabs",
       "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1793900000000,
+      "tag": "0088_remove_retired_providers",
+      "breakpoints": true
     }
   ]
 }

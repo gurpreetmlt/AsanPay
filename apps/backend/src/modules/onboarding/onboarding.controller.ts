@@ -26,15 +26,6 @@ import type {
   NobleLoadAgentInput,
 } from "./nobleOnboarding.validators";
 
-/** Retired outlet / biometric-KYC endpoints — older app builds still call them. */
-export async function retiredOutletOnboarding(_req: Request, _res: Response): Promise<void> {
-  throw new HttpError(
-    410,
-    "Outlet registration is no longer required. Complete AEPS onboarding from the AEPS screen instead.",
-    "OUTLET_ONBOARDING_RETIRED",
-  );
-}
-
 export async function nobleSignup(req: Request, res: Response): Promise<void> {
   const body = req.body as NobleAgentOnboardInput;
   const userId = req.auth!.sub;
