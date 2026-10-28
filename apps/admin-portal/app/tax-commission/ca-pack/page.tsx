@@ -8,6 +8,7 @@ import { AdminShell } from "@/components/layout/AdminShell";
 import { SectionTabs } from "@/components/layout/SectionTabs";
 import { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
+import { MonthField } from "@/components/ui/DateField";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 import { apiErrorMessage, currentMonthYm, downloadCsv } from "@/lib/taxCommissionUtils";
@@ -128,18 +129,12 @@ export default function TaxCommissionCaPackPage() {
           className="flex flex-wrap items-end gap-3 rounded-2xl border bg-white p-5"
           style={{ borderColor: B.border }}
         >
-          <label className="block text-sm">
+          <div className="block text-sm">
             <span className="mb-1 block font-medium" style={{ color: B.muted }}>
               Month
             </span>
-            <input
-              type="month"
-              className="rounded-xl border px-3 py-2 text-sm"
-              style={{ borderColor: B.border }}
-              value={month}
-              onChange={(e) => setMonth(e.target.value)}
-            />
-          </label>
+            <MonthField value={month} onChange={setMonth} />
+          </div>
           <button
             type="button"
             onClick={() => void load()}

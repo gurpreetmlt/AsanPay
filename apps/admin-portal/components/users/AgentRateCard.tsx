@@ -8,6 +8,7 @@ import { B } from "@/lib/brand";
 import { getServiceIcon } from "@/lib/serviceIcons";
 import { apiErrorMessage } from "@/lib/taxCommissionUtils";
 import { Modal } from "@/components/ui/Modal";
+import { DateField, toYmd } from "@/components/ui/DateField";
 import { SaveConfirmModal } from "@/components/commission/rateCard/SaveConfirmModal";
 import { usePendingSave } from "@/components/commission/rateCard/usePendingSave";
 import { Btn, CategoryHeaderRow, Chip, NumberField, SlabHeaderRow, SplitModeSwitch, openBlockEdge, type SplitMode } from "@/components/commission/rateCard/ui";
@@ -175,21 +176,20 @@ function AgentSlabModal({
               {mode === "percent" ? "% of what the provider pays" : "₹ per transaction"}
             </p>
           </div>
-          <label className="block text-xs">
-            <span className="mb-1 block font-semibold" style={{ color: B.muted }}>
+          <div className="text-xs">
+            <span className="mb-1 flex items-center justify-between font-semibold" style={{ color: B.muted }}>
               Valid until (optional)
+              {validUntil ? (
+                <button type="button" onClick={() => setValidUntil("")} className="text-[11px] font-bold" style={{ color: B.danger }}>
+                  Clear
+                </button>
+              ) : null}
             </span>
-            <input
-              type="date"
-              value={validUntil}
-              onChange={(e) => setValidUntil(e.target.value)}
-              className="w-full rounded-xl border px-3 py-2 text-sm"
-              style={{ borderColor: B.border, background: "var(--admin-card)", color: B.blue }}
-            />
+            <DateField value={validUntil} onChange={setValidUntil} min={toYmd(new Date(openedAt + 86_400_000))} fullWidth />
             <span className="mt-1 block text-[11px]" style={{ color: B.muted }}>
               Blank = until you change it
             </span>
-          </label>
+          </div>
           <label className="flex cursor-pointer items-start gap-2 rounded-xl border p-3 text-xs" style={{ borderColor: B.border, background: "var(--admin-card)" }}>
             <input type="checkbox" checked={wholeService} onChange={(e) => setWholeService(e.target.checked)} className="mt-0.5" />
             <span>

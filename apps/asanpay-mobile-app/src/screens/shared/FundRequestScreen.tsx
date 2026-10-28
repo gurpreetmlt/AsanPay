@@ -46,7 +46,7 @@ import {
 import { PartnerTopBar } from "../../components/PartnerTopBar";
 import { PopupCloseButton } from "../../components/PopupCloseButton";
 import { LabelText } from "../../components/RequiredMark";
-import { DateRangeFields, toYmd } from "../../components/DateRangeCard";
+import { CalendarPanel, DateRangeFields, toYmd } from "../../components/DateRangeCard";
 import { api, fetchApi } from "../../lib/api";
 import { formatSettlementBankCopy } from "../../lib/bankLogo";
 import { formatINR } from "../../lib/format";
@@ -939,7 +939,6 @@ const PAYMENT_MODE_MAP: Record<ConfirmMode, string> = {
   cash_deposit: "cash_deposit",
 };
 
-const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
@@ -1195,7 +1194,6 @@ function DepositDateTimeField({
   const [hour, setHour] = useState(seed.getHours());
   const [minute, setMinute] = useState(seed.getMinutes());
   const [typed, setTyped] = useState(value ? dateToDisplay(value) : "");
-  const [pickerLevel, setPickerLevel] = useState<"day" | "month" | "year">("day");
   const [kbHeight, setKbHeight] = useState(0);
   const [timeWheelOpen, setTimeWheelOpen] = useState(false);
 
@@ -1228,7 +1226,6 @@ function DepositDateTimeField({
     setHour(s.getHours());
     setMinute(s.getMinutes());
     setTyped(value ? dateToDisplay(value) : "");
-    setPickerLevel("day");
     setKbHeight(0);
     setOpen(true);
   }
@@ -1243,44 +1240,6 @@ function DepositDateTimeField({
     setTyped(dateToDisplay(dt));
     setOpen(false);
   }
-
-  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-  const startWeekday = new Date(viewYear, viewMonth, 1).getDay();
-  const maxYear = new Date().getFullYear();
-  const yearBlockStart = Math.floor(viewYear / 12) * 12;
-  const yearOptions = Array.from({ length: 12 }, (_, i) => yearBlockStart + i);
-
-  function shiftNav(delta: number) {
-    if (pickerLevel === "day") {
-      if (delta < 0) {
-        if (viewMonth === 0) {
-          setViewMonth(11);
-          setViewYear((y) => y - 1);
-        } else setViewMonth((m) => m - 1);
-      } else {
-        if (viewYear > maxYear || (viewYear === maxYear && viewMonth >= new Date().getMonth())) return;
-        if (viewMonth === 11) {
-          setViewMonth(0);
-          setViewYear((y) => y + 1);
-        } else setViewMonth((m) => m + 1);
-      }
-      return;
-    }
-    if (pickerLevel === "month") {
-      const next = viewYear + delta;
-      if (next > maxYear || next < 2020) return;
-      setViewYear(next);
-      return;
-    }
-    setViewYear((y) => Math.min(Math.max(y + delta * 12, 2020), maxYear));
-  }
-
-  const headerLabel =
-    pickerLevel === "year"
-      ? `${yearBlockStart} – ${yearBlockStart + 11}`
-      : pickerLevel === "month"
-        ? String(viewYear)
-        : `${MONTH_SHORT[viewMonth]} ${viewYear}`;
 
   return (
     <>
@@ -1368,146 +1327,22 @@ function DepositDateTimeField({
                   maxLength={22}
                 />
 
-                <Pressable onPress={Keyboard.dismiss}>
-                  <View style={styles.dtCalPanel}>
-                    <View style={styles.dtMonthRow}>
-                      <Pressable
-                        onPress={() => {
-                          Keyboard.dismiss();
-                          shiftNav(-1);
-                        }}
-                        style={styles.dtNavBtn}
-                      >
-                        <Text style={{ color: colors.blueFlat, fontWeight: "800" }}>‹</Text>
-                      </Pressable>
-                      <Pressable
-                        onPress={() => {
-                          Keyboard.dismiss();
-                          if (pickerLevel === "day") setPickerLevel("month");
-                          else if (pickerLevel === "month") setPickerLevel("year");
-                        }}
-                        style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
-                      >
-                        <Text style={{ color: tokens.txt, fontWeight: "800" }}>{headerLabel}</Text>
-                        {pickerLevel !== "year" ? (
-                          <Text style={{ color: colors.blueFlat, fontWeight: "800", fontSize: 10 }}>▼</Text>
-                        ) : null}
-                      </Pressable>
-                      <Pressable
-                        onPress={() => {
-                          Keyboard.dismiss();
-                          shiftNav(1);
-                        }}
-                        style={styles.dtNavBtn}
-                      >
-                        <Text style={{ color: colors.blueFlat, fontWeight: "800" }}>›</Text>
-                      </Pressable>
-                    </View>
-
-                    {pickerLevel === "year" ? (
-                      <View style={styles.dtGrid}>
-                        {yearOptions.map((y) => {
-                          const on = y === viewYear;
-                          const disabled = y > maxYear || y < 2020;
-                          return (
-                            <Pressable
-                              key={y}
-                              disabled={disabled}
-                              onPress={() => {
-                                Keyboard.dismiss();
-                                setViewYear(y);
-                                setPickerLevel("month");
-                              }}
-                              style={[styles.dtDay, { width: "33.33%" }, disabled && { opacity: 0.3 }]}
-                            >
-                              <View
-                                style={[
-                                  styles.dtDayInner,
-                                  on && styles.dtDayInnerSelected,
-                                  { width: "90%", borderRadius: 10 },
-                                ]}
-                              >
-                                <Text style={{ fontWeight: "700", color: on ? "#fff" : tokens.txt }}>{y}</Text>
-                              </View>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                    ) : pickerLevel === "month" ? (
-                      <View style={styles.dtGrid}>
-                        {MONTH_SHORT.map((name, i) => {
-                          const on = i === viewMonth;
-                          const disabled = viewYear === maxYear && i > new Date().getMonth();
-                          return (
-                            <Pressable
-                              key={name}
-                              disabled={disabled}
-                              onPress={() => {
-                                Keyboard.dismiss();
-                                setViewMonth(i);
-                                setPickerLevel("day");
-                              }}
-                              style={[styles.dtDay, { width: "33.33%" }, disabled && { opacity: 0.3 }]}
-                            >
-                              <View
-                                style={[
-                                  styles.dtDayInner,
-                                  on && styles.dtDayInnerSelected,
-                                  { width: "90%", borderRadius: 10 },
-                                ]}
-                              >
-                                <Text style={{ fontWeight: "700", color: on ? "#fff" : tokens.txt }}>{name}</Text>
-                              </View>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                    ) : (
-                      <>
-                        <View style={styles.dtWeekRow}>
-                          {["S", "M", "T", "W", "T", "F", "S"].map((w, i) => (
-                            <Text key={i} style={[styles.dtWeek, { color: tokens.mute }]}>
-                              {w}
-                            </Text>
-                          ))}
-                        </View>
-                        <View style={styles.dtGrid}>
-                          {Array.from({ length: startWeekday }).map((_, i) => (
-                            <View key={`e-${i}`} style={[styles.dtDay, { width: "14.28%" }]} />
-                          ))}
-                          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => {
-                            const candidate = new Date(viewYear, viewMonth, d);
-                            const disabled = candidate.getTime() > Date.now();
-                            const selected = d === day;
-                            return (
-                              <Pressable
-                                key={d}
-                                disabled={disabled}
-                                onPress={() => {
-                                  Keyboard.dismiss();
-                                  setDay(d);
-                                  syncTyped(hour, minute, d);
-                                }}
-                                style={[styles.dtDay, { width: "14.28%" }, disabled && { opacity: 0.3 }]}
-                              >
-                                <View style={[styles.dtDayInner, selected && styles.dtDayInnerSelected]}>
-                                  <Text
-                                    style={{
-                                      fontWeight: selected ? "800" : "700",
-                                      color: selected ? "#fff" : tokens.txt,
-                                    }}
-                                  >
-                                    {d}
-                                  </Text>
-                                </View>
-                              </Pressable>
-                            );
-                          })}
-                        </View>
-                      </>
-                    )}
-                  </View>
-                </Pressable>
+                <View style={styles.dtCalWrap}>
+                <CalendarPanel
+                  key={`${viewYear}-${viewMonth}`}
+                  valueYmd={toYmd(new Date(viewYear, viewMonth, day))}
+                  minYmd="2020-01-01"
+                  maxYmd={toYmd(new Date())}
+                  onPick={(ymd) => {
+                    Keyboard.dismiss();
+                    const [y, m, d] = ymd.split("-").map(Number);
+                    setViewYear(y);
+                    setViewMonth(m - 1);
+                    setDay(d);
+                    syncTyped(hour, minute, d, m - 1, y);
+                  }}
+                />
+                </View>
 
                 <View style={styles.dtTimePanel}>
                   <Text style={[styles.label, { color: tokens.sub, marginTop: 0 }]}>Time (12h)</Text>
@@ -2082,50 +1917,7 @@ const styles = StyleSheet.create({
   dtScrollContent: { paddingBottom: 28 },
   dtHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
   dtTitle: { fontSize: 17, fontWeight: "800" },
-  dtCalPanel: {
-    marginTop: 12,
-    backgroundColor: "#F5F8FF",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#D6E0F5",
-    paddingHorizontal: 10,
-    paddingTop: 4,
-    paddingBottom: 10,
-    shadowColor: "#0B2A9A",
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
-  },
-  dtMonthRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 8,
-    marginBottom: 8,
-  },
-  dtNavBtn: { paddingHorizontal: 14, paddingVertical: 8 },
-  dtWeekRow: { flexDirection: "row", marginBottom: 4 },
-  dtWeek: { flex: 1, textAlign: "center", fontSize: 11, fontWeight: "700" },
-  dtGrid: { flexDirection: "row", flexWrap: "wrap" },
-  dtDay: { aspectRatio: 1, alignItems: "center", justifyContent: "center" },
-  dtDayInner: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  dtDayInnerSelected: {
-    backgroundColor: colors.blueFlat,
-    borderWidth: 2,
-    borderColor: "#fff",
-    shadowColor: colors.blueFlat,
-    shadowOpacity: 0.4,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
-  },
+  dtCalWrap: { marginTop: 12 },
   dtTimePanel: {
     marginTop: 14,
     backgroundColor: "#EEF2FF",

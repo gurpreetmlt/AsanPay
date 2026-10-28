@@ -34,6 +34,7 @@ import { CardCameraModal } from "../../components/CardCameraModal";
 import { KycCardUpload, type KycCardStage } from "../../components/KycCardUpload";
 import { TermsAcceptModal } from "../../components/TermsAcceptModal";
 import { SignupLocationCard } from "../../components/SignupLocationCard";
+import { JsCalendarModal } from "../../components/DateRangeCard";
 import {
   PAN_FORMAT_ERROR,
   SIGNUP_POLICY_VERSION,
@@ -164,18 +165,7 @@ function displayToIso(display: string): string | null {
   return dateToIso(dt);
 }
 
-function isoToDate(iso: string, fallback: Date): Date {
-  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
-    const [y, m, d] = iso.split("-").map(Number);
-    const dt = new Date(y, m - 1, d);
-    if (!Number.isNaN(dt.getTime())) return dt;
-  }
-  return fallback;
-}
-
-const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-/** Text field + calendar icon. Calendar is a JS modal (no native DateTimePicker — avoids Android crash). */
+/** Text field + calendar icon. Calendar is the shared JS modal (no native DateTimePicker — avoids Android crash). */
 function DateTextField({
   label,
   isoValue,
@@ -197,81 +187,11 @@ function DateTextField({
 }) {
   const [text, setText] = useState(() => isoToDisplayDob(isoValue));
   const [calOpen, setCalOpen] = useState(false);
-  const seed = isoToDate(isoValue, optional ? new Date() : new Date(1995, 0, 1));
-  const [viewYear, setViewYear] = useState(seed.getFullYear());
-  const [viewMonth, setViewMonth] = useState(seed.getMonth());
-  const [pickerLevel, setPickerLevel] = useState<"day" | "month" | "year">("day");
 
   useEffect(() => {
     if (isoValue) setText(isoToDisplayDob(isoValue));
     else if (!calOpen) setText("");
   }, [isoValue, calOpen]);
-
-  function openCalendar() {
-    const d = isoToDate(isoValue, optional ? new Date() : new Date(1995, 0, 1));
-    setViewYear(d.getFullYear());
-    setViewMonth(d.getMonth());
-    setPickerLevel("day");
-    setCalOpen(true);
-  }
-
-  function pickDay(day: number) {
-    const dt = new Date(viewYear, viewMonth, day);
-    if (dt.getTime() > Date.now()) return;
-    const iso = dateToIso(dt);
-    onIsoChange(iso);
-    setText(isoToDisplayDob(iso));
-    setCalOpen(false);
-  }
-
-  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-  const startWeekday = new Date(viewYear, viewMonth, 1).getDay();
-  const selectedDay =
-    isoValue &&
-    isoValue.startsWith(
-      `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-`,
-    )
-      ? Number(isoValue.slice(8, 10))
-      : 0;
-  const maxYear = new Date().getFullYear();
-  const yearBlockStart = Math.floor(viewYear / 12) * 12;
-  const yearOptions = Array.from({ length: 12 }, (_, i) => yearBlockStart + i);
-
-  function shiftNav(delta: number) {
-    if (pickerLevel === "day") {
-      if (delta < 0) {
-        if (viewMonth === 0) {
-          if (viewYear <= 1940) return;
-          setViewYear((y) => y - 1);
-          setViewMonth(11);
-        } else setViewMonth((m) => m - 1);
-      } else if (viewMonth === 11) {
-        if (viewYear >= maxYear) return;
-        setViewYear((y) => y + 1);
-        setViewMonth(0);
-      } else {
-        if (viewYear === maxYear && viewMonth >= new Date().getMonth()) return;
-        setViewMonth((m) => m + 1);
-      }
-      return;
-    }
-    if (pickerLevel === "month") {
-      const next = viewYear + delta;
-      if (next < 1940 || next > maxYear) return;
-      setViewYear(next);
-      return;
-    }
-    const next = viewYear + delta * 12;
-    if (next + 11 < 1940 || next > maxYear) return;
-    setViewYear(Math.min(Math.max(next, 1940), maxYear));
-  }
-
-  const headerLabel =
-    pickerLevel === "year"
-      ? `${yearBlockStart} – ${yearBlockStart + 11}`
-      : pickerLevel === "month"
-        ? String(viewYear)
-        : `${MONTH_LABELS[viewMonth]} ${viewYear}`;
 
   return (
     <>
@@ -295,7 +215,7 @@ function DateTextField({
           style={[inputStyle, styles.dateInput]}
         />
         <Pressable
-          onPress={openCalendar}
+          onPress={() => setCalOpen(true)}
           accessibilityLabel="Open calendar"
           style={[
             styles.calBtn,
@@ -307,150 +227,18 @@ function DateTextField({
       </View>
       <Text style={[styles.hint, { color: tokens.mute }]}>{hint}</Text>
 
-      <Modal visible={calOpen} transparent animationType="fade" onRequestClose={() => setCalOpen(false)}>
-        <Pressable style={styles.calBackdrop} onPress={() => setCalOpen(false)}>
-          <Pressable
-            style={[styles.calSheet, { backgroundColor: tokens.card, borderColor: tokens.cardBorder }]}
-            onPress={(e) => e.stopPropagation()}
-          >
-            <View style={styles.calHeader}>
-              <Pressable onPress={() => shiftNav(-1)} hitSlop={8}>
-                <Text style={{ color: colors.blue, fontWeight: "800", fontSize: 18 }}>‹</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  if (pickerLevel === "day") setPickerLevel("month");
-                  else if (pickerLevel === "month") setPickerLevel("year");
-                }}
-                hitSlop={8}
-                style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
-              >
-                <Text style={{ color: tokens.txt2, fontWeight: "800", fontSize: 15 }}>{headerLabel}</Text>
-                {pickerLevel !== "year" ? (
-                  <Text style={{ color: colors.blue, fontWeight: "800", fontSize: 10 }}>▼</Text>
-                ) : null}
-              </Pressable>
-              <Pressable onPress={() => shiftNav(1)} hitSlop={8}>
-                <Text style={{ color: colors.blue, fontWeight: "800", fontSize: 18 }}>›</Text>
-              </Pressable>
-            </View>
-
-            {pickerLevel === "year" ? (
-              <View style={styles.calGrid}>
-                {yearOptions.map((y) => {
-                  const on = y === viewYear;
-                  const disabled = y < 1940 || y > maxYear;
-                  return (
-                    <Pressable
-                      key={y}
-                      disabled={disabled}
-                      onPress={() => {
-                        setViewYear(y);
-                        setPickerLevel("month");
-                      }}
-                      style={[
-                        styles.calCell,
-                        { width: "33.33%" },
-                        on && { backgroundColor: colors.blue, borderRadius: 10 },
-                        disabled && { opacity: 0.35 },
-                      ]}
-                    >
-                      <Text style={{ color: on ? "#fff" : tokens.txt2, fontWeight: "800", fontSize: 13 }}>{y}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            ) : pickerLevel === "month" ? (
-              <View style={styles.calGrid}>
-                {MONTH_LABELS.map((name, i) => {
-                  const on = i === viewMonth;
-                  const disabled = viewYear === maxYear && i > new Date().getMonth();
-                  return (
-                    <Pressable
-                      key={name}
-                      disabled={disabled}
-                      onPress={() => {
-                        setViewMonth(i);
-                        setPickerLevel("day");
-                      }}
-                      style={[
-                        styles.calCell,
-                        { width: "33.33%" },
-                        on && { backgroundColor: colors.blue, borderRadius: 10 },
-                        disabled && { opacity: 0.35 },
-                      ]}
-                    >
-                      <Text style={{ color: on ? "#fff" : tokens.txt2, fontWeight: "800", fontSize: 13 }}>{name}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            ) : (
-              <>
-                <View style={styles.calWeekRow}>
-                  {["S", "M", "T", "W", "T", "F", "S"].map((w, i) => (
-                    <Text key={`${w}-${i}`} style={[styles.calWeekDay, { color: tokens.mute }]}>
-                      {w}
-                    </Text>
-                  ))}
-                </View>
-                <View style={styles.calGrid}>
-                  {Array.from({ length: startWeekday }, (_, i) => (
-                    <View key={`e-${i}`} style={styles.calCell} />
-                  ))}
-                  {Array.from({ length: daysInMonth }, (_, i) => {
-                    const day = i + 1;
-                    const dt = new Date(viewYear, viewMonth, day);
-                    const disabled = dt.getTime() > Date.now();
-                    const selected = selectedDay === day;
-                    return (
-                      <Pressable
-                        key={day}
-                        disabled={disabled}
-                        onPress={() => pickDay(day)}
-                        style={[
-                          styles.calCell,
-                          selected && { backgroundColor: colors.blue, borderRadius: 10 },
-                          disabled && { opacity: 0.35 },
-                        ]}
-                      >
-                        <Text
-                          style={{
-                            color: selected ? "#fff" : tokens.txt2,
-                            fontWeight: selected ? "800" : "600",
-                            fontSize: 13,
-                          }}
-                        >
-                          {day}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </>
-            )}
-
-            <View style={styles.calFooter}>
-              {optional ? (
-                <Pressable
-                  onPress={() => {
-                    onIsoChange("");
-                    setText("");
-                    setCalOpen(false);
-                  }}
-                >
-                  <Text style={{ color: tokens.mute, fontWeight: "700" }}>Clear</Text>
-                </Pressable>
-              ) : (
-                <View />
-              )}
-              <Pressable onPress={() => setCalOpen(false)}>
-                <Text style={{ color: colors.blue, fontWeight: "800" }}>Close</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      <JsCalendarModal
+        visible={calOpen}
+        title={label}
+        valueYmd={isoValue}
+        minYmd="1940-01-01"
+        seedYmd={optional ? undefined : "1995-01-01"}
+        onClose={() => setCalOpen(false)}
+        onPick={(iso) => {
+          onIsoChange(iso);
+          setText(isoToDisplayDob(iso));
+        }}
+      />
     </>
   );
 }
@@ -3272,38 +3060,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
-  },
-  calBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.45)",
-    justifyContent: "center",
-    paddingHorizontal: 20,
-  },
-  calSheet: {
-    borderRadius: 18,
-    borderWidth: 1,
-    padding: 16,
-  },
-  calHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 12,
-  },
-  calWeekRow: { flexDirection: "row", marginBottom: 4 },
-  calWeekDay: { width: "14.28%" as const, textAlign: "center", fontSize: 11, fontWeight: "700" },
-  calGrid: { flexDirection: "row", flexWrap: "wrap" },
-  calCell: {
-    width: "14.28%" as const,
-    aspectRatio: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  calFooter: {
-    marginTop: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
   },
   checkRow: { flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 10 },
   check: {

@@ -6,7 +6,7 @@ import { toast } from "react-hot-toast";
 import { Calculator, Download, Percent, Plus } from "lucide-react";
 import { ConfirmModal, type ConfirmTone } from "@/components/ui/ConfirmModal";
 import { TableActionButtons } from "@/components/ui/TableActionButtons";
-import { DateField } from "@/components/ui/DateField";
+import { DateField, MonthField } from "@/components/ui/DateField";
 import { B } from "@/lib/brand";
 import api, { fetchApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
@@ -552,18 +552,12 @@ export function CommissionWorkbench({
             <div className="flex flex-wrap items-end gap-3">
               {registerKind === "tds" ? (
                 <>
-                  <label className="block text-sm">
+                  <div className="block text-sm">
                     <span className="mb-1 block font-medium" style={{ color: B.muted }}>
                       Month
                     </span>
-                    <input
-                      type="month"
-                      className="rounded-xl border px-3 py-2 text-sm"
-                      style={{ borderColor: B.border }}
-                      value={regMonth}
-                      onChange={(e) => setRegMonth(e.target.value)}
-                    />
-                  </label>
+                    <MonthField value={regMonth} onChange={setRegMonth} />
+                  </div>
                   <label className="block text-sm">
                     <span className="mb-1 block font-medium" style={{ color: B.muted }}>
                       Role

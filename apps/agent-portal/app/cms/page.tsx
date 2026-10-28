@@ -22,6 +22,7 @@ import type { ApiResponse } from "@asanpay/shared-types";
 import { AppShell } from "@/components/layout/AppShell";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { ExportMenu } from "@/components/ui/ExportMenu";
+import { DateField } from "@/components/ui/DateField";
 import { downloadCsv } from "@/components/reports/reportUtils";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
@@ -284,9 +285,6 @@ export default function CmsPage() {
     };
   }
 
-  const dateInput =
-    "w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-semibold text-gray-800 outline-none focus:border-blue-300";
-
   if (openCms) {
     const accent = openCms.provider.accent;
     return (
@@ -465,21 +463,14 @@ export default function CmsPage() {
             className="flex flex-col gap-3 border-b px-5 py-4 md:flex-row md:items-end"
             style={{ borderColor: B.border }}
           >
-            <label className="block md:w-44">
+            <div className="block md:w-48">
               <span className="mb-1 block text-xs font-semibold text-gray-600">From Date</span>
-              <input type="date" className={dateInput} value={from} max={to} onChange={(e) => setFrom(e.target.value)} />
-            </label>
-            <label className="block md:w-44">
+              <DateField value={from} onChange={setFrom} max={to} rangePeer={to} rangeRole="start" fullWidth />
+            </div>
+            <div className="block md:w-48">
               <span className="mb-1 block text-xs font-semibold text-gray-600">To Date</span>
-              <input
-                type="date"
-                className={dateInput}
-                value={to}
-                min={from}
-                max={todayYmd()}
-                onChange={(e) => setTo(e.target.value)}
-              />
-            </label>
+              <DateField value={to} onChange={setTo} min={from} max={todayYmd()} rangePeer={from} rangeRole="end" fullWidth />
+            </div>
             <div className="md:w-44">
               <PrimaryButton type="button" variant="primary" loading={loading} onClick={() => void loadRows(from, to)}>
                 Fetch Data

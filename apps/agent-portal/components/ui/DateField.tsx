@@ -248,8 +248,8 @@ export function DateField({
         <div
           role="dialog"
           aria-label={label ? `${label} calendar` : "Calendar"}
-          className="date-cal-pop absolute left-0 z-50 mt-2 w-[300px] rounded-2xl border p-3 shadow-xl"
-          style={{ borderColor: "#D6E0F5", background: "#F5F8FF", boxShadow: "0 10px 28px rgba(11,42,154,0.14)" }}
+          className="date-cal-pop absolute left-0 z-50 mt-2 w-[300px] rounded-2xl border bg-white p-3 shadow-xl"
+          style={{ borderColor: B.border }}
         >
           <div className="mb-2 flex items-center justify-between gap-1">
             <button
@@ -404,13 +404,11 @@ export function DateField({
                   }
                   if (isSelected) {
                     style = {
-                      background: B.blueMid,
+                      background: B.blueLight,
                       color: "#fff",
                       borderRadius: 999,
                       fontWeight: 800,
-                      boxShadow: `0 3px 10px ${B.blueMid}55`,
-                      outline: "2px solid #fff",
-                      outlineOffset: 0,
+                      boxShadow: `0 4px 12px ${B.blueLight}44`,
                     };
                   }
 

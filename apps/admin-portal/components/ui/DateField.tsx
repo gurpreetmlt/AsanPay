@@ -502,6 +502,137 @@ export function DateTimeField({
   );
 }
 
+type MonthFieldProps = {
+  /** `YYYY-MM` */
+  value: string;
+  onChange: (ym: string) => void;
+  min?: string;
+  max?: string;
+  label?: string;
+  disabled?: boolean;
+  className?: string;
+  fullWidth?: boolean;
+  id?: string;
+};
+
+/** Month picker with the same trigger and popup as DateField (year header + 12 month grid). */
+export function MonthField({ value, onChange, min, max, label, disabled = false, className, fullWidth = false, id }: MonthFieldProps) {
+  const autoId = useId();
+  const fieldId = id ?? autoId;
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const valueYear = /^\d{4}-\d{2}$/.test(value) ? Number(value.slice(0, 4)) : new Date().getFullYear();
+  const [viewY, setViewY] = useState(valueYear);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const display = /^\d{4}-\d{2}$/.test(value) ? `${MONTHS[Number(value.slice(5, 7)) - 1]} ${value.slice(0, 4)}` : "Select month";
+
+  return (
+    <div ref={rootRef} className={cn("relative", fullWidth && "w-full", className)}>
+      <button
+        type="button"
+        id={fieldId}
+        disabled={disabled}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        onClick={() => {
+          if (disabled) return;
+          if (!open) setViewY(valueYear);
+          setOpen((o) => !o);
+        }}
+        className={cn(
+          "date-field-trigger group flex w-full items-center gap-2 rounded-xl border bg-white px-3 py-2.5 text-left transition",
+          fullWidth ? "w-full" : "min-w-[168px]",
+        )}
+        style={{
+          borderColor: open ? B.blueLight : B.border,
+          boxShadow: open ? `0 0 0 3px ${B.blueLight}22` : "none",
+          color: B.blue,
+          opacity: disabled ? 0.55 : 1,
+        }}
+      >
+        <CalendarDays size={15} className="shrink-0 opacity-70" style={{ color: B.muted }} />
+        {label ? (
+          <span className="shrink-0 text-[10px] font-extrabold uppercase tracking-wide" style={{ color: B.muted }}>
+            {label}
+          </span>
+        ) : null}
+        <span className="min-w-0 flex-1 truncate text-sm font-bold tabular-nums">{display}</span>
+      </button>
+
+      {open ? (
+        <div
+          role="dialog"
+          aria-label={label ? `${label} month` : "Month"}
+          className="date-cal-pop absolute left-0 z-50 mt-2 w-[300px] rounded-2xl border bg-white p-3 shadow-xl"
+          style={{ borderColor: B.border }}
+        >
+          <div className="mb-2 flex items-center justify-between gap-1">
+            <button
+              type="button"
+              aria-label="Previous year"
+              className="date-cal-nav flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#EEF2FF]"
+              style={{ color: B.blue }}
+              onClick={() => setViewY((y) => y - 1)}
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <span className="px-2 py-1 text-sm font-bold" style={{ color: B.blue }}>
+              {viewY}
+            </span>
+            <button
+              type="button"
+              aria-label="Next year"
+              className="date-cal-nav flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#EEF2FF]"
+              style={{ color: B.blue }}
+              onClick={() => setViewY((y) => y + 1)}
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+          <div key={`mf-${viewY}`} className="date-cal-grid-anim grid grid-cols-3 gap-1.5 pb-1">
+            {MONTHS.map((name, i) => {
+              const ym = `${viewY}-${pad2(i + 1)}`;
+              const on = ym === value;
+              const off = (!!min && ym < min) || (!!max && ym > max);
+              return (
+                <button
+                  key={name}
+                  type="button"
+                  disabled={off}
+                  onClick={() => {
+                    onChange(ym);
+                    setOpen(false);
+                  }}
+                  className="rounded-xl px-2 py-2.5 text-xs font-bold transition hover:bg-[#EEF2FF] disabled:opacity-40"
+                  style={on ? { background: B.blueLight, color: "#fff", boxShadow: `0 4px 12px ${B.blueLight}44` } : { color: B.blue }}
+                >
+                  {name.slice(0, 3)}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 /** Date range presets — same segment tabs as admin Fund requests (Open / Credited). */
 export function DatePresetLinks({
   activeId,
