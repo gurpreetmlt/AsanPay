@@ -16,7 +16,14 @@ import {
   Sparkles,
   TableProperties,
   Trash2,
+  Upload,
 } from "lucide-react";
+import { toast } from "react-hot-toast";
+import { Modal } from "@/components/ui/Modal";
+import { ExportMenu } from "@/components/ui/ExportMenu";
+import { downloadBrandedExcel, openBrandedPdf } from "@/lib/brandedExport";
+import { downloadCsv } from "@/lib/taxCommissionUtils";
+import { planRateCardImport, rateCardCsv, rateCardReport } from "./rateCardTransfer";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { apiErrorMessage } from "@/lib/taxCommissionUtils";
@@ -309,6 +316,42 @@ export function RateCardScreen() {
   }
 
   const previewServices = data?.services ?? [];
+
+  const importInput = useRef<HTMLInputElement>(null);
+  const [importErrors, setImportErrors] = useState<string[] | null>(null);
+
+  function exportPdf() {
+    if (!data) return;
+    if (!openBrandedPdf(rateCardReport(data, providerId ? providerName : "All providers"))) {
+      toast.error("Allow pop-ups for this site to export the PDF");
+    }
+  }
+
+  async function onImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !data) return;
+    if (!/\.csv$/i.test(file.name)) {
+      setImportErrors([`"${file.name}" is not a CSV. In Excel use File → Save As → CSV (UTF-8), then import that file.`]);
+      return;
+    }
+    const plan = planRateCardImport(await file.text(), data, providerId || null, providerName);
+    if (plan.errors.length) {
+      setImportErrors(plan.errors);
+      return;
+    }
+    if (plan.changes.length === 0) {
+      toast.success(`Nothing to change — all ${plan.rowsRead} rows already match the rate card`);
+      return;
+    }
+    setSaveReq({
+      title: "Import rate card",
+      changes: plan.changes,
+      warnings: [
+        `${plan.rowsRead} rows read · ${plan.unchangedRows} already match · ${plan.changes.length} changes to save. Slabs not in the file stay as they are.`,
+      ],
+    });
+  }
 
   function openInline(row: ServiceRow, s: Slab, draft: IncomeDraft) {
     const rowKey = slabKey(s);
@@ -637,15 +680,32 @@ export function RateCardScreen() {
                 </button>
               </div>
             </div>
-            <label className="flex items-center gap-2 rounded-xl border px-3 py-1.5" style={{ borderColor: B.border }}>
-              <Search size={14} style={{ color: B.muted }} />
-              <input
-                className="w-48 bg-transparent text-sm outline-none"
-                placeholder="Search service"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="flex items-center gap-2 rounded-xl border px-3 py-1.5" style={{ borderColor: B.border }}>
+                <Search size={14} style={{ color: B.muted }} />
+                <input
+                  className="w-48 bg-transparent text-sm outline-none"
+                  placeholder="Search service"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+              </label>
+              <ExportMenu
+                disabled={!data || data.services.length === 0}
+                onPdf={exportPdf}
+                onExcel={() => data && downloadBrandedExcel(rateCardReport(data, providerId ? providerName : "All providers"))}
+                onCsv={() => data && downloadCsv(`rate-card-${new Date().toISOString().slice(0, 10)}.csv`, rateCardCsv(data))}
               />
-            </label>
+              <Btn
+                variant="secondary"
+                disabled={!data || saving}
+                onClick={() => importInput.current?.click()}
+                title="Import the CSV from Export → CSV after editing it"
+              >
+                <Upload size={14} /> Import CSV
+              </Btn>
+              <input ref={importInput} type="file" accept=".csv,text/csv" className="hidden" onChange={onImportFile} />
+            </div>
           </div>
 
           {loadError ? (
@@ -810,6 +870,47 @@ export function RateCardScreen() {
           onConfirm={(reason) => void runSave(reason)}
           onClose={() => setSaveReq(null)}
         />
+      ) : null}
+
+      {importErrors ? (
+        <Modal
+          title="Import stopped"
+          eyebrow="Rate card CSV"
+          subtitle="Nothing was saved. Fix these rows in the file and import it again."
+          icon={<AlertTriangle size={22} />}
+          iconTone="red"
+          onClose={() => setImportErrors(null)}
+          wide={importErrors.length > 6}
+        >
+          <ul
+            className="max-h-[50vh] space-y-1.5 overflow-y-auto rounded-2xl border p-3 text-xs"
+            style={{ borderColor: "#FCA5A5", background: "#FEF2F2", color: B.danger }}
+          >
+            {importErrors.map((err) => (
+              <li key={err} className="flex items-start gap-1.5 font-semibold">
+                <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+                {err}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-[11px]" style={{ color: B.muted }}>
+            Template: Export → CSV. Types are flat or percent. Blank provider / role cells keep what is saved; 0 sets ₹0.
+          </p>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <Btn variant="destructive" onClick={() => setImportErrors(null)}>
+              Close
+            </Btn>
+            <Btn
+              variant="primary"
+              onClick={() => {
+                setImportErrors(null);
+                importInput.current?.click();
+              }}
+            >
+              Choose another file
+            </Btn>
+          </div>
+        </Modal>
       ) : null}
     </div>
   );
