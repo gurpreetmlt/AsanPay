@@ -142,20 +142,27 @@ function ProfileTile({
   label,
   value,
   onCopy,
+  missing = false,
 }: {
   icon: LucideIcon;
   label: string;
   value: string | null | undefined;
   onCopy?: () => void;
+  /** Amber tile + "Missing" chip when the fact is not on file. */
+  missing?: boolean;
 }) {
+  const gap = missing || !value;
   return (
     <div
       className="agent-lift flex min-w-0 items-center gap-3 rounded-2xl border px-3.5 py-3"
-      style={{ borderColor: B.border, background: "linear-gradient(180deg, #F7F9FF 0%, var(--admin-card) 100%)" }}
+      style={{
+        borderColor: gap ? "#FDE68A" : B.border,
+        background: gap ? "linear-gradient(180deg, #FFFBEB 0%, var(--admin-card) 100%)" : "linear-gradient(180deg, #F7F9FF 0%, var(--admin-card) 100%)",
+      }}
     >
       <span
         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
-        style={{ background: "rgba(42,92,221,0.10)", color: B.blueLight }}
+        style={gap ? { background: "#FEF3C7", color: "#B45309" } : { background: "rgba(42,92,221,0.10)", color: B.blueLight }}
       >
         <Icon size={16} />
       </span>
@@ -163,10 +170,15 @@ function ProfileTile({
         <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: B.muted }}>
           {label}
         </p>
-        <p className="truncate text-sm font-semibold" style={{ color: B.blue }} title={value ?? undefined}>
-          {value || "—"}
+        <p className="truncate text-sm font-semibold" style={{ color: gap ? "#92400E" : B.blue }} title={value ?? undefined}>
+          {value || "Not on file"}
         </p>
       </div>
+      {gap ? (
+        <span className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase" style={{ background: "#FEF3C7", color: "#B45309" }}>
+          Missing
+        </span>
+      ) : null}
       {onCopy && value ? (
         <button
           type="button"
@@ -180,6 +192,141 @@ function ProfileTile({
         </button>
       ) : null}
     </div>
+  );
+}
+
+type CheckItem = { label: string; ok: boolean; okText?: string; noText?: string; hint?: string; icon?: LucideIcon };
+
+/** Status list: icon + label + pill per row, staggered in, with a summary strip at the end. */
+function CheckList({ items, allGood, notReady }: { items: CheckItem[]; allGood: string; notReady: string }) {
+  const missing = items.filter((i) => !i.ok).length;
+  return (
+    <div className="space-y-1.5">
+      {items.map((it, i) => {
+        const RowIcon = it.icon ?? (it.ok ? CircleCheck : CircleX);
+        return (
+          <div
+            key={it.label}
+            className="rc-slab-in flex items-center gap-2.5 rounded-xl border px-3 py-2"
+            style={{ borderColor: B.border, animationDelay: `${i * 120}ms` }}
+          >
+            <span
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
+              style={it.ok ? { background: "rgba(22,163,74,0.12)", color: "#16A34A" } : { background: "#FEF3C7", color: "#B45309" }}
+            >
+              <RowIcon size={14} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-semibold" style={{ color: B.blue }}>
+                {it.label}
+              </p>
+              {it.hint ? (
+                <p className="truncate text-[10px]" style={{ color: B.muted }}>
+                  {it.hint}
+                </p>
+              ) : null}
+            </div>
+            <span
+              className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold"
+              style={it.ok ? { background: "#F0FDF4", color: "#15803D" } : { background: "#FFFBEB", color: "#B45309" }}
+            >
+              {it.ok ? it.okText ?? "Done" : it.noText ?? "Missing"}
+            </span>
+          </div>
+        );
+      })}
+      <div
+        className="rc-slab-in rounded-xl px-3 py-2 text-xs font-semibold"
+        style={{
+          animationDelay: `${items.length * 120}ms`,
+          ...(missing ? { background: "#FFFBEB", color: "#92400E" } : { background: "#F0FDF4", color: "#15803D" }),
+        }}
+      >
+        {missing ? notReady.replace("{n}", String(missing)) : allGood}
+      </div>
+    </div>
+  );
+}
+
+type StepState = "done" | "current" | "todo" | "failed";
+
+/** Horizontal KYC progress: numbered dots joined by a line; stacks on small screens. */
+function KycStepper({ steps }: { steps: Array<{ title: string; hint: string; state: StepState; icon: LucideIcon }> }) {
+  const tone: Record<StepState, { bg: string; fg: string; ring: string; label: string }> = {
+    done: { bg: "#16A34A", fg: "#fff", ring: "rgba(22,163,74,0.18)", label: "Done" },
+    current: { bg: B.blueLight, fg: "#fff", ring: "rgba(42,92,221,0.20)", label: "Now" },
+    todo: { bg: "var(--admin-card)", fg: B.muted, ring: "transparent", label: "Next" },
+    failed: { bg: "#DC2626", fg: "#fff", ring: "rgba(220,38,38,0.18)", label: "Rejected" },
+  };
+  return (
+    <div className="rounded-2xl border px-4 py-4 md:px-6" style={{ borderColor: B.border, background: B.card }}>
+      <div className="grid gap-4 sm:grid-cols-4">
+        {steps.map((s, i) => {
+          const t = tone[s.state];
+          const SIcon = s.state === "done" ? CircleCheck : s.state === "failed" ? CircleX : s.icon;
+          return (
+            <div key={s.title} className="relative flex items-start gap-3 sm:flex-col sm:items-center sm:text-center">
+              {i < steps.length - 1 ? (
+                <span
+                  aria-hidden
+                  className="absolute left-[calc(50%+22px)] right-[calc(-50%+6px)] top-5 hidden h-[3px] rounded-full sm:block"
+                  style={{ background: s.state === "done" ? "#16A34A" : B.border }}
+                />
+              ) : null}
+              <span
+                className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 ${s.state === "current" ? "modal-icon-pulse" : ""}`}
+                style={{ background: t.bg, color: t.fg, borderColor: s.state === "todo" ? B.border : t.bg, boxShadow: `0 0 0 5px ${t.ring}` }}
+              >
+                <SIcon size={17} />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-bold" style={{ color: B.blue }}>
+                  {s.title}
+                </p>
+                <p className="text-[11px]" style={{ color: B.muted }}>
+                  {s.hint}
+                </p>
+                <span
+                  className="mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase"
+                  style={
+                    s.state === "todo"
+                      ? { background: "var(--admin-bg)", color: B.muted }
+                      : { background: `color-mix(in srgb, ${s.state === "current" ? B.blueLight : t.bg} 14%, transparent)`, color: s.state === "current" ? B.blueLight : t.bg }
+                  }
+                >
+                  {t.label}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** Tall button tile for the Quick actions card. */
+function QuickAction({ icon: Icon, label, hint, onClick }: { icon: LucideIcon; label: string; hint: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="agent-lift group flex items-center gap-3 rounded-2xl border px-3 py-2.5 text-left"
+      style={{ borderColor: B.border, background: "var(--admin-card)" }}
+    >
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: "rgba(42,92,221,0.10)", color: B.blueLight }}>
+        <Icon size={16} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-bold" style={{ color: B.blue }}>
+          {label}
+        </span>
+        <span className="block truncate text-[11px]" style={{ color: B.muted }}>
+          {hint}
+        </span>
+      </span>
+      <ChevronRight size={16} className="shrink-0 transition group-hover:translate-x-0.5" style={{ color: B.muted }} />
+    </button>
   );
 }
 
@@ -717,6 +864,39 @@ export default function AgentDetailPage() {
 
   if (!hydrated || !accessToken) return null;
 
+  const docsUploaded = agent
+    ? Object.values(agent.documentFiles ?? {}).some(Boolean) || Object.keys(agent.documents ?? {}).length > 0
+    : false;
+  const kycSteps: Array<{ title: string; hint: string; state: StepState; icon: LucideIcon }> = agent
+    ? [
+        {
+          title: "Signup KYC",
+          hint: "PAN + Aadhaar numbers",
+          state: agent.hasKycDocs || agent.kycStatus === "verified" ? "done" : "current",
+          icon: IdCard,
+        },
+        {
+          title: "Documents",
+          hint: "Card photos uploaded",
+          state: docsUploaded || agent.kycStatus === "verified" ? "done" : agent.hasKycDocs ? "current" : "todo",
+          icon: FileCheck2,
+        },
+        {
+          title: "Admin review",
+          hint: "Approve or reject",
+          state:
+            agent.kycStatus === "verified"
+              ? "done"
+              : agent.kycStatus === "rejected"
+                ? "failed"
+                : agent.hasKycDocs
+                  ? "current"
+                  : "todo",
+          icon: ShieldCheck,
+        },
+        { title: "Verified", hint: "Services unlock", state: agent.kycStatus === "verified" ? "done" : "todo", icon: BadgeCheck },
+      ]
+    : [];
   const heroWallets = [...(agent?.wallets ?? [])].sort((a, b) => (a.walletType === "main" ? -1 : b.walletType === "main" ? 1 : 0));
   const lastTxn = recentTxns[0];
   const kyc = agent ? kycPill(agent.kycStatus) : null;
@@ -1038,17 +1218,48 @@ export default function AgentDetailPage() {
                   {profileSection}
                   {recentTxnSection}
                 </div>
-                <div className="space-y-5">{parentSection}</div>
+                <div className="space-y-5">
+                  {parentSection}
+                  <DetailSection title="Account health" icon={ShieldCheck}>
+                    <CheckList
+                      items={[
+                        { label: "KYC", ok: agent.kycStatus === "verified", okText: "Verified", noText: kyc!.text, icon: FileCheck2 },
+                        {
+                          label: "Settlement bank",
+                          ok: !!activeBank,
+                          okText: "Active",
+                          noText: "None active",
+                          hint: activeBank ? `${activeBank.holderName} · ****${activeBank.accountNumberLast4}` : undefined,
+                          icon: Landmark,
+                        },
+                        { label: "Fund requests", ok: agent.fundRequestEnabled, okText: "On", noText: "Off", icon: Banknote },
+                        { label: "Account", ok: !agent.isFrozen, okText: "Active", noText: "Frozen", icon: KeyRound },
+                      ]}
+                      allGood="Agent is fully set up."
+                      notReady="{n} thing(s) to sort out for this agent."
+                    />
+                  </DetailSection>
+                  <DetailSection title="Quick actions" icon={SlidersHorizontal}>
+                    <div className="grid gap-2">
+                      <QuickAction icon={FileCheck2} label="Review KYC" hint="Documents, approve or reject" onClick={() => setTab("kyc")} />
+                      <QuickAction icon={Percent} label="Custom commission" hint="Per-slab rate for this agent" onClick={() => setTab("commission")} />
+                      <QuickAction icon={Wallet} label="Wallet & banks" hint="Balances and settlement banks" onClick={() => setTab("wallet")} />
+                      <QuickAction icon={SlidersHorizontal} label="Controls" hint="Restrict, move or reactivate" onClick={() => setTab("controls")} />
+                    </div>
+                  </DetailSection>
+                </div>
               </div>
             ) : null}
 
             {tab === "kyc" ? (
-              <div className="agent-tab-in grid gap-5 lg:grid-cols-3">
+              <div className="agent-tab-in space-y-5">
+              <KycStepper steps={kycSteps} />
+              <div className="grid gap-5 lg:grid-cols-3">
                 <div className="space-y-5 lg:col-span-2">
                   <DetailSection title="KYC identity" icon={ShieldCheck}>
                     <div className="grid gap-3 sm:grid-cols-2">
-                      <ProfileTile icon={IdCard} label="PAN" value={agent.kyc.panMasked ?? "Not on file"} />
-                      <ProfileTile icon={Fingerprint} label="Aadhaar" value={agent.kyc.aadhaarMasked ?? "Not on file"} />
+                      <ProfileTile icon={IdCard} label="PAN" value={agent.kyc.panMasked} />
+                      <ProfileTile icon={Fingerprint} label="Aadhaar" value={agent.kyc.aadhaarMasked} />
                       <ProfileTile icon={kycPill(agent.kyc.status).icon} label="Status" value={kycPill(agent.kyc.status).text} />
                       <ProfileTile
                         icon={CalendarDays}
@@ -1058,6 +1269,7 @@ export default function AgentDetailPage() {
                             ? new Date(agent.kyc.submittedAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })
                             : "Not submitted"
                         }
+                        missing={!agent.kyc.submittedAt}
                       />
                     </div>
                   </DetailSection>
@@ -1068,16 +1280,24 @@ export default function AgentDetailPage() {
                         <ProfileTile icon={MapPin} label="City" value={agent.kyc.city} />
                         <ProfileTile icon={Hash} label="Pincode" value={agent.kyc.pincode} />
                         <ProfileTile icon={Landmark} label="Bank (KYC)" value={agent.kyc.bankName} />
-                        <ProfileTile icon={agent.kyc.hasBank ? CircleCheck : CircleX} label="Bank on file" value={agent.kyc.hasBank ? "Yes" : "No"} />
+                        <ProfileTile icon={agent.kyc.hasBank ? CircleCheck : CircleX} label="Bank on file" value={agent.kyc.hasBank ? "Yes" : "No"} missing={!agent.kyc.hasBank} />
                       </div>
                     </div>
                   </DetailSection>
                   <DetailSection title="KYC documents" icon={Banknote}>
-                    <KycDocumentGrid
-                      documents={agent.documents}
-                      documentFiles={agent.documentFiles}
-                      checkLabels={agent.docCheckLabels}
-                    />
+                    {docsUploaded ? (
+                      <KycDocumentGrid
+                        documents={agent.documents}
+                        documentFiles={agent.documentFiles}
+                        checkLabels={agent.docCheckLabels}
+                      />
+                    ) : (
+                      <EmptyState
+                        icon={FileCheck2}
+                        title="No KYC documents yet"
+                        hint="PAN, Aadhaar, cheque and photos show here once the agent uploads them in the app or web."
+                      />
+                    )}
                   </DetailSection>
                 </div>
                 <div className="space-y-5">
@@ -1092,6 +1312,27 @@ export default function AgentDetailPage() {
                             : { text: "Active", tone: "green" as const, icon: CircleCheck, live: true })}
                         />
                       </div>
+                      {agent.kycStatus !== "verified" ? (
+                        <div>
+                          <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider" style={{ color: B.muted }}>
+                            Ready to approve?
+                          </p>
+                          <CheckList
+                            items={[
+                              { label: "PAN number", ok: !!agent.kyc.panMasked, okText: "On file", icon: IdCard },
+                              { label: "Aadhaar number", ok: !!agent.kyc.aadhaarMasked, okText: "On file", icon: Fingerprint },
+                              { label: "Documents uploaded", ok: docsUploaded, okText: "Uploaded", icon: FileCheck2 },
+                              { label: "Bank details", ok: agent.kyc.hasBank, okText: "On file", icon: Landmark },
+                            ]}
+                            allGood="Everything is on file — check the photos, then approve."
+                            notReady={
+                              agent.hasKycDocs
+                                ? "{n} missing — you can still approve, but check with the agent first."
+                                : "{n} missing — Approve unlocks once PAN and Aadhaar are on file."
+                            }
+                          />
+                        </div>
+                      ) : null}
                       {agent.kycStatus === "pending" ? (
                         <>
                           <button
@@ -1102,11 +1343,6 @@ export default function AgentDetailPage() {
                           >
                             Approve KYC
                           </button>
-                          {!agent.hasKycDocs ? (
-                            <SectionIntro icon={AlertTriangle} tone="#D97706">
-                              PAN and Aadhaar numbers are missing — the agent must complete signup KYC before you can approve.
-                            </SectionIntro>
-                          ) : null}
                           <button
                             type="button"
                             disabled={busy}
@@ -1153,6 +1389,7 @@ export default function AgentDetailPage() {
                     </div>
                   </DetailSection>
                 </div>
+              </div>
               </div>
             ) : null}
 
