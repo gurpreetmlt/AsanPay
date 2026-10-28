@@ -310,3 +310,27 @@ export function openBlockEdge(part: "top" | "middle" | "bottom"): string {
   if (part === "bottom") sides.push(`inset 0 -2px 0 ${c}`);
   return sides.join(", ");
 }
+
+export type SlabHeaderCell = { label: string; title?: string; colSpan?: number };
+
+/** Column titles inside an open service, right above its slab rows. First cell is left-aligned. */
+export function SlabHeaderRow({ cells }: { cells: SlabHeaderCell[] }) {
+  return (
+    <tr
+      className="rc-slab-in border-t text-[10px] uppercase tracking-wider"
+      style={{ borderColor: B.border, background: "rgba(42,92,221,0.08)", color: B.blueLight, boxShadow: openBlockEdge("middle") }}
+    >
+      {cells.map((c, i) => (
+        <th
+          key={`${c.label}-${i}`}
+          scope="col"
+          colSpan={c.colSpan}
+          title={c.title}
+          className={`py-1.5 font-bold ${i === 0 ? "pl-[4.25rem] pr-3 text-left" : "px-3 text-right"}`}
+        >
+          {c.label}
+        </th>
+      ))}
+    </tr>
+  );
+}

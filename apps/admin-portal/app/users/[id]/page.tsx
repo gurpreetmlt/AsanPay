@@ -34,12 +34,19 @@ import {
   ChevronRight,
   Hash,
   Receipt,
+  IdCard,
+  Fingerprint,
+  ShieldAlert,
+  ShieldX,
+  ArrowRightLeft,
+  RotateCcw,
+  Info,
   type LucideIcon,
 } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { Badge } from "@/components/ui/Badge";
 import { ConfirmModal, type ConfirmTone } from "@/components/ui/ConfirmModal";
-import { DetailSection, InfoRow } from "@/components/users/DetailSection";
+import { DetailSection } from "@/components/users/DetailSection";
 import { AgentSettlementBanksCard } from "@/components/users/AgentSettlementBanksCard";
 import { KycDocumentGrid } from "@/components/users/KycDocumentGrid";
 import type { DocCheckLabelMap } from "@/components/users/DocCheckLabels";
@@ -213,6 +220,52 @@ function HeroFact({ icon: Icon, children, onClick, title }: { icon: LucideIcon; 
   );
 }
 
+/** Compact white wallet card on the blue hero. */
+function HeroWallet({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
+  return (
+    <div className="flex min-w-[132px] items-center gap-2 rounded-xl bg-white px-2.5 py-1.5 shadow-md">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ background: "rgba(42,92,221,0.12)", color: B.blueLight }}>
+        <Icon size={14} />
+      </span>
+      <div className="min-w-0">
+        <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: B.muted }}>
+          {label}
+        </p>
+        <p className="truncate text-sm font-extrabold tabular-nums leading-tight" style={{ color: B.blue }}>
+          {value}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/** Tinted helper strip with an icon tile, used at the top of a section. */
+function SectionIntro({ icon: Icon, tone = B.blueLight, children }: { icon: LucideIcon; tone?: string; children: ReactNode }) {
+  return (
+    <div
+      className="flex items-start gap-3 rounded-2xl px-3 py-2.5"
+      style={{ background: `color-mix(in srgb, ${tone} 8%, transparent)`, border: `1px solid color-mix(in srgb, ${tone} 22%, transparent)` }}
+    >
+      <span
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl"
+        style={{ background: `color-mix(in srgb, ${tone} 16%, transparent)`, color: tone }}
+      >
+        <Icon size={15} />
+      </span>
+      <p className="pt-1 text-xs leading-relaxed" style={{ color: "var(--admin-text)" }}>
+        {children}
+      </p>
+    </div>
+  );
+}
+
+const RESTRICT_LEVELS: Array<{ id: "soft" | "hard" | "freeze" | "none"; label: string; hint: string; icon: LucideIcon; tone: string }> = [
+  { id: "soft", label: "Soft", hint: "AePS + money transfer off", icon: ShieldAlert, tone: "#D97706" },
+  { id: "hard", label: "Hard", hint: "Soft + no top-ups", icon: ShieldX, tone: "#EA580C" },
+  { id: "freeze", label: "Freeze", hint: "Login + settlement off", icon: Snowflake, tone: "#DC2626" },
+  { id: "none", label: "Lift all", hint: "Back to normal", icon: ShieldCheck, tone: "#16A34A" },
+];
+
 /** White pill on the blue hero: small label + value with a coloured dot. */
 function HeroChip({ label, value, dot }: { label: string; value: string; dot: string }) {
   return (
@@ -288,7 +341,14 @@ function LoginEmailCard({
   onResend: () => void;
 }) {
   const le = agent.loginEmail;
-  if (!le || (!le.pending && !le.status && !le.mustChangePassword)) return null;
+  if (!le || (!le.pending && !le.status && !le.mustChangePassword)) {
+    return (
+      <SectionIntro icon={KeyRound} tone="#16A34A">
+        <strong>Password login.</strong> The agent signs in with their mobile number and own password. No login email is
+        pending.
+      </SectionIntro>
+    );
+  }
 
   const expired =
     le.mustChangePassword && le.tempPasswordExpiresAt
@@ -657,7 +717,7 @@ export default function AgentDetailPage() {
 
   if (!hydrated || !accessToken) return null;
 
-  const mainBal = agent?.wallets.find((w) => w.walletType === "main")?.balance;
+  const heroWallets = [...(agent?.wallets ?? [])].sort((a, b) => (a.walletType === "main" ? -1 : b.walletType === "main" ? 1 : 0));
   const lastTxn = recentTxns[0];
   const kyc = agent ? kycPill(agent.kycStatus) : null;
   const toneColor = { green: "#16A34A", amber: "#D97706", red: "#DC2626", slate: "#64748B" } as const;
@@ -862,13 +922,27 @@ export default function AgentDetailPage() {
                       </HeroFact>
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <HeroChip label="KYC" value={kyc!.text} dot={toneColor[kyc!.tone]} />
-                    <HeroChip
-                      label="Account"
-                      value={agent.isFrozen ? "Frozen" : "Active"}
-                      dot={agent.isFrozen ? toneColor.red : "#4ADE80"}
-                    />
+                  <div className="flex flex-col gap-2 sm:items-end">
+                    <div className="flex flex-wrap gap-2">
+                      <HeroChip label="KYC" value={kyc!.text} dot={toneColor[kyc!.tone]} />
+                      <HeroChip
+                        label="Account"
+                        value={agent.isFrozen ? "Frozen" : "Active"}
+                        dot={agent.isFrozen ? toneColor.red : "#4ADE80"}
+                      />
+                    </div>
+                    {heroWallets.length ? (
+                      <div className="flex flex-wrap gap-2">
+                        {heroWallets.map((w) => (
+                          <HeroWallet
+                            key={w.walletType}
+                            icon={w.walletType === "aeps" ? Fingerprint : Wallet}
+                            label={w.walletType === "main" ? "Main wallet" : w.walletType === "aeps" ? "AEPS wallet" : w.walletType}
+                            value={inrText(w.balance)}
+                          />
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -881,7 +955,13 @@ export default function AgentDetailPage() {
                   value={activeBank ? `${activeBank.holderName} · ****${activeBank.accountNumberLast4}` : "None active"}
                   sub={activeBank?.ifsc}
                 />
-                <StatTile icon={Wallet} tone={B.blueLight} label="Main balance" value={mainBal != null ? inrText(mainBal) : "—"} />
+                <StatTile
+                  icon={Network}
+                  tone={B.blueLight}
+                  label="Upline"
+                  value={agent.parent?.name ?? "Top of network"}
+                  sub={agent.parent ? `${agent.parent.role ? ROLE_LABEL[agent.parent.role] ?? agent.parent.role : ""} · ${agent.parent.uid ?? ""}` : undefined}
+                />
                 <StatTile
                   icon={History}
                   tone={toneColor.slate}
@@ -966,25 +1046,30 @@ export default function AgentDetailPage() {
               <div className="agent-tab-in grid gap-5 lg:grid-cols-3">
                 <div className="space-y-5 lg:col-span-2">
                   <DetailSection title="KYC identity" icon={ShieldCheck}>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <InfoRow label="PAN" value={agent.kyc.panMasked} />
-                      <InfoRow label="Aadhaar" value={agent.kyc.aadhaarMasked} />
-                      <InfoRow label="Status" value={agent.kyc.status} />
-                      <InfoRow
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <ProfileTile icon={IdCard} label="PAN" value={agent.kyc.panMasked ?? "Not on file"} />
+                      <ProfileTile icon={Fingerprint} label="Aadhaar" value={agent.kyc.aadhaarMasked ?? "Not on file"} />
+                      <ProfileTile icon={kycPill(agent.kyc.status).icon} label="Status" value={kycPill(agent.kyc.status).text} />
+                      <ProfileTile
+                        icon={CalendarDays}
                         label="Submitted"
-                        value={agent.kyc.submittedAt ? new Date(agent.kyc.submittedAt).toLocaleString("en-IN") : null}
+                        value={
+                          agent.kyc.submittedAt
+                            ? new Date(agent.kyc.submittedAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })
+                            : "Not submitted"
+                        }
                       />
                     </div>
                   </DetailSection>
                   <DetailSection title="KYC address & bank" icon={MapPin}>
-                    <p className="mb-4 text-sm" style={{ color: B.muted }}>
-                      From the KYC submission. Withdrawal banks are verified in Wallet & bank.
-                    </p>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <InfoRow label="City" value={agent.kyc.city} />
-                      <InfoRow label="Pincode" value={agent.kyc.pincode} />
-                      <InfoRow label="Bank (KYC)" value={agent.kyc.bankName} />
-                      <InfoRow label="Bank on file" value={agent.kyc.hasBank ? "Yes" : "No"} />
+                    <div className="space-y-3">
+                      <SectionIntro icon={Info}>From the KYC submission. Withdrawal banks are verified in Wallet &amp; bank.</SectionIntro>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <ProfileTile icon={MapPin} label="City" value={agent.kyc.city} />
+                        <ProfileTile icon={Hash} label="Pincode" value={agent.kyc.pincode} />
+                        <ProfileTile icon={Landmark} label="Bank (KYC)" value={agent.kyc.bankName} />
+                        <ProfileTile icon={agent.kyc.hasBank ? CircleCheck : CircleX} label="Bank on file" value={agent.kyc.hasBank ? "Yes" : "No"} />
+                      </div>
                     </div>
                   </DetailSection>
                   <DetailSection title="KYC documents" icon={Banknote}>
@@ -1018,9 +1103,9 @@ export default function AgentDetailPage() {
                             Approve KYC
                           </button>
                           {!agent.hasKycDocs ? (
-                            <p className="text-xs" style={{ color: B.muted }}>
-                              PAN and Aadhaar numbers missing — agent must complete signup KYC first.
-                            </p>
+                            <SectionIntro icon={AlertTriangle} tone="#D97706">
+                              PAN and Aadhaar numbers are missing — the agent must complete signup KYC before you can approve.
+                            </SectionIntro>
                           ) : null}
                           <button
                             type="button"
@@ -1034,13 +1119,20 @@ export default function AgentDetailPage() {
                         </>
                       ) : null}
                       {agent.kycStatus !== "pending" || agent.hasKycDocs ? (
-                        <div className="space-y-2 rounded-xl border p-3" style={{ borderColor: B.border }}>
-                          <div className="text-sm font-semibold" style={{ color: B.blue }}>
-                            Reset KYC
+                        <div className="space-y-2.5 rounded-2xl border p-3" style={{ borderColor: "#FCA5A5", background: "linear-gradient(180deg, #FEF2F2 0%, var(--admin-card) 100%)" }}>
+                          <div className="flex items-center gap-2.5">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-xl" style={{ background: "#FEE2E2", color: B.danger }}>
+                              <RotateCcw size={15} />
+                            </span>
+                            <div>
+                              <p className="text-sm font-bold" style={{ color: B.blue }}>
+                                Reset KYC
+                              </p>
+                              <p className="text-[11px]" style={{ color: B.muted }}>
+                                Clears PAN / Aadhaar and asks the agent to submit KYC again (e.g. wrong photo).
+                              </p>
+                            </div>
                           </div>
-                          <p className="text-xs" style={{ color: B.muted }}>
-                            Clears PAN / Aadhaar and asks the agent to submit KYC again (e.g. wrong photo uploaded).
-                          </p>
                           <ReasonSelect
                             value={kycResetReason}
                             onChange={setKycResetReason}
@@ -1065,53 +1157,80 @@ export default function AgentDetailPage() {
             ) : null}
 
             {tab === "wallet" ? (
-              <div className="agent-tab-in grid gap-5 lg:grid-cols-3">
-                <div className="space-y-5 lg:col-span-2">
-                  <DetailSection title="Balances" icon={Wallet}>
-                    {agent.wallets.length === 0 ? (
-                      <p className="text-sm" style={{ color: B.muted }}>
-                        No balances yet
-                      </p>
-                    ) : (
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        {agent.wallets.map((w) => (
-                          <div
-                            key={w.walletType}
-                            className="rounded-2xl border px-4 py-4"
-                            style={{ borderColor: B.border, background: "linear-gradient(180deg, #F7F9FF 0%, var(--admin-card) 100%)" }}
-                          >
-                            <p className="text-xs font-bold uppercase tracking-wide" style={{ color: B.muted }}>
-                              {w.walletType === "main" ? "Main wallet" : w.walletType === "aeps" ? "AEPS wallet" : w.walletType}
+              <div className="agent-tab-in space-y-5">
+                <div className="grid gap-4 md:grid-cols-3">
+                  {heroWallets.length === 0 ? (
+                    <div className="md:col-span-2">
+                      <EmptyState icon={Wallet} title="No wallets yet" hint="Wallets are created on the first credit to this agent." />
+                    </div>
+                  ) : (
+                    heroWallets.map((w) => {
+                      const aeps = w.walletType === "aeps";
+                      const WIcon = aeps ? Fingerprint : Wallet;
+                      return (
+                        <div
+                          key={w.walletType}
+                          className="agent-lift relative overflow-hidden rounded-2xl px-5 py-4 text-white shadow-sm"
+                          style={{ background: aeps ? "linear-gradient(135deg, #0E7490 0%, #0891B2 55%, #22D3EE 100%)" : B.badgeGrad }}
+                        >
+                          <span
+                            aria-hidden
+                            className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full"
+                            style={{ background: "radial-gradient(circle, rgba(255,255,255,0.25) 0%, rgba(255,255,255,0) 70%)" }}
+                          />
+                          <div className="relative flex items-center justify-between">
+                            <p className="text-[11px] font-bold uppercase tracking-wider text-white/80">
+                              {w.walletType === "main" ? "Main wallet" : aeps ? "AEPS wallet" : w.walletType}
                             </p>
-                            <p className="mt-1 text-2xl font-extrabold tabular-nums" style={{ color: B.blue }}>
-                              {inrText(w.balance)}
-                            </p>
+                            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20">
+                              <WIcon size={17} />
+                            </span>
                           </div>
-                        ))}
-                      </div>
-                    )}
-                  </DetailSection>
-                  <AgentSettlementBanksCard userId={agent.id} />
-                </div>
-                <div className="space-y-5">
-                  <DetailSection title="Fund requests" icon={Banknote}>
+                          <p className="relative mt-2 text-3xl font-extrabold tabular-nums tracking-tight">{inrText(w.balance)}</p>
+                          <p className="relative mt-1 text-[11px] text-white/75">
+                            {aeps ? "AePS cash withdrawals land here · settles to bank" : "Recharge, bills and transfers spend from here"}
+                          </p>
+                        </div>
+                      );
+                    })
+                  )}
+                  <div className="agent-lift flex flex-col rounded-2xl border px-5 py-4" style={{ borderColor: B.border, background: B.card }}>
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-xs" style={{ color: B.muted }}>
-                        {agent.role === "retailer"
-                          ? "Off by default for retailers — turn on when the sales manager asks"
-                          : "On by default for Super Distributors and Distributors"}
-                      </p>
+                      <div className="flex items-center gap-2.5">
+                        <span
+                          className="flex h-9 w-9 items-center justify-center rounded-xl"
+                          style={{
+                            background: agent.fundRequestEnabled ? "rgba(22,163,74,0.12)" : "rgba(100,116,139,0.12)",
+                            color: agent.fundRequestEnabled ? "#16A34A" : "#64748B",
+                          }}
+                        >
+                          <Banknote size={17} />
+                        </span>
+                        <div>
+                          <p className="text-sm font-bold" style={{ color: B.blue }}>
+                            Fund requests
+                          </p>
+                          <p className="text-[11px] font-semibold" style={{ color: agent.fundRequestEnabled ? "#16A34A" : B.muted }}>
+                            {agent.fundRequestEnabled ? "Agent can request funds" : "Turned off"}
+                          </p>
+                        </div>
+                      </div>
                       <FundRequestSwitch
                         key={`${agent.id}:${agent.fundRequestEnabled}`}
                         userId={agent.id}
                         name={agent.name}
                         enabled={agent.fundRequestEnabled}
-                        showLabel
                         onChange={(enabled) => setAgent((a) => (a ? { ...a, fundRequestEnabled: enabled } : a))}
                       />
                     </div>
-                  </DetailSection>
+                    <p className="mt-auto pt-3 text-[11px] leading-relaxed" style={{ color: B.muted }}>
+                      {agent.role === "retailer"
+                        ? "Off by default for retailers — turn on when the sales manager asks."
+                        : "On by default for Super Distributors and Distributors."}
+                    </p>
+                  </div>
                 </div>
+                <AgentSettlementBanksCard userId={agent.id} />
               </div>
             ) : null}
 
@@ -1140,11 +1259,11 @@ export default function AgentDetailPage() {
 
                   {agent.role !== "admin" ? (
                     <DetailSection title="Restrict services" icon={ShieldCheck}>
-                      <div className="space-y-2">
-                        <p className="text-xs" style={{ color: B.muted }}>
-                          Soft: AePS + money transfer off, bill payments still work. Hard: adds no top-ups. Both keep
-                          login, balance and settlement working. Freeze stops everything — confirmed fraud only.
-                        </p>
+                      <div className="space-y-3">
+                        <SectionIntro icon={Info}>
+                          Soft and Hard keep login, balance and settlement working. Freeze stops everything — confirmed
+                          fraud only. Pick a reason, then a level.
+                        </SectionIntro>
                         <ReasonSelect
                           value={restrictReason}
                           onChange={setRestrictReason}
@@ -1152,22 +1271,37 @@ export default function AgentDetailPage() {
                           placeholder="Select restriction reason"
                         />
                         <div className="grid grid-cols-2 gap-2">
-                          {(["soft", "hard", "freeze", "none"] as const).map((lvl) => (
-                            <button
-                              key={lvl}
-                              type="button"
-                              disabled={busy}
-                              onClick={() => void setRestriction(lvl)}
-                              className="rounded-xl border-2 px-3 py-2 text-xs font-bold capitalize disabled:opacity-50"
-                              style={{
-                                borderColor: lvl === "freeze" ? B.danger : lvl === "none" ? B.green : B.border,
-                                color: lvl === "freeze" ? B.danger : lvl === "none" ? B.green : "var(--admin-text)",
-                                background: "var(--admin-bg)",
-                              }}
-                            >
-                              {lvl === "none" ? "Lift all" : lvl}
-                            </button>
-                          ))}
+                          {RESTRICT_LEVELS.map((lvl) => {
+                            const LvlIcon = lvl.icon;
+                            return (
+                              <button
+                                key={lvl.id}
+                                type="button"
+                                disabled={busy}
+                                onClick={() => void setRestriction(lvl.id)}
+                                className="agent-lift flex items-center gap-2.5 rounded-2xl border px-3 py-2.5 text-left disabled:opacity-50"
+                                style={{
+                                  borderColor: `color-mix(in srgb, ${lvl.tone} 40%, transparent)`,
+                                  background: `color-mix(in srgb, ${lvl.tone} 6%, var(--admin-card))`,
+                                }}
+                              >
+                                <span
+                                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+                                  style={{ background: `color-mix(in srgb, ${lvl.tone} 16%, transparent)`, color: lvl.tone }}
+                                >
+                                  <LvlIcon size={17} />
+                                </span>
+                                <span className="min-w-0">
+                                  <span className="block text-sm font-bold" style={{ color: lvl.tone }}>
+                                    {lvl.label}
+                                  </span>
+                                  <span className="block truncate text-[11px]" style={{ color: B.muted }}>
+                                    {lvl.hint}
+                                  </span>
+                                </span>
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     </DetailSection>
@@ -1177,9 +1311,17 @@ export default function AgentDetailPage() {
                 <div className="space-y-5">
                   {agent.role === "distributor" || agent.role === "retailer" ? (
                     <DetailSection title="Move in tree" icon={Network}>
-                      <p className="mb-3 text-xs" style={{ color: B.muted }}>
-                        Put this agent under a different upline. Their own balance and history stay with them.
-                      </p>
+                      <div className="mb-3">
+                        <SectionIntro icon={ArrowRightLeft}>
+                          Put this agent under a different upline. Their own balance and history stay with them.
+                          {agent.parent ? (
+                            <>
+                              {" "}
+                              Now under <strong>{agent.parent.name}</strong>.
+                            </>
+                          ) : null}
+                        </SectionIntro>
+                      </div>
                       <button
                         type="button"
                         disabled={busy}
@@ -1193,10 +1335,11 @@ export default function AgentDetailPage() {
 
                   {agent.role === "retailer" ? (
                     <DetailSection title="Reactivate AePS" icon={Clock}>
-                      <div className="space-y-2">
-                        <p className="text-xs" style={{ color: B.muted }}>
-                          Clears an AePS block and restarts the dormancy clock. KYC must be verified first.
-                        </p>
+                      <div className="space-y-3">
+                        <SectionIntro icon={Fingerprint} tone={agent.kycStatus === "verified" ? B.blueLight : "#D97706"}>
+                          Clears an AePS block and restarts the dormancy clock.{" "}
+                          {agent.kycStatus === "verified" ? "KYC is verified, so this can run." : <strong>KYC must be verified first.</strong>}
+                        </SectionIntro>
                         <ReasonSelect
                           value={aepsReason}
                           onChange={setAepsReason}

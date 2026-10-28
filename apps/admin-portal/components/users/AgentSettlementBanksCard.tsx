@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "react-hot-toast";
-import { Landmark } from "lucide-react";
+import { CircleCheck, Clock, Info, Landmark, ShieldCheck } from "lucide-react";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { DetailSection } from "@/components/users/DetailSection";
 import api, { fetchApi } from "@/lib/api";
@@ -121,59 +121,112 @@ export function AgentSettlementBanksCard({ userId }: { userId: string }) {
   }
 
   const pendingCount = banks.filter((b) => !b.verified).length;
+  const verifiedCount = banks.filter((b) => b.verified && !b.isActive).length;
+  const activeBank = banks.find((b) => b.isActive);
 
   return (
     <>
       <DetailSection title="Settlement banks" icon={Landmark}>
-        <p className="mb-4 text-sm leading-relaxed" style={{ color: B.muted }}>
-          These accounts are used for agent withdrawals. KYC bank details above are for identity —
-          settlement banks below need a separate verify step.
-        </p>
+        <div
+          className="mb-4 flex items-start gap-3 rounded-2xl px-3 py-2.5"
+          style={{ background: "rgba(42,92,221,0.06)", border: "1px solid rgba(42,92,221,0.18)" }}
+        >
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl" style={{ background: "rgba(42,92,221,0.14)", color: B.blueLight }}>
+            <Info size={15} />
+          </span>
+          <p className="pt-1 text-xs leading-relaxed" style={{ color: "var(--admin-text)" }}>
+            Withdrawals go to the <strong>active payout bank</strong>. KYC bank details are for identity only — each settlement
+            bank needs its own verify step.
+          </p>
+        </div>
 
         {loading ? (
           <p className="text-sm" style={{ color: B.muted }}>
             Loading banks…
           </p>
         ) : banks.length === 0 ? (
-          <div
-            className="rounded-xl border border-dashed px-4 py-5 text-sm"
-            style={{ borderColor: B.border, color: B.muted }}
-          >
-            No settlement bank yet. When the agent adds one, it will show here for verification.
+          <div className="flex flex-col items-center rounded-2xl border border-dashed px-4 py-8 text-center" style={{ borderColor: B.border }}>
+            <span
+              className="flex h-14 w-14 items-center justify-center rounded-full"
+              style={{ background: "rgba(42,92,221,0.08)", color: B.blueLight, boxShadow: "0 0 0 8px rgba(42,92,221,0.04)" }}
+            >
+              <Landmark size={24} />
+            </span>
+            <p className="mt-3 text-sm font-bold" style={{ color: B.blue }}>
+              No settlement bank yet
+            </p>
+            <p className="mt-0.5 text-xs" style={{ color: B.muted }}>
+              When the agent adds one, it shows here for verification.
+            </p>
           </div>
         ) : (
           <div className="space-y-3">
-            {pendingCount > 0 ? (
-              <div
-                className="rounded-xl px-3 py-2 text-sm font-medium"
-                style={{ background: "#FFFAEB", color: "#B54708" }}
-              >
-                {pendingCount} bank{pendingCount === 1 ? "" : "s"} waiting for your verification
-              </div>
-            ) : null}
+            <div className="grid gap-2 sm:grid-cols-3">
+              {[
+                { label: "Active payout bank", value: activeBank ? `****${activeBank.accountNumberLast4}` : "None", icon: CircleCheck, tone: "#16A34A" },
+                { label: "Verified, not active", value: String(verifiedCount), icon: ShieldCheck, tone: "#175CD3" },
+                { label: "Waiting for you", value: String(pendingCount), icon: Clock, tone: pendingCount ? "#B54708" : "#64748B" },
+              ].map((k) => {
+                const KIcon = k.icon;
+                return (
+                  <div key={k.label} className="flex items-center gap-2.5 rounded-2xl border px-3 py-2.5" style={{ borderColor: B.border }}>
+                    <span
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl"
+                      style={{ background: `color-mix(in srgb, ${k.tone} 14%, transparent)`, color: k.tone }}
+                    >
+                      <KIcon size={15} />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: B.muted }}>
+                        {k.label}
+                      </p>
+                      <p className="truncate text-sm font-extrabold tabular-nums" style={{ color: k.tone }}>
+                        {k.value}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
 
             {banks.map((bank) => {
               const meta = statusMeta(bank);
+              const StatusIcon = bank.isActive ? CircleCheck : bank.verified ? ShieldCheck : Clock;
               return (
                 <div
                   key={bank.id}
-                  className="rounded-2xl border bg-white p-4"
-                  style={{ borderColor: bank.isActive ? "#A6F4C5" : B.border }}
+                  className="relative overflow-hidden rounded-2xl border p-4 pl-5 transition hover:shadow-md"
+                  style={{
+                    borderColor: bank.isActive ? "#A6F4C5" : B.border,
+                    background: bank.isActive ? "linear-gradient(90deg, #ECFDF3 0%, var(--admin-card) 55%)" : "var(--admin-card)",
+                  }}
                 >
+                  <span className="absolute inset-y-0 left-0 w-1" style={{ background: meta.color }} />
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0 space-y-1">
+                    <div className="flex min-w-0 items-start gap-3">
                       <span
-                        className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold"
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"
                         style={{ background: meta.bg, color: meta.color }}
                       >
+                        <Landmark size={20} />
+                      </span>
+                    <div className="min-w-0 space-y-1">
+                      <span
+                        className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold"
+                        style={{ background: meta.bg, color: meta.color }}
+                      >
+                        <StatusIcon size={12} />
                         {meta.label}
                       </span>
                       <p className="text-base font-bold" style={{ color: B.blue }}>
-                        {bank.holderName} · ****{bank.accountNumberLast4}
+                        {bank.holderName} <span className="font-mono text-sm" style={{ color: B.muted }}>· ****{bank.accountNumberLast4}</span>
                       </p>
-                      <p className="text-sm font-medium" style={{ color: B.blueMid }}>
+                      <span
+                        className="inline-flex rounded-lg px-2 py-0.5 font-mono text-xs font-semibold"
+                        style={{ background: "rgba(42,92,221,0.08)", color: B.blueMid }}
+                      >
                         IFSC {bank.ifsc}
-                      </p>
+                      </span>
                       <p className="text-xs leading-relaxed" style={{ color: B.muted }}>
                         {meta.hint}
                       </p>
@@ -189,6 +242,7 @@ export function AgentSettlementBanksCard({ userId }: { userId: string }) {
                           {bank.bankCheckMessage || "Not checked with the bank yet"}
                         </p>
                       ) : null}
+                    </div>
                     </div>
 
                     {!bank.verified ? (

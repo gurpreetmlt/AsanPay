@@ -24,7 +24,7 @@ import { apiErrorMessage, downloadCsv } from "@/lib/taxCommissionUtils";
 import { ExportMenu } from "@/components/ui/ExportMenu";
 import { downloadRateCardWorkbook, rateCardCsv, rateCardReport } from "../rateCard/rateCardTransfer";
 import { ROLE_LABEL, SCHEME_ROLES, inr, pct, slabLabel, type RateCardData, type RoleSplit, type ServiceRow, type Slab } from "../rateCard/types";
-import { CategoryHeaderRow, Chip, openBlockEdge } from "../rateCard/ui";
+import { CategoryHeaderRow, Chip, SlabHeaderRow, openBlockEdge } from "../rateCard/ui";
 
 type ShowFilter = "all" | "loss" | "unset";
 
@@ -341,19 +341,6 @@ export function CommissionOverviewScreen() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[980px] text-left text-sm">
-              <thead>
-                <tr className="border-b text-[11px] uppercase tracking-wide" style={{ borderColor: B.border, color: B.muted }}>
-                  <th className="px-4 py-2.5 font-bold">Service</th>
-                  <th className="px-3 py-2.5 text-right font-bold">Provider pays</th>
-                  {SCHEME_ROLES.map((r) => (
-                    <th key={r} className="px-3 py-2.5 text-right font-bold" title={`Net to wallet after ${tdsLabel} (gross − TDS below)`}>
-                      {ROLE_LABEL[r]} net
-                    </th>
-                  ))}
-                  <th className="px-3 py-2.5 text-right font-bold">TDS held</th>
-                  <th className="px-3 py-2.5 text-right font-bold">Company keeps</th>
-                </tr>
-              </thead>
               <tbody>
                 {groups.map((g, gi) => (
                   <Fragment key={g.category}>
@@ -408,15 +395,35 @@ export function CommissionOverviewScreen() {
                               </div>
                             </td>
                             <td className="px-3 py-2.5 text-right text-xs font-semibold tabular-nums" style={{ color: B.blue }}>
+                              <span className="block text-[10px] font-bold uppercase tracking-wider" style={{ color: B.muted }}>
+                                Provider pays
+                              </span>
                               {range(incomes)}
                             </td>
                             <td colSpan={4} className="px-3 py-2.5 text-right text-[11px]" style={{ color: B.muted }}>
                               {open ? "" : "Open to see each slab"}
                             </td>
                             <td className="px-3 py-2.5 text-right text-xs font-bold tabular-nums" style={{ color: row.slabs.some((s) => s.underwater) ? B.danger : B.greenDark }}>
+                              <span className="block text-[10px] font-bold uppercase tracking-wider" style={{ color: B.muted }}>
+                                Company keeps
+                              </span>
                               {range(keeps)}
                             </td>
                           </tr>
+                          {open ? (
+                            <SlabHeaderRow
+                              cells={[
+                                { label: "Slab" },
+                                { label: "Provider pays" },
+                                ...SCHEME_ROLES.map((r) => ({
+                                  label: `${ROLE_LABEL[r]} net`,
+                                  title: `Net to wallet after ${tdsLabel} (gross − TDS below)`,
+                                })),
+                                { label: "TDS held" },
+                                { label: "Company keeps" },
+                              ]}
+                            />
+                          ) : null}
                           {open ? row.slabs.map((s, si) => slabRow(row, s, si)) : null}
                         </Fragment>
                       );

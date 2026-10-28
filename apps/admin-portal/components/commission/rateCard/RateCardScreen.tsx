@@ -45,7 +45,7 @@ import { TaxSummary } from "./TaxSummary";
 import { usePendingSave } from "./usePendingSave";
 import { draftOfIncome, endSlabRequest, newIncomeKey, type IncomeDraft } from "./IncomeSlabModal";
 import { ROLE_LABEL, SCHEME_ROLES, inr, pct, slabLabel, type RateCardData, type RoleSplit, type ServiceRow, type Slab } from "./types";
-import { Btn, CategoryHeaderRow, Chip, openBlockEdge } from "./ui";
+import { Btn, CategoryHeaderRow, Chip, SlabHeaderRow, openBlockEdge } from "./ui";
 
 type ShowFilter = "all" | "loss" | "unset";
 
@@ -654,19 +654,6 @@ export function RateCardScreen() {
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[860px] text-left text-sm">
-                <thead>
-                  <tr className="border-b text-[11px] uppercase tracking-wide" style={{ borderColor: B.border, color: B.muted }}>
-                    <th className="px-4 py-2.5 font-bold">Service</th>
-                    <th className="px-3 py-2.5 text-right font-bold">Provider pays</th>
-                    {SCHEME_ROLES.map((r) => (
-                      <th key={r} className="px-3 py-2.5 text-right font-bold" title="Gross, before TDS">
-                        {ROLE_LABEL[r]}
-                      </th>
-                    ))}
-                    <th className="px-3 py-2.5 text-right font-bold">Company keeps</th>
-                    <th className="w-[150px] px-2 py-2.5 text-right font-bold">Actions</th>
-                  </tr>
-                </thead>
                 <tbody>
                   {groups.map((g, gi) => (
                     <Fragment key={g.category}>
@@ -714,10 +701,21 @@ export function RateCardScreen() {
                                 </div>
                               </td>
                               <td colSpan={5} />
-                              <td className="px-2 py-2 text-right" onClick={(e) => e.stopPropagation()}>
+                              <td className="w-[150px] px-2 py-2 text-right" onClick={(e) => e.stopPropagation()}>
                                 {addSlabButton(row)}
                               </td>
                             </tr>
+                            {open ? (
+                              <SlabHeaderRow
+                                cells={[
+                                  { label: "Slab" },
+                                  { label: "Provider pays" },
+                                  ...SCHEME_ROLES.map((r) => ({ label: ROLE_LABEL[r], title: "Gross, before TDS" })),
+                                  { label: "Company keeps" },
+                                  { label: "Actions" },
+                                ]}
+                              />
+                            ) : null}
                             {open
                               ? row.slabs.map((s, slabIndex) => (
                                   <tr

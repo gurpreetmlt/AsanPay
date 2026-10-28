@@ -10,7 +10,7 @@ import { apiErrorMessage } from "@/lib/taxCommissionUtils";
 import { Modal } from "@/components/ui/Modal";
 import { SaveConfirmModal } from "@/components/commission/rateCard/SaveConfirmModal";
 import { usePendingSave } from "@/components/commission/rateCard/usePendingSave";
-import { Btn, CategoryHeaderRow, Chip, NumberField, SplitModeSwitch, openBlockEdge, type SplitMode } from "@/components/commission/rateCard/ui";
+import { Btn, CategoryHeaderRow, Chip, NumberField, SlabHeaderRow, SplitModeSwitch, openBlockEdge, type SplitMode } from "@/components/commission/rateCard/ui";
 import {
   ROLE_LABEL,
   inr,
@@ -375,16 +375,6 @@ export function AgentRateCard({ userId, role, agentName }: { userId: string; rol
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[860px] text-left text-sm">
-              <thead>
-                <tr className="border-b text-[11px] uppercase tracking-wide" style={{ borderColor: B.border, color: B.muted }}>
-                  <th className="px-4 py-2.5 font-bold">Service</th>
-                  <th className="px-3 py-2.5 text-right font-bold">Provider pays</th>
-                  <th className="px-3 py-2.5 text-right font-bold">{ROLE_LABEL[schemeRole]} default</th>
-                  <th className="px-3 py-2.5 text-right font-bold">This agent</th>
-                  <th className="px-3 py-2.5 text-right font-bold">Company keeps</th>
-                  <th className="w-[90px] px-2 py-2.5 text-right font-bold">Actions</th>
-                </tr>
-              </thead>
               <tbody>
                 {groups.map((g, gi) => (
                   <Fragment key={g.category}>
@@ -457,6 +447,18 @@ export function AgentRateCard({ userId, role, agentName }: { userId: string; rol
                               ) : null}
                             </td>
                           </tr>
+                          {open ? (
+                            <SlabHeaderRow
+                              cells={[
+                                { label: "Slab" },
+                                { label: "Provider pays" },
+                                { label: `${ROLE_LABEL[schemeRole]} default` },
+                                { label: "This agent" },
+                                { label: "Company keeps" },
+                                { label: "Actions" },
+                              ]}
+                            />
+                          ) : null}
                           {open
                             ? row.slabs.map((s, si) => {
                                 const cur = rateFor(own, s);
