@@ -7,6 +7,7 @@ import {
   inSlab,
   percentOfPaiseHalfUp,
   pickRow,
+  pickShare,
   providerReceivablePaise,
   resolveRoleGross,
   splitFeeGstPaise,
@@ -115,6 +116,63 @@ describe("resolution order", () => {
 
   it("nothing configured → none", () => {
     expect(resolveRoleGross({ amountPaise, providerIncomePaise: null })).toEqual({ source: "none", grossPaise: 0 });
+  });
+});
+
+describe("per-slab shares", () => {
+  const share = (id: string, minAmount: string | null, maxAmount: string | null, when: string, providerId: string | null = null) => ({
+    id,
+    providerId,
+    minAmount,
+    maxAmount,
+    effectiveFrom: at(when),
+  });
+  const rows = [
+    share("default", null, null, "2026-10-28T12:00:00Z"),
+    share("slab-100", "100.00", "199.99", "2026-10-01T00:00:00Z"),
+    share("slab-2000", "2000.00", "2099.99", "2026-10-01T00:00:00Z"),
+  ];
+
+  it("a slab row beats the newer service default inside its range", () => {
+    expect(pickShare(rows, null, 15_000)?.id).toBe("slab-100");
+    expect(pickShare(rows, null, 200_000)?.id).toBe("slab-2000");
+  });
+
+  it("amounts outside every slab fall back to the service default", () => {
+    expect(pickShare(rows, null, 50_000)?.id).toBe("default");
+  });
+
+  it("null amount reads only the service default", () => {
+    expect(pickShare(rows, null, null)?.id).toBe("default");
+    expect(pickShare([share("slab-only", "100.00", "199.99", "2026-10-01T00:00:00Z")], null, null)).toBeNull();
+  });
+
+  it("a provider-specific default still beats an all-providers slab", () => {
+    const withProvider = [...rows, share("p-default", null, null, "2026-09-01T00:00:00Z", "p1")];
+    expect(pickShare(withProvider, "p1", 15_000)?.id).toBe("p-default");
+    expect(pickShare(withProvider, null, 15_000)?.id).toBe("slab-100");
+  });
+
+  it("a flat share pays the flat ₹ and ignores the percent", () => {
+    expect(resolveRoleGross({ amountPaise: 15_000, providerIncomePaise: 0, sharePercent: "0", shareFlat: "0.5" })).toEqual({
+      source: "share",
+      grossPaise: 50,
+    });
+    expect(resolveRoleGross({ amountPaise: 15_000, providerIncomePaise: 930, sharePercent: "80" })).toEqual({
+      source: "share",
+      grossPaise: 744,
+    });
+  });
+
+  it("a slab share of 0 pays nothing even when a fixed rule exists", () => {
+    expect(
+      resolveRoleGross({
+        amountPaise: 15_000,
+        providerIncomePaise: 0,
+        sharePercent: "0",
+        fixedRule: { ruleType: "flat", value: "10" },
+      }),
+    ).toEqual({ source: "share", grossPaise: 0 });
   });
 });
 

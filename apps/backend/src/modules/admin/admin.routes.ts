@@ -616,6 +616,9 @@ adminRouter.post("/rate-card/shares", async (req, res) => {
       providerId: z.string().uuid().nullable().optional(),
       role: schemeRoleEnum,
       sharePercent: z.string().min(1).max(20),
+      minAmount: z.string().max(20).nullable().optional(),
+      maxAmount: z.string().max(20).nullable().optional(),
+      flatAmount: z.string().max(20).nullable().optional(),
       effectiveFrom: z.string().max(40).nullable().optional(),
       reason: z.string().max(500).nullable().optional(),
     })

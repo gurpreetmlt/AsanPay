@@ -84,6 +84,7 @@ async function resolveMemberGrossPaise(input: {
     providerIncomePaise: input.providerIncomePaise,
     override,
     sharePercent: share?.sharePercent ?? null,
+    shareFlat: share?.flatAmount ?? null,
     fixedRule: rule,
   });
 }

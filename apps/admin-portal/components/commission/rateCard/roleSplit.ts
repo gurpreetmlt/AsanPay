@@ -1,4 +1,15 @@
-import { ROLE_LABEL, SCHEME_ROLES, inr, pct, samePercent, type PendingChange, type SchemeRole, type ServiceRow } from "./types";
+import {
+  ROLE_LABEL,
+  SCHEME_ROLES,
+  inr,
+  pct,
+  samePercent,
+  slabLabel,
+  type PendingChange,
+  type SchemeRole,
+  type ServiceRow,
+  type Slab,
+} from "./types";
 import { percentError, type SplitMode } from "./ui";
 
 const num = (v: string) => String(Number(v));
@@ -134,6 +145,73 @@ export function roleSplitChanges(input: {
   // Switched ₹ → %: the new share saves first, then the flat rule ends.
   if (wasFlat) out.push(...endFlat);
   return out;
+}
+
+export type SlabSplit = { modes: Record<SchemeRole, SplitMode>; values: Record<SchemeRole, string> };
+
+/** What each role earns on this slab today, as the % / ₹ the slab editor starts from. */
+export function slabSplitOf(s: Slab): SlabSplit {
+  const out: SlabSplit = {
+    modes: { retailer: "percent", distributor: "percent", super_distributor: "percent" },
+    values: { retailer: "", distributor: "", super_distributor: "" },
+  };
+  for (const role of SCHEME_ROLES) {
+    const r = s.roles.find((x) => x.role === role);
+    if (!r) continue;
+    if (r.source === "share" && r.shareFlat != null) {
+      out.modes[role] = "flat";
+      out.values[role] = num(r.shareFlat);
+    } else if (r.source === "share" && r.sharePercent != null) {
+      out.values[role] = num(r.sharePercent);
+    } else if (r.source === "rule" && r.ruleType === "flat" && r.ruleValue != null) {
+      out.modes[role] = "flat";
+      out.values[role] = num(r.ruleValue);
+    }
+  }
+  return out;
+}
+
+const splitLabel = (mode: SplitMode, v: string) =>
+  v.trim() === "" ? "₹0" : mode === "flat" ? `${inr(v)} flat` : `${pct(v)} of provider income`;
+
+/**
+ * Save requests for one slab's own split — one slab share per changed role (blank = ₹0 on this slab).
+ * The slab share wins over the service default and fixed rules for amounts inside the slab.
+ */
+export function slabSplitChanges(input: {
+  row: ServiceRow;
+  initial: SlabSplit;
+  next: SlabSplit;
+  providerId: string | null;
+  minAmount: string | null;
+  maxAmount: string | null;
+}): PendingChange[] {
+  const { row, initial, next } = input;
+  const range = slabLabel(input.minAmount, input.maxAmount);
+  return SCHEME_ROLES.flatMap((role): PendingChange[] => {
+    const mode = next.modes[role];
+    const v = next.values[role].trim();
+    const was = initial.values[role].trim();
+    const same = mode === initial.modes[role] && (v === was || (v !== "" && was !== "" && Number(v) === Number(was)));
+    if (same || roleSplitError(role, mode, v)) return [];
+    return [
+      {
+        label: `${row.serviceName} · ${ROLE_LABEL[role]} (${range})`,
+        detail: `${splitLabel(initial.modes[role], was)} → ${splitLabel(mode, v)} on this slab only`,
+        method: "post",
+        url: "/admin/rate-card/shares",
+        body: {
+          serviceId: row.serviceId,
+          providerId: input.providerId,
+          role,
+          sharePercent: mode === "percent" ? v || "0" : "0",
+          flatAmount: mode === "flat" ? v || "0" : null,
+          minAmount: input.minAmount,
+          maxAmount: input.maxAmount,
+        },
+      },
+    ];
+  });
 }
 
 /** All roles at once (skips roles with an invalid value). */

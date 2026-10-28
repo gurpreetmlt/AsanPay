@@ -38,6 +38,7 @@
 | — | Daily 2FA redesign — Aadhaar card view (PL-13) | L ⚠️ 2 chats | [daily-2fa-redesign.md](daily-2fa-redesign.md) |
 | — | Signup flow v2 — 8 steps, shop + home location (PL-18) | L ⚠️ 3 parts | [signup-flow-v2.md](signup-flow-v2.md) |
 | — | Commission rate card + share % + agent Commission card (PL-14) | L ⚠️ 5 chats | [commission-rate-card.md](commission-rate-card.md) |
+| — | Per-slab Retailer / Distributor / SD split, % or flat (PL-29) | M–L | [per-slab-commission-split.md](per-slab-commission-split.md) |
 | 19 | Commission schemes | M | [19-commission-schemes.md](19-commission-schemes.md) |
 | 25 | Group AEPS rows on Commission page | M | [25-admin-service-grouping.md](25-admin-service-grouping.md) |
 | 28 | Commission payout report | M | [28-commission-payout-report.md](28-commission-payout-report.md) |

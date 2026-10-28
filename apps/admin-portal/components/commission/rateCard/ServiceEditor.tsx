@@ -809,7 +809,8 @@ export function ServiceEditor({
             </span>
           </div>
           <p className="mt-2 text-[11px]" style={{ color: B.muted }}>
-            % = share of what the provider pays · ₹ = flat amount per txn, any amount.
+            Default for every slab · % = share of what the provider pays · ₹ = flat amount per txn. A slab&apos;s own
+            split (✎ on its table row) wins over this default.
           </p>
 
           <div className="mt-3 overflow-hidden rounded-xl border" style={{ borderColor: B.border }}>

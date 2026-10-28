@@ -78,9 +78,10 @@ export const providerPayoutRules = pgTable(
 );
 
 /**
- * Role earning as a share of provider income (e.g. retailer 60 %). Resolution order per payout:
- * agent override → share (only when provider income is configured) → commission_rules → none.
- * providerId null = all providers; a provider-specific row wins.
+ * Role earning as a share of provider income (e.g. retailer 60 %) or a flat ₹, optionally per amount
+ * slab. Resolution order per payout: agent override → share (only when provider income is
+ * configured) → commission_rules → none. providerId null = all providers; a provider-specific row
+ * wins, then a slab row over the service default.
  */
 export const commissionShares = pgTable(
   "commission_shares",
@@ -93,6 +94,11 @@ export const commissionShares = pgTable(
     role: userRoleEnum("role").notNull(),
     // 0–100 percent of provider income
     sharePercent: numeric("share_percent", { precision: 7, scale: 4 }).notNull(),
+    /** Slab bounds (₹, inclusive). Both null = service default; a matching slab row wins over it. */
+    minAmount: numeric("min_amount", { precision: 14, scale: 2 }),
+    maxAmount: numeric("max_amount", { precision: 14, scale: 2 }),
+    /** Set = flat ₹ per txn instead of `share_percent` (which is then 0). */
+    flatAmount: numeric("flat_amount", { precision: 10, scale: 4 }),
     effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull().defaultNow(),
     effectiveTo: timestamp("effective_to", { withTimezone: true }),
     isActive: boolean("is_active").notNull().default(true),

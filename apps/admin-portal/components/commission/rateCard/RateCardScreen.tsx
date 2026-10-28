@@ -50,7 +50,7 @@ import {
   type Slab,
 } from "./types";
 import { Btn, Chip, NumberField, SplitModeSwitch, type SplitMode } from "./ui";
-import { allRoleSplitChanges, modesOf, roleSplitError, sharesDraftOf } from "./roleSplit";
+import { roleSplitError, slabSplitChanges, slabSplitOf, type SlabSplit } from "./roleSplit";
 
 const DEFAULT_PREVIEW_AMOUNT = "2000";
 
@@ -81,7 +81,13 @@ function RoleCell({ r }: { r: RoleSplit | undefined }) {
         {inr(r.gross)}
       </p>
       <p className="text-[11px]" style={{ color: r.source === "none" ? B.danger : B.muted }}>
-        {r.source === "share" ? `${pct(r.sharePercent)} share` : r.source === "rule" ? "Fixed rule" : r.source === "none" ? "None" : "Override"}
+        {r.source === "share"
+          ? `${r.shareFlat != null ? "Flat" : `${pct(r.sharePercent)} share`}${r.shareSlab ? " · slab" : ""}`
+          : r.source === "rule"
+            ? "Fixed rule"
+            : r.source === "none"
+              ? "None"
+              : "Override"}
       </p>
     </div>
   );
@@ -200,7 +206,8 @@ export function RateCardScreen() {
     rowKey: string;
     initial: IncomeDraft;
     draft: IncomeDraft;
-    /** Role split for the whole service (every slab), edited from the same card. */
+    /** This slab's own role split, edited from the same card. */
+    initialSplit: SlabSplit;
     modes: Record<SchemeRole, SplitMode>;
     values: Record<SchemeRole, string>;
   } | null>(null);
@@ -303,11 +310,13 @@ export function RateCardScreen() {
 
   const previewServices = data?.services ?? [];
 
-  function openInline(row: ServiceRow, rowKey: string, draft: IncomeDraft) {
+  function openInline(row: ServiceRow, s: Slab, draft: IncomeDraft) {
+    const rowKey = slabKey(s);
+    const split = slabSplitOf(s);
     setInlineSlab((cur) =>
       cur?.serviceId === row.serviceId && cur.rowKey === rowKey
         ? null
-        : { serviceId: row.serviceId, rowKey, initial: draft, draft, modes: modesOf(row), values: sharesDraftOf(row) },
+        : { serviceId: row.serviceId, rowKey, initial: draft, draft, initialSplit: split, modes: split.modes, values: split.values },
     );
   }
 
@@ -321,7 +330,7 @@ export function RateCardScreen() {
         <div className="flex justify-end gap-0.5">
           {rule ? (
             <>
-              <IconAction title="Edit slab" tone="blue" active={editingThis} onClick={() => openInline(row, key, draftOfIncome(rule))}>
+              <IconAction title="Edit slab" tone="blue" active={editingThis} onClick={() => openInline(row, s, draftOfIncome(rule))}>
                 <Pencil size={14} />
               </IconAction>
               <IconAction title="Delete slab" tone="red" onClick={() => setSaveReq(endSlabRequest(row, rule))}>
@@ -334,7 +343,7 @@ export function RateCardScreen() {
               tone="green"
               active={editingThis}
               onClick={() =>
-                openInline(row, key, {
+                openInline(row, s, {
                   key: newIncomeKey(),
                   replacesId: null,
                   providerId: providerId || null,
@@ -358,7 +367,7 @@ export function RateCardScreen() {
   /** Inline slab editor, rendered as a full-width row right under the slab it edits. */
   function inlineRow(row: ServiceRow, s: Slab) {
     if (!inlineSlab || inlineSlab.serviceId !== row.serviceId || inlineSlab.rowKey !== slabKey(s)) return null;
-    const { initial, draft, modes, values } = inlineSlab;
+    const { initial, draft, initialSplit, modes, values } = inlineSlab;
     const editing = Boolean(initial.replacesId);
     const error = incomeRowError(draft);
     const slabChanged = (["ruleType", "value", "capAmount", "minAmount", "maxAmount"] as const).some(
@@ -366,8 +375,15 @@ export function RateCardScreen() {
     );
     const includeSlab = !editing || slabChanged;
     const roleErrors = SCHEME_ROLES.map((r) => roleSplitError(r, modes[r], values[r]));
-    const scopeLabel = providerId ? providerName : "All providers";
-    const splitChanges = allRoleSplitChanges({ row, modes, values, providerId: providerId || null, scopeLabel });
+    // The split follows the slab range being saved (new bounds when the range itself is edited).
+    const splitChanges = slabSplitChanges({
+      row,
+      initial: initialSplit,
+      next: { modes, values },
+      providerId: providerId || null,
+      minAmount: draft.minAmount.trim() || null,
+      maxAmount: draft.maxAmount.trim() || null,
+    });
     const changes = [...(includeSlab && !error ? incomeChanges(row, draft, providerName) : []), ...splitChanges];
     const canSave = changes.length > 0 && !(includeSlab && error) && !roleErrors.some(Boolean);
 
@@ -441,7 +457,7 @@ export function RateCardScreen() {
                   Commission split
                 </p>
                 <p className="text-[11px]" style={{ color: B.muted }}>
-                  Applies to every slab of {row.serviceName} · % = share of what the provider pays · ₹ = flat per txn
+                  This slab only ({slabLabel(draft.minAmount || null, draft.maxAmount || null)}) · % = share of what the provider pays · ₹ = flat per txn · blank = ₹0
                 </p>
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
@@ -455,8 +471,6 @@ export function RateCardScreen() {
                         label={ROLE_LABEL[r]}
                         mode={modes[r]}
                         onChange={(m) => setRole(r, { mode: m })}
-                        disabled={Boolean(providerId)}
-                        disabledReason="Flat ₹ is set for All providers — pick All providers to switch"
                       />
                     </div>
                     <NumberField

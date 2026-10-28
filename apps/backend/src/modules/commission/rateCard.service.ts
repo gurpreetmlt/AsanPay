@@ -10,6 +10,7 @@ import {
 } from "../../db/postgres/schema";
 import type { UserRole } from "@asanpay/shared-types";
 import { HttpError } from "../../utils/httpError";
+import { env } from "../../config/env";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import { toPaise, fromPaise } from "../wallet/decimal";
 import { computeCustomerFeePaise, validateChargeValue } from "../service-charges/serviceCharge.service";
@@ -39,6 +40,7 @@ import {
   loadRateConfig,
   pickProviderIncomeRule,
   roleDefaultFor,
+  serviceShareFor,
   type RateConfig,
 } from "./rateCard.config";
 
@@ -122,6 +124,7 @@ function computeSplit(ctx: SplitContext, serviceId: string, providerId: string |
       amountPaise,
       providerIncomePaise,
       sharePercent: share?.sharePercent ?? null,
+      shareFlat: share?.flatAmount ?? null,
       fixedRule: rule,
     });
     const { netPaise, tdsPaise } = applyTdsToGrossPaise(resolved.grossPaise, ctx.tax);
@@ -130,6 +133,8 @@ function computeSplit(ctx: SplitContext, serviceId: string, providerId: string |
       source: resolved.source,
       shareId: share?.id ?? null,
       sharePercent: share?.sharePercent ?? null,
+      shareFlat: share?.flatAmount ?? null,
+      shareSlab: share ? share.minAmount != null || share.maxAmount != null : false,
       ruleId: rule?.id ?? null,
       ruleType: rule?.ruleType ?? null,
       ruleValue: rule?.value ?? null,
@@ -199,6 +204,8 @@ function computeSplit(ctx: SplitContext, serviceId: string, providerId: string |
       source: r.source,
       shareId: r.shareId,
       sharePercent: r.sharePercent,
+      shareFlat: r.shareFlat,
+      shareSlab: r.shareSlab,
       ruleId: r.ruleId,
       ruleType: r.ruleType,
       ruleValue: r.ruleValue,
@@ -350,7 +357,8 @@ export async function getRateCard(opts?: { providerId?: string | null }) {
     const feeRules = charges.filter((c) => c.serviceId === s.id && inScope(c));
 
     const slabKeys = new Map<string, { minAmount: string | null; maxAmount: string | null }>();
-    for (const r of [...incomeRules, ...fixedRules, ...feeRules]) {
+    const slabShares = cfg.shares.filter((r) => r.serviceId === s.id && inScope(r));
+    for (const r of [...incomeRules, ...fixedRules, ...feeRules, ...slabShares]) {
       if (r.minAmount == null && r.maxAmount == null) continue;
       slabKeys.set(`${r.minAmount ?? ""}|${r.maxAmount ?? ""}`, { minAmount: r.minAmount, maxAmount: r.maxAmount });
     }
@@ -364,7 +372,7 @@ export async function getRateCard(opts?: { providerId?: string | null }) {
 
     const shares = Object.fromEntries(
       SCHEME_ROLES.map((role) => {
-        const { share } = roleDefaultFor(cfg, s.id, providerId, role, 0);
+        const share = serviceShareFor(cfg, s.id, providerId, role);
         return [
           role,
           share
@@ -490,7 +498,7 @@ function applyPreviewDraft(
     if (raw === undefined) continue;
     const allProviders = (r: { serviceId: string; role: UserRole; providerId: string | null }) =>
       r.serviceId === serviceId && r.role === role && r.providerId === null;
-    shares = shares.filter((s) => !allProviders(s));
+    shares = shares.filter((s) => !(allProviders(s) && s.minAmount == null && s.maxAmount == null));
     rules = rules.filter((r) => !allProviders(r));
     if (raw.trim() !== "") {
       rules = [
@@ -513,16 +521,29 @@ function applyPreviewDraft(
     const raw = draft.shares?.[role];
     if (raw === undefined) continue;
     const next = raw.trim();
+    const isDefault = (s: (typeof shares)[number]) => s.minAmount == null && s.maxAmount == null;
     const sameScope = (s: (typeof shares)[number]) =>
-      s.serviceId === serviceId && s.role === role && s.providerId === scopeProviderId;
+      s.serviceId === serviceId && s.role === role && s.providerId === scopeProviderId && isDefault(s);
     const hadInScope = shares.some(sameScope);
-    const hasAllProviders = shares.some((s) => s.serviceId === serviceId && s.role === role && s.providerId === null);
+    const hasAllProviders = shares.some(
+      (s) => s.serviceId === serviceId && s.role === role && s.providerId === null && isDefault(s),
+    );
     shares = shares.filter((s) => !sameScope(s));
     const value = next !== "" ? next : !hadInScope && scopeProviderId && hasAllProviders ? "0" : null;
     if (value !== null) {
       shares = [
         ...shares,
-        { id: `draft-share-${role}`, serviceId, providerId: scopeProviderId, role, sharePercent: value, effectiveFrom: at(0) },
+        {
+          id: `draft-share-${role}`,
+          serviceId,
+          providerId: scopeProviderId,
+          role,
+          sharePercent: value,
+          minAmount: null,
+          maxAmount: null,
+          flatAmount: null,
+          effectiveFrom: at(0),
+        },
       ];
     }
   }
@@ -622,6 +643,11 @@ export type ShareInput = {
   providerId?: string | null;
   role: string;
   sharePercent: string;
+  /** Slab bounds (₹); both empty = the service default for this role. */
+  minAmount?: string | null;
+  maxAmount?: string | null;
+  /** Flat ₹ per txn instead of a % (share percent is then stored as 0). */
+  flatAmount?: string | null;
   effectiveFrom?: string | null;
   reason?: string | null;
 };
@@ -632,6 +658,9 @@ function shareSnapshot(r: typeof commissionShares.$inferSelect): Record<string, 
     providerId: r.providerId,
     role: r.role,
     sharePercent: String(r.sharePercent),
+    minAmount: r.minAmount != null ? String(r.minAmount) : null,
+    maxAmount: r.maxAmount != null ? String(r.maxAmount) : null,
+    flatAmount: r.flatAmount != null ? String(r.flatAmount) : null,
     effectiveFrom: r.effectiveFrom.toISOString(),
     effectiveTo: r.effectiveTo ? r.effectiveTo.toISOString() : null,
     isActive: r.isActive,
@@ -648,11 +677,28 @@ export async function setCommissionShare(adminId: string, input: ShareInput) {
   const providerId = input.providerId || null;
   await assertProviderExists(providerId);
 
-  const pct = Number(input.sharePercent);
+  let flatAmount: string | null = null;
+  if (input.flatAmount != null && String(input.flatAmount).trim() !== "") {
+    const flat = Number(input.flatAmount);
+    const flatCap = env.MAX_FLAT_COMMISSION_RUPEES;
+    if (!Number.isFinite(flat) || flat < 0) {
+      throw new HttpError(400, "Flat amount must be ₹0 or more", "INVALID_SHARE_FLAT");
+    }
+    if (flat > flatCap) {
+      throw new HttpError(400, `Flat amount cannot be more than ₹${flatCap}`, "INVALID_SHARE_FLAT");
+    }
+    flatAmount = flat.toFixed(4);
+  }
+  const pct = flatAmount != null ? 0 : Number(input.sharePercent);
   if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
     throw new HttpError(400, "Share must be a number from 0 to 100", "INVALID_SHARE_PERCENT");
   }
   const sharePercent = pct.toFixed(4);
+  const minAmount = normalizeAmountBound(input.minAmount, "minAmount");
+  const maxAmount = normalizeAmountBound(input.maxAmount, "maxAmount");
+  if (minAmount != null && maxAmount != null && Number(minAmount) > Number(maxAmount)) {
+    throw new HttpError(400, "Slab from cannot be more than Slab to", "INVALID_AMOUNT");
+  }
   const effectiveFrom = parseEffectiveFrom(input.effectiveFrom);
   await assertCommissionMonthUnlocked([effectiveFrom]);
 
@@ -660,6 +706,8 @@ export async function setCommissionShare(adminId: string, input: ShareInput) {
     eq(commissionShares.serviceId, input.serviceId),
     providerId ? eq(commissionShares.providerId, providerId) : isNull(commissionShares.providerId),
     eq(commissionShares.role, role),
+    minAmount != null ? eq(commissionShares.minAmount, minAmount) : isNull(commissionShares.minAmount),
+    maxAmount != null ? eq(commissionShares.maxAmount, maxAmount) : isNull(commissionShares.maxAmount),
     eq(commissionShares.isActive, true),
     isNull(commissionShares.effectiveTo),
     lte(commissionShares.effectiveFrom, effectiveFrom),
@@ -672,7 +720,16 @@ export async function setCommissionShare(adminId: string, input: ShareInput) {
     }
     const [row] = await tx
       .insert(commissionShares)
-      .values({ serviceId: input.serviceId, providerId, role, sharePercent, effectiveFrom })
+      .values({
+        serviceId: input.serviceId,
+        providerId,
+        role,
+        sharePercent,
+        minAmount,
+        maxAmount,
+        flatAmount,
+        effectiveFrom,
+      })
       .returning();
     return { previous: prev[0] ?? null, created: row };
   });
@@ -683,7 +740,7 @@ export async function setCommissionShare(adminId: string, input: ShareInput) {
     action: "admin.commission_share_set",
     entityType: "commission_share",
     entityId: created.id,
-    metadata: { serviceId: input.serviceId, providerId, role, sharePercent },
+    metadata: { serviceId: input.serviceId, providerId, role, sharePercent, minAmount, maxAmount, flatAmount },
   });
   await recordRateChangeEvent({
     adminId,
@@ -697,7 +754,7 @@ export async function setCommissionShare(adminId: string, input: ShareInput) {
 
   const cfg = await loadRateConfig([input.serviceId], effectiveFrom);
   const totalScaled = SCHEME_ROLES.reduce((sum, r) => {
-    const { share } = roleDefaultFor(cfg, input.serviceId, providerId, r, 0);
+    const share = serviceShareFor(cfg, input.serviceId, providerId, r);
     return sum + (share ? percentToScaled(share.sharePercent) : 0);
   }, 0);
   const shareTotalPercent = (totalScaled / 10_000).toFixed(4);

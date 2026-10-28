@@ -87,21 +87,52 @@ export function pickRow<T extends PickableRow>(
   return candidates[0] ?? null;
 }
 
+const isSlabRow = (r: Pick<PickableRow, "minAmount" | "maxAmount">) => r.minAmount != null || r.maxAmount != null;
+
+/**
+ * Best share for a role: provider-specific beats all-providers, then a slab row covering the amount
+ * beats the service default (no bounds), then the newest. `amountPaise` null = service default rows only.
+ */
+export function pickShare<T extends PickableRow>(
+  rows: readonly T[],
+  providerId: string | null,
+  amountPaise: number | null,
+): T | null {
+  const candidates = rows.filter(
+    (r) =>
+      (r.providerId === null || (providerId !== null && r.providerId === providerId)) &&
+      (amountPaise === null ? !isSlabRow(r) : inSlab(r, amountPaise)),
+  );
+  candidates.sort((a, b) => {
+    const ap = a.providerId !== null ? 1 : 0;
+    const bp = b.providerId !== null ? 1 : 0;
+    if (ap !== bp) return bp - ap;
+    const as = isSlabRow(a) ? 1 : 0;
+    const bs = isSlabRow(b) ? 1 : 0;
+    if (as !== bs) return bs - as;
+    return b.effectiveFrom.getTime() - a.effectiveFrom.getTime();
+  });
+  return candidates[0] ?? null;
+}
+
 /**
  * One role's gross earning. Order: agent override → share of provider income → fixed rule → none.
  * A share only applies when provider income is configured (non-null); otherwise the fixed rule pays.
+ * A share with `shareFlat` pays that flat ₹ instead of `sharePercent`.
  */
 export function resolveRoleGross(input: {
   amountPaise: number;
   providerIncomePaise: number | null;
   override?: FixedRule | null;
   sharePercent?: string | null;
+  shareFlat?: string | null;
   fixedRule?: FixedRule | null;
 }): { source: PayoutSource; grossPaise: number } {
   if (input.override) {
     return { source: "override", grossPaise: Math.max(0, computeFixedPaise(input.override, input.amountPaise)) };
   }
   if (input.sharePercent != null && input.providerIncomePaise != null) {
+    if (input.shareFlat != null) return { source: "share", grossPaise: Math.max(0, toPaise(input.shareFlat)) };
     return { source: "share", grossPaise: computeSharePaise(input.providerIncomePaise, input.sharePercent) };
   }
   if (input.fixedRule) {

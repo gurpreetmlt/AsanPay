@@ -10,6 +10,7 @@ import type { UserRole } from "@asanpay/shared-types";
 import {
   computeProviderIncomePaise,
   pickRow,
+  pickShare,
   type FixedRule,
   type RuleType,
 } from "./rateCard.math";
@@ -32,8 +33,14 @@ export type ShareRow = {
   providerId: string | null;
   role: UserRole;
   sharePercent: string;
+  /** Slab bounds (₹, inclusive); both null = the service default for this role. */
+  minAmount: string | null;
+  maxAmount: string | null;
+  /** Set = flat ₹ per txn instead of `sharePercent`. */
+  flatAmount: string | null;
   effectiveFrom: Date;
 };
+
 
 export type FixedRuleRow = {
   id: string;
@@ -98,6 +105,9 @@ export async function loadRateConfig(serviceIds: string[] | null, at: Date): Pro
         providerId: commissionShares.providerId,
         role: commissionShares.role,
         sharePercent: commissionShares.sharePercent,
+        minAmount: commissionShares.minAmount,
+        maxAmount: commissionShares.maxAmount,
+        flatAmount: commissionShares.flatAmount,
         effectiveFrom: commissionShares.effectiveFrom,
       })
       .from(commissionShares)
@@ -126,7 +136,13 @@ export async function loadRateConfig(serviceIds: string[] | null, at: Date): Pro
       minAmount: str(r.minAmount),
       maxAmount: str(r.maxAmount),
     })),
-    shares: shareRows.map((r) => ({ ...r, sharePercent: String(r.sharePercent) })),
+    shares: shareRows.map((r) => ({
+      ...r,
+      sharePercent: String(r.sharePercent),
+      minAmount: str(r.minAmount),
+      maxAmount: str(r.maxAmount),
+      flatAmount: str(r.flatAmount),
+    })),
     rules: ruleRows.map((r) => ({
       ...r,
       value: String(r.value),
@@ -168,10 +184,10 @@ export function roleDefaultFor(
   role: UserRole,
   amountPaise: number,
 ): { share: ShareRow | null; rule: FixedRuleRow | null } {
-  const share = pickRow(
+  const share = pickShare(
     cfg.shares.filter((s) => s.serviceId === serviceId && s.role === role),
     providerId,
-    null,
+    amountPaise,
   );
   const rule = pickRow(
     cfg.rules.filter((r) => r.serviceId === serviceId && r.role === role),
@@ -179,6 +195,20 @@ export function roleDefaultFor(
     amountPaise,
   );
   return { share, rule };
+}
+
+/** The role's service default share (no slab) — what the rate card's share box edits. */
+export function serviceShareFor(
+  cfg: RateConfig,
+  serviceId: string,
+  providerId: string | null,
+  role: UserRole,
+): ShareRow | null {
+  return pickShare(
+    cfg.shares.filter((s) => s.serviceId === serviceId && s.role === role),
+    providerId,
+    null,
+  );
 }
 
 /** Active per-agent override (TCR06: expired overrides no longer apply). */

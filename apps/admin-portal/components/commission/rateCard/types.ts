@@ -29,6 +29,10 @@ export type RoleSplit = {
   source: "override" | "share" | "rule" | "none";
   shareId: string | null;
   sharePercent: string | null;
+  /** Set = the share pays this flat ₹ instead of `sharePercent`. */
+  shareFlat: string | null;
+  /** The share is this slab's own split (not the service default). */
+  shareSlab: boolean;
   ruleId: string | null;
   ruleType: RuleType | null;
   ruleValue: string | null;
