@@ -813,7 +813,8 @@ export function RateCardScreen() {
             ))}
           </ul>
           <p className="mt-3 text-[11px]" style={{ color: B.muted }}>
-            Template: Export → CSV. Types are flat or percent. Blank provider / role cells keep what is saved; 0 sets ₹0.
+            Template: Export → CSV. Write 0.5 for a flat ₹ or 80% for a percent. Blank cells keep what is saved; 0 sets ₹0.
+            Service name or code both work.
           </p>
           <div className="mt-4 grid grid-cols-2 gap-2">
             <Btn variant="destructive" onClick={() => setImportErrors(null)}>

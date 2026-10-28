@@ -147,6 +147,15 @@ describe("per-slab shares", () => {
     expect(pickShare([share("slab-only", "100.00", "199.99", "2026-10-01T00:00:00Z")], null, null)).toBeNull();
   });
 
+  it("the narrower of two overlapping slabs wins inside its range, whichever was saved last", () => {
+    const overlap = [
+      share("wide", "3000.00", "10000.00", "2026-10-28T12:00:00Z"),
+      share("narrow", "3000.00", "7999.99", "2026-10-01T00:00:00Z"),
+    ];
+    expect(pickShare(overlap, null, 500_000)?.id).toBe("narrow");
+    expect(pickShare(overlap, null, 900_000)?.id).toBe("wide");
+  });
+
   it("a provider-specific default still beats an all-providers slab", () => {
     const withProvider = [...rows, share("p-default", null, null, "2026-09-01T00:00:00Z", "p1")];
     expect(pickShare(withProvider, "p1", 15_000)?.id).toBe("p-default");

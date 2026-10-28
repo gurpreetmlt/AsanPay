@@ -19,26 +19,28 @@ import {
 } from "./types";
 import type { SplitMode } from "./ui";
 
-/** One row per slab. The same columns are read back on import; the last two are info only. */
+/**
+ * One row per slab, easy to edit in Excel: a money cell is a plain number for flat ₹ ("0.5") or ends
+ * with % for a percentage ("80%"). The same columns are read back on import; the last two are info only.
+ */
 export const RATE_CARD_CSV_HEADER = [
-  "service_code",
-  "service_name",
-  "slab_from",
-  "slab_to",
-  "provider_type",
-  "provider_value",
-  "provider_cap",
-  "retailer_type",
-  "retailer_value",
-  "distributor_type",
-  "distributor_value",
-  "sd_type",
-  "sd_value",
-  "example_amount",
-  "company_keeps",
+  "Service",
+  "Service code",
+  "Slab from",
+  "Slab to",
+  "Provider pays",
+  "Provider max",
+  "Retailer",
+  "Distributor",
+  "SD",
+  "Example amount",
+  "Company keeps",
 ] as const;
 
-const ROLE_COLUMN: Record<SchemeRole, string> = {
+/** Header key after dropping case, spaces and punctuation ("Slab from" / "slab_from" → "slabfrom"). */
+const headerKey = (h: string) => h.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+const ROLE_KEY: Record<SchemeRole, string> = {
   retailer: "retailer",
   distributor: "distributor",
   super_distributor: "sd",
@@ -58,11 +60,13 @@ function incomeRuleOf(row: ServiceRow, s: Slab): IncomeRule | null {
   );
 }
 
+/** "0.5" for flat ₹, "80%" for a percentage, "" when the role earns nothing set on this slab. */
 function splitCells(s: Slab): string[] {
   const split = slabSplitOf(s);
-  return SCHEME_ROLES.flatMap((role) => {
+  return SCHEME_ROLES.map((role) => {
     const v = split.values[role];
-    return v === "" ? ["", ""] : [split.modes[role], v];
+    if (v === "") return "";
+    return split.modes[role] === "percent" ? `${v}%` : v;
   });
 }
 
@@ -72,12 +76,11 @@ export function rateCardCsvRows(data: RateCardData): string[][] {
       // Only a row with the same bounds — a wider "any amount" rate stays blank so import does not split it.
       const income = row.providerIncomeRules.find((r) => r.minAmount === s.minAmount && r.maxAmount === s.maxAmount) ?? null;
       return [
-        row.serviceCode,
         row.serviceName,
+        row.serviceCode,
         num(s.minAmount),
         num(s.maxAmount),
-        income ? (income.ruleType === "flat" ? "flat" : "percent") : "",
-        income ? num(income.value) : "",
+        income ? (income.ruleType === "flat" ? num(income.value) : `${num(income.value)}%`) : "",
         income?.capAmount ? num(income.capAmount) : "",
         ...splitCells(s),
         num(s.sampleAmount),
@@ -89,7 +92,7 @@ export function rateCardCsvRows(data: RateCardData): string[][] {
 
 const csvCell = (v: string) => (/[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
 
-/** UTF-8 BOM so Excel opens ₹ and names correctly. */
+/** UTF-8 BOM so Excel opens names correctly. */
 export function rateCardCsv(data: RateCardData): string {
   const lines = [[...RATE_CARD_CSV_HEADER], ...rateCardCsvRows(data)];
   return `\uFEFF${lines.map((l) => l.map(csvCell).join(",")).join("\r\n")}\r\n`;
@@ -290,9 +293,39 @@ export type ImportPlan = {
 
 const MAX_ERRORS = 25;
 
+/** Money / amount text from Excel: drops ₹ (or the "?" it turns into), commas and spaces. */
+const cleanNumber = (v: string) => v.replace(/[₹?,\s]/g, "").replace(/^rs\.?/i, "");
+
+/** "0.5" → flat ₹; "80%" → percent. null = blank cell (leave as is). */
+function parseMoney(raw: string): { mode: SplitMode; value: string } | "bad" | null {
+  const t = raw.trim();
+  if (t === "") return null;
+  const percent = /%\s*$/.test(t);
+  const value = cleanNumber(t.replace(/%\s*$/, ""));
+  if (!/^\d+(\.\d{1,4})?$/.test(value)) return "bad";
+  return { mode: percent ? "percent" : "flat", value: String(Number(value)) };
+}
+
+/**
+ * Slab bounds from "Slab from" / "Slab to", or from one "Slab" cell such as
+ * "₹100.00 – ₹199.99 · Example ₹199.99", "Any amount", "Up to ₹1,000" or "₹3,000+".
+ */
+function parseBounds(get: (k: string) => string): { from: string; to: string } | "bad" {
+  if (get("slabfrom") || get("slabto")) return { from: cleanNumber(get("slabfrom")), to: cleanNumber(get("slabto")) };
+  const raw = get("slab").split("·")[0]!.trim();
+  if (raw === "" || /any/i.test(raw)) return { from: "", to: "" };
+  const nums = (raw.match(/\d[\d,]*(\.\d+)?/g) ?? []).map((n) => n.replace(/,/g, ""));
+  if (/up\s*to/i.test(raw) && nums.length === 1) return { from: "", to: nums[0]! };
+  if (/\+\s*$/.test(raw) && nums.length === 1) return { from: nums[0]!, to: "" };
+  if (nums.length >= 2) return { from: nums[0]!, to: nums[1]! };
+  return "bad";
+}
+
 /**
  * Reads an edited rate card CSV and returns only the writes that differ from what is saved.
- * Blank provider / role cells mean "leave as is"; 0 means ₹0. Nothing is written when any row is invalid.
+ * Accepts the export columns (Service, Slab from, Slab to, Provider pays, Retailer, Distributor, SD) with
+ * "80%" for a percentage and a plain number for flat ₹, a single "Slab" text column, and the older
+ * *_type / *_value template. Blank cells mean "leave as is"; 0 means ₹0. Nothing is written when any row is invalid.
  */
 export function planRateCardImport(
   text: string,
@@ -303,49 +336,51 @@ export function planRateCardImport(
   const rows = parseCsv(text);
   const errors: string[] = [];
   const changes: PendingChange[] = [];
-  if (rows.length === 0) return { changes, errors: ["The file is empty. Export the rate card as CSV and edit that file."], rowsRead: 0, unchangedRows: 0 };
+  const fail = (msg: string): ImportPlan => ({ changes, errors: [msg], rowsRead: 0, unchangedRows: 0 });
+  if (rows.length === 0) return fail("The file is empty. Export the rate card as CSV and edit that file.");
 
-  const header = rows[0]!.map((h) => h.trim().toLowerCase());
-  const col = (name: string) => header.indexOf(name);
-  for (const required of ["service_code", "slab_from", "slab_to"]) {
-    if (col(required) < 0) {
-      return {
-        changes,
-        errors: [`Column "${required}" is missing. Use the CSV from Export → CSV as the template.`],
-        rowsRead: 0,
-        unchangedRows: 0,
-      };
-    }
+  const header = rows[0]!.map(headerKey);
+  const col = (key: string) => header.indexOf(key);
+  if (col("service") < 0 && col("servicecode") < 0 && col("servicename") < 0) {
+    return fail('Column "Service" is missing. Use the CSV from Export → CSV as the template.');
+  }
+  if (col("slab") < 0 && col("slabfrom") < 0 && col("slabto") < 0) {
+    return fail('Columns "Slab from" and "Slab to" (or one "Slab" column) are missing. Use the CSV from Export → CSV.');
   }
 
   const byCode = new Map(data.services.map((s) => [s.serviceCode.toLowerCase(), s]));
+  const byName = new Map(data.services.map((s) => [s.serviceName.toLowerCase(), s]));
   const isAmount = (v: string) => /^\d+(\.\d{1,2})?$/.test(v);
-  const isRate = (v: string) => /^\d+(\.\d{1,4})?$/.test(v);
   let unchangedRows = 0;
   const body = rows.slice(1);
 
   body.forEach((cells, i) => {
     if (errors.length >= MAX_ERRORS) return;
     const line = i + 2;
-    const get = (name: string) => (col(name) >= 0 ? (cells[col(name)] ?? "").trim() : "");
-    const code = get("service_code");
-    const service = byCode.get(code.toLowerCase());
+    const get = (key: string) => (col(key) >= 0 ? (cells[col(key)] ?? "").trim() : "");
+
+    // Service: code first, else the name (an exported "Cash Withdraw · Banking Services" works too).
+    const code = get("servicecode");
+    const name = (get("service") || get("servicename")).split("·")[0]!.trim();
+    const service = (code && byCode.get(code.toLowerCase())) || byName.get(name.toLowerCase()) || byCode.get(name.toLowerCase());
     if (!service) {
-      errors.push(`Row ${line}: service code "${code}" not found. Keep the service_code from the export.`);
+      errors.push(`Row ${line}: service "${code || name}" not found. Use the service name or code from the export.`);
       return;
     }
-    const from = get("slab_from");
-    const to = get("slab_to");
-    if ((from && !isAmount(from)) || (to && !isAmount(to))) {
-      errors.push(`Row ${line} (${service.serviceName}): slab_from / slab_to must be rupees like 100 or 199.99`);
+    const where = `Row ${line} (${service.serviceName})`;
+
+    const bounds = parseBounds(get);
+    if (bounds === "bad" || (bounds.from && !isAmount(bounds.from)) || (bounds.to && !isAmount(bounds.to))) {
+      errors.push(`${where}: slab must be rupees like 100 and 199.99 (or "Any amount")`);
       return;
     }
+    const { from, to } = bounds;
     if (to && Number(to) <= 0) {
-      errors.push(`Row ${line} (${service.serviceName}): slab_to must be more than 0 — leave it blank for any amount`);
+      errors.push(`${where}: Slab to must be more than 0 — leave it blank for any amount`);
       return;
     }
     if (from && to && Number(from) > Number(to)) {
-      errors.push(`Row ${line} (${service.serviceName}): slab_from cannot be more than slab_to`);
+      errors.push(`${where}: Slab from cannot be more than Slab to`);
       return;
     }
     const minAmount = from || null;
@@ -354,33 +389,31 @@ export function planRateCardImport(
       amountBound(r.minAmount) === amountBound(minAmount) && amountBound(r.maxAmount) === amountBound(maxAmount);
     const rowChanges: PendingChange[] = [];
 
-    // Provider pays
-    const pType = get("provider_type").toLowerCase();
-    const pValue = get("provider_value");
-    const pCap = get("provider_cap");
-    if (pType || pValue) {
-      if (pType !== "flat" && pType !== "percent") {
-        errors.push(`Row ${line} (${service.serviceName}): provider_type must be flat or percent`);
-        return;
-      }
-      if (!isRate(pValue)) {
-        errors.push(`Row ${line} (${service.serviceName}): provider_value must be a number like 1.5`);
-        return;
-      }
+    // Provider pays: "13.95" flat, "0.465%" percent (+ optional "Provider max" cap); old template too.
+    const oldType = get("providertype").toLowerCase();
+    const provider =
+      oldType || get("providervalue")
+        ? parseMoney(`${get("providervalue")}${oldType === "percent" ? "%" : ""}`)
+        : parseMoney(get("providerpays"));
+    if (provider === "bad") {
+      errors.push(`${where}: Provider pays must be a number like 1.5 or a percent like 0.465%`);
+      return;
+    }
+    if (provider) {
       const draft: IncomeDraft = {
         key: newIncomeKey(),
         replacesId: null,
         providerId,
-        ruleType: pType === "flat" ? "flat" : "percentage",
-        value: pValue,
-        capAmount: pType === "percent" ? pCap : "",
+        ruleType: provider.mode === "flat" ? "flat" : "percentage",
+        value: provider.value,
+        capAmount: provider.mode === "percent" ? cleanNumber(get("providermax") || get("providercap")) : "",
         minAmount: from,
         maxAmount: to,
         note: null,
       };
       const err = incomeRowError(draft);
       if (err) {
-        errors.push(`Row ${line} (${service.serviceName}): ${err}`);
+        errors.push(`${where}: ${err}`);
         return;
       }
       const saved = service.providerIncomeRules.find((r) => r.providerId === providerId && sameBounds(r));
@@ -392,7 +425,7 @@ export function planRateCardImport(
       if (!same) rowChanges.push(...incomeChanges(service, draft, providerName));
     }
 
-    // Role split for this slab
+    // Role split for this slab: "0.5" flat ₹ or "80%"; old *_type / *_value columns too.
     const slab = service.slabs.find(sameBounds);
     const initial: SlabSplit = slab
       ? slabSplitOf(slab)
@@ -402,21 +435,20 @@ export function planRateCardImport(
         };
     const next: SlabSplit = { modes: { ...initial.modes }, values: { ...initial.values } };
     for (const role of SCHEME_ROLES) {
-      const t = get(`${ROLE_COLUMN[role]}_type`).toLowerCase();
-      const v = get(`${ROLE_COLUMN[role]}_value`);
-      if (!t && !v) continue;
-      if (t !== "flat" && t !== "percent") {
-        errors.push(`Row ${line} (${service.serviceName}): ${ROLE_COLUMN[role]}_type must be flat or percent`);
+      const key = ROLE_KEY[role];
+      const oldRoleType = get(`${key}type`).toLowerCase();
+      const parsed =
+        oldRoleType || get(`${key}value`)
+          ? parseMoney(`${get(`${key}value`)}${oldRoleType === "percent" ? "%" : ""}`)
+          : parseMoney(get(key));
+      if (parsed === null) continue;
+      const err = parsed === "bad" ? `${ROLE_LABEL[role]} must be a number like 0.5 or a percent like 80%` : roleSplitError(role, parsed.mode, parsed.value);
+      if (err || parsed === "bad") {
+        errors.push(`${where}: ${err}`);
         return;
       }
-      const mode: SplitMode = t;
-      const err = !isRate(v) ? `${ROLE_LABEL[role]} value must be a number like 80 or 0.5` : roleSplitError(role, mode, v);
-      if (err) {
-        errors.push(`Row ${line} (${service.serviceName}): ${err}`);
-        return;
-      }
-      next.modes[role] = mode;
-      next.values[role] = v;
+      next.modes[role] = parsed.mode;
+      next.values[role] = parsed.value;
     }
     rowChanges.push(...slabSplitChanges({ row: service, initial, next, providerId, minAmount, maxAmount }));
 

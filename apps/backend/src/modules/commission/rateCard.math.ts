@@ -89,9 +89,14 @@ export function pickRow<T extends PickableRow>(
 
 const isSlabRow = (r: Pick<PickableRow, "minAmount" | "maxAmount">) => r.minAmount != null || r.maxAmount != null;
 
+/** Rupee width of a slab; open-ended sides count as unlimited. */
+const slabWidth = (r: Pick<PickableRow, "minAmount" | "maxAmount">) =>
+  (r.maxAmount != null ? Number(r.maxAmount) : Number.POSITIVE_INFINITY) - (r.minAmount != null ? Number(r.minAmount) : 0);
+
 /**
  * Best share for a role: provider-specific beats all-providers, then a slab row covering the amount
- * beats the service default (no bounds), then the newest. `amountPaise` null = service default rows only.
+ * beats the service default (no bounds), then the narrowest slab (overlapping ₹3,000–7,999.99 wins over
+ * ₹3,000–10,000 inside its range), then the newest. `amountPaise` null = service default rows only.
  */
 export function pickShare<T extends PickableRow>(
   rows: readonly T[],
@@ -110,6 +115,9 @@ export function pickShare<T extends PickableRow>(
     const as = isSlabRow(a) ? 1 : 0;
     const bs = isSlabRow(b) ? 1 : 0;
     if (as !== bs) return bs - as;
+    const aw = slabWidth(a);
+    const bw = slabWidth(b);
+    if (aw !== bw) return aw - bw;
     return b.effectiveFrom.getTime() - a.effectiveFrom.getTime();
   });
   return candidates[0] ?? null;
