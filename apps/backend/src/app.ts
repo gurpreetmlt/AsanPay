@@ -96,9 +96,9 @@ export function createApp(): Express {
   ]) {
     app.use(prefix, largeJson);
   }
-  // Bulk imports (bank statements up to 500 lines, commission rules up to 1000 rows).
+  // Bulk imports (bank statements up to 500 lines, commission rules up to 1000 rows) and profile photos (≤ 600 KB).
   const bulkJson = express.json({ limit: "2mb" });
-  for (const prefix of ["/api/banking/statements", "/api/admin/commission/rules/import"]) {
+  for (const prefix of ["/api/banking/statements", "/api/admin/commission/rules/import", "/api/account/photo"]) {
     app.use(prefix, bulkJson);
   }
   // Meta signs the exact bytes it sent, so keep them for X-Hub-Signature-256 verification.

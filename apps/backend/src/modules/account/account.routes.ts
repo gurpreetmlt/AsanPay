@@ -4,6 +4,7 @@ import { requireAuth } from "../../middleware/auth.middleware";
 import { sendSuccess } from "../../utils/apiResponse";
 import { HttpError } from "../../utils/httpError";
 import { getAppVersionConfig, getDeletionRequestStatus, requestAccountDeletion } from "./account.service";
+import { deleteMyPhoto, getMyPhoto, setMyPhoto } from "./profilePhoto.service";
 
 /** Mounted at `/api` ahead of the other routers so the version check below sees every app request. */
 export const accountRouter = Router();
@@ -50,4 +51,20 @@ accountRouter.post("/account/deletion-request", requireAuth, async (req, res) =>
     userAgent: req.headers["user-agent"] ?? null,
   });
   sendSuccess(res, result, "Account deletion requested", 201);
+});
+
+accountRouter.get("/account/photo", requireAuth, async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  sendSuccess(res, await getMyPhoto(req.auth.sub));
+});
+
+accountRouter.put("/account/photo", requireAuth, async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { dataUrl } = z.object({ dataUrl: z.string().min(1, "Pick a photo first").max(900_000, "Photo must be under 600 KB") }).parse(req.body);
+  sendSuccess(res, await setMyPhoto(req.auth.sub, dataUrl), "Profile photo updated");
+});
+
+accountRouter.delete("/account/photo", requireAuth, async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  sendSuccess(res, await deleteMyPhoto(req.auth.sub), "Profile photo removed");
 });

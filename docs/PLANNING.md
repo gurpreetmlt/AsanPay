@@ -7,6 +7,7 @@ One row per feature; details in the section below the table. Newest at the top o
 
 | # | Feature | Surfaces | Size | Status | Design | Task file |
 |---|---------|----------|------|--------|--------|-----------|
+| PL-30 | Agent profile photo — agent sets / changes / removes it in Settings (web) and Account (app); shown in header menu and on the admin agent page (falls back to KYC selfie, then initials) | Backend, agent web, mobile, admin | M | built — 28 Oct (migration 0091 `user_photos`, `/api/account/photo`, `/admin/users/:id/photo`) | — | — |
 | PL-29 | Agent custom commission like the rate card — per-slab Flat ₹ / Share % (of provider pays) for one agent, live calc vs default; modern admin agent page with tabs | Backend, admin | L | built — 28 Oct (migration 0090, `/admin/users/:id/commission-slabs`, `AgentRateCard` in agent Commission tab) | — | — |
 | PL-28 | Night service window — all services off 12:00 AM–6:00 AM IST by default; admin changes the time / turns it off, and can keep services open for chosen retailers | Backend, admin, web, mobile | M | planned — 28 Oct (decisions taken; build in a new chat) | — | — |
 | PL-27 | Simple commission setup — one table: "Company gets" auto-filled per service from the provider sheet (rate + example ₹), then split per role (Retailer / Distributor / SD) as flat ₹ or % of company income, company keeps the rest | Backend, admin | M | building — 28 Oct: slab editing moved to Rate card (per-slab % / ₹ split, migrate `0087`); `/tax-commission/setup` is now a read-only Commission overview (net after TDS per role); "Fill from sheet" lives on Rate card | — | — |
@@ -38,6 +39,22 @@ One row per feature; details in the section below the table. Newest at the top o
 | PL-01 | Linked accounts + role switch (same person, Distributor + Retailer) | Backend, web, mobile, admin | M | building (backend + web + mobile built 26 Oct; migrate `0076` + APK + live test pending; admin card next) | [Figma prompt](PROMPTS/figma-linked-accounts.md) · Figma URL pending | [linked-accounts.md](TASKS/linked-accounts.md) |
 
 ---
+
+## PL-30 — Agent profile photo
+
+**Problem:** Admin agent page and agent menus only showed initials; the KYC selfie is the only photo and agents cannot change it.
+
+**Plan**
+- `user_photos` table (one row per user, base64 ≤ 600 KB, JPG/PNG/WebP) — kept out of `users` so lists stay light.
+- `GET/PUT/DELETE /api/account/photo` for the signed-in agent; `GET /api/admin/users/:id/photo` (bytes) for admin.
+- Agent web: Settings → Profile photo editor (Add / Change / Remove, square 512 px crop in the browser); header account menu avatar.
+- Mobile: Account banner avatar → popup (gallery, front-camera selfie, remove).
+- Admin agent page hero + network tree: profile photo → KYC personal photo → initials.
+
+**Open decisions**
+- [ ] Show the photo in the agent list / downline lists too?
+
+**Notes:** Photo is not part of KYC; KYC approval still uses the KYC selfie.
 
 ## PL-29 — Agent custom commission (per slab, like the rate card)
 

@@ -96,6 +96,15 @@ adminRouter.get("/users/:id/kyc-documents/:docKey", async (req, res) => {
   res.send(doc.buffer);
 });
 
+adminRouter.get("/users/:id/photo", async (req, res) => {
+  const { getUserPhotoBytes } = await import("../account/profilePhoto.service");
+  const photo = await getUserPhotoBytes(req.params.id);
+  if (!photo) throw new HttpError(404, "This agent has not set a profile photo", "PHOTO_NOT_FOUND");
+  res.setHeader("Content-Type", photo.contentType);
+  res.setHeader("Cache-Control", "private, no-store");
+  res.send(photo.buffer);
+});
+
 adminRouter.get("/users/:id/ancestors", async (req, res) => {
   sendSuccess(res, await getUserAncestorsAdmin(req.params.id));
 });

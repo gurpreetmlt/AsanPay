@@ -32,6 +32,7 @@ import { HomeLocationCard } from "@/components/settings/HomeLocationCard";
 import { SettlementBanksPanel } from "@/components/settlements/SettlementBanksPanel";
 import { FaqSection } from "@/components/support/FaqSection";
 import { DeleteAccountCard } from "./DeleteAccountCard";
+import { ProfilePhotoEditor } from "@/components/settings/ProfilePhotoEditor";
 import { B, initials, roleFromUserRole } from "@/lib/brand";
 import api from "@/lib/api";
 import { SignupStepper, SIGNUP_STEPS } from "@/components/signup/SignupStepper";
@@ -404,22 +405,7 @@ export default function SettingsPage() {
                     ) : null}
                   </div>
 
-                  <div className="flex items-center gap-4">
-                    <div
-                      className="flex h-16 w-16 items-center justify-center rounded-2xl text-2xl font-bold text-white"
-                      style={{ background: B.badgeGrad }}
-                    >
-                      {av}
-                    </div>
-                    <div>
-                      <div className="font-bold" style={{ color: B.blue }}>
-                        {name}
-                      </div>
-                      <div className="text-sm" style={{ color: B.muted }}>
-                        {role.label} · ID: {uid}
-                      </div>
-                    </div>
-                  </div>
+                  <ProfilePhotoEditor initials={av} name={name} subtitle={`${role.label} · ID: ${uid}`} />
 
                   <p className="text-xs" style={{ color: B.muted }}>
                     KYC details cannot be edited here. Contact support to update verified identity.

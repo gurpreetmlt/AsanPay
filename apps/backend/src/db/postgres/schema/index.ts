@@ -36,4 +36,5 @@ export * from "./aepsCompliance";
 export * from "./cmsTransactions";
 export * from "./support";
 export * from "./whatsappSupport";
+export * from "./userPhotos";
 export * from "./relations";

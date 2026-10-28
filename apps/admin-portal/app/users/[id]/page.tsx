@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
@@ -32,6 +32,7 @@ import {
   Phone,
   SlidersHorizontal,
   ChevronRight,
+  Camera,
   Hash,
   Receipt,
   IdCard,
@@ -330,6 +331,22 @@ function QuickAction({ icon: Icon, label, hint, onClick }: { icon: LucideIcon; l
   );
 }
 
+/** Agent photo from KYC (personal photo); falls back to initials when missing or it fails to load. */
+function AgentAvatar({ src, name, className, style }: { src: string | null; name: string; className: string; style?: CSSProperties }) {
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const showPhoto = !!src && failedSrc !== src;
+  return (
+    <span className={`flex items-center justify-center overflow-hidden ${className}`} style={style}>
+      {showPhoto ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt={name} className="h-full w-full object-cover" onError={() => setFailedSrc(src)} />
+      ) : (
+        initialsOf(name)
+      )}
+    </span>
+  );
+}
+
 /** Soft empty state: icon in a dashed circle, title, one helper line. */
 function EmptyState({ icon: Icon, title, hint }: { icon: LucideIcon; title: string; hint: string }) {
   return (
@@ -591,6 +608,8 @@ interface AgentDetail {
   role: string;
   kycStatus: string;
   isActive: boolean;
+  /** Set when the agent picked a profile photo in Settings; otherwise the KYC personal photo is shown. */
+  profilePhotoUpdatedAt?: string | null;
   /** Full-freeze status (accounts.blockLogin) — the moderation lever. isActive is lifecycle-only. */
   isFrozen: boolean;
   fundRequestEnabled: boolean;
@@ -864,6 +883,11 @@ export default function AgentDetailPage() {
 
   if (!hydrated || !accessToken) return null;
 
+  const photoPath = agent?.documents?.personalPhoto;
+  const kycPhotoSrc = photoPath && photoPath.includes("/kyc-documents/") ? `/api/proxy${photoPath}` : null;
+  const photoSrc = agent?.profilePhotoUpdatedAt
+    ? `/api/proxy/admin/users/${agent.id}/photo?v=${encodeURIComponent(agent.profilePhotoUpdatedAt)}`
+    : kycPhotoSrc;
   const docsUploaded = agent
     ? Object.values(agent.documentFiles ?? {}).some(Boolean) || Object.keys(agent.documents ?? {}).length > 0
     : false;
@@ -961,12 +985,12 @@ export default function AgentDetailPage() {
           </Link>
           <div className="ml-[1.85rem] h-5 w-px border-l-2 border-dashed" style={{ borderColor: B.border }} />
           <div className="flex items-center gap-3 rounded-2xl border-2 px-3.5 py-3" style={{ borderColor: B.blueLight, background: "rgba(42,92,221,0.06)" }}>
-            <span
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-sm font-extrabold shadow-sm"
+            <AgentAvatar
+              src={photoSrc}
+              name={agent.name}
+              className="h-11 w-11 shrink-0 rounded-xl bg-white text-sm font-extrabold shadow-sm"
               style={{ color: B.blueLight }}
-            >
-              {initialsOf(agent.name)}
-            </span>
+            />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold" style={{ color: B.blue }}>
                 {agent.name}
@@ -1069,19 +1093,38 @@ export default function AgentDetailPage() {
                   style={{ backgroundImage: "radial-gradient(#fff 1px, transparent 1px)", backgroundSize: "18px 18px" }}
                 />
                 <div className="relative flex flex-wrap items-center gap-5">
-                  <span className="relative shrink-0">
-                    <span
-                      className="flex h-[72px] w-[72px] items-center justify-center rounded-2xl bg-white text-2xl font-extrabold shadow-lg"
+                  <button
+                    type="button"
+                    onClick={() => setTab("kyc")}
+                    title={
+                      agent.profilePhotoUpdatedAt
+                        ? "Profile photo set by the agent"
+                        : photoSrc
+                          ? "Photo from KYC — open KYC"
+                          : "No photo yet — the agent can add one in Settings or KYC"
+                    }
+                    className="group relative shrink-0"
+                  >
+                    <AgentAvatar
+                      src={photoSrc}
+                      name={agent.name}
+                      className="h-[72px] w-[72px] rounded-2xl bg-white text-2xl font-extrabold shadow-lg transition group-hover:scale-[1.03]"
                       style={{ color: B.blueLight, boxShadow: "0 0 0 4px rgba(255,255,255,0.25), 0 12px 24px -10px rgba(0,0,0,0.35)" }}
-                    >
-                      {initialsOf(agent.name)}
-                    </span>
+                    />
+                    {!photoSrc ? (
+                      <span
+                        className="absolute -left-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white shadow"
+                        style={{ background: "#F59E0B", color: "#fff" }}
+                      >
+                        <Camera size={12} />
+                      </span>
+                    ) : null}
                     <span
                       className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-2 border-white"
                       style={{ background: agent.isFrozen ? toneColor.red : "#4ADE80" }}
                       title={agent.isFrozen ? "Frozen" : "Active"}
                     />
-                  </span>
+                  </button>
                   <div className="min-w-0 flex-1 text-white">
                     <div className="flex flex-wrap items-center gap-2">
                       <h1 className="truncate text-2xl font-extrabold tracking-tight md:text-[28px]">{agent.name}</h1>
@@ -1322,6 +1365,7 @@ export default function AgentDetailPage() {
                               { label: "PAN number", ok: !!agent.kyc.panMasked, okText: "On file", icon: IdCard },
                               { label: "Aadhaar number", ok: !!agent.kyc.aadhaarMasked, okText: "On file", icon: Fingerprint },
                               { label: "Documents uploaded", ok: docsUploaded, okText: "Uploaded", icon: FileCheck2 },
+                              { label: "Personal photo", ok: !!kycPhotoSrc, okText: "On file", hint: "KYC selfie", icon: Camera },
                               { label: "Bank details", ok: agent.kyc.hasBank, okText: "On file", icon: Landmark },
                             ]}
                             allGood="Everything is on file — check the photos, then approve."

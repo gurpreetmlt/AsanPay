@@ -317,8 +317,12 @@ export type SlabHeaderCell = { label: string; title?: string; colSpan?: number }
 export function SlabHeaderRow({ cells }: { cells: SlabHeaderCell[] }) {
   return (
     <tr
-      className="rc-slab-in border-t text-[10px] uppercase tracking-wider"
-      style={{ borderColor: B.border, background: "rgba(42,92,221,0.08)", color: B.blueLight, boxShadow: openBlockEdge("middle") }}
+      className="rc-slab-in text-[11px] uppercase tracking-wider"
+      style={{
+        background: "linear-gradient(90deg, rgba(42,92,221,0.20) 0%, rgba(42,92,221,0.12) 100%)",
+        color: B.blue,
+        boxShadow: `${openBlockEdge("middle")}, inset 0 -2px 0 ${B.blueLight}, inset 0 1px 0 rgba(42,92,221,0.25)`,
+      }}
     >
       {cells.map((c, i) => (
         <th
@@ -326,9 +330,16 @@ export function SlabHeaderRow({ cells }: { cells: SlabHeaderCell[] }) {
           scope="col"
           colSpan={c.colSpan}
           title={c.title}
-          className={`py-1.5 font-bold ${i === 0 ? "pl-[4.25rem] pr-3 text-left" : "px-3 text-right"}`}
+          className={`py-2.5 font-extrabold ${i === 0 ? "pl-[4.25rem] pr-3 text-left" : "px-3 text-right"}`}
         >
-          {c.label}
+          {i === 0 ? (
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full" style={{ background: B.blueLight }} />
+              {c.label}
+            </span>
+          ) : (
+            c.label
+          )}
         </th>
       ))}
     </tr>

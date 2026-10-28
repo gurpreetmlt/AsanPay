@@ -203,9 +203,13 @@ export async function getAdminUserDetail(userId: string) {
     ...safe
   } = row;
 
+  const { getUserPhotoUpdatedAt } = await import("../account/profilePhoto.service");
+  const profilePhotoUpdatedAt = await getUserPhotoUpdatedAt(userId);
+
   return {
     ...safe,
     isFrozen,
+    profilePhotoUpdatedAt,
     loginEmail: {
       pending: loginEmailPending,
       status: loginEmailStatus as "sent" | "failed" | null,

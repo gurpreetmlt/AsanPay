@@ -5,10 +5,21 @@ import type { UserRole } from "@asanpay/shared-types";
 import { B, initials } from "@/lib/brand";
 import { roleTheme } from "@/lib/linkedAccounts";
 
-export function AccountAvatar({ name, role, size = 44 }: { name: string; role: UserRole; size?: number }) {
+export function AccountAvatar({
+  name,
+  role,
+  size = 44,
+  photo,
+}: {
+  name: string;
+  role: UserRole;
+  size?: number;
+  /** Profile photo data URL; initials when absent. */
+  photo?: string | null;
+}) {
   return (
     <div
-      className="flex shrink-0 items-center justify-center rounded-xl font-bold text-white"
+      className="flex shrink-0 items-center justify-center overflow-hidden rounded-xl font-bold text-white"
       style={{
         width: size,
         height: size,
@@ -17,7 +28,12 @@ export function AccountAvatar({ name, role, size = 44 }: { name: string; role: U
         boxShadow: "0 6px 16px rgba(11,42,154,0.18)",
       }}
     >
-      {initials(name)}
+      {photo ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={photo} alt={name} className="h-full w-full object-cover" />
+      ) : (
+        initials(name)
+      )}
     </div>
   );
 }

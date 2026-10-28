@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Linking, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import LinearGradient from "react-native-linear-gradient";
 import Svg, { Circle, Path } from "react-native-svg";
 import {
+  Camera,
   ChevronRight,
   Fingerprint,
   HelpCircle,
@@ -55,6 +56,8 @@ import { SignupLocationCard } from "../../components/SignupLocationCard";
 import type { SignupGeoFix } from "../../lib/signupDraft";
 import { LinkedAccountsHost, type LinkedAccountsView } from "../../components/linkedAccounts/LinkedAccountsHost";
 import { DeleteAccountModal } from "./DeleteAccountModal";
+import { ProfilePhotoSheet } from "../../components/ProfilePhotoSheet";
+import { useMyProfilePhoto } from "../../lib/profilePhoto";
 import { APP_VERSION_NAME } from "../../lib/appVersion";
 
 /** Decorative cover art behind the profile banner — waves + soft dots, brand blue/green only. */
@@ -185,6 +188,8 @@ export function AccountScreen() {
   const [showDeviceRepair, setShowDeviceRepair] = useState(false);
   const [showDevicesHub, setShowDevicesHub] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [showPhoto, setShowPhoto] = useState(false);
+  const myPhoto = useMyProfilePhoto();
   const [bioEnabled, setBioEnabled] = useState(false);
   const [showSupport, setShowSupport] = useState(false);
   const [showSettlements, setShowSettlements] = useState(false);
@@ -365,9 +370,21 @@ export function AccountScreen() {
       >
         <BannerCover />
         <View style={styles.profileRow}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{user.name.charAt(0).toUpperCase()}</Text>
-          </View>
+          <Pressable
+            onPress={() => setShowPhoto(true)}
+            accessibilityRole="button"
+            accessibilityLabel={myPhoto ? "Change profile photo" : "Add profile photo"}
+            style={styles.avatar}
+          >
+            {myPhoto ? (
+              <Image source={{ uri: myPhoto }} style={styles.avatarImg} />
+            ) : (
+              <Text style={styles.avatarText}>{user.name.charAt(0).toUpperCase()}</Text>
+            )}
+            <View style={styles.avatarBadge}>
+              <Camera size={10} color={colors.blueLight} />
+            </View>
+          </Pressable>
           <View style={{ flex: 1 }}>
             <Text style={styles.bannerTitle} numberOfLines={1}>
               {user.name}
@@ -699,6 +716,7 @@ export function AccountScreen() {
       <CashManagementModal visible={showNobleCms} onClose={() => setShowNobleCms(false)} />
       <LinkedAccountsHost view={accountsView} onClose={() => setAccountsView(null)} />
       <DeleteAccountModal visible={showDeleteAccount} onClose={() => setShowDeleteAccount(false)} />
+      <ProfilePhotoSheet visible={showPhoto} name={user.name} onClose={() => setShowPhoto(false)} />
     </SafeAreaView>
     </PageEnter>
   );
@@ -1409,6 +1427,18 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.3)",
   },
   avatarText: { color: colors.white, fontSize: 18, fontWeight: "800" },
+  avatarImg: { width: "100%", height: "100%", borderRadius: 23 },
+  avatarBadge: {
+    position: "absolute",
+    right: -2,
+    bottom: -2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: colors.white,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   bannerTitle: { color: colors.white, fontSize: 17, fontWeight: "800" },
   bannerSubtitle: { color: colors.onGradientMuted, fontSize: 12.5, fontWeight: "600", marginTop: 1 },
   brandRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 14 },

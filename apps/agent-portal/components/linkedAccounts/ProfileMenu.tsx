@@ -8,12 +8,14 @@ import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { fetchLinkedAccounts } from "@/lib/linkedAccounts";
 import { AccountAvatar, RoleChip } from "./parts";
+import { useMyProfilePhoto } from "@/lib/profilePhoto";
 import { SwitchFlow } from "./SwitchFlow";
 import { LinkAccountModal } from "./LinkAccountModal";
 
 /** Header avatar → account switcher: current, linked accounts (Switch), link another, manage. */
 export function ProfileMenu() {
   const user = useAuthStore((s) => s.user);
+  const myPhoto = useMyProfilePhoto();
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<LinkedAccountsResponse | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -65,7 +67,7 @@ export function ProfileMenu() {
         aria-expanded={open}
         aria-label="Account menu"
       >
-        <AccountAvatar name={user.name} role={user.role} size={36} />
+        <AccountAvatar name={user.name} role={user.role} size={36} photo={myPhoto} />
         <div className="hidden sm:block">
           <div className="text-sm font-bold" style={{ color: B.blue }}>
             {user.name}
@@ -88,7 +90,7 @@ export function ProfileMenu() {
           </div>
 
           <div className="flex items-center gap-3 px-4 py-3">
-            <AccountAvatar name={user.name} role={user.role} size={40} />
+            <AccountAvatar name={user.name} role={user.role} size={40} photo={myPhoto} />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold" style={{ color: B.blue }}>
                 {user.name}
