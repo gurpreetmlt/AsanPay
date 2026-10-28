@@ -8,6 +8,7 @@ import {
   ROLE_LABEL,
   SCHEME_ROLES,
   feePayerLabel,
+  inr,
   pct,
   ruleLabel,
   samePercent,
@@ -18,21 +19,9 @@ import {
   type SchemeRole,
   type ServiceRow,
 } from "./types";
-import { Btn, Chip, NumberField, percentError } from "./ui";
+import { Btn, Chip, NumberField, SplitModeSwitch, percentError, type SplitMode } from "./ui";
 import { TaxSummary } from "./TaxSummary";
-
-type IncomeDraft = {
-  key: string;
-  /** Editing an existing row: saving adds the new row and ends this one. */
-  replacesId: string | null;
-  providerId: string | null;
-  ruleType: RuleType;
-  value: string;
-  capAmount: string;
-  minAmount: string;
-  maxAmount: string;
-  note: string | null;
-};
+import { IncomeSlabModal, incomeRowError, type IncomeDraft } from "./IncomeSlabModal";
 
 type FeeDraft = {
   key: string;
@@ -48,33 +37,100 @@ type FeeDraft = {
 
 const num = (v: string) => String(Number(v));
 
-function sharesDraftOf(row: ServiceRow): Record<SchemeRole, string> {
+/** The role's one All providers flat ₹ rule for any amount — what the ₹ switch edits. */
+function flatRuleOf(row: ServiceRow, role: SchemeRole) {
+  const rules = row.fixedRules.filter((r) => r.role === role && r.providerId === null);
+  const only = rules.length === 1 ? rules[0]! : null;
+  return only && only.ruleType === "flat" && only.minAmount == null && only.maxAmount == null ? only : null;
+}
+
+function initialModeOf(row: ServiceRow, role: SchemeRole): SplitMode {
+  return !row.shares[role] && flatRuleOf(row, role) ? "flat" : "percent";
+}
+
+function modesOf(row: ServiceRow): Record<SchemeRole, SplitMode> {
   return {
-    retailer: row.shares.retailer ? num(row.shares.retailer.sharePercent) : "",
-    distributor: row.shares.distributor ? num(row.shares.distributor.sharePercent) : "",
-    super_distributor: row.shares.super_distributor ? num(row.shares.super_distributor.sharePercent) : "",
+    retailer: initialModeOf(row, "retailer"),
+    distributor: initialModeOf(row, "distributor"),
+    super_distributor: initialModeOf(row, "super_distributor"),
   };
+}
+
+function sharesDraftOf(row: ServiceRow): Record<SchemeRole, string> {
+  const valueOf = (role: SchemeRole) => {
+    const share = row.shares[role];
+    if (share) return num(share.sharePercent);
+    const flat = flatRuleOf(row, role);
+    return flat ? num(flat.value) : "";
+  };
+  return {
+    retailer: valueOf("retailer"),
+    distributor: valueOf("distributor"),
+    super_distributor: valueOf("super_distributor"),
+  };
+}
+
+function flatError(v: string, label: string): string | null {
+  const t = v.trim();
+  if (t === "") return null;
+  const n = Number(t);
+  if (!Number.isFinite(n) || n < 0) return `${label} flat amount must be 0 or more`;
+  if (n > 500) return `${label} flat amount cannot be more than ₹500`;
+  return null;
 }
 
 let keySeq = 0;
 const newKey = () => `n${++keySeq}`;
 
-function incomeRowError(r: IncomeDraft): string | null {
-  const v = r.value.trim();
-  if (v === "") return "Enter what the provider pays for this slab";
-  const n = Number(v);
-  if (!Number.isFinite(n) || n < 0) return "Provider income must be 0 or more";
-  if (r.ruleType === "percentage" && n > 100) return "Percentage cannot exceed 100";
-  if (r.capAmount.trim() !== "" && r.ruleType !== "percentage") return "Cap applies only to a percentage — clear the cap";
-  if (r.capAmount.trim() !== "" && !(Number(r.capAmount) > 0)) return "Cap must be more than ₹0";
-  if (r.maxAmount.trim() !== "" && !(Number(r.maxAmount) > 0)) return "Slab to must be more than ₹0 — leave it blank for any amount";
-  if (r.minAmount.trim() !== "" && r.maxAmount.trim() !== "" && Number(r.minAmount) > Number(r.maxAmount)) {
-    return "Slab min cannot be more than slab max";
+const bound = (v: string | null | undefined) => (v == null || v.trim() === "" ? null : Number(v));
+
+/** Save requests for one new / edited provider income slab. */
+function incomeChanges(row: ServiceRow, p: IncomeDraft, providerName: string): PendingChange[] {
+  const svc = row.serviceName;
+  const old = p.replacesId ? row.providerIncomeRules.find((x) => x.id === p.replacesId) : null;
+  const out: PendingChange[] = [
+    {
+      label: `${svc} · provider income (${p.providerId ? providerName : "All providers"})`,
+      detail: `${
+        old ? `${slabLabel(old.minAmount, old.maxAmount)}: ${ruleLabel(old.ruleType, old.value, old.capAmount)} → ` : ""
+      }${slabLabel(p.minAmount || null, p.maxAmount || null)}: ${ruleLabel(p.ruleType, p.value, p.capAmount || null)}`,
+      method: "post",
+      url: "/admin/rate-card/provider-income",
+      body: {
+        serviceId: row.serviceId,
+        providerId: p.providerId,
+        ruleType: p.ruleType,
+        value: p.value.trim(),
+        capAmount: p.capAmount.trim() || null,
+        minAmount: p.minAmount.trim() || null,
+        maxAmount: p.maxAmount.trim() || null,
+      },
+    },
+  ];
+  // Same slab: the server closes the old row itself. New slab bounds: end the old row explicitly.
+  if (old && (bound(old.minAmount) !== bound(p.minAmount) || bound(old.maxAmount) !== bound(p.maxAmount))) {
+    out.push({
+      label: `${svc} · end old provider income slab`,
+      detail: `${slabLabel(old.minAmount, old.maxAmount)}: ${ruleLabel(old.ruleType, old.value, old.capAmount)}`,
+      method: "delete",
+      url: `/admin/rate-card/provider-income/${old.id}`,
+      body: {},
+    });
   }
-  return null;
+  return out;
 }
 
-const bound = (v: string | null | undefined) => (v == null || v.trim() === "" ? null : Number(v));
+const draftOfIncome = (r: ServiceRow["providerIncomeRules"][number]): IncomeDraft => ({
+  key: newKey(),
+  replacesId: r.id,
+  providerId: r.providerId,
+  ruleType: r.ruleType,
+  value: String(Number(r.value)),
+  capAmount: r.capAmount != null ? String(Number(r.capAmount)) : "",
+  minAmount: r.minAmount != null ? String(Number(r.minAmount)) : "",
+  maxAmount: r.maxAmount != null ? String(Number(r.maxAmount)) : "",
+  note: null,
+});
 
 function feeRowError(r: FeeDraft): string | null {
   const v = r.value.trim();
@@ -104,8 +160,10 @@ export function ServiceEditor({
   onDraftChange?: (draft: PreviewDraft | null) => void;
 }) {
   const [shares, setShares] = useState(() => sharesDraftOf(row));
+  const [modes, setModes] = useState(() => modesOf(row));
   const [pendingIncome, setPendingIncome] = useState<IncomeDraft[]>([]);
   const [endIncomeIds, setEndIncomeIds] = useState<string[]>([]);
+  const [slabModal, setSlabModal] = useState<IncomeDraft | null>(null);
   const [pendingFees, setPendingFees] = useState<FeeDraft[]>([]);
   const [endFeeIds, setEndFeeIds] = useState<string[]>([]);
 
@@ -113,9 +171,17 @@ export function ServiceEditor({
   const scopeLabel = providerId ? providerName : "All providers";
   const hasIncome = row.providerIncomeRules.length > 0;
 
-  const shareTotal = SCHEME_ROLES.reduce((s, r) => s + (Number(shares[r]) || 0), 0);
+  const shareTotal = SCHEME_ROLES.reduce((s, r) => s + (modes[r] === "percent" ? Number(shares[r]) || 0 : 0), 0);
+  const flatTotal = SCHEME_ROLES.reduce((s, r) => s + (modes[r] === "flat" ? Number(shares[r]) || 0 : 0), 0);
   const shareErrors = Object.fromEntries(
-    SCHEME_ROLES.map((r) => [r, shares[r].trim() === "" ? null : percentError(shares[r], `${ROLE_LABEL[r]} share`)]),
+    SCHEME_ROLES.map((r) => [
+      r,
+      shares[r].trim() === ""
+        ? null
+        : modes[r] === "flat"
+          ? flatError(shares[r], ROLE_LABEL[r])
+          : percentError(shares[r], `${ROLE_LABEL[r]} share`),
+    ]),
   ) as Record<SchemeRole, string | null>;
 
   const incomeErrors = pendingIncome.map(incomeRowError);
@@ -137,36 +203,7 @@ export function ServiceEditor({
         body: {},
       });
     }
-    for (const p of pendingIncome) {
-      const old = p.replacesId ? row.providerIncomeRules.find((x) => x.id === p.replacesId) : null;
-      out.push({
-        label: `${svc} · provider income (${scopeName(p.providerId)})`,
-        detail: `${
-          old ? `${slabLabel(old.minAmount, old.maxAmount)}: ${ruleLabel(old.ruleType, old.value, old.capAmount)} → ` : ""
-        }${slabLabel(p.minAmount || null, p.maxAmount || null)}: ${ruleLabel(p.ruleType, p.value, p.capAmount || null)}`,
-        method: "post",
-        url: "/admin/rate-card/provider-income",
-        body: {
-          serviceId: row.serviceId,
-          providerId: p.providerId,
-          ruleType: p.ruleType,
-          value: p.value.trim(),
-          capAmount: p.capAmount.trim() || null,
-          minAmount: p.minAmount.trim() || null,
-          maxAmount: p.maxAmount.trim() || null,
-        },
-      });
-      // Same slab: the server closes the old row itself. New slab bounds: end the old row explicitly.
-      if (old && (bound(old.minAmount) !== bound(p.minAmount) || bound(old.maxAmount) !== bound(p.maxAmount))) {
-        out.push({
-          label: `${svc} · end old provider income slab`,
-          detail: `${slabLabel(old.minAmount, old.maxAmount)}: ${ruleLabel(old.ruleType, old.value, old.capAmount)}`,
-          method: "delete",
-          url: `/admin/rate-card/provider-income/${old.id}`,
-          body: {},
-        });
-      }
-    }
+    for (const p of pendingIncome) out.push(...incomeChanges(row, p, providerName));
     for (const id of endFeeIds) {
       const f = row.customerFeeRules.find((x) => x.id === id);
       if (!f) continue;
@@ -198,9 +235,50 @@ export function ServiceEditor({
         },
       });
     }
+    const nowIso = new Date().toISOString();
     for (const role of SCHEME_ROLES) {
       const cur = row.shares[role];
       const next = shares[role].trim();
+      const flatRule = flatRuleOf(row, role);
+      const wasFlat = initialModeOf(row, role) === "flat";
+      const endFlat: PendingChange[] = flatRule
+        ? [
+            {
+              label: `${svc} · end ${ROLE_LABEL[role]} flat ₹`,
+              detail: `${inr(flatRule.value)} per txn stops`,
+              method: "patch",
+              url: `/admin/commission/rules/${flatRule.id}`,
+              body: { effectiveTo: nowIso },
+            },
+          ]
+        : [];
+
+      if (modes[role] === "flat") {
+        if (wasFlat && next !== "" && Number(next) === Number(flatRule!.value)) continue;
+        if (next !== "") {
+          out.push({
+            label: `${svc} · ${ROLE_LABEL[role]} flat ₹ (All providers)`,
+            detail: `${wasFlat ? inr(flatRule!.value) : cur ? pct(cur.sharePercent) : "none"} → ${inr(next)} per txn`,
+            method: "post",
+            url: "/admin/commission/rules",
+            body: { serviceId: row.serviceId, providerId: null, role, ruleType: "flat", value: next },
+          });
+        }
+        if (cur) {
+          out.push({
+            label: `${svc} · end ${ROLE_LABEL[role]} share`,
+            detail: `${pct(cur.sharePercent)} of provider income stops`,
+            method: "delete",
+            url: `/admin/rate-card/shares/${cur.id}`,
+            body: {},
+          });
+        }
+        out.push(...endFlat);
+        continue;
+      }
+
+      // Switched ₹ → %: the new share saves first, then the flat rule ends.
+      const endFlatAfter = wasFlat ? endFlat : [];
       if (next === "" && cur && providerId && cur.providerId === null) {
         out.push({
           label: `${svc} · ${ROLE_LABEL[role]} share (${scopeLabel})`,
@@ -220,15 +298,16 @@ export function ServiceEditor({
       } else if (next !== "" && (!cur || !samePercent(next, cur.sharePercent))) {
         out.push({
           label: `${svc} · ${ROLE_LABEL[role]} share (${scopeLabel})`,
-          detail: `${cur ? pct(cur.sharePercent) : "none"} → ${pct(next)} of provider income`,
+          detail: `${cur ? pct(cur.sharePercent) : wasFlat ? `${inr(flatRule!.value)} flat` : "none"} → ${pct(next)} of provider income`,
           method: "post",
           url: "/admin/rate-card/shares",
           body: { serviceId: row.serviceId, providerId, role, sharePercent: next },
         });
       }
+      out.push(...endFlatAfter);
     }
     return out;
-  }, [row, endIncomeIds, pendingIncome, endFeeIds, pendingFees, shares, providerId, providerName, scopeLabel]);
+  }, [row, endIncomeIds, pendingIncome, endFeeIds, pendingFees, shares, modes, providerId, providerName, scopeLabel]);
 
   const hasErrors =
     incomeErrors.some(Boolean) || feeErrors.some(Boolean) || Object.values(shareErrors).some(Boolean);
@@ -237,13 +316,24 @@ export function ServiceEditor({
   const draft = useMemo<PreviewDraft | null>(() => {
     const out: PreviewDraft = {};
     const shareDraft: Partial<Record<SchemeRole, string>> = {};
+    const flatDraft: Partial<Record<SchemeRole, string>> = {};
     for (const role of SCHEME_ROLES) {
+      if (shareErrors[role]) continue;
       const next = shares[role].trim();
       const cur = row.shares[role];
+      const wasFlat = initialModeOf(row, role) === "flat";
+      if (modes[role] === "flat") {
+        const flatRule = flatRuleOf(row, role);
+        const changed = wasFlat ? next === "" || Number(next) !== Number(flatRule!.value) : next !== "" || Boolean(cur);
+        if (changed) flatDraft[role] = next;
+        continue;
+      }
+      if (wasFlat) flatDraft[role] = "";
       const changed = next === "" ? Boolean(cur) : !cur || !samePercent(next, cur.sharePercent);
-      if (changed && !shareErrors[role]) shareDraft[role] = next;
+      if (changed) shareDraft[role] = next;
     }
     if (Object.keys(shareDraft).length) out.shares = shareDraft;
+    if (Object.keys(flatDraft).length) out.flats = flatDraft;
     if (endIncomeIds.length) out.endIncomeIds = endIncomeIds;
     const income = pendingIncome.filter((_, i) => !incomeErrors[i]);
     if (income.length) {
@@ -271,7 +361,7 @@ export function ServiceEditor({
       }));
     }
     return Object.keys(out).length ? out : null;
-  }, [shares, row, shareErrors, endIncomeIds, pendingIncome, incomeErrors, endFeeIds, pendingFees, feeErrors]);
+  }, [shares, modes, row, shareErrors, endIncomeIds, pendingIncome, incomeErrors, endFeeIds, pendingFees, feeErrors]);
 
   const draftKey = draft ? JSON.stringify(draft) : "";
   const draftCb = useRef(onDraftChange);
@@ -286,6 +376,7 @@ export function ServiceEditor({
 
   function discard() {
     setShares(sharesDraftOf(row));
+    setModes(modesOf(row));
     setPendingIncome([]);
     setEndIncomeIds([]);
     setPendingFees([]);
@@ -304,6 +395,32 @@ export function ServiceEditor({
       warnings.push("Customer fee changes what agents are charged on every new txn of this service.");
     }
     onRequestSave({ title: `Save ${row.serviceName}`, changes, warnings });
+  }
+
+  /** Popup Continue → the shared review popup (reason + Save) for just this slab. */
+  function saveSlab(d: IncomeDraft) {
+    setSlabModal(null);
+    onRequestSave({
+      title: d.replacesId ? `Edit slab · ${row.serviceName}` : `Add slab · ${row.serviceName}`,
+      changes: incomeChanges(row, d, providerName),
+      warnings: [],
+    });
+  }
+
+  function endSlab(r: ServiceRow["providerIncomeRules"][number]) {
+    onRequestSave({
+      title: `End slab · ${row.serviceName}`,
+      changes: [
+        {
+          label: `${row.serviceName} · end provider income slab`,
+          detail: `${slabLabel(r.minAmount, r.maxAmount)}: ${ruleLabel(r.ruleType, r.value, r.capAmount)}`,
+          method: "delete",
+          url: `/admin/rate-card/provider-income/${r.id}`,
+          body: {},
+        },
+      ],
+      warnings: [`Txns in ${slabLabel(r.minAmount, r.maxAmount)} get no provider income until another slab covers it.`],
+    });
   }
 
   function applySuggestion() {
@@ -370,62 +487,107 @@ export function ServiceEditor({
             </p>
           ) : null}
 
-          <ul className="space-y-2">
-            {row.providerIncomeRules
-              .filter((r) => !pendingIncome.some((p) => p.replacesId === r.id))
-              .map((r) => {
-              const ending = endIncomeIds.includes(r.id);
-              return (
-                <li
-                  key={r.id}
-                  className="flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs"
-                  style={{ borderColor: B.border, opacity: ending ? 0.55 : 1 }}
-                >
-                  <div className={ending ? "line-through" : ""}>
-                    <p className="font-semibold" style={{ color: B.blue }}>
-                      {ruleLabel(r.ruleType, r.value, r.capAmount)}
-                    </p>
-                    <p style={{ color: B.muted }}>
-                      {slabLabel(r.minAmount, r.maxAmount)} · {r.providerId ? providerName : "All providers"}
-                    </p>
-                  </div>
-                  {ending ? (
-                    <Btn variant="secondary" className="px-2 py-1 text-xs" onClick={() => setEndIncomeIds((ids) => ids.filter((x) => x !== r.id))}>
-                      <Undo2 size={13} /> Keep
-                    </Btn>
-                  ) : (
-                    <div className="flex gap-1.5">
-                      <Btn
-                        variant="secondary"
-                        className="px-2 py-1 text-xs"
-                        onClick={() =>
-                          setPendingIncome((rows) => [
-                            ...rows,
-                            {
-                              key: newKey(),
-                              replacesId: r.id,
-                              providerId: r.providerId,
-                              ruleType: r.ruleType,
-                              value: String(Number(r.value)),
-                              capAmount: r.capAmount != null ? String(Number(r.capAmount)) : "",
-                              minAmount: r.minAmount != null ? String(Number(r.minAmount)) : "",
-                              maxAmount: r.maxAmount != null ? String(Number(r.maxAmount)) : "",
-                              note: null,
-                            },
-                          ])
-                        }
-                      >
-                        <Pencil size={13} /> Edit
-                      </Btn>
-                      <Btn variant="destructive" className="px-2 py-1 text-xs" onClick={() => setEndIncomeIds((ids) => [...ids, r.id])}>
-                        <Trash2 size={13} /> End
-                      </Btn>
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+          {row.providerIncomeRules.length > 0 ? (
+            <div className="overflow-hidden rounded-xl border" style={{ borderColor: B.border }}>
+              <div className="flex items-center justify-between gap-2 px-3 py-2 text-[11px]" style={{ background: "var(--admin-secondary)", color: B.muted }}>
+                <span className="font-semibold">
+                  {row.providerIncomeRules.length} slab{row.providerIncomeRules.length === 1 ? "" : "s"}
+                  {endIncomeIds.length > 0 ? ` · ${endIncomeIds.length} marked to end` : ""}
+                </span>
+                {endIncomeIds.length === row.providerIncomeRules.length ? (
+                  <button type="button" className="font-bold hover:underline" style={{ color: B.blueLight }} onClick={() => setEndIncomeIds([])}>
+                    Keep all
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="font-bold hover:underline"
+                    style={{ color: B.danger }}
+                    title="Mark every slab to end — use with Suggested to replace the whole table in one save"
+                    onClick={() => setEndIncomeIds(row.providerIncomeRules.map((r) => r.id))}
+                  >
+                    End all
+                  </button>
+                )}
+              </div>
+              <div className="max-h-[380px] overflow-y-auto">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 z-[1]" style={{ background: "var(--admin-card)" }}>
+                    <tr style={{ color: B.muted }}>
+                      <th className="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wide">Slab</th>
+                      <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-wide">Company gets</th>
+                      <th className="w-[84px] px-3 py-2" aria-label="Actions" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...row.providerIncomeRules]
+                      .sort((a, b) => (bound(a.minAmount) ?? -1) - (bound(b.minAmount) ?? -1))
+                      .map((r) => {
+                        const ending = endIncomeIds.includes(r.id);
+                        return (
+                          <tr
+                            key={r.id}
+                            className="border-t transition-colors hover:bg-[var(--admin-secondary)]"
+                            style={{ borderColor: B.border, opacity: ending ? 0.5 : 1 }}
+                          >
+                            <td className="px-3 py-2" style={{ color: B.muted }}>
+                              <span className={ending ? "line-through" : ""}>{slabLabel(r.minAmount, r.maxAmount)}</span>
+                              {r.providerId ? (
+                                <span className="ml-1.5">
+                                  <Chip tone="muted">{providerName}</Chip>
+                                </span>
+                              ) : null}
+                            </td>
+                            <td className={`px-3 py-2 text-right font-bold tabular-nums ${ending ? "line-through" : ""}`} style={{ color: B.blue }}>
+                              {ruleLabel(r.ruleType, r.value, r.capAmount)}
+                            </td>
+                            <td className="px-3 py-2">
+                              <div className="flex justify-end gap-1">
+                                {ending ? (
+                                  <button
+                                    type="button"
+                                    title="Keep this slab"
+                                    aria-label="Keep this slab"
+                                    onClick={() => setEndIncomeIds((ids) => ids.filter((x) => x !== r.id))}
+                                    className="rounded-lg p-1.5 transition hover:bg-[rgba(42,92,221,0.10)]"
+                                    style={{ color: B.blueLight }}
+                                  >
+                                    <Undo2 size={14} />
+                                  </button>
+                                ) : (
+                                  <>
+                                    <button
+                                      type="button"
+                                      title="Edit slab"
+                                      aria-label={`Edit slab ${slabLabel(r.minAmount, r.maxAmount)}`}
+                                      onClick={() => setSlabModal(draftOfIncome(r))}
+                                      className="rounded-lg p-1.5 transition hover:bg-[rgba(42,92,221,0.10)]"
+                                      style={{ color: B.blueLight }}
+                                    >
+                                      <Pencil size={14} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      title="End slab"
+                                      aria-label={`End slab ${slabLabel(r.minAmount, r.maxAmount)}`}
+                                      onClick={() => endSlab(r)}
+                                      className="rounded-lg p-1.5 transition hover:bg-red-50"
+                                      style={{ color: B.danger }}
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
 
           {pendingIncome.length > 0 ? (
             <div className="mt-2 space-y-2">
@@ -502,20 +664,17 @@ export function ServiceEditor({
               variant="success"
               className="w-full"
               onClick={() =>
-                setPendingIncome((rows) => [
-                  ...rows,
-                  {
-                    key: newKey(),
-                    replacesId: null,
-                    providerId,
-                    ruleType: "percentage",
-                    value: "",
-                    capAmount: "",
-                    minAmount: "",
-                    maxAmount: "",
-                    note: null,
-                  },
-                ])
+                setSlabModal({
+                  key: newKey(),
+                  replacesId: null,
+                  providerId,
+                  ruleType: "flat",
+                  value: "",
+                  capAmount: "",
+                  minAmount: "",
+                  maxAmount: "",
+                  note: null,
+                })
               }
             >
               <Plus size={14} /> Add slab
@@ -714,15 +873,29 @@ export function ServiceEditor({
           </p>
           <div className="grid grid-cols-3 gap-2">
             {SCHEME_ROLES.map((role) => (
-              <NumberField
-                key={role}
-                label={ROLE_LABEL[role]}
-                value={shares[role]}
-                onChange={(v) => setShares((s) => ({ ...s, [role]: v }))}
-                suffix="%"
-                placeholder="Off"
-                error={shareErrors[role]}
-              />
+              <div key={role} className="text-xs">
+                <div className="mb-1 flex items-center justify-between gap-1">
+                  <span className="font-semibold" style={{ color: B.muted }}>
+                    {ROLE_LABEL[role]}
+                  </span>
+                  <SplitModeSwitch
+                    label={ROLE_LABEL[role]}
+                    mode={modes[role]}
+                    onChange={(m) => setModes((s) => ({ ...s, [role]: m }))}
+                    disabled={Boolean(providerId)}
+                    disabledReason="Flat ₹ is set for All providers — pick All providers to switch"
+                  />
+                </div>
+                <NumberField
+                  label=""
+                  value={shares[role]}
+                  onChange={(v) => setShares((s) => ({ ...s, [role]: v }))}
+                  suffix={modes[role] === "percent" ? "%" : undefined}
+                  prefix={modes[role] === "flat" ? "₹" : undefined}
+                  placeholder="Off"
+                  error={shareErrors[role]}
+                />
+              </div>
             ))}
           </div>
           <div
@@ -732,9 +905,19 @@ export function ServiceEditor({
               color: shareTotal > 100 ? B.danger : B.greenDark,
             }}
           >
-            <span>Roles {pct(shareTotal)}</span>
-            <span>{shareTotal > 100 ? `Over by ${pct(shareTotal - 100)}` : `Company keeps ${pct(100 - shareTotal)}`}</span>
+            <span>
+              Roles {pct(shareTotal)}
+              {flatTotal > 0 ? ` + ${inr(flatTotal)} flat` : ""}
+            </span>
+            <span>
+              {shareTotal > 100
+                ? `Over by ${pct(shareTotal - 100)}`
+                : `Company keeps ${pct(100 - shareTotal)}${flatTotal > 0 ? ` − ${inr(flatTotal)}` : ""}`}
+            </span>
           </div>
+          <p className="mt-2 text-[11px]" style={{ color: B.muted }}>
+            % = share of what the provider pays · ₹ = flat amount per txn, any amount.
+          </p>
           {providerId && SCHEME_ROLES.some((r) => row.shares[r] && row.shares[r]!.providerId === null) ? (
             <p className="mt-2 text-[11px]" style={{ color: B.muted }}>
               Showing the All providers share. Saving here creates a {providerName}-only share.
@@ -800,6 +983,16 @@ export function ServiceEditor({
           </Btn>
         </div>
       </div>
+
+      {slabModal ? (
+        <IncomeSlabModal
+          initial={slabModal}
+          serviceName={row.serviceName}
+          scopeName={slabModal.providerId ? providerName : "All providers"}
+          onClose={() => setSlabModal(null)}
+          onContinue={saveSlab}
+        />
+      ) : null}
     </div>
   );
 }

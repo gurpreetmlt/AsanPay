@@ -156,6 +156,7 @@ export type PreviewData = Split & {
 /** Unsaved editor changes sent with the preview request — applied in memory, never saved. */
 export type PreviewDraft = {
   shares?: Partial<Record<SchemeRole, string>>;
+  flats?: Partial<Record<SchemeRole, string>>;
   endIncomeIds?: string[];
   addIncome?: Array<{
     providerId: string | null;

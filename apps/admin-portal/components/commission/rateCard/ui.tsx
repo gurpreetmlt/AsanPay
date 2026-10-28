@@ -198,6 +198,56 @@ export function GstModeSwitch({
   );
 }
 
+export type SplitMode = "percent" | "flat";
+
+/** Role split type: % of what the company gets, or flat ₹ per transaction. */
+export function SplitModeSwitch({
+  mode,
+  onChange,
+  label,
+  disabled,
+  disabledReason,
+}: {
+  mode: SplitMode;
+  onChange: (m: SplitMode) => void;
+  label: string;
+  disabled?: boolean;
+  disabledReason?: string;
+}) {
+  const opts: Array<{ v: SplitMode; text: string; title: string }> = [
+    { v: "percent", text: "%", title: "% of what the company gets" },
+    { v: "flat", text: "₹", title: "Flat ₹ per transaction" },
+  ];
+  return (
+    <div
+      className="inline-flex rounded-lg border p-0.5"
+      style={{ borderColor: B.border }}
+      role="radiogroup"
+      aria-label={`${label} split type`}
+      title={disabled ? disabledReason : undefined}
+    >
+      {opts.map((o) => {
+        const active = mode === o.v;
+        return (
+          <button
+            key={o.v}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            title={disabled ? disabledReason : o.title}
+            disabled={disabled}
+            onClick={() => onChange(o.v)}
+            className="min-w-[28px] rounded-md px-2 py-0.5 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-50"
+            style={{ background: active ? B.blueLight : "transparent", color: active ? "#fff" : "var(--admin-muted)" }}
+          >
+            {o.text}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function percentError(v: string, label: string): string | null {
   const t = v.trim();
   if (t === "") return `Enter ${label}`;

@@ -568,6 +568,7 @@ adminRouter.post("/rate-card/preview", async (req, res) => {
       draft: z
         .object({
           shares: z.partialRecord(role, draftNumber).optional(),
+          flats: z.partialRecord(role, draftNumber).optional(),
           endIncomeIds: z.array(z.string().uuid()).max(50).optional(),
           addIncome: z
             .array(
@@ -581,7 +582,7 @@ adminRouter.post("/rate-card/preview", async (req, res) => {
                 replacesId: z.string().uuid().nullable().optional(),
               }),
             )
-            .max(20)
+            .max(50)
             .optional(),
           endFeeIds: z.array(z.string().uuid()).max(50).optional(),
           addFees: z

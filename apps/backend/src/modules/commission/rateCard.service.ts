@@ -443,6 +443,11 @@ export async function getRateCard(opts?: { providerId?: string | null }) {
 export type PreviewDraft = {
   /** Share per role; "" removes the share in this scope (a provider scope falls back to 0%). */
   shares?: Partial<Record<SchemeRole, string>>;
+  /**
+   * Flat ₹ per txn per role (All providers, any amount). Replaces that role's All providers share and
+   * fixed rules; "" removes them. Applied before `shares`, so a role switching back to % can set both.
+   */
+  flats?: Partial<Record<SchemeRole, string>>;
   endIncomeIds?: string[];
   addIncome?: Array<{
     providerId: string | null;
@@ -479,6 +484,31 @@ function applyPreviewDraft(
   const at = (i: number) => new Date(now.getTime() + 1 + i);
 
   let shares = cfg.shares;
+  let rules = cfg.rules;
+  for (const role of SCHEME_ROLES) {
+    const raw = draft.flats?.[role];
+    if (raw === undefined) continue;
+    const allProviders = (r: { serviceId: string; role: UserRole; providerId: string | null }) =>
+      r.serviceId === serviceId && r.role === role && r.providerId === null;
+    shares = shares.filter((s) => !allProviders(s));
+    rules = rules.filter((r) => !allProviders(r));
+    if (raw.trim() !== "") {
+      rules = [
+        ...rules,
+        {
+          id: `draft-flat-${role}`,
+          serviceId,
+          providerId: null,
+          role,
+          ruleType: "flat",
+          value: raw.trim(),
+          minAmount: null,
+          maxAmount: null,
+          effectiveFrom: at(0),
+        },
+      ];
+    }
+  }
   for (const role of SCHEME_ROLES) {
     const raw = draft.shares?.[role];
     if (raw === undefined) continue;
@@ -535,7 +565,7 @@ function applyPreviewDraft(
     })),
   ];
 
-  return { cfg: { ...cfg, shares, payoutRules }, charges: nextCharges };
+  return { cfg: { ...cfg, shares, rules, payoutRules }, charges: nextCharges };
 }
 
 /**

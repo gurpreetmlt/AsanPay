@@ -22,9 +22,8 @@ import {
   type ServiceRow,
   type Slab,
 } from "../rateCard/types";
-import { Btn, Chip, NumberField } from "../rateCard/ui";
+import { Btn, Chip, NumberField, SplitModeSwitch, type SplitMode } from "../rateCard/ui";
 
-type SplitMode = "percent" | "flat";
 type RoleDraft = { mode: SplitMode; value: string };
 type ServiceDraft = Record<SchemeRole, RoleDraft>;
 
@@ -193,34 +192,6 @@ function roleChanges(row: ServiceRow, role: SchemeRole, cur: RoleCurrent, d: Rol
   ];
 }
 
-function ModeSwitch({ mode, onChange, role }: { mode: SplitMode; onChange: (m: SplitMode) => void; role: SchemeRole }) {
-  const opts: Array<{ v: SplitMode; label: string; title: string }> = [
-    { v: "percent", label: "%", title: "% of what the company gets" },
-    { v: "flat", label: "₹", title: "Flat ₹ per transaction" },
-  ];
-  return (
-    <div className="inline-flex rounded-lg border p-0.5" style={{ borderColor: B.border }} role="radiogroup" aria-label={`${ROLE_LABEL[role]} split type`}>
-      {opts.map((o) => {
-        const active = mode === o.v;
-        return (
-          <button
-            key={o.v}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            title={o.title}
-            onClick={() => onChange(o.v)}
-            className="min-w-[28px] rounded-md px-2 py-0.5 text-xs font-bold transition"
-            style={{ background: active ? B.blueLight : "transparent", color: active ? "#fff" : "var(--admin-muted)" }}
-          >
-            {o.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 function RoleEditor({
   role,
   draft,
@@ -254,7 +225,7 @@ function RoleEditor({
         <span className="text-xs font-bold" style={{ color: B.blue }}>
           {ROLE_LABEL[role]}
         </span>
-        <ModeSwitch role={role} mode={draft.mode} onChange={(mode) => onChange({ ...draft, mode })} />
+        <SplitModeSwitch label={ROLE_LABEL[role]} mode={draft.mode} onChange={(mode) => onChange({ ...draft, mode })} />
       </div>
       <NumberField
         label=""
