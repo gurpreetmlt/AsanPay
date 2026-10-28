@@ -24,60 +24,28 @@ import { ExportMenu } from "@/components/ui/ExportMenu";
 import { downloadBrandedExcel, openBrandedPdf } from "@/lib/brandedExport";
 import { downloadCsv } from "@/lib/taxCommissionUtils";
 import { planRateCardImport, rateCardCsv, rateCardReport } from "./rateCardTransfer";
-import api, { fetchApi } from "@/lib/api";
+import { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { apiErrorMessage } from "@/lib/taxCommissionUtils";
-import { PreviewPanel } from "./PreviewPanel";
 import { SaveConfirmModal } from "./SaveConfirmModal";
 import { ServiceEditor } from "./ServiceEditor";
+import { SlabEditorModal } from "./SlabEditorModal";
 import { TaxSummary } from "./TaxSummary";
 import { usePendingSave } from "./usePendingSave";
-import {
-  IncomeSlabFields,
-  draftOfIncome,
-  endSlabRequest,
-  incomeChanges,
-  incomeRowError,
-  newIncomeKey,
-  type IncomeDraft,
-} from "./IncomeSlabModal";
-import {
-  ROLE_LABEL,
-  SCHEME_ROLES,
-  inr,
-  pct,
-  ruleLabel,
-  slabLabel,
-  type PreviewData,
-  type PreviewDraft,
-  type RateCardData,
-  type RoleSplit,
-  type SchemeRole,
-  type ServiceRow,
-  type Slab,
-} from "./types";
-import { Btn, Chip, NumberField, SplitModeSwitch, type SplitMode } from "./ui";
-import { roleSplitError, slabSplitChanges, slabSplitOf, type SlabSplit } from "./roleSplit";
+import { draftOfIncome, endSlabRequest, newIncomeKey, type IncomeDraft } from "./IncomeSlabModal";
+import { ROLE_LABEL, SCHEME_ROLES, inr, pct, slabLabel, type RateCardData, type RoleSplit, type ServiceRow, type Slab } from "./types";
+import { Btn, Chip } from "./ui";
 
-const DEFAULT_PREVIEW_AMOUNT = "2000";
+type ShowFilter = "all" | "loss" | "unset";
 
 /** Company loses money on a slab, or a role earns ₹0 on it. */
 function hasLossOrMissing(row: ServiceRow): boolean {
   return row.slabs.some((s) => s.underwater || s.missingRoles.length > 0);
 }
 
-/** No slabs → the server's sample (₹2,000 within service limits); slabs → ₹2,000 if a slab covers it. */
-function defaultAmountFor(row: ServiceRow | undefined): string {
-  const first = row?.slabs[0];
-  if (!row || !first) return DEFAULT_PREVIEW_AMOUNT;
-  if (row.slabs.length === 1 && first.minAmount == null && first.maxAmount == null) {
-    return String(Number(first.sampleAmount));
-  }
-  const target = Number(DEFAULT_PREVIEW_AMOUNT);
-  const covers = row.slabs.some(
-    (s) => (s.minAmount == null || Number(s.minAmount) <= target) && (s.maxAmount == null || Number(s.maxAmount) >= target),
-  );
-  return covers ? DEFAULT_PREVIEW_AMOUNT : String(Number(first.sampleAmount));
+/** A slab with no "Provider pays" yet. */
+function hasUnsetIncome(row: ServiceRow): boolean {
+  return row.slabs.some((s) => s.providerIncome == null);
 }
 
 function RoleCell({ r }: { r: RoleSplit | undefined }) {
@@ -200,38 +168,21 @@ export function RateCardScreen() {
   const [version, setVersion] = useState(0);
   const [query, setQuery] = useState("");
   const viewParam = useSearchParams().get("view");
-  const [lossOnly, setLossOnly] = useState(viewParam === "loss");
+  const [show, setShow] = useState<ShowFilter>(viewParam === "loss" ? "loss" : "all");
   const [seenViewParam, setSeenViewParam] = useState(viewParam);
   if (seenViewParam !== viewParam) {
     setSeenViewParam(viewParam);
-    setLossOnly(viewParam === "loss");
+    setShow(viewParam === "loss" ? "loss" : "all");
   }
+  const [category, setCategory] = useState("");
 
-  /** Slab edited in place under its table row; stays open until the save goes through. */
-  const [inlineSlab, setInlineSlab] = useState<{
-    serviceId: string;
-    rowKey: string;
-    initial: IncomeDraft;
-    draft: IncomeDraft;
-    /** This slab's own role split, edited from the same card. */
-    initialSplit: SlabSplit;
-    modes: Record<SchemeRole, SplitMode>;
-    values: Record<SchemeRole, string>;
-  } | null>(null);
+  /** Slab open in the add / edit popup. `slabKey` null = a new slab. */
+  const [slabEditor, setSlabEditor] = useState<{ serviceId: string; slabKey: string | null; draft: IncomeDraft } | null>(null);
 
   const { saveReq, setSaveReq, saving, runSave } = usePendingSave(() => {
     setVersion((v) => v + 1);
-    setInlineSlab(null);
+    setSlabEditor(null);
   });
-
-  const [previewServiceId, setPreviewServiceId] = useState("");
-  const [previewAmount, setPreviewAmount] = useState(DEFAULT_PREVIEW_AMOUNT);
-  const [preview, setPreview] = useState<PreviewData | null>(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
-  const [previewError, setPreviewError] = useState<string | null>(null);
-  const previewSeq = useRef(0);
-  /** Unsaved edits of the open service editor — the preview shows them before Save. */
-  const [editorDraft, setEditorDraft] = useState<{ serviceId: string; draft: PreviewDraft } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -250,42 +201,6 @@ export function RateCardScreen() {
     void load();
   }, [load, version]);
 
-  // Falls back to the first service until the admin picks one (or after a provider switch hides it).
-  const activePreviewId =
-    data?.services.some((s) => s.serviceId === previewServiceId) ? previewServiceId : (data?.services[0]?.serviceId ?? "");
-  const amountValid = Number(previewAmount.trim()) > 0;
-
-  const previewDraft = editorDraft?.serviceId === activePreviewId ? editorDraft.draft : null;
-  const previewDraftKey = previewDraft ? JSON.stringify(previewDraft) : "";
-
-  useEffect(() => {
-    if (!activePreviewId || !amountValid) return;
-    const amt = previewAmount.trim();
-    const draft = previewDraftKey ? (JSON.parse(previewDraftKey) as PreviewDraft) : null;
-    const seq = ++previewSeq.current;
-    const t = setTimeout(async () => {
-      setPreviewLoading(true);
-      try {
-        const r = await api.post("/admin/rate-card/preview", {
-          serviceId: activePreviewId,
-          amount: amt,
-          providerId: providerId || null,
-          ...(draft ? { draft } : {}),
-        });
-        if (seq !== previewSeq.current) return;
-        if (!r.data.success) throw new Error(r.data.message);
-        setPreview(r.data.data as PreviewData);
-        setPreviewError(null);
-      } catch (err) {
-        if (seq !== previewSeq.current) return;
-        setPreviewError(apiErrorMessage(err, "Preview could not be calculated. Try again."));
-      } finally {
-        if (seq === previewSeq.current) setPreviewLoading(false);
-      }
-    }, 350);
-    return () => clearTimeout(t);
-  }, [activePreviewId, amountValid, previewAmount, providerId, version, previewDraftKey]);
-
   const providerName = useMemo(
     () => data?.providers.find((p) => p.id === providerId)?.name ?? "This provider",
     [data, providerId],
@@ -296,26 +211,37 @@ export function RateCardScreen() {
     const out: Array<{ category: string; rows: ServiceRow[] }> = [];
     for (const s of data?.services ?? []) {
       if (q && !`${s.serviceName} ${s.serviceCode} ${s.categoryName}`.toLowerCase().includes(q)) continue;
-      if (lossOnly && !hasLossOrMissing(s)) continue;
+      if (category && s.categoryName !== category) continue;
+      if (show === "loss" && !hasLossOrMissing(s)) continue;
+      if (show === "unset" && !hasUnsetIncome(s)) continue;
       const last = out[out.length - 1];
       if (last && last.category === s.categoryName) last.rows.push(s);
       else out.push({ category: s.categoryName, rows: [s] });
     }
     return out;
-  }, [data, query, lossOnly]);
+  }, [data, query, category, show]);
 
   const lossCount = useMemo(() => (data?.services ?? []).filter(hasLossOrMissing).length, [data]);
+  const unsetCount = useMemo(() => (data?.services ?? []).filter(hasUnsetIncome).length, [data]);
+  const categories = useMemo(() => [...new Set((data?.services ?? []).map((s) => s.categoryName))], [data]);
 
   function toggle(row: ServiceRow) {
-    if (expanded === row.serviceId) setInlineSlab((cur) => (cur?.serviceId === row.serviceId ? null : cur));
     setExpanded((cur) => (cur === row.serviceId ? null : row.serviceId));
-    if (activePreviewId !== row.serviceId) {
-      setPreviewServiceId(row.serviceId);
-      setPreviewAmount(defaultAmountFor(row));
-    }
   }
 
-  const previewServices = data?.services ?? [];
+  function newSlabDraft(s: Slab | null): IncomeDraft {
+    return {
+      key: newIncomeKey(),
+      replacesId: null,
+      providerId: providerId || null,
+      ruleType: "flat",
+      value: "",
+      capAmount: "",
+      minAmount: s?.minAmount != null ? String(Number(s.minAmount)) : "",
+      maxAmount: s?.maxAmount != null ? String(Number(s.maxAmount)) : "",
+      note: null,
+    };
+  }
 
   const importInput = useRef<HTMLInputElement>(null);
   const [importErrors, setImportErrors] = useState<string[] | null>(null);
@@ -353,229 +279,47 @@ export function RateCardScreen() {
     });
   }
 
-  function openInline(row: ServiceRow, s: Slab, draft: IncomeDraft) {
-    const rowKey = slabKey(s);
-    const split = slabSplitOf(s);
-    setInlineSlab((cur) =>
-      cur?.serviceId === row.serviceId && cur.rowKey === rowKey
-        ? null
-        : { serviceId: row.serviceId, rowKey, initial: draft, draft, initialSplit: split, modes: split.modes, values: split.values },
-    );
-  }
-
-  /** ✎ / 🗑 for a slab line; "+" when no "Provider pays" row covers it yet. */
-  function slabActions(row: ServiceRow, s: Slab) {
+  /** ✎ / 🗑 for a slab line ("+" sets provider income when none covers it); `withAdd` adds "Add slab". */
+  function slabActions(row: ServiceRow, s: Slab, withAdd = false) {
     const rule = incomeRuleForSlab(row, s);
     const key = slabKey(s);
-    const editingThis = inlineSlab?.serviceId === row.serviceId && inlineSlab.rowKey === key;
+    const editingThis = slabEditor?.serviceId === row.serviceId && slabEditor.slabKey === key;
     return (
       <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
-        <div className="flex justify-end gap-0.5">
+        <div className="flex items-center justify-end gap-0.5">
+          {withAdd ? addSlabButton(row) : null}
+          <IconAction
+            title={rule ? "Edit slab" : "Set what the provider pays for this slab"}
+            tone={rule ? "blue" : "green"}
+            active={editingThis}
+            onClick={() => setSlabEditor({ serviceId: row.serviceId, slabKey: key, draft: rule ? draftOfIncome(rule) : newSlabDraft(s) })}
+          >
+            {rule ? <Pencil size={14} /> : <Plus size={14} />}
+          </IconAction>
           {rule ? (
-            <>
-              <IconAction title="Edit slab" tone="blue" active={editingThis} onClick={() => openInline(row, s, draftOfIncome(rule))}>
-                <Pencil size={14} />
-              </IconAction>
-              <IconAction title="Delete slab" tone="red" onClick={() => setSaveReq(endSlabRequest(row, rule))}>
-                <Trash2 size={14} />
-              </IconAction>
-            </>
-          ) : (
-            <IconAction
-              title="Set what the provider pays for this slab"
-              tone="green"
-              active={editingThis}
-              onClick={() =>
-                openInline(row, s, {
-                  key: newIncomeKey(),
-                  replacesId: null,
-                  providerId: providerId || null,
-                  ruleType: "flat",
-                  value: "",
-                  capAmount: "",
-                  minAmount: s.minAmount != null ? String(Number(s.minAmount)) : "",
-                  maxAmount: s.maxAmount != null ? String(Number(s.maxAmount)) : "",
-                  note: null,
-                })
-              }
-            >
-              <Plus size={14} />
+            <IconAction title="Delete slab" tone="red" onClick={() => setSaveReq(endSlabRequest(row, rule))}>
+              <Trash2 size={14} />
             </IconAction>
-          )}
+          ) : null}
         </div>
       </td>
     );
   }
 
-  /** Inline slab editor, rendered as a full-width row right under the slab it edits. */
-  function inlineRow(row: ServiceRow, s: Slab) {
-    if (!inlineSlab || inlineSlab.serviceId !== row.serviceId || inlineSlab.rowKey !== slabKey(s)) return null;
-    const { initial, draft, initialSplit, modes, values } = inlineSlab;
-    const editing = Boolean(initial.replacesId);
-    const error = incomeRowError(draft);
-    const slabChanged = (["ruleType", "value", "capAmount", "minAmount", "maxAmount"] as const).some(
-      (k) => draft[k].trim() !== initial[k].trim(),
-    );
-    const includeSlab = !editing || slabChanged;
-    const roleErrors = SCHEME_ROLES.map((r) => roleSplitError(r, modes[r], values[r]));
-    // The split follows the slab range being saved (new bounds when the range itself is edited).
-    const splitChanges = slabSplitChanges({
-      row,
-      initial: initialSplit,
-      next: { modes, values },
-      providerId: providerId || null,
-      minAmount: draft.minAmount.trim() || null,
-      maxAmount: draft.maxAmount.trim() || null,
-    });
-    const changes = [...(includeSlab && !error ? incomeChanges(row, draft, providerName) : []), ...splitChanges];
-    const canSave = changes.length > 0 && !(includeSlab && error) && !roleErrors.some(Boolean);
-
-    // Live estimate on this slab's sample amount (before TDS).
-    const sample = Number(s.sampleAmount);
-    const toP = (v: string | number) => Math.round(Number(v) * 100);
-    let incomeP: number | null = s.providerIncome != null ? toP(s.providerIncome) : null;
-    if (!error) {
-      incomeP =
-        draft.ruleType === "flat"
-          ? toP(draft.value)
-          : Math.round(sample * Number(draft.value));
-      if (draft.ruleType === "percentage" && draft.capAmount.trim() !== "") incomeP = Math.min(incomeP, toP(draft.capAmount));
-    }
-    const roleP = SCHEME_ROLES.map((r) => {
-      const v = values[r].trim();
-      if (v === "" || roleErrors[SCHEME_ROLES.indexOf(r)]) return 0;
-      if (modes[r] === "flat") return toP(v);
-      return incomeP != null ? Math.round((incomeP * Number(v)) / 100) : 0;
-    });
-    const keepsP = (incomeP ?? 0) + toP(s.customerFee) - roleP.reduce((a, b) => a + b, 0);
-    // TDS on each role's gross, rounded down — same as the payout.
-    const tdsScaled = row.tax.tdsApplies ? Math.round(Number(row.tax.tdsPercent) * 10_000) : 0;
-    const tdsP = roleP.map((g) => (g > 0 && tdsScaled > 0 ? Math.floor((g * tdsScaled) / 1_000_000) : 0));
-    const tdsTotalP = tdsP.reduce((a, b) => a + b, 0);
-    const setRole = (r: SchemeRole, patch: { mode?: SplitMode; value?: string }) =>
-      setInlineSlab((cur) =>
-        cur
-          ? {
-              ...cur,
-              modes: patch.mode ? { ...cur.modes, [r]: patch.mode } : cur.modes,
-              values: patch.value !== undefined ? { ...cur.values, [r]: patch.value } : cur.values,
-            }
-          : cur,
-      );
-
+  function addSlabButton(row: ServiceRow) {
     return (
-      <tr>
-        <td colSpan={7} className="px-4 pb-3 pt-1">
-          <div
-            className="rounded-2xl border p-4"
-            style={{ borderColor: "#93C5FD", background: "linear-gradient(180deg, #F7F9FF 0%, var(--admin-card) 100%)" }}
-          >
-            <div className="mb-3 flex items-center gap-2.5">
-              <span
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
-                style={{
-                  background: editing ? "rgba(42,92,221,0.12)" : "rgba(18,183,106,0.14)",
-                  color: editing ? B.blueLight : B.greenDark,
-                }}
-              >
-                {editing ? <Pencil size={16} /> : <Plus size={16} />}
-              </span>
-              <div className="min-w-0">
-                <p className="text-sm font-bold" style={{ color: B.blue }}>
-                  {editing ? "Edit slab" : "Set slab"} · {row.serviceName}
-                </p>
-                <p className="text-[11px]" style={{ color: B.muted }}>
-                  {editing
-                    ? `Now: ${slabLabel(initial.minAmount || null, initial.maxAmount || null)} → ${ruleLabel(initial.ruleType, initial.value, initial.capAmount || null)}`
-                    : "What the provider pays the company for this amount range"}
-                </p>
-              </div>
-            </div>
-            <IncomeSlabFields
-              wide
-              draft={draft}
-              onChange={(next) => setInlineSlab((cur) => (cur ? { ...cur, draft: next } : cur))}
-              showError={draft !== initial}
-            />
-
-            <div className="mt-4 rounded-xl border p-3" style={{ borderColor: B.border, background: "var(--admin-card)" }}>
-              <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-                <p className="text-xs font-bold uppercase tracking-wide" style={{ color: B.blueLight }}>
-                  Commission split
-                </p>
-                <p className="text-[11px]" style={{ color: B.muted }}>
-                  This slab only ({slabLabel(draft.minAmount || null, draft.maxAmount || null)}) · % = share of what the provider pays · ₹ = flat per txn · blank = ₹0
-                </p>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-3">
-                {SCHEME_ROLES.map((r, i) => (
-                  <div key={r} className="text-xs">
-                    <div className="mb-1 flex items-center justify-between gap-1">
-                      <span className="font-semibold" style={{ color: B.muted }}>
-                        {ROLE_LABEL[r]}
-                      </span>
-                      <SplitModeSwitch
-                        label={ROLE_LABEL[r]}
-                        mode={modes[r]}
-                        onChange={(m) => setRole(r, { mode: m })}
-                      />
-                    </div>
-                    <NumberField
-                      label=""
-                      value={values[r]}
-                      onChange={(v) => setRole(r, { value: v })}
-                      suffix={modes[r] === "percent" ? "%" : undefined}
-                      prefix={modes[r] === "flat" ? "₹" : undefined}
-                      placeholder="Off"
-                      error={roleErrors[i]}
-                    />
-                    {!roleErrors[i] ? (
-                      <p className="mt-1 text-[11px] tabular-nums" style={{ color: B.muted }}>
-                        ≈ {inr(roleP[i]! / 100)} on {inr(s.sampleAmount)} · net {inr((roleP[i]! - tdsP[i]!) / 100)} after TDS
-                      </p>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-              <div
-                className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs font-semibold tabular-nums"
-                style={{
-                  background: keepsP < 0 ? "#FEF2F2" : "rgba(18,183,106,0.08)",
-                  color: keepsP < 0 ? B.danger : B.greenDark,
-                }}
-              >
-                <span>
-                  On {inr(s.sampleAmount)}: provider pays {incomeP != null ? inr(incomeP / 100) : "not set"} · TDS{" "}
-                  {row.tax.tdsApplies ? pct(row.tax.tdsPercent) : "off"} held {inr(tdsTotalP / 100)}
-                </span>
-                <span>{keepsP < 0 ? `Company loses ${inr(-keepsP / 100)}` : `Company keeps ${inr(keepsP / 100)}`}</span>
-              </div>
-            </div>
-
-            <div className="mt-3 flex items-center justify-end gap-2">
-              <span className="mr-auto text-[11px]" style={{ color: B.muted }}>
-                {changes.length > 0 ? `${changes.length} change${changes.length === 1 ? "" : "s"} to save` : "No changes yet"}
-              </span>
-              <Btn variant="destructive" onClick={() => setInlineSlab(null)}>
-                Cancel
-              </Btn>
-              <Btn
-                variant="primary"
-                disabled={!canSave}
-                onClick={() =>
-                  setSaveReq({
-                    title: `${editing ? "Edit" : "Set"} slab · ${row.serviceName}`,
-                    changes,
-                    warnings: keepsP < 0 ? [`On ${inr(s.sampleAmount)} the roles get more than the provider pays — company loses money.`] : [],
-                  })
-                }
-              >
-                Save
-              </Btn>
-            </div>
-          </div>
-        </td>
-      </tr>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setSlabEditor({ serviceId: row.serviceId, slabKey: null, draft: newSlabDraft(null) });
+        }}
+        className="mr-1 inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-2 py-1 text-[11px] font-bold text-white transition hover:brightness-105"
+        style={{ background: B.green }}
+        title={`Add a new slab to ${row.serviceName}`}
+      >
+        <Plus size={12} /> Add slab
+      </button>
     );
   }
 
@@ -653,32 +397,56 @@ export function RateCardScreen() {
         </p>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
+      <div>
         <section className="min-w-0 rounded-2xl border" style={{ borderColor: B.border, background: B.card }}>
           <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3" style={{ borderColor: B.border }}>
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-sm font-bold" style={{ color: B.blue }}>
-                Services {data ? `(${data.services.length})` : ""}
+                Services {data ? `(${groups.reduce((n, g) => n + g.rows.length, 0)} of ${data.services.length})` : ""}
               </p>
-              <div className="flex rounded-xl border p-0.5 text-xs font-semibold" style={{ borderColor: B.border }}>
+              <select
+                aria-label="Filter by category"
+                className="rounded-xl border px-2.5 py-1.5 text-xs font-semibold"
+                style={{ borderColor: B.border, background: "var(--admin-card)", color: B.blue }}
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+              >
+                <option value="">All categories</option>
+                {categories.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+              <select
+                aria-label="Filter by status"
+                className="rounded-xl border px-2.5 py-1.5 text-xs font-semibold"
+                style={{
+                  borderColor: show === "all" ? B.border : "#FCA5A5",
+                  background: "var(--admin-card)",
+                  color: show === "all" ? B.blue : B.danger,
+                }}
+                value={show}
+                onChange={(e) => setShow(e.target.value as ShowFilter)}
+              >
+                <option value="all">All services</option>
+                <option value="loss">Loss or role on ₹0 ({lossCount})</option>
+                <option value="unset">Provider pays not set ({unsetCount})</option>
+              </select>
+              {category || show !== "all" || query ? (
                 <button
                   type="button"
-                  onClick={() => setLossOnly(false)}
-                  className="rounded-lg px-2.5 py-1 transition"
-                  style={!lossOnly ? { background: B.blueLight, color: "#fff" } : { color: B.muted }}
+                  className="text-xs font-bold hover:underline"
+                  style={{ color: B.blueLight }}
+                  onClick={() => {
+                    setCategory("");
+                    setShow("all");
+                    setQuery("");
+                  }}
                 >
-                  All
+                  Clear filters
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setLossOnly(true)}
-                  className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition"
-                  style={lossOnly ? { background: B.danger, color: "#fff" } : { color: lossCount ? B.danger : B.muted }}
-                  title="Services where the company loses money or a role earns ₹0"
-                >
-                  <AlertTriangle size={12} /> Loss &amp; missing ({lossCount})
-                </button>
-              </div>
+              ) : null}
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <label className="flex items-center gap-2 rounded-xl border px-3 py-1.5" style={{ borderColor: B.border }}>
@@ -718,11 +486,9 @@ export function RateCardScreen() {
             </p>
           ) : groups.length === 0 ? (
             <p className="px-4 py-8 text-sm" style={{ color: B.muted }}>
-              {query
-                ? `No service matches "${query}"${lossOnly ? " in Loss & missing" : ""}.`
-                : lossOnly
-                  ? "No service loses money and every role earns on every slab."
-                  : "No active services."}
+              {query || category || show !== "all"
+                ? "No service matches these filters. Clear the filters to see every service."
+                : "No active services."}
             </p>
           ) : (
             <div className="overflow-x-auto">
@@ -737,7 +503,7 @@ export function RateCardScreen() {
                       </th>
                     ))}
                     <th className="px-3 py-2.5 text-right font-bold">Company keeps</th>
-                    <th className="w-[84px] px-2 py-2.5 text-right font-bold">Actions</th>
+                    <th className="w-[150px] px-2 py-2.5 text-right font-bold">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -782,32 +548,39 @@ export function RateCardScreen() {
                               {single ? (
                                 <>
                                   <SlabCells slab={single} />
-                                  {slabActions(row, single)}
+                                  {slabActions(row, single, true)}
                                 </>
                               ) : (
-                                <td colSpan={6} />
+                                <>
+                                  <td colSpan={5} />
+                                  <td className="px-2 py-2 text-right" onClick={(e) => e.stopPropagation()}>
+                                    {addSlabButton(row)}
+                                  </td>
+                                </>
                               )}
                             </tr>
-                            {single ? inlineRow(row, single) : null}
                             {!single && open
                               ? row.slabs.map((s) => (
-                                  <Fragment key={slabKey(s)}>
-                                    <tr
-                                      className="cursor-pointer border-t transition hover:bg-[var(--admin-secondary)]"
-                                      style={{ borderColor: B.border }}
-                                      onClick={() => {
-                                        setPreviewServiceId(row.serviceId);
-                                        setPreviewAmount(String(Number(s.sampleAmount)));
-                                      }}
-                                    >
-                                      <td className="py-2 pl-11 pr-3 text-xs" style={{ color: B.muted }}>
-                                        {slabLabel(s.minAmount, s.maxAmount)} · on {inr(s.sampleAmount)}
-                                      </td>
-                                      <SlabCells slab={s} />
-                                      {slabActions(row, s)}
-                                    </tr>
-                                    {inlineRow(row, s)}
-                                  </Fragment>
+                                  <tr
+                                    key={slabKey(s)}
+                                    className="cursor-pointer border-t transition hover:bg-[var(--admin-secondary)]"
+                                    style={{ borderColor: B.border }}
+                                    title="Open this slab"
+                                    onClick={() => {
+                                      const rule = incomeRuleForSlab(row, s);
+                                      setSlabEditor({
+                                        serviceId: row.serviceId,
+                                        slabKey: slabKey(s),
+                                        draft: rule ? draftOfIncome(rule) : newSlabDraft(s),
+                                      });
+                                    }}
+                                  >
+                                    <td className="py-2 pl-11 pr-3 text-xs" style={{ color: B.muted }}>
+                                      {slabLabel(s.minAmount, s.maxAmount)} · on {inr(s.sampleAmount)}
+                                    </td>
+                                    <SlabCells slab={s} />
+                                    {slabActions(row, s)}
+                                  </tr>
                                 ))
                               : null}
                             {open ? (
@@ -819,15 +592,6 @@ export function RateCardScreen() {
                                     providerId={providerId || null}
                                     providerName={providerName}
                                     onRequestSave={setSaveReq}
-                                    onDraftChange={(draft) =>
-                                      setEditorDraft((cur) =>
-                                        draft
-                                          ? { serviceId: row.serviceId, draft }
-                                          : cur?.serviceId === row.serviceId
-                                            ? null
-                                            : cur,
-                                      )
-                                    }
                                   />
                                 </td>
                               </tr>
@@ -842,24 +606,27 @@ export function RateCardScreen() {
             </div>
           )}
         </section>
-
-        <div>
-          <PreviewPanel
-            services={previewServices}
-            serviceId={activePreviewId}
-            onServiceChange={(id) => {
-              setPreviewServiceId(id);
-              setPreviewAmount(defaultAmountFor(previewServices.find((s) => s.serviceId === id)));
-            }}
-            amount={previewAmount}
-            onAmountChange={setPreviewAmount}
-            preview={preview}
-            hasUnsavedChanges={Boolean(previewDraft)}
-            loading={previewLoading}
-            error={amountValid ? previewError : "Enter an amount more than ₹0"}
-          />
-        </div>
       </div>
+
+      {slabEditor && data
+        ? (() => {
+            const row = data.services.find((s) => s.serviceId === slabEditor.serviceId);
+            if (!row) return null;
+            const slab = slabEditor.slabKey ? (row.slabs.find((s) => slabKey(s) === slabEditor.slabKey) ?? null) : null;
+            return (
+              <SlabEditorModal
+                key={`${slabEditor.serviceId}-${slabEditor.slabKey ?? "new"}-${slabEditor.draft.key}`}
+                row={row}
+                slab={slab}
+                initialDraft={slabEditor.draft}
+                providerId={providerId || null}
+                providerName={providerName}
+                onClose={() => setSlabEditor(null)}
+                onSave={setSaveReq}
+              />
+            );
+          })()
+        : null}
 
       {saveReq ? (
         <SaveConfirmModal
