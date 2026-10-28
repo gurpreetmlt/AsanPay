@@ -16,11 +16,15 @@ import {
   type PendingChange,
   type PreviewDraft,
   type RuleType,
+  type PreviewData,
   type SchemeRole,
   type ServiceRow,
   type Slab,
 } from "./types";
-import { Btn, Chip, NumberField, SplitModeSwitch, percentError, type SplitMode } from "./ui";
+import { flatError, flatRuleOf, initialModeOf, modesOf, roleSplitChanges, sharesDraftOf } from "./roleSplit";
+import api from "@/lib/api";
+import { apiErrorMessage } from "@/lib/taxCommissionUtils";
+import { Btn, Chip, NumberField, SplitModeSwitch, percentError } from "./ui";
 import { TaxSummary } from "./TaxSummary";
 import {
   IncomeSlabModal,
@@ -43,41 +47,6 @@ type FeeDraft = {
   maxAmount: string;
 };
 
-const num = (v: string) => String(Number(v));
-
-/** The role's one All providers flat ₹ rule for any amount — what the ₹ switch edits. */
-function flatRuleOf(row: ServiceRow, role: SchemeRole) {
-  const rules = row.fixedRules.filter((r) => r.role === role && r.providerId === null);
-  const only = rules.length === 1 ? rules[0]! : null;
-  return only && only.ruleType === "flat" && only.minAmount == null && only.maxAmount == null ? only : null;
-}
-
-function initialModeOf(row: ServiceRow, role: SchemeRole): SplitMode {
-  return !row.shares[role] && flatRuleOf(row, role) ? "flat" : "percent";
-}
-
-function modesOf(row: ServiceRow): Record<SchemeRole, SplitMode> {
-  return {
-    retailer: initialModeOf(row, "retailer"),
-    distributor: initialModeOf(row, "distributor"),
-    super_distributor: initialModeOf(row, "super_distributor"),
-  };
-}
-
-function sharesDraftOf(row: ServiceRow): Record<SchemeRole, string> {
-  const valueOf = (role: SchemeRole) => {
-    const share = row.shares[role];
-    if (share) return num(share.sharePercent);
-    const flat = flatRuleOf(row, role);
-    return flat ? num(flat.value) : "";
-  };
-  return {
-    retailer: valueOf("retailer"),
-    distributor: valueOf("distributor"),
-    super_distributor: valueOf("super_distributor"),
-  };
-}
-
 const slabKeyOf = (s: Slab) => `${s.minAmount ?? ""}|${s.maxAmount ?? ""}`;
 
 /** Slab the live calculation opens on: the one covering ₹2,000 with provider income, else the first. */
@@ -89,31 +58,6 @@ function defaultCalcKey(row: ServiceRow): string {
     row.slabs.find((x) => x.providerIncome != null) ??
     row.slabs[0];
   return s ? slabKeyOf(s) : "";
-}
-
-/** Server ₹ strings (2 dp) → paise. */
-const paiseOf = (v: string | null | undefined) => Math.round(Number(v ?? 0) * 100);
-
-/** Typed flat ₹ → paise, half-up on the 3rd decimal (same as the payout). */
-function flatPaise(v: string): number {
-  const [whole = "0", frac = ""] = v.trim().split(".");
-  const up = frac.length > 2 && Number(frac[2]) >= 5 ? 1 : 0;
-  return Number(whole || "0") * 100 + Number((frac + "00").slice(0, 2)) + up;
-}
-
-/** % of provider income, half-up to the paisa (same as the payout). */
-function sharePaise(incomePaise: number, percent: string): number {
-  const scaled = Math.round(Number(percent) * 10_000);
-  return incomePaise > 0 && scaled > 0 ? Math.floor((incomePaise * scaled + 500_000) / 1_000_000) : 0;
-}
-
-function flatError(v: string, label: string): string | null {
-  const t = v.trim();
-  if (t === "") return null;
-  const n = Number(t);
-  if (!Number.isFinite(n) || n < 0) return `${label} flat amount must be 0 or more`;
-  if (n > 500) return `${label} flat amount cannot be more than ₹500`;
-  return null;
 }
 
 let keySeq = 0;
@@ -174,30 +118,15 @@ export function ServiceEditor({
     ]),
   ) as Record<SchemeRole, string | null>;
 
-  // Live calculation on one slab: unchanged roles use the server figure, edited roles the typed value.
-  const initialShares = useMemo(() => sharesDraftOf(row), [row]);
-  const initialModes = useMemo(() => modesOf(row), [row]);
-  const [calcKey, setCalcKey] = useState(() => defaultCalcKey(row));
-  const calcSlab = row.slabs.find((s) => slabKeyOf(s) === calcKey) ?? row.slabs[0];
-  const tdsPct = row.tax.tdsApplies ? Math.round(Number(row.tax.tdsPercent) * 10_000) : 0;
-  const calcRoles = calcSlab
-    ? SCHEME_ROLES.map((role) => {
-        const v = shares[role].trim();
-        const changed = modes[role] !== initialModes[role] || v !== initialShares[role];
-        let gross: number;
-        if (!changed) gross = paiseOf(calcSlab.roles.find((r) => r.role === role)?.gross);
-        else if (v === "" || shareErrors[role]) gross = 0;
-        else if (modes[role] === "flat") gross = flatPaise(v);
-        else gross = calcSlab.providerIncome != null ? sharePaise(paiseOf(calcSlab.providerIncome), v) : 0;
-        const tds = gross > 0 && tdsPct > 0 ? Math.floor((gross * tdsPct) / 1_000_000) : 0;
-        return { role, gross, tds, net: gross - tds };
-      })
-    : [];
-  const calcIncome = calcSlab?.providerIncome != null ? paiseOf(calcSlab.providerIncome) : null;
-  const calcKeeps = calcSlab
-    ? (calcIncome ?? 0) + paiseOf(calcSlab.customerFee) - calcRoles.reduce((s, r) => s + r.gross, 0)
-    : 0;
-  const rs = (p: number) => inr(p / 100);
+  // Live calculation: server preview of one amount with every unsaved edit applied (same math as payout).
+  const [calcAmount, setCalcAmount] = useState(() => {
+    const s = row.slabs.find((x) => slabKeyOf(x) === defaultCalcKey(row));
+    return s ? String(Number(s.sampleAmount)) : "2000";
+  });
+  const [calc, setCalc] = useState<PreviewData | null>(null);
+  const [calcBusy, setCalcBusy] = useState(false);
+  const [calcError, setCalcError] = useState<string | null>(null);
+  const calcSeq = useRef(0);
 
   const incomeErrors = pendingIncome.map(incomeRowError);
   const feeErrors = pendingFees.map(feeRowError);
@@ -252,74 +181,7 @@ export function ServiceEditor({
     }
     const nowIso = new Date().toISOString();
     for (const role of SCHEME_ROLES) {
-      const cur = row.shares[role];
-      const next = shares[role].trim();
-      const flatRule = flatRuleOf(row, role);
-      const wasFlat = initialModeOf(row, role) === "flat";
-      const endFlat: PendingChange[] = flatRule
-        ? [
-            {
-              label: `${svc} · end ${ROLE_LABEL[role]} flat ₹`,
-              detail: `${inr(flatRule.value)} per txn stops`,
-              method: "patch",
-              url: `/admin/commission/rules/${flatRule.id}`,
-              body: { effectiveTo: nowIso },
-            },
-          ]
-        : [];
-
-      if (modes[role] === "flat") {
-        if (wasFlat && next !== "" && Number(next) === Number(flatRule!.value)) continue;
-        if (next !== "") {
-          out.push({
-            label: `${svc} · ${ROLE_LABEL[role]} flat ₹ (All providers)`,
-            detail: `${wasFlat ? inr(flatRule!.value) : cur ? pct(cur.sharePercent) : "none"} → ${inr(next)} per txn`,
-            method: "post",
-            url: "/admin/commission/rules",
-            body: { serviceId: row.serviceId, providerId: null, role, ruleType: "flat", value: next },
-          });
-        }
-        if (cur) {
-          out.push({
-            label: `${svc} · end ${ROLE_LABEL[role]} share`,
-            detail: `${pct(cur.sharePercent)} of provider income stops`,
-            method: "delete",
-            url: `/admin/rate-card/shares/${cur.id}`,
-            body: {},
-          });
-        }
-        out.push(...endFlat);
-        continue;
-      }
-
-      // Switched ₹ → %: the new share saves first, then the flat rule ends.
-      const endFlatAfter = wasFlat ? endFlat : [];
-      if (next === "" && cur && providerId && cur.providerId === null) {
-        out.push({
-          label: `${svc} · ${ROLE_LABEL[role]} share (${scopeLabel})`,
-          detail: `${pct(cur.sharePercent)} → 0% for ${scopeLabel} only (All providers share stays)`,
-          method: "post",
-          url: "/admin/rate-card/shares",
-          body: { serviceId: row.serviceId, providerId, role, sharePercent: "0" },
-        });
-      } else if (next === "" && cur) {
-        out.push({
-          label: `${svc} · end ${ROLE_LABEL[role]} share`,
-          detail: `${pct(cur.sharePercent)} of provider income stops`,
-          method: "delete",
-          url: `/admin/rate-card/shares/${cur.id}`,
-          body: {},
-        });
-      } else if (next !== "" && (!cur || !samePercent(next, cur.sharePercent))) {
-        out.push({
-          label: `${svc} · ${ROLE_LABEL[role]} share (${scopeLabel})`,
-          detail: `${cur ? pct(cur.sharePercent) : wasFlat ? `${inr(flatRule!.value)} flat` : "none"} → ${pct(next)} of provider income`,
-          method: "post",
-          url: "/admin/rate-card/shares",
-          body: { serviceId: row.serviceId, providerId, role, sharePercent: next },
-        });
-      }
-      out.push(...endFlatAfter);
+      out.push(...roleSplitChanges({ row, role, mode: modes[role], value: shares[role], providerId, scopeLabel, nowIso }));
     }
     return out;
   }, [row, endIncomeIds, pendingIncome, endFeeIds, pendingFees, shares, modes, providerId, providerName, scopeLabel]);
@@ -333,8 +195,8 @@ export function ServiceEditor({
     const shareDraft: Partial<Record<SchemeRole, string>> = {};
     const flatDraft: Partial<Record<SchemeRole, string>> = {};
     for (const role of SCHEME_ROLES) {
-      if (shareErrors[role]) continue;
       const next = shares[role].trim();
+      if (shareErrors[role] || next.endsWith(".")) continue;
       const cur = row.shares[role];
       const wasFlat = initialModeOf(row, role) === "flat";
       if (modes[role] === "flat") {
@@ -379,6 +241,34 @@ export function ServiceEditor({
   }, [shares, modes, row, shareErrors, endIncomeIds, pendingIncome, incomeErrors, endFeeIds, pendingFees, feeErrors]);
 
   const draftKey = draft ? JSON.stringify(draft) : "";
+
+  useEffect(() => {
+    const amt = calcAmount.trim();
+    if (!(Number(amt) > 0)) return;
+    const d = draftKey ? (JSON.parse(draftKey) as PreviewDraft) : null;
+    const seq = ++calcSeq.current;
+    const t = setTimeout(async () => {
+      setCalcBusy(true);
+      try {
+        const r = await api.post("/admin/rate-card/preview", {
+          serviceId: row.serviceId,
+          amount: amt,
+          providerId,
+          ...(d ? { draft: d } : {}),
+        });
+        if (seq !== calcSeq.current) return;
+        if (!r.data.success) throw new Error(r.data.message);
+        setCalc(r.data.data as PreviewData);
+        setCalcError(null);
+      } catch (err) {
+        if (seq !== calcSeq.current) return;
+        setCalcError(apiErrorMessage(err, "Live calculation failed. Check the fields in red."));
+      } finally {
+        if (seq === calcSeq.current) setCalcBusy(false);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [draftKey, calcAmount, row, providerId]);
   const draftCb = useRef(onDraftChange);
   useEffect(() => {
     draftCb.current = onDraftChange;
@@ -922,97 +812,133 @@ export function ServiceEditor({
             % = share of what the provider pays · ₹ = flat amount per txn, any amount.
           </p>
 
-          {calcSlab ? (
-            <div className="mt-3 overflow-hidden rounded-xl border" style={{ borderColor: B.border }}>
-              <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2" style={{ background: "var(--admin-secondary)" }}>
-                <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: B.blueLight }}>
-                  Live calculation
-                </span>
+          <div className="mt-3 overflow-hidden rounded-xl border" style={{ borderColor: B.border }}>
+            <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2" style={{ background: "var(--admin-secondary)" }}>
+              <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide" style={{ color: B.blueLight }}>
+                Live calculation
+                {calcBusy ? <span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ background: B.blueLight }} /> : null}
+              </span>
+              <div className="flex items-center gap-1.5">
                 {row.slabs.length > 1 ? (
                   <select
-                    aria-label="Slab for the live calculation"
-                    className="max-w-[60%] rounded-lg border px-2 py-1 text-xs"
+                    aria-label="Pick a slab for the live calculation"
+                    className="max-w-[170px] rounded-lg border px-2 py-1 text-xs"
                     style={{ borderColor: B.border, background: "var(--admin-card)", color: B.blue }}
-                    value={slabKeyOf(calcSlab)}
-                    onChange={(e) => setCalcKey(e.target.value)}
+                    value=""
+                    onChange={(e) => e.target.value && setCalcAmount(e.target.value)}
                   >
+                    <option value="">Pick slab…</option>
                     {row.slabs.map((s) => (
-                      <option key={slabKeyOf(s)} value={slabKeyOf(s)}>
-                        {slabLabel(s.minAmount, s.maxAmount)} · on {inr(s.sampleAmount)}
+                      <option key={slabKeyOf(s)} value={String(Number(s.sampleAmount))}>
+                        {slabLabel(s.minAmount, s.maxAmount)}
                       </option>
                     ))}
                   </select>
-                ) : (
-                  <span className="text-[11px]" style={{ color: B.muted }}>
-                    on {inr(calcSlab.sampleAmount)}
+                ) : null}
+                <label className="flex items-center rounded-lg border px-2" style={{ borderColor: B.border, background: "var(--admin-card)" }}>
+                  <span className="pr-1 text-xs" style={{ color: B.muted }}>
+                    ₹
                   </span>
-                )}
+                  <input
+                    aria-label="Transaction amount for the live calculation"
+                    inputMode="decimal"
+                    className="w-[78px] bg-transparent py-1 text-xs tabular-nums outline-none"
+                    value={calcAmount}
+                    onChange={(e) => setCalcAmount(e.target.value.replace(/[^\d.]/g, ""))}
+                  />
+                </label>
               </div>
-              <div className="flex items-center justify-between border-t px-3 py-2 text-xs" style={{ borderColor: B.border }}>
-                <span style={{ color: B.muted }}>Provider pays (txn of {inr(calcSlab.sampleAmount)})</span>
-                {calcIncome != null ? (
-                  <span className="font-bold tabular-nums" style={{ color: B.blue }}>
-                    {rs(calcIncome)}
-                  </span>
-                ) : (
-                  <Chip tone="amber">Not set</Chip>
-                )}
-              </div>
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-t" style={{ borderColor: B.border, color: B.muted }}>
-                    <th className="px-3 py-1.5 text-left font-semibold">Role</th>
-                    <th className="px-3 py-1.5 text-right font-semibold">Gross</th>
-                    <th className="px-3 py-1.5 text-right font-semibold">
-                      TDS {row.tax.tdsApplies ? pct(row.tax.tdsPercent) : "off"}
-                    </th>
-                    <th className="px-3 py-1.5 text-right font-semibold">Net to wallet</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {calcRoles.map((r) => (
-                    <tr key={r.role} className="border-t" style={{ borderColor: B.border }}>
-                      <td className="px-3 py-1.5 font-semibold" style={{ color: B.blue }}>
-                        {ROLE_LABEL[r.role]}
-                        <span className="ml-1 font-normal" style={{ color: B.muted }}>
-                          {shares[r.role].trim() === "" ? "· off" : modes[r.role] === "flat" ? "· flat" : `· ${pct(shares[r.role])}`}
-                        </span>
-                      </td>
-                      <td className="px-3 py-1.5 text-right tabular-nums" style={{ color: B.blue }}>
-                        {rs(r.gross)}
-                      </td>
-                      <td className="px-3 py-1.5 text-right tabular-nums" style={{ color: B.muted }}>
-                        − {rs(r.tds)}
-                      </td>
-                      <td className="px-3 py-1.5 text-right font-bold tabular-nums" style={{ color: B.greenDark }}>
-                        {rs(r.net)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {paiseOf(calcSlab.customerFee) > 0 ? (
-                <div className="flex items-center justify-between border-t px-3 py-1.5 text-xs" style={{ borderColor: B.border, color: B.muted }}>
-                  <span>Customer fee (before GST)</span>
-                  <span className="tabular-nums">+ {inr(calcSlab.customerFee)}</span>
-                </div>
-              ) : null}
-              <div
-                className="flex items-center justify-between border-t px-3 py-2 text-xs font-bold"
-                style={{
-                  borderColor: B.border,
-                  background: calcKeeps < 0 ? "#FEF2F2" : "rgba(18,183,106,0.08)",
-                  color: calcKeeps < 0 ? B.danger : B.greenDark,
-                }}
-              >
-                <span>Company keeps</span>
-                <span className="tabular-nums">{calcKeeps < 0 ? `Loses ${rs(-calcKeeps)}` : rs(calcKeeps)}</span>
-              </div>
-              <p className="border-t px-3 py-1.5 text-[11px]" style={{ borderColor: B.border, color: B.muted }}>
-                Company keeps = provider pays + customer fee − role gross. TDS is held from the agent and paid to the government.
-              </p>
             </div>
-          ) : null}
+
+            {!(Number(calcAmount) > 0) ? (
+              <p className="border-t px-3 py-2 text-xs font-semibold text-red-600" style={{ borderColor: B.border }}>
+                Enter a transaction amount more than ₹0
+              </p>
+            ) : calcError ? (
+              <p className="border-t px-3 py-2 text-xs font-semibold text-red-600" style={{ borderColor: B.border }}>
+                {calcError}
+              </p>
+            ) : calc ? (
+              <div style={{ opacity: calcBusy ? 0.6 : 1 }} className="transition-opacity">
+                <div className="flex items-center justify-between border-t px-3 py-2 text-xs" style={{ borderColor: B.border }}>
+                  <span style={{ color: B.muted }}>Provider pays on {inr(calc.amount)}</span>
+                  {calc.providerIncome != null ? (
+                    <span className="font-bold tabular-nums" style={{ color: B.blue }}>
+                      {inr(calc.providerIncome)}
+                    </span>
+                  ) : (
+                    <Chip tone="amber">Not set</Chip>
+                  )}
+                </div>
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-t" style={{ borderColor: B.border, color: B.muted }}>
+                      <th className="px-3 py-1.5 text-left font-semibold">Role</th>
+                      <th className="px-3 py-1.5 text-right font-semibold">Gross</th>
+                      <th className="px-3 py-1.5 text-right font-semibold">
+                        TDS {calc.tax.tdsApplies ? pct(calc.tax.tdsPercent) : "off"}
+                      </th>
+                      <th className="px-3 py-1.5 text-right font-semibold">Net to wallet</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {calc.roles.map((r) => (
+                      <tr key={r.role} className="border-t" style={{ borderColor: B.border }}>
+                        <td className="px-3 py-1.5 font-semibold" style={{ color: B.blue }}>
+                          {ROLE_LABEL[r.role]}
+                          <span className="ml-1 font-normal" style={{ color: r.source === "none" ? B.danger : B.muted }}>
+                            ·{" "}
+                            {r.source === "share"
+                              ? pct(r.sharePercent)
+                              : r.source === "rule"
+                                ? r.ruleType === "flat"
+                                  ? "flat"
+                                  : "fixed rule"
+                                : "none"}
+                          </span>
+                        </td>
+                        <td className="px-3 py-1.5 text-right tabular-nums" style={{ color: B.blue }}>
+                          {inr(r.gross)}
+                        </td>
+                        <td className="px-3 py-1.5 text-right tabular-nums" style={{ color: B.muted }}>
+                          − {inr(r.tds)}
+                        </td>
+                        <td className="px-3 py-1.5 text-right font-bold tabular-nums" style={{ color: B.greenDark }}>
+                          {inr(r.net)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {Number(calc.customerFee) > 0 ? (
+                  <div className="flex items-center justify-between border-t px-3 py-1.5 text-xs" style={{ borderColor: B.border, color: B.muted }}>
+                    <span>Customer fee (before GST)</span>
+                    <span className="tabular-nums">+ {inr(calc.customerFee)}</span>
+                  </div>
+                ) : null}
+                <div
+                  className="flex items-center justify-between border-t px-3 py-2 text-xs font-bold"
+                  style={{
+                    borderColor: B.border,
+                    background: calc.underwater ? "#FEF2F2" : "rgba(18,183,106,0.08)",
+                    color: calc.underwater ? B.danger : B.greenDark,
+                  }}
+                >
+                  <span>Company keeps</span>
+                  <span className="tabular-nums">
+                    {calc.underwater ? `Loses ${inr(Math.abs(Number(calc.companyKeeps)))}` : inr(calc.companyKeeps)}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <p className="border-t px-3 py-2 text-xs" style={{ borderColor: B.border, color: B.muted }}>
+                Calculating…
+              </p>
+            )}
+            <p className="border-t px-3 py-1.5 text-[11px]" style={{ borderColor: B.border, color: B.muted }}>
+              Updates as you type — unsaved slabs, fees and splits included. Company keeps = provider pays + customer fee − role gross.
+            </p>
+          </div>
           {providerId && SCHEME_ROLES.some((r) => row.shares[r] && row.shares[r]!.providerId === null) ? (
             <p className="mt-2 text-[11px]" style={{ color: B.muted }}>
               Showing the All providers share. Saving here creates a {providerName}-only share.

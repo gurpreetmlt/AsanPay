@@ -45,10 +45,12 @@ import {
   type PreviewDraft,
   type RateCardData,
   type RoleSplit,
+  type SchemeRole,
   type ServiceRow,
   type Slab,
 } from "./types";
-import { Btn, Chip } from "./ui";
+import { Btn, Chip, NumberField, SplitModeSwitch, type SplitMode } from "./ui";
+import { allRoleSplitChanges, modesOf, roleSplitError, sharesDraftOf } from "./roleSplit";
 
 const DEFAULT_PREVIEW_AMOUNT = "2000";
 
@@ -198,6 +200,9 @@ export function RateCardScreen() {
     rowKey: string;
     initial: IncomeDraft;
     draft: IncomeDraft;
+    /** Role split for the whole service (every slab), edited from the same card. */
+    modes: Record<SchemeRole, SplitMode>;
+    values: Record<SchemeRole, string>;
   } | null>(null);
 
   const { saveReq, setSaveReq, saving, runSave } = usePendingSave(() => {
@@ -299,7 +304,9 @@ export function RateCardScreen() {
 
   function openInline(row: ServiceRow, rowKey: string, draft: IncomeDraft) {
     setInlineSlab((cur) =>
-      cur?.serviceId === row.serviceId && cur.rowKey === rowKey ? null : { serviceId: row.serviceId, rowKey, initial: draft, draft },
+      cur?.serviceId === row.serviceId && cur.rowKey === rowKey
+        ? null
+        : { serviceId: row.serviceId, rowKey, initial: draft, draft, modes: modesOf(row), values: sharesDraftOf(row) },
     );
   }
 
@@ -350,9 +357,48 @@ export function RateCardScreen() {
   /** Inline slab editor, rendered as a full-width row right under the slab it edits. */
   function inlineRow(row: ServiceRow, s: Slab) {
     if (!inlineSlab || inlineSlab.serviceId !== row.serviceId || inlineSlab.rowKey !== slabKey(s)) return null;
-    const { initial, draft } = inlineSlab;
+    const { initial, draft, modes, values } = inlineSlab;
     const editing = Boolean(initial.replacesId);
     const error = incomeRowError(draft);
+    const slabChanged = (["ruleType", "value", "capAmount", "minAmount", "maxAmount"] as const).some(
+      (k) => draft[k].trim() !== initial[k].trim(),
+    );
+    const includeSlab = !editing || slabChanged;
+    const roleErrors = SCHEME_ROLES.map((r) => roleSplitError(r, modes[r], values[r]));
+    const scopeLabel = providerId ? providerName : "All providers";
+    const splitChanges = allRoleSplitChanges({ row, modes, values, providerId: providerId || null, scopeLabel });
+    const changes = [...(includeSlab && !error ? incomeChanges(row, draft, providerName) : []), ...splitChanges];
+    const canSave = changes.length > 0 && !(includeSlab && error) && !roleErrors.some(Boolean);
+
+    // Live estimate on this slab's sample amount (before TDS).
+    const sample = Number(s.sampleAmount);
+    const toP = (v: string | number) => Math.round(Number(v) * 100);
+    let incomeP: number | null = s.providerIncome != null ? toP(s.providerIncome) : null;
+    if (!error) {
+      incomeP =
+        draft.ruleType === "flat"
+          ? toP(draft.value)
+          : Math.round(sample * Number(draft.value));
+      if (draft.ruleType === "percentage" && draft.capAmount.trim() !== "") incomeP = Math.min(incomeP, toP(draft.capAmount));
+    }
+    const roleP = SCHEME_ROLES.map((r) => {
+      const v = values[r].trim();
+      if (v === "" || roleErrors[SCHEME_ROLES.indexOf(r)]) return 0;
+      if (modes[r] === "flat") return toP(v);
+      return incomeP != null ? Math.round((incomeP * Number(v)) / 100) : 0;
+    });
+    const keepsP = (incomeP ?? 0) + toP(s.customerFee) - roleP.reduce((a, b) => a + b, 0);
+    const setRole = (r: SchemeRole, patch: { mode?: SplitMode; value?: string }) =>
+      setInlineSlab((cur) =>
+        cur
+          ? {
+              ...cur,
+              modes: patch.mode ? { ...cur.modes, [r]: patch.mode } : cur.modes,
+              values: patch.value !== undefined ? { ...cur.values, [r]: patch.value } : cur.values,
+            }
+          : cur,
+      );
+
     return (
       <tr>
         <td colSpan={7} className="px-4 pb-3 pt-1">
@@ -387,18 +433,77 @@ export function RateCardScreen() {
               onChange={(next) => setInlineSlab((cur) => (cur ? { ...cur, draft: next } : cur))}
               showError={draft !== initial}
             />
-            <div className="mt-3 flex justify-end gap-2">
+
+            <div className="mt-4 rounded-xl border p-3" style={{ borderColor: B.border, background: "var(--admin-card)" }}>
+              <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+                <p className="text-xs font-bold uppercase tracking-wide" style={{ color: B.blueLight }}>
+                  Commission split
+                </p>
+                <p className="text-[11px]" style={{ color: B.muted }}>
+                  Applies to every slab of {row.serviceName} · % = share of what the provider pays · ₹ = flat per txn
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                {SCHEME_ROLES.map((r, i) => (
+                  <div key={r} className="text-xs">
+                    <div className="mb-1 flex items-center justify-between gap-1">
+                      <span className="font-semibold" style={{ color: B.muted }}>
+                        {ROLE_LABEL[r]}
+                      </span>
+                      <SplitModeSwitch
+                        label={ROLE_LABEL[r]}
+                        mode={modes[r]}
+                        onChange={(m) => setRole(r, { mode: m })}
+                        disabled={Boolean(providerId)}
+                        disabledReason="Flat ₹ is set for All providers — pick All providers to switch"
+                      />
+                    </div>
+                    <NumberField
+                      label=""
+                      value={values[r]}
+                      onChange={(v) => setRole(r, { value: v })}
+                      suffix={modes[r] === "percent" ? "%" : undefined}
+                      prefix={modes[r] === "flat" ? "₹" : undefined}
+                      placeholder="Off"
+                      error={roleErrors[i]}
+                    />
+                    {!roleErrors[i] ? (
+                      <p className="mt-1 text-[11px] tabular-nums" style={{ color: B.muted }}>
+                        ≈ {inr(roleP[i]! / 100)} on {inr(s.sampleAmount)}
+                      </p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+              <div
+                className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs font-semibold tabular-nums"
+                style={{
+                  background: keepsP < 0 ? "#FEF2F2" : "rgba(18,183,106,0.08)",
+                  color: keepsP < 0 ? B.danger : B.greenDark,
+                }}
+              >
+                <span>
+                  On {inr(s.sampleAmount)}: provider pays {incomeP != null ? inr(incomeP / 100) : "not set"}
+                </span>
+                <span>{keepsP < 0 ? `Company loses ${inr(-keepsP / 100)}` : `Company keeps ${inr(keepsP / 100)}`}</span>
+              </div>
+            </div>
+
+            <div className="mt-3 flex items-center justify-end gap-2">
+              <span className="mr-auto text-[11px]" style={{ color: B.muted }}>
+                {changes.length > 0 ? `${changes.length} change${changes.length === 1 ? "" : "s"} to save` : "No changes yet"}
+              </span>
               <Btn variant="destructive" onClick={() => setInlineSlab(null)}>
                 Cancel
               </Btn>
               <Btn
                 variant="primary"
-                disabled={Boolean(error)}
+                disabled={!canSave}
                 onClick={() =>
                   setSaveReq({
                     title: `${editing ? "Edit" : "Set"} slab · ${row.serviceName}`,
-                    changes: incomeChanges(row, draft, providerName),
-                    warnings: [],
+                    changes,
+                    warnings: keepsP < 0 ? [`On ${inr(s.sampleAmount)} the roles get more than the provider pays — company loses money.`] : [],
                   })
                 }
               >
