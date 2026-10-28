@@ -28,7 +28,6 @@ import { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { apiErrorMessage } from "@/lib/taxCommissionUtils";
 import { SaveConfirmModal } from "./SaveConfirmModal";
-import { ServiceEditor } from "./ServiceEditor";
 import { SlabEditorModal } from "./SlabEditorModal";
 import { TaxSummary } from "./TaxSummary";
 import { usePendingSave } from "./usePendingSave";
@@ -37,6 +36,15 @@ import { ROLE_LABEL, SCHEME_ROLES, inr, pct, slabLabel, type RateCardData, type 
 import { Btn, Chip } from "./ui";
 
 type ShowFilter = "all" | "loss" | "unset";
+
+/** Zebra rows: services alternate light tints; an open service and its slab rows sit on a blue band. */
+const ROW_BG = {
+  even: "var(--admin-card)",
+  odd: "rgba(42,92,221,0.035)",
+  open: "rgba(42,92,221,0.10)",
+  slabEven: "rgba(42,92,221,0.05)",
+  slabOdd: "rgba(42,92,221,0.085)",
+};
 
 /** Company loses money on a slab, or a role earns ₹0 on it. */
 function hasLossOrMissing(row: ServiceRow): boolean {
@@ -392,8 +400,12 @@ export function RateCardScreen() {
       >
         <Info size={15} className="mt-0.5 shrink-0" style={{ color: B.blueLight }} />
         <p>
-          Shares pay only once provider income is saved for a service; until then fixed rules keep paying.
-          &quot;Suggested&quot; fills the form from the provider rate sheet — nothing changes until you review and Save.
+          Click a service to see its slabs. ✎ edits a slab and its commission split, 🗑 ends it, + Add slab adds one — each
+          opens a popup with a live calculation. The default split for every slab and &quot;Fill from provider sheet&quot; are on{" "}
+          <Link href="/tax-commission/setup" className="font-semibold underline-offset-2 hover:underline" style={{ color: B.blueLight }}>
+            Commission setup
+          </Link>
+          .
         </p>
       </div>
 
@@ -514,14 +526,18 @@ export function RateCardScreen() {
                           {g.category}
                         </td>
                       </tr>
-                      {g.rows.map((row) => {
+                      {g.rows.map((row, rowIndex) => {
                         const open = expanded === row.serviceId;
                         const single = row.slabs.length === 1 ? row.slabs[0] : null;
                         return (
                           <Fragment key={row.serviceId}>
                             <tr
-                              className="cursor-pointer border-t transition hover:bg-[var(--admin-secondary)]"
-                              style={{ borderColor: B.border }}
+                              className="cursor-pointer border-t transition hover:brightness-[0.98]"
+                              style={{
+                                borderColor: B.border,
+                                background: open ? ROW_BG.open : rowIndex % 2 ? ROW_BG.odd : ROW_BG.even,
+                                boxShadow: open ? `inset 3px 0 0 ${B.blueLight}` : undefined,
+                              }}
                               onClick={() => toggle(row)}
                               aria-expanded={open}
                             >
@@ -538,33 +554,28 @@ export function RateCardScreen() {
                                     </p>
                                     <p className="text-[11px]" style={{ color: B.muted }}>
                                       {single
-                                        ? `${slabLabel(single.minAmount, single.maxAmount)} · on ${inr(single.sampleAmount)}`
+                                        ? `1 slab · ${slabLabel(single.minAmount, single.maxAmount)}`
                                         : `${row.slabs.length} slabs`}
                                     </p>
                                     <ServiceChips row={row} />
                                   </div>
                                 </div>
                               </td>
-                              {single ? (
-                                <>
-                                  <SlabCells slab={single} />
-                                  {slabActions(row, single, true)}
-                                </>
-                              ) : (
-                                <>
-                                  <td colSpan={5} />
-                                  <td className="px-2 py-2 text-right" onClick={(e) => e.stopPropagation()}>
-                                    {addSlabButton(row)}
-                                  </td>
-                                </>
-                              )}
+                              <td colSpan={5} />
+                              <td className="px-2 py-2 text-right" onClick={(e) => e.stopPropagation()}>
+                                {addSlabButton(row)}
+                              </td>
                             </tr>
-                            {!single && open
-                              ? row.slabs.map((s) => (
+                            {open
+                              ? row.slabs.map((s, slabIndex) => (
                                   <tr
                                     key={slabKey(s)}
-                                    className="cursor-pointer border-t transition hover:bg-[var(--admin-secondary)]"
-                                    style={{ borderColor: B.border }}
+                                    className="cursor-pointer border-t transition hover:brightness-[0.97]"
+                                    style={{
+                                      borderColor: B.border,
+                                      background: slabIndex % 2 ? ROW_BG.slabOdd : ROW_BG.slabEven,
+                                      boxShadow: `inset 3px 0 0 ${B.blueLight}`,
+                                    }}
                                     title="Open this slab"
                                     onClick={() => {
                                       const rule = incomeRuleForSlab(row, s);
@@ -583,19 +594,6 @@ export function RateCardScreen() {
                                   </tr>
                                 ))
                               : null}
-                            {open ? (
-                              <tr>
-                                <td colSpan={7} className="px-3 pb-4 pt-1">
-                                  <ServiceEditor
-                                    key={`${row.serviceId}-${data?.at ?? ""}`}
-                                    row={row}
-                                    providerId={providerId || null}
-                                    providerName={providerName}
-                                    onRequestSave={setSaveReq}
-                                  />
-                                </td>
-                              </tr>
-                            ) : null}
                           </Fragment>
                         );
                       })}
