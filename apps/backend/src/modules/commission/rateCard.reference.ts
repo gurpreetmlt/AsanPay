@@ -58,6 +58,39 @@ const slab = (minAmount: string, maxAmount: string, value: string): SuggestedInc
   maxAmount,
 });
 
+/** Cash withdrawal provider sheet: [slab start ₹, flat income ₹]; each slab runs to start + ₹99.99. */
+const CASH_WITHDRAWAL_SHEET: Array<[number, string]> = [
+  [100, "0"],
+  [200, "0.50"],
+  [300, "1.00"],
+  [400, "1.50"],
+  [500, "2.00"],
+  [600, "2.50"],
+  [700, "3.00"],
+  [800, "3.48"],
+  [900, "3.915"],
+  [1000, "4.35"],
+  [1100, "4.785"],
+  [1200, "5.22"],
+  [1300, "5.655"],
+  [1400, "6.09"],
+  [1500, "6.975"],
+  [1600, "7.44"],
+  [1700, "7.905"],
+  [1800, "8.37"],
+  [1900, "8.835"],
+  [2000, "9.30"],
+  [2100, "9.765"],
+  [2200, "10.23"],
+  [2300, "10.695"],
+  [2400, "11.16"],
+  [2500, "11.625"],
+  [2600, "12.09"],
+  [2700, "12.555"],
+  [2800, "13.02"],
+  [2900, "13.485"],
+];
+
 type Entry = { match: RegExp; ref: RateCardReference };
 
 // First match wins (UPI before the generic cash-withdrawal pattern); matched against `${code} ${name}` lower-cased.
@@ -102,18 +135,11 @@ const ENTRIES: Entry[] = [
     ref: {
       mode: "share",
       incomeRows: [
-        { ...flat("0"), maxAmount: "199.99", note: "Up to ₹199.99 the provider pays nothing" },
-        slab("200.00", "299.99", "0.50"),
-        slab("300.00", "399.99", "1.00"),
-        slab("400.00", "499.99", "1.50"),
-        slab("500.00", "599.99", "2.00"),
-        slab("600.00", "699.99", "2.50"),
-        slab("700.00", "799.99", "3.00"),
-        { ...pct("0.435"), minAmount: "800.00", maxAmount: "1499.99" },
-        { ...pct("0.465"), capAmount: "13.95", minAmount: "1500.00", maxAmount: "10000.00" },
+        ...CASH_WITHDRAWAL_SHEET.map(([from, value]) => slab(`${from}.00`, `${from + 99}.99`, value)),
+        slab("3000.00", "10000.00", "13.95"),
       ],
       askProvider: false,
-      note: "Provider sheet 28 Oct: ₹0.50 steps up to ₹799.99, 0.435% to ₹1,499.99, then 0.465% capped at ₹13.95.",
+      note: "Provider sheet 28 Oct: flat ₹ per ₹100 step up to ₹2,999.99, then ₹13.95 up to ₹10,000.",
       costs: [DAILY_2FA],
     },
   },
