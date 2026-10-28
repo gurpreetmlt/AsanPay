@@ -19,6 +19,7 @@ import {
   pct,
   slabLabel,
   type PreviewData,
+  type PreviewDraft,
   type RateCardData,
   type RoleSplit,
   type ServiceRow,
@@ -141,6 +142,8 @@ export function RateCardScreen() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const previewSeq = useRef(0);
+  /** Unsaved edits of the open service editor — the preview shows them before Save. */
+  const [editorDraft, setEditorDraft] = useState<{ serviceId: string; draft: PreviewDraft } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -164,9 +167,13 @@ export function RateCardScreen() {
     data?.services.some((s) => s.serviceId === previewServiceId) ? previewServiceId : (data?.services[0]?.serviceId ?? "");
   const amountValid = Number(previewAmount.trim()) > 0;
 
+  const previewDraft = editorDraft?.serviceId === activePreviewId ? editorDraft.draft : null;
+  const previewDraftKey = previewDraft ? JSON.stringify(previewDraft) : "";
+
   useEffect(() => {
     if (!activePreviewId || !amountValid) return;
     const amt = previewAmount.trim();
+    const draft = previewDraftKey ? (JSON.parse(previewDraftKey) as PreviewDraft) : null;
     const seq = ++previewSeq.current;
     const t = setTimeout(async () => {
       setPreviewLoading(true);
@@ -175,6 +182,7 @@ export function RateCardScreen() {
           serviceId: activePreviewId,
           amount: amt,
           providerId: providerId || null,
+          ...(draft ? { draft } : {}),
         });
         if (seq !== previewSeq.current) return;
         if (!r.data.success) throw new Error(r.data.message);
@@ -188,7 +196,7 @@ export function RateCardScreen() {
       }
     }, 350);
     return () => clearTimeout(t);
-  }, [activePreviewId, amountValid, previewAmount, providerId, version]);
+  }, [activePreviewId, amountValid, previewAmount, providerId, version, previewDraftKey]);
 
   const providerName = useMemo(
     () => data?.providers.find((p) => p.id === providerId)?.name ?? "This provider",
@@ -431,6 +439,15 @@ export function RateCardScreen() {
                                     providerId={providerId || null}
                                     providerName={providerName}
                                     onRequestSave={setSaveReq}
+                                    onDraftChange={(draft) =>
+                                      setEditorDraft((cur) =>
+                                        draft
+                                          ? { serviceId: row.serviceId, draft }
+                                          : cur?.serviceId === row.serviceId
+                                            ? null
+                                            : cur,
+                                      )
+                                    }
                                   />
                                 </td>
                               </tr>
@@ -457,6 +474,7 @@ export function RateCardScreen() {
             amount={previewAmount}
             onAmountChange={setPreviewAmount}
             preview={preview}
+            hasUnsavedChanges={Boolean(previewDraft)}
             loading={previewLoading}
             error={amountValid ? previewError : "Enter an amount more than ₹0"}
           />

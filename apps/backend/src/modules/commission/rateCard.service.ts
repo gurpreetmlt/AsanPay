@@ -439,8 +439,115 @@ export async function getRateCard(opts?: { providerId?: string | null }) {
   };
 }
 
-/** POST /admin/rate-card/preview — role-default split for one amount (no per-agent overrides). */
-export async function previewRateCard(input: { serviceId: string; amount: string; providerId?: string | null }) {
+/** Unsaved rate-card edits for one service, same scope rules as the save requests. */
+export type PreviewDraft = {
+  /** Share per role; "" removes the share in this scope (a provider scope falls back to 0%). */
+  shares?: Partial<Record<SchemeRole, string>>;
+  endIncomeIds?: string[];
+  addIncome?: Array<{
+    providerId: string | null;
+    ruleType: RuleType;
+    value: string;
+    capAmount?: string | null;
+    minAmount?: string | null;
+    maxAmount?: string | null;
+    replacesId?: string | null;
+  }>;
+  endFeeIds?: string[];
+  addFees?: Array<{
+    providerId: string | null;
+    role: SchemeRole | null;
+    ruleType: RuleType;
+    value: string;
+    minAmount?: string | null;
+    maxAmount?: string | null;
+    replacesId?: string | null;
+  }>;
+};
+
+const blank = (v: string | null | undefined) => (v == null || v.trim() === "" ? null : v.trim());
+
+/** Applies unsaved edits in memory only — nothing is written. New rows are newest, as after a save. */
+function applyPreviewDraft(
+  cfg: RateConfig,
+  charges: ChargeRow[],
+  serviceId: string,
+  scopeProviderId: string | null,
+  draft: PreviewDraft,
+  now: Date,
+): { cfg: RateConfig; charges: ChargeRow[] } {
+  const at = (i: number) => new Date(now.getTime() + 1 + i);
+
+  let shares = cfg.shares;
+  for (const role of SCHEME_ROLES) {
+    const raw = draft.shares?.[role];
+    if (raw === undefined) continue;
+    const next = raw.trim();
+    const sameScope = (s: (typeof shares)[number]) =>
+      s.serviceId === serviceId && s.role === role && s.providerId === scopeProviderId;
+    const hadInScope = shares.some(sameScope);
+    const hasAllProviders = shares.some((s) => s.serviceId === serviceId && s.role === role && s.providerId === null);
+    shares = shares.filter((s) => !sameScope(s));
+    const value = next !== "" ? next : !hadInScope && scopeProviderId && hasAllProviders ? "0" : null;
+    if (value !== null) {
+      shares = [
+        ...shares,
+        { id: `draft-share-${role}`, serviceId, providerId: scopeProviderId, role, sharePercent: value, effectiveFrom: at(0) },
+      ];
+    }
+  }
+
+  const endIncome = new Set([
+    ...(draft.endIncomeIds ?? []),
+    ...(draft.addIncome ?? []).map((r) => r.replacesId).filter((id): id is string => Boolean(id)),
+  ]);
+  const payoutRules = [
+    ...cfg.payoutRules.filter((r) => !endIncome.has(r.id)),
+    ...(draft.addIncome ?? []).map((r, i) => ({
+      id: `draft-income-${i}`,
+      serviceId,
+      providerId: r.providerId,
+      ruleType: r.ruleType,
+      value: r.value.trim(),
+      capAmount: blank(r.capAmount),
+      minAmount: blank(r.minAmount),
+      maxAmount: blank(r.maxAmount),
+      effectiveFrom: at(i),
+    })),
+  ];
+
+  const endFees = new Set([
+    ...(draft.endFeeIds ?? []),
+    ...(draft.addFees ?? []).map((r) => r.replacesId).filter((id): id is string => Boolean(id)),
+  ]);
+  const nextCharges = [
+    ...charges.filter((c) => !endFees.has(c.id)),
+    ...(draft.addFees ?? []).map((f, i) => ({
+      id: `draft-fee-${i}`,
+      serviceId,
+      providerId: f.providerId,
+      role: f.role,
+      ruleType: f.ruleType,
+      value: f.value.trim(),
+      minAmount: blank(f.minAmount),
+      maxAmount: blank(f.maxAmount),
+      effectiveFrom: at(i),
+    })),
+  ];
+
+  return { cfg: { ...cfg, shares, payoutRules }, charges: nextCharges };
+}
+
+/**
+ * POST /admin/rate-card/preview — role-default split for one amount (no per-agent overrides).
+ * With `draft`, the admin's unsaved edits are applied in memory so the preview updates while typing.
+ */
+export async function previewRateCard(input: {
+  serviceId: string;
+  amount: string;
+  providerId?: string | null;
+  draft?: PreviewDraft | null;
+}) {
   await assertServiceExists(input.serviceId);
   const providerId = input.providerId || null;
   await assertProviderExists(providerId);
@@ -456,16 +563,25 @@ export async function previewRateCard(input: { serviceId: string; amount: string
     db.select({ code: services.code, name: services.name }).from(services).where(eq(services.id, input.serviceId)).limit(1),
   ]);
   const costs = svc ? (referenceFor(svc)?.costs ?? []) : [];
+  const applied = input.draft
+    ? applyPreviewDraft(cfg, charges, input.serviceId, providerId, input.draft, now)
+    : { cfg, charges };
 
   return {
     serviceId: input.serviceId,
     providerId,
+    draftApplied: Boolean(input.draft),
     tax: taxView(tax),
     providerTax: {
       outputGstPercent: tenantTax.providerOutputGstPercent,
       tdsPercent: tenantTax.providerTdsPercent,
     },
-    ...computeSplit({ cfg, charges, tax, tenantTax, costs }, input.serviceId, providerId, amountPaise),
+    ...computeSplit(
+      { cfg: applied.cfg, charges: applied.charges, tax, tenantTax, costs },
+      input.serviceId,
+      providerId,
+      amountPaise,
+    ),
   };
 }
 

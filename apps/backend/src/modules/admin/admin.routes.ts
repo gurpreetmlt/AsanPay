@@ -556,11 +556,51 @@ adminRouter.get("/rate-card", async (req, res) => {
 
 adminRouter.post("/rate-card/preview", async (req, res) => {
   const { previewRateCard } = await import("../commission/rateCard.service");
+  const draftNumber = z.string().trim().max(20).regex(/^(\d+(\.\d{1,4})?)?$/, "Enter a number like 80 or 12.5");
+  const draftBound = draftNumber.nullable().optional();
+  const ruleType = z.enum(["flat", "percentage"]);
+  const role = z.enum(["retailer", "distributor", "super_distributor"]);
   const body = z
     .object({
       serviceId: z.string().uuid(),
       amount: z.string().min(1).max(20),
       providerId: z.string().uuid().nullable().optional(),
+      draft: z
+        .object({
+          shares: z.partialRecord(role, draftNumber).optional(),
+          endIncomeIds: z.array(z.string().uuid()).max(50).optional(),
+          addIncome: z
+            .array(
+              z.object({
+                providerId: z.string().uuid().nullable(),
+                ruleType,
+                value: draftNumber.min(1),
+                capAmount: draftBound,
+                minAmount: draftBound,
+                maxAmount: draftBound,
+                replacesId: z.string().uuid().nullable().optional(),
+              }),
+            )
+            .max(20)
+            .optional(),
+          endFeeIds: z.array(z.string().uuid()).max(50).optional(),
+          addFees: z
+            .array(
+              z.object({
+                providerId: z.string().uuid().nullable(),
+                role: role.nullable(),
+                ruleType,
+                value: draftNumber.min(1),
+                minAmount: draftBound,
+                maxAmount: draftBound,
+                replacesId: z.string().uuid().nullable().optional(),
+              }),
+            )
+            .max(20)
+            .optional(),
+        })
+        .nullable()
+        .optional(),
     })
     .parse(req.body);
   sendSuccess(res, await previewRateCard(body));

@@ -35,6 +35,7 @@ export function PreviewPanel({
   amount,
   onAmountChange,
   preview,
+  hasUnsavedChanges = false,
   loading,
   error,
 }: {
@@ -44,6 +45,8 @@ export function PreviewPanel({
   amount: string;
   onAmountChange: (v: string) => void;
   preview: PreviewData | null;
+  /** The open editor has unsaved edits for this service — they are included in the numbers. */
+  hasUnsavedChanges?: boolean;
   loading: boolean;
   error: string | null;
 }) {
@@ -62,11 +65,14 @@ export function PreviewPanel({
           <Calculator size={20} />
         </div>
         <div>
-          <h2 className="text-base font-bold" style={{ color: B.blue }}>
+          <h2 className="flex items-center gap-2 text-base font-bold" style={{ color: B.blue }}>
             Live preview
+            {hasUnsavedChanges ? <Chip tone="amber">Unsaved changes</Chip> : null}
           </h2>
           <p className="text-xs" style={{ color: B.muted }}>
-            Who earns what on one txn (saved rates, no agent overrides).
+            {hasUnsavedChanges
+              ? "Includes your unsaved changes — Save to apply them to new txns."
+              : "Who earns what on one txn (saved rates, no agent overrides)."}
           </p>
         </div>
       </div>

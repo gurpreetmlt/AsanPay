@@ -147,8 +147,35 @@ export type RateCardData = {
 export type PreviewData = Split & {
   serviceId: string;
   providerId: string | null;
+  /** True when the numbers include the editor's unsaved changes. */
+  draftApplied?: boolean;
   tax: TaxView;
   providerTax: { outputGstPercent: string; tdsPercent: string };
+};
+
+/** Unsaved editor changes sent with the preview request — applied in memory, never saved. */
+export type PreviewDraft = {
+  shares?: Partial<Record<SchemeRole, string>>;
+  endIncomeIds?: string[];
+  addIncome?: Array<{
+    providerId: string | null;
+    ruleType: RuleType;
+    value: string;
+    capAmount: string | null;
+    minAmount: string | null;
+    maxAmount: string | null;
+    replacesId: string | null;
+  }>;
+  endFeeIds?: string[];
+  addFees?: Array<{
+    providerId: string | null;
+    role: SchemeRole | null;
+    ruleType: RuleType;
+    value: string;
+    minAmount: string | null;
+    maxAmount: string | null;
+    replacesId: string | null;
+  }>;
 };
 
 /** One pending write, shown in the confirm popup and posted in order. */

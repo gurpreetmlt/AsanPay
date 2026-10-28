@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { HelpCircle, IndianRupee, Pencil, Plus, Receipt, Sparkles, Trash2, Undo2, Users, Wallet, X } from "lucide-react";
 import { B } from "@/lib/brand";
@@ -13,6 +13,7 @@ import {
   samePercent,
   slabLabel,
   type PendingChange,
+  type PreviewDraft,
   type RuleType,
   type SchemeRole,
   type ServiceRow,
@@ -93,11 +94,14 @@ export function ServiceEditor({
   providerId,
   providerName,
   onRequestSave,
+  onDraftChange,
 }: {
   row: ServiceRow;
   providerId: string | null;
   providerName: string;
   onRequestSave: (req: { title: string; changes: PendingChange[]; warnings: string[] }) => void;
+  /** Unsaved edits for the live preview; null when there are none (or the editor closes). */
+  onDraftChange?: (draft: PreviewDraft | null) => void;
 }) {
   const [shares, setShares] = useState(() => sharesDraftOf(row));
   const [pendingIncome, setPendingIncome] = useState<IncomeDraft[]>([]);
@@ -228,6 +232,57 @@ export function ServiceEditor({
 
   const hasErrors =
     incomeErrors.some(Boolean) || feeErrors.some(Boolean) || Object.values(shareErrors).some(Boolean);
+
+  // Valid unsaved edits only — a half-typed value keeps the last good preview instead of an error.
+  const draft = useMemo<PreviewDraft | null>(() => {
+    const out: PreviewDraft = {};
+    const shareDraft: Partial<Record<SchemeRole, string>> = {};
+    for (const role of SCHEME_ROLES) {
+      const next = shares[role].trim();
+      const cur = row.shares[role];
+      const changed = next === "" ? Boolean(cur) : !cur || !samePercent(next, cur.sharePercent);
+      if (changed && !shareErrors[role]) shareDraft[role] = next;
+    }
+    if (Object.keys(shareDraft).length) out.shares = shareDraft;
+    if (endIncomeIds.length) out.endIncomeIds = endIncomeIds;
+    const income = pendingIncome.filter((_, i) => !incomeErrors[i]);
+    if (income.length) {
+      out.addIncome = income.map((p) => ({
+        providerId: p.providerId,
+        ruleType: p.ruleType,
+        value: p.value.trim(),
+        capAmount: p.capAmount.trim() || null,
+        minAmount: p.minAmount.trim() || null,
+        maxAmount: p.maxAmount.trim() || null,
+        replacesId: p.replacesId,
+      }));
+    }
+    if (endFeeIds.length) out.endFeeIds = endFeeIds;
+    const fees = pendingFees.filter((_, i) => !feeErrors[i]);
+    if (fees.length) {
+      out.addFees = fees.map((f) => ({
+        providerId: f.providerId,
+        role: f.role,
+        ruleType: f.ruleType,
+        value: f.value.trim(),
+        minAmount: f.minAmount.trim() || null,
+        maxAmount: f.maxAmount.trim() || null,
+        replacesId: f.replacesId,
+      }));
+    }
+    return Object.keys(out).length ? out : null;
+  }, [shares, row, shareErrors, endIncomeIds, pendingIncome, incomeErrors, endFeeIds, pendingFees, feeErrors]);
+
+  const draftKey = draft ? JSON.stringify(draft) : "";
+  const draftCb = useRef(onDraftChange);
+  useEffect(() => {
+    draftCb.current = onDraftChange;
+  }, [onDraftChange]);
+  useEffect(() => {
+    draftCb.current?.(draft);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftKey]);
+  useEffect(() => () => draftCb.current?.(null), []);
 
   function discard() {
     setShares(sharesDraftOf(row));
