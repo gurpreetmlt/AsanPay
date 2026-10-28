@@ -1,9 +1,22 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { AlertTriangle, ChevronDown, ChevronRight, HelpCircle, Info, Pencil, Receipt, Search, Sparkles, TableProperties } from "lucide-react";
+import {
+  AlertTriangle,
+  ChevronDown,
+  ChevronRight,
+  HelpCircle,
+  Info,
+  Pencil,
+  Plus,
+  Receipt,
+  Search,
+  Sparkles,
+  TableProperties,
+  Trash2,
+} from "lucide-react";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { apiErrorMessage } from "@/lib/taxCommissionUtils";
@@ -13,10 +26,20 @@ import { ServiceEditor } from "./ServiceEditor";
 import { TaxSummary } from "./TaxSummary";
 import { usePendingSave } from "./usePendingSave";
 import {
+  IncomeSlabFields,
+  draftOfIncome,
+  endSlabRequest,
+  incomeChanges,
+  incomeRowError,
+  newIncomeKey,
+  type IncomeDraft,
+} from "./IncomeSlabModal";
+import {
   ROLE_LABEL,
   SCHEME_ROLES,
   inr,
   pct,
+  ruleLabel,
   slabLabel,
   type PreviewData,
   type PreviewDraft,
@@ -25,7 +48,7 @@ import {
   type ServiceRow,
   type Slab,
 } from "./types";
-import { Chip } from "./ui";
+import { Btn, Chip } from "./ui";
 
 const DEFAULT_PREVIEW_AMOUNT = "2000";
 
@@ -94,6 +117,41 @@ function SlabCells({ slab }: { slab: Slab }) {
   );
 }
 
+const slabKey = (s: Slab) => `${s.minAmount ?? ""}|${s.maxAmount ?? ""}`;
+
+/** The saved "Provider pays" row behind a slab line (same bounds), if any. */
+function incomeRuleForSlab(row: ServiceRow, s: Slab) {
+  return row.providerIncomeRules.find((r) => r.minAmount === s.minAmount && r.maxAmount === s.maxAmount) ?? null;
+}
+
+function IconAction({
+  title,
+  tone,
+  active,
+  onClick,
+  children,
+}: {
+  title: string;
+  tone: "blue" | "red" | "green";
+  active?: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  const color = tone === "red" ? B.danger : tone === "green" ? B.greenDark : B.blueLight;
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+      className={`rounded-lg p-1.5 transition ${tone === "red" ? "hover:bg-red-50" : "hover:bg-[rgba(42,92,221,0.10)]"}`}
+      style={{ color, background: active ? "rgba(42,92,221,0.12)" : undefined }}
+    >
+      {children}
+    </button>
+  );
+}
+
 function ServiceChips({ row }: { row: ServiceRow }) {
   const ref = row.reference;
   const missing = new Set(row.slabs.flatMap((s) => s.missingRoles));
@@ -134,7 +192,18 @@ export function RateCardScreen() {
     setLossOnly(viewParam === "loss");
   }
 
-  const { saveReq, setSaveReq, saving, runSave } = usePendingSave(() => setVersion((v) => v + 1));
+  /** Slab edited in place under its table row; stays open until the save goes through. */
+  const [inlineSlab, setInlineSlab] = useState<{
+    serviceId: string;
+    rowKey: string;
+    initial: IncomeDraft;
+    draft: IncomeDraft;
+  } | null>(null);
+
+  const { saveReq, setSaveReq, saving, runSave } = usePendingSave(() => {
+    setVersion((v) => v + 1);
+    setInlineSlab(null);
+  });
 
   const [previewServiceId, setPreviewServiceId] = useState("");
   const [previewAmount, setPreviewAmount] = useState(DEFAULT_PREVIEW_AMOUNT);
@@ -227,6 +296,120 @@ export function RateCardScreen() {
   }
 
   const previewServices = data?.services ?? [];
+
+  function openInline(row: ServiceRow, rowKey: string, draft: IncomeDraft) {
+    setInlineSlab((cur) =>
+      cur?.serviceId === row.serviceId && cur.rowKey === rowKey ? null : { serviceId: row.serviceId, rowKey, initial: draft, draft },
+    );
+  }
+
+  /** ✎ / 🗑 for a slab line; "+" when no "Provider pays" row covers it yet. */
+  function slabActions(row: ServiceRow, s: Slab) {
+    const rule = incomeRuleForSlab(row, s);
+    const key = slabKey(s);
+    const editingThis = inlineSlab?.serviceId === row.serviceId && inlineSlab.rowKey === key;
+    return (
+      <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
+        <div className="flex justify-end gap-0.5">
+          {rule ? (
+            <>
+              <IconAction title="Edit slab" tone="blue" active={editingThis} onClick={() => openInline(row, key, draftOfIncome(rule))}>
+                <Pencil size={14} />
+              </IconAction>
+              <IconAction title="Delete slab" tone="red" onClick={() => setSaveReq(endSlabRequest(row, rule))}>
+                <Trash2 size={14} />
+              </IconAction>
+            </>
+          ) : (
+            <IconAction
+              title="Set what the provider pays for this slab"
+              tone="green"
+              active={editingThis}
+              onClick={() =>
+                openInline(row, key, {
+                  key: newIncomeKey(),
+                  replacesId: null,
+                  providerId: providerId || null,
+                  ruleType: "flat",
+                  value: "",
+                  capAmount: "",
+                  minAmount: s.minAmount != null ? String(Number(s.minAmount)) : "",
+                  maxAmount: s.maxAmount != null ? String(Number(s.maxAmount)) : "",
+                  note: null,
+                })
+              }
+            >
+              <Plus size={14} />
+            </IconAction>
+          )}
+        </div>
+      </td>
+    );
+  }
+
+  /** Inline slab editor, rendered as a full-width row right under the slab it edits. */
+  function inlineRow(row: ServiceRow, s: Slab) {
+    if (!inlineSlab || inlineSlab.serviceId !== row.serviceId || inlineSlab.rowKey !== slabKey(s)) return null;
+    const { initial, draft } = inlineSlab;
+    const editing = Boolean(initial.replacesId);
+    const error = incomeRowError(draft);
+    return (
+      <tr>
+        <td colSpan={7} className="px-4 pb-3 pt-1">
+          <div
+            className="rounded-2xl border p-4"
+            style={{ borderColor: "#93C5FD", background: "linear-gradient(180deg, #F7F9FF 0%, var(--admin-card) 100%)" }}
+          >
+            <div className="mb-3 flex items-center gap-2.5">
+              <span
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+                style={{
+                  background: editing ? "rgba(42,92,221,0.12)" : "rgba(18,183,106,0.14)",
+                  color: editing ? B.blueLight : B.greenDark,
+                }}
+              >
+                {editing ? <Pencil size={16} /> : <Plus size={16} />}
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-bold" style={{ color: B.blue }}>
+                  {editing ? "Edit slab" : "Set slab"} · {row.serviceName}
+                </p>
+                <p className="text-[11px]" style={{ color: B.muted }}>
+                  {editing
+                    ? `Now: ${slabLabel(initial.minAmount || null, initial.maxAmount || null)} → ${ruleLabel(initial.ruleType, initial.value, initial.capAmount || null)}`
+                    : "What the provider pays the company for this amount range"}
+                </p>
+              </div>
+            </div>
+            <IncomeSlabFields
+              wide
+              draft={draft}
+              onChange={(next) => setInlineSlab((cur) => (cur ? { ...cur, draft: next } : cur))}
+              showError={draft !== initial}
+            />
+            <div className="mt-3 flex justify-end gap-2">
+              <Btn variant="destructive" onClick={() => setInlineSlab(null)}>
+                Cancel
+              </Btn>
+              <Btn
+                variant="primary"
+                disabled={Boolean(error)}
+                onClick={() =>
+                  setSaveReq({
+                    title: `${editing ? "Edit" : "Set"} slab · ${row.serviceName}`,
+                    changes: incomeChanges(row, draft, providerName),
+                    warnings: [],
+                  })
+                }
+              >
+                Save
+              </Btn>
+            </div>
+          </div>
+        </td>
+      </tr>
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -369,13 +552,14 @@ export function RateCardScreen() {
                       </th>
                     ))}
                     <th className="px-3 py-2.5 text-right font-bold">Company keeps</th>
+                    <th className="w-[84px] px-2 py-2.5 text-right font-bold">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {groups.map((g) => (
                     <Fragment key={g.category}>
                       <tr style={{ background: "var(--admin-secondary)" }}>
-                        <td colSpan={6} className="px-4 py-1.5 text-[11px] font-bold uppercase tracking-wide" style={{ color: B.blueLight }}>
+                        <td colSpan={7} className="px-4 py-1.5 text-[11px] font-bold uppercase tracking-wide" style={{ color: B.blueLight }}>
                           {g.category}
                         </td>
                       </tr>
@@ -410,29 +594,40 @@ export function RateCardScreen() {
                                   </div>
                                 </div>
                               </td>
-                              {single ? <SlabCells slab={single} /> : <td colSpan={5} />}
+                              {single ? (
+                                <>
+                                  <SlabCells slab={single} />
+                                  {slabActions(row, single)}
+                                </>
+                              ) : (
+                                <td colSpan={6} />
+                              )}
                             </tr>
+                            {single ? inlineRow(row, single) : null}
                             {!single
                               ? row.slabs.map((s) => (
-                                  <tr
-                                    key={`${s.minAmount}-${s.maxAmount}`}
-                                    className="cursor-pointer border-t"
-                                    style={{ borderColor: B.border }}
-                                    onClick={() => {
-                                      setPreviewServiceId(row.serviceId);
-                                      setPreviewAmount(String(Number(s.sampleAmount)));
-                                    }}
-                                  >
-                                    <td className="py-2 pl-11 pr-3 text-xs" style={{ color: B.muted }}>
-                                      {slabLabel(s.minAmount, s.maxAmount)} · on {inr(s.sampleAmount)}
-                                    </td>
-                                    <SlabCells slab={s} />
-                                  </tr>
+                                  <Fragment key={slabKey(s)}>
+                                    <tr
+                                      className="cursor-pointer border-t transition hover:bg-[var(--admin-secondary)]"
+                                      style={{ borderColor: B.border }}
+                                      onClick={() => {
+                                        setPreviewServiceId(row.serviceId);
+                                        setPreviewAmount(String(Number(s.sampleAmount)));
+                                      }}
+                                    >
+                                      <td className="py-2 pl-11 pr-3 text-xs" style={{ color: B.muted }}>
+                                        {slabLabel(s.minAmount, s.maxAmount)} · on {inr(s.sampleAmount)}
+                                      </td>
+                                      <SlabCells slab={s} />
+                                      {slabActions(row, s)}
+                                    </tr>
+                                    {inlineRow(row, s)}
+                                  </Fragment>
                                 ))
                               : null}
                             {open ? (
                               <tr>
-                                <td colSpan={6} className="px-3 pb-4 pt-1">
+                                <td colSpan={7} className="px-3 pb-4 pt-1">
                                   <ServiceEditor
                                     key={`${row.serviceId}-${data?.at ?? ""}`}
                                     row={row}

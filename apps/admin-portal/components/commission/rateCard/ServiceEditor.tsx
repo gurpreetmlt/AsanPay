@@ -21,7 +21,14 @@ import {
 } from "./types";
 import { Btn, Chip, NumberField, SplitModeSwitch, percentError, type SplitMode } from "./ui";
 import { TaxSummary } from "./TaxSummary";
-import { IncomeSlabModal, incomeRowError, type IncomeDraft } from "./IncomeSlabModal";
+import {
+  IncomeSlabModal,
+  draftOfIncome,
+  endSlabRequest,
+  incomeChanges,
+  incomeRowError,
+  type IncomeDraft,
+} from "./IncomeSlabModal";
 
 type FeeDraft = {
   key: string;
@@ -84,53 +91,6 @@ const newKey = () => `n${++keySeq}`;
 
 const bound = (v: string | null | undefined) => (v == null || v.trim() === "" ? null : Number(v));
 
-/** Save requests for one new / edited provider income slab. */
-function incomeChanges(row: ServiceRow, p: IncomeDraft, providerName: string): PendingChange[] {
-  const svc = row.serviceName;
-  const old = p.replacesId ? row.providerIncomeRules.find((x) => x.id === p.replacesId) : null;
-  const out: PendingChange[] = [
-    {
-      label: `${svc} · provider income (${p.providerId ? providerName : "All providers"})`,
-      detail: `${
-        old ? `${slabLabel(old.minAmount, old.maxAmount)}: ${ruleLabel(old.ruleType, old.value, old.capAmount)} → ` : ""
-      }${slabLabel(p.minAmount || null, p.maxAmount || null)}: ${ruleLabel(p.ruleType, p.value, p.capAmount || null)}`,
-      method: "post",
-      url: "/admin/rate-card/provider-income",
-      body: {
-        serviceId: row.serviceId,
-        providerId: p.providerId,
-        ruleType: p.ruleType,
-        value: p.value.trim(),
-        capAmount: p.capAmount.trim() || null,
-        minAmount: p.minAmount.trim() || null,
-        maxAmount: p.maxAmount.trim() || null,
-      },
-    },
-  ];
-  // Same slab: the server closes the old row itself. New slab bounds: end the old row explicitly.
-  if (old && (bound(old.minAmount) !== bound(p.minAmount) || bound(old.maxAmount) !== bound(p.maxAmount))) {
-    out.push({
-      label: `${svc} · end old provider income slab`,
-      detail: `${slabLabel(old.minAmount, old.maxAmount)}: ${ruleLabel(old.ruleType, old.value, old.capAmount)}`,
-      method: "delete",
-      url: `/admin/rate-card/provider-income/${old.id}`,
-      body: {},
-    });
-  }
-  return out;
-}
-
-const draftOfIncome = (r: ServiceRow["providerIncomeRules"][number]): IncomeDraft => ({
-  key: newKey(),
-  replacesId: r.id,
-  providerId: r.providerId,
-  ruleType: r.ruleType,
-  value: String(Number(r.value)),
-  capAmount: r.capAmount != null ? String(Number(r.capAmount)) : "",
-  minAmount: r.minAmount != null ? String(Number(r.minAmount)) : "",
-  maxAmount: r.maxAmount != null ? String(Number(r.maxAmount)) : "",
-  note: null,
-});
 
 function feeRowError(r: FeeDraft): string | null {
   const v = r.value.trim();
@@ -408,19 +368,7 @@ export function ServiceEditor({
   }
 
   function endSlab(r: ServiceRow["providerIncomeRules"][number]) {
-    onRequestSave({
-      title: `End slab · ${row.serviceName}`,
-      changes: [
-        {
-          label: `${row.serviceName} · end provider income slab`,
-          detail: `${slabLabel(r.minAmount, r.maxAmount)}: ${ruleLabel(r.ruleType, r.value, r.capAmount)}`,
-          method: "delete",
-          url: `/admin/rate-card/provider-income/${r.id}`,
-          body: {},
-        },
-      ],
-      warnings: [`Txns in ${slabLabel(r.minAmount, r.maxAmount)} get no provider income until another slab covers it.`],
-    });
+    onRequestSave(endSlabRequest(row, r));
   }
 
   function applySuggestion() {
