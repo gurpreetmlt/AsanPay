@@ -7,6 +7,7 @@ One row per feature; details in the section below the table. Newest at the top o
 
 | # | Feature | Surfaces | Size | Status | Design | Task file |
 |---|---------|----------|------|--------|--------|-----------|
+| PL-28 | Night service window — all services off 12:00 AM–6:00 AM IST by default; admin changes the time / turns it off, and can keep services open for chosen retailers | Backend, admin, web, mobile | M | planned — 28 Oct (decisions taken; build in a new chat) | — | — |
 | PL-27 | Simple commission setup — one table: "Company gets" auto-filled per service from the provider sheet (rate + example ₹), then split per role (Retailer / Distributor / SD) as flat ₹ or % of company income, company keeps the rest | Admin | M | building — built 28 Oct (admin-only, no migration; Coolify admin deploy + live test pending; default split numbers pending) | — | — |
 | PL-26 | Invite-only signup — public Sign up removed (web, app, marketing site); Distributor invites Retailer, SD invites Distributor, admin invites SD + Direct Retailer (new admin Invites page); signup OTP needs a valid invite | Backend, web, mobile, admin, marketing | M | building — built 28 Oct (Coolify backend/web/admin/marketing deploy + APK + live test pending) | — | — |
 | PL-25 | No password at signup — temporary password emailed when admin approves KYC, forced "Set new password" on first login, mobile OTP to resume KYC | Backend, web, mobile, admin | M | building — built 28 Oct (migrate `0084` + Coolify backend/web/admin deploy + APK + live test pending; needs SMTP env) | — | — |
@@ -34,6 +35,31 @@ One row per feature; details in the section below the table. Newest at the top o
 | PL-03 | Web location via phone QR (AEPS + onboarding) | Backend, web, mobile | M | building (built 26 Oct, migrate `0074` + APK + live test pending) | — | — |
 | PL-02 | Cash Management page (CMS provider cards, in-app CMS, CMS transactions) | Backend, web, mobile | M | building (built 26 Oct, live test pending) | — | — |
 | PL-01 | Linked accounts + role switch (same person, Distributor + Retailer) | Backend, web, mobile, admin | M | building (backend + web + mobile built 26 Oct; migrate `0076` + APK + live test pending; admin card next) | [Figma prompt](PROMPTS/figma-linked-accounts.md) · Figma URL pending | [linked-accounts.md](TASKS/linked-accounts.md) |
+
+---
+
+## PL-28 — Night service window
+
+**Problem:** Owner wants every service closed at night (default 12:00 AM – 6:00 AM IST), with the
+time editable from Admin and a way to keep services open for specific retailers.
+
+**Plan:**
+- Admin → Platform settings: **Night service window** — on/off, start time, end time (IST; window
+  may cross midnight). Saved in the DB, applied without a redeploy.
+- Backend guard on every service txn start (AePS, DMT, recharge, BBPS, CMS, etc.): inside the window →
+  clear error `Services are closed from 12:00 AM to 6:00 AM. Try again after 6:00 AM.` (times from config).
+  Server time only — never trust the device clock.
+- Admin → agent page: **Allow services at night** toggle per retailer (exception list), audited.
+- Agent web + mobile: service tiles stay visible with a "Opens at 6:00 AM" badge during the window;
+  tap → same message. Dashboard banner while closed.
+
+**Open decisions:**
+- [x] Only service txns close (AePS, DMT, recharge, BBPS, CMS); wallet transfer / fund request / settlement stay open (28 Oct)
+- [x] Applies to all agents — Retailer, Distributor, SD (28 Oct)
+- [x] Exception per agent: both — "Always open" toggle, or "Open until" a date/time that ends by itself (28 Oct)
+- [ ] Txns already in progress at the start time: let them finish (recommended)
+
+**Notes:** Touches money rails — backend check is the source of truth; UI badge is only a hint.
 
 ---
 

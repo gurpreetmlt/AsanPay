@@ -2146,7 +2146,7 @@ function SignupPageInner() {
                 {otpSent ? (
                   <>
                     <p className="text-xs" style={{ color: B.muted }}>
-                      Enter the 6-digit OTP. If fixed signup OTP is enabled, use that code (e.g. 242424).
+                      Enter the 6-digit OTP sent to your mobile number.
                     </p>
                     {devOtp ? (
                       <p className="rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: `${B.blue}12`, color: B.blue }}>

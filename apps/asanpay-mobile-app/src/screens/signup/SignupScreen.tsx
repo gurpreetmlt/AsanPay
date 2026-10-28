@@ -2124,7 +2124,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
                   {otpSent ? (
                     <>
                       <Text style={[styles.hint, { color: tokens.mute }]}>
-                        Enter the 6-digit OTP. If fixed signup OTP is enabled, use that code (e.g. 242424).
+                        Enter the 6-digit OTP sent to your mobile number.
                       </Text>
                       {devOtp ? <Text style={styles.devOtp}>Dev OTP: {devOtp}</Text> : null}
                       <FieldLabel text="OTP *" color={tokens.mute} />

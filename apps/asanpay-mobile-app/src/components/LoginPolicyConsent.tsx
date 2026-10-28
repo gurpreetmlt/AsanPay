@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Modal, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
-import { Download } from "lucide-react-native";
+import { Check, Download } from "lucide-react-native";
 import { PopupCloseButton } from "./PopupCloseButton";
 import { EULA_BODY, EULA_SUMMARY, PRIVACY_BODY, TERMS_BODY, buildLegalDownloadText } from "@asanpay/shared-types";
 import { colors } from "../theme/colors";
@@ -74,22 +74,24 @@ export function LoginPolicyConsent({
 
   return (
     <View style={styles.wrap}>
-      <View style={styles.row}>
-        <Pressable
-          onPress={() => onChange(!checked)}
-          hitSlop={10}
-          accessibilityRole="checkbox"
-          accessibilityState={{ checked }}
-          style={[styles.box, light && styles.boxLight, checked && styles.boxChecked]}
-        >
-          {checked ? <Text style={styles.tick}>✓</Text> : null}
-        </Pressable>
-        <Text style={[styles.label, light && styles.labelLight]} onPress={() => onChange(!checked)}>
+      <Pressable
+        onPress={() => onChange(!checked)}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked }}
+        style={[
+          styles.row,
+          light ? styles.rowLight : styles.rowDark,
+          checked && (light ? styles.rowCheckedLight : styles.rowCheckedDark),
+        ]}
+      >
+        <View style={[styles.box, light && styles.boxLight, checked && styles.boxChecked]}>
+          {checked ? <Check size={14} color="#fff" strokeWidth={3} /> : null}
+        </View>
+        <Text style={[styles.label, light && styles.labelLight]}>
           I agree to the {link("terms", "Terms & Conditions")}, {link("privacy", "Privacy Policy")} and{" "}
           {link("eula", "EULA")}.
         </Text>
-      </View>
-      {!checked ? <Text style={[styles.hint, light && styles.hintLight]}>Tick the box to continue.</Text> : null}
+      </Pressable>
       <LegalDocModal doc={openDoc} onClose={() => setOpenDoc(null)} />
     </View>
   );
@@ -97,26 +99,34 @@ export function LoginPolicyConsent({
 
 const styles = StyleSheet.create({
   wrap: { marginTop: 16 },
-  row: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  row: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  rowDark: { borderColor: "rgba(255,255,255,.14)", backgroundColor: "rgba(255,255,255,.05)" },
+  rowCheckedDark: { borderColor: "rgba(36,204,130,.55)", backgroundColor: "rgba(36,204,130,.10)" },
+  rowLight: { borderColor: colors.border, backgroundColor: "#F8FAFF" },
+  rowCheckedLight: { borderColor: "rgba(36,204,130,.45)", backgroundColor: "rgba(36,204,130,.06)" },
   box: {
-    width: 20,
-    height: 20,
-    marginTop: 1,
-    borderRadius: 5,
-    borderWidth: 1.5,
-    borderColor: "rgba(255,255,255,.5)",
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,.55)",
     alignItems: "center",
     justifyContent: "center",
   },
   boxChecked: { backgroundColor: colors.green, borderColor: colors.green },
-  tick: { color: "#fff", fontSize: 12, fontWeight: "800" },
-  label: { flex: 1, fontSize: 12.5, lineHeight: 18, color: "#B9C6F2" },
+  label: { flex: 1, fontSize: 12.5, lineHeight: 19, color: "#B9C6F2" },
   link: { color: "#3BE39A", fontWeight: "700", textDecorationLine: "underline" },
-  hint: { marginTop: 6, marginLeft: 30, fontSize: 11, color: "rgba(255,255,255,.5)" },
-  boxLight: { borderColor: colors.border },
+  boxLight: { borderColor: "#B8C3E0", backgroundColor: "#fff" },
   labelLight: { color: colors.text },
   linkLight: { color: colors.blueLight },
-  hintLight: { color: colors.textMuted },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 14 },
   card: { maxHeight: "88%", borderRadius: 16, backgroundColor: colors.card, overflow: "hidden" },
   header: {

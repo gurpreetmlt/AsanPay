@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Download, X } from "lucide-react";
+import { Check, Download, X } from "lucide-react";
 import { EULA_BODY, EULA_SUMMARY, PRIVACY_BODY, TERMS_BODY, buildLegalDownloadText } from "@asanpay/shared-types";
 import { B } from "@/lib/brand";
 
@@ -103,24 +103,36 @@ export function LoginPolicyConsent({
 
   return (
     <div>
-      <label className="flex cursor-pointer items-start gap-2.5 text-xs leading-relaxed" style={{ color: B.muted }}>
+      <label
+        className="flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-2.5 text-xs leading-relaxed transition-colors duration-200"
+        style={{
+          color: B.muted,
+          borderColor: checked ? `${B.green}66` : B.border,
+          background: checked ? `${B.green}0F` : "#F8FAFF",
+        }}
+      >
         <input
           type="checkbox"
           checked={checked}
           onChange={(e) => onChange(e.target.checked)}
-          className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer"
-          style={{ accentColor: B.green }}
+          className="peer sr-only"
         />
+        <span
+          aria-hidden
+          className="mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all duration-200 peer-focus-visible:ring-2 peer-focus-visible:ring-[#2A5CDD]/40"
+          style={{ borderColor: checked ? B.green : "#B8C3E0", background: checked ? B.green : "#fff" }}
+        >
+          <Check
+            size={13}
+            strokeWidth={3}
+            className={`text-white transition-transform duration-200 ${checked ? "scale-100" : "scale-0"}`}
+          />
+        </span>
         <span>
           I agree to the {link("terms", "Terms & Conditions")}, {link("privacy", "Privacy Policy")} and{" "}
           {link("eula", "EULA")}.
         </span>
       </label>
-      {!checked ? (
-        <p className="mt-1.5 pl-6 text-[11px]" style={{ color: B.muted }}>
-          Tick the box to continue.
-        </p>
-      ) : null}
       {openDoc ? <LegalDocModal doc={openDoc} onClose={() => setOpenDoc(null)} /> : null}
     </div>
   );
