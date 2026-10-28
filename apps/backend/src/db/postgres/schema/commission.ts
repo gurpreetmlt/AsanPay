@@ -159,6 +159,11 @@ export const userCommissionRates = pgTable(
       .references(() => services.id, { onDelete: "cascade" }),
     ruleType: commissionRuleTypeEnum("rule_type").notNull(),
     value: numeric("value", { precision: 10, scale: 4 }).notNull(),
+    /** Slab bounds (₹, inclusive). Both null = every amount of the service; the narrowest matching slab wins. */
+    minAmount: numeric("min_amount", { precision: 14, scale: 2 }),
+    maxAmount: numeric("max_amount", { precision: 14, scale: 2 }),
+    /** Set = pay this % of what the provider pays (like a rate card share); `value` is then unused. */
+    sharePercent: numeric("share_percent", { precision: 7, scale: 4 }),
     isActive: boolean("is_active").notNull().default(true),
     /** TCR06: override stops applying once expires_at <= now (null = never expires). */
     expiresAt: timestamp("expires_at", { withTimezone: true }),
@@ -166,7 +171,8 @@ export const userCommissionRates = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("user_commission_rates_user_service_key").on(table.userId, table.serviceId),
+    // One row per user + service + slab (unique index on COALESCEd bounds lives in migration 0090).
+    index("user_commission_rates_user_service_idx").on(table.userId, table.serviceId),
     index("user_commission_rates_user_idx").on(table.userId),
     index("user_commission_rates_expires_idx").on(table.expiresAt),
   ],

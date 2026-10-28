@@ -123,6 +123,27 @@ export function pickShare<T extends PickableRow>(
   return candidates[0] ?? null;
 }
 
+/** Per-agent override: flat ₹ / % of amount (`ruleType` + `value`), or a share of provider income. */
+export type OverrideRule = FixedRule & { sharePercent?: string | null };
+
+/**
+ * Best per-agent override for an amount: a slab row covering it (narrowest first) beats a row
+ * without bounds (whole service). Rows must already be filtered to the agent, service and active window.
+ */
+export function pickOverride<T extends { minAmount?: string | null; maxAmount?: string | null }>(
+  rows: readonly T[],
+  amountPaise: number,
+): T | null {
+  const candidates = rows.filter((r) => inSlab(r, amountPaise));
+  candidates.sort((a, b) => {
+    const as = isSlabRow(a) ? 1 : 0;
+    const bs = isSlabRow(b) ? 1 : 0;
+    if (as !== bs) return bs - as;
+    return slabWidth(a) - slabWidth(b);
+  });
+  return candidates[0] ?? null;
+}
+
 /**
  * One role's gross earning. Order: agent override → share of provider income → fixed rule → none.
  * A share only applies when provider income is configured (non-null); otherwise the fixed rule pays.
@@ -131,12 +152,16 @@ export function pickShare<T extends PickableRow>(
 export function resolveRoleGross(input: {
   amountPaise: number;
   providerIncomePaise: number | null;
-  override?: FixedRule | null;
+  override?: OverrideRule | null;
   sharePercent?: string | null;
   shareFlat?: string | null;
   fixedRule?: FixedRule | null;
 }): { source: PayoutSource; grossPaise: number } {
   if (input.override) {
+    if (input.override.sharePercent != null) {
+      const income = input.providerIncomePaise;
+      return { source: "override", grossPaise: income != null ? computeSharePaise(income, input.override.sharePercent) : 0 };
+    }
     return { source: "override", grossPaise: Math.max(0, computeFixedPaise(input.override, input.amountPaise)) };
   }
   if (input.sharePercent != null && input.providerIncomePaise != null) {

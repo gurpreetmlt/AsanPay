@@ -31,6 +31,9 @@ import {
   Percent,
   Phone,
   SlidersHorizontal,
+  ChevronRight,
+  Hash,
+  Receipt,
   type LucideIcon,
 } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
@@ -46,7 +49,7 @@ import {
   AEPS_REACTIVATE_REASON_PRESETS,
   KYC_RESET_REASON_PRESETS,
 } from "@/components/users/ReasonSelect";
-import { AgentCommissionPanel } from "@/components/users/AgentCommissionPanel";
+import { AgentRateCard } from "@/components/users/AgentRateCard";
 import { FundRequestSwitch } from "@/components/users/FundRequestSwitch";
 import { MoveAgentModal } from "@/components/users/MoveAgentModal";
 import api, { fetchApi } from "@/lib/api";
@@ -126,6 +129,90 @@ const initialsOf = (name: string) =>
 
 const inrText = (v: string | number) => `₹${Number(v).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
 
+/** Profile fact as a small tile: icon, label, value, optional copy. */
+function ProfileTile({
+  icon: Icon,
+  label,
+  value,
+  onCopy,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string | null | undefined;
+  onCopy?: () => void;
+}) {
+  return (
+    <div
+      className="agent-lift flex min-w-0 items-center gap-3 rounded-2xl border px-3.5 py-3"
+      style={{ borderColor: B.border, background: "linear-gradient(180deg, #F7F9FF 0%, var(--admin-card) 100%)" }}
+    >
+      <span
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+        style={{ background: "rgba(42,92,221,0.10)", color: B.blueLight }}
+      >
+        <Icon size={16} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: B.muted }}>
+          {label}
+        </p>
+        <p className="truncate text-sm font-semibold" style={{ color: B.blue }} title={value ?? undefined}>
+          {value || "—"}
+        </p>
+      </div>
+      {onCopy && value ? (
+        <button
+          type="button"
+          onClick={onCopy}
+          title={`Copy ${label.toLowerCase()}`}
+          aria-label={`Copy ${label.toLowerCase()}`}
+          className="shrink-0 rounded-lg p-1.5 transition hover:bg-[rgba(42,92,221,0.10)]"
+          style={{ color: B.muted }}
+        >
+          <Copy size={14} />
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+/** Soft empty state: icon in a dashed circle, title, one helper line. */
+function EmptyState({ icon: Icon, title, hint }: { icon: LucideIcon; title: string; hint: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed px-4 py-8 text-center" style={{ borderColor: B.border }}>
+      <span
+        className="flex h-14 w-14 items-center justify-center rounded-full"
+        style={{ background: "rgba(42,92,221,0.08)", color: B.blueLight, boxShadow: "0 0 0 8px rgba(42,92,221,0.04)" }}
+      >
+        <Icon size={24} />
+      </span>
+      <p className="mt-3 text-sm font-bold" style={{ color: B.blue }}>
+        {title}
+      </p>
+      <p className="mt-0.5 max-w-xs text-xs" style={{ color: B.muted }}>
+        {hint}
+      </p>
+    </div>
+  );
+}
+
+/** Glass pill on the blue hero for a contact fact. */
+function HeroFact({ icon: Icon, children, onClick, title }: { icon: LucideIcon; children: ReactNode; onClick?: () => void; title?: string }) {
+  const cls = "inline-flex items-center gap-1.5 rounded-full bg-white/12 px-3 py-1 text-xs font-semibold text-white/90 backdrop-blur-sm";
+  const style = { border: "1px solid rgba(255,255,255,0.22)" };
+  return onClick ? (
+    <button type="button" onClick={onClick} title={title} className={`${cls} transition hover:bg-white/25 hover:text-white`} style={style}>
+      <Icon size={13} />
+      {children}
+    </button>
+  ) : (
+    <span className={cls} style={style}>
+      <Icon size={13} />
+      {children}
+    </span>
+  );
+}
+
 /** White pill on the blue hero: small label + value with a coloured dot. */
 function HeroChip({ label, value, dot }: { label: string; value: string; dot: string }) {
   return (
@@ -154,12 +241,19 @@ function StatTile({
   sub?: string;
 }) {
   return (
-    <div className="flex min-w-0 items-start gap-3 px-5 py-4" style={{ background: "var(--admin-card)" }}>
+    <div
+      className="agent-lift relative flex min-w-0 items-start gap-3 overflow-hidden rounded-2xl border px-4 py-3.5"
+      style={{ borderColor: B.border, background: "var(--admin-card)" }}
+    >
+      <span className="absolute inset-x-0 top-0 h-[3px]" style={{ background: tone, opacity: 0.85 }} />
       <span
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-        style={{ background: `color-mix(in srgb, ${tone} 14%, transparent)`, color: tone }}
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"
+        style={{
+          background: `linear-gradient(135deg, color-mix(in srgb, ${tone} 22%, transparent), color-mix(in srgb, ${tone} 8%, transparent))`,
+          color: tone,
+        }}
       >
-        <Icon size={18} />
+        <Icon size={19} />
       </span>
       <div className="min-w-0">
         <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
@@ -576,15 +670,26 @@ export default function AgentDetailPage() {
     );
   }
 
+  function copyText(value: string, what: string) {
+    void navigator.clipboard.writeText(value).then(
+      () => toast.success(`${what} copied`),
+      () => toast.error(`Could not copy the ${what.toLowerCase()} — select it and copy manually`),
+    );
+  }
+
   const profileSection = agent ? (
     <DetailSection title="Agent profile" icon={User}>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <InfoRow label="Name" value={agent.name} />
-        <InfoRow label="Mobile" value={agent.mobile} />
-        <InfoRow label="Email" value={agent.email} />
-        <InfoRow label="UID" value={agent.uid} />
-        <InfoRow label="Role" value={ROLE_LABEL[agent.role] ?? agent.role} />
-        <InfoRow label="Joined" value={new Date(agent.createdAt).toLocaleString("en-IN")} />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <ProfileTile icon={User} label="Name" value={agent.name} />
+        <ProfileTile icon={Phone} label="Mobile" value={agent.mobile} onCopy={() => copyText(agent.mobile, "Mobile")} />
+        <ProfileTile icon={Mail} label="Email" value={agent.email} onCopy={agent.email ? () => copyText(agent.email!, "Email") : undefined} />
+        <ProfileTile icon={Hash} label="UID" value={agent.uid} onCopy={copyUid} />
+        <ProfileTile icon={BadgeCheck} label="Role" value={ROLE_LABEL[agent.role] ?? agent.role} />
+        <ProfileTile
+          icon={CalendarDays}
+          label="Joined"
+          value={new Date(agent.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
+        />
       </div>
     </DetailSection>
   ) : null;
@@ -592,33 +697,51 @@ export default function AgentDetailPage() {
   const parentSection = agent ? (
     <DetailSection title="Network parent" icon={Network}>
       {agent.parent ? (
-        <div className="flex items-center gap-3">
-          <span
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-extrabold text-white"
-            style={{ background: B.badgeGrad }}
-          >
-            {initialsOf(agent.parent.name ?? "")}
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-bold" style={{ color: B.blue }}>
-              {agent.parent.name}
-            </p>
-            <p className="text-xs" style={{ color: B.muted }}>
-              {agent.parent.role ? ROLE_LABEL[agent.parent.role] ?? agent.parent.role : "—"} · {agent.parent.uid}
-            </p>
-          </div>
+        <div>
           <Link
             href={`/users/${agent.parent.id}`}
-            className="shrink-0 rounded-lg border px-3 py-1.5 text-xs font-semibold transition hover:brightness-105"
-            style={{ borderColor: B.border, color: B.blueLight }}
+            className="agent-lift group flex items-center gap-3 rounded-2xl border px-3.5 py-3"
+            style={{ borderColor: B.border, background: "linear-gradient(180deg, #F7F9FF 0%, var(--admin-card) 100%)" }}
           >
-            Open →
+            <span
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-extrabold text-white shadow-sm"
+              style={{ background: B.badgeGrad }}
+            >
+              {initialsOf(agent.parent.name ?? "")}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-bold" style={{ color: B.blue }}>
+                {agent.parent.name}
+              </p>
+              <p className="text-xs" style={{ color: B.muted }}>
+                {agent.parent.role ? ROLE_LABEL[agent.parent.role] ?? agent.parent.role : "—"} · {agent.parent.uid}
+              </p>
+            </div>
+            <ChevronRight size={18} className="shrink-0 transition group-hover:translate-x-0.5" style={{ color: B.blueLight }} />
           </Link>
+          <div className="ml-[1.85rem] h-5 w-px border-l-2 border-dashed" style={{ borderColor: B.border }} />
+          <div className="flex items-center gap-3 rounded-2xl border-2 px-3.5 py-3" style={{ borderColor: B.blueLight, background: "rgba(42,92,221,0.06)" }}>
+            <span
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-sm font-extrabold shadow-sm"
+              style={{ color: B.blueLight }}
+            >
+              {initialsOf(agent.name)}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-bold" style={{ color: B.blue }}>
+                {agent.name}
+              </p>
+              <p className="text-xs" style={{ color: B.muted }}>
+                {ROLE_LABEL[agent.role] ?? agent.role} · {agent.uid}
+              </p>
+            </div>
+            <span className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase text-white" style={{ background: B.badgeGrad }}>
+              This agent
+            </span>
+          </div>
         </div>
       ) : (
-        <p className="text-sm" style={{ color: B.muted }}>
-          No parent (top-level Super Distributor)
-        </p>
+        <EmptyState icon={Network} title="Top of the network" hint="This Super Distributor has no upline." />
       )}
     </DetailSection>
   ) : null;
@@ -626,19 +749,29 @@ export default function AgentDetailPage() {
   const recentTxnSection = (
     <DetailSection title="Recent transactions" icon={History}>
       {recentTxns.length === 0 ? (
-        <p className="text-sm" style={{ color: B.muted }}>
-          No transactions yet
-        </p>
+        <EmptyState icon={Receipt} title="No transactions yet" hint="The agent's latest 10 transactions show here once they start." />
       ) : (
-        <div className="divide-y rounded-xl border" style={{ borderColor: B.border }}>
-          {recentTxns.map((t) => (
-            <div key={t.id} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm" style={{ borderColor: B.border }}>
-              <div className="min-w-0">
+        <div className="divide-y overflow-hidden rounded-2xl border" style={{ borderColor: B.border }}>
+          {recentTxns.map((t, i) => (
+            <div
+              key={t.id}
+              className="flex items-center justify-between gap-3 px-3.5 py-2.5 text-sm transition hover:bg-[rgba(42,92,221,0.05)]"
+              style={{ borderColor: B.border, background: i % 2 ? "rgba(42,92,221,0.03)" : undefined }}
+            >
+              <div className="flex min-w-0 items-center gap-3">
+                <span
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+                  style={{ background: "rgba(42,92,221,0.10)", color: B.blueLight }}
+                >
+                  <Receipt size={16} />
+                </span>
+                <div className="min-w-0">
                 <div className="truncate font-semibold" style={{ color: B.blue }}>
                   {t.serviceName}
                 </div>
                 <div className="truncate font-mono text-[11px]" style={{ color: B.muted }}>
                   {t.txnRef} · {new Date(t.createdAt).toLocaleString("en-IN")}
+                </div>
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-2">
@@ -679,41 +812,54 @@ export default function AgentDetailPage() {
           <>
             {/* Hero */}
             <div className="overflow-hidden rounded-3xl border shadow-sm" style={{ borderColor: B.border, background: B.card }}>
-              <div className="px-5 py-6 md:px-7" style={{ background: B.badgeGrad }}>
-                <div className="flex flex-wrap items-center gap-4">
-                  <span
-                    className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white text-2xl font-extrabold shadow-md"
-                    style={{ color: B.blueLight }}
-                  >
-                    {initialsOf(agent.name)}
+              <div className="relative overflow-hidden px-5 py-7 md:px-8" style={{ background: B.badgeGrad }}>
+                <span
+                  aria-hidden
+                  className="agent-hero-blob pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full"
+                  style={{ background: "radial-gradient(circle, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0) 70%)" }}
+                />
+                <span
+                  aria-hidden
+                  className="agent-hero-blob pointer-events-none absolute -bottom-24 left-1/3 h-56 w-56 rounded-full"
+                  style={{ background: "radial-gradient(circle, rgba(120,180,255,0.30) 0%, rgba(120,180,255,0) 70%)", animationDelay: "-4s" }}
+                />
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0 opacity-[0.07]"
+                  style={{ backgroundImage: "radial-gradient(#fff 1px, transparent 1px)", backgroundSize: "18px 18px" }}
+                />
+                <div className="relative flex flex-wrap items-center gap-5">
+                  <span className="relative shrink-0">
+                    <span
+                      className="flex h-[72px] w-[72px] items-center justify-center rounded-2xl bg-white text-2xl font-extrabold shadow-lg"
+                      style={{ color: B.blueLight, boxShadow: "0 0 0 4px rgba(255,255,255,0.25), 0 12px 24px -10px rgba(0,0,0,0.35)" }}
+                    >
+                      {initialsOf(agent.name)}
+                    </span>
+                    <span
+                      className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-2 border-white"
+                      style={{ background: agent.isFrozen ? toneColor.red : "#4ADE80" }}
+                      title={agent.isFrozen ? "Frozen" : "Active"}
+                    />
                   </span>
                   <div className="min-w-0 flex-1 text-white">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h1 className="truncate text-2xl font-extrabold">{agent.name}</h1>
-                      <span className="rounded-full bg-white/20 px-2.5 py-0.5 text-xs font-bold">
+                      <h1 className="truncate text-2xl font-extrabold tracking-tight md:text-[28px]">{agent.name}</h1>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-0.5 text-xs font-bold" style={{ color: B.blueLight }}>
+                        <BadgeCheck size={12} />
                         {ROLE_LABEL[agent.role] ?? agent.role}
                       </span>
                     </div>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-white/85">
-                      <button
-                        type="button"
-                        onClick={copyUid}
-                        className="inline-flex items-center gap-1 font-mono font-semibold hover:text-white"
-                        title="Copy UID"
-                      >
-                        {agent.uid} <Copy size={13} />
-                      </button>
-                      <span className="inline-flex items-center gap-1">
-                        <Phone size={13} /> {agent.mobile}
-                      </span>
-                      {agent.email ? (
-                        <span className="inline-flex items-center gap-1">
-                          <Mail size={13} /> {agent.email}
-                        </span>
-                      ) : null}
-                      <span className="inline-flex items-center gap-1">
-                        <CalendarDays size={13} /> Joined {new Date(agent.createdAt).toLocaleDateString("en-IN", { dateStyle: "medium" })}
-                      </span>
+                    <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                      <HeroFact icon={Hash} onClick={copyUid} title="Copy UID">
+                        <span className="font-mono">{agent.uid}</span>
+                        <Copy size={12} className="opacity-70" />
+                      </HeroFact>
+                      <HeroFact icon={Phone}>{agent.mobile}</HeroFact>
+                      {agent.email ? <HeroFact icon={Mail}>{agent.email}</HeroFact> : null}
+                      <HeroFact icon={CalendarDays}>
+                        Joined {new Date(agent.createdAt).toLocaleDateString("en-IN", { dateStyle: "medium" })}
+                      </HeroFact>
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -726,7 +872,7 @@ export default function AgentDetailPage() {
                   </div>
                 </div>
               </div>
-              <div className="grid gap-px sm:grid-cols-2 lg:grid-cols-4" style={{ background: B.border }}>
+              <div className="grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-4" style={{ background: "var(--admin-bg)" }}>
                 <StatTile icon={kyc!.icon} tone={toneColor[kyc!.tone]} label="KYC" value={kyc!.text} sub={agent.kyc.panMasked ? `PAN ${agent.kyc.panMasked}` : "PAN not on file"} />
                 <StatTile
                   icon={Landmark}
@@ -749,30 +895,35 @@ export default function AgentDetailPage() {
             {agent.kycStatus === "pending" ? (
               <div
                 className="flex flex-wrap items-center gap-3 rounded-2xl border px-4 py-3"
-                style={{ borderColor: "#FCD34D", background: "#FFFBEB" }}
+                style={{ borderColor: "#FCD34D", background: "linear-gradient(90deg, #FFF7E0 0%, #FFFBEB 60%, var(--admin-card) 100%)" }}
               >
-                <AlertTriangle size={18} style={{ color: "#B45309" }} />
-                <p className="flex-1 text-sm font-semibold" style={{ color: "#92400E" }}>
-                  KYC is waiting for review.{" "}
-                  <span className="font-normal">
+                <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: "#FEF3C7", color: "#B45309" }}>
+                  <span className="absolute inset-0 animate-ping rounded-xl opacity-30" style={{ background: "#FCD34D" }} />
+                  <AlertTriangle size={18} className="relative" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold" style={{ color: "#92400E" }}>
+                    KYC is waiting for review
+                  </p>
+                  <p className="text-xs" style={{ color: "#B45309" }}>
                     {agent.hasKycDocs ? "Check the documents and approve or reject." : "PAN and Aadhaar are not on file yet."}
-                  </span>
-                </p>
+                  </p>
+                </div>
                 <button
                   type="button"
                   onClick={() => setTab("kyc")}
-                  className="rounded-xl px-3.5 py-2 text-sm font-semibold text-white"
+                  className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110"
                   style={{ background: B.badgeGrad }}
                 >
-                  Review KYC
+                  Review KYC <ChevronRight size={15} />
                 </button>
               </div>
             ) : null}
 
             {/* Tabs */}
             <div
-              className="flex gap-1 overflow-x-auto rounded-2xl border p-1.5"
-              style={{ borderColor: B.border, background: B.card }}
+              className="sticky top-2 z-10 flex gap-1 overflow-x-auto rounded-2xl border p-1.5 shadow-sm backdrop-blur"
+              style={{ borderColor: B.border, background: "color-mix(in srgb, var(--admin-card) 92%, transparent)" }}
               role="tablist"
               aria-label="Agent sections"
             >
@@ -786,7 +937,9 @@ export default function AgentDetailPage() {
                     role="tab"
                     aria-selected={active}
                     onClick={() => setTab(t.id)}
-                    className="inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition"
+                    className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition duration-200 ${
+                      active ? "shadow-md" : "hover:bg-[rgba(42,92,221,0.08)] hover:text-[var(--admin-text)]"
+                    }`}
                     style={active ? { background: B.badgeGrad, color: "#fff" } : { color: B.muted }}
                   >
                     <Icon size={16} />
@@ -800,7 +953,7 @@ export default function AgentDetailPage() {
             </div>
 
             {tab === "overview" ? (
-              <div className="grid gap-5 lg:grid-cols-3">
+              <div className="agent-tab-in grid gap-5 lg:grid-cols-3">
                 <div className="space-y-5 lg:col-span-2">
                   {profileSection}
                   {recentTxnSection}
@@ -810,7 +963,7 @@ export default function AgentDetailPage() {
             ) : null}
 
             {tab === "kyc" ? (
-              <div className="grid gap-5 lg:grid-cols-3">
+              <div className="agent-tab-in grid gap-5 lg:grid-cols-3">
                 <div className="space-y-5 lg:col-span-2">
                   <DetailSection title="KYC identity" icon={ShieldCheck}>
                     <div className="grid gap-4 sm:grid-cols-2">
@@ -912,7 +1065,7 @@ export default function AgentDetailPage() {
             ) : null}
 
             {tab === "wallet" ? (
-              <div className="grid gap-5 lg:grid-cols-3">
+              <div className="agent-tab-in grid gap-5 lg:grid-cols-3">
                 <div className="space-y-5 lg:col-span-2">
                   <DetailSection title="Balances" icon={Wallet}>
                     {agent.wallets.length === 0 ? (
@@ -963,13 +1116,13 @@ export default function AgentDetailPage() {
             ) : null}
 
             {tab === "commission" ? (
-              <div id="commission">
-                <AgentCommissionPanel userId={agent.id} />
+              <div id="commission" className="agent-tab-in">
+                <AgentRateCard userId={agent.id} role={agent.role} agentName={agent.name} />
               </div>
             ) : null}
 
             {tab === "controls" ? (
-              <div className="grid gap-5 lg:grid-cols-2">
+              <div className="agent-tab-in grid gap-5 lg:grid-cols-2">
                 <div className="space-y-5">
                   <DetailSection title="Login" icon={KeyRound}>
                     <LoginEmailCard agent={agent} busy={busy} onResend={askResendLoginEmail} />

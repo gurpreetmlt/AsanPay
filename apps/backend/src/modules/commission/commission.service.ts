@@ -77,7 +77,7 @@ async function resolveMemberGrossPaise(input: {
   providerIncomePaise: number | null;
   at: Date;
 }) {
-  const override = await findActiveOverride(input.serviceId, input.userId, input.at);
+  const override = await findActiveOverride(input.serviceId, input.userId, input.at, input.amountPaise);
   const { share, rule } = roleDefaultFor(input.cfg, input.serviceId, input.providerId, input.role, input.amountPaise);
   return resolveRoleGross({
     amountPaise: input.amountPaise,

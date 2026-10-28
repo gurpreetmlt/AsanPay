@@ -9,9 +9,10 @@ import {
 import type { UserRole } from "@asanpay/shared-types";
 import {
   computeProviderIncomePaise,
+  pickOverride,
   pickRow,
   pickShare,
-  type FixedRule,
+  type OverrideRule,
   type RuleType,
 } from "./rateCard.math";
 
@@ -211,14 +212,24 @@ export function serviceShareFor(
   );
 }
 
-/** Active per-agent override (TCR06: expired overrides no longer apply). */
+/**
+ * Active per-agent override for one txn amount (TCR06: expired overrides no longer apply). A slab row
+ * covering the amount wins over a whole-service row; the narrowest slab wins between slab rows.
+ */
 export async function findActiveOverride(
   serviceId: string,
   userId: string,
   at: Date,
-): Promise<FixedRule | null> {
-  const [override] = await db
-    .select({ ruleType: userCommissionRates.ruleType, value: userCommissionRates.value })
+  amountPaise: number,
+): Promise<OverrideRule | null> {
+  const rows = await db
+    .select({
+      ruleType: userCommissionRates.ruleType,
+      value: userCommissionRates.value,
+      sharePercent: userCommissionRates.sharePercent,
+      minAmount: userCommissionRates.minAmount,
+      maxAmount: userCommissionRates.maxAmount,
+    })
     .from(userCommissionRates)
     .where(
       and(
@@ -227,7 +238,12 @@ export async function findActiveOverride(
         eq(userCommissionRates.isActive, true),
         or(isNull(userCommissionRates.expiresAt), gt(userCommissionRates.expiresAt, at)),
       ),
-    )
-    .limit(1);
-  return override ? { ruleType: override.ruleType, value: String(override.value) } : null;
+    );
+  const picked = pickOverride(
+    rows.map((r) => ({ ...r, minAmount: str(r.minAmount), maxAmount: str(r.maxAmount) })),
+    amountPaise,
+  );
+  return picked
+    ? { ruleType: picked.ruleType, value: String(picked.value), sharePercent: str(picked.sharePercent) }
+    : null;
 }

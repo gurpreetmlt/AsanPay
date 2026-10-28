@@ -1485,7 +1485,7 @@ export async function getAdminUserCommissions(userId: string) {
   const rates = await db
     .select()
     .from(userCommissionRates)
-    .where(eq(userCommissionRates.userId, userId));
+    .where(and(eq(userCommissionRates.userId, userId), isNull(userCommissionRates.minAmount), isNull(userCommissionRates.maxAmount)));
   const rateByService = new Map(rates.map((r) => [r.serviceId, r]));
 
   return {
@@ -1572,13 +1572,13 @@ export async function upsertAdminUserCommissions(
         .select()
         .from(userCommissionRates)
         .where(
-          and(eq(userCommissionRates.userId, userId), eq(userCommissionRates.serviceId, rate.serviceId)),
+          and(eq(userCommissionRates.userId, userId), eq(userCommissionRates.serviceId, rate.serviceId), isNull(userCommissionRates.minAmount), isNull(userCommissionRates.maxAmount)),
         )
         .limit(1);
       await db
         .delete(userCommissionRates)
         .where(
-          and(eq(userCommissionRates.userId, userId), eq(userCommissionRates.serviceId, rate.serviceId)),
+          and(eq(userCommissionRates.userId, userId), eq(userCommissionRates.serviceId, rate.serviceId), isNull(userCommissionRates.minAmount), isNull(userCommissionRates.maxAmount)),
         );
       if (prior) {
         await recordRateChangeEvent({
@@ -1631,7 +1631,7 @@ export async function upsertAdminUserCommissions(
       .select()
       .from(userCommissionRates)
       .where(
-        and(eq(userCommissionRates.userId, userId), eq(userCommissionRates.serviceId, rate.serviceId)),
+        and(eq(userCommissionRates.userId, userId), eq(userCommissionRates.serviceId, rate.serviceId), isNull(userCommissionRates.minAmount), isNull(userCommissionRates.maxAmount)),
       )
       .limit(1);
 

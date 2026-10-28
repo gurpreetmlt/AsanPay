@@ -6,6 +6,7 @@ import {
   computeSharePaise,
   inSlab,
   percentOfPaiseHalfUp,
+  pickOverride,
   pickRow,
   pickShare,
   providerReceivablePaise,
@@ -182,6 +183,31 @@ describe("per-slab shares", () => {
         fixedRule: { ruleType: "flat", value: "10" },
       }),
     ).toEqual({ source: "share", grossPaise: 0 });
+  });
+});
+
+describe("per-agent overrides by slab", () => {
+  const row = (id: string, minAmount: string | null, maxAmount: string | null) => ({ id, minAmount, maxAmount });
+  const rows = [row("service", null, null), row("wide", "3000.00", "10000.00"), row("narrow", "3000.00", "7999.99")];
+
+  it("the narrowest covering slab wins, then the whole-service row", () => {
+    expect(pickOverride(rows, 500_000)?.id).toBe("narrow");
+    expect(pickOverride(rows, 900_000)?.id).toBe("wide");
+    expect(pickOverride(rows, 150_000)?.id).toBe("service");
+    expect(pickOverride([row("only", "100.00", "199.99")], 250_000)).toBeNull();
+  });
+
+  it("a share override pays a % of provider income; flat stays flat", () => {
+    expect(
+      resolveRoleGross({ amountPaise: 200_000, providerIncomePaise: 930, override: { ruleType: "percentage", value: "0", sharePercent: "90" } }),
+    ).toEqual({ source: "override", grossPaise: 837 });
+    expect(
+      resolveRoleGross({ amountPaise: 200_000, providerIncomePaise: null, override: { ruleType: "percentage", value: "0", sharePercent: "90" } }),
+    ).toEqual({ source: "override", grossPaise: 0 });
+    expect(resolveRoleGross({ amountPaise: 200_000, providerIncomePaise: 930, override: { ruleType: "flat", value: "5" } })).toEqual({
+      source: "override",
+      grossPaise: 500,
+    });
   });
 });
 

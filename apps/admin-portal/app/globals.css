@@ -1216,3 +1216,48 @@ html.dark .popup-close {
     animation: none;
   }
 }
+
+/* Agent detail page */
+@keyframes agent-tab-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.agent-tab-in {
+  animation: agent-tab-in 0.25s ease-out both;
+}
+.agent-lift {
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+.agent-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px -14px rgba(29, 53, 135, 0.45);
+}
+@keyframes agent-float {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(-10px, 8px);
+  }
+}
+.agent-hero-blob {
+  animation: agent-float 9s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .agent-tab-in,
+  .agent-hero-blob {
+    animation: none;
+  }
+  .agent-lift:hover {
+    transform: none;
+  }
+}

@@ -100,6 +100,35 @@ adminRouter.get("/users/:id/ancestors", async (req, res) => {
   sendSuccess(res, await getUserAncestorsAdmin(req.params.id));
 });
 
+adminRouter.get("/users/:id/commission-slabs", async (req, res) => {
+  const { listAgentSlabRates } = await import("../commission/agentSlabRates.service");
+  sendSuccess(res, await listAgentSlabRates(req.params.id));
+});
+
+adminRouter.post("/users/:id/commission-slabs", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { setAgentSlabRate } = await import("../commission/agentSlabRates.service");
+  const body = z
+    .object({
+      serviceId: z.string().uuid(),
+      minAmount: z.string().max(20).nullable().optional(),
+      maxAmount: z.string().max(20).nullable().optional(),
+      mode: z.enum(["share", "flat"]),
+      value: z.string().min(1).max(20),
+      expiresAt: z.string().max(40).nullable().optional(),
+      reason: z.string().max(500).nullable().optional(),
+    })
+    .parse(req.body);
+  sendSuccess(res, await setAgentSlabRate(req.auth.sub, req.params.id, body), "Custom commission saved");
+});
+
+adminRouter.delete("/users/:id/commission-slabs/:rateId", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { deleteAgentSlabRate } = await import("../commission/agentSlabRates.service");
+  const reason = typeof req.body?.reason === "string" ? req.body.reason : null;
+  sendSuccess(res, await deleteAgentSlabRate(req.auth.sub, req.params.id, req.params.rateId, reason), "Custom commission removed");
+});
+
 adminRouter.get("/users/:id/commissions", async (req, res) => {
   sendSuccess(res, await getAdminUserCommissions(req.params.id));
 });
