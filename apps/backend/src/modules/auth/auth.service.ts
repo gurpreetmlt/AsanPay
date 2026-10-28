@@ -4,9 +4,11 @@ import { db } from "../../db/postgres";
 import { auditLogs, users, userHierarchy, refreshTokens, policyAcceptances } from "../../db/postgres/schema";
 import { provisionWalletsForUser } from "../wallet/wallet.service";
 import { hashPassword, comparePassword } from "../../utils/password";
-import { encryptPII } from "../../utils/aes";
+import jwt from "jsonwebtoken";
+import { encryptPII, decryptPII } from "../../utils/aes";
 import { allocateUid, hashToken } from "../../utils/uid";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../../utils/jwt";
+import { buildOtpauthUrl, generateTotpSecret, verifyTotp } from "./adminTotp";
 import { HttpError } from "../../utils/httpError";
 import {
   env,
@@ -457,10 +459,261 @@ async function assertAdminNotLockedOut(): Promise<void> {
   }
 }
 
-export async function loginUser(
-  input: LoginInput,
+type SessionResult = { user: AuthUser; accessToken: string; refreshToken: string };
+
+export type LoginResult =
+  | (SessionResult & { adminTotpSetupRequired?: true })
+  | { totpRequired: true; challengeToken: string; expiresInSeconds: number };
+
+const ADMIN_TOTP_ISSUER = "AsanPay";
+const ADMIN_TOTP_ACCOUNT = "admin";
+const ADMIN_TOTP_CHALLENGE_TTL_S = 5 * 60;
+const ADMIN_TOTP_CHALLENGE_TYPE = "admin_totp";
+
+function isAdminTotpRequired(): boolean {
+  return process.env.ADMIN_TOTP_REQUIRED === "true";
+}
+
+function isAdminTotpEnabled(row: typeof users.$inferSelect): boolean {
+  return Boolean(row.adminTotpEnabledAt && row.adminTotpSecretEncrypted);
+}
+
+/** Binds the challenge to the current password so a password change voids pending sign-ins. */
+function passwordFingerprint(passwordHash: string): string {
+  return hashToken(passwordHash).slice(0, 16);
+}
+
+function signAdminTotpChallenge(row: typeof users.$inferSelect): string {
+  return jwt.sign(
+    { sub: row.id, type: ADMIN_TOTP_CHALLENGE_TYPE, pwf: passwordFingerprint(row.passwordHash) },
+    env.JWT_ACCESS_SECRET,
+    { expiresIn: ADMIN_TOTP_CHALLENGE_TTL_S, algorithm: "HS256" },
+  );
+}
+
+const ADMIN_TOTP_CHALLENGE_EXPIRED = new HttpError(
+  401,
+  "Your sign-in step has expired. Enter your username and password again.",
+  "ADMIN_TOTP_CHALLENGE_EXPIRED",
+);
+
+function readAdminTotpChallenge(token: string): { sub: string; pwf: string } {
+  try {
+    const payload = jwt.verify(token, env.JWT_ACCESS_SECRET, { algorithms: ["HS256"] }) as {
+      sub?: string;
+      type?: string;
+      pwf?: string;
+    };
+    if (payload.type !== ADMIN_TOTP_CHALLENGE_TYPE || !payload.sub || !payload.pwf) {
+      throw ADMIN_TOTP_CHALLENGE_EXPIRED;
+    }
+    return { sub: payload.sub, pwf: payload.pwf };
+  } catch {
+    throw ADMIN_TOTP_CHALLENGE_EXPIRED;
+  }
+}
+
+async function recordAdminLoginFailure(
+  userId: string | null,
   context: AuthContext,
-): Promise<{ user: AuthUser; accessToken: string; refreshToken: string }> {
+  method: "password" | "totp",
+): Promise<void> {
+  await insertAuditLog({
+    userId,
+    action: "auth.login_failed",
+    entityType: "user",
+    entityId: userId,
+    ipAddress: context.ipAddress,
+    userAgent: context.userAgent,
+    metadata: { method, portal: "admin" },
+  });
+}
+
+/**
+ * Checks the code against the stored secret and atomically advances admin_totp_last_step, so two
+ * concurrent requests with the same code cannot both succeed.
+ */
+async function consumeAdminTotpCode(
+  row: typeof users.$inferSelect,
+  code: string,
+  opts: { enable?: boolean } = {},
+): Promise<boolean> {
+  if (!row.adminTotpSecretEncrypted) return false;
+  const secret = decryptPII(row.adminTotpSecretEncrypted);
+  const step = verifyTotp(secret, code, { lastUsedStep: row.adminTotpLastStep });
+  if (step == null) return false;
+  const [updated] = await db
+    .update(users)
+    .set({
+      adminTotpLastStep: step,
+      ...(opts.enable ? { adminTotpEnabledAt: new Date() } : {}),
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(users.id, row.id),
+        sql`(${users.adminTotpLastStep} IS NULL OR ${users.adminTotpLastStep} < ${step})`,
+      ),
+    )
+    .returning({ id: users.id });
+  return Boolean(updated);
+}
+
+const INCORRECT_TOTP_MESSAGE = "Incorrect 6-digit code. Check your authenticator app and try again.";
+
+export async function verifyAdminTotpLogin(
+  input: { challengeToken: string; code: string },
+  context: AuthContext,
+): Promise<SessionResult> {
+  await assertAdminNotLockedOut();
+  const challenge = readAdminTotpChallenge(input.challengeToken);
+
+  const [row] = await db.select().from(users).where(eq(users.id, challenge.sub));
+  if (
+    !row ||
+    !row.isActive ||
+    !isAdminRole(row.role) ||
+    !isAdminTotpEnabled(row) ||
+    passwordFingerprint(row.passwordHash) !== challenge.pwf
+  ) {
+    throw ADMIN_TOTP_CHALLENGE_EXPIRED;
+  }
+
+  if (!(await consumeAdminTotpCode(row, input.code))) {
+    await recordAdminLoginFailure(row.id, context, "totp");
+    throw new HttpError(401, INCORRECT_TOTP_MESSAGE, "TOTP_INCORRECT");
+  }
+
+  return issueSession(row, context, "password");
+}
+
+async function loadAdminForTotp(userId: string): Promise<typeof users.$inferSelect> {
+  const [row] = await db.select().from(users).where(eq(users.id, userId));
+  if (!row || !row.isActive) {
+    throw new HttpError(403, "This account is inactive. Contact support.", "ACCOUNT_INACTIVE");
+  }
+  if (!isAdminRole(row.role)) {
+    throw new HttpError(403, "Two-factor login here is for admin accounts only.", "FORBIDDEN");
+  }
+  return row;
+}
+
+export async function getAdminTotpStatus(userId: string): Promise<{
+  enabled: boolean;
+  enabledAt: string | null;
+  pendingSetup: boolean;
+  required: boolean;
+}> {
+  const row = await loadAdminForTotp(userId);
+  const enabled = isAdminTotpEnabled(row);
+  return {
+    enabled,
+    enabledAt: enabled && row.adminTotpEnabledAt ? row.adminTotpEnabledAt.toISOString() : null,
+    pendingSetup: !enabled && Boolean(row.adminTotpSecretEncrypted),
+    required: isAdminTotpRequired(),
+  };
+}
+
+export async function setupAdminTotp(
+  userId: string,
+  context: AuthContext,
+): Promise<{ secretBase32: string; otpauthUrl: string }> {
+  const row = await loadAdminForTotp(userId);
+  if (isAdminTotpEnabled(row)) {
+    throw new HttpError(
+      409,
+      "Two-factor login is already on. Turn it off first to link a new authenticator app.",
+      "TOTP_ALREADY_ENABLED",
+    );
+  }
+  const secretBase32 = generateTotpSecret();
+  await db
+    .update(users)
+    .set({
+      adminTotpSecretEncrypted: encryptPII(secretBase32),
+      adminTotpEnabledAt: null,
+      adminTotpLastStep: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, row.id));
+  await insertAuditLog({
+    userId: row.id,
+    action: "auth.admin_totp_setup_started",
+    entityType: "user",
+    entityId: row.id,
+    ipAddress: context.ipAddress,
+    userAgent: context.userAgent,
+    metadata: {},
+  });
+  return {
+    secretBase32,
+    otpauthUrl: buildOtpauthUrl(secretBase32, ADMIN_TOTP_ISSUER, ADMIN_TOTP_ACCOUNT),
+  };
+}
+
+// Wrong codes on authenticated endpoints return 422, not 401: the admin portal signs out on 401.
+export async function enableAdminTotp(userId: string, code: string, context: AuthContext): Promise<void> {
+  const row = await loadAdminForTotp(userId);
+  if (isAdminTotpEnabled(row)) {
+    throw new HttpError(409, "Two-factor login is already on.", "TOTP_ALREADY_ENABLED");
+  }
+  if (!row.adminTotpSecretEncrypted) {
+    throw new HttpError(
+      409,
+      "No authenticator setup in progress. Tap Set up authenticator to get a new secret key.",
+      "TOTP_SETUP_REQUIRED",
+    );
+  }
+  if (!(await consumeAdminTotpCode(row, code, { enable: true }))) {
+    throw new HttpError(422, INCORRECT_TOTP_MESSAGE, "TOTP_INCORRECT");
+  }
+  await insertAuditLog({
+    userId: row.id,
+    action: "auth.admin_totp_enabled",
+    entityType: "user",
+    entityId: row.id,
+    ipAddress: context.ipAddress,
+    userAgent: context.userAgent,
+    metadata: {},
+  });
+}
+
+export async function disableAdminTotp(
+  userId: string,
+  input: { code: string; password: string },
+  context: AuthContext,
+): Promise<void> {
+  const row = await loadAdminForTotp(userId);
+  if (!isAdminTotpEnabled(row)) {
+    throw new HttpError(409, "Two-factor login is already off.", "TOTP_NOT_ENABLED");
+  }
+  if (!(await comparePassword(input.password, row.passwordHash))) {
+    throw new HttpError(422, "Incorrect password. Enter your current admin password.", "PASSWORD_INCORRECT");
+  }
+  if (!(await consumeAdminTotpCode(row, input.code))) {
+    throw new HttpError(422, INCORRECT_TOTP_MESSAGE, "TOTP_INCORRECT");
+  }
+  await db
+    .update(users)
+    .set({
+      adminTotpSecretEncrypted: null,
+      adminTotpEnabledAt: null,
+      adminTotpLastStep: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, row.id));
+  await insertAuditLog({
+    userId: row.id,
+    action: "auth.admin_totp_disabled",
+    entityType: "user",
+    entityId: row.id,
+    ipAddress: context.ipAddress,
+    userAgent: context.userAgent,
+    metadata: {},
+  });
+}
+
+export async function loginUser(input: LoginInput, context: AuthContext): Promise<LoginResult> {
   if (input.portal === "admin") {
     // Fixed username only — never accept mobile/OTP for admin portal.
     const id = (input.username ?? input.mobile ?? "").trim().toLowerCase();
@@ -480,20 +733,22 @@ export async function loginUser(
     }
 
     if (!row || !passwordMatches || !row.isActive) {
-      await insertAuditLog({
-        userId: row?.id ?? null,
-        action: "auth.login_failed",
-        entityType: "user",
-        entityId: row?.id ?? null,
-        ipAddress: context.ipAddress,
-        userAgent: context.userAgent,
-        metadata: { method: "password", portal: input.portal },
-      });
+      await recordAdminLoginFailure(row?.id ?? null, context, "password");
       throw new HttpError(401, "Invalid username or password", "INVALID_CREDENTIALS");
     }
 
     assertPortalAccess(row.role, input.portal);
-    return issueSession(row, context, "password");
+
+    if (isAdminTotpEnabled(row)) {
+      return {
+        totpRequired: true,
+        challengeToken: signAdminTotpChallenge(row),
+        expiresInSeconds: ADMIN_TOTP_CHALLENGE_TTL_S,
+      };
+    }
+
+    const session = await issueSession(row, context, "password");
+    return isAdminTotpRequired() ? { ...session, adminTotpSetupRequired: true } : session;
   }
 
   const [found] = await db.select().from(users).where(eq(users.mobile, input.mobile!));

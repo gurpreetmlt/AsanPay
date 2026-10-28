@@ -123,6 +123,13 @@ export const fundRequests = pgTable(
       .where(
         sql`${table.referenceNorm} IS NOT NULL AND ${table.status} NOT IN ('rejected', 'cancelled', 'voided')`,
       ),
+    // A bank UTR (12+ chars) credits one request across all banks; shorter slip numbers repeat
+    // between banks and are covered per bank by the index above.
+    uniqueIndex("fund_requests_credited_utr_uidx")
+      .on(table.tenantId, table.referenceNorm)
+      .where(
+        sql`${table.status} = 'credited' AND ${table.referenceNorm} IS NOT NULL AND length(${table.referenceNorm}) >= 12`,
+      ),
     index("fund_requests_tenant_status_idx").on(table.tenantId, table.status, table.submittedAt),
     index("fund_requests_requester_idx").on(table.requesterUserId, table.submittedAt),
     index("fund_requests_receipt_hash_idx").on(table.receiptSha256),

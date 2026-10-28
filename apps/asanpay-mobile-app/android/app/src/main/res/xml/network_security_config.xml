@@ -1,16 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Cleartext HTTP to 127.0.0.1 only — required for local L1 RD Service (Mantra, Morpho, …).
-     Remote API calls still use HTTPS (api.asanpay.in). -->
+<!-- No cleartext anywhere in release: RD Service capture uses Android intents, not local HTTP.
+     Debug keeps a localhost exception in src/debug/res/xml/network_security_config.xml. -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>
     </base-config>
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="false">127.0.0.1</domain>
-        <domain includeSubdomains="false">localhost</domain>
-    </domain-config>
     <!--
       Pin the Let's Encrypt intermediate (YR2) that issues our leaf cert, not the leaf itself —
       LE rotates the leaf (and usually its key) every ~90 days on renewal, which would silently

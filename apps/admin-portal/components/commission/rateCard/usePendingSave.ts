@@ -20,7 +20,12 @@ export function usePendingSave(onSaved: () => void) {
     try {
       for (const c of saveReq.changes) {
         const body = { ...c.body, reason };
-        const r = c.method === "delete" ? await api.delete(c.url, { data: body }) : await api.post(c.url, body);
+        const r =
+          c.method === "delete"
+            ? await api.delete(c.url, { data: body })
+            : c.method === "patch"
+              ? await api.patch(c.url, body)
+              : await api.post(c.url, body);
         if (!r.data.success) throw new Error(r.data.message);
         const warning = (r.data.data as { warning?: string | null } | undefined)?.warning;
         if (warning) toast(warning, { icon: "⚠️" });

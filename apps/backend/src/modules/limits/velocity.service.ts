@@ -20,6 +20,7 @@ import { and, eq, gte, lt, sql } from "drizzle-orm";
 import { db } from "../../db/postgres";
 import { transactions, agentRiskSignals, users } from "../../db/postgres/schema";
 import { logger } from "../../utils/logger";
+import { istDayStart } from "./moneyLimits";
 import type { UserRole } from "@asanpay/shared-types";
 
 /**
@@ -47,8 +48,7 @@ const LOOKBACK_DAYS = 30;
  */
 export async function evaluateVelocitySpike(userId: string, amount: string): Promise<void> {
   try {
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
+    const startOfDay = istDayStart();
     const lookbackStart = new Date(startOfDay.getTime() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
 
     const [todayRow] = await db
@@ -65,7 +65,7 @@ export async function evaluateVelocitySpike(userId: string, amount: string): Pro
 
     const historyRows = await db
       .select({
-        day: sql<string>`date_trunc('day', ${transactions.createdAt})`,
+        day: sql<string>`date_trunc('day', ${transactions.createdAt} AT TIME ZONE 'Asia/Kolkata')`,
         dayTotal: sql<string>`sum(${transactions.amount})`,
       })
       .from(transactions)
@@ -77,7 +77,7 @@ export async function evaluateVelocitySpike(userId: string, amount: string): Pro
           lt(transactions.createdAt, startOfDay),
         ),
       )
-      .groupBy(sql`date_trunc('day', ${transactions.createdAt})`);
+      .groupBy(sql`date_trunc('day', ${transactions.createdAt} AT TIME ZONE 'Asia/Kolkata')`);
 
     if (historyRows.length < MIN_HISTORY_DAYS) return;
 

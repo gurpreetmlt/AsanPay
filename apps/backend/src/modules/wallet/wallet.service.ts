@@ -10,7 +10,10 @@ import {
   users,
   transactions,
   commissionLedger,
+  journals,
+  ledgerEntries,
 } from "../../db/postgres/schema";
+import { assertManualFundDailyCap, istDayStart } from "../limits/moneyLimits";
 import { transferBetweenWallets, fundWallet } from "./wallet.ledger";
 import { toPaise } from "./decimal";
 import { HttpError } from "../../utils/httpError";
@@ -414,6 +417,29 @@ export async function confirmPullFromChild(
   return result;
 }
 
+/**
+ * Caps one admin's manual top-ups per IST day. The source is the ledger itself — every
+ * fundWallet() journal carries the admin as performed_by and a LEGACY:<group>:ALLOC|FUND key —
+ * and the advisory lock makes two parallel top-ups by the same admin check one after the other.
+ */
+async function assertAdminManualFundDailyCap(tx: Tx, adminId: string, amountPaise: number): Promise<void> {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`manual_fund_day:${adminId}`}))`);
+  const [row] = await tx
+    .select({ total: sql<string>`coalesce(sum(${ledgerEntries.amount}), 0)::text` })
+    .from(journals)
+    .innerJoin(ledgerEntries, eq(ledgerEntries.journalId, journals.id))
+    .where(
+      and(
+        eq(journals.performedBy, adminId),
+        inArray(journals.txnType, ["ALLOCATION", "WALLET_TRANSFER"]),
+        gte(journals.createdAt, istDayStart()),
+        eq(ledgerEntries.direction, "DR"),
+        sql`(${journals.idemKey} LIKE 'LEGACY:%:ALLOC' OR ${journals.idemKey} LIKE 'LEGACY:%:FUND')`,
+      ),
+    );
+  assertManualFundDailyCap(Number(row?.total ?? 0), amountPaise);
+}
+
 // Admin-only entry point for money entering the system from outside (bank reconciliation).
 // Capped per call and written to the immutable audit log with the acting admin's identity.
 // Optional targetUserId: mint into a direct Super Dist child (admin has no /transfer role).
@@ -424,7 +450,7 @@ export async function adminFundOwnWallet(
   idempotencyKey?: string,
   targetUserId?: string,
 ): Promise<{ groupId: string }> {
-  assertWithinManualFundCap(amount, env.MAX_MANUAL_FUND_RUPEES);
+  const amountPaise = assertWithinManualFundCap(amount, env.MAX_MANUAL_FUND_RUPEES);
 
   let walletUserId = actor.id;
   if (targetUserId) {
@@ -442,15 +468,14 @@ export async function adminFundOwnWallet(
 
   const wallet = await getWalletOrThrow(walletUserId, "main");
 
-  const runFund = async (tx?: Tx): Promise<{ groupId: string }> => {
-    const fundParams = { walletId: wallet.id, amount, description, performedBy: actor.id };
-    if (tx) return fundWallet(fundParams, tx);
-    return fundWallet(fundParams);
+  const runFund = async (tx: Tx): Promise<{ groupId: string }> => {
+    await assertAdminManualFundDailyCap(tx, actor.id, amountPaise);
+    return fundWallet({ walletId: wallet.id, amount, description, performedBy: actor.id }, tx);
   };
 
   let result: { groupId: string };
   if (!idempotencyKey) {
-    result = await runFund();
+    result = await db.transaction((tx) => runFund(tx));
   } else {
     result = await db.transaction(async (tx) => {
       await lockUserIdempotencyKey(tx, actor.id, idempotencyKey);

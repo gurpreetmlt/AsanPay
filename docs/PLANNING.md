@@ -7,7 +7,7 @@ One row per feature; details in the section below the table. Newest at the top o
 
 | # | Feature | Surfaces | Size | Status | Design | Task file |
 |---|---------|----------|------|--------|--------|-----------|
-| PL-27 | Simple commission setup — one table: "Company gets" auto-filled per service from the provider sheet (rate + example ₹), then split per role (Retailer / Distributor / SD) as flat ₹ or % of company income, company keeps the rest | Backend, admin | M | planned — 28 Oct (owner decisions pending) | — | — |
+| PL-27 | Simple commission setup — one table: "Company gets" auto-filled per service from the provider sheet (rate + example ₹), then split per role (Retailer / Distributor / SD) as flat ₹ or % of company income, company keeps the rest | Admin | M | building — built 28 Oct (admin-only, no migration; Coolify admin deploy + live test pending; default split numbers pending) | — | — |
 | PL-26 | Invite-only signup — public Sign up removed (web, app, marketing site); Distributor invites Retailer, SD invites Distributor, admin invites SD + Direct Retailer (new admin Invites page); signup OTP needs a valid invite | Backend, web, mobile, admin, marketing | M | building — built 28 Oct (Coolify backend/web/admin/marketing deploy + APK + live test pending) | — | — |
 | PL-25 | No password at signup — temporary password emailed when admin approves KYC, forced "Set new password" on first login, mobile OTP to resume KYC | Backend, web, mobile, admin | M | building — built 28 Oct (migrate `0084` + Coolify backend/web/admin deploy + APK + live test pending; needs SMTP env) | — | — |
 | PL-24 | Bank account check — BestAPI (free) → pennyless → ₹1 penny drop; DMT payee "Verify name with bank" (agent ₹1.50 / ₹2.50 with penny drop, admin-editable), name match pill, 90-day free re-check; same check for settlement + company banks | Backend, web, mobile, admin | M | building — DMT + admin prices built 27 Oct (migrate `0081` + `0082`); settlement bank + company bank wired 27 Oct (migrate `0083`); deploy, APK, live test pending | — | — |
@@ -57,8 +57,11 @@ and tap "Suggested". The Commission menu has seven entries.
   Company keeps (auto).
 - Each role's split is **Flat ₹ per txn** or **% of what the company gets** (not % of txn amount).
   Live check: Company keeps = Company gets − all role amounts; red warning when it goes below ₹0.
-- Backend: `commission_shares` today holds % only — add a share type (`percent_of_income` | `flat`)
-  so a flat ₹ split is stored in the same table (migration).
+- No backend change / migration: % = `commission_shares` row, flat ₹ = flat `commission_rules` row
+  (no slab). Payout already resolves per role: agent override → share → fixed rule. Switching a role
+  ends the other kind (share deleted / old rules get `effective_to`), so nothing pays silently.
+- Built 28 Oct: admin `/tax-commission/setup` (`components/commission/setup/CommissionSetupScreen.tsx`),
+  first item in the Commission menu; `/tax-commission`, `/commission`, `/commissions` redirect there.
 - **Fill from provider sheet** — one button fills "We get" for every service that has sheet numbers
   (review screen, then Save). Services with unknown rates show `Ask provider`.
 - **Default split** — one set of % (e.g. Retailer 60 · Distributor 10 · SD 5) applied to all services in

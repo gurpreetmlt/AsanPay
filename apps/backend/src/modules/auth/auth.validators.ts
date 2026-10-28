@@ -71,6 +71,35 @@ export const loginSchema = z
   });
 export type LoginInput = z.infer<typeof loginSchema>;
 
+const totpCodeSchema = z.preprocess(
+  (v) => (typeof v === "string" ? v.replace(/\s/g, "") : v),
+  z
+    .string({ message: "Enter the 6-digit code from your authenticator app" })
+    .regex(/^\d{6}$/, "Enter the 6-digit code from your authenticator app"),
+);
+
+export const adminTotpVerifySchema = z.object({
+  challengeToken: z
+    .string({ message: "Your sign-in step has expired. Enter your username and password again." })
+    .min(20, "Your sign-in step has expired. Enter your username and password again.")
+    .max(2000),
+  code: totpCodeSchema,
+});
+export type AdminTotpVerifyInput = z.infer<typeof adminTotpVerifySchema>;
+
+export const adminTotpEnableSchema = z.object({
+  code: totpCodeSchema,
+});
+export type AdminTotpEnableInput = z.infer<typeof adminTotpEnableSchema>;
+
+export const adminTotpDisableSchema = z.object({
+  code: totpCodeSchema,
+  password: z
+    .string({ message: "Enter your current admin password" })
+    .min(1, "Enter your current admin password"),
+});
+export type AdminTotpDisableInput = z.infer<typeof adminTotpDisableSchema>;
+
 export const refreshSchema = z.object({
   refreshToken: z.string().min(1),
 });

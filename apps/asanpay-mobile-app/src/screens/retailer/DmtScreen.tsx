@@ -33,6 +33,8 @@ import { useAuthStore } from "../../store/auth";
 import { OnboardingPendingBanner } from "../../components/OnboardingPendingBanner";
 import { NobleAgentOnboardModal } from "../shared/NobleAgentOnboardModal";
 import { BankNameCheck } from "../../components/BankNameCheck";
+import type { AepsGeoTag } from "../../lib/geoCapture";
+import { LOCATION_REQUIRED_MESSAGE, requireTxnLocation } from "../../lib/txnLocation";
 
 interface DmtScreenProps {
   onBack: () => void;
@@ -89,6 +91,7 @@ type Mode = "imps" | "neft";
 type RegStep = "aadhaar" | "otp" | "kyc" | null;
 
 const TABS: DmtTab[] = ["Transfer", "Beneficiaries", "Refund"];
+const REFUND_COMING_SOON = "DMT refund is coming soon";
 const QUICK_AMOUNTS = [500, 1000, 2000, 5000];
 
 async function postProvider<T>(url: string, body: unknown): Promise<ProviderEnvelope<T>> {
@@ -606,6 +609,14 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
       return;
     }
     setTxnBusy(true);
+    let geo: AepsGeoTag;
+    try {
+      geo = await requireTxnLocation();
+    } catch (err) {
+      setTxnBusy(false);
+      showAlert("Location required", err instanceof Error ? err.message : LOCATION_REQUIRED_MESSAGE);
+      return;
+    }
     try {
       const txnAuth = await promptPin();
       const body: Record<string, unknown> = {
@@ -618,6 +629,8 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
         referenceKey: txnRefKey,
         beneficiaryId: selectedBene.id,
         idempotencyKey: attemptKey.current.get(),
+        latitude: geo.latitude,
+        longitude: geo.longitude,
       };
       if (txnAuth) body.txnAuth = txnAuth;
 
@@ -757,10 +770,13 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
                 return (
                   <Pressable
                     key={item}
-                    onPress={() => setTab(item)}
+                    onPress={() =>
+                      item === "Refund" ? showAlert("Coming soon", REFUND_COMING_SOON) : setTab(item)
+                    }
                     style={[styles.tabBtn, active && styles.tabBtnActive]}
                   >
                     <Text style={[styles.tabText, active && styles.tabTextActive]}>{item}</Text>
+                    {item === "Refund" ? <Text style={styles.soonText}>Coming soon</Text> : null}
                   </Pressable>
                 );
               })}
@@ -1273,6 +1289,7 @@ const styles = StyleSheet.create({
   tabBtnActive: { backgroundColor: colors.blue },
   tabText: { fontSize: 12.5, fontWeight: "700", color: "#475569" },
   tabTextActive: { color: "#fff" },
+  soonText: { fontSize: 9, fontWeight: "800", color: "#B45309", marginTop: 1 },
   infoCard: { borderWidth: 1, borderRadius: 18, padding: 14, marginBottom: 12 },
   infoTitle: { fontSize: 15, fontWeight: "800", marginBottom: 10 },
   label: {

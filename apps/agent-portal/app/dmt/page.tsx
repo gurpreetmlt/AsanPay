@@ -34,6 +34,13 @@ import type { ApiResponse } from "@asanpay/shared-types";
 import { extractApiError, wasAepsOnboardingSkipped } from "@/lib/onboarding";
 import { OnboardingPendingBanner } from "@/components/aeps/OnboardingPendingBanner";
 import { DailyVerifyCard } from "@/components/aeps/DailyVerifyCard";
+import {
+  LOCATION_REQUIRED_MESSAGE,
+  LocationRequiredHint,
+  TxnLocationStrip,
+  txnLocationBody,
+  useTxnLocation,
+} from "@/components/aeps/TxnLocation";
 import { createAttemptKeyHolder } from "@/lib/idempotencyKey";
 import {
   captureFingerprintWeb,
@@ -93,6 +100,7 @@ interface ProviderEnvelope<T> {
 
 type DmtTab = "Transfer" | "Beneficiaries" | "Refund";
 const DMT_TABS: DmtTab[] = ["Transfer", "Beneficiaries", "Refund"];
+const REFUND_COMING_SOON = "DMT refund is coming soon";
 
 type AuthMode = "fingerprint" | "iris";
 
@@ -269,6 +277,7 @@ export default function DmtPage() {
   const [refundOtpSent, setRefundOtpSent] = useState(false);
   const [refundBusy, setRefundBusy] = useState(false);
   const [uiLayout, setUiLayout] = useState<DmtUiLayout>("1");
+  const loc = useTxnLocation(agentAuthReady === true);
 
   useEffect(() => {
     setUiLayout(readDmtUiLayout());
@@ -710,6 +719,10 @@ export default function DmtPage() {
       toast.error("Enter 4-digit transaction PIN");
       return;
     }
+    if (!loc.fix) {
+      toast.error(LOCATION_REQUIRED_MESSAGE);
+      return;
+    }
     setTxnBusy(true);
     try {
       const { data } = await api.post<
@@ -725,8 +738,10 @@ export default function DmtPage() {
         beneficiaryId: selectedBene.id,
         txnPin,
         idempotencyKey: attemptKey.current.get(),
+        ...txnLocationBody(loc.fix),
       });
       if (!data.success) throw new Error(data.message || "Transfer failed");
+      loc.release();
       const txnRef = data.data?.txn?.txnRef ?? null;
       const receiptEarn = earnLine;
       setLastTxnRef(txnRef);
@@ -742,6 +757,7 @@ export default function DmtPage() {
       );
       await refreshProfile();
     } catch (err) {
+      loc.release(err);
       toast.error(extractApiError(err, "Transfer failed"));
     } finally {
       setTxnBusy(false);
@@ -890,7 +906,7 @@ export default function DmtPage() {
           <Banknote className="text-green-600" size={28} />
         </div>
 
-        {onboardingPending ? <OnboardingPendingBanner next="/dmt" /> : null}
+        {onboardingPending ? <OnboardingPendingBanner next="/dmt" /> : <TxnLocationStrip loc={loc} />}
 
         {layout2Transfer ? (
           <div className="mb-4">
@@ -954,6 +970,7 @@ export default function DmtPage() {
               onSubmitTransfer={() => void submitTransfer()}
               lastTxnRef={lastTxnRef}
             />
+            <LocationRequiredHint show={otpSent && !loc.fix} />
           </div>
         ) : null}
 
@@ -1085,13 +1102,18 @@ export default function DmtPage() {
                 <button
                   key={t}
                   type="button"
-                  onClick={() => setTab(t)}
+                  onClick={() => (t === "Refund" ? toast(REFUND_COMING_SOON) : setTab(t))}
                   className={clsx(
                     "flex-1 rounded-lg py-2 text-sm font-bold transition",
                     tab === t ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-50",
                   )}
                 >
                   {t}
+                  {t === "Refund" ? (
+                    <span className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
+                      Coming soon
+                    </span>
+                  ) : null}
                 </button>
               ))}
             </div>
@@ -1235,14 +1257,17 @@ export default function DmtPage() {
                             className="mt-1 w-full rounded-xl border px-3 py-2.5 text-sm font-semibold outline-none"
                           />
                         </div>
-                        <button
-                          type="button"
-                          disabled={txnBusy}
-                          onClick={() => void submitTransfer()}
-                          className="w-full rounded-xl bg-green-600 py-3 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50"
-                        >
-                          {txnBusy ? "Processing…" : `Transfer ₹${amount || "0"}`}
-                        </button>
+                        <div>
+                          <button
+                            type="button"
+                            disabled={txnBusy || !loc.fix}
+                            onClick={() => void submitTransfer()}
+                            className="w-full rounded-xl bg-blue-600 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
+                          >
+                            {txnBusy ? "Processing…" : `Transfer ₹${amount || "0"}`}
+                          </button>
+                          <LocationRequiredHint show={!loc.fix} />
+                        </div>
                       </div>
                     )}
 

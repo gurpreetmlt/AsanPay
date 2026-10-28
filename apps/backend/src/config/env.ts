@@ -27,6 +27,19 @@ const envSchema = z.object({
   JWT_ACCESS_EXPIRES_IN: z.string().default("15m"),
   JWT_REFRESH_EXPIRES_IN: z.string().default("30d"),
   AES_ENCRYPTION_KEY: z.string().min(1, "AES_ENCRYPTION_KEY is required"),
+  /** Key rotation: the old AES_ENCRYPTION_KEY, tried only when decrypting with the current key fails. */
+  AES_ENCRYPTION_KEY_PREVIOUS: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().optional(),
+  ),
+  /**
+   * Shared with the web portals' server-side proxy. When the proxy sends it in X-AsanPay-Proxy-Key,
+   * X-AsanPay-Client-IP is trusted as the browser IP for rate limits.
+   */
+  PROXY_SHARED_SECRET: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().min(16, "PROXY_SHARED_SECRET must be at least 16 characters").optional(),
+  ),
   /** Comma-separated list of allowed origins (one per web portal) — e.g. "https://a.com,https://b.com" */
   CORS_ORIGIN: z.string().default("http://localhost:3000"),
   /**
@@ -199,6 +212,14 @@ const envSchema = z.object({
    */
   NOBLE_API_KEY: z.string().optional(),
   NOBLE_API_VALUE: z.string().optional(),
+  /**
+   * Shared secret Noble sends on POST /api/webhooks/noble/callback (`X-Callback-Token` header or
+   * `?token=`). Production refuses callbacks while unset.
+   */
+  NOBLE_CALLBACK_SECRET: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().min(16, "NOBLE_CALLBACK_SECRET must be at least 16 characters").optional(),
+  ),
   NOBLE_BASE_SERVICE: z.string().url().default("https://service.noblewebstudio.in"),
   NOBLE_BASE_AEPS: z.string().url().default("https://aeapi.noblewebstudio.in"),
   NOBLE_BASE_DMT: z.string().url().default("https://dmt.noblewebstudio.in"),
@@ -334,6 +355,14 @@ const envSchema = z.object({
     z.string().min(8).optional(),
   ),
   /**
+   * Meta App Secret (App settings → Basic). Verifies X-Hub-Signature-256 on webhook POSTs;
+   * production rejects webhook events while unset.
+   */
+  WHATSAPP_APP_SECRET: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().min(8).optional(),
+  ),
+  /**
    * Optional approved template for Admin Support replies outside the 24h window.
    * Body should accept one text variable ({{1}}) = reply text. Empty = free-text only in-window.
    */
@@ -402,6 +431,12 @@ export function launchSafetyViolations(
   if (cfg.TEST_SIGNUP_OTP_OVERRIDES.trim()) problems.push("TEST_SIGNUP_OTP_OVERRIDES must be empty");
   if (!raw.DATABASE_SSL_CA_PATH?.trim() && /amazonaws\.com/i.test(raw.DATABASE_URL ?? "")) {
     problems.push("DATABASE_SSL_CA_PATH must point to the RDS CA bundle");
+  }
+  if (raw.WHATSAPP_ACCESS_TOKEN?.trim() && !raw.WHATSAPP_APP_SECRET?.trim()) {
+    problems.push("WHATSAPP_APP_SECRET must be set when WHATSAPP_ACCESS_TOKEN is set (webhook signature check)");
+  }
+  if (raw.NOBLE_API_KEY?.trim() && !raw.NOBLE_CALLBACK_SECRET?.trim()) {
+    problems.push("NOBLE_CALLBACK_SECRET must be set when NOBLE_API_KEY is set (provider callback auth)");
   }
   return problems;
 }

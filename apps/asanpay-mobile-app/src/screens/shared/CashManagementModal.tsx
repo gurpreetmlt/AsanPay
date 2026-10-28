@@ -42,6 +42,21 @@ type CmsTxn = {
 };
 type OpenCms = { url: string; transactionId: string; providerName: string };
 
+/** Hosts (and their subdomains) the CMS WebView may load besides the provider page it was opened with. */
+const CMS_EXTRA_HOSTS = ["asanpay.in"];
+
+function hostOf(url: string): string | null {
+  const m = /^https:\/\/([^/?#:]+)/i.exec(url);
+  return m ? m[1].toLowerCase() : null;
+}
+
+function isAllowedCmsUrl(url: string, startUrl: string): boolean {
+  const host = hostOf(url);
+  if (!host) return false;
+  const allowed = [hostOf(startUrl), ...CMS_EXTRA_HOSTS].filter((h): h is string => Boolean(h));
+  return allowed.some((h) => host === h || host.endsWith(`.${h}`));
+}
+
 const STATUS_LABEL: Record<CmsStatus, string> = {
   initiated: "Initiated",
   pending: "Pending",
@@ -154,8 +169,10 @@ export function CashManagementModal({ visible, onClose }: { visible: boolean; on
     onClose();
   }
 
-  function onShouldStart(req: { url: string }): boolean {
-    if (/^https?:/i.test(req.url) || req.url.startsWith("about:")) return true;
+  function onShouldStart(req: { url: string; isTopFrame?: boolean }): boolean {
+    if (req.url.startsWith("about:")) return true;
+    if (req.isTopFrame === false && /^https:/i.test(req.url)) return true;
+    if (openCms && isAllowedCmsUrl(req.url, openCms.url)) return true;
     void Linking.openURL(req.url).catch(() => undefined);
     return false;
   }

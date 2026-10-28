@@ -158,6 +158,12 @@ export const dmtRefundSchema = z.object({
   otp: z.string().regex(/^\d{4,8}$/),
 });
 
+/** Web phone-QR location fix (`/geo-link`), used when the browser blocks location. */
+const geoLinkToken = z
+  .string()
+  .regex(/^[a-f0-9]{48}$/, "Location capture is not valid. Verify your location again.")
+  .optional();
+
 export const dmtTransferSchema = z
   .object({
     ...txnAuthFields,
@@ -171,6 +177,7 @@ export const dmtTransferSchema = z
     beneficiaryId: z.string().min(1).max(128).optional(),
     latitude: z.string().min(1).max(32).optional(),
     longitude: z.string().min(1).max(32).optional(),
+    geoLinkToken,
   })
   .superRefine(requireTxnProof);
 
@@ -212,6 +219,7 @@ export const aepsWithdrawSchema = z
     amount,
     /** From /aeps/withdraw/otp — required by the provider for amounts above ₹5,000. */
     otpReferenceKey: z.string().min(1).max(200).optional(),
+    geoLinkToken,
   })
   .superRefine(requireTxnProof);
 
@@ -220,6 +228,7 @@ export const aepsDepositSchema = z
     ...txnAuthFields,
     ...aepsBase,
     amount,
+    geoLinkToken,
   })
   .superRefine(requireTxnProof);
 
@@ -234,5 +243,6 @@ export const aadhaarPaySchema = z
     otpReferenceKey: z.string().min(1).max(200).optional(),
     otpTransactionId: z.string().min(1).max(200).optional(),
     otpTransactionToken: z.string().min(1).max(1000).optional(),
+    geoLinkToken,
   })
   .superRefine(requireTxnProof);

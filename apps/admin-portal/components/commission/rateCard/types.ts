@@ -155,7 +155,7 @@ export type PreviewData = Split & {
 export type PendingChange = {
   label: string;
   detail: string;
-  method: "post" | "delete";
+  method: "post" | "patch" | "delete";
   url: string;
   body: Record<string, unknown>;
 };

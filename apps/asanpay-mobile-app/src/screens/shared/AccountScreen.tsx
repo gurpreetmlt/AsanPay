@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   Smartphone,
   Sun,
+  Trash2,
   TrendingUp,
   UserCircle,
   Users,
@@ -53,6 +54,8 @@ import { DeviceRepairModal } from "./DeviceRepairModal";
 import { SignupLocationCard } from "../../components/SignupLocationCard";
 import type { SignupGeoFix } from "../../lib/signupDraft";
 import { LinkedAccountsHost, type LinkedAccountsView } from "../../components/linkedAccounts/LinkedAccountsHost";
+import { DeleteAccountModal } from "./DeleteAccountModal";
+import { APP_VERSION_NAME } from "../../lib/appVersion";
 
 /** Decorative cover art behind the profile banner — waves + soft dots, brand blue/green only. */
 function BannerCover() {
@@ -106,6 +109,7 @@ function MenuRow({
   onPress,
   right,
   tokens,
+  danger,
 }: {
   icon: typeof Sun;
   label: string;
@@ -113,14 +117,22 @@ function MenuRow({
   onPress?: () => void;
   right?: React.ReactNode;
   tokens: ReturnType<typeof useTheme>["tokens"];
+  danger?: boolean;
 }) {
+  const fg = danger ? colors.danger : tokens.txt;
   return (
     <Pressable style={menuStyles.item} onPress={onPress} disabled={!onPress}>
-      <View style={[menuStyles.iconWrap, { borderColor: tokens.cardBorder }]}>
-        <Icon size={19} color={tokens.txt} strokeWidth={1.8} />
+      <View
+        style={[
+          menuStyles.iconWrap,
+          { borderColor: danger ? colors.dangerBg : tokens.cardBorder },
+          danger && { backgroundColor: colors.dangerBg },
+        ]}
+      >
+        <Icon size={19} color={fg} strokeWidth={1.8} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={[menuStyles.text, { color: tokens.txt }]}>{label}</Text>
+        <Text style={[menuStyles.text, { color: fg }]}>{label}</Text>
         {subtitle ? <Text style={[menuStyles.subtitle, { color: tokens.sub }]}>{subtitle}</Text> : null}
       </View>
       {right ?? (onPress ? <ChevronRight size={18} color={tokens.mute} /> : null)}
@@ -181,6 +193,7 @@ export function AccountScreen() {
   const [showNobleCms, setShowNobleCms] = useState(false);
   const [showNobleUpiQr, setShowNobleUpiQr] = useState(false);
   const [accountsView, setAccountsView] = useState<LinkedAccountsView | null>(null);
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false);
   const [telegramBusy, setTelegramBusy] = useState(false);
   const [tdsSummary, setTdsSummary] = useState<{
     month: string;
@@ -607,6 +620,18 @@ export function AccountScreen() {
           />
         </SectionCard>
 
+        <Text style={[styles.section, { color: tokens.sub }]}>Account</Text>
+        <SectionCard tokens={tokens}>
+          <MenuRow
+            icon={Trash2}
+            label="Delete account"
+            subtitle="request permanent deletion of your account"
+            tokens={tokens}
+            danger
+            onPress={() => setShowDeleteAccount(true)}
+          />
+        </SectionCard>
+
         <Pressable onPress={handleLogout} style={styles.logoutWrap}>
           <LinearGradient
             colors={[colors.danger, colors.dangerDark]}
@@ -618,7 +643,7 @@ export function AccountScreen() {
           </LinearGradient>
         </Pressable>
 
-        <Text style={[styles.version, { color: tokens.mute }]}>AsanPay v4.2.1 · Made in India 🇮🇳</Text>
+        <Text style={[styles.version, { color: tokens.mute }]}>AsanPay v{APP_VERSION_NAME} · Made in India 🇮🇳</Text>
       </ScrollView>
 
       <SetLoginMpinModal
@@ -673,6 +698,7 @@ export function AccountScreen() {
       </Modal>
       <CashManagementModal visible={showNobleCms} onClose={() => setShowNobleCms(false)} />
       <LinkedAccountsHost view={accountsView} onClose={() => setAccountsView(null)} />
+      <DeleteAccountModal visible={showDeleteAccount} onClose={() => setShowDeleteAccount(false)} />
     </SafeAreaView>
     </PageEnter>
   );

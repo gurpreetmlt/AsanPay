@@ -14,6 +14,9 @@ import { RetailerTabs } from "./RetailerTabs";
 import { SignupScreen } from "../screens/signup/SignupScreen";
 import { syncRememberedLoginProfile } from "../lib/rememberedLogin";
 import type { LoginRoleChip } from "../screens/LoginScreen";
+import { UpdateRequiredScreen } from "../screens/UpdateRequiredScreen";
+import { useAppUpdateStore } from "../lib/appUpdate";
+import { checkAppVersion } from "../lib/appVersionCheck";
 
 // Bank-app-style resume lock: background the app for this long or more, and coming back to the
 // foreground requires PIN/fingerprint again — closes the "left it on the table, someone else
@@ -27,6 +30,11 @@ export function RootNavigator() {
   const signupContinue = useAuthStore((s) => s.signupContinue);
   const setSignupContinue = useAuthStore((s) => s.setSignupContinue);
   const { tokens, scheme } = useTheme();
+  const updateRequired = useAppUpdateStore((s) => s.required);
+
+  useEffect(() => {
+    void checkAppVersion();
+  }, []);
 
   const backgroundedAtRef = useRef<number | null>(null);
   const [locked, setLocked] = useState(false);
@@ -58,6 +66,10 @@ export function RootNavigator() {
     const sub = AppState.addEventListener("change", handleChange);
     return () => sub.remove();
   }, []);
+
+  if (updateRequired) {
+    return <UpdateRequiredScreen />;
+  }
 
   if (!user || !accessToken) {
     return <AuthFlow />;

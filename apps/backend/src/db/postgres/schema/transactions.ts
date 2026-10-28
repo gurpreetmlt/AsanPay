@@ -52,6 +52,10 @@ export const transactions = pgTable(
     index("transactions_user_id_idx").on(table.userId, table.createdAt),
     index("transactions_status_idx").on(table.status),
     index("transactions_service_id_idx").on(table.serviceId),
+    // DMT remitter monthly limit looks up every txn for one remitter mobile.
+    index("transactions_customer_mobile_idx")
+      .on(sql`(metadata ->> 'customerMobile')`, table.createdAt)
+      .where(sql`(metadata ->> 'customerMobile') IS NOT NULL`),
     check("transactions_amount_positive", sql`${table.amount} > 0`),
   ],
 );

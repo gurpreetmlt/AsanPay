@@ -31,6 +31,7 @@ import {
   markOtpConsumed,
 } from "../../db/postgres/repositories/otpRequest";
 import { getTenantSettings } from "../tenants/tenantSettings.service";
+import { normaliseBankUtr } from "../limits/moneyLimits";
 import { bankNameMatch, type UserRole } from "@asanpay/shared-types";
 import {
   assertAgentCanPay,
@@ -868,6 +869,38 @@ export async function requestSettlement(params: {
   });
 }
 
+/**
+ * One bank payout, one settlement. The advisory lock serialises two admins entering the same
+ * UTR on different settlements; settlement_requests_bank_utr_uidx backs it up in the database.
+ */
+async function assertUtrNotUsedOnOtherSettlement(
+  tx: Tx,
+  tenantId: string,
+  requestId: bigint,
+  utr: string,
+): Promise<void> {
+  const norm = normaliseBankUtr(utr);
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`settle_utr:${tenantId}:${norm}`}))`);
+  const [other] = await tx
+    .select({ id: settlementRequests.id })
+    .from(settlementRequests)
+    .where(
+      and(
+        eq(settlementRequests.tenantId, tenantId),
+        sql`upper(regexp_replace(${settlementRequests.bankUtr}, '[^A-Za-z0-9]', '', 'g')) = ${norm}`,
+        sql`${settlementRequests.id} <> ${requestId}`,
+      ),
+    )
+    .limit(1);
+  if (other) {
+    throw new HttpError(
+      422,
+      `This UTR is already used on settlement #${other.id}. Check the bank reference.`,
+      "UTR_ALREADY_USED",
+    );
+  }
+}
+
 export async function markPayoutSuccess(params: {
   tenantId: string;
   requestId: bigint;
@@ -876,7 +909,7 @@ export async function markPayoutSuccess(params: {
   payoutBankAccountId?: bigint;
 }): Promise<{ payoutJournalId: bigint }> {
   const utr = params.bankUtr.trim();
-  if (!utr) throw new HttpError(422, "Bank UTR is required", "UTR_REQUIRED");
+  if (!normaliseBankUtr(utr)) throw new HttpError(422, "Bank UTR is required", "UTR_REQUIRED");
 
   return db.transaction(async (tx) => {
     const [request] = await tx
@@ -904,6 +937,8 @@ export async function markPayoutSuccess(params: {
     if (!request.debitJournalId) {
       throw new HttpError(500, "Settlement request has no debit journal", "MISSING_DEBIT");
     }
+
+    await assertUtrNotUsedOnOtherSettlement(tx, params.tenantId, request.id, utr);
 
     const payoutBank = await resolvePayoutBank(tx, params.tenantId, params.payoutBankAccountId);
 
@@ -1048,6 +1083,10 @@ export async function markPayoutReturned(params: {
     }
     if (!request.payoutJournalId || !request.debitJournalId) {
       throw new HttpError(500, "Settlement is missing payout or debit journal", "MISSING_JOURNAL");
+    }
+    const returnUtr = params.bankUtr?.trim();
+    if (returnUtr && normaliseBankUtr(returnUtr)) {
+      await assertUtrNotUsedOnOtherSettlement(tx, params.tenantId, request.id, returnUtr);
     }
 
     const payoutReversal = await reverseJournal(tx, {

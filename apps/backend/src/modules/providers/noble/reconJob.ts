@@ -50,9 +50,10 @@ function reconOperation(type: NobleReconTxnType, day: string): string {
   return `recon:${type}:${day}`;
 }
 
-async function alreadySubmitted(type: NobleReconTxnType, day: string): Promise<boolean> {
+/** When the provider last accepted this type + day, or null if it never has. */
+async function lastSubmittedAt(type: NobleReconTxnType, day: string): Promise<Date | null> {
   const [row] = await db
-    .select({ id: providerLogs.id })
+    .select({ at: sql<Date | null>`max(${providerLogs.createdAt})` })
     .from(providerLogs)
     .where(
       and(
@@ -60,9 +61,44 @@ async function alreadySubmitted(type: NobleReconTxnType, day: string): Promise<b
         eq(providerLogs.operation, reconOperation(type, day)),
         eq(providerLogs.status, "success"),
       ),
+    );
+  return row?.at ? new Date(row.at) : null;
+}
+
+/**
+ * A recon-eligible txn of this day that was created — or reached success/failed — after the
+ * file was accepted. The 23:15 same-day file misses everything from the last 45 minutes.
+ */
+async function hasTxnsSince(serviceCode: string, day: string, since: Date): Promise<boolean> {
+  const { from, to } = istDayRange(day);
+  const [row] = await db
+    .select({ id: transactions.id })
+    .from(transactions)
+    .innerJoin(services, eq(transactions.serviceId, services.id))
+    .innerJoin(providers, eq(transactions.providerId, providers.id))
+    .where(
+      and(
+        eq(services.code, serviceCode),
+        eq(providers.code, "noble"),
+        inArray(transactions.status, ["success", "failed"]),
+        gte(transactions.createdAt, from),
+        lt(transactions.createdAt, to),
+        sql`(${transactions.createdAt} > ${since} OR ${transactions.updatedAt} > ${since})`,
+      ),
     )
     .limit(1);
   return Boolean(row);
+}
+
+/** Minutes after IST midnight from which yesterday's file is re-sent if it went out incomplete. */
+export const RESUBMIT_AFTER_MINUTES = 30;
+
+/** Which IST days a tick should send, and whether an already-accepted file may be re-sent. */
+export function reconDaysToRun(now = new Date()): { day: string; resubmitIfStale: boolean }[] {
+  const minutes = istMinutesNow(now);
+  const days = [{ day: istDate(1, now), resubmitIfStale: minutes >= RESUBMIT_AFTER_MINUTES }];
+  if (minutes >= SAME_DAY_AFTER_MINUTES) days.push({ day: istDate(0, now), resubmitIfStale: false });
+  return days;
 }
 
 async function reconLinesFor(serviceCode: string, day: string): Promise<string[]> {
@@ -88,14 +124,22 @@ async function reconLinesFor(serviceCode: string, day: string): Promise<string[]
   return rows.map((r) => reconLine(r.status as "success" | "failed", r.txnRef, (r.rrn ?? "").trim()));
 }
 
-/** Submit one IST day for every recon type. Skips types already accepted or with no txns. */
-export async function submitNobleReconForDay(day: string): Promise<{ type: string; records: number; result: string }[]> {
+/**
+ * Submit one IST day for every recon type. Skips types with no txns and types already accepted —
+ * unless `resubmitIfStale` and txns landed after the accepted file, in which case the whole
+ * day is re-sent under the same batch id.
+ */
+export async function submitNobleReconForDay(
+  day: string,
+  opts: { resubmitIfStale?: boolean } = {},
+): Promise<{ type: string; records: number; result: string }[]> {
   const [yyyy, mm, dd] = day.split("-");
   const transactionDate = `${dd}/${mm}/${yyyy}`;
   const out: { type: string; records: number; result: string }[] = [];
 
   for (const { type, serviceCode } of RECON_SERVICES) {
-    if (await alreadySubmitted(type, day)) {
+    const submittedAt = await lastSubmittedAt(type, day);
+    if (submittedAt && !(opts.resubmitIfStale && (await hasTxnsSince(serviceCode, day, submittedAt)))) {
       out.push({ type, records: 0, result: "already submitted" });
       continue;
     }
@@ -140,15 +184,14 @@ export async function submitNobleReconForDay(day: string): Promise<{ type: strin
 }
 
 /**
- * Jobs-worker tick: yesterday is always eligible (catch-up after downtime); today only after
- * 23:15 IST. Already-accepted days are skipped, so running every few minutes is safe.
+ * Jobs-worker tick: yesterday is always eligible (catch-up after downtime) and, from 00:30 IST,
+ * is re-sent if txns arrived after its file was accepted; today only after 23:15 IST. Accepted,
+ * up-to-date days are skipped, so running every few minutes is safe.
  */
 export async function runNobleReconTick(now = new Date()): Promise<void> {
   if (!isNobleConfigured()) return;
-  const days = [istDate(1, now)];
-  if (istMinutesNow(now) >= SAME_DAY_AFTER_MINUTES) days.push(istDate(0, now));
-  for (const day of days) {
-    const result = await submitNobleReconForDay(day);
+  for (const { day, resubmitIfStale } of reconDaysToRun(now)) {
+    const result = await submitNobleReconForDay(day, { resubmitIfStale });
     const sent = result.filter((r) => r.records > 0);
     if (sent.length > 0) logger.info({ day, result }, "AEPS recon tick");
   }

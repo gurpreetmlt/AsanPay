@@ -27,6 +27,9 @@ import {
   emailVerifyConfirmSchema,
   emailPreferencesSchema,
   aepsFavouriteBanksSchema,
+  adminTotpVerifySchema,
+  adminTotpEnableSchema,
+  adminTotpDisableSchema,
 } from "./auth.validators";
 import {
   registerUser,
@@ -58,6 +61,11 @@ import {
   getMyUpline,
   listUserDevices,
   revokeUserDevice,
+  verifyAdminTotpLogin,
+  getAdminTotpStatus,
+  setupAdminTotp,
+  enableAdminTotp,
+  disableAdminTotp,
 } from "./auth.service";
 import {
   requestEmailVerifyOtp,
@@ -84,7 +92,54 @@ export async function login(req: Request, res: Response): Promise<void> {
     ipAddress: req.ip ?? null,
     userAgent: req.headers["user-agent"] ?? null,
   });
+  if ("totpRequired" in result) {
+    sendSuccess(res, result, "Enter the 6-digit code from your authenticator app");
+    return;
+  }
   sendSuccess(res, result, "Logged in successfully");
+}
+
+export async function adminTotpVerify(req: Request, res: Response): Promise<void> {
+  const input = adminTotpVerifySchema.parse(req.body);
+  const result = await verifyAdminTotpLogin(input, {
+    ipAddress: req.ip ?? null,
+    userAgent: req.headers["user-agent"] ?? null,
+  });
+  sendSuccess(res, result, "Logged in successfully");
+}
+
+export async function adminTotpStatus(req: Request, res: Response): Promise<void> {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  sendSuccess(res, await getAdminTotpStatus(req.auth.sub), "OK");
+}
+
+export async function adminTotpSetup(req: Request, res: Response): Promise<void> {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const result = await setupAdminTotp(req.auth.sub, {
+    ipAddress: req.ip ?? null,
+    userAgent: req.headers["user-agent"] ?? null,
+  });
+  sendSuccess(res, result, "Add this key to your authenticator app, then enter the 6-digit code");
+}
+
+export async function adminTotpEnable(req: Request, res: Response): Promise<void> {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const input = adminTotpEnableSchema.parse(req.body);
+  await enableAdminTotp(req.auth.sub, input.code, {
+    ipAddress: req.ip ?? null,
+    userAgent: req.headers["user-agent"] ?? null,
+  });
+  sendSuccess(res, await getAdminTotpStatus(req.auth.sub), "Two-factor login is on");
+}
+
+export async function adminTotpDisable(req: Request, res: Response): Promise<void> {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const input = adminTotpDisableSchema.parse(req.body);
+  await disableAdminTotp(req.auth.sub, input, {
+    ipAddress: req.ip ?? null,
+    userAgent: req.headers["user-agent"] ?? null,
+  });
+  sendSuccess(res, await getAdminTotpStatus(req.auth.sub), "Two-factor login is off");
 }
 
 export async function refresh(req: Request, res: Response): Promise<void> {

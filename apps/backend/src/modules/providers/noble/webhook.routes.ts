@@ -1,6 +1,9 @@
 import { Router } from "express";
+import { env } from "../../../config/env";
 import { insertProviderLog } from "../../../db/postgres/repositories/providerLog";
+import { nobleCallbackLimiter } from "../../../middleware/rateLimiter";
 import { logger } from "../../../utils/logger";
+import { safeEqual } from "../../../utils/safeEqual";
 
 export const nobleWebhookRouter = Router();
 
@@ -36,8 +39,31 @@ function pickTxnRef(payload: Record<string, unknown>): string | null {
  * Receive-only for now: every callback is stored in logs.provider_logs and acknowledged.
  * Transactions are still settled through the status-check APIs until the payload shape is confirmed.
  */
-nobleWebhookRouter.post("/callback", async (req, res) => {
+nobleWebhookRouter.post("/callback", nobleCallbackLimiter, async (req, res) => {
+  const expected = env.NOBLE_CALLBACK_SECRET?.trim();
+  if (!expected) {
+    if (env.NODE_ENV === "production") {
+      res.status(503).json({
+        status: 0,
+        message: "AEPS provider callback is not configured. Set NOBLE_CALLBACK_SECRET on the backend.",
+      });
+      return;
+    }
+  } else {
+    const queryToken = typeof req.query.token === "string" ? req.query.token : "";
+    const got = (req.header("x-callback-token") || queryToken).trim();
+    if (!safeEqual(got, expected)) {
+      logger.warn({ ip: req.ip, hasToken: Boolean(got) }, "AEPS provider callback rejected: bad token");
+      res.status(401).json({
+        status: 0,
+        message: "Invalid callback token. Send NOBLE_CALLBACK_SECRET in the X-Callback-Token header or ?token=.",
+      });
+      return;
+    }
+  }
+
   const payload = (req.body && typeof req.body === "object" ? req.body : {}) as Record<string, unknown>;
+  const { token: _token, ...safeQuery } = req.query as Record<string, unknown>;
   const txnRef = pickTxnRef(payload);
 
   logger.info(
@@ -51,7 +77,7 @@ nobleWebhookRouter.post("/callback", async (req, res) => {
     operation: "callback",
     requestPayload: {
       body: payload,
-      query: req.query as Record<string, unknown>,
+      query: safeQuery,
       ip: req.ip ?? null,
       contentType: req.header("content-type") ?? null,
     },

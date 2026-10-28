@@ -596,6 +596,20 @@
       "when": 1793500000000,
       "tag": "0084_signup_login_email",
       "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1793600000000,
+      "tag": "0085_admin_totp",
+      "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1793700000000,
+      "tag": "0086_money_controls",
+      "breakpoints": true
     }
   ]
 }

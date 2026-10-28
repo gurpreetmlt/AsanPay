@@ -13,6 +13,7 @@ import {
   providers,
   journals,
   providerCommissionIngest,
+  reconciliationExceptions,
 } from "../../db/postgres/schema";
 import { mirrorBalances, transferBetweenWallets } from "../wallet/wallet.ledger";
 import { toPaise, fromPaise } from "../wallet/decimal";
@@ -121,16 +122,23 @@ export function normalizeAmountBound(raw: string | null | undefined, field: "min
 // (retailer -> distributor -> super_distributor) their configured cut, each
 // payout backed by a system-wallet -> beneficiary-wallet ledger transfer.
 // Idempotent per transaction: existing commission_ledger rows short-circuit.
-export async function distributeCommissionForTxn(transactionId: string): Promise<void> {
-  const [txn] = await db.select().from(transactions).where(eq(transactions.id, transactionId));
-  if (!txn || txn.status !== "success") return;
+export async function distributeCommissionForTxn(
+  transactionId: string,
+): Promise<{ failed: number; failures: { beneficiaryUserId: string; error: string }[] }> {
+  const failures: { beneficiaryUserId: string; error: string }[] = [];
+  const done = () => ({ failed: failures.length, failures });
 
-  const [alreadyPaid] = await db
-    .select({ id: commissionLedger.id })
+  const [txn] = await db.select().from(transactions).where(eq(transactions.id, transactionId));
+  if (!txn || txn.status !== "success") return done();
+
+  // Per beneficiary, so a retry pays only the members a failed run missed. A clawed-back row
+  // means this txn was refunded — never pay it again.
+  const paidRows = await db
+    .select({ beneficiaryUserId: commissionLedger.beneficiaryUserId, reversedAt: commissionLedger.reversedAt })
     .from(commissionLedger)
-    .where(and(eq(commissionLedger.transactionId, transactionId), activeCommission))
-    .limit(1);
-  if (alreadyPaid) return;
+    .where(eq(commissionLedger.transactionId, transactionId));
+  if (paidRows.some((r) => r.reversedAt != null)) return done();
+  const alreadyPaid = new Set(paidRows.map((r) => r.beneficiaryUserId));
 
   // Everyone above (and including) the transacting retailer, closest first.
   const chain = await db
@@ -147,7 +155,7 @@ export async function distributeCommissionForTxn(transactionId: string): Promise
     .limit(1);
   if (!systemWallet) {
     logger.error({ transactionId }, "commission skipped: no aggregator wallet configured");
-    return;
+    return done();
   }
 
   const now = new Date();
@@ -163,6 +171,7 @@ export async function distributeCommissionForTxn(transactionId: string): Promise
   for (const member of chain) {
     // Admin is the residual earner (whatever margin remains) — no explicit payout row.
     if (member.role === "admin" || !member.active) continue;
+    if (alreadyPaid.has(member.userId)) continue;
 
     const { grossPaise } = await resolveMemberGrossPaise({
       cfg: rateCfg,
@@ -224,11 +233,125 @@ export async function distributeCommissionForTxn(transactionId: string): Promise
         txnRef: txn.txnRef,
       });
     } catch (err) {
-      // Either a genuine payout failure or a duplicate (already paid this beneficiary for this
-      // txn) — both must never break the customer txn. Log and continue; reconciliation surfaces gaps.
-      logger.error({ err, transactionId, beneficiary: member.userId }, "commission payout skipped/failed");
+      // A duplicate (a concurrent run already paid this beneficiary) is success; anything else
+      // is a real failure, filed so retryFailedCommissions() pays it later.
+      if (isUniqueViolation(err)) continue;
+      logger.error({ err, transactionId, beneficiary: member.userId }, "commission payout failed");
+      failures.push({
+        beneficiaryUserId: member.userId,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
+
+  if (failures.length > 0) {
+    await recordCommissionPayoutFailure(txn.id, txn.txnRef, new Error(failures.map((f) => f.error).join("; ")), failures);
+  }
+  return done();
+}
+
+function isUniqueViolation(err: unknown): boolean {
+  let current: unknown = err;
+  for (let depth = 0; depth < 4 && current; depth++) {
+    if ((current as { code?: string }).code === "23505") return true;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
+}
+
+const COMMISSION_RETRY_CHECK = "commission_payout_failed";
+/** After this many failed retries the exception is raised to critical (retries continue). */
+const COMMISSION_RETRY_ESCALATE_AFTER = 5;
+
+/** Files the retry marker the reconcile sweep picks up. Never throws. */
+export async function recordCommissionPayoutFailure(
+  transactionId: string,
+  txnRef: string,
+  err: unknown,
+  failures?: { beneficiaryUserId: string; error: string }[],
+): Promise<void> {
+  const { upsertReconException } = await import("../limits/moneyExceptions");
+  await upsertReconException({
+    checkName: COMMISSION_RETRY_CHECK,
+    severity: "warn",
+    fingerprint: `${COMMISSION_RETRY_CHECK}:${transactionId}`,
+    details: {
+      transactionId,
+      txnRef,
+      error: err instanceof Error ? err.message : String(err),
+      failures: failures ?? [],
+    },
+  });
+}
+
+/**
+ * Retries commission payouts that failed earlier. Safe to repeat: each payout is keyed by
+ * (transaction, beneficiary) in commission_ledger and by its COMM:* journal idempotency key, so
+ * a beneficiary already paid is skipped. Resolved markers are closed; failing ones stay open.
+ */
+export async function retryFailedCommissions(limit = 20): Promise<{ retried: number; resolved: number }> {
+  const { resolveTenantId } = await import("../fund-requests/tenant");
+  const tenantId = await resolveTenantId();
+  const open = await db
+    .select({
+      id: reconciliationExceptions.id,
+      details: reconciliationExceptions.details,
+    })
+    .from(reconciliationExceptions)
+    .where(
+      and(
+        eq(reconciliationExceptions.tenantId, tenantId),
+        eq(reconciliationExceptions.checkName, COMMISSION_RETRY_CHECK),
+        eq(reconciliationExceptions.status, "open"),
+      ),
+    )
+    .orderBy(asc(reconciliationExceptions.lastSeenAt))
+    .limit(limit);
+
+  let resolved = 0;
+  for (const marker of open) {
+    const details = (marker.details ?? {}) as Record<string, unknown>;
+    const transactionId = typeof details.transactionId === "string" ? details.transactionId : null;
+    const attempts = Number(details.attempts ?? 1);
+    let failedNow: { failed: number; failures: { beneficiaryUserId: string; error: string }[] };
+    let error: string | null = null;
+    try {
+      failedNow = transactionId ? await distributeCommissionForTxn(transactionId) : { failed: 0, failures: [] };
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+      failedNow = { failed: 1, failures: [] };
+    }
+
+    if (failedNow.failed === 0) {
+      await db
+        .update(reconciliationExceptions)
+        .set({
+          status: "closed",
+          closeNote: "Commission retry paid every pending beneficiary (or the transaction is no longer successful).",
+          closedAt: new Date(),
+          lastSeenAt: new Date(),
+        })
+        .where(eq(reconciliationExceptions.id, marker.id));
+      resolved += 1;
+      continue;
+    }
+
+    // distributeCommissionForTxn already refreshed the marker for per-beneficiary failures;
+    // a whole-run error is recorded here.
+    if (error) {
+      await db
+        .update(reconciliationExceptions)
+        .set({ details: { ...details, error, attempts: attempts + 1 }, lastSeenAt: new Date() })
+        .where(eq(reconciliationExceptions.id, marker.id));
+    }
+    if (attempts + 1 >= COMMISSION_RETRY_ESCALATE_AFTER) {
+      await db
+        .update(reconciliationExceptions)
+        .set({ severity: "critical" })
+        .where(eq(reconciliationExceptions.id, marker.id));
+    }
+  }
+  return { retried: open.length, resolved };
 }
 
 /**

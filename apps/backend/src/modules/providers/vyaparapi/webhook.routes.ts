@@ -3,6 +3,7 @@ import { z } from "zod";
 import { env } from "../../../config/env";
 import { HttpError } from "../../../utils/httpError";
 import { sendSuccess } from "../../../utils/apiResponse";
+import { safeEqual } from "../../../utils/safeEqual";
 import { settleTxnFromProviderCallback } from "../../transactions/txn.service";
 import { mapVyaparTxnStatus } from "./status";
 import type { ProviderResult } from "../types";
@@ -28,7 +29,7 @@ function assertCallbackAuth(tokenFromQueryOrBody: string | undefined, headerToke
     );
   }
   const got = (tokenFromQueryOrBody || headerToken || "").trim();
-  if (got !== expected) {
+  if (!safeEqual(got, expected)) {
     throw new HttpError(401, "Invalid VyaparAPI callback token", "VYAPARAPI_CALLBACK_UNAUTHORIZED");
   }
 }

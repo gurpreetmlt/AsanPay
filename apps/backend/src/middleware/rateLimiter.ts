@@ -1,6 +1,8 @@
+import { isIP } from "node:net";
 import rateLimit from "express-rate-limit";
 import type { Request } from "express";
 import { env } from "../config/env";
+import { safeEqual } from "../utils/safeEqual";
 
 const isDev = env.NODE_ENV !== "production";
 
@@ -14,7 +16,16 @@ const sharedValidate = {
   xForwardedForHeader: false,
 } as const;
 
-function clientIp(req: Request): string {
+/**
+ * Web portals call the API through their own server-side proxy, so req.ip is the portal container.
+ * Only a request carrying the proxy shared secret may name the browser IP.
+ */
+export function clientIp(req: Request): string {
+  const expectedKey = env.PROXY_SHARED_SECRET?.trim();
+  if (expectedKey && safeEqual(req.header("x-asanpay-proxy-key")?.trim(), expectedKey)) {
+    const forwarded = req.header("x-asanpay-client-ip")?.trim() ?? "";
+    if (isIP(forwarded)) return forwarded;
+  }
   return req.ip || "unknown";
 }
 
@@ -28,6 +39,7 @@ export const apiLimiter = rateLimit({
   legacyHeaders: false,
   skip: (req) =>
     req.path === "/health" ||
+    req.path === "/ready" ||
     req.path === "/api/health" ||
     req.path.startsWith("/api/whatsapp/webhook") ||
     req.path.startsWith("/api/webhooks/"),
@@ -104,6 +116,17 @@ export const geoLinkPublicLimiter = rateLimit({
   legacyHeaders: false,
   message: { success: false, message: "Too many location attempts from this network. Wait 15 minutes and try again." },
   keyGenerator: (req) => `geo-public:${clientIp(req)}`,
+  validate: sharedValidate,
+});
+
+/** Provider callbacks skip apiLimiter (webhook prefix), so cap the unauthenticated endpoint per IP. */
+export const nobleCallbackLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: isDev ? 1000 : 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { status: 0, message: "Too many callbacks from this IP. Retry after one minute." },
+  keyGenerator: (req) => `noble-callback:${clientIp(req)}`,
   validate: sharedValidate,
 });
 

@@ -31,6 +31,7 @@ import { DeviceRepairRequests } from "@/components/settings/DeviceRepairRequests
 import { HomeLocationCard } from "@/components/settings/HomeLocationCard";
 import { SettlementBanksPanel } from "@/components/settlements/SettlementBanksPanel";
 import { FaqSection } from "@/components/support/FaqSection";
+import { DeleteAccountCard } from "./DeleteAccountCard";
 import { B, initials, roleFromUserRole } from "@/lib/brand";
 import api from "@/lib/api";
 import { SignupStepper, SIGNUP_STEPS } from "@/components/signup/SignupStepper";
@@ -1086,6 +1087,7 @@ export default function SettingsPage() {
                     </Link>
                   </div>
                 </div>
+                <DeleteAccountCard />
                 <FaqSection />
               </div>
             )}

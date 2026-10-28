@@ -43,6 +43,8 @@ export async function resolveNobleAgentContext(params: {
   latitude?: string;
   longitude?: string;
   channel?: "APP" | "WEB";
+  /** Our txnRef — present only on money-moving calls, which must carry the live fix. */
+  externalRef?: string;
 }): Promise<NobleAgentContext> {
   const [user] = await db
     .select({
@@ -62,8 +64,10 @@ export async function resolveNobleAgentContext(params: {
     );
   }
 
-  const latRaw = (params.latitude || user?.outletLatitude || "").trim();
-  const lngRaw = (params.longitude || user?.outletLongitude || "").trim();
+  const savedLat = params.externalRef ? "" : user?.outletLatitude;
+  const savedLng = params.externalRef ? "" : user?.outletLongitude;
+  const latRaw = (params.latitude || savedLat || "").trim();
+  const lngRaw = (params.longitude || savedLng || "").trim();
   // load_agent only needs uniqueAgentId; txn/2FA/KYC require geo (4 decimals).
   const latitude = latRaw ? Number(latRaw).toFixed(4) : "";
   const longitude = lngRaw ? Number(lngRaw).toFixed(4) : "";

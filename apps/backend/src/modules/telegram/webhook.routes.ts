@@ -3,18 +3,28 @@ import { env } from "../../config/env";
 import { HttpError } from "../../utils/httpError";
 import { sendSuccess } from "../../utils/apiResponse";
 import { logger } from "../../utils/logger";
+import { safeEqual } from "../../utils/safeEqual";
 import { telegramSendMessage } from "./client";
 import { bindTelegramFromStartPayload } from "./link.service";
 
 export const telegramWebhookRouter = Router();
 
-function assertWebhookAuth(token: unknown): void {
+function assertWebhookAuth(headerToken: string | undefined, queryToken: unknown): void {
   const expected = env.TELEGRAM_WEBHOOK_SECRET?.trim();
   if (!expected) {
-    throw new HttpError(503, "Telegram webhook is not configured", "TELEGRAM_WEBHOOK_NOT_CONFIGURED");
+    throw new HttpError(
+      503,
+      "Telegram webhook is not configured. Set TELEGRAM_WEBHOOK_SECRET on the backend.",
+      "TELEGRAM_WEBHOOK_NOT_CONFIGURED",
+    );
   }
-  if (String(token ?? "") !== expected) {
-    throw new HttpError(401, "Invalid Telegram webhook token", "TELEGRAM_WEBHOOK_UNAUTHORIZED");
+  const got = headerToken?.trim() || (typeof queryToken === "string" ? queryToken : "");
+  if (!safeEqual(got, expected)) {
+    throw new HttpError(
+      401,
+      "Invalid Telegram webhook secret. X-Telegram-Bot-Api-Secret-Token must match TELEGRAM_WEBHOOK_SECRET.",
+      "TELEGRAM_WEBHOOK_UNAUTHORIZED",
+    );
   }
 }
 
@@ -26,7 +36,7 @@ type TgUpdate = {
 };
 
 telegramWebhookRouter.post("/", async (req, res) => {
-  assertWebhookAuth(req.query.token);
+  assertWebhookAuth(req.header("x-telegram-bot-api-secret-token"), req.query.token);
   const update = (req.body ?? {}) as TgUpdate;
   const chatId = update.message?.chat?.id != null ? String(update.message.chat.id) : "";
   const text = (update.message?.text ?? "").trim();

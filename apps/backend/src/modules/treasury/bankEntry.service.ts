@@ -6,6 +6,7 @@ import { postJournal, reverseJournal, type Tx } from "../../core/ledger";
 import { paiseToRupees, type Paise } from "../../core/money";
 import { HttpError } from "../../utils/httpError";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
+import { logger } from "../../utils/logger";
 import { ensureTreasuryAccount, floatAccountCode } from "../wallet/ledgerAccounts";
 
 export const BANK_ENTRY_MODES = ["upi", "imps", "neft", "rtgs", "cheque", "cash", "other"] as const;
@@ -319,6 +320,20 @@ export async function approveBankEntry(params: {
     entityId: String(params.entryId),
     metadata: { journalId: result.journalId, selfApproved: result.selfApproved },
   });
+  if (result.selfApproved) {
+    // Allowed only because there is a single active admin; leave a trail so it is reviewed later.
+    logger.warn({ entryId: String(params.entryId), adminId: params.approvedBy }, "bank entry self-approved (single-admin mode)");
+    await insertAuditLog({
+      userId: params.approvedBy,
+      action: "admin.bank_entry_self_approve_warning",
+      entityType: "bank_entry",
+      entityId: String(params.entryId),
+      metadata: {
+        journalId: result.journalId,
+        warning: "Maker approved their own bank entry because only one active admin exists. Add a second admin to enforce maker-checker.",
+      },
+    });
+  }
   return { journalId: result.journalId };
 }
 

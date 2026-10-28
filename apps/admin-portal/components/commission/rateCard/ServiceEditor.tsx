@@ -22,6 +22,9 @@ import { TaxSummary } from "./TaxSummary";
 
 type IncomeDraft = {
   key: string;
+  /** Editing an existing row: saving adds the new row and ends this one. */
+  replacesId: string | null;
+  providerId: string | null;
   ruleType: RuleType;
   value: string;
   capAmount: string;
@@ -63,11 +66,14 @@ function incomeRowError(r: IncomeDraft): string | null {
   if (r.ruleType === "percentage" && n > 100) return "Percentage cannot exceed 100";
   if (r.capAmount.trim() !== "" && r.ruleType !== "percentage") return "Cap applies only to a percentage — clear the cap";
   if (r.capAmount.trim() !== "" && !(Number(r.capAmount) > 0)) return "Cap must be more than ₹0";
+  if (r.maxAmount.trim() !== "" && !(Number(r.maxAmount) > 0)) return "Slab to must be more than ₹0 — leave it blank for any amount";
   if (r.minAmount.trim() !== "" && r.maxAmount.trim() !== "" && Number(r.minAmount) > Number(r.maxAmount)) {
     return "Slab min cannot be more than slab max";
   }
   return null;
 }
+
+const bound = (v: string | null | undefined) => (v == null || v.trim() === "" ? null : Number(v));
 
 function feeRowError(r: FeeDraft): string | null {
   const v = r.value.trim();
@@ -75,6 +81,7 @@ function feeRowError(r: FeeDraft): string | null {
   const n = Number(v);
   if (!Number.isFinite(n) || n < 0) return "Customer fee must be 0 or more";
   if (r.ruleType === "percentage" && n > 100) return "Percentage cannot exceed 100";
+  if (r.maxAmount.trim() !== "" && !(Number(r.maxAmount) > 0)) return "Slab to must be more than ₹0 — leave it blank for any amount";
   if (r.minAmount.trim() !== "" && r.maxAmount.trim() !== "" && Number(r.minAmount) > Number(r.maxAmount)) {
     return "Slab min cannot be more than slab max";
   }
@@ -127,14 +134,17 @@ export function ServiceEditor({
       });
     }
     for (const p of pendingIncome) {
+      const old = p.replacesId ? row.providerIncomeRules.find((x) => x.id === p.replacesId) : null;
       out.push({
-        label: `${svc} · provider income (${scopeLabel})`,
-        detail: `${slabLabel(p.minAmount || null, p.maxAmount || null)}: ${ruleLabel(p.ruleType, p.value, p.capAmount || null)}`,
+        label: `${svc} · provider income (${scopeName(p.providerId)})`,
+        detail: `${
+          old ? `${slabLabel(old.minAmount, old.maxAmount)}: ${ruleLabel(old.ruleType, old.value, old.capAmount)} → ` : ""
+        }${slabLabel(p.minAmount || null, p.maxAmount || null)}: ${ruleLabel(p.ruleType, p.value, p.capAmount || null)}`,
         method: "post",
         url: "/admin/rate-card/provider-income",
         body: {
           serviceId: row.serviceId,
-          providerId,
+          providerId: p.providerId,
           ruleType: p.ruleType,
           value: p.value.trim(),
           capAmount: p.capAmount.trim() || null,
@@ -142,6 +152,16 @@ export function ServiceEditor({
           maxAmount: p.maxAmount.trim() || null,
         },
       });
+      // Same slab: the server closes the old row itself. New slab bounds: end the old row explicitly.
+      if (old && (bound(old.minAmount) !== bound(p.minAmount) || bound(old.maxAmount) !== bound(p.maxAmount))) {
+        out.push({
+          label: `${svc} · end old provider income slab`,
+          detail: `${slabLabel(old.minAmount, old.maxAmount)}: ${ruleLabel(old.ruleType, old.value, old.capAmount)}`,
+          method: "delete",
+          url: `/admin/rate-card/provider-income/${old.id}`,
+          body: {},
+        });
+      }
     }
     for (const id of endFeeIds) {
       const f = row.customerFeeRules.find((x) => x.id === id);
@@ -236,6 +256,8 @@ export function ServiceEditor({
     setPendingIncome(
       ref.incomeRows.map((s) => ({
         key: newKey(),
+        replacesId: null,
+        providerId,
         ruleType: s.ruleType,
         value: s.value ?? "",
         capAmount: s.capAmount ?? "",
@@ -294,7 +316,9 @@ export function ServiceEditor({
           ) : null}
 
           <ul className="space-y-2">
-            {row.providerIncomeRules.map((r) => {
+            {row.providerIncomeRules
+              .filter((r) => !pendingIncome.some((p) => p.replacesId === r.id))
+              .map((r) => {
               const ending = endIncomeIds.includes(r.id);
               return (
                 <li
@@ -315,9 +339,33 @@ export function ServiceEditor({
                       <Undo2 size={13} /> Keep
                     </Btn>
                   ) : (
-                    <Btn variant="destructive" className="px-2 py-1 text-xs" onClick={() => setEndIncomeIds((ids) => [...ids, r.id])}>
-                      <Trash2 size={13} /> End
-                    </Btn>
+                    <div className="flex gap-1.5">
+                      <Btn
+                        variant="secondary"
+                        className="px-2 py-1 text-xs"
+                        onClick={() =>
+                          setPendingIncome((rows) => [
+                            ...rows,
+                            {
+                              key: newKey(),
+                              replacesId: r.id,
+                              providerId: r.providerId,
+                              ruleType: r.ruleType,
+                              value: String(Number(r.value)),
+                              capAmount: r.capAmount != null ? String(Number(r.capAmount)) : "",
+                              minAmount: r.minAmount != null ? String(Number(r.minAmount)) : "",
+                              maxAmount: r.maxAmount != null ? String(Number(r.maxAmount)) : "",
+                              note: null,
+                            },
+                          ])
+                        }
+                      >
+                        <Pencil size={13} /> Edit
+                      </Btn>
+                      <Btn variant="destructive" className="px-2 py-1 text-xs" onClick={() => setEndIncomeIds((ids) => [...ids, r.id])}>
+                        <Trash2 size={13} /> End
+                      </Btn>
+                    </div>
                   )}
                 </li>
               );
@@ -329,10 +377,12 @@ export function ServiceEditor({
               {pendingIncome.map((p, i) => (
                 <div key={p.key} className="rounded-xl border p-3" style={{ borderColor: "#93C5FD", background: "rgba(42,92,221,0.04)" }}>
                   <div className="mb-2 flex items-center justify-between">
-                    <Chip tone="blue">New · {scopeLabel}</Chip>
+                    <Chip tone="blue">
+                      {p.replacesId ? "Editing" : "New"} · {p.providerId ? providerName : "All providers"}
+                    </Chip>
                     <button
                       type="button"
-                      aria-label="Remove this slab"
+                      aria-label={p.replacesId ? "Cancel this edit" : "Remove this slab"}
                       onClick={() => setPendingIncome((rows) => rows.filter((r) => r.key !== p.key))}
                       className="rounded-lg p-1 transition hover:bg-red-50"
                       style={{ color: B.danger }}
@@ -399,7 +449,17 @@ export function ServiceEditor({
               onClick={() =>
                 setPendingIncome((rows) => [
                   ...rows,
-                  { key: newKey(), ruleType: "percentage", value: "", capAmount: "", minAmount: "", maxAmount: "", note: null },
+                  {
+                    key: newKey(),
+                    replacesId: null,
+                    providerId,
+                    ruleType: "percentage",
+                    value: "",
+                    capAmount: "",
+                    minAmount: "",
+                    maxAmount: "",
+                    note: null,
+                  },
                 ])
               }
             >

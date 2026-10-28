@@ -1,4 +1,4 @@
-import { and, eq, desc, sql, lt, or, inArray, ne } from "drizzle-orm";
+import { and, eq, desc, sql, lt, or, inArray, ne, gte } from "drizzle-orm";
 import { db } from "../../db/postgres";
 import {
   accounts,
@@ -32,6 +32,15 @@ import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import type { UserRole, WalletType } from "@asanpay/shared-types";
 import { resolveCustomerFee } from "../service-charges/serviceCharge.service";
 import { evaluateVelocitySpike, effectiveDailyLimit } from "../limits/velocity.service";
+import {
+  DMT_LIMIT_STATUSES,
+  DMT_SERVICE_CODES,
+  assertDmtLimits,
+  isDmtServiceCode,
+  istDayStart,
+  istMonthStart,
+} from "../limits/moneyLimits";
+import { upsertReconException } from "../limits/moneyExceptions";
 import { resolveTaxForService, splitFeeGstRupees } from "../commission/tax.service";
 
 type Actor = { id: string; role: UserRole };
@@ -176,8 +185,7 @@ async function checkDailyLimit(actor: Actor, amount: string | null): Promise<voi
   ]);
   if (!limit) return;
 
-  const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
+  const startOfDay = istDayStart();
   const [row] = await db
     .select({ total: sql<string>`coalesce(sum(${transactions.amount}), '0')` })
     .from(transactions)
@@ -225,6 +233,53 @@ function assertAmountWithinLimits(
   if (paise > toPaise(service.maxAmount)) {
     throw new HttpError(422, `Maximum amount for ${service.name} is ₹${service.maxAmount}`, "AMOUNT_ABOVE_MAX");
   }
+}
+
+type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * DMT remitter-month / agent-day / per-transfer limits. Must run inside the claim transaction,
+ * before the debit: the advisory locks serialise parallel transfers for the same agent or
+ * remitter so two of them cannot both fit under a limit only one should. Lock order (agent,
+ * then remitter) is fixed so concurrent claims cannot deadlock.
+ */
+async function assertDmtLimitsInTx(
+  tx: DbTx,
+  actorId: string,
+  metadata: Record<string, unknown>,
+  amount: string,
+): Promise<void> {
+  const remitterMobile = typeof metadata.customerMobile === "string" ? metadata.customerMobile.trim() : "";
+  if (!/^\d{10}$/.test(remitterMobile)) {
+    throw new HttpError(422, "Enter a valid 10-digit remitter mobile", "REMITTER_MOBILE_REQUIRED");
+  }
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`dmt_agent:${actorId}`}))`);
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`dmt_remitter:${remitterMobile}`}))`);
+
+  const now = new Date();
+  const monthStart = istMonthStart(now);
+  const dayStart = istDayStart(now);
+  const [row] = await tx
+    .select({
+      remitterMonth: sql<string>`coalesce(sum(${transactions.amount}) filter (where ${transactions.metadata} ->> 'customerMobile' = ${remitterMobile}), 0)::text`,
+      agentDay: sql<string>`coalesce(sum(${transactions.amount}) filter (where ${transactions.userId} = ${actorId} and ${transactions.createdAt} >= ${dayStart}), 0)::text`,
+    })
+    .from(transactions)
+    .innerJoin(services, eq(services.id, transactions.serviceId))
+    .where(
+      and(
+        inArray(services.code, [...DMT_SERVICE_CODES]),
+        inArray(transactions.status, [...DMT_LIMIT_STATUSES]),
+        gte(transactions.createdAt, monthStart),
+        or(eq(transactions.userId, actorId), sql`${transactions.metadata} ->> 'customerMobile' = ${remitterMobile}`),
+      ),
+    );
+
+  assertDmtLimits({
+    amountPaise: toPaise(amount),
+    remitterMonthPaise: toPaise(row?.remitterMonth ?? "0"),
+    agentDayPaise: toPaise(row?.agentDay ?? "0"),
+  });
 }
 
 // ── The engine ──────────────────────────────────────────────────────────────
@@ -318,6 +373,10 @@ export async function executeServiceTxn(input: ExecuteTxnInput): Promise<TxnOutc
         .from(transactions)
         .where(and(eq(transactions.idempotencyKey, idempotencyKey), eq(transactions.userId, actor.id)));
       if (again) return { row: again, replay: true as const };
+
+      if (direction === "debit" && isDmtServiceCode(serviceCode)) {
+        await assertDmtLimitsInTx(tx, actor.id, metadata, amount ?? "0");
+      }
 
       const [created] = await tx
         .insert(transactions)
@@ -679,6 +738,9 @@ export async function settleTxnFromProviderCallback(
 ): Promise<TxnOutcome> {
   const [txn] = await db.select().from(transactions).where(eq(transactions.txnRef, txnRef));
   if (!txn) throw new HttpError(404, "Transaction not found for partnerid", "TXN_NOT_FOUND");
+  if (txn.status === "success" && result.status === "failed") {
+    return { txn: await handleFailureAfterSuccess(txn, result), provider: result };
+  }
   if (txn.status !== "pending" && txn.status !== "initiated") {
     return { txn, provider: result };
   }
@@ -702,6 +764,153 @@ export async function settleTxnFromProviderCallback(
   });
 
   return { txn: finalized, provider: result };
+}
+
+function providerRawStatus(result: ProviderResult): string {
+  const raw = (result.raw ?? {}) as Record<string, unknown>;
+  return String(raw.status ?? "").trim().toUpperCase();
+}
+
+/**
+ * The provider reports a failure for a txn we already settled as success. A REFUND means the
+ * provider returned the money to our float, so the retailer's debit is reversed through the
+ * same TXN_RV journal a failed debit uses (one per txn, so a repeated callback cannot refund
+ * twice) and commission is clawed back. Anything else — a plain FAILED after success, a credit
+ * service, a debit with no ledger journal — moves no money and is escalated to a human.
+ */
+async function handleFailureAfterSuccess(txn: TxnRow, result: ProviderResult): Promise<TxnRow> {
+  const [service] = await db.select({ code: services.code }).from(services).where(eq(services.id, txn.serviceId));
+  const direction: MoneyDirection = service ? inferDirectionFromServiceCode(service.code) : "none";
+  const providerStatus = providerRawStatus(result);
+  const refundAmount = serviceChargeTotal(txn.amount, txn.customerFee, txn.customerFeeGst);
+
+  const escalate = async (reason: string, err?: unknown): Promise<void> => {
+    const details = {
+      txnId: txn.id,
+      txnRef: txn.txnRef,
+      retailerId: txn.userId,
+      amount: txn.amount,
+      refundAmount,
+      serviceCode: service?.code ?? null,
+      providerStatus,
+      providerMessage: result.message,
+      reason,
+      err: err === undefined ? undefined : err instanceof Error ? err.message : String(err),
+    };
+    logger.error(details, "provider reported failure after success");
+    void sendSlackAlert("Provider reported failure after success", "critical", details);
+    await upsertReconException({
+      checkName: "provider_failed_after_success",
+      severity: "critical",
+      fingerprint: `provider_failed_after_success:${txn.id}`,
+      details,
+    });
+    await insertAuditLog({
+      userId: null,
+      action: "txn.provider_failed_after_success_escalated",
+      entityType: "transaction",
+      entityId: txn.id,
+      ipAddress: null,
+      userAgent: null,
+      metadata: details,
+    });
+  };
+
+  if (providerStatus !== "REFUND") {
+    await escalate("Provider sent a failure (not a refund) for a successful transaction. No money moved.");
+    return txn;
+  }
+  if (direction !== "debit" || toPaise(refundAmount) <= 0) {
+    await escalate("Refund received for a transaction that has no retailer debit to reverse. No money moved.");
+    return txn;
+  }
+
+  let outcome: { row: TxnRow; refunded: boolean };
+  try {
+    outcome = await db.transaction(async (tx) => {
+      const [locked] = await tx.select().from(transactions).where(eq(transactions.id, txn.id)).for("update");
+      if (!locked || locked.status !== "success") return { row: locked ?? txn, refunded: false };
+
+      const walletType = (locked.walletType as WalletType | null) ?? "main";
+      const systemWallet = await getSystemWallet();
+      const userWallet = await getUserWallet(locked.userId, walletType);
+      await transferBetweenWallets(
+        {
+          fromWalletId: systemWallet.walletId,
+          toWalletId: userWallet.walletId,
+          amount: serviceChargeTotal(locked.amount, locked.customerFee, locked.customerFeeGst),
+          referenceType: "reversal",
+          referenceId: locked.id,
+          description: `Provider refund after success ${locked.txnRef}`,
+        },
+        tx,
+      );
+      const [updated] = await tx
+        .update(transactions)
+        .set({
+          status: "refunded",
+          failureReason: `Provider refunded after success: ${result.message}`,
+          metadata: {
+            ...(locked.metadata ?? {}),
+            providerRefund: {
+              at: new Date().toISOString(),
+              providerTxnId: result.providerTxnId,
+              message: result.message,
+            },
+          },
+          updatedAt: new Date(),
+        })
+        .where(eq(transactions.id, locked.id))
+        .returning();
+      return { row: updated!, refunded: true };
+    });
+  } catch (err) {
+    await escalate("Automatic reversal of the retailer debit failed. Refund manually.", err);
+    return txn;
+  }
+
+  if (!outcome.refunded) return outcome.row;
+
+  try {
+    const { clawbackCommissionForTxn } = await import("../commission/commission.service");
+    await clawbackCommissionForTxn(txn.id, { reason: `Provider refund after success ${txn.txnRef}` });
+  } catch (err) {
+    const details = {
+      txnId: txn.id,
+      txnRef: txn.txnRef,
+      err: err instanceof Error ? err.message : String(err),
+    };
+    void sendSlackAlert("Commission clawback failed after provider refund", "critical", details);
+    await upsertReconException({
+      checkName: "commission_clawback_failed",
+      severity: "critical",
+      fingerprint: `commission_clawback_failed:${txn.id}`,
+      details,
+    });
+  }
+
+  await insertAuditLog({
+    userId: null,
+    action: "txn.provider_refund_after_success",
+    entityType: "transaction",
+    entityId: txn.id,
+    ipAddress: null,
+    userAgent: null,
+    metadata: {
+      from: "success",
+      to: outcome.row.status,
+      refundAmount,
+      providerTxnId: result.providerTxnId,
+      providerMessage: result.message,
+    },
+  });
+  void sendSlackAlert("Provider refunded a successful transaction — retailer reversed", "general", {
+    retailerId: txn.userId,
+    txnRef: txn.txnRef,
+    amount: refundAmount,
+  });
+
+  return outcome.row;
 }
 
 export interface UnsubmittedTxnCheck {
@@ -1090,10 +1299,43 @@ export async function reconcileStaleTransactions(limit = 40): Promise<{ checked:
         txnRef: txn.txnRef,
         err: err instanceof Error ? err.message : String(err),
       });
+    } finally {
+      await markReconcileAttempt(txn.id);
     }
   }
 
+  try {
+    const { retryFailedCommissions } = await import("../commission/commission.service");
+    await retryFailedCommissions();
+  } catch (err) {
+    logger.error({ err }, "commission retry sweep failed");
+  }
+
   return { checked: candidates.length, changed };
+}
+
+/**
+ * The sweep picks the oldest `updatedAt` first, so a row that keeps throwing (or keeps coming
+ * back pending) would be picked forever and starve everything behind it. Bumping `updatedAt` on
+ * every attempt moves it to the back of the queue. Only touches still-open rows, so it never
+ * races a finalize that already settled the txn.
+ */
+async function markReconcileAttempt(txnId: string): Promise<void> {
+  try {
+    await db
+      .update(transactions)
+      .set({
+        updatedAt: new Date(),
+        metadata: sql`jsonb_set(
+          coalesce(${transactions.metadata}, '{}'::jsonb),
+          '{reconcileAttempts}',
+          to_jsonb(coalesce((${transactions.metadata} ->> 'reconcileAttempts')::int, 0) + 1)
+        )`,
+      })
+      .where(and(eq(transactions.id, txnId), inArray(transactions.status, ["pending", "initiated"])));
+  } catch (err) {
+    logger.error({ err, txnId }, "could not mark reconcile attempt");
+  }
 }
 
 /**
@@ -1201,10 +1443,18 @@ export async function getReceipt(actor: Actor, txnRef: string) {
   return row;
 }
 
-// Placeholder until the commission engine lands (next module): logs instead of paying.
+// Fire-and-forget: a payout failure must not fail the customer's txn. Failures are filed as
+// commission_payout_failed exceptions, which retryFailedCommissions() picks up from the sweep.
 function distributeCommissionSafe(txn: TxnRow): void {
   import("../commission/commission.service")
-    .then((mod) => mod.distributeCommissionForTxn(txn.id))
+    .then(async (mod) => {
+      try {
+        await mod.distributeCommissionForTxn(txn.id);
+      } catch (err) {
+        await mod.recordCommissionPayoutFailure(txn.id, txn.txnRef, err);
+        throw err;
+      }
+    })
     .catch((err: unknown) => {
       logger.error({ err, txnId: txn.id }, "commission distribution failed");
       void sendOpsAlert("Commission distribution failed", {

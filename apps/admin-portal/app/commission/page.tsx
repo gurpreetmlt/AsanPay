@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 export default function CommissionRedirect() {
   const router = useRouter();
   useEffect(() => {
-    router.replace("/tax-commission/rate-card");
+    router.replace("/tax-commission/setup");
   }, [router]);
   return null;
 }

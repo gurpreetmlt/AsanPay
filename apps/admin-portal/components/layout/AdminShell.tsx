@@ -33,6 +33,7 @@ import {
   ScrollText,
   Settings,
   ShieldAlert,
+  SlidersHorizontal,
   Store,
   TableProperties,
   Tags,
@@ -128,11 +129,12 @@ const COMMISSION: NavItem[] = [
     icon: { lib: "lucide", icon: Percent },
     children: [
       {
-        href: "/tax-commission/rate-card",
-        label: "Rate card",
-        icon: { lib: "lucide", icon: TableProperties },
+        href: "/tax-commission/setup",
+        label: "Commission setup",
+        icon: { lib: "lucide", icon: SlidersHorizontal },
         match: ["/tax-commission", "/commission", "/commissions"],
       },
+      { href: "/tax-commission/rate-card", label: "Rate card", icon: { lib: "lucide", icon: TableProperties } },
       { href: "/service-charges", label: "Customer fees", icon: { lib: "lucide", icon: IndianRupee } },
       { href: "/tax-commission/overrides", label: "Agent custom rates", icon: { lib: "lucide", icon: GitBranch } },
       { href: "/tax-commission/payouts", label: "Payouts", icon: { lib: "lucide", icon: ScrollText } },
@@ -216,6 +218,7 @@ const SYSTEM: NavItem[] = [
     icon: { lib: "lucide", icon: Settings },
     children: [
       { href: "/audit-logs", label: "Audit log", icon: { lib: "lucide", icon: ScrollText } },
+      { href: "/settings/security", label: "Security", icon: { lib: "lucide", icon: Lock } },
       { href: "/developer-options/safety", label: "Safety", icon: { lib: "lucide", icon: Trash2 } },
     ],
   },

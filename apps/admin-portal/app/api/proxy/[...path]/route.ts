@@ -5,10 +5,14 @@ import { BACKEND_URL, clearAuthCookies, getAuthCookies, setAuthCookies } from "@
 function clientIpHeaders(req: NextRequest): Record<string, string> {
   const xff = req.headers.get("x-forwarded-for");
   const realIp = req.headers.get("x-real-ip");
-  if (!xff && !realIp) return {};
+  // The backend only trusts X-AsanPay-Client-IP when the shared key matches. The last XFF hop is the
+  // one our ingress appended; earlier entries are whatever the browser sent.
+  const browserIp = realIp?.trim() || xff?.split(",").pop()?.trim() || "";
+  const proxyKey = process.env.PROXY_SHARED_SECRET?.trim();
   return {
     ...(xff ? { "X-Forwarded-For": xff } : realIp ? { "X-Forwarded-For": realIp } : {}),
     ...(realIp ? { "X-Real-IP": realIp } : {}),
+    ...(browserIp && proxyKey ? { "X-AsanPay-Client-IP": browserIp, "X-AsanPay-Proxy-Key": proxyKey } : {}),
   };
 }
 
@@ -27,14 +31,16 @@ async function forward(req: NextRequest, path: string[], accessToken: string | n
     },
     body,
     cache: "no-store",
+    signal: AbortSignal.timeout(30_000),
   });
 }
 
-function authSessionPayload(json: { data?: { user?: unknown } }) {
+function authSessionPayload(json: { data?: { user?: unknown; adminTotpSetupRequired?: unknown } }) {
   return {
     user: json.data?.user ?? null,
     accessToken: "cookie",
     refreshToken: "cookie",
+    ...(json.data?.adminTotpSetupRequired === true ? { adminTotpSetupRequired: true } : {}),
   };
 }
 
@@ -65,9 +71,10 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
   if (canRetry && upstream.status === 401 && refreshToken) {
     const refreshRes = await fetch(`${BACKEND_URL}/auth/refresh`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...clientIpHeaders(req) },
       body: JSON.stringify({ refreshToken }),
       cache: "no-store",
+      signal: AbortSignal.timeout(30_000),
     });
     const refreshJson = await refreshRes.json().catch(() => null);
 
@@ -109,6 +116,11 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
         },
         { status: upstream.status },
       );
+    }
+
+    // Non-session auth replies (2FA challenge, 2FA status/setup, register) carry no tokens.
+    if (upstream.ok && json?.success) {
+      return NextResponse.json(json, { status: upstream.status });
     }
 
     const message =

@@ -1,12 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CircleDot, Fingerprint, Lock, X } from "lucide-react";
+import { CircleDot, Fingerprint, Lock } from "lucide-react";
 import { todayPhoneLocation } from "@/lib/phoneLocation";
 import { toast } from "react-hot-toast";
 import type { ApiResponse } from "@asanpay/shared-types";
+import { Modal } from "@/components/ui/Modal";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { DailyVerifyCard } from "@/components/aeps/DailyVerifyCard";
+import {
+  LOCATION_REQUIRED_MESSAGE,
+  LocationRequiredHint,
+  txnLocationBody,
+  type TxnLocationFix,
+} from "@/components/aeps/TxnLocation";
 import api from "@/lib/api";
 import { B } from "@/lib/brand";
 import { createAttemptKeyHolder } from "@/lib/idempotencyKey";
@@ -197,6 +204,8 @@ export function AadhaarPayConfirmModal({
   aadhaar,
   mobile,
   amount,
+  location,
+  onLocationUsed,
 }: {
   open: boolean;
   onClose: () => void;
@@ -207,6 +216,8 @@ export function AadhaarPayConfirmModal({
   aadhaar: string;
   mobile: string;
   amount: string;
+  location: TxnLocationFix | null;
+  onLocationUsed: (err?: unknown) => void;
 }) {
   const [txnPin, setTxnPin] = useState("");
   const [otp, setOtp] = useState("");
@@ -234,9 +245,12 @@ export function AadhaarPayConfirmModal({
 
   async function sendOtp() {
     if (sendingOtp) return;
+    if (!location) {
+      toast.error(LOCATION_REQUIRED_MESSAGE);
+      return;
+    }
     setSendingOtp(true);
     try {
-      const geo = await currentGeo();
       const { data } = await api.post<
         ApiResponse<{ otpRequired: boolean; otpReference: string; otpTransactionId: string; otpTransactionToken: string }>
       >("/txn/aeps/aadhaar-pay/otp", {
@@ -244,7 +258,8 @@ export function AadhaarPayConfirmModal({
         bankIin,
         mobile,
         amount,
-        ...(geo ?? {}),
+        latitude: location.latitude,
+        longitude: location.longitude,
       });
       if (!data.success) throw new Error(data.message);
       setOtpState({
@@ -283,11 +298,13 @@ export function AadhaarPayConfirmModal({
       toast.error("Enter your 4-digit transaction PIN");
       return;
     }
+    if (!location) {
+      toast.error(LOCATION_REQUIRED_MESSAGE);
+      return;
+    }
     setPaying(true);
     try {
-      const geoPromise = currentGeo();
       const biometricPayload = await captureFingerprintWeb(useOtp ? { otp } : undefined);
-      const geo = await geoPromise;
       const idempotencyKey = attemptKey.current.get();
       const { data } = await api.post<ApiResponse<{ txn: { txnRef: string; status: string } }>>(
         "/txn/aeps/aadhaar-pay",
@@ -306,10 +323,11 @@ export function AadhaarPayConfirmModal({
                 otpTransactionToken: otpState.otpTransactionToken,
               }
             : {}),
-          ...(geo ?? {}),
+          ...txnLocationBody(location),
         },
       );
       if (!data.success) throw new Error(data.message);
+      onLocationUsed();
       attemptKey.current.clear();
       setOtpState(null);
       const ref = data.data.txn?.txnRef ?? idempotencyKey;
@@ -323,6 +341,7 @@ export function AadhaarPayConfirmModal({
       }
       onDone();
     } catch (err) {
+      onLocationUsed(err);
       toast.error(extractApiError(err, "Aadhaar Pay failed. Check the details and try again."), { duration: 10_000 });
     } finally {
       setPaying(false);
@@ -330,145 +349,135 @@ export function AadhaarPayConfirmModal({
   }
 
   return (
-    <>
-      <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm" onClick={paying ? undefined : onClose} />
-      <div className="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b px-6 py-4">
-          <h2 className="text-lg font-bold" style={{ color: B.blue }}>
-            Confirm Aadhaar Pay
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={paying}
-            className="popup-close"
-            aria-label="Close"
-          >
-            <X size={18} />
-          </button>
-        </div>
+    <Modal
+      title="Confirm Aadhaar Pay"
+      subtitle="Check the payment, enter your PIN, then the customer scans their finger."
+      icon={<Fingerprint size={22} />}
+      iconTone="blue"
+      onClose={onClose}
+      closeDisabled={paying}
+    >
+      <div className="space-y-4">
+        <dl className="space-y-1.5 rounded-xl border bg-slate-50/70 p-4 text-sm" style={{ borderColor: B.border }}>
+          <div className="flex justify-between gap-3">
+            <dt className="text-gray-500">Amount</dt>
+            <dd className="font-extrabold text-gray-900">₹{Number(amount || 0).toLocaleString("en-IN")}</dd>
+          </div>
+          <div className="flex justify-between gap-3">
+            <dt className="text-gray-500">Customer bank</dt>
+            <dd className="truncate font-semibold text-gray-800">{bankName}</dd>
+          </div>
+          <div className="flex justify-between gap-3">
+            <dt className="text-gray-500">Aadhaar</dt>
+            <dd className="font-mono text-gray-800">XXXX XXXX {aadhaar.slice(-4)}</dd>
+          </div>
+          <div className="flex justify-between gap-3">
+            <dt className="text-gray-500">Customer mobile</dt>
+            <dd className="font-semibold text-gray-800">{mobile}</dd>
+          </div>
+        </dl>
 
-        <div className="space-y-4 p-6">
-          <dl className="space-y-1.5 rounded-xl border bg-slate-50/70 p-4 text-sm" style={{ borderColor: B.border }}>
-            <div className="flex justify-between gap-3">
-              <dt className="text-gray-500">Amount</dt>
-              <dd className="font-extrabold text-gray-900">₹{Number(amount || 0).toLocaleString("en-IN")}</dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-gray-500">Customer bank</dt>
-              <dd className="truncate font-semibold text-gray-800">{bankName}</dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-gray-500">Aadhaar</dt>
-              <dd className="font-mono text-gray-800">XXXX XXXX {aadhaar.slice(-4)}</dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-gray-500">Customer mobile</dt>
-              <dd className="font-semibold text-gray-800">{mobile}</dd>
-            </div>
-          </dl>
-
-          {otpNeeded ? (
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                Customer OTP
-              </label>
-              {otpFresh && !otpState.required ? (
-                <p className="rounded-xl border border-green-200 bg-green-50 px-3.5 py-2.5 text-xs font-semibold text-green-800">
-                  No OTP needed for this payment.
-                </p>
-              ) : otpFresh ? (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 8))}
-                    placeholder="OTP received by customer"
-                    className="flex-1 rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-3 text-sm font-medium tracking-widest outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-                  />
-                  <PrimaryButton
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    loading={sendingOtp}
-                    onClick={() => void sendOtp()}
-                  >
-                    Resend
-                  </PrimaryButton>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <p className="text-xs text-gray-500">
-                    Payments of ₹{session?.amountForOtp?.toLocaleString("en-IN")} or more need an OTP sent to the
-                    customer&apos;s mobile.
-                  </p>
-                  <PrimaryButton
-                    type="button"
-                    variant="primary"
-                    size="sm"
-                    loading={sendingOtp}
-                    onClick={() => void sendOtp()}
-                  >
-                    Send OTP
-                  </PrimaryButton>
-                </div>
-              )}
-            </div>
-          ) : null}
-
+        {otpNeeded ? (
           <div>
             <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-              Transaction PIN
+              Customer OTP
             </label>
-            <div className="relative">
-              <Lock
-                size={15}
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
-                style={{ color: B.blueLight }}
-              />
-              <input
-                type="password"
-                inputMode="numeric"
-                maxLength={4}
-                value={txnPin}
-                onChange={(e) => setTxnPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                placeholder="Enter 4-digit TPIN"
-                className="w-full rounded-xl border border-gray-200 bg-gray-50 py-3 pl-9 pr-3.5 text-sm font-medium tracking-widest outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-              />
-            </div>
+            {otpFresh && !otpState.required ? (
+              <p className="rounded-xl border border-green-200 bg-green-50 px-3.5 py-2.5 text-xs font-semibold text-green-800">
+                No OTP needed for this payment.
+              </p>
+            ) : otpFresh ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                  placeholder="OTP received by customer"
+                  className="flex-1 rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-3 text-sm font-medium tracking-widest outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                />
+                <PrimaryButton
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  loading={sendingOtp}
+                  onClick={() => void sendOtp()}
+                >
+                  Resend
+                </PrimaryButton>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs text-gray-500">
+                  Payments of ₹{session?.amountForOtp?.toLocaleString("en-IN")} or more need an OTP sent to the
+                  customer&apos;s mobile.
+                </p>
+                <PrimaryButton
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  loading={sendingOtp}
+                  onClick={() => void sendOtp()}
+                >
+                  Send OTP
+                </PrimaryButton>
+              </div>
+            )}
           </div>
+        ) : null}
 
-          <p className="flex items-start gap-2 text-xs text-gray-500">
-            <CircleDot size={14} className="mt-0.5 shrink-0 text-green-600" />
-            The customer places their finger on the scanner after you tap Scan Finger &amp; Pay.
-          </p>
-
-          <div className="flex gap-3">
-            <PrimaryButton
-              type="button"
-              variant="destructive"
-              onClick={onClose}
-              disabled={paying}
-              className="flex-1"
-            >
-              Cancel
-            </PrimaryButton>
-            <PrimaryButton
-              type="button"
-              variant="primary"
-              loading={paying}
-              disabled={paying || (otpRequired && !otpFresh)}
-              onClick={() => void pay()}
-              showArrow={false}
-              className="flex-[2]"
-            >
-              <Fingerprint size={18} />
-              Scan Finger &amp; Pay
-            </PrimaryButton>
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+            Transaction PIN
+          </label>
+          <div className="relative">
+            <Lock
+              size={15}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
+              style={{ color: B.blueLight }}
+            />
+            <input
+              type="password"
+              inputMode="numeric"
+              maxLength={4}
+              value={txnPin}
+              onChange={(e) => setTxnPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
+              placeholder="Enter 4-digit TPIN"
+              className="w-full rounded-xl border border-gray-200 bg-gray-50 py-3 pl-9 pr-3.5 text-sm font-medium tracking-widest outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+            />
           </div>
         </div>
+
+        <p className="flex items-start gap-2 text-xs text-gray-500">
+          <CircleDot size={14} className="mt-0.5 shrink-0 text-green-600" />
+          The customer places their finger on the scanner after you tap Scan Finger &amp; Pay.
+        </p>
+
+        <div className="flex gap-3">
+          <PrimaryButton
+            type="button"
+            variant="destructive"
+            onClick={onClose}
+            disabled={paying}
+            className="flex-1"
+          >
+            Cancel
+          </PrimaryButton>
+          <PrimaryButton
+            type="button"
+            variant="primary"
+            loading={paying}
+            disabled={paying || !location || (otpRequired && !otpFresh)}
+            onClick={() => void pay()}
+            showArrow={false}
+            className="flex-1"
+          >
+            <Fingerprint size={18} />
+            Scan Finger &amp; Pay
+          </PrimaryButton>
+        </div>
+        <LocationRequiredHint show={!location} />
       </div>
-    </>
+    </Modal>
   );
 }

@@ -41,6 +41,12 @@ import { wasAepsOnboardingSkipped } from "@/lib/onboarding";
 import { OnboardingPendingBanner } from "@/components/aeps/OnboardingPendingBanner";
 import { PhoneLocationBar } from "@/components/location/PhoneLocationBar";
 import { DailyVerifyCard } from "@/components/aeps/DailyVerifyCard";
+import {
+  LOCATION_REQUIRED_MESSAGE,
+  LocationRequiredHint,
+  TxnLocationStrip,
+  useTxnLocation,
+} from "@/components/aeps/TxnLocation";
 import { useAuthStore } from "@/lib/store";
 import type { ApiResponse } from "@asanpay/shared-types";
 import {
@@ -472,6 +478,7 @@ function AepsPageInner() {
   const [apConfirmOpen, setApConfirmOpen] = useState(false);
   const isAadhaarPay = tab === "Aadhaar Pay";
   const ap = useAadhaarPaySession(isAadhaarPay && agentAuthReady === true);
+  const loc = useTxnLocation(agentAuthReady === true && !user?.aepsOnboardingRequired);
 
   useEffect(() => {
     setUiLayout(readAepsUiLayout());
@@ -647,6 +654,7 @@ function AepsPageInner() {
   }, [favBanks]);
 
   const showAmount = tab === "Withdraw" || tab === "Deposit" || tab === "Aadhaar Pay";
+  const locationMissing = showAmount && !loc.fix;
 
   async function retryRdWarm() {
     setRdStatus("looking");
@@ -682,6 +690,10 @@ function AepsPageInner() {
     }
     if (showAmount && !amount) {
       toast.error("Enter amount before scanning");
+      return;
+    }
+    if (locationMissing) {
+      toast.error(LOCATION_REQUIRED_MESSAGE);
       return;
     }
     if (rdStatus === "looking") {
@@ -922,7 +934,7 @@ function AepsPageInner() {
           />
         </div>
 
-        {onboardingPending ? <OnboardingPendingBanner next="/aeps" /> : <PhoneLocationBar />}
+        {onboardingPending ? <OnboardingPendingBanner next="/aeps" /> : <TxnLocationStrip loc={loc} />}
 
         {isAadhaarPay && (ap.needsSetup || ap.error || (ap.loading && !ap.session)) ? (
           <AadhaarPaySetupCard
@@ -966,6 +978,7 @@ function AepsPageInner() {
             consent={consent}
             onConsentChange={setConsent}
             scanning={scanning}
+            locationMissing={locationMissing}
             onProceed={() => void handleScan()}
           />
         ) : null}
@@ -1000,6 +1013,7 @@ function AepsPageInner() {
             onRetryScanner={() => void retryRdWarm()}
             onChangeDevice={() => setDeviceSidebarOpen(true)}
             scanning={scanning}
+            locationMissing={locationMissing}
             onScan={() => void handleScan()}
           />
         ) : null}
@@ -1434,23 +1448,26 @@ function AepsPageInner() {
                   </button>
                 </div>
               </div>
-              <PrimaryButton
-                type="button"
-                variant="primary"
-                disabled={scanning || (authMode === "fingerprint" && rdStatus !== "ready")}
-                loading={scanning}
-                onClick={handleScan}
-                className="min-w-[200px]"
-              >
-                {authMode === "fingerprint" ? (
-                  <>
-                    <Fingerprint size={18} />
-                    Scan Finger
-                  </>
-                ) : (
-                  "Scan Iris"
-                )}
-              </PrimaryButton>
+              <div className="flex flex-col items-end">
+                <PrimaryButton
+                  type="button"
+                  variant="primary"
+                  disabled={scanning || locationMissing || (authMode === "fingerprint" && rdStatus !== "ready")}
+                  loading={scanning}
+                  onClick={handleScan}
+                  className="min-w-[200px]"
+                >
+                  {authMode === "fingerprint" ? (
+                    <>
+                      <Fingerprint size={18} />
+                      Scan Finger
+                    </>
+                  ) : (
+                    "Scan Iris"
+                  )}
+                </PrimaryButton>
+                <LocationRequiredHint show={locationMissing} />
+              </div>
             </div>
           </div>
 
@@ -1551,6 +1568,8 @@ function AepsPageInner() {
         aadhaar={aadhaar.replace(/\D/g, "")}
         mobile={mobile}
         amount={amount}
+        location={loc.fix}
+        onLocationUsed={loc.release}
       />
     </AppShell>
   );

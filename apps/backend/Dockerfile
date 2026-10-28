@@ -29,9 +29,22 @@ RUN npm pkg set dependencies.@asanpay/shared-types="file:../../packages/shared-t
 # Amazon RDS CA bundle — used when DATABASE_SSL_CA_PATH=/etc/ssl/rds/global-bundle.pem is set.
 ADD https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem /etc/ssl/rds/global-bundle.pem
 
+# ADD from a URL creates the file mode 600 (root only); the non-root runtime user must read it.
+# uploads/ (KYC + promo files) is the only directory the API writes under the app dir.
+# If a Coolify volume is mounted on uploads/, its existing root-owned files must be chowned to node once.
+RUN chmod 644 /etc/ssl/rds/global-bundle.pem \
+  && mkdir -p uploads/kyc uploads/promos \
+  && chown -R node:node uploads
+
 ENV NODE_ENV=production
 ENV PORT=4000
 EXPOSE 4000
+
+USER node
+
+# The jobs role does not listen on a port, so it reports healthy without probing.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
+  CMD node -e "if (process.env.PROCESS_ROLE === 'jobs') process.exit(0); fetch('http://127.0.0.1:' + (process.env.PORT || 4000) + '/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 
 # Migrations run before the server, every start. The server's ledger bootstrap verifies the
 # system accounts and refuses to listen if they are wrong, so the schema must already be in

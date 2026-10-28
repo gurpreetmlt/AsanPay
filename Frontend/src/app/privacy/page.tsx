@@ -7,6 +7,7 @@ import WaitlistModal from '@/components/WaitlistModal';
 import Link from 'next/link';
 import { ArrowLeft, ScrollText } from 'lucide-react';
 import { PRIVACY_POLICY_TEXT } from '@/content/privacyPolicy';
+import LegalLinks from '../_components/LegalLinks';
 
 /** Section headings in the policy text: "A. INTRODUCTION", "F.2 Sharing Personal Information", "B.1 …". */
 const HEADING = /^([A-L]\.\s+[A-Z]|[A-L]\.\d\s)/;
@@ -88,7 +89,8 @@ export default function PrivacyPolicyPage() {
 
       {/* Footer */}
       <footer className="border-t border-neutral-200 dark:border-white/10 bg-white/40 dark:bg-slate-950/40 py-8 relative z-10 mt-auto">
-        <div className="mx-auto max-w-7xl px-4 text-center">
+        <div className="mx-auto max-w-7xl px-4 text-center space-y-4">
+          <LegalLinks layout="row" />
           <p className="font-sora font-semibold text-xs tracking-wider text-neutral-400 dark:text-neutral-500 uppercase">
             Payment Made Easy
           </p>

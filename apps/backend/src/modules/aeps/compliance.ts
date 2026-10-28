@@ -8,6 +8,7 @@ import { logger } from "../../utils/logger";
 import { evaluateGeoSignal } from "../risk/riskSignal.service";
 import { haversineKm } from "../../core/geo";
 import { getGeofenceLimits } from "../tenants/geofenceSettings";
+import { claimTxnGeoLink, readTxnGeoLink } from "../geoLink/geoLink.service";
 
 // Re-exported for backward compatibility — haversineKm moved to core/geo to break a circular
 // import with risk/riskSignal.service.ts, which also needs it and is imported here.
@@ -24,6 +25,55 @@ export interface AepsGeoInput {
   accuracyMeters?: number;
   /** True when the OS flags the location as coming from a mock provider (Android). */
   isMockLocation?: boolean;
+}
+
+export const LOCATION_REQUIRED_MESSAGE = "Allow location access before continuing";
+const LOCATION_INVALID_MESSAGE = "Location is not valid. Allow location access and try again.";
+
+export interface LiveTxnGeoInput {
+  latitude?: string;
+  longitude?: string;
+  accuracyMeters?: number;
+  isMockLocation?: boolean;
+  /** Web fallback when the browser blocks location: a phone-QR fix verified on the server. */
+  geoLinkToken?: string;
+}
+
+export interface LiveTxnGeo {
+  geo: AepsGeoInput;
+  /** Consumes the phone-QR fix (no-op for a device fix). Call right before moving money. */
+  claim: () => Promise<void>;
+}
+
+/**
+ * Money transactions (DMT transfer, AePS withdrawal / deposit, Aadhaar Pay) need a live fix:
+ * device lat/lng from the body, else a fresh single-use phone-QR fix. The saved shop point is
+ * never a substitute.
+ */
+export async function resolveLiveTxnGeo(userId: string, input: LiveTxnGeoInput): Promise<LiveTxnGeo> {
+  const lat = input.latitude?.trim() ?? "";
+  const lng = input.longitude?.trim() ?? "";
+  if (lat && lng) {
+    const la = Number(lat);
+    const ln = Number(lng);
+    const valid =
+      Number.isFinite(la) && Number.isFinite(ln) && Math.abs(la) <= 90 && Math.abs(ln) <= 180 && !(la === 0 && ln === 0);
+    if (!valid) {
+      throw new HttpError(422, LOCATION_INVALID_MESSAGE, "LOCATION_INVALID", { location: [LOCATION_INVALID_MESSAGE] });
+    }
+    return {
+      geo: { latitude: lat, longitude: lng, accuracyMeters: input.accuracyMeters, isMockLocation: input.isMockLocation },
+      claim: async () => {},
+    };
+  }
+  if (input.geoLinkToken) {
+    const fix = await readTxnGeoLink(userId, input.geoLinkToken);
+    return {
+      geo: { latitude: fix.latitude, longitude: fix.longitude, accuracyMeters: fix.accuracyMeters ?? undefined },
+      claim: () => claimTxnGeoLink(fix.id),
+    };
+  }
+  throw new HttpError(422, LOCATION_REQUIRED_MESSAGE, "LOCATION_REQUIRED", { location: [LOCATION_REQUIRED_MESSAGE] });
 }
 
 function laterOf(a: Date | null, b: Date | null): Date | null {

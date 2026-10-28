@@ -41,10 +41,14 @@ async function refreshOnce(refreshToken: string): Promise<{ accessToken: string;
 function clientIpHeaders(req: NextRequest): Record<string, string> {
   const xff = req.headers.get("x-forwarded-for");
   const realIp = req.headers.get("x-real-ip");
-  if (!xff && !realIp) return {};
+  // The backend only trusts X-AsanPay-Client-IP when the shared key matches. The last XFF hop is the
+  // one our ingress appended; earlier entries are whatever the browser sent.
+  const browserIp = realIp?.trim() || xff?.split(",").pop()?.trim() || "";
+  const proxyKey = process.env.PROXY_SHARED_SECRET?.trim();
   return {
     ...(xff ? { "X-Forwarded-For": xff } : realIp ? { "X-Forwarded-For": realIp } : {}),
     ...(realIp ? { "X-Real-IP": realIp } : {}),
+    ...(browserIp && proxyKey ? { "X-AsanPay-Client-IP": browserIp, "X-AsanPay-Proxy-Key": proxyKey } : {}),
   };
 }
 

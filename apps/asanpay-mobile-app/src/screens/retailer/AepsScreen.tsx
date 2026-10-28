@@ -49,7 +49,8 @@ import {
   openFaceRdInstall,
   type BiometricCaptureType,
 } from "../../lib/faceRd";
-import { getAepsGeoTag } from "../../lib/geoCapture";
+import { getAepsGeoTag, type AepsGeoTag } from "../../lib/geoCapture";
+import { LOCATION_REQUIRED_MESSAGE, requireTxnLocation } from "../../lib/txnLocation";
 import { useTxnPin } from "../../hooks/useTxnPin";
 import { useAuthStore } from "../../store/auth";
 import { useTheme } from "../../theme/ThemeContext";
@@ -1173,11 +1174,21 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
     const faceCapture = isAadhaarPay && authMode === "face";
     if (faceCapture && !(await ensureFaceRd())) return;
 
+    // Money tabs need a live fix before the customer scans, so a GPS failure never wastes a capture.
+    let liveGeo: AepsGeoTag | null = null;
+    if (tab === "Withdraw" || tab === "Deposit" || isAadhaarPay) {
+      try {
+        liveGeo = await requireTxnLocation();
+      } catch (err) {
+        Alert.alert("Location required", err instanceof Error ? err.message : LOCATION_REQUIRED_MESSAGE);
+        return;
+      }
+    }
+
     setScanning(true);
-    // Kicked off alongside the fingerprint capture (not after) so the ~5s location timeout
-    // overlaps with the capture instead of adding to it. Never blocks the transaction — see
-    // getAepsGeoTag's contract.
-    const geoPromise = getAepsGeoTag();
+    // Balance / mini statement: kicked off alongside the capture so the ~5s location timeout
+    // overlaps with it. Never blocks those reads — see getAepsGeoTag's contract.
+    const geoPromise = liveGeo ? Promise.resolve(liveGeo) : getAepsGeoTag();
     const captureOtp = needsTxnOtp || useApOtp ? txnOtp : undefined;
     let pidData: string;
     try {
@@ -1206,7 +1217,7 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
         setSubmitting(true);
         const isDeposit = tab === "Deposit";
         const idempotencyKey = withdrawAttemptKey.current.get();
-        const geo = await geoPromise;
+        const geo = liveGeo;
         const { data } = await api.post<ApiResponse<{ txn: { txnRef: string; status: string } }>>(
           isDeposit ? "/txn/aeps/deposit" : "/txn/aeps/withdraw",
           {
@@ -1239,7 +1250,7 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
         }
         setSubmitting(true);
         const idempotencyKey = apAttemptKey.current.get();
-        const geo = await geoPromise;
+        const geo = liveGeo;
         const { data } = await api.post<ApiResponse<{ txn: { txnRef: string; status: string } }>>(
           "/txn/aeps/aadhaar-pay",
           {

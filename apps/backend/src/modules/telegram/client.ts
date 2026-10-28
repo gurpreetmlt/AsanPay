@@ -53,12 +53,24 @@ export async function telegramSetWebhookIfConfigured(): Promise<void> {
     logger.info("Telegram webhook not auto-set (need TELEGRAM_WEBHOOK_PUBLIC_URL + TELEGRAM_WEBHOOK_SECRET)");
     return;
   }
-  const hookUrl = `${publicBase}/api/webhooks/telegram?token=${encodeURIComponent(secret)}`;
+  // Telegram only accepts A-Z, a-z, 0-9, _ and - (1-256 chars) as secret_token; any other secret
+  // falls back to the ?token= query the webhook still accepts.
+  const headerSecretOk = /^[A-Za-z0-9_-]{1,256}$/.test(secret);
+  if (!headerSecretOk) {
+    logger.warn("TELEGRAM_WEBHOOK_SECRET has characters Telegram rejects in secret_token; using ?token= instead");
+  }
+  const hookUrl = headerSecretOk
+    ? `${publicBase}/api/webhooks/telegram`
+    : `${publicBase}/api/webhooks/telegram?token=${encodeURIComponent(secret)}`;
   try {
     const res = await fetch(`${TG_API}/bot${env.TELEGRAM_BOT_TOKEN.trim()}/setWebhook`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: hookUrl, allowed_updates: ["message"] }),
+      body: JSON.stringify({
+        url: hookUrl,
+        allowed_updates: ["message"],
+        ...(headerSecretOk ? { secret_token: secret } : {}),
+      }),
     });
     const json = (await res.json()) as { ok?: boolean; description?: string };
     logger.info({ ok: json.ok, description: json.description }, "Telegram setWebhook");

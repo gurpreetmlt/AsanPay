@@ -266,6 +266,51 @@ export async function readSignupGeoLink(userId: string, token: string, purpose: 
   };
 }
 
+/** A phone-QR fix backs at most one money transaction, and only this soon after the phone sent it. */
+export const TXN_GEO_LINK_MAX_AGE_MS = 10 * 60 * 1000;
+
+export const TXN_GEO_LINK_STALE_MESSAGE =
+  "Phone location has expired or was already used. Verify your location again, then submit.";
+
+/**
+ * Money transactions on the web: the phone-QR fix behind `token`. Read-only — the caller claims
+ * it with `claimTxnGeoLink` once the cheaper checks (PIN, biometric) have passed, so a typo does
+ * not burn the scan.
+ */
+export async function readTxnGeoLink(userId: string, token: string) {
+  const [row] = await db.select().from(geoLinkRequests).where(eq(geoLinkRequests.token, token)).limit(1);
+  const usable =
+    row &&
+    row.userId === userId &&
+    row.purpose === "aeps" &&
+    row.status === "verified" &&
+    row.latitude &&
+    row.longitude &&
+    row.verifiedAt &&
+    Date.now() - row.verifiedAt.getTime() <= TXN_GEO_LINK_MAX_AGE_MS;
+  if (!usable) {
+    throw new HttpError(422, TXN_GEO_LINK_STALE_MESSAGE, "LOCATION_EXPIRED", { location: [TXN_GEO_LINK_STALE_MESSAGE] });
+  }
+  return {
+    id: row.id,
+    latitude: Number(row.latitude).toFixed(6),
+    longitude: Number(row.longitude).toFixed(6),
+    accuracyMeters: row.accuracyMeters,
+  };
+}
+
+/** Single use: fails when a parallel submit already consumed the same scan. */
+export async function claimTxnGeoLink(id: string): Promise<void> {
+  const [claimed] = await db
+    .update(geoLinkRequests)
+    .set({ status: "used", usedAt: new Date() })
+    .where(and(eq(geoLinkRequests.id, id), eq(geoLinkRequests.status, "verified")))
+    .returning({ id: geoLinkRequests.id });
+  if (!claimed) {
+    throw new HttpError(422, TXN_GEO_LINK_STALE_MESSAGE, "LOCATION_EXPIRED", { location: [TXN_GEO_LINK_STALE_MESSAGE] });
+  }
+}
+
 export async function markGeoLinkUsed(id: string): Promise<void> {
   await db.update(geoLinkRequests).set({ status: "used", usedAt: new Date() }).where(eq(geoLinkRequests.id, id));
 }

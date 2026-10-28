@@ -4,6 +4,7 @@ import helmet from "helmet";
 import morgan from "morgan";
 import path from "path";
 import { env } from "./config/env";
+import { pgPool } from "./db/postgres";
 import { apiLimiter } from "./middleware/rateLimiter";
 import { hardenRequest } from "./middleware/harden";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
@@ -37,6 +38,7 @@ import { telegramWebhookRouter } from "./modules/telegram/webhook.routes";
 import { whatsappRouter } from "./modules/whatsapp/whatsapp.routes";
 import { whatsappWebhookRouter } from "./modules/whatsapp/support/webhook.routes";
 import { whatsappSupportRouter } from "./modules/whatsapp/support/support.routes";
+import { accountRouter } from "./modules/account/account.routes";
 
 export function createApp(): Express {
   const app = express();
@@ -82,8 +84,36 @@ export function createApp(): Express {
       credentials: true,
     }),
   );
-  app.use(express.json({ limit: "10mb" }));
-  app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+  // Body limits: 100kb by default. A prefix parser runs first and the default parser then skips the
+  // already-parsed body, so only these paths accept more.
+  // Base64 image / PDF payloads: KYC submit carries up to six ~2 MB data URLs; receipts/proofs ~4.5 MB.
+  const largeJson = express.json({ limit: "12mb" });
+  for (const prefix of [
+    "/api/kyc",
+    "/api/fund-requests",
+    "/api/admin/bank-entries",
+    "/api/admin/promos",
+  ]) {
+    app.use(prefix, largeJson);
+  }
+  // Bulk imports (bank statements up to 500 lines, commission rules up to 1000 rows).
+  const bulkJson = express.json({ limit: "2mb" });
+  for (const prefix of ["/api/banking/statements", "/api/admin/commission/rules/import"]) {
+    app.use(prefix, bulkJson);
+  }
+  // Meta signs the exact bytes it sent, so keep them for X-Hub-Signature-256 verification.
+  app.use(
+    "/api/whatsapp/webhook",
+    express.json({
+      limit: "512kb",
+      verify: (req, _res, buf) => {
+        (req as express.Request & { rawBody?: Buffer }).rawBody = Buffer.from(buf);
+      },
+    }),
+  );
+  app.use("/api/webhooks/noble", express.json({ limit: "64kb" }), express.urlencoded({ extended: true, limit: "64kb" }));
+  app.use(express.json({ limit: "100kb" }));
+  app.use(express.urlencoded({ extended: true, limit: "100kb" }));
   app.use(hardenRequest);
   // Same as morgan's "dev" / "combined" formats, but with credential-like query params redacted.
   morgan.token("safe-url", (req) => redactUrlQuery((req as express.Request).originalUrl || req.url || ""));
@@ -100,10 +130,34 @@ export function createApp(): Express {
     res.json({ success: true, data: { status: "ok", timestamp: new Date().toISOString() } });
   });
 
+  // Readiness: the API is only useful when Postgres answers. /health stays a pure liveness check.
+  app.get("/ready", async (_req, res) => {
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      await Promise.race([
+        pgPool.query("SELECT 1"),
+        new Promise((_resolve, reject) => {
+          timer = setTimeout(() => reject(new Error("Database check timed out after 3s")), 3000);
+        }),
+      ]);
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(503).json({
+        ok: false,
+        message: err instanceof Error && /timed out/.test(err.message)
+          ? "Database did not answer within 3 seconds"
+          : "Database is unreachable",
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+  });
+
   // Only promo banners are public. KYC images (uploads/kyc) are served solely through the
   // authenticated /api/kyc/documents/:docKey (owner) and /api/admin/users/:id/kyc-documents/:docKey routes.
   app.use("/uploads/promos", express.static(path.join(process.cwd(), "uploads", "promos")));
 
+  app.use("/api", accountRouter);
   app.use("/api/auth", authRouter);
   app.use("/api/wallet", walletRouter);
   app.use("/api/catalog", catalogRouter);

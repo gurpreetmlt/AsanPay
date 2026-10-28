@@ -140,6 +140,10 @@ export const settlementRequests = pgTable(
     completedAt: timestamp("completed_at", { withTimezone: true }),
   },
   (table) => [
+    // One bank payout UTR belongs to one settlement. Compared the way normaliseBankUtr() does.
+    uniqueIndex("settlement_requests_bank_utr_uidx")
+      .on(table.tenantId, sql`upper(regexp_replace(bank_utr, '[^A-Za-z0-9]', '', 'g'))`)
+      .where(sql`regexp_replace(bank_utr, '[^A-Za-z0-9]', '', 'g') <> ''`),
     index("settlement_requests_user_idx").on(table.userId, table.requestedAt),
     index("settlement_requests_tenant_status_idx").on(table.tenantId, table.status, table.requestedAt),
     check("settlement_requests_amount_positive", sql`${table.amount} > 0`),

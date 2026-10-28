@@ -18,6 +18,7 @@ import { matchFundRequest, claimStatementLine } from "./matching";
 import { HttpError } from "../../utils/httpError";
 import { paiseToRupees, type Paise } from "../../core/money";
 import { isFundRequestEnabled } from "@asanpay/shared-types";
+import { assertCreditWithinRequested } from "../limits/moneyLimits";
 
 const COMPANY = "COMPANY_001";
 
@@ -318,6 +319,9 @@ export async function approveFundRequest(params: {
         "VERIFICATION_NOTE_REQUIRED",
       );
     }
+
+    if (params.creditAmount != null) assertCreditWithinRequested(params.creditAmount, request.amount);
+    await assertReferenceNotCreditedElsewhere(tx, request);
 
     const amount =
       params.creditAmount ??
@@ -818,6 +822,43 @@ async function assertReferenceNotReused(tx: Tx, bankAccountId: bigint, reference
       422,
       `This UTR / reference number was already used in fund request #${existing.id} for this bank (${state}). Check the number on your slip.`,
       "REFERENCE_REUSED",
+    );
+  }
+}
+
+/** References this long are bank UTRs / RRNs, unique across banks; shorter ones are slip numbers. */
+const GLOBAL_UTR_MIN_LENGTH = 12;
+
+/**
+ * One bank reference can credit only one fund request. Same bank: any reference. Across banks:
+ * only UTR-length references, since short cash-slip numbers repeat between banks. The advisory
+ * lock serialises two admins approving different requests with the same reference at once;
+ * fund_requests_credited_utr_uidx backs this up in the database.
+ */
+async function assertReferenceNotCreditedElsewhere(tx: Tx, request: FundRequestRow): Promise<void> {
+  const ref = request.referenceNorm;
+  if (!ref) return;
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`fr_ref:${request.tenantId}:${ref}`}))`);
+  const sameBankOrUtr =
+    ref.length >= GLOBAL_UTR_MIN_LENGTH ? sql`TRUE` : sql`${fundRequests.bankAccountId} = ${request.bankAccountId}`;
+  const [other] = await tx
+    .select({ id: fundRequests.id })
+    .from(fundRequests)
+    .where(
+      and(
+        eq(fundRequests.tenantId, request.tenantId),
+        eq(fundRequests.referenceNorm, ref),
+        eq(fundRequests.status, "credited"),
+        sql`${fundRequests.id} <> ${request.id}`,
+        sameBankOrUtr,
+      ),
+    )
+    .limit(1);
+  if (other) {
+    throw new HttpError(
+      422,
+      `UTR / reference ${ref} was already used to credit fund request #${other.id}. One bank reference can approve only one fund request.`,
+      "REFERENCE_ALREADY_CREDITED",
     );
   }
 }

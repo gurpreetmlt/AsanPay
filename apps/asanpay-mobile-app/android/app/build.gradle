@@ -48,6 +48,7 @@ android {
         applicationId "com.asanpay.mobile"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
+        // Bump APP_VERSION_CODE / APP_VERSION_NAME in src/lib/appVersion.ts together with these.
         versionCode 7
         versionName "1.0.4"
         // true = FLAG_SECURE on every screen (no screenshots / blank recent-apps thumbnail). Debug

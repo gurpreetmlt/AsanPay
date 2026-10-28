@@ -49,6 +49,11 @@ export const users = pgTable(
     txnPinLockedUntil: timestamp("txn_pin_locked_until", { withTimezone: true }),
     // 4-digit login MPIN (bcrypt) — quick unlock on mobile Welcome-back screen.
     loginMpinHash: text("login_mpin_hash"),
+    // Admin-portal TOTP. Secret is AES-GCM encrypted and stays pending until enabledAt is set.
+    // lastStep = last accepted 30 s step, so a code cannot sign in twice.
+    adminTotpSecretEncrypted: text("admin_totp_secret_encrypted"),
+    adminTotpEnabledAt: timestamp("admin_totp_enabled_at", { withTimezone: true }),
+    adminTotpLastStep: integer("admin_totp_last_step"),
     // Retailer's OWN biometric proof-of-presence at the counter — separate from the customer's
     // AEPS biometric. AEPS/DMT operations require this once per India calendar day.
     // Null = never agent-authed on record.

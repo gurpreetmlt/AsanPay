@@ -38,6 +38,11 @@ import {
   createTelegramLinkHandler,
   unlinkTelegramHandler,
   telegramStatusHandler,
+  adminTotpVerify,
+  adminTotpStatus,
+  adminTotpSetup,
+  adminTotpEnable,
+  adminTotpDisable,
 } from "./auth.controller";
 import { requireAuth } from "../../middleware/auth.middleware";
 import { requireRole } from "../../middleware/rbac.middleware";
@@ -47,6 +52,12 @@ export const authRouter = Router();
 authRouter.post("/register", requireAuth, register);
 authRouter.post("/login", authLimiter, login);
 authRouter.post("/refresh", authLimiter, refresh);
+
+authRouter.post("/admin/totp/verify", authLimiter, adminTotpVerify);
+authRouter.get("/admin/totp/status", requireAuth, requireRole("admin"), adminTotpStatus);
+authRouter.post("/admin/totp/setup", requireAuth, requireRole("admin"), authLimiter, adminTotpSetup);
+authRouter.post("/admin/totp/enable", requireAuth, requireRole("admin"), authLimiter, adminTotpEnable);
+authRouter.post("/admin/totp/disable", requireAuth, requireRole("admin"), authLimiter, adminTotpDisable);
 authRouter.post("/logout", logout);
 authRouter.get("/me", requireAuth, me);
 authRouter.get("/upline", requireAuth, myUpline);

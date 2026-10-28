@@ -3,6 +3,8 @@ import type { ApiResponse } from "@asanpay/shared-types";
 import { useAuthStore } from "../store/auth";
 import { resolveDevApiHost } from "../utils/resolveDevApiHost";
 import { BRAND } from "../theme/brand";
+import { APP_VERSION_CODE } from "./appVersion";
+import { useAppUpdateStore } from "./appUpdate";
 
 const devHost = resolveDevApiHost();
 
@@ -59,6 +61,7 @@ async function refreshOnce(refreshToken: string): Promise<{ accessToken: string;
 api.interceptors.request.use((config) => {
   const token = useAuthStore.getState().accessToken;
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  config.headers["X-App-Version-Code"] = String(APP_VERSION_CODE);
   return config;
 });
 
@@ -66,6 +69,10 @@ api.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config;
+    if (error.response?.status === 426) {
+      useAppUpdateStore.getState().markRequired();
+      return Promise.reject(error);
+    }
     if (
       error.response?.status === 401 &&
       original &&

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
+import { LocationRequiredHint } from "@/components/aeps/TxnLocation";
 import { ExportMenu } from "@/components/ui/ExportMenu";
 import { B } from "@/lib/brand";
 import { aepsBankLogoUrl } from "@/lib/bankLogo";
@@ -54,6 +55,8 @@ type Props = {
   onRetryScanner: () => void;
   onChangeDevice: () => void;
   scanning: boolean;
+  /** Money tab without a live location fix — the CTA stays disabled. */
+  locationMissing?: boolean;
   onScan: () => void;
 };
 
@@ -277,6 +280,7 @@ export function AepsLayout3({
   onRetryScanner,
   onChangeDevice,
   scanning,
+  locationMissing = false,
   onScan,
 }: Props) {
   const [range, setRange] = useState<HistoryRange>("today");
@@ -611,7 +615,7 @@ export function AepsLayout3({
                   type="button"
                   variant="primary"
                   loading={scanning}
-                  disabled={scanning || !scannerReady}
+                  disabled={scanning || !scannerReady || locationMissing}
                   onClick={onScan}
                   showArrow={false}
                   className="w-full !min-h-[48px]"
@@ -619,6 +623,7 @@ export function AepsLayout3({
                   <Fingerprint size={18} />
                   {scannerReady ? "Scan Finger & Submit" : "Connect scanner to scan"}
                 </PrimaryButton>
+                <LocationRequiredHint show={locationMissing} />
               </div>
             </div>
           </div>

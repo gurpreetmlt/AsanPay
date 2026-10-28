@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
+import { LocationRequiredHint } from "@/components/aeps/TxnLocation";
 import { ExportMenu } from "@/components/ui/ExportMenu";
 import { B } from "@/lib/brand";
 import { fetchApi } from "@/lib/api";
@@ -48,6 +49,8 @@ type Props = {
   consent: boolean;
   onConsentChange: (v: boolean) => void;
   scanning: boolean;
+  /** Money tab without a live location fix — the CTA stays disabled. */
+  locationMissing?: boolean;
   onProceed: () => void;
 };
 
@@ -169,6 +172,7 @@ export function AepsNewLayout({
   consent,
   onConsentChange,
   scanning,
+  locationMissing = false,
   onProceed,
 }: Props) {
   const [wallets, setWallets] = useState<WalletBalance[]>([]);
@@ -403,17 +407,20 @@ export function AepsNewLayout({
             ) : (
               <div className="hidden lg:block" />
             )}
-            <PrimaryButton
-              type="button"
-              variant="primary"
-              loading={scanning}
-              disabled={scanning}
-              onClick={onProceed}
-              className="h-[46px] min-w-[180px] lg:mb-0"
-              showArrow={false}
-            >
-              Proceed to biometric
-            </PrimaryButton>
+            <div>
+              <PrimaryButton
+                type="button"
+                variant="primary"
+                loading={scanning}
+                disabled={scanning || locationMissing}
+                onClick={onProceed}
+                className="h-[46px] min-w-[180px] lg:mb-0"
+                showArrow={false}
+              >
+                Proceed to biometric
+              </PrimaryButton>
+              <LocationRequiredHint show={locationMissing} />
+            </div>
           </div>
 
           <label className="flex cursor-pointer items-start gap-2.5 select-none rounded-xl border border-gray-100 bg-slate-50/90 px-3.5 py-3">

@@ -14,6 +14,7 @@ import {
   getServiceGeoAnchors,
   recordBiometricMismatch,
   recordCashReceipt,
+  resolveLiveTxnGeo,
   touchLastAepsTxn,
 } from "../aeps/compliance";
 import { sendSuccess } from "../../utils/apiResponse";
@@ -438,14 +439,11 @@ export async function dmtTransactionRefund(req: Request, res: Response): Promise
 export async function dmtTransfer(req: Request, res: Response): Promise<void> {
   const body = req.body as z.infer<typeof dmtTransferSchema>;
   await assertAgentAuthFresh(actor(req).id);
+  const live = await resolveLiveTxnGeo(actor(req).id, body);
+  await assertWithinServiceGeofence(await getServiceGeoAnchors(actor(req).id), live.geo);
   await assertTxnAuthorization(actor(req).id, { txnPin: body.txnPin, txnAuth: body.txnAuth });
-
-  if (body.latitude && body.longitude) {
-    await assertWithinServiceGeofence(await getServiceGeoAnchors(actor(req).id), {
-      latitude: body.latitude,
-      longitude: body.longitude,
-    });
-  }
+  await live.claim();
+  const { latitude, longitude } = live.geo;
 
   // Customer fee: server-side resolve inside executeServiceTxn — not from body.
   const outcome = await executeServiceTxn({
@@ -479,8 +477,8 @@ export async function dmtTransfer(req: Request, res: Response): Promise<void> {
         otp: body.otp,
         referenceKey: body.referenceKey,
         beneficiaryId: body.beneficiaryId,
-        latitude: body.latitude,
-        longitude: body.longitude,
+        latitude,
+        longitude,
         // externalRef = our txnRef so the provider's txn-status report can find it on recheck.
         externalRef: txnRef,
         endpointIp: req.ip ?? undefined,
@@ -621,19 +619,12 @@ export async function aepsWithdraw(req: Request, res: Response): Promise<void> {
   const body = req.body as z.infer<typeof aepsWithdrawSchema>;
   const userId = actor(req).id;
   await assertAgentAuthFresh(userId);
-  await assertAepsCompliance(
-    userId,
-    body.latitude && body.longitude
-      ? {
-          latitude: body.latitude,
-          longitude: body.longitude,
-          accuracyMeters: body.accuracyMeters,
-          isMockLocation: body.isMockLocation,
-        }
-      : null,
-  );
+  const live = await resolveLiveTxnGeo(userId, body);
+  await assertAepsCompliance(userId, live.geo);
   await assertFreshBiometric(body.biometricPayload);
   await assertTxnAuthorization(userId, { txnPin: body.txnPin, txnAuth: body.txnAuth });
+  await live.claim();
+  const { latitude, longitude } = live.geo;
 
   const outcome = await executeServiceTxn({
     actor: actor(req),
@@ -646,8 +637,8 @@ export async function aepsWithdraw(req: Request, res: Response): Promise<void> {
     metadata: {
       bankIin: body.bankIin,
       customerMobile: body.mobile,
-      latitude: body.latitude,
-      longitude: body.longitude,
+      latitude,
+      longitude,
     },
     invoke: (routed, txnRef) =>
       routed.adapter.aepsWithdraw({
@@ -657,8 +648,8 @@ export async function aepsWithdraw(req: Request, res: Response): Promise<void> {
         mobile: body.mobile,
         biometricPayload: body.biometricPayload,
         amount: body.amount,
-        latitude: body.latitude,
-        longitude: body.longitude,
+        latitude,
+        longitude,
         otpReferenceKey: body.otpReferenceKey,
         // externalRef = our txnRef so the provider's txn-status report can find it on recheck.
         externalRef: txnRef,
@@ -676,8 +667,8 @@ export async function aepsWithdraw(req: Request, res: Response): Promise<void> {
         amount: body.amount,
         customerMobile: body.mobile,
         bankIin: body.bankIin,
-        latitude: body.latitude,
-        longitude: body.longitude,
+        latitude,
+        longitude,
         notes: "Auto cash register entry on successful AePS withdrawal",
       });
     }
@@ -689,19 +680,12 @@ export async function aepsDeposit(req: Request, res: Response): Promise<void> {
   const body = req.body as z.infer<typeof aepsDepositSchema>;
   const userId = actor(req).id;
   await assertAgentAuthFresh(userId);
-  await assertAepsCompliance(
-    userId,
-    body.latitude && body.longitude
-      ? {
-          latitude: body.latitude,
-          longitude: body.longitude,
-          accuracyMeters: body.accuracyMeters,
-          isMockLocation: body.isMockLocation,
-        }
-      : null,
-  );
+  const live = await resolveLiveTxnGeo(userId, body);
+  await assertAepsCompliance(userId, live.geo);
   await assertFreshBiometric(body.biometricPayload);
   await assertTxnAuthorization(userId, { txnPin: body.txnPin, txnAuth: body.txnAuth });
+  await live.claim();
+  const { latitude, longitude } = live.geo;
 
   // Customer fee: server-side resolve inside executeServiceTxn — not from body.
   const outcome = await executeServiceTxn({
@@ -717,8 +701,8 @@ export async function aepsDeposit(req: Request, res: Response): Promise<void> {
     metadata: {
       bankIin: body.bankIin,
       customerMobile: body.mobile,
-      latitude: body.latitude,
-      longitude: body.longitude,
+      latitude,
+      longitude,
     },
     invoke: (routed, txnRef) =>
       routed.adapter.aepsDeposit({
@@ -728,8 +712,8 @@ export async function aepsDeposit(req: Request, res: Response): Promise<void> {
         mobile: body.mobile,
         biometricPayload: body.biometricPayload,
         amount: body.amount,
-        latitude: body.latitude,
-        longitude: body.longitude,
+        latitude,
+        longitude,
         externalRef: txnRef,
         endpointIp: req.ip ?? undefined,
       }),
@@ -745,19 +729,12 @@ export async function aadhaarPay(req: Request, res: Response): Promise<void> {
   const body = req.body as z.infer<typeof aadhaarPaySchema>;
   const userId = actor(req).id;
   await assertAgentAuthFresh(userId);
-  await assertAepsCompliance(
-    userId,
-    body.latitude && body.longitude
-      ? {
-          latitude: body.latitude,
-          longitude: body.longitude,
-          accuracyMeters: body.accuracyMeters,
-          isMockLocation: body.isMockLocation,
-        }
-      : null,
-  );
+  const live = await resolveLiveTxnGeo(userId, body);
+  await assertAepsCompliance(userId, live.geo);
   await assertFreshBiometric(body.biometricPayload);
   await assertTxnAuthorization(userId, { txnPin: body.txnPin, txnAuth: body.txnAuth });
+  await live.claim();
+  const { latitude, longitude } = live.geo;
 
   const outcome = await executeServiceTxn({
     actor: actor(req),
@@ -770,8 +747,8 @@ export async function aadhaarPay(req: Request, res: Response): Promise<void> {
     metadata: {
       bankIin: body.bankIin,
       customerMobile: body.mobile,
-      latitude: body.latitude,
-      longitude: body.longitude,
+      latitude,
+      longitude,
       captureType: body.captureType ?? "FINGER",
     },
     invoke: (routed, txnRef) =>
@@ -783,8 +760,8 @@ export async function aadhaarPay(req: Request, res: Response): Promise<void> {
         biometricPayload: body.biometricPayload,
         captureType: body.captureType,
         amount: body.amount,
-        latitude: body.latitude,
-        longitude: body.longitude,
+        latitude,
+        longitude,
         otpReferenceKey: body.otpReferenceKey,
         otpTransactionId: body.otpTransactionId,
         otpTransactionToken: body.otpTransactionToken,

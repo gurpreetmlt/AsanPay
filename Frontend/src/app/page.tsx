@@ -25,6 +25,7 @@ import Countdown from '@/components/Countdown';
 import WaitlistModal from '@/components/WaitlistModal';
 import BackgroundEffects from '@/components/BackgroundEffects';
 import Link from 'next/link';
+import LegalLinks from './_components/LegalLinks';
 export default function Home() {
   const [modalOpen, setModalOpen] = useState(false);
   const shouldReduceMotion = useReducedMotion();
@@ -745,20 +746,16 @@ export default function Home() {
                     Income Estimator
                   </Link>
                 </li>
-                <li>
-                  <Link href="/privacy" className="text-neutral-500 dark:text-neutral-400 hover:text-brand-blue-light hover:underline transition-colors">
-                    Privacy Policy
-                  </Link>
-                </li>
               </ul>
             </div>
 
             {/* Legal Column */}
             <div className="text-center md:text-left">
               <h3 className="font-sora font-bold text-xs uppercase tracking-wider text-neutral-800 dark:text-neutral-200 mb-4 transition-colors">
-                Regulatory Compliance
+                Legal & Compliance
               </h3>
-              <div className="space-y-3.5 font-poppins text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">
+              <LegalLinks />
+              <div className="mt-4 space-y-3.5 font-poppins text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">
                 <p className="flex items-center justify-center md:justify-start gap-2">
                   <ShieldCheck className="w-4 h-4 text-brand-green-dark shrink-0" />
                   RBI Merchant Guidelines Compliant
