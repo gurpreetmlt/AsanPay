@@ -23,6 +23,14 @@ import {
   Mail,
   MailCheck,
   MailX,
+  AlertTriangle,
+  CalendarDays,
+  Copy,
+  FileCheck2,
+  LayoutDashboard,
+  Percent,
+  Phone,
+  SlidersHorizontal,
   type LucideIcon,
 } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
@@ -94,6 +102,78 @@ function StatusPill({
           </span>
         ) : null}
       </p>
+    </div>
+  );
+}
+
+type AgentTab = "overview" | "kyc" | "wallet" | "commission" | "controls";
+
+const TABS: Array<{ id: AgentTab; label: string; icon: LucideIcon }> = [
+  { id: "overview", label: "Overview", icon: LayoutDashboard },
+  { id: "kyc", label: "KYC", icon: FileCheck2 },
+  { id: "wallet", label: "Wallet & bank", icon: Wallet },
+  { id: "commission", label: "Commission", icon: Percent },
+  { id: "controls", label: "Controls", icon: SlidersHorizontal },
+];
+
+const initialsOf = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]!.toUpperCase())
+    .join("") || "?";
+
+const inrText = (v: string | number) => `₹${Number(v).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+
+/** White pill on the blue hero: small label + value with a coloured dot. */
+function HeroChip({ label, value, dot }: { label: string; value: string; dot: string }) {
+  return (
+    <div className="rounded-xl bg-white/15 px-3 py-2 text-white backdrop-blur-sm" style={{ border: "1px solid rgba(255,255,255,0.25)" }}>
+      <p className="text-[10px] font-bold uppercase tracking-wider text-white/75">{label}</p>
+      <p className="mt-0.5 flex items-center gap-1.5 text-sm font-bold capitalize">
+        <span className="h-2 w-2 rounded-full" style={{ background: dot }} />
+        {value}
+      </p>
+    </div>
+  );
+}
+
+/** Stat tile under the hero: coloured icon, label, value, optional sub line. */
+function StatTile({
+  icon: Icon,
+  tone,
+  label,
+  value,
+  sub,
+}: {
+  icon: LucideIcon;
+  tone: string;
+  label: string;
+  value: string;
+  sub?: string;
+}) {
+  return (
+    <div className="flex min-w-0 items-start gap-3 px-5 py-4" style={{ background: "var(--admin-card)" }}>
+      <span
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+        style={{ background: `color-mix(in srgb, ${tone} 14%, transparent)`, color: tone }}
+      >
+        <Icon size={18} />
+      </span>
+      <div className="min-w-0">
+        <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+          {label}
+        </p>
+        <p className="truncate text-base font-bold" style={{ color: B.blue }}>
+          {value}
+        </p>
+        {sub ? (
+          <p className="truncate text-[11px]" style={{ color: B.muted }}>
+            {sub}
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -265,6 +345,10 @@ export default function AgentDetailPage() {
   const [recentTxns, setRecentTxns] = useState<RecentTxn[]>([]);
   const [activeBank, setActiveBank] = useState<SettlementBankBrief | null>(null);
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
+  // Old links point at "#commission"; any other hash or none opens Overview.
+  const [tab, setTab] = useState<AgentTab>(() =>
+    typeof window !== "undefined" && window.location.hash === "#commission" ? "commission" : "overview",
+  );
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -479,490 +563,517 @@ export default function AgentDetailPage() {
 
   if (!hydrated || !accessToken) return null;
 
+  const mainBal = agent?.wallets.find((w) => w.walletType === "main")?.balance;
+  const lastTxn = recentTxns[0];
+  const kyc = agent ? kycPill(agent.kycStatus) : null;
+  const toneColor = { green: "#16A34A", amber: "#D97706", red: "#DC2626", slate: "#64748B" } as const;
+
+  function copyUid() {
+    if (!agent) return;
+    void navigator.clipboard.writeText(agent.uid).then(
+      () => toast.success("UID copied"),
+      () => toast.error("Could not copy the UID — select it and copy manually"),
+    );
+  }
+
+  const profileSection = agent ? (
+    <DetailSection title="Agent profile" icon={User}>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <InfoRow label="Name" value={agent.name} />
+        <InfoRow label="Mobile" value={agent.mobile} />
+        <InfoRow label="Email" value={agent.email} />
+        <InfoRow label="UID" value={agent.uid} />
+        <InfoRow label="Role" value={ROLE_LABEL[agent.role] ?? agent.role} />
+        <InfoRow label="Joined" value={new Date(agent.createdAt).toLocaleString("en-IN")} />
+      </div>
+    </DetailSection>
+  ) : null;
+
+  const parentSection = agent ? (
+    <DetailSection title="Network parent" icon={Network}>
+      {agent.parent ? (
+        <div className="flex items-center gap-3">
+          <span
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-extrabold text-white"
+            style={{ background: B.badgeGrad }}
+          >
+            {initialsOf(agent.parent.name ?? "")}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-bold" style={{ color: B.blue }}>
+              {agent.parent.name}
+            </p>
+            <p className="text-xs" style={{ color: B.muted }}>
+              {agent.parent.role ? ROLE_LABEL[agent.parent.role] ?? agent.parent.role : "—"} · {agent.parent.uid}
+            </p>
+          </div>
+          <Link
+            href={`/users/${agent.parent.id}`}
+            className="shrink-0 rounded-lg border px-3 py-1.5 text-xs font-semibold transition hover:brightness-105"
+            style={{ borderColor: B.border, color: B.blueLight }}
+          >
+            Open →
+          </Link>
+        </div>
+      ) : (
+        <p className="text-sm" style={{ color: B.muted }}>
+          No parent (top-level Super Distributor)
+        </p>
+      )}
+    </DetailSection>
+  ) : null;
+
+  const recentTxnSection = (
+    <DetailSection title="Recent transactions" icon={History}>
+      {recentTxns.length === 0 ? (
+        <p className="text-sm" style={{ color: B.muted }}>
+          No transactions yet
+        </p>
+      ) : (
+        <div className="divide-y rounded-xl border" style={{ borderColor: B.border }}>
+          {recentTxns.map((t) => (
+            <div key={t.id} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm" style={{ borderColor: B.border }}>
+              <div className="min-w-0">
+                <div className="truncate font-semibold" style={{ color: B.blue }}>
+                  {t.serviceName}
+                </div>
+                <div className="truncate font-mono text-[11px]" style={{ color: B.muted }}>
+                  {t.txnRef} · {new Date(t.createdAt).toLocaleString("en-IN")}
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <span className="font-bold tabular-nums" style={{ color: B.blue }}>
+                  {inrText(t.amount)}
+                </span>
+                <Badge status={t.status} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </DetailSection>
+  );
+
   return (
     <AdminShell>
-      <div className="mx-auto w-full max-w-[1600px] space-y-6 p-4 md:p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <Link
-              href="/users"
-              className="mb-2 inline-flex items-center gap-1.5 text-sm font-medium transition hover:opacity-80"
-              style={{ color: B.blueMid }}
-            >
-              <ArrowLeft className="h-4 w-4" />
-              All Agents
-            </Link>
-            {loading || !agent ? (
-              <>
-                <h1 className="text-xl font-bold md:text-2xl" style={{ color: B.blue }}>
-                  Agent Details
-                </h1>
-                <p className="mt-1 text-sm" style={{ color: B.muted }}>
-                  {loading ? "Loading…" : "Agent not found"}
-                </p>
-              </>
-            ) : (
-              <>
-                <h1 className="text-xl font-bold md:text-2xl" style={{ color: B.blue }}>
-                  {agent.name}
-                </h1>
-                <p className="mt-1 text-sm" style={{ color: B.muted }}>
-                  {ROLE_LABEL[agent.role] ?? agent.role} · UID {agent.uid}
-                </p>
-              </>
-            )}
-          </div>
-          {agent ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge status={agent.role} />
-              <Badge status={agent.kycStatus} />
-              <Badge status={agent.isFrozen ? "inactive" : "active"} />
-            </div>
-          ) : null}
-        </div>
+      <div className="mx-auto w-full max-w-[1600px] space-y-5 p-4 md:p-6">
+        <Link
+          href="/users"
+          className="inline-flex items-center gap-1.5 text-sm font-medium transition hover:opacity-80"
+          style={{ color: B.blueMid }}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          All agents
+        </Link>
 
-        {!loading && agent ? (
-          <div
-            className="grid gap-2 rounded-2xl border p-3 sm:grid-cols-2 lg:grid-cols-4"
-            style={{ borderColor: B.border, background: B.card }}
-          >
-            {(() => {
-              const mainBal = agent.wallets.find((w) => w.walletType === "main")?.balance;
-              const last = recentTxns[0];
-              const chips: {
-                key: string;
-                label: string;
-                value: string;
-                sub?: string;
-                icon: typeof ShieldCheck;
-              }[] = [
-                {
-                  key: "kyc",
-                  label: "KYC",
-                  value: agent.kycStatus
-                    .split("_")
-                    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-                    .join(" "),
-                  icon: ShieldCheck,
-                },
-                {
-                  key: "bank",
-                  label: "Active settlement bank",
-                  value: activeBank
-                    ? `${activeBank.holderName} · ****${activeBank.accountNumberLast4}`
-                    : "None active",
-                  sub: activeBank ? activeBank.ifsc : undefined,
-                  icon: Landmark,
-                },
-                {
-                  key: "balance",
-                  label: "Main balance",
-                  value:
-                    mainBal != null
-                      ? `₹${Number(mainBal).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`
-                      : "—",
-                  icon: Wallet,
-                },
-                {
-                  key: "txn",
-                  label: "Last txn",
-                  value: last
-                    ? `₹${Number(last.amount).toLocaleString("en-IN", { minimumFractionDigits: 2 })} · ${last.status}`
-                    : "No transactions",
-                  sub: last
-                    ? `${last.serviceName} · ${new Date(last.createdAt).toLocaleString("en-IN")}`
-                    : undefined,
-                  icon: History,
-                },
-              ];
-              return chips.map((c) => {
-                const Icon = c.icon;
-                return (
-                  <div
-                    key={c.key}
-                    className="flex min-w-0 items-start gap-2.5 rounded-xl border px-3 py-2.5"
-                    style={{ borderColor: B.border, background: B.bg }}
+        {loading || !agent ? (
+          <div className="rounded-3xl border p-8" style={{ borderColor: B.border, background: B.card }}>
+            <h1 className="text-xl font-bold" style={{ color: B.blue }}>
+              Agent details
+            </h1>
+            <p className="mt-1 text-sm" style={{ color: B.muted }}>
+              {loading ? "Loading…" : "Agent not found"}
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Hero */}
+            <div className="overflow-hidden rounded-3xl border shadow-sm" style={{ borderColor: B.border, background: B.card }}>
+              <div className="px-5 py-6 md:px-7" style={{ background: B.badgeGrad }}>
+                <div className="flex flex-wrap items-center gap-4">
+                  <span
+                    className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white text-2xl font-extrabold shadow-md"
+                    style={{ color: B.blueLight }}
                   >
-                    <div
-                      className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
-                      style={{ background: "rgba(42,92,221,0.1)", color: B.blueLight }}
-                    >
-                      <Icon size={15} />
+                    {initialsOf(agent.name)}
+                  </span>
+                  <div className="min-w-0 flex-1 text-white">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h1 className="truncate text-2xl font-extrabold">{agent.name}</h1>
+                      <span className="rounded-full bg-white/20 px-2.5 py-0.5 text-xs font-bold">
+                        {ROLE_LABEL[agent.role] ?? agent.role}
+                      </span>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-[11px] font-medium uppercase tracking-wide" style={{ color: B.muted }}>
-                        {c.label}
-                      </p>
-                      <p className="truncate text-sm font-semibold" style={{ color: B.blue }}>
-                        {c.value}
-                      </p>
-                      {c.sub ? (
-                        <p className="truncate text-[11px]" style={{ color: B.muted }}>
-                          {c.sub}
-                        </p>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-white/85">
+                      <button
+                        type="button"
+                        onClick={copyUid}
+                        className="inline-flex items-center gap-1 font-mono font-semibold hover:text-white"
+                        title="Copy UID"
+                      >
+                        {agent.uid} <Copy size={13} />
+                      </button>
+                      <span className="inline-flex items-center gap-1">
+                        <Phone size={13} /> {agent.mobile}
+                      </span>
+                      {agent.email ? (
+                        <span className="inline-flex items-center gap-1">
+                          <Mail size={13} /> {agent.email}
+                        </span>
                       ) : null}
+                      <span className="inline-flex items-center gap-1">
+                        <CalendarDays size={13} /> Joined {new Date(agent.createdAt).toLocaleDateString("en-IN", { dateStyle: "medium" })}
+                      </span>
                     </div>
                   </div>
-                );
-              });
-            })()}
-          </div>
-        ) : null}
-
-        {!loading && agent ? (
-          <div className="grid gap-6 lg:grid-cols-3">
-            <div className="space-y-6 lg:col-span-2">
-              <DetailSection title="Agent Profile" icon={User}>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <InfoRow label="Name" value={agent.name} />
-                  <InfoRow label="Mobile" value={agent.mobile} />
-                  <InfoRow label="Email" value={agent.email} />
-                  <InfoRow label="UID" value={agent.uid} />
-                  <InfoRow label="Role" value={ROLE_LABEL[agent.role] ?? agent.role} />
-                  <InfoRow
-                    label="Joined"
-                    value={new Date(agent.createdAt).toLocaleString("en-IN")}
-                  />
-                </div>
-              </DetailSection>
-
-              <DetailSection title="KYC Identity" icon={ShieldCheck}>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <InfoRow label="PAN" value={agent.kyc.panMasked} />
-                  <InfoRow label="Aadhaar" value={agent.kyc.aadhaarMasked} />
-                  <InfoRow label="Status" value={agent.kyc.status} />
-                  <InfoRow
-                    label="Submitted"
-                    value={
-                      agent.kyc.submittedAt
-                        ? new Date(agent.kyc.submittedAt).toLocaleString("en-IN")
-                        : null
-                    }
-                  />
-                </div>
-              </DetailSection>
-
-              <DetailSection title="KYC address & bank" icon={MapPin}>
-                <p className="mb-4 text-sm" style={{ color: B.muted }}>
-                  From KYC submission (identity). Withdrawal banks are verified in the next section.
-                </p>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <InfoRow label="City" value={agent.kyc.city} />
-                  <InfoRow label="Pincode" value={agent.kyc.pincode} />
-                  <InfoRow label="Bank (KYC)" value={agent.kyc.bankName} />
-                  <InfoRow label="Bank on file" value={agent.kyc.hasBank ? "Yes" : "No"} />
-                </div>
-              </DetailSection>
-
-              <AgentSettlementBanksCard userId={agent.id} />
-
-              <DetailSection title="Balances" icon={Wallet}>
-                {agent.wallets.length === 0 ? (
-                  <p className="text-sm" style={{ color: B.muted }}>
-                    No balances yet
-                  </p>
-                ) : (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {agent.wallets.map((w) => (
-                      <div
-                        key={w.walletType}
-                        className="rounded-xl border px-4 py-3"
-                        style={{ borderColor: B.border, background: B.bg }}
-                      >
-                        <p className="text-xs font-medium uppercase tracking-wide" style={{ color: B.muted }}>
-                          {w.walletType === "main"
-                            ? "Main"
-                            : w.walletType === "aeps"
-                              ? "AEPS"
-                              : w.walletType}
-                        </p>
-                        <p className="mt-1 text-lg font-bold tabular-nums" style={{ color: B.blue }}>
-                          ₹{Number(w.balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                        </p>
-                      </div>
-                    ))}
+                  <div className="flex flex-wrap gap-2">
+                    <HeroChip label="KYC" value={kyc!.text} dot={toneColor[kyc!.tone]} />
+                    <HeroChip
+                      label="Account"
+                      value={agent.isFrozen ? "Frozen" : "Active"}
+                      dot={agent.isFrozen ? toneColor.red : "#4ADE80"}
+                    />
                   </div>
-                )}
-              </DetailSection>
-
-              <DetailSection title="Recent Transactions" icon={History}>
-                {recentTxns.length === 0 ? (
-                  <p className="text-sm" style={{ color: B.muted }}>
-                    No transactions yet
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {recentTxns.map((t) => (
-                      <div
-                        key={t.id}
-                        className="flex items-center justify-between rounded-xl border px-3 py-2 text-sm"
-                        style={{ borderColor: B.border }}
-                      >
-                        <div className="min-w-0">
-                          <div className="font-medium" style={{ color: B.blue }}>
-                            {t.serviceName}
-                          </div>
-                          <div className="font-mono text-xs" style={{ color: B.muted }}>
-                            {t.txnRef} · {new Date(t.createdAt).toLocaleString("en-IN")}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold tabular-nums" style={{ color: B.blue }}>
-                            ₹{Number(t.amount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                          </span>
-                          <Badge status={t.status} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </DetailSection>
-
-              <div id="commission">
-                <AgentCommissionPanel userId={agent.id} />
+                </div>
+              </div>
+              <div className="grid gap-px sm:grid-cols-2 lg:grid-cols-4" style={{ background: B.border }}>
+                <StatTile icon={kyc!.icon} tone={toneColor[kyc!.tone]} label="KYC" value={kyc!.text} sub={agent.kyc.panMasked ? `PAN ${agent.kyc.panMasked}` : "PAN not on file"} />
+                <StatTile
+                  icon={Landmark}
+                  tone={activeBank ? toneColor.green : toneColor.slate}
+                  label="Settlement bank"
+                  value={activeBank ? `${activeBank.holderName} · ****${activeBank.accountNumberLast4}` : "None active"}
+                  sub={activeBank?.ifsc}
+                />
+                <StatTile icon={Wallet} tone={B.blueLight} label="Main balance" value={mainBal != null ? inrText(mainBal) : "—"} />
+                <StatTile
+                  icon={History}
+                  tone={toneColor.slate}
+                  label="Last transaction"
+                  value={lastTxn ? `${inrText(lastTxn.amount)} · ${lastTxn.status}` : "No transactions"}
+                  sub={lastTxn ? `${lastTxn.serviceName} · ${new Date(lastTxn.createdAt).toLocaleString("en-IN")}` : undefined}
+                />
               </div>
             </div>
 
-            <div className="space-y-6">
-              <DetailSection title="Verification" icon={ShieldCheck}>
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <StatusPill label="KYC" {...kycPill(agent.kycStatus)} />
-                    <StatusPill
-                      label="Account"
-                      {...(agent.isFrozen
-                        ? { text: "Frozen", tone: "red" as const, icon: Snowflake }
-                        : { text: "Active", tone: "green" as const, icon: CircleCheck, live: true })}
-                    />
-                  </div>
-                  <div
-                    className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5"
-                    style={{ borderColor: B.border }}
+            {agent.kycStatus === "pending" ? (
+              <div
+                className="flex flex-wrap items-center gap-3 rounded-2xl border px-4 py-3"
+                style={{ borderColor: "#FCD34D", background: "#FFFBEB" }}
+              >
+                <AlertTriangle size={18} style={{ color: "#B45309" }} />
+                <p className="flex-1 text-sm font-semibold" style={{ color: "#92400E" }}>
+                  KYC is waiting for review.{" "}
+                  <span className="font-normal">
+                    {agent.hasKycDocs ? "Check the documents and approve or reject." : "PAN and Aadhaar are not on file yet."}
+                  </span>
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setTab("kyc")}
+                  className="rounded-xl px-3.5 py-2 text-sm font-semibold text-white"
+                  style={{ background: B.badgeGrad }}
+                >
+                  Review KYC
+                </button>
+              </div>
+            ) : null}
+
+            {/* Tabs */}
+            <div
+              className="flex gap-1 overflow-x-auto rounded-2xl border p-1.5"
+              style={{ borderColor: B.border, background: B.card }}
+              role="tablist"
+              aria-label="Agent sections"
+            >
+              {TABS.map((t) => {
+                const active = tab === t.id;
+                const Icon = t.icon;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setTab(t.id)}
+                    className="inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition"
+                    style={active ? { background: B.badgeGrad, color: "#fff" } : { color: B.muted }}
                   >
-                    <div>
-                      <div className="text-sm font-semibold" style={{ color: B.blue }}>
-                        Fund requests
+                    <Icon size={16} />
+                    {t.label}
+                    {t.id === "kyc" && agent.kycStatus === "pending" ? (
+                      <span className="h-2 w-2 rounded-full" style={{ background: active ? "#fff" : "#F59E0B" }} />
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+
+            {tab === "overview" ? (
+              <div className="grid gap-5 lg:grid-cols-3">
+                <div className="space-y-5 lg:col-span-2">
+                  {profileSection}
+                  {recentTxnSection}
+                </div>
+                <div className="space-y-5">{parentSection}</div>
+              </div>
+            ) : null}
+
+            {tab === "kyc" ? (
+              <div className="grid gap-5 lg:grid-cols-3">
+                <div className="space-y-5 lg:col-span-2">
+                  <DetailSection title="KYC identity" icon={ShieldCheck}>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <InfoRow label="PAN" value={agent.kyc.panMasked} />
+                      <InfoRow label="Aadhaar" value={agent.kyc.aadhaarMasked} />
+                      <InfoRow label="Status" value={agent.kyc.status} />
+                      <InfoRow
+                        label="Submitted"
+                        value={agent.kyc.submittedAt ? new Date(agent.kyc.submittedAt).toLocaleString("en-IN") : null}
+                      />
+                    </div>
+                  </DetailSection>
+                  <DetailSection title="KYC address & bank" icon={MapPin}>
+                    <p className="mb-4 text-sm" style={{ color: B.muted }}>
+                      From the KYC submission. Withdrawal banks are verified in Wallet & bank.
+                    </p>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <InfoRow label="City" value={agent.kyc.city} />
+                      <InfoRow label="Pincode" value={agent.kyc.pincode} />
+                      <InfoRow label="Bank (KYC)" value={agent.kyc.bankName} />
+                      <InfoRow label="Bank on file" value={agent.kyc.hasBank ? "Yes" : "No"} />
+                    </div>
+                  </DetailSection>
+                  <DetailSection title="KYC documents" icon={Banknote}>
+                    <KycDocumentGrid
+                      documents={agent.documents}
+                      documentFiles={agent.documentFiles}
+                      checkLabels={agent.docCheckLabels}
+                    />
+                  </DetailSection>
+                </div>
+                <div className="space-y-5">
+                  <DetailSection title="KYC decision" icon={ShieldCheck}>
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <StatusPill label="KYC" {...kycPill(agent.kycStatus)} />
+                        <StatusPill
+                          label="Account"
+                          {...(agent.isFrozen
+                            ? { text: "Frozen", tone: "red" as const, icon: Snowflake }
+                            : { text: "Active", tone: "green" as const, icon: CircleCheck, live: true })}
+                        />
                       </div>
-                      <div className="text-xs" style={{ color: B.muted }}>
+                      {agent.kycStatus === "pending" ? (
+                        <>
+                          <button
+                            type="button"
+                            disabled={busy || !agent.hasKycDocs}
+                            onClick={() => void decideKyc("verified")}
+                            className="admin-btn-success w-full rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
+                          >
+                            Approve KYC
+                          </button>
+                          {!agent.hasKycDocs ? (
+                            <p className="text-xs" style={{ color: B.muted }}>
+                              PAN and Aadhaar numbers missing — agent must complete signup KYC first.
+                            </p>
+                          ) : null}
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void decideKyc("rejected")}
+                            className="w-full rounded-xl border px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
+                            style={{ borderColor: B.danger, color: B.danger }}
+                          >
+                            Reject KYC
+                          </button>
+                        </>
+                      ) : null}
+                      {agent.kycStatus !== "pending" || agent.hasKycDocs ? (
+                        <div className="space-y-2 rounded-xl border p-3" style={{ borderColor: B.border }}>
+                          <div className="text-sm font-semibold" style={{ color: B.blue }}>
+                            Reset KYC
+                          </div>
+                          <p className="text-xs" style={{ color: B.muted }}>
+                            Clears PAN / Aadhaar and asks the agent to submit KYC again (e.g. wrong photo uploaded).
+                          </p>
+                          <ReasonSelect
+                            value={kycResetReason}
+                            onChange={setKycResetReason}
+                            presets={KYC_RESET_REASON_PRESETS}
+                            placeholder="Select reset reason"
+                          />
+                          <button
+                            type="button"
+                            disabled={busy || kycResetReason.trim().length < 8}
+                            onClick={askResetKyc}
+                            className="w-full rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                            style={{ background: B.danger }}
+                          >
+                            Reset KYC
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  </DetailSection>
+                </div>
+              </div>
+            ) : null}
+
+            {tab === "wallet" ? (
+              <div className="grid gap-5 lg:grid-cols-3">
+                <div className="space-y-5 lg:col-span-2">
+                  <DetailSection title="Balances" icon={Wallet}>
+                    {agent.wallets.length === 0 ? (
+                      <p className="text-sm" style={{ color: B.muted }}>
+                        No balances yet
+                      </p>
+                    ) : (
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {agent.wallets.map((w) => (
+                          <div
+                            key={w.walletType}
+                            className="rounded-2xl border px-4 py-4"
+                            style={{ borderColor: B.border, background: "linear-gradient(180deg, #F7F9FF 0%, var(--admin-card) 100%)" }}
+                          >
+                            <p className="text-xs font-bold uppercase tracking-wide" style={{ color: B.muted }}>
+                              {w.walletType === "main" ? "Main wallet" : w.walletType === "aeps" ? "AEPS wallet" : w.walletType}
+                            </p>
+                            <p className="mt-1 text-2xl font-extrabold tabular-nums" style={{ color: B.blue }}>
+                              {inrText(w.balance)}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </DetailSection>
+                  <AgentSettlementBanksCard userId={agent.id} />
+                </div>
+                <div className="space-y-5">
+                  <DetailSection title="Fund requests" icon={Banknote}>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs" style={{ color: B.muted }}>
                         {agent.role === "retailer"
                           ? "Off by default for retailers — turn on when the sales manager asks"
                           : "On by default for Super Distributors and Distributors"}
-                      </div>
+                      </p>
+                      <FundRequestSwitch
+                        key={`${agent.id}:${agent.fundRequestEnabled}`}
+                        userId={agent.id}
+                        name={agent.name}
+                        enabled={agent.fundRequestEnabled}
+                        showLabel
+                        onChange={(enabled) => setAgent((a) => (a ? { ...a, fundRequestEnabled: enabled } : a))}
+                      />
                     </div>
-                    <FundRequestSwitch
-                      key={`${agent.id}:${agent.fundRequestEnabled}`}
-                      userId={agent.id}
-                      name={agent.name}
-                      enabled={agent.fundRequestEnabled}
-                      showLabel
-                      onChange={(enabled) => setAgent((a) => (a ? { ...a, fundRequestEnabled: enabled } : a))}
-                    />
-                  </div>
-                  <LoginEmailCard
-                    agent={agent}
-                    busy={busy}
-                    onResend={askResendLoginEmail}
-                  />
-                  <div className="flex flex-col gap-2 pt-1">
-                    {agent.kycStatus === "pending" ? (
-                      <>
-                        <button
-                          type="button"
-                          disabled={busy || !agent.hasKycDocs}
-                          onClick={() => void decideKyc("verified")}
-                          className="admin-btn-success w-full rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
-                        >
-                          Approve KYC
-                        </button>
-                        {!agent.hasKycDocs ? (
-                          <p className="text-xs" style={{ color: B.muted }}>
-                            PAN and Aadhaar numbers missing — agent must complete signup KYC first.
-                          </p>
-                        ) : null}
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => void decideKyc("rejected")}
-                          className="rounded-xl border px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
-                          style={{ borderColor: B.danger, color: B.danger }}
-                        >
-                          Reject KYC
-                        </button>
-                      </>
-                    ) : null}
-                    {agent.kycStatus !== "pending" || agent.hasKycDocs ? (
-                      <div className="space-y-2 rounded-xl border p-3" style={{ borderColor: B.border }}>
-                        <div className="text-sm font-semibold" style={{ color: B.blue }}>
-                          Reset KYC
-                        </div>
-                        <p className="text-xs" style={{ color: B.muted }}>
-                          Clears PAN / Aadhaar and asks the agent to submit KYC again (e.g. wrong photo uploaded).
-                        </p>
-                        <ReasonSelect
-                          value={kycResetReason}
-                          onChange={setKycResetReason}
-                          presets={KYC_RESET_REASON_PRESETS}
-                          placeholder="Select reset reason"
-                        />
-                        <button
-                          type="button"
-                          disabled={busy || kycResetReason.trim().length < 8}
-                          onClick={askResetKyc}
-                          className="w-full rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-                          style={{ background: B.danger }}
-                        >
-                          Reset KYC
-                        </button>
-                      </div>
-                    ) : null}
+                  </DetailSection>
+                </div>
+              </div>
+            ) : null}
+
+            {tab === "commission" ? (
+              <div id="commission">
+                <AgentCommissionPanel userId={agent.id} />
+              </div>
+            ) : null}
+
+            {tab === "controls" ? (
+              <div className="grid gap-5 lg:grid-cols-2">
+                <div className="space-y-5">
+                  <DetailSection title="Login" icon={KeyRound}>
+                    <LoginEmailCard agent={agent} busy={busy} onResend={askResendLoginEmail} />
                     {agent.isFrozen ? (
                       <button
                         type="button"
                         disabled={busy}
                         onClick={() => void setRestriction("none")}
-                        className="admin-btn-primary w-full rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
+                        className="admin-btn-primary mt-3 w-full rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
                       >
                         Unfreeze agent
                       </button>
-                    ) : (
-                      <p className="text-xs" style={{ color: B.muted }}>
-                        Use "Restrict services" below to freeze this account — soft/hard leave
-                        login working, freeze does not.
-                      </p>
-                    )}
-                  </div>
+                    ) : null}
+                  </DetailSection>
+
+                  {agent.role !== "admin" ? (
+                    <DetailSection title="Restrict services" icon={ShieldCheck}>
+                      <div className="space-y-2">
+                        <p className="text-xs" style={{ color: B.muted }}>
+                          Soft: AePS + money transfer off, bill payments still work. Hard: adds no top-ups. Both keep
+                          login, balance and settlement working. Freeze stops everything — confirmed fraud only.
+                        </p>
+                        <ReasonSelect
+                          value={restrictReason}
+                          onChange={setRestrictReason}
+                          presets={RESTRICT_REASON_PRESETS}
+                          placeholder="Select restriction reason"
+                        />
+                        <div className="grid grid-cols-2 gap-2">
+                          {(["soft", "hard", "freeze", "none"] as const).map((lvl) => (
+                            <button
+                              key={lvl}
+                              type="button"
+                              disabled={busy}
+                              onClick={() => void setRestriction(lvl)}
+                              className="rounded-xl border-2 px-3 py-2 text-xs font-bold capitalize disabled:opacity-50"
+                              style={{
+                                borderColor: lvl === "freeze" ? B.danger : lvl === "none" ? B.green : B.border,
+                                color: lvl === "freeze" ? B.danger : lvl === "none" ? B.green : "var(--admin-text)",
+                                background: "var(--admin-bg)",
+                              }}
+                            >
+                              {lvl === "none" ? "Lift all" : lvl}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </DetailSection>
+                  ) : null}
                 </div>
-              </DetailSection>
 
-              <DetailSection title="Network Parent" icon={Network}>
-                {agent.parent ? (
-                  <div className="space-y-3">
-                    <InfoRow label="Name" value={agent.parent.name} />
-                    <InfoRow label="UID" value={agent.parent.uid} />
-                    <InfoRow
-                      label="Role"
-                      value={
-                        agent.parent.role
-                          ? ROLE_LABEL[agent.parent.role] ?? agent.parent.role
-                          : null
-                      }
-                    />
-                    <Link
-                      href={`/users/${agent.parent.id}`}
-                      className="inline-block text-sm font-semibold hover:underline"
-                      style={{ color: B.blueLight }}
-                    >
-                      Open parent →
-                    </Link>
-                  </div>
-                ) : (
-                  <p className="text-sm" style={{ color: B.muted }}>
-                    No parent (top-level Super Distributor)
-                  </p>
-                )}
-                {agent.role === "distributor" || agent.role === "retailer" ? (
-                  <div className="mt-4 space-y-2 border-t pt-4" style={{ borderColor: B.border }}>
-                    <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: B.muted }}>
-                      Move in tree
-                    </p>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => setMoveOpen(true)}
-                      className="admin-btn-primary w-full rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
-                    >
-                      Change upline
-                    </button>
-                  </div>
-                ) : null}
-                {moveOpen && (agent.role === "distributor" || agent.role === "retailer") ? (
-                  <MoveAgentModal
-                    agents={[{ id: agent.id, name: agent.name, mobile: agent.mobile, role: agent.role }]}
-                    onClose={() => setMoveOpen(false)}
-                    onMoved={() => void load()}
-                  />
-                ) : null}
+                <div className="space-y-5">
+                  {agent.role === "distributor" || agent.role === "retailer" ? (
+                    <DetailSection title="Move in tree" icon={Network}>
+                      <p className="mb-3 text-xs" style={{ color: B.muted }}>
+                        Put this agent under a different upline. Their own balance and history stay with them.
+                      </p>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => setMoveOpen(true)}
+                        className="admin-btn-primary w-full rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
+                      >
+                        Change upline
+                      </button>
+                    </DetailSection>
+                  ) : null}
 
-                {agent.role !== "admin" ? (
-                  <div className="mt-4 space-y-2 border-t pt-4" style={{ borderColor: B.border }}>
-                    <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: B.muted }}>
-                      Restrict services
-                    </p>
-                    <p className="text-xs" style={{ color: B.muted }}>
-                      Soft: AePS + money transfer off, bill payments still work. Hard: adds no
-                      top-ups. Both keep login, balance and settlement working. Freeze stops
-                      everything — confirmed fraud only.
-                    </p>
-                    <ReasonSelect
-                      value={restrictReason}
-                      onChange={setRestrictReason}
-                      presets={RESTRICT_REASON_PRESETS}
-                      placeholder="Select restriction reason"
-                    />
-                    <div className="grid grid-cols-2 gap-2">
-                      {(["soft", "hard", "freeze", "none"] as const).map((lvl) => (
+                  {agent.role === "retailer" ? (
+                    <DetailSection title="Reactivate AePS" icon={Clock}>
+                      <div className="space-y-2">
+                        <p className="text-xs" style={{ color: B.muted }}>
+                          Clears an AePS block and restarts the dormancy clock. KYC must be verified first.
+                        </p>
+                        <ReasonSelect
+                          value={aepsReason}
+                          onChange={setAepsReason}
+                          presets={AEPS_REACTIVATE_REASON_PRESETS}
+                          placeholder="Select reactivation reason"
+                        />
                         <button
-                          key={lvl}
                           type="button"
                           disabled={busy}
-                          onClick={() => void setRestriction(lvl)}
-                          className="rounded-xl border-2 px-3 py-2 text-xs font-bold capitalize disabled:opacity-50"
-                          style={{
-                            borderColor:
-                              lvl === "freeze" ? B.danger : lvl === "none" ? B.green : B.border,
-                            color:
-                              lvl === "freeze"
-                                ? B.danger
-                                : lvl === "none"
-                                  ? B.green
-                                  : "var(--admin-text)",
-                            background: "var(--admin-bg)",
-                          }}
+                          onClick={() => void reactivateAeps()}
+                          className="admin-btn-primary w-full rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
                         >
-                          {lvl === "none" ? "Lift all" : lvl}
+                          Reactivate AePS
                         </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
+                      </div>
+                    </DetailSection>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
 
-                {agent.role === "retailer" ? (
-                  <div className="mt-4 space-y-2 border-t pt-4" style={{ borderColor: B.border }}>
-                    <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: B.muted }}>
-                      Reactivate AePS
-                    </p>
-                    <p className="text-xs" style={{ color: B.muted }}>
-                      Clears an AePS block and restarts the dormancy clock. KYC must be verified
-                      first.
-                    </p>
-                    <ReasonSelect
-                      value={aepsReason}
-                      onChange={setAepsReason}
-                      presets={AEPS_REACTIVATE_REASON_PRESETS}
-                      placeholder="Select reactivation reason"
-                    />
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void reactivateAeps()}
-                      className="admin-btn-primary w-full rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
-                    >
-                      Reactivate AePS
-                    </button>
-                  </div>
-                ) : null}
-              </DetailSection>
-
-              <DetailSection title="KYC Documents" icon={Banknote}>
-                <KycDocumentGrid
-                  documents={agent.documents}
-                  documentFiles={agent.documentFiles}
-                  checkLabels={agent.docCheckLabels}
-                />
-              </DetailSection>
-            </div>
-          </div>
-        ) : null}
+            {moveOpen && (agent.role === "distributor" || agent.role === "retailer") ? (
+              <MoveAgentModal
+                agents={[{ id: agent.id, name: agent.name, mobile: agent.mobile, role: agent.role }]}
+                onClose={() => setMoveOpen(false)}
+                onMoved={() => void load()}
+              />
+            ) : null}
+          </>
+        )}
       </div>
 
       {pendingConfirm ? (

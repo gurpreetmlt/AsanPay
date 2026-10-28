@@ -14,7 +14,7 @@ Feature banate hi **silent / hidden** mat chhodo. User ko UI mein dikhna chahiye
 1. **Same chat / PR — pehle UI wire**
    - Agent web: sidebar / Wallet menu / dashboard tile / Settings tab — jahan user naturally dhundhega
    - Admin: matching nav / section
-   - Mobile: tab / home tile / stack (InstantPay parity — see `AGENTS.md`)
+   - Mobile: tab / home tile / stack (web + mobile parity — see `AGENTS.md`)
 2. **Incomplete flow** → entrypoint **visible** with English **Coming soon** (tap → toast/modal: short “Coming soon” message). No dead blank page.
 3. **Complete + working** → Coming soon hatao; real flow unlock; checklist / task file update.
 4. Backend-only stub + orphan route **forbidden**.

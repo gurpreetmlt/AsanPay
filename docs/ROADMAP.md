@@ -65,7 +65,7 @@ here should be built directly from this list.
 ### Admin (Control Tower + Compliance)
 1. Maker-checker workflow for critical actions — **pull into Phase 1** (agent note:
    admin can currently disable/switch a whole provider category solo with no second
-   check — same risk class as the PaySprint-DMT-not-ready mistake this session flagged)
+   check — same risk class as the provider-DMT-not-ready mistake this session flagged)
 2. Risk engine dashboard with live alerts
 3. Full reconciliation center
 4. KYC operations console
@@ -161,7 +161,7 @@ actually starting each, per this repo's "no speculative planning docs" rule.
 Settlement Confidence Score, Beneficiary Trust Score (DMT), Service Availability
 Forecast, dynamic risk-weighted routing, fraud pattern snapshots, retailer cashflow
 forecast, commission leakage detector. **Agent note:** these need real transaction
-volume/history to calibrate meaningfully — building them now (low/dummy volume) would
+volume/history to calibrate meaningfully — building them now (low volume) would
 produce meaningless scores. Revisit once there's enough live transaction history.
 
 ### 90-day execution blueprint (as proposed, with one correction)

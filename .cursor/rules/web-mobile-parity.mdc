@@ -36,7 +36,7 @@ Jab bhi **agent-facing UI** change ho (icons, animations, buttons/CTAs, labels, 
 
 ## Why
 
-Alag-alag waves se delay + drift hota hai. Owner expects InstantPay-style parity; ship both together.
+Alag-alag waves se delay + drift hota hai. Owner expects full web + mobile parity; ship both together.
 ---
 name: web-mobile-parity
 ---

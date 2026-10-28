@@ -6,7 +6,7 @@
 
 ## When to read this
 
-Implementing or debugging **Noble CMS** inside AsanPay. Do not mix InstantPay request shapes with these URLs.
+Implementing or debugging **Noble CMS** inside AsanPay.
 
 ## Endpoint catalog
 

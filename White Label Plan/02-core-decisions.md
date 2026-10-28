@@ -23,8 +23,8 @@ Create one default tenant row for "AsanPay" itself, backfill `tenant_id` on all 
 
 AsanPay's own tenant row is created first (before adding NOT NULL constraints), then every existing table gets backfilled in the same migration that adds the `tenant_id` column, before the column is made NOT NULL + RLS is enabled — this avoids any window where rows are orphaned/invisible.
 
-## Instantpay/provider API model (clarified)
+## Provider API model (clarified)
 
-- Instantpay/Paysprint API ← only our backend (`api.asanpay.in`) talks to these directly; provider credentials/secrets stay only with us.
+- Provider APIs (Noble, VyaparAPI) ← only our backend (`api.asanpay.in`) talks to these directly; provider credentials/secrets stay only with us.
 - Tenants ← only call `api.asanpay.in` with their own API key; they never see which underlying provider is used.
 - This is **value-added API service, not raw reselling** — important distinction for provider contract terms and RBI/BC compliance. See `07-api-reselling.md`.

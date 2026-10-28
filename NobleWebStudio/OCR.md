@@ -6,7 +6,7 @@
 
 ## When to read this
 
-Implementing or debugging **Noble OCR** inside AsanPay. Do not mix InstantPay request shapes with these URLs.
+Implementing or debugging **Noble OCR** inside AsanPay.
 
 ## Endpoint catalog
 

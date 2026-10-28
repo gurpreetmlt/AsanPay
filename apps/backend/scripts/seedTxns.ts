@@ -12,7 +12,7 @@ import type { WalletType } from "@asanpay/shared-types";
 /** LOGIN.md retailer — agent web :3001 */
 const RETAILER_MOBILE = "9333333333";
 
-/** Dummy balances when wallets are still ₹0 (Wallet 1 / Wallet 2 header). */
+/** Sample balances for staging when wallets are still ₹0 (Wallet 1 / Wallet 2 header). */
 const DEMO_BALANCES: Record<WalletType, string> = {
   main: "25000.00",
   aeps: "8500.00",

@@ -6,7 +6,7 @@
 | Path | Why |
 |------|-----|
 | `apps/backend/src/modules/transactions/txn.routes.ts` | BBPS/recharge |
-| `apps/backend/src/modules/providers/adapters/paysprint.adapter.ts` | Mock pay |
+| `apps/backend/src/modules/providers/adapters/` (VyaparAPI / Noble) | Recharge provider |
 | `apps/agent-portal/components/dashboard/CategorySection.tsx` | Service tiles |
 
 ## Flow

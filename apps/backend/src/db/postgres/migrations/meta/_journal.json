@@ -624,6 +624,13 @@
       "when": 1793900000000,
       "tag": "0088_remove_retired_providers",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1794000000000,
+      "tag": "0089_remove_shim_catalog",
+      "breakpoints": true
     }
   ]
 }

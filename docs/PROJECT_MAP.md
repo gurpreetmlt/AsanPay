@@ -29,7 +29,7 @@ apps/backend/src/modules/
   catalog/       service tiles (Mongo/Postgres)
   transactions/  AEPS, DMT, BBPS, recharge
   commission/    slab engine
-  providers/     InstantPay, PaySprint, VyaparAPI adapters
+  providers/     Noble, VyaparAPI, BestAPI adapters
 ```
 
 ## Money flow

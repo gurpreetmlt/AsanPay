@@ -8,7 +8,7 @@ Use these names in UI copy and ledger descriptions. Do not mix layers.
 
 | Layer | Meaning | Who sees |
 |-------|---------|----------|
-| **Provider pool** | Margin / cashback from Vyapar, InstantPay, Noble, etc. | Admin (books / recon) |
+| **Provider pool** | Margin / cashback from Vyapar, Noble, etc. | Admin (books / recon) |
 | **Chain split** | Scheme slabs: Retailer → Dist → Super Dist share of commission | Admin sets; each role sees **own** share |
 | **Customer fee** | Fee charged on the txn (e.g. DMT CCF) — not commission | Retailer confirm + receipt |
 | **GST on fee** | GST on **customer fee** (product rule: **DMT on**) | Confirm / receipt fee breakdown |

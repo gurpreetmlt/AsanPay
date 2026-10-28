@@ -29,22 +29,20 @@ PORT=4000
 CORS_ORIGIN=https://asanpay.in,https://dev.asanpay.in,https://admin.asanpay.in
 ```
 
-**Optional — provider credentials (app-env-backup.txt se):**
+**Optional — provider credentials (sirf jo service live hai uske):**
 
 ```
-PAYSPRINT_PARTNER_ID=
-PAYSPRINT_JWT_SECRET=
-PAYSPRINT_AES_KEY=
-PAYSPRINT_AES_IV=
-PAYSPRINT_AUTHORISED_KEY=
-PAYSPRINT_UAT_BASE_URL=
-INSTANTPAY_CLIENT_ID=
-INSTANTPAY_CLIENT_SECRET=
-INSTANTPAY_AES_KEY=
-INSTANTPAY_BASE_URL=
+NOBLE_API_KEY=
+NOBLE_API_VALUE=
+AEPS_PROVIDER_MODE=noble
+VYAPARAPI_API_KEY=
+VYAPARAPI_CALLBACK_SECRET=
+BESTAPI_API_KEY=
+BESTAPI_API_SECRET=
 REDIS_URL=
-AEPS_PROVIDER_MODE=dummy
 ```
+
+`AEPS_PROVIDER_MODE=off` jab tak Noble keys na hon (AePS clear message ke saath band rehta hai).
 
 Koi Build Variable nahi — backend Next.js nahi hai.
 
@@ -169,8 +167,8 @@ sudo docker exec $API npm run seed:catalog
 sudo docker exec $API npm run seed:providers
 ```
 
-Production: stop here — only admin, catalog and providers. `seed:network`, `seed:txns` and
-`seed:settlements-dummy` create test agents, fake transactions and wallet money; they refuse to run
+Production: stop here — only admin, catalog and providers. `seed:network` and `seed:txns`
+create test agents, fake transactions and wallet money; they refuse to run
 when `NODE_ENV=production` (staging only, with `ALLOW_TEST_SCRIPTS=true`).
 
 Admin ka login username: `admin`

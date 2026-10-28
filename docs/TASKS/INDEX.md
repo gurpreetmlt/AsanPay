@@ -22,7 +22,6 @@
 | — | Retailer activity metric | M | [retailer-activity-metric.md](retailer-activity-metric.md) |
 | — | Linked accounts + role switch (PL-01) | M ⚠️ 1 phase/chat | [linked-accounts.md](linked-accounts.md) |
 | — | Bank account check on signup, settlement + company banks (PL-23 / PL-24) | M | [settlement-bank-penny-drop.md](settlement-bank-penny-drop.md) |
-| — | InstantPay outlet onboarding | L ⚠️ split | [instantpay-outlet-onboarding.md](instantpay-outlet-onboarding.md) |
 | — | **Noble-only queue** (remove old rails, finish provider) | XL ⚠️ 1 phase/chat | [noble-only-queue.md](noble-only-queue.md) |
 | — | **Compliance queue** (KYC data, agreements, onboarding states, AEPS re-KYC, audit) | XL ⚠️ 1 phase/chat | [compliance-queue.md](compliance-queue.md) |
 
@@ -52,8 +51,6 @@
 | 09 | AEPS | L ⚠️ split | [09-retailer-aeps.md](09-retailer-aeps.md) |
 | 10 | DMT | L ⚠️ split | [10-retailer-dmt.md](10-retailer-dmt.md) |
 | 14 | BBPS & recharge | M | [14-retailer-bbps-recharge.md](14-retailer-bbps-recharge.md) |
-| 21 | InstantPay adapter | L ⚠️ split | [21-instantpay-adapter.md](21-instantpay-adapter.md) |
-| 22 | PaySprint adapter (DMT+AEPS) | L ⚠️ split | [22-paysprint-adapter.md](22-paysprint-adapter.md) |
 | 23 | Admin: Providers panel + Txns | L ⚠️ split, order 23A→24→23B | [23-provider-admin-panel.md](23-provider-admin-panel.md) |
 | 24 | Financial-safety layer | L ⚠️ split | [24-financial-safety-layer.md](24-financial-safety-layer.md) |
 

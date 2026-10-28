@@ -200,7 +200,7 @@ const envSchema = z.object({
    * AEPS rail mode. Same UI/API; only the provider behind the adapter changes.
    * - off: no AePS provider configured — AePS requests fail with a clear 503
    * - noble: Noble adapter (fail-closed if creds missing)
-   * Any retired value (`dummy`, old provider modes) is read as `off` so an old env cannot stop the server booting.
+   * Any other value (old provider modes) is read as `off` so an old env cannot stop the server booting.
    */
   AEPS_PROVIDER_MODE: z.preprocess(
     (v) => (String(v ?? "").trim().toLowerCase() === "noble" ? "noble" : "off"),

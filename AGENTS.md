@@ -92,7 +92,7 @@ The tag is pushed to origin, so it survives regardless of branch state.
 7. **Task done** → `docs/CHECKLIST.md` update karo; next task same chat OK — naya chat sirf jab required ho (L/XL split, bloated context)
 8. **MCP default off** — browser / Figma / Datadog / etc. sirf jab task ya user explicitly maange; exploratory MCP mat. Details: [`docs/AGENT_PLAN.md`](docs/AGENT_PLAN.md#mcp-rule-same-token-discipline-as-code-tools)
 9. **No AI git attribution** — kabhi mat likho `Co-authored-by: Cursor|Claude|Anthropic`, `cursoragent@cursor.com`, `Made-with: Cursor`. Details: [`docs/AGENT_PLAN.md`](docs/AGENT_PLAN.md)
-10. **InstantPay parity rule** — koi bhi InstantPay-backed service tab tak complete mat maano jab tak `apps/agent-portal` aur `apps/asanpay-mobile-app` dono mein entrypoint + usable flow na ho, ya doc mein explicit platform exception likhi ho. Audit note: [`InstantPay/PARITY.md`](InstantPay/PARITY.md)
+10. **Provider service parity rule** — koi bhi provider-backed service (AePS, DMT, Recharge, BBPS…) tab tak complete mat maano jab tak `apps/agent-portal` aur `apps/asanpay-mobile-app` dono mein entrypoint + usable flow na ho, ya doc mein explicit platform exception likhi ho.
 11. **Web ↔ Mobile same change** — agent UI (icons, animations, CTAs, tiles, copy) web pe change kiya to usi chat/PR mein mobile pe bhi; mobile pe kiya to web pe bhi. Alag wave mat chhodo. Rule: [`.cursor/rules/web-mobile-parity.mdc`](.cursor/rules/web-mobile-parity.mdc)
 12. **UI wire first (Coming soon → working)** — naya feature pehle nav/tile mein dikhao (`Coming soon` jab tak flow ready na ho); complete hone pe unlock. Orphan API mat chhodo. Rule: [`.cursor/rules/wire-features-into-ui.mdc`](.cursor/rules/wire-features-into-ui.mdc)
 

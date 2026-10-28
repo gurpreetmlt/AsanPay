@@ -8,7 +8,6 @@
  *   - test world helper   → "test_mock" provider, "W Cat" categories, users "[torn-down] …"
  *   - seed:network        → demo hierarchy on mobiles 91111111xx / 92222222xx / 93333333xx
  *   - seed:txns           → transactions with idempotency_key "seed-%"
- *   - seed:settlements-dummy → settlement requests owned by the demo mobiles
  */
 import "dotenv/config";
 import { sql } from "drizzle-orm";

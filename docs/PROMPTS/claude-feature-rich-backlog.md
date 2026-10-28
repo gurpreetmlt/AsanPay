@@ -10,7 +10,6 @@
 @apps/agent-portal/components/dashboard/RetailerDashboard.tsx
 @apps/agent-portal/components/dashboard/DistributorDashboard.tsx
 @apps/agent-portal/components/dashboard/SuperDistributorDashboard.tsx
-@docs/TASKS/22-paysprint-adapter.md
 @docs/TASKS/23-provider-admin-panel.md
 @docs/TASKS/24-financial-safety-layer.md
 
@@ -36,8 +35,8 @@ HARD CONSTRAINTS (do not violate):
 - Admin Providers + txn detail + financial safety = Tasks 22–24. Do NOT duplicate as new Tier-1 work;
   reference them as foundation. Admin “Provider Reliability Studio” = extend Task 23, not greenfield.
 - UI language: English only in all product strings.
-- InstantPay parity: any InstantPay/PaySprint-backed service needs web + mobile entrypoints unless
-  doc marks explicit platform exception (InstantPay/PARITY.md).
+- Provider parity: any provider-backed service needs web + mobile entrypoints unless
+  a doc marks an explicit platform exception.
 - Money rails: NO blind alternate-rail failover on timeout. Recovery = recheck / clear next action /
   clean fail (align Task 24). “Alternate rail suggestions” = advisory only until policy engine exists.
 - BBPS / Travel / UPI Cash Point / commission simulator on BBPS: mark BLOCKED until provider docs +

@@ -32,8 +32,8 @@
 
 ## AsanPay implementation notes (for later)
 
-- Prefer **provider adapter** pattern (same as InstantPay AEPS): one internal API, swap Noble behind env.
-- Map Noble rails to existing AsanPay products carefully (AEPS / DMT / Recharge already have InstantPay paths — dual-provider needs explicit mode).
+- Prefer the **provider adapter** pattern: one internal API, swap Noble behind env.
+- Map Noble rails to existing AsanPay products carefully (AEPS / DMT / Recharge) — a second provider needs an explicit mode.
 - Fingerprint / PID XML / lat-long rules must match Noble request schemas in service docs.
 - Never log full `apiKey`, Bearer tokens, or biometric PID blobs.
 

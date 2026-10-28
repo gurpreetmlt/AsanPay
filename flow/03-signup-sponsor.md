@@ -37,6 +37,6 @@ Lookup: `GET /api/auth/sponsor/search?mobile=XXXXXXXXXX&role=super_distributor|d
 
 ## After signup
 
-- Retailer → InstantPay Register Outlet (`/onboarding/outlet`) then PIN
+- Retailer → AePS onboarding (Noble) from the AEPS screen, then PIN
 - Distributor → PIN only
 - Super Dist → wait for admin **Activate** on user detail, then login

@@ -475,7 +475,7 @@ apps/backend/src/
 │   ├── transactions/    service txn lifecycle
 │   ├── aeps/            AePS + compliance
 │   ├── commission/      rules, rates, payout
-│   ├── providers/       InstantPay / PaySprint adapters
+│   ├── providers/       Noble / VyaparAPI adapters
 │   ├── kyc/ · onboarding/ · users/ · auth/
 │   ├── admin/ · dashboard/ · catalog/ · support/ · notifications/
 ├── middleware/          auth, rbac, rateLimiter

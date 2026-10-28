@@ -17,7 +17,7 @@ Retailer serves the end customer at the counter (AEPS / DMT / BBPS / recharge).
 - **Apps:** `apps/admin` (web), `apps/distributor` (web), `apps/retailer` (mobile-first web / can later wrap in React Native)
 - **Shared packages:** `packages/db`, `packages/auth`, `packages/aggregator`, `packages/ui`, `packages/config`, `packages/commission`
 - **Stack:** TypeScript, Next.js 15 (App Router), React 19, MongoDB (Mongoose), Tailwind
-- **Golden rule:** the app is a *software layer*. All real banking (AEPS, DMT, BBPS) goes through a **pluggable aggregator adapter** (InstantPay / PaySprint / VyaparAPI). Never hardcode one provider.
+- **Golden rule:** the app is a *software layer*. All real banking (AEPS, DMT, BBPS) goes through a **pluggable aggregator adapter** (Noble / VyaparAPI). Never hardcode one provider.
 
 ---
 
@@ -67,7 +67,7 @@ packages/aggregator:
   aepsMiniStatement, aadhaarPay, dmtAddBeneficiary, dmtTransfer, bbpsFetchBill,
   bbpsPayBill, recharge, checkStatus.
 - Each returns a normalized { success, aggregatorTxnId, status, amount, raw }.
-- Create two stub adapters: EkoAdapter and PaySprintAdapter (return mocked responses now,
+- Create two stub adapters: two provider adapters (return mocked responses now,
   real HTTP later). Export a getAggregator(service) factory that reads ServiceConfig.
 
 packages/auth:
@@ -117,7 +117,7 @@ Pages / modules:
 
 6. SERVICE & AGGREGATOR CONFIG
    - Table of services (AEPS, DMT, BBPS, Recharge, Aadhaar Pay).
-   - Per service: enable/disable, choose aggregator (InstantPay/PaySprint/...), min/max amount.
+   - Per service: enable/disable, choose aggregator (Noble/VyaparAPI/...), min/max amount.
    - API keys are read from env only — UI shows "configured / not configured", never the key.
 
 7. TRANSACTIONS MONITOR

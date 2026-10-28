@@ -2,9 +2,9 @@
 
 ## Model
 
-- **Instantpay/Paysprint API** ← only our backend (`api.asanpay.in`) talks to these directly; provider credentials/secrets stay only with us.
+- **Provider APIs (Noble, VyaparAPI)** ← only our backend (`api.asanpay.in`) talks to these directly; provider credentials/secrets stay only with us.
 - **Tenants** ← call `api.asanpay.in` directly using their own API key/secret (bypassing the UI entirely) for their own system integrations — DMT/AEPS/BBPS/Payout initiation, status checks, etc.
-- Request flow: tenant's API-key request → our backend applies commission/margin waterfall → calls the actual provider (Instantpay/Paysprint) → processes response → returns to tenant.
+- Request flow: tenant's API-key request → our backend applies commission/margin waterfall → calls the actual provider (Noble, VyaparAPI) → processes response → returns to tenant.
 
 This is **value-added API service, not raw provider reselling** — an important distinction:
 - *Reselling* = passing through a provider's raw API unchanged, with no work added.
@@ -12,7 +12,7 @@ This is **value-added API service, not raw provider reselling** — an important
 
 ## Required before implementation (business/legal, not code)
 
-1. **Check provider contracts** (Paysprint, Instantpay, etc.) — confirm the agreement allows sublicensing/reselling access to downstream partners. If a contract restricts use to "your own platform only," this needs provider sign-off first.
+1. **Check provider contracts** (Noble, VyaparAPI, etc.) — confirm the agreement allows sublicensing/reselling access to downstream partners. If a contract restricts use to "your own platform only," this needs provider sign-off first.
 2. **RBI/BC compliance check** — AEPS/DMT is regulated Business Correspondent activity. Confirm with legal/compliance that letting tenants operate through their own API access under our BC license structure is permitted.
 3. **API documentation + developer portal** — if this proceeds, tenants' developers need proper docs (OpenAPI/Swagger).
 
