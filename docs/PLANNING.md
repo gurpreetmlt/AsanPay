@@ -7,6 +7,7 @@ One row per feature; details in the section below the table. Newest at the top o
 
 | # | Feature | Surfaces | Size | Status | Design | Task file |
 |---|---------|----------|------|--------|--------|-----------|
+| PL-27 | Simple commission setup — one table: "We get" auto-filled per service from the provider sheet, then split % per role (Retailer / Distributor / SD), company keeps the rest; one default split applied to all services | Backend, admin | M | planned — 28 Oct (owner decisions pending) | — | — |
 | PL-26 | Invite-only signup — public Sign up removed (web, app, marketing site); Distributor invites Retailer, SD invites Distributor, admin invites SD + Direct Retailer (new admin Invites page); signup OTP needs a valid invite | Backend, web, mobile, admin, marketing | M | building — built 28 Oct (Coolify backend/web/admin/marketing deploy + APK + live test pending) | — | — |
 | PL-25 | No password at signup — temporary password emailed when admin approves KYC, forced "Set new password" on first login, mobile OTP to resume KYC | Backend, web, mobile, admin | M | building — built 28 Oct (migrate `0084` + Coolify backend/web/admin deploy + APK + live test pending; needs SMTP env) | — | — |
 | PL-24 | Bank account check — BestAPI (free) → pennyless → ₹1 penny drop; DMT payee "Verify name with bank" (agent ₹1.50 / ₹2.50 with penny drop, admin-editable), name match pill, 90-day free re-check; same check for settlement + company banks | Backend, web, mobile, admin | M | building — DMT + admin prices built 27 Oct (migrate `0081` + `0082`); settlement bank + company bank wired 27 Oct (migrate `0083`); deploy, APK, live test pending | — | — |
@@ -33,6 +34,42 @@ One row per feature; details in the section below the table. Newest at the top o
 | PL-03 | Web location via phone QR (AEPS + onboarding) | Backend, web, mobile | M | building (built 26 Oct, migrate `0074` + APK + live test pending) | — | — |
 | PL-02 | Cash Management page (CMS provider cards, in-app CMS, CMS transactions) | Backend, web, mobile | M | building (built 26 Oct, live test pending) | — | — |
 | PL-01 | Linked accounts + role switch (same person, Distributor + Retailer) | Backend, web, mobile, admin | M | building (backend + web + mobile built 26 Oct; migrate `0076` + APK + live test pending; admin card next) | [Figma prompt](PROMPTS/figma-linked-accounts.md) · Figma URL pending | [linked-accounts.md](TASKS/linked-accounts.md) |
+
+---
+
+## PL-27 — Simple commission setup (auto-filled income, then split)
+
+**Problem:** Admin commission is hard to follow. The rate card mixes four boxes per service
+(Provider pays · Customer fee · Share of provider income · Tax), and two payout systems run side by
+side: % shares of provider income, and old fixed ₹ / % rules (Schemes) that pay whenever provider
+income is not saved. Provider income is not filled automatically — the admin must open each service
+and tap "Suggested". The Commission menu has seven entries.
+
+**What already exists (reuse, no new tables):**
+- `provider_payout_rules` — what the provider pays us per service / slab.
+- `commission_shares` — % of that income per role; company keeps the rest.
+- `rateCard.reference.ts` — provider sheet numbers per service (today only a "Suggested" button).
+- `commission_rules` (fixed) + `user_commission_rates` (per-agent override).
+
+**Plan:**
+- New first screen **Commission setup**: one row per service — We get (₹ / % per slab) · Retailer % ·
+  Distributor % · Super Distributor % · Company keeps · example on a ₹2,000 txn.
+- **Fill from provider sheet** — one button fills "We get" for every service that has sheet numbers
+  (review screen, then Save). Services with unknown rates show `Ask provider`.
+- **Default split** — one set of % (e.g. Retailer 60 · Distributor 10 · SD 5) applied to all services in
+  one click; a service can override it.
+- Shares become the only normal mode; fixed rules move under Advanced.
+- Customer fee and Tax leave this editor (they keep their own pages).
+- Commission menu: Commission setup · Agent custom rates · Payouts · More (Commission check, Rate
+  history, Schemes).
+
+**Open decisions:**
+- [ ] Default split % per role — owner will give custom numbers
+- [x] Retailer with no Distributor / SD above → missing role's share stays with the company (28 Oct)
+- [x] Every service switches to shares; fixed rules only under Advanced, not a silent fallback (28 Oct)
+- [ ] Provider API commission (Vyapar payloads in `provider_commission_ingest`) — later auto-update of "We get"
+
+**Notes:** Admin-only — no agent web / mobile UI change.
 
 ---
 
