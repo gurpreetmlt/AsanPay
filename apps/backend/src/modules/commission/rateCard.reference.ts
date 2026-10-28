@@ -52,6 +52,12 @@ const flat = (value: string, note: string | null = null): SuggestedIncomeRow => 
 
 const pct = (value: string): SuggestedIncomeRow => ({ ...flat(value), ruleType: "percentage" });
 
+const slab = (minAmount: string, maxAmount: string, value: string): SuggestedIncomeRow => ({
+  ...flat(value),
+  minAmount,
+  maxAmount,
+});
+
 type Entry = { match: RegExp; ref: RateCardReference };
 
 // First match wins (UPI before the generic cash-withdrawal pattern); matched against `${code} ${name}` lower-cased.
@@ -92,7 +98,27 @@ const ENTRIES: Entry[] = [
     },
   },
   {
-    match: /cash[ _]?withdrawal|cash[ _]?deposit/,
+    match: /cash[ _]?withdraw/,
+    ref: {
+      mode: "share",
+      incomeRows: [
+        slab("100.00", "499.99", "0.50"),
+        slab("500.00", "999.99", "1.00"),
+        slab("1000.00", "1499.99", "1.50"),
+        slab("1500.00", "1999.99", "3.00"),
+        slab("2000.00", "2499.99", "4.00"),
+        slab("2500.00", "2999.99", "5.00"),
+        slab("3000.00", "3499.99", "7.00"),
+        slab("3500.00", "7999.99", "8.00"),
+        slab("8000.00", "10000.00", "10.00"),
+      ],
+      askProvider: false,
+      note: "Flat ₹ per txn by amount slab (provider sheet, 28 Oct). Below ₹100: no income.",
+      costs: [DAILY_2FA],
+    },
+  },
+  {
+    match: /cash[ _]?deposit/,
     ref: {
       mode: "share",
       incomeRows: [
