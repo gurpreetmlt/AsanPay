@@ -280,91 +280,23 @@ export function buildXlsx(sheets: XlsxSheet[]): Blob {
 
 // ── Reading an .xlsx back (as saved by Excel, Numbers or Google Sheets) ──
 
-async function inflateRaw(data: Uint8Array): Promise<Uint8Array> {
-  const stream = new Blob([data as BlobPart]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
-  return new Uint8Array(await new Response(stream).arrayBuffer());
-}
-
-/** Every file inside a zip, by path. Supports stored and deflated entries. */
-async function unzip(buf: Uint8Array): Promise<Map<string, Uint8Array>> {
-  const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
-  let eocd = -1;
-  for (let i = buf.length - 22; i >= Math.max(0, buf.length - 65_557); i--) {
-    if (view.getUint32(i, true) === 0x06054b50) {
-      eocd = i;
-      break;
-    }
-  }
-  if (eocd < 0) throw new Error("This file is not a valid .xlsx workbook.");
-  const count = view.getUint16(eocd + 10, true);
-  let p = view.getUint32(eocd + 16, true);
-  const dec = new TextDecoder();
-  const out = new Map<string, Uint8Array>();
-  for (let n = 0; n < count; n++) {
-    if (view.getUint32(p, true) !== 0x02014b50) throw new Error("This .xlsx file is damaged. Save it again and retry.");
-    const method = view.getUint16(p + 10, true);
-    const compSize = view.getUint32(p + 20, true);
-    const nameLen = view.getUint16(p + 28, true);
-    const extraLen = view.getUint16(p + 30, true);
-    const commentLen = view.getUint16(p + 32, true);
-    const local = view.getUint32(p + 42, true);
-    const name = dec.decode(buf.subarray(p + 46, p + 46 + nameLen));
-    const start = local + 30 + view.getUint16(local + 26, true) + view.getUint16(local + 28, true);
-    const raw = buf.subarray(start, start + compSize);
-    if (method === 0) out.set(name, raw);
-    else if (method === 8) out.set(name, await inflateRaw(raw));
-    p += 46 + nameLen + extraLen + commentLen;
-  }
-  return out;
-}
-
-function colIndex(ref: string): number {
-  let n = 0;
-  for (const ch of ref.replace(/\d+$/, "")) n = n * 26 + (ch.charCodeAt(0) - 64);
-  return n - 1;
-}
-
-const byTag = (node: Document | Element, tag: string) => Array.from(node.getElementsByTagNameNS("*", tag));
-
 /** Numbers come back as Excel stores them ("5.0000000000000003E-2") — tidy to "0.05". */
 const tidyNumber = (v: string) => (v === "" || !Number.isFinite(Number(v)) ? v : String(Number(Number(v).toFixed(6))));
 
-/** Reads every tab as plain text cells: [{ name, rows: string[][] }] in tab order. */
+/** Reads every tab as plain text cells: [{ name, rows: string[][] }] in tab order (read-excel-file, loaded on demand). */
 export async function readXlsx(file: Blob): Promise<Array<{ name: string; rows: string[][] }>> {
-  const files = await unzip(new Uint8Array(await file.arrayBuffer()));
-  const dec = new TextDecoder();
-  const xml = (path: string) => {
-    const data = files.get(path);
-    return data ? new DOMParser().parseFromString(dec.decode(data), "application/xml") : null;
-  };
-  const workbook = xml("xl/workbook.xml");
-  if (!workbook) throw new Error("This file is not an Excel workbook. Export → Excel gives the right file.");
-  const rels = new Map(
-    byTag(xml("xl/_rels/workbook.xml.rels") ?? workbook, "Relationship").map((r) => [r.getAttribute("Id"), r.getAttribute("Target") ?? ""]),
-  );
-  const shared = byTag(xml("xl/sharedStrings.xml") ?? workbook, "si").map((si) => byTag(si, "t").map((t) => t.textContent ?? "").join(""));
-
-  return byTag(workbook, "sheet").map((s) => {
-    const rid = s.getAttribute("r:id") ?? s.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id");
-    const target = (rels.get(rid) ?? "").replace(/^\//, "");
-    const doc = xml(target.startsWith("xl/") ? target : `xl/${target}`);
-    const rows: string[][] = [];
-    for (const c of doc ? byTag(doc, "c") : []) {
-      const ref = c.getAttribute("r") ?? "";
-      const r = Number(ref.replace(/^[A-Z]+/, "")) - 1;
-      const col = colIndex(ref);
-      if (r < 0 || col < 0) continue;
-      const t = c.getAttribute("t");
-      const v = byTag(c, "v")[0]?.textContent ?? "";
-      let text: string;
-      if (t === "s") text = shared[Number(v)] ?? "";
-      else if (t === "inlineStr") text = byTag(c, "t").map((x) => x.textContent ?? "").join("");
-      else if (t === "str" || t === "e" || t === "b") text = v;
-      else text = tidyNumber(v);
-      (rows[r] ??= [])[col] = text;
-    }
-    return { name: s.getAttribute("name") ?? "", rows: Array.from(rows, (row) => Array.from(row ?? [], (x) => x ?? "")) };
-  });
+  const { default: readExcelFile } = await import("read-excel-file/browser");
+  let sheets;
+  try {
+    // Numbers stay as the exact text Excel saved, so 0.05 is not turned into 0.05000000000000000277.
+    sheets = await readExcelFile<string>(file, { parseNumber: (s) => s });
+  } catch {
+    throw new Error("Could not read this Excel file. Save it as an Excel Workbook (.xlsx) and import it again.");
+  }
+  return sheets.map(({ sheet, data }) => ({
+    name: sheet,
+    rows: data.map((row) => row.map((v) => (v == null ? "" : typeof v === "string" ? tidyNumber(v.trim()) : String(v)))),
+  }));
 }
 
 export function downloadXlsx(fileName: string, sheets: XlsxSheet[]): void {

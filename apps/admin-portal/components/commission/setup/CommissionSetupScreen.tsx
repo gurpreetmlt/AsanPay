@@ -32,8 +32,8 @@ const ROW_BG = {
   even: "var(--admin-card)",
   odd: "rgba(42,92,221,0.035)",
   open: "rgba(42,92,221,0.10)",
-  slabEven: "rgba(42,92,221,0.05)",
-  slabOdd: "rgba(42,92,221,0.085)",
+  slabEven: "var(--admin-card)",
+  slabOdd: "var(--admin-card)",
 };
 
 const hasLoss = (row: ServiceRow) => row.slabs.some((s) => s.underwater || s.missingRoles.length > 0);

@@ -7,6 +7,7 @@ One row per feature; details in the section below the table. Newest at the top o
 
 | # | Feature | Surfaces | Size | Status | Design | Task file |
 |---|---------|----------|------|--------|--------|-----------|
+| PL-29 | Agent custom commission like the rate card — per-slab Flat ₹ / Share % (of provider pays) for one agent, live calc vs default; modern admin agent page with tabs | Backend, admin | L | planned — 28 Oct (decisions taken; build in a new chat) | — | — |
 | PL-28 | Night service window — all services off 12:00 AM–6:00 AM IST by default; admin changes the time / turns it off, and can keep services open for chosen retailers | Backend, admin, web, mobile | M | planned — 28 Oct (decisions taken; build in a new chat) | — | — |
 | PL-27 | Simple commission setup — one table: "Company gets" auto-filled per service from the provider sheet (rate + example ₹), then split per role (Retailer / Distributor / SD) as flat ₹ or % of company income, company keeps the rest | Backend, admin | M | building — 28 Oct: slab editing moved to Rate card (per-slab % / ₹ split, migrate `0087`); `/tax-commission/setup` is now a read-only Commission overview (net after TDS per role); "Fill from sheet" lives on Rate card | — | — |
 | PL-26 | Invite-only signup — public Sign up removed (web, app, marketing site); Distributor invites Retailer, SD invites Distributor, admin invites SD + Direct Retailer (new admin Invites page); signup OTP needs a valid invite | Backend, web, mobile, admin, marketing | M | building — built 28 Oct (Coolify backend/web/admin/marketing deploy + APK + live test pending) | — | — |
@@ -35,6 +36,30 @@ One row per feature; details in the section below the table. Newest at the top o
 | PL-03 | Web location via phone QR (AEPS + onboarding) | Backend, web, mobile | M | building (built 26 Oct, migrate `0074` + APK + live test pending) | — | — |
 | PL-02 | Cash Management page (CMS provider cards, in-app CMS, CMS transactions) | Backend, web, mobile | M | building (built 26 Oct, live test pending) | — | — |
 | PL-01 | Linked accounts + role switch (same person, Distributor + Retailer) | Backend, web, mobile, admin | M | building (backend + web + mobile built 26 Oct; migrate `0076` + APK + live test pending; admin card next) | [Figma prompt](PROMPTS/figma-linked-accounts.md) · Figma URL pending | [linked-accounts.md](TASKS/linked-accounts.md) |
+
+---
+
+## PL-29 — Agent custom commission (per slab, like the rate card)
+
+**Problem:** Admin → agent page → "Service Commission" sets one rate per service, and its % means % of the
+txn amount (₹2,000 × 1% = ₹20 while the provider pays ₹9.30) — easy to lose money. No slabs, no live calc,
+no view of the default it replaces. The agent page is a long single scroll.
+
+**Plan:**
+- Backend: `user_commission_rates` gains slab bounds (`min_amount`, `max_amount`) and a share mode
+  (`share_percent` of provider income, or flat ₹) — unique key becomes user + service + slab (migration).
+  `findActiveOverride` becomes amount-aware (narrowest slab wins, like `pickShare`); `resolveRoleGross`
+  pays a share override as % of provider income. Old % -of-amount overrides keep working until edited.
+- Admin agent page: header card (avatar, status chips, 4 stats) + tabs Overview · KYC · Commission · Wallet · Activity.
+- Commission tab: rate-card style table (category bands, Default / Custom badge per service); open a service →
+  slab rows with Default vs This agent; ✎ popup with Flat ₹ / Share %, live Gross / TDS / Net / Company keeps,
+  "+₹x to agent, company keeps ₹y less", red warning on loss, optional Valid until, Copy default / Reset.
+- Tests for the override resolution (slab pick, share vs flat, expiry).
+
+**Decisions (28 Oct):**
+- [x] % = share of what the provider pays (plus Flat ₹), same as the rate card
+- [x] Slab-wise, like the rate card
+- [x] Build in a new chat (L, money logic)
 
 ---
 
