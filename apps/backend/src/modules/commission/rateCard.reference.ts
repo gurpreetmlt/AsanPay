@@ -131,7 +131,8 @@ const ENTRIES: Entry[] = [
     },
   },
   {
-    match: /cash[ _]?withdraw/,
+    // Cash withdrawal and cash deposit use the same provider sheet.
+    match: /cash[ _]?withdraw|cash[ _]?deposit/,
     ref: {
       mode: "share",
       incomeRows: [
@@ -140,26 +141,6 @@ const ENTRIES: Entry[] = [
       ],
       askProvider: false,
       note: "Provider sheet 28 Oct: flat ₹ per ₹100 step up to ₹2,999.99, then ₹13.95 up to ₹10,000.",
-      costs: [DAILY_2FA],
-    },
-  },
-  {
-    match: /cash[ _]?deposit/,
-    ref: {
-      mode: "share",
-      incomeRows: [
-        { ...flat("0"), maxAmount: "100.00", note: "Up to ₹100 the provider pays nothing" },
-        {
-          ruleType: "percentage",
-          value: null,
-          capAmount: "13.95",
-          minAmount: "100.01",
-          maxAmount: null,
-          note: "Interchange % pending from provider — enter it before saving",
-        },
-      ],
-      askProvider: false,
-      note: "Above ₹100: % of amount, capped at ₹13.95",
       costs: [DAILY_2FA],
     },
   },
