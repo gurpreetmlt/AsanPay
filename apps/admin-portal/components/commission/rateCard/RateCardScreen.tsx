@@ -58,6 +58,18 @@ const ROW_BG = {
   slabOdd: "rgba(42,92,221,0.045)",
 };
 
+/**
+ * Blue frame around an open service: service row + its slab rows + "Add slab" row. Drawn with inset
+ * shadows per row because a table row group cannot carry one border box.
+ */
+function openBlockEdge(part: "top" | "middle" | "bottom"): string {
+  const c = B.blueLight;
+  const sides = [`inset 2px 0 0 ${c}`, `inset -2px 0 0 ${c}`];
+  if (part === "top") sides.push(`inset 0 2px 0 ${c}`);
+  if (part === "bottom") sides.push(`inset 0 -2px 0 ${c}`);
+  return sides.join(", ");
+}
+
 /** Company loses money on a slab, or a role earns ₹0 on it. */
 function hasLossOrMissing(row: ServiceRow): boolean {
   return row.slabs.some((s) => s.underwater || s.missingRoles.length > 0);
@@ -682,7 +694,7 @@ export function RateCardScreen() {
                               style={{
                                 borderColor: B.border,
                                 background: open ? ROW_BG.open : rowIndex % 2 ? ROW_BG.odd : ROW_BG.even,
-                                boxShadow: open ? `inset 3px 0 0 ${B.blueLight}` : undefined,
+                                boxShadow: open ? openBlockEdge("top") : undefined,
                               }}
                               onClick={() => toggle(row)}
                               aria-expanded={open}
@@ -726,7 +738,7 @@ export function RateCardScreen() {
                                     style={{
                                       borderColor: B.border,
                                       background: slabIndex % 2 ? ROW_BG.slabOdd : ROW_BG.slabEven,
-                                      boxShadow: `inset 3px 0 0 ${B.blueLight}`,
+                                      boxShadow: openBlockEdge("middle"),
                                       animationDelay: `${Math.min(slabIndex, 12) * 18}ms`,
                                     }}
                                     title="Open this slab"
@@ -748,7 +760,7 @@ export function RateCardScreen() {
                                 ))
                               : null}
                             {open ? (
-                              <tr className="rc-slab-in border-t" style={{ borderColor: B.border, boxShadow: `inset 3px 0 0 ${B.blueLight}` }}>
+                              <tr className="rc-slab-in border-t" style={{ borderColor: B.border, boxShadow: openBlockEdge("bottom") }}>
                                 <td colSpan={7} className="px-3 py-1.5">
                                   <button
                                     type="button"
