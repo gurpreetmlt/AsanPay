@@ -18,6 +18,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, Calendar, Check, CheckCircle2, Eye, EyeOff, MapPin, X } from "lucide-react-native";
 import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import { api, AADHAAR_OTP_TIMEOUT_MS } from "../../lib/api";
+import { bestFix } from "../../lib/geoCapture";
 import { apiError } from "../../utils/apiError";
 import { useAuthStore } from "../../store/auth";
 import { useTheme } from "../../theme/ThemeContext";
@@ -588,7 +589,11 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
       try {
         coords = await readPosition(false, 10_000);
       } catch {
-        coords = await readPosition(true, 12_000);
+        const pos = await bestFix(12_000);
+        coords = {
+          latitude: String(pos.coords.latitude),
+          longitude: String(pos.coords.longitude),
+        };
       }
 
       patch({ latitude: coords.latitude, longitude: coords.longitude });

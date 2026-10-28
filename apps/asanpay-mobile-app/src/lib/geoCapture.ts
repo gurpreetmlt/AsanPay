@@ -68,7 +68,7 @@ function cachedFix(): Promise<GeolocationResponse> {
  * "location not available" before its first fix indoors, so only a permission error ends
  * the watch early; anything else keeps waiting until the window closes.
  */
-function bestFix(): Promise<GeolocationResponse> {
+export function bestFix(windowMs: number = WATCH_MS): Promise<GeolocationResponse> {
   const watch = new Promise<GeolocationResponse>((resolve, reject) => {
     let best: GeolocationResponse | null = null;
     let lastErr: { code?: number } | undefined;
@@ -82,7 +82,7 @@ function bestFix(): Promise<GeolocationResponse> {
       if (pos) resolve(pos);
       else reject(lastErr ?? { code: 3 });
     };
-    const timer = setTimeout(() => finish(best), WATCH_MS);
+    const timer = setTimeout(() => finish(best), windowMs);
     watchId = Geolocation.watchPosition(
       (pos) => {
         if (!best || pos.coords.accuracy < best.coords.accuracy) best = pos;
@@ -92,7 +92,7 @@ function bestFix(): Promise<GeolocationResponse> {
         lastErr = err;
         if (err?.code === 1) finish(null);
       },
-      { enableHighAccuracy: true, distanceFilter: 0, interval: 1000, fastestInterval: 500, maximumAge: 0, timeout: WATCH_MS + 5000 },
+      { enableHighAccuracy: true, distanceFilter: 0, interval: 1000, fastestInterval: 500, maximumAge: 0, timeout: windowMs + 5000 },
     );
   });
   return watch.catch(async (err: { code?: number }) => {
